@@ -19,7 +19,6 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
         </div>
         <div>
-            <div class="rpt-eyebrow">FACILITY · @FacilityCatalog.ShortNameOf(FacilityCode.TPM) · REPORTS</div>
             <div class="rpt-title">@FacilityCatalog.NameOf(FacilityCode.TPM) Reports</div>
             <div class="rpt-subtitle">@(ShowPrintReport ? PrintReportPeriodLabel : ShowHistory ? HistoryPeriodLabel : GetPeriodLabel())</div>
         </div>
@@ -225,201 +224,127 @@ else if (ShowHistory)
 else
 {
     <!-- ══ Phase 1: Monthly / Yearly ══ -->
-    <div class="rpt-kpi-strip">
-        <div class="rpt-kpi-card">
-            <div class="kpi-icon-wrap kpi-icon-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h7a4 4 0 0 1 0 8H6z" /><line x1="4" y1="9" x2="16" y2="9" /><line x1="4" y1="13" x2="16" y2="13" /><line x1="6" y1="4" x2="6" y2="20" /></svg></div>
-            <div class="kpi-body">
-                <div class="kpi-label">Market Fees Collected</div>
-                <div class="kpi-value">&#8369;@TotalCollected.ToString("N2")</div>
-                <div class="kpi-change">@ActivePeriod.ToLower() total</div>
+    <div class="rpt-content tpm-body">
+        <dl class="tpm-summary" aria-label="@GetPeriodLabel() summary">
+            <div>
+                <dt>Fees collected</dt>
+                <dd>&#8369;@TotalCollected.ToString("N2")</dd>
             </div>
-        </div>
-        <div class="rpt-kpi-card">
-            <div class="kpi-icon-wrap kpi-icon-gold"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
-            <div class="kpi-body">
-                <div class="kpi-label">Avg Vendors / Market Day</div>
-                <div class="kpi-value">@AvgVendorsPerMarketDay.ToString("0.#")</div>
-                <div class="kpi-change">across @MarketDays market day@(MarketDays != 1 ? "s" : "")</div>
+            <div>
+                <dt>Vendor entries</dt>
+                <dd>@VendorEntries.ToString("N0")</dd>
             </div>
-        </div>
-        <div class="rpt-kpi-card">
-            <div class="kpi-icon-wrap kpi-icon-neutral"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
-            <div class="kpi-body">
-                <div class="kpi-label">Top Goods</div>
-                <div class="kpi-value kpi-value-text">@TopGoods</div>
-                <div class="kpi-change">@(TopGoodsEntries > 0 ? $"{TopGoodsEntries} entr{(TopGoodsEntries == 1 ? "y" : "ies")}" : "no entries yet")</div>
+            <div>
+                <dt>Market days</dt>
+                <dd>@MarketDays.ToString("N0")</dd>
             </div>
-        </div>
-        <div class="rpt-kpi-card">
-            <div class="kpi-icon-wrap kpi-icon-neutral"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
-            <div class="kpi-body">
-                <div class="kpi-label">Vendor Entries</div>
-                <div class="kpi-value">@VendorEntries</div>
-                <div class="kpi-change">across @MarketDays market day@(MarketDays != 1 ? "s" : "")</div>
+            <div>
+                <dt>Vendors per market day</dt>
+                <dd>@AvgVendorsPerMarketDay.ToString("0.#")</dd>
             </div>
-        </div>
-    </div>
+        </dl>
 
-    <div class="rpt-content">
+        <section class="tpm-panel" aria-labelledby="tpm-trend-title">
+            <h2 id="tpm-trend-title" class="tpm-panel-title">Collection trend</h2>
+            <p class="tpm-panel-note">@(ActivePeriod switch { "Yearly" => "Collected fees by year", "Weekly" => WeeklyTrendSubtitle, _ => "Collected fees by month" })</p>
+            <CollectionTrendChart Trend="_revenueTrend" RentLabel="Collected" EmptyPeriodLabel="@GetPeriodLabel()" />
+        </section>
 
-        <!-- Charts Row -->
-        <div class="rpt-charts-row">
-            <div class="rpt-chart-card rpt-chart-wide">
-                <div class="chart-header">
-                    <div class="chart-header-left">
-                        <h3 class="chart-title">Collection Trend</h3>
-                        <p class="chart-subtitle">@(ActivePeriod switch { "Yearly" => "Collected fees by year", "Weekly" => WeeklyTrendSubtitle, _ => "Collected fees by month" })</p>
-                    </div>
-                    <div class="chart-legend">
-                        <div class="legend-item"><span class="legend-dot" style="background:#2d7a5f"></span><span class="legend-label">Collected</span></div>
-                        <div class="legend-item"><span class="legend-dot" style="background:#c8a84b"></span><span class="legend-label">Current Period</span></div>
-                    </div>
+        <div class="tpm-registers">
+            <section class="v3-report-section tpm-goods" aria-labelledby="tpm-goods-title">
+                <h2 id="tpm-goods-title" class="tpm-register-title">Vendors by goods</h2>
+                <div class="tpm-table-scroll">
+                    <table class="v3-report-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Goods</th>
+                                <th scope="col" class="v3-num">Entries</th>
+                                <th scope="col" class="v3-num">Share</th>
+                                <th scope="col" class="v3-num">Collected</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var g in GoodsBreakdown)
+                            {
+                                var pct = VendorEntries > 0 ? Math.Min(100, (int)Math.Round((double)g.Entries / VendorEntries * 100)) : 0;
+                                <tr>
+                                    <th scope="row" class="tpm-row-name">@g.Goods</th>
+                                    <td class="v3-num">@g.Entries.ToString("N0")</td>
+                                    <td class="v3-num">@pct%</td>
+                                    <td class="v3-num">&#8369;@g.Collected.ToString("N2")</td>
+                                </tr>
+                            }
+                            @if (!GoodsBreakdown.Any())
+                            {
+                                <tr><td colspan="4" class="tpm-empty">No vendor entries for @GetPeriodLabel().</td></tr>
+                            }
+                        </tbody>
+                    </table>
                 </div>
-                <CollectionTrendChart Trend="_revenueTrend" RentLabel="Collected" EmptyPeriodLabel="@GetPeriodLabel()" />
-            </div>
+            </section>
 
-            <!-- Vendors by Goods donut -->
-            <div class="rpt-chart-card rpt-chart-narrow rpt-status-card">
-                <div class="chart-header">
-                    <div class="chart-header-left">
-                        <h3 class="chart-title">Vendors by Goods</h3>
-                        <p class="chart-subtitle">@(GoodsBreakdown.Count > 5 ? $"Top 5 of {GoodsBreakdown.Count} categories" : "Share of entries per goods")</p>
-                    </div>
-                </div>
-                <div class="rpt-donut-wrap">
-                    <div class="rpt-donut-container">
-                        <svg class="rpt-donut-svg" viewBox="0 0 120 120">
-                            <defs>
-                                @foreach (var c in GoodsSegments.Select(s => s.Color).Distinct())
-                                {
-                                    <linearGradient id="@TpmGradId(c)" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stop-color="@c" /><stop offset="100%" stop-color="@Darken(c)" />
-                                    </linearGradient>
-                                }
-                                <radialGradient id="tpm-donut-hole" cx="50%" cy="40%" r="62%">
-                                    <stop offset="0%" stop-color="#ffffff" /><stop offset="100%" stop-color="#eef2f6" />
-                                </radialGradient>
-                                <filter id="tpm-donut-depth" x="-30%" y="-30%" width="160%" height="160%">
-                                    <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#0d2137" flood-opacity="0.18" />
-                                </filter>
-                            </defs>
-                            <circle cx="60" cy="60" r="46" fill="none" stroke="#eef2f6" stroke-width="18" />
-                            @{ var gArcs = BuildDonutArcs(GoodsSegments.Select(s => (s.Count, $"url(#{TpmGradId(s.Color)})")).ToArray(), 46, 60, 60); }
-                            <g filter="url(#tpm-donut-depth)">
-                                @foreach (var arc in gArcs)
-                                {
-                                    <path d="@arc.D" fill="none" stroke="@arc.Color" stroke-width="18" stroke-linecap="butt" class="donut-segment" />
-                                }
-                            </g>
-                            <circle cx="60" cy="60" r="35" fill="url(#tpm-donut-hole)" />
-                            <circle cx="60" cy="60" r="35" fill="none" stroke="rgba(13,33,55,0.07)" stroke-width="1" />
-                            <text x="60" y="56" class="donut-center-val">@VendorEntries</text>
-                            <text x="60" y="70" class="donut-center-lbl">ENTRIES</text>
-                        </svg>
-                    </div>
-                    <div class="rpt-donut-legend">
-                        @foreach (var seg in GoodsSegments)
-                        {
-                            var legPct = VendorEntries > 0 ? (int)Math.Round((double)seg.Count / VendorEntries * 100) : 0;
-                            <div class="donut-leg-item">
-                                <div class="donut-leg-left"><span class="donut-leg-dot" style="background:linear-gradient(180deg, @seg.Color 0%, @Darken(seg.Color) 100%)"></span><span class="donut-leg-label">@seg.Label</span></div>
-                                <strong class="donut-leg-value">@seg.Count <span class="donut-leg-pct">· @legPct%</span></strong>
-                            </div>
-                        }
-                        @if (!GoodsSegments.Any())
-                        {
-                            <div class="delinq-empty">No vendor entries for @GetPeriodLabel().</div>
-                        }
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Audit Breakdown -->
-        <div class="rpt-section-heading"><span class="rpt-section-rule"></span><h2>Audit Breakdown</h2></div>
-
-        <div class="rpt-audit-row">
-            <!-- Vendors by Goods -->
-            <div class="audit-card tpm-breakdown-card">
-                <div class="audit-card-head">
-                    <span>Vendors by Goods</span>
-                    <small class="audit-subtitle">Entries &amp; fees per goods category</small>
-                </div>
-                @if (GoodsBreakdown.Any())
-                {
-                    <div class="tpm-tally-scroll">
-                        @foreach (var g in GoodsBreakdown)
-                        {
-                            var pct = VendorEntries > 0 ? Math.Min(100, (int)Math.Round((double)g.Entries / VendorEntries * 100)) : 0;
-                            <div class="tpm-tally-row">
-                                <div class="tpm-tally-top">
-                                    <span class="tpm-tally-name">@g.Goods</span>
-                                    <span class="tpm-tally-pct">@pct%</span>
-                                </div>
-                                <div class="tpm-tally-meter"><div class="tpm-tally-fill" style="width:@pct%"></div></div>
-                                <div class="tpm-tally-vals"><span><strong>@g.Entries</strong> entr@(g.Entries != 1 ? "ies" : "y")</span><span class="tpm-tally-sep">·</span><span>&#8369;@g.Collected.ToString("N0") collected</span></div>
-                            </div>
-                        }
-                    </div>
-                }
-                else
-                {
-                    <div class="delinq-empty">No vendor entries for @GetPeriodLabel().</div>
-                }
-            </div>
-
-            <!-- Attendance / summary log beside the breakdown -->
-            <div class="audit-card tpm-log-card">
-                <div class="audit-card-head">
-                    <span>@(IsYearly ? $"Monthly Summary — {CurrentDate.Year}" : $"Vendor Attendance Log — {GetPeriodLabel()}")</span>
-                </div>
-                <div class="tpm-log-scroll">
+            <section class="v3-report-section tpm-log" aria-labelledby="tpm-log-title">
+                <h2 id="tpm-log-title" class="tpm-register-title">@(IsYearly ? $"Monthly summary, {CurrentDate.Year}" : $"Vendor attendance, {GetPeriodLabel()}")</h2>
+                <div class="tpm-table-scroll">
                     @if (IsYearly)
                     {
-                        <table class="rpt-compliance-table">
-                            <thead><tr><th>Month</th><th>Market Days</th><th>Vendor Entries</th><th>Collected</th></tr></thead>
+                        <table class="v3-report-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Month</th>
+                                    <th scope="col" class="v3-num">Market days</th>
+                                    <th scope="col" class="v3-num">Vendor entries</th>
+                                    <th scope="col" class="v3-num">Collected</th>
+                                </tr>
+                            </thead>
                             <tbody>
                                 @foreach (var row in HistoryMonthly)
                                 {
                                     <tr>
-                                        <td class="stall-no">@row.Label</td>
-                                        <td>@row.MarketDays</td>
-                                        <td>@row.VendorEntries</td>
-                                        <td>@(row.Collected > 0 ? "₱" + row.Collected.ToString("N2") : "—")</td>
+                                        <th scope="row" class="tpm-row-name">@row.Label</th>
+                                        <td class="v3-num">@row.MarketDays</td>
+                                        <td class="v3-num">@row.VendorEntries</td>
+                                        <td class="v3-num">@(row.Collected > 0 ? "₱" + row.Collected.ToString("N2") : "—")</td>
                                     </tr>
                                 }
                                 @if (!HistoryMonthly.Any())
                                 {
-                                    <tr><td colspan="4" class="delinq-empty">No records for @CurrentDate.Year.</td></tr>
+                                    <tr><td colspan="4" class="tpm-empty">No records for @CurrentDate.Year.</td></tr>
                                 }
                             </tbody>
                         </table>
                     }
                     else
                     {
-                        <table class="rpt-compliance-table">
-                            <thead><tr><th>Market Date</th><th>Vendor</th><th>Goods</th><th>Fee</th></tr></thead>
+                        <table class="v3-report-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Market date</th>
+                                    <th scope="col">Vendor</th>
+                                    <th scope="col">Goods</th>
+                                    <th scope="col" class="v3-num">Fee</th>
+                                </tr>
+                            </thead>
                             <tbody>
                                 @foreach (var a in MonthAtt)
                                 {
                                     <tr>
-                                        <td class="text-muted">@a.MarketDate.ToString("MMM d")</td>
+                                        <td class="tpm-date">@a.MarketDate.ToString("MMM d")</td>
                                         <td>@a.VendorName</td>
                                         <td>@a.Goods</td>
-                                        <td class="tpm-fee">&#8369;@a.Fee.ToString("N0")</td>
+                                        <td class="v3-num">&#8369;@a.Fee.ToString("N2")</td>
                                     </tr>
                                 }
                                 @if (!MonthAtt.Any())
                                 {
-                                    <tr><td colspan="4" class="delinq-empty">No vendor attendance for @GetPeriodLabel().</td></tr>
+                                    <tr><td colspan="4" class="tpm-empty">No vendor attendance for @GetPeriodLabel().</td></tr>
                                 }
                             </tbody>
                         </table>
                     }
                 </div>
-            </div>
+            </section>
         </div>
-
     </div><!-- end rpt-content -->
 }
 
@@ -551,7 +476,6 @@ else
             ?? DayOfWeek.Friday;
 
         _goodsBreakdown = BuildGoodsBreakdown();
-        _goodsSegments = BuildGoodsSegments(_goodsBreakdown);
         _revenueTrend = BuildRevenueTrend();
     }
 
@@ -693,8 +617,6 @@ else
     int     VendorEntries  => IsYearly ? (YearRow?.VendorEntries ?? 0) : MonthAtt.Count;
     int     MarketDays     => IsYearly ? (YearRow?.MarketDays ?? 0) : MonthAtt.Select(a => a.MarketDate).Distinct().Count();
     decimal AvgVendorsPerMarketDay => MarketDays > 0 ? Math.Round((decimal)VendorEntries / MarketDays, 1) : 0m;
-    string  TopGoods       => GoodsBreakdown.Count > 0 ? GoodsBreakdown[0].Goods : "—";
-    int     TopGoodsEntries => GoodsBreakdown.Count > 0 ? GoodsBreakdown[0].Entries : 0;
 
     // ── Goods breakdown (period-aware, memoized) ──────────────────
     record TallyRow(string Goods, int Entries, decimal Collected);
@@ -711,24 +633,6 @@ else
             .Select(g => new TallyRow(g.Key, g.Count(), g.Where(a => a.IsPaid).Sum(a => a.Fee)))
             .OrderByDescending(g => g.Entries)
             .ToList();
-    }
-
-    // ── Goods donut segments (top 5 + Other) — mirrors TRM's route donut ──
-    record DonutSeg(string Label, int Count, string Color);
-    static readonly string[] GoodsPalette = { "#1e3a5f", "#2d7a5f", "#c8a84b", "#6a8aa0", "#b5894e" };
-    private IReadOnlyList<DonutSeg> _goodsSegments = Array.Empty<DonutSeg>();
-    IReadOnlyList<DonutSeg> GoodsSegments => _goodsSegments;
-
-    IReadOnlyList<DonutSeg> BuildGoodsSegments(IReadOnlyList<TallyRow> ranked)
-    {
-        var segs = ranked.Take(5)
-            .Select((g, i) => new DonutSeg(g.Goods, g.Entries, GoodsPalette[i % GoodsPalette.Length]))
-            .ToList();
-        var rest = ranked.Skip(5).ToList();
-        var other = rest.Sum(g => g.Entries);
-        if (other > 0)
-            segs.Add(new DonutSeg($"Other ({rest.Count} categor{(rest.Count == 1 ? "y" : "ies")})", other, "#c3ced8"));
-        return segs;
     }
 
     // ── Trend (per Friday for Monthly, per month for Yearly; memoized) ──
@@ -800,34 +704,4 @@ else
 
     public sealed record ReportTrendState(int Year, int Month, decimal Collected);
 
-    // ── Donut arc builder ─────────────────────────────────────────
-    // Per-segment vertical gradient id + a darker shade for the bottom stop (matches NPM's donut depth).
-    static string TpmGradId(string color) => "tpmg-" + color.TrimStart('#');
-    static string Darken(string hex, double f = 0.68)
-    {
-        hex = hex.TrimStart('#');
-        if (hex.Length != 6) return "#" + hex;
-        var r = (int)(Convert.ToInt32(hex.Substring(0, 2), 16) * f);
-        var g = (int)(Convert.ToInt32(hex.Substring(2, 2), 16) * f);
-        var b = (int)(Convert.ToInt32(hex.Substring(4, 2), 16) * f);
-        return $"#{r:X2}{g:X2}{b:X2}";
-    }
-
-    record ArcSegment(string D, string Color);
-    static IEnumerable<ArcSegment> BuildDonutArcs((int Count, string Color)[] segments, double r, double cx, double cy)
-    {
-        int total = segments.Sum(s => s.Count);
-        if (total == 0) yield break;
-        double start = -Math.PI / 2;
-        foreach (var (count, color) in segments)
-        {
-            if (count == 0) continue;
-            double sweep = 2 * Math.PI * count / total;
-            double end = start + Math.Min(sweep, 2 * Math.PI - 0.0001);
-            double x1 = cx + r * Math.Cos(start), y1 = cy + r * Math.Sin(start);
-            double x2 = cx + r * Math.Cos(end),   y2 = cy + r * Math.Sin(end);
-            yield return new ArcSegment($"M {x1:F3} {y1:F3} A {r} {r} 0 {(sweep > Math.PI ? 1 : 0)} 1 {x2:F3} {y2:F3}", color);
-            start = end;
-        }
-    }
 }
