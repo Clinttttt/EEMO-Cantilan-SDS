@@ -76,6 +76,23 @@ public sealed class SyncOfflineCollectionsCommandHandler(
                     fee.IsSuccess ? null : fee.Error, fee.Value?.ReferenceCode, fee.Value?.CollectionId));
                 continue;
             }
+            if (op.Kind == OfflineOperationKind.ObligationCollection)
+            {
+                if (ecfWorkflow is null)
+                {
+                    results.Add(new SyncOperationResultDto(op.ClientOperationId, SyncResultStatus.Failed,
+                        "Vendor fee canonical sync is not configured."));
+                    continue;
+                }
+                var vendorFee = await ecfWorkflow.PostMobileObligationAsync(new MobileObligationPostRequest(
+                    op.ClientOperationId, op.ObligationAccountId ?? Guid.Empty, op.BillingYear ?? op.BusinessDate.Year,
+                    op.BillingMonth ?? op.BusinessDate.Month, op.ReceivedAmount ?? 0m, op.BusinessDate), ct);
+                var vendorStatus = vendorFee.IsSuccess ? SyncResultStatus.Synced
+                    : IsTransient(vendorFee.StatusCode) ? SyncResultStatus.Failed : SyncResultStatus.Rejected;
+                results.Add(new SyncOperationResultDto(op.ClientOperationId, vendorStatus,
+                    vendorFee.IsSuccess ? null : vendorFee.Error, vendorFee.Value?.ReferenceCode, vendorFee.Value?.CollectionId));
+                continue;
+            }
             if (op.Kind == OfflineOperationKind.RentCollection)
             {
                 if (ecfWorkflow is null)

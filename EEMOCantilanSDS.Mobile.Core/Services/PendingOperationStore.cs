@@ -75,6 +75,7 @@ public sealed class PendingOperationStore : IPendingOperationStore
             {
                 OfflineOperationKind.EcfCollection => operation.UtilityBillId is not null && operation.ElectricitySourceVersion is > 0,
                 OfflineOperationKind.RentCollection => operation.StallId is not null && operation.BillingYear is not null && operation.BillingMonth is not null && operation.RentSourceVersion is >= 0,
+                OfflineOperationKind.ObligationCollection => operation.ObligationAccountId is not null && operation.BillingYear is not null && operation.BillingMonth is not null,
                 OfflineOperationKind.FeeScheduleCollection => operation.OperationCode switch
                 {
                     global::EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Tabo => !string.IsNullOrWhiteSpace(operation.VendorName),

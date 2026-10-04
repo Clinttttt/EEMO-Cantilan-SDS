@@ -124,6 +124,9 @@ public sealed class PendingOperation
     public long? ElectricitySourceVersion { get; set; }
     public long? RentSourceVersion { get; set; }
 
+    // Canonical Fish / Meat Vendor Fee (Kind = ObligationCollection): the obligation account (BillingYear/BillingMonth name the period).
+    public Guid? ObligationAccountId { get; set; }
+
     // ── WCF direct entry: the selected source (StallId above) and its billing period. The amount the collector stated is
     //    ReceivedAmount; the ticket is AccountableDocumentId. All four stay bound to one ClientOperationId across restarts.
     public int? BillingYear { get; set; }
@@ -203,5 +206,6 @@ public sealed class PendingOperation
         BillingMonth,
         FeeOptionId,
         ElectricitySourceVersion,
-        RentSourceVersion);
+        RentSourceVersion,
+        ObligationAccountId);
 }

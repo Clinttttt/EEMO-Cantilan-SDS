@@ -1,0 +1,280 @@
+@page "/vendor-fee"
+@using System.Globalization
+@using global::EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using global::EEMOCantilanSDS.Application.Dtos.Mobile
+@using global::EEMOCantilanSDS.Application.Dtos.Revenue
+@using global::EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Mobile.Models
+@using EEMOCantilanSDS.Mobile.Services
+@inject NavigationManager Navigation
+@inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
+@inject IMobileApiClient MobileApi
+@inject EEMOCantilanSDS.Mobile.Services.MobileSyncService Sync
+
+@* Fish / Meat Vendor Fee: the office's own monthly obligation per Fish/Meat stall (IA-050). The collector chooses which vendor and
+   month and how much was received; the amounts are the server's and never typed as a rule. No receipt number is asked for: the
+   server returns a StallTrack reference code (SRC), which is not an Official Receipt. *@
+<div class="page-shell">
+    <div class="header">
+        <div class="header-row">
+            <button class="back-btn" type="button" @onclick="GoBack" aria-label="Back to menu">
+                <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+            </button>
+            <div class="header-title-block">
+                <div class="header-title">Fish / Meat Vendor Fee</div>
+                <div class="header-sub">Monthly vendor fee</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="date-strip">
+        <div class="date-strip-left">Collector: <span>@Session.CollectorName</span></div>
+    </div>
+
+    <div class="content">
+        @if (IsLoading)
+        {
+            <LoadingState Text="Loading vendor fees…" />
+        }
+        else if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            <ErrorState Title="Couldn't load vendor fees" Message="@ErrorMessage" OnRetry="LoadAsync" />
+        }
+        else
+        {
+            @if (!string.IsNullOrWhiteSpace(Notice))
+            {
+                <div class="state-card" role="status">
+                    <div class="state-text">@Notice</div>
+                </div>
+            }
+
+            <div class="section-label">Vendor fees due</div>
+
+            @if (Dues.Count == 0 && Captured.Count == 0)
+            {
+                <div class="state-card">
+                    <div class="state-title">Nothing due</div>
+                    <div class="state-text">No vendor fee has a balance to collect right now.</div>
+                </div>
+            }
+
+            @foreach (var c in Captured)
+            {
+                <div class="tx-card tx-card-queued">
+                    <div class="tx-left-bar tx-left-bar-queued"></div>
+                    <div class="tx-body">
+                        <div class="tx-row-main">
+                            <div class="tx-col-info">
+                                <span class="tx-owner">@c.Title</span>
+                                <span class="tx-sub">
+                                    <span class="tx-badge badge-queued">@c.Badge</span>
+                                    <span class="tx-tag">@c.Detail</span>
+                                </span>
+                            </div>
+                            <div class="tx-col-right"><span class="tx-amount">@Money(c.Amount)</span></div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @foreach (var due in Dues)
+            {
+                <button class="tx-card" type="button" @onclick="() => Open(due)">
+                    <div class="tx-left-bar"></div>
+                    <div class="tx-body">
+                        <div class="tx-row-main">
+                            <div class="tx-col-info">
+                                <span class="tx-owner">@(due.PayorName ?? due.SubjectLabel)</span>
+                                <span class="tx-sub">
+                                    <span class="tx-tag">@due.SubjectLabel</span>
+                                    @if (!string.IsNullOrWhiteSpace(due.StallNo))
+                                    {
+                                        <span class="tx-tag">Stall @due.StallNo</span>
+                                    }
+                                    <span class="tx-or">@due.PeriodStart.ToString("MMM yyyy", CultureInfo.InvariantCulture)</span>
+                                </span>
+                            </div>
+                            <div class="tx-col-right"><span class="tx-amount">@Money(due.OutstandingAmount)</span></div>
+                        </div>
+                    </div>
+                </button>
+            }
+        }
+    </div>
+
+    <BottomNav ActiveTab="menu" />
+</div>
+
+@if (Selected is not null)
+{
+    <div class="sheet-overlay" @onclick="Close">
+        <div class="sheet" @onclick:stopPropagation="true" role="dialog" aria-modal="true" aria-labelledby="vf-title">
+            <div class="sheet-handle"></div>
+            <div class="sheet-title" id="vf-title">Collect vendor fee</div>
+            <div class="sheet-sub">@(Selected.PayorName ?? Selected.SubjectLabel) · @Selected.SubjectLabel@(string.IsNullOrWhiteSpace(Selected.StallNo) ? "" : $" · Stall {Selected.StallNo}")</div>
+
+            <div class="receipt-meta-row"><span>Month</span><strong>@Selected.PeriodStart.ToString("MMMM yyyy", CultureInfo.InvariantCulture)</strong></div>
+            <div class="receipt-meta-row"><span>Monthly fee</span><strong>@Money(Selected.AssessedAmount)</strong></div>
+            <div class="receipt-meta-row"><span>Already collected</span><strong>@Money(Selected.SettledAmount)</strong></div>
+            <div class="receipt-meta-row"><span>Balance</span><strong>@Money(Selected.OutstandingAmount)</strong></div>
+
+            <div class="or-number-wrap">
+                <div class="form-label">Amount received</div>
+                <input class="form-input" type="number" inputmode="decimal" min="0.01" step="0.01" max="@Selected.OutstandingAmount.ToString(CultureInfo.InvariantCulture)" @bind="Amount" @bind:event="oninput" aria-label="Amount received" />
+                <div class="form-label" style="margin-top:12px;">Instrument</div>
+                <div><span class="tx-badge">OR · Official Receipt</span></div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(SheetError))
+            {
+                <div class="form-error" role="alert">@SheetError</div>
+            }
+
+            <div class="sheet-btn-row">
+                <button class="btn-cancel" type="button" @onclick="Close">Cancel</button>
+                <button class="btn-confirm" type="button" @onclick="ConfirmAsync" disabled="@IsSaving">@(IsSaving ? "Saving..." : "Confirm")</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool IsLoading = true;
+    private bool IsSaving;
+    private string? ErrorMessage;
+    private string? Notice;
+    private string? SheetError;
+    private IReadOnlyList<MobileVendorFeeDueDto> Dues = [];
+    private MobileVendorFeeDueDto? Selected;
+    private decimal Amount;
+
+    private sealed record Capture(string Title, string Detail, decimal Amount, string Badge);
+    private IReadOnlyList<Capture> Captured = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { await Session.InitializeAsync(); }
+        catch (HttpRequestException)
+        {
+            Navigation.NavigateTo("/login", forceLoad: false);
+            return;
+        }
+        if (Session.Menu?.Facilities.Any(f => f.Code == FacilityCode.NPM && f.IsAvailable) != true)
+        {
+            Navigation.NavigateTo("/menu", forceLoad: false);
+            return;
+        }
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        IsLoading = true;
+        ErrorMessage = null;
+        StateHasChanged();
+        try
+        {
+            var result = await MobileApi.GetVendorFeeDuesAsync();
+            if (!result.IsSuccess || result.Value is null)
+            {
+                ErrorMessage = result.Error ?? "Unable to load vendor fees.";
+                return;
+            }
+            Dues = result.Value;
+            await RefreshCapturedAsync();
+        }
+        catch
+        {
+            ErrorMessage = "Unable to connect to the server. Please check the connection and try again.";
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    // The collector's own captures for this screen: waiting to sync, recorded (with the SRC) or refused. The server list is the
+    // collectible balance; a collection already synced reduces it, and its SRC card stays visible here.
+    private async Task RefreshCapturedAsync()
+    {
+        var pending = await Sync.GetAllAsync();
+        Captured = pending.Where(o => o.Kind == OfflineOperationKind.ObligationCollection)
+            .Select(o => new Capture(o.Title ?? "Vendor fee", o.Detail ?? string.Empty, o.Amount,
+                o.LocalStatus == PendingLocalStatus.Synced ? (o.ReferenceCode is { } src ? $"Recorded · {src}" : "Recorded")
+                : o.LocalStatus is PendingLocalStatus.Rejected or PendingLocalStatus.ReconciliationRequired ? "Not recorded"
+                : "Waiting to sync")).ToList();
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/menu", forceLoad: false);
+
+    private void Open(MobileVendorFeeDueDto due)
+    {
+        Selected = due;
+        Amount = due.OutstandingAmount;
+        SheetError = null;
+    }
+
+    private void Close()
+    {
+        Selected = null;
+        SheetError = null;
+    }
+
+    private async Task ConfirmAsync()
+    {
+        if (Selected is not { } due || IsSaving) return;
+        if (Amount <= 0m || decimal.Round(Amount, 2, MidpointRounding.ToZero) != Amount)
+        {
+            SheetError = "Enter the amount received, with at most two decimals.";
+            return;
+        }
+        if (Amount > due.OutstandingAmount)
+        {
+            SheetError = $"The amount cannot exceed the balance of {Money(due.OutstandingAmount)}.";
+            return;
+        }
+        IsSaving = true;
+        SheetError = null;
+        var operationId = Guid.NewGuid();
+        try
+        {
+            await Sync.EnqueueIssuedDocumentAsync(new PendingOperation
+            {
+                ClientOperationId = operationId,
+                Kind = OfflineOperationKind.ObligationCollection,
+                PayloadVersion = 1,
+                BusinessDate = Session.Menu?.Today ?? DateOnly.FromDateTime(DateTime.Now),
+                ObligationAccountId = due.AccountId,
+                BillingYear = due.PeriodStart.Year,
+                BillingMonth = due.PeriodStart.Month,
+                ReceivedAmount = Amount,
+                FacilityLabel = "NPM",
+                Title = due.PayorName ?? due.SubjectLabel,
+                Detail = $"Vendor fee · {due.PeriodStart.ToString("MMM yyyy", CultureInfo.InvariantCulture)}",
+                Amount = Amount
+            });
+            Notice = "Saved on this device. Waiting to sync.";
+            Close();
+            if (Sync.IsOnline)
+                await Sync.SyncNowAsync(force: true);
+            var result = (await Sync.GetAllAsync()).FirstOrDefault(x => x.ClientOperationId == operationId);
+            if (result?.LocalStatus == PendingLocalStatus.Synced)
+                Notice = result.ReferenceCode is { } src ? $"Collection recorded · {src}" : "Collection recorded.";
+            else if (result?.LocalStatus is PendingLocalStatus.Rejected or PendingLocalStatus.ReconciliationRequired)
+                Notice = result.ResultMessage ?? "The server could not accept this collection. It was not recorded.";
+            await LoadAsync();
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        {
+            SheetError = "The collection could not be safely saved on this device. Do not rely on it; resolve device storage attention first.";
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    private static string Money(decimal value) => $"₱{value:N2}";
+}

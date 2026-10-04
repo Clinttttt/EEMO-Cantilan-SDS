@@ -56,6 +56,12 @@ public class MobileController(ISender sender, WcfCollectionWorkflow wcfWorkflow,
     /// Read-only: which assigned non-facility operations are collectible now. Assignment alone is never collectible;
     /// posting endpoints still revalidate every gate.
     /// </summary>
+    /// <summary>Fish / Meat vendor-fee periods with a remaining balance. The collector and tenant come from the token (IA-050/IA-062).</summary>
+    [HttpGet("vendor-fee-dues")]
+    public async Task<ActionResult<IReadOnlyList<MobileVendorFeeDueDto>>> GetVendorFeeDuesAsync(
+        [FromServices] EEMOCantilanSDS.Application.Common.Revenue.CollectionComposerWorkflow composer, CancellationToken ct) =>
+        HandleResponse(await composer.GetMobileVendorFeeDuesAsync(ct));
+
     [HttpGet("operations/capabilities")]
     public async Task<ActionResult<CollectorOperationCapabilitiesDto>> GetOperationCapabilitiesAsync(CancellationToken ct) =>
         HandleResponse(await Sender.Send(new GetCollectorOperationCapabilitiesQuery(), ct));

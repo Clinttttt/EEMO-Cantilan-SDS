@@ -76,6 +76,10 @@ public sealed class CachingMobileApiClient(
     public Task<Result<EEMOCantilanSDS.Application.Dtos.Revenue.CollectionsRegisterDto>> GetMyCollectionsAsync(DateOnly from, DateOnly to) =>
         ReadThroughAsync($"my-collections|{from:yyyy-MM-dd}|{to:yyyy-MM-dd}", () => inner.GetMyCollectionsAsync(from, to));
 
+    // Fresh when online; the last synchronized list when offline (the post is re-validated by the server on sync).
+    public Task<Result<IReadOnlyList<MobileVendorFeeDueDto>>> GetVendorFeeDuesAsync() =>
+        ReadThroughAsync($"vendor-fee-dues|{Today}", inner.GetVendorFeeDuesAsync);
+
     public Task<Result<CollectorOperationCapabilitiesDto>> GetOperationCapabilitiesAsync() =>
         ReadThroughAsync($"operations|capabilities|{Today}", inner.GetOperationCapabilitiesAsync);
 

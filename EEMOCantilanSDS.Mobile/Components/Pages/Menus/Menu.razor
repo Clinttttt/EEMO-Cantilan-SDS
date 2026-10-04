@@ -123,6 +123,26 @@
                 }
             </section>
 
+            @if (Facilities.Any(f => f.Code == FacilityCode.NPM && f.IsAvailable))
+            {
+                @* A distinct monthly source owned by NPM Fish/Meat stalls (IA-050): not a daily stall fee. *@
+                <section class="menu-group" aria-labelledby="menu-vendor-fee">
+                    <h2 id="menu-vendor-fee" class="menu-group-title">Vendor fees</h2>
+                    <ul class="menu-list">
+                        <li>
+                            <button class="menu-row" type="button" @onclick='() => Navigation.NavigateTo("/vendor-fee", forceLoad: false)'>
+                                <span class="menu-tile ready" aria-hidden="true">FM</span>
+                                <span class="menu-row-main">
+                                    <span class="menu-row-name">Fish / Meat Vendor Fee</span>
+                                    <span class="menu-chip ready">Monthly</span>
+                                </span>
+                                <span class="menu-row-chevron" aria-hidden="true">›</span>
+                            </button>
+                        </li>
+                    </ul>
+                </section>
+            }
+
             @if (Work.AssignedUnavailable.Count > 0)
             {
                 @* Assignment alone is never collectibility: these are plain status rows with no action. *@

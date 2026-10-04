@@ -182,3 +182,16 @@ public sealed record MobileEcfPostRequest(
 /// <summary>Collector Mobile monthly-rent collection (IA-051/IA-062) for one canonical PaymentRecord. No physical serial; the server returns the SRC.</summary>
 public sealed record MobileRentPostRequest(
     Guid ClientOperationId, Guid StallId, int BillingYear, int BillingMonth, decimal ReceivedAmount, long SourceVersion, DateOnly BusinessDate);
+
+/// <summary>
+/// Collector Mobile Fish / Meat Vendor Fee collection (IA-050/IA-062) against one period of an existing obligation account. The
+/// account, its approved monthly amount and its Payor are the office's own; the collector states only which account and period, and how
+/// much was received (never more than the period's remaining balance). No physical serial; the server returns the SRC.
+/// </summary>
+public sealed record MobileObligationPostRequest(
+    Guid ClientOperationId, Guid AccountId, int BillingYear, int BillingMonth, decimal ReceivedAmount, DateOnly BusinessDate);
+
+/// <summary>One collectible Fish / Meat vendor-fee period as the collector sees it. Amounts are the server's; nothing is typed.</summary>
+public sealed record MobileVendorFeeDueDto(
+    Guid AccountId, string SubjectLabel, string? StallNo, string? PayorName, DateOnly PeriodStart,
+    decimal AssessedAmount, decimal SettledAmount, decimal OutstandingAmount);

@@ -24,6 +24,9 @@ public interface IMobileApiClient
     Task<Result<EEMOCantilanSDS.Application.Dtos.Revenue.CollectionsRegisterDto>> GetMyCollectionsAsync(DateOnly from, DateOnly to);
 
 
+    /// <summary>Fish / Meat vendor-fee periods with a remaining balance, for an NPM-assigned collector (GET api/Mobile/vendor-fee-dues).</summary>
+    Task<Result<IReadOnlyList<MobileVendorFeeDueDto>>> GetVendorFeeDuesAsync();
+
     /// <summary>The approved terms in force today for an assigned governed operation (GET api/governed-services/{code}/terms).</summary>
     Task<Result<GovernedServiceTermsDto>> GetOperationTermsAsync(string operationCode, GovernedServiceMode? mode);
 

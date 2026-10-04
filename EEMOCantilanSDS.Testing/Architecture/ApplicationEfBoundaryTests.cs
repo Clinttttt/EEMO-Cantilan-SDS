@@ -158,6 +158,7 @@ public class ApplicationEfBoundaryTests
         "CollectionComposerWorkflow.cs",
         "CollectionComposerWorkflow.MobileEcf.cs",
         "CollectionComposerWorkflow.MobileRent.cs",
+        "CollectionComposerWorkflow.MobileObligation.cs",
         // The WCF operation adapter and accountable-form custody workflow require one tenant-scoped tracked
         // context to revalidate Water/document state and persist the shared posting outcome atomically.
         "WcfCollectionWorkflow.cs",

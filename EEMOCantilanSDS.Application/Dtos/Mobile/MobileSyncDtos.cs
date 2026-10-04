@@ -20,7 +20,9 @@ public enum OfflineOperationKind
     /// <summary>A canonical monthly-rent collection on an already-canonical PaymentRecord: amount only, no physical serial (IA-062).</summary>
     RentCollection = 10,
     /// <summary>A canonical Tabo (vendor market-day) or Slaughterhouse (approved animal x heads) collection: facts only, the amount is the office's existing fee schedule, no physical serial (IA-062).</summary>
-    FeeScheduleCollection = 11
+    FeeScheduleCollection = 11,
+    /// <summary>A canonical Fish / Meat Vendor Fee collection against one period of an existing obligation account: facts only, no physical serial (IA-050/IA-062).</summary>
+    ObligationCollection = 12
 }
 
 /// <summary>Outcome of replaying one offline operation. Synced = persisted; Rejected = a terminal
@@ -100,7 +102,9 @@ public sealed record SyncOfflineOperationDto(
     // Canonical ECF collection (Kind = EcfCollection): the Electricity source version the collector was shown (UtilityBillId above is the source).
     long? ElectricitySourceVersion = null,
     // Canonical rent collection (Kind = RentCollection): the PaymentRecord settlement version shown to the collector (StallId + BillingYear/Month identify the source).
-    long? RentSourceVersion = null);
+    long? RentSourceVersion = null,
+    // Canonical Fish / Meat Vendor Fee (Kind = ObligationCollection): the obligation account; BillingYear/BillingMonth name the period.
+    Guid? ObligationAccountId = null);
 
 public sealed record SyncOperationResultDto(
     Guid ClientOperationId,

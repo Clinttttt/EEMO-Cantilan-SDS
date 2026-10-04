@@ -475,6 +475,7 @@ public class MobileSyncServiceTests
     [InlineData(OfflineOperationKind.EcfCollection)]
     [InlineData(OfflineOperationKind.RentCollection)]
     [InlineData(OfflineOperationKind.FeeScheduleCollection)]
+    [InlineData(OfflineOperationKind.ObligationCollection)]
     public async Task Canonical_ecf_and_rent_survive_a_failed_attempt_and_reconcile_with_the_servers_src_on_retry(OfflineOperationKind kind)
     {
         var dir = Path.Combine(Path.GetTempPath(), "eemo-canonical-queue-" + Guid.NewGuid().ToString("N"));
@@ -490,6 +491,8 @@ public class MobileSyncServiceTests
                 BillingYear = 2026, BillingMonth = 10, RentSourceVersion = kind == OfflineOperationKind.RentCollection ? 2 : null,
                 ReceivedAmount = 100m, OwnerKey = CollectorA, Title = "Payor", FacilityLabel = "X", Amount = 100m
             };
+            if (kind == OfflineOperationKind.ObligationCollection)    // Fish/Meat Vendor Fee: the obligation account and period only
+                operation.ObligationAccountId = Guid.NewGuid();
             if (kind == OfflineOperationKind.FeeScheduleCollection)   // Tabo: facts only, no serial; the server owns the amount rule
             {
                 operation.OperationCode = "TABO";
