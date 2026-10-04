@@ -235,7 +235,9 @@ public partial class StallRepository
                 record is not null,
                 paidOnline,
                 awaitingOr,
-                onlineTxnId);
+                onlineTxnId,
+                record?.SettlementAuthorityState == SettlementAuthority.Canonical,
+                record?.SettlementVersion ?? 0);
         }).ToList();
 
         // Facility display name from the seeded Facility record (single source of truth).

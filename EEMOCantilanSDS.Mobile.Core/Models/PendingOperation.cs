@@ -120,6 +120,10 @@ public sealed class PendingOperation
     // trusted here; the server resolves the option's rule in force on the business date.
     public Guid? FeeOptionId { get; set; }
 
+    // Canonical ECF collection (Kind = EcfCollection): the Electricity source version shown to the collector.
+    public long? ElectricitySourceVersion { get; set; }
+    public long? RentSourceVersion { get; set; }
+
     // ── WCF direct entry: the selected source (StallId above) and its billing period. The amount the collector stated is
     //    ReceivedAmount; the ticket is AccountableDocumentId. All four stay bound to one ClientOperationId across restarts.
     public int? BillingYear { get; set; }
@@ -197,5 +201,7 @@ public sealed class PendingOperation
         VehicleClassCode,
         BillingYear,
         BillingMonth,
-        FeeOptionId);
+        FeeOptionId,
+        ElectricitySourceVersion,
+        RentSourceVersion);
 }

@@ -31,4 +31,7 @@ public record MobileUtilityBillDto(
     int BillingYear = 0,
     int BillingMonth = 0,
     /// <summary>The billing month as the office writes it, e.g. "July 2026".</summary>
-    string PeriodLabel = "");
+    string PeriodLabel = "",
+    /// <summary>True when the Electricity (ECF) part is under canonical settlement authority: Mobile collects it with no OR number and the server returns an SRC (IA-062).</summary>
+    bool ElecCanonical = false,
+    long ElecSourceVersion = 0);

@@ -20,7 +20,8 @@ public sealed class SyncOfflineCollectionsCommandHandler(
     ISyncRepository syncRepository,
     ICurrentUserService currentUser,
     WcfCollectionWorkflow? wcfWorkflow = null,
-    GovernedServiceWorkflow? governedWorkflow = null)
+    GovernedServiceWorkflow? governedWorkflow = null,
+    CollectionComposerWorkflow? ecfWorkflow = null)
     : IRequestHandler<SyncOfflineCollectionsCommand, Result<SyncOfflineCollectionsResultDto>>
 {
     public async Task<Result<SyncOfflineCollectionsResultDto>> Handle(SyncOfflineCollectionsCommand request, CancellationToken ct)
@@ -54,6 +55,40 @@ public sealed class SyncOfflineCollectionsCommandHandler(
                 results.Add(new SyncOperationResultDto(op.ClientOperationId, wcfStatus,
                     outcome.IsSuccess ? null : outcome.Error,
                     outcome.Value?.ReferenceCode, outcome.Value?.CollectionId));
+                continue;
+            }
+            if (op.Kind == OfflineOperationKind.RentCollection)
+            {
+                if (ecfWorkflow is null)
+                {
+                    results.Add(new SyncOperationResultDto(op.ClientOperationId, SyncResultStatus.Failed,
+                        "Rent canonical sync is not configured."));
+                    continue;
+                }
+                var rent = await ecfWorkflow.PostMobileRentAsync(new MobileRentPostRequest(
+                    op.ClientOperationId, op.StallId ?? Guid.Empty, op.BillingYear ?? op.BusinessDate.Year,
+                    op.BillingMonth ?? op.BusinessDate.Month, op.ReceivedAmount ?? 0m, op.RentSourceVersion ?? 0, op.BusinessDate), ct);
+                var rentStatus = rent.IsSuccess ? SyncResultStatus.Synced
+                    : IsTransient(rent.StatusCode) ? SyncResultStatus.Failed : SyncResultStatus.Rejected;
+                results.Add(new SyncOperationResultDto(op.ClientOperationId, rentStatus,
+                    rent.IsSuccess ? null : rent.Error, rent.Value?.ReferenceCode, rent.Value?.CollectionId));
+                continue;
+            }
+            if (op.Kind == OfflineOperationKind.EcfCollection)
+            {
+                if (ecfWorkflow is null)
+                {
+                    results.Add(new SyncOperationResultDto(op.ClientOperationId, SyncResultStatus.Failed,
+                        "ECF canonical sync is not configured."));
+                    continue;
+                }
+                var ecf = await ecfWorkflow.PostMobileEcfAsync(new MobileEcfPostRequest(
+                    op.ClientOperationId, op.UtilityBillId ?? Guid.Empty, op.ReceivedAmount ?? 0m,
+                    op.ElectricitySourceVersion ?? 0, op.BusinessDate), ct);
+                var ecfStatus = ecf.IsSuccess ? SyncResultStatus.Synced
+                    : IsTransient(ecf.StatusCode) ? SyncResultStatus.Failed : SyncResultStatus.Rejected;
+                results.Add(new SyncOperationResultDto(op.ClientOperationId, ecfStatus,
+                    ecf.IsSuccess ? null : ecf.Error, ecf.Value?.ReferenceCode, ecf.Value?.CollectionId));
                 continue;
             }
             if (op.Kind == OfflineOperationKind.GovernedService)

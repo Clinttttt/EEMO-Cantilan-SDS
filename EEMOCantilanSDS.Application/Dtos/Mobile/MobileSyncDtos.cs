@@ -14,7 +14,11 @@ public enum OfflineOperationKind
     NpmUtility = 6,
     WcfCollection = 7,
     /// <summary>A governed configurable service (Market Fees, Landing/Berthing, Transfer Large Cattle, Vegetable/Fruit).</summary>
-    GovernedService = 8
+    GovernedService = 8,
+    /// <summary>A canonical ECF (Electricity) collection on an already-canonical source: amount only, no physical serial (IA-062).</summary>
+    EcfCollection = 9,
+    /// <summary>A canonical monthly-rent collection on an already-canonical PaymentRecord: amount only, no physical serial (IA-062).</summary>
+    RentCollection = 10
 }
 
 /// <summary>Outcome of replaying one offline operation. Synced = persisted; Rejected = a terminal
@@ -90,7 +94,11 @@ public sealed record SyncOfflineOperationDto(
     int? BillingYear = null,
     int? BillingMonth = null,
     // Approved fee option services (e.g. Market Fees): the fee option the collector selected. The amount rule is the server's.
-    Guid? FeeOptionId = null);
+    Guid? FeeOptionId = null,
+    // Canonical ECF collection (Kind = EcfCollection): the Electricity source version the collector was shown (UtilityBillId above is the source).
+    long? ElectricitySourceVersion = null,
+    // Canonical rent collection (Kind = RentCollection): the PaymentRecord settlement version shown to the collector (StallId + BillingYear/Month identify the source).
+    long? RentSourceVersion = null);
 
 public sealed record SyncOperationResultDto(
     Guid ClientOperationId,

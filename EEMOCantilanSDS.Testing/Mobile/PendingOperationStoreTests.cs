@@ -301,4 +301,38 @@ public class PendingOperationStoreTests : IDisposable
         await Assert.ThrowsAsync<IOException>(() => afterRestart.AddIssuedDocumentOperationAsync(IssuedWcfOp()));
         Assert.Single(Directory.GetFiles(_dir, "pending-operations.json.unreadable-*"));
     }
+
+    [Fact]
+    public async Task Canonical_ecf_and_rent_collections_queue_without_any_physical_serial_and_carry_the_source_version_to_the_wire()
+    {
+        var store = new PendingOperationStore(_dir);
+        var ecf = new PendingOperation
+        {
+            ClientOperationId = Guid.NewGuid(), Kind = OfflineOperationKind.EcfCollection, PayloadVersion = 1,
+            BusinessDate = new DateOnly(2026, 10, 4), UtilityBillId = Guid.NewGuid(), ReceivedAmount = 100m,
+            ElectricitySourceVersion = 3, OwnerKey = "collector-A", Title = "Lisa", FacilityLabel = "ECF", Amount = 100m
+        };
+        var rent = new PendingOperation
+        {
+            ClientOperationId = Guid.NewGuid(), Kind = OfflineOperationKind.RentCollection, PayloadVersion = 1,
+            BusinessDate = new DateOnly(2026, 10, 4), StallId = Guid.NewGuid(), BillingYear = 2026, BillingMonth = 10,
+            ReceivedAmount = 400m, RentSourceVersion = 2, OwnerKey = "collector-A", Title = "Mario", FacilityLabel = "TCC", Amount = 400m
+        };
+        await store.AddIssuedDocumentOperationAsync(ecf);
+        await store.AddIssuedDocumentOperationAsync(rent);
+
+        var all = await new PendingOperationStore(_dir).GetAllAsync();
+        Assert.Equal(2, all.Count);
+        Assert.All(all, o => Assert.Null(o.AccountableDocumentId));
+        Assert.All(all, o => Assert.Null(o.ReferenceCode));        // the device never invents an SRC
+        var ecfDto = all.Single(o => o.Kind == OfflineOperationKind.EcfCollection).ToDto();
+        Assert.Equal((3L, 100m), (ecfDto.ElectricitySourceVersion, ecfDto.ReceivedAmount));
+        var rentDto = all.Single(o => o.Kind == OfflineOperationKind.RentCollection).ToDto();
+        Assert.Equal((2L, 400m, 2026, 10), (rentDto.RentSourceVersion, rentDto.ReceivedAmount, rentDto.BillingYear, rentDto.BillingMonth));
+
+        // A canonical ECF queue item without its source version is refused rather than guessed.
+        ecf.ClientOperationId = Guid.NewGuid();
+        ecf.ElectricitySourceVersion = null;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.AddIssuedDocumentOperationAsync(ecf));
+    }
 }

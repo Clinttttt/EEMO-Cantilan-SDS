@@ -23,7 +23,7 @@ namespace EEMOCantilanSDS.Application.Common.Revenue;
 /// authoritative assessments; one SaveChanges call commits all compatible lines, allocations, source projections,
 /// accountable-document consumption, durable operation outcome, and draft disposition atomically.
 /// </summary>
-public sealed class CollectionComposerWorkflow(
+public sealed partial class CollectionComposerWorkflow(
     IAppDbContext db,
     ICurrentUserService currentUser,
     ICurrentMunicipalityAccessor municipality,

@@ -96,6 +96,7 @@
             }
             else
             {
+@if (!string.IsNullOrWhiteSpace(RentNotice))                {                    <div class="state-card" role="status"><div class="state-text">@RentNotice</div></div>                }
                 <div class="section-label">@Collection.TotalStalls Occupied Stalls</div>
                 @foreach (var stall in FilteredStalls)
                 {
@@ -249,7 +250,7 @@
                 </div>
             }
 
-            @if (SelectedStatus != PaymentStatus.Unpaid)
+            @if (SelectedStatus != PaymentStatus.Unpaid && SelectedStall is { RentCanonical: false })
             {
                 <div class="or-number-wrap">
                     <div class="form-label">Official receipt no. <span>optional</span></div>
@@ -398,6 +399,8 @@
                 <div class="form-hint">Up to the remaining balance of @FormatCurrency(SelectedStall.Balance). Paying it in full marks the stall Paid.</div>
             </div>
 
+            @if (SelectedStall is { RentCanonical: false })
+            {
             <div class="or-number-wrap">
                 <div class="form-label">Official receipt no. <span>optional</span></div>
                 <input class="form-input mono-input"
@@ -409,6 +412,7 @@
                        @bind:event="oninput" />
                 <div class="form-hint">Use the pre-numbered OR from the issued receipt.</div>
             </div>
+            }
 
             @if (!string.IsNullOrWhiteSpace(CollectBalanceError))
             {
@@ -1008,6 +1012,7 @@
         var newTotalPaid = SelectedStall.AmountPaid + BalanceCollectNow.Value;
         var status = newTotalPaid >= SelectedStall.MonthlyRate ? PaymentStatus.Paid : PaymentStatus.Partial;
         var orNumber = !string.IsNullOrWhiteSpace(BalanceOrNumber) ? BalanceOrNumber.Trim() : null;
+if (SelectedStall.RentCanonical)        {            IsSaving = true;            await CaptureCanonicalRentAsync(BalanceCollectNow.Value);            CloseCollectBalance();            await LoadCollectionAsync();            IsSaving = false;            return;        }
 
         IsSaving = true;
         CollectBalanceError = null;
@@ -1170,6 +1175,49 @@
         QueuedOfflineStalls.Add(SelectedStall.StallId);
     }
 
+    // Canonical rent (IA-051/IA-062): the amount is what is collected now against a canonical PaymentRecord. No OR number is asked
+    // for; the collection is queued under its ClientOperationId and the server returns the SRC when it syncs.
+    private string? RentNotice;
+
+    private async Task CaptureCanonicalRentAsync(decimal amount)
+    {
+        if (SelectedStall is not { RentCanonical: true } stall) return;
+        var operationId = Guid.NewGuid();
+        try
+        {
+            await Sync.EnqueueIssuedDocumentAsync(new PendingOperation
+            {
+                ClientOperationId = operationId,
+                Kind = OfflineOperationKind.RentCollection,
+                PayloadVersion = 1,
+                BusinessDate = Session.Menu?.Today ?? DateOnly.FromDateTime(DateTime.Now),
+                StallId = stall.StallId,
+                BillingYear = SelectedYear,
+                BillingMonth = SelectedMonth,
+                ReceivedAmount = amount,
+                RentSourceVersion = stall.RentSourceVersion,
+                FacilityLabel = FacilityCodeUpper,
+                Title = stall.PayorName,
+                Detail = $"No. {stall.StallNo} · {MonthLabel}",
+                Amount = amount
+            });
+            RentNotice = "Saved on this device. Waiting to sync.";
+            if (Sync.IsOnline)
+                await Sync.SyncNowAsync(force: true);
+            var result = (await Sync.GetAllAsync()).FirstOrDefault(x => x.ClientOperationId == operationId);
+            if (result?.LocalStatus == PendingLocalStatus.Synced)
+                RentNotice = result.ReferenceCode is { } src ? $"Collection recorded · {src}" : "Collection recorded.";
+            else if (result?.LocalStatus is PendingLocalStatus.Rejected or PendingLocalStatus.ReconciliationRequired)
+                RentNotice = result.ResultMessage ?? "The server could not accept this collection. It was not recorded.";
+            else
+                QueuedOfflineStalls.Add(stall.StallId);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        {
+            RentNotice = "The collection could not be safely saved on this device. Do not rely on it; resolve device storage attention first.";
+        }
+    }
+
     private async Task ConfirmCoreAsync()
     {
         if (SelectedStall is null || Collection is null)
@@ -1181,6 +1229,7 @@
             return;
         }
 
+if (SelectedStall.RentCanonical && SelectedStatus != PaymentStatus.Unpaid)        {            var now = SelectedStatus == PaymentStatus.Paid ? SelectedStall.Balance : Math.Max(0m, (PartialAmount ?? 0m) - SelectedStall.AmountPaid);            if (now <= 0m) { SheetError = "Nothing to collect for this amount."; return; }            IsSaving = true;            await CaptureCanonicalRentAsync(now);            CloseSheet();            await LoadCollectionAsync();            IsSaving = false;            return;        }
         IsSaving = true;
         SheetError = null;
 

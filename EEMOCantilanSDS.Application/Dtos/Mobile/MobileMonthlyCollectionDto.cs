@@ -35,4 +35,7 @@ public sealed record MobileMonthlyStallCollectionDto(
     bool IsRecorded,
     bool PaidOnline = false,
     bool AwaitingOr = false,
-    Guid? OnlinePaymentTransactionId = null);
+    Guid? OnlinePaymentTransactionId = null,
+    // True when this month's rent row is under canonical settlement authority: Mobile collects it with no OR number and the server returns an SRC (IA-062).
+    bool RentCanonical = false,
+    long RentSourceVersion = 0);

@@ -73,6 +73,8 @@ public sealed class PendingOperationStore : IPendingOperationStore
                 throw new IOException("The local queue has a storage fault.");
             var issuedShape = operation.Kind switch
             {
+                OfflineOperationKind.EcfCollection => operation.UtilityBillId is not null && operation.ElectricitySourceVersion is > 0,
+                OfflineOperationKind.RentCollection => operation.StallId is not null && operation.BillingYear is not null && operation.BillingMonth is not null && operation.RentSourceVersion is >= 0,
                 OfflineOperationKind.WcfCollection => operation.WaterSourceVersion is > 0
                     || (operation.UtilityBillId is null && operation.StallId is not null
                         && operation.BillingYear is not null && operation.BillingMonth is not null),

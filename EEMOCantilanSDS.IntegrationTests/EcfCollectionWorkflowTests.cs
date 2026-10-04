@@ -10,6 +10,7 @@ using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
+using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -1229,5 +1230,169 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
         }
 
         return new Seed(tenant, user, bill.Id, payor.Id, orDocument.Id, secondOrDocument.Id, ctDocument.Id, periodStart);
+    }
+
+    // ── Collector Mobile canonical writers (IA-051 / IA-062): no physical serial, SRC returned, exactly-once ──
+
+    private sealed class CollectorActor(Guid collectorId, Guid tenantId) : ICurrentUserService
+    {
+        public bool IsAuthenticated => true;
+        public AdminUserDto? GetCurrentUser() => null;
+        public Guid? UserId => collectorId;
+        public string? Username => "mobile-collector";
+        public string? Role => "Collector";
+        public Guid? CollectorId => collectorId;
+        public string? MunicipalityCode => "ecf-test";
+        public Guid? MunicipalityId => tenantId;
+    }
+
+    private async Task<Guid> SeedCollectorAsync(Guid tenantId, FacilityCode facilityCode)
+    {
+        await using var context = db.CreateContext(tenantId);
+        var facility = await context.Facilities.SingleAsync(x => x.Code == facilityCode);
+        var collector = CollectorUser.Create("Mobile Collector", "MC-01", "mc-" + Guid.NewGuid().ToString("N")[..8],
+            null, null, new HashedPassword("test-hash"), tenantId);
+        collector.FacilityAssignments.Add(CollectorFacilityAssignment.Create(collector.Id, facility.Id, facilityCode));
+        context.CollectorUsers.Add(collector);
+        await context.SaveChangesAsync();
+        return collector.Id;
+    }
+
+    private CollectionComposerWorkflow AsCollector(AppDbContext context, Guid tenantId, Guid collectorId) =>
+        new(context, new CollectorActor(collectorId, tenantId), new FixedTenant(tenantId));
+
+    [SkippableFact]
+    public async Task MobileEcf_PostsWithNoSerial_ReturnsSrc_ReplaysTheSame_AndIsCountedOnce()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedEcfAsync(canonical: true);
+        var collectorId = await SeedCollectorAsync(seed.TenantId, FacilityCode.NPM);
+        long version;
+        await using (var read = db.CreateContext(seed.TenantId))
+            version = (await read.UtilityBills.SingleAsync(x => x.Id == seed.BillId)).ElectricitySourceVersion;
+        var request = new MobileEcfPostRequest(Guid.NewGuid(), seed.BillId, 100m, version, PhilippineTime.Today);
+
+        Guid collectionId;
+        string src;
+        await using (var context = db.CreateContext(seed.TenantId))
+        {
+            var first = await AsCollector(context, seed.TenantId, collectorId).PostMobileEcfAsync(request);
+            Assert.True(first.IsSuccess, first.Error);
+            Assert.Matches(@"^SRC-[0-9]{4}-[0-9]{6,}$", first.Value!.ReferenceCode);
+            (collectionId, src) = (first.Value.CollectionId, first.Value.ReferenceCode);
+        }
+        await using (var context = db.CreateContext(seed.TenantId))
+        {
+            var replay = await AsCollector(context, seed.TenantId, collectorId).PostMobileEcfAsync(request);
+            Assert.True(replay.IsSuccess, replay.Error);
+            Assert.Equal((collectionId, src, true), (replay.Value!.CollectionId, replay.Value.ReferenceCode, replay.Value.ReturnedExistingOutcome));
+        }
+
+        await using var verify = db.CreateContext(seed.TenantId);
+        var collection = await verify.Collections.Include(x => x.Lines).SingleAsync();
+        Assert.Equal((100m, collectorId, src), (collection.TotalAmount, collection.CollectorId!.Value, collection.ReferenceCode));
+        var line = Assert.Single(collection.Lines);
+        Assert.Equal((CollectionSourceKind.UtilityBill, CollectionSourcePart.Electricity), (line.SourceKind!.Value, line.SourcePart!.Value));
+        var bill = await verify.UtilityBills.SingleAsync(x => x.Id == seed.BillId);
+        Assert.Equal(300m, bill.ElecAmountPaid);
+        Assert.Equal("LEGACY-E-001", bill.ElecORNumber);
+        Assert.All(await verify.AccountableDocuments.ToListAsync(), d => Assert.Equal(AccountableDocumentState.InOffice, d.State));
+
+        var activity = await new EEMOCantilanSDS.Infrastructure.Repositories.CollectionActivityReader(verify)
+            .GetAsync(seed.TenantId, PhilippineTime.Today, PhilippineTime.Today);
+        Assert.Equal(src, Assert.Single(activity, e => e.Authority == "Canonical").ReferenceCode);
+        var facts = (await new RemittanceWorkflow(verify, new CollectorActor(collectorId, seed.TenantId), new FixedTenant(seed.TenantId))
+            .GetMyCollectionsAsync(PhilippineTime.Today.AddDays(-1), PhilippineTime.Today)).Value!;
+        Assert.Equal((src, 100m), (Assert.Single(facts).ReferenceCode, facts[0].NetAmount));
+    }
+
+    [SkippableFact]
+    public async Task MobileEcf_IsRefusedWithoutWriting_WhenTheSourceIsStillLegacy_StaleOrOverAmount_OrNotACollector()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var legacy = await SeedEcfAsync(canonical: false);
+        var legacyCollector = await SeedCollectorAsync(legacy.TenantId, FacilityCode.NPM);
+        await using (var context = db.CreateContext(legacy.TenantId))
+        {
+            var refused = await AsCollector(context, legacy.TenantId, legacyCollector).PostMobileEcfAsync(
+                new MobileEcfPostRequest(Guid.NewGuid(), legacy.BillId, 100m, 1, PhilippineTime.Today));
+            Assert.False(refused.IsSuccess);
+            Assert.Contains("canonical", refused.Error, StringComparison.OrdinalIgnoreCase);
+            Assert.Empty(await context.Collections.ToListAsync());
+            Assert.Equal(200m, (await context.UtilityBills.SingleAsync(x => x.Id == legacy.BillId)).ElecAmountPaid);
+        }
+
+        await db.ResetAsync();
+        var seed = await SeedEcfAsync(canonical: true);
+        var collectorId = await SeedCollectorAsync(seed.TenantId, FacilityCode.NPM);
+        long version;
+        await using (var read = db.CreateContext(seed.TenantId))
+            version = (await read.UtilityBills.SingleAsync(x => x.Id == seed.BillId)).ElectricitySourceVersion;
+        await using (var context = db.CreateContext(seed.TenantId))
+        {
+            Assert.False((await AsCollector(context, seed.TenantId, collectorId).PostMobileEcfAsync(
+                new MobileEcfPostRequest(Guid.NewGuid(), seed.BillId, 100m, version + 5, PhilippineTime.Today))).IsSuccess);
+            Assert.False((await AsCollector(context, seed.TenantId, collectorId).PostMobileEcfAsync(
+                new MobileEcfPostRequest(Guid.NewGuid(), seed.BillId, 600.01m, version, PhilippineTime.Today))).IsSuccess);
+            Assert.Empty(await context.Collections.ToListAsync());
+        }
+        await using (var context = db.CreateContext(seed.TenantId))
+        {
+            var admin = await new CollectionComposerWorkflow(context, new TestActor(seed.UserId, seed.TenantId), new FixedTenant(seed.TenantId))
+                .PostMobileEcfAsync(new MobileEcfPostRequest(Guid.NewGuid(), seed.BillId, 100m, version, PhilippineTime.Today));
+            Assert.Equal(ResultStatus.Forbidden, admin.Status);
+        }
+    }
+
+    [SkippableFact]
+    public async Task MobileRent_PostsOnACanonicalRow_WithNoSerial_ReturnsSrc_ReplaysTheSame_AndLegacyRowsAreRefused()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedEcfAsync(canonical: true);
+        var period = seed.Period;
+        var rent = await SeedRentSourcesAsync(seed, [period], canonical: true);
+        var collectorId = await SeedCollectorAsync(seed.TenantId, FacilityCode.TCC);
+        long version;
+        await using (var read = db.CreateContext(seed.TenantId))
+            version = (await read.PaymentRecords.SingleAsync(x => x.Id == rent.PaymentRecordIds[period])).SettlementVersion;
+        var request = new MobileRentPostRequest(Guid.NewGuid(), rent.StallId, period.Year, period.Month, 400m, version, PhilippineTime.Today);
+
+        string src;
+        await using (var context = db.CreateContext(seed.TenantId))
+        {
+            var posted = await AsCollector(context, seed.TenantId, collectorId).PostMobileRentAsync(request);
+            Assert.True(posted.IsSuccess, posted.Error);
+            src = posted.Value!.ReferenceCode;
+            Assert.Matches(@"^SRC-[0-9]{4}-[0-9]{6,}$", src);
+        }
+        await using (var context = db.CreateContext(seed.TenantId))
+        {
+            var replay = await AsCollector(context, seed.TenantId, collectorId).PostMobileRentAsync(request);
+            Assert.True(replay.IsSuccess, replay.Error);
+            Assert.Equal((src, true), (replay.Value!.ReferenceCode, replay.Value.ReturnedExistingOutcome));
+        }
+        await using (var verify = db.CreateContext(seed.TenantId))
+        {
+            var collection = await verify.Collections.Include(x => x.Lines).ThenInclude(x => x.Allocations).SingleAsync();
+            Assert.Equal((400m, collectorId), (collection.TotalAmount, collection.CollectorId!.Value));
+            Assert.Equal(rent.PaymentRecordIds[period], Assert.Single(Assert.Single(collection.Lines).Allocations).SourceId);
+            var record = await verify.PaymentRecords.SingleAsync(x => x.Id == rent.PaymentRecordIds[period]);
+            Assert.Equal(PaymentStatus.Partial, record.Status);
+            Assert.Equal(400m, record.PartialAmount);
+            Assert.Empty(await verify.AccountableDocuments.Where(x => x.CollectionId != null).ToListAsync());
+        }
+
+        await db.ResetAsync();
+        var legacySeed = await SeedEcfAsync(canonical: true);
+        var legacyRent = await SeedRentSourcesAsync(legacySeed, [legacySeed.Period], canonical: false);
+        var legacyCollector = await SeedCollectorAsync(legacySeed.TenantId, FacilityCode.TCC);
+        await using var legacyContext = db.CreateContext(legacySeed.TenantId);
+        var refused = await AsCollector(legacyContext, legacySeed.TenantId, legacyCollector).PostMobileRentAsync(
+            new MobileRentPostRequest(Guid.NewGuid(), legacyRent.StallId, legacySeed.Period.Year, legacySeed.Period.Month, 100m, 0, PhilippineTime.Today));
+        Assert.False(refused.IsSuccess);
+        Assert.Empty(await legacyContext.Collections.ToListAsync());
     }
 }

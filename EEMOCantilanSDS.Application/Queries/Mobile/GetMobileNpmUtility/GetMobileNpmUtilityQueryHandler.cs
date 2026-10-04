@@ -52,7 +52,8 @@ public class GetMobileNpmUtilityQueryHandler(
                     b.ElecCharge, b.ElecStatus.ToString(), b.ElecBalanceDue,
                     b.WaterCharge, b.WaterStatus.ToString(), b.WaterBalanceDue,
                     b.TotalCharge, b.AmountPaid, b.BalanceDue, b.ElecORNumber, b.WaterORNumber,
-                    b.BillingYear, b.BillingMonth, PeriodLabel(b.BillingYear, b.BillingMonth));
+                    b.BillingYear, b.BillingMonth, PeriodLabel(b.BillingYear, b.BillingMonth),
+                    b.ElectricitySettlementAuthorityState == SettlementAuthority.Canonical, b.ElectricitySourceVersion);
             })
             // What still needs collecting first, oldest owed month first within that, so the field app settles
             // the longest-standing bill before this month's.
