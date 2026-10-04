@@ -316,7 +316,7 @@
                                 <td>@item.Serials</td>
                                 <td class="v3-num">@item.Quantity.ToString("N0")</td>
                                 <td>@(item.Actor ?? "—")</td>
-                                <td>@(string.IsNullOrWhiteSpace(item.From) && string.IsNullOrWhiteSpace(item.To) ? "—" : $"{item.From ?? "—"} → {item.To ?? "—"}")</td>
+                                <td>@Movement(item)</td>
                                 <td>@(item.Detail ?? "—")</td>
                             </tr>
                         }
@@ -1794,6 +1794,11 @@
         catch (Exception ex) { _dialogError = ex.Message; }
         finally { _busy = false; }
     }
+
+    private static string Movement(AccountableFormHistoryEventDto item) =>
+        !string.IsNullOrWhiteSpace(item.From) && !string.IsNullOrWhiteSpace(item.To) ? $"{item.From} → {item.To}"
+        : !string.IsNullOrWhiteSpace(item.From) ? item.From
+        : !string.IsNullOrWhiteSpace(item.To) ? item.To : "—";
 
     private static string ReferenceLabel(AccountableFormExceptionDto row) =>
         row.Kind == "Cancelled" ? "Add RCD reference" : "Add notice reference";

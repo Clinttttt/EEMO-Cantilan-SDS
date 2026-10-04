@@ -515,3 +515,38 @@
     text-align: right;
     white-space: nowrap;
 }
+
+.v3-field textarea {
+    width: 100%;
+    min-height: 72px;
+    padding: 7px 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    resize: vertical;
+}
+
+.v3-field textarea:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+/* Phone width: every action stays visible. The rails wrap instead of scrolling sideways, and the joined groups wrap with them. */
+@media (max-width: 720px) {
+    .af-rail-left,
+    .af-rail-right {
+        flex-wrap: wrap;
+        overflow-x: visible;
+    }
+
+    .af-rail-left > .v3-btn-group,
+    .af-rail-right > .v3-btn-group,
+    .af-views {
+        flex-wrap: wrap;
+        max-width: 100%;
+    }
+}
