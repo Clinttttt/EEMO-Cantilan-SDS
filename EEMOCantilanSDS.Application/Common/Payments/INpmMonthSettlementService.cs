@@ -43,6 +43,25 @@ public interface INpmMonthSettlementService
         Stall stall, int year, int month, Guid? collectorId, string recordedBy, CancellationToken ct, decimal? maxAmount = null);
 
     /// <summary>
+    /// What a WHOLE-MONTH payment owes: the month's approved obligation less what is already collected or forgiven, whatever
+    /// the calendar has reached. Unlike <see cref="ComputePayableAsync"/> it is not limited to the days elapsed — some
+    /// payors pay the month in advance — and a short month's top-up (February's ₱60 under the rent-goal basis) is collectible
+    /// with it. The obligation is the office's stated monthly figure, never the number of days in the calendar month. No mutation.
+    /// </summary>
+    Task<NpmMonthPayable> ComputeWholeMonthPayableAsync(Stall stall, int year, int month, CancellationToken ct);
+
+    /// <summary>The still-open day DATES of the month a whole-month payment would settle, future days included.</summary>
+    Task<IReadOnlyList<DateOnly>> GetWholeMonthPayableDaysAsync(Stall stall, int year, int month, CancellationToken ct);
+
+    /// <summary>
+    /// Settles the remaining month in one act: marks its open days Paid (creating day rows, future dates included) up to
+    /// <paramref name="maxAmount"/>, and lets a short month's top-up ride on the last installment. Does not save — the caller's
+    /// unit of work commits.
+    /// </summary>
+    Task<IReadOnlyList<DailyCollection>> SettleWholeMonthAsync(
+        Stall stall, int year, int month, Guid? collectorId, string recordedBy, CancellationToken ct, decimal? maxAmount = null);
+
+    /// <summary>
     /// Prices ONE NPM fish-section day for online self-declaration: base daily fee + declared kilos ×
     /// the fish ₱/kg rate, both resolved as-of the day from the CURRENT municipality's fee snapshot (so
     /// custom LGUs use their own configured rates, Cantilan the ordinance constants). Returns not-payable

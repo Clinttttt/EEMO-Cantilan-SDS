@@ -90,10 +90,42 @@ public sealed class NpmMonthSettlementService(
         return days.Select(d => d.Day).ToList();
     }
 
-    public async Task<IReadOnlyList<DailyCollection>> SettleUnpaidDaysAsync(
-        Stall stall, int year, int month, Guid? collectorId, string recordedBy, CancellationToken ct, decimal? maxAmount = null)
+    /// <inheritdoc />
+    public async Task<NpmMonthPayable> ComputeWholeMonthPayableAsync(Stall stall, int year, int month, CancellationToken ct)
     {
-        var (payable, remaining, adjustment, lastCollected) = await ResolveMonthAsync(stall, year, month, ct);
+        var (days, remaining, adjustment, _) = await ResolveMonthAsync(stall, year, month, ct, wholeMonth: true);
+        var quotedDays = 0;
+        var amount = 0m;
+        foreach (var (_, fee) in days)
+        {
+            if (amount + fee > remaining - adjustment) break;
+            amount += fee;
+            quotedDays++;
+        }
+
+        return new NpmMonthPayable(quotedDays, amount + adjustment, adjustment);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<DateOnly>> GetWholeMonthPayableDaysAsync(Stall stall, int year, int month, CancellationToken ct)
+    {
+        var (days, _, _, _) = await ResolveMonthAsync(stall, year, month, ct, wholeMonth: true);
+        return days.Select(d => d.Day).ToList();
+    }
+
+    public Task<IReadOnlyList<DailyCollection>> SettleUnpaidDaysAsync(
+        Stall stall, int year, int month, Guid? collectorId, string recordedBy, CancellationToken ct, decimal? maxAmount = null) =>
+        SettleCoreAsync(stall, year, month, collectorId, recordedBy, ct, maxAmount, wholeMonth: false);
+
+    /// <inheritdoc />
+    public Task<IReadOnlyList<DailyCollection>> SettleWholeMonthAsync(
+        Stall stall, int year, int month, Guid? collectorId, string recordedBy, CancellationToken ct, decimal? maxAmount = null) =>
+        SettleCoreAsync(stall, year, month, collectorId, recordedBy, ct, maxAmount, wholeMonth: true);
+
+    private async Task<IReadOnlyList<DailyCollection>> SettleCoreAsync(
+        Stall stall, int year, int month, Guid? collectorId, string recordedBy, CancellationToken ct, decimal? maxAmount, bool wholeMonth)
+    {
+        var (payable, remaining, adjustment, lastCollected) = await ResolveMonthAsync(stall, year, month, ct, wholeMonth);
 
         if (payable.Count == 0)
         {
@@ -210,7 +242,7 @@ public sealed class NpmMonthSettlementService(
     // The day-set, and what the month still owes. Kept private so the quote and the settlement can never compute
     // them differently: one walk of the month answers both.
     private async Task<(List<(DateOnly Day, decimal Fee)> Days, decimal Remaining, decimal Adjustment, DailyCollection? LastCollected)> ResolveMonthAsync(
-        Stall stall, int year, int month, CancellationToken ct)
+        Stall stall, int year, int month, CancellationToken ct, bool wholeMonth = false)
     {
         var daysInMonth = DateTime.DaysInMonth(year, month);
         var monthStart = new DateOnly(year, month, 1);
@@ -236,7 +268,7 @@ public sealed class NpmMonthSettlementService(
 
         for (var day = monthStart; day <= monthEnd; day = day.AddDays(1))
         {
-            if (day > today) break;                                     // never settle future days
+            if (!wholeMonth && day > today) break;                    // never settle future days - except a whole-month payment, which is the month paid in advance
             if (occupancy is null || day < occupancy.Start || day > occupancy.BillableEnd)
                 continue;                                               // not this lessee's day to answer for
 
@@ -283,7 +315,8 @@ public sealed class NpmMonthSettlementService(
         // Only where the office bills a monthly GOAL. On the pure-days basis a short month is simply a shorter month:
         // February owes twenty-eight fees and there is no shortfall to carry, so an adjustment there would invent money
         // the office's own rule does not ask for. The rule says which, so this service does not have to know the bases.
-        var dueDatePassed = today > monthEnd;
+        // A whole-month payment is the office accepting the month in full, so the month-end top-up is collectible with it.
+        var dueDatePassed = today > monthEnd || wholeMonth;
         var installments = days.Sum(d => d.Fee);
         var adjustment = snapshot.MonthRule.AdjustsShortMonthToRent && dueDatePassed && remaining > installments
             ? remaining - installments

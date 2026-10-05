@@ -211,6 +211,102 @@ public sealed class NpmDailyCanonicalTests(PostgresFixture db)
         }
     }
 
+    // ── Whole payment is the MONTHLY obligation (confirmed 2026-10-05) ────────────────────────────────────
+    // The approved monthly figure (₱900 on a ₱30 daily basis) does not move with the calendar: October, February and a 31-day month
+    // all owe it, and a payor may pay it in advance. Billing basis is not payment cadence.
+
+    private static EEMOCantilanSDS.Application.Dtos.Mobile.NpmWholePaymentRequest WholeRequest(
+        Guid stallId, EEMOCantilanSDS.Application.Dtos.Mobile.NpmWholePaymentQuoteDto quote, Guid? operationId = null) =>
+        new(operationId ?? Guid.NewGuid(), stallId, quote.Year, quote.Month, quote.BusinessDate, quote.Amount, quote.QuoteToken);
+
+    [SkippableFact]
+    public async Task WholePayment_IsTheFullMonthlyObligation_BeforeTheMonthEnds_AndSettlesFutureDays_ExactlyOnce()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync(canonical: true);
+        var daysInMonth = DateTime.DaysInMonth(Today.Year, Today.Month);
+        await using var ctx = db.CreateContext(w.TenantId);
+        var workflow = Whole(ctx, w, Collector(w));
+
+        var quote = (await workflow.QuoteAsync(w.StallA, Today.Year, Today.Month)).Value!;
+        Assert.Equal(900m, quote.Amount);                       // never days-elapsed × ₱30, never the calendar's day count × ₱30
+        Assert.Equal(Math.Min(30, daysInMonth), quote.Days);
+
+        var request = WholeRequest(w.StallA, quote);
+        var posted = await workflow.PostAsync(request);
+        Assert.True(posted.IsSuccess, posted.Error);
+        var collection = await ctx.Collections.Include(c => c.Lines).ThenInclude(l => l.Allocations).SingleAsync();
+        Assert.Equal(900m, collection.TotalAmount);
+        Assert.Equal(quote.Days, Assert.Single(collection.Lines).Allocations.Count);
+        if (Today.Day < Math.Min(30, daysInMonth))
+            Assert.Contains(await ctx.DailyCollections.ToListAsync(), d => d.CollectionDate > Today && d.IsPaid);
+
+        // Retry: the same operation is the same Collection and SRC; nothing more is collected.
+        var replay = await workflow.PostAsync(request);
+        Assert.True(replay.IsSuccess, replay.Error);
+        Assert.Equal(posted.Value!.ReferenceCode, replay.Value!.ReferenceCode);
+        Assert.Equal(1, await ctx.Collections.CountAsync());
+        Assert.Equal(900m, await IncomeAsync(w, "RENT_NPM"));
+
+        // Paid in full: nothing to quote.
+        Assert.Equal(0m, (await workflow.QuoteAsync(w.StallA, Today.Year, Today.Month)).Value!.Amount);
+    }
+
+    [SkippableFact]
+    public async Task WholePayment_February_StillOwesTheApprovedMonthlyAmount_NotTwentyEightDays()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync(canonical: true);
+        await using var ctx = db.CreateContext(w.TenantId);
+        var workflow = Whole(ctx, w, Collector(w));
+        var februaryYear = Today.Month > 2 ? Today.Year + 1 : Today.Year;          // a February that has not closed
+        var february = DateTime.DaysInMonth(februaryYear, 2);
+
+        var feb = (await workflow.QuoteAsync(w.StallA, februaryYear, 2)).Value!;
+        var long31 = (await workflow.QuoteAsync(w.StallA, februaryYear, 3)).Value!;
+        Assert.Equal(900m, feb.Amount);
+        Assert.Equal(900m, long31.Amount);
+        Assert.Equal(900m - february * 30m, feb.Adjustment);                         // the short month's top-up rides with it
+        Assert.Equal(0m, long31.Adjustment);
+
+        var posted = await workflow.PostAsync(WholeRequest(w.StallA, feb));
+        Assert.True(posted.IsSuccess, posted.Error);
+        Assert.Equal(900m, (await ctx.Collections.SingleAsync()).TotalAmount);
+    }
+
+    [SkippableFact]
+    public async Task WholePayment_AfterPartialDays_CoversOnlyTheRemainingBalance_AndAVoidRestoresIt()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync(canonical: true);
+        await using (var ctx = db.CreateContext(w.TenantId))
+        {
+            for (var day = 1; day <= 10; day++)                                     // ₱300 already collected on the days
+            {
+                var row = EEMOCantilanSDS.Domain.Entities.Payments.DailyCollection.Create(w.StallA, new DateOnly(Today.Year, Today.Month, day));
+                row.MarkPaid("EARLIER", w.CollectorId, updatedBy: "collector");
+                ctx.DailyCollections.Add(row);
+            }
+            await ctx.SaveChangesAsync();
+        }
+        await using var verify = db.CreateContext(w.TenantId);
+        var workflow = Whole(verify, w, Collector(w));
+        var quote = (await workflow.QuoteAsync(w.StallA, Today.Year, Today.Month)).Value!;
+        Assert.Equal(600m, quote.Amount);
+
+        var posted = await workflow.PostAsync(WholeRequest(w.StallA, quote));
+        Assert.True(posted.IsSuccess, posted.Error);
+        Assert.Equal(600m, (await verify.Collections.SingleAsync()).TotalAmount);    // the paid days are not collected again
+        Assert.Equal(0m, (await workflow.QuoteAsync(w.StallA, Today.Year, Today.Month)).Value!.Amount);
+
+        Assert.True((await Poster(verify, w.TenantId, Admin(w)).VoidAsync(posted.Value!.CollectionId, "Wrong payor")).IsSuccess);
+        verify.ChangeTracker.Clear();
+        Assert.Equal(600m, (await workflow.QuoteAsync(w.StallA, Today.Year, Today.Month)).Value!.Amount);   // the balance returns
+    }
+
     private static SettleNpmDaysCommandHandler SettleDays(AppDbContext ctx, Guid tenantId, ICurrentUserService actor) => new(
         new DailyCollectionRepository(ctx), new PaymentRepository(ctx), new StallRepository(ctx), new CollectorRepository(ctx), actor,
         new NpmMarketClosureRepository(ctx), new UnitOfWork(ctx), new NoCache(), new FeeRateResolver(ctx), Settlement(ctx), new FixedCode(),

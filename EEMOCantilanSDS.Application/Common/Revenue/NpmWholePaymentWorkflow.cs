@@ -32,8 +32,9 @@ public sealed class NpmWholePaymentWorkflow(IStallRepository stalls, ICollectorR
             return Result<NpmWholePaymentQuoteDto>.Failure("Whole payment is available after NPM collection activation.", ResultStatus.Conflict);
         var instrument = await poster.GetInstrumentAsync(businessDate, ct);
         if (instrument is null) return Result<NpmWholePaymentQuoteDto>.Failure("The approved collection policy is unavailable.", ResultStatus.Conflict);
-        var payable = await settlement.ComputePayableAsync(stall, year, month, ct);
-        var eligible = await settlement.GetPayableDaysAsync(stall, year, month, ct);
+        // The month owes its approved monthly obligation in full, not the days the calendar has reached: some payors pay ahead.
+        var payable = await settlement.ComputeWholeMonthPayableAsync(stall, year, month, ct);
+        var eligible = await settlement.GetWholeMonthPayableDaysAsync(stall, year, month, ct);
         var facts = string.Join("|", eligible.Select(d => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)))
             + $"|{payable.Days}|{payable.Amount.ToString(CultureInfo.InvariantCulture)}|{payable.Adjustment.ToString(CultureInfo.InvariantCulture)}";
         var token = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(facts)));
@@ -62,7 +63,7 @@ public sealed class NpmWholePaymentWorkflow(IStallRepository stalls, ICollectorR
         // An adjustment can ride on an earlier paid installment. Charge its delta only, never that installment again.
         var before = (await days.GetByStallAndMonthAsync(stall.Id, request.Year, request.Month, ct))
             .Where(d => d.IsPaid).ToDictionary(d => d.Id, d => (d.DailyFee, d.UpdatedAt, d.UpdatedBy));
-        var settled = await settlement.SettleUnpaidDaysAsync(stall, request.Year, request.Month,
+        var settled = await settlement.SettleWholeMonthAsync(stall, request.Year, request.Month,
             user.CollectorId, user.Username ?? "Collector", ct, request.Amount);
         var charges = settled.Select(d => before.TryGetValue(d.Id, out var original)
             ? new NpmDailyCanonicalPoster.Charge(d, d.DailyFee - original.DailyFee, true, original.UpdatedAt, original.UpdatedBy)
