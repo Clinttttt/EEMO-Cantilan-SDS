@@ -41,6 +41,33 @@ public sealed class FeeScheduleCollectionWorkflow(
     public static bool Handles(string? operationCode) =>
         operationCode is CollectorOperationCodes.Tabo or CollectorOperationCodes.Slaughterhouse;
 
+    public sealed record SlaughterQuote(decimal Amount, RevenueInstrumentType Instrument, string Context, string Version);
+    /// <summary>Read-only preview of the SAME calculation used by PostMobileAsync.</summary>
+    public async Task<Result<SlaughterQuote>> QuoteSlaughterAsync(FeeSchedulePostRequest request, CancellationToken ct = default)
+    {
+        var tenant = municipality.MunicipalityId;
+        if (!currentUser.IsAuthenticated || currentUser.Role != "Collector" || currentUser.CollectorId is not { } collector
+            || tenant == Guid.Empty || currentUser.MunicipalityId is { } claimed && claimed != tenant
+            || request.OperationCode != CollectorOperationCodes.Slaughterhouse || request.BusinessDate == default || request.BusinessDate > BusinessToday
+            || !await db.CollectorUsers.AsNoTracking().AnyAsync(x => x.MunicipalityId == tenant && x.Id == collector && x.IsActive
+                && x.FacilityAssignments.Any(a => a.FacilityCode == FacilityCode.SLH), ct)) return Result<SlaughterQuote>.Forbidden();
+        var resolved = await ResolveSlaughterAsync(tenant, collector, currentUser.Username ?? "Collector", request, ct);
+        if (resolved.Problem is { } problem) return Result<SlaughterQuote>.Failure(problem.Message);
+        var service = await db.GovernedServices.AsNoTracking().SingleOrDefaultAsync(x => x.MunicipalityId == tenant && x.OperationCode == request.OperationCode, ct);
+        if (service is null) return Result<SlaughterQuote>.Failure("Slaughterhouse collection is not currently available.");
+        var setting = GovernedServiceSetting.Resolve(await db.GovernedServiceSettings.AsNoTracking().Where(x => x.MunicipalityId == tenant && x.GovernedServiceId == service.Id).ToListAsync(ct), request.BusinessDate);
+        if (setting is null || !setting.IsEnabled || !setting.MobileEnabled) return Result<SlaughterQuote>.Failure("Slaughterhouse collection is not currently available.");
+        if (setting.MaximumAmount is { } ceiling && resolved.Amount > ceiling)
+            return Result<SlaughterQuote>.Failure("The amount exceeds the approved Slaughterhouse ceiling.");
+        var classification = await db.RevenueClassifications.AsNoTracking().SingleOrDefaultAsync(x => x.MunicipalityId == tenant && x.IsActive && x.SemanticCode == RevenueClassificationCodes.Slaughterhouse, ct);
+        if (classification is null) return Result<SlaughterQuote>.Failure("The collection policy is unavailable.");
+        var policy = await db.RevenueClassificationPolicies.AsNoTracking().Where(x => x.MunicipalityId == tenant && x.RevenueClassificationId == classification.Id && x.BusinessContext == RevenuePolicyContext.Default && x.EffectiveDate <= request.BusinessDate)
+            .OrderByDescending(x => x.EffectiveDate).FirstOrDefaultAsync(ct);
+        if (policy?.PermittedInstrumentType is not { } instrument) return Result<SlaughterQuote>.Failure("The collection policy is unavailable.");
+        var version = JsonSerializer.Serialize(new { setting.Id, setting.MaximumAmount, Policy = policy.Id, resolved.Facts, resolved.Amount }, JsonOptions);
+        return Result<SlaughterQuote>.Success(new(resolved.Amount, instrument, resolved.Reference!, version));
+    }
+
     public async Task<Result<GovernedServiceOutcomeDto>> PostMobileAsync(FeeSchedulePostRequest request, CancellationToken ct = default)
     {
         if (!currentUser.IsAuthenticated || currentUser.Role != "Collector" || currentUser.CollectorId is not { } collectorId

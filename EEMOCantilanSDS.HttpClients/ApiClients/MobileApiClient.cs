@@ -12,6 +12,9 @@ namespace EEMOCantilanSDS.HttpClients.ApiClients;
 
 public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApiClient
 {
+    public Task<Result<IReadOnlyList<DirectVendorFeeSource>>> GetDirectVendorFeeSourcesAsync() => GetAsync<IReadOnlyList<DirectVendorFeeSource>>("api/mobile/collection-session/vendor-fee-sources");
+    public Task<Result<IReadOnlyList<CollectionPayorDto>>> SearchCollectionSessionPayorsAsync(string search) => GetAsync<IReadOnlyList<CollectionPayorDto>>($"api/mobile/collection-session/payors?search={Uri.EscapeDataString(search)}");
+    public Task<Result<IReadOnlyList<EcfObligationQuoteDto>>> GetMobileEcfSourcesAsync() => GetAsync<IReadOnlyList<EcfObligationQuoteDto>>("api/mobile/collection-session/electricity-sources");
     public Task<Result<CollectionSessionDiscovery>> GetCollectionSessionDiscoveryAsync(Guid? payorId) => GetAsync<CollectionSessionDiscovery>($"api/mobile/collection-session/eligible?payorId={payorId}");
     public Task<Result<CollectionSessionQuote>> QuoteCollectionSessionAsync(CollectionSessionIntent intent) => PostAsync<CollectionSessionIntent, CollectionSessionQuote>("api/mobile/collection-session/quote", intent);
     public async Task<Result<CollectionSessionResult>> RecordCollectionSessionAsync(RecordCollectionSessionRequest request)

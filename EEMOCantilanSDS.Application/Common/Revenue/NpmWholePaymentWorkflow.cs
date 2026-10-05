@@ -19,7 +19,7 @@ public sealed class NpmWholePaymentWorkflow(IStallRepository stalls, ICollectorR
     IDailyCollectionRepository days, INpmMonthSettlementService settlement, NpmDailyCanonicalPoster poster,
     ICurrentUserService user, IClock clock, IEemoCacheInvalidator cache, ITenantContext tenant)
 {
-    public async Task<Result<NpmWholePaymentQuoteDto>> QuoteAsync(Guid stallId, int year, int month, CancellationToken ct = default)
+    public async Task<Result<NpmWholePaymentQuoteDto>> QuoteAsync(Guid stallId, int year, int month, CancellationToken ct = default, DateOnly? collectionDate = null)
     {
         if (year is < 2000 or > 2100 || month is < 1 or > 12)
             return Result<NpmWholePaymentQuoteDto>.Failure("Choose a valid settlement period.", ResultStatus.Invalid);
@@ -27,7 +27,8 @@ public sealed class NpmWholePaymentWorkflow(IStallRepository stalls, ICollectorR
             return Result<NpmWholePaymentQuoteDto>.Forbidden();
         var stall = await stalls.GetByIdAsync(stallId, ct);
         if (stall?.Facility?.Code != FacilityCode.NPM) return Result<NpmWholePaymentQuoteDto>.NotFound();
-        var businessDate = clock.PhilippineToday;
+        var businessDate = collectionDate ?? clock.PhilippineToday;
+        if (businessDate == default || businessDate > clock.PhilippineToday) return Result<NpmWholePaymentQuoteDto>.Failure("Choose a valid business date.");
         if (!await poster.IsCanonicalAsync(businessDate, ct))
             return Result<NpmWholePaymentQuoteDto>.Failure("Whole payment is available after NPM collection activation.", ResultStatus.Conflict);
         var instrument = await poster.GetInstrumentAsync(businessDate, ct);
@@ -39,7 +40,7 @@ public sealed class NpmWholePaymentWorkflow(IStallRepository stalls, ICollectorR
             + $"|{payable.Days}|{payable.Amount.ToString(CultureInfo.InvariantCulture)}|{payable.Adjustment.ToString(CultureInfo.InvariantCulture)}";
         var token = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(facts)));
         return Result<NpmWholePaymentQuoteDto>.Success(new(stallId, year, month, businessDate,
-            payable.Days, payable.Amount, payable.Adjustment, token, instrument.Value));
+            payable.Days, payable.Amount, payable.Adjustment, token, instrument.Value, payable.Obligation, payable.Collected, payable.Credits));
     }
 
     public async Task<Result<NpmDailyCanonicalPoster.Outcome>> PostAsync(NpmWholePaymentRequest request, CancellationToken ct = default)
@@ -53,8 +54,8 @@ public sealed class NpmWholePaymentWorkflow(IStallRepository stalls, ICollectorR
         if (await poster.FindPriorAsync(request.ClientOperationId, intent, ct) is { } prior) return prior;
         if (request.BusinessDate > clock.PhilippineToday || !await poster.IsCanonicalAsync(request.BusinessDate, ct))
             return Result<NpmDailyCanonicalPoster.Outcome>.Failure("This payment date is not under canonical NPM authority.", ResultStatus.Conflict);
-        await using var transaction = await poster.BeginSettlementTransactionAsync(ct);
-        var quoted = await QuoteAsync(request.StallId, request.Year, request.Month, ct);
+        await using var transaction = poster.HasActiveTransaction ? null : await poster.BeginSettlementTransactionAsync(ct);
+        var quoted = await QuoteAsync(request.StallId, request.Year, request.Month, ct, request.BusinessDate);
         if (!quoted.IsSuccess) return Result<NpmDailyCanonicalPoster.Outcome>.Failure(quoted.Error!, quoted.Status);
         if (quoted.Value!.Amount != request.Amount || quoted.Value.QuoteToken != request.QuoteToken)
             return Result<NpmDailyCanonicalPoster.Outcome>.Failure("RECONCILIATION_REQUIRED: The month balance changed. Review the received payment with the office.", ResultStatus.Conflict);
@@ -73,7 +74,7 @@ public sealed class NpmWholePaymentWorkflow(IStallRepository stalls, ICollectorR
         var result = await poster.PostAsync(stall, charges, request.ClientOperationId, intent, request.BusinessDate, ct);
         if (result.IsSuccess)
         {
-            await transaction.CommitAsync(ct);
+            if (transaction is not null) await transaction.CommitAsync(ct);
             await cache.InvalidatePaymentAffectedViewsAsync(tenant.TenantCode, FacilityCode.NPM, request.Year, request.Month, ct);
         }
         return result;

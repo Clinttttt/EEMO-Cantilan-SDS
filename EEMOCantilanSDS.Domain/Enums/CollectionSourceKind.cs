@@ -15,5 +15,9 @@ public enum CollectionSourceKind
     /// <summary>An approved penalty definition version (IA-049). SourceId is the exact version applied; it carries no receivable.</summary>
     PenaltyDefinition = 9,
     /// <summary>One assessed period of a specialized obligation account (vendor fee, Kanmanggay, event lot). SourceId is the period.</summary>
-    ObligationPeriod = 10
+    ObligationPeriod = 10,
+    /// <summary>NPM weighing event; source is the existing stall/vendor context, facts frozen on the line.</summary>
+    NpmWeighing = 11,
+    /// <summary>Additional direct vendor fee; source is the existing NPM stall/vendor, with no monthly allocation.</summary>
+    FishMeatVendorFee = 12
 }

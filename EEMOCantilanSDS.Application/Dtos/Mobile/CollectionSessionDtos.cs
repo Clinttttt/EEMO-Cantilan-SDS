@@ -1,19 +1,32 @@
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Domain.Enums;
+using System.Text.Json.Serialization;
 
 namespace EEMOCantilanSDS.Application.Dtos.Mobile;
 
 // A checkout is orchestration, never an operation or revenue classification.
-public enum CollectionSessionItemKind { Water = 1, GovernedService = 2, Obligation = 3, Electricity = 4 }
+public enum CollectionSessionItemKind { Water = 1, GovernedService = 2, Obligation = 3, Electricity = 4, Weighing = 5, Slaughter = 6, VendorFee = 7, NpmWholePayment = 8 }
 public enum CollectionSessionStatus { NeedsReview = 1, Recorded = 2 }
 public sealed record SessionWaterIntent(Guid StallId, int Year, int Month, Guid? UtilityBillId = null, long SourceVersion = 0);
 public sealed record SessionGovernedIntent(string OperationCode, GovernedServiceMode? Mode = null,
     Guid? FeeOptionId = null, string? VehicleClassCode = null, string? Reference = null);
 public sealed record SessionObligationIntent(Guid AccountId, int Year, int Month);
-public sealed record SessionElectricityIntent(Guid UtilityBillId, long SourceVersion);
+public sealed record SessionElectricityIntent(Guid UtilityBillId, long SourceVersion,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? StallId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? Year = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? Month = null);
+public enum WeighingType { Fish = 1, Meat = 2 }
+public sealed record SessionWeighingIntent(Guid StallId, WeighingType Type, decimal Kilograms);
+public sealed record SessionSlaughterIntent(AnimalType Animal, int Heads, string? CustomAnimalName = null, string? OwnerName = null);
+public sealed record SessionVendorFeeIntent(Guid StallId);
+public sealed record SessionNpmWholeIntent(Guid StallId, int Year, int Month);
+public sealed record SessionSlaughterOption(AnimalType Animal, string Name, string? CustomAnimalName);
+public sealed record WeighingSourceDto(Guid StallId, string StallNo, Guid? PayorId, string PayerName, string Context);
+public sealed record WeighingRateDto(WeighingType Type, decimal RatePerKilo, DateOnly EffectiveDate);
 public sealed record CollectionSessionItemIntent(Guid ClientItemId, CollectionSessionItemKind Kind, decimal ConfirmedAmount,
     SessionWaterIntent? Water = null, SessionGovernedIntent? Service = null,
-    SessionObligationIntent? Obligation = null, SessionElectricityIntent? Electricity = null);
+    SessionObligationIntent? Obligation = null, SessionElectricityIntent? Electricity = null, SessionWeighingIntent? Weighing = null,
+    SessionSlaughterIntent? Slaughter = null, SessionVendorFeeIntent? VendorFee = null, SessionNpmWholeIntent? NpmWhole = null);
 public sealed record CollectionSessionIntent(Guid ClientCollectionSessionId, DateOnly BusinessDate, Guid? PayorId,
     IReadOnlyList<CollectionSessionItemIntent> Items);
 public sealed record RecordCollectionSessionRequest(CollectionSessionIntent Intent, string? QuoteFingerprint);
@@ -35,11 +48,14 @@ public sealed record CollectionSessionResult(Guid ClientCollectionSessionId, Col
     IReadOnlyList<CollectionSessionProblem> Problems, bool ExistingOutcome = false);
 public sealed record CollectionSessionCapability(CollectionSessionItemKind? Kind, string OperationCode,
     string DisplayName, bool Supported, bool CanAdd, string? ReasonCode, string? Reason,
-    bool RequiresPayor, IReadOnlyList<string> RequiredInputs);
+    bool RequiresPayor, IReadOnlyList<string> RequiredInputs, bool StandaloneAvailable = false);
 public sealed record CollectionSessionDiscovery(Guid? PayorId, DateOnly BusinessDate,
     IReadOnlyList<CollectionSessionCapability> Operations,
     IReadOnlyList<WcfMobileSourceDto>? WaterSources = null,
     IReadOnlyList<EcfObligationQuoteDto>? ElectricitySources = null,
     IReadOnlyList<ObligationQuoteDto>? ObligationSources = null,
-    IReadOnlyList<CollectionSessionServiceTerms>? ServiceTerms = null);
+    IReadOnlyList<CollectionSessionServiceTerms>? ServiceTerms = null,
+    IReadOnlyList<WeighingSourceDto>? WeighingSources = null, IReadOnlyList<WeighingRateDto>? WeighingRates = null,
+    IReadOnlyList<SessionSlaughterOption>? SlaughterOptions = null, string? PayorDisplayName = null,
+    IReadOnlyList<DirectVendorFeeSource>? VendorFeeSources = null, IReadOnlyList<WeighingSourceDto>? NpmSources = null);
 public sealed record CollectionSessionServiceTerms(GovernedServiceMode? Mode, GovernedServiceTermsDto Terms);

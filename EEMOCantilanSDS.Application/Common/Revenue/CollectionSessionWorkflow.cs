@@ -30,6 +30,12 @@ public sealed class CollectionSessionWorkflow(ICollectionSessionStore store, ICo
             return Result<CollectionSessionDiscovery>.NotFound();
         return Result<CollectionSessionDiscovery>.Success(await sources.DiscoverAsync(payorId, clock.PhilippineToday, ct));
     }
+    public async Task<Result<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Revenue.CollectionPayorDto>>> SearchPayorsAsync(string? search, CancellationToken ct = default)
+    {
+        if (!await AuthorizedAsync(ct)) return Result<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Revenue.CollectionPayorDto>>.Forbidden();
+        return Result<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Revenue.CollectionPayorDto>>.Success(
+            await store.SearchPayorsAsync(municipality.MunicipalityId, search ?? "", ct));
+    }
 
     public async Task<Result<CollectionSessionQuote>> QuoteAsync(CollectionSessionIntent intent, CancellationToken ct = default)
     {
@@ -59,7 +65,12 @@ public sealed class CollectionSessionWorkflow(ICollectionSessionStore store, ICo
                 {
                     CollectionSessionItemKind.Water when item.Water is { } w => $"Water|{w.StallId}|{w.Year}|{w.Month}",
                     CollectionSessionItemKind.Obligation when item.Obligation is { } o => $"Obligation|{o.AccountId}|{o.Year}|{o.Month}",
-                    CollectionSessionItemKind.Electricity when item.Electricity is { } e => $"Electricity|{e.UtilityBillId}",
+                    CollectionSessionItemKind.Electricity when item.Electricity is { UtilityBillId: var bill } && bill != Guid.Empty => $"Electricity|{bill}",
+                    CollectionSessionItemKind.Electricity when item.Electricity is { } e => $"Electricity|{e.StallId}|{e.Year}|{e.Month}",
+                    // These are independent transactions, not shared balances. Each keeps its own document boundary.
+                    CollectionSessionItemKind.Weighing or CollectionSessionItemKind.Slaughter => $"Transaction|{item.ClientItemId}",
+                    CollectionSessionItemKind.VendorFee => $"VendorFee|{item.ClientItemId}",
+                    CollectionSessionItemKind.NpmWholePayment when item.NpmWhole is { } n => $"Npm|{n.StallId}|{n.Year}|{n.Month}",
                     _ => JsonSerializer.Serialize(new { item.Kind, item.Service }, Json)
                 };
                 if (!seen.Add(key)) { errors.Add(new(item.ClientItemId, "DuplicateBusinessEvent", "This source is already in the checkout.")); continue; }
@@ -148,7 +159,9 @@ public sealed class CollectionSessionWorkflow(ICollectionSessionStore store, ICo
     private static CollectionSessionResult Review(CollectionSessionIntent intent, params CollectionSessionProblem[] problems) =>
         new(intent.ClientCollectionSessionId, CollectionSessionStatus.NeedsReview, intent.PayorId, 0m, [], problems);
 
-    public static string IntentFingerprint(CollectionSessionIntent intent) => Hash(JsonSerializer.Serialize(new
+    public static string IntentFingerprint(CollectionSessionIntent intent)
+    {
+        var original = JsonSerializer.Serialize(new
     {
         Version = 1, intent.BusinessDate, intent.PayorId,
         Items = intent.Items.OrderBy(i => i.ClientItemId).Select(i => new
@@ -157,7 +170,13 @@ public sealed class CollectionSessionWorkflow(ICollectionSessionStore store, ICo
             Service = i.Service is null ? null : i.Service with
             { OperationCode = (i.Service.OperationCode ?? "").Trim().ToUpperInvariant(), VehicleClassCode = i.Service.VehicleClassCode?.Trim().ToUpperInvariant(), Reference = i.Service.Reference?.Trim() }
         })
-    }, Json));
+        }, Json);
+        // Preserve the v1 fingerprint byte-for-byte for existing queued/replayed sessions.
+        return intent.Items.Any(i => i.Weighing is not null || i.Slaughter is not null || i.VendorFee is not null || i.NpmWhole is not null)
+            ? Hash(JsonSerializer.Serialize(new { Version = 2, Original = original,
+                Specialized = intent.Items.OrderBy(i => i.ClientItemId).Select(i => new { i.ClientItemId, i.Weighing, i.Slaughter, i.VendorFee, i.NpmWhole }) }, Json))
+            : Hash(original);
+    }
     public static Guid ChildOperationId(Guid tenant, Guid session, Guid item) =>
         new(SHA256.HashData(Encoding.UTF8.GetBytes($"StallTrack.CollectionSession.v1|{tenant:N}|{session:N}|{item:N}"))[..16]);
     private static string Money(decimal amount) => amount.ToString("0.00##########################", CultureInfo.InvariantCulture);

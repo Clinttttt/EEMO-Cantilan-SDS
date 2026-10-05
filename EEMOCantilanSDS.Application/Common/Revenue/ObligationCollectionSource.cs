@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Enums;
+using EEMOCantilanSDS.Domain.Constants;
 using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Application.Common.Revenue;
@@ -57,6 +58,7 @@ public sealed class ObligationCollectionSource(IAppDbContext db)
             {
                 if (start < businessDate.AddMonths(-LookbackMonths)) continue;
                 periods.TryGetValue((account.Id, start), out var period);
+                if (account.Kind == ObligationKind.FishMeatVendorFee && FishMeatVendorFeeRules.UsesDirectCollection(businessDate) && period is null) continue;
                 var rate = period is null ? ObligationRate.Resolve(rates[account.Id], start) : null;
                 if (period is null && rate is null) continue;   // no approved amount in force: not billable, never invented
                 var assessed = period?.AssessedAmount ?? rate!.Amount;
@@ -65,7 +67,7 @@ public sealed class ObligationCollectionSource(IAppDbContext db)
                 quotes.Add(new ObligationQuoteDto(
                     account.Id, period?.Id, account.Kind, KindLabel(account.Kind), account.SubjectLabel, start,
                     assessed, paid, outstanding, account.PayorId, payors.GetValueOrDefault(account.PayorId),
-                    period?.ObligationRateId ?? rate!.Id, outstanding > 0m));
+                    period?.ObligationRateId ?? rate!.Id, outstanding > 0m && !(account.Kind == ObligationKind.FishMeatVendorFee && FishMeatVendorFeeRules.UsesDirectCollection(businessDate))));
             }
         }
         return quotes.OrderBy(x => x.PeriodStart).ThenBy(x => x.SubjectLabel, StringComparer.OrdinalIgnoreCase).ToList();
@@ -82,6 +84,7 @@ public sealed class ObligationCollectionSource(IAppDbContext db)
         IQueryable<ObligationAccount> accounts = db.ObligationAccounts.Where(x => x.MunicipalityId == tenantId && x.Id == accountId);
         var account = await (tracked ? accounts : accounts.AsNoTracking()).SingleOrDefaultAsync(ct);
         if (account is null || !account.PeriodStarts(businessDate).Contains(periodStart)) return null;
+        if (assess && account.Kind == ObligationKind.FishMeatVendorFee && FishMeatVendorFeeRules.UsesDirectCollection(businessDate)) return null;
 
         IQueryable<ObligationPeriod> periods = db.ObligationPeriods.Where(x =>
             x.MunicipalityId == tenantId && x.ObligationAccountId == accountId && x.PeriodStart == periodStart);
@@ -132,7 +135,8 @@ public sealed class ObligationCollectionSource(IAppDbContext db)
         var payorName = (await PayorNamesAsync(tenantId, [account.PayorId], ct)).GetValueOrDefault(account.PayorId);
         var quote = new ObligationQuoteDto(
             account.Id, period.Id, account.Kind, KindLabel(account.Kind), account.SubjectLabel, period.PeriodStart,
-            period.AssessedAmount, settled, outstanding, account.PayorId, payorName, period.ObligationRateId, outstanding > 0m);
+            period.AssessedAmount, settled, outstanding, account.PayorId, payorName, period.ObligationRateId,
+            outstanding > 0m && !(account.Kind == ObligationKind.FishMeatVendorFee && FishMeatVendorFeeRules.UsesDirectCollection(businessDate)));
 
         var snapshot = JsonSerializer.Serialize(new ObligationSnapshot(
             1, tenantId, (int)account.Kind, account.Id, period.Id, period.PeriodStart.Year, period.PeriodStart.Month,

@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
+using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,6 +17,47 @@ namespace EEMOCantilanSDS.Application.Common.Revenue;
 public sealed partial class CollectionComposerWorkflow
 {
     private const string MobileEcfOrigin = "MobileEcf";
+
+    public async Task<Result<IReadOnlyList<EcfObligationQuoteDto>>> GetMobileEcfSourcesAsync(Guid? payorId = null, CancellationToken ct = default)
+    {
+        if (!currentUser.IsAuthenticated || currentUser.Role != "Collector" || currentUser.CollectorId is not { } collector)
+            return Result<IReadOnlyList<EcfObligationQuoteDto>>.Forbidden();
+        var tenant = municipality.MunicipalityId;
+        if (tenant == Guid.Empty || currentUser.MunicipalityId is { } claimed && claimed != tenant
+            || !await db.CollectorUsers.AsNoTracking().AnyAsync(x => x.MunicipalityId == tenant && x.Id == collector
+                && x.IsActive && x.FacilityAssignments.Any(a => a.FacilityCode == FacilityCode.NPM), ct))
+            return Result<IReadOnlyList<EcfObligationQuoteDto>>.Forbidden();
+        var date = BusinessToday;
+        var stalls = await db.Stalls.AsNoTracking().Include(x => x.Facility).Include(x => x.Contracts).ThenInclude(x => x.Payor)
+            .Where(x => x.MunicipalityId == tenant && x.Facility!.Code == FacilityCode.NPM
+                && (!payorId.HasValue || x.Contracts.Any(c => c.PayorId == payorId))).ToListAsync(ct);
+        var ids = stalls.Select(x => x.Id).ToArray();
+        var bills = await UtilityBillQuery(tenant, false).Where(x => ids.Contains(x.StallId)).ToListAsync(ct);
+        var rows = new List<EcfObligationQuoteDto>();
+        PolicyFacts policy;
+        try { policy = await ResolveEcfPolicyAsync(tenant, date, ct); }
+        catch (WorkflowProblem) { return Result<IReadOnlyList<EcfObligationQuoteDto>>.Success(rows); }
+        foreach (var stall in stalls)
+        {
+            var current = bills.Where(x => x.StallId == stall.Id).ToList();
+            if (!current.Any(x => x.IsForMonth(date.Year, date.Month)))
+            {
+                var provisional = UtilityBill.Create(stall.Id, date.Year, date.Month, 0, 0, 0, 0, 0, 0, "quote");
+                provisional.AttachSourceContext(stall);
+                current.Add(provisional);
+            }
+            foreach (var bill in current)
+                try
+                {
+                    var q = (await BuildFactsAsync(bill, policy, tenant, date, ct)).Quote;
+                    if (payorId.HasValue && q.PayorId != payorId) continue;
+                    if (!q.CanPostCanonical && !bill.IsForMonth(date.Year, date.Month)) continue;
+                    rows.Add(bill.MunicipalityId == Guid.Empty ? q with { UtilityBillId = Guid.Empty, ElectricitySourceVersion = 0 } : q);
+                }
+                catch (WorkflowProblem) { /* A malformed bill cannot hide another source. */ }
+        }
+        return Result<IReadOnlyList<EcfObligationQuoteDto>>.Success(rows);
+    }
 
     /// <summary>Bounded, read-only source quote for a checkout; no draft, assessment or Collection is created.</summary>
     public async Task<Result<EcfObligationQuoteDto>> QuoteMobileEcfAsync(Guid billId, DateOnly date, CancellationToken ct = default)
@@ -65,6 +107,9 @@ public sealed partial class CollectionComposerWorkflow
             BusinessDate = request.BusinessDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
             ReceivedAmount = request.ReceivedAmount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)
         }, JsonOptions);
+        if (request.StallId.HasValue)
+            normalized = System.Text.Json.JsonSerializer.Serialize(new { SchemaVersion = 2, Original = normalized,
+                request.StallId, request.BillingYear, request.BillingMonth }, JsonOptions);
         var fingerprint = PostingOperation.ComputeIntentFingerprint(IntentVersion, normalized, MobileEcfOrigin, ActorIdentity(actor));
 
         try
@@ -75,18 +120,36 @@ public sealed partial class CollectionComposerWorkflow
             Task<Result<EcfPostOutcomeDto>> Reject(string code, string message) =>
                 RecordMobileEcfRejectionAsync(actor, request, normalized, fingerprint, code, message, ct);
 
-            if (request.ReceivedAmount <= 0m || decimal.Round(request.ReceivedAmount, 2, MidpointRounding.ToZero) != request.ReceivedAmount)
+            if (request.ReceivedAmount <= 0m || request.ReceivedAmount > Collection.MaximumMoneyAmount
+                || request.BusinessDate == default || decimal.Round(request.ReceivedAmount, 2, MidpointRounding.ToZero) != request.ReceivedAmount)
                 return await Reject("INVALID_INTENT", "A positive received amount with at most two decimals is required.");
             if (request.BusinessDate > BusinessToday)
                 return await Reject("FUTURE_BUSINESS_DATE", "Collection BusinessDate cannot be later than the current Philippine business date.");
 
             var bill = await UtilityBillQuery(tenantId, tracked: true).SingleOrDefaultAsync(x => x.Id == request.UtilityBillId, ct);
+            if (request.UtilityBillId == Guid.Empty && request.StallId is { } stallId
+                && request.BillingYear == request.BusinessDate.Year && request.BillingMonth == request.BusinessDate.Month)
+            {
+                var stall = await db.Stalls.Include(x => x.Facility).Include(x => x.Contracts).ThenInclude(x => x.Payor)
+                    .SingleOrDefaultAsync(x => x.MunicipalityId == tenantId && x.Id == stallId && x.Facility!.Code == FacilityCode.NPM, ct);
+                if (stall?.OccupancyAnsweringForMonth(request.BillingYear.Value, request.BillingMonth.Value, request.BusinessDate) is null)
+                    return await Reject("SOURCE_NOT_FOUND", "This Electricity source is not available.");
+                if (await db.UtilityBills.AnyAsync(x => x.MunicipalityId == tenantId && x.StallId == stallId
+                    && x.BillingYear == request.BillingYear && x.BillingMonth == request.BillingMonth, ct))
+                    return await Reject("SOURCE_VERSION_STALE", "The Electricity source changed. Refresh before recording.");
+                bill = UtilityBill.Create(stallId, request.BillingYear.Value, request.BillingMonth.Value, 0, 0, 0, 0, 0, 0, actor.Username);
+                bill.AttachSourceContext(stall);
+            }
             if (bill is null)
                 return await Reject("SOURCE_NOT_FOUND", "The ECF source is not available in this tenant.");
-            if (bill.ElectricitySettlementAuthorityState != SettlementAuthority.Canonical)
+            if (bill.ElectricitySettlementAuthorityState == SettlementAuthority.PendingCutover)
                 return await Reject("SOURCE_NOT_CANONICAL",
                     "This ECF source is not yet under canonical settlement authority; it is collected on its existing legacy path until its controlled activation.");
-            if (bill.ElectricitySourceVersion != request.ElectricitySourceVersion)
+            if (bill.ElectricitySettlementAuthorityState == SettlementAuthority.Legacy
+                && (bill.ElecStatus != PaymentStatus.Unpaid || bill.ElecPartialAmount != 0m
+                    || bill.ElecPaidAt is not null || !string.IsNullOrWhiteSpace(bill.ElecORNumber)))
+                return await Reject("SOURCE_NOT_CANONICAL", "Historical Electricity evidence needs office review before canonical collection.");
+            if (bill.ElectricitySourceVersion != request.ElectricitySourceVersion && request.UtilityBillId != Guid.Empty)
                 return await Reject("SOURCE_VERSION_STALE", "The ECF source changed after it was shown. Refresh and try again.");
 
             PolicyFacts policy;
@@ -102,9 +165,21 @@ public sealed partial class CollectionComposerWorkflow
             }
             if (!facts.Quote.CanPostCanonical)
                 return await Reject("SOURCE_NOT_COLLECTIBLE", "This ECF source has no collectible balance.");
-            if (request.ReceivedAmount > facts.Quote.OutstandingAmount)
+            if (facts.Quote.ChargeBasis != "DirectCollection" && request.ReceivedAmount > facts.Quote.OutstandingAmount)
                 return await Reject("AMOUNT_EXCEEDS_OUTSTANDING", "The received amount exceeds the current ECF outstanding balance.");
 
+            if (bill.ElectricitySettlementAuthorityState == SettlementAuthority.Legacy)
+            {
+                if (bill.ElecCharge == 0m) bill.FreezeDirectCollection(CollectionSourcePart.Electricity);
+                bill.MarkElectricityPendingCutover();
+                var now = clock?.UtcNow ?? DateTime.UtcNow;
+                var cutover = CollectionSettlementCutover.Freeze(tenantId, CollectionSourceKind.UtilityBill, bill.Id,
+                    CollectionSourcePart.Electricity, bill.ElectricitySourceVersion, now, bill.ElecCharge, 0m, bill.ElecCharge,
+                    System.Text.Json.JsonSerializer.Serialize(new { Kind = "ProspectiveEcfFieldCollection", request.ClientOperationId, Direct = bill.ElectricityDirectCollection }), collectorId, now);
+                db.CollectionSettlementCutovers.Add(cutover);
+                bill.ActivateCanonicalElectricitySettlement(cutover);
+                if (bill.MunicipalityId == Guid.Empty) db.UtilityBills.Add(bill);
+            }
             var line = new CollectionLineDraft(facts.Classification, facts.Policy, request.ReceivedAmount,
                 CollectionSourceKind.UtilityBill, bill.Id, CollectionSourcePart.Electricity, facts.SnapshotJson,
                 [new CollectionAllocationDraft(CollectionSourceKind.UtilityBill, bill.Id, request.ReceivedAmount,

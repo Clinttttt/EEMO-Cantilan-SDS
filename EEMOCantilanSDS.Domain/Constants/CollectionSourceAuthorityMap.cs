@@ -34,7 +34,7 @@ public static class CollectionSourceAuthorityMap
             => SourceReportingAuthority.CanonicalAfterRowCutover,
 
         CollectionSourceKind.GovernedService or CollectionSourceKind.PenaltyDefinition
-            or CollectionSourceKind.ObligationPeriod
+            or CollectionSourceKind.ObligationPeriod or CollectionSourceKind.NpmWeighing or CollectionSourceKind.FishMeatVendorFee
             => SourceReportingAuthority.CanonicalAlways,
 
         CollectionSourceKind.SlaughterTransaction

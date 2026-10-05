@@ -13,6 +13,7 @@ public interface ICollectionSessionSources
 }
 public interface ICollectionSessionStore
 {
+    Task<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Revenue.CollectionPayorDto>> SearchPayorsAsync(Guid tenantId, string search, CancellationToken ct);
     Task<bool> IsActiveCollectorAsync(Guid tenantId, Guid collectorId, CancellationToken ct);
     Task<bool> PayorExistsAsync(Guid tenantId, Guid payorId, CancellationToken ct);
     Task<MobileCollectionSession?> FindAsync(Guid tenantId, Guid sessionId, CancellationToken ct);

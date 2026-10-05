@@ -1067,7 +1067,7 @@ public sealed partial class CollectionComposerWorkflow(
     private async Task<SourceFacts> BuildFactsAsync(
         UtilityBill bill, PolicyFacts policy, Guid tenantId, DateOnly businessDate, CancellationToken ct)
     {
-        if (bill.MunicipalityId != tenantId || bill.Stall is null)
+        if ((bill.MunicipalityId == Guid.Empty ? bill.Stall?.MunicipalityId : bill.MunicipalityId) != tenantId || bill.Stall is null)
             throw Problem("The ECF source has no accessible stall context in this tenant.", ResultStatus.Conflict);
         if (bill.Stall.Facility?.Code != FacilityCode.NPM)
             throw Problem("This utility bill is not an NPM Electricity source.", ResultStatus.Conflict);
@@ -1077,7 +1077,10 @@ public sealed partial class CollectionComposerWorkflow(
         {
             if (bill.ElectricitySettlementCutoverId is not { } cutoverId)
                 throw Problem("Canonical ECF source has no frozen cutover evidence.", ResultStatus.Conflict);
-            var cutover = await db.CollectionSettlementCutovers.AsNoTracking()
+            var cutover = db.CollectionSettlementCutovers.Local.FirstOrDefault(x => x.Id == cutoverId
+                    && x.MunicipalityId == tenantId && x.SourceKind == CollectionSourceKind.UtilityBill
+                    && x.SourceId == bill.Id && x.SourcePart == CollectionSourcePart.Electricity)
+                ?? await db.CollectionSettlementCutovers.AsNoTracking()
                 .SingleOrDefaultAsync(x => x.Id == cutoverId
                     && x.MunicipalityId == tenantId
                     && x.SourceKind == CollectionSourceKind.UtilityBill
@@ -1107,6 +1110,11 @@ public sealed partial class CollectionComposerWorkflow(
             ?? (string.IsNullOrWhiteSpace(contract?.ActualOccupant) ? null : contract.ActualOccupant.Trim());
         var facility = bill.Stall.Facility!;
         var section = ResolveSection(facility, bill.Stall);
+        var prospective = bill.ElectricitySettlementAuthorityState == SettlementAuthority.Legacy
+            && bill.BillingYear == businessDate.Year && bill.BillingMonth == businessDate.Month
+            && bill.ElecStatus == PaymentStatus.Unpaid && bill.ElecPartialAmount == 0m
+            && bill.ElecPaidAt is null && string.IsNullOrWhiteSpace(bill.ElecORNumber);
+        var direct = bill.ElectricityDirectCollection || prospective && bill.ElecCharge == 0m;
         var snapshot = new EcfSourceSnapshot(
             1, bill.Id, bill.ElectricitySourceVersion, bill.StallId, bill.Stall.StallNo,
             contract?.Id, contract?.UpdatedAt, payorId, payerName,
@@ -1114,8 +1122,9 @@ public sealed partial class CollectionComposerWorkflow(
             bill.ElecPreviousReading, bill.ElecCurrentReading, bill.ElecConsumption,
             bill.ElecRatePerKwh, bill.ElecCharge, settled, outstanding,
             policy.Classification.Id, policy.Policy.Id, policy.Policy.DisplayName,
-            RevenueInstrumentType.OfficialReceipt, bill.ElectricitySettlementAuthorityState, (bill.ElecCalculationBasis == UtilityCalculationBasis.DirectApproved ? "DirectApproved" : "Metered"));
-        var canAdd = outstanding > 0m && bill.ElectricitySettlementAuthorityState != SettlementAuthority.PendingCutover;
+            RevenueInstrumentType.OfficialReceipt, bill.ElectricitySettlementAuthorityState, direct ? "DirectCollection" : (bill.ElecCalculationBasis == UtilityCalculationBasis.DirectApproved ? "DirectApproved" : "Metered"));
+        var canAdd = contract is not null && (direct || outstanding > 0m)
+            && bill.ElectricitySettlementAuthorityState != SettlementAuthority.PendingCutover;
         var quote = new EcfObligationQuoteDto(
             bill.MunicipalityId, bill.Id, CollectionSourceKind.UtilityBill, CollectionSourcePart.Electricity,
             bill.ElectricitySourceVersion, bill.StallId, bill.Stall.StallNo,
@@ -1124,8 +1133,8 @@ public sealed partial class CollectionComposerWorkflow(
             bill.ElecRatePerKwh, bill.ElecCharge, settled, outstanding,
             bill.ElectricitySettlementAuthorityState, payorId, payerName,
             policy.Classification.Id, policy.Policy.Id, policy.Policy.DisplayName,
-            RevenueInstrumentType.OfficialReceipt, (bill.ElecCalculationBasis == UtilityCalculationBasis.DirectApproved ? "DirectApproved" : "Metered"), canAdd,
-            bill.ElectricitySettlementAuthorityState == SettlementAuthority.Canonical && canAdd);
+            RevenueInstrumentType.OfficialReceipt, direct ? "DirectCollection" : (bill.ElecCalculationBasis == UtilityCalculationBasis.DirectApproved ? "DirectApproved" : "Metered"), canAdd,
+            (bill.ElectricitySettlementAuthorityState == SettlementAuthority.Canonical || prospective) && canAdd);
         return new SourceFacts(bill, policy.Classification, policy.Policy, quote, snapshot,
             JsonSerializer.Serialize(snapshot, JsonOptions));
     }

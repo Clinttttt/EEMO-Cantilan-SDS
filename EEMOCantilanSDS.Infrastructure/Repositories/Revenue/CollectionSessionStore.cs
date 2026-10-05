@@ -9,6 +9,14 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories.Revenue;
 
 public sealed class CollectionSessionStore(AppDbContext db) : ICollectionSessionStore
 {
+    public async Task<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Revenue.CollectionPayorDto>> SearchPayorsAsync(Guid tenantId, string search, CancellationToken ct)
+    {
+        var term = search.Trim().ToLowerInvariant();
+        if (term.Length < 2) return [];
+        return await db.Payors.AsNoTracking().Where(x => x.MunicipalityId == tenantId && x.DisplayName.ToLower().Contains(term))
+            .OrderBy(x => x.DisplayName).Take(50)
+            .Select(x => new EEMOCantilanSDS.Application.Dtos.Revenue.CollectionPayorDto(x.Id, x.DisplayName)).ToListAsync(ct);
+    }
     public Task<bool> IsActiveCollectorAsync(Guid tenantId, Guid collectorId, CancellationToken ct) =>
         db.CollectorUsers.AsNoTracking().AnyAsync(x => x.MunicipalityId == tenantId && x.Id == collectorId && x.IsActive, ct);
     public Task<bool> PayorExistsAsync(Guid tenantId, Guid payorId, CancellationToken ct) =>

@@ -212,6 +212,8 @@ public sealed class CollectionsReportWorkflow(
 
         string Label(CollectionSourceKind kind, Guid id) => kind switch
         {
+            CollectionSourceKind.NpmWeighing => "Weight & Measure",
+            CollectionSourceKind.FishMeatVendorFee => "Fish / Meat Vendor Fee",
             CollectionSourceKind.GovernedService => GovernedServiceCatalog.Find(services.GetValueOrDefault(id))?.Name ?? "Operation",
             CollectionSourceKind.PenaltyDefinition => $"Penalty · {penalties.GetValueOrDefault(id, "approved penalty")}",
             CollectionSourceKind.ObligationPeriod when periods.TryGetValue(id, out var p) =>

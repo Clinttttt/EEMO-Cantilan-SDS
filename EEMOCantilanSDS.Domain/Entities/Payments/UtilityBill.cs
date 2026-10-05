@@ -57,6 +57,32 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public long WaterSourceVersion { get; private set; } = 1;
         public Guid? ElectricitySettlementCutoverId { get; private set; }
         public Guid? WaterSettlementCutoverId { get; private set; }
+        // Frozen prospective field mode. Existing historical assessments retain their original meaning.
+        public bool ElectricityDirectCollection { get; private set; }
+        public bool WaterDirectCollection { get; private set; }
+
+        public void FreezeDirectCollection(CollectionSourcePart part)
+        {
+            if (part == CollectionSourcePart.Water)
+            {
+                if (WaterDirectCollection) return;
+                if (WaterSettlementAuthorityState != SettlementAuthority.Legacy || WaterCharge != 0m
+                    || WaterStatus != PaymentStatus.Unpaid || WaterPartialAmount != 0m
+                    || WaterPaidAt is not null || !string.IsNullOrWhiteSpace(WaterORNumber))
+                    throw new InvalidOperationException("This Water period needs office review.");
+                WaterDirectCollection = true;
+            }
+            else if (part == CollectionSourcePart.Electricity)
+            {
+                if (ElectricityDirectCollection) return;
+                if (ElectricitySettlementAuthorityState != SettlementAuthority.Legacy || ElecCharge != 0m
+                    || ElecStatus != PaymentStatus.Unpaid || ElecPartialAmount != 0m
+                    || ElecPaidAt is not null || !string.IsNullOrWhiteSpace(ElecORNumber))
+                    throw new InvalidOperationException("This Electricity period needs office review.");
+                ElectricityDirectCollection = true;
+            }
+            else throw new ArgumentOutOfRangeException(nameof(part));
+        }
 
         // ── Computed (never negative; a lower current reading yields zero, not a credit) ──
         public decimal ElecConsumption => Math.Max(0m, ElecCurrentReading - ElecPreviousReading);
@@ -106,6 +132,12 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             bill.BillingYear < year || (bill.BillingYear == year && bill.BillingMonth < month);
 
         public Stall? Stall { get; private set; }
+        public void AttachSourceContext(Stall stall)
+        {
+            if (stall.Id != StallId || MunicipalityId != Guid.Empty && MunicipalityId != stall.MunicipalityId)
+                throw new InvalidOperationException("Utility source context must match its stall and municipality.");
+            Stall = stall;
+        }
 
         private UtilityBill() { }
 
@@ -493,7 +525,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             if (ElectricitySettlementAuthorityState != SettlementAuthority.Canonical
                 || ElectricitySettlementCutoverId is null)
                 throw new InvalidOperationException("Electricity compatibility projection requires Canonical settlement authority.");
-            if (cumulativeSettled < 0m || cumulativeSettled > ElecCharge
+            if (cumulativeSettled < 0m || (!ElectricityDirectCollection && cumulativeSettled > ElecCharge)
                 || decimal.Round(cumulativeSettled, 2, MidpointRounding.ToZero) != cumulativeSettled)
                 throw new ArgumentOutOfRangeException(nameof(cumulativeSettled), "Projected settlement must be within the assessed amount.");
             if (projectedAtUtc.Kind != DateTimeKind.Utc)
@@ -501,6 +533,13 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             if (latestOrNumber?.Length > 50)
                 throw new ArgumentException("Official Receipt number must not exceed 50 characters.", nameof(latestOrNumber));
 
+            if (ElectricityDirectCollection)
+            {
+                // Direct receipts are allocations, not a fabricated assessment or paid bill.
+                ElectricitySourceVersion = checked(ElectricitySourceVersion + 1);
+                UpdatedAt = projectedAtUtc; UpdatedBy = updatedBy;
+                return;
+            }
             ElecStatus = cumulativeSettled == 0m
                 ? PaymentStatus.Unpaid
                 : cumulativeSettled >= ElecCharge ? PaymentStatus.Paid : PaymentStatus.Partial;
@@ -527,7 +566,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             if (WaterSettlementAuthorityState != SettlementAuthority.Canonical
                 || WaterSettlementCutoverId is null)
                 throw new InvalidOperationException("Water compatibility projection requires Canonical settlement authority.");
-            if (cumulativeSettled < 0m || cumulativeSettled > WaterCharge
+            if (cumulativeSettled < 0m || (!WaterDirectCollection && cumulativeSettled > WaterCharge)
                 || decimal.Round(cumulativeSettled, 2, MidpointRounding.ToZero) != cumulativeSettled)
                 throw new ArgumentOutOfRangeException(nameof(cumulativeSettled), "Projected settlement must be within the assessed amount.");
             if (projectedAtUtc.Kind != DateTimeKind.Utc)
@@ -535,6 +574,12 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             if (latestCashTicketNumber?.Length > 50)
                 throw new ArgumentException("Cash Ticket number must not exceed 50 characters.", nameof(latestCashTicketNumber));
 
+            if (WaterDirectCollection)
+            {
+                WaterSourceVersion = checked(WaterSourceVersion + 1);
+                UpdatedAt = projectedAtUtc; UpdatedBy = updatedBy;
+                return;
+            }
             WaterStatus = cumulativeSettled == 0m
                 ? PaymentStatus.Unpaid
                 : cumulativeSettled >= WaterCharge ? PaymentStatus.Paid : PaymentStatus.Partial;

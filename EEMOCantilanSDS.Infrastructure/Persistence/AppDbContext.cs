@@ -46,6 +46,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         /// no-op and nothing is hidden. Read live so the value resolved at startup is always current.
         /// </summary>
         public Guid CurrentMunicipalityId => _municipality?.MunicipalityId ?? Guid.Empty;
+        public bool HasActiveTransaction => Database.CurrentTransaction is not null;
 
         public async Task<IAppDbContextTransaction> BeginSerializableTransactionAsync(
             CancellationToken cancellationToken = default) =>

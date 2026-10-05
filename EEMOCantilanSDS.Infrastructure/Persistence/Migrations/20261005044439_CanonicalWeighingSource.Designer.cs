@@ -4,17 +4,20 @@ using System.Collections.Generic;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace EEMOCantilanSDS.Infrastructure.Migrations
+namespace EEMOCantilanSDS.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261005044439_CanonicalWeighingSource")]
+    partial class CanonicalWeighingSource
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2214,7 +2217,7 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("CK_CollectionLines_Amount_Positive", "\"Amount\" > 0");
 
-                            t.HasCheckConstraint("CK_CollectionLines_SourceShape", "((\"SourceKind\" IS NULL AND \"SourceId\" IS NULL AND \"SourcePart\" IS NULL) OR (\"SourceKind\" = 3 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (1, 2)) OR (\"SourceKind\" = 2 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (3, 4, 5)) OR (\"SourceKind\" IN (1, 4, 5, 6, 7, 8, 9, 10, 11, 12) AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IS NULL))");
+                            t.HasCheckConstraint("CK_CollectionLines_SourceShape", "((\"SourceKind\" IS NULL AND \"SourceId\" IS NULL AND \"SourcePart\" IS NULL) OR (\"SourceKind\" = 3 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (1, 2)) OR (\"SourceKind\" = 2 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (3, 4, 5)) OR (\"SourceKind\" IN (1, 4, 5, 6, 7, 8, 9, 10, 11) AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IS NULL))");
                         });
                 });
 

@@ -104,6 +104,8 @@ public sealed class ObligationWorkflow(
             if (actor.Role != "SuperAdmin") return Result<ObligationAccountDto>.Forbidden();
             if (!Enum.IsDefined(request.Kind))
                 return Result<ObligationAccountDto>.Failure("Unknown obligation kind.", ResultStatus.Invalid);
+            if (request.Kind == ObligationKind.FishMeatVendorFee && Domain.Constants.FishMeatVendorFeeRules.UsesDirectCollection(BusinessToday))
+                return Result<ObligationAccountDto>.Failure("Vendor fees are direct collections. New monthly vendor-fee accounts are no longer opened.", ResultStatus.Conflict);
 
             var payorId = request.PayorId;
             var stallId = request.StallId;
