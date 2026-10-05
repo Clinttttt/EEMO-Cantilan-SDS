@@ -1,5 +1,7 @@
 # Mobile itemized collection backend
 
+> **Prospective update (2026-10-05):** IA-064 supersedes this checkpoint's monthly Fish/Meat Vendor Fee adapter. The item remains supported, through the shared direct additional-fee writer, with collector-entered amount received, OR and server SRC. It creates no monthly obligation and does not settle NPM rent or weighing. See [the current full-stack follow-up](ITEMIZED_COLLECTION_FULL_STACK_FOLLOWUP.md). The original checkpoint below records the earlier implementation.
+
 Implementation scope: backend, shared contracts and durable Mobile.Core queue only. This feature branch starts at
 `19ae118b`; it is not a deployed release or permission to activate a source. The approved request permits this bounded
 source rollout. Older October 4 checkpoint statements that all Mobile writers still require OR entry are superseded by
