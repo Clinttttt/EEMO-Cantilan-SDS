@@ -24,7 +24,8 @@ namespace EEMOCantilanSDS.IntegrationTests;
 [Collection(PostgresCollection.Name)]
 public sealed class VendorFeeMobileWorkflowTests(PostgresFixture db)
 {
-    private static readonly DateOnly Today = PhilippineTime.Today;
+    // The former monthly model remains covered as historical, pre-IA-064 behavior.
+    private static readonly DateOnly Today = FishMeatVendorFeeRules.DirectEffectiveDate.AddDays(-1);
     private static readonly DateOnly Effective = new(2000, 1, 1);
 
     private sealed record World(Guid TenantId, Guid AdminId, Guid CollectorId, Guid AccountId);
@@ -49,7 +50,7 @@ public sealed class VendorFeeMobileWorkflowTests(PostgresFixture db)
 
     private sealed class Clock : IClock
     {
-        public DateOnly PhilippineToday => PhilippineTime.Today;
+        public DateOnly PhilippineToday => Today;
         public DateTime UtcNow => DateTime.UtcNow;
         public DateTime PhilippineNow => PhilippineTime.Now;
     }

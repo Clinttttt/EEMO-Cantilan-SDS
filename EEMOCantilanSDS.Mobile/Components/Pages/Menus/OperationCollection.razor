@@ -105,10 +105,6 @@
                             <MobileChoice Label="Vehicle class" Placeholder="Select vehicle class"
                                           EmptyText="No active vehicle classes are available. Ask the office to set the approved rates."
                                           Options="@VehicleChoices(terms)" Value="@_vehicleClass" ValueChanged="@(v => _vehicleClass = v)" />
-                            @if (SelectedVehicleClass is { } chosenClass)
-                            {
-                                <p class="op-form-note">Approved rate @Money(chosenClass.Amount) · set by the office, not editable here.</p>
-                            }
                         }
                         else if (terms.Basis == GovernedServiceBasis.ApprovedFeeOption)
                         {

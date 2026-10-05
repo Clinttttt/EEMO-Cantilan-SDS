@@ -12,6 +12,13 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 
 public interface IMobileApiClient
 {
+    Task<Result<IReadOnlyList<DirectVendorFeeSource>>> GetDirectVendorFeeSourcesAsync() => Task.FromResult(Result<IReadOnlyList<DirectVendorFeeSource>>.Failure("Vendor sources are unavailable."));
+    Task<Result<IReadOnlyList<CollectionPayorDto>>> SearchCollectionSessionPayorsAsync(string search) => Task.FromResult(Result<IReadOnlyList<CollectionPayorDto>>.Failure("Payer search is unavailable."));
+    Task<Result<IReadOnlyList<EcfObligationQuoteDto>>> GetMobileEcfSourcesAsync() => Task.FromResult(Result<IReadOnlyList<EcfObligationQuoteDto>>.Failure("Electricity sources are unavailable."));
+    Task<Result<CollectionSessionDiscovery>> GetCollectionSessionDiscoveryAsync(Guid? payorId) => Task.FromResult(Result<CollectionSessionDiscovery>.Failure("Checkout is unavailable in this client."));
+    Task<Result<CollectionSessionQuote>> QuoteCollectionSessionAsync(CollectionSessionIntent intent) => Task.FromResult(Result<CollectionSessionQuote>.Failure("Checkout is unavailable in this client."));
+    Task<Result<CollectionSessionResult>> RecordCollectionSessionAsync(RecordCollectionSessionRequest request) => Task.FromResult(Result<CollectionSessionResult>.Failure("Checkout is unavailable in this client."));
+    Task<Result<CollectionSessionResult>> GetCollectionSessionAsync(Guid sessionId) => Task.FromResult(Result<CollectionSessionResult>.Failure("Checkout is unavailable in this client."));
     Task<Result<NpmWholePaymentQuoteDto>> GetNpmWholePaymentQuoteAsync(Guid stallId, int year, int month) =>
         Task.FromResult(Result<NpmWholePaymentQuoteDto>.Failure("Whole payment is unavailable in this client."));
     Task<Result<MobileMenuDto>> GetMenuAsync();

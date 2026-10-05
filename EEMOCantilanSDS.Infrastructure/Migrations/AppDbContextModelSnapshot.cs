@@ -1381,6 +1381,9 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.Property<int>("ElecStatus")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("ElectricityDirectCollection")
+                        .HasColumnType("boolean");
+
                     b.Property<int>("ElectricitySettlementAuthorityState")
                         .IsConcurrencyToken()
                         .ValueGeneratedOnAdd()
@@ -1425,6 +1428,9 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.Property<decimal>("WaterCurrentReading")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
+
+                    b.Property<bool>("WaterDirectCollection")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("WaterORNumber")
                         .HasMaxLength(50)
@@ -2208,7 +2214,7 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("CK_CollectionLines_Amount_Positive", "\"Amount\" > 0");
 
-                            t.HasCheckConstraint("CK_CollectionLines_SourceShape", "((\"SourceKind\" IS NULL AND \"SourceId\" IS NULL AND \"SourcePart\" IS NULL) OR (\"SourceKind\" = 3 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (1, 2)) OR (\"SourceKind\" = 2 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (3, 4, 5)) OR (\"SourceKind\" IN (1, 4, 5, 6, 7, 8, 9, 10) AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IS NULL))");
+                            t.HasCheckConstraint("CK_CollectionLines_SourceShape", "((\"SourceKind\" IS NULL AND \"SourceId\" IS NULL AND \"SourcePart\" IS NULL) OR (\"SourceKind\" = 3 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (1, 2)) OR (\"SourceKind\" = 2 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (3, 4, 5)) OR (\"SourceKind\" IN (1, 4, 5, 6, 7, 8, 9, 10, 11, 12) AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IS NULL))");
                         });
                 });
 
@@ -2652,6 +2658,44 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
 
                             t.HasCheckConstraint("CK_GovernedServiceSettings_Basis", "\"Basis\" IN (1, 2, 3, 4)");
                         });
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.MobileCollectionSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("BusinessDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("ClientCollectionSessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CollectorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("IntentFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("MunicipalityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("PayorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ResultJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MunicipalityId", "ClientCollectionSessionId")
+                        .IsUnique();
+
+                    b.ToTable("MobileCollectionSessions", (string)null);
                 });
 
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.ObligationAccount", b =>

@@ -151,19 +151,37 @@ public sealed class MobileSyncService
         EnsureAutoRetry();
     }
 
+    /// <summary>One durable checkout intent. The amount here is display metadata; only the server's source writers price it.</summary>
+    public Task EnqueueCollectionSessionAsync(RecordCollectionSessionRequest request, decimal? quotedDisplayTotal = null) => EnqueueIssuedDocumentAsync(new PendingOperation
+    {
+        ClientOperationId = request.Intent.ClientCollectionSessionId,
+        BusinessDate = request.Intent.BusinessDate,
+        Kind = OfflineOperationKind.ItemizedCollectionSession,
+        CollectionSession = request,
+        ReceivedAmount = quotedDisplayTotal ?? request.Intent.Items.Sum(i => i.ConfirmedAmount),
+        PayloadVersion = 1, Title = "Itemized collection"
+    });
+
     /// <summary>Drops a queued row (e.g. a Rejected item the collector chooses to discard).</summary>
     public async Task<bool> DiscardAsync(Guid clientOperationId)
     {
         var existing = (await _store.GetAllAsync()).FirstOrDefault(o => o.ClientOperationId == clientOperationId);
         if (existing is null) return false;
-        if (existing.AccountableDocumentId is not null || existing.LocalStatus == PendingLocalStatus.Synced
-            || (existing.IssuedDocumentState is not null && existing.LocalStatus != PendingLocalStatus.Rejected))
+        if (!IsVisibleToCurrent(existing) || existing.AccountableDocumentId is not null || existing.LocalStatus == PendingLocalStatus.Synced
+            || (existing.IssuedDocumentState is not null && existing.LocalStatus != PendingLocalStatus.Rejected && !CanReviewUnpostedSession(existing)))
             return false;
         await _store.RemoveAsync(clientOperationId);
         await RefreshCountAsync();
         NotifyChanged();
         return true;
     }
+
+    /// <summary>Only a server-confirmed atomic rejection can be corrected. Unknown outcomes and conflicts remain protected.</summary>
+    public static bool CanReviewUnpostedSession(PendingOperation operation) => operation.CollectionSession is not null
+        && operation.LocalStatus == PendingLocalStatus.ReconciliationRequired && operation.AccountableDocumentId is null
+        && operation.ServerCollectionId is null && string.IsNullOrEmpty(operation.ReferenceCode)
+        && operation.CollectionSessionResult is { Status: CollectionSessionStatus.NeedsReview, Collections.Count: 0 } result
+        && result.Problems.Count > 0 && result.Problems.All(x => x.Code is not ("SessionIntentConflict" or "SessionUnavailable"));
 
     /// <summary>
     /// Replays every retryable queued item (Pending + Failed) through the sync endpoint in batches and
@@ -278,6 +296,7 @@ public sealed class MobileSyncService
                         op.IssuedDocumentState = IssuedDocumentLocalState.SyncedAcknowledged;
                         op.ReferenceCode = itemResult.ReferenceCode;
                         op.ServerCollectionId = itemResult.CollectionId;
+                        op.CollectionSessionResult = itemResult.CollectionSession;
                         op.ResultMessage = itemResult.Message ?? (itemResult.ReferenceCode is null ? "Collection recorded." : $"Collection recorded · {itemResult.ReferenceCode}");
                         await _store.UpdateAsync(op);
                     }
@@ -292,6 +311,7 @@ public sealed class MobileSyncService
                     op.LocalStatus = PendingLocalStatus.ReconciliationRequired;
                     op.IssuedDocumentState = IssuedDocumentLocalState.ReconciliationRequired;
                     op.ResultMessage = itemResult.Message ?? "This collection requires office review.";
+                    op.CollectionSessionResult = itemResult.CollectionSession;
                     await _store.UpdateAsync(op);
                     rejected++;
                     break;

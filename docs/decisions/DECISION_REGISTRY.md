@@ -878,6 +878,33 @@ Two cross-document distinctions are explicit at this baseline:
 - **EVIDENCE / SOURCE:** Clint's SRC-first architecture brief of 2026-10-04; PostgreSQL proof in `CollectionReferenceCodeTests` (no-serial posting, idempotent replay, concurrent distinct numbers, global monotonic numbering, unique/computed constraints) and the updated workflow/report integration suites.
 - **IMPACT:** Additive migration `AddCollectionReferenceCode` (sequence `CollectionReferenceNumberSeq`; `Collections.ReferenceYear`, `ReferenceNumber`, stored computed `ReferenceCode`; unique indexes). Post outcomes, activity, register, remittance, collector-report and mobile-record DTOs carry `ReferenceCode`; the OR-selection, "available receipts", "available Cash Tickets" and per-operation documents endpoints are removed; request DTOs keep the legacy document fields as ignored optional values. Old pre-SRC `ClientOperationId`s still replay (same amount).
 - **REVISIT CONDITION:** The office decides to make the physical serial a compulsory field again, or Treasury requires the SRC to be printed on an accountable form.
+### IA-063 - Direct field utilities, canonical weighing and itemized Mobile checkout (Clint, 2026-10-05)
+
+- **ID:** IA-063
+- **STATUS:** CONFIRMED by the itemized full-stack follow-up instruction.
+- **TYPE:** BUSINESS DECISION + IMPLEMENTATION DIRECTION.
+- **DECISION:**
+  - ECF permits an authorized Collector to enter **amount received** for a safe, clean prospective source. Head preparation and routine activation are optional. OR policy remains unchanged; there is no typed OR serial and the server issues the SRC.
+  - WCF occupied sources remain visible without prepared amounts. Linked Business Payor names take precedence; ActualOccupant is a display fallback, never an identity link. CT policy remains unchanged.
+  - Prepared ECF/WCF periods accept partial payments against the approved remaining balance and refuse overpayment. Without an assessment, repeated direct collections are append-only receipts. The first receipt is never manufactured into a monthly assessment.
+  - The period's mode freezes at its first canonical collection: an existing assessment establishes prepared mode; otherwise the first direct collection establishes direct mode. Later preparation cannot reinterpret that period. Ambiguous historical monetary evidence requires office review; no historical conversion or backfill is authorized.
+  - Weight & Measure is a standalone Collector capability using existing NPM Fish/Meat source identity. It remains separate from NPM rent and the monthly Fish/Meat Vendor Fee. OR applies. Quantity multiplied by the server's effective configured rate determines the amount; quantity, rate identity/effective evidence and amount are frozen. Historical rows lacking rate evidence are not repriced.
+  - Itemized checkout delegates to the same canonical utility, weighing and operation writers. One checkout can produce multiple Collections/SRCs; V1 retains one item per Collection. The session is orchestration metadata, never revenue. Only reviewed intent can enter the durable queue; stale quotes require review.
+- **SUPERSESSION:** IA-053's prohibition on Collector-entered ECF amounts and mandatory preparation is superseded for safe prospective direct collection. IA-054's interpretation that the first direct Water amount establishes an approved assessment is superseded. Prepared balance safeguards and historical authority boundaries remain.
+- **NON-GOALS:** No classification merger, manual receipt-number authority, automatic payer creation/name matching, historical repricing, or production migration.
+
+### IA-064 - Additional direct Fish/Meat Vendor Fee (Clint, 2026-10-05)
+
+- **ID:** IA-064
+- **STATUS:** CONFIRMED by the NPM/Fish-Meat correction and mandatory itemized-capability clarification.
+- **EFFECTIVE BUSINESS DATE:** 2026-10-05, prospectively. `FishMeatVendorFeeRules.DirectEffectiveDate` defines the boundary.
+- **DECISION:** Fish/Meat Vendor Fee is an additional direct amount received for an eligible existing NPM Fish/Meat stall/vendor with an explicitly linked Business Payor. It is not rent, weighing, or a monthly obligation. Separate legitimate intents may collect repeatedly. The existing Vendor Fee classification and OR policy remain; each Collection receives a server SRC. No typed OR serial or new vendor registry is introduced.
+- **SUPERSESSION:** The Fish/Meat monthly goal, approximately ₱900 monthly amount, ₱30/day installments and ObligationAccount billing clauses of IA-049 and IA-050 are superseded from the effective date. IA-063's reference to a *monthly* Vendor Fee is also superseded. These historical decisions remain recorded; their historical assessments, Collections, classifications and SRCs are not rewritten or refunded.
+- **ISOLATION:** NPM rent retains its approved monthly basis (`NpmMonthBasis`), daily/partial credits and remaining-month Whole Payment rules. Weight & Measure retains quantity × effective configured rate and frozen evidence. Paying any of these sources cannot settle either other source.
+- **IMPLEMENTATION:** `FishMeatVendorFeeCollectionWorkflow` is shared by standalone Mobile and itemized checkout. New monthly Vendor Fee accounts/assessments/postings are refused after cutover. Existing old-model records remain readable. Itemized Vendor Fee remains selectable and takes **Amount received**, with server classification/instrument and its own Collection/SRC boundary.
+- **OFFLINE / REPORTING:** Stable session/item and child operation identities preserve durable retry. Only canonical child Collections count in reports and ordinary remittance; the session is not revenue.
+- **NON-GOALS:** No historical backfill, automatic Payor/name linking, rent recalculation, weighing repricing, or classification merger.
+
 ## 4. Decision-gate summary
 
 The following items still require MEEDO/Treasury input, a UX decision, authoritative compliance research, or a stated technical prerequisite before their affected capability can be finalized. Superseded gates are not treated as current blockers.

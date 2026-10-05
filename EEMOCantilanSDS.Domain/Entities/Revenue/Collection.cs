@@ -8,7 +8,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Revenue;
 /// </summary>
 public sealed class Collection : BaseEntity, IMunicipalityOwned
 {
-    internal const decimal MaximumMoneyAmount = 9_999_999_999_999_999.99m;
+    public const decimal MaximumMoneyAmount = 9_999_999_999_999_999.99m;
 
     private readonly List<CollectionLine> _lines = [];
 

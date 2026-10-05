@@ -24,7 +24,8 @@ public sealed class SyncOfflineCollectionsCommandHandler(
     CollectionComposerWorkflow? ecfWorkflow = null,
     FeeScheduleCollectionWorkflow? feeScheduleWorkflow = null,
     NpmDailyCanonicalPoster? npmCanonical = null,
-    NpmWholePaymentWorkflow? npmWholePayment = null)
+    NpmWholePaymentWorkflow? npmWholePayment = null,
+    CollectionSessionWorkflow? collectionSessions = null)
     : IRequestHandler<SyncOfflineCollectionsCommand, Result<SyncOfflineCollectionsResultDto>>
 {
     public async Task<Result<SyncOfflineCollectionsResultDto>> Handle(SyncOfflineCollectionsCommand request, CancellationToken ct)
@@ -38,6 +39,19 @@ public sealed class SyncOfflineCollectionsCommandHandler(
 
         foreach (var op in request.Operations)
         {
+            if (op.Kind == OfflineOperationKind.ItemizedCollectionSession)
+            {
+                if (collectionSessions is null) { results.Add(new(op.ClientOperationId, SyncResultStatus.Failed, "Checkout sync is unavailable.")); continue; }
+                if (op.CollectionSession is not { Intent: not null } session || session.Intent.ClientCollectionSessionId != op.ClientOperationId
+                    || session.Intent.BusinessDate != op.BusinessDate)
+                { results.Add(new(op.ClientOperationId, SyncResultStatus.Rejected, "The queued checkout identity or date is inconsistent.")); continue; }
+                var posted = await collectionSessions.RecordAsync(session, ct);
+                var outcome = !posted.IsSuccess ? IsTransient(posted.StatusCode) ? SyncResultStatus.Failed : SyncResultStatus.Rejected
+                    : posted.Value!.Status == CollectionSessionStatus.Recorded ? SyncResultStatus.Synced : SyncResultStatus.ReconciliationRequired;
+                results.Add(new(op.ClientOperationId, outcome, posted.IsSuccess
+                    ? posted.Value!.Problems.FirstOrDefault()?.Message : posted.Error, CollectionSession: posted.Value));
+                continue;
+            }
             if (op.Kind == OfflineOperationKind.NpmWholePayment)
             {
                 if (npmWholePayment is null)

@@ -223,7 +223,8 @@ Do not put all market-related revenue inside the NPM stall page merely because t
 Confirmed points:
 
 - **Fish/Meat Vendor Fee and Weight & Measure / Registration are two separate charges.**
-- Fish/Meat Vendor Fee follows a monthly-rent style obligation; the working example is about ₱900 monthly and may be collected as ₱30 daily installments.
+- **From 2026-10-05 (IA-064), Fish/Meat Vendor Fee is an additional direct collection of the amount actually received.** It has no monthly assessment, rent goal or outstanding balance. It uses the eligible NPM Fish/Meat vendor's explicitly linked Business Payor and remains OR/canonical SRC. Repeated distinct collections are valid. The former IA-049/IA-050 monthly vendor-fee interpretation is superseded prospectively; its historical accounts and Collections remain unchanged.
+- NPM stall rent is a separate approved monthly obligation; daily/partial payments reduce that rent and Whole Payment collects its remaining monthly balance. Vendor Fee and weighing never settle rent or each other.
 - Weight & Measure is separate and uses weighed quantity.
 - Working examples: fish ≈ ₱1/kg; meat ≈ ₱66/kg.
 - These are not Slaughterhouse charges.

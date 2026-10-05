@@ -12,6 +12,25 @@ namespace EEMOCantilanSDS.HttpClients.ApiClients;
 
 public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApiClient
 {
+    public Task<Result<IReadOnlyList<DirectVendorFeeSource>>> GetDirectVendorFeeSourcesAsync() => GetAsync<IReadOnlyList<DirectVendorFeeSource>>("api/mobile/collection-session/vendor-fee-sources");
+    public Task<Result<IReadOnlyList<CollectionPayorDto>>> SearchCollectionSessionPayorsAsync(string search) => GetAsync<IReadOnlyList<CollectionPayorDto>>($"api/mobile/collection-session/payors?search={Uri.EscapeDataString(search)}");
+    public Task<Result<IReadOnlyList<EcfObligationQuoteDto>>> GetMobileEcfSourcesAsync() => GetAsync<IReadOnlyList<EcfObligationQuoteDto>>("api/mobile/collection-session/electricity-sources");
+    public Task<Result<CollectionSessionDiscovery>> GetCollectionSessionDiscoveryAsync(Guid? payorId) => GetAsync<CollectionSessionDiscovery>($"api/mobile/collection-session/eligible?payorId={payorId}");
+    public Task<Result<CollectionSessionQuote>> QuoteCollectionSessionAsync(CollectionSessionIntent intent) => PostAsync<CollectionSessionIntent, CollectionSessionQuote>("api/mobile/collection-session/quote", intent);
+    public async Task<Result<CollectionSessionResult>> RecordCollectionSessionAsync(RecordCollectionSessionRequest request)
+    {
+        // Conflict bodies retain typed review reasons, unlike the generic HTTP error envelope.
+        using var response = await System.Net.Http.Json.HttpClientJsonExtensions.PostAsJsonAsync(http, "api/mobile/collection-session/record", request);
+        if (response.IsSuccessStatusCode || response.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            var json = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+            json.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+            var value = await System.Net.Http.Json.HttpContentJsonExtensions.ReadFromJsonAsync<CollectionSessionResult>(response.Content, json);
+            if (value is not null) return Result<CollectionSessionResult>.Success(value);
+        }
+        return Result<CollectionSessionResult>.Failure("The checkout could not be recorded.", (int)response.StatusCode);
+    }
+    public Task<Result<CollectionSessionResult>> GetCollectionSessionAsync(Guid sessionId) => GetAsync<CollectionSessionResult>($"api/mobile/collection-session/{sessionId}");
     public Task<Result<NpmWholePaymentQuoteDto>> GetNpmWholePaymentQuoteAsync(Guid stallId, int year, int month) =>
         GetAsync<NpmWholePaymentQuoteDto>($"api/Mobile/npm/whole-payment/quote?stallId={stallId}&year={year}&month={month}");
     public async Task<Result<MobileMenuDto>> GetMenuAsync() =>

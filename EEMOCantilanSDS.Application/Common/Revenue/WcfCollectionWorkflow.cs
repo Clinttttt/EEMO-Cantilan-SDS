@@ -164,7 +164,8 @@ public sealed class WcfCollectionWorkflow(
     /// office-prepared amount to collect against, settled, or needing the office (legacy settlement or migration).
     /// </summary>
     public Task<Result<IReadOnlyList<WcfMobileSourceDto>>> GetMobileSourcesAsync(
-        int billingYear, int billingMonth, CancellationToken ct = default) => Run(async actor =>
+        int billingYear, int billingMonth, CancellationToken ct = default, Guid? selectedStallId = null, DateOnly? businessDate = null,
+        Guid? selectedPayorId = null) => Run(async actor =>
     {
         if (actor.Role == "Collector"
             && !await CollectorHasOperationAssignmentAsync(actor.TenantId, actor.UserId, CollectorOperationCodes.Wcf, ct))
@@ -173,11 +174,13 @@ public sealed class WcfCollectionWorkflow(
             return Result<IReadOnlyList<WcfMobileSourceDto>>.Failure("A valid billing year and month are required.", ResultStatus.Invalid);
 
         var active = await IsWcfActiveAsync(actor.TenantId, ct);
-        var policy = await ResolvePolicyAsync(actor.TenantId, BusinessToday, ct);
+        var policy = await ResolvePolicyAsync(actor.TenantId, (businessDate ?? BusinessToday), ct);
         var stalls = await db.Stalls.AsNoTracking()
             .Include(x => x.Facility)
             .Include(x => x.Contracts).ThenInclude(x => x.Payor)
-            .Where(x => x.MunicipalityId == actor.TenantId && x.Facility!.Code == FacilityCode.NPM)
+            .Where(x => x.MunicipalityId == actor.TenantId && x.Facility!.Code == FacilityCode.NPM
+                && (!selectedStallId.HasValue || x.Id == selectedStallId.Value)
+                && (!selectedPayorId.HasValue || x.Contracts.Any(c => c.PayorId == selectedPayorId.Value)))
             .OrderBy(x => x.StallNo)
             .ToListAsync(ct);
         var stallIds = stalls.Select(x => x.Id).ToArray();
@@ -189,7 +192,7 @@ public sealed class WcfCollectionWorkflow(
         var rows = new List<WcfMobileSourceDto>();
         foreach (var stall in stalls)
         {
-            var contract = stall.OccupancyAnsweringForMonth(billingYear, billingMonth, BusinessToday)?.Contract;
+            var contract = stall.OccupancyAnsweringForMonth(billingYear, billingMonth, (businessDate ?? BusinessToday))?.Contract;
             if (contract is null) continue;
             var payorId = contract.PayorId is not null && contract.Payor?.MunicipalityId == actor.TenantId ? contract.PayorId : null;
             var payer = payorId is not null ? contract.Payor!.DisplayName
@@ -202,22 +205,25 @@ public sealed class WcfCollectionWorkflow(
             var canCollect = false;
             var canDirect = false;
             if (bill is null || (bill.WaterCharge == 0m && bill.WaterSettlementAuthorityState == SettlementAuthority.Legacy
-                && bill.WaterStatus == PaymentStatus.Unpaid && bill.WaterAmountPaid == 0m))
+                && bill.WaterStatus == PaymentStatus.Unpaid && bill.WaterPartialAmount == 0m
+                && bill.WaterPaidAt is null && string.IsNullOrWhiteSpace(bill.WaterORNumber)))
             {
                 state = WcfSourceState.NoAmount;
                 canDirect = active;
             }
             else if (bill.WaterSettlementAuthorityState == SettlementAuthority.Canonical)
             {
-                var facts = await BuildFactsAsync(bill, policy, actor.TenantId, BusinessToday, ct);
-                prepared = bill.WaterCharge;
+                var facts = await BuildFactsAsync(bill, policy, actor.TenantId, (businessDate ?? BusinessToday), ct);
+                prepared = bill.WaterDirectCollection ? null : bill.WaterCharge;
                 settled = facts.Quote.CumulativeSettledEvidence;
                 outstanding = facts.Quote.OutstandingAmount;
-                state = outstanding > 0m ? WcfSourceState.Prepared : WcfSourceState.Settled;
-                canCollect = outstanding > 0m;
+                state = bill.WaterDirectCollection ? WcfSourceState.NoAmount : outstanding > 0m ? WcfSourceState.Prepared : WcfSourceState.Settled;
+                canCollect = active && outstanding > 0m;
+                canDirect = active && bill.WaterDirectCollection;
             }
             else if (bill.WaterSettlementAuthorityState == SettlementAuthority.Legacy
-                && bill.WaterStatus == PaymentStatus.Unpaid && bill.WaterAmountPaid == 0m)
+                && bill.WaterStatus == PaymentStatus.Unpaid && bill.WaterPartialAmount == 0m
+                && bill.WaterPaidAt is null && string.IsNullOrWhiteSpace(bill.WaterORNumber))
             {
                 // Prepared with no legacy money: becomes canonical at its first collection once WCF is enabled.
                 prepared = bill.WaterCharge;
@@ -242,6 +248,7 @@ public sealed class WcfCollectionWorkflow(
 
     /// <summary>The system safety bound on one Water amount; not a rate and not a business ceiling.</summary>
     private const decimal MaxDirectAmount = 1_000_000m;
+    public static decimal MaximumDirectCollectionAmount => MaxDirectAmount;
 
     /// <summary>
     /// Establishes the Water amount a collector states for an eligible source and the current billing period (WCF direct
@@ -267,26 +274,29 @@ public sealed class WcfCollectionWorkflow(
         if (stall.OccupancyAnsweringForMonth(request.BillingYear!.Value, request.BillingMonth!.Value, request.BusinessDate) is null)
             return (null, "SOURCE_NOT_ELIGIBLE", "No occupancy answers for the selected source in this period.");
 
-        var (previous, current, rate) = UtilityBill.DirectApprovedReadings(request.ReceivedAmount);
         var bill = await UtilityBillQuery(actor.TenantId, tracked: true).SingleOrDefaultAsync(x =>
             x.StallId == stall.Id && x.BillingYear == request.BillingYear && x.BillingMonth == request.BillingMonth, ct);
         if (bill is null)
         {
             bill = UtilityBill.Create(stall.Id, request.BillingYear.Value, request.BillingMonth.Value,
-                0m, 0m, 0m, previous, current, rate, actor.Username);
+                0m, 0m, 0m, 0m, 0m, 0m, actor.Username);
             bill.SetCalculationBasis(UtilityCalculationBasis.DirectApproved, UtilityCalculationBasis.DirectApproved);
+            bill.FreezeDirectCollection(CollectionSourcePart.Water);
             db.UtilityBills.Add(bill);   // the tracked stall above is fixed up as its source context
             return (bill, null, null);
         }
         if (bill.WaterCharge > 0m)
             return (null, "PREPARED_AMOUNT_EXISTS",
                 "An office-prepared Water amount already exists for this source and period; it was not changed. The issued Cash Ticket requires office review.");
+        if (bill.WaterSourceVersion != request.WaterSourceVersion)
+            return (null, "SOURCE_VERSION_STALE", "The Water source changed. Refresh before recording.");
+        if (bill.WaterDirectCollection && bill.WaterSettlementAuthorityState == SettlementAuthority.Canonical)
+            return (bill, null, null);
         if (bill.WaterSettlementAuthorityState != SettlementAuthority.Legacy
-            || bill.WaterStatus != PaymentStatus.Unpaid || bill.WaterAmountPaid > 0m)
+            || bill.WaterStatus != PaymentStatus.Unpaid || bill.WaterPartialAmount != 0m
+            || bill.WaterPaidAt is not null || !string.IsNullOrWhiteSpace(bill.WaterORNumber))
             return (null, "SOURCE_NOT_ELIGIBLE", "This Water source already has settlement history; it was not changed.");
-        bill.UpdateReadings(bill.ElecPreviousReading, bill.ElecCurrentReading, bill.ElecRatePerKwh,
-            previous, current, rate, bill.Remarks, actor.Username);
-        bill.SetCalculationBasis(bill.ElecCalculationBasis, UtilityCalculationBasis.DirectApproved);
+        bill.FreezeDirectCollection(CollectionSourcePart.Water);
         return (bill, null, null);
     }
 
@@ -305,7 +315,9 @@ public sealed class WcfCollectionWorkflow(
         UtilityBill bill, Actor actor, Guid clientOperationId, bool directEntry, CancellationToken ct)
     {
         if (bill.WaterSettlementAuthorityState != SettlementAuthority.Legacy
-            || bill.WaterStatus != PaymentStatus.Unpaid || bill.WaterAmountPaid > 0m || bill.WaterCharge <= 0m)
+            || bill.WaterStatus != PaymentStatus.Unpaid || bill.WaterPartialAmount != 0m
+            || bill.WaterPaidAt is not null || !string.IsNullOrWhiteSpace(bill.WaterORNumber)
+            || (bill.WaterCharge <= 0m && !bill.WaterDirectCollection))
             return false;
         var activation = await db.CollectorOperationActivations.AsNoTracking().SingleOrDefaultAsync(x =>
             x.MunicipalityId == actor.TenantId && x.OperationCode == CollectorOperationCodes.Wcf, ct);
@@ -641,13 +653,13 @@ public sealed class WcfCollectionWorkflow(
             if (bill.WaterSourceVersion != expectedVersion)
                 return await RecordTerminalAsync(actor, request, normalized, origin, mobile,
                     "SOURCE_VERSION_STALE", "The Water obligation changed after it was quoted. The collection was not recorded; reload and try again.", ct);
-            if (request.ReceivedAmount > facts.Quote.OutstandingAmount)
+            if (!bill.WaterDirectCollection && request.ReceivedAmount > facts.Quote.OutstandingAmount)
                 return await RecordTerminalAsync(actor, request, normalized, origin, mobile,
                     "AMOUNT_EXCEEDS_OUTSTANDING", "The received amount exceeds the current Water outstanding balance.", ct);
             if (facts.Quote.Instrument != RevenueInstrumentType.CashTicket)
                 return await RecordTerminalAsync(actor, request, normalized, origin, mobile,
                     "INSTRUMENT_POLICY_CONFLICT", "The effective WCF policy does not permit this collection.", ct);
-            if (facts.Quote.OutstandingAmount <= 0m)
+            if (!bill.WaterDirectCollection && facts.Quote.OutstandingAmount <= 0m)
                 return await RecordTerminalAsync(actor, request, normalized, origin, mobile,
                     "SOURCE_ALREADY_SETTLED", "The Water obligation has no outstanding balance.", ct);
 
@@ -695,6 +707,8 @@ public sealed class WcfCollectionWorkflow(
         Actor actor, WcfCollectionPostRequest request, string normalized, string origin,
         bool mobile, string code, string message, CancellationToken ct)
     {
+        // A rejected amount must not persist a newly frozen mode or prospective cutover.
+        db.ChangeTracker.Clear();
         var operation = PostingOperation.Record(actor.TenantId, request.ClientOperationId,
             IntentVersion, normalized, origin, ActorId(actor), PostingOperationStatus.Rejected,
             code, message, null, null, DateTime.UtcNow);
@@ -846,7 +860,7 @@ public sealed class WcfCollectionWorkflow(
             bill.WaterCurrentReading, bill.WaterConsumption, bill.WaterRatePerCubicMeter,
             bill.WaterCharge, settled, outstanding, policy.Classification.Id, policy.Policy.Id,
             policy.Policy.DisplayName, RevenueInstrumentType.CashTicket,
-            bill.WaterSettlementAuthorityState, (bill.WaterCalculationBasis == UtilityCalculationBasis.DirectApproved ? "DirectApproved" : "Metered"), section);
+            bill.WaterSettlementAuthorityState, bill.WaterDirectCollection ? "DirectCollection" : (bill.WaterCalculationBasis == UtilityCalculationBasis.DirectApproved ? "DirectApproved" : "Metered"), section);
         var quote = new WcfObligationQuoteDto(
             tenantId, bill.Id, bill.WaterSourceVersion, bill.StallId, bill.Stall.StallNo,
             facility.Name, section, bill.BillingYear, bill.BillingMonth,

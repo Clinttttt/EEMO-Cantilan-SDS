@@ -84,6 +84,7 @@
 
             <section class="menu-group" aria-labelledby="menu-available">
                 <h2 id="menu-available" class="menu-group-title">Available now <span class="menu-group-count">@Work.Available.Count</span></h2>
+                <button class="menu-new-collection" type="button" @onclick='() => Navigation.NavigateTo("/collections/new")'><span aria-hidden="true">+</span> New Collection</button>
                 @if (Work.Available.Count == 0)
                 {
                     <div class="menu-state">Nothing is ready to collect right now.</div>
@@ -213,7 +214,17 @@
     IReadOnlyList<EEMOCantilanSDS.Mobile.Models.PendingOperation> Queue = Array.Empty<EEMOCantilanSDS.Mobile.Models.PendingOperation>();
     bool OperationsUnavailable;
 
-    TodaysWork Work => TodaysWorkBuilder.Build(Facilities, Operations, Queue);
+    IReadOnlyList<CollectionSessionCapability> SessionCapabilities = [];
+    TodaysWork Work
+    {
+        get
+        {
+            var work = TodaysWorkBuilder.Build(Facilities, Operations, Queue);
+            var additional = SessionCapabilities.Where(x => x.StandaloneAvailable)
+                .Select(x => new WorkItem(x.DisplayName, TodaysWorkBuilder.ReadyLabel, WorkTarget.Operation, true, OperationCode: x.OperationCode));
+            return work with { Available = work.Available.Concat(additional).ToArray() };
+        }
+    }
 
     // The server business date; the device clock only before the menu has loaded.
     DateOnly BusinessDate => Session.Menu?.Today ?? DateOnly.FromDateTime(DateTime.Now);
@@ -231,6 +242,8 @@
             }
 
             await LoadOperationCapabilitiesAsync();
+            try { SessionCapabilities = (await MobileApi.GetCollectionSessionDiscoveryAsync(null)).Value?.Operations ?? []; }
+            catch (HttpRequestException) { SessionCapabilities = []; }
             Queue = await Sync.GetAllAsync();
 
             // Best-effort update check (once per session; internally fail-open → no prompt on any failure).
@@ -271,6 +284,8 @@
 
     void Open(WorkItem item)
     {
+        if (item.OperationCode == "ECF") { Navigation.NavigateTo("/ecf"); return; }
+        if (item.OperationCode == "WEIGHT_AND_MEASURE") { Navigation.NavigateTo("/weight-measure"); return; }
         if (!item.CanOpen)
             return;
 

@@ -73,6 +73,14 @@ public sealed class PendingOperationStore : IPendingOperationStore
                 throw new IOException("The local queue has a storage fault.");
             var issuedShape = operation.Kind switch
             {
+                OfflineOperationKind.ItemizedCollectionSession => operation.CollectionSession is { Intent: { Items: not null } } session
+                    && session.Intent.ClientCollectionSessionId != Guid.Empty
+                    && session.Intent.ClientCollectionSessionId == operation.ClientOperationId
+                    && session.Intent.BusinessDate == operation.BusinessDate
+                    && session.Intent.Items.Count > 0
+                    && session.Intent.Items.All(i => i is not null && i.ClientItemId != Guid.Empty)
+                    && session.Intent.Items.Select(i => i.ClientItemId).Distinct().Count() == session.Intent.Items.Count
+                    && operation.ORNumber is null && operation.AccountableDocumentId is null,
                 OfflineOperationKind.EcfCollection => operation.UtilityBillId is not null && operation.ElectricitySourceVersion is > 0,
                 OfflineOperationKind.RentCollection => operation.StallId is not null && operation.BillingYear is not null && operation.BillingMonth is not null && operation.RentSourceVersion is >= 0,
                 OfflineOperationKind.ObligationCollection => operation.ObligationAccountId is not null && operation.BillingYear is not null && operation.BillingMonth is not null,

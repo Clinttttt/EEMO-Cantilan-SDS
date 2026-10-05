@@ -23,7 +23,8 @@ public enum OfflineOperationKind
     FeeScheduleCollection = 11,
     /// <summary>A canonical Fish / Meat Vendor Fee collection against one period of an existing obligation account: facts only, no physical serial (IA-050/IA-062).</summary>
     ObligationCollection = 12,
-    NpmWholePayment = 13
+    NpmWholePayment = 13,
+    ItemizedCollectionSession = 14
 }
 
 /// <summary>Outcome of replaying one offline operation. Synced = persisted; Rejected = a terminal
@@ -106,7 +107,8 @@ public sealed record SyncOfflineOperationDto(
     long? RentSourceVersion = null,
     // Canonical Fish / Meat Vendor Fee (Kind = ObligationCollection): the obligation account; BillingYear/BillingMonth name the period.
     Guid? ObligationAccountId = null,
-    string? NpmQuoteToken = null);
+    string? NpmQuoteToken = null,
+    RecordCollectionSessionRequest? CollectionSession = null);
 
 public sealed record SyncOperationResultDto(
     Guid ClientOperationId,
@@ -114,7 +116,8 @@ public sealed record SyncOperationResultDto(
     string? Message,
     // The server-allocated StallTrack Reference Code of the posted Collection (null while waiting or when rejected).
     string? ReferenceCode = null,
-    Guid? CollectionId = null);
+    Guid? CollectionId = null,
+    CollectionSessionResult? CollectionSession = null);
 
 public sealed record SyncOfflineCollectionsResultDto(
     int SyncedCount,

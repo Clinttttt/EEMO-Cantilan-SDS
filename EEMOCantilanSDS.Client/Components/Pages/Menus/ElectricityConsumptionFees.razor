@@ -96,9 +96,9 @@
                                 <td class="v3-num">@Money(quote.CumulativeSettledEvidence)</td>
                                 <td class="v3-num v3-strong">@Money(quote.OutstandingAmount)</td>
                                 <td class="ecf-action">
-                                    @if (quote.SettlementAuthority == SettlementAuthority.Legacy && quote.OutstandingAmount > 0m)
+                                    @if (quote.SettlementAuthority == SettlementAuthority.Legacy && quote.OutstandingAmount > 0m && !quote.CanPostCanonical)
                                     {
-                                        <button class="v3-btn v3-btn-sm" type="button" disabled="@_busy" @onclick="() => _activating = quote">Activate</button>
+                                        <button class="v3-btn v3-btn-sm" type="button" disabled="@_busy" @onclick="() => _activating = quote">Review authority</button>
                                     }
                                     @if (quote.CanAddToDraft && DraftRemaining(quote) > 0m)
                                     {

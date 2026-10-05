@@ -407,7 +407,7 @@ public sealed class GovernedServiceWorkflow(
     /// failure with the reason, rather than a guessed zero or a default amount.
     /// </summary>
     public Task<Result<GovernedServiceTermsDto>> GetTermsAsync(
-        string operationCode, GovernedServiceMode? mode, CancellationToken ct = default) =>
+        string operationCode, GovernedServiceMode? mode, CancellationToken ct = default, DateOnly? businessDate = null) =>
         Run<GovernedServiceTermsDto>(async actor =>
         {
             var entry = GovernedServiceCatalog.Find(operationCode);
@@ -420,20 +420,20 @@ public sealed class GovernedServiceWorkflow(
                 x.MunicipalityId == actor.TenantId && x.OperationCode == entry.Code, ct);
             var versions = service is null ? [] : await db.GovernedServiceSettings.AsNoTracking()
                 .Where(x => x.MunicipalityId == actor.TenantId && x.GovernedServiceId == service.Id).ToListAsync(ct);
-            var setting = GovernedServiceSetting.Resolve(versions, BusinessToday);
+            var setting = GovernedServiceSetting.Resolve(versions, (businessDate ?? BusinessToday));
             if (setting is null || !setting.IsEnabled || !setting.MobileEnabled)
                 return Result<GovernedServiceTermsDto>.Failure(
                     "This operation is not set up for Collector Mobile today.", ResultStatus.Conflict);
-            var resolved = await ResolvePolicyAsync(actor.TenantId, entry, mode, BusinessToday, ct);
+            var resolved = await ResolvePolicyAsync(actor.TenantId, entry, mode, (businessDate ?? BusinessToday), ct);
             if (resolved?.Policy.PermittedInstrumentType is not { } instrument)
                 return Result<GovernedServiceTermsDto>.Failure(
                     "No approved instrument policy is in effect for this operation today.", ResultStatus.Conflict);
             var classTerms = setting.Basis == GovernedServiceBasis.VehicleClassRate
-                ? await CurrentVehicleClassTermsAsync(actor.TenantId, BusinessToday, ct) : null;
+                ? await CurrentVehicleClassTermsAsync(actor.TenantId, (businessDate ?? BusinessToday), ct) : null;
             IReadOnlyList<FeeOptionTermDto>? optionTerms = null;
             if (setting.Basis == GovernedServiceBasis.ApprovedFeeOption)
             {
-                optionTerms = await CurrentFeeOptionTermsAsync(actor.TenantId, service!.Id, BusinessToday, ct);
+                optionTerms = await CurrentFeeOptionTermsAsync(actor.TenantId, service!.Id, (businessDate ?? BusinessToday), ct);
                 if (optionTerms.Count == 0)
                     return Result<GovernedServiceTermsDto>.Failure(
                         "No approved fee option is offered for this operation today.", ResultStatus.Conflict);

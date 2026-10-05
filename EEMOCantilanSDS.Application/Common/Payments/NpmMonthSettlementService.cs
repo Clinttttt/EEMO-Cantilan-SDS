@@ -93,7 +93,8 @@ public sealed class NpmMonthSettlementService(
     /// <inheritdoc />
     public async Task<NpmMonthPayable> ComputeWholeMonthPayableAsync(Stall stall, int year, int month, CancellationToken ct)
     {
-        var (days, remaining, adjustment, _) = await ResolveMonthAsync(stall, year, month, ct, wholeMonth: true);
+        NpmMonthPosition position = default;
+        var (days, remaining, adjustment, _) = await ResolveMonthAsync(stall, year, month, ct, wholeMonth: true, capturePosition: value => position = value);
         var quotedDays = 0;
         var amount = 0m;
         foreach (var (_, fee) in days)
@@ -103,7 +104,7 @@ public sealed class NpmMonthSettlementService(
             quotedDays++;
         }
 
-        return new NpmMonthPayable(quotedDays, amount + adjustment, adjustment);
+        return new NpmMonthPayable(quotedDays, amount + adjustment, adjustment, position.Obligation, position.Collected, position.Credits);
     }
 
     /// <inheritdoc />
@@ -242,7 +243,7 @@ public sealed class NpmMonthSettlementService(
     // The day-set, and what the month still owes. Kept private so the quote and the settlement can never compute
     // them differently: one walk of the month answers both.
     private async Task<(List<(DateOnly Day, decimal Fee)> Days, decimal Remaining, decimal Adjustment, DailyCollection? LastCollected)> ResolveMonthAsync(
-        Stall stall, int year, int month, CancellationToken ct, bool wholeMonth = false)
+        Stall stall, int year, int month, CancellationToken ct, bool wholeMonth = false, Action<NpmMonthPosition>? capturePosition = null)
     {
         var daysInMonth = DateTime.DaysInMonth(year, month);
         var monthStart = new DateOnly(year, month, 1);
@@ -307,6 +308,7 @@ public sealed class NpmMonthSettlementService(
         var obligation = snapshot.MonthRule.Obligation(monthFee, monthRent, daysInMonth, daysHeld);
         var credit = DomainRules.DailyBilledMonthCredit(monthFee, obligation, daysHeld, daysForgiven);
         var remaining = DomainRules.DailyBilledMonthOutstanding(obligation, collected, credit);
+        capturePosition?.Invoke(new(obligation, collected, credit));
 
         // A month whose installments cannot reach its rent — February's 28 days at ₱30 fall ₱60 short of ₱900 —
         // carries the difference as a month-end balance adjustment. It becomes collectible only once the month has
@@ -332,7 +334,8 @@ public sealed class NpmMonthSettlementService(
 /// installments plus, once the month has closed, its <paramref name="Adjustment"/> — the part of the month's rent
 /// its calendar could not reach in daily installments. <paramref name="Amount"/> is the whole figure charged.
 /// </summary>
-public readonly record struct NpmMonthPayable(int Days, decimal Amount, decimal Adjustment = 0m);
+public readonly record struct NpmMonthPayable(int Days, decimal Amount, decimal Adjustment = 0m, decimal? Obligation = null, decimal? Collected = null, decimal? Credits = null);
+public readonly record struct NpmMonthPosition(decimal Obligation, decimal Collected, decimal Credits);
 
 /// <summary>
 /// A quote for one online-declarable NPM fish day: whether it's payable (with a reason if not), the total

@@ -321,6 +321,17 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
             $"Electricity Consumption Fee / ECF · {new DateOnly(x.BillingYear, x.BillingMonth, 1):MMM yyyy}",
             x.Amount, null, new DateOnly(x.BillingYear, x.BillingMonth, 1), x.BusinessDate, IsCanonical: true)));
 
+        var weighing = await (
+            from collection in context.Collections.AsNoTracking()
+            join line in context.CollectionLines.AsNoTracking() on collection.Id equals line.CollectionId
+            join stall in context.Stalls.AsNoTracking() on line.SourceId equals stall.Id
+            where collection.CollectorId == collectorId && collection.BusinessDate >= businessDateFrom && collection.BusinessDate <= businessDateTo
+                && (line.SourceKind == CollectionSourceKind.NpmWeighing || line.SourceKind == CollectionSourceKind.FishMeatVendorFee)
+            select new { collection.ReferenceCode, collection.RecordedAtUtc, collection.BusinessDate, collection.PayerName, stall.StallNo, line.SourceKind, line.Amount }).ToListAsync(ct);
+        lines.AddRange(weighing.Select(x => new CollectorCollectionLine(x.ReferenceCode, x.RecordedAtUtc,
+            x.PayerName ?? "Unidentified payor", x.StallNo, FacilityCode.NPM, x.SourceKind == CollectionSourceKind.NpmWeighing ? "Weight & Measure" : "Fish / Meat Vendor Fee", x.Amount, null,
+            x.BusinessDate, x.BusinessDate, IsCanonical: true)));
+
         // Governed operations (Market Fees, Landing/Berthing, Transfer Large Cattle, Vegetable/Fruit) are canonical
         // collections with no facility. They are read from the posted Collection, never rebuilt from a device queue.
         var governed = await (

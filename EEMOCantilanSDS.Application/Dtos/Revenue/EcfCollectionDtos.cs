@@ -177,7 +177,8 @@ public sealed record PostEcfCollectionDraftRequest(long ExpectedRevision, Guid C
 
 /// <summary>Collector Mobile ECF collection (IA-062): the collector confirms the amount of one canonical ECF source. No physical serial; the server returns the SRC.</summary>
 public sealed record MobileEcfPostRequest(
-    Guid ClientOperationId, Guid UtilityBillId, decimal ReceivedAmount, long ElectricitySourceVersion, DateOnly BusinessDate);
+    Guid ClientOperationId, Guid UtilityBillId, decimal ReceivedAmount, long ElectricitySourceVersion, DateOnly BusinessDate,
+    Guid? StallId = null, int? BillingYear = null, int? BillingMonth = null);
 
 /// <summary>Collector Mobile monthly-rent collection (IA-051/IA-062) for one canonical PaymentRecord. No physical serial; the server returns the SRC.</summary>
 public sealed record MobileRentPostRequest(

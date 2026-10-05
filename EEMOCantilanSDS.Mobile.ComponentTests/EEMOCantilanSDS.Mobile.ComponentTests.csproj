@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>EEMOCantilanSDS.Mobile</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="bunit" Version="1.40.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="Moq" Version="4.20.72" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <ProjectReference Include="../EEMOCantilanSDS.Mobile.Core/EEMOCantilanSDS.Mobile.Core.csproj" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/CollectionSessionEditor.razor" Link="Components/Shared/CollectionSessionEditor.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/MobileChoice.razor" Link="Components/Shared/MobileChoice.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/LoadingState.razor" Link="Components/Shared/LoadingState.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/VendorFeeEntry.razor" Link="Components/Shared/VendorFeeEntry.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/NpmWholeSummary.razor" Link="Components/Shared/NpmWholeSummary.razor" />
+    <Using Include="Xunit" />
+    <Using Include="EEMOCantilanSDS.Application.Common" />
+  </ItemGroup>
+</Project>

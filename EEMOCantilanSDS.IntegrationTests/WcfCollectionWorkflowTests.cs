@@ -789,6 +789,8 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
         assignment.RecordReturn("office-admin", returnedAt);
         document.ReturnToOffice("office-admin");
         await context.SaveChangesAsync();
+        await context.Entry(assignment).ReloadAsync();
+        returnedAt = assignment.ReturnedAtUtc!.Value; // PostgreSQL timestamps store microsecond precision.
 
         var workflow = Workflow(context, seed, "Collector");
         var operationId = Guid.NewGuid();

@@ -37,10 +37,15 @@ on:
         description: "Android versionCode integer — MUST increase each release (optional; overrides csproj)"
         required: false
         default: ""
+      apiDeploymentRunId:
+        description: "Optional Deploy production run ID that must succeed before this APK is published"
+        required: false
+        default: ""
 
 # Writing is needed to attach the APK to a release. Nothing else in this workflow writes to the repository.
 permissions:
   contents: write
+  actions: read
   # For azure/login in the advertise job below. Requested at workflow level because GitHub only mints the OIDC token
   # for jobs whose workflow asks for it.
   id-token: write
@@ -153,6 +158,40 @@ jobs:
 
       # Where collectors actually download from. A release per publish, with the asset under a fixed name, so
       # /releases/latest/download/stalltrack-collector-latest.apk always points at the newest build.
+      - name: Wait for the required API deployment
+        if: ${{ inputs.apiDeploymentRunId != '' }}
+        timeout-minutes: 35
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEPLOYMENT_RUN_ID: ${{ inputs.apiDeploymentRunId }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$DEPLOYMENT_RUN_ID" =~ ^[0-9]+$ ]] || { echo "Invalid deployment run ID"; exit 1; }
+          RUN_API="repos/${GITHUB_REPOSITORY}/actions/runs/${DEPLOYMENT_RUN_ID}"
+          WORKFLOW=$(gh api "$RUN_API" --jq '.path')
+          [[ "$WORKFLOW" == '.github/workflows/deploy-production.yml' ]] || { echo "A Deploy production run is required"; exit 1; }
+          DEPLOYED_SHA=$(gh api "$RUN_API" --jq '.head_sha')
+          git fetch --no-tags origin "$DEPLOYED_SHA" --depth=1
+          git diff --quiet "$DEPLOYED_SHA" HEAD -- EEMOCantilanSDS.Api EEMOCantilanSDS.Application EEMOCantilanSDS.Domain EEMOCantilanSDS.HttpClients EEMOCantilanSDS.Infrastructure EEMOCantilanSDS.Client || {
+            echo "API or shared contracts differ from the required deployment; deploy this source first"
+            exit 1
+          }
+          for attempt in $(seq 1 60); do
+            STATUS=$(gh api "$RUN_API" --jq '.status')
+            if [[ "$STATUS" == 'completed' ]]; then
+              CONCLUSION=$(gh api "$RUN_API" --jq '.conclusion')
+              [[ "$CONCLUSION" == 'success' ]] || { echo "Required API deployment did not succeed: $CONCLUSION"; exit 1; }
+              curl --fail --silent --show-error --max-time 30 https://api.stalltrack.site/health >/dev/null
+              echo "Required API deployment succeeded; publishing the signed APK"
+              exit 0
+            fi
+            echo "Waiting for API deployment ${DEPLOYMENT_RUN_ID} (${attempt}/60)"
+            sleep 30
+          done
+          echo "API deployment did not complete in time; APK publication stopped"
+          exit 1
+
       - name: Attach the APK to a GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -173,6 +212,7 @@ jobs:
             gh release edit "$TAG" --latest
           else
             gh release create "$TAG" dist/stalltrack-collector-latest.apk \
+              --target "$GITHUB_SHA" \
               --title "Collector app ${apk_version_name} (versionCode ${apk_version_code})" \
               --notes "Signed Android APK for the StallTrack Collector app. ${SIZE} bytes. Set Mobile__LatestVersionCode=${apk_version_code} and Mobile__LatestVersion=${apk_version_name} on the API, so installed apps stop being told an update is available." \
               --latest

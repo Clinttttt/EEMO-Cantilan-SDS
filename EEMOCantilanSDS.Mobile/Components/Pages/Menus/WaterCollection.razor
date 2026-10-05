@@ -236,7 +236,7 @@
 
     private static string StateLabel(WcfMobileSourceDto s, bool queued) => queued ? "Waiting to sync" : s.State switch
     {
-        WcfSourceState.NoAmount => "No amount prepared",
+        WcfSourceState.NoAmount => "Direct collection",
         WcfSourceState.Prepared => $"{Money(s.OutstandingAmount)} outstanding",
         WcfSourceState.Settled => "Settled",
         _ => "Office review"
@@ -332,7 +332,7 @@
             BusinessDate = Today,
             // A prepared obligation is collected by its UtilityBill identity; a direct entry by source and period.
             UtilityBillId = prepared ? source.UtilityBillId : null,
-            WaterSourceVersion = prepared ? source.WaterSourceVersion : null,
+            WaterSourceVersion = source.WaterSourceVersion,
             StallId = prepared ? null : source.StallId,
             BillingYear = prepared ? null : source.BillingYear,
             BillingMonth = prepared ? null : source.BillingMonth,

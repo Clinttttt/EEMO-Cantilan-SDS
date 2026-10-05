@@ -38,6 +38,7 @@ public sealed class NpmDailyCanonicalPoster(
 
     public sealed record Outcome(Guid CollectionId, string ReferenceCode, decimal Amount, bool Existing);
 
+    public bool HasActiveTransaction => db.HasActiveTransaction;
     public Task<IAppDbContextTransaction> BeginSettlementTransactionAsync(CancellationToken ct = default) =>
         db.BeginSerializableTransactionAsync(ct);
 

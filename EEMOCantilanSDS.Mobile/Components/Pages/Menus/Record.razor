@@ -375,6 +375,8 @@
                             <div class="pending-item-right">
                                 <div class="pending-item-amount">₱@op.Amount.ToString("N0")</div>
                                 <span class="pending-status @(orphaned ? "rejected" : PendingItemClass(op))">@(orphaned ? "Unassigned" : PendingStatusLabel(op))</span>
+                                @if (!orphaned && MobileSyncService.CanReviewUnpostedSession(op))
+                                { <button class="pending-discard" type="button" @onclick='() => Navigation.NavigateTo("/collections/new?sessionId=" + op.ClientOperationId)'>Review</button> }
                                 @if ((orphaned || op.LocalStatus == PendingLocalStatus.Rejected)
                                     && op.AccountableDocumentId is null)
                                 {

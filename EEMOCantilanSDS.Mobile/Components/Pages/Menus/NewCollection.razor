@@ -1,0 +1,35 @@
+@page "/collections/new"
+@page "/ecf"
+@page "/weight-measure"
+@inject NavigationManager Navigation
+@inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
+
+<div class="page-shell">
+    <div class="header">
+        <div class="header-eyebrow">@(OnlyOperation is null ? "Collection" : "Operation")</div>
+        <div class="header-row">
+            <button class="back-btn" type="button" aria-label="Back to Menu" @onclick='() => Navigation.NavigateTo("/menu")'><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg></button>
+            <div class="header-title-block"><div class="header-title">@Title</div><div class="header-sub">@Session.CollectorName</div></div>
+            <img class="header-logo" src="@Session.BrandingSeal" alt="Municipality seal" />
+        </div>
+    </div>
+    <main class="content">
+        @if (_ready) { <CollectionSessionEditor @key="(OnlyOperation, SessionId)" BusinessDate="@Today" OnlyOperation="@OnlyOperation" ResumeSessionId="@SessionId" /> }
+    </main>
+    <BottomNav ActiveTab="menu" />
+</div>
+
+@code {
+    [SupplyParameterFromQuery] public Guid? SessionId { get; set; }
+    private bool _ready;
+    private DateOnly Today => Session.Menu?.Today ?? DateOnly.FromDateTime(DateTime.Now);
+    private string? OnlyOperation => Navigation.Uri.EndsWith("/ecf", StringComparison.OrdinalIgnoreCase) ? "ECF"
+        : Navigation.Uri.EndsWith("/weight-measure", StringComparison.OrdinalIgnoreCase) ? "WEIGHT_AND_MEASURE" : null;
+    private string Title => OnlyOperation == "ECF" ? "Electricity" : OnlyOperation is not null ? "Weight & Measure" : "New Collection";
+    protected override async Task OnInitializedAsync()
+    {
+        await Session.InitializeAsync();
+        if (Session.Menu is null) { Navigation.NavigateTo("/login"); return; }
+        _ready = true;
+    }
+}
