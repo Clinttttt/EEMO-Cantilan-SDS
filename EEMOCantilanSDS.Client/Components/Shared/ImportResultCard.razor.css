@@ -45,5 +45,3 @@
 @media (max-width: 640px) {
     .imp-result-err-row { grid-template-columns: 1fr; gap: 2px; }
 }
-
-

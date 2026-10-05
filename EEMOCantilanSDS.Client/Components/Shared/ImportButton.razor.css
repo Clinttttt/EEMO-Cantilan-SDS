@@ -13,4 +13,3 @@
 .imp-btn-outline:hover { background: var(--bg-icon); }
 .imp-btn-ghost { background: var(--bg); color: var(--text); border-color: var(--border); }
 .imp-btn-ghost:hover { background: var(--bg-icon); }
-
