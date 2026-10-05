@@ -61,9 +61,12 @@ public sealed class FishMeatWorkspaceTests : TestContext
         Assert.Equal("SuperAdmin,Admin", Assert.Single(page.GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>()).Roles);
     }
 
-    [Fact]
-    public void VendorFees_ListsTheObligationAccounts_AnchoredToNpmStalls_WithoutRentFigures()
+    [Theory]
+    [InlineData("Admin")]
+    [InlineData("SuperAdmin")]
+    public void VendorFees_PreservesHistoricalAccounts_WithoutOfferingTheSupersededMonthlyWorkflow(string role)
     {
+        this.AddTestAuthorization().SetAuthorized("head").SetRoles(role);
         _obligations.Setup(x => x.GetAccountsAsync(ObligationKind.FishMeatVendorFee)).ReturnsAsync(
             Result<IReadOnlyList<ObligationAccountDto>>.Success(new[]
             {
@@ -84,7 +87,8 @@ public sealed class FishMeatWorkspaceTests : TestContext
             var row = Assert.Single(cut.FindAll("[aria-label='Fish / Meat Vendor Fee accounts'] tbody tr"));
             Assert.Contains("Pedro Vendor", row.TextContent);
             Assert.Contains("F-12", row.TextContent);
-            // The monthly goal, what was collected in installments and what remains: all the server's figures.
+            Assert.Contains("Historical accounts", cut.Markup);
+            // Preserve the old assessment evidence without offering it as a current collection workflow.
             Assert.Contains("₱900.00", row.TextContent);
             Assert.Contains("₱90.00", row.TextContent);
             Assert.Contains("₱810.00", row.TextContent);
@@ -92,7 +96,9 @@ public sealed class FishMeatWorkspaceTests : TestContext
             // Reading only: no form, no amount input, and no way to record money here.
             Assert.Empty(cut.FindAll("form"));
             Assert.Empty(cut.FindAll("input"));
-            Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/collections/current");
+            Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent is "Open account" or "Change amount" or "End");
+            Assert.DoesNotContain(cut.FindAll("a"), a => a.GetAttribute("href")?.StartsWith("/collections/current") == true);
+            Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/collections/activity");
             Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/facility/npm" && a.TextContent.Contains("Tenant Public Market"));
             Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/operations/weight-and-measure");
         }, Timeout);

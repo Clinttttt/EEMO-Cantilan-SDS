@@ -161,7 +161,7 @@ public sealed class OperationReportsAndArrearsTests : TestContext
     }
 
     [Fact]
-    public void TheFishMeatVendorFeeReport_IsAnOfficialReceiptObligation_SeparateFromRentAndWeighing()
+    public void TheFishMeatVendorFeeReport_PreservesHistoricalAccounts_SeparateFromCurrentDirectCollections()
     {
         _obligations.Setup(x => x.GetAccountsAsync(ObligationKind.FishMeatVendorFee))
             .ReturnsAsync(Result<IReadOnlyList<ObligationAccountDto>>.Success(
@@ -177,7 +177,9 @@ public sealed class OperationReportsAndArrearsTests : TestContext
             Assert.Contains("Official Receipt", cut.Find(".lh-meta").TextContent);
             var position = cut.Find("section[aria-labelledby='fmvr-position']").TextContent;
             Assert.Contains("₱600.00", position);              // the account's server outstanding, not a recomputation
-            Assert.Contains("Monthly obligation", cut.Find("section[aria-labelledby='fmvr-accounts'] thead").TextContent);
+            Assert.Contains("Historical account position", position);
+            Assert.Contains("Historical monthly amount", cut.Find("section[aria-labelledby='fmvr-accounts'] thead").TextContent);
+            Assert.Contains("Additional vendor fee received", cut.Markup);
             Assert.DoesNotContain("Daily Fee", cut.Markup);
             Assert.Contains("separate from NPM stall rent", cut.Markup);
         }, Timeout);

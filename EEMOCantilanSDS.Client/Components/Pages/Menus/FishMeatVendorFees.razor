@@ -3,21 +3,19 @@
 @rendermode InteractiveServer
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Constants
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 <PageTitle>StallTrack — Fish / Meat Vendor Fees</PageTitle>
 
-@* ONE SOURCE OWNER: NPM owns the Fish / Meat stalls, occupants and vendor relationships. This page is the focused
-   financial view of the separate Fish / Meat Vendor Fee obligation. Stall rent, Fish / Meat Vendor Fee and Weight &
-   Measure are three different charges even when one person owes all three.
-
-   It reads the obligation accounts (IA-050): each is anchored to an NPM Fish/Meat stall and takes its Payor from that
-   stall's linked occupancy. Nothing is derived from stall rent or NPM daily-fee history. It adds no vendor, stall,
-   collector, payment or weighing action; money is collected on an Official Receipt in Current Collection. *@
+@* NPM owns vendor identity. IA-064 direct Vendor Fee collections remain separate from rent and weighing.
+   The superseded IA-050 accounts are preserved as read-only historical evidence after cutover. *@
 <div class="v3-page fm-page">
-    <WorkspaceHeader Parent="Operations" Title="Fish / Meat Vendor Fees" Subtitle="Vendor fee obligations for NPM Fish and Meat vendors">
+    <WorkspaceHeader Parent="Operations" Title="Fish / Meat Vendor Fees" Subtitle="Vendor fee collections">
         <Meta><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
         <Actions>
+            <a class="v3-btn" href="/collections/activity">Collection activity</a>
             <a class="v3-btn" href="/facility/npm">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18" /><path d="M5 21V7l7-4 7 4v14" /><path d="M9 21v-5h6v5" /></svg>
                 Open @NpmName
@@ -25,16 +23,17 @@
         </Actions>
     </WorkspaceHeader>
 
-    <ObligationWorkspace Kind="ObligationKind.FishMeatVendorFee" Name="Fish / Meat Vendor Fee" SubjectNoun="Stall" />
+    <ObligationWorkspace Kind="ObligationKind.FishMeatVendorFee" Name="Fish / Meat Vendor Fee" SubjectNoun="Stall" ReadOnlyHistory="@DirectRuleApplies" />
 
     <aside class="fm-related" aria-label="Related charges">
-        <p><strong>Separate charges.</strong> Stall rent, the Fish / Meat Vendor Fee and Weight &amp; Measure are billed and reported separately, even for the same vendor.</p>
+        <p><strong>Separate charges.</strong> Stall rent, Vendor Fee and Weight &amp; Measure are reported separately.</p>
         <a class="fm-related-link" href="/operations/weight-and-measure">Weight &amp; Measure</a>
     </aside>
 </div>
 
 @code {
     private string NpmName => FacilityCatalog.NameOf(FacilityCode.NPM);
+    private static bool DirectRuleApplies => PhilippineTime.Today >= FishMeatVendorFeeRules.DirectEffectiveDate;
 
     protected override Task OnInitializedAsync() => FacilityCatalog.EnsureLoadedAsync();
 }

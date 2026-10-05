@@ -28,10 +28,10 @@
 <div class="obw-layout">
     <section class="v3-panel" aria-labelledby="@_accountsTitleId" aria-busy="@(_loading ? "true" : "false")">
         <header class="v3-panel-header">
-            <h2 id="@_accountsTitleId">@(SpaceExperience ? (_holders ? "Space Holders" : $"All {SubjectNoun}s") : $"{Name} accounts")</h2>
+            <h2 id="@_accountsTitleId">@(ReadOnlyHistory ? "Historical accounts" : SpaceExperience ? (_holders ? "Space Holders" : $"All {SubjectNoun}s") : $"{Name} accounts")</h2>
             <AuthorizeView Roles="SuperAdmin">
                 <Authorized>
-                    @if (!_opening && !SpaceExperience)
+                    @if (!_opening && !SpaceExperience && !ReadOnlyHistory)
                     {
                         <button class="v3-btn v3-btn-sm" type="button" @onclick="OpenForm">Open account</button>
                     }
@@ -82,17 +82,17 @@
                             <td class="obw-actions">
                                 <button class="v3-btn v3-btn-sm" type="button" aria-expanded="@(_selected == account.Id ? "true" : "false")"
                                         @onclick="() => ToggleRegisterAsync(account.Id)">Periods</button>
-                                @if (account.ActiveTo is null && account.OutstandingToDate > 0m)
+                                @if (!ReadOnlyHistory && account.ActiveTo is null && account.OutstandingToDate > 0m)
                                 {
                                     <a class="v3-btn v3-btn-sm" href="@CollectHref(account)">Collect</a>
                                 }
                                 <AuthorizeView Roles="SuperAdmin">
                                     <Authorized>
-                                        @if (account.Kind != ObligationKind.FiestaArawLotRental && account.ActiveTo is null)
+                                        @if (!ReadOnlyHistory && account.Kind != ObligationKind.FiestaArawLotRental && account.ActiveTo is null)
                                         {
                                             <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenRate(account)">Change amount</button>
                                         }
-                                        @if (account.ActiveTo is null)
+                                        @if (!ReadOnlyHistory && account.ActiveTo is null)
                                         {
                                             <button class="v3-btn v3-btn-sm" type="button" @onclick="() => CloseAsync(account.Id)">@(SpaceExperience ? "Close account" : "End")</button>
                                         }
@@ -158,7 +158,7 @@
                 }
             </table>
         </div>
-        @if (_accounts.Count > 0)
+        @if (_accounts.Count > 0 && !ReadOnlyHistory)
         {
             <div class="obw-collect"><a class="v3-btn v3-btn-sm" href="/collections/current">Record a collection</a></div>
         }
@@ -168,7 +168,7 @@
 
 <AuthorizeView Roles="SuperAdmin">
     <Authorized>
-        <SideDrawer Show="_opening" Title="@($"Open {Name} account")" Subtitle="@OpenSubtitle" OnClose="CloseForm">
+        <SideDrawer Show="@(_opening && !ReadOnlyHistory)" Title="@($"Open {Name} account")" Subtitle="@OpenSubtitle" OnClose="CloseForm">
             <ChildContent>
             <form id="obw-open-form" class="obw-form" @onsubmit="CreateAsync" @onsubmit:preventDefault="true" aria-label="Open account">
                 @if (Kind == ObligationKind.FishMeatVendorFee)
@@ -256,7 +256,7 @@
             </Footer>
         </SideDrawer>
 
-        <SideDrawer Show="@(!_opening && _rateFor is not null)" Title="Change approved amount" Subtitle="@_rateFor?.SubjectLabel" OnClose="CloseForm">
+        <SideDrawer Show="@(!_opening && _rateFor is not null && !ReadOnlyHistory)" Title="Change approved amount" Subtitle="@_rateFor?.SubjectLabel" OnClose="CloseForm">
             <ChildContent>
             <form id="obw-rate-form" class="obw-form" @onsubmit="SaveRateAsync" @onsubmit:preventDefault="true" aria-label="Change approved amount">
                 <label class="v3-field">
@@ -302,6 +302,7 @@
     /// <summary>What an account is for: Stall, Space or Lot.</summary>
     [Parameter, EditorRequired] public string SubjectNoun { get; set; } = string.Empty;
     [Parameter] public bool SpaceExperience { get; set; }
+    [Parameter] public bool ReadOnlyHistory { get; set; }
     [Parameter] public string? ReportsHref { get; set; }
     private ObligationWorkspaceDto? _workspace;
     private string _search = string.Empty, _filter = "All";
