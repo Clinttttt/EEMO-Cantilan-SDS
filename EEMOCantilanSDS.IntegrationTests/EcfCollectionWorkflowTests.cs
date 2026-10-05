@@ -1228,9 +1228,10 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
         decimal legacyElectricityAmount = 0m,
         decimal legacyFishKilos = 0m,
         Guid? payorId = null,
-        Payor? additionalPayor = null)
+        Payor? additionalPayor = null,
+        FacilityCode facilityCode = FacilityCode.TCC)
     {
-        var facility = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC",
+        var facility = Facility.Create(facilityCode, facilityCode.ToString(), facilityCode.ToString(),
             municipalityId: seed.TenantId);
         var stall = Stall.Create(facility.Id, "RENT-01", 900m, ApplicableFees.BaseRental,
             municipalityId: seed.TenantId);
@@ -1238,7 +1239,7 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
             periods.Min(), 5, 900m, createdBy: "test");
         var linkedPayorId = payorId ?? seed.PayorId;
         contract.AssociatePayor(linkedPayorId, "test");
-        var classification = RevenueClassification.Create(RevenueClassificationCodes.PermanentStallRent,
+        var classification = RevenueClassification.Create(RevenueClassificationCodes.ForMonthlyRental(facilityCode),
             seed.TenantId);
         var policy = RevenueClassificationPolicy.Create(classification.Id, new DateOnly(2000, 1, 1),
             "Permanent Stall Rent", RevenueInstrumentType.OfficialReceipt, seed.TenantId);
@@ -1458,15 +1459,19 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
         }
     }
 
-    [SkippableFact]
-    public async Task MobileRent_PostsOnACanonicalRow_WithNoSerial_ReturnsSrc_ReplaysTheSame_AndLegacyRowsAreRefused()
+    [SkippableTheory]
+    [InlineData(FacilityCode.TCC)]
+    [InlineData(FacilityCode.NCC)]
+    [InlineData(FacilityCode.BBQ)]
+    [InlineData(FacilityCode.ICE)]
+    public async Task MobileRent_PostsOnACanonicalRow_WithNoSerial_ReturnsSrc_ReplaysTheSame_AndLegacyRowsAreRefused(FacilityCode facilityCode)
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
         await db.ResetAsync();
         var seed = await SeedEcfAsync(canonical: true);
         var period = seed.Period;
-        var rent = await SeedRentSourcesAsync(seed, [period], canonical: true);
-        var collectorId = await SeedCollectorAsync(seed.TenantId, FacilityCode.TCC);
+        var rent = await SeedRentSourcesAsync(seed, [period], canonical: true, facilityCode: facilityCode);
+        var collectorId = await SeedCollectorAsync(seed.TenantId, facilityCode);
         long version;
         await using (var read = db.CreateContext(seed.TenantId))
             version = (await read.PaymentRecords.SingleAsync(x => x.Id == rent.PaymentRecordIds[period])).SettlementVersion;
@@ -1490,6 +1495,10 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
         {
             var collection = await verify.Collections.Include(x => x.Lines).ThenInclude(x => x.Allocations).SingleAsync();
             Assert.Equal((400m, collectorId), (collection.TotalAmount, collection.CollectorId!.Value));
+            Assert.Equal(seed.PayorId, collection.PayorId);
+            var line = Assert.Single(collection.Lines);
+            Assert.Equal(RevenueInstrumentType.OfficialReceipt,
+                (await verify.RevenueClassificationPolicies.SingleAsync(x => x.Id == line.RevenueClassificationPolicyId)).PermittedInstrumentType);
             Assert.Equal(rent.PaymentRecordIds[period], Assert.Single(Assert.Single(collection.Lines).Allocations).SourceId);
             var record = await verify.PaymentRecords.SingleAsync(x => x.Id == rent.PaymentRecordIds[period]);
             Assert.Equal(PaymentStatus.Partial, record.Status);
@@ -1499,8 +1508,8 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
 
         await db.ResetAsync();
         var legacySeed = await SeedEcfAsync(canonical: true);
-        var legacyRent = await SeedRentSourcesAsync(legacySeed, [legacySeed.Period], canonical: false);
-        var legacyCollector = await SeedCollectorAsync(legacySeed.TenantId, FacilityCode.TCC);
+        var legacyRent = await SeedRentSourcesAsync(legacySeed, [legacySeed.Period], canonical: false, facilityCode: facilityCode);
+        var legacyCollector = await SeedCollectorAsync(legacySeed.TenantId, facilityCode);
         await using var legacyContext = db.CreateContext(legacySeed.TenantId);
         var refused = await AsCollector(legacyContext, legacySeed.TenantId, legacyCollector).PostMobileRentAsync(
             new MobileRentPostRequest(Guid.NewGuid(), legacyRent.StallId, legacySeed.Period.Year, legacySeed.Period.Month, 100m, 0, PhilippineTime.Today));
@@ -1579,14 +1588,18 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
         await ProveExactlyOnceAsync(seed.TenantId, seed.UserId, collectorId, "ECF", 100m, "Electricity");
     }
 
-    [SkippableFact]
-    public async Task MobileRent_IsCountedOnceInMonthlyIncome_CollectorReport_AndRemittance()
+    [SkippableTheory]
+    [InlineData(FacilityCode.TCC, "RENT_TCC")]
+    [InlineData(FacilityCode.NCC, "RENT_NCC")]
+    [InlineData(FacilityCode.BBQ, "RENT_BBQ")]
+    [InlineData(FacilityCode.ICE, "ICE_PLANT")]
+    public async Task MobileRent_IsCountedOnceInMonthlyIncome_CollectorReport_AndRemittance(FacilityCode facilityCode, string incomeRow)
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
         await db.ResetAsync();
         var seed = await SeedEcfAsync(canonical: true);
-        var rent = await SeedRentSourcesAsync(seed, [seed.Period], canonical: true);
-        var collectorId = await SeedCollectorAsync(seed.TenantId, FacilityCode.TCC);
+        var rent = await SeedRentSourcesAsync(seed, [seed.Period], canonical: true, facilityCode: facilityCode);
+        var collectorId = await SeedCollectorAsync(seed.TenantId, facilityCode);
         long version;
         await using (var read = db.CreateContext(seed.TenantId))
             version = (await read.PaymentRecords.SingleAsync(x => x.Id == rent.PaymentRecordIds[seed.Period])).SettlementVersion;
@@ -1594,6 +1607,7 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
             Assert.True((await AsCollector(context, seed.TenantId, collectorId).PostMobileRentAsync(
                 new MobileRentPostRequest(Guid.NewGuid(), rent.StallId, seed.Period.Year, seed.Period.Month, 400m, version, PhilippineTime.Today))).IsSuccess);
 
-        await ProveExactlyOnceAsync(seed.TenantId, seed.UserId, collectorId, "RENT_TCC", 400m, "Rental");
+        await ProveExactlyOnceAsync(seed.TenantId, seed.UserId, collectorId, incomeRow, 400m,
+            facilityCode == FacilityCode.ICE ? "Ice Plant" : "Rental");
     }
 }
