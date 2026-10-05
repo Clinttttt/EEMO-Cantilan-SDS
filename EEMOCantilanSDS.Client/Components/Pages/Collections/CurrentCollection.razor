@@ -46,18 +46,20 @@
                 </div>
             </div>
 
-            @if (_payors.Count > 0)
+            @if (_payors.Count > 0 && _selectedPayorId is null)
             {
-                <label class="cc-field">
-                    <span>Payer</span>
-                    <select value="@(_selectedPayorId?.ToString() ?? string.Empty)" @onchange="SelectPayorAsync" disabled="@_busy">
-                        <option value="">Choose a payer</option>
-                        @foreach (var payor in _payors)
-                        {
-                            <option value="@payor.PayorId">@payor.DisplayName</option>
-                        }
-                    </select>
-                </label>
+                <ul class="cc-results" aria-label="Payers found">
+                    @foreach (var payor in _payors)
+                    {
+                        <li>
+                            <button type="button" class="cc-result" disabled="@_busy" @onclick="() => SelectPayorAsync(payor)">@payor.DisplayName</button>
+                        </li>
+                    }
+                </ul>
+            }
+            else if (_searched && _payors.Count == 0 && _selectedPayorId is null)
+            {
+                <div class="cc-empty">No payer found.</div>
             }
 
             @if (_selectedPayorId.HasValue)
@@ -66,13 +68,17 @@
                     <div>
                         <strong>@_selectedPayorName</strong>
                     </div>
-                    <button type="button" class="cc-button cc-secondary" disabled="@_busy"
-                            @onclick="LoadCandidatesAsync">Refresh</button>
+                    <div class="cc-inline-actions">
+                        <button type="button" class="cc-button cc-secondary" disabled="@_busy"
+                                @onclick="ChangePayor">Change</button>
+                        <button type="button" class="cc-button cc-secondary" disabled="@_busy"
+                                @onclick="LoadCandidatesAsync">Refresh</button>
+                    </div>
                 </div>
 
                 @if (_candidates.Count == 0)
                 {
-                    <div class="cc-empty">No outstanding charges.</div>
+                    <div class="cc-empty">No charges ready for collection.</div>
                 }
                 else
                 {
@@ -110,7 +116,7 @@
             }
             else
             {
-                <div class="cc-empty">Search for a payer to begin.</div>
+                <div class="cc-empty">Search for a payer.</div>
             }
 
         </section>
@@ -224,7 +230,7 @@
                 @if (_draft.Lines.SelectMany(x => x.Allocations ?? []).Any(x => x.SourceAuthority != SettlementAuthority.Canonical))
                 {
                     <div class="cc-notice">
-                        Some charges are not yet collected through canonical collections, so this collection cannot be recorded here.
+                        Some charges can't be recorded here yet.
                     </div>
                 }
 
@@ -299,6 +305,7 @@
 
     private List<EcfCollectionActivityDto> _activity = [];
     private List<CollectionPayorDto> _payors = [];
+    private bool _searched;
     private IReadOnlyList<CollectionCandidateDto> _candidates = [];
     private readonly Dictionary<string, decimal> _candidateAmounts = [];
     private readonly Dictionary<Guid, decimal> _draftAllocationAmounts = [];
@@ -400,6 +407,7 @@
         if (_payorSearch.Trim().Length < 2)
         {
             _payors = [];
+            _searched = false;
             _selectedPayorId = null;
             _candidates = [];
             return;
@@ -411,6 +419,7 @@
             var result = await CollectionsApi.SearchCollectionPayorsAsync(_payorSearch.Trim());
             if (!result.IsSuccess) { _error = ErrorText(result, "Payors could not be searched."); return; }
             _payors = result.Value?.ToList() ?? [];
+            _searched = true;
             _selectedPayorId = null;
             _selectedPayorName = null;
             _candidates = [];
@@ -419,11 +428,18 @@
         finally { _busy = false; }
     }
 
-    private async Task SelectPayorAsync(ChangeEventArgs args)
+    private async Task SelectPayorAsync(CollectionPayorDto payor)
     {
-        _selectedPayorId = Guid.TryParse(args.Value?.ToString(), out var id) ? id : null;
-        _selectedPayorName = _payors.FirstOrDefault(x => x.PayorId == _selectedPayorId)?.DisplayName;
+        _selectedPayorId = payor.PayorId;
+        _selectedPayorName = payor.DisplayName;
         await LoadCandidatesAsync();
+    }
+
+    private void ChangePayor()
+    {
+        _selectedPayorId = null;
+        _selectedPayorName = null;
+        _candidates = [];
     }
 
     private async Task LoadCandidatesAsync()
@@ -478,9 +494,17 @@
                 if (!result.IsSuccess) { _error = ErrorText(result, "ECF could not be added."); return; }
                 updated = result.Value;
             }
+            else if (candidate.SourceKind == CollectionSourceKind.ObligationPeriod && candidate.SourceId is { } accountId)
+            {
+                // Kanmanggay, Fiesta/Araw and Fish/Meat accounts: the account id is the stable identity the server resolves.
+                var result = await CollectionsApi.AddObligationAllocationAsync(new AddObligationDraftAllocationRequest(
+                    accountId, candidate.BillingYear, candidate.BillingMonth, amount, _draft?.Revision));
+                if (!result.IsSuccess) { _error = ErrorText(result, "The charge could not be added."); return; }
+                updated = result.Value;
+            }
             else
             {
-                _error = "This Composer supports Permanent Stall Rent and ECF Electricity sources.";
+                _error = "This charge can't be added here yet.";
                 return;
             }
             _draft = updated;

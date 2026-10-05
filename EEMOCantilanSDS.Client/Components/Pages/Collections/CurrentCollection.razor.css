@@ -185,3 +185,11 @@
     .cc-allocation label { grid-column: 1; }
     .cc-allocation button { grid-column: 2; grid-row: 1 / span 2; }
 }
+
+/* Payer search results: direct rows, not a dropdown. */
+.cc-results { display: grid; margin: 0 0 8px; padding: 0; list-style: none; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.cc-results li + li { border-top: 1px solid var(--border); }
+.cc-result { width: 100%; padding: 10px 12px; border: 0; background: var(--surface); color: var(--navy); font: inherit; font-size: 13px; font-weight: 600; text-align: left; cursor: pointer; }
+.cc-result:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent); }
+.cc-result:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.cc-inline-actions { display: flex; gap: 8px; }
