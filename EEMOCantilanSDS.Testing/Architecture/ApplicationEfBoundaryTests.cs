@@ -165,6 +165,8 @@ public class ApplicationEfBoundaryTests
         // One Water obligation's activation for Mobile: reads its UtilityBill and frozen cutover row to resume each step of
         // the existing SettlementCutoverWorkflow; it writes nothing itself.
         "WcfActivationWorkflow.cs",
+        "EcfActivationWorkflow.cs",
+        "BusinessPayorWorkflow.cs",
         // WCF Mobile collection enablement: derives readiness from WCF policy, assignments, Cash Ticket custody and WCF
         // postings awaiting review, and writes the one tenant activation row with its audit entry in one transaction.
         "WcfMobileCollectionWorkflow.cs",
