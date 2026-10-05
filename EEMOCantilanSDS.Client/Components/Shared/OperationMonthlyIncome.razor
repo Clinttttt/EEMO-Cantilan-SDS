@@ -70,11 +70,11 @@
     private bool _targetsConfigured;
 
     private string Note => _row is not null
-        ? (_targetsConfigured ? "Figures are the server's official Monthly Income for this line. — means no amount was recorded."
-            : "Figures are the server's official Monthly Income for this line. — means no amount was recorded; annual targets are not configured, so target and % are not shown.")
+        ? (_targetsConfigured ? "— means no amount was recorded."
+            : "— means no amount was recorded. Annual targets are not configured, so target and % are not shown.")
         : _failed || !_loaded
-            ? "— means no figure is available in StallTrack; it is not zero. The official Monthly Income could not be read for this report."
-            : $"— means no figure is available in StallTrack; it is not zero. This line has no row in the {Year} statement.";
+            ? "— means no figure is available; it is not zero. The official Monthly Income could not be read."
+            : $"— means no figure is available; it is not zero. This line has no row in the {Year} statement.";
 
     protected override async Task OnParametersSetAsync()
     {
