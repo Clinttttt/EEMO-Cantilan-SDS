@@ -31,6 +31,12 @@ when a new direct fee is recorded.
 
 Deferred: Tabo has no authoritative vendor-to-Business-Payor link for session ownership. NPM Daily requires the specialized day/cutover preflight rather than generic service amounts. Kanmanggay/Fiesta lack explicit safe Mobile assignment capability for this adapter. Their standalone workflows are preserved. Monthly facility rent is not generically adapted. NPM Whole Payment now reuses its existing settlement rules inside the session's outer Serializable transaction; it does not start a nested transaction.
 
+Local capability consolidation from `b0db26e2`: [typed source handoff](ITEMIZED_SOURCE_CAPABILITY_HANDOFF.md).
+The earlier Slaughterhouse support statement covered its quote/post adapter; discovery incorrectly looked for a
+non-facility permission. This follow-up fixes discovery using its existing canonical facility menu entry and adds
+typed single/multiple choice facts. It also fixes first-time WCF/ECF sharing a bill within one atomic session.
+These are local backend changes, not evidence that a new production release has been deployed.
+
 ## Boundaries and deployment
 
 One item retains one canonical Collection/SRC, including same-instrument items. Deterministic child operation identities, session fingerprint/replay and Serializable atomic posting remain. Only Collections/CollectionLines appear in reports and normal remittance; the session is not income. Additive migrations add two utility mode flags and permit weighing/direct Vendor Fee source shapes. Later explicit user authorization permits tested API deployment (including additive migrations) and signed Collector APK publication; the original no-deployment constraint is superseded for this release only.
