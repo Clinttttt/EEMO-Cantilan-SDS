@@ -339,191 +339,194 @@ public sealed class ObligationWorkspaceTests : TestContext
     }
 
     [Fact]
-    public void Import_IsAThreeStepFlow_WithUploadManualEntryAndATemplate_AndTheReviewStageHasNoPasteBox()
+    public void Import_IsTheStallholderImportFamily_HeroThreeStepsUploadTemplateSampleAndManual_WithNoPasteBox()
     {
         var cut = RenderComponent<KanmanggayImport>();
 
-        Assert.Equal("KANMANGGAY · BULK IMPORT", cut.Find(".shi-eyebrow").TextContent.Trim().ToUpperInvariant());
-        Assert.Equal("Import Kanmanggay Space Holders", cut.Find("h1").TextContent.Trim());
-        Assert.Equal(new[] { "1Upload / Add rows", "2Review & edit", "3Save" }, cut.FindAll(".shi-step").Select(x => x.TextContent.Trim()).ToArray());
-        Assert.Equal("1Upload / Add rows", cut.Find(".shi-step[aria-current='true']").TextContent.Trim());
-        Assert.NotNull(cut.Find("input[type='file']"));
-        Assert.Contains("Download CSV template", cut.Markup);
-        Assert.Empty(cut.FindAll("textarea"));                                     // the textarea is a secondary way in, not the page
-        Assert.Contains("Occupancy basis", cut.Find(".shi-chips").TextContent);
-
-        cut.Find(".shi-enter-manually").Click();
-
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Equal("2Review & edit", cut.Find(".shi-step[aria-current='true']").TextContent.Trim());
-            Assert.Single(cut.FindAll("[aria-label='Rows to import'] tbody tr"));
-            Assert.Contains("1 Invalid", cut.Find(".shi-summary").TextContent);
-            Assert.Equal(new[] { "#", "Space No.", "Actual occupant", "Business Payor", "Occupancy basis", "Contract reference", "Start / effectivity", "Approved monthly", "Closed on", "Status" },
-                cut.FindAll("thead th").Select(x => x.TextContent.Trim()).Where(x => x.Length > 0 && x != "Remove").ToArray());
-            Assert.True(cut.Find(".shi-import-go").HasAttribute("disabled"));
-        }, Timeout);
-
-        cut.Find(".shi-add-row").Click();
-        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[aria-label='Rows to import'] tbody tr").Count), Timeout);
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Discard").Click();
-        cut.WaitForAssertion(() => Assert.Equal("1Upload / Add rows", cut.Find(".shi-step[aria-current='true']").TextContent.Trim()), Timeout);
+        Assert.Equal("KANMANGGAY · BULK IMPORT", cut.Find(".imp-hero-eyebrow").TextContent.Trim().ToUpperInvariant());
+        Assert.Equal("Import Kanmanggay Space Holders", cut.Find(".imp-hero-title").TextContent.Trim());
+        Assert.Equal(new[] { "1 Upload", "2 Review & edit", "3 Save" }, cut.FindAll(".imp-step").Select(x => x.TextContent.Trim()).ToArray());
+        Assert.Contains("active", cut.Find(".imp-step").ClassList);
+        Assert.NotNull(cut.Find(".imp-drop input[type='file']"));
+        Assert.Contains("Download CSV template", cut.Find(".imp-upload-foot").TextContent);
+        Assert.NotNull(cut.Find(".imp-use-sample"));
+        Assert.NotNull(cut.Find(".imp-enter-manually"));
+        Assert.Empty(cut.FindAll("textarea"));                                        // no pasted-rows box: upload, sample or manual, as in ICE
+        Assert.Equal(new[] { "Space No.", "Actual Occupant", "Occupancy basis", "Contract reference", "Contract Effectivity (month)", "Approved monthly rental", "Closed on" },
+            cut.FindAll(".imp-chip").Select(x => x.TextContent.Trim()).ToArray());
     }
 
     [Fact]
-    public void Import_ReviewsEveryRow_NeverLinksAPayorByName_AndImportsOnlyTheReadyRows()
+    public void Import_SampleData_FillsTheEditableGridAtOnce_WithoutPayors_AndDiscardGoesBack()
     {
-        _collections.Setup(x => x.SearchCollectionPayorsAsync("Ana Reyes")).ReturnsAsync(
-            Result<IReadOnlyList<CollectionPayorDto>>.Success(new[] { new CollectionPayorDto(PayorId, "Ana Reyes") }));
-        ImportSpaceHoldersRequest? sent = null;
-        _api.Setup(x => x.ImportSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>()))
-            .Callback<ImportSpaceHoldersRequest>(r => sent = r)
-            .ReturnsAsync(Result<ImportSpaceHoldersResult>.Success(new(1, 0, ["Row 2: Needs Payor"])));
-
         var cut = RenderComponent<KanmanggayImport>();
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Paste from a spreadsheet").Click();
-        // Space, Occupant, Monthly, Start, Closed, Basis, Contract reference
-        cut.Find("textarea[aria-label='Spreadsheet rows']").Change("K-1\tAna Reyes\t900\t2026-09\t\tNo contract (space only)\t\nK-2\tBen Cruz\tabc\t2026-09\t\tSigned lease contract\tLC-2");
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Review rows").Click();
+
+        cut.Find(".imp-use-sample").Click();
 
         cut.WaitForAssertion(() =>
         {
-            var summary = cut.Find("[aria-label='Import summary']").TextContent;
-            Assert.Contains("0 Ready", summary);
-            Assert.Contains("1 Needs Payor", summary);
-            Assert.Contains("1 Invalid", summary);
-            Assert.True(cut.Find(".shi-import-go").HasAttribute("disabled"));
+            Assert.Equal("3", cut.Find(".imp-review-count").TextContent.Trim());
+            Assert.Contains("active", cut.FindAll(".imp-step")[1].ClassList);
+            Assert.Equal(new[] { "#", "Space No.", "Actual Occupant", "Occupancy basis", "Contract reference", "Contract Effectivity (month)", "Approved monthly rental", "Closed on", "Status" },
+                cut.FindAll(".imp-table thead th").Select(x => x.TextContent.Trim()).Where(x => x.Length > 0).ToArray());
+            Assert.Equal(3, cut.FindAll(".imp-table tbody tr").Count);
+            Assert.All(cut.FindAll(".imp-table tbody tr"), r => Assert.Contains("Needs Payor", r.TextContent));        // a sample never carries a Payor
+            Assert.NotNull(cut.Find(".imp-add-row"));
+            Assert.Equal(new[] { "Cancel", "Import 0 ready rows" }, cut.FindAll(".imp-foot-bar .imp-btn").Select(x => x.TextContent.Trim()).ToArray());
+            Assert.True(cut.Find(".imp-foot-bar .imp-btn-primary").HasAttribute("disabled"));
         }, Timeout);
 
-        cut.FindAll("[aria-label='Rows to import'] tbody tr")[0].QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Find Payor").Click();
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Contains("Use Ana Reyes · same name", cut.Markup);
-            Assert.Contains("0 Ready", cut.Find("[aria-label='Import summary']").TextContent);           // a name match is only a candidate
-        }, Timeout);
-        cut.FindAll("button").Single(b => b.TextContent.Contains("Use Ana Reyes")).Click();
-        cut.WaitForAssertion(() => Assert.Contains("1 Ready", cut.Find("[aria-label='Import summary']").TextContent), Timeout);
-        cut.Find(".shi-import-go").Click();
+        cut.FindAll(".imp-review-actions button").Single(b => b.TextContent.Trim() == "Discard").Click();
+        cut.WaitForAssertion(() => Assert.Contains("active", cut.FindAll(".imp-step")[0].ClassList), Timeout);
+    }
+
+    [Fact]
+    public void Import_ACsvFileLoadsIntoTheSameGrid_ReadByItsOwnHeader()
+    {
+        var cut = RenderComponent<KanmanggayImport>();
+        var csv = "Space No.,Actual Occupant,Occupancy basis,Contract reference,Contract Effectivity (month),Approved monthly rental,Closed on\r\n" +
+                  "K-1,Ana Reyes,Signed lease contract,LC-1,2026-09,900,\r\nK-2,Ben Cruz,No contract (space only),,2026-09,700,\r\n";
+
+        cut.FindComponent<Microsoft.AspNetCore.Components.Forms.InputFile>().UploadFiles(InputFileContent.CreateFromText(csv, "list.csv"));
 
         cut.WaitForAssertion(() =>
         {
-            var row = Assert.Single(sent!.Rows);                                                         // only the ready row is sent
-            Assert.Equal((PayorId, "K-1", 900m), (row.Account.PayorId, row.Account.SubjectLabel, row.Account.Amount));
-            Assert.Equal((OccupancyArrangement.SpaceOnly, (string?)null), (row.Account.Arrangement, row.Account.ContractReference));
-            Assert.Equal("3Save", cut.Find(".shi-step[aria-current='true']").TextContent.Trim());
-            Assert.Contains("1 space holder imported", cut.Markup);
-            Assert.Contains("Row 2: Needs Payor", cut.Find("[aria-label='Rows that need review']").TextContent);
+            Assert.Equal("2", cut.Find(".imp-review-count").TextContent.Trim());
+            Assert.Contains("list.csv", cut.Find(".imp-review-sub").TextContent);
+            Assert.Equal("LC-1", cut.Find("input[aria-label='Contract reference of row 1']").GetAttribute("value"));
+            Assert.True(cut.Find("input[aria-label='Contract reference of row 2']").HasAttribute("readonly"));      // no contract: no reference
+        }, Timeout);
+    }
+
+    [Fact]
+    public void Import_APayorIsChosenFromACompactRowAction_AndNeverFromTheName()
+    {
+        _collections.Setup(x => x.SearchCollectionPayorsAsync("Maria Santos")).ReturnsAsync(
+            Result<IReadOnlyList<CollectionPayorDto>>.Success(new[] { new CollectionPayorDto(PayorId, "Maria Santos", ["NPM · 4"]) }));
+        var cut = RenderComponent<KanmanggayImport>();
+        cut.Find(".imp-use-sample").Click();
+        cut.WaitForAssertion(() => Assert.Equal(3, cut.FindAll(".imp-table tbody tr").Count), Timeout);
+
+        cut.FindAll(".imp-table tbody tr")[0].QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Link Payor").Click();
+
+        cut.WaitForAssertion(() => Assert.Equal("Maria Santos", cut.Find("[role='dialog'] input[type='search']").GetAttribute("value")), Timeout);
+        _collections.Verify(x => x.SearchCollectionPayorsAsync(It.IsAny<string>()), Times.Never);                   // pre-filled, never searched for the office
+        cut.Find("form[aria-label='Find a Business Payor']").Submit();
+        cut.WaitForAssertion(() => Assert.Contains("NPM · 4", cut.Find("[aria-label='Business Payors found']").TextContent), Timeout);
+        Assert.True(cut.FindAll("[role='dialog'] footer button").Single(b => b.TextContent.Trim() == "Use Payor").HasAttribute("disabled"));
+        cut.Find("[aria-label='Business Payors found'] button").Click();
+        cut.FindAll("[role='dialog'] footer button").Single(b => b.TextContent.Trim() == "Use Payor").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Empty(cut.FindAll("[role='dialog']"));
+            var row = cut.FindAll(".imp-table tbody tr")[0].TextContent;
+            Assert.Contains("Maria Santos", row);
+            Assert.Contains("Ready", row);
+            Assert.Contains("1 ready", cut.Find(".shi-foot-note").TextContent);
         }, Timeout);
     }
 
     [Fact]
     public void Import_UsesTheServersPreview_ForStatusDuplicatesAndSuggestedNumbers_AndKeepsABlankNumberBlank()
     {
-        _collections.Setup(x => x.SearchCollectionPayorsAsync("Ana Reyes")).ReturnsAsync(
+        _collections.Setup(x => x.SearchCollectionPayorsAsync(It.IsAny<string>())).ReturnsAsync(
             Result<IReadOnlyList<CollectionPayorDto>>.Success(new[] { new CollectionPayorDto(PayorId, "Ana Reyes") }));
-        _collections.Setup(x => x.SearchCollectionPayorsAsync("Ben Cruz")).ReturnsAsync(
-            Result<IReadOnlyList<CollectionPayorDto>>.Success(new[] { new CollectionPayorDto(PayorId, "Ana Reyes") }));     // explicit choice, whatever the typed name
-        ImportSpaceHoldersRequest? previewed = null, saved = null;
+        ImportSpaceHoldersRequest? saved = null;
         _api.Setup(x => x.PreviewSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>())).Returns((ImportSpaceHoldersRequest r) =>
         {
-            previewed = r;
             var rows = r.Rows.Select((row, i) =>
             {
                 var account = row.Account;
                 if (account.PayorId == Guid.Empty)
                     return new SpaceHolderImportRowResult(i + 1, SpaceHolderImportStatus.NeedsPayor, "RequiresPayor", "Choose a Business Payor.", Facts:
                         new(account with { SubjectLabel = "3" }, row.ClosedOn, SpaceNumberOrigin.ServerSuggested, null));
-                return string.IsNullOrWhiteSpace(account.SubjectLabel)
-                    ? new SpaceHolderImportRowResult(i + 1, SpaceHolderImportStatus.Ready, null, null, Facts:
-                        new(account with { SubjectLabel = "3" }, row.ClosedOn, SpaceNumberOrigin.ServerSuggested, "Ana Reyes"))
-                    : new SpaceHolderImportRowResult(i + 1, SpaceHolderImportStatus.Invalid, "DuplicateSpace", "This space already has an account.", Facts:
-                        new(account, row.ClosedOn, SpaceNumberOrigin.Supplied, "Ana Reyes"));
+                return account.SubjectLabel == "2"
+                    ? new SpaceHolderImportRowResult(i + 1, SpaceHolderImportStatus.Invalid, "DuplicateSpace", "This space already has an account.", Facts:
+                        new(account, row.ClosedOn, SpaceNumberOrigin.Supplied, "Ana Reyes"))
+                    : new SpaceHolderImportRowResult(i + 1, SpaceHolderImportStatus.Ready, null, null, Facts:
+                        new(account with { SubjectLabel = string.IsNullOrWhiteSpace(account.SubjectLabel) ? "3" : account.SubjectLabel }, row.ClosedOn,
+                            string.IsNullOrWhiteSpace(account.SubjectLabel) ? SpaceNumberOrigin.ServerSuggested : SpaceNumberOrigin.Supplied, "Ana Reyes"));
             }).ToList();
             return Task.FromResult(Result<SpaceHolderImportPreview>.Success(new(rows, rows.All(x => x.Status == SpaceHolderImportStatus.Ready))));
         });
         _api.Setup(x => x.ImportSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>()))
             .Callback<ImportSpaceHoldersRequest>(r => saved = r)
-            .ReturnsAsync(Result<ImportSpaceHoldersResult>.Success(new(1, 0, [])));
+            .ReturnsAsync(Result<ImportSpaceHoldersResult>.Success(new(2, 0, ["Row 2: duplicate space"])));
 
         var cut = RenderComponent<KanmanggayImport>();
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Paste from a spreadsheet").Click();
-        // Space, Occupant, Monthly, Start, Closed, Basis, Contract reference — the first row has no number, the second one that is taken.
-        cut.Find("textarea[aria-label='Spreadsheet rows']").Change("\tAna Reyes\t900\t2026-09\t\tNo contract (space only)\t\nK-1\tBen Cruz\t700\t2026-09\t\tNo contract (space only)\t");
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Review rows").Click();
-        cut.WaitForAssertion(() => Assert.Contains("Auto · 3", cut.Find("input[aria-label='Space No. of row 1']").GetAttribute("placeholder")), Timeout);
-
-        cut.FindAll("[aria-label='Rows to import'] tbody tr")[0].QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Find Payor").Click();
-        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Contains("Use Ana Reyes")), Timeout);
-        cut.FindAll("button").Single(b => b.TextContent.Contains("Use Ana Reyes")).Click();
-        cut.FindAll("[aria-label='Rows to import'] tbody tr")[1].QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Find Payor").Click();
-        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Contains("Use Ana Reyes")), Timeout);
-        cut.FindAll("button").Single(b => b.TextContent.Contains("Use Ana Reyes")).Click();
+        cut.Find(".imp-use-sample").Click();
+        // Sample rows: 1 Maria (signed), 2 Jose (space only), and a third with no number. Each gets the office's explicit Payor.
+        for (var i = 0; i < 3; i++)
+        {
+            cut.WaitForAssertion(() => cut.FindAll(".imp-table tbody tr")[i].QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Link Payor"), Timeout);
+            cut.FindAll(".imp-table tbody tr")[i].QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Link Payor").Click();
+            cut.WaitForAssertion(() => cut.Find("[role='dialog'] form[aria-label='Find a Business Payor']"), Timeout);
+            cut.Find("[role='dialog'] form[aria-label='Find a Business Payor']").Submit();
+            cut.WaitForAssertion(() => cut.Find("[aria-label='Business Payors found'] button"), Timeout);
+            cut.Find("[aria-label='Business Payors found'] button").Click();
+            cut.FindAll("[role='dialog'] footer button").Single(b => b.TextContent.Trim() == "Use Payor").Click();
+            cut.WaitForAssertion(() => Assert.Empty(cut.FindAll("[role='dialog']")), Timeout);
+        }
 
         cut.WaitForAssertion(() =>
         {
-            var summary = cut.Find("[aria-label='Import summary']").TextContent;
-            Assert.Contains("1 Ready", summary);
-            Assert.Contains("1 Invalid", summary);
-            Assert.Contains("This space already has an account.", cut.FindAll("[aria-label='Rows to import'] tbody tr")[1].TextContent);  // the server's reason, shown as given
+            Assert.Contains("2 ready", cut.Find(".shi-foot-note").TextContent);
+            Assert.Contains("1 invalid", cut.Find(".shi-foot-note").TextContent);
+            Assert.Contains("This space already has an account.", cut.FindAll(".imp-table tbody tr")[1].TextContent);     // the server's reason, as given
+            Assert.Contains("Auto · 3", cut.Find("input[aria-label='Space No. of row 3']").GetAttribute("placeholder"));
         }, Timeout);
-        Assert.NotNull(previewed);
 
-        cut.Find(".shi-import-go").Click();
+        cut.Find(".imp-foot-bar .imp-btn-primary").Click();
+
         cut.WaitForAssertion(() =>
         {
-            var row = Assert.Single(saved!.Rows);
-            Assert.Equal(string.Empty, row.Account.SubjectLabel);                                         // the server numbers it again when it saves
-            Assert.Equal(PayorId, row.Account.PayorId);
+            Assert.Equal(new[] { "1", string.Empty }, saved!.Rows.Select(x => x.Account.SubjectLabel).ToArray());   // a blank number stays blank: the server numbers it
+            Assert.All(saved.Rows, x => Assert.Equal(PayorId, x.Account.PayorId));
+            Assert.Contains("active", cut.FindAll(".imp-step")[2].ClassList);
+            Assert.Contains("2 space holders imported", cut.Find(".imp-state-title").TextContent);
         }, Timeout);
     }
 
     [Fact]
     public void Import_NeverAssumesTheBasis_AndASignedRowSendsItsContractReference()
     {
-        ImportSpaceHoldersRequest? sent = null;
-        _api.Setup(x => x.ImportSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>()))
-            .Callback<ImportSpaceHoldersRequest>(r => sent = r)
-            .ReturnsAsync(Result<ImportSpaceHoldersResult>.Success(new(1, 0, [])));
-
         var cut = RenderComponent<KanmanggayImport>();
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Paste from a spreadsheet").Click();
-        cut.Find("textarea[aria-label='Spreadsheet rows']").Change("K-9\tAna Reyes\t900\t2026-09-01\t");              // no basis stated
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Review rows").Click();
+        cut.Find(".imp-enter-manually").Click();
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".imp-table tbody tr")), Timeout);
 
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Contains("Choose an occupancy basis", cut.Find("[aria-label='Rows to import'] tbody").TextContent);
-            Assert.Contains("1 Invalid", cut.Find("[aria-label='Import summary']").TextContent);
-        }, Timeout);
+        cut.Find("input[aria-label='Actual Occupant of row 1']").Input("Ana Reyes");
+        Assert.True(cut.Find("input[aria-label='Contract reference of row 1']").HasAttribute("readonly"));              // no basis chosen yet: nothing to reference
 
-        var select = cut.Find("select[aria-label='Occupancy basis of row 1']");
-        select.Change("signed");
-        cut.WaitForAssertion(() => Assert.False(cut.Find("input[aria-label='Contract reference of row 1']").HasAttribute("disabled")), Timeout);
-        cut.Find("input[aria-label='Contract reference of row 1']").Change("LC-2026-014");
-        cut.WaitForAssertion(() => Assert.Contains("1 Needs Payor", cut.Find("[aria-label='Import summary']").TextContent), Timeout);
+        cut.Find("select[aria-label='Occupancy basis of row 1']").Change("Signed lease contract");
+        cut.WaitForAssertion(() => Assert.False(cut.Find("input[aria-label='Contract reference of row 1']").HasAttribute("readonly")), Timeout);
+        cut.Find("input[aria-label='Contract reference of row 1']").Input("LC-2026-014");
 
-        cut.Find("select[aria-label='Occupancy basis of row 1']").Change("space");
+        cut.Find("select[aria-label='Occupancy basis of row 1']").Change("No contract (space only)");
         cut.WaitForAssertion(() =>
         {
             var reference = cut.Find("input[aria-label='Contract reference of row 1']");
-            Assert.True(reference.HasAttribute("disabled"));                                                         // a space let without a contract carries none
+            Assert.True(reference.HasAttribute("readonly"));                                                             // a space let without a contract carries none
             Assert.Equal(string.Empty, reference.GetAttribute("value") ?? string.Empty);
         }, Timeout);
     }
 
     [Fact]
-    public void FiestaArawImport_RowsNameTheirEvent_AndNeverMixThem()
+    public void FiestaArawImport_IsTheSameFamily_RowsNameTheirEvent_AndNeverMixThem()
     {
         var cut = RenderComponent<FiestaArawImport>();
-        Assert.Equal("Import Fiesta / Araw Lot Holders", cut.Find("h1").TextContent.Trim());
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Paste from a spreadsheet").Click();
-        cut.Find("textarea[aria-label='Spreadsheet rows']").Change("L-1\tAna Reyes\t2500\t2026-08-15\tAraw\t");
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Review rows").Click();
+        Assert.Equal("Import Fiesta / Araw Lot Holders", cut.Find(".imp-hero-title").TextContent.Trim());
+        Assert.Empty(cut.FindAll("textarea"));
+
+        cut.Find(".imp-use-sample").Click();
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Equal("Araw", cut.Find("select[aria-label='Event of row 1']").QuerySelector("option[selected]")!.TextContent.Trim());
-            Assert.Empty(cut.FindAll("select[aria-label^='Occupancy basis']"));                                    // basis is Kanmanggay's, not a lot rental's
+            Assert.Equal(new[] { "#", "Lot No.", "Actual Occupant", "Event", "Event date", "Approved lot amount", "Closed on", "Status" },
+                cut.FindAll(".imp-table thead th").Select(x => x.TextContent.Trim()).Where(x => x.Length > 0).ToArray());
+            Assert.Equal("Fiesta", cut.Find("select[aria-label='Event of row 1']").GetAttribute("value"));
+            Assert.Equal("Araw", cut.Find("select[aria-label='Event of row 3']").GetAttribute("value"));
+            Assert.Empty(cut.FindAll("select[aria-label^='Occupancy basis']"));                                          // basis is Kanmanggay's, not a lot rental's
         }, Timeout);
     }
 
