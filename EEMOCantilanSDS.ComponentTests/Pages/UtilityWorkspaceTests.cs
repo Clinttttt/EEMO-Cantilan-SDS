@@ -64,6 +64,29 @@ public sealed class UtilityWorkspaceTests : TestContext
     }
 
     [Fact]
+    public void Ecf_ControlsShareOneGroupInTheObligationsHeader_AndAnEmptyCurrentCollectionIsACompactSummary()
+    {
+        Services.AddSingleton(EcfApi(EcfQuote(outstanding: 80m, canAdd: true, SettlementAuthority.Canonical)).Object);
+
+        var cut = RenderComponent<ElectricityConsumptionFees>();
+
+        cut.WaitForAssertion(() =>
+        {
+            var controls = cut.Find(".ecf-panel-header .ecf-controls");                                   // search, area and the ECF pages together
+            Assert.NotNull(controls.QuerySelector("input[type='search']"));
+            Assert.NotNull(controls.QuerySelector("select[aria-label='Filter by area']"));
+            Assert.Equal(new[] { "Refresh", "Accounts", "Statements", "Report" }, controls.QuerySelectorAll("[aria-label='ECF actions'] .v3-btn").Select(x => x.TextContent.Trim()).ToArray());
+            Assert.Empty(cut.FindAll(".ecf-toolbar"));
+
+            var current = cut.Find("[aria-label='Current collection']");
+            Assert.Contains("Items", current.TextContent);
+            Assert.Contains("₱0.00", current.TextContent);
+            Assert.DoesNotContain("Start from a Payor", cut.Markup);                                      // a summary of state, not an advertisement
+            Assert.DoesNotContain("No collection in progress", cut.Markup);
+        }, Timeout);
+    }
+
+    [Fact]
     public void Ecf_EligibleObligation_OffersAddToCollection_AndTheSummaryUsesServerTotals()
     {
         Services.AddSingleton(EcfApi(EcfQuote(outstanding: 80m, canAdd: true, SettlementAuthority.Canonical)).Object);
