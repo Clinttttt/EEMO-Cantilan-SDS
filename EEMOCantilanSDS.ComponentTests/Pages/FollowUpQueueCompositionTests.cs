@@ -34,7 +34,8 @@ public sealed class FollowUpQueueCompositionTests : TestContext
 
             var higherAge = RowFor(cut, "Higher-age delinquent");
             Assert.Equal("Delinquent", higherAge.QuerySelector(".fq-reason")?.TextContent.Trim());
-            Assert.Contains("Critical", higherAge.QuerySelector(".fq-priority")?.TextContent);
+            Assert.Null(higherAge.QuerySelector(".fq-priority"));                                  // no visible Critical badge
+            Assert.Contains("fq-pri-critical", higherAge.ClassName);                                // the row rail still carries the urgency
             Assert.Contains("Unpaid · 4 months", higherAge.TextContent);
         }, RenderTimeout);
 

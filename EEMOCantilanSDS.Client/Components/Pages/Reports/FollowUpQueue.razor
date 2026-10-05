@@ -219,8 +219,8 @@
                                                 <td>
                                                     <div class="fq-row-signals">
                                                         <span class="fq-reason">@it.Reason</span>
-                                                        @* Only an urgent row is tagged; Normal needs no label. *@
-                                                        @if (!string.Equals(it.Priority, "Normal", StringComparison.OrdinalIgnoreCase))
+                                                        @* The rail and amount tone carry urgency: Critical and Normal rows carry no pill; other priorities keep theirs. *@
+                                                        @if (!string.Equals(it.Priority, "Normal", StringComparison.OrdinalIgnoreCase) && !string.Equals(it.Priority, "Critical", StringComparison.OrdinalIgnoreCase))
                                                         {
                                                             <span class="fq-priority fq-rb-@PriClass(it.Priority)">@it.Priority</span>
                                                         }
