@@ -571,6 +571,9 @@
             if (!result.IsSuccess) { _formError = result.Error ?? "The account could not be opened."; return; }
             _opening = false;
             _saved = $"{Name} account opened.";
+            // A holder that was just added must be visible: a Paid / Partial filter or a search left on the list would hide it.
+            _filter = "All";
+            _search = string.Empty;
             await LoadAsync();
         }
         catch (Exception ex) { _formError = ex.Message; }

@@ -288,6 +288,41 @@ public sealed class ObligationWorkspaceTests : TestContext
     }
 
     [Fact]
+    public void AHolderJustAdded_AppearsAtOnce_EvenWithAStatusFilterOrSearchLeftOnTheList()
+    {
+        var existing = Space();
+        var added = Space() with { Id = Guid.NewGuid(), SubjectLabel = "Space K-9", CollectedToDate = 0m, OutstandingToDate = 0m, AssessedToDate = 0m };
+        _api.SetupSequence(x => x.GetWorkspaceAsync(ObligationKind.KanmanggaySpaceRental))
+            .ReturnsAsync(Result<ObligationWorkspaceDto>.Success(new([existing], 1200m, 400m, 800m)))
+            .ReturnsAsync(Result<ObligationWorkspaceDto>.Success(new([existing, added], 1200m, 400m, 800m)));
+        _collections.Setup(x => x.SearchCollectionPayorsAsync("Ana Reyes")).ReturnsAsync(
+            Result<IReadOnlyList<CollectionPayorDto>>.Success(new[] { new CollectionPayorDto(PayorId, "Ana Reyes") }));
+        _api.Setup(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>())).ReturnsAsync(Result<ObligationAccountDto>.Success(added));
+
+        var cut = RenderComponent<Kanmanggay>();
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll("[aria-label='Kanmanggay accounts'] tbody tr")), Timeout);
+        cut.FindAll(".filter-tab").Single(t => t.TextContent.Trim() == "Paid").Click();            // hides the (partly paid) existing holder
+        cut.WaitForAssertion(() => Assert.DoesNotContain("Space K-4", cut.Find("[aria-label='Kanmanggay accounts'] tbody").TextContent), Timeout);
+
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New").Click();
+        var search = cut.Find("[role='dialog'] input[type='search']");
+        search.Input("Ana Reyes");
+        search.KeyUp(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "s" });
+        cut.WaitForAssertion(() => cut.Find("[aria-label='Business Payors found'] button"), Timeout);
+        cut.Find("[aria-label='Business Payors found'] button").Click();
+        cut.Find("#obw-amount").Change("900");
+        cut.Find("form[aria-label='Open account']").Submit();
+
+        cut.WaitForAssertion(() =>
+        {
+            var rows = cut.FindAll("[aria-label='Kanmanggay accounts'] tbody tr").Select(r => r.TextContent).ToArray();
+            Assert.Contains(rows, r => r.Contains("Space K-9"));
+            Assert.Contains(rows, r => r.Contains("Space K-4"));
+            Assert.Equal("All", cut.Find(".filter-tab.active").TextContent.Trim());
+        }, Timeout);
+    }
+
+    [Fact]
     public void FiestaAraw_AddNew_UsesTheSameDrawerFamily_WithAnExplicitEventChoice_AndAServerNumberWhenBlank()
     {
         Serve(ObligationKind.FiestaArawLotRental);
