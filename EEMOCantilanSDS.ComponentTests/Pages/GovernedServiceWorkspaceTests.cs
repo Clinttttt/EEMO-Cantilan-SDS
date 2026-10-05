@@ -494,4 +494,37 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
             Assert.DoesNotContain("No fee type has been defined yet.", cut.Markup);
         }, Timeout);
     }
+
+    [Fact]
+    public void TheFeeTypeSuccessNotice_ClearsItselfAfterAFewSeconds_ButAnErrorStays()
+    {
+        Serve([FeeTypeDefinition()]);
+        _api.Setup(x => x.GetFeeOptionsAsync(CollectorOperationCodes.MarketFees))
+            .ReturnsAsync(Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success([]));
+        _api.Setup(x => x.GetFeeOptionTotalsAsync(CollectorOperationCodes.MarketFees, It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(Result<IReadOnlyList<FeeOptionTotalDto>>.Success([]));
+        _api.SetupSequence(x => x.AddFeeOptionAsync(CollectorOperationCodes.MarketFees, It.IsAny<AddFeeOptionRequest>()))
+            .ReturnsAsync(Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success([
+                Option("Comfort Room", null, null, GovernedServiceBasis.FixedAmount, 5m, null, "Active")]))
+            .ReturnsAsync(Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure("That fee type already exists."));
+
+        var cut = RenderComponent<MarketFees>();
+        cut.WaitForAssertion(() => Assert.Contains("No fee type has been defined yet.", cut.Markup), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Add fee type").Click();
+        cut.Find("[role=dialog] form input[type=text]").Change("Comfort Room");
+        cut.Find("[role=dialog] form input[type=number]").Change("5");
+        cut.Find("[role=dialog] form").Submit();
+
+        cut.WaitForAssertion(() => Assert.Contains("Fee type added.", cut.Markup), Timeout);
+        cut.WaitForAssertion(() => Assert.DoesNotContain("Fee type added.", cut.Markup), TimeSpan.FromSeconds(6));
+
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Add fee type").Click();
+        cut.Find("[role=dialog] form input[type=text]").Change("Comfort Room");
+        cut.Find("[role=dialog] form input[type=number]").Change("5");
+        cut.Find("[role=dialog] form").Submit();
+
+        cut.WaitForAssertion(() => Assert.Contains("That fee type already exists.", cut.Markup), Timeout);
+        Thread.Sleep(3500);
+        Assert.Contains("That fee type already exists.", cut.Markup);
+    }
 }

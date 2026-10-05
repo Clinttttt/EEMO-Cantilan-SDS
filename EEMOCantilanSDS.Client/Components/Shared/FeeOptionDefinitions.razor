@@ -4,6 +4,7 @@
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
 @using Microsoft.AspNetCore.Components.Authorization
+@implements IDisposable
 @inject IGovernedServicesApiClient GovernedApi
 
 @* The approved fee options of a governed service (e.g. the Market Fee definitions): each option's name, amount rule and
@@ -235,6 +236,35 @@
     private bool _saving;
     private string? _formError;
     private string? _saved;
+    private CancellationTokenSource? _savedTimer;
+
+    /// <summary>How long a success notice stays before it clears itself. Errors never clear on their own.</summary>
+    [Parameter] public TimeSpan SavedNoticeDuration { get; set; } = TimeSpan.FromSeconds(3);
+
+    private void ShowSaved(string message)
+    {
+        _savedTimer?.Cancel();
+        _savedTimer?.Dispose();
+        _saved = message;
+        var timer = _savedTimer = new CancellationTokenSource();
+        _ = DismissSavedAsync(timer.Token);
+    }
+
+    private async Task DismissSavedAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(SavedNoticeDuration, token);
+            await InvokeAsync(() => { _saved = null; StateHasChanged(); });
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    public void Dispose()
+    {
+        _savedTimer?.Cancel();
+        _savedTimer?.Dispose();
+    }
     private string _name = string.Empty;
     private string? _location;
     private string? _code;
@@ -357,12 +387,12 @@
             if (result is null) return;
             if (!result.IsSuccess) { _formError = result.Error ?? "The change could not be saved."; return; }
             _options = result.Value?.ToList() ?? _options;
-            _saved = _mode switch
+            ShowSaved(_mode switch
             {
                 FormMode.Add => "Fee type added. It is offered from its effective date.",
                 FormMode.Schedule => "Amount scheduled. It applies from its effective date; recorded collections keep their amount.",
                 _ => "Fee type retired from the chosen date. Its history is kept."
-            };
+            });
             _mode = FormMode.None;
             _openId = null;
             await Changed.InvokeAsync();
