@@ -179,7 +179,7 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
 
         cut.Find("aside select").Change(GovernedServiceBasis.FixedAmount.ToString());
         cut.Find("aside input[type='number']").Change("25");
-        cut.Find("aside form").Submit();
+        cut.Find("[role=dialog] form").Submit();
 
         cut.WaitForAssertion(() =>
         {
@@ -255,6 +255,62 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
         Guid.NewGuid(), code, name, location, null, basis, amount, ceiling, basis is null ? null : new DateOnly(2026, 9, 1), status,
         status == "Retired" ? new DateOnly(2026, 9, 15) : null,
         basis is null ? [] : [new FeeOptionRateVersionDto(new DateOnly(2026, 9, 1), basis.Value, amount, ceiling, "head", DateTime.UtcNow)]);
+
+    [Fact]
+    public void Collections_ScrollInsideABoundedRegion_TheHelperSentenceIsGone_AndTheSetupDrawerLeavesThePageAlone()
+    {
+        Serve(All(GovernedServiceSetupState.Active), Enumerable.Range(1, 7).Select(i => Row(10m * i, $"SRC-2026-0000{i:00}")).ToArray());
+
+        var cut = RenderComponent<LandingBerthing>();
+
+        cut.WaitForAssertion(() =>
+        {
+            var region = cut.Find(".gsw-scroll");                                                         // about four rows show; the rest scroll here
+            Assert.Equal(7, region.QuerySelectorAll("tbody tr").Length);
+            Assert.NotNull(region.QuerySelector("thead th"));
+            Assert.NotNull(region.QuerySelector("tfoot"));
+            Assert.DoesNotContain("Recorded by assigned collectors", cut.Markup);
+            Assert.DoesNotContain("Assign collectors", cut.Markup);
+        }, Timeout);
+
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Change amount rule").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var drawer = Assert.Single(cut.FindAll("[role='dialog']"));
+            Assert.Contains("Change amount rule", drawer.QuerySelector(".sd-title")!.TextContent);
+            Assert.NotNull(drawer.QuerySelector("form"));
+            Assert.Empty(cut.Find("aside").QuerySelectorAll("form"));                                     // nothing stretches the Setup panel
+            Assert.Equal(7, cut.Find(".gsw-scroll").QuerySelectorAll("tbody tr").Length);                  // and the collections stay where they are
+        }, Timeout);
+        cut.FindAll("footer button").Single(b => b.TextContent.Trim() == "Cancel").Click();
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll("[role='dialog']")), Timeout);
+    }
+
+    [Fact]
+    public void LandingBerthing_ListsItsFeeTypes_ByTheServersOwnDefinitions_WhenTheyExist()
+    {
+        Serve([Definition(CollectorOperationCodes.LandingBerthing, "Landing / Berthing", GovernedServiceSetupState.Active,
+                GovernedServiceBasis.ApprovedFeeOption, mobile: true) with
+            { AllowedBases = [GovernedServiceBasis.FixedAmount, GovernedServiceBasis.ApprovedFeeOption] }]);
+        _api.Setup(x => x.GetFeeOptionsAsync(CollectorOperationCodes.LandingBerthing)).ReturnsAsync(
+            Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success([
+                Option("Landing", null, null, GovernedServiceBasis.FixedAmount, 100m, null, "Active"),
+                Option("Berthing", null, null, GovernedServiceBasis.FixedAmount, 250m, null, "Active")]));
+        _api.Setup(x => x.GetFeeOptionTotalsAsync(CollectorOperationCodes.LandingBerthing, It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(Result<IReadOnlyList<FeeOptionTotalDto>>.Success([]));
+
+        var cut = RenderComponent<LandingBerthing>();
+
+        cut.WaitForAssertion(() =>
+        {
+            var panel = cut.Find("[aria-label='Landing / Berthing fees']");
+            Assert.Equal(new[] { "Landing", "Berthing" }, panel.QuerySelectorAll("tbody tr td.v3-strong").Select(x => x.TextContent.Trim()).ToArray());
+            Assert.Contains("₱100.00", panel.TextContent);
+            Assert.Contains("₱250.00", panel.TextContent);
+            Assert.Contains(cut.FindAll("button"), b => b.TextContent.Trim() == "Add fee type");
+        }, Timeout);
+    }
 
     [Fact]
     public void MarketFeeDefinitions_ListNameRuleAmountAndStatus_FromServerData_WithoutInternalCodes()
@@ -425,9 +481,9 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
         var cut = RenderComponent<MarketFees>();
         cut.WaitForAssertion(() => Assert.Contains("No fee type has been defined yet.", cut.Markup), Timeout);
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Add fee type").Click();
-        cut.Find("form.fod-form input[type=text]").Change("Comfort Room");
-        cut.Find("form.fod-form input[type=number]").Change("5");
-        cut.Find("form.fod-form").Submit();
+        cut.Find("[role=dialog] form input[type=text]").Change("Comfort Room");
+        cut.Find("[role=dialog] form input[type=number]").Change("5");
+        cut.Find("[role=dialog] form").Submit();
 
         cut.WaitForAssertion(() =>
         {

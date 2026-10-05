@@ -21,5 +21,7 @@
         </Actions>
     </WorkspaceHeader>
 
-    <GovernedServiceWorkspace OperationCode="@CollectorOperationCodes.LandingBerthing" Name="Landing / Berthing" />
+    @* Landing and Berthing are separate fee types of this one operation. When the server offers them as approved fee types they are listed
+       here by their own stable identities; nothing is named or numbered in the browser. *@
+    <GovernedServiceWorkspace OperationCode="@CollectorOperationCodes.LandingBerthing" Name="Landing / Berthing" FeeOptionsTitle="Landing / Berthing fees" />
 </div>

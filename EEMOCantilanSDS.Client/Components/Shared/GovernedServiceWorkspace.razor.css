@@ -183,3 +183,8 @@
 }
 
 .gsw-period .v3-input { min-height: 36px; padding-block: 4px; }
+
+/* The collections history is bounded: about four rows show, the rest scroll inside the panel, with the heading and the total held in place. */
+.gsw-scroll { max-height: 17.5rem; overflow-y: auto; overscroll-behavior: contain; }
+.gsw-scroll thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-muted); }
+.gsw-scroll tfoot td { position: sticky; bottom: 0; z-index: 1; background: var(--surface-muted); border-top: 1px solid var(--border); }

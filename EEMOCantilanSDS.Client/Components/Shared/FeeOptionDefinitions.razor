@@ -31,21 +31,26 @@
         </div>
     }
 
-    @if (_mode == FormMode.Add)
-    {
-        <form class="fod-form" @onsubmit="SubmitAsync" @onsubmit:preventDefault="true" aria-label="Add a fee type">
-            <div class="fod-grid">
-                <label class="v3-field"><span>Name</span>
-                    <input class="v3-input" type="text" maxlength="120" required placeholder="e.g. Comfort Room" @bind="_name" /></label>
-                <label class="v3-field"><span>Location (optional)</span>
-                    <input class="v3-input" type="text" maxlength="80" @bind="_location" /></label>
-                <label class="v3-field"><span>Internal reference (optional)</span>
-                    <input class="v3-input" type="text" maxlength="40" @bind="_code" /></label>
-            </div>
-            @RuleFields
-            @FormFooter("Add fee type")
-        </form>
-    }
+    <AuthorizeView Roles="SuperAdmin">
+        <Authorized>
+            @* Defining a fee type opens in the same side drawer as every other Add New, so the table never moves. *@
+            <AddNewDrawer Show="_mode == FormMode.Add" Wide="false" Title="Add fee type" Subtitle="@Title"
+                          FormId="@($"{_titleId}-add")" FormLabel="Add a fee type" SubmitText="Add fee type" Saving="_saving" Error="@_formError"
+                          OnSubmit="SubmitAsync" OnCancel="Cancel">
+                <AddNewSection Title="Fee type">
+                    <label class="v3-field ans-span"><span>Name</span>
+                        <input class="v3-input" type="text" maxlength="120" required placeholder="e.g. Comfort Room" @bind="_name" /></label>
+                    <label class="v3-field"><span>Location (optional)</span>
+                        <input class="v3-input" type="text" maxlength="80" @bind="_location" /></label>
+                    <label class="v3-field"><span>Reference (optional)</span>
+                        <input class="v3-input" type="text" maxlength="40" @bind="_code" /></label>
+                </AddNewSection>
+                <AddNewSection Title="Amount rule" Plain="true">
+                    @RuleFields
+                </AddNewSection>
+            </AddNewDrawer>
+        </Authorized>
+    </AuthorizeView>
 
     <div class="v3-table-wrap" role="region" aria-label="@Title" tabindex="0">
         <table class="v3-table">

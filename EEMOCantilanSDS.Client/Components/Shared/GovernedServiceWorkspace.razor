@@ -24,7 +24,7 @@
             <p class="v3-notice v3-notice-error gsw-notice" role="alert">@_activityError</p>
         }
 
-        <div class="v3-table-wrap" role="region" aria-label="@($"{Name} collections")" tabindex="0">
+        <div class="v3-table-wrap gsw-scroll" role="region" aria-label="@($"{Name} collections")" tabindex="0">
             <table class="v3-table">
                 <caption class="v3-sr-only">@Name collections for @PeriodLabel</caption>
                 <thead>
@@ -75,9 +75,6 @@
                 }
             </table>
         </div>
-        <p class="v3-panel-note">
-            Recorded by assigned collectors on Collector Mobile · <a href="/collectors">Assign collectors</a>
-        </p>
     </section>
 
     <aside class="v3-panel" aria-labelledby="@_setupTitleId">
@@ -126,71 +123,13 @@
 
                 <AuthorizeView Roles="SuperAdmin">
                     <Authorized>
-                        @if (!_editing && _definition is { State: GovernedServiceSetupState.Disabled, Basis: not null })
+                        @if (_definition is { State: GovernedServiceSetupState.Disabled, Basis: not null })
                         {
-                            <p class="gsw-note">New transactions are turned off, so collectors cannot record this on Collector Mobile.</p>
                             <button class="v3-btn v3-btn-primary gsw-edit" type="button" @onclick="EnableAsync" disabled="@_saving">Enable new transactions</button>
                         }
-                        @if (!_editing)
-                        {
-                            <button class="v3-btn gsw-edit" type="button" @onclick="OpenEditor">
-                                @(_definition.State == GovernedServiceSetupState.SetupRequired && _definition.Basis is null ? "Set up amount rule" : "Change amount rule")
-                            </button>
-                        }
-                        else
-                        {
-                            <form class="gsw-form" id="@_formId" @onsubmit="SaveAsync" @onsubmit:preventDefault="true">
-                                <label class="v3-field">
-                                    <span>Effective from</span>
-                                    <input type="date" required @bind="_effective" />
-                                </label>
-                                @if (_definition.AllowedBases.Count > 1)
-                                {
-                                    <label class="v3-field">
-                                        <span>Amount rule</span>
-                                        <select @bind="_basis">
-                                            @foreach (var basis in _definition.AllowedBases)
-                                            {
-                                                <option value="@basis">@BasisName(basis)</option>
-                                            }
-                                        </select>
-                                    </label>
-                                }
-                                @if (_basis == GovernedServiceBasis.FixedAmount)
-                                {
-                                    <label class="v3-field">
-                                        <span>Approved amount (₱)</span>
-                                        <input type="number" min="0.01" step="0.01" required @bind="_fixedAmount" />
-                                    </label>
-                                }
-                                else if (_basis == GovernedServiceBasis.DirectApprovedAmount)
-                                {
-                                    <label class="v3-field">
-                                        <span>Ceiling per transaction (₱, optional)</span>
-                                        <input type="number" min="0.01" step="0.01" @bind="_ceiling" />
-                                    </label>
-                                }
-                                else if (_basis == GovernedServiceBasis.ApprovedFeeOption)
-                                {
-                                    <p class="gsw-note">The collector selects one of the approved fee types below; each carries its own amount rule.</p>
-                                }
-                                else
-                                {
-                                    <p class="gsw-note">The amount is the approved rate of the vehicle class the collector selects. Set the classes and rates below.</p>
-                                }
-                                <label class="gsw-check"><input type="checkbox" @bind="_enabled" /> Enabled for new transactions</label>
-                                <label class="gsw-check"><input type="checkbox" @bind="_mobile" disabled="@(!_enabled)" /> Collector Mobile may record it@(_enabled ? "" : " (needs new transactions enabled)")</label>
-                                @if (!string.IsNullOrWhiteSpace(_saveError))
-                                {
-                                    <p class="v3-notice v3-notice-error" role="alert">@_saveError</p>
-                                }
-                                <p class="gsw-note">A new version applies from its effective date. Collections already posted keep the rule they used.</p>
-                                <div class="gsw-actions">
-                                    <button class="v3-btn" type="button" @onclick="CloseEditor">Cancel</button>
-                                    <button class="v3-btn v3-btn-primary" type="submit" disabled="@_saving">Save amount rule</button>
-                                </div>
-                            </form>
-                        }
+                        <button class="v3-btn gsw-edit" type="button" @onclick="OpenEditor">
+                            @(_definition.State == GovernedServiceSetupState.SetupRequired && _definition.Basis is null ? "Set up amount rule" : "Change amount rule")
+                        </button>
                     </Authorized>
                 </AuthorizeView>
                 @if (!string.IsNullOrWhiteSpace(_saved))
@@ -204,6 +143,63 @@
         </div>
     </aside>
 </div>
+
+@* Changing the amount rule opens in the shared side drawer, so editing never stretches the Setup panel or moves the collections beside it. *@
+<AuthorizeView Roles="SuperAdmin">
+    <Authorized>
+        @if (_definition is { } def)
+        {
+            <AddNewDrawer Show="_editing" Wide="false" Title="@(def.State == GovernedServiceSetupState.SetupRequired && def.Basis is null ? "Set up amount rule" : "Change amount rule")" Subtitle="@Name"
+                          FormId="@_formId" FormLabel="Amount rule" SubmitText="Save amount rule" Saving="_saving" Error="@_saveError"
+                          OnSubmit="SaveAsync" OnCancel="CloseEditor">
+                <AddNewSection Title="Amount rule">
+                    @if (def.AllowedBases.Count > 1)
+                    {
+                        <label class="v3-field ans-span">
+                            <span>Rule</span>
+                            <select @bind="_basis">
+                                @foreach (var basis in def.AllowedBases)
+                                {
+                                    <option value="@basis">@BasisName(basis)</option>
+                                }
+                            </select>
+                        </label>
+                    }
+                    @if (_basis == GovernedServiceBasis.FixedAmount)
+                    {
+                        <label class="v3-field">
+                            <span>Approved amount (₱)</span>
+                            <input type="number" min="0.01" step="0.01" required @bind="_fixedAmount" />
+                        </label>
+                    }
+                    else if (_basis == GovernedServiceBasis.DirectApprovedAmount)
+                    {
+                        <label class="v3-field">
+                            <span>Ceiling per transaction (₱, optional)</span>
+                            <input type="number" min="0.01" step="0.01" @bind="_ceiling" />
+                        </label>
+                    }
+                    else if (_basis == GovernedServiceBasis.ApprovedFeeOption)
+                    {
+                        <p class="gsw-note ans-span">Each approved fee type carries its own amount.</p>
+                    }
+                    else
+                    {
+                        <p class="gsw-note ans-span">The amount is the rate of the selected vehicle class.</p>
+                    }
+                    <label class="v3-field">
+                        <span>Effective from</span>
+                        <input type="date" required @bind="_effective" />
+                    </label>
+                </AddNewSection>
+                <AddNewSection Title="Availability" Plain="true">
+                    <label class="gsw-check"><input type="checkbox" @bind="_enabled" /> Enabled for new transactions</label>
+                    <label class="gsw-check"><input type="checkbox" @bind="_mobile" disabled="@(!_enabled)" /> Collector Mobile may record it</label>
+                </AddNewSection>
+            </AddNewDrawer>
+        }
+    </Authorized>
+</AuthorizeView>
 
 @if (HasFeeOptions)
 {
