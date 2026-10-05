@@ -487,3 +487,10 @@
     }
 @media (max-width: 640px) { .avm-row-2 { grid-template-columns: 1fr; } }
 @media (max-width: 720px) { .vds ::deep .avm-choice { grid-template-columns: 1fr; } }
+
+/* The selected basis / event card is filled with the civic accent (the white title and note above are lifted for it). */
+.vds ::deep .avm-choice-item.is-selected {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--surface);
+}

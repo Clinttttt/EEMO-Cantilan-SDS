@@ -423,4 +423,4 @@
 .wcf-panel-header { flex-wrap: wrap; align-items: flex-start; gap: 12px 16px; }
 .wcf-panel-title { display: flex; flex-direction: column; gap: 2px; min-width: 9rem; }
 .wcf-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-left: auto; }
-.wcf-controls .v3-search { flex: 0 1 15rem; min-width: 11rem; }
+.wcf-controls .v3-search { flex: 0 1 13rem; min-width: 10rem; }
