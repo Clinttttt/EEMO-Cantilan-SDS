@@ -249,6 +249,34 @@ public sealed class ObligationWorkspaceTests : TestContext
     }
 
     [Fact]
+    public void ImportList_IsAThreeStepFlow_ReviewStageHasNoPasteBox_AndBackReturnsToTheList()
+    {
+        Serve(ObligationKind.KanmanggaySpaceRental);
+        var cut = RenderComponent<Kanmanggay>();
+        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "Import list"), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Import list").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(new[] { "1Paste list", "2Review & edit", "3Import" }, cut.FindAll(".shi-step").Select(x => x.TextContent.Trim()).ToArray());
+            Assert.Equal("1Paste list", cut.Find(".shi-step[aria-current='step']").TextContent.Trim());
+        }, Timeout);
+        cut.Find("textarea").Change("A1\tAna Reyes\t500\t2026-01-01");
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Review rows").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Empty(cut.FindAll("textarea"));
+            Assert.Equal("2Review & edit", cut.Find(".shi-step[aria-current='step']").TextContent.Trim());
+            Assert.Contains("1 Needs Payor", cut.Find(".shi-summary").TextContent);
+            Assert.True(cut.FindAll("button").Single(b => b.TextContent.Contains("Import ready rows")).HasAttribute("disabled"));
+        }, Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Back to list").Click();
+
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll("textarea")), Timeout);
+    }
+
+    [Fact]
     public void ImportList_ReviewsEveryRow_NeverLinksAPayorByName_AndImportsOnlyTheReadyRows()
     {
         Serve(ObligationKind.KanmanggaySpaceRental);

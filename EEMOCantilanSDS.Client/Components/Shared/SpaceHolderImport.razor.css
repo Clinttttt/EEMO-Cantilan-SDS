@@ -147,3 +147,15 @@
 .shi .v3-table td:last-child {
     min-width: 104px;
 }
+
+/* Staged flow: Paste list > Review & edit > Import, mirroring the stallholder import. */
+.shi-steps { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 0 0 4px; padding: 0 0 12px; border-bottom: 1px solid var(--border); list-style: none; }
+.shi-step { display: inline-flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: .8125rem; font-weight: 600; }
+.shi-step-no { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border: 1px solid var(--border); border-radius: 50%; background: #ffffff; font-size: .75rem; font-variant-numeric: tabular-nums; }
+.shi-step.is-current { color: var(--navy); }
+.shi-step.is-current .shi-step-no { border-color: var(--civic-panel); background: var(--civic-panel); color: #ffffff; }
+.shi-step.is-done .shi-step-no { border-color: var(--civic-panel); color: var(--civic-panel); }
+.shi-rows-total { font-weight: 700; color: var(--navy); font-variant-numeric: tabular-nums; }
+.shi-import { position: sticky; bottom: 0; z-index: 1; padding: 12px 0; border-top: 1px solid var(--border); background: #ffffff; }
+.shi-import-go { margin-left: auto; }
+.shi-table table { min-width: 960px; }

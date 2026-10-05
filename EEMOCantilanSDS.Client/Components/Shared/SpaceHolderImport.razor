@@ -11,18 +11,28 @@
    decision: an exact name match is only ever offered as a candidate, a Payor is created only on a press, and a row without a Payor
    stays out of the import. Nothing is linked or created from a name. *@
 <div class="shi">
-    <label class="v3-field shi-paste">
-        <span>@(IsEvent ? "Columns: Lot, Occupant, Amount, Event date, Event (Fiesta/Araw), Closed on (optional)" : "Columns: Space, Occupant, Monthly amount, Start date, Closed on (optional)")</span>
-        <textarea class="v3-input" rows="4" @bind="Text" aria-label="Spreadsheet rows"></textarea>
-    </label>
-    <div class="shi-actions">
-        <button class="v3-btn" type="button" @onclick="Review">Review rows</button>
-        @if (Message is not null) { <span class="shi-message" role="status">@Message</span> }
-    </div>
+    <ol class="shi-steps" aria-label="Import steps">
+        <li class="shi-step @StepClass(1)" aria-current="@(Step == 1 ? "step" : null)"><span class="shi-step-no">1</span>Paste list</li>
+        <li class="shi-step @StepClass(2)" aria-current="@(Step == 2 ? "step" : null)"><span class="shi-step-no">2</span>Review &amp; edit</li>
+        <li class="shi-step @StepClass(3)" aria-current="@(Step == 3 ? "step" : null)"><span class="shi-step-no">3</span>Import</li>
+    </ol>
 
-    @if (Rows.Count > 0)
+    @if (Rows.Count == 0)
     {
+        <label class="v3-field shi-paste">
+            <span>@(IsEvent ? "Columns: Lot, Occupant, Amount, Event date, Event (Fiesta/Araw), Closed on (optional)" : "Columns: Space, Occupant, Monthly amount, Start date, Closed on (optional)")</span>
+            <textarea class="v3-input" rows="8" @bind="Text" aria-label="Spreadsheet rows"></textarea>
+        </label>
+        <div class="shi-actions">
+            <button class="v3-btn v3-btn-primary" type="button" @onclick="Review">Review rows</button>
+            @if (Message is not null) { <span class="shi-message" role="status">@Message</span> }
+        </div>
+    }
+    else
+    {
+        @if (Message is not null) { <p class="shi-message" role="status">@Message</p> }
         <div class="shi-summary" role="status" aria-label="Import summary">
+            <span class="shi-rows-total">@Rows.Count @(Rows.Count == 1 ? "row" : "rows")</span>
             <span class="shi-count shi-ready">@ReadyCount Ready</span>
             <span class="shi-count shi-needs">@NeedsPayorCount Needs Payor</span>
             <span class="shi-count shi-invalid">@InvalidCount Invalid</span>
@@ -82,8 +92,9 @@
             </table>
         </div>
         <div class="shi-actions shi-import">
-            <button class="v3-btn v3-btn-primary" type="button" disabled="@(Saving || ReadyCount == 0)" @onclick="ImportAsync">@(Saving ? "Importing…" : $"Import ready rows ({ReadyCount})")</button>
-            @if (ReadyCount < Rows.Count) { <span class="shi-muted">The other rows stay out of the import.</span> }
+            <button class="v3-btn" type="button" disabled="@Saving" @onclick="BackToList">Back to list</button>
+            @if (ReadyCount < Rows.Count) { <span class="shi-muted">Only Ready rows are imported; the others stay out.</span> }
+            <button class="v3-btn v3-btn-primary shi-import-go" type="button" disabled="@(Saving || ReadyCount == 0)" @onclick="ImportAsync">@(Saving ? "Importing…" : $"Import ready rows ({ReadyCount})")</button>
         </div>
     }
 </div>
@@ -99,6 +110,10 @@
     private string? Message;
     private bool Saving;
     private List<Row> Rows = [];
+
+    private int Step => Saving ? 3 : Rows.Count > 0 ? 2 : 1;
+    private string StepClass(int n) => n == Step ? "is-current" : n < Step ? "is-done" : "";
+    private void BackToList() { Rows = []; Message = null; }
 
     private int ReadyCount => Rows.Count(r => r.Error is null && r.PayorId.Length > 0);
     private int NeedsPayorCount => Rows.Count(r => r.Error is null && r.PayorId.Length == 0);
