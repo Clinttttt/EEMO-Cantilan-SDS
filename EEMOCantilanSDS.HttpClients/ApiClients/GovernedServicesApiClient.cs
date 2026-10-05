@@ -7,6 +7,8 @@ namespace EEMOCantilanSDS.HttpClients.ApiClients;
 
 public sealed class GovernedServicesApiClient(HttpClient http) : HandleResponse(http), IGovernedServicesApiClient
 {
+    public Task<Result<TransportationCurrentActivityDto>> GetTransportationCurrentAsync(DateOnly from, DateOnly to) =>
+        GetAsync<TransportationCurrentActivityDto>($"api/governed-services/transportation/current?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}");
     public Task<Result<IReadOnlyList<GovernedServiceDefinitionDto>>> GetDefinitionsAsync() =>
         GetAsync<IReadOnlyList<GovernedServiceDefinitionDto>>("api/governed-services");
 

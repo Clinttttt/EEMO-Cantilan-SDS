@@ -9,6 +9,8 @@ using EEMOCantilanSDS.Application.Queries.TransportTerminal.GetTransporterProfil
 using EEMOCantilanSDS.Application.Queries.TransportTerminal.GetTransporters;
 using EEMOCantilanSDS.Application.Queries.TransportTerminal.GetTrmOverview;
 using EEMOCantilanSDS.Application.Requests.TransportTerminal;
+using EEMOCantilanSDS.Application.Common.Revenue;
+using EEMOCantilanSDS.Application.Dtos.Revenue;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -17,8 +19,15 @@ namespace EEMOCantilanSDS.Api.Controllers;
 
 [Authorize(Roles = "SuperAdmin,Admin,Collector")]
 [Route("api/trm")]
-public class TrmController(ISender sender) : ApiBaseController(sender)
+public class TrmController(ISender sender, GovernedServiceWorkflow collections) : ApiBaseController(sender)
 {
+    [HttpGet("current")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<TransportationCurrentActivityDto>> GetCurrent(
+        [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken ct) =>
+        HandleResponse(await collections.GetTransportationCurrentAsync(from, to, ct));
+
+    // Compatibility contracts below read legacy TRM records only. Current collections use /current.
     [HttpGet("overview")]
     public async Task<ActionResult<TrmOverviewDto>> GetOverview()
         => HandleResponse(await Sender.Send(new GetTrmOverviewQuery()));

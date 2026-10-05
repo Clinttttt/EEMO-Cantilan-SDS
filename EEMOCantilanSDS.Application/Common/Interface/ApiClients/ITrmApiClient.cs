@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Command.TransportTerminal.AddTransporter;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
+using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Application.Requests.TransportTerminal;
 using EEMOCantilanSDS.Domain.Common;
 
@@ -7,6 +8,8 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 
 public interface ITrmApiClient
 {
+    Task<Result<TransportationCurrentActivityDto>> GetCurrentAsync(DateOnly from, DateOnly to);
+    // Remaining methods retain the legacy trip/registry contracts, not current canonical transportation.
     Task<Result<TrmOverviewDto>> GetOverviewAsync();
     Task<Result<IReadOnlyList<TrmTransporterListDto>>> GetTransportersAsync();
     Task<Result<TrmTransporterProfileDto>> GetTransporterProfileAsync(Guid transporterId);

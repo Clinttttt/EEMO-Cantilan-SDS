@@ -1,7 +1,6 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Constants;
-using EEMOCantilanSDS.Domain.Entities.Revenue;
 using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Application.Common.Revenue;
@@ -21,8 +20,9 @@ public sealed class TransportationCollectionAuthority(IAppDbContext db, ICurrent
         var service = await db.GovernedServices.AsNoTracking().SingleOrDefaultAsync(x =>
             x.MunicipalityId == tenantId && x.OperationCode == CollectorOperationCodes.Transportation, ct);
         if (service is null) return false;
-        var versions = await db.GovernedServiceSettings.AsNoTracking()
-            .Where(x => x.MunicipalityId == tenantId && x.GovernedServiceId == service.Id).ToListAsync(ct);
-        return GovernedServiceSetting.Resolve(versions, businessDate) is { IsEnabled: true };
+        // Disabling collection does not reopen the legacy writer after canonical activation.
+        return await db.GovernedServiceSettings.AsNoTracking().AnyAsync(x =>
+            x.MunicipalityId == tenantId && x.GovernedServiceId == service.Id &&
+            x.IsEnabled && x.EffectiveDate <= businessDate, ct);
     }
 }

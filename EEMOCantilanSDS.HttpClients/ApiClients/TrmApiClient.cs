@@ -1,6 +1,7 @@
 ﻿using EEMOCantilanSDS.Application.Command.TransportTerminal.AddTransporter;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.TransportTerminal;
+using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Application.Requests.TransportTerminal;
 using EEMOCantilanSDS.Domain.Common;
 
@@ -8,6 +9,8 @@ namespace EEMOCantilanSDS.HttpClients.ApiClients;
 
 public class TrmApiClient(HttpClient http) : HandleResponse(http), ITrmApiClient
 {
+    public Task<Result<TransportationCurrentActivityDto>> GetCurrentAsync(DateOnly from, DateOnly to) =>
+        GetAsync<TransportationCurrentActivityDto>($"api/trm/current?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}");
     public async Task<Result<TrmOverviewDto>> GetOverviewAsync() =>
         await GetAsync<TrmOverviewDto>("api/trm/overview");
 
