@@ -1,0 +1,14 @@
+@page "/operations/fiesta-araw/import"
+@attribute [Authorize(Roles = "SuperAdmin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Enums
+
+<PageTitle>StallTrack — Import Fiesta / Araw Lot Holders</PageTitle>
+
+@* The bulk import of Fiesta / Araw lot holders. Each row names its event (Fiesta or Araw); the two are never mixed. The layout owns the
+   <main> landmark. *@
+<OperationTopbar Title="Fiesta / Araw" Crumb="Import lot holders" />
+<div class="content-area">
+    <SpaceHolderImport Kind="ObligationKind.FiestaArawLotRental" Name="Fiesta / Araw" BackHref="/operations/fiesta-araw" />
+</div>

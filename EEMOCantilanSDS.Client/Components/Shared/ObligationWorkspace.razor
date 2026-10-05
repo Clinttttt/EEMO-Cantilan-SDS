@@ -345,10 +345,6 @@
                 <button class="v3-btn v3-btn-primary" type="submit" form="obw-rate-form" disabled="@_saving">Save amount</button>
             </Footer>
         </SideDrawer>
-
-        <SideDrawer Show="_importing" Wide="true" Title="@($"Import {(SubjectNoun == "Lot" ? "lot" : "space")} holders")" Subtitle="Paste a list, review each row, then import the ready ones." OnClose="CloseImport">
-            <SpaceHolderImport Kind="Kind" OnImported="ImportedAsync" />
-        </SideDrawer>
     </Authorized>
 </AuthorizeView>
 
@@ -370,9 +366,12 @@
     [Parameter] public bool SpaceExperience { get; set; }
     [Parameter] public bool ReadOnlyHistory { get; set; }
     [Parameter] public string? ReportsHref { get; set; }
+
+    /// <summary>The bulk-import page for this line; the Import list action is offered only when there is one.</summary>
+    [Parameter] public string? ImportHref { get; set; }
     private ObligationWorkspaceDto? _workspace;
     private string _search = string.Empty, _filter = "All";
-    private bool _holders, _importing;
+    private bool _holders;
     private static string CollectHref(ObligationAccountDto account) =>
         $"/collections/current?payor={account.PayorId}&name={Uri.EscapeDataString(account.PayerName ?? string.Empty)}";
     private static readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
@@ -382,7 +381,7 @@
         <button class="btn-outline" type="button" @onclick="() => _holders = false">Manage Space Holders</button>
         <a class="btn-outline" href="@ReportsHref">Reports</a>
         <AuthorizeView Roles="SuperAdmin"><Authorized>
-            <button class="btn-outline" type="button" @onclick="() => _importing = !_importing">Import list</button>
+            @if (!string.IsNullOrWhiteSpace(ImportHref)) { <a class="btn-outline" href="@ImportHref">Import list</a> }
             <button class="btn-primary" type="button" @onclick="OpenForm">+ Add New</button>
         </Authorized></AuthorizeView>
     </div>;
@@ -503,15 +502,6 @@
     private string OpenSubtitle => Kind == ObligationKind.FiestaArawLotRental
         ? "A lot for an event, with the approved amount."
         : Kind == ObligationKind.FishMeatVendorFee ? "A vendor stall with its approved monthly amount." : "A space with its approved monthly amount.";
-
-    private void CloseImport() => _importing = false;
-
-    private async Task ImportedAsync(string message)
-    {
-        _importing = false;
-        await LoadAsync();
-        _saved = message;
-    }
 
     /// <summary>Creates a Business Payor from the typed name, only on the office's press, and selects it. A same-named Payor is never reused silently.</summary>
     private async Task CreatePayorAsync()
