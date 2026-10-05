@@ -19,6 +19,7 @@
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/LoadingState.razor" Link="Components/Shared/LoadingState.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/VendorFeeEntry.razor" Link="Components/Shared/VendorFeeEntry.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/NpmWholeSummary.razor" Link="Components/Shared/NpmWholeSummary.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/RecordedNotice.razor" Link="Components/Shared/RecordedNotice.razor" />
     <Using Include="Xunit" />
     <Using Include="EEMOCantilanSDS.Application.Common" />
   </ItemGroup>

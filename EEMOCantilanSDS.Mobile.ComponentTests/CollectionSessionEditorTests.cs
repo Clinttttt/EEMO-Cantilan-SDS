@@ -168,6 +168,32 @@ public sealed class CollectionSessionEditorTests : TestContext
         Assert.DoesNotContain("SRC-2026", view.Markup); Assert.Single(_queue);
     }
     [Fact]
+    public void Review_summary_is_structured_total_strongest_and_has_no_serial_input()
+    {
+        var view = Open(); AddLanding(view); Click(view, "Review collection");
+
+        var rows = view.FindAll(".review-summary .review-row");
+        Assert.Equal(new[] { "Cash Ticket", "Total" }, rows.Select(r => r.QuerySelector("span")!.TextContent.Trim()).ToArray());
+        Assert.Contains("review-total", rows[^1].ClassName);
+        Assert.Equal("₱200.00", rows[^1].QuerySelector("strong")!.TextContent.Trim());
+        Assert.Empty(view.FindAll(".review-problem"));
+        Assert.Empty(view.FindAll("input[type=text]"));                           // a canonical collection asks for no typed document number
+        Assert.DoesNotContain("Official receipt no", view.Markup, StringComparison.OrdinalIgnoreCase);
+    }
+    [Fact]
+    public void Recorded_notice_shows_the_server_reference_prominently_and_never_makes_one_up()
+    {
+        var recorded = RenderComponent<RecordedNotice>(p => p.Add(x => x.Message, "Collection recorded · SRC-2026-000123"));
+        Assert.Equal("SRC-2026-000123", recorded.Find(".recorded-ref").TextContent.Trim());
+        Assert.Equal("Collection recorded", recorded.Find(".recorded-title").TextContent.Trim());
+
+        var waiting = RenderComponent<RecordedNotice>(p => p.Add(x => x.Message, "Saved on this device. Waiting to sync."));
+        Assert.Empty(waiting.FindAll(".recorded-ref"));
+        Assert.DoesNotContain("SRC-", waiting.Markup);
+
+        Assert.Empty(RenderComponent<RecordedNotice>(p => p.Add(x => x.Message, null)).FindAll(".state-card"));
+    }
+    [Fact]
     public void Quote_failure_identifies_review_and_disables_recording()
     {
         _api.Setup(x => x.QuoteCollectionSessionAsync(It.IsAny<CollectionSessionIntent>())).ReturnsAsync((CollectionSessionIntent i) =>

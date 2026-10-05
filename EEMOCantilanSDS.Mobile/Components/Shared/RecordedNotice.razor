@@ -1,0 +1,23 @@
+@* The outcome of a canonical collection, in one compact card. When the server has issued its reference (the pages phrase that as
+   "Collection recorded · SRC-…"), the SRC is the prominent line; any other message (saved on this device, refused, waiting to sync)
+   is shown as it is. Nothing here makes up a reference: it only displays what the page was given. *@
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    var parts = Message.Split(" · ", 2);
+    var recorded = parts.Length == 2 && parts[0] == "Collection recorded";
+    <div class="state-card recorded-notice" role="status">
+        @if (recorded)
+        {
+            <div class="recorded-title">Collection recorded</div>
+            <div class="recorded-ref">@parts[1]</div>
+        }
+        else
+        {
+            <div class="state-text">@Message</div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public string? Message { get; set; }
+}

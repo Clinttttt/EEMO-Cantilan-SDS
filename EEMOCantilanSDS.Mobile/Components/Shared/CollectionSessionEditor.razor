@@ -99,12 +99,12 @@ else
     </section>
     @if (_quote is not null)
     {
-        <section class="collection-entry" aria-live="polite">
+        <section class="collection-entry review-summary" aria-live="polite" aria-label="Collection total">
             @foreach (var total in _quote.InstrumentTotals)
-            { <div class="collection-row"><span>@Instrument(total.Instrument)</span><strong>@Money(total.Amount)</strong></div> }
-            <div class="collection-row"><strong>Total</strong><strong>@Money(_quote.GrandTotal)</strong></div>
+            { <div class="review-row"><span>@Instrument(total.Instrument)</span><strong>@Money(total.Amount)</strong></div> }
+            <div class="review-row review-total"><span>Total</span><strong>@Money(_quote.GrandTotal)</strong></div>
             @foreach (var problem in _quote.Problems)
-            { <p role="alert"><strong>Needs review</strong> · @ProblemName(problem)@problem.Message</p> }
+            { <p class="review-problem" role="alert"><strong>Needs review</strong>@ProblemName(problem)@problem.Message</p> }
         </section>
     }
     <div class="collection-actions">

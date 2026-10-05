@@ -68,6 +68,20 @@ button:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2p
 .done-total span { font-size: 13px; color: var(--mobile-text-secondary); }
 .done-action { width: 100%; margin-top: 14px; }
 
+/* Review summary: readable labels, strong right-aligned amounts, the Total the strongest line, errors as quiet lines. */
+.review-summary { padding-top: 6px; padding-bottom: 12px; }
+.review-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--mobile-border); font-size: 14px; color: var(--mobile-text-secondary); font-variant-numeric: tabular-nums; }
+.review-row strong { font-weight: 600; color: var(--mobile-navy); }
+.review-total { padding-top: 12px; border-bottom: 0; font-size: 15px; font-weight: 700; color: var(--mobile-navy); }
+.review-total strong { font-size: 20px; font-weight: 700; }
+.review-problem { margin: 8px 0 0 !important; padding: 8px 10px; border-left: 3px solid var(--mobile-danger); border-radius: 0 6px 6px 0; background: var(--mobile-danger-subtle); font-size: 13px !important; line-height: 1.4; color: var(--mobile-text) !important; }
+.review-problem strong { margin-right: 6px; color: var(--mobile-danger); }
+
+/* Disabled controls stay readable: the global dim (opacity .5) halved already-light text, so they use opaque colours instead. */
+.collection-small:disabled, .collection-secondary:disabled, .collection-primary:disabled { opacity: 1; cursor: not-allowed; }
+.collection-small:disabled, .collection-secondary:disabled { border-color: #c3cfdc; color: #46586d; background: transparent; }
+.collection-primary:disabled { border-color: #d5dde7; background: #d5dde7; color: #3b4d62; }
+
 /* One valid source: already chosen, shown as context rather than asked about. */
 .sheet-source { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; padding: 10px 14px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface-subtle); }
 .sheet-source strong { font-size: 15px; font-weight: 600; color: var(--mobile-navy); overflow-wrap: anywhere; }

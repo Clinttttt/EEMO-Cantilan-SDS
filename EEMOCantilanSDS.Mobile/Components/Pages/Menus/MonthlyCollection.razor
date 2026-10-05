@@ -96,7 +96,7 @@
             }
             else
             {
-@if (!string.IsNullOrWhiteSpace(RentNotice))                {                    <div class="state-card" role="status"><div class="state-text">@RentNotice</div></div>                }
+@if (!string.IsNullOrWhiteSpace(RentNotice))                {                    <RecordedNotice Message="@RentNotice" />                }
                 <div class="section-label">@Collection.TotalStalls Occupied Stalls</div>
                 @foreach (var stall in FilteredStalls)
                 {
@@ -264,6 +264,10 @@
                     <div class="form-hint">Use the pre-numbered OR from the issued receipt.</div>
                 </div>
             }
+            else if (SelectedStatus != PaymentStatus.Unpaid && SelectedStall is { RentCanonical: true })
+            {
+                <div class="sheet-meta-row"><span>Reference</span><strong>SRC assigned after recording</strong></div>
+            }
 
             <button class="status-option @(SelectedStatus == PaymentStatus.Unpaid ? "status-option-active unpaid" : "")" type="button" @onclick="() => SelectStatus(PaymentStatus.Unpaid)">
                 <div class="status-option-icon unpaid-icon-sm">
@@ -412,6 +416,11 @@
                        @bind:event="oninput" />
                 <div class="form-hint">Use the pre-numbered OR from the issued receipt.</div>
             </div>
+            }
+            else if (SelectedStall is { RentCanonical: true })
+            {
+                @* Canonical: the server issues the reference when it records the collection; nothing is typed and nothing is invented here. *@
+                <div class="sheet-meta-row"><span>Reference</span><strong>SRC assigned after recording</strong></div>
             }
 
             @if (!string.IsNullOrWhiteSpace(CollectBalanceError))

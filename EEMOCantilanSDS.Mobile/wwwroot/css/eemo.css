@@ -2643,3 +2643,7 @@ textarea {
 .sheet-body .form-input { min-height: 46px; padding: 10px 14px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); color: var(--mobile-text); font-size: 16px; }
 .sheet-body .form-input:focus { border-color: var(--mobile-blue); box-shadow: inset 0 0 0 1px var(--mobile-blue); background: var(--mobile-surface); }
 .sheet-body .form-error { margin: 8px 0 0; font-size: 13px; color: var(--mobile-danger); }
+
+/* A read-only fact in a sheet (an instrument, a reference the server will issue): label left, value right, never an input. */
+.sheet-meta-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; padding: 12px 0; border-top: 1px solid var(--mobile-border); border-bottom: 1px solid var(--mobile-border); font-size: 13px; color: var(--mobile-text-secondary); }
+.sheet-meta-row strong { color: var(--mobile-navy); font-weight: 600; text-align: right; }
