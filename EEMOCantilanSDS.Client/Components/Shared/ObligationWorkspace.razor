@@ -189,6 +189,22 @@
                 }
                 else
                 {
+                    <section class="obw-section" aria-labelledby="obw-s-occupancy">
+                    <h3 class="obw-section-title" id="obw-s-occupancy">Occupancy</h3>
+                    @if (Kind == ObligationKind.KanmanggaySpaceRental)
+                    {
+                        <div class="v3-field" role="group" aria-labelledby="obw-basis-label">
+                            <span id="obw-basis-label">Basis of occupancy</span>
+                            <div class="obw-choice" role="radiogroup" aria-labelledby="obw-basis-label">
+                                <button type="button" class="obw-choice-item @(_signedContract ? "is-selected" : "")" role="radio" aria-checked="@(_signedContract ? "true" : "false")" @onclick="() => _signedContract = true">
+                                    <span class="obw-choice-title">Signed lease contract</span>
+                                </button>
+                                <button type="button" class="obw-choice-item @(!_signedContract ? "is-selected" : "")" role="radio" aria-checked="@(!_signedContract ? "true" : "false")" @onclick="() => _signedContract = false">
+                                    <span class="obw-choice-title">No contract (space only)</span>
+                                </button>
+                            </div>
+                        </div>
+                    }
                     <label class="v3-field">
                         <span>Business Payor</span>
                         <input class="v3-input" type="search" @bind="_payorSearch" @bind:event="oninput" @onkeyup="SearchPayorsAsync" placeholder="Search by name" />
@@ -213,37 +229,56 @@
                             <button class="obw-link" type="button" @onclick="CreatePayorAsync" disabled="@_saving">Create Business Payor “@_payorSearch.Trim()”</button>
                         }
                     </p>
+                    </section>
+                    <section class="obw-section" aria-labelledby="obw-s-space">
+                    <h3 class="obw-section-title" id="obw-s-space">@(SubjectNoun == "Lot" ? "Lot details" : "Space details")</h3>
                     <label class="v3-field">
-                        <span>@SubjectNoun</span>
+                        <span>@(SubjectNoun == "Lot" ? "Lot" : "Space No.")</span>
                         <input class="v3-input" type="text" maxlength="120" required @bind="_subject" />
                     </label>
+                    @if (Kind == ObligationKind.FiestaArawLotRental)
+                    {
+                        <label class="v3-field">
+                            <span>Event</span>
+                            <select @bind="_lotEvent">
+                                <option value="@LotRentalEvent.Fiesta">Fiesta</option>
+                                <option value="@LotRentalEvent.Araw">Araw</option>
+                            </select>
+                        </label>
+                        <label class="v3-field">
+                            <span>Event date</span>
+                            <input class="v3-input" type="date" required @bind="_eventDate" />
+                        </label>
+                    }
+                    </section>
                 }
 
-                @if (Kind == ObligationKind.FiestaArawLotRental)
+                @if (Kind != ObligationKind.FiestaArawLotRental)
                 {
-                    <label class="v3-field">
-                        <span>Event</span>
-                        <select @bind="_lotEvent">
-                            <option value="@LotRentalEvent.Fiesta">Fiesta</option>
-                            <option value="@LotRentalEvent.Araw">Araw</option>
-                        </select>
-                    </label>
-                    <label class="v3-field">
-                        <span>Event date</span>
-                        <input class="v3-input" type="date" required @bind="_eventDate" />
-                    </label>
+                    @* The approved account carries an effectivity month and an amount. Contract particulars (name on contract, term) have no home on an
+                       obligation account yet, so a signed contract is not asked for here beyond the month it takes effect. *@
+                    <section class="obw-section" aria-labelledby="obw-s-rental">
+                        <h3 class="obw-section-title" id="obw-s-rental">Rental details</h3>
+                        <label class="v3-field">
+                            <span>@(Kind == ObligationKind.KanmanggaySpaceRental && _signedContract ? "Contract effectivity (month)" : Kind == ObligationKind.KanmanggaySpaceRental ? "Occupying since (month)" : "Starts (month)")</span>
+                            <input class="v3-input" type="month" required aria-label="Start month" value="@_startMonth" @onchange="e => _startMonth = e.Value?.ToString() ?? string.Empty" />
+                        </label>
+                        <label class="v3-field">
+                            <span>Approved monthly amount (₱)</span>
+                            <input class="v3-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
+                        </label>
+                    </section>
                 }
                 else
                 {
-                    <label class="v3-field">
-                        <span>Starts (month)</span>
-                        <input class="v3-input" type="month" required aria-label="Starts (month)" value="@_startMonth" @onchange="e => _startMonth = e.Value?.ToString() ?? string.Empty" />
-                    </label>
+                    <section class="obw-section" aria-labelledby="obw-s-rental">
+                        <h3 class="obw-section-title" id="obw-s-rental">Rental details</h3>
+                        <label class="v3-field">
+                            <span>Approved lot amount (₱)</span>
+                            <input class="v3-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
+                        </label>
+                    </section>
                 }
-                <label class="v3-field">
-                    <span>@(Kind == ObligationKind.FiestaArawLotRental ? "Approved lot amount (₱)" : "Approved monthly amount (₱)")</span>
-                    <input class="v3-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
-                </label>
                 @if (!string.IsNullOrWhiteSpace(_formError))
                 {
                     <p class="v3-notice v3-notice-error" role="alert">@_formError</p>
@@ -350,6 +385,7 @@
     private bool _opening;
     private ObligationAccountDto? _rateFor;
     private bool _saving;
+    private bool _signedContract = true;
     private string? _formError;
     private string? _saved;
     private string _payorSearch = string.Empty;

@@ -219,6 +219,36 @@ public sealed class ObligationWorkspaceTests : TestContext
     }
 
     [Fact]
+    public void AddNew_IsGroupedIntoSections_WithAnOccupancyBasisChoice_AndNoFabricatedContractFields()
+    {
+        Serve(ObligationKind.KanmanggaySpaceRental, Space());
+
+        var cut = RenderComponent<Kanmanggay>();
+        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New"), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var drawer = Assert.Single(cut.FindAll("[role='dialog']"));
+            var titles = drawer.QuerySelectorAll(".obw-section-title").Select(x => x.TextContent.Trim()).ToArray();
+            Assert.Equal(new[] { "Occupancy", "Space details", "Rental details" }, titles);
+            var basis = drawer.QuerySelectorAll("[role='radio']").Select(x => x.TextContent.Trim()).ToArray();
+            Assert.Equal(new[] { "Signed lease contract", "No contract (space only)" }, basis);
+            Assert.Contains("Contract effectivity", drawer.TextContent);
+        }, Timeout);
+
+        cut.FindAll("[role='radio']").Single(b => b.TextContent.Contains("No contract")).Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var drawer = Assert.Single(cut.FindAll("[role='dialog']"));
+            Assert.Contains("Occupying since", drawer.TextContent);
+            Assert.DoesNotContain("Contract effectivity", drawer.TextContent);
+            Assert.DoesNotContain("Name on contract", drawer.TextContent, StringComparison.OrdinalIgnoreCase);
+        }, Timeout);
+    }
+
+    [Fact]
     public void ImportList_ReviewsEveryRow_NeverLinksAPayorByName_AndImportsOnlyTheReadyRows()
     {
         Serve(ObligationKind.KanmanggaySpaceRental);
