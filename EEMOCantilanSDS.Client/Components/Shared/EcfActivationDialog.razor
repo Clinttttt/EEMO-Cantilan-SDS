@@ -1,0 +1,145 @@
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@inject IEcfCollectionsApiClient EcfApi
+@inject ICollectorsApiClient CollectorsApi
+
+@* Head/Admin: move one historical Electricity obligation to the canonical collection path. The server runs the source-scoped
+   cutover (readiness, pending, frozen opening position, canonical); this dialog only gathers the office's attestation. *@
+<div class="v3-modal-backdrop" role="presentation" @onclick="OnClose">
+    <section class="v3-modal ecfa-modal" role="dialog" aria-modal="true" aria-labelledby="ecfa-title" @onclick:stopPropagation="true">
+        <header class="v3-modal-header">
+            <h2 id="ecfa-title">Activate canonical collection</h2>
+            <button class="ecfa-close" type="button" aria-label="Close" @onclick="OnClose">×</button>
+        </header>
+        <form class="v3-modal-body" id="ecfa-form" @onsubmit="ActivateAsync" @onsubmit:preventDefault="true">
+            <p class="ecfa-hint">
+                Stall @Quote.StallNo · @(Quote.PayerNameSnapshot ?? "Payer not named") · @(new DateTime(Quote.BillingYear, Quote.BillingMonth, 1).ToString("MMM yyyy")) ·
+                @Money(Quote.AssessedAmount) assessed, @Money(Quote.CumulativeSettledEvidence) already settled.
+                Its legacy payments stay as the opening position and are never collected again.
+            </p>
+            <fieldset class="ecfa-checks">
+                <legend>Office attestation</legend>
+                <label><input type="checkbox" @bind="_writersQuiesced" /> Legacy Web and Mobile writers for this bill are stopped</label>
+                <label><input type="checkbox" @bind="_queuesDrained" /> Collector device queues are synced</label>
+                <label><input type="checkbox" @bind="_devicesComplete" /> Every collector device is accounted for</label>
+                <label><input type="checkbox" @bind="_onlineDrained" /> No online payment is in progress for this bill</label>
+                <label><input type="checkbox" @bind="_inventoryReconciled" /> Receipt custody is reconciled</label>
+                <label><input type="checkbox" @bind="_reportsVerified" /> Collection Activity and reports were checked</label>
+            </fieldset>
+            <label class="v3-field"><span>Evidence reference</span><input required maxlength="200" @bind="_evidenceReference" placeholder="Checklist or memo number" /></label>
+
+            @if (_readiness is { } readiness)
+            {
+                @if (readiness.AffectedCollectors.Count > 0)
+                {
+                    <fieldset class="ecfa-collectors">
+                        <legend>Collectors who can record this bill</legend>
+                        @foreach (var collectorId in readiness.AffectedCollectors)
+                        {
+                            var id = collectorId;
+                            <div class="ecfa-collector">
+                                <span class="v3-strong">@CollectorName(id)</span>
+                                <label class="v3-field"><span>App version</span><input maxlength="64" value="@_versions.GetValueOrDefault(id)" @onchange="e => _versions[id] = e.Value?.ToString() ?? string.Empty" /></label>
+                                <label class="ecfa-inline"><input type="checkbox" checked="@_drained.Contains(id)" @onchange="e => ToggleDrained(id, e.Value is true)" /> Device synced</label>
+                            </div>
+                        }
+                    </fieldset>
+                }
+                @if (readiness.BlockingReasons.Count > 0)
+                {
+                    <ul class="ecfa-blockers" aria-label="Still blocking activation">
+                        @foreach (var reason in readiness.BlockingReasons) { <li>@reason</li> }
+                    </ul>
+                }
+            }
+            @if (_error is not null)
+            {
+                <p class="v3-notice v3-notice-error" role="alert">@_error</p>
+            }
+        </form>
+        <footer class="v3-modal-footer">
+            <button class="v3-btn" type="button" @onclick="CheckReadinessAsync" disabled="@_busy">Check readiness</button>
+            <button class="v3-btn v3-btn-primary" type="submit" form="ecfa-form" disabled="@(_busy || string.IsNullOrWhiteSpace(_evidenceReference))">Activate</button>
+        </footer>
+    </section>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public EcfObligationQuoteDto Quote { get; set; } = default!;
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnActivated { get; set; }
+
+    private SettlementCutoverReadinessDto? _readiness;
+    private Dictionary<Guid, string> _collectorNames = [];
+    private readonly Dictionary<Guid, string> _versions = [];
+    private readonly HashSet<Guid> _drained = [];
+    private bool _writersQuiesced, _queuesDrained, _devicesComplete, _onlineDrained, _inventoryReconciled, _reportsVerified;
+    private string _evidenceReference = string.Empty;
+    private string? _error;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var collectors = await CollectorsApi.GetAllCollectorsAsync();
+            if (collectors.IsSuccess && collectors.Value is not null)
+                _collectorNames = collectors.Value.ToDictionary(c => c.Id, c => c.FullName);
+        }
+        catch
+        {
+            // Names are a convenience; the ids below still identify each collector.
+        }
+        await CheckReadinessAsync();
+    }
+
+    private void ToggleDrained(Guid id, bool on)
+    {
+        if (on) _drained.Add(id); else _drained.Remove(id);
+    }
+
+    private string CollectorName(Guid id) => _collectorNames.GetValueOrDefault(id) ?? $"Collector {id.ToString("N")[..8]}";
+
+    private SettlementCutoverReconciliationEvidence Evidence() => new(
+        _writersQuiesced, _queuesDrained, _devicesComplete, _onlineDrained, _inventoryReconciled, _reportsVerified,
+        _evidenceReference.Trim(),
+        (_readiness?.AffectedCollectors ?? []).Select(id => new CutoverCollectorEvidence(
+            id, _versions.GetValueOrDefault(id)?.Trim() ?? string.Empty, _readiness?.RequiredMobilePayloadVersion ?? 0,
+            _drained.Contains(id), DateTime.UtcNow, _evidenceReference.Trim())).ToList());
+
+    private async Task CheckReadinessAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await EcfApi.GetActivationReadinessAsync(Quote.UtilityBillId, string.IsNullOrWhiteSpace(_evidenceReference) ? null : Evidence());
+            if (result.IsSuccess) _readiness = result.Value;
+            else _error = result.Error ?? "Readiness could not be checked.";
+        }
+        catch { _error = "Readiness could not be checked."; }
+        finally { _busy = false; }
+    }
+
+    private async Task ActivateAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await EcfApi.ActivateAsync(new EEMOCantilanSDS.Application.Common.Revenue.EcfActivationRequest(
+                Quote.UtilityBillId, _readiness?.SourceVersion ?? Quote.ElectricitySourceVersion, Evidence()));
+            if (result.IsSuccess)
+            {
+                await OnActivated.InvokeAsync();
+                return;
+            }
+            _error = result.Error ?? "Activation was refused.";
+            await CheckReadinessAsync();
+        }
+        catch { _error = "Activation could not be completed."; }
+        finally { _busy = false; }
+    }
+
+    private static string Money(decimal amount) => $"₱{amount:N2}";
+}

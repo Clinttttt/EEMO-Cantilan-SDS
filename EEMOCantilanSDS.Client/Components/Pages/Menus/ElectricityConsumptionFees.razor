@@ -96,6 +96,10 @@
                                 <td class="v3-num">@Money(quote.CumulativeSettledEvidence)</td>
                                 <td class="v3-num v3-strong">@Money(quote.OutstandingAmount)</td>
                                 <td class="ecf-action">
+                                    @if (quote.SettlementAuthority == SettlementAuthority.Legacy && quote.OutstandingAmount > 0m)
+                                    {
+                                        <button class="v3-btn v3-btn-sm" type="button" disabled="@_busy" @onclick="() => _activating = quote">Activate</button>
+                                    }
                                     @if (quote.CanAddToDraft && DraftRemaining(quote) > 0m)
                                     {
                                         <button class="v3-btn v3-btn-primary v3-btn-sm" type="button"
@@ -266,6 +270,11 @@
         </div>
     </section>
 </div>
+@if (_activating is { } activating)
+{
+    <EcfActivationDialog Quote="activating" OnClose="() => _activating = null" OnActivated="ActivatedAsync" />
+}
+
 
 @code {
     private DateTime _period = PhilippineTime.Today.ToDateTime(TimeOnly.MinValue);
@@ -280,6 +289,14 @@
     private decimal _proposedAmount;
     private bool _busy;
     private string? _message;
+    private EcfObligationQuoteDto? _activating;
+
+    private async Task ActivatedAsync()
+    {
+        _message = $"Stall {_activating?.StallNo} is active for canonical collection.";
+        _activating = null;
+        await ReloadAsync();
+    }
     private string? _error;
 
     private string BillingPeriodLabel => _period.ToString("MMMM yyyy");
