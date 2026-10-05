@@ -186,6 +186,11 @@ public class ApplicationEfBoundaryTests
         "VehicleClassWorkflow.cs",
         "RemittanceWorkflow.cs",
         "CollectionsReportWorkflow.cs",
+        // Existing scoped Payor/ECF activation coordinators and the direct vendor-fee writer all use the
+        // shared context. Vendor money is persisted only through CanonicalCollectionPostingCoordinator.
+        "BusinessPayorWorkflow.cs",
+        "EcfActivationWorkflow.cs",
+        "FishMeatVendorFeeCollectionWorkflow.cs",
         "TransportationCollectionAuthority.cs",
         "GovernedCanonicalAuthority.cs",
         "NpmDailyCanonicalPoster.cs",

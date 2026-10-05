@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
@@ -24,6 +25,14 @@ namespace EEMOCantilanSDS.IntegrationTests;
 [Collection(PostgresCollection.Name)]
 public sealed class ObligationAccountTests(PostgresFixture db)
 {
+    // The former Vendor Fee assessment model is historical from IA-064. Kanmanggay/Fiesta
+    // retain this engine; their cross-source compatibility is tested at this pre-cutover date.
+    private sealed class HistoricalClock : IClock
+    {
+        public DateOnly PhilippineToday => FishMeatVendorFeeRules.DirectEffectiveDate.AddDays(-1);
+        public DateTime UtcNow => DateTime.UtcNow;
+        public DateTime PhilippineNow => PhilippineToday.ToDateTime(TimeOnly.MinValue);
+    }
     private sealed record Seed(Guid TenantId, Guid UserId, Guid StallId, Guid PayorId, Guid UnlinkedStallId,
         Guid[] OrIds, DateOnly Today);
 
@@ -46,7 +55,7 @@ public sealed class ObligationAccountTests(PostgresFixture db)
     }
 
     private static ObligationWorkflow Setup(AppDbContext context, Seed seed, string role = "SuperAdmin") =>
-        new(context, new TestActor(seed.UserId, seed.TenantId, role), new FixedTenant(seed.TenantId));
+        new(context, new TestActor(seed.UserId, seed.TenantId, role), new FixedTenant(seed.TenantId), new HistoricalClock());
 
     [SkippableFact]
     public async Task SpaceImport_ValidatesAllRowsBeforeWriting_SkipsExisting_AndKeepsClosedHistory()
@@ -78,7 +87,7 @@ public sealed class ObligationAccountTests(PostgresFixture db)
     }
 
     private static CollectionComposerWorkflow Composer(AppDbContext context, Seed seed) =>
-        new(context, new TestActor(seed.UserId, seed.TenantId, "Admin"), new FixedTenant(seed.TenantId));
+        new(context, new TestActor(seed.UserId, seed.TenantId, "Admin"), new FixedTenant(seed.TenantId), new HistoricalClock());
 
     private static async Task<long> PostAsync(CollectionComposerWorkflow composer, EcfCollectionDraftDto draft, Guid orId)
     {
@@ -324,7 +333,7 @@ public sealed class ObligationAccountTests(PostgresFixture db)
             await setup.SaveChangesAsync();
         }
 
-        var today = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today;
+        var today = new HistoricalClock().PhilippineToday;
         var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM",
             archetype: BillingArchetype.DailyStall, municipalityId: tenant);
         var stall = Stall.Create(facility.Id, "FISH-01", 0m, ApplicableFees.None, MarketSection.FishSection,

@@ -13,6 +13,34 @@ namespace EEMOCantilanSDS.UnitTest.Mobile;
 public class MobileSyncServiceTests
 {
     [Theory]
+    [InlineData("QuoteStale", true)]
+    [InlineData("BalanceChanged", true)]
+    [InlineData("SessionIntentConflict", false)]
+    [InlineData("SessionUnavailable", false)]
+    public void Only_confirmed_unposted_review_outcomes_can_be_corrected(string code, bool allowed)
+    {
+        var intent = new CollectionSessionIntent(Guid.NewGuid(), new(2026, 10, 5), null, []);
+        var operation = new PendingOperation
+        {
+            Kind = OfflineOperationKind.ItemizedCollectionSession,
+            ClientOperationId = intent.ClientCollectionSessionId,
+            CollectionSession = new(intent, "reviewed"),
+            LocalStatus = PendingLocalStatus.ReconciliationRequired,
+            CollectionSessionResult = new(intent.ClientCollectionSessionId, CollectionSessionStatus.NeedsReview,
+                null, 0m, [], [new(null, code, "Review required.")])
+        };
+        Assert.Equal(allowed, MobileSyncService.CanReviewUnpostedSession(operation));
+        operation.ReferenceCode = "SRC-2026-000001";
+        Assert.False(MobileSyncService.CanReviewUnpostedSession(operation));
+        operation.ReferenceCode = null;
+        operation.ServerCollectionId = Guid.NewGuid();
+        Assert.False(MobileSyncService.CanReviewUnpostedSession(operation));
+        operation.ServerCollectionId = null;
+        operation.CollectionSessionResult = null;
+        Assert.False(MobileSyncService.CanReviewUnpostedSession(operation));
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task Checkout_survives_restart_unknown_response_and_multiple_src_reconciliation(bool needsReview)

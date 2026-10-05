@@ -153,7 +153,7 @@ public sealed class WcfDirectEntryTests(PostgresFixture db)
     }
 
     [SkippableFact]
-    public async Task ADirectMobileAmount_PostsOnceAsWcf_NeedsNoTicket_AndSettlesTheNewSource()
+    public async Task ADirectMobileAmount_PostsOnceAsWcf_NeedsNoTicket_AndKeepsDirectModeOpen()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
         await db.ResetAsync();
@@ -172,7 +172,8 @@ public sealed class WcfDirectEntryTests(PostgresFixture db)
         Assert.True(retry.Value!.ExistingOutcome);
 
         var bill = await ctx.UtilityBills.AsNoTracking().SingleAsync();
-        Assert.Equal((40m, UtilityCalculationBasis.DirectApproved, SettlementAuthority.Canonical),
+        Assert.True(bill.WaterDirectCollection);
+        Assert.Equal((0m, UtilityCalculationBasis.DirectApproved, SettlementAuthority.Canonical),
             (bill.WaterCharge, bill.WaterCalculationBasis, bill.WaterSettlementAuthorityState));
         var collection = await ctx.Collections.Include(x => x.Lines).AsNoTracking().SingleAsync();
         Assert.Equal((40m, w.CollectorId), (collection.TotalAmount, collection.CollectorId!.Value));
@@ -183,9 +184,9 @@ public sealed class WcfDirectEntryTests(PostgresFixture db)
         Assert.Contains("CollectorDirectEntry", cutover.ReconciliationEvidence);
         Assert.Equal(0m, cutover.OpeningLegacySettledAmount);
 
-        // Settled, and still Ready: no debt is not an authorization failure.
+        // Direct receipts never manufacture an assessment or close the source after its first payment.
         var after = Assert.Single((await Wcf(ctx, w, "Collector").GetMobileSourcesAsync(w.Period.Year, w.Period.Month)).Value!);
-        Assert.Equal((WcfSourceState.Settled, 0m), (after.State, after.OutstandingAmount));
+        Assert.Equal((WcfSourceState.NoAmount, 0m, true, (decimal?)null), (after.State, after.OutstandingAmount, after.CanEnterDirect, after.PreparedAmount));
         Assert.Equal(CollectorOperationCapabilityStatus.Ready, (await CapabilityAsync(ctx, w)).Status);
 
         // The same money is in the collector's facts (Position, Mobile report) and in the official Monthly Income, once.
@@ -247,14 +248,18 @@ public sealed class WcfDirectEntryTests(PostgresFixture db)
         var before = await ctx.UtilityBills.AsNoTracking().SingleAsync();
         Assert.True((await Office(ctx, w).EnableAsync()).IsSuccess);
 
-        var posted = await Wcf(ctx, w, "Collector").PostMobileAsync(Direct(w, w.Tickets[1], 40m));
+        var source = Assert.Single((await Wcf(ctx, w, "Collector")
+            .GetMobileSourcesAsync(w.Period.Year, w.Period.Month)).Value!);
+        var posted = await Wcf(ctx, w, "Collector").PostMobileAsync(
+            Direct(w, w.Tickets[1], 40m) with { WaterSourceVersion = source.WaterSourceVersion });
 
         Assert.True(posted.IsSuccess, posted.Error);
         var after = await ctx.UtilityBills.AsNoTracking().SingleAsync();
         Assert.Equal(before.Id, after.Id);
         Assert.Equal((before.ElecCharge, before.ElecAmountPaid, before.ElecStatus, before.ElecORNumber, before.ElectricitySettlementAuthorityState),
             (after.ElecCharge, after.ElecAmountPaid, after.ElecStatus, after.ElecORNumber, after.ElectricitySettlementAuthorityState));
-        Assert.Equal(40m, after.WaterCharge);
+        Assert.Equal(0m, after.WaterCharge);
+        Assert.True(after.WaterDirectCollection);
     }
 
     [SkippableFact]
