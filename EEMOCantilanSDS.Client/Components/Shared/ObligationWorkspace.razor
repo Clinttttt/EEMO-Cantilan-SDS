@@ -168,7 +168,7 @@
 
 <AuthorizeView Roles="SuperAdmin">
     <Authorized>
-        <SideDrawer Show="@(_opening && !ReadOnlyHistory)" Title="@($"Open {Name} account")" Subtitle="@OpenSubtitle" OnClose="CloseForm">
+        <SideDrawer Show="@(_opening && !ReadOnlyHistory)" Wide="@(Kind != ObligationKind.FishMeatVendorFee)" Title="@($"Open {Name} account")" Subtitle="@OpenSubtitle" OnClose="CloseForm">
             <ChildContent>
             <form id="obw-open-form" class="obw-form" @onsubmit="CreateAsync" @onsubmit:preventDefault="true" aria-label="Open account">
                 @if (Kind == ObligationKind.FishMeatVendorFee)
@@ -189,94 +189,125 @@
                 }
                 else
                 {
-                    <section class="obw-section" aria-labelledby="obw-s-occupancy">
-                    <h3 class="obw-section-title" id="obw-s-occupancy">Occupancy</h3>
-                    @if (Kind == ObligationKind.KanmanggaySpaceRental)
+                    @if (Kind == ObligationKind.FiestaArawLotRental)
                     {
-                        <div class="v3-field" role="group" aria-labelledby="obw-basis-label">
-                            <span id="obw-basis-label">Basis of occupancy</span>
-                            <div class="obw-choice" role="radiogroup" aria-labelledby="obw-basis-label">
+                        <section class="obw-section" aria-labelledby="obw-s-event">
+                            <h3 class="obw-section-title" id="obw-s-event">Event</h3>
+                            <div class="obw-choice" role="radiogroup" aria-label="Event">
+                                <button type="button" class="obw-choice-item @(_lotEvent == LotRentalEvent.Fiesta ? "is-selected" : "")" role="radio" aria-checked="@(_lotEvent == LotRentalEvent.Fiesta ? "true" : "false")" @onclick="() => _lotEvent = LotRentalEvent.Fiesta">
+                                    <span class="obw-choice-title">Fiesta</span>
+                                </button>
+                                <button type="button" class="obw-choice-item @(_lotEvent == LotRentalEvent.Araw ? "is-selected" : "")" role="radio" aria-checked="@(_lotEvent == LotRentalEvent.Araw ? "true" : "false")" @onclick="() => _lotEvent = LotRentalEvent.Araw">
+                                    <span class="obw-choice-title">Araw</span>
+                                </button>
+                            </div>
+                        </section>
+                    }
+                    else
+                    {
+                        <section class="obw-section" aria-labelledby="obw-s-occupancy">
+                            <h3 class="obw-section-title" id="obw-s-occupancy">Occupancy</h3>
+                            <div class="obw-choice" role="radiogroup" aria-label="Basis of occupancy">
                                 <button type="button" class="obw-choice-item @(_signedContract ? "is-selected" : "")" role="radio" aria-checked="@(_signedContract ? "true" : "false")" @onclick="() => _signedContract = true">
                                     <span class="obw-choice-title">Signed lease contract</span>
+                                    <span class="obw-choice-note">Leased under a signed contract</span>
                                 </button>
                                 <button type="button" class="obw-choice-item @(!_signedContract ? "is-selected" : "")" role="radio" aria-checked="@(!_signedContract ? "true" : "false")" @onclick="() => _signedContract = false">
                                     <span class="obw-choice-title">No contract (space only)</span>
+                                    <span class="obw-choice-note">Occupies the space without a contract</span>
                                 </button>
                             </div>
-                        </div>
+                        </section>
                     }
-                    <label class="v3-field">
-                        <span>Business Payor</span>
-                        <input class="v3-input" type="search" @bind="_payorSearch" @bind:event="oninput" @onkeyup="SearchPayorsAsync" placeholder="Search by name" />
-                    </label>
-                    <label class="v3-field">
-                        <span class="v3-sr-only">Choose a Payor</span>
-                        <select @bind="_payorId" required>
-                            <option value="">Choose a Payor</option>
-                            @foreach (var payor in _payors)
+
+                    <section class="obw-section" aria-labelledby="obw-s-payor">
+                        <h3 class="obw-section-title" id="obw-s-payor">Business Payor</h3>
+                        @if (SelectedPayor is { } chosen)
+                        {
+                            <div class="obw-selected" role="status">
+                                <span class="obw-selected-name">@chosen.DisplayName</span>
+                                <button class="obw-link" type="button" @onclick="ClearPayor">Change</button>
+                            </div>
+                        }
+                        else
+                        {
+                            <label class="v3-field">
+                                <span class="v3-sr-only">Search Business Payors</span>
+                                <input class="v3-input" type="search" @bind="_payorSearch" @bind:event="oninput" @onkeyup="SearchPayorsAsync" placeholder="Search by name" />
+                            </label>
+                            @if (_payors.Count > 0)
                             {
-                                <option value="@payor.PayorId">@payor.DisplayName</option>
+                                <ul class="obw-results" role="listbox" aria-label="Business Payors found">
+                                    @foreach (var payor in _payors)
+                                    {
+                                        <li><button class="obw-option" type="button" role="option" aria-selected="false" @onclick="() => _payorId = payor.PayorId.ToString()">@payor.DisplayName</button></li>
+                                    }
+                                </ul>
                             }
-                        </select>
-                    </label>
-                    <p class="obw-payor-hint">
-                        @if (_payors.Count == 0 && _payorSearch.Trim().Length >= 2)
-                        {
-                            <span>No Business Payor found.</span>
+                            <p class="obw-payor-hint">
+                                @if (_payors.Count == 0 && _payorSearch.Trim().Length >= 2)
+                                {
+                                    <span>No Business Payor found.</span>
+                                }
+                                @if (_payorSearch.Trim().Length >= 2)
+                                {
+                                    <button class="obw-link" type="button" @onclick="CreatePayorAsync" disabled="@_saving">Create Business Payor “@_payorSearch.Trim()”</button>
+                                }
+                            </p>
                         }
-                        @if (_payorSearch.Trim().Length >= 2)
-                        {
-                            <button class="obw-link" type="button" @onclick="CreatePayorAsync" disabled="@_saving">Create Business Payor “@_payorSearch.Trim()”</button>
-                        }
-                    </p>
                     </section>
+
                     <section class="obw-section" aria-labelledby="obw-s-space">
-                    <h3 class="obw-section-title" id="obw-s-space">@(SubjectNoun == "Lot" ? "Lot details" : "Space details")</h3>
-                    <label class="v3-field">
-                        <span>@(SubjectNoun == "Lot" ? "Lot" : "Space No.")</span>
-                        <input class="v3-input" type="text" maxlength="120" required @bind="_subject" />
-                    </label>
-                    @if (Kind == ObligationKind.FiestaArawLotRental)
-                    {
-                        <label class="v3-field">
-                            <span>Event</span>
-                            <select @bind="_lotEvent">
-                                <option value="@LotRentalEvent.Fiesta">Fiesta</option>
-                                <option value="@LotRentalEvent.Araw">Araw</option>
-                            </select>
-                        </label>
-                        <label class="v3-field">
-                            <span>Event date</span>
-                            <input class="v3-input" type="date" required @bind="_eventDate" />
-                        </label>
-                    }
+                        <h3 class="obw-section-title" id="obw-s-space">@(SubjectNoun == "Lot" ? "Lot details" : "Space details")</h3>
+                        <div class="obw-grid">
+                            <label class="v3-field">
+                                <span>@(SubjectNoun == "Lot" ? "Lot" : "Space No.")</span>
+                                <input class="v3-input" type="text" maxlength="120" required @bind="_subject" />
+                            </label>
+                            @if (Kind == ObligationKind.FiestaArawLotRental)
+                            {
+                                <label class="v3-field">
+                                    <span>Event date</span>
+                                    <input class="v3-input" type="date" required @bind="_eventDate" />
+                                </label>
+                            }
+                        </div>
                     </section>
                 }
 
                 @if (Kind != ObligationKind.FiestaArawLotRental)
                 {
-                    @* The approved account carries an effectivity month and an amount. Contract particulars (name on contract, term) have no home on an
-                       obligation account yet, so a signed contract is not asked for here beyond the month it takes effect. *@
                     <section class="obw-section" aria-labelledby="obw-s-rental">
-                        <h3 class="obw-section-title" id="obw-s-rental">Rental details</h3>
-                        <label class="v3-field">
-                            <span>@(Kind == ObligationKind.KanmanggaySpaceRental && _signedContract ? "Contract effectivity (month)" : Kind == ObligationKind.KanmanggaySpaceRental ? "Occupying since (month)" : "Starts (month)")</span>
-                            <input class="v3-input" type="month" required aria-label="Start month" value="@_startMonth" @onchange="e => _startMonth = e.Value?.ToString() ?? string.Empty" />
-                        </label>
-                        <label class="v3-field">
-                            <span>Approved monthly amount (₱)</span>
-                            <input class="v3-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
-                        </label>
+                        <h3 class="obw-section-title" id="obw-s-rental">@(Kind == ObligationKind.KanmanggaySpaceRental && _signedContract ? "Contract details" : "Rental details")</h3>
+                        <div class="obw-grid">
+                            @if (Kind == ObligationKind.KanmanggaySpaceRental && _signedContract)
+                            {
+                                <label class="v3-field obw-span">
+                                    <span>Contract reference</span>
+                                    <input class="v3-input" type="text" maxlength="200" placeholder="As written on the contract" @bind="_contractRef" />
+                                </label>
+                            }
+                            <label class="v3-field">
+                                <span>@(Kind == ObligationKind.KanmanggaySpaceRental && _signedContract ? "Contract effectivity (month)" : Kind == ObligationKind.KanmanggaySpaceRental ? "Occupying since (month)" : "Starts (month)")</span>
+                                <input class="v3-input" type="month" required aria-label="Start month" value="@_startMonth" @onchange="e => _startMonth = e.Value?.ToString() ?? string.Empty" />
+                            </label>
+                            <label class="v3-field">
+                                <span>Approved monthly amount (₱)</span>
+                                <input class="v3-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
+                            </label>
+                        </div>
                     </section>
                 }
                 else
                 {
                     <section class="obw-section" aria-labelledby="obw-s-rental">
                         <h3 class="obw-section-title" id="obw-s-rental">Rental details</h3>
-                        <label class="v3-field">
-                            <span>Approved lot amount (₱)</span>
-                            <input class="v3-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
-                        </label>
+                        <div class="obw-grid">
+                            <label class="v3-field">
+                                <span>Approved lot amount (₱)</span>
+                                <input class="v3-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
+                            </label>
+                        </div>
                     </section>
                 }
                 @if (!string.IsNullOrWhiteSpace(_formError))
@@ -386,6 +417,9 @@
     private ObligationAccountDto? _rateFor;
     private bool _saving;
     private bool _signedContract = true;
+    private string _contractRef = string.Empty;
+    private CollectionPayorDto? SelectedPayor => _payors.FirstOrDefault(x => x.PayorId.ToString() == _payorId);
+    private void ClearPayor() { _payorId = string.Empty; _payorSearch = string.Empty; _payors = []; }
     private string? _formError;
     private string? _saved;
     private string _payorSearch = string.Empty;
@@ -440,7 +474,8 @@
     private async Task OpenForm()
     {
         _formError = null; _saved = null; _rateFor = null;
-        _payorSearch = _payorId = _stallId = _subject = string.Empty;
+        _payorSearch = _payorId = _stallId = _subject = _contractRef = string.Empty;
+        _signedContract = true; _lotEvent = LotRentalEvent.Fiesta;
         _payors = [];
         _amount = null;
         _opening = true;
@@ -543,7 +578,10 @@
                 ? _stalls.FirstOrDefault(x => x.StallId == stallId)?.StallNo ?? string.Empty
                 : _subject;
             var result = await ObligationsApi.CreateAccountAsync(new CreateObligationAccountRequest(
-                Kind, payorId, stallId, subject, isLot ? _lotEvent : null, isLot ? _eventDate : null, start, _amount!.Value));
+                Kind, payorId, stallId, subject, isLot ? _lotEvent : null, isLot ? _eventDate : null, start, _amount!.Value,
+                // Occupancy basis is recorded for Kanmanggay only; no contract is implied for a space-only occupancy.
+                Kind == ObligationKind.KanmanggaySpaceRental ? (_signedContract ? OccupancyArrangement.SignedContract : OccupancyArrangement.SpaceOnly) : null,
+                Kind == ObligationKind.KanmanggaySpaceRental && _signedContract && !string.IsNullOrWhiteSpace(_contractRef) ? _contractRef.Trim() : null));
             if (!result.IsSuccess) { _formError = result.Error ?? "The account could not be opened."; return; }
             _opening = false;
             _saved = $"{Name} account opened.";

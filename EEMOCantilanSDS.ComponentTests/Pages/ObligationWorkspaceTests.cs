@@ -134,9 +134,10 @@ public sealed class ObligationWorkspaceTests : TestContext
         var search = cut.Find("form[aria-label='Open account'] input[type='search']");
         search.Input("ana");
         search.KeyUp(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "a" });
-        cut.WaitForAssertion(() => Assert.Contains("Ana Reyes", cut.Find("form[aria-label='Open account'] select").InnerHtml), Timeout);
-        cut.Find("form[aria-label='Open account'] select").Change(PayorId.ToString());
+        cut.WaitForAssertion(() => Assert.Contains("Ana Reyes", cut.Find("[aria-label='Business Payors found']").TextContent), Timeout);
+        cut.Find("[aria-label='Business Payors found'] button").Click();          // an explicit choice of the Payor the server returned
         cut.FindAll("form[aria-label='Open account'] input[type='text']")[0].Change("Space K-4");
+        cut.FindAll("form[aria-label='Open account'] input[type='text']")[1].Change("LC-2026-014");
         cut.Find("form[aria-label='Open account'] input[type='number']").Change("1200");
         cut.Find("form[aria-label='Open account']").Submit();
 
@@ -146,6 +147,7 @@ public sealed class ObligationWorkspaceTests : TestContext
             Assert.Equal((ObligationKind.KanmanggaySpaceRental, PayorId, "Space K-4", 1200m),
                 (sent!.Kind, sent.PayorId, sent.SubjectLabel, sent.Amount));
             Assert.Null(sent.StallId);
+            Assert.Equal((OccupancyArrangement.SignedContract, "LC-2026-014"), (sent.Arrangement, sent.ContractReference));
             Assert.Contains("account opened", cut.Markup);
         }, Timeout);
     }
@@ -231,10 +233,11 @@ public sealed class ObligationWorkspaceTests : TestContext
         {
             var drawer = Assert.Single(cut.FindAll("[role='dialog']"));
             var titles = drawer.QuerySelectorAll(".obw-section-title").Select(x => x.TextContent.Trim()).ToArray();
-            Assert.Equal(new[] { "Occupancy", "Space details", "Rental details" }, titles);
-            var basis = drawer.QuerySelectorAll("[role='radio']").Select(x => x.TextContent.Trim()).ToArray();
+            Assert.Equal(new[] { "Occupancy", "Business Payor", "Space details", "Contract details" }, titles);
+            var basis = drawer.QuerySelectorAll("[role='radio']").Select(x => x.QuerySelector(".obw-choice-title")!.TextContent.Trim()).ToArray();
             Assert.Equal(new[] { "Signed lease contract", "No contract (space only)" }, basis);
             Assert.Contains("Contract effectivity", drawer.TextContent);
+            Assert.Contains("Contract reference", drawer.TextContent);
         }, Timeout);
 
         cut.FindAll("[role='radio']").Single(b => b.TextContent.Contains("No contract")).Click();
@@ -242,9 +245,44 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var drawer = Assert.Single(cut.FindAll("[role='dialog']"));
+            Assert.Equal("Rental details", drawer.QuerySelectorAll(".obw-section-title").Last().TextContent.Trim());
             Assert.Contains("Occupying since", drawer.TextContent);
             Assert.DoesNotContain("Contract effectivity", drawer.TextContent);
-            Assert.DoesNotContain("Name on contract", drawer.TextContent, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("Contract reference", drawer.TextContent);         // no contract is implied for a space-only occupancy
+        }, Timeout);
+    }
+
+    [Fact]
+    public void AddNew_SendsTheOccupancyBasis_AndNoContractReferenceForSpaceOnly()
+    {
+        Serve(ObligationKind.KanmanggaySpaceRental);
+        _collections.Setup(x => x.SearchCollectionPayorsAsync("Ana Reyes")).ReturnsAsync(
+            Result<IReadOnlyList<CollectionPayorDto>>.Success(new[] { new CollectionPayorDto(PayorId, "Ana Reyes") }));
+        CreateObligationAccountRequest? sent = null;
+        _api.Setup(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()))
+            .Callback<CreateObligationAccountRequest>(r => sent = r)
+            .ReturnsAsync(Result<ObligationAccountDto>.Failure("stop"));
+
+        var cut = RenderComponent<Kanmanggay>();
+        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New"), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New").Click();
+        cut.WaitForAssertion(() => cut.Find("[role='dialog'] input[type='search']"), Timeout);
+        cut.FindAll("[role='radio']").Single(b => b.TextContent.Contains("No contract")).Click();
+        var search = cut.Find("[role='dialog'] input[type='search']");
+        search.Input("Ana Reyes");
+        search.KeyUp(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "s" });
+        cut.WaitForAssertion(() => cut.Find("[aria-label='Business Payors found'] button"), Timeout);
+        cut.Find("[aria-label='Business Payors found'] button").Click();
+        cut.WaitForAssertion(() => Assert.Contains("Ana Reyes", cut.Find(".obw-selected").TextContent), Timeout);
+        cut.Find("[role='dialog'] input[type='text']").Change("K-7");
+        cut.Find("[role='dialog'] input[type='number']").Change("900");
+        cut.Find("form[aria-label='Open account']").Submit();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(sent);
+            Assert.Equal((PayorId, "K-7", 900m, OccupancyArrangement.SpaceOnly, (string?)null),
+                (sent!.PayorId, sent.SubjectLabel, sent.Amount, sent.Arrangement, sent.ContractReference));
         }, Timeout);
     }
 
