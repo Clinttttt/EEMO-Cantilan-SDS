@@ -370,7 +370,19 @@ else
             if (Terms?.VehicleClasses is { Count: 1 } vehicles) _vehicle = vehicles[0].Code;
             return;
         }
-        if (SourceChoices is { Count: 1 } sources) _source = sources[0].Value;
+        if (SourceChoices is { Count: 1 } sources) { _source = sources[0].Value; PrefillPrepared(); }
+    }
+    // A source the office or a bill has already prepared arrives with the server's remaining amount; the collector confirms it
+    // (the quote still validates whatever is sent). A direct-collection source starts empty.
+    private void PrefillPrepared()
+    {
+        _amount = _operation?.Kind switch
+        {
+            CollectionSessionItemKind.Water => _discovery?.WaterSources?.FirstOrDefault(x => x.StallId.ToString() == _source) is { PreparedAmount: not null } w ? w.OutstandingAmount : 0m,
+            CollectionSessionItemKind.Electricity => _discovery?.ElectricitySources?.FirstOrDefault(x => ElectricityKey(x) == _source) is { } e && e.ChargeBasis != "DirectCollection" ? e.OutstandingAmount : 0m,
+            CollectionSessionItemKind.Obligation => _discovery?.ObligationSources?.FirstOrDefault(x => x.AccountId + "|" + x.PeriodStart.ToString("yyyy-MM") == _source)?.OutstandingAmount ?? 0m,
+            _ => 0m
+        };
     }
     private string SourceLabel => _operation?.Kind == CollectionSessionItemKind.Weighing ? "Vendor" : _operation?.Kind == CollectionSessionItemKind.NpmWholePayment ? "Stall" : "Source";
     private string RateDetail(string type) => _discovery?.WeighingRates?.FirstOrDefault(x => ((int)x.Type).ToString() == type) is { } rate ? Money(rate.RatePerKilo) + " / kg" : "Unavailable";
@@ -381,7 +393,7 @@ else
     private void ChooseOption(string value) => _option = value;
     private void ChooseVehicle(string value) => _vehicle = value;
     private void ChooseType(string value) => _type = value;
-    private void ChooseSource(string value) { _source = value; _amount = 0; }
+    private void ChooseSource(string value) { _source = value; _amount = 0; PrefillPrepared(); }
     private void ClosePicker() => _picker = false;
     private void AddItem()
     {
