@@ -254,10 +254,10 @@ else
             .Where(x => x.Item2.Count > 0).ToList();
     private IReadOnlyList<MobileChoice.Choice> SourceChoices => _operation?.Kind switch
     {
-        CollectionSessionItemKind.Water => (_discovery?.WaterSources ?? []).Where(x => x.CanCollect || x.CanEnterDirect).Select(x => new MobileChoice.Choice(x.StallId.ToString(), x.StallNo + " · " + x.Section, x.PreparedAmount is null ? "Direct collection" : Money(x.OutstandingAmount) + " outstanding")).ToArray(),
-        CollectionSessionItemKind.Electricity => (_discovery?.ElectricitySources ?? []).Where(x => x.CanPostCanonical).Select(x => new MobileChoice.Choice(ElectricityKey(x), x.StallNo + " · " + Period(x.BillingYear, x.BillingMonth), x.ChargeBasis == "DirectCollection" ? "Direct collection" : Money(x.OutstandingAmount) + " outstanding")).ToArray(),
+        CollectionSessionItemKind.Water => (_discovery?.WaterSources ?? []).Where(x => x.CanCollect || x.CanEnterDirect).Select(x => new MobileChoice.Choice(x.StallId.ToString(), "Stall " + x.StallNo + " · " + x.Section, x.PreparedAmount is null ? "Direct collection" : Money(x.OutstandingAmount) + " outstanding")).ToArray(),
+        CollectionSessionItemKind.Electricity => (_discovery?.ElectricitySources ?? []).Where(x => x.CanPostCanonical).Select(x => new MobileChoice.Choice(ElectricityKey(x), "Stall " + x.StallNo + " · " + Period(x.BillingYear, x.BillingMonth), x.ChargeBasis == "DirectCollection" ? "Direct collection" : Money(x.OutstandingAmount) + " outstanding")).ToArray(),
         CollectionSessionItemKind.Obligation => (_discovery?.ObligationSources ?? []).Where(x => x.CanAddToDraft).Select(x => new MobileChoice.Choice(x.AccountId + "|" + x.PeriodStart.ToString("yyyy-MM"), x.SubjectLabel, Money(x.OutstandingAmount) + " · " + Period(x.PeriodStart.Year, x.PeriodStart.Month))).ToArray(),
-        CollectionSessionItemKind.Weighing => (_discovery?.WeighingSources ?? []).Select(x => new MobileChoice.Choice(x.StallId.ToString(), x.PayerName, x.StallNo + " · " + x.Context)).ToArray(),
+        CollectionSessionItemKind.Weighing => (_discovery?.WeighingSources ?? []).Select(x => new MobileChoice.Choice(x.StallId.ToString(), x.PayerName, "Stall " + x.StallNo + " · " + x.Context)).ToArray(),
         CollectionSessionItemKind.VendorFee => (_discovery?.VendorFeeSources ?? []).Where(x => x.CanCollect).Select(x => new MobileChoice.Choice(x.StallId.ToString(), x.PayerName, x.Section + " · Stall " + x.StallNo)).ToArray(),
         CollectionSessionItemKind.NpmWholePayment => (_discovery?.NpmSources ?? []).Select(x => new MobileChoice.Choice(x.StallId.ToString(), x.PayerName, x.Context + " · Stall " + x.StallNo)).ToArray(),
         _ => []
