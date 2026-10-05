@@ -417,6 +417,67 @@ public sealed class ObligationWorkspaceTests : TestContext
     }
 
     [Fact]
+    public void Import_UsesTheServersPreview_ForStatusDuplicatesAndSuggestedNumbers_AndKeepsABlankNumberBlank()
+    {
+        _collections.Setup(x => x.SearchCollectionPayorsAsync("Ana Reyes")).ReturnsAsync(
+            Result<IReadOnlyList<CollectionPayorDto>>.Success(new[] { new CollectionPayorDto(PayorId, "Ana Reyes") }));
+        _collections.Setup(x => x.SearchCollectionPayorsAsync("Ben Cruz")).ReturnsAsync(
+            Result<IReadOnlyList<CollectionPayorDto>>.Success(new[] { new CollectionPayorDto(PayorId, "Ana Reyes") }));     // explicit choice, whatever the typed name
+        ImportSpaceHoldersRequest? previewed = null, saved = null;
+        _api.Setup(x => x.PreviewSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>())).Returns((ImportSpaceHoldersRequest r) =>
+        {
+            previewed = r;
+            var rows = r.Rows.Select((row, i) =>
+            {
+                var account = row.Account;
+                if (account.PayorId == Guid.Empty)
+                    return new SpaceHolderImportRowResult(i + 1, SpaceHolderImportStatus.NeedsPayor, "RequiresPayor", "Choose a Business Payor.", Facts:
+                        new(account with { SubjectLabel = "3" }, row.ClosedOn, SpaceNumberOrigin.ServerSuggested, null));
+                return string.IsNullOrWhiteSpace(account.SubjectLabel)
+                    ? new SpaceHolderImportRowResult(i + 1, SpaceHolderImportStatus.Ready, null, null, Facts:
+                        new(account with { SubjectLabel = "3" }, row.ClosedOn, SpaceNumberOrigin.ServerSuggested, "Ana Reyes"))
+                    : new SpaceHolderImportRowResult(i + 1, SpaceHolderImportStatus.Invalid, "DuplicateSpace", "This space already has an account.", Facts:
+                        new(account, row.ClosedOn, SpaceNumberOrigin.Supplied, "Ana Reyes"));
+            }).ToList();
+            return Task.FromResult(Result<SpaceHolderImportPreview>.Success(new(rows, rows.All(x => x.Status == SpaceHolderImportStatus.Ready))));
+        });
+        _api.Setup(x => x.ImportSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>()))
+            .Callback<ImportSpaceHoldersRequest>(r => saved = r)
+            .ReturnsAsync(Result<ImportSpaceHoldersResult>.Success(new(1, 0, [])));
+
+        var cut = RenderComponent<KanmanggayImport>();
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Paste from a spreadsheet").Click();
+        // Space, Occupant, Monthly, Start, Closed, Basis, Contract reference — the first row has no number, the second one that is taken.
+        cut.Find("textarea[aria-label='Spreadsheet rows']").Change("\tAna Reyes\t900\t2026-09\t\tNo contract (space only)\t\nK-1\tBen Cruz\t700\t2026-09\t\tNo contract (space only)\t");
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Review rows").Click();
+        cut.WaitForAssertion(() => Assert.Contains("Auto · 3", cut.Find("input[aria-label='Space No. of row 1']").GetAttribute("placeholder")), Timeout);
+
+        cut.FindAll("[aria-label='Rows to import'] tbody tr")[0].QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Find Payor").Click();
+        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Contains("Use Ana Reyes")), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Contains("Use Ana Reyes")).Click();
+        cut.FindAll("[aria-label='Rows to import'] tbody tr")[1].QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Find Payor").Click();
+        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Contains("Use Ana Reyes")), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Contains("Use Ana Reyes")).Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var summary = cut.Find("[aria-label='Import summary']").TextContent;
+            Assert.Contains("1 Ready", summary);
+            Assert.Contains("1 Invalid", summary);
+            Assert.Contains("This space already has an account.", cut.FindAll("[aria-label='Rows to import'] tbody tr")[1].TextContent);  // the server's reason, shown as given
+        }, Timeout);
+        Assert.NotNull(previewed);
+
+        cut.Find(".shi-import-go").Click();
+        cut.WaitForAssertion(() =>
+        {
+            var row = Assert.Single(saved!.Rows);
+            Assert.Equal(string.Empty, row.Account.SubjectLabel);                                         // the server numbers it again when it saves
+            Assert.Equal(PayorId, row.Account.PayorId);
+        }, Timeout);
+    }
+
+    [Fact]
     public void Import_NeverAssumesTheBasis_AndASignedRowSendsItsContractReference()
     {
         ImportSpaceHoldersRequest? sent = null;

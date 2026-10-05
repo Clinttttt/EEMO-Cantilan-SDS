@@ -154,7 +154,7 @@
                         var number = i + 1;
                         <tr @key="row">
                             <td class="shi-td-num">@number</td>
-                            <td><input class="shi-cell" aria-label="@($"{(IsEvent ? "Lot" : "Space No.")} of row {number}")" placeholder="@(IsEvent ? "e.g. L-1" : "e.g. 1")" value="@row.Subject" @onchange="e => Edit(row, r => r.Subject = e.Value?.ToString() ?? string.Empty)" /></td>
+                            <td><input class="shi-cell" aria-label="@($"{(IsEvent ? "Lot" : "Space No.")} of row {number}")" placeholder="@SubjectPlaceholder(row)" value="@row.Subject" @onchange="e => Edit(row, r => r.Subject = e.Value?.ToString() ?? string.Empty)" /></td>
                             <td><input class="shi-cell shi-cell-wide" aria-label="@($"Occupant of row {number}")" placeholder="Full name" value="@row.Name" @onchange="e => Edit(row, r => { r.Name = e.Value?.ToString() ?? string.Empty; r.PayorId = string.Empty; r.PayorName = null; r.Candidates = []; })" /></td>
                             <td class="shi-payor">
                                 @if (row.PayorName is not null)
@@ -204,8 +204,9 @@
                             <td class="shi-td-amount"><input class="shi-cell shi-num" aria-label="@($"Amount of row {number}")" placeholder="0.00" value="@row.Amount" @onchange="e => Edit(row, r => r.Amount = e.Value?.ToString() ?? string.Empty)" /></td>
                             <td><input class="shi-cell" aria-label="@($"Closed on of row {number}")" placeholder="optional" value="@row.ClosedText" @onchange="e => Edit(row, r => r.ClosedText = e.Value?.ToString() ?? string.Empty)" /></td>
                             <td class="shi-td-status">
-                                @if (row.Error is not null) { <span class="shi-chip-status shi-invalid" title="@row.Error">Invalid</span><span class="shi-muted">@row.Error</span> }
-                                else if (row.PayorId.Length == 0) { <span class="shi-chip-status shi-needs">Needs Payor</span> }
+                                @{ var (state, why) = StatusOf(row); }
+                                @if (state == SpaceHolderImportStatus.Invalid) { <span class="shi-chip-status shi-invalid" title="@why">Invalid</span><span class="shi-muted">@why</span> }
+                                else if (state == SpaceHolderImportStatus.NeedsPayor) { <span class="shi-chip-status shi-needs">Needs Payor</span> }
                                 else { <span class="shi-chip-status shi-ready">Ready</span> }
                             </td>
                             <td class="shi-td-act"><button class="shi-row-del" type="button" aria-label="@($"Remove row {number}")" disabled="@Saving" @onclick="() => RemoveRow(row)">×</button></td>
@@ -216,7 +217,9 @@
         </div>
 
         <div class="shi-foot-bar">
-            @if (ReadyCount < Rows.Count) { <span class="shi-muted shi-foot-note">Only Ready rows are imported; the others stay out.</span> }
+            @if (_previewing) { <span class="shi-muted shi-foot-note" role="status">Checking rows…</span> }
+            else if (_previewNote is not null) { <span class="shi-muted shi-foot-note" role="status">@_previewNote</span> }
+            else if (ReadyCount < Rows.Count) { <span class="shi-muted shi-foot-note">Only Ready rows are imported; the others stay out.</span> }
             <button class="shi-btn shi-btn-primary shi-import-go" type="button" disabled="@(Saving || ReadyCount == 0)" @onclick="ImportAsync">@(Saving ? "Importing…" : $"Import ready rows ({ReadyCount})")</button>
         </div>
     }
@@ -243,9 +246,67 @@
 
     private int Step => _result is not null || Saving ? 3 : Rows.Count > 0 ? 2 : 1;
     private string StepClass(int n) => n == Step ? "is-current" : n < Step ? "is-done" : "";
-    private int ReadyCount => Rows.Count(r => r.Error is null && r.PayorId.Length > 0);
-    private int NeedsPayorCount => Rows.Count(r => r.Error is null && r.PayorId.Length == 0);
-    private int InvalidCount => Rows.Count(r => r.Error is not null);
+    private int ReadyCount => Rows.Count(r => StatusOf(r).Status == SpaceHolderImportStatus.Ready);
+    private int NeedsPayorCount => Rows.Count(r => StatusOf(r).Status == SpaceHolderImportStatus.NeedsPayor);
+    private int InvalidCount => Rows.Count(r => StatusOf(r).Status == SpaceHolderImportStatus.Invalid);
+
+    // A row's state is the server's word once it has been checked there; until then (or if the check is unavailable) it is what this page can
+    // tell: a row that fails its own checks is Invalid, and one without an explicit Business Payor needs one. The browser never decides more.
+    private static (SpaceHolderImportStatus Status, string? Why) StatusOf(Row row) =>
+        row.Error is not null ? (SpaceHolderImportStatus.Invalid, row.Error)
+        : row.Preview is { } line ? (line.Status, line.Status == SpaceHolderImportStatus.Ready ? null : line.Status == SpaceHolderImportStatus.NeedsPayor ? null : line.Message)
+        : (row.PayorId.Length == 0 ? SpaceHolderImportStatus.NeedsPayor : SpaceHolderImportStatus.Ready, null);
+
+    // Blank is allowed: the server numbers the space within this operation, and says which number it would give. The suggestion is shown
+    // as a placeholder only; the cell stays blank so the server numbers it again, under its lock, when the list is saved.
+    private static string SubjectPlaceholder(Row row) =>
+        row.Preview?.Facts is { NumberOrigin: SpaceNumberOrigin.ServerSuggested } facts && !string.IsNullOrWhiteSpace(facts.Account.SubjectLabel)
+            ? $"Auto · {facts.Account.SubjectLabel}" : "Auto";
+
+    private bool _previewing;
+    private string? _previewNote;
+    private CancellationTokenSource? _previewDelay;
+
+    private ImportSpaceHolderRow BuildRow(Row r) => new(new(Kind, Guid.TryParse(r.PayorId, out var payor) ? payor : Guid.Empty, null, r.Subject.Trim(),
+        r.Event, IsEvent ? r.StartDate : null, r.StartDate, r.Approved,
+        IsEvent ? null : r.Basis, IsEvent || r.Basis != OccupancyArrangement.SignedContract || string.IsNullOrWhiteSpace(r.ContractRef) ? null : r.ContractRef.Trim()), r.Closed);
+
+    private void SchedulePreview()
+    {
+        _previewDelay?.Cancel();
+        _previewDelay = new CancellationTokenSource();
+        _ = DebouncedPreviewAsync(_previewDelay.Token);
+    }
+
+    private async Task DebouncedPreviewAsync(CancellationToken token)
+    {
+        try { await Task.Delay(400, token); } catch (OperationCanceledException) { return; }
+        await InvokeAsync(PreviewAsync);
+    }
+
+    // Asks the server to check every well-formed row without saving anything: it answers Ready / Needs Payor / Invalid with a stable code,
+    // finds duplicate spaces, and suggests the next number in this operation. Nothing is created or reserved by asking.
+    private async Task PreviewAsync()
+    {
+        foreach (var row in Rows) row.Preview = null;
+        var checkable = Rows.Where(r => r.Error is null).ToList();
+        if (checkable.Count == 0 || checkable.Count > 200) { _previewNote = null; StateHasChanged(); return; }
+        _previewing = true;
+        StateHasChanged();
+        try
+        {
+            var result = await Api.PreviewSpaceHoldersAsync(new(checkable.Select(BuildRow).ToList()));
+            if (result.IsSuccess && result.Value is { } preview && preview.Rows.Count == checkable.Count)
+            {
+                var ordered = preview.Rows.OrderBy(x => x.RowNumber).ToList();
+                for (var i = 0; i < checkable.Count; i++) checkable[i].Preview = ordered[i];
+                _previewNote = null;
+            }
+            else _previewNote = "The server check is unavailable. Rows are checked here only; the server checks them again when you import.";
+        }
+        catch { _previewNote = "The server check is unavailable. Rows are checked here only; the server checks them again when you import."; }
+        finally { _previewing = false; StateHasChanged(); }
+    }
 
     private IReadOnlyList<string> ColumnLabels => IsEvent
         ? ["Lot", "Occupant", "Approved amount", "Event date", "Event (Fiesta / Araw)", "Closed on"]
@@ -264,6 +325,7 @@
         public DateOnly? Closed;
         public LotRentalEvent? Event;
         public string? Error;
+        public SpaceHolderImportRowResult? Preview;
         public bool Searched, DuplicateSeen;
         public IReadOnlyList<CollectionPayorDto> Candidates = [];
 
@@ -343,6 +405,7 @@
         }
         if (rows.Count is 0 or > 200) return false;
         Rows = rows;
+        SchedulePreview();
         _fileName = fileName;
         _uploadError = null;
         Message = null;
@@ -423,7 +486,9 @@
     private void Edit(Row row, Action<Row> change)
     {
         change(row);
+        row.Preview = null;
         Validate(row);
+        SchedulePreview();
     }
 
     private void Validate(Row row)
@@ -441,8 +506,9 @@
         }
         else if (row.Basis is null) row.Error = string.IsNullOrWhiteSpace(row.BasisText) ? "Choose an occupancy basis" : "Basis must be signed lease contract or no contract";
         else if (row.Basis == OccupancyArrangement.SpaceOnly && !string.IsNullOrWhiteSpace(row.ContractRef)) row.Error = "No contract has no contract reference";
-        if (string.IsNullOrWhiteSpace(row.Subject) || string.IsNullOrWhiteSpace(row.Name))
-            row.Error = (IsEvent ? "Lot" : "Space No.") + " and occupant are required";
+        // The space number may be blank: the server numbers it. Only the occupant is required here.
+        if (string.IsNullOrWhiteSpace(row.Name))
+            row.Error = "Occupant is required";
         row.Closed = null;
         if (!string.IsNullOrWhiteSpace(row.ClosedText))
         {
@@ -454,7 +520,8 @@
     private void RemoveRow(Row row)
     {
         Rows.Remove(row);
-        if (Rows.Count == 0) { _fileName = null; Message = null; }
+        if (Rows.Count == 0) { _fileName = null; Message = null; _previewNote = null; }
+        else SchedulePreview();
     }
 
     private void ResetAll() { Rows = []; _result = null; Text = ""; Message = null; _uploadError = null; _fileName = null; _pasting = false; _notImported = 0; }
@@ -468,17 +535,21 @@
     }
 
     // Identity is the office's explicit choice: a candidate is chosen by pressing Use, never because its name matched.
-    private static void UsePayor(Row row, CollectionPayorDto candidate)
+    private void UsePayor(Row row, CollectionPayorDto candidate)
     {
         row.PayorId = candidate.PayorId.ToString();
         row.PayorName = candidate.DisplayName;
         row.Candidates = [];
+        row.Preview = null;
+        SchedulePreview();
     }
 
-    private static void ClearPayor(Row row)
+    private void ClearPayor(Row row)
     {
         row.PayorId = string.Empty;
         row.PayorName = null;
+        row.Preview = null;
+        SchedulePreview();
     }
 
     private async Task CreatePayorAsync(Row row)
@@ -493,6 +564,8 @@
                 row.PayorId = created.PayorId.ToString();
                 row.PayorName = created.DisplayName;
                 row.Candidates = [];
+                row.Preview = null;
+                SchedulePreview();
             }
             else if (result.Error?.StartsWith("DUPLICATE_PAYOR", StringComparison.Ordinal) == true)
             {
@@ -508,15 +581,15 @@
     // ── Saving ─────────────────────────────────────────────────────────────────────────────────────────────────────────
     private async Task ImportAsync()
     {
-        var ready = Rows.Where(r => r.Error is null && Guid.TryParse(r.PayorId, out _)).ToList();
-        if (Saving || ready.Count == 0) return;
+        // Only rows the office's own checks and the server's preview call Ready are sent. A blank number stays blank, so the server numbers it
+        // again under its own lock when it saves; the suggestion shown in the grid is only a hint.
+        var ready = Rows.Where(r => StatusOf(r).Status == SpaceHolderImportStatus.Ready && Guid.TryParse(r.PayorId, out _)).ToList();
+        if (Saving || _previewing || ready.Count == 0) return;
         Saving = true;
         Message = null;
         try
         {
-            var requests = ready.Select(r => new ImportSpaceHolderRow(new(Kind, Guid.Parse(r.PayorId), null, r.Subject.Trim(),
-                r.Event, IsEvent ? r.StartDate : null, r.StartDate, r.Approved,
-                IsEvent ? null : r.Basis, IsEvent || r.Basis != OccupancyArrangement.SignedContract || string.IsNullOrWhiteSpace(r.ContractRef) ? null : r.ContractRef.Trim()), r.Closed)).ToList();
+            var requests = ready.Select(BuildRow).ToList();
             var result = await Api.ImportSpaceHoldersAsync(new(requests));
             if (result.IsSuccess && result.Value is { } summary)
             {
