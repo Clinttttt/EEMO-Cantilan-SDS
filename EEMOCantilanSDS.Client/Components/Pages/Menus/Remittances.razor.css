@@ -421,10 +421,15 @@
 .rm-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 24px; border: 0; border-radius: 10px; background: var(--civic-panel); color: #ffffff; }
 .rm-header h1 { margin: 0; color: #ffffff; font-size: 1.5rem; font-weight: 700; letter-spacing: -.01em; }
 .rm-header p { margin: 4px 0 0; color: rgba(255, 255, 255, 0.85); font-size: .8125rem; }
-.rm-header-actions { display: flex; gap: 8px; flex-shrink: 0; }
-.rm-header-actions .v3-btn { border-color: #ffffff; background: #ffffff; color: var(--navy); }
-.rm-header-actions .v3-btn-primary { border-color: rgba(255, 255, 255, 0.9); background: rgba(255, 255, 255, 0.16); color: #ffffff; }
-.rm-header-actions .v3-btn-primary:hover { background: rgba(255, 255, 255, 0.26); }
+/* Three actions, one height, one row: Print summary (neutral) < Void Remittance (secondary) < New Remittance (primary). */
+.rm-header-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
+.rm-header-actions .v3-btn { box-sizing: border-box; min-height: 40px; padding: 0 16px; white-space: nowrap; border: 1px solid rgba(255, 255, 255, 0.4); background: transparent; color: #ffffff; font-weight: 600; }
+.rm-header-actions .v3-btn:hover { background: rgba(255, 255, 255, 0.14); }
+.rm-header-actions .v3-btn:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+.rm-header-actions .rm-act-secondary { border-color: rgba(255, 255, 255, 0.85); background: rgba(255, 255, 255, 0.16); }
+.rm-header-actions .rm-act-secondary:hover { background: rgba(255, 255, 255, 0.26); }
+.rm-header-actions .v3-btn-primary { border-color: #ffffff; background: #ffffff; color: var(--navy); font-weight: 700; }
+.rm-header-actions .v3-btn-primary:hover { background: #eef3f9; }
 .rm-section-actions { display: flex; align-items: center; gap: 12px; }
 .rm-preview { max-height: 320px; overflow: auto; }
 .rm-preview tbody td { height: 56px; }
