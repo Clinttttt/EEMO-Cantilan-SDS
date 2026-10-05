@@ -144,6 +144,9 @@
     color: var(--mobile-blue);
 }
 
+.mc-inline { max-height: none; overflow: visible; }
+.mc-inline .mc-option { min-height: 52px; }
+
 .mc-empty {
     padding: 12px 14px;
     border: 1px dashed var(--mobile-border);
