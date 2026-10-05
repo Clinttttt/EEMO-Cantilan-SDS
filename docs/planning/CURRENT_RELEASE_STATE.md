@@ -7,6 +7,11 @@
 
 This is the single current implementation-status entry point. Dated audits, handoffs and historical phase documents remain useful evidence, but they must not be used as the current release state without checking this file, current code/tests and Git history.
 
+**2026-10-05 feature-branch supplement:** `codex/mobile-itemized-collection-backend`, based on `19ae118b`, adds a
+bounded backend/shared-contract checkout and durable queue; see [Mobile itemized collection backend](MOBILE_ITEMIZED_COLLECTION_BACKEND.md).
+It is not merged, deployed or activated in production. The October 4 source-rollout statements below are dated evidence:
+later Phase 2.x code/tests already provide more canonical Mobile writers. This supplement does not reopen legacy OR entry.
+
 ## 1. Repository / release position
 
 - Local branch: `release/v3-final-closure`.
