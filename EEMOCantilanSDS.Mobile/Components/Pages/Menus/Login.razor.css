@@ -28,6 +28,8 @@
     height: 84px;
     margin-bottom: 12px;
     flex-shrink: 0;
+    border-radius: 50%;
+    overflow: hidden;
 }
 
     .login-seal img {
@@ -448,9 +450,9 @@
 }
 
 .login-seal {
-    padding: 6px;
+    padding: 0;
     border-radius: 50%;
-    background: #ffffff;
+    background: transparent;
 }
 
 .login-gov,
