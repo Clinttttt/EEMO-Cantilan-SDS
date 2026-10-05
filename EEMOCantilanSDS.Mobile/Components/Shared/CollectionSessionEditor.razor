@@ -84,7 +84,7 @@ else
             <div class="item-row @(problem ? "item-row-problem" : "")">
                 <div class="item-main">
                     <strong class="item-name">@(quote?.DisplayName ?? Name(item))</strong>
-                    <span class="item-context">@(quote?.Context is { Length: > 0 } c ? c : Context(item))</span>
+                    <span class="item-context">@ItemContext(item, quote)</span>
                     <span class="item-actions">
                         <button class="collection-link" type="button" @onclick="() => Edit(item)">Edit</button>
                         <button class="collection-link" type="button" @onclick="() => Remove(item)">Remove</button>
@@ -484,17 +484,22 @@ else
     private static string Code(CollectionSessionItemIntent item) => item.Kind switch { CollectionSessionItemKind.Water => "WCF", CollectionSessionItemKind.Electricity => "ECF", CollectionSessionItemKind.Obligation or CollectionSessionItemKind.VendorFee => "FISH_MEAT_VENDOR_FEE", CollectionSessionItemKind.NpmWholePayment => "NPM_WHOLE_PAYMENT", CollectionSessionItemKind.Weighing => "WEIGHT_AND_MEASURE", CollectionSessionItemKind.Slaughter => "SLAUGHTERHOUSE", _ => item.Service?.OperationCode ?? "" };
     private static string InstrumentCode(RevenueInstrumentType instrument) => instrument == RevenueInstrumentType.CashTicket ? "CT" : "OR";
     // Before the server has quoted it, an item is described from the source the server offered for it, so the list never reads as empty.
-    private string Context(CollectionSessionItemIntent item)
+    private string ItemContext(CollectionSessionItemIntent item, CollectionSessionItemQuote? quote)
     {
-        var payer = _payer?.DisplayName;
-        string? detail = item.Weighing is { } kg ? $"{(kg.Type == WeighingType.Fish ? "Fish" : "Meat")} · {kg.Kilograms:N2} kg"
+        // The source the collector chose describes the item best; the quote's own context is used only when it adds something.
+        var detail = ItemDetail(item);
+        if (detail is null && quote?.Context is { Length: > 0 } qc && !qc.Equals(quote.DisplayName, StringComparison.OrdinalIgnoreCase)) detail = qc;
+        return string.Join(" · ", new[] { _payer?.DisplayName, detail }.Where(x => !string.IsNullOrWhiteSpace(x))) is { Length: > 0 } text ? text : "Confirmed on review";
+    }
+    private string? ItemDetail(CollectionSessionItemIntent item)
+    {
+        return item.Weighing is { } kg ? $"{(kg.Type == WeighingType.Fish ? "Fish" : "Meat")} · {kg.Kilograms:N2} kg"
             : item.Water is { } w ? _discovery?.WaterSources?.FirstOrDefault(x => x.StallId == w.StallId) is { } ws ? $"Stall {ws.StallNo} · {Period(w.Year, w.Month)}" : null
             : item.Electricity is { } e ? _discovery?.ElectricitySources?.FirstOrDefault(x => x.UtilityBillId == e.UtilityBillId && x.StallId == e.StallId) is { } es ? $"Stall {es.StallNo} · {Period(es.BillingYear, es.BillingMonth)}" : null
             : item.NpmWhole is { } n ? $"NPM Stall {_discovery?.NpmSources?.FirstOrDefault(x => x.StallId == n.StallId)?.StallNo} · {new DateOnly(n.Year, n.Month, 1).ToString("MMM yyyy", CultureInfo.InvariantCulture)}"
             : item.VendorFee is { } v ? _discovery?.VendorFeeSources?.FirstOrDefault(x => x.StallId == v.StallId) is { } vs ? $"{vs.Section} · Stall {vs.StallNo}" : null
             : item.Slaughter is { } s ? $"{s.Heads} head{(s.Heads == 1 ? "" : "s")}"
             : null;
-        return string.Join(" · ", new[] { payer, detail }.Where(x => !string.IsNullOrWhiteSpace(x))) is { Length: > 0 } text ? text : "Confirmed on review";
     }
     private string ProblemName(CollectionSessionProblem problem) => problem.ClientItemId is { } id && _items.FirstOrDefault(x => x.ClientItemId == id) is { } item ? Name(item) + ": " : "";
     private string CollectionName(CollectionSessionCollection collection) => string.Join(", ", collection.ClientItemIds.Select(id => _items.FirstOrDefault(x => x.ClientItemId == id)).Where(x => x is not null).Select(x => Name(x!)));
