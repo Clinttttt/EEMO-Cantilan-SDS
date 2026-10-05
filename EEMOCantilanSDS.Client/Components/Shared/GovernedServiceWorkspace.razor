@@ -176,7 +176,7 @@
                         else if (_basis == GovernedServiceBasis.DirectApprovedAmount)
                         {
                             <div class="avm-group">
-                                <label class="avm-label" for="@($"{_formId}-ceiling")">Ceiling per transaction (₱, optional)</label>
+                                <label class="avm-label" for="@($"{_formId}-ceiling")">Maximum per transaction (₱, optional)</label>
                                 <input id="@($"{_formId}-ceiling")" class="avm-input" type="number" min="0.01" step="0.01" @bind="_ceiling" />
                             </div>
                         }
