@@ -55,12 +55,31 @@
         grid-template-columns: minmax(0, 1fr);
     }
 }
-.obw-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 0; padding: 12px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); box-shadow: var(--elevation-1); }
-.obw-toolbar > input { flex: 1 1 220px; width: auto; min-width: 160px; }
 .obw-status { display: inline-flex; padding: 3px 8px; border: 1px solid var(--border); border-radius: 20px; font-size: 11px; color: var(--text-secondary); }
 
 .obw-collect {
     display: flex;
     justify-content: flex-end;
     padding: 10px 16px 14px;
+}
+
+/* Toolbar links: the same size and rhythm as the shared Toolbar's own actions, so this row matches TCC. */
+.obw-actions-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.obw-actions-bar .btn-outline,
+.obw-actions-bar .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
 }

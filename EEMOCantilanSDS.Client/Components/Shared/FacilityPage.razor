@@ -33,47 +33,11 @@
 </header>
 
 <div class="content-area">
-            <div class="tcc-hero">
-                <div class="tcc-hero-left">
-                    <div class="tcc-hero-icon">
-                        @* The facility's own mark, in navy ink on the V3 light band. Rendered here rather than
-                           by each facility page so a new page cannot forget it; the page's FacilityIcon
-                           remains the fallback for facilities without dedicated artwork. *@
-                        <FacilityMark Code="FacilityCodeEnum" Ink="FacilityMarkInk.White" Size="24">
-                            <Fallback>@FacilityIcon</Fallback>
-                        </FacilityMark>
-                    </div>
-                    <div>
-                        <div class="tcc-hero-eyebrow">Facility · @Facilities.ShortNameOf(FacilityCodeEnum)</div>
-                        <div class="tcc-hero-title">@Facilities.NameOf(FacilityCodeEnum)</div>
-                        <div class="tcc-hero-sub">Municipality of @Branding.Municipality, @Branding.Province</div>
-                    </div>
-                </div>
-                <div class="tcc-hero-stats">
-                    <div class="tcc-hero-stat">
-                        <div class="tcc-hero-val">@(_summary is null ? "—" : $"₱{_summary.TotalRevenue:N0}")</div>
-                        <div class="tcc-hero-key">Collected</div>
-                    </div>
-                    <div class="tcc-hero-divider"></div>
-                    <div class="tcc-hero-stat">
-                        <div class="tcc-hero-val">@(_summary is null ? "—" : $"₱{_summary.PendingPaymentAmount:N0}")</div>
-                        <div class="tcc-hero-key">Pending</div>
-                    </div>
-                    <div class="tcc-hero-divider"></div>
-                    <div class="tcc-hero-stat">
-                        <div class="tcc-hero-val">@(_summary is null ? "—" : $"{_summary.CollectionRate:N0}%")</div>
-                        <div class="tcc-hero-key">Collection Rate</div>
-                    </div>
-                    <div class="tcc-hero-divider"></div>
-                    <div class="tcc-hero-stat">
-                        <div class="tcc-hero-val">@(_summary?.TotalStalls.ToString() ?? "—")</div>
-                        <div class="tcc-hero-key">Total @(SpaceWord)s</div>
-                    </div>
-                </div>
-                <div class="tcc-hero-progress">
-                    <div class="tcc-hero-progress-fill" style="width:@CollectionRate%"></div>
-                </div>
-            </div>
+            <FacilityHero Code="FacilityCodeEnum"
+                          Icon="@FacilityIcon"
+                          Stats="@HeroStats"
+                          ShowProgress="true"
+                          ProgressPercentage="@CollectionRate" />
 
             <Toolbar SearchQuery="@SearchQuery"
                      OnSearch="OnSearchInput"
@@ -310,6 +274,13 @@
         .Sum(s => IsPartialSelector(s) ? PartialAmountSelector(s) : MonthlyRateSelector(s));
     private decimal TotalPending => ActiveStalls.Where(s => !IsPaidSelector(s))
         .Sum(s => MonthlyRateSelector(s) - (IsPartialSelector(s) ? PartialAmountSelector(s) : 0));
+    private List<FacilityHero.HeroStat> HeroStats => new()
+    {
+        new() { Value = _summary is null ? "—" : $"₱{_summary.TotalRevenue:N0}", Label = "Collected" },
+        new() { Value = _summary is null ? "—" : $"₱{_summary.PendingPaymentAmount:N0}", Label = "Pending" },
+        new() { Value = _summary is null ? "—" : $"{_summary.CollectionRate:N0}%", Label = "Collection Rate" },
+        new() { Value = _summary?.TotalStalls.ToString() ?? "—", Label = $"Total {SpaceWord}s" }
+    };
     private int CollectionRate => ActiveStallsCount > 0 ? (int)((double)ActiveStalls.Count(IsPaidSelector) / ActiveStallsCount * 100) : 0;
 
     private IEnumerable<TStall> FilteredStalls => Stalls.Where(s =>

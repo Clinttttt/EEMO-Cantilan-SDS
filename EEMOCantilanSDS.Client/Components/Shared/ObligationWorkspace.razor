@@ -13,31 +13,22 @@
    balance is only what canonical allocations say. *@
 @if (SpaceExperience)
 {
-    <FacilityHero Title="@Name" Eyebrow="@(Kind == ObligationKind.FiestaArawLotRental ? "Event lot rental" : "Space rental")" Stats="SpaceStats">
+    <FacilityHero Title="@Name" Eyebrow="@(Kind == ObligationKind.FiestaArawLotRental ? "OPERATION · EVENT LOT RENTAL" : "OPERATION · SPACE RENTAL")" Stats="SpaceStats" ShowProgress="true" ProgressPercentage="@CollectionRate">
         <Icon><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></svg></Icon>
     </FacilityHero>
-    <div class="obw-toolbar">
-        <input class="v3-input" type="search" aria-label="Search spaces or occupants" placeholder="@($"Search {SubjectNoun.ToLowerInvariant()} no. or occupant")" @bind="_search" @bind:event="oninput" />
-        <div class="v3-btn-group" role="group" aria-label="Account status">
-            @foreach (var status in new[] { "All", "Paid", "Partial", "Unpaid", "Closed" })
-            {
-                <button class="v3-btn @(_filter == status ? "v3-btn-primary" : "")" type="button" aria-pressed="@(_filter == status ? "true" : "false")" @onclick="() => _filter = status">@status</button>
-            }
-        </div>
-        <button class="v3-btn" type="button" @onclick="() => _holders = true">@(SubjectNoun == "Lot" ? "Lot / Space Holder List" : "Space Holder List")</button>
-        <button class="v3-btn" type="button" @onclick="() => _holders = false">Manage Space Holders</button>
-        <a class="v3-btn" href="@ReportsHref">Reports</a>
-        <AuthorizeView Roles="SuperAdmin"><Authorized>
-            <button class="v3-btn" type="button" @onclick="() => _importing = !_importing">Import list</button>
-            <button class="v3-btn v3-btn-primary" type="button" @onclick="OpenForm">+ Add New</button>
-        </Authorized></AuthorizeView>
-    </div>
+    <Toolbar SearchQuery="@_search"
+             OnSearch="v => _search = v"
+             ActiveFilter="@_filter"
+             OnFilterChanged="v => _filter = v"
+             Filters="@StatusFilters"
+             SearchPlaceholder="@($"Search {SubjectNoun.ToLowerInvariant()} no. or occupant…")"
+             MiddleContent="@ActionBarContent" />
     @if (_importing) { <SpaceHolderImport Kind="Kind" OnImported="LoadAsync" /> }
 }
 <div class="obw-layout">
     <section class="v3-panel" aria-labelledby="@_accountsTitleId" aria-busy="@(_loading ? "true" : "false")">
         <header class="v3-panel-header">
-            <h2 id="@_accountsTitleId">@(SpaceExperience ? (_holders ? "Space holders" : $"All {SubjectNoun.ToLowerInvariant()}s") : $"{Name} accounts")</h2>
+            <h2 id="@_accountsTitleId">@(SpaceExperience ? (_holders ? "Space Holders" : $"All {SubjectNoun}s") : $"{Name} accounts")</h2>
             <AuthorizeView Roles="SuperAdmin">
                 <Authorized>
                     @if (!_opening && !SpaceExperience)
@@ -91,6 +82,10 @@
                             <td class="obw-actions">
                                 <button class="v3-btn v3-btn-sm" type="button" aria-expanded="@(_selected == account.Id ? "true" : "false")"
                                         @onclick="() => ToggleRegisterAsync(account.Id)">Periods</button>
+                                @if (account.ActiveTo is null && account.OutstandingToDate > 0m)
+                                {
+                                    <a class="v3-btn v3-btn-sm" href="@CollectHref(account)">Collect</a>
+                                }
                                 <AuthorizeView Roles="SuperAdmin">
                                     <Authorized>
                                         @if (account.Kind != ObligationKind.FiestaArawLotRental && account.ActiveTo is null)
@@ -163,7 +158,10 @@
                 }
             </table>
         </div>
-        <div class="obw-collect"><a class="v3-btn v3-btn-sm" href="/collections/current">Record a collection</a></div>
+        @if (_accounts.Count > 0)
+        {
+            <div class="obw-collect"><a class="v3-btn v3-btn-sm" href="/collections/current">Record a collection</a></div>
+        }
     </section>
 
     <AuthorizeView Roles="SuperAdmin">
@@ -297,9 +295,22 @@
     private ObligationWorkspaceDto? _workspace;
     private string _search = string.Empty, _filter = "All";
     private bool _holders, _importing;
+    private static string CollectHref(ObligationAccountDto account) =>
+        $"/collections/current?payor={account.PayorId}&name={Uri.EscapeDataString(account.PayerName ?? string.Empty)}";
+    private static readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
+    private double CollectionRate => _workspace is { Assessed: > 0m } w ? (double)Math.Min(100m, Math.Round(w.Collected / w.Assessed * 100m, 0)) : 0;
+    private RenderFragment ActionBarContent => @<div class="obw-actions-bar">
+        <button class="btn-outline" type="button" @onclick="() => _holders = true">@(SubjectNoun == "Lot" ? "Lot / Space Holder List" : "Space Holder List")</button>
+        <button class="btn-outline" type="button" @onclick="() => _holders = false">Manage Space Holders</button>
+        <a class="btn-outline" href="@ReportsHref">Reports</a>
+        <AuthorizeView Roles="SuperAdmin"><Authorized>
+            <button class="btn-outline" type="button" @onclick="() => _importing = !_importing">Import list</button>
+            <button class="btn-primary" type="button" @onclick="OpenForm">+ Add New</button>
+        </Authorized></AuthorizeView>
+    </div>;
     private List<FacilityHero.HeroStat> SpaceStats => [
-        new() { Label = "Collected · to date", Value = _workspace is null ? "—" : Money(_workspace.Collected) },
-        new() { Label = "Remaining · to date", Value = _workspace is null ? "—" : Money(_workspace.Outstanding) },
+        new() { Label = "Collected", Value = _workspace is null ? "—" : Money(_workspace.Collected) },
+        new() { Label = "Remaining", Value = _workspace is null ? "—" : Money(_workspace.Outstanding) },
         new() { Label = $"Total {SubjectNoun.ToLowerInvariant()}s", Value = _accounts.Count.ToString(CultureInfo.InvariantCulture) }];
     private IEnumerable<ObligationAccountDto> VisibleAccounts => _accounts.Where(a =>
         (!SpaceExperience || (_filter == "Closed" ? a.ActiveTo is not null : a.ActiveTo is null))
