@@ -150,3 +150,9 @@
     font-size: 0.75rem;
     white-space: nowrap;
 }
+
+@media print {
+    .rm-page ::deep .v3-btn {
+        display: none;
+    }
+}

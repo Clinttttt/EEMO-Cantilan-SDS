@@ -472,3 +472,11 @@
 .rm-collections tbody tr:has(input:checked) {
     background: var(--accent-soft, #eef4ff);
 }
+
+/* Paper carries figures, not controls. */
+@media print {
+    .rm-page ::deep .v3-btn,
+    .rm-page ::deep .v3-btn-sm {
+        display: none;
+    }
+}

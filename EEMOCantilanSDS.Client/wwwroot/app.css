@@ -3745,3 +3745,20 @@ h1[tabindex="-1"]:focus {
         display: none;
     }
 }
+
+/* The active button in a segmented group keeps its white-on-blue label (the group's own colour rule would turn it blue). */
+.v3-btn-group > .v3-btn.v3-btn-primary,
+.v3-btn-group > .v3-btn.v3-btn-primary:hover {
+    background: var(--accent);
+    color: var(--surface);
+}
+
+/* Paper carries the report, not the screen's period controls. The facility report pages hide their own tab strip, but the shared
+   period navigator renders inside a child component and was printing on a page of its own. */
+@media print {
+    .rpt-topbar,
+    .rpt-period-bar,
+    .rpt-date-nav {
+        display: none !important;
+    }
+}
