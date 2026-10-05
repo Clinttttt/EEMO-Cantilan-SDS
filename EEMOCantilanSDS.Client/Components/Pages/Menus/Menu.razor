@@ -48,7 +48,7 @@
                 <Figures>
                     <V3HeroFigure Label="Collected" Value="@($"₱{TotalCollected:N0}")" Note="@_now.ToString("MMMM yyyy")" />
                     <V3HeroFigure Label="Outstanding" Value="@($"₱{TotalPending:N0}")" Note="@($"{UnpaidCount} accounts")" />
-                    <V3HeroFigure Label="Payments" Value="@PaidCount.ToString()" Note="@($"{ActiveFacilitiesCount} operations")" />
+                    <V3HeroFigure Label="Payments" Value="@PaidCount.ToString()" Note="@($"{ActiveFacilitiesCount} operation{(ActiveFacilitiesCount == 1 ? "" : "s")}")" />
                     <V3HeroFigure Label="Collection rate" Value="@($"{CollectionRate}%")" Note="@($"{TotalCollectors} active collectors")" />
                 </Figures>
             </V3Hero>

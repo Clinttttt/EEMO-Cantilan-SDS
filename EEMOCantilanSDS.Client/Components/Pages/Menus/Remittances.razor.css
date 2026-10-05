@@ -418,7 +418,7 @@
     white-space: nowrap;
 }
 
-.rm-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 20px 24px; border: 1px solid #244d79; border-radius: 12px; background: var(--civic-panel, #173b64); color: white; }
+.rm-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 16px 24px; border: 1px solid #244d79; border-radius: 12px; background: var(--civic-panel, #173b64); color: white; }
 .rm-header h1 { margin: 0; color: white; font-size: 1.5rem; font-weight: 700; letter-spacing: -.025em; }
 .rm-header p { margin: 5px 0 0; color: #dce8f5; font-size: .8125rem; }
 .rm-back { display: inline-block; margin-bottom: 8px; color: #dce8f5; font-size: .75rem; }
@@ -459,7 +459,7 @@
 
 /* Filters: predictable widths, so the row reads as one intentional toolbar rather than uneven gaps. */
 .rm-filters .v3-field {
-    flex: 0 1 168px;
+    flex: 0 0 176px;
     min-width: 140px;
 }
 

@@ -13,7 +13,9 @@
    balance is only what canonical allocations say. *@
 @if (SpaceExperience)
 {
-    <FacilityHero Title="@Name" Eyebrow="@(Kind == ObligationKind.FiestaArawLotRental ? "Event lot rental" : "Space rental")" Stats="SpaceStats" />
+    <FacilityHero Title="@Name" Eyebrow="@(Kind == ObligationKind.FiestaArawLotRental ? "Event lot rental" : "Space rental")" Stats="SpaceStats">
+        <Icon><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></svg></Icon>
+    </FacilityHero>
     <div class="obw-toolbar">
         <input class="v3-input" type="search" aria-label="Search spaces or occupants" placeholder="@($"Search {SubjectNoun.ToLowerInvariant()} no. or occupant")" @bind="_search" @bind:event="oninput" />
         <div class="v3-btn-group" role="group" aria-label="Account status">

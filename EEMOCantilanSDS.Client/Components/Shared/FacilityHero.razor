@@ -68,7 +68,7 @@
     public string Title { get; set; } = string.Empty;
 
     private string EffectiveEyebrow =>
-        Code is { } c ? $"FACILITY · {FacilityCatalog.ShortNameOf(c)}" : Eyebrow;
+        Code is { } c ? $"OPERATION · {FacilityCatalog.ShortNameOf(c)}" : Eyebrow;
 
     private string EffectiveTitle =>
         Code is { } c ? FacilityCatalog.NameOf(c) : Title;
