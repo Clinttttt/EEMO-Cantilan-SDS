@@ -17,6 +17,27 @@ public sealed partial class CollectionComposerWorkflow
 {
     private const string MobileEcfOrigin = "MobileEcf";
 
+    /// <summary>Bounded, read-only source quote for a checkout; no draft, assessment or Collection is created.</summary>
+    public async Task<Result<EcfObligationQuoteDto>> QuoteMobileEcfAsync(Guid billId, DateOnly date, CancellationToken ct = default)
+    {
+        if (!currentUser.IsAuthenticated || currentUser.Role != "Collector" || currentUser.CollectorId is not { } collectorId)
+            return Result<EcfObligationQuoteDto>.Forbidden();
+        var tenantId = municipality.MunicipalityId;
+        if (tenantId == Guid.Empty || currentUser.MunicipalityId is { } claimed && claimed != tenantId)
+            return Result<EcfObligationQuoteDto>.Forbidden();
+        if (!await db.CollectorUsers.AsNoTracking().AnyAsync(x => x.MunicipalityId == tenantId && x.Id == collectorId
+            && x.IsActive && x.FacilityAssignments.Any(a => a.FacilityCode == FacilityCode.NPM), ct))
+            return Result<EcfObligationQuoteDto>.Forbidden();
+        var bill = await UtilityBillQuery(tenantId, tracked: false).SingleOrDefaultAsync(x => x.Id == billId, ct);
+        if (bill is null) return Result<EcfObligationQuoteDto>.NotFound();
+        try
+        {
+            var policy = await ResolveEcfPolicyAsync(tenantId, date, ct);
+            return Result<EcfObligationQuoteDto>.Success((await BuildFactsAsync(bill, policy, tenantId, date, ct)).Quote);
+        }
+        catch (WorkflowProblem) { return Result<EcfObligationQuoteDto>.Failure("This electricity bill needs office review.", ResultStatus.Conflict); }
+    }
+
     public async Task<Result<EcfPostOutcomeDto>> PostMobileEcfAsync(MobileEcfPostRequest request, CancellationToken ct = default)
     {
         if (!currentUser.IsAuthenticated || currentUser.Role != "Collector" || currentUser.CollectorId is not { } collectorId

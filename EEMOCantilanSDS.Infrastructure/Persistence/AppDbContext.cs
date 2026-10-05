@@ -96,6 +96,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         public DbSet<WebCollectionDraftLine> WebCollectionDraftLines { get; set; }
         public DbSet<WebCollectionDraftAllocation> WebCollectionDraftAllocations { get; set; }
         public DbSet<PostingOperation> PostingOperations { get; set; }
+        public DbSet<MobileCollectionSession> MobileCollectionSessions { get; set; }
         public DbSet<CollectionSettlementCutover> CollectionSettlementCutovers { get; set; }
         public DbSet<AccountableFormBook> AccountableFormBooks { get; set; }
         public DbSet<AccountableDocument> AccountableDocuments { get; set; }

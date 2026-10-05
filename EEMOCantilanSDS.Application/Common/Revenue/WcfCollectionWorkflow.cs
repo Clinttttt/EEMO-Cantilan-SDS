@@ -164,7 +164,8 @@ public sealed class WcfCollectionWorkflow(
     /// office-prepared amount to collect against, settled, or needing the office (legacy settlement or migration).
     /// </summary>
     public Task<Result<IReadOnlyList<WcfMobileSourceDto>>> GetMobileSourcesAsync(
-        int billingYear, int billingMonth, CancellationToken ct = default) => Run(async actor =>
+        int billingYear, int billingMonth, CancellationToken ct = default, Guid? selectedStallId = null, DateOnly? businessDate = null,
+        Guid? selectedPayorId = null) => Run(async actor =>
     {
         if (actor.Role == "Collector"
             && !await CollectorHasOperationAssignmentAsync(actor.TenantId, actor.UserId, CollectorOperationCodes.Wcf, ct))
@@ -173,11 +174,13 @@ public sealed class WcfCollectionWorkflow(
             return Result<IReadOnlyList<WcfMobileSourceDto>>.Failure("A valid billing year and month are required.", ResultStatus.Invalid);
 
         var active = await IsWcfActiveAsync(actor.TenantId, ct);
-        var policy = await ResolvePolicyAsync(actor.TenantId, BusinessToday, ct);
+        var policy = await ResolvePolicyAsync(actor.TenantId, (businessDate ?? BusinessToday), ct);
         var stalls = await db.Stalls.AsNoTracking()
             .Include(x => x.Facility)
             .Include(x => x.Contracts).ThenInclude(x => x.Payor)
-            .Where(x => x.MunicipalityId == actor.TenantId && x.Facility!.Code == FacilityCode.NPM)
+            .Where(x => x.MunicipalityId == actor.TenantId && x.Facility!.Code == FacilityCode.NPM
+                && (!selectedStallId.HasValue || x.Id == selectedStallId.Value)
+                && (!selectedPayorId.HasValue || x.Contracts.Any(c => c.PayorId == selectedPayorId.Value)))
             .OrderBy(x => x.StallNo)
             .ToListAsync(ct);
         var stallIds = stalls.Select(x => x.Id).ToArray();
@@ -189,7 +192,7 @@ public sealed class WcfCollectionWorkflow(
         var rows = new List<WcfMobileSourceDto>();
         foreach (var stall in stalls)
         {
-            var contract = stall.OccupancyAnsweringForMonth(billingYear, billingMonth, BusinessToday)?.Contract;
+            var contract = stall.OccupancyAnsweringForMonth(billingYear, billingMonth, (businessDate ?? BusinessToday))?.Contract;
             if (contract is null) continue;
             var payorId = contract.PayorId is not null && contract.Payor?.MunicipalityId == actor.TenantId ? contract.PayorId : null;
             var payer = payorId is not null ? contract.Payor!.DisplayName
@@ -209,7 +212,7 @@ public sealed class WcfCollectionWorkflow(
             }
             else if (bill.WaterSettlementAuthorityState == SettlementAuthority.Canonical)
             {
-                var facts = await BuildFactsAsync(bill, policy, actor.TenantId, BusinessToday, ct);
+                var facts = await BuildFactsAsync(bill, policy, actor.TenantId, (businessDate ?? BusinessToday), ct);
                 prepared = bill.WaterCharge;
                 settled = facts.Quote.CumulativeSettledEvidence;
                 outstanding = facts.Quote.OutstandingAmount;
@@ -242,6 +245,7 @@ public sealed class WcfCollectionWorkflow(
 
     /// <summary>The system safety bound on one Water amount; not a rate and not a business ceiling.</summary>
     private const decimal MaxDirectAmount = 1_000_000m;
+    public static decimal MaximumDirectCollectionAmount => MaxDirectAmount;
 
     /// <summary>
     /// Establishes the Water amount a collector states for an eligible source and the current billing period (WCF direct

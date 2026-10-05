@@ -62,6 +62,8 @@ namespace EEMOCantilanSDS.Infrastructure
                 options.AddInterceptors(sp.GetRequiredService<MunicipalityStampInterceptor>());
             });
             service.AddScoped<IAppDbContext, AppDbContext>();
+            service.AddScoped<ICollectionSessionStore, Repositories.Revenue.CollectionSessionStore>();
+            service.AddScoped<ICollectionSessionSources, Repositories.Revenue.CollectionSessionSources>();
             service.AddScoped<IUnitOfWork, UnitOfWork>();
             // The NPM daily handlers work through the repositories, which hold THIS scoped AppDbContext. IAppDbContext above is a
             // second instance in the same scope, so a workflow given that one would post the Collection in one context while the
