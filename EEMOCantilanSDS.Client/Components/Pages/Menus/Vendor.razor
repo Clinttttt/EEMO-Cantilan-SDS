@@ -326,310 +326,204 @@
 @if (ShowDetail && DetailVendor is not null)
 {
     <div class="eemo-modal-overlay" @onclick="() => ShowDetail = false">
-        <div class="eemo-modal eemo-modal-wide detail-modal" @onclick:stopPropagation="true">
+        <div class="eemo-modal eemo-modal-wide detail-modal" role="dialog" aria-modal="true" aria-labelledby="dv-title" @onclick:stopPropagation="true">
 
-            <!-- Header -->
-            <div class="detail-header">
-                <div class="detail-header-left">
-                    <div class="detail-avatar">@(DetailVendor.ActualOccupant.Length > 0 ? DetailVendor.ActualOccupant[0].ToString().ToUpper() : "?")</div>
-                    <div>
-                        <div class="detail-name">@DetailVendor.ActualOccupant</div>
-                        <div class="detail-meta">
-                            @* Omitted with its separator for a space the office does not number. *@
-                            @if (!SpaceNumber.IsSpace(DetailVendor.StallNo))
-                            {
-                                <span>@SpaceNumber.Describe(DetailVendor.StallNo)</span>
-                                <span class="detail-sep">·</span>
-                            }
-                            <span>@DetailVendor.FacilityCode</span>
-                            <span class="detail-sep">·</span>
-                            <span>@DetailVendor.Section</span>
-                            <span class="detail-sep">·</span>
-                            <span class="status-pill @(DetailVendor.IsActive ? "pill-active" : "pill-inactive")">
-                                @(DetailVendor.IsActive ? "Active" : "Closed")
-                            </span>
-                        </div>
+            <header class="dv-header">
+                <div>
+                    <h2 class="dv-title" id="dv-title">@DetailVendor.ActualOccupant</h2>
+                    <div class="dv-context">
+                        @* Omitted with its separator for a space the office does not number. *@
+                        @if (!SpaceNumber.IsSpace(DetailVendor.StallNo))
+                        {
+                            <span>@SpaceNumber.Describe(DetailVendor.StallNo)</span>
+                            <span aria-hidden="true">·</span>
+                        }
+                        <span>@DetailVendor.FacilityCode</span>
+                        <span aria-hidden="true">·</span>
+                        <span>@DetailVendor.Section</span>
+                        <span class="status-pill @(DetailVendor.IsActive ? "pill-active" : "pill-inactive")">@(DetailVendor.IsActive ? "Active" : "Closed")</span>
                     </div>
                 </div>
-                <button class="eemo-modal-close" @onclick="() => ShowDetail = false">
-                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                <button type="button" class="dv-close" aria-label="Close" @onclick="() => ShowDetail = false">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
-            </div>
+            </header>
 
             <div class="eemo-modal-body detail-body">
 
-                <!-- Top Stats Row -->
-                <div class="detail-stats-row">
-                    @if (DetailVendor.FacilityCode == "NPM")
-                    {
-                        <div class="detail-stat-card">
-                            <div class="detail-stat-icon ds-icon-gold">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h7a4 4 0 0 1 0 8H6z" /><line x1="4" y1="9" x2="16" y2="9" /><line x1="4" y1="13" x2="16" y2="13" /><line x1="6" y1="4" x2="6" y2="20" /></svg>
-                            </div>
-                            <div>
-                                <div class="detail-stat-val">₱@((DetailVendor.ResolvedDailyFee is { } fee && fee > 0m ? fee : _npmDailyRate).ToString("0")) / day</div>
-                                <div class="detail-stat-key">Daily Fee Rate</div>
-                            </div>
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="detail-stat-card">
-                            <div class="detail-stat-icon ds-icon-gold">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h7a4 4 0 0 1 0 8H6z" /><line x1="4" y1="9" x2="16" y2="9" /><line x1="4" y1="13" x2="16" y2="13" /><line x1="6" y1="4" x2="6" y2="20" /></svg>
-                            </div>
-                            <div>
-                                <div class="detail-stat-val">₱@DetailVendor.MonthlyRate.ToString("N0")</div>
-                                <div class="detail-stat-key">Monthly Rental</div>
-                            </div>
-                        </div>
-                    }
-                    <div class="detail-stat-card">
-                        <div class="detail-stat-icon ds-icon-navy">
-                            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                        </div>
-                        <div>
-                            <div class="detail-stat-val">
-                                @if (DetailVendor.ContractDate.HasValue)
-                                {
-                                    @DetailVendor.ContractDate.Value.ToString("MMM d, yyyy")
-                                }
-                                else
-                                {
-                                    <span style="color:var(--text-muted);font-size:13px">No Contract</span>
-                                }
-                            </div>
-                            <div class="detail-stat-key">Contract Date</div>
-                        </div>
-                    </div>
-                    <div class="detail-stat-card">
-                        <div class="detail-stat-icon ds-icon-gold">
-                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                        </div>
-                        <div>
-                            <div class="detail-stat-val">
-                                @if (DetailVendor.FacilityCode == "NPM")
-                                {
-                                    <span class="status-pill pill-daily" title="Collected daily — see calendar below" style="font-size:11px;padding:4px 12px;">Daily Collection</span>
-                                }
-                                else
-                                {
-                                    <span class="status-pill @(DetailVendor.IsPaidThisMonth ? "pill-paid" : DetailVendor.IsPartialThisMonth ? "pill-partial" : "pill-unpaid")" style="font-size:11px;padding:4px 12px;">
-                                        @(DetailVendor.IsPaidThisMonth ? "Rental Paid" : DetailVendor.IsPartialThisMonth ? "Partial" : "Unpaid")
-                                    </span>
-                                }
-                            </div>
-                            <div class="detail-stat-key">@_now.ToString("MMMM yyyy")</div>
-                        </div>
-                    </div>
-                    <div class="detail-stat-card">
-                        <div class="detail-stat-icon ds-icon-gold">
-                            <svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" /></svg>
-                        </div>
-                        <div>
-                            <div class="detail-stat-val">@(DetailVendor.AreaSqm > 0 ? $"{DetailVendor.AreaSqm:0.##} sq.m" : "—")</div>
-                            <div class="detail-stat-key">Stall Area</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Two-column info layout -->
-                <div class="detail-two-col">
-
-                    <!-- LEFT: Vendor Info -->
-                    <div class="detail-section">
-                        <div class="detail-section-title">
-                            <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-                            Occupant &amp; Contract Information
-                        </div>
-                        <div class="detail-info-grid">
-                            <div class="detail-info-row">
-                                <span class="detail-info-key">Actual Occupant</span>
-                                <span class="detail-info-val">@DetailVendor.ActualOccupant</span>
-                            </div>
-                            <div class="detail-info-row">
-                                <span class="detail-info-key">Name on Contract</span>
-                                <span class="detail-info-val">
-                                    @if (string.IsNullOrEmpty(DetailVendor.ContractName) || DetailVendor.ContractName == "No contract")
-                                    {
-                                        <span class="no-contract">No contract</span>
-                                    }
-                                    else
-                                    {
-                                        @DetailVendor.ContractName
-                                    }
-                                </span>
-                            </div>
-                            <div class="detail-info-row">
-                                <span class="detail-info-key">Facility</span>
-                                <span class="detail-info-val">@ActiveFacilityTab.Name</span>
-                            </div>
-                            <div class="detail-info-row">
-                                <span class="detail-info-key">Section / Area</span>
-                                <span class="detail-info-val"><span class="section-tag">@DetailVendor.Section</span></span>
-                            </div>
-                            <div class="detail-info-row">
-                                <span class="detail-info-key">Contract Duration</span>
-                                <span class="detail-info-val">
-                                    @if (!DetailVendor.HasSignedContract || DetailVendor.ContractYears == 0)
-                                    {
-                                        <span class="no-contract">@(DetailVendor.Arrangement == Domain.Enums.OccupancyArrangement.Extension ? "No contract (extension)" : "No contract")</span>
-                                    }
-                                    else
-                                    {
-                                        @($"{DetailVendor.ContractYears} year{(DetailVendor.ContractYears > 1 ? "s" : "")}")
-                                        @if (DetailVendor.ContractDate.HasValue)
-                                        {
-                                            var expiry = DomainRules.TermLastDay(DetailVendor.ContractDate.Value, DetailVendor.ContractYears);
-                                            <span class="detail-expiry @(expiry < _now ? "expiry-expired" : "expiry-ok")">
-                                                (expires @expiry.ToString("MMM d, yyyy"))
-                                            </span>
-                                        }
-                                    }
-                                </span>
-                            </div>
-                            @if (!string.IsNullOrEmpty(DetailVendor.AreaLocation))
-                            {
-                                <div class="detail-info-row">
-                                    <span class="detail-info-key">Area Note</span>
-                                    <span class="detail-info-val">@DetailVendor.AreaLocation</span>
-                                </div>
-                            }
-                        </div>
-                    </div>
-
-                    <!-- RIGHT: Fee Structure — Fish & Meat now separate -->
-                    <div class="detail-section">
-                        <div class="detail-section-title">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h7a4 4 0 0 1 0 8H6z" /><line x1="4" y1="9" x2="16" y2="9" /><line x1="4" y1="13" x2="16" y2="13" /><line x1="6" y1="4" x2="6" y2="20" /></svg>
-                            Fee Structure
-                        </div>
-
-                        @{
-                            bool hasVegDaily = DetailVendor.FacilityCode == "NPM" &&
-                                                  DetailVendor.SectionKey == "VegetableArea";
-                            bool hasFishSection = DetailVendor.FacilityCode == "NPM" &&
-                                                  DetailVendor.SectionKey == "FishSection";
-                            bool hasMeatSection = DetailVendor.FacilityCode == "NPM" &&
-                                                  DetailVendor.SectionKey == "MeatSection";
-                            bool hasFishPerKg = HasSectionFee(DetailVendor.FeeTypes);
+                <dl class="dv-summary">
+                    <div class="dv-summary-item">
+                        <dt>@(DetailVendor.FacilityCode == "NPM" ? "Daily fee" : "Monthly rental")</dt>
+                        @if (DetailVendor.FacilityCode == "NPM")
+                        {
+                            <dd>₱@((DetailVendor.ResolvedDailyFee is { } fee && fee > 0m ? fee : _npmDailyRate).ToString("0")) / day</dd>
                         }
+                        else
+                        {
+                            <dd>₱@DetailVendor.MonthlyRate.ToString("N0")</dd>
+                        }
+                    </div>
+                    <div class="dv-summary-item">
+                        <dt>Contract date</dt>
+                        <dd>
+                            @if (DetailVendor.ContractDate.HasValue)
+                            {
+                                @DetailVendor.ContractDate.Value.ToString("MMM d, yyyy")
+                            }
+                            else
+                            {
+                                <span class="dv-muted">No contract</span>
+                            }
+                        </dd>
+                    </div>
+                    <div class="dv-summary-item">
+                        <dt>@_now.ToString("MMMM yyyy")</dt>
+                        <dd>
+                            @if (DetailVendor.FacilityCode == "NPM")
+                            {
+                                <span class="status-pill pill-daily" title="Collected daily — see calendar below">Daily collection</span>
+                            }
+                            else
+                            {
+                                <span class="status-pill @(DetailVendor.IsPaidThisMonth ? "pill-paid" : DetailVendor.IsPartialThisMonth ? "pill-partial" : "pill-unpaid")">
+                                    @(DetailVendor.IsPaidThisMonth ? "Rental paid" : DetailVendor.IsPartialThisMonth ? "Partial" : "Unpaid")
+                                </span>
+                            }
+                        </dd>
+                    </div>
+                    @if (DetailVendor.AreaSqm > 0)
+                    {
+                        <div class="dv-summary-item">
+                            <dt>Area</dt>
+                            <dd>@($"{DetailVendor.AreaSqm:0.##} sq.m")</dd>
+                        </div>
+                    }
+                </dl>
 
+                <section class="dv-section" aria-labelledby="dv-occupant-title">
+                    <h3 class="dv-section-title" id="dv-occupant-title">Occupant &amp; contract</h3>
+                    <dl class="dv-kv">
+                        <div class="dv-kv-row">
+                            <dt class="dv-kv-key">Actual occupant</dt>
+                            <dd class="dv-kv-val">@DetailVendor.ActualOccupant</dd>
+                        </div>
+                        <div class="dv-kv-row">
+                            <dt class="dv-kv-key">Name on contract</dt>
+                            <dd class="dv-kv-val">
+                                @if (string.IsNullOrEmpty(DetailVendor.ContractName) || DetailVendor.ContractName == "No contract")
+                                {
+                                    <span class="dv-muted">No contract</span>
+                                }
+                                else
+                                {
+                                    @DetailVendor.ContractName
+                                }
+                            </dd>
+                        </div>
+                        <div class="dv-kv-row">
+                            <dt class="dv-kv-key">Facility</dt>
+                            <dd class="dv-kv-val">@ActiveFacilityTab.Name</dd>
+                        </div>
+                        <div class="dv-kv-row">
+                            <dt class="dv-kv-key">Section / area</dt>
+                            <dd class="dv-kv-val">@DetailVendor.Section</dd>
+                        </div>
+                        <div class="dv-kv-row">
+                            <dt class="dv-kv-key">Contract duration</dt>
+                            <dd class="dv-kv-val">
+                                @if (!DetailVendor.HasSignedContract || DetailVendor.ContractYears == 0)
+                                {
+                                    <span class="dv-muted">@(DetailVendor.Arrangement == Domain.Enums.OccupancyArrangement.Extension ? "No contract (extension)" : "No contract")</span>
+                                }
+                                else
+                                {
+                                    @($"{DetailVendor.ContractYears} year{(DetailVendor.ContractYears > 1 ? "s" : "")}")
+                                    @if (DetailVendor.ContractDate.HasValue)
+                                    {
+                                        var expiry = DomainRules.TermLastDay(DetailVendor.ContractDate.Value, DetailVendor.ContractYears);
+                                        <span class="dv-expiry @(expiry < _now ? "dv-expiry-expired" : "dv-expiry-ok")">(expires @expiry.ToString("MMM d, yyyy"))</span>
+                                    }
+                                }
+                            </dd>
+                        </div>
+                        @if (!string.IsNullOrEmpty(DetailVendor.AreaLocation))
+                        {
+                            <div class="dv-kv-row">
+                                <dt class="dv-kv-key">Area note</dt>
+                                <dd class="dv-kv-val">@DetailVendor.AreaLocation</dd>
+                            </div>
+                        }
+                    </dl>
+                </section>
+
+                <section class="dv-section" aria-labelledby="dv-fees-title">
+                    <h3 class="dv-section-title" id="dv-fees-title">Fee structure</h3>
+
+                    @{
+                        bool hasVegDaily = DetailVendor.FacilityCode == "NPM" &&
+                                              DetailVendor.SectionKey == "VegetableArea";
+                        bool hasFishSection = DetailVendor.FacilityCode == "NPM" &&
+                                              DetailVendor.SectionKey == "FishSection";
+                        bool hasMeatSection = DetailVendor.FacilityCode == "NPM" &&
+                                              DetailVendor.SectionKey == "MeatSection";
+                        bool hasFishPerKg = HasSectionFee(DetailVendor.FeeTypes);
+                    }
+
+                    <ul class="dv-fees">
                         @if (DetailVendor.FacilityCode != "NPM")
                         {
-                            <div class="fee-breakdown-item fee-item-daily">
-                                <div class="fee-item-left">
-                                    <div class="fee-item-icon fee-icon-navy">
-                                        <svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" /></svg>
-                                    </div>
-                                    <div>
-                                        <div class="fee-item-name">Monthly Rental</div>
-                                        <div class="fee-item-sub">Space rental · Billed monthly</div>
-                                    </div>
-                                </div>
-                                <div class="fee-item-amount">₱@DetailVendor.MonthlyRate.ToString("N0")<span class="fee-freq">/mo</span></div>
-                            </div>
+                            <li class="dv-fee">
+                                <span class="dv-fee-name">Monthly rental<span class="dv-fee-note">Space rental · Billed monthly</span></span>
+                                <span class="dv-fee-amount">₱@DetailVendor.MonthlyRate.ToString("N0")<span class="dv-fee-unit">/mo</span></span>
+                            </li>
                         }
 
                         @if (hasVegDaily)
                         {
-                            <div class="fee-breakdown-item fee-item-daily">
-                                <div class="fee-item-left">
-                                    <div class="fee-item-icon fee-icon-navy">
-                                        <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 110 20A10 10 0 0112 2z" /><path d="M12 8v8M8 12h8" /></svg>
-                                    </div>
-                                    <div>
-                                        <div class="fee-item-name">Daily Collection</div>
-                                        <div class="fee-item-sub">Vegetable space · Collected daily</div>
-                                    </div>
-                                </div>
-                                <div class="fee-item-amount">₱@(AreaDailyRate(MarketSection.VegetableArea).ToString("0"))<span class="fee-freq">/day</span></div>
-                            </div>
+                            <li class="dv-fee">
+                                <span class="dv-fee-name">Daily collection<span class="dv-fee-note">Vegetable space · Collected daily</span></span>
+                                <span class="dv-fee-amount">₱@(AreaDailyRate(MarketSection.VegetableArea).ToString("0"))<span class="dv-fee-unit">/day</span></span>
+                            </li>
                         }
 
                         @if (hasFishSection)
                         {
-                            <div class="fee-breakdown-item fee-item-daily">
-                                <div class="fee-item-left">
-                                    <div class="fee-item-icon fee-icon-navy">
-                                        <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /><path d="M9 9h.01M15 9h.01M9.5 15a3.5 3.5 0 005 0" /></svg>
-                                    </div>
-                                    <div>
-                                        <div class="fee-item-name">Daily Collection</div>
-                                        <div class="fee-item-sub">Fish space · Collected daily</div>
-                                    </div>
-                                </div>
-                                <div class="fee-item-amount">₱@(AreaDailyRate(MarketSection.FishSection).ToString("0"))<span class="fee-freq">/day</span></div>
-                            </div>
+                            <li class="dv-fee">
+                                <span class="dv-fee-name">Daily collection<span class="dv-fee-note">Fish space · Collected daily</span></span>
+                                <span class="dv-fee-amount">₱@(AreaDailyRate(MarketSection.FishSection).ToString("0"))<span class="dv-fee-unit">/day</span></span>
+                            </li>
                         }
 
                         @if (hasMeatSection)
                         {
-                            <div class="fee-breakdown-item fee-item-daily">
-                                <div class="fee-item-left">
-                                    <div class="fee-item-icon fee-icon-navy">
-                                        <svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" /></svg>
-                                    </div>
-                                    <div>
-                                        <div class="fee-item-name">Daily Collection</div>
-                                        <div class="fee-item-sub">Meat space · Collected daily</div>
-                                    </div>
-                                </div>
-                                <div class="fee-item-amount">₱@(AreaDailyRate(MarketSection.MeatSection).ToString("0"))<span class="fee-freq">/day</span></div>
-                            </div>
+                            <li class="dv-fee">
+                                <span class="dv-fee-name">Daily collection<span class="dv-fee-note">Meat space · Collected daily</span></span>
+                                <span class="dv-fee-amount">₱@(AreaDailyRate(MarketSection.MeatSection).ToString("0"))<span class="dv-fee-unit">/day</span></span>
+                            </li>
                         }
 
                         @if (hasFishPerKg)
                         {
-                            <div class="fee-breakdown-item fee-item-perkg">
-                                <div class="fee-item-left">
-                                    <div class="fee-item-icon fee-icon-gold">
-                                        <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
-                                    </div>
-                                    <div>
-                                        <div class="fee-item-name">Fish Fee (by weight)</div>
-                                        <div class="fee-item-sub">All fish types · Per kilo sold</div>
-                                    </div>
-                                </div>
-                                <div class="fee-item-amount">₱@(_npmFishRate.ToString("0"))<span class="fee-freq">/kg</span></div>
-                            </div>
+                            <li class="dv-fee">
+                                <span class="dv-fee-name">Fish fee (by weight)<span class="dv-fee-note">All fish types · Per kilo sold</span></span>
+                                <span class="dv-fee-amount">₱@(_npmFishRate.ToString("0"))<span class="dv-fee-unit">/kg</span></span>
+                            </li>
                         }
 
                         @foreach (var fee in DetailVendor.FeeTypes.Where(f => !f.Contains("kg")))
                         {
-                            var isElec = fee.Contains("Electricity");
-                            var isWater = fee.Contains("Water");
-                            <div class="fee-breakdown-item fee-item-utility">
-                                <div class="fee-item-left">
-                                    <div class="fee-item-icon fee-icon-utility">
-                                        @if (isElec)
-                                        {
-                                            <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
-                                        }
-                                        else if (isWater)
-                                        {
-                                            <svg viewBox="0 0 24 24"><path d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z" /></svg>
-                                        }
-                                        else
-                                        {
-                                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="16" /></svg>
-                                        }
-                                    </div>
-                                    <div>
-                                        <div class="fee-item-name">@fee</div>
-                                        <div class="fee-item-sub">Utility · Billed monthly</div>
-                                    </div>
-                                </div>
-                                <div class="fee-item-amount fee-amount-variable">Variable</div>
-                            </div>
+                            <li class="dv-fee">
+                                <span class="dv-fee-name">@fee<span class="dv-fee-note">Utility · Billed monthly</span></span>
+                                <span class="dv-fee-amount dv-fee-variable">Variable</span>
+                            </li>
                         }
+                    </ul>
 
-                        @if (!DetailVendor.FeeTypes.Any() && !hasVegDaily && !hasFishSection && !hasMeatSection)
-                        {
-                            <div class="fee-none">No additional fees for this stall.</div>
-                        }
-                    </div>
-                </div>
+                    @if (!DetailVendor.FeeTypes.Any() && !hasVegDaily && !hasFishSection && !hasMeatSection)
+                    {
+                        <div class="dv-none">No additional fees for this stall.</div>
+                    }
+                </section>
 
                 <!-- ----------------------------------
                      DAILY COLLECTION CALENDAR
@@ -680,17 +574,16 @@
 
             </div>
 
-            <div class="eemo-modal-footer">
-                <button class="btn-ghost" @onclick="() => ShowDetail = false">Close</button>
-                <button class="btn-outline modal-icon-button"
+            <footer class="dv-footer">
+                <button type="button" class="btn-ghost" @onclick="() => ShowDetail = false">Close</button>
+                <button type="button" class="btn-outline modal-icon-button"
                         @onclick="() => { ShowDetail = false; OpenHistory(DetailVendor); }">
                     History
                 </button>
-                <button class="btn-primary" @onclick="() => { ShowDetail = false; OpenEdit(DetailVendor); }">
-                    <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                <button type="button" class="btn-primary" @onclick="() => { ShowDetail = false; OpenEdit(DetailVendor); }">
                     Edit Occupant &amp; Space
                 </button>
-            </div>
+            </footer>
         </div>
     </div>
 }

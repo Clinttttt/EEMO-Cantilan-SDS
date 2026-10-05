@@ -52,7 +52,7 @@ public sealed class VendorRegistryTerminologyTests : TestContext
         Assert.Contains("Total spaces", markup);
         Assert.Contains("billable spaces", markup);
         Assert.Contains("Add Occupant &amp; Space", markup);
-        Assert.Contains("Occupant &amp; Contract Information", markup);
+        Assert.Contains("Occupant &amp; contract", markup);
         Assert.Contains("Edit Occupant &amp; Space", markup);
         Assert.Contains("UseOccupantTerminology=\"true\"", markup);
 
