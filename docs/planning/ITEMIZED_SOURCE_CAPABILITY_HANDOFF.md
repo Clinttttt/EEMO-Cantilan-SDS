@@ -20,7 +20,8 @@ Each `CollectionSessionSourceChoice` carries:
 - `Identity`: typed facts needed to build the existing item intent (see table).
 - `Instrument`: policy metadata, never a serial.
 - `AmountRule`, `CanEnterAmount`, nullable `ServerAmount` and `MaximumAmount`.
-- Weighing only: `Rate`, `RateId`, `RateEffectiveDate` from persisted effective rate evidence.
+- Weighing: `Rate`, `RateId`, `RateEffectiveDate` from persisted effective rate evidence. Governed fee-option choices
+  also carry `RateId` / `RateEffectiveDate`; see the local [canonical authority and Landing/Berthing follow-up](CANONICAL_AUTHORITY_LANDING_FEES_HANDOFF.md).
 - `RequiredInputs`: source-specific remaining inputs, not a generic arbitrary form schema.
 
 `CollectionSessionAmountRule`: DirectAmount=1, PreparedBalance=2, FixedAmount=3, QuantityRate=4,

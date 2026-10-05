@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace EEMOCantilanSDS.Api.Controllers;
 
 /// <summary>
-/// Governed configurable services (IA-044): approved setup, activity, and the collector's document custody read.
+/// Governed configurable services (IA-044): approved setup, fee definitions, activity and collector terms.
 /// Posting happens through the offline sync path (one canonical writer); nothing here lets a client define a charge.
 /// </summary>
 [ApiController]
@@ -36,8 +36,9 @@ public sealed class GovernedServicesController(ISender sender, GovernedServiceWo
     /// <summary>The approved fee options of a service (e.g. the Market Fee definitions), with each option's amount history.</summary>
     [HttpGet("{operationCode}/fee-options")]
     [Authorize(Roles = "SuperAdmin,Admin")]
-    public async Task<ActionResult<IReadOnlyList<GovernedServiceFeeOptionDto>>> FeeOptionsAsync(string operationCode, CancellationToken ct) =>
-        HandleResponse(await workflow.GetFeeOptionsAsync(operationCode, ct));
+    public async Task<ActionResult<IReadOnlyList<GovernedServiceFeeOptionDto>>> FeeOptionsAsync(string operationCode, CancellationToken ct,
+        [FromQuery] bool activeOnly = false) =>
+        HandleResponse(await workflow.GetFeeOptionsAsync(operationCode, ct, activeOnly));
 
     [HttpPost("{operationCode}/fee-options")]
     [Authorize(Roles = "SuperAdmin")]
