@@ -154,7 +154,7 @@ public sealed class CollectionSessionEditorTests : TestContext
         var view = Open(); view.Find("input").Input("Lisa"); Click(view, "Search"); ClickPayer(view, "Lisa Ilogans"); view.WaitForAssertion(() => Assert.NotEmpty(view.FindAll(".payer-selected")));
         AddLanding(view);
         Click(view, "+ Add item"); Click(view, "Electricity ›");
-        view.Find("input[type=number]").Change("44"); Click(view, "Add item"); Click(view, "Review collection");
+        view.Find("input[type=number]").Input("44"); Click(view, "Add item"); Click(view, "Review collection");
         Assert.Contains("Official Receipt", view.Markup); Assert.Contains("₱244.00", view.Markup);
         Click(view, "Record collection");
         view.WaitForAssertion(() => { Assert.Contains("SRC-2026-000001", view.Markup); Assert.Contains("SRC-2026-000002", view.Markup); });
@@ -244,9 +244,67 @@ public sealed class CollectionSessionEditorTests : TestContext
         Assert.DoesNotContain("Select", string.Join(" ", sheet.QuerySelectorAll("button").Select(b => b.TextContent.Trim())));
         Assert.Contains("12", sheet.QuerySelector(".sheet-source")!.TextContent);
         Assert.True(sheet.QuerySelectorAll(".sheet-actions button").Single(b => b.TextContent.Trim() == "Add item").HasAttribute("disabled"));
-        sheet.QuerySelector("input[type=number]")!.Change("44");
+        sheet.QuerySelector("input[type=number]")!.Input("44");
         Assert.False(view.Find("[role=dialog]").QuerySelectorAll(".sheet-actions button").Single(b => b.TextContent.Trim() == "Add item").HasAttribute("disabled"));
     }
+    private void ServeWeighing(bool withRates)
+    {
+        _api.Setup(x => x.GetCollectionSessionDiscoveryAsync(It.IsAny<Guid?>())).ReturnsAsync((Guid? id) => Result<CollectionSessionDiscovery>.Success(new(id, Today,
+            [new(CollectionSessionItemKind.Weighing, "WEIGHT_AND_MEASURE", "Weight & Measure", true, true, null, null, true, [])],
+            WeighingSources: [new(_stall, "1", id, "Pantom Dant", "New Public Market")],
+            WeighingRates: withRates ? [new(WeighingType.Fish, 1m, Today), new(WeighingType.Meat, 66m, Today)] : [])));
+    }
+    private IRenderedComponent<CollectionSessionEditor> OpenWeighing()
+    {
+        var view = Open(); view.Find("input").Input("Lisa"); Click(view, "Search"); ClickPayer(view, "Lisa Ilogans");
+        view.WaitForAssertion(() => Assert.NotEmpty(view.FindAll(".payer-selected")));
+        Click(view, "+ Add item"); Click(view, "Weight & Measure ›");
+        return view;
+    }
+    private static bool AddDisabled(IRenderedComponent<CollectionSessionEditor> view) =>
+        view.Find("[role=dialog]").QuerySelectorAll(".sheet-actions button").Single(b => b.TextContent.Trim() == "Add item").HasAttribute("disabled");
+
+    [Fact]
+    public void Weight_and_measure_enables_Add_item_as_the_quantity_is_typed_without_leaving_the_field()
+    {
+        ServeWeighing(withRates: true);
+        var view = OpenWeighing();
+        view.FindAll("button[role=option]").First(b => b.TextContent.Contains("Meat")).Click();
+        Assert.True(AddDisabled(view));                                                           // no quantity yet
+
+        view.Find("[role=dialog] input[type=number]").Input("3");                                  // typed, never blurred
+
+        Assert.False(AddDisabled(view));
+        Assert.Contains("₱66.00 / kg", view.Find("[role=dialog]").TextContent);                    // the rate stays the server's, shown read-only
+    }
+
+    [Fact]
+    public void Weight_and_measure_stays_disabled_for_a_zero_or_empty_quantity()
+    {
+        ServeWeighing(withRates: true);
+        var view = OpenWeighing();
+        view.FindAll("button[role=option]").First(b => b.TextContent.Contains("Meat")).Click();
+
+        view.Find("[role=dialog] input[type=number]").Input("0");
+        Assert.True(AddDisabled(view));
+        view.Find("[role=dialog] input[type=number]").Input("2.5");
+        Assert.False(AddDisabled(view));
+        view.Find("[role=dialog] input[type=number]").Input("");
+        Assert.True(AddDisabled(view));
+    }
+
+    [Fact]
+    public void Weight_and_measure_without_a_server_rate_can_never_be_added()
+    {
+        ServeWeighing(withRates: false);
+        var view = OpenWeighing();
+
+        view.Find("[role=dialog] input[type=number]").Input("3");
+
+        Assert.True(AddDisabled(view));
+        Assert.Contains("Unavailable", view.Find("[role=dialog]").TextContent);
+    }
+
     private void ServeSources(Guid[] vendorStalls)
     {
         _api.Setup(x => x.GetCollectionSessionDiscoveryAsync(It.IsAny<Guid?>())).ReturnsAsync((Guid? id) => Result<CollectionSessionDiscovery>.Success(new(id, Today,

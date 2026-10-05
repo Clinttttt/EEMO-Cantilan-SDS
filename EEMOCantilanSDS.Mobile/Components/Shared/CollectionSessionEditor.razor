@@ -160,7 +160,7 @@ else
                 {
                     @if (SlaughterChoices.Count == 1) { <div class="sheet-source"><strong>@SlaughterChoices[0].Name</strong></div> }
                     else { <MobileChoice Inline="true" Label="Approved animal" Options="SlaughterChoices" Value="@_source" ValueChanged="ChooseSource" /> }
-                    <label class="form-field"><span class="form-label">Heads</span><input class="form-input" type="number" inputmode="numeric" min="1" step="1" @bind="_heads" /></label>
+                    <label class="form-field"><span class="form-label">Heads</span><input class="form-input" type="number" inputmode="numeric" min="1" step="1" @bind="_heads" @bind:event="oninput" /></label>
                     @if (_payer is null)
                     { <label class="form-field"><span class="form-label">Owner</span><input class="form-input" @bind="_owner" /></label> }
                     <div class="sheet-note">Approved amount confirmed on review</div>
@@ -177,7 +177,7 @@ else
                     @if (_operation.Kind == CollectionSessionItemKind.Weighing)
                     {
                         <MobileChoice Inline="true" Label="Type" Options="@(new[] { new MobileChoice.Choice("1", "Fish", RateDetail("1")), new MobileChoice.Choice("2", "Meat", RateDetail("2")) })" Value="@_type" ValueChanged="ChooseType" />
-                        <label class="form-field"><span class="form-label">Quantity · kg</span><input class="form-input" type="number" inputmode="decimal" min="0.01" step="0.01" @bind="_quantity" /></label>
+                        <label class="form-field"><span class="form-label">Quantity · kg</span><input class="form-input" type="number" inputmode="decimal" min="0.01" step="0.01" @bind="_quantity" @bind:event="oninput" /></label>
                         <div class="sheet-meta"><span>Instrument</span><strong>OR · Official Receipt</strong></div>
                     }
                     @if (_operation.Kind == CollectionSessionItemKind.VendorFee)
@@ -185,7 +185,7 @@ else
                     @if (_operation.Kind == CollectionSessionItemKind.NpmWholePayment)
                     {
                         <div class="sheet-pair">
-                            <label class="form-field"><span class="form-label">Year</span><input class="form-input" type="number" inputmode="numeric" min="2000" max="2100" @bind="_year" /></label>
+                            <label class="form-field"><span class="form-label">Year</span><input class="form-input" type="number" inputmode="numeric" min="2000" max="2100" @bind="_year" @bind:event="oninput" /></label>
                             <MobileChoice Label="Month" Options="MonthChoices" Value="@_month.ToString()" ValueChanged="ChooseMonth" />
                         </div>
                         <div class="sheet-note">Remaining monthly rent is confirmed on review</div>
@@ -193,7 +193,7 @@ else
                 }
                 @if (_operation.Kind is not (CollectionSessionItemKind.Weighing or CollectionSessionItemKind.Slaughter or CollectionSessionItemKind.NpmWholePayment) && FixedAmount is null)
                 {
-                    <label class="form-field"><span class="form-label">Amount received</span><input class="form-input" type="number" inputmode="decimal" min="0.01" step="0.01" @bind="_amount" /></label>
+                    <label class="form-field"><span class="form-label">Amount received</span><input class="form-input" type="number" inputmode="decimal" min="0.01" step="0.01" @bind="_amount" @bind:event="oninput" /></label>
                 }
             }
             </div>
