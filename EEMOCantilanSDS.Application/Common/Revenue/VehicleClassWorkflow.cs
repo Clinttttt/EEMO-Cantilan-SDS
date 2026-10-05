@@ -36,7 +36,9 @@ public sealed class VehicleClassWorkflow(
                 .Select(c =>
                 {
                     var current = VehicleClassRate.Resolve(rates[c.Id], today);
-                    return new VehicleClassDto(c.Id, c.Code, c.DisplayName, c.IsActive, current?.Amount, current?.EffectiveDate);
+                    return new VehicleClassDto(c.Id, c.Code, c.DisplayName, c.IsActive, current?.Amount, current?.EffectiveDate,
+                        rates[c.Id].OrderByDescending(r => r.EffectiveDate).ThenBy(r => r.Id)
+                            .Select(r => new VehicleClassRateVersionDto(r.Id, r.EffectiveDate, r.Amount, r.CreatedBy, r.CreatedAtUtc)).ToList());
                 }).ToList());
         }, ct);
 
