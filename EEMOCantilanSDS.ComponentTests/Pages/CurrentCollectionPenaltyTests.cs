@@ -90,7 +90,7 @@ public sealed class CurrentCollectionPenaltyTests : TestContext
         cut.Find("[aria-label='Add an approved penalty'] select").Change("LATE_PAYMENT");
 
         var amount = cut.Find("[aria-label='Add an approved penalty'] input[readonly]");
-        Assert.Equal("PHP 50.00", amount.GetAttribute("value"));
+        Assert.Equal("₱50.00", amount.GetAttribute("value"));
         Assert.Empty(cut.FindAll("[aria-label='Add an approved penalty'] input[type='number']"));
         cut.Find("[aria-label='Add an approved penalty'] input[placeholder]").Input("Stall 4 · August rent");
         cut.FindAll("[aria-label='Add an approved penalty'] button").Single(b => b.TextContent.Trim() == "Add penalty").Click();
@@ -102,7 +102,7 @@ public sealed class CurrentCollectionPenaltyTests : TestContext
                 (sent!.PenaltyCode, sent.ProposedAmount, sent.Origin, sent.ExpectedRevision));
             Assert.Contains("Penalty added to this collection", cut.Markup);
             Assert.Contains("Late payment penalty", cut.Markup);
-            Assert.Contains("PHP 550.00", cut.Markup);
+            Assert.Contains("₱550.00", cut.Markup);
         }, Timeout);
     }
 
@@ -121,7 +121,7 @@ public sealed class CurrentCollectionPenaltyTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("already on the draft", cut.Find("[role='alert']").TextContent);
-            Assert.Contains("PHP 500.00", cut.Markup);
+            Assert.Contains("₱500.00", cut.Markup);
             Assert.DoesNotContain("Penalty added", cut.Markup);
         }, Timeout);
     }

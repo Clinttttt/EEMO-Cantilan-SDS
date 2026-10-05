@@ -322,7 +322,22 @@
         && _draft.Lines.Count > 0
         && _draft.Lines.SelectMany(x => x.Allocations ?? []).All(x => x.SourceAuthority == SettlementAuthority.Canonical);
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    /// <summary>An operation that already knows the Payor (an obligation account) opens the collection on that Payor.
+    /// The identity is the explicit Payor id; the name is display only.</summary>
+    [SupplyParameterFromQuery(Name = "payor")] public Guid? PayorParam { get; set; }
+    [SupplyParameterFromQuery(Name = "name")] public string? PayorNameParam { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        if (PayorParam is { } payorId && payorId != Guid.Empty && _selectedPayorId is null)
+        {
+            _selectedPayorId = payorId;
+            _selectedPayorName = string.IsNullOrWhiteSpace(PayorNameParam) ? "Payer" : PayorNameParam.Trim();
+            _payors = [new CollectionPayorDto(payorId, _selectedPayorName)];
+            await LoadCandidatesAsync();
+        }
+    }
 
     private async Task LoadAsync()
     {
@@ -610,7 +625,7 @@
 
     private static string Month(int year, int month) =>
         month is >= 1 and <= 12 ? new DateOnly(year, month, 1).ToString("MMM yyyy") : "Period unavailable";
-    private static string Money(decimal amount) => $"PHP {amount:N2}";
+    private static string Money(decimal amount) => $"₱{amount:N2}";
 
     private static string ErrorText<T>(Result<T> result, string fallback) =>
         string.IsNullOrWhiteSpace(result.Error) ? fallback : result.Error!;
