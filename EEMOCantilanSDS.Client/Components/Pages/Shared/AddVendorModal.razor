@@ -47,43 +47,28 @@
      OnToggleFee       – EventCallback<string> – fee toggle clicked (fee name passed)
 ══════════════════════════════════════════════════════════════════════ *@
 
-<div class="eemo-drawer-overlay @(Show ? "show" : "")" @onclick="HandleCancel"></div>
-
-<div class="eemo-drawer eemo-drawer-right @(Show ? "show" : "")" @onclick:stopPropagation="true">
-
-            <!-- ── Header ──────────────────────────────────────────────── -->
-            <div class="eemo-drawer-header">
-                <div class="eemo-drawer-header-left">
-                    <div class="eemo-drawer-header-icon">
-                        <svg viewBox="0 0 24 24">
-                            @if (IsEditing)
-                            {
-                                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                            }
-                            else
-                            {
-                                <path d="M9 11l3 3L22 4"/>
-                                <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
-                            }
-                        </svg>
-                    </div>
-                    <div>
-                        <div class="eemo-drawer-header-title">@(UseOccupantTerminology
-                            ? (IsEditing ? "Edit Occupant & Space" : "Add Occupant & Space")
-                            : (IsEditing ? "Edit Vendor / Stall" : "Add New Vendor"))</div>
-                        <div class="eemo-drawer-header-sub">@(UseOccupantTerminology
-                            ? (IsEditing ? "Update the occupant and space information." : "Register a rental space and its current occupant.")
-                            : (IsEditing ? "Update vendor and stall information." : "Register a new stall vendor in the system."))</div>
-                    </div>
-                </div>
-                <button class="eemo-drawer-header-close" @onclick="HandleCancel" aria-label="Close">
-                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                </button>
-            </div>
-
-            <!-- ── Body ───────────────────────────────────────────────── -->
-            <div class="eemo-modal-body">
+<VendorDrawerShell Show="Show" KeepMounted="true" OnClose="HandleCancel"
+                   Title="@(UseOccupantTerminology
+                       ? (IsEditing ? "Edit Occupant & Space" : "Add Occupant & Space")
+                       : (IsEditing ? "Edit Vendor / Stall" : "Add New Vendor"))"
+                   Subtitle="@(UseOccupantTerminology
+                       ? (IsEditing ? "Update the occupant and space information." : "Register a rental space and its current occupant.")
+                       : (IsEditing ? "Update vendor and stall information." : "Register a new stall vendor in the system."))">
+    <Icon>
+        <svg viewBox="0 0 24 24">
+            @if (IsEditing)
+            {
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+            }
+            else
+            {
+                <path d="M9 11l3 3L22 4"/>
+                <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+            }
+        </svg>
+    </Icon>
+    <ChildContent>
 
                 <!-- §1 Leasee Information -->
                 <div class="avm-section">
@@ -603,9 +588,8 @@
                 @* The offer to take over a vacated stall is raised as a dialog above this form
                    (see the end of this file), so the clerk answers it where they are. *@
 
-            </div><!-- /eemo-modal-body -->
-            <!-- ── Footer ──────────────────────────────────────────────── -->
-            <div class="eemo-drawer-footer">
+    </ChildContent>
+    <Footer>
                 @if (!IsEditing && (IsImportSupported || IsHistoryImportSupported))
                 {
                     @* Both imports sit together, pushed to the left of Cancel and Add Vendor: they are the same kind
@@ -634,9 +618,8 @@
                 <button type="button" class="btn-primary" @onclick="HandleSave" @onclick:preventDefault="true">
                     @(IsEditing ? "Save Changes" : UseOccupantTerminology ? "Add Occupant & Space" : "Add Vendor")
                 </button>
-            </div>
-
-</div>
+    </Footer>
+</VendorDrawerShell>
 
 @* ── Take over a vacated stall ─────────────────────────────────────────────────────────────────────────
    A stall number already in use is not necessarily a dead end: if that stall was closed, or its contract has

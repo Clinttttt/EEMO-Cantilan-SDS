@@ -1,14 +1,14 @@
-@* A small set of mutually exclusive choices as selectable cards: the basis of an occupancy, an event. A visual selector only; what each
+@* A small set of mutually exclusive choices as the stallholder drawer's basis-of-occupancy cards (avm-choice). A visual selector only; what each
    value means belongs to the page that supplies it. *@
-<div class="cc" role="radiogroup" aria-label="@Label">
+<div class="avm-choice" role="radiogroup" aria-label="@Label" style="--avm-choice-count: @Items.Count">
     @foreach (var item in Items)
     {
         var selected = item.Value == Value;
-        <button type="button" class="cc-item @(selected ? "is-selected" : "")" role="radio" aria-checked="@(selected ? "true" : "false")" @onclick="() => Pick(item.Value)">
-            <span class="cc-title">@item.Title</span>
+        <button type="button" class="avm-choice-item @(selected ? "is-selected" : "")" role="radio" aria-checked="@(selected ? "true" : "false")" @onclick="() => Pick(item.Value)">
+            <span class="avm-choice-title">@item.Title</span>
             @if (!string.IsNullOrWhiteSpace(item.Note))
             {
-                <span class="cc-note">@item.Note</span>
+                <span class="avm-choice-note">@item.Note</span>
             }
         </button>
     }

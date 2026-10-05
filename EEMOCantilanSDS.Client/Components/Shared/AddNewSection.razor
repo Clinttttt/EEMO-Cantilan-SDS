@@ -1,23 +1,19 @@
-@* One titled group of fields in an Add New form. Fields sit in a two-column grid on a wide drawer and one column on a narrow one;
-   a field that should span the row carries the class "ans-span". *@
-<section class="ans" aria-labelledby="@_titleId">
-    <h3 class="ans-title" id="@_titleId">@Title</h3>
+@* One titled group of fields in an Add New form: the stallholder drawer's own section (avm-section) with its label. Fields go two to a row
+   (avm-row-2) in the order they are written; content that lays itself out (choice cards, a selected-payor row) is passed with Plain. *@
+<div class="avm-section">
+    <div class="avm-section-label">@Title</div>
     @if (Plain)
     {
         @ChildContent
     }
     else
     {
-        <div class="ans-grid">@ChildContent</div>
+        <div class="avm-row-2">@ChildContent</div>
     }
-</section>
+</div>
 
 @code {
-    private readonly string _titleId = $"ans-{Guid.NewGuid():N}";
-
     [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
-
-    /// <summary>Content that lays itself out (choice cards, a selected-payor row) rather than as grid fields.</summary>
     [Parameter] public bool Plain { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
 }

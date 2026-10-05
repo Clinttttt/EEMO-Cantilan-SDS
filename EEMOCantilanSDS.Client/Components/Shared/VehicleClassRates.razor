@@ -64,7 +64,7 @@
 
 <AuthorizeView Roles="SuperAdmin">
     <Authorized>
-        <AddNewDrawer Show="_open" Edit="_editing" Wide="false" Title="@(_editing ? "Change rate" : "Add class")" Subtitle="@(_editing ? _name : "A vehicle class and its approved rate")"
+        <AddNewDrawer Show="_open" Edit="_editing" Title="@(_editing ? "Change rate" : "Add class")" Subtitle="@(_editing ? _name : "A vehicle class and its approved rate")"
                       FormId="vcr-form" FormLabel="Define a vehicle class rate" SubmitText="@(_editing ? "Save new rate" : "Add class")" Saving="_saving" Error="@_formError"
                       OnSubmit="SaveAsync" OnCancel="Reset">
             <AddNewSection Title="Vehicle class">

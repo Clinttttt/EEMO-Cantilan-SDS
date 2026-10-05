@@ -136,9 +136,9 @@ public sealed class ObligationWorkspaceTests : TestContext
         search.KeyUp(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "a" });
         cut.WaitForAssertion(() => Assert.Contains("Ana Reyes", cut.Find("[aria-label='Business Payors found']").TextContent), Timeout);
         cut.Find("[aria-label='Business Payors found'] button").Click();          // an explicit choice of the Payor the server returned
-        cut.FindAll("form[aria-label='Open account'] input[type='text']")[0].Change("Space K-4");
-        cut.FindAll("form[aria-label='Open account'] input[type='text']")[1].Change("LC-2026-014");
-        cut.Find("form[aria-label='Open account'] input[type='number']").Change("1200");
+        cut.Find("#obw-subject").Change("Space K-4");
+        cut.Find("input[placeholder='As written on the contract']").Change("LC-2026-014");
+        cut.Find("#obw-amount").Change("1200");
         cut.Find("form[aria-label='Open account']").Submit();
 
         cut.WaitForAssertion(() =>
@@ -232,12 +232,14 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var drawer = Assert.Single(cut.FindAll("[role='dialog']"));
-            var titles = drawer.QuerySelectorAll(".ans-title").Select(x => x.TextContent.Trim()).ToArray();
-            Assert.Equal(new[] { "Occupancy", "Business Payor", "Space details", "Contract details" }, titles);
-            var basis = drawer.QuerySelectorAll("[role='radio']").Select(x => x.QuerySelector(".cc-title")!.TextContent.Trim()).ToArray();
+            var titles = drawer.QuerySelectorAll(".avm-section-label").Select(x => x.TextContent.Trim()).ToArray();
+            Assert.Equal(new[] { "Occupant Information", "Space & Contract Details" }, titles);
+            var basis = drawer.QuerySelectorAll("[role='radio']").Select(x => x.QuerySelector(".avm-choice-title")!.TextContent.Trim()).ToArray();
             Assert.Equal(new[] { "Signed lease contract", "No contract (space only)" }, basis);
-            Assert.Contains("Contract effectivity", drawer.TextContent);
-            Assert.Contains("Contract reference", drawer.TextContent);
+            Assert.Contains("Contract Effectivity (month)", drawer.TextContent);                         // a month, not a date
+            Assert.NotNull(drawer.QuerySelector("input[placeholder='As written on the contract']"));
+            Assert.Equal("Kanmanggay", drawer.QuerySelector(".avm-input-locked")!.TextContent.Trim());   // the operation is context, not a choice
+            Assert.NotNull(drawer.QuerySelector(".eemo-drawer-header-icon svg"));                        // the stallholder drawer's own header
         }, Timeout);
 
         cut.FindAll("[role='radio']").Single(b => b.TextContent.Contains("No contract")).Click();
@@ -245,10 +247,9 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var drawer = Assert.Single(cut.FindAll("[role='dialog']"));
-            Assert.Equal("Rental details", drawer.QuerySelectorAll(".ans-title").Last().TextContent.Trim());
-            Assert.Contains("Occupying since", drawer.TextContent);
-            Assert.DoesNotContain("Contract effectivity", drawer.TextContent);
-            Assert.DoesNotContain("Contract reference", drawer.TextContent);         // no contract is implied for a space-only occupancy
+            Assert.Contains("Occupying Since (month)", drawer.TextContent);
+            Assert.DoesNotContain("Contract Effectivity", drawer.TextContent);
+            Assert.Null(drawer.QuerySelector("input[placeholder='As written on the contract']"));         // no contract is implied for a space-only occupancy
         }, Timeout);
     }
 
@@ -274,8 +275,8 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() => cut.Find("[aria-label='Business Payors found'] button"), Timeout);
         cut.Find("[aria-label='Business Payors found'] button").Click();
         cut.WaitForAssertion(() => Assert.Contains("Ana Reyes", cut.Find(".obw-selected").TextContent), Timeout);
-        cut.Find("[role='dialog'] input[type='text']").Change("K-7");
-        cut.Find("[role='dialog'] input[type='number']").Change("900");
+        cut.Find("#obw-subject").Change("K-7");
+        cut.Find("#obw-amount").Change("900");
         cut.Find("form[aria-label='Open account']").Submit();
 
         cut.WaitForAssertion(() =>
@@ -304,10 +305,10 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var drawer = Assert.Single(cut.FindAll("[role='dialog']"));
-            Assert.Equal(new[] { "Event", "Business Payor", "Lot details", "Rental details" }, drawer.QuerySelectorAll(".ans-title").Select(x => x.TextContent.Trim()).ToArray());
-            Assert.Equal(new[] { "Fiesta", "Araw" }, drawer.QuerySelectorAll(".cc-item .cc-title").Select(x => x.TextContent.Trim()).ToArray());
+            Assert.Equal(new[] { "Event & Occupant Information", "Lot & Event Details" }, drawer.QuerySelectorAll(".avm-section-label").Select(x => x.TextContent.Trim()).ToArray());
+            Assert.Equal(new[] { "Fiesta", "Araw" }, drawer.QuerySelectorAll(".avm-choice-item .avm-choice-title").Select(x => x.TextContent.Trim()).ToArray());
             Assert.Empty(drawer.QuerySelectorAll("select"));                                          // an explicit choice, not a dropdown
-            Assert.NotNull(drawer.QuerySelector(".sd-footer"));
+            Assert.NotNull(drawer.QuerySelector(".eemo-drawer-footer"));
         }, Timeout);
 
         cut.FindAll("[role='radio']").Single(b => b.TextContent.Contains("Araw")).Click();
@@ -316,7 +317,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         search.KeyUp(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "s" });
         cut.WaitForAssertion(() => cut.Find("[aria-label='Business Payors found'] button"), Timeout);
         cut.Find("[aria-label='Business Payors found'] button").Click();
-        cut.Find("[role='dialog'] input[type='number']").Change("2500");
+        cut.Find("#obw-amount").Change("2500");
         cut.Find("form[aria-label='Open account']").Submit();
 
         cut.WaitForAssertion(() =>
