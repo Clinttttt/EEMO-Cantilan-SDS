@@ -24,6 +24,9 @@ canonical SRC contracts. Monthly rows without approved cutover remain legacy-aut
 canonical rent writer. NPM business-date authority, legacy receipt evidence and specialized operational readers remain
 intact. Transportation service collections and legacy terminal-trip records are distinct paths.
 
+Current TRM operational reads now share canonical Transportation authority under IA-065; old trip readers remain
+legacy only. See [the TRM and space-import handoff](TRM_TRANSPORTATION_SPACE_IMPORT_HANDOFF.md).
+
 Rent, direct Fish/Meat Vendor Fee and Weight & Measure remain separate classifications and effects.
 Remittance and remittance void only change remitted/unremitted position; neither creates revenue or SRC.
 

@@ -905,6 +905,16 @@ Two cross-document distinctions are explicit at this baseline:
 - **OFFLINE / REPORTING:** Stable session/item and child operation identities preserve durable retry. Only canonical child Collections count in reports and ordinary remittance; the session is not revenue.
 - **NON-GOALS:** No historical backfill, automatic Payor/name linking, rent recalculation, weighing repricing, or classification merger.
 
+### IA-065 - Current Transport Terminal and Transportation authority convergence (Clint, 2026-10-06)
+
+- **ID:** IA-065
+- **STATUS:** CONFIRMED by the backend consolidation instruction.
+- **DECISION:** TRM/Transport Terminal and Transportation/Parking are one current operation. Current terminal activity reads canonical Transportation Collections, frozen vehicle-class facts and server SRC. Existing classification, CT policy, rates and assignments remain unchanged. No transporter registry, TripNumber or duplicate TrmTrip is required or created.
+- **BOUNDARY:** The first existing Head-enabled Transportation effective date remains authoritative. Disabling collection cannot reopen legacy trip posting. No date is invented or backdated.
+- **HISTORY:** TrmTrip/TrmTransporter and legacy contracts remain historical compatibility separately from current activity. No historical migration, rewriting or double counting. This clarifies IA-050/IA-051 without changing their evidence or classification.
+- **READ CONTRACT:** TRM and Transportation share the canonical current query and correction-aware totals. Unrecorded driver/plate/route/organization/trip numbering is omitted. No Pending OR metric is invented.
+- **NON-GOALS:** No rate/accounting merger, Payor name matching, backfill, physical serial dependency, UI redesign or production change.
+
 ## 4. Decision-gate summary
 
 The following items still require MEEDO/Treasury input, a UX decision, authoritative compliance research, or a stated technical prerequisite before their affected capability can be finalized. Superseded gates are not treated as current blockers.

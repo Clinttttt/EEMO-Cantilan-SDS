@@ -44,7 +44,7 @@ Eight canonical facility codes, plus per-LGU custom facilities.
 | BBQ | Barbecue Stand | Monthly space rental |
 | ICE | Iceplant | Monthly space rental |
 | SLH | Slaughterhouse | Per head, by animal type |
-| TRM | Transport Terminal | Per trip, with queue/dispatch order |
+| TRM | Transport Terminal | Current Transportation/Parking canonical collections with approved vehicle classes; old trip/dispatch registry is legacy history (IA-065) |
 | TPM | Tabo-an Public Market | Per vendor per market day (a weekly market; the market DAY is per-LGU configurable) |
 
 **Custom facilities.** A Head can add facilities beyond the eight (`FacilityCode.Custom1..5`), which bill as
