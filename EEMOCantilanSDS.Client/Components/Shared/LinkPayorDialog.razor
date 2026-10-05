@@ -3,78 +3,87 @@
 @using EEMOCantilanSDS.Domain.Enums
 @inject IBusinessPayorsApiClient PayorsApi
 
-@* The office's explicit act of giving one occupancy a Business Payor. A name match is only ever shown as a candidate; nothing is linked
-   until the office presses Link or Create and link. The occupant text is never changed. *@
-<div class="v3-modal-backdrop" role="presentation" @onclick="OnClose">
-    <section class="v3-modal lpd-modal" role="dialog" aria-modal="true" aria-labelledby="lpd-title" @onclick:stopPropagation="true">
-        <header class="v3-modal-header">
-            <h2 id="lpd-title">Link Business Payor</h2>
-            <button class="lpd-close" type="button" aria-label="Close" @onclick="OnClose">×</button>
-        </header>
-        <div class="v3-modal-body">
-            <p class="lpd-context">
-                <strong>@Occupancy.FacilityShortName · @Occupancy.StallNo</strong>
-                <span>Recorded occupant: @Occupancy.ActualOccupant</span>
-            </p>
+@* The office's explicit act of giving one occupancy a Business Payor. A name match is only ever shown as a candidate; choosing one only
+   highlights it, and nothing is linked until the office presses Link Payor (or Create and link). The occupant text is never changed. *@
+<SideDrawer Show="true" Title="Link Business Payor" Subtitle="@($"{Occupancy.FacilityShortName} · {Occupancy.StallNo}")" OnClose="OnClose">
+    <ChildContent>
+        <div class="lpd-body">
+            <dl class="lpd-facts">
+                <div><dt>Space</dt><dd>@Occupancy.FacilityShortName · @Occupancy.StallNo</dd></div>
+                <div><dt>Recorded occupant</dt><dd>@Occupancy.ActualOccupant</dd></div>
+            </dl>
 
-            <form class="lpd-search" aria-label="Find a Business Payor" @onsubmit="SearchAsync" @onsubmit:preventDefault="true">
-                <label class="v3-field">
-                    <span>Find an existing Business Payor</span>
-                    <input type="search" maxlength="100" @bind="_search" @bind:event="oninput" placeholder="Name" />
-                </label>
-                <button class="v3-btn" type="submit" disabled="@(_busy || _search.Trim().Length < 2)">Search</button>
-            </form>
-
-            @if (_candidates is { Count: > 0 })
-            {
-                <ul class="lpd-results" aria-label="Business Payors found">
-                    @foreach (var candidate in _candidates)
-                    {
-                        <li>
-                            <div>
-                                <strong>@candidate.DisplayName</strong>
-                                <span class="lpd-muted">@(candidate.Contexts.Count == 0 ? "Not linked to anything yet" : string.Join(" · ", candidate.Contexts))</span>
-                            </div>
-                            <button class="v3-btn v3-btn-sm" type="button" disabled="@_busy" @onclick="() => LinkAsync(candidate)">Link</button>
-                        </li>
-                    }
-                </ul>
-            }
-            else if (_searched)
-            {
-                <p class="lpd-muted">No Business Payor found.</p>
-            }
-
-            <fieldset class="lpd-create">
-                <legend>Or create one</legend>
-                <label class="v3-field"><span>Name</span><input maxlength="200" @bind="_name" @bind:event="oninput" /></label>
-                <label class="v3-field">
-                    <span>Type</span>
-                    <select @bind="_kind">
-                        <option value="@BusinessPayorKind.Person">Person</option>
-                        <option value="@BusinessPayorKind.Organization">Organization</option>
-                    </select>
-                </label>
-                @if (_duplicate)
-                {
-                    <label class="lpd-confirm">
-                        <input type="checkbox" @bind="_confirmDuplicate" />
-                        A Business Payor with this name already exists. This is a different person.
+            <section class="lpd-section" aria-labelledby="lpd-find">
+                <h3 id="lpd-find" class="lpd-section-title">Business Payor</h3>
+                <form class="lpd-search" aria-label="Find a Business Payor" @onsubmit="SearchAsync" @onsubmit:preventDefault="true">
+                    <label class="v3-field">
+                        <span class="v3-sr-only">Search Business Payors</span>
+                        <input type="search" maxlength="100" @bind="_search" @bind:event="oninput" placeholder="Search by name" />
                     </label>
+                    <button class="v3-btn" type="submit" disabled="@(_busy || _search.Trim().Length < 2)">Search</button>
+                </form>
+
+                @if (_busy && _candidates is null)
+                {
+                    <p class="lpd-muted" role="status">Searching…</p>
                 }
-                <button class="v3-btn" type="button" disabled="@(_busy || string.IsNullOrWhiteSpace(_name) || (_duplicate && !_confirmDuplicate))" @onclick="CreateAsync">Create and link</button>
-            </fieldset>
+                else if (_candidates is { Count: > 0 })
+                {
+                    <ul class="lpd-results" aria-label="Business Payors found" role="listbox">
+                        @foreach (var candidate in _candidates)
+                        {
+                            var selected = _selected?.PayorId == candidate.PayorId;
+                            <li>
+                                <button class="lpd-option @(selected ? "is-selected" : "")" type="button" role="option" aria-selected="@(selected ? "true" : "false")" @onclick="() => _selected = candidate">
+                                    <span class="lpd-check" aria-hidden="true">@(selected ? "✓" : "")</span>
+                                    <span class="lpd-option-text">
+                                        <strong>@candidate.DisplayName</strong>
+                                        <span class="lpd-muted">@(candidate.Contexts.Count == 0 ? "Not linked to anything yet" : string.Join(" · ", candidate.Contexts))</span>
+                                    </span>
+                                </button>
+                            </li>
+                        }
+                    </ul>
+                }
+                else if (_searched)
+                {
+                    <p class="lpd-muted" role="status">No Business Payor found.</p>
+                }
+            </section>
+
+            <details class="lpd-create" open="@_duplicate">
+                <summary>Create a new Business Payor</summary>
+                <div class="lpd-create-body">
+                    <label class="v3-field"><span>Name</span><input maxlength="200" @bind="_name" @bind:event="oninput" /></label>
+                    <label class="v3-field">
+                        <span>Type</span>
+                        <select @bind="_kind">
+                            <option value="@BusinessPayorKind.Person">Person</option>
+                            <option value="@BusinessPayorKind.Organization">Organization</option>
+                        </select>
+                    </label>
+                    @if (_duplicate)
+                    {
+                        <label class="lpd-confirm">
+                            <input type="checkbox" @bind="_confirmDuplicate" />
+                            A Business Payor with this name already exists. This is a different person.
+                        </label>
+                    }
+                    <button class="v3-btn" type="button" disabled="@(_busy || string.IsNullOrWhiteSpace(_name) || (_duplicate && !_confirmDuplicate))" @onclick="CreateAsync">Create and link</button>
+                </div>
+            </details>
 
             @if (_error is not null)
             {
                 <p class="v3-notice v3-notice-error" role="alert">@_error</p>
             }
         </div>
-        <footer class="v3-modal-footer">
-            <button class="v3-btn" type="button" @onclick="OnClose">Cancel</button>
-        </footer>
-    </section>
-</div>
+    </ChildContent>
+    <Footer>
+        <button class="v3-btn" type="button" @onclick="OnClose">Cancel</button>
+        <button class="v3-btn v3-btn-primary" type="button" disabled="@(_busy || _selected is null)" @onclick="() => LinkAsync(_selected!)">Link Payor</button>
+    </Footer>
+</SideDrawer>
 
 @code {
     [Parameter, EditorRequired] public PayorOccupancyDto Occupancy { get; set; } = default!;
@@ -87,6 +96,7 @@
     private bool _duplicate, _confirmDuplicate, _searched, _busy;
     private string? _error;
     private IReadOnlyList<PayorCandidateDto>? _candidates;
+    private PayorCandidateDto? _selected;
 
     protected override void OnInitialized()
     {
