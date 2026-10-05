@@ -1,26 +1,21 @@
 /* Vehicle class rates — V3. Panels, tables, fields and buttons come from the v3- layer in app.css. */
 
-.vcr-notice {
-    margin: 12px 20px 0;
-}
+.vcr-notice { margin: 12px 20px 0; }
+.vcr-code { color: var(--text-secondary); font-size: .75rem; font-weight: 500; letter-spacing: .02em; }
 
-.vcr-form {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 16px 20px 20px;
-    border-top: 1px solid var(--border);
-}
+.vcr-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-muted); color: var(--text-secondary); font-size: .75rem; font-weight: 600; white-space: nowrap; }
+.vcr-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.vcr-active { border-color: #b8cde3; background: #eaf1f9; color: var(--civic-panel); }
 
-.vcr-note {
-    margin: 0;
-    color: var(--text-secondary);
-    font-size: 0.8125rem;
-    line-height: 1.45;
-}
+.vcr-actions-cell { text-align: right; white-space: nowrap; }
+.vcr-actions-cell .v3-btn + .v3-btn { margin-left: 6px; }
 
-.vcr-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-}
+/* The drawer form: grouped sections with a hairline between them. */
+.vcr-form { display: flex; flex-direction: column; gap: 20px; padding: 20px; }
+.vcr-section { display: flex; flex-direction: column; gap: 12px; }
+.vcr-section + .vcr-section { padding-top: 20px; border-top: 1px solid var(--border); }
+.vcr-section-title { margin: 0; color: var(--navy); font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.vcr-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.vcr-note { margin: 0; color: var(--text-secondary); font-size: .8125rem; line-height: 1.45; }
+
+@media (max-width: 520px) { .vcr-pair { grid-template-columns: 1fr; } }
