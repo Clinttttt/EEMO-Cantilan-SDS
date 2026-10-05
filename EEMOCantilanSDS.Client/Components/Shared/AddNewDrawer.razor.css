@@ -1,2 +1,0 @@
-/* The form inside the drawer: stable padding and one rhythm between sections. */
-.and-form { display: flex; flex-direction: column; gap: 20px; padding: 20px 24px 28px; }

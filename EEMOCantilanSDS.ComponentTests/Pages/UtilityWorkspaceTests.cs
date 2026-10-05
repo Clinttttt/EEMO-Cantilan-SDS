@@ -64,6 +64,29 @@ public sealed class UtilityWorkspaceTests : TestContext
     }
 
     [Fact]
+    public void Ecf_ControlsShareOneGroupInTheObligationsHeader_AndAnEmptyCurrentCollectionIsACompactSummary()
+    {
+        Services.AddSingleton(EcfApi(EcfQuote(outstanding: 80m, canAdd: true, SettlementAuthority.Canonical)).Object);
+
+        var cut = RenderComponent<ElectricityConsumptionFees>();
+
+        cut.WaitForAssertion(() =>
+        {
+            var controls = cut.Find(".ecf-panel-header .ecf-controls");                                   // search, area and the ECF pages together
+            Assert.NotNull(controls.QuerySelector("input[type='search']"));
+            Assert.NotNull(controls.QuerySelector("select[aria-label='Filter by area']"));
+            Assert.Equal(new[] { "Refresh", "Accounts", "Statements", "Report" }, controls.QuerySelectorAll("[aria-label='ECF actions'] .v3-btn").Select(x => x.TextContent.Trim()).ToArray());
+            Assert.Empty(cut.FindAll(".ecf-toolbar"));
+
+            var current = cut.Find("[aria-label='Current collection']");
+            Assert.Contains("Items", current.TextContent);
+            Assert.Contains("₱0.00", current.TextContent);
+            Assert.DoesNotContain("Start from a Payor", cut.Markup);                                      // a summary of state, not an advertisement
+            Assert.DoesNotContain("No collection in progress", cut.Markup);
+        }, Timeout);
+    }
+
+    [Fact]
     public void Ecf_EligibleObligation_OffersAddToCollection_AndTheSummaryUsesServerTotals()
     {
         Services.AddSingleton(EcfApi(EcfQuote(outstanding: 80m, canAdd: true, SettlementAuthority.Canonical)).Object);
@@ -91,7 +114,7 @@ public sealed class UtilityWorkspaceTests : TestContext
             Assert.Empty(cut.FindAll("main"));
             var title = Assert.Single(cut.FindAll("h1")).TextContent;
             Assert.Contains("Water Consumption Fees", title);
-            Assert.Contains("WCF", title);
+            Assert.Contains("WCF", cut.Find("header").TextContent);
             Assert.Contains("Cash Ticket", cut.Find("header").TextContent);
             Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/operations/water-consumption-fees/report");
         }, Timeout);
@@ -119,7 +142,7 @@ public sealed class UtilityWorkspaceTests : TestContext
 
             // Read-only evidence and reporting stay.
             Assert.Contains(cut.FindAll("h2"), h => h.TextContent.Trim() == "Collection activity");
-            Assert.Contains(cut.FindAll("h2"), h => h.TextContent.Trim() == "Collections needing review");
+            Assert.DoesNotContain(cut.FindAll("h2"), h => h.TextContent.Trim() == "Collections needing review");     // an empty review list is not shown
             Assert.Contains("1 of 1 open for collection", cut.Markup);
             Assert.DoesNotContain("unassigned CT", cut.Markup);   // physical stock never gates readiness (IA-062)
         }, Timeout);
@@ -215,7 +238,7 @@ public sealed class UtilityWorkspaceTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Contains("Active", cut.Find("section.wcf-mobile .wcf-mobile-state").TextContent);
+            Assert.Empty(cut.FindAll("section.wcf-mobile"));                                                 // active: nothing to say about it
             Assert.Empty(cut.FindAll("[role='dialog']"));
         }, Timeout);
         api.Verify(x => x.EnableMobileAsync(), Times.Once);
@@ -253,10 +276,15 @@ public sealed class UtilityWorkspaceTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Contains("Active", cut.Find("section.wcf-mobile .wcf-mobile-state").TextContent);
+            Assert.Empty(cut.FindAll("section.wcf-mobile"));                                                 // active: nothing to say about it
             Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Trim() == "Enable Mobile Collection");
             foreach (var technical in new[] { "Canonical", "Settlement authority", "Pending cutover", "cutover" })
-                Assert.DoesNotContain(technical, cut.Find("section.wcf-mobile").TextContent, StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain(technical, cut.Markup, StringComparison.OrdinalIgnoreCase);
+            // The readiness panel and its prose are gone from the working view; the capability itself is unchanged.
+            foreach (var verbose in new[] { "View readiness details", "Direct amount ·", "Collectors record Water Consumption Fees on Mobile", "Optional prepared amounts" })
+                Assert.DoesNotContain(verbose, cut.Markup);
+            Assert.NotNull(cut.Find("dl.v3h-figures"));                                                      // the same hero family as ECF
+            Assert.Contains(cut.FindAll(".wcf-controls a"), a => a.GetAttribute("href") == "/operations/water-consumption-fees/accounts");
         }, Timeout);
     }
 

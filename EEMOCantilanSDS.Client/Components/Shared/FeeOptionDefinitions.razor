@@ -34,7 +34,7 @@
     <AuthorizeView Roles="SuperAdmin">
         <Authorized>
             @* Defining a fee type opens in the same side drawer as every other Add New, so the table never moves. *@
-            <AddNewDrawer Show="_mode == FormMode.Add" Wide="false" Title="Add fee type" Subtitle="@Title"
+            <AddNewDrawer Show="_mode == FormMode.Add" Title="Add fee type" Subtitle="@Title"
                           FormId="@($"{_titleId}-add")" FormLabel="Add a fee type" SubmitText="Add fee type" Saving="_saving" Error="@_formError"
                           OnSubmit="SubmitAsync" OnCancel="Cancel">
                 <AddNewSection Title="Fee type">

@@ -1,0 +1,19 @@
+/* Import footer bar — moved verbatim from the stallholder import. */
+/* ── Footer bar ── */
+.imp-foot-bar {
+    display: flex; align-items: center; justify-content: flex-end; gap: 12px;
+    margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);
+}
+
+.imp-save-error {
+    font-size: 13px; color: var(--red); background: var(--red-bg);
+    border: 1px solid color-mix(in srgb, var(--red) 25%, transparent); border-radius: 9px;
+    padding: 10px 14px; margin-bottom: 12px;
+}
+
+.imp-btn-spin {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, .45); border-top-color: #fff;
+    display: inline-block; animation: setSpin .7s linear infinite;
+}
+@keyframes setSpin { to { transform: rotate(360deg); } }

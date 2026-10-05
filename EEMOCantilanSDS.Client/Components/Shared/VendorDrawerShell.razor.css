@@ -1,0 +1,496 @@
+/* The stallholder drawer's shell and form classes (overlay, panel, civic header, body, footer, sections, labels, inputs, choice cards), moved verbatim
+   out of AddVendorModal so every Add New uses the same implementation. Reached from any content in the shell through ::deep. */
+
+.vds ::deep .avm-input[type=number],
+.vds ::deep .avm-spin-input {
+    -moz-appearance: textfield;
+}
+
+/* ── Form section block ─────────────────────────────────────── */
+.vds ::deep .avm-section {
+    padding-bottom: 16px;
+    margin-bottom: 2px;
+}
+
+.vds ::deep .avm-section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+.vds ::deep .avm-sublabel {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+}
+
+/* ── Two-column row ─────────────────────────────────────────── */
+.vds ::deep .avm-row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+
+/* ── Form group ─────────────────────────────────────────────── */
+.vds ::deep .avm-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.vds ::deep .avm-label {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--text-subtle);
+    letter-spacing: 0.3px;
+}
+
+.vds ::deep .avm-req {
+    color: var(--red);
+}
+
+/* ── Text / select / date input ─────────────────────────────── */
+.vds ::deep .avm-input {
+    border: 1.5px solid var(--border);
+    border-radius: 9px;
+    padding: 9px 12px;
+    font-size: 13.5px;
+    color: var(--text);
+    background: var(--bg-card);
+    outline: none;
+    transition: border-color 0.15s;
+    width: 100%;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+
+    .vds ::deep .avm-input:focus {
+        border-color: var(--navy);
+    }
+
+    .vds ::deep .avm-input.form-input-error {
+        border-color: var(--red);
+        background: var(--red-bg);
+    }
+
+/* Locked facility display (read-only pill) */
+.vds ::deep .avm-input-locked {
+    background: var(--bg);
+    font-weight: 600;
+    color: var(--navy);
+    cursor: default;
+    user-select: none;
+    border-style: dashed;
+}
+
+/* ── Field error message ────────────────────────────────────── */
+.vds ::deep .form-error {
+    font-size: 11px;
+    color: var(--red);
+    margin-top: 4px;
+    display: block;
+}
+
+/* ── Inline hints ───────────────────────────────────────────── */
+.vds ::deep .avm-hint-ok {
+    font-size: 11px;
+    color: var(--text-success);
+    margin-top: 3px;
+}
+
+.vds ::deep .avm-hint-muted {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 3px;
+}
+
+/* ── Helper note (no section selected) ─────────────────────── */
+.vds ::deep .avm-section-note {
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 8px 4px;
+}
+
+/* ── Validation error banner ────────────────────────────────── */
+.vds ::deep .avm-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--red-bg);
+    border: 1px solid var(--red);
+    color: var(--red);
+    font-size: 12.5px;
+    font-weight: 500;
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin-top: 6px;
+}
+
+    .vds ::deep .avm-error svg {
+        width: 15px;
+        height: 15px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+    }
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   RIGHT-SIDE DRAWER STYLES
+══════════════════════════════════════════════════════════════════════ */
+
+.vds ::deep .eemo-drawer-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(13, 33, 55, 0.4);
+    z-index: 999;
+    backdrop-filter: blur(2px);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.vds ::deep .eemo-drawer-overlay.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.vds ::deep .eemo-drawer {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    width: 600px;
+    max-width: 90vw;
+    background: var(--bg-card);
+    box-shadow: -4px 0 24px rgba(13, 33, 55, 0.15);
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1001;
+}
+
+.vds ::deep .eemo-drawer-right {
+    right: 0;
+}
+
+.vds ::deep .eemo-drawer.show {
+    transform: translateX(0);
+}
+
+.vds ::deep .eemo-drawer-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-card);
+    flex-shrink: 0;
+}
+
+/* Override modal body to allow scrolling in drawer */
+.vds ::deep .eemo-drawer .eemo-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+}
+
+/* Override modal header for drawer */
+.vds ::deep .eemo-drawer .eemo-modal-header {
+    flex-shrink: 0;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+}
+
+@media (max-width: 768px) {
+    .vds ::deep .eemo-drawer {
+        width: 100vw;
+        max-width: 100vw;
+    }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   DRAWER HEADER STYLES (Navy Gradient - matches SLH)
+══════════════════════════════════════════════════════════════════════ */
+
+.vds ::deep .eemo-drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.5rem 1.25rem;
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 100%);
+    border-bottom: 1px solid rgba(200, 168, 75, 0.2);
+    flex-shrink: 0;
+}
+
+.vds ::deep .eemo-drawer-header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+}
+
+.vds ::deep .eemo-drawer-header-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    background: rgba(200, 168, 75, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.vds ::deep .eemo-drawer-header-icon svg {
+    width: 20px;
+    height: 20px;
+    stroke: var(--gold);
+    fill: none;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.vds ::deep .eemo-drawer-header-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.vds ::deep .eemo-drawer-header-sub {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.65);
+    margin-top: 2px;
+}
+
+.vds ::deep .eemo-drawer-header-close {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    flex-shrink: 0;
+}
+
+.vds ::deep .eemo-drawer-header-close:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+
+.vds ::deep .eemo-drawer-header-close svg {
+    width: 14px;
+    height: 14px;
+    stroke: #fff;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+}
+
+/* Override modal header for drawer */
+.vds ::deep .eemo-drawer .eemo-modal-header {
+    display: none;
+}
+
+
+/* ── Basis of occupancy ────────────────────────────────────────────────────────────────────────────────
+   A government form states its options plainly and shows which one is in force. Three bordered choices,
+   navy when selected, no colour beyond the document's own. */
+.vds ::deep .avm-choice {
+    display: grid;
+    /* The column count follows the number of bases actually offered, which is not fixed: an extension is offered only
+       while editing a record that already carries one. Hard-coded at three, dropping an option left an empty cell and a
+       band of whitespace beside the choices. */
+    grid-template-columns: repeat(var(--avm-choice-count, 3), minmax(0, 1fr));
+    gap: 10px;
+    /* Clear of the fields below: the choices are their own question, not a heading for the next one. */
+    margin-bottom: 18px;
+}
+
+.vds ::deep .avm-choice-item {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px 12px;
+    text-align: left;
+    background: #fff;
+    border: 1px solid var(--border, #d6dde5);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: border-color .12s ease, box-shadow .12s ease, background .12s ease;
+}
+
+.vds ::deep .avm-choice-item:hover {
+    border-color: var(--navy, #0b2239);
+}
+
+.vds ::deep .avm-choice-item.is-selected {
+    background: color-mix(in srgb, var(--navy, #0b2239) 6%, #fff);
+    border-color: var(--navy, #0b2239);
+    box-shadow: inset 0 0 0 1px var(--navy, #0b2239);
+}
+
+.vds ::deep .avm-choice-title {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--text-strong, #0b2239);
+    line-height: 1.3;
+}
+
+.vds ::deep .avm-choice-note {
+    font-size: 11px;
+    color: var(--text-muted, #5b6b7c);
+    line-height: 1.35;
+}
+
+/* A statement about what the record will say, not advice — the same muted voice as the rest of the form. */
+.vds ::deep .avm-hint {
+    font-size: 11px;
+    color: var(--text-muted, #5b6b7c);
+    line-height: 1.4;
+}
+
+/* The identifier given to a space the office does not number. Stated rather than typed: the clerk is not asked for a
+   stall number, because the office issues none for such a space and taking one from the facility's numbering left the
+   real stall of that number unregisterable. Shown, not hidden, so the record is not silent about what it carries. */
+.vds ::deep .avm-readonly {
+    border: 1.5px solid var(--border);
+    border-radius: 9px;
+    padding: 9px 12px;
+    font-size: 13.5px;
+    font-weight: 650;
+    color: var(--text-muted);
+    background: var(--bg-subtle, #f4f6f8);
+    width: 100%;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   ══════════════════════════════════════════════════════════════ */
+.vds ::deep .eemo-drawer {
+    --text-muted: var(--text-tertiary);
+    --gold: var(--accent);
+}
+
+.vds ::deep .eemo-drawer-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+
+.vds ::deep .eemo-drawer-header-icon {
+    background: var(--accent-soft);
+    color: var(--navy);
+}
+
+    .vds ::deep .eemo-drawer-header-icon svg {
+        stroke: var(--navy);
+    }
+
+.vds ::deep .eemo-drawer-header-title {
+    color: var(--navy);
+}
+
+.vds ::deep .eemo-drawer-header-sub {
+    color: var(--text-tertiary);
+}
+
+.vds ::deep .eemo-drawer-header-close {
+    border-color: transparent;
+    background: transparent;
+}
+
+    .vds ::deep .eemo-drawer-header-close:hover {
+        border-color: transparent;
+        background: var(--surface-hover);
+    }
+
+    .vds ::deep .eemo-drawer-header-close svg {
+        stroke: var(--text-secondary);
+    }
+
+    .vds ::deep .eemo-drawer-header-close:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+    }
+
+/* The title and note set their own dark colours, which beat the tile's white — lift both on the blue fill. */
+.vds ::deep .avm-choice-item.is-selected .avm-choice-title {
+    color: #fff;
+}
+
+.vds ::deep .avm-choice-item.is-selected .avm-choice-note {
+    color: rgba(255, 255, 255, .82);
+}
+
+/* ── V3 (2026-10-02): the drawer's identity band in the Dashboard's civic blue. Only the header is blue; the form
+      below stays on white. White text on --civic-panel meets AA. ── */
+.vds ::deep .eemo-drawer-header {
+    background: var(--civic-panel);
+    border-bottom-color: var(--civic-panel-deep);
+}
+
+.vds ::deep .eemo-drawer-header-icon {
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.12);
+}
+
+    .vds ::deep .eemo-drawer-header-icon svg {
+        stroke: #ffffff;
+    }
+
+.vds ::deep .eemo-drawer-header-title {
+    color: #ffffff;
+}
+
+.vds ::deep .eemo-drawer-header-sub {
+    color: rgba(255, 255, 255, 0.82);
+}
+
+.vds ::deep .eemo-drawer-header-close {
+    border-color: rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+}
+
+    .vds ::deep .eemo-drawer-header-close:hover {
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    .vds ::deep .eemo-drawer-header-close svg {
+        stroke: #ffffff;
+    }
+
+    .vds ::deep .eemo-drawer-header-close:focus-visible {
+        outline: 2px solid #ffffff;
+        outline-offset: 2px;
+    }
+@media (max-width: 640px) { .avm-row-2 { grid-template-columns: 1fr; } }
+@media (max-width: 720px) { .vds ::deep .avm-choice { grid-template-columns: 1fr; } }
+
+/* The selected basis / event card is filled with the civic accent (the white title and note above are lifted for it). */
+.vds ::deep .avm-choice-item.is-selected {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--surface);
+}

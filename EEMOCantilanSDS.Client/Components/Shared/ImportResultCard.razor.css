@@ -1,0 +1,47 @@
+/* Import result card — moved verbatim from the stallholder import. */
+/* ── State panels (unsupported / saved) ── */
+.imp-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 12px; text-align: center; min-height: 300px; padding: 40px 20px;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px;
+}
+.imp-state-ok { border-color: color-mix(in srgb, var(--green) 30%, var(--border)); }
+.imp-state-badge {
+    width: 56px; height: 56px; border-radius: 50%;
+    background: var(--green-bg); color: var(--green);
+    display: flex; align-items: center; justify-content: center;
+}
+.imp-state-badge svg { width: 28px; height: 28px; }
+.imp-state-title { font-size: 17px; font-weight: 800; color: var(--navy); }
+.imp-state-text { font-size: 13px; color: var(--text-muted); max-width: 460px; line-height: 1.5; }
+.imp-state-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 6px; }
+
+@media (max-width: 760px) {
+    .imp-hero { padding: 18px; }
+    .imp-hero-title { font-size: 18px; }
+    .imp-steps { width: 100%; }
+}
+
+
+/* ── Import results / errors ── */
+.imp-state-badge.warn { background: rgba(200, 168, 75, .16); color: #8a6d1b; }
+
+.imp-result-errors {
+    width: 100%; max-width: 720px; margin-top: 8px;
+    display: flex; flex-direction: column; gap: 6px;
+    max-height: 240px; overflow: auto;
+    text-align: left;
+}
+.imp-result-err-row {
+    display: grid; grid-template-columns: 70px minmax(120px, 1fr) 1.4fr; gap: 10px; align-items: baseline;
+    background: var(--red-bg); border: 1px solid color-mix(in srgb, var(--red) 22%, transparent);
+    border-radius: 8px; padding: 7px 11px; font-size: 12.5px;
+}
+.imp-result-err-row-no { font-weight: 700; color: var(--red); white-space: nowrap; }
+.imp-result-err-row-name { color: var(--navy); font-weight: 600; }
+.imp-result-err-row-msg { color: var(--red); }
+
+
+@media (max-width: 640px) {
+    .imp-result-err-row { grid-template-columns: 1fr; gap: 2px; }
+}

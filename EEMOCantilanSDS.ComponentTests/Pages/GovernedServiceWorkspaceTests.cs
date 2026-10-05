@@ -177,8 +177,8 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
         cut.WaitForAssertion(() => cut.Find("aside button.gsw-edit"), Timeout);
         cut.Find("aside button.gsw-edit").Click();
 
-        cut.Find("aside select").Change(GovernedServiceBasis.FixedAmount.ToString());
-        cut.Find("aside input[type='number']").Change("25");
+        cut.Find("[role='dialog'] select").Change(GovernedServiceBasis.FixedAmount.ToString());
+        cut.Find("[role='dialog'] input[type='number']").Change("25");
         cut.Find("[role=dialog] form").Submit();
 
         cut.WaitForAssertion(() =>
@@ -278,7 +278,7 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var drawer = Assert.Single(cut.FindAll("[role='dialog']"));
-            Assert.Contains("Change amount rule", drawer.QuerySelector(".sd-title")!.TextContent);
+            Assert.Contains("Change amount rule", drawer.QuerySelector(".eemo-drawer-header-title")!.TextContent);
             Assert.NotNull(drawer.QuerySelector("form"));
             Assert.Empty(cut.Find("aside").QuerySelectorAll("form"));                                     // nothing stretches the Setup panel
             Assert.Equal(7, cut.Find(".gsw-scroll").QuerySelectorAll("tbody tr").Length);                  // and the collections stay where they are

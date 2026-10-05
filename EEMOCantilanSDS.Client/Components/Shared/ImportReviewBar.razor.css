@@ -1,0 +1,15 @@
+/* Import review bar — moved verbatim from the stallholder import. */
+/* ── Review bar ── */
+.imp-review-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 18px; margin-bottom: 14px;
+}
+.imp-review-left { display: flex; align-items: center; gap: 14px; }
+.imp-review-count {
+    font-size: 26px; font-weight: 800; color: var(--navy); line-height: 1;
+    background: var(--bg-icon); border-radius: 10px; padding: 8px 14px; font-variant-numeric: tabular-nums;
+}
+.imp-review-title { font-size: 14px; font-weight: 700; color: var(--navy); }
+.imp-review-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.imp-review-actions { display: flex; gap: 10px; flex-wrap: wrap; }

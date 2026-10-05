@@ -1,0 +1,60 @@
+@using Microsoft.AspNetCore.Components.Forms
+@* Step 1 of every bulk import: the upload area, the template / sample / manual links, and a short preview of the columns. The page
+   supplies its own setup row (Setup) and any note about its own paperwork (Notes); everything else is the same for every import. *@
+<div class="imp-upload-card">
+    @Setup
+    <label class="imp-drop">
+        <InputFile OnChange="OnFile" class="imp-file-input" accept=".csv,.xlsx" />
+        <div class="imp-drop-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+        </div>
+        <div class="imp-drop-title">Choose a file to upload</div>
+        <div class="imp-drop-sub">CSV or Excel (.xlsx) — @Subtitle</div>
+        @if (!string.IsNullOrEmpty(UploadError))
+        {
+            <div class="imp-drop-err">@UploadError</div>
+        }
+    </label>
+
+    <div class="imp-upload-foot">
+        <ImportLink Href="@TemplateHref" Download="@TemplateFileName">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+            Download CSV template
+        </ImportLink>
+        <span class="imp-foot-sep">·</span>
+        <ImportLink Class="imp-use-sample" OnClick="OnSample">Use sample data instead</ImportLink>
+        <span class="imp-foot-sep">·</span>
+        @* For an office with no file at all. The same review table, starting empty. *@
+        <ImportLink Class="imp-enter-manually" OnClick="OnManual">Enter manually</ImportLink>
+    </div>
+
+    <div class="imp-cols-preview">
+        <div class="imp-cols-label">Columns for @ColumnsFor</div>
+        <div class="imp-cols-chips">
+            @foreach (var label in ColumnLabels)
+            {
+                <span class="imp-chip">@label</span>
+            }
+        </div>
+        @Notes
+    </div>
+</div>
+
+@code {
+    /// <summary>What the file holds, in a few words ("the list of Iceplant stallholders").</summary>
+    [Parameter] public string Subtitle { get; set; } = string.Empty;
+    [Parameter] public EventCallback<InputFileChangeEventArgs> OnFile { get; set; }
+    [Parameter] public string? UploadError { get; set; }
+    [Parameter] public string TemplateHref { get; set; } = "#";
+    [Parameter] public string TemplateFileName { get; set; } = "template.csv";
+    [Parameter] public EventCallback OnSample { get; set; }
+    [Parameter] public EventCallback OnManual { get; set; }
+    [Parameter] public string ColumnsFor { get; set; } = string.Empty;
+    [Parameter] public IEnumerable<string> ColumnLabels { get; set; } = [];
+
+    /// <summary>A setup row shown above the upload area (the stallholder import's section and utilities).</summary>
+    [Parameter] public RenderFragment? Setup { get; set; }
+
+    /// <summary>A note shown under the column chips.</summary>
+    [Parameter] public RenderFragment? Notes { get; set; }
+}

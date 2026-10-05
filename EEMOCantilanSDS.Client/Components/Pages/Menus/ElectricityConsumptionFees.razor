@@ -23,26 +23,6 @@
         </Figures>
     </V3Hero>
 
-    <div class="ecf-toolbar no-print">
-            <div class="v3-btn-group" role="group" aria-label="ECF actions">
-                <button class="v3-btn" type="button" @onclick="ReloadAsync" disabled="@_busy">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7" /><polyline points="20 4 20 11 13 11" /></svg>
-                    Refresh
-                </button>
-                <a class="v3-btn" href="/operations/ecf/accounts">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" /><circle cx="10" cy="7" r="4" /><path d="M21 21v-2a4 4 0 0 0-3-3.9" /></svg>
-                    Accounts
-                </a>
-                <a class="v3-btn" href="/operations/ecf/statements">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17" x2="13" y2="17" /></svg>
-                    Statements
-                </a>
-                <a class="v3-btn" href="/operations/ecf/report">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17" x2="13" y2="17" /></svg>
-                    Report
-                </a>
-            </div>
-    </div>
 
     @if (!string.IsNullOrWhiteSpace(_message))
     {
@@ -55,12 +35,13 @@
 
     <div class="ecf-layout">
         <section class="v3-panel" aria-labelledby="ecf-obligations-title">
-            <header class="v3-panel-header">
-                <h2 id="ecf-obligations-title">Obligations</h2>
-                <span class="v3-panel-meta">@FilteredQuotes.Count() of @_quotes.Count · @BillingPeriodLabel</span>
-            </header>
-
-            <div class="v3-toolbar" aria-label="Obligation filters">
+            <header class="v3-panel-header ecf-panel-header">
+                <div class="ecf-panel-title">
+                    <h2 id="ecf-obligations-title">Obligations</h2>
+                    <span class="v3-panel-meta">@FilteredQuotes.Count() of @_quotes.Count · @BillingPeriodLabel</span>
+                </div>
+                @* One aligned control group: find an obligation, narrow it to an area, and move between the ECF pages. *@
+                <div class="ecf-controls no-print" aria-label="Obligation filters and ECF actions">
                 <label class="v3-search">
                     <span class="v3-sr-only">Search ECF sources</span>
                     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
@@ -74,7 +55,26 @@
                         <option value="@area">@area</option>
                     }
                 </select>
-            </div>
+                    <div class="v3-btn-group" role="group" aria-label="ECF actions">
+                        <button class="v3-btn" type="button" @onclick="ReloadAsync" disabled="@_busy">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7" /><polyline points="20 4 20 11 13 11" /></svg>
+                            Refresh
+                        </button>
+                        <a class="v3-btn" href="/operations/ecf/accounts">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" /><circle cx="10" cy="7" r="4" /><path d="M21 21v-2a4 4 0 0 0-3-3.9" /></svg>
+                            Accounts
+                        </a>
+                        <a class="v3-btn" href="/operations/ecf/statements">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17" x2="13" y2="17" /></svg>
+                            Statements
+                        </a>
+                        <a class="v3-btn" href="/operations/ecf/report">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17" x2="13" y2="17" /></svg>
+                            Report
+                        </a>
+                    </div>
+                </div>
+            </header>
 
             <div class="v3-table-wrap" role="region" aria-label="ECF obligations" tabindex="0">
                 <table class="v3-table">
@@ -165,13 +165,11 @@
 
             @if (_draft is null)
             {
-                <div class="v3-panel-body ecf-collection-empty">
-                    <div class="v3-empty-block">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><line x1="3" y1="10" x2="21" y2="10" /><line x1="7" y1="15" x2="11" y2="15" /></svg>
-                        <strong>No collection in progress</strong>
-                        <p>Add an obligation, or start from a Payor.</p>
-                    </div>
-                    <a class="v3-btn" href="/collections/current">Start from a Payor</a>
+                <div class="v3-panel-body">
+                    <dl class="v3-facts" aria-label="Current collection">
+                        <div><dt>Items</dt><dd>0</dd></div>
+                        <div><dt>Total</dt><dd>@Money(0m)</dd></div>
+                    </dl>
                 </div>
             }
             else
@@ -216,7 +214,6 @@
                     </div>
 
                     <a class="v3-btn v3-btn-primary" href="/collections/current">Review and post</a>
-                    <p class="ecf-footnote">Nothing is recorded as revenue until the collection is posted. StallTrack then assigns its reference code (SRC).</p>
                 </div>
             }
         </aside>

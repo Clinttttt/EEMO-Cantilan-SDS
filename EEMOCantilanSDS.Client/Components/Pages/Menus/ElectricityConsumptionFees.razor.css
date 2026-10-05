@@ -3,7 +3,6 @@
 
 /* Period and instrument sit on the hero's subtitle line; the actions are one quiet group on the right beneath it. */
 .ecf-hero-meta { display: inline-flex; align-items: center; gap: 10px; }
-.ecf-toolbar { display: flex; justify-content: flex-end; margin-bottom: -4px; }
 
 /* Both columns share one height, so the Current collection panel lines up with the Obligations register. */
 .ecf-layout {
@@ -126,3 +125,10 @@
 }
 
 /* Official Receipt: the next assigned receipt is the normal path; choosing another is a secondary recovery action. */
+
+/* The Obligations header carries one aligned control group (search, area, and the ECF pages); it wraps deliberately when the panel is narrow. */
+.ecf-panel-header { flex-wrap: wrap; align-items: flex-start; gap: 12px 16px; }
+.ecf-panel-title { display: flex; flex-direction: column; gap: 2px; min-width: 9rem; }
+.ecf-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-left: auto; }
+.ecf-controls .v3-search { flex: 0 1 13rem; min-width: 10rem; }
+.ecf-controls .v3-select { flex: 0 0 auto; min-width: 8rem; }

@@ -11,6 +11,7 @@
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Domain.Constants
+@using EEMOCantilanSDS.Client.Components.Shared
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @inject NavigationManager Navigation
@@ -68,53 +69,23 @@
     else
     {
         <!-- ── Hero ── -->
-        <div class="imp-hero">
-            <div class="imp-hero-left">
-                <div class="imp-hero-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                        <polyline points="17 8 12 3 7 8" />
-                        <line x1="12" y1="3" x2="12" y2="15" />
-                    </svg>
-                </div>
-                <div>
-                    <div class="imp-hero-eyebrow">@(_facility.ShortCode + SectionSuffix) · Bulk Import</div>
-                    <div class="imp-hero-title">Import @_facility.Name Stallholders</div>
-                    <div class="imp-hero-sub">Upload a list, review &amp; edit, then save.</div>
-                </div>
-            </div>
-            <div class="imp-steps">
-                <div class="imp-step @(StepClass(1))"><span class="imp-step-no">1</span> Upload</div>
-                <div class="imp-step-line"></div>
-                <div class="imp-step @(StepClass(2))"><span class="imp-step-no">2</span> Review &amp; edit</div>
-                <div class="imp-step-line"></div>
-                <div class="imp-step @(StepClass(3))"><span class="imp-step-no">3</span> Save</div>
-            </div>
-        </div>
+        <ImportHero Eyebrow="@(_facility.ShortCode + SectionSuffix + " · Bulk Import")" Title="@($"Import {_facility.Name} Stallholders")" Step="@(_saved ? 3 : _loaded ? 2 : 1)" />
 
         @if (_saved && _result is not null)
         {
             <!-- ── Import results ── -->
-            <div class="imp-state @(_result.FailedCount == 0 ? "imp-state-ok" : "")">
-                <div class="imp-state-badge @(_result.FailedCount == 0 ? "" : "warn")">
-                    @if (_result.FailedCount == 0)
-                    {
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
-                    }
-                    else
-                    {
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4" /><path d="M12 17h.01" /><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /></svg>
-                    }
-                </div>
-                <div class="imp-state-title">
-                    @{ var _imported = _result.CreatedCount + _result.RenewedCount; }
-                    @($"{_imported} {_facility.Name}{SectionSuffix} stallholder{(_imported == 1 ? "" : "s")} imported")
+            var imported = _result.CreatedCount + _result.RenewedCount;
+            <ImportResultCard Ok="@(_result.FailedCount == 0)"
+                              Errors="@(_result.Results.Where(r => !r.Created && !r.Renewed).Select(r => new ImportResultError(r.RowNumber,
+                                  (string.IsNullOrWhiteSpace(r.Occupant) ? "—" : r.Occupant) + (string.IsNullOrWhiteSpace(r.StallNo) ? "" : $" · Stall {r.StallNo}"), r.Error ?? string.Empty)).ToList())">
+                <Title>
+                    @($"{imported} {_facility.Name}{SectionSuffix} stallholder{(imported == 1 ? "" : "s")} imported")
                     @if (_result.RenewedCount > 0)
                     {
                         <span> (@_result.CreatedCount new · @_result.RenewedCount renewed)</span>
                     }
-                </div>
-                <div class="imp-state-text">
+                </Title>
+                <Text>
                     @if (_result.FailedCount == 0)
                     {
                         <text>All rows were imported successfully.</text>
@@ -123,27 +94,12 @@
                     {
                         <text>@_result.FailedCount of @_result.TotalRows row@(_result.TotalRows == 1 ? "" : "s") could not be imported and were skipped — see below.</text>
                     }
-                </div>
-
-                @if (_result.FailedCount > 0)
-                {
-                    <div class="imp-result-errors">
-                        @foreach (var r in _result.Results.Where(r => !r.Created && !r.Renewed))
-                        {
-                            <div class="imp-result-err-row">
-                                <span class="imp-result-err-row-no">Row @r.RowNumber</span>
-                                <span class="imp-result-err-row-name">@(string.IsNullOrWhiteSpace(r.Occupant) ? "—" : r.Occupant)@(string.IsNullOrWhiteSpace(r.StallNo) ? "" : $" · Stall {r.StallNo}")</span>
-                                <span class="imp-result-err-row-msg">@r.Error</span>
-                            </div>
-                        }
-                    </div>
-                }
-
-                <div class="imp-state-actions">
-                    <button class="imp-btn imp-btn-ghost" @onclick="ResetAll">Import another file</button>
-                    <a class="imp-btn imp-btn-primary" href="@BackUrl">Back to @_facility.ShortCode</a>
-                </div>
-            </div>
+                </Text>
+                <ChildContent>
+                    <ImportButton Kind="ghost" OnClick="ResetAll">Import another file</ImportButton>
+                    <ImportButton Kind="primary" Href="@BackUrl">Back to @_facility.ShortCode</ImportButton>
+                </ChildContent>
+            </ImportResultCard>
         }
         else if (NeedsSection)
         {
@@ -178,14 +134,17 @@
         else if (!_loaded)
         {
             <!-- ── Step 1: Upload ── -->
-            <div class="imp-upload-card">
+            <ImportUploadCard Subtitle="@($"the list of {_facility.Name} stallholders")" OnFile="OnFileChange" UploadError="@_uploadError" TemplateHref="@TemplateDataUri"
+                              TemplateFileName="@($"{_facility.ShortCode}-stallholders-template.csv")" OnSample="LoadSample" OnManual="StartManual"
+                              ColumnsFor="@_facility.ShortCode" ColumnLabels="VisibleColumns.Select(c => c.Label)">
+                <Setup>
                 @if (RequiresSection)
                 {
                     <div class="imp-setup">
                         <div class="imp-setup-group">
                             <span class="imp-setup-key">Section</span>
                             <span class="imp-setup-val">@SectionOptionLabel(_section)</span>
-                            <button type="button" class="imp-link imp-link-btn" @onclick="ChangeSection">Change</button>
+                            <ImportLink OnClick="ChangeSection">Change</ImportLink>
                         </div>
 
                         @if (IsCustomSectionChosen)
@@ -218,39 +177,8 @@
                         </div>
                     </div>
                 }
-                <label class="imp-drop">
-                    <InputFile OnChange="OnFileChange" class="imp-file-input" accept=".csv,.xlsx" />
-                    <div class="imp-drop-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
-                    </div>
-                    <div class="imp-drop-title">Choose a file to upload</div>
-                    <div class="imp-drop-sub">CSV or Excel (.xlsx) — the list of @_facility.Name stallholders</div>
-                    @if (!string.IsNullOrEmpty(_uploadError))
-                    {
-                        <div class="imp-drop-err">@_uploadError</div>
-                    }
-                </label>
-
-                <div class="imp-upload-foot">
-                    <a class="imp-link" href="@TemplateDataUri" download="@($"{_facility.ShortCode}-stallholders-template.csv")">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-                        Download CSV template
-                    </a>
-                    <span class="imp-foot-sep">·</span>
-                    <button class="imp-link imp-link-btn imp-use-sample" @onclick="LoadSample">Use sample data instead</button>
-                    <span class="imp-foot-sep">·</span>
-                    @* For an office with no file at all. The same review table, starting empty. *@
-                    <button class="imp-link imp-link-btn imp-enter-manually" @onclick="StartManual">Enter manually</button>
-                </div>
-
-                <div class="imp-cols-preview">
-                    <div class="imp-cols-label">Columns for @_facility.ShortCode</div>
-                    <div class="imp-cols-chips">
-                        @foreach (var c in VisibleColumns)
-                        {
-                            <span class="imp-chip">@c.Label</span>
-                        }
-                    </div>
+                </Setup>
+                <Notes>
                     @if (IsPureDays)
                     {
                         <div class="imp-cols-note"><strong>Calendar-day billing:</strong> no fixed monthly or whole-year rental is required.</div>
@@ -268,41 +196,30 @@
                         list written without them uploads as it stands; the rent may be stated in either
                         <strong>Monthly Rental / Contract</strong> or <strong>Actual Mo. Rental</strong>.
                     </div>
-                </div>
-            </div>
+                </Notes>
+            </ImportUploadCard>
         }
         else
         {
             <!-- ── Step 2: Review & edit ── -->
-            <div class="imp-review-bar">
-                <div class="imp-review-left">
-                    <div class="imp-review-count">@_rows.Count</div>
-                    <div>
-                        <div class="imp-review-title">rows ready to review</div>
-                        <div class="imp-review-sub">
-                            @($"{(string.IsNullOrEmpty(_fileName) ? "Sample data" : _fileName)} · {_facility.Name}{SectionSuffix}")
-                        </div>
-                    </div>
-                </div>
-                <div class="imp-review-actions">
-                    @* Two bases, two buttons. A space let without a signed contract is not numbered by the office, so
-                       it cannot be added by the same action as a contracted stall: one row needs the facility's next
-                       stall number and the other must never be given one. A single "Add row" could only assume, and
-                       assumed the contract, which is how a barbecue or ice-plant list — where every occupancy is a
-                       space — got stall numbers the office does not issue. *@
-                    <button class="imp-btn imp-btn-ghost imp-add-row" @onclick="() => AddRow(false)"
-                            title="A stall let under a signed contract. Takes the facility's next stall number.">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                        Add row (contract)
-                    </button>
-                    <button class="imp-btn imp-btn-ghost imp-add-space-row" @onclick="() => AddRow(true)"
-                            title="A space let without a signed contract. The office issues no stall number for these.">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                        Add row (space only)
-                    </button>
-                    <button class="imp-btn imp-btn-outline" @onclick="ResetAll">Discard</button>
-                </div>
-            </div>
+            <ImportReviewBar Count="_rows.Count" Subtitle="@($"{(string.IsNullOrEmpty(_fileName) ? "Sample data" : _fileName)} · {_facility.Name}{SectionSuffix}")">
+                @* Two bases, two buttons. A space let without a signed contract is not numbered by the office, so
+                   it cannot be added by the same action as a contracted stall: one row needs the facility's next
+                   stall number and the other must never be given one. A single "Add row" could only assume, and
+                   assumed the contract, which is how a barbecue or ice-plant list — where every occupancy is a
+                   space — got stall numbers the office does not issue. *@
+                <ImportButton Kind="ghost" Class="imp-add-row" OnClick="() => AddRow(false)"
+                              Title="A stall let under a signed contract. Takes the facility's next stall number.">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                    Add row (contract)
+                </ImportButton>
+                <ImportButton Kind="ghost" Class="imp-add-space-row" OnClick="() => AddRow(true)"
+                              Title="A space let without a signed contract. The office issues no stall number for these.">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                    Add row (space only)
+                </ImportButton>
+                <ImportButton Kind="outline" OnClick="ResetAll">Discard</ImportButton>
+            </ImportReviewBar>
 
             @if (_autoContinued)
             {
@@ -399,107 +316,13 @@
                 </div>
             }
 
-            <div class="imp-table-wrap">
-                <table class="imp-table">
-                    <thead>
-                        <tr>
-                            <th class="imp-th-num">#</th>
-                            @foreach (var c in VisibleColumns)
-                            {
-                                <th style="@($"min-width:{c.MinWidth}px")">@c.Label</th>
-                            }
-                            <th class="imp-th-act"></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @for (var i = 0; i < _rows.Count; i++)
-                        {
-                            var row = _rows[i];
-                            var rowIndex = i;
-                            <tr>
-                                <td class="imp-td-num">@(rowIndex + 1)</td>
-                                @foreach (var c in VisibleColumns)
-                                {
-                                    var col = c;
-                                    <td>
-                                        @if (col.Type == "select")
-                                        {
-                                            <div class="imp-select-wrap">
-                                                <select class="imp-cell imp-cell-select"
-                                                        value="@GetCell(row, col.Key)"
-                                                        @onchange="e => SetCell(row, col.Key, e.Value?.ToString())">
-                                                    <option value=""></option>
-                                                    @foreach (var opt in col.Options)
-                                                    {
-                                                        <option value="@opt">@opt</option>
-                                                    }
-                                                </select>
-                                                <svg class="imp-select-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-                                            </div>
-                                        }
-                                        else
-                                        {
-                                            @* The stall-number box is named so a test can read it without counting
-                                               columns. Selecting cells by position is what failed a deployment once.
-                                               CellHook does the same for the rest, so every column can be reached by
-                                               name rather than by index.
-
-                                               A space the office does not number shows its identifier but does not
-                                               let it be typed over. The identifier is the system's own: it is what
-                                               the occupancy is keyed, linked and routed on, and editing "SP-2" into
-                                               anything else would either collide with the facility's numbering or
-                                               leave the row identified by nothing. The basis is changed in the
-                                               contract column, and the identifier follows from it. *@
-                                            var isSpaceIdentifier = col.Key == "stallNo" && !RowIsContracted(row);
-                                            <input class="imp-cell @(col.Type == "number" ? "imp-cell-num" : "") @CellHook(col.Key) @(isSpaceIdentifier ? "imp-cell-locked" : "") @(col.Key == "occupant" && OccupantExists(GetCell(row, col.Key)) ? "imp-cell-dup" : "")"
-                                                   type="@(col.Type == "date" ? "date" : col.Type == "number" ? "number" : "text")"
-                                                   value="@GetCell(row, col.Key)"
-                                                   placeholder="@col.Placeholder"
-                                                   readonly="@isSpaceIdentifier"
-                                                   tabindex="@(isSpaceIdentifier ? "-1" : null)"
-                                                   title="@(isSpaceIdentifier ? "The office issues no number for a space held without a signed contract. This identifier is the system's own; change the basis in the contract column instead." : col.Key == "occupant" && OccupantExists(GetCell(row, col.Key)) ? "This occupant is already an active stallholder in this facility." : null)"
-                                                   @oninput="e => SetCell(row, col.Key, e.Value?.ToString())" />
-                                        }
-                                    </td>
-                                }
-                                <td class="imp-td-act">
-                                    <button class="imp-row-del" title="Remove row" @onclick="() => RemoveRow(rowIndex)">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
-                                    </button>
-                                </td>
-                            </tr>
-                        }
-                        @if (_rows.Count == 0)
-                        {
-                            <tr>
-                                <td colspan="@(VisibleColumns.Count + 2)" class="imp-empty">
-                                    No rows. Use “Add row” to start, or discard and upload again.
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
+            <ImportGrid TRow="Dictionary<string, string>" Columns="VisibleColumns" Rows="_rows" Label="Stallholders to import"
+                        GetCell="@((r, c) => GetCell(r, c.Key))" OnChange="CellChanged" OnRemove="RemoveRow"
+                        CellClass="IceCellClass" IsReadonly="IceReadonly" CellTitle="IceCellTitle" />
 
             <!-- ── Footer / Save ── -->
-            @if (!string.IsNullOrEmpty(_saveError))
-            {
-                <div class="imp-save-error">@_saveError</div>
-            }
-            <div class="imp-foot-bar">
-                <a class="imp-btn imp-btn-ghost" href="@BackUrl">Cancel</a>
-                <button class="imp-btn imp-btn-primary" @onclick="SaveAsync" disabled="@(_rows.Count == 0 || _saving)">
-                    @if (_saving)
-                    {
-                        <span class="imp-btn-spin"></span>
-                        <text>Importing…</text>
-                    }
-                    else
-                    {
-                        <text>Save @_rows.Count stallholder@(_rows.Count == 1 ? "" : "s")</text>
-                    }
-                </button>
-            </div>
+            <ImportFootBar CancelHref="@BackUrl" Error="@_saveError" Saving="_saving" Disabled="@(_rows.Count == 0)" OnSave="SaveAsync"
+                           SaveLabel="@($"Save {_rows.Count} stallholder{(_rows.Count == 1 ? "" : "s")}")" />
         }
     }
 </div>
@@ -737,8 +560,8 @@
     // NPM imports one section at a time (each section is a separate physical list).
     private bool RequiresSection => _facility?.ShortCode == "NPM";
     private bool IsPureDays => RequiresSection && _npmMonthBasis == NpmMonthBasis.PureDays;
-    private IReadOnlyList<ColumnDef> VisibleColumns => _facility is null
-        ? Array.Empty<ColumnDef>()
+    private IReadOnlyList<ImportColumn> VisibleColumns => _facility is null
+        ? Array.Empty<ImportColumn>()
         : IsPureDays
             ? _facility.Columns.Where(c => c.Key is not ("monthly" or "actualMonthly" or "wholeYear")).ToList()
             : _facility.Columns;
@@ -1011,6 +834,21 @@
                 _takeovers[sn] = previous;
         }
     }
+
+    // The shared grid reports an edit; what an edit means (renumbering, validation, the basis) stays here.
+    private void CellChanged(ImportCellChange<Dictionary<string, string>> change) => SetCell(change.Row, change.Column.Key, change.Value);
+
+    // A test hook per column, and a red flag on an occupant who is already active in this facility.
+    private string? IceCellClass(Dictionary<string, string> row, ImportColumn col) =>
+        CellHook(col.Key) + (col.Key == "occupant" && OccupantExists(GetCell(row, col.Key)) ? " imp-cell-dup" : "");
+
+    // A space the office does not number shows its identifier but it is the system's own, so it is not typed over.
+    private bool IceReadonly(Dictionary<string, string> row, ImportColumn col) => col.Key == "stallNo" && !RowIsContracted(row);
+
+    private string? IceCellTitle(Dictionary<string, string> row, ImportColumn col) =>
+        IceReadonly(row, col)
+            ? "The office issues no number for a space held without a signed contract. This identifier is the system's own; change the basis in the contract column instead."
+            : col.Key == "occupant" && OccupantExists(GetCell(row, col.Key)) ? "This occupant is already an active stallholder in this facility." : null;
 
     private void RemoveRow(int index)
     {
@@ -1563,18 +1401,13 @@
     /// is live, nothing has yet been earned, and no row arrives in arrears.
     /// </summary>
     private static string SampleEffectivity => PhilippineTime.Today.ToString("yyyy-MM") + "-01";
-    public record ColumnDef(string Key, string Label, string Type = "text", string[]? Options = null,
-        int MinWidth = 150, string Placeholder = "", string Default = "")
-    {
-        public string[] Options { get; init; } = Options ?? Array.Empty<string>();
-    }
 
     public class FacilityImportConfig
     {
         public FacilityCode Code { get; set; }
         public string ShortCode { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
-        public List<ColumnDef> Columns { get; set; } = new();
+        public List<ImportColumn> Columns { get; set; } = new();
         public List<Dictionary<string, string>> Sample { get; set; } = new();
     }
 
@@ -1585,16 +1418,16 @@
         return d;
     }
 
-    private static readonly ColumnDef Occupant = new("occupant", "Actual Occupant (Leasee)", MinWidth: 200, Placeholder: "Full name");
-    private static readonly ColumnDef ContractName = new("contractName", "Name on Contract", MinWidth: 200, Placeholder: "Per signed contract");
-    private static readonly ColumnDef StallNo = new("stallNo", "Stall / Space No.", MinWidth: 110, Placeholder: "e.g. 1");
-    private static readonly ColumnDef Effectivity = new("effectivity", "Effectivity Date", "date", MinWidth: 150);
-    private static readonly ColumnDef Years = new("years", "No. of Years", "number", MinWidth: 110, Placeholder: "3");
-    private static readonly ColumnDef Area = new("area", "Area (sqm)", "number", MinWidth: 110, Placeholder: "0");
-    private static readonly ColumnDef Monthly = new("monthly", "Monthly Rental / Contract", "number", MinWidth: 160, Placeholder: "0.00");
-    private static readonly ColumnDef ActualMonthly = new("actualMonthly", "Actual Mo. Rental", "number", MinWidth: 150, Placeholder: "0.00");
-    private static readonly ColumnDef WholeYear = new("wholeYear", "Whole Year Rental", "number", MinWidth: 150, Placeholder: "0.00");
-    private static readonly ColumnDef Delinquent = new("delinquent", "Delinquent (₱)", "number", MinWidth: 130, Placeholder: "0.00");
+    private static readonly ImportColumn Occupant = new("occupant", "Actual Occupant (Leasee)", MinWidth: 200, Placeholder: "Full name");
+    private static readonly ImportColumn ContractName = new("contractName", "Name on Contract", MinWidth: 200, Placeholder: "Per signed contract");
+    private static readonly ImportColumn StallNo = new("stallNo", "Stall / Space No.", MinWidth: 110, Placeholder: "e.g. 1");
+    private static readonly ImportColumn Effectivity = new("effectivity", "Effectivity Date", "date", MinWidth: 150);
+    private static readonly ImportColumn Years = new("years", "No. of Years", "number", MinWidth: 110, Placeholder: "3");
+    private static readonly ImportColumn Area = new("area", "Area (sqm)", "number", MinWidth: 110, Placeholder: "0");
+    private static readonly ImportColumn Monthly = new("monthly", "Monthly Rental / Contract", "number", MinWidth: 160, Placeholder: "0.00");
+    private static readonly ImportColumn ActualMonthly = new("actualMonthly", "Actual Mo. Rental", "number", MinWidth: 150, Placeholder: "0.00");
+    private static readonly ImportColumn WholeYear = new("wholeYear", "Whole Year Rental", "number", MinWidth: 150, Placeholder: "0.00");
+    private static readonly ImportColumn Delinquent = new("delinquent", "Delinquent (₱)", "number", MinWidth: 130, Placeholder: "0.00");
 
     private static readonly Dictionary<string, FacilityImportConfig> Configs = BuildConfigs();
 
@@ -1602,7 +1435,7 @@
     {
         // Shared core columns from the official "List of Stallholders" form. NPM adds Section,
         // NCC adds Area Location; space-only facilities (BBQ/ICE) simply leave contract columns blank.
-        List<ColumnDef> Core() => new()
+        List<ImportColumn> Core() => new()
         {
             Occupant, ContractName, StallNo, Effectivity, Years, Area, Monthly, ActualMonthly, WholeYear, Delinquent
         };

@@ -149,48 +149,50 @@
     <Authorized>
         @if (_definition is { } def)
         {
-            <AddNewDrawer Show="_editing" Edit="true" Wide="false" Title="@(def.State == GovernedServiceSetupState.SetupRequired && def.Basis is null ? "Set up amount rule" : "Change amount rule")" Subtitle="@Name"
+            <AddNewDrawer Show="_editing" Edit="true" Title="@(def.State == GovernedServiceSetupState.SetupRequired && def.Basis is null ? "Set up amount rule" : "Change amount rule")" Subtitle="@Name"
                           FormId="@_formId" FormLabel="Amount rule" SubmitText="Save amount rule" Saving="_saving" Error="@_saveError"
                           OnSubmit="SaveAsync" OnCancel="CloseEditor">
-                <AddNewSection Title="Amount rule">
+                <AddNewSection Title="Amount rule" Plain="true">
                     @if (def.AllowedBases.Count > 1)
                     {
-                        <label class="v3-field ans-span">
-                            <span>Rule</span>
-                            <select @bind="_basis">
+                        <div class="avm-group">
+                            <label class="avm-label" for="@($"{_formId}-rule")">Rule</label>
+                            <select id="@($"{_formId}-rule")" class="avm-input" @bind="_basis">
                                 @foreach (var basis in def.AllowedBases)
                                 {
                                     <option value="@basis">@BasisName(basis)</option>
                                 }
                             </select>
-                        </label>
+                        </div>
                     }
-                    @if (_basis == GovernedServiceBasis.FixedAmount)
+                    <div class="avm-row-2">
+                        @if (_basis == GovernedServiceBasis.FixedAmount)
+                        {
+                            <div class="avm-group">
+                                <label class="avm-label" for="@($"{_formId}-amount")">Approved amount (₱) <span class="avm-req">*</span></label>
+                                <input id="@($"{_formId}-amount")" class="avm-input" type="number" min="0.01" step="0.01" required @bind="_fixedAmount" />
+                            </div>
+                        }
+                        else if (_basis == GovernedServiceBasis.DirectApprovedAmount)
+                        {
+                            <div class="avm-group">
+                                <label class="avm-label" for="@($"{_formId}-ceiling")">Ceiling per transaction (₱, optional)</label>
+                                <input id="@($"{_formId}-ceiling")" class="avm-input" type="number" min="0.01" step="0.01" @bind="_ceiling" />
+                            </div>
+                        }
+                        <div class="avm-group">
+                            <label class="avm-label" for="@($"{_formId}-effective")">Effective from <span class="avm-req">*</span></label>
+                            <input id="@($"{_formId}-effective")" class="avm-input" type="date" required @bind="_effective" />
+                        </div>
+                    </div>
+                    @if (_basis == GovernedServiceBasis.ApprovedFeeOption)
                     {
-                        <label class="v3-field">
-                            <span>Approved amount (₱)</span>
-                            <input type="number" min="0.01" step="0.01" required @bind="_fixedAmount" />
-                        </label>
+                        <span class="avm-hint">Each approved fee type carries its own amount.</span>
                     }
-                    else if (_basis == GovernedServiceBasis.DirectApprovedAmount)
+                    else if (_basis == GovernedServiceBasis.VehicleClassRate)
                     {
-                        <label class="v3-field">
-                            <span>Ceiling per transaction (₱, optional)</span>
-                            <input type="number" min="0.01" step="0.01" @bind="_ceiling" />
-                        </label>
+                        <span class="avm-hint">The amount is the rate of the selected vehicle class.</span>
                     }
-                    else if (_basis == GovernedServiceBasis.ApprovedFeeOption)
-                    {
-                        <p class="gsw-note ans-span">Each approved fee type carries its own amount.</p>
-                    }
-                    else
-                    {
-                        <p class="gsw-note ans-span">The amount is the rate of the selected vehicle class.</p>
-                    }
-                    <label class="v3-field">
-                        <span>Effective from</span>
-                        <input type="date" required @bind="_effective" />
-                    </label>
                 </AddNewSection>
                 <AddNewSection Title="Availability" Plain="true">
                     <label class="gsw-check"><input type="checkbox" @bind="_enabled" /> Enabled for new transactions</label>

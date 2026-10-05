@@ -1,0 +1,17 @@
+@* A quiet text action in an import (download the template, use sample data, enter manually, change). A link when it has an Href, otherwise a button. *@
+@if (Href is not null)
+{
+    <a class="imp-link @Class" href="@Href" download="@Download">@ChildContent</a>
+}
+else
+{
+    <button class="imp-link @Class" type="button" @onclick="OnClick">@ChildContent</button>
+}
+
+@code {
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public string? Href { get; set; }
+    [Parameter] public string? Download { get; set; }
+    [Parameter] public EventCallback OnClick { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}
