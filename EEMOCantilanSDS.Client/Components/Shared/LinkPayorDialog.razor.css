@@ -1,0 +1,109 @@
+.lpd-modal {
+    width: min(560px, calc(100vw - 32px));
+}
+
+.lpd-close {
+    min-width: 36px;
+    min-height: 36px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 1.25rem;
+    cursor: pointer;
+}
+
+    .lpd-close:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+    }
+
+.lpd-context {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0 0 14px;
+    color: var(--navy);
+    font-size: 0.875rem;
+}
+
+    .lpd-context span {
+        color: var(--text-secondary);
+        font-size: 0.8125rem;
+    }
+
+.lpd-search {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+    .lpd-search .v3-field {
+        flex: 1 1 auto;
+    }
+
+.lpd-results {
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+    .lpd-results li {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 12px;
+    }
+
+        .lpd-results li + li {
+            border-top: 1px solid var(--border);
+        }
+
+        .lpd-results li > div {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+.lpd-muted {
+    margin: 8px 0 0;
+    color: var(--text-tertiary);
+    font-size: 0.8125rem;
+}
+
+.lpd-results .lpd-muted {
+    margin: 0;
+}
+
+.lpd-create {
+    display: grid;
+    gap: 10px;
+    margin: 16px 0 0;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--accent-soft);
+}
+
+    .lpd-create legend {
+        padding: 0 4px;
+        color: var(--navy);
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .lpd-create > .v3-btn {
+        justify-self: start;
+    }
+
+.lpd-confirm {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 0.8125rem;
+}

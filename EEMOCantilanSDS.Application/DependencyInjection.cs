@@ -42,6 +42,7 @@ namespace EEMOCantilanSDS.Application
             services.AddScoped<Common.Revenue.SettlementCutoverWorkflow>();
             services.AddScoped<Common.Revenue.WcfActivationWorkflow>();
             services.AddScoped<Common.Revenue.EcfActivationWorkflow>();
+            services.AddScoped<Common.Revenue.BusinessPayorWorkflow>();
             services.AddScoped<Common.Revenue.WcfMobileCollectionWorkflow>();
             services.AddScoped<Common.Revenue.AccountableFormCustodyWorkflow>();
             services.AddScoped<Common.Revenue.CollectorOperationAssignmentWorkflow>();

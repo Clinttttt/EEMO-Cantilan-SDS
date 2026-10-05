@@ -59,7 +59,7 @@
             }
             else if (_searched && _payors.Count == 0 && _selectedPayorId is null)
             {
-                <div class="cc-empty">No payer found.</div>
+                <div class="cc-empty">No payer found. <a class="cc-link" href="/payors">Link an occupant to a Business Payor</a></div>
             }
 
             @if (_selectedPayorId.HasValue)
