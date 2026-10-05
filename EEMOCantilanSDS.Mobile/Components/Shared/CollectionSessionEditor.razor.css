@@ -43,4 +43,3 @@ button:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2p
 .payer-option:hover:not(:disabled) { background: var(--mobile-blue-subtle); }
 .payer-option > span { color: var(--mobile-text-secondary); }
 .payer-status { padding: 14px; font-size: 13px; color: var(--mobile-text-secondary); }
-

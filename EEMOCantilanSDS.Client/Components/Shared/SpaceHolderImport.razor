@@ -12,9 +12,9 @@
    stays out of the import. Nothing is linked or created from a name. *@
 <div class="shi">
     <ol class="shi-steps" aria-label="Import steps">
-        <li class="shi-step @StepClass(1)" aria-current="@(Step == 1 ? "step" : null)"><span class="shi-step-no">1</span>Paste list</li>
-        <li class="shi-step @StepClass(2)" aria-current="@(Step == 2 ? "step" : null)"><span class="shi-step-no">2</span>Review &amp; edit</li>
-        <li class="shi-step @StepClass(3)" aria-current="@(Step == 3 ? "step" : null)"><span class="shi-step-no">3</span>Import</li>
+        <li class="shi-step @StepClass(1)" aria-current="@(Step == 1 ? "true" : "false")"><span class="shi-step-no">1</span>Paste list</li>
+        <li class="shi-step @StepClass(2)" aria-current="@(Step == 2 ? "true" : "false")"><span class="shi-step-no">2</span>Review &amp; edit</li>
+        <li class="shi-step @StepClass(3)" aria-current="@(Step == 3 ? "true" : "false")"><span class="shi-step-no">3</span>Import</li>
     </ol>
 
     @if (Rows.Count == 0)

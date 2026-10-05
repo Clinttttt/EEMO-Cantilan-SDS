@@ -259,7 +259,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.Equal(new[] { "1Paste list", "2Review & edit", "3Import" }, cut.FindAll(".shi-step").Select(x => x.TextContent.Trim()).ToArray());
-            Assert.Equal("1Paste list", cut.Find(".shi-step[aria-current='step']").TextContent.Trim());
+            Assert.Equal("1Paste list", cut.Find(".shi-step[aria-current='true']").TextContent.Trim());
         }, Timeout);
         cut.Find("textarea").Change("A1\tAna Reyes\t500\t2026-01-01");
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Review rows").Click();
@@ -267,7 +267,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.Empty(cut.FindAll("textarea"));
-            Assert.Equal("2Review & edit", cut.Find(".shi-step[aria-current='step']").TextContent.Trim());
+            Assert.Equal("2Review & edit", cut.Find(".shi-step[aria-current='true']").TextContent.Trim());
             Assert.Contains("1 Needs Payor", cut.Find(".shi-summary").TextContent);
             Assert.True(cut.FindAll("button").Single(b => b.TextContent.Contains("Import ready rows")).HasAttribute("disabled"));
         }, Timeout);
