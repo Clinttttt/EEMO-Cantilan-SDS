@@ -9,4 +9,5 @@ public interface IBusinessPayorsApiClient
     Task<Result<IReadOnlyList<PayorCandidateDto>>> SearchPayorsAsync(string search);
     Task<Result<PayorLinkOutcomeDto>> LinkAsync(LinkPayorRequest request);
     Task<Result<PayorLinkOutcomeDto>> CreateAndLinkAsync(CreatePayorAndLinkRequest request);
+    Task<Result<PayorCandidateDto>> CreatePayorAsync(CreatePayorRequest request);
 }

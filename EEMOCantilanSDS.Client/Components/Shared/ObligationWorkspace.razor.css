@@ -83,3 +83,28 @@
     text-decoration: none;
     white-space: nowrap;
 }
+
+.obw-payor-hint {
+    margin: -4px 0 0;
+    color: var(--text-tertiary);
+    font-size: 0.8125rem;
+}
+
+.obw-link {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+    .obw-link:hover:not(:disabled) {
+        text-decoration: underline;
+    }
+
+    .obw-link:disabled {
+        color: var(--text-disabled);
+        cursor: not-allowed;
+    }

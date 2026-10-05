@@ -35,6 +35,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.FacilityState>();
         Services.AddSingleton(_api.Object);
         Services.AddSingleton(_collections.Object);
+        Services.AddSingleton(Mock.Of<IBusinessPayorsApiClient>());
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
     }
@@ -184,6 +185,82 @@ public sealed class ObligationWorkspaceTests : TestContext
             Assert.Contains("Fiesta · Aug 15, 2026", row.TextContent);
             Assert.Contains("₱2,500.00", row.TextContent);
             Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Trim() == "Change amount");
+        }, Timeout);
+    }
+
+
+    [Fact]
+    public void AddNew_OpensADrawer_NotAnInlineForm_AndCancelLeavesThePageAsItWas()
+    {
+        Serve(ObligationKind.KanmanggaySpaceRental, Space());
+
+        var cut = RenderComponent<Kanmanggay>();
+        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New"), Timeout);
+        Assert.Empty(cut.FindAll("[role='dialog']"));
+        Assert.Equal(1, cut.FindAll("[aria-label='Kanmanggay accounts'] tbody tr").Count);
+
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var drawer = Assert.Single(cut.FindAll("[role='dialog']"));
+            Assert.Contains("Open Kanmanggay account", drawer.TextContent);
+            Assert.NotNull(drawer.QuerySelector("form[aria-label='Open account']"));
+            Assert.Contains("Open account", drawer.QuerySelector("footer")!.TextContent);
+            Assert.DoesNotContain("obw-layout", drawer.ParentElement!.ClassName ?? "");      // not squeezed into the account list's own grid
+        }, Timeout);
+        cut.FindAll("footer button").Single(b => b.TextContent.Trim() == "Cancel").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Empty(cut.FindAll("[role='dialog']"));
+            Assert.Equal(1, cut.FindAll("[aria-label='Kanmanggay accounts'] tbody tr").Count);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void ImportList_ReviewsEveryRow_NeverLinksAPayorByName_AndImportsOnlyTheReadyRows()
+    {
+        Serve(ObligationKind.KanmanggaySpaceRental);
+        _collections.Setup(x => x.SearchCollectionPayorsAsync("Ana Reyes")).ReturnsAsync(
+            Result<IReadOnlyList<CollectionPayorDto>>.Success(new[] { new CollectionPayorDto(PayorId, "Ana Reyes") }));
+        ImportSpaceHoldersRequest? sent = null;
+        _api.Setup(x => x.ImportSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>()))
+            .Callback<ImportSpaceHoldersRequest>(r => sent = r)
+            .ReturnsAsync(Result<ImportSpaceHoldersResult>.Success(new(1, 0, [])));
+
+        var cut = RenderComponent<Kanmanggay>();
+        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "Import list"), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Import list").Click();
+        cut.WaitForAssertion(() => cut.Find("textarea[aria-label='Spreadsheet rows']"), Timeout);
+        cut.Find("textarea[aria-label='Spreadsheet rows']").Change("K-1\tAna Reyes\t900\t2026-09\t\nK-2\tBen Cruz\tabc\t2026-09\t");
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Review rows").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var summary = cut.Find("[aria-label='Import summary']").TextContent;
+            Assert.Contains("0 Ready", summary);
+            Assert.Contains("1 Needs Payor", summary);
+            Assert.Contains("1 Invalid", summary);
+            Assert.True(cut.FindAll("button").Single(b => b.TextContent.Contains("Import ready rows")).HasAttribute("disabled"));
+        }, Timeout);
+
+        cut.FindAll("[aria-label='Rows to import'] tbody tr")[0].QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Find Payor").Click();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Use Ana Reyes · same name", cut.Markup);
+            Assert.Contains("0 Ready", cut.Find("[aria-label='Import summary']").TextContent);
+        }, Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Contains("Use Ana Reyes")).Click();
+        cut.WaitForAssertion(() => Assert.Contains("1 Ready", cut.Find("[aria-label='Import summary']").TextContent), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Contains("Import ready rows (1)")).Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var row = Assert.Single(sent!.Rows);                                        // only the ready row is sent
+            Assert.Equal((PayorId, "K-1", 900m), (row.Account.PayorId, row.Account.SubjectLabel, row.Account.Amount));
+            Assert.Empty(cut.FindAll("[role='dialog']"));                                 // back to the account list
+            Assert.Contains("Imported 1 · Needs review 1", cut.Markup);
         }, Timeout);
     }
 

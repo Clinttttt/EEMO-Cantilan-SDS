@@ -1,6 +1,130 @@
-.space-import { margin-bottom: 20px; }
-.space-import-body { padding: 16px 20px; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
-.space-import-body > p { margin: 0; color: var(--text-secondary); font-size: 13px; }
-.space-import-body > label, .space-import-body .v3-table-wrap { width: 100%; }
-.space-import-body textarea { min-height: 96px; font: inherit; resize: vertical; }
-.space-import-body td select { display: block; margin-top: 6px; max-width: 240px; }
+.shi {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.shi-paste textarea {
+    min-height: 88px;
+    font: inherit;
+    resize: vertical;
+}
+
+.shi-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.shi-message {
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+}
+
+.shi-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.shi-count,
+.shi-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.shi-ready {
+    border-color: #b7dcc4;
+    background: #eef8f1;
+    color: #1d6b3c;
+}
+
+.shi-needs {
+    border-color: #ecd9a8;
+    background: #fbf5e4;
+    color: #7a5a14;
+}
+
+.shi-invalid {
+    border-color: #e2bcbc;
+    background: #fff5f5;
+    color: #842626;
+}
+
+.shi-table {
+    max-height: 52vh;
+}
+
+.shi-cell {
+    min-width: 96px;
+    padding: 5px 8px;
+    min-height: 32px;
+    font-size: 0.8125rem;
+}
+
+.shi-num {
+    min-width: 88px;
+    text-align: right;
+}
+
+.shi-payor {
+    min-width: 220px;
+}
+
+.shi-payor-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.shi-candidate {
+    display: block;
+    margin-top: 6px;
+    padding: 4px 8px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--navy);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+}
+
+    .shi-candidate:hover {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+        color: var(--accent);
+    }
+
+.shi-link {
+    margin-left: 8px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.shi-muted {
+    display: block;
+    margin-top: 4px;
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+}
+
+.shi-import .shi-muted {
+    display: inline;
+    margin: 0;
+}

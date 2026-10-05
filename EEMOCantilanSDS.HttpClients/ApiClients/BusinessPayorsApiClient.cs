@@ -16,6 +16,9 @@ public sealed class BusinessPayorsApiClient(HttpClient http) : HandleResponse(ht
     public Task<Result<PayorLinkOutcomeDto>> LinkAsync(LinkPayorRequest request) =>
         PostAsync<LinkPayorRequest, PayorLinkOutcomeDto>("api/business-payors/links", request);
 
+    public Task<Result<PayorCandidateDto>> CreatePayorAsync(CreatePayorRequest request) =>
+        PostAsync<CreatePayorRequest, PayorCandidateDto>("api/business-payors", request);
+
     public Task<Result<PayorLinkOutcomeDto>> CreateAndLinkAsync(CreatePayorAndLinkRequest request) =>
         PostAsync<CreatePayorAndLinkRequest, PayorLinkOutcomeDto>("api/business-payors/creations", request);
 }

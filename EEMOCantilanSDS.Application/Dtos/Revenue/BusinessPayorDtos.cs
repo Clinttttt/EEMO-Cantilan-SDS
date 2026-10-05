@@ -46,3 +46,6 @@ public sealed record CreatePayorAndLinkRequest(
     bool ConfirmDuplicate = false);
 
 public sealed record PayorLinkOutcomeDto(Guid ContractId, Guid PayorId, string PayorName, bool CreatedPayor);
+
+/// <summary>The office's explicit decision to create a Business Payor (for an account or import row that has none). Same duplicate rule as <see cref="CreatePayorAndLinkRequest"/>.</summary>
+public sealed record CreatePayorRequest(string DisplayName, BusinessPayorKind Kind, bool ConfirmDuplicate = false);

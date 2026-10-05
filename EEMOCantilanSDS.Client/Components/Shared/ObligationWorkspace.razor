@@ -6,6 +6,7 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @inject IObligationsApiClient ObligationsApi
 @inject IEcfCollectionsApiClient CollectionsApi
+@inject IBusinessPayorsApiClient PayorsApi
 
 @* The body of a specialized obligation line (IA-050): Fish/Meat Vendor Fee, Kanmanggay space rental, Fiesta/Araw lot
    rental. The Head opens an account and approves its amount; the register shows what was assessed, collected and is
@@ -23,7 +24,6 @@
              Filters="@StatusFilters"
              SearchPlaceholder="@($"Search {SubjectNoun.ToLowerInvariant()} no. or occupant…")"
              MiddleContent="@ActionBarContent" />
-    @if (_importing) { <SpaceHolderImport Kind="Kind" OnImported="LoadAsync" /> }
 }
 <div class="obw-layout">
     <section class="v3-panel" aria-labelledby="@_accountsTitleId" aria-busy="@(_loading ? "true" : "false")">
@@ -164,115 +164,124 @@
         }
     </section>
 
-    <AuthorizeView Roles="SuperAdmin">
-        <Authorized>
-            @if (_opening)
-            {
-                <aside class="v3-panel" aria-labelledby="@_formTitleId">
-                    <header class="v3-panel-header"><h2 id="@_formTitleId">Open @Name account</h2></header>
-                    <form class="obw-form" @onsubmit="CreateAsync" @onsubmit:preventDefault="true" aria-label="Open account">
-                        @if (Kind == ObligationKind.FishMeatVendorFee)
-                        {
-                            <label class="v3-field">
-                                <span>NPM Fish / Meat stall</span>
-                                <select @bind="_stallId" required>
-                                    <option value="">Choose a stall</option>
-                                    @foreach (var stall in _stalls.Where(x => !x.HasAccount))
-                                    {
-                                        <option value="@stall.StallId" disabled="@(stall.PayorId is null)">
-                                            @stall.StallNo · @stall.Section · @(stall.PayerName ?? "occupant not linked to a Payor")
-                                        </option>
-                                    }
-                                </select>
-                            </label>
-                            <p class="obw-note">The Payor is the one linked to the stall's occupant in NPM. A stall without a linked Payor cannot be opened.</p>
-                        }
-                        else
-                        {
-                            <label class="v3-field">
-                                <span>Find Business Payor</span>
-                                <input class="v3-input" type="search" @bind="_payorSearch" @bind:event="oninput" @onkeyup="SearchPayorsAsync" placeholder="Name" />
-                            </label>
-                            <label class="v3-field">
-                                <span>Payor</span>
-                                <select @bind="_payorId" required>
-                                    <option value="">Choose a Payor</option>
-                                    @foreach (var payor in _payors)
-                                    {
-                                        <option value="@payor.PayorId">@payor.DisplayName</option>
-                                    }
-                                </select>
-                            </label>
-                            <label class="v3-field">
-                                <span>@SubjectNoun</span>
-                                <input class="v3-input" type="text" maxlength="120" required @bind="_subject" />
-                            </label>
-                        }
-
-                        @if (Kind == ObligationKind.FiestaArawLotRental)
-                        {
-                            <label class="v3-field">
-                                <span>Event</span>
-                                <select @bind="_lotEvent">
-                                    <option value="@LotRentalEvent.Fiesta">Fiesta</option>
-                                    <option value="@LotRentalEvent.Araw">Araw</option>
-                                </select>
-                            </label>
-                            <label class="v3-field">
-                                <span>Event date</span>
-                                <input class="v3-input" type="date" required @bind="_eventDate" />
-                            </label>
-                        }
-                        else
-                        {
-                            <label class="v3-field">
-                                <span>Starts (month)</span>
-                                <input class="v3-input" type="month" required aria-label="Starts (month)" value="@_startMonth" @onchange="e => _startMonth = e.Value?.ToString() ?? string.Empty" />
-                            </label>
-                        }
-                        <label class="v3-field">
-                            <span>@(Kind == ObligationKind.FiestaArawLotRental ? "Approved lot amount (₱)" : "Approved monthly amount (₱)")</span>
-                            <input class="v3-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
-                        </label>
-                        @if (!string.IsNullOrWhiteSpace(_formError))
-                        {
-                            <p class="v3-notice v3-notice-error" role="alert">@_formError</p>
-                        }
-                        <div class="obw-form-actions">
-                            <button class="v3-btn" type="button" @onclick="CloseForm">Cancel</button>
-                            <button class="v3-btn v3-btn-primary" type="submit" disabled="@_saving">Open account</button>
-                        </div>
-                    </form>
-                </aside>
-            }
-            else if (_rateFor is not null)
-            {
-                <aside class="v3-panel" aria-labelledby="@_formTitleId">
-                    <header class="v3-panel-header"><h2 id="@_formTitleId">Change approved amount</h2></header>
-                    <form class="obw-form" @onsubmit="SaveRateAsync" @onsubmit:preventDefault="true" aria-label="Change approved amount">
-                        <p class="obw-note">@_rateFor.SubjectLabel. The new amount applies from the month you choose; periods already assessed keep their amount.</p>
-                        <label class="v3-field">
-                            <span>Effective from (month)</span>
-                            <input class="v3-input" type="month" required aria-label="Effective from (month)" value="@_rateMonth" @onchange="e => _rateMonth = e.Value?.ToString() ?? string.Empty" />
-                        </label>
-                        <label class="v3-field">
-                            <span>Approved monthly amount (₱)</span>
-                            <input class="v3-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
-                        </label>
-                        @if (!string.IsNullOrWhiteSpace(_formError))
-                        {
-                            <p class="v3-notice v3-notice-error" role="alert">@_formError</p>
-                        }
-                        <div class="obw-form-actions">
-                            <button class="v3-btn" type="button" @onclick="CloseForm">Cancel</button>
-                            <button class="v3-btn v3-btn-primary" type="submit" disabled="@_saving">Save amount</button>
-                        </div>
-                    </form>
-                </aside>
-            }
-        </Authorized>
-    </AuthorizeView>
 </div>
+
+<AuthorizeView Roles="SuperAdmin">
+    <Authorized>
+        <SideDrawer Show="_opening" Title="@($"Open {Name} account")" Subtitle="@OpenSubtitle" OnClose="CloseForm">
+            <ChildContent>
+            <form id="obw-open-form" class="obw-form" @onsubmit="CreateAsync" @onsubmit:preventDefault="true" aria-label="Open account">
+                @if (Kind == ObligationKind.FishMeatVendorFee)
+                {
+                    <label class="v3-field">
+                        <span>NPM Fish / Meat stall</span>
+                        <select @bind="_stallId" required>
+                            <option value="">Choose a stall</option>
+                            @foreach (var stall in _stalls.Where(x => !x.HasAccount))
+                            {
+                                <option value="@stall.StallId" disabled="@(stall.PayorId is null)">
+                                    @stall.StallNo · @stall.Section · @(stall.PayerName ?? "occupant not linked to a Payor")
+                                </option>
+                            }
+                        </select>
+                    </label>
+                    <p class="obw-note">The Payor is the one linked to the stall's occupant in NPM. A stall without a linked Payor cannot be opened.</p>
+                }
+                else
+                {
+                    <label class="v3-field">
+                        <span>Business Payor</span>
+                        <input class="v3-input" type="search" @bind="_payorSearch" @bind:event="oninput" @onkeyup="SearchPayorsAsync" placeholder="Search by name" />
+                    </label>
+                    <label class="v3-field">
+                        <span class="v3-sr-only">Choose a Payor</span>
+                        <select @bind="_payorId" required>
+                            <option value="">Choose a Payor</option>
+                            @foreach (var payor in _payors)
+                            {
+                                <option value="@payor.PayorId">@payor.DisplayName</option>
+                            }
+                        </select>
+                    </label>
+                    <p class="obw-payor-hint">
+                        @if (_payors.Count == 0 && _payorSearch.Trim().Length >= 2)
+                        {
+                            <span>No Business Payor found.</span>
+                        }
+                        <button class="obw-link" type="button" @onclick="CreatePayorAsync" disabled="@(_saving || _payorSearch.Trim().Length < 2)">Create Business Payor “@_payorSearch.Trim()”</button>
+                    </p>
+                    <label class="v3-field">
+                        <span>@SubjectNoun</span>
+                        <input class="v3-input" type="text" maxlength="120" required @bind="_subject" />
+                    </label>
+                }
+
+                @if (Kind == ObligationKind.FiestaArawLotRental)
+                {
+                    <label class="v3-field">
+                        <span>Event</span>
+                        <select @bind="_lotEvent">
+                            <option value="@LotRentalEvent.Fiesta">Fiesta</option>
+                            <option value="@LotRentalEvent.Araw">Araw</option>
+                        </select>
+                    </label>
+                    <label class="v3-field">
+                        <span>Event date</span>
+                        <input class="v3-input" type="date" required @bind="_eventDate" />
+                    </label>
+                }
+                else
+                {
+                    <label class="v3-field">
+                        <span>Starts (month)</span>
+                        <input class="v3-input" type="month" required aria-label="Starts (month)" value="@_startMonth" @onchange="e => _startMonth = e.Value?.ToString() ?? string.Empty" />
+                    </label>
+                }
+                <label class="v3-field">
+                    <span>@(Kind == ObligationKind.FiestaArawLotRental ? "Approved lot amount (₱)" : "Approved monthly amount (₱)")</span>
+                    <input class="v3-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
+                </label>
+                @if (!string.IsNullOrWhiteSpace(_formError))
+                {
+                    <p class="v3-notice v3-notice-error" role="alert">@_formError</p>
+                }
+            </form>
+            </ChildContent>
+            <Footer>
+                <button class="v3-btn" type="button" @onclick="CloseForm">Cancel</button>
+                <button class="v3-btn v3-btn-primary" type="submit" form="obw-open-form" disabled="@_saving">Open account</button>
+            </Footer>
+        </SideDrawer>
+
+        <SideDrawer Show="@(!_opening && _rateFor is not null)" Title="Change approved amount" Subtitle="@_rateFor?.SubjectLabel" OnClose="CloseForm">
+            <ChildContent>
+            <form id="obw-rate-form" class="obw-form" @onsubmit="SaveRateAsync" @onsubmit:preventDefault="true" aria-label="Change approved amount">
+                <label class="v3-field">
+                    <span>Effective from (month)</span>
+                    <input class="v3-input" type="month" required aria-label="Effective from (month)" value="@_rateMonth" @onchange="e => _rateMonth = e.Value?.ToString() ?? string.Empty" />
+                </label>
+                <label class="v3-field">
+                    <span>Approved monthly amount (₱)</span>
+                    <input class="v3-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
+                </label>
+                <p class="obw-note">Periods already assessed keep their amount.</p>
+                @if (!string.IsNullOrWhiteSpace(_formError))
+                {
+                    <p class="v3-notice v3-notice-error" role="alert">@_formError</p>
+                }
+            </form>
+            </ChildContent>
+            <Footer>
+                <button class="v3-btn" type="button" @onclick="CloseForm">Cancel</button>
+                <button class="v3-btn v3-btn-primary" type="submit" form="obw-rate-form" disabled="@_saving">Save amount</button>
+            </Footer>
+        </SideDrawer>
+
+        <SideDrawer Show="_importing" Wide="true" Title="@($"Import {(SubjectNoun == "Lot" ? "lot" : "space")} holders")" Subtitle="Paste a list, review each row, then import the ready ones." OnClose="CloseImport">
+            <SpaceHolderImport Kind="Kind" OnImported="ImportedAsync" />
+        </SideDrawer>
+    </Authorized>
+</AuthorizeView>
 
 @if (!string.IsNullOrWhiteSpace(_saved))
 {
@@ -281,7 +290,6 @@
 
 @code {
     private readonly string _accountsTitleId = $"obw-a-{Guid.NewGuid():N}";
-    private readonly string _formTitleId = $"obw-f-{Guid.NewGuid():N}";
 
     [Parameter, EditorRequired] public ObligationKind Kind { get; set; }
 
@@ -416,6 +424,42 @@
     }
 
     private void CloseForm() { _opening = false; _rateFor = null; _formError = null; }
+
+    private string OpenSubtitle => Kind == ObligationKind.FiestaArawLotRental
+        ? "A lot for an event, with the approved amount."
+        : Kind == ObligationKind.FishMeatVendorFee ? "A vendor stall with its approved monthly amount." : "A space with its approved monthly amount.";
+
+    private void CloseImport() => _importing = false;
+
+    private async Task ImportedAsync(string message)
+    {
+        _importing = false;
+        await LoadAsync();
+        _saved = message;
+    }
+
+    /// <summary>Creates a Business Payor from the typed name, only on the office's press, and selects it. A same-named Payor is never reused silently.</summary>
+    private async Task CreatePayorAsync()
+    {
+        var name = _payorSearch.Trim();
+        if (name.Length < 2 || _saving) return;
+        _saving = true;
+        _formError = null;
+        try
+        {
+            var result = await PayorsApi.CreatePayorAsync(new CreatePayorRequest(name, BusinessPayorKind.Person));
+            if (result.IsSuccess && result.Value is { } created)
+            {
+                _payors = [new CollectionPayorDto(created.PayorId, created.DisplayName)];
+                _payorId = created.PayorId.ToString();
+            }
+            else if (result.Error?.StartsWith("DUPLICATE_PAYOR", StringComparison.Ordinal) == true)
+                _formError = $"A Business Payor named {name} already exists. Choose it from the list instead.";
+            else _formError = result.Error ?? "The Business Payor could not be created.";
+        }
+        catch { _formError = "The Business Payor could not be created."; }
+        finally { _saving = false; }
+    }
 
     private async Task SearchPayorsAsync()
     {

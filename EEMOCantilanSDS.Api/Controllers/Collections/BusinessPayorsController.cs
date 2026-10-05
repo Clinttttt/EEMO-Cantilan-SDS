@@ -25,6 +25,10 @@ public sealed class BusinessPayorsController(ISender sender, BusinessPayorWorkfl
     public async Task<ActionResult<PayorLinkOutcomeDto>> Link([FromBody] LinkPayorRequest request, CancellationToken ct) =>
         HandleResponse(await workflow.LinkAsync(request, ct));
 
+    [HttpPost]
+    public async Task<ActionResult<PayorCandidateDto>> CreatePayor([FromBody] CreatePayorRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.CreatePayorAsync(request, ct));
+
     [HttpPost("creations")]
     public async Task<ActionResult<PayorLinkOutcomeDto>> CreateAndLink([FromBody] CreatePayorAndLinkRequest request, CancellationToken ct) =>
         HandleResponse(await workflow.CreateAndLinkAsync(request, ct));

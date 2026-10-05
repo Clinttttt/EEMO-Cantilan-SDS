@@ -1,0 +1,43 @@
+@* SIDE DRAWER — the right-hand panel TCC opens for Add New, shared so other operations stop expanding forms into their workspace.
+   A civic-blue identity band, a scrolling body and a fixed footer for the actions. Closing returns to the page unchanged.
+   Presentation only: the page keeps its own form, state and handlers. *@
+@if (Show)
+{
+    <div class="sd-overlay" @onclick="OnClose" aria-hidden="true"></div>
+    <aside class="sd-drawer @(Wide ? "sd-wide" : "")" role="dialog" aria-modal="true" aria-labelledby="@_titleId" @onkeydown="HandleKey">
+        <header class="sd-header">
+            <div class="sd-header-text">
+                <h2 id="@_titleId" class="sd-title">@Title</h2>
+                @if (!string.IsNullOrWhiteSpace(Subtitle))
+                {
+                    <div class="sd-sub">@Subtitle</div>
+                }
+            </div>
+            <button class="sd-close" type="button" aria-label="Close" @onclick="OnClose">×</button>
+        </header>
+        <div class="sd-body">@ChildContent</div>
+        @if (Footer is not null)
+        {
+            <footer class="sd-footer">@Footer</footer>
+        }
+    </aside>
+}
+
+@code {
+    private readonly string _titleId = $"sd-{Guid.NewGuid():N}";
+
+    [Parameter] public bool Show { get; set; }
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public string? Subtitle { get; set; }
+
+    /// <summary>A wider panel for a table (import review); the default suits a form.</summary>
+    [Parameter] public bool Wide { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? Footer { get; set; }
+
+    private async Task HandleKey(KeyboardEventArgs args)
+    {
+        if (args.Key == "Escape") await OnClose.InvokeAsync();
+    }
+}

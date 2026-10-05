@@ -165,6 +165,29 @@ public sealed class BusinessPayorLinkingTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task APayorCreatedOnItsOwn_NeverReusesASameNamedOne_AndLinksNothing()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync();
+        await using var ctx = db.CreateContext(w.TenantId);
+        var linking = Linking(ctx, w);
+
+        var created = await linking.CreatePayorAsync(new("Ana Reyes", BusinessPayorKind.Person));
+        Assert.True(created.IsSuccess, created.Error);
+        Assert.Equal("Ana Reyes", created.Value!.DisplayName);
+        Assert.Null((await ctx.Contracts.AsNoTracking().SingleAsync()).PayorId);                // creating a Payor links no occupancy
+
+        var duplicate = await linking.CreatePayorAsync(new(" ana reyes ", BusinessPayorKind.Person));
+        Assert.False(duplicate.IsSuccess);
+        Assert.StartsWith("DUPLICATE_PAYOR", duplicate.Error);
+        Assert.Equal(1, await ctx.Payors.CountAsync());
+        Assert.True((await linking.CreatePayorAsync(new("Ana Reyes", BusinessPayorKind.Person, ConfirmDuplicate: true))).IsSuccess);
+        Assert.Equal(2, await ctx.Payors.CountAsync());
+        Assert.Equal(ResultStatus.Forbidden, (await Linking(ctx, w, role: "Collector").CreatePayorAsync(new("X Person", BusinessPayorKind.Person))).Status);
+    }
+
+    [SkippableFact]
     public async Task OnceLinked_CurrentCollectionFindsThePayor_AndItsEcfCharge()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);

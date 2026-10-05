@@ -46,6 +46,7 @@ public sealed class FishMeatWorkspaceTests : TestContext
         Services.AddSingleton(_stalls.Object);
         Services.AddSingleton(_obligations.Object);
         Services.AddSingleton(Mock.Of<IEcfCollectionsApiClient>());
+        Services.AddSingleton(Mock.Of<IBusinessPayorsApiClient>());
         Services.AddSingleton<FacilityState>();
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.AddTestAuthorization().SetAuthorized("admin").SetRoles("Admin");

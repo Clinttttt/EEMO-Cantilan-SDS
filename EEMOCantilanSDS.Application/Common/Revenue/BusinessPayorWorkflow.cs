@@ -134,6 +134,30 @@ public sealed class BusinessPayorWorkflow(
             return Result<PayorLinkOutcomeDto>.Success(new(contract.Id, payor.Id, payor.DisplayName, true));
         }, ct);
 
+    /// <summary>
+    /// Creates a Business Payor on the office's explicit request, not tied to any occupancy (an account or import row links it itself).
+    /// A same-named Payor is never reused silently: the request is refused unless the office confirms it is a different person.
+    /// </summary>
+    public Task<Result<PayorCandidateDto>> CreatePayorAsync(CreatePayorRequest request, CancellationToken ct = default) =>
+        Run<PayorCandidateDto>(async actor =>
+        {
+            var name = request.DisplayName?.Trim() ?? string.Empty;
+            if (name.Length == 0 || name.Length > 200)
+                return Result<PayorCandidateDto>.Failure("A name of at most 200 characters is required.", ResultStatus.Invalid);
+            if (!Enum.IsDefined(request.Kind))
+                return Result<PayorCandidateDto>.Failure("Choose Person or Organization.", ResultStatus.Invalid);
+            var lowered = name.ToLower();
+            if (!request.ConfirmDuplicate && await db.Payors.AsNoTracking().AnyAsync(
+                    p => p.MunicipalityId == actor.TenantId && p.DisplayName.ToLower() == lowered, ct))
+                return Result<PayorCandidateDto>.Failure(
+                    $"DUPLICATE_PAYOR: A Business Payor named {name} already exists. Use it, or confirm this is a different person.",
+                    ResultStatus.Conflict);
+            var payor = Payor.Create(actor.TenantId, name, request.Kind, actor.Username);
+            db.Payors.Add(payor);
+            await db.SaveChangesAsync(ct);
+            return Result<PayorCandidateDto>.Success(new(payor.Id, payor.DisplayName, payor.Kind, []));
+        }, ct);
+
     private async Task<Result<T>> Run<T>(Func<Actor, Task<Result<T>>> action, CancellationToken ct)
     {
         if (!currentUser.IsAuthenticated || currentUser.UserId is null) return Result<T>.Unauthorized();
