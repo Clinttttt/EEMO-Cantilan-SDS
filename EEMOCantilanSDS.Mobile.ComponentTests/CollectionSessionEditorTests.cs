@@ -62,6 +62,21 @@ public sealed class CollectionSessionEditorTests : TestContext
         Assert.DoesNotContain("Nothing due", view.Markup);
     }
 
+    [Fact]
+    public void Direct_vendor_fee_unavailable_vendor_is_not_tappable_and_shows_the_server_reason()
+    {
+        _api.Setup(x => x.GetDirectVendorFeeSourcesAsync()).ReturnsAsync(
+            Result<IReadOnlyList<DirectVendorFeeSource>>.Success([
+                new(_stall, "12", "Fish section", _payer, "Lisa Ilogans", true, null),
+                new(Guid.NewGuid(), "14", "Meat section", null, "Ben Tan", false, "Needs Business Payor")]));
+        var view = RenderComponent<VendorFeeEntry>(p => p.Add(x => x.BusinessDate, Today));
+        Assert.DoesNotContain(view.FindAll("button"), x => x.TextContent.Contains("Ben Tan"));
+        var row = view.Find(".vendor-row-unavailable");
+        Assert.Contains("Needs Business Payor", row.TextContent);
+        Assert.DoesNotContain("›", row.TextContent);
+        Assert.Contains(view.FindAll("button.vendor-row"), x => x.TextContent.Contains("Lisa Ilogans"));
+    }
+
     private sealed class Connectivity : IConnectivityMonitor { public bool Online = true; public bool IsOnline => Online; public event Action? ConnectivityRestored { add { } remove { } } }
     public CollectionSessionEditorTests()
     {
@@ -96,7 +111,18 @@ public sealed class CollectionSessionEditorTests : TestContext
             return Result<SyncOfflineCollectionsResultDto>.Success(new(1, 0, 0, [new(operation.ClientOperationId, SyncResultStatus.Synced, null, CollectionSession: result)]));
         });
     }
-    private static void Click(IRenderedComponent<CollectionSessionEditor> view, string label) => view.FindAll("button").First(x => x.TextContent.Trim() == label).Click();
+    // A button is found by its label and pressed. A search that finishes in the background can re-render between the find and the press,
+    // so a stale handler is retried against the fresh markup rather than failing the test.
+    private static void Click(IRenderedComponent<CollectionSessionEditor> view, string label)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            var button = view.FindAll("button").FirstOrDefault(x => x.TextContent.Trim() == label)
+                ?? throw new InvalidOperationException($"No button \"{label}\" in: " + string.Join(" | ", view.FindAll("button").Select(b => b.TextContent.Trim())));
+            try { button.Click(); return; }
+            catch (Bunit.Rendering.UnknownEventHandlerIdException) when (attempt < 5) { Thread.Sleep(50); }
+        }
+    }
     private IRenderedComponent<CollectionSessionEditor> Open() => RenderComponent<CollectionSessionEditor>(p => p.Add(x => x.BusinessDate, Today));
     private static void AddLanding(IRenderedComponent<CollectionSessionEditor> view)
     {
@@ -115,7 +141,7 @@ public sealed class CollectionSessionEditorTests : TestContext
     [Fact]
     public void Payer_direct_electricity_and_mixed_instruments_render_every_server_src()
     {
-        var view = Open(); view.Find("input").Change("Lisa"); Click(view, "Search"); Click(view, "Lisa Ilogans ›");
+        var view = Open(); view.Find("input").Input("Lisa"); Click(view, "Search"); Click(view, "Lisa Ilogans ›"); view.WaitForAssertion(() => Assert.NotEmpty(view.FindAll(".payer-selected")));
         AddLanding(view);
         Click(view, "+ Add item"); Click(view, "Electricity ›");
         Click(view, "Select"); view.Find("button[role=option]").Click();
@@ -140,5 +166,76 @@ public sealed class CollectionSessionEditorTests : TestContext
         var view = Open(); AddLanding(view); Click(view, "Review collection");
         Assert.Contains("Needs review", view.Markup); Assert.Contains("Amount changed.", view.Markup);
         Assert.True(view.FindAll("button").Single(x => x.TextContent.Trim() == "Record collection").HasAttribute("disabled"));
+    }
+    [Fact]
+    public void Tapping_the_payer_field_opens_a_bounded_panel_that_says_how_to_search_when_there_are_no_suggestions()
+    {
+        var view = Open();
+        Assert.Empty(view.FindAll(".payer-panel"));
+
+        view.Find("input").Focus();
+
+        view.WaitForAssertion(() => Assert.Contains("Type at least 2 letters to search.", view.Find(".payer-panel").TextContent));
+        Assert.DoesNotContain("No payer found.", view.Markup);                       // only after a genuine search attempt
+    }
+    [Fact]
+    public void Suggestions_from_the_server_are_listed_in_a_scrolling_list_and_choosing_one_shows_the_payer_clearly()
+    {
+        _api.Setup(x => x.SearchCollectionSessionPayorsAsync("")).ReturnsAsync(Result<IReadOnlyList<CollectionPayorDto>>.Success(
+            Enumerable.Range(1, 8).Select(n => new CollectionPayorDto(Guid.NewGuid(), $"Payer {n}")).ToArray()));
+        var view = Open();
+
+        view.Find("input").Focus();
+
+        view.WaitForAssertion(() => Assert.Equal(8, view.FindAll(".payer-list .payer-option").Count));
+        Assert.NotNull(view.Find(".payer-list"));                                   // one bounded list that scrolls inside itself
+        Click(view, "Payer 3 ›");
+        view.WaitForAssertion(() =>
+        {
+            Assert.Equal("Payer 3", view.Find(".payer-selected .payer-name").TextContent.Trim());
+            Assert.Empty(view.FindAll(".payer-panel"));
+            Assert.Contains(view.FindAll("button"), b => b.TextContent.Trim() == "Change");
+        });
+    }
+    [Fact]
+    public void Typing_searches_and_a_search_with_no_result_says_so_only_afterwards()
+    {
+        _api.Setup(x => x.SearchCollectionSessionPayorsAsync("Zed")).ReturnsAsync(Result<IReadOnlyList<CollectionPayorDto>>.Success([]));
+        var view = Open();
+
+        view.Find("input").Input("Z");
+        Assert.DoesNotContain("No payer found.", view.Markup);                       // too short to search
+        view.Find("input").Input("Zed");
+        view.Find("input").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Enter" });
+
+        view.WaitForAssertion(() => Assert.Contains("No payer found.", view.Find(".payer-panel").TextContent));
+        _api.Verify(x => x.SearchCollectionSessionPayorsAsync("Zed"), Times.AtLeastOnce);
+    }
+    [Fact]
+    public void Add_item_with_nothing_to_choose_explains_in_the_page_instead_of_opening_an_empty_sheet()
+    {
+        _api.Setup(x => x.GetCollectionSessionDiscoveryAsync(It.IsAny<Guid?>())).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(new(null, Today,
+            [new(CollectionSessionItemKind.Electricity, "ECF", "Electricity", true, false, null, null, true, [])])));
+        var view = Open();
+
+        Click(view, "+ Add item");
+
+        Assert.Empty(view.FindAll("[role=dialog]"));
+        Assert.Contains("Select a payer to see what can be collected.", view.Find(".collection-message").TextContent);
+    }
+    [Fact]
+    public void The_add_item_sheet_has_a_head_a_scrolling_body_and_one_action_row()
+    {
+        var view = Open();
+
+        Click(view, "+ Add item");
+
+        var sheet = view.Find("[role=dialog]");
+        Assert.NotNull(sheet.QuerySelector(".sheet-handle"));
+        Assert.Equal("Add item", sheet.QuerySelector(".sheet-title")!.TextContent.Trim());
+        Assert.NotNull(sheet.QuerySelector(".sheet-body"));
+        Assert.Equal(new[] { "Close" }, sheet.QuerySelectorAll(".sheet-actions button").Select(b => b.TextContent.Trim()).ToArray());
+        Click(view, "Landing / Berthing ›");
+        Assert.Equal(new[] { "Close", "Add item" }, view.Find("[role=dialog]").QuerySelectorAll(".sheet-actions button").Select(b => b.TextContent.Trim()).ToArray());
     }
 }

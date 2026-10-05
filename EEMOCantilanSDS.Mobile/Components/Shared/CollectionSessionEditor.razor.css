@@ -7,7 +7,6 @@
 .collection-row > strong { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .collection-option { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0; background: transparent; border: 0; border-bottom: 1px solid var(--mobile-border); color: var(--mobile-text); text-align: left; font-size: 14px; }
 .collection-link { border: 0; background: transparent; padding: 8px 8px 8px 0; color: var(--mobile-blue); font-size: 12px; }
-.sheet { max-height: 85dvh; overflow-y: auto; }
 button:disabled { opacity: .5; cursor: not-allowed; }
 button:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2px; }
 
@@ -25,3 +24,23 @@ button:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2p
 .collection-primary:disabled { border-color: var(--mobile-border); background: var(--mobile-border); color: var(--mobile-text-secondary); }
 .collection-entry > p:last-child { margin-bottom: 0; }
 .collection-message { margin: 10px 2px 0; text-align: center; }
+
+/* ── New Collection polish (2026-10-06): readable payer discovery and a finished Add item sheet ── */
+.collection-entry .form-label { font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--mobile-text-secondary); margin-bottom: 6px; display: block; }
+.collection-entry .form-input, .sheet .form-input { min-height: 46px; padding: 10px 14px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); color: var(--mobile-text); font-size: 16px; }
+.collection-entry .form-input::placeholder, .sheet .form-input::placeholder { color: var(--mobile-text-secondary); opacity: .8; }
+.collection-entry .form-input:focus, .sheet .form-input:focus { border-color: var(--mobile-blue); box-shadow: inset 0 0 0 1px var(--mobile-blue); background: var(--mobile-surface); }
+
+/* The chosen payer reads at full strength and wraps rather than breaking the row. */
+.payer-selected { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 8px; }
+.payer-name { min-width: 0; overflow-wrap: anywhere; font-size: 17px; font-weight: 700; line-height: 1.25; color: var(--mobile-navy); }
+
+/* Suggestions: a bounded panel (about five rows), scrolling inside itself so the page never grows with the list. */
+.payer-panel { margin-top: 10px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); overflow: hidden; }
+.payer-list { max-height: 272px; overflow-y: auto; overscroll-behavior: contain; }
+.payer-option { padding: 0 14px; min-height: 54px; border-bottom: 1px solid var(--mobile-border); font-size: 15px; font-weight: 600; color: var(--mobile-navy); }
+.payer-list > .payer-option:last-child { border-bottom: 0; }
+.payer-option:hover:not(:disabled) { background: var(--mobile-blue-subtle); }
+.payer-option > span { color: var(--mobile-text-secondary); }
+.payer-status { padding: 14px; font-size: 13px; color: var(--mobile-text-secondary); }
+

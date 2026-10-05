@@ -8,37 +8,70 @@
 @if (_loading) { <LoadingState Text="Loading vendors…" /> }
 else
 {
-    <label class="form-field"><span class="form-label">Search vendors</span><input class="form-input" placeholder="Name or stall no." @bind="_search" @bind:event="oninput" /></label>
-    <div class="section-label">Vendors</div>
+    <div class="vf-search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+        <input class="form-input" type="search" autocomplete="off" aria-label="Search vendors" placeholder="Search vendor or stall no." @bind="_search" @bind:event="oninput" />
+    </div>
+
     @if (_vendors.Count == 0) { <div class="state-card">No Fish/Meat vendors available.</div> }
-    @foreach (var vendor in _vendors.Where(x => string.IsNullOrWhiteSpace(_search) || (x.PayerName + " " + x.StallNo).Contains(_search, StringComparison.OrdinalIgnoreCase)))
+    else if (Ready.Count == 0 && Unavailable.Count == 0) { <div class="state-card">No vendors match your search.</div> }
+
+    @if (Ready.Count > 0)
     {
-        <button type="button" class="vendor-row" disabled="@(!vendor.CanCollect)" @onclick="() => Open(vendor)">
-            <span><strong>@vendor.PayerName</strong><small>@vendor.Section · Stall @vendor.StallNo</small>
-                @if (!vendor.CanCollect) { <small>@vendor.Reason</small> }
-            </span><span aria-hidden="true">›</span>
-        </button>
+        <div class="section-label"><span>Ready to collect</span><span class="section-count">@Ready.Count</span></div>
+        <div class="vf-card">
+            @foreach (var vendor in Ready)
+            {
+                <button type="button" class="vendor-row" @onclick="() => Open(vendor)">
+                    <span><strong class="vf-name">@vendor.PayerName</strong><small>@vendor.Section · Stall @vendor.StallNo</small></span>
+                    <span class="vf-chevron" aria-hidden="true">›</span>
+                </button>
+            }
+        </div>
+    }
+    @if (Unavailable.Count > 0)
+    {
+        <div class="section-label"><span>Not available</span><span class="section-count">@Unavailable.Count</span></div>
+        <div class="vf-card">
+            @foreach (var vendor in Unavailable)
+            {
+                <div class="vendor-row vendor-row-unavailable">
+                    <span><strong class="vf-name">@vendor.PayerName</strong><small>@vendor.Section · Stall @vendor.StallNo</small></span>
+                    <span class="vf-reason">@(string.IsNullOrWhiteSpace(vendor.Reason) ? "Not available" : vendor.Reason)</span>
+                </div>
+            }
+        </div>
     }
     @if (_recent.Count > 0)
     {
-        <div class="section-label">Recent collections</div>
-        @foreach (var capture in _recent)
-        {
-            <div class="vendor-row"><span><strong>@capture.Name</strong><small>@capture.Date.ToString("MMM d", CultureInfo.InvariantCulture) · @capture.Status</small></span><strong>@Money(capture.Amount)</strong></div>
-        }
+        <div class="section-label"><span>Recent collections</span></div>
+        <div class="vf-card">
+            @foreach (var capture in _recent)
+            {
+                <div class="vendor-row"><span><strong class="vf-name">@capture.Name</strong><small>@capture.Date.ToString("MMM d", CultureInfo.InvariantCulture) · @capture.Status</small></span><strong class="vf-amount">@Money(capture.Amount)</strong></div>
+            }
+        </div>
     }
 }
 @if (_message is not null) { <div class="state-card" role="status">@_message</div> }
 @if (_selected is { } selected)
 {
     <div class="sheet-overlay" @onclick="Close">
-        <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="vendor-fee-title" @onclick:stopPropagation="true">
-            <div class="sheet-handle"></div><h2 class="sheet-title" id="vendor-fee-title">Collect vendor fee</h2>
-            <p class="sheet-sub">@selected.PayerName<br />@selected.Section · Stall @selected.StallNo</p>
-            <label class="form-field"><span class="form-label">Amount received</span><input class="form-input" type="number" inputmode="decimal" min="0.01" step="0.01" @bind="_amount" aria-label="Amount received" /></label>
-            <div class="receipt-meta-row"><span>Instrument</span><strong>OR · Official Receipt</strong></div>
-            @if (_error is not null) { <p class="form-error" role="alert">@_error</p> }
-            <div class="sheet-btn-row"><button class="btn-cancel" type="button" @onclick="Close" disabled="@_saving">Cancel</button><button class="btn-confirm" type="button" @onclick="RecordAsync" disabled="@_saving">@(_saving ? "Recording…" : "Record collection")</button></div>
+        <section class="sheet sheet-flex" role="dialog" aria-modal="true" aria-labelledby="vendor-fee-title" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <header class="sheet-head">
+                <h2 class="sheet-title" id="vendor-fee-title">Collect vendor fee</h2>
+                <div class="sheet-context">@selected.PayerName · @selected.Section · Stall @selected.StallNo</div>
+            </header>
+            <div class="sheet-body">
+                <label class="form-field"><span class="form-label">Amount received</span><input class="form-input" type="number" inputmode="decimal" min="0.01" step="0.01" @bind="_amount" aria-label="Amount received" /></label>
+                <div class="sheet-meta"><span>Instrument</span><strong>OR · Official Receipt</strong></div>
+                @if (_error is not null) { <p class="form-error" role="alert">@_error</p> }
+            </div>
+            <div class="sheet-actions">
+                <button class="btn-cancel" type="button" @onclick="Close" disabled="@_saving">Cancel</button>
+                <button class="btn-primary" type="button" @onclick="RecordAsync" disabled="@_saving">@(_saving ? "Recording…" : "Record collection")</button>
+            </div>
         </section>
     </div>
 }
@@ -54,6 +87,13 @@ else
     private string? _error, _message;
     private bool _loading = true, _saving;
     private Guid _sessionId, _itemId;
+
+    private IEnumerable<DirectVendorFeeSource> Matching => _vendors.Where(x => string.IsNullOrWhiteSpace(_search)
+        || (x.PayerName + " " + x.StallNo).Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase));
+    // Eligibility is the server's word: a vendor it will not take a collection for is shown with its reason and never offered as a button.
+    private IReadOnlyList<DirectVendorFeeSource> Ready => Matching.Where(x => x.CanCollect).ToArray();
+    private IReadOnlyList<DirectVendorFeeSource> Unavailable => Matching.Where(x => !x.CanCollect).ToArray();
+
     protected override async Task OnInitializedAsync() => await LoadAsync();
     private async Task LoadAsync()
     {

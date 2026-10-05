@@ -38,21 +38,36 @@ else if (_queued)
 }
 else
 {
-    <section class="collection-entry">
+    <section class="collection-entry collection-payer">
         <h2>Payer</h2>
         @if (_payer is not null)
         {
-            <div class="collection-row"><strong>@_payer.DisplayName</strong><button class="collection-small" type="button" disabled="@(_items.Count > 0)" @onclick="ClearPayerAsync">Change</button></div>
+            <div class="payer-selected"><strong class="payer-name">@_payer.DisplayName</strong><button class="collection-small" type="button" disabled="@(_items.Count > 0)" @onclick="ClearPayerAsync">Change</button></div>
         }
         else
         {
             <div class="collection-search">
-                <label class="form-field"><span class="form-label">Search payer</span><input class="form-input" @bind="_search" placeholder="Name" /></label>
-                <button class="collection-small" type="button" disabled="@_busy" @onclick="SearchAsync">Search</button>
+                <label class="form-field"><span class="form-label">Search payer</span>
+                    <input class="form-input" type="search" autocomplete="off" enterkeyhint="search" placeholder="Name"
+                           @bind="_search" @bind:event="oninput" @bind:after="OnSearchChanged" @onfocus="OnPayerFocusAsync" @onkeydown="OnPayerKeyAsync" /></label>
+                <button class="collection-small" type="button" disabled="@_searching" @onclick="SearchAsync">Search</button>
             </div>
-            @foreach (var payer in _payers)
+            @if (_suggestOpen)
             {
-                <button class="collection-option" type="button" disabled="@(_items.Count > 0)" @onclick="() => SelectPayerAsync(payer)">@payer.DisplayName <span aria-hidden="true">›</span></button>
+                <div class="payer-panel" aria-label="Payers" aria-busy="@(_searching ? "true" : "false")">
+                    @if (_payers.Count > 0)
+                    {
+                        <div class="payer-list" role="list">
+                            @foreach (var payer in _payers)
+                            {
+                                <button class="collection-option payer-option" type="button" role="listitem" disabled="@(_items.Count > 0)" @onclick="() => SelectPayerAsync(payer)">@payer.DisplayName <span aria-hidden="true">›</span></button>
+                            }
+                        </div>
+                    }
+                    else if (_searching) { <div class="payer-status" role="status">Searching…</div> }
+                    else if (_searched) { <div class="payer-status" role="status">No payer found.</div> }
+                    else { <div class="payer-status">Type at least 2 letters to search.</div> }
+                </div>
             }
         }
     </section>
@@ -91,23 +106,28 @@ else
 @if (_picker)
 {
     <div class="sheet-overlay" @onclick="ClosePicker">
-        <section class="sheet" role="dialog" aria-modal="true" aria-label="Add item" @onclick:stopPropagation="true">
-            <div class="sheet-handle"></div><h2 class="sheet-title">@(_editing.HasValue ? "Edit item" : "Add item")</h2>
+        <section class="sheet sheet-flex" role="dialog" aria-modal="true" aria-label="Add item" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <header class="sheet-head">
+                <h2 class="sheet-title">@(_editing.HasValue ? "Edit item" : "Add item")</h2>
+                <div class="sheet-context">@(_operation is null ? (_payer?.DisplayName ?? "No payer selected") : _operation.DisplayName)@(_operation is not null && _payer is not null ? " · " + _payer.DisplayName : "")</div>
+            </header>
+            <div class="sheet-body">
             @if (_operation is null)
             {
                 @foreach (var section in PickerSections)
                 {
-                    <h3 class="sheet-sub">@section.Name</h3>
+                    <div class="sheet-group">@section.Name</div>
                     @foreach (var row in section.Items)
                     {
                         <button class="collection-option" type="button" @onclick="() => Choose(row.OperationCode!)">@row.Name <span aria-hidden="true">›</span></button>
                     }
                 }
-                @if (!PickerSections.Any()) { <p>Select a payer to see linked sources.</p> }
+                @if (!PickerSections.Any()) { <div class="sheet-note">@(_payer is null ? "Select a payer to see what can be collected." : "Nothing available for this payer.")</div> }
             }
             else
             {
-                <h3 class="sheet-sub">@_operation.DisplayName</h3>
+                @if (OnlyOperation is null && !_editing.HasValue) { <button class="collection-link sheet-back" type="button" @onclick="BackToSources">‹ Change source</button> }
                 @if (_operation.Kind == CollectionSessionItemKind.GovernedService)
                 {
                     var modes = _discovery?.ServiceTerms?.Where(x => x.Terms.OperationCode == _operation.OperationCode).ToList() ?? [];
@@ -117,7 +137,7 @@ else
                     { <MobileChoice Label="Fee type" Options="@(options.Select(x => new MobileChoice.Choice(x.Id.ToString(), x.Name, x.Location)).ToArray())" Value="@_option" ValueChanged="ChooseOption" /> }
                     @if (Terms?.VehicleClasses is { Count: > 0 } vehicles)
                     { <MobileChoice Label="Vehicle class" Options="@(vehicles.Select(x => new MobileChoice.Choice(x.Code, x.Name, Money(x.Amount))).ToArray())" Value="@_vehicle" ValueChanged="ChooseVehicle" /> }
-                    @if (FixedAmount is { } fixedAmount) { <p>Approved amount <strong>@Money(fixedAmount)</strong></p> }
+                    @if (FixedAmount is { } fixedAmount) { <div class="sheet-meta"><span>Approved amount</span><strong>@Money(fixedAmount)</strong></div> }
                 }
                 else if (_operation.Kind == CollectionSessionItemKind.Slaughter)
                 {
@@ -125,38 +145,44 @@ else
                     <label class="form-field"><span class="form-label">Heads</span><input class="form-input" type="number" inputmode="numeric" min="1" step="1" @bind="_heads" /></label>
                     @if (_payer is null)
                     { <label class="form-field"><span class="form-label">Owner</span><input class="form-input" @bind="_owner" /></label> }
-                    <p>Approved amount confirmed on review</p>
+                    <div class="sheet-note">Approved amount confirmed on review</div>
                 }
                 else
                 {
-                    <MobileChoice Label="@(_operation.Kind == CollectionSessionItemKind.Weighing ? "Vendor" : "Source / period")" Options="SourceChoices" Value="@_source" ValueChanged="ChooseSource" />
+                    <MobileChoice Label="@(_operation.Kind == CollectionSessionItemKind.Weighing ? "Vendor" : "Source / period")" Options="SourceChoices" Value="@_source" ValueChanged="ChooseSource" EmptyText="Nothing available for this payer." />
                     @if (_operation.Kind == CollectionSessionItemKind.Weighing)
                     {
                         <MobileChoice Label="Type" Options="@(new[] { new MobileChoice.Choice("1", "Fish"), new MobileChoice.Choice("2", "Meat") })" Value="@_type" ValueChanged="ChooseType" />
                         <label class="form-field"><span class="form-label">Quantity · kg</span><input class="form-input" type="number" inputmode="decimal" min="0.01" step="0.01" @bind="_quantity" /></label>
-                        <p>Approved rate <strong>@(SelectedRate is { } rate ? Money(rate.RatePerKilo) + " / kg" : "Unavailable")</strong></p>
-                        <p>Official Receipt · Amount confirmed on review</p>
+                        <div class="sheet-meta"><span>Approved rate</span><strong>@(SelectedRate is { } rate ? Money(rate.RatePerKilo) + " / kg" : "Unavailable")</strong></div>
+                        <div class="sheet-note">Official Receipt · Amount confirmed on review</div>
                     }
                     @if (_operation.Kind == CollectionSessionItemKind.VendorFee)
-                    { <p>OR · Official Receipt</p> }
+                    { <div class="sheet-note">OR · Official Receipt</div> }
                     @if (_operation.Kind == CollectionSessionItemKind.NpmWholePayment)
                     {
-                        <div class="collection-row">
+                        <div class="sheet-pair">
                             <label class="form-field"><span class="form-label">Year</span><input class="form-input" type="number" min="2000" max="2100" @bind="_year" /></label>
                             <label class="form-field"><span class="form-label">Month</span><select class="form-input" @bind="_month">
                                 @for (var month = 1; month <= 12; month++) { <option value="@month">@CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(month)</option> }
                             </select></label>
                         </div>
-                        <p>Whole payment · Remaining monthly rent confirmed on review</p>
+                        <div class="sheet-note">Whole payment · Remaining monthly rent confirmed on review</div>
                     }
                 }
                 @if (_operation.Kind is not (CollectionSessionItemKind.Weighing or CollectionSessionItemKind.Slaughter or CollectionSessionItemKind.NpmWholePayment) && FixedAmount is null)
                 {
                     <label class="form-field"><span class="form-label">Amount received</span><input class="form-input" type="number" inputmode="decimal" min="0.01" step="0.01" @bind="_amount" /></label>
                 }
-                <button class="btn-primary" type="button" disabled="@(!CanAddItem)" @onclick="AddItem">@(_editing.HasValue ? "Save item" : "Add item")</button>
             }
-            <button class="btn-cancel" type="button" @onclick="ClosePicker">Close</button>
+            </div>
+            <div class="sheet-actions">
+                <button class="btn-cancel" type="button" @onclick="ClosePicker">Close</button>
+                @if (_operation is not null)
+                {
+                    <button class="btn-primary" type="button" disabled="@(!CanAddItem)" @onclick="AddItem">@(_editing.HasValue ? "Save item" : "Add item")</button>
+                }
+            </div>
         </section>
     </div>
 }
@@ -223,16 +249,76 @@ else
         try { var response = await Api.GetCollectionSessionDiscoveryAsync(_payer?.PayorId); _discovery = response.Value; if (_payer is not null && _discovery?.PayorDisplayName is { } name) _payer = new(_payer.PayorId, name); if (!response.IsSuccess) _message = "Collection sources are unavailable. Refresh while online."; }
         catch { _message = "Connection required to review."; }
     }
-    private async Task SearchAsync()
+    // ── Payer discovery ──────────────────────────────────────────────────────────────────────────────────────────
+    // Tapping the field opens a bounded suggestion panel; typing searches as the collector types (after a short pause) and Enter or
+    // Search searches at once. The panel only ever lists what the server returns, by its PayorId: nothing is matched or created here.
+    private CancellationTokenSource? _searchDelay;
+    private bool _searching, _searched, _suggestOpen, _browsed;
+
+    private async Task OnPayerFocusAsync()
     {
-        _busy = true;
-        try { var response = await Api.SearchCollectionSessionPayorsAsync(_search); _payers = response.Value ?? []; if (!response.IsSuccess) _message = "Payer search is unavailable."; }
-        catch { _message = "Connect to search payers."; }
-        finally { _busy = false; }
+        _suggestOpen = true;
+        if (_browsed || _searched || _payers.Count > 0) return;
+        _browsed = true;
+        // The server may offer suggestions before anything is typed; when it does not, the panel says how to search.
+        await RunSearchAsync(string.Empty, announceFailure: false);
     }
-    private async Task SelectPayerAsync(CollectionPayorDto payer) { _payer = payer; _payers = []; _quote = null; await LoadAsync(); }
-    private async Task ClearPayerAsync() { _payer = null; _quote = null; await LoadAsync(); }
-    private async Task OpenPickerAsync() { await LoadAsync(); _editing = null; _operation = null; _picker = true; if (OnlyOperation is not null) Choose(OnlyOperation); }
+
+    private void OnSearchChanged()
+    {
+        _searchDelay?.Cancel();
+        _suggestOpen = true;
+        if (_search.Trim().Length < 2) { _searched = false; _payers = []; return; }
+        _searchDelay = new CancellationTokenSource();
+        _ = DebouncedSearchAsync(_searchDelay.Token);
+    }
+
+    private async Task DebouncedSearchAsync(CancellationToken token)
+    {
+        try { await Task.Delay(300, token); } catch (OperationCanceledException) { return; }
+        await InvokeAsync(() => RunSearchAsync(_search, announceFailure: true));
+    }
+
+    private async Task OnPayerKeyAsync(KeyboardEventArgs args)
+    {
+        if (args.Key != "Enter") return;
+        _searchDelay?.Cancel();
+        await SearchAsync();
+    }
+
+    private async Task SearchAsync() { _searchDelay?.Cancel(); _suggestOpen = true; await RunSearchAsync(_search, announceFailure: true); }
+
+    private async Task RunSearchAsync(string term, bool announceFailure)
+    {
+        if (_payer is not null) return;
+        _searching = true;
+        try
+        {
+            var response = await Api.SearchCollectionSessionPayorsAsync(term);
+            if (_payer is not null || term != (string.IsNullOrEmpty(term) ? term : _search)) return;     // a newer search or a chosen payer supersedes this answer
+            _payers = response?.Value ?? [];
+            _searched = term.Trim().Length >= 2;
+            if (response is { IsSuccess: false } && announceFailure) _message = "Payer search is unavailable.";
+        }
+        catch { if (announceFailure) _message = "Connect to search payers."; }
+        finally { _searching = false; }
+    }
+
+    private async Task SelectPayerAsync(CollectionPayorDto payer) { _payer = payer; _payers = []; _suggestOpen = false; _searched = false; _quote = null; await LoadAsync(); }
+    private async Task ClearPayerAsync() { _payer = null; _quote = null; _search = ""; _payers = []; _searched = false; _browsed = false; _suggestOpen = false; await LoadAsync(); }
+    private void BackToSources() { _operation = null; _source = _option = _vehicle = ""; _amount = _quantity = 0; }
+    private async Task OpenPickerAsync()
+    {
+        _message = null; await LoadAsync(); _editing = null; _operation = null;
+        if (OnlyOperation is not null) Choose(OnlyOperation);
+        // Never open a sheet with nothing to choose: say why, in the page, where the collector is looking.
+        if (_operation is null && !PickerSections.Any())
+        {
+            _message ??= _payer is null ? "Select a payer to see what can be collected." : "Nothing available for this payer.";
+            return;
+        }
+        _picker = true;
+    }
     private void Choose(string code)
     {
         _operation = _discovery?.Operations.FirstOrDefault(x => x.OperationCode == code && x.Supported && x.CanAdd);
