@@ -96,7 +96,9 @@ public sealed class CurrentCollectionDiscoveryTests : TestContext
             .ReturnsAsync(Result<EcfCollectionDraftDto>.Success(new(
                 Guid.NewGuid(), 1, PhilippineTime.Today, "Draft", false, null, "Lisa Ilogans", PayorId, null, null, 900m, null,
                 [new(Guid.NewGuid(), 900m, "Kanmanggay Space Rental", Guid.NewGuid(), CollectionSourcePart.DailyFee, 1, 900m,
-                    CollectionSourceKind.ObligationPeriod, AccountId, [], null)])));
+                    CollectionSourceKind.ObligationPeriod, AccountId,
+                    [new(Guid.NewGuid(), CollectionSourceKind.ObligationPeriod, Guid.NewGuid(), null, 900m, 2026, 10,
+                        "Kanmanggay Space Rental · Space K-9", SettlementAuthority.Canonical)], null)])));
 
         Services.GetRequiredService<Bunit.TestDoubles.FakeNavigationManager>()
             .NavigateTo($"/collections/current?payor={PayorId}&name=Lisa%20Ilogans");
@@ -110,6 +112,8 @@ public sealed class CurrentCollectionDiscoveryTests : TestContext
             Assert.NotNull(sent);
             Assert.Equal((AccountId, 2026, 10, 900m), (sent!.AccountId, sent.BillingYear, sent.BillingMonth, sent.ProposedAmount));
             Assert.Contains("₱900.00", cut.Find(".cc-total").TextContent);
+            // What is already in the review is no longer offered again: the row can't be added twice past its balance.
+            Assert.True(cut.Find(".cc-table tbody tr button").HasAttribute("disabled"));
         }, Timeout);
     }
 

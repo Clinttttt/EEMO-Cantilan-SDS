@@ -223,6 +223,7 @@
                         }
                     </div>
                 }
+                <div class="cc-review-foot">
 
 
                 <div class="cc-total"><span>Total</span><strong>@Money(_draft.TotalAmount)</strong></div>
@@ -241,6 +242,7 @@
                             @onclick="PostAsync">Record collection</button>
                     <button type="button" class="cc-button cc-secondary" disabled="@_busy"
                             @onclick="DiscardAsync">Discard draft</button>
+                </div>
                 </div>
             }
         </section>
@@ -624,6 +626,12 @@
     private decimal CandidateRemaining(CollectionCandidateDto candidate)
     {
         if (_draft is null || candidate.SourceId is not { } sourceId) return candidate.OutstandingAmount;
+        // An obligation candidate is keyed by its account, a draft allocation by the period it settles: within this one payor's own
+        // list the account's label and period identify what has already been added.
+        if (candidate.SourceKind == CollectionSourceKind.ObligationPeriod)
+            return candidate.OutstandingAmount - _draft.Lines.SelectMany(x => x.Allocations ?? [])
+                .Where(x => x.SourceKind == CollectionSourceKind.ObligationPeriod && x.SourceLabel is { } label && label.EndsWith(candidate.SourceLabel, StringComparison.Ordinal)
+                    && x.BillingYear == candidate.BillingYear && x.BillingMonth == candidate.BillingMonth).Sum(x => x.Amount);
         return candidate.OutstandingAmount - _draft.Lines.SelectMany(x => x.Allocations ?? [])
             .Where(x => x.SourceKind == candidate.SourceKind && x.SourceId == sourceId
                 && x.SourcePart == candidate.SourcePart).Sum(x => x.Amount);

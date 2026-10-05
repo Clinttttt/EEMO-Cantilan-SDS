@@ -315,3 +315,24 @@
     min-width: 0;
     max-width: 100%;
 }
+
+/* ── Laptop width (2026-10-05): search, filters and the page's actions stay on one row at 1366px; the search yields first. Below
+      that the groups still wrap as whole groups. ── */
+.toolbar-unified {
+    column-gap: 10px;
+}
+
+.search-box {
+    flex: 1 1 150px;
+    min-width: 150px;
+}
+
+@media (min-width: 1025px) {
+    .btn {
+        padding: 6px 12px;
+    }
+
+    .filter-tab {
+        padding: 6px 10px;
+    }
+}

@@ -108,3 +108,20 @@
         color: var(--text-disabled);
         cursor: not-allowed;
     }
+
+/* Five links and actions share the bar with the search and filters: tight enough for one row at laptop width, wrapping below it. */
+.obw-actions-bar {
+    flex-wrap: nowrap;
+    gap: 6px;
+}
+
+.obw-actions-bar .btn-outline,
+.obw-actions-bar .btn-primary {
+    padding: 6px 10px;
+}
+
+@media (max-width: 1280px) {
+    .obw-actions-bar {
+        flex-wrap: wrap;
+    }
+}

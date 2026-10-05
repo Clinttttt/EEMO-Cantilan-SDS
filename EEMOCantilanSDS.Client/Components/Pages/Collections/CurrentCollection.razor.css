@@ -193,3 +193,34 @@
 .cc-result:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent); }
 .cc-result:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .cc-inline-actions { display: flex; gap: 8px; }
+
+/* ── Stable composer (2026-10-05): the two columns keep their widths whatever is added. The charges table has fixed columns, the review's
+      lines grow downward inside a bounded scroll, and the total and the Record action stay in reach beneath them. ── */
+.cc-grid { grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); }
+.cc-panel { overflow-wrap: anywhere; }
+
+.cc-table-wrap { max-height: 46vh; overflow: auto; }
+.cc-table { table-layout: fixed; }
+.cc-table th:nth-child(2), .cc-table td:nth-child(2) { width: 84px; }
+.cc-table th:nth-child(3), .cc-table td:nth-child(3) { width: 112px; }
+.cc-table th:nth-child(4), .cc-table td:nth-child(4) { width: 124px; }
+.cc-table th:nth-child(5), .cc-table td:nth-child(5) { width: 64px; }
+.cc-table input { width: 100%; }
+.cc-activity .cc-table { table-layout: auto; }
+.cc-activity .cc-table th, .cc-activity .cc-table td { width: auto; }
+
+.cc-draft { display: flex; flex-direction: column; }
+.cc-lines { max-height: 42vh; overflow-y: auto; padding-right: 2px; }
+.cc-line { padding: 8px 0; }
+.cc-allocation input { width: 104px; }
+
+.cc-review-foot {
+    position: sticky;
+    bottom: 0;
+    margin-top: auto;
+    background: var(--surface);
+}
+
+@media (max-width: 960px) {
+    .cc-table-wrap, .cc-lines { max-height: none; }
+}

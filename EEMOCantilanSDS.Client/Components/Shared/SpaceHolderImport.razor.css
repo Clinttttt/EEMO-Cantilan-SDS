@@ -128,3 +128,22 @@
     display: inline;
     margin: 0;
 }
+
+/* Compact cells so all seven columns, status included, fit the drawer without a sideways scroll. */
+.shi .v3-table th,
+.shi .v3-table td {
+    padding: 8px 10px;
+}
+
+.shi-cell {
+    width: 100%;
+    min-width: 64px;
+}
+
+.shi-payor {
+    min-width: 180px;
+}
+
+.shi .v3-table td:last-child {
+    min-width: 104px;
+}

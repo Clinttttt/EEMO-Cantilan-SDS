@@ -208,7 +208,10 @@
                         {
                             <span>No Business Payor found.</span>
                         }
-                        <button class="obw-link" type="button" @onclick="CreatePayorAsync" disabled="@(_saving || _payorSearch.Trim().Length < 2)">Create Business Payor “@_payorSearch.Trim()”</button>
+                        @if (_payorSearch.Trim().Length >= 2)
+                        {
+                            <button class="obw-link" type="button" @onclick="CreatePayorAsync" disabled="@_saving">Create Business Payor “@_payorSearch.Trim()”</button>
+                        }
                     </p>
                     <label class="v3-field">
                         <span>@SubjectNoun</span>
