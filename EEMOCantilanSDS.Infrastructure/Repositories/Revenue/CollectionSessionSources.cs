@@ -158,6 +158,20 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
                     npmSources.Add(new(stall.Id, stall.StallNo, payorId, occupancy.Payor.DisplayName, "New Public Market"));
             }
         }
+        for (var i = 0; i < rows.Count; i++)
+        {
+            var hasLinkedSource = rows[i].Kind switch
+            {
+                CollectionSessionItemKind.Water => waterSources.Any(x => x.CanCollect || x.CanEnterDirect),
+                CollectionSessionItemKind.Electricity => electricitySources.Any(x => x.CanPostCanonical),
+                CollectionSessionItemKind.VendorFee => vendorSources.Any(x => x.CanCollect),
+                CollectionSessionItemKind.Weighing => weighingSources.Count > 0,
+                CollectionSessionItemKind.NpmWholePayment => npmSources.Count > 0,
+                _ => true
+            };
+            if (rows[i].CanAdd && !hasLinkedSource)
+                rows[i] = rows[i] with { CanAdd = false, ReasonCode = "NoEligibleSource", Reason = "No eligible linked source is available for this payer." };
+        }
         return new(payorId, date, rows, waterSources, electricitySources, obligationSources, terms, weighingSources, weighingRates, slaughterOptions, payerName, vendorSources, npmSources);
     }
 

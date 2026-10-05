@@ -63,12 +63,7 @@ public sealed class BusinessPayorWorkflow(
     public Task<Result<IReadOnlyList<PayorCandidateDto>>> SearchPayorsAsync(string? search, CancellationToken ct = default) =>
         Run<IReadOnlyList<PayorCandidateDto>>(async actor =>
         {
-            var term = search?.Trim().ToLower();
-            if (string.IsNullOrEmpty(term) || term.Length < 2)
-                return Result<IReadOnlyList<PayorCandidateDto>>.Success([]);
-            var payors = await db.Payors.AsNoTracking()
-                .Where(p => p.MunicipalityId == actor.TenantId && p.DisplayName.ToLower().Contains(term))
-                .OrderBy(p => p.DisplayName).Take(20).ToListAsync(ct);
+            var payors = await BusinessPayorSearch.Apply(db.Payors.AsNoTracking(), actor.TenantId, search).ToListAsync(ct);
             var ids = payors.Select(p => p.Id).ToList();
             var occupancies = await db.Contracts.AsNoTracking()
                 .Where(c => c.MunicipalityId == actor.TenantId && c.PayorId != null && ids.Contains(c.PayorId.Value))

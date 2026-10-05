@@ -43,7 +43,8 @@ public sealed class FishMeatVendorFeeCollectionWorkflow(IAppDbContext db, ICurre
             var eligible = payor is not null && policy is not null && FishMeatVendorFeeRules.UsesDirectCollection(today);
             rows.Add(new(stall.Id, stall.StallNo, stall.Section == MarketSection.FishSection ? "Fish section" : "Meat section",
                 payor?.Id, payor?.DisplayName ?? occupancy.ActualOccupant ?? "Occupant", eligible,
-                payor is null ? "Link the Business Payor in NPM." : !eligible ? "Collection is not currently available." : null));
+                payor is null ? occupancy.PayorId.HasValue ? "The linked Business Payor needs office review." : "Link the Business Payor in NPM."
+                    : !eligible ? "Collection is not currently available." : null, occupancy.Id, occupancy.PayorId.HasValue));
         }
         return Result<IReadOnlyList<DirectVendorFeeSource>>.Success(rows);
     }
@@ -61,7 +62,7 @@ public sealed class FishMeatVendorFeeCollectionWorkflow(IAppDbContext db, ICurre
         var policy = await PolicyAsync(request.BusinessDate, ct);
         if (policy is null) return null;
         var source = new DirectVendorFeeSource(stall!.Id, stall.StallNo, stall.Section == MarketSection.FishSection ? "Fish section" : "Meat section",
-            request.PayorId, contract.Payor.DisplayName, true, null);
+            request.PayorId, contract.Payor.DisplayName, true, null, contract.Id, true);
         var version = JsonSerializer.Serialize(new { contract.Id, contract.UpdatedAt, request.PayorId, PolicyId = policy.Value.Policy.Id,
             Cutover = FishMeatVendorFeeRules.DirectEffectiveDate });
         return new(new(source, request.AmountReceived, RevenueInstrumentType.OfficialReceipt, version), policy.Value.Classification, policy.Value.Policy);

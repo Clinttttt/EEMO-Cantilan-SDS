@@ -139,18 +139,10 @@ public sealed partial class CollectionComposerWorkflow(
     public Task<Result<IReadOnlyList<CollectionPayorDto>>> SearchCollectionPayorsAsync(
         string? search, CancellationToken ct = default) => Run(async actor =>
     {
-        var term = NormalizeOptional(search);
-        if (term is null || term.Length < 2)
-            return Result<IReadOnlyList<CollectionPayorDto>>.Success([]);
         // Case-insensitive: the clerk types "lisa" for "Lisa Ilogans". Still a search over explicit Business Payors only;
         // nothing here links, merges or creates a Payor from a name.
-        var lowered = term.ToLower();
-        var payors = await db.Payors.AsNoTracking()
-            .Where(x => x.MunicipalityId == actor.MunicipalityId
-                && x.DisplayName.ToLower().Contains(lowered))
-            .OrderBy(x => x.DisplayName)
-            .Take(50)
-            .Select(x => new CollectionPayorDto(x.Id, x.DisplayName))
+        var payors = await BusinessPayorSearch.Apply(db.Payors.AsNoTracking(), actor.MunicipalityId, search)
+            .Select(x => new CollectionPayorDto(x.Id, x.DisplayName, null))
             .ToListAsync(ct);
         return Result<IReadOnlyList<CollectionPayorDto>>.Success(payors);
     }, ct);
