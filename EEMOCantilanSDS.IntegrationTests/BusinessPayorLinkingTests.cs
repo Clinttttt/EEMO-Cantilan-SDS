@@ -118,6 +118,12 @@ public sealed class BusinessPayorLinkingTests(PostgresFixture db)
 
         var needs = (await Linking(ctx, w).GetOccupanciesAsync(null, PayorLinkFilter.NeedsPayor)).Value!;
         var occupancy = Assert.Single(needs);
+        Assert.Equal(w.ContractId, occupancy.OccupancyId);
+        Assert.Equal(PayorOccupancyLinkStatus.NeedsPayor, occupancy.LinkStatus);
+        Assert.Equal(FacilityCode.NPM, occupancy.FacilityCode);
+        Assert.NotNull(occupancy.FacilityId);
+        Assert.NotNull(occupancy.FacilityName);
+        Assert.Equal(OccupancyArrangement.SignedContract, occupancy.Arrangement);
         Assert.Equal(("NPM", "12", "Lisa Ilogans", null), (occupancy.FacilityShortName, occupancy.StallNo, occupancy.ActualOccupant, occupancy.PayorId));
         Assert.Null((await ctx.Contracts.AsNoTracking().SingleAsync()).PayorId);
         Assert.Empty((await Linking(ctx, w).GetOccupanciesAsync(null, PayorLinkFilter.Linked)).Value!);
@@ -144,6 +150,8 @@ public sealed class BusinessPayorLinkingTests(PostgresFixture db)
         var linked = await linking.LinkAsync(new(w.ContractId, payor.Id));
         Assert.True(linked.IsSuccess, linked.Error);
         Assert.False(linked.Value!.CreatedPayor);
+        Assert.Equal(PayorOccupancyLinkStatus.Linked,
+            Assert.Single((await linking.GetOccupanciesAsync(null, PayorLinkFilter.Linked)).Value!).LinkStatus);
         var contract = await ctx.Contracts.AsNoTracking().SingleAsync();
         Assert.Equal(payor.Id, contract.PayorId);
         Assert.Equal(("Lisa Ilogans", "Lisa Ilogans"), (contract.ActualOccupant, contract.NameOnContract));      // history is untouched

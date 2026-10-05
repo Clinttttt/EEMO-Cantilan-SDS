@@ -52,6 +52,26 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
             CancellationToken cancellationToken = default) =>
             new AppDbContextTransaction(await Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken));
 
+        public async Task<IAppDbContextTransaction> BeginSpaceAccountTransactionAsync(Guid tenantId,
+            CancellationToken cancellationToken = default)
+        {
+            if (tenantId == Guid.Empty || HasTenantAccessor && CurrentMunicipalityId != tenantId)
+                throw new InvalidOperationException("A resolved tenant is required for space allocation.");
+            // A tenant-wide lock also orders mixed-event imports without deadlocks. Number sequences
+            // remain scoped to kind/event/date. ReadCommitted sees the preceding allocator's commit
+            // after waiting; Serializable would retain a snapshot taken before acquiring the lock.
+            var transaction = await Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
+            try
+            {
+                var bytes = System.Security.Cryptography.SHA256.HashData(
+                    Encoding.UTF8.GetBytes($"stalltrack:space-account:{tenantId:D}"));
+                var key = System.Buffers.Binary.BinaryPrimitives.ReadInt64BigEndian(bytes);
+                await Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({key})", cancellationToken);
+                return new AppDbContextTransaction(transaction);
+            }
+            catch { await transaction.DisposeAsync(); throw; }
+        }
+
         private sealed class AppDbContextTransaction(IDbContextTransaction transaction) : IAppDbContextTransaction
         {
             public async Task CommitAsync(CancellationToken cancellationToken = default)

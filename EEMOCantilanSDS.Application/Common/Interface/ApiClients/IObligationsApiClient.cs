@@ -7,6 +7,10 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 /// <summary>Office view and Head setup of the specialized obligation accounts (Fish/Meat Vendor Fee, Kanmanggay, event lot rental).</summary>
 public interface IObligationsApiClient
 {
+    Task<Result<IReadOnlyList<SpaceRentalOperationDto>>> GetSpaceOperationsAsync() =>
+        Task.FromResult(Result<IReadOnlyList<SpaceRentalOperationDto>>.Failure("Space operations unavailable."));
+    Task<Result<SpaceHolderImportPreview>> PreviewSpaceHoldersAsync(ImportSpaceHoldersRequest request) =>
+        Task.FromResult(Result<SpaceHolderImportPreview>.Failure("Space preview unavailable."));
     Task<Result<ObligationWorkspaceDto>> GetWorkspaceAsync(ObligationKind kind) =>
         Task.FromResult(Result<ObligationWorkspaceDto>.Failure("Space workspace unavailable."));
     Task<Result<ObligationWorkspaceDto>> GetStatusReportAsync(ObligationKind kind, int year) =>

@@ -26,6 +26,110 @@ namespace EEMOCantilanSDS.IntegrationTests;
 public sealed class ObligationAccountTests(PostgresFixture db)
 {
     [SkippableFact]
+    public async Task SpaceNumbers_AreAllocatedConcurrently_AndIndependentForEachEvent()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync();
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+        var input = new CreateObligationAccountRequest(ObligationKind.KanmanggaySpaceRental, seed.PayorId, null,
+            "", null, null, start, 175m, OccupancyArrangement.SpaceOnly);
+        async Task<ObligationAccountDto> Create(CreateObligationAccountRequest request)
+        {
+            await using var context = db.CreateContext(seed.TenantId);
+            var result = await Setup(context, seed).CreateAccountAsync(request);
+            Assert.True(result.IsSuccess, result.Error);
+            return result.Value!;
+        }
+        var spaces = await Task.WhenAll(Create(input), Create(input));
+        Assert.Equal(new[] { "1", "2" }, spaces.Select(x => x.SubjectLabel).Order());
+        var fiesta = input with { Kind = ObligationKind.FiestaArawLotRental, Event = LotRentalEvent.Fiesta, EventDate = start };
+        Assert.Equal("1", (await Create(fiesta)).SubjectLabel);
+        Assert.Equal("1", (await Create(fiesta with { Event = LotRentalEvent.Araw })).SubjectLabel);
+        var other = await SeedAsync();
+        await using (var otherContext = db.CreateContext(other.TenantId))
+        {
+            var otherWorkflow = Setup(otherContext, other);
+            Assert.Equal("1", (await otherWorkflow.CreateAccountAsync(input with { PayorId = other.PayorId })).Value!.SubjectLabel);
+            Assert.Equal(ResultStatus.Invalid, (await otherWorkflow.CreateAccountAsync(input)).Status);
+        }
+        await using var ctx = db.CreateContext(seed.TenantId);
+        Assert.Equal(ResultStatus.Conflict, (await Setup(ctx, seed).CreateAccountAsync(fiesta with { SubjectLabel = "1" })).Status);
+        Assert.Equal(175m, Assert.Single((await Setup(ctx, seed).GetRegisterAsync(spaces[0].Id)).Value!).AssessedAmount);
+    }
+
+    [SkippableFact]
+    public async Task ConcurrentImports_AllocateDistinctNumbersAndKeepAllRowsAtomic()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync();
+        var input = new CreateObligationAccountRequest(ObligationKind.KanmanggaySpaceRental, seed.PayorId, null,
+            "", null, null, new DateOnly(seed.Today.Year, seed.Today.Month, 1), 100m, OccupancyArrangement.SpaceOnly);
+        async Task<ImportSpaceHoldersResult> Import()
+        {
+            await using var context = db.CreateContext(seed.TenantId);
+            var result = await Setup(context, seed).ImportSpaceHoldersAsync(new([new(input), new(input)]));
+            Assert.True(result.IsSuccess, result.Error);
+            Assert.Equal(2, result.Value!.Imported);
+            return result.Value;
+        }
+        var results = await Task.WhenAll(Import(), Import());
+        var rows = results.SelectMany(r => r.Rows!).ToArray();
+        Assert.Equal(new[] { "1", "2", "3", "4" }, rows.Select(r => r.Facts!.Account.SubjectLabel).Order());
+        Assert.Equal(4, rows.Select(r => r.AccountId).Distinct().Count());
+        await using var ctx = db.CreateContext(seed.TenantId);
+        Assert.Equal(4, await ctx.ObligationAccounts.CountAsync());
+        Assert.Empty(await ctx.ObligationPeriods.ToListAsync());
+    }
+
+    [SkippableFact]
+    public async Task ImportPreview_IsTypedAndReadOnly_SaveReallocatesAndReturnsIds_AndRejectsStalePayors()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync();
+        await using var ctx = db.CreateContext(seed.TenantId);
+        var workflow = Setup(ctx, seed);
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+        var operations = (await workflow.GetSpaceOperationsAsync()).Value!;
+        Assert.Equal(3, operations.Count);
+        Assert.True(Assert.Single(operations.Where(o => o.Kind == ObligationKind.KanmanggaySpaceRental)).IsMonthly);
+        Assert.Equal(new[] { LotRentalEvent.Fiesta, LotRentalEvent.Araw }, operations.Where(o => !o.IsMonthly).Select(o => o.Event!.Value));
+        var input = new CreateObligationAccountRequest(ObligationKind.KanmanggaySpaceRental, seed.PayorId, null,
+            "", null, null, start, 175m, OccupancyArrangement.SpaceOnly);
+        var request = new ImportSpaceHoldersRequest([new(input), new(input with { SubjectLabel = "5",
+            Arrangement = OccupancyArrangement.SignedContract, ContractReference = "Lease" }, start)]);
+        var preview = (await workflow.PreviewSpaceHoldersAsync(request)).Value!;
+        Assert.True(preview.CanSave);
+        Assert.Equal("6", preview.Rows[0].Facts!.Account.SubjectLabel);
+        Assert.Equal(SpaceNumberOrigin.ServerSuggested, preview.Rows[0].Facts!.NumberOrigin);
+        Assert.Equal(SpaceNumberOrigin.Supplied, preview.Rows[1].Facts!.NumberOrigin);
+        Assert.NotNull(preview.Rows[0].Facts!.PayorDisplayName);
+        Assert.All(preview.Rows, r => Assert.Null(r.AccountId));
+        Assert.Empty(await ctx.ObligationAccounts.ToListAsync());
+        Assert.True((await workflow.CreateAccountAsync(input with { SubjectLabel = "6" })).IsSuccess);
+        var saved = (await workflow.ImportSpaceHoldersAsync(request)).Value!;
+        Assert.Equal(2, saved.Imported);
+        Assert.Equal("7", saved.Rows![0].Facts!.Account.SubjectLabel);
+        Assert.All(saved.Rows, r => Assert.NotNull(r.AccountId));
+        var duplicate = (await workflow.ImportSpaceHoldersAsync(new([new(input with { SubjectLabel = "007" })]))).Value!;
+        Assert.Equal(1, duplicate.Skipped);
+        Assert.Equal(0, duplicate.Imported);
+
+        var stale = new ImportSpaceHoldersRequest([new(input)]);
+        Assert.True((await workflow.PreviewSpaceHoldersAsync(stale)).Value!.CanSave);
+        var payor = await ctx.Payors.SingleAsync(p => p.Id == seed.PayorId);
+        payor.SoftDelete("test");
+        await ctx.SaveChangesAsync();
+        var refused = (await workflow.ImportSpaceHoldersAsync(stale)).Value!;
+        Assert.Equal(0, refused.Imported);
+        Assert.Equal("InvalidPayor", Assert.Single(refused.Rows!).Code);
+        Assert.Equal(3, await ctx.ObligationAccounts.CountAsync());
+        Assert.Empty(await ctx.ObligationPeriods.ToListAsync());
+    }
+
+    [SkippableFact]
     public async Task Kanmanggay_PersistsContractOrSpaceOnlyWithoutChangingMonthlyObligation_AndPreviewsIdentityErrors()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);

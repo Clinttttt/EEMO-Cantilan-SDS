@@ -23,6 +23,9 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         ChangeTracker ChangeTracker { get; }
         bool HasActiveTransaction => false;
         Task<IAppDbContextTransaction> BeginSerializableTransactionAsync(CancellationToken cancellationToken = default);
+        /// <summary>Serializes space-account allocation for a tenant before reading the committed numbering state.</summary>
+        Task<IAppDbContextTransaction> BeginSpaceAccountTransactionAsync(Guid tenantId, CancellationToken cancellationToken = default)
+            => BeginSerializableTransactionAsync(cancellationToken);
         DbSet<Facility> Facilities { get; }
         DbSet<Municipality> Municipalities { get; }
         DbSet<OrSeriesConfig> OrSeriesConfigs { get; }

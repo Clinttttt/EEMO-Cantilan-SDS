@@ -14,7 +14,18 @@ public sealed record PayorOccupancyDto(
     string ActualOccupant,
     string? NameOnContract,
     Guid? PayorId,
-    string? PayorName);
+    string? PayorName,
+    Guid? FacilityId = null,
+    FacilityCode? FacilityCode = null,
+    string? FacilityName = null,
+    OccupancyArrangement? Arrangement = null)
+{
+    public Guid OccupancyId => ContractId;
+    public PayorOccupancyLinkStatus LinkStatus => PayorId is null ? PayorOccupancyLinkStatus.NeedsPayor
+        : PayorName is null ? PayorOccupancyLinkStatus.Invalid : PayorOccupancyLinkStatus.Linked;
+}
+
+public enum PayorOccupancyLinkStatus { Linked = 1, NeedsPayor = 2, Invalid = 3 }
 
 /// <summary>An existing Business Payor and where it is already in use, so the office can tell two people of one name apart.</summary>
 public sealed record PayorCandidateDto(
