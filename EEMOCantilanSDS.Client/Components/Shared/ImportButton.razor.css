@@ -1,0 +1,16 @@
+/* Import buttons — moved verbatim from the stallholder import so every import shares one button. */
+/* ── Buttons ── */
+.imp-btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 13px; font-weight: 650; border-radius: 9px; padding: 9px 16px;
+    cursor: pointer; border: 1px solid transparent; text-decoration: none; transition: background .14s ease, color .14s ease;
+}
+.imp-btn svg { width: 16px; height: 16px; }
+.imp-btn-primary { background: var(--accent); color: #fff; }
+.imp-btn-primary:hover { background: var(--accent-hover); }
+.imp-btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.imp-btn-outline { background: var(--bg-card); color: var(--navy); border-color: var(--border); }
+.imp-btn-outline:hover { background: var(--bg-icon); }
+.imp-btn-ghost { background: var(--bg); color: var(--text); border-color: var(--border); }
+.imp-btn-ghost:hover { background: var(--bg-icon); }
+

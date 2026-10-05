@@ -1,0 +1,7 @@
+.imp-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 600; color: var(--navy); text-decoration: none;
+    background: none; border: none; cursor: pointer; padding: 0;
+}
+.imp-link ::deep svg { width: 15px; height: 15px; }
+.imp-link:hover { color: var(--accent); }

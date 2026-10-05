@@ -1,0 +1,32 @@
+@* The save bar of every bulk import: Cancel, and the save action with its busy state. The page owns what saving does. *@
+@if (!string.IsNullOrEmpty(Error))
+{
+    <div class="imp-save-error">@Error</div>
+}
+<div class="imp-foot-bar">
+    @ChildContent
+    <ImportButton Kind="ghost" Href="@CancelHref">Cancel</ImportButton>
+    <ImportButton Kind="primary" Disabled="@(Disabled || Saving)" OnClick="OnSave">
+        @if (Saving)
+        {
+            <span class="imp-btn-spin"></span>
+            <text>Importing…</text>
+        }
+        else
+        {
+            <text>@SaveLabel</text>
+        }
+    </ImportButton>
+</div>
+
+@code {
+    [Parameter] public string? CancelHref { get; set; }
+    [Parameter] public string SaveLabel { get; set; } = "Save";
+    [Parameter] public bool Saving { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public EventCallback OnSave { get; set; }
+
+    /// <summary>A short note shown at the left of the bar.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

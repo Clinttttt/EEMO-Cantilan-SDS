@@ -1,0 +1,110 @@
+/* Import hero and its three steps — moved verbatim from the stallholder import. */
+/* ── Hero ── */
+.imp-hero {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: var(--elevation-1);
+    border-radius: 14px;
+    padding: 22px 26px;
+    margin-bottom: 16px;
+    display: flex; align-items: center; justify-content: space-between; gap: 24px;
+    overflow: hidden; flex-wrap: wrap;
+}
+.imp-hero::before {
+    content: ""; position: absolute; top: -50px; right: -30px; width: 220px; height: 220px;
+    display: none;
+}
+.imp-hero-left { display: flex; align-items: center; gap: 18px; min-width: 260px; }
+.imp-hero-icon {
+    width: 54px; height: 54px; border-radius: 12px; flex-shrink: 0;
+    background: var(--accent-soft);
+    display: flex; align-items: center; justify-content: center;
+}
+.imp-hero-icon svg { width: 26px; height: 26px; stroke: var(--accent); }
+.imp-hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
+.imp-hero-title { font-size: 21px; font-weight: 700; color: var(--navy); line-height: 1.2; }
+.imp-hero-sub { font-size: 13px; color: var(--text-secondary); margin-top: 4px; max-width: 460px; }
+
+/* Step indicator */
+.imp-steps { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.imp-step {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12.5px; font-weight: 600; color: var(--text-tertiary);
+}
+.imp-step-no {
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+    background: var(--bg-icon); color: var(--text-secondary);
+}
+.imp-step.active { color: var(--navy); }
+.imp-step.active .imp-step-no { background: var(--accent); color: var(--surface); }
+.imp-step.done { color: var(--text-secondary); }
+.imp-step.done .imp-step-no { background: var(--accent-soft); color: var(--accent); }
+.imp-step-line { width: 26px; height: 1px; background: var(--border-strong); }
+
+/* ══════════════════════════════════════════════════════════════
+   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
+   Light identity band / drawer headers; civic-blue interaction; readable secondary text.
+   ══════════════════════════════════════════════════════════════ */
+.imp-hero {
+    padding: 20px 24px 22px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+}
+
+    .imp-hero::before,
+    .imp-hero::after {
+        display: none;
+    }
+
+.imp-hero-icon {
+    border-color: transparent;
+    background: var(--accent-soft);
+}
+
+    .imp-hero-icon svg {
+        stroke: var(--navy) !important;
+    }
+
+.imp-hero-eyebrow {
+    color: var(--text-tertiary);
+}
+
+.imp-hero-title,
+.imp-hero-val {
+    color: var(--navy);
+}
+
+.imp-hero-val {
+    font-variant-numeric: tabular-nums;
+}
+
+.imp-hero-sub,
+.imp-hero-sub2 {
+    color: var(--text-tertiary);
+}
+
+.imp-hero-key {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.imp-hero-divider {
+    background: var(--border);
+}
+
+.imp-hero-progress {
+    height: 3px;
+    background: var(--surface-muted);
+}
+
+.imp-hero-progress-fill {
+    background: var(--accent);
+}

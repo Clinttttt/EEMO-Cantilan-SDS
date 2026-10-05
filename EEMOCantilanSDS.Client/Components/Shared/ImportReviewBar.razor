@@ -1,0 +1,17 @@
+@* Step 2's summary bar: how many rows are being reviewed, where they came from, and the row actions (Add row, Discard). *@
+<div class="imp-review-bar">
+    <div class="imp-review-left">
+        <div class="imp-review-count">@Count</div>
+        <div>
+            <div class="imp-review-title">rows ready to review</div>
+            <div class="imp-review-sub">@Subtitle</div>
+        </div>
+    </div>
+    <div class="imp-review-actions">@ChildContent</div>
+</div>
+
+@code {
+    [Parameter] public int Count { get; set; }
+    [Parameter] public string Subtitle { get; set; } = string.Empty;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}
