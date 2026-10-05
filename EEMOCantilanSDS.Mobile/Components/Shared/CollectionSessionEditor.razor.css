@@ -61,6 +61,13 @@ button:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2p
 .item-amount strong { font-size: 14px; color: var(--mobile-navy); }
 .item-amount span { margin-top: 2px; font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--mobile-text-secondary); }
 
+/* Recorded: the total first, each SRC beneath it, one full-width way to carry on. */
+.collection-entry .done-title { font-size: 15px; font-weight: 700; color: var(--mobile-navy); }
+.done-total { display: flex; flex-direction: column; gap: 2px; padding: 8px 0 10px; border-bottom: 1px solid var(--mobile-border); }
+.done-total strong { font-size: 24px; font-weight: 700; color: var(--mobile-navy); font-variant-numeric: tabular-nums; }
+.done-total span { font-size: 13px; color: var(--mobile-text-secondary); }
+.done-action { width: 100%; margin-top: 14px; }
+
 /* One valid source: already chosen, shown as context rather than asked about. */
 .sheet-source { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; padding: 10px 14px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface-subtle); }
 .sheet-source strong { font-size: 15px; font-weight: 600; color: var(--mobile-navy); overflow-wrap: anywhere; }

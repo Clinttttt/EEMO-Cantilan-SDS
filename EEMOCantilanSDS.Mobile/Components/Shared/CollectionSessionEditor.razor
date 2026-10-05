@@ -15,18 +15,18 @@
 else if (_queued)
 {
     <section class="collection-entry" aria-live="polite">
-        <h2>@(_result?.Status == CollectionSessionStatus.Recorded ? "Collection recorded" : _needsReview ? "Needs review" : "Waiting to sync")</h2>
+        <h2 class="done-title">@(_result?.Status == CollectionSessionStatus.Recorded ? "Collection recorded" : _needsReview ? "Needs review" : "Waiting to sync")</h2>
         @if (_result?.Status == CollectionSessionStatus.Recorded)
         {
-            <p>@_result.Collections.Count collection records · @Money(_result.GrandTotal)</p>
+            <div class="done-total"><strong>@Money(_result.GrandTotal)</strong><span>@_result.Collections.Count @(_result.Collections.Count == 1 ? "collection record" : "collection records")</span></div>
             @foreach (var collection in _result.Collections)
             {
-                <div class="collection-row">
-                    <div><strong>@Instrument(collection.Instrument) · @CollectionName(collection)</strong><br /><span>@collection.ReferenceCode</span></div>
-                    <strong>@Money(collection.Amount)</strong>
+                <div class="item-row">
+                    <div class="item-main"><strong class="item-name">@CollectionName(collection)</strong><span class="item-context">@collection.ReferenceCode</span></div>
+                    <div class="item-amount"><strong>@Money(collection.Amount)</strong><span>@InstrumentCode(collection.Instrument)</span></div>
                 </div>
             }
-            <button class="btn-primary" type="button" @onclick="StartAnotherAsync">New Collection</button>
+            <button class="collection-primary done-action" type="button" @onclick="StartAnotherAsync">New Collection</button>
         }
         else
         {

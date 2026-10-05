@@ -36,8 +36,8 @@ else
             @foreach (var vendor in Unavailable)
             {
                 <div class="vendor-row vendor-row-unavailable">
-                    <span><strong class="vf-name">@vendor.PayerName</strong><small>@vendor.Section · Stall @vendor.StallNo</small></span>
-                    <span class="vf-reason">@(string.IsNullOrWhiteSpace(vendor.Reason) ? "Not available" : vendor.Reason)</span>
+                    <span><strong class="vf-name">@vendor.PayerName</strong><small>@vendor.Section · Stall @vendor.StallNo</small>
+                        <small class="vf-reason">@(string.IsNullOrWhiteSpace(vendor.Reason) ? "Not available" : vendor.Reason)</small></span>
                 </div>
             }
         </div>
