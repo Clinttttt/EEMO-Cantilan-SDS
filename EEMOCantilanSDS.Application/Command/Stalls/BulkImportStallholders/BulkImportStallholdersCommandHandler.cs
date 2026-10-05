@@ -220,7 +220,7 @@ public class BulkImportStallholdersCommandHandler(
                 reletStallIds.Add(existing.Id);
 
                 usedStallNos.Add(stallNo);
-                results.Add(new BulkImportRowResult(row.RowNumber, stallNo, occupant, false, true, null));
+                results.Add(new BulkImportRowResult(row.RowNumber, stallNo, occupant, false, true, null, newContracts[^1].Id));
                 continue;
             }
 
@@ -233,7 +233,7 @@ public class BulkImportStallholdersCommandHandler(
                 stall.Id, occupant, nameOnContract, effectivity, row.ContractYears,
                 monthlyRate, row.ActualMonthlyRental, null, Actor, arrangement));
             usedStallNos.Add(stallNo);
-            results.Add(new BulkImportRowResult(row.RowNumber, stallNo, occupant, true, false, null));
+            results.Add(new BulkImportRowResult(row.RowNumber, stallNo, occupant, true, false, null, newContracts[^1].Id));
         }
 
         if (newStalls.Count > 0 || newContracts.Count > 0)

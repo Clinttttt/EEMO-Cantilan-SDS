@@ -98,7 +98,7 @@ public sealed record CollectionCandidateDto(
     RevenueInstrumentType Instrument,
     bool CanAddToDraft);
 
-public sealed record CollectionPayorDto(Guid PayorId, string DisplayName);
+public sealed record CollectionPayorDto(Guid PayorId, string DisplayName, IReadOnlyList<string>? Contexts = null);
 
 public sealed record EcfCollectionDraftDto(
     Guid DraftId,

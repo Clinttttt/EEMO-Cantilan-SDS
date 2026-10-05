@@ -34,5 +34,6 @@ public record StallDto(
     string? CustomSectionName = null,
     bool HasElectricity = false,
     bool HasWater = false,
-    decimal? ResolvedDailyFee = null
+    decimal? ResolvedDailyFee = null,
+    Guid? OccupancyId = null
 );

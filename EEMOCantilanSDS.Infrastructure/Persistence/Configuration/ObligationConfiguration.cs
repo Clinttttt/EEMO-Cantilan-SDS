@@ -24,6 +24,8 @@ public sealed class ObligationAccountConfiguration : IEntityTypeConfiguration<Ob
         builder.HasAlternateKey(x => new { x.MunicipalityId, x.Id });
         builder.Property(x => x.Kind).HasConversion<int>().IsRequired();
         builder.Property(x => x.Event).HasConversion<int?>();
+        builder.Property(x => x.Arrangement).HasConversion<int?>();
+        builder.Property(x => x.ContractReference).HasMaxLength(200);
         builder.Property(x => x.SubjectLabel).HasMaxLength(120).IsRequired();
         builder.Property(x => x.ActiveFrom).IsRequired();
         builder.Property(x => x.CreatedAtUtc).IsRequired();

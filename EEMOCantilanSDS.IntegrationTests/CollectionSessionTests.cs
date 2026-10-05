@@ -57,7 +57,7 @@ public sealed class CollectionSessionTests(PostgresFixture database)
         public AdminUserDto? GetCurrentUser() => null;
     }
     private sealed record World(Guid TenantId, Guid CollectorId, Guid PayorId, Guid AccountId, Guid StallId);
-    private async Task<World> SeedAsync(DateOnly? accountStart = null)
+    private async Task<World> SeedAsync(DateOnly? accountStart = null, bool linked = true)
     {
         Skip.IfNot(database.Available, database.UnavailableReason ?? "");
         await database.ResetAsync();
@@ -72,7 +72,7 @@ public sealed class CollectionSessionTests(PostgresFixture database)
             MarketSection.FishSection, createdBy: "test", municipalityId: tenant.Id);
         var payor = Payor.Create(tenant.Id, "One Payer", BusinessPayorKind.Person, "test");
         var contract = Contract.Create(stall.Id, "One Payer", "One Payer", (accountStart ?? Today).AddYears(-1), 20, 900m, createdBy: "test");
-        contract.AssociatePayor(payor.Id, "test");
+        if (linked) contract.AssociatePayor(payor.Id, "test");
         collector.FacilityAssignments.Add(CollectorFacilityAssignment.Create(collector.Id, facility.Id, FacilityCode.NPM));
         db.AddRange(collector, facility, stall, payor, contract);
         foreach (var (code, classificationCode, fixedAmount) in new[]
@@ -108,6 +108,38 @@ public sealed class CollectionSessionTests(PostgresFixture database)
         new(Guid.Parse("00000000-0000-0000-0000-000000000003"), CollectionSessionItemKind.VendorFee, 900m,
             VendorFee: new(w.StallId))
     ]);
+
+    [SkippableFact]
+    public async Task Explicit_occupancy_link_enables_vendor_fee_and_itemized_discovery_without_name_matching()
+    {
+        var w = await SeedAsync(linked: false);
+        await using var db = database.CreateContext(w.TenantId);
+        var collector = new Caller(w.CollectorId, w.TenantId);
+        var vendor = new FishMeatVendorFeeCollectionWorkflow(db, collector, new Tenant(w.TenantId), new Clock());
+        var unlinked = Assert.Single((await vendor.DiscoverAsync()).Value!);
+        Assert.False(unlinked.CanCollect);
+        Assert.Equal(VendorFeeSourceStatus.NeedsPayor, unlinked.Status);
+        Assert.Equal(VendorFeeSourceAction.LinkBusinessPayor, unlinked.RequiredAction);
+        Assert.Equal("RequiresPayorLink", unlinked.ReasonCode);
+        Assert.Null((await db.Contracts.AsNoTracking().SingleAsync()).PayorId);
+        var sources = new CollectionSessionSources(db, collector, new Tenant(w.TenantId), new Clock(), new DiscoverySender(db, w), new NoMarketDays());
+        var before = await sources.DiscoverAsync(w.PayorId, Today, default);
+        Assert.Empty(before.VendorFeeSources!);
+        Assert.Equal("NoEligibleSource", before.Operations.Single(x => x.Kind == CollectionSessionItemKind.VendorFee).ReasonCode);
+        var office = new BusinessPayorWorkflow(db, new Caller(Guid.NewGuid(), w.TenantId, "Admin"), new Tenant(w.TenantId));
+        Assert.True((await office.LinkAsync(new(unlinked.OccupancyId!.Value, w.PayorId))).IsSuccess);
+        var payor = Assert.Single(await new CollectionSessionStore(db).SearchPayorsAsync(w.TenantId, "One Payer", default));
+        Assert.Contains("NPM · FISH-1", payor.Contexts!);
+        var after = await sources.DiscoverAsync(w.PayorId, Today, default);
+        Assert.True(Assert.Single(after.VendorFeeSources!).CanCollect);
+        Assert.True(after.Operations.Single(x => x.Kind == CollectionSessionItemKind.VendorFee).CanAdd);
+        var intent = new CollectionSessionIntent(Guid.NewGuid(), Today, w.PayorId,
+            [new(Guid.NewGuid(), CollectionSessionItemKind.VendorFee, 100m, VendorFee: new(w.StallId))]);
+        var outcome = await Record(Workflow(db, w, sources), intent);
+        Assert.Equal(100m, Assert.Single(outcome.Collections).Amount);
+        Assert.Empty(await db.DailyCollections.ToListAsync());
+        Assert.Empty(await db.ObligationPeriods.ToListAsync());
+    }
     private static CollectionSessionWorkflow Workflow(AppDbContext db, World w, ICollectionSessionSources? sources = null, Caller? actor = null) =>
         new(new CollectionSessionStore(db), sources ?? new CollectionSessionSources(db, actor ?? new(w.CollectorId, w.TenantId), new Tenant(w.TenantId), new Clock(), null!, new NoMarketDays()),
             actor ?? new(w.CollectorId, w.TenantId), new Tenant(w.TenantId), new Clock(), NullLogger<CollectionSessionWorkflow>.Instance);

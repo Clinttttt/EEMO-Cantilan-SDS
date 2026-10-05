@@ -373,6 +373,11 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
         var recordedPosition = (await remit.GetPositionAsync(Today.AddDays(-1), Today)).Value!;
         Assert.Equal((110m, 110m, 0m), (recordedPosition.Collected, recordedPosition.Remitted, recordedPosition.Unremitted));
 
+        var statement = new EEMOCantilanSDS.Application.Queries.Revenue.GetOfficialMonthlyIncome.GetOfficialMonthlyIncomeQueryHandler(
+            ctx, new EEMOCantilanSDS.Infrastructure.Repositories.LegacyMonthlyIncomeReader(ctx),
+            new Caller(w.HeadId, w.Tenant.Id, "Admin"), new FixedTenant(w.Tenant.Id), new StatementClock());
+        var beforeIncome = (await statement.Handle(new(Today.Year, Today.Month), default)).Value!.Groups.SelectMany(x => x.Rows).Select(x => (x.Key, x.Total.Total)).ToArray();
+
         var voided = await remit.VoidAsync(recorded.Row.Id, new VoidRemittanceRequest("Wrong collector counted"));
         Assert.True(voided.IsSuccess, voided.Error);
         Assert.Equal(RemittanceStatus.Voided, voided.Value!.Row.Status);
@@ -384,6 +389,7 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
         // Collected is unchanged; what was remitted becomes unremitted again.
         var afterPosition = (await remit.GetPositionAsync(Today.AddDays(-1), Today)).Value!;
         Assert.Equal((110m, 0m, 110m), (afterPosition.Collected, afterPosition.Remitted, afterPosition.Unremitted));
+        Assert.Equal(beforeIncome, (await statement.Handle(new(Today.Year, Today.Month), default)).Value!.Groups.SelectMany(x => x.Rows).Select(x => (x.Key, x.Total.Total)).ToArray());
 
         // Nothing financial moved: the same Collections, SRCs and amounts; no new Collection or correction.
         Assert.Equal(references, await ctx.Collections.AsNoTracking().OrderBy(x => x.ReferenceCode).Select(x => x.ReferenceCode).ToListAsync());

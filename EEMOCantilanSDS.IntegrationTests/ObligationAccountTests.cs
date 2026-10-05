@@ -25,6 +25,65 @@ namespace EEMOCantilanSDS.IntegrationTests;
 [Collection(PostgresCollection.Name)]
 public sealed class ObligationAccountTests(PostgresFixture db)
 {
+    [SkippableFact]
+    public async Task Kanmanggay_PersistsContractOrSpaceOnlyWithoutChangingMonthlyObligation_AndPreviewsIdentityErrors()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync();
+        await using var ctx = db.CreateContext(seed.TenantId);
+        var workflow = Setup(ctx, seed);
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+        var signed = new CreateObligationAccountRequest(ObligationKind.KanmanggaySpaceRental, seed.PayorId, null,
+            "Signed space", null, null, start, 175m, OccupancyArrangement.SignedContract, "Lease 2026-01");
+        var space = signed with { SubjectLabel = "Space only", Arrangement = OccupancyArrangement.SpaceOnly, ContractReference = null };
+        var preview = await workflow.PreviewSpaceHoldersAsync(new([
+            new(signed), new(space), new(space with { SubjectLabel = "Unlinked", PayorId = Guid.Empty }),
+            new(space with { SubjectLabel = "Invalid", Amount = -1m })]));
+        Assert.Equal(new[] { SpaceHolderImportStatus.Ready, SpaceHolderImportStatus.Ready, SpaceHolderImportStatus.NeedsPayor, SpaceHolderImportStatus.Invalid },
+            preview.Value!.Rows.Select(x => x.Status));
+        Assert.False(preview.Value.CanSave);
+        Assert.Empty(await ctx.ObligationAccounts.ToListAsync());
+        var refused = await workflow.ImportSpaceHoldersAsync(new([new(signed), new(space with { PayorId = Guid.Empty })]));
+        Assert.Equal(0, refused.Value!.Imported);
+        Assert.Empty(await ctx.ObligationAccounts.ToListAsync());
+        var imported = await workflow.ImportSpaceHoldersAsync(new([new(signed), new(space, start)]));
+        Assert.Equal(2, imported.Value!.Imported);
+        var listed = (await workflow.GetAccountsAsync(ObligationKind.KanmanggaySpaceRental)).Value!;
+        Assert.Equal("Lease 2026-01", listed.Single(x => x.SubjectLabel == "Signed space").ContractReference);
+        var noContract = listed.Single(x => x.SubjectLabel == "Space only");
+        Assert.Equal(OccupancyArrangement.SpaceOnly, noContract.Arrangement);
+        Assert.Null(noContract.ContractReference);
+        Assert.Equal(start, noContract.ActiveTo);
+        Assert.All(listed, x => Assert.Equal(175m, x.AssessedToDate));
+        Assert.Equal(ResultStatus.Conflict, (await workflow.CreateAccountAsync(space with { SubjectLabel = " SPACE ONLY " })).Status);
+        var duplicate = await workflow.PreviewSpaceHoldersAsync(new([new(space)]));
+        Assert.Equal("DuplicateSpace", Assert.Single(duplicate.Value!.Rows).Code);
+        Assert.Empty(await ctx.ObligationPeriods.ToListAsync());
+    }
+
+    [SkippableFact]
+    public async Task KanmanggayAddNew_RejectsForeignPayorAndInvalidContractFacts_AndKeepsCloseHistory()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync();
+        await using var ctx = db.CreateContext(seed.TenantId);
+        var workflow = Setup(ctx, seed);
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+        var input = new CreateObligationAccountRequest(ObligationKind.KanmanggaySpaceRental, seed.PayorId, null,
+            "Add new", null, null, start, 200m, OccupancyArrangement.SpaceOnly);
+        Assert.False((await workflow.CreateAccountAsync(input with { PayorId = Guid.NewGuid() })).IsSuccess);
+        Assert.False((await workflow.CreateAccountAsync(input with { Arrangement = OccupancyArrangement.Extension })).IsSuccess);
+        Assert.False((await workflow.CreateAccountAsync(input with { ContractReference = "Fake" })).IsSuccess);
+        Assert.True((await workflow.PreviewSpaceHoldersAsync(new([new(input with { Arrangement = OccupancyArrangement.SignedContract })]))).Value!.CanSave);
+        var created = await workflow.CreateAccountAsync(input);
+        Assert.True(created.IsSuccess, created.Error);
+        Assert.True((await workflow.CloseAccountAsync(created.Value!.Id, new(start))).IsSuccess);
+        Assert.Single(await ctx.ObligationAccounts.ToListAsync());
+        Assert.Equal(200m, Assert.Single((await workflow.GetRegisterAsync(created.Value.Id)).Value!).AssessedAmount);
+        Assert.Equal(seed.PayorId, (await ctx.ObligationAccounts.SingleAsync()).PayorId);
+    }
     // The former Vendor Fee assessment model is historical from IA-064. Kanmanggay/Fiesta
     // retain this engine; their cross-source compatibility is tested at this pre-cutover date.
     private sealed class HistoricalClock : IClock
