@@ -124,6 +124,8 @@ public sealed class PendingOperation
     public long? ElectricitySourceVersion { get; set; }
     public long? RentSourceVersion { get; set; }
     public string? NpmQuoteToken { get; set; }
+    public RecordCollectionSessionRequest? CollectionSession { get; set; }
+    public CollectionSessionResult? CollectionSessionResult { get; set; }
 
     // Canonical Fish / Meat Vendor Fee (Kind = ObligationCollection): the obligation account (BillingYear/BillingMonth name the period).
     public Guid? ObligationAccountId { get; set; }
@@ -209,5 +211,6 @@ public sealed class PendingOperation
         ElectricitySourceVersion,
         RentSourceVersion,
         ObligationAccountId,
-        NpmQuoteToken);
+        NpmQuoteToken,
+        CollectionSession);
 }

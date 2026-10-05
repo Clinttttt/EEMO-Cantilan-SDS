@@ -12,6 +12,49 @@ namespace EEMOCantilanSDS.UnitTest.Mobile;
 
 public class MobileSyncServiceTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Checkout_survives_restart_unknown_response_and_multiple_src_reconciliation(bool needsReview)
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "session-queue-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var intent = new CollectionSessionIntent(Guid.NewGuid(), new(2026, 10, 5), Guid.NewGuid(),
+                [new(Guid.NewGuid(), CollectionSessionItemKind.GovernedService, 200m, Service: new("LANDING_BERTHING")),
+                 new(Guid.NewGuid(), CollectionSessionItemKind.Obligation, 900m, Obligation: new(Guid.NewGuid(), 2026, 10))]);
+            var request = new RecordCollectionSessionRequest(intent, "reviewed-source-version");
+            var store = new PendingOperationStore(dir);
+            await Sut(store, new Mock<IMobileApiClient>().Object, online: false).EnqueueCollectionSessionAsync(request);
+            var persisted = Assert.Single(await new PendingOperationStore(dir).GetAllAsync());
+            Assert.Equal(intent.ClientCollectionSessionId, persisted.ClientOperationId);
+            Assert.Equal(intent.Items.Select(x => x.ClientItemId), persisted.CollectionSession!.Intent.Items.Select(x => x.ClientItemId));
+            Assert.Null(persisted.ReferenceCode); Assert.Null(persisted.ORNumber);
+            var expected = new CollectionSessionResult(intent.ClientCollectionSessionId,
+                needsReview ? CollectionSessionStatus.NeedsReview : CollectionSessionStatus.Recorded, intent.PayorId, needsReview ? 0m : 1100m,
+                needsReview ? [] : [new(Guid.NewGuid(), "SRC-2026-000101", RevenueInstrumentType.CashTicket, 200m, [intent.Items[0].ClientItemId], "Posted"),
+                    new(Guid.NewGuid(), "SRC-2026-000102", RevenueInstrumentType.OfficialReceipt, 900m, [intent.Items[1].ClientItemId], "Posted")],
+                needsReview ? [new(null, "QuoteStale", "Review the changed quote.")] : []);
+            var attempt = 0; var api = new Mock<IMobileApiClient>();
+            api.Setup(x => x.SyncOfflineCollectionsAsync(It.IsAny<SyncOfflineCollectionsCommand>())).ReturnsAsync((SyncOfflineCollectionsCommand cmd) =>
+            {
+                var sent = Assert.Single(cmd.Operations);
+                Assert.Equal(intent.ClientCollectionSessionId, sent.CollectionSession!.Intent.ClientCollectionSessionId);
+                Assert.Equal(request.QuoteFingerprint, sent.CollectionSession.QuoteFingerprint);
+                var status = ++attempt == 1 ? SyncResultStatus.Failed : needsReview ? SyncResultStatus.ReconciliationRequired : SyncResultStatus.Synced;
+                return Result<SyncOfflineCollectionsResultDto>.Success(new(0, 0, 0,
+                    [new(sent.ClientOperationId, status, null, CollectionSession: attempt == 1 ? null : expected)]));
+            });
+            var online = Sut(new PendingOperationStore(dir), api.Object, online: true);
+            await online.SyncNowAsync(force: true); await online.SyncNowAsync(force: true);
+            var restored = Assert.Single(await new PendingOperationStore(dir).GetAllAsync());
+            Assert.Equal(needsReview ? PendingLocalStatus.ReconciliationRequired : PendingLocalStatus.Synced, restored.LocalStatus);
+            Assert.Equal(expected.Collections.Select(c => c.ReferenceCode), restored.CollectionSessionResult!.Collections.Select(c => c.ReferenceCode));
+            Assert.Equal(expected.Problems.Select(p => p.Code), restored.CollectionSessionResult.Problems.Select(p => p.Code));
+            await online.SyncNowAsync(force: true); Assert.Equal(2, attempt);
+        }
+        finally { if (Directory.Exists(dir)) Directory.Delete(dir, true); }
+    }
     private const string CollectorA = "collector-A";
 
     private static PendingOperation NpmOp(string? or = null, string? owner = CollectorA) => new()

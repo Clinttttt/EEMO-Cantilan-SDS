@@ -151,6 +151,17 @@ public sealed class MobileSyncService
         EnsureAutoRetry();
     }
 
+    /// <summary>One durable checkout intent. The amount here is display metadata; only the server's source writers price it.</summary>
+    public Task EnqueueCollectionSessionAsync(RecordCollectionSessionRequest request) => EnqueueIssuedDocumentAsync(new PendingOperation
+    {
+        ClientOperationId = request.Intent.ClientCollectionSessionId,
+        BusinessDate = request.Intent.BusinessDate,
+        Kind = OfflineOperationKind.ItemizedCollectionSession,
+        CollectionSession = request,
+        ReceivedAmount = request.Intent.Items.Sum(i => i.ConfirmedAmount),
+        PayloadVersion = 1, Title = "Itemized collection"
+    });
+
     /// <summary>Drops a queued row (e.g. a Rejected item the collector chooses to discard).</summary>
     public async Task<bool> DiscardAsync(Guid clientOperationId)
     {
@@ -278,6 +289,7 @@ public sealed class MobileSyncService
                         op.IssuedDocumentState = IssuedDocumentLocalState.SyncedAcknowledged;
                         op.ReferenceCode = itemResult.ReferenceCode;
                         op.ServerCollectionId = itemResult.CollectionId;
+                        op.CollectionSessionResult = itemResult.CollectionSession;
                         op.ResultMessage = itemResult.Message ?? (itemResult.ReferenceCode is null ? "Collection recorded." : $"Collection recorded · {itemResult.ReferenceCode}");
                         await _store.UpdateAsync(op);
                     }
@@ -292,6 +304,7 @@ public sealed class MobileSyncService
                     op.LocalStatus = PendingLocalStatus.ReconciliationRequired;
                     op.IssuedDocumentState = IssuedDocumentLocalState.ReconciliationRequired;
                     op.ResultMessage = itemResult.Message ?? "This collection requires office review.";
+                    op.CollectionSessionResult = itemResult.CollectionSession;
                     await _store.UpdateAsync(op);
                     rejected++;
                     break;
