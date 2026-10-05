@@ -21,6 +21,9 @@ public sealed class GovernedServicesApiClient(HttpClient http) : HandleResponse(
     public Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> GetFeeOptionsAsync(string operationCode) =>
         GetAsync<IReadOnlyList<GovernedServiceFeeOptionDto>>($"api/governed-services/{Uri.EscapeDataString(operationCode)}/fee-options");
 
+    public Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> GetFeeOptionsAsync(string operationCode, bool activeOnly) =>
+        GetAsync<IReadOnlyList<GovernedServiceFeeOptionDto>>($"api/governed-services/{Uri.EscapeDataString(operationCode)}/fee-options?activeOnly={activeOnly.ToString().ToLowerInvariant()}");
+
     public Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> AddFeeOptionAsync(string operationCode, AddFeeOptionRequest request) =>
         PostAsync<AddFeeOptionRequest, IReadOnlyList<GovernedServiceFeeOptionDto>>(
             $"api/governed-services/{Uri.EscapeDataString(operationCode)}/fee-options", request);

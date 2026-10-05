@@ -19,11 +19,9 @@ public static class GovernedServiceCatalog
         string Code, string Name, string ClassificationCode, bool ModeAware,
         IReadOnlyList<GovernedServiceBasis> AllowedBases);
 
-    private static readonly GovernedServiceBasis[] Both =
-        [GovernedServiceBasis.FixedAmount, GovernedServiceBasis.DirectApprovedAmount];
-
     // Services whose office may collect more than one approved fee under the same classification (Market Fees: e.g. a
-    // comfort room at a named location; Transfer Large Cattle: more than one approved amount). The option is selected,
+    // comfort room at a named location; Landing/Berthing: distinct fee types; Transfer Large Cattle: approved amounts).
+    // The option is selected,
     // never typed; classification and instrument stay the service's.
     private static readonly GovernedServiceBasis[] BothOrOptions =
         [GovernedServiceBasis.FixedAmount, GovernedServiceBasis.DirectApprovedAmount, GovernedServiceBasis.ApprovedFeeOption];
@@ -31,7 +29,7 @@ public static class GovernedServiceCatalog
     public static readonly IReadOnlyList<Entry> All =
     [
         new(CollectorOperationCodes.MarketFees, "Market Fees", RevenueClassificationCodes.MarketFees, false, BothOrOptions),
-        new(CollectorOperationCodes.LandingBerthing, "Landing / Berthing", RevenueClassificationCodes.LandingBerthing, false, Both),
+        new(CollectorOperationCodes.LandingBerthing, "Landing / Berthing", RevenueClassificationCodes.LandingBerthing, false, BothOrOptions),
         new(CollectorOperationCodes.TransferLargeCattle, "Transfer Large Cattle", RevenueClassificationCodes.TransferLargeCattle, false, BothOrOptions),
         // A whole payment and a daily transaction are different amounts under different instruments; one fixed amount
         // cannot describe both, so this service records an approved direct amount (with an optional ceiling).
@@ -168,12 +166,12 @@ public sealed class GovernedServiceWorkflow(
             .Where(x => x.Rate is not null)
             .OrderBy(x => FeeOptionLabel(x.Option), StringComparer.OrdinalIgnoreCase)
             .Select(x => new FeeOptionTermDto(x.Option.Id, x.Option.DisplayName, x.Option.Location, x.Rate!.Basis,
-                x.Rate.FixedAmount, x.Rate.MaximumAmount)).ToList();
+                x.Rate.FixedAmount, x.Rate.MaximumAmount, x.Option.Code, x.Rate.Id, x.Rate.EffectiveDate)).ToList();
     }
 
     // ── Approved fee options (Head configures; Head/Admin read) ─────────────────────────────────────────
 
-    public Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> GetFeeOptionsAsync(string operationCode, CancellationToken ct = default) =>
+    public Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> GetFeeOptionsAsync(string operationCode, CancellationToken ct = default, bool activeOnly = false) =>
         Run<IReadOnlyList<GovernedServiceFeeOptionDto>>(async actor =>
         {
             if (actor.Role == "Collector") return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Forbidden();
@@ -183,7 +181,9 @@ public sealed class GovernedServiceWorkflow(
             var service = await db.GovernedServices.AsNoTracking().SingleOrDefaultAsync(x =>
                 x.MunicipalityId == actor.TenantId && x.OperationCode == entry.Code, ct);
             if (service is null) return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success([]);
-            return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success(await FeeOptionDtosAsync(actor.TenantId, service.Id, ct));
+            var rows = await FeeOptionDtosAsync(actor.TenantId, service.Id, ct);
+            return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success(activeOnly
+                ? rows.Where(x => x.Availability is FeeOptionAvailability.Active or FeeOptionAvailability.Retiring).ToArray() : rows);
         }, ct);
 
     public Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> AddFeeOptionAsync(
@@ -331,6 +331,12 @@ public sealed class GovernedServiceWorkflow(
     private async Task<IReadOnlyList<GovernedServiceFeeOptionDto>> FeeOptionDtosAsync(Guid tenantId, Guid serviceId, CancellationToken ct)
     {
         var today = BusinessToday;
+        var service = await db.GovernedServices.AsNoTracking().SingleAsync(x => x.MunicipalityId == tenantId && x.Id == serviceId, ct);
+        var entry = GovernedServiceCatalog.Find(service.OperationCode)!;
+        var instrument = (await ResolvePolicyAsync(tenantId, entry, null, today, ct))?.Policy.PermittedInstrumentType;
+        var settings = await db.GovernedServiceSettings.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenantId && x.GovernedServiceId == serviceId).ToListAsync(ct);
+        var setting = GovernedServiceSetting.Resolve(settings, today);
         var options = await db.GovernedServiceFeeOptions.AsNoTracking()
             .Where(x => x.MunicipalityId == tenantId && x.GovernedServiceId == serviceId).ToListAsync(ct);
         var ids = options.Select(x => x.Id).ToArray();
@@ -339,14 +345,23 @@ public sealed class GovernedServiceWorkflow(
         return options.Select(o =>
         {
             var current = GovernedServiceFeeOptionRate.Resolve(rates[o.Id], today);
+            var availability = !o.IsOfferedOn(today) ? FeeOptionAvailability.Retired
+                : current is null ? (rates[o.Id].Any() ? FeeOptionAvailability.Scheduled : FeeOptionAvailability.NeedsApprovedRule)
+                : o.RetiredFrom is not null ? FeeOptionAvailability.Retiring : FeeOptionAvailability.Active;
+            var reason = availability == FeeOptionAvailability.Retired ? "FeeTypeRetired"
+                : current is null ? "FeeTypeRuleNotEffective"
+                : setting is not { Basis: GovernedServiceBasis.ApprovedFeeOption } ? "FeeTypeModeNotActive"
+                : !setting.IsEnabled || !setting.MobileEnabled ? "SourceNotAvailable"
+                : instrument is null ? "InstrumentPolicyNotEffective" : null;
             var status = !o.IsOfferedOn(today) ? "Retired"
                 : current is null ? (rates[o.Id].Any() ? "Scheduled" : "No amount rule")
                 : o.RetiredFrom is not null ? "Retiring" : "Active";
             var history = rates[o.Id].OrderByDescending(x => x.EffectiveDate).ThenByDescending(x => x.CreatedAtUtc)
-                .Select(x => new FeeOptionRateVersionDto(x.EffectiveDate, x.Basis, x.FixedAmount, x.MaximumAmount, x.CreatedBy, x.CreatedAtUtc))
+                .Select(x => new FeeOptionRateVersionDto(x.EffectiveDate, x.Basis, x.FixedAmount, x.MaximumAmount, x.CreatedBy, x.CreatedAtUtc, x.Id))
                 .ToList();
             return new GovernedServiceFeeOptionDto(o.Id, o.Code, o.DisplayName, o.Location, o.Description,
-                current?.Basis, current?.FixedAmount, current?.MaximumAmount, current?.EffectiveDate, status, o.RetiredFrom, history, o.RetiredBy);
+                current?.Basis, current?.FixedAmount, current?.MaximumAmount, current?.EffectiveDate, status, o.RetiredFrom, history, o.RetiredBy,
+                availability, reason is null, reason, current?.Id, instrument);
         }).OrderBy(x => x.Status == "Retired").ThenBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Location).ToList();
     }
 
@@ -461,7 +476,7 @@ public sealed class GovernedServiceWorkflow(
         var fingerprint = PostingOperation.ComputeIntentFingerprint(IntentVersion, normalized, MobileOrigin, ActorId(actor));
         var prior = await FindOperationAsync(actor.TenantId, request.ClientOperationId, ct);
         if (prior is not null)
-            return await ResolvePriorAsync(prior, fingerprint, actor, ct, request.ReceivedAmount);
+            return await ResolvePriorAsync(prior, fingerprint, actor, ct, normalized);
 
         var entry = GovernedServiceCatalog.Find(request.OperationCode);
         if (entry is null)
@@ -593,13 +608,14 @@ public sealed class GovernedServiceWorkflow(
                 actor.Username, actor.Role, request.BusinessDate, actor.Username, [line], null,
                 collectorId: actor.UserId, payerName: string.IsNullOrWhiteSpace(request.PayerName) ? null : request.PayerName.Trim(), ct: ct);
             return Result<GovernedServiceOutcomeDto>.Success(new(collection.Id, collection.ReferenceCode,
-                collection.BusinessDate, collection.TotalAmount, instrument, "Posted", false));
+                collection.BusinessDate, collection.TotalAmount, instrument, "Posted", false,
+                feeOption?.Id, feeOption is null ? null : FeeOptionLabel(feeOption), feeRate?.Id));
         }
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
             var winner = await FindOperationAsync(actor.TenantId, request.ClientOperationId, ct);
-            if (winner is not null) return await ResolvePriorAsync(winner, fingerprint, actor, ct, request.ReceivedAmount);
+            if (winner is not null) return await ResolvePriorAsync(winner, fingerprint, actor, ct, normalized);
             return await RecordTerminalAsync(actor, request, normalized, "POST_CONFLICT",
                 "The operation identity conflicts with another posting; no Collection was partially posted.", ct);
         }
@@ -619,16 +635,17 @@ public sealed class GovernedServiceWorkflow(
             var prior = await FindOperationAsync(actor.TenantId, request.ClientOperationId, ct);
             if (prior is not null)
                 return await ResolvePriorAsync(prior,
-                    PostingOperation.ComputeIntentFingerprint(IntentVersion, normalized, MobileOrigin, ActorId(actor)), actor, ct);
+                    PostingOperation.ComputeIntentFingerprint(IntentVersion, normalized, MobileOrigin, ActorId(actor)), actor, ct, normalized);
             throw;
         }
         return Result<GovernedServiceOutcomeDto>.Failure(message, ResultStatus.Conflict);
     }
 
     private async Task<Result<GovernedServiceOutcomeDto>> ResolvePriorAsync(
-        PostingOperation prior, string fingerprint, Actor actor, CancellationToken ct, decimal? requestedAmount = null)
+        PostingOperation prior, string fingerprint, Actor actor, CancellationToken ct, string normalized)
     {
-        if (prior.Origin != MobileOrigin || prior.ActorId != ActorId(actor) || (prior.IntentFingerprint != fingerprint && prior.AccountableDocumentId is null))   // a pre-SRC operation bound a physical document into its intent; it still replays
+        if (prior.Origin != MobileOrigin || prior.ActorId != ActorId(actor) ||
+            (prior.IntentFingerprint != fingerprint && !MatchesPreSrcIntent(prior, normalized)))
             return Result<GovernedServiceOutcomeDto>.Failure(
                 "IDEMPOTENCY CONFLICT: this ClientOperationId is already bound to a different posting intent.", ResultStatus.Conflict);
         if (prior.Status != PostingOperationStatus.Succeeded || prior.CollectionId is not { } collectionId)
@@ -638,15 +655,30 @@ public sealed class GovernedServiceWorkflow(
             .SingleOrDefaultAsync(x => x.MunicipalityId == actor.TenantId && x.Id == collectionId, ct);
         if (collection is null)
             return Result<GovernedServiceOutcomeDto>.Failure("The recorded Collection outcome is unavailable.", ResultStatus.Conflict);
-        // A pre-SRC operation cannot be compared by fingerprint (its intent bound a physical document), so it replays only
-        // for the same money: a different amount under the same ClientOperationId is still a conflict.
-        if (prior.IntentFingerprint != fingerprint && requestedAmount is { } amount && amount != collection.TotalAmount)
-            return Result<GovernedServiceOutcomeDto>.Failure(
-                "IDEMPOTENCY CONFLICT: this ClientOperationId is already bound to a different posting intent.", ResultStatus.Conflict);
-        var instrument = ReadSnapshot(collection.Lines.OrderBy(x => x.Id).FirstOrDefault()?.CalculationSnapshot)?.Instrument
+        var facts = ReadSnapshot(collection.Lines.OrderBy(x => x.Id).FirstOrDefault()?.CalculationSnapshot);
+        var instrument = facts?.Instrument
             ?? RevenueInstrumentType.CashTicket;
         return Result<GovernedServiceOutcomeDto>.Success(new(collection.Id, collection.ReferenceCode,
-            collection.BusinessDate, collection.TotalAmount, instrument, "Posted", true));
+            collection.BusinessDate, collection.TotalAmount, instrument, "Posted", true,
+            facts?.FeeOptionId, facts?.FeeOptionName, facts?.FeeOptionRateId));
+    }
+
+    private static bool MatchesPreSrcIntent(PostingOperation prior, string normalized)
+    {
+        if (prior.AccountableDocumentId is null || prior.IntentVersion != IntentVersion) return false;
+        try
+        {
+            var historical = System.Text.Json.Nodes.JsonNode.Parse(prior.NormalizedIntent)?.AsObject();
+            if (historical is null) return false;
+            // Pre-SRC payloads bound these physical-document facts. Remove only those obsolete facts;
+            // source, choice, payer, date, mode, reference and money still have to match exactly.
+            historical.Remove("accountableDocumentId");
+            historical.Remove("documentNumber");
+            historical.Remove("issuedAtUtc");
+            return System.Text.Json.Nodes.JsonNode.DeepEquals(historical, System.Text.Json.Nodes.JsonNode.Parse(normalized));
+        }
+        catch (JsonException) { return false; }
+        catch (InvalidOperationException) { return false; }
     }
 
     // ── Office activity ────────────────────────────────────────────────────────────────────────────────

@@ -70,7 +70,8 @@ public sealed record GovernedServicePostRequest(
 
 public sealed record GovernedServiceOutcomeDto(
     Guid CollectionId, string ReferenceCode, DateOnly BusinessDate,
-    decimal Amount, RevenueInstrumentType Instrument, string Disposition, bool ExistingOutcome);
+    decimal Amount, RevenueInstrumentType Instrument, string Disposition, bool ExistingOutcome,
+    Guid? FeeOptionId = null, string? FeeOptionName = null, Guid? FeeOptionRateId = null);
 
 public sealed record GovernedServiceActivityDto(
     Guid CollectionId, DateOnly BusinessDate, DateTime RecordedAtUtc, string? ReferenceCode,
@@ -97,7 +98,8 @@ public sealed record GovernedServiceTermsDto(
 /// One approved fee option a collector may select today: a fixed approved amount (read-only on Mobile) or a direct amount
 /// the collector enters (optionally up to an approved ceiling).
 /// </summary>
-public sealed record FeeOptionTermDto(Guid Id, string Name, string? Location, GovernedServiceBasis Basis, decimal? Amount, decimal? MaximumAmount);
+public sealed record FeeOptionTermDto(Guid Id, string Name, string? Location, GovernedServiceBasis Basis, decimal? Amount, decimal? MaximumAmount,
+    string? Code = null, Guid? RateId = null, DateOnly? EffectiveDate = null);
 
 /// <summary>One approved vehicle class and the rate in force today, for a collector to select. Display only; posting revalidates.</summary>
 public sealed record VehicleClassTermDto(string Code, string Name, decimal Amount);
@@ -115,10 +117,15 @@ public sealed record SaveVehicleClassRequest(string Code, string DisplayName, Da
 public sealed record GovernedServiceFeeOptionDto(
     Guid Id, string? Code, string DisplayName, string? Location, string? Description,
     GovernedServiceBasis? Basis, decimal? Amount, decimal? MaximumAmount, DateOnly? EffectiveDate,
-    string Status, DateOnly? RetiredFrom, IReadOnlyList<FeeOptionRateVersionDto> History, string? RetiredBy = null);
+    string Status, DateOnly? RetiredFrom, IReadOnlyList<FeeOptionRateVersionDto> History, string? RetiredBy = null,
+    FeeOptionAvailability? Availability = null, bool CanCollect = false, string? ReasonCode = null,
+    Guid? RateId = null, RevenueInstrumentType? Instrument = null);
+
+public enum FeeOptionAvailability { Active = 1, Scheduled = 2, Retiring = 3, Retired = 4, NeedsApprovedRule = 5 }
 
 public sealed record FeeOptionRateVersionDto(
-    DateOnly EffectiveDate, GovernedServiceBasis Basis, decimal? FixedAmount, decimal? MaximumAmount, string CreatedBy, DateTime CreatedAtUtc);
+    DateOnly EffectiveDate, GovernedServiceBasis Basis, decimal? FixedAmount, decimal? MaximumAmount, string CreatedBy, DateTime CreatedAtUtc,
+    Guid? RateId = null);
 
 /// <summary>Head request to add an approved fee option with its first amount rule (Fixed or Direct amount).</summary>
 public sealed record AddFeeOptionRequest(

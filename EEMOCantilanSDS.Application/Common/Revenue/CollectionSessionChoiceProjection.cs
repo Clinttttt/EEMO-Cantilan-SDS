@@ -99,7 +99,8 @@ public static class CollectionSessionChoiceProjection
                             yield return new($"{code}|{entry.Mode}|{fee.Id:N}", operation.Kind.Value, code, fee.Name,
                                 fee.Location ?? terms.Name, new(FeeOptionId: fee.Id, Mode: entry.Mode), terms.Instrument,
                                 fee.Basis == GovernedServiceBasis.FixedAmount ? CollectionSessionAmountRule.FixedAmount : CollectionSessionAmountRule.DirectAmount,
-                                fee.Amount, fee.MaximumAmount, RequiredInputs: fee.Basis == GovernedServiceBasis.FixedAmount ? required : required.Append("AmountReceived").ToArray());
+                                fee.Amount, fee.MaximumAmount, RateEffectiveDate: fee.EffectiveDate, RateId: fee.RateId,
+                                RequiredInputs: fee.Basis == GovernedServiceBasis.FixedAmount ? required : required.Append("AmountReceived").ToArray());
                     }
                     else
                         yield return new($"{code}|{entry.Mode}", operation.Kind.Value, code, terms.Name,

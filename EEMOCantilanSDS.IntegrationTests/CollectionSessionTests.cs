@@ -33,6 +33,120 @@ namespace EEMOCantilanSDS.IntegrationTests;
 [Collection(PostgresCollection.Name)]
 public sealed class CollectionSessionTests(PostgresFixture database)
 {
+    [SkippableFact]
+    public async Task LandingAndBerthing_AreStableFeeChoices_SharedByStandaloneAndSession_AndCountOnce()
+    {
+        var w = await SeedAsync();
+        await using var db = database.CreateContext(w.TenantId);
+        var tenant = new Tenant(w.TenantId);
+        var collector = new Caller(w.CollectorId, w.TenantId);
+        var head = new Caller(Guid.NewGuid(), w.TenantId, "SuperAdmin");
+        var setup = new GovernedServiceWorkflow(db, head, tenant, new Clock());
+        var configured = await setup.ConfigureAsync(CollectorOperationCodes.LandingBerthing,
+            new(Today, GovernedServiceBasis.ApprovedFeeOption, null, null, true, true));
+        Assert.True(configured.IsSuccess, configured.Error);
+        async Task<Guid> Add(string name, string code, GovernedServiceBasis basis, decimal? amount)
+        {
+            var result = await setup.AddFeeOptionAsync(CollectorOperationCodes.LandingBerthing,
+                new(name, code, null, null, Today, basis, amount, null));
+            Assert.True(result.IsSuccess, result.Error);
+            return result.Value!.Single(x => x.Code == code).Id;
+        }
+        var landing = await Add("Landing", "LANDING", GovernedServiceBasis.DirectApprovedAmount, null);
+        var berthing = await Add("Berthing", "BERTHING", GovernedServiceBasis.FixedAmount, 80m); // approved test fixture only
+        Assert.NotEqual(landing, berthing);
+        Assert.False((await setup.AddFeeOptionAsync(CollectorOperationCodes.LandingBerthing,
+            new("Unapproved", "UNAPPROVED", null, null, Today, GovernedServiceBasis.FixedAmount, null, null))).IsSuccess);
+        var standalone = new GovernedServiceWorkflow(db, collector, tenant, new Clock());
+        var terms = (await standalone.GetTermsAsync(CollectorOperationCodes.LandingBerthing, null)).Value!;
+        Assert.Equal(2, terms.FeeOptions!.Count);
+        Assert.Equal(RevenueInstrumentType.CashTicket, terms.Instrument);
+        Assert.All(terms.FeeOptions, x => { Assert.NotNull(x.RateId); Assert.Equal(Today, x.EffectiveDate); });
+        Assert.Equal("LANDING", terms.FeeOptions.Single(x => x.Id == landing).Code);
+        var request = new GovernedServicePostRequest(1, Guid.NewGuid(), CollectorOperationCodes.LandingBerthing,
+            Today, 50m, null, "Walk-in", null, FeeOptionId: landing);
+        var first = await standalone.PostMobileAsync(request);
+        Assert.True(first.IsSuccess, first.Error);
+        Assert.StartsWith("SRC-", first.Value!.ReferenceCode);
+        Assert.Equal(landing, first.Value.FeeOptionId);
+        Assert.Equal(terms.FeeOptions.Single(x => x.Id == landing).RateId, first.Value.FeeOptionRateId);
+        Assert.Equal(first.Value.CollectionId, (await standalone.PostMobileAsync(request)).Value!.CollectionId);
+        Assert.Equal(first.Value.ReferenceCode, (await standalone.PostMobileAsync(request with
+            { AccountableDocumentId = Guid.NewGuid(), DocumentNumber = "OBSOLETE-SERIAL" })).Value!.ReferenceCode);
+        Assert.Equal(ResultStatus.Conflict, (await standalone.PostMobileAsync(request with { FeeOptionId = berthing })).Status);
+        Assert.False((await standalone.PostMobileAsync(request with
+            { ClientOperationId = Guid.NewGuid(), FeeOptionId = Guid.NewGuid() })).IsSuccess);
+        var unassigned = new GovernedServiceWorkflow(db, new Caller(Guid.NewGuid(), w.TenantId), tenant, new Clock());
+        Assert.False((await unassigned.PostMobileAsync(request with { ClientOperationId = Guid.NewGuid() })).IsSuccess);
+        var sources = new CollectionSessionSources(db, collector, tenant, new Clock(), new DiscoverySender(db, w), new NoMarketDays());
+        var discovery = (await Workflow(db, w, sources).DiscoverAsync(w.PayorId)).Value!;
+        var operation = discovery.Operations.Single(o => o.OperationCode == CollectorOperationCodes.LandingBerthing);
+        Assert.Equal(2, operation.EligibleChoiceCount);
+        Assert.False(operation.CanAutoSelect);
+        Assert.Equal(new[] { landing, berthing }.Order(), operation.Choices!.Select(c => c.Identity.FeeOptionId!.Value).Order());
+        Assert.All(operation.Choices!, c => { Assert.NotNull(c.RateId); Assert.Equal(Today, c.RateEffectiveDate); });
+        var intent = new CollectionSessionIntent(Guid.NewGuid(), Today, w.PayorId, [
+            new(Guid.NewGuid(), CollectionSessionItemKind.GovernedService, 80m,
+                Service: new(CollectorOperationCodes.LandingBerthing, FeeOptionId: berthing)),
+            new(Guid.NewGuid(), CollectionSessionItemKind.VendorFee, 100m, VendorFee: new(w.StallId))]);
+        var flow = Workflow(db, w, sources);
+        var posted = await Record(flow, intent);
+        Assert.Equal(2, posted.Collections.Count);
+        Assert.Equal(2, posted.Collections.Select(c => c.ReferenceCode).Distinct().Count());
+        Assert.Equal(posted.Collections.Select(c => c.CollectionId), (await Record(flow, intent)).Collections.Select(c => c.CollectionId));
+        Assert.Equal(3, await db.Collections.CountAsync());
+        Assert.True((await setup.ScheduleFeeOptionRateAsync(CollectorOperationCodes.LandingBerthing, berthing,
+            new(Today.AddDays(1), GovernedServiceBasis.FixedAmount, 120m, null))).IsSuccess);
+        Assert.True((await setup.RetireFeeOptionAsync(CollectorOperationCodes.LandingBerthing, landing, new(Today))).IsSuccess);
+        Assert.False((await standalone.PostMobileAsync(request with { ClientOperationId = Guid.NewGuid() })).IsSuccess);
+        Assert.Equal(first.Value.ReferenceCode, (await standalone.PostMobileAsync(request)).Value!.ReferenceCode);
+        Assert.Equal(2, (await setup.GetFeeOptionsAsync(CollectorOperationCodes.LandingBerthing)).Value!.Count);
+        var active = (await setup.GetFeeOptionsAsync(CollectorOperationCodes.LandingBerthing, activeOnly: true)).Value!;
+        Assert.Equal(berthing, Assert.Single(active).Id);
+        Assert.True(active[0].CanCollect);
+        Assert.Equal(FeeOptionAvailability.Active, active[0].Availability);
+        var retired = (await setup.GetFeeOptionsAsync(CollectorOperationCodes.LandingBerthing)).Value!.Single(x => x.Id == landing);
+        Assert.False(retired.CanCollect);
+        Assert.Equal("FeeTypeRetired", retired.ReasonCode);
+        Assert.Equal(first.Value.FeeOptionRateId, Assert.Single(retired.History).RateId);
+        Assert.Single((await standalone.GetTermsAsync(CollectorOperationCodes.LandingBerthing, null)).Value!.FeeOptions!);
+        var tomorrow = new GovernedServiceWorkflow(db, collector, tenant, new Clock(Today.AddDays(1)));
+        Assert.Equal(120m, Assert.Single((await tomorrow.GetTermsAsync(CollectorOperationCodes.LandingBerthing, null)).Value!.FeeOptions!).Amount);
+        var activity = (await setup.GetActivityAsync(CollectorOperationCodes.LandingBerthing, Today, Today)).Value!;
+        Assert.Equal(new[] { "Berthing", "Landing" }, activity.Select(a => a.FeeOptionName).Order());
+        Assert.Equal(130m, activity.Sum(a => a.Amount));
+        Assert.Equal(130m, (await setup.GetFeeOptionTotalsAsync(CollectorOperationCodes.LandingBerthing, Today, Today)).Value!.Sum(x => x.Amount));
+        Assert.Equal(3, (await new CollectionActivityReader(db).GetAsync(w.TenantId, Today, Today)).Count);
+        Assert.Equal(3, (await new CollectionsReportWorkflow(db, collector, tenant).GetMyRegisterAsync(Today, Today)).Value!.Rows.Count);
+        var income = new GetOfficialMonthlyIncomeQueryHandler(db, new LegacyMonthlyIncomeReader(db), head, tenant, new Clock());
+        var before = (await income.Handle(new(Today.Year, Today.Month), default)).Value!;
+        Assert.Equal(130m, before.Groups.SelectMany(g => g.Rows).Single(r => r.ClassificationCode == RevenueClassificationCodes.LandingBerthing).Total.Total);
+        Assert.Equal(230m, before.GrandTotal.Total);
+        var remittance = new RemittanceWorkflow(db, head, tenant);
+        var remit = await remittance.RecordAsync(new(Guid.NewGuid(), w.CollectorId, Today, Today, Today, null,
+            (await db.Collections.Select(c => c.Id).ToListAsync()), 230m, null, null));
+        Assert.True(remit.IsSuccess, remit.Error);
+        Assert.True((await remittance.VoidAsync(remit.Value!.Row.Id, new("Test void"))).IsSuccess);
+        Assert.Equal(3, (await remittance.GetScopeAsync(w.CollectorId, Today, Today, null)).Value!.Collections.Count);
+        Assert.Equal(JsonSerializer.Serialize(before.Groups), JsonSerializer.Serialize((await income.Handle(new(Today.Year, Today.Month), default)).Value!.Groups));
+        Assert.Equal(3, await db.Collections.CountAsync());
+        var changedRate = await tomorrow.PostMobileAsync(request with
+            { ClientOperationId = Guid.NewGuid(), BusinessDate = Today.AddDays(1), FeeOptionId = berthing, ReceivedAmount = 120m });
+        Assert.True(changedRate.IsSuccess, changedRate.Error);
+        Assert.Equal(120m, changedRate.Value!.Amount);
+        Assert.NotEqual(first.Value.FeeOptionRateId, changedRate.Value.FeeOptionRateId);
+        var originalBerthingId = posted.Collections.Single(c => c.Amount == 80m).CollectionId;
+        Assert.Equal(80m, (await db.Collections.SingleAsync(c => c.Id == originalBerthingId)).TotalAmount);
+        Assert.True((await setup.ConfigureAsync(CollectorOperationCodes.LandingBerthing,
+            new(Today.AddDays(2), GovernedServiceBasis.ApprovedFeeOption, null, null, false, false))).IsSuccess);
+        var disabled = new GovernedServiceWorkflow(db, collector, tenant, new Clock(Today.AddDays(2)));
+        Assert.False((await disabled.PostMobileAsync(request with
+            { ClientOperationId = Guid.NewGuid(), BusinessDate = Today.AddDays(2), FeeOptionId = berthing, ReceivedAmount = 120m })).IsSuccess);
+        var foreign = new GovernedServiceWorkflow(db, new Caller(w.CollectorId, Guid.NewGuid()), tenant, new Clock());
+        Assert.Equal(ResultStatus.Forbidden, (await foreign.PostMobileAsync(request with { ClientOperationId = Guid.NewGuid() })).Status);
+        Assert.Equal(4, await db.Collections.CountAsync());
+    }
+
     private static readonly DateOnly Today = PhilippineTime.Today;
     private sealed record Tenant(Guid MunicipalityId) : ICurrentMunicipalityAccessor { public void Set(Guid id) { } }
     private sealed class NoMarketDays : ITpmMarketDayProvider
