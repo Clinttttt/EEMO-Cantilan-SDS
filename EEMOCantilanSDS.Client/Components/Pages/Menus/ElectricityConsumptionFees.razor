@@ -15,7 +15,7 @@
 @* The layout owns the <main> landmark; this page is a region inside it. *@
 <div class="v3-page ecf-page">
     <V3Hero Eyebrow="Operations · ECF" Title="Electricity Consumption Fees" Compact="true">
-        <Meta><span class="ecf-hero-meta">@BillingPeriodLabel <InstrumentChip Instrument="OR" ShowName="true" /></span></Meta>
+        <Meta><span class="ecf-hero-meta">@BillingPeriodLabel · <InstrumentChip Instrument="OR" /> Official Receipt</span></Meta>
         <Figures>
             <V3HeroFigure Label="Assessed" Value="@Money(TotalBilled)" />
             <V3HeroFigure Label="Settled" Value="@Money(TotalSettled)" />
