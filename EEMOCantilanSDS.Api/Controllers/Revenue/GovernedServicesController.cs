@@ -74,6 +74,12 @@ public sealed class GovernedServicesController(ISender sender, GovernedServiceWo
         [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken ct) =>
         HandleResponse(await workflow.GetCollectorRecordsAsync(from, to, ct));
 
+    [HttpGet("transportation/current")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<TransportationCurrentActivityDto>> TransportationCurrentAsync(
+        [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken ct) =>
+        HandleResponse(await workflow.GetTransportationCurrentAsync(from, to, ct));
+
     /// <summary>The approved terms a collector may record today for an assigned operation (display only; posting revalidates).</summary>
     [HttpGet("{operationCode}/terms")]
     [Authorize(Roles = "Collector")]

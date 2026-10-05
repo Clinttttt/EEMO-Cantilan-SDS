@@ -34,6 +34,139 @@ namespace EEMOCantilanSDS.IntegrationTests;
 public sealed class CollectionSessionTests(PostgresFixture database)
 {
     [SkippableFact]
+    public async Task Transportation_DisablingCanonicalService_DoesNotReopenLegacyTripAuthority()
+    {
+        var w = await SeedAsync();
+        await using var db = database.CreateContext(w.TenantId);
+        var tenant = new Tenant(w.TenantId);
+        var head = new Caller(Guid.NewGuid(), w.TenantId, "SuperAdmin");
+        var classification = RevenueClassification.Create(RevenueClassificationCodes.TransportationParking, w.TenantId);
+        db.AddRange(classification, RevenueClassificationPolicy.Create(classification.Id, Today.AddDays(-1),
+            "Transportation", RevenueInstrumentType.CashTicket, w.TenantId));
+        await db.SaveChangesAsync();
+        var setup = new GovernedServiceWorkflow(db, head, tenant, new Clock());
+        Assert.True((await setup.ConfigureAsync(CollectorOperationCodes.Transportation,
+            new(Today, GovernedServiceBasis.VehicleClassRate, null, null, true, true))).IsSuccess);
+        Assert.True((await setup.ConfigureAsync(CollectorOperationCodes.Transportation,
+            new(Today.AddDays(1), GovernedServiceBasis.VehicleClassRate, null, null, false, false))).IsSuccess);
+        var authority = new TransportationCollectionAuthority(db, tenant);
+        Assert.False(await authority.IsCanonicalAsync(Today.AddDays(-1)));
+        Assert.True(await authority.IsCanonicalAsync(Today));
+        Assert.True(await authority.IsCanonicalAsync(Today.AddDays(1)));
+        Assert.True(await authority.IsCanonicalAsync(Today.AddDays(2)));
+    }
+
+    [SkippableFact]
+    public async Task Transportation_CurrentTerminalRead_UsesStandaloneAndItemizedCollections_NotLegacyTrips()
+    {
+        var w = await SeedAsync();
+        await using var db = database.CreateContext(w.TenantId);
+        var tenant = new Tenant(w.TenantId);
+        var collector = new Caller(w.CollectorId, w.TenantId);
+        var head = new Caller(Guid.NewGuid(), w.TenantId, "SuperAdmin");
+        var setup = new GovernedServiceWorkflow(db, head, tenant, new Clock());
+        var classification = RevenueClassification.Create(RevenueClassificationCodes.TransportationParking, w.TenantId);
+        db.AddRange(classification, RevenueClassificationPolicy.Create(classification.Id, Today.AddDays(-1),
+            "Transportation", RevenueInstrumentType.CashTicket, w.TenantId),
+            CollectorOperationAssignment.Assign(w.TenantId, w.CollectorId, CollectorOperationCodes.Transportation, "test"));
+        await db.SaveChangesAsync();
+        Assert.True((await setup.ConfigureAsync(CollectorOperationCodes.Transportation,
+            new(Today, GovernedServiceBasis.VehicleClassRate, null, null, true, true))).IsSuccess);
+        var classes = new VehicleClassWorkflow(db, head, tenant, new Clock());
+        var vehicle = (await classes.SaveAsync(new("JEEP", "Jeepney", Today, 20m))).Value!;
+        var standalone = new GovernedServiceWorkflow(db, collector, tenant, new Clock());
+        var request = new GovernedServicePostRequest(1, Guid.NewGuid(), CollectorOperationCodes.Transportation,
+            Today, 20m, null, "Walk-in payer", "Dispatch A", VehicleClassCode: vehicle.Code);
+        var first = await standalone.PostMobileAsync(request);
+        Assert.True(first.IsSuccess, first.Error);
+        Assert.Equal(first.Value!.ReferenceCode, (await standalone.PostMobileAsync(request)).Value!.ReferenceCode);
+        var sources = new CollectionSessionSources(db, collector, tenant, new Clock(), new DiscoverySender(db, w), new NoMarketDays());
+        var flow = Workflow(db, w, sources);
+        var intent = new CollectionSessionIntent(Guid.NewGuid(), Today, w.PayorId, [
+            new(Guid.NewGuid(), CollectionSessionItemKind.GovernedService, 20m,
+                Service: new(CollectorOperationCodes.Transportation, Reference: "Dispatch B", VehicleClassCode: vehicle.Code))]);
+        var posted = await Record(flow, intent);
+        Assert.Equal(posted.Collections[0].ReferenceCode, (await Record(flow, intent)).Collections[0].ReferenceCode);
+        Assert.Equal(2, await db.Collections.CountAsync());
+        Assert.Empty(await db.TrmTrips.ToListAsync());
+        Assert.Empty(await db.TrmTransporters.ToListAsync());
+
+        var current = (await setup.GetTransportationCurrentAsync(Today, Today)).Value!;
+        Assert.Equal((40m, 2, 1, 40m, 2), (current.CollectedToday, current.TransactionsToday,
+            current.ActiveVehicleClassCount, current.CollectedInPeriod, current.TransactionsInPeriod));
+        Assert.All(current.Collections, c =>
+        {
+            Assert.StartsWith("SRC-", c.ReferenceCode);
+            Assert.Equal("JEEP", c.VehicleClassCode);
+            Assert.Equal("Jeepney", c.VehicleClassName);
+            Assert.Equal(20m, c.FrozenVehicleRate);
+            Assert.NotNull(c.VehicleClassRateId);
+            Assert.Equal(w.CollectorId, c.CollectorId);
+            Assert.Equal("Session Collector", c.CollectorName);
+            Assert.Equal(RevenueInstrumentType.CashTicket, c.Instrument);
+            Assert.Equal(GovernedCollectionState.Posted, c.State);
+        });
+        Assert.Equal(new[] { "Jeepney · Dispatch A", "Jeepney · Dispatch B" }, current.Collections.Select(c => c.Reference).Order());
+        Assert.Equal(JsonSerializer.Serialize(current.Collections), JsonSerializer.Serialize(
+            (await setup.GetActivityAsync(CollectorOperationCodes.Transportation, Today, Today)).Value));
+        Assert.Equal(2, (await new CollectionActivityReader(db).GetAsync(w.TenantId, Today, Today)).Count);
+        Assert.Equal(2, (await new CollectionsReportWorkflow(db, collector, tenant).GetMyRegisterAsync(Today, Today)).Value!.Rows.Count);
+        var collectorReport = await new CollectorReportQueries(db).GetCollectionsAsync(w.CollectorId, Today, Today);
+        Assert.Equal(2, collectorReport.OperationCollections!.Count);
+        Assert.Equal(40m, collectorReport.OperationCollections.Sum(c => c.Amount));
+        Assert.All(collectorReport.OperationCollections, c => Assert.StartsWith("SRC-", c.DocumentNumber));
+        var income = new GetOfficialMonthlyIncomeQueryHandler(db, new LegacyMonthlyIncomeReader(db), head, tenant, new Clock());
+        var before = (await income.Handle(new(Today.Year, Today.Month), default)).Value!;
+        Assert.Equal(40m, before.Groups.SelectMany(g => g.Rows).Single(r => r.ClassificationCode == RevenueClassificationCodes.TransportationParking).Total.Total);
+        var remittance = new RemittanceWorkflow(db, head, tenant);
+        Assert.Equal(2, (await remittance.GetScopeAsync(w.CollectorId, Today, Today, null)).Value!.Collections.Count);
+        var remit = await remittance.RecordAsync(new(Guid.NewGuid(), w.CollectorId, Today, Today, Today, null,
+            current.Collections.Select(c => c.CollectionId).ToArray(), 40m, null, null));
+        Assert.True(remit.IsSuccess, remit.Error);
+        Assert.Empty((await remittance.GetScopeAsync(w.CollectorId, Today, Today, null)).Value!.Collections);
+        Assert.True((await remittance.VoidAsync(remit.Value!.Row.Id, new("Test reversal of remittance"))).IsSuccess);
+        Assert.Equal(2, (await remittance.GetScopeAsync(w.CollectorId, Today, Today, null)).Value!.Collections.Count);
+        Assert.Equal(40m, (await income.Handle(new(Today.Year, Today.Month), default)).Value!.GrandTotal.Total);
+        Assert.Equal(2, await db.Collections.CountAsync());
+
+        var legacyDate = new DateOnly(Today.Year, Today.Month, 1).AddDays(-1);
+        var legacy = EEMOCantilanSDS.Domain.Entities.TransportTerminal.TrmTrip.Create(null, 7, "Historical driver", "OLD-PLATE",
+            "Historical route", "OLD-OR", recordedAt: PhilippineTime.DayUtcRange(legacyDate).StartUtc, fee: 30m);
+        db.TrmTrips.Add(legacy);
+        await db.SaveChangesAsync();
+        Assert.Equal(40m, (await setup.GetTransportationCurrentAsync(Today, Today)).Value!.CollectedToday);
+        var history = await new TrmRepository(db, new Clock()).GetTripsByMonthAsync(legacyDate.Year, legacyDate.Month);
+        Assert.Equal(legacy.Id, Assert.Single(history).Id);
+        Assert.Equal("OLD-OR", history[0].ORNumber);
+        Assert.Equal(0m, (await setup.GetTransportationCurrentAsync(legacyDate, legacyDate)).Value!.CollectedInPeriod);
+
+        Assert.True((await classes.SaveAsync(new("JEEP", "Renamed Jeepney", Today.AddDays(1), 25m))).IsSuccess);
+        var next = new GovernedServiceWorkflow(db, collector, tenant, new Clock(Today.AddDays(1)));
+        Assert.True((await next.PostMobileAsync(request with { ClientOperationId = Guid.NewGuid(), BusinessDate = Today.AddDays(1), ReceivedAmount = 25m })).IsSuccess);
+        var after = (await setup.GetTransportationCurrentAsync(Today, Today)).Value!;
+        Assert.All(after.Collections, c => { Assert.Equal(20m, c.Amount); Assert.Equal("Jeepney", c.VehicleClassName); });
+        var future = new GovernedServiceWorkflow(db, head, tenant, new Clock(Today.AddDays(1)));
+        Assert.Equal(25m, Assert.Single((await future.GetTransportationCurrentAsync(Today.AddDays(1), Today.AddDays(1))).Value!.Collections).FrozenVehicleRate);
+        Assert.Equal(2, Assert.Single((await classes.GetAsync()).Value!).History!.Count);
+        Assert.Equal(ResultStatus.Conflict, (await standalone.PostMobileAsync(request with { ReceivedAmount = 25m })).Status);
+        Assert.Equal(3, await db.Collections.CountAsync());
+        Assert.Single(await db.TrmTrips.ToListAsync());
+        var originalLine = await db.CollectionLines.SingleAsync(l => l.CollectionId == first.Value.CollectionId);
+        db.CollectionCorrections.Add(CollectionCorrection.Record(w.TenantId, first.Value.CollectionId, null, null, null,
+            CollectionCorrectionType.Reversal, Today, DateTime.UtcNow, -20m, "Test corrected collection",
+            head.Id.ToString("N"), "Head", [new CollectionCorrectionLineDraft(originalLine.Id, -20m)]));
+        await db.SaveChangesAsync();
+        var corrected = (await setup.GetTransportationCurrentAsync(Today, Today)).Value!;
+        Assert.Equal((20m, 1), (corrected.CollectedToday, corrected.TransactionsToday));
+        var reversed = corrected.Collections.Single(c => c.CollectionId == first.Value.CollectionId);
+        Assert.Equal((20m, 0m, GovernedCollectionState.Reversed), (reversed.Amount, reversed.NetAmount, reversed.State));
+        Assert.Equal(3, await db.Collections.CountAsync());
+        Assert.Equal(ResultStatus.Forbidden, (await standalone.GetTransportationCurrentAsync(Today, Today)).Status);
+        var foreign = new GovernedServiceWorkflow(db, head with { TenantId = Guid.NewGuid() }, tenant, new Clock());
+        Assert.Equal(ResultStatus.Forbidden, (await foreign.GetTransportationCurrentAsync(Today, Today)).Status);
+    }
+
+    [SkippableFact]
     public async Task LandingAndBerthing_AreStableFeeChoices_SharedByStandaloneAndSession_AndCountOnce()
     {
         var w = await SeedAsync();

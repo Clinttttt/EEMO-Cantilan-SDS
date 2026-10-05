@@ -76,7 +76,19 @@ public sealed record GovernedServiceOutcomeDto(
 public sealed record GovernedServiceActivityDto(
     Guid CollectionId, DateOnly BusinessDate, DateTime RecordedAtUtc, string? ReferenceCode,
     RevenueInstrumentType? Instrument, GovernedServiceMode? Mode, string? PayerName, string? Reference,
-    decimal Amount, string? CollectorName, string Disposition, string? FeeOptionName = null);
+    decimal Amount, string? CollectorName, string Disposition, string? FeeOptionName = null,
+    Guid? CollectorId = null, Guid? PayorId = null, string? VehicleClassCode = null, string? VehicleClassName = null,
+    Guid? VehicleClassRateId = null, DateOnly? VehicleClassRateEffectiveDate = null, decimal? FrozenVehicleRate = null,
+    decimal? NetAmount = null, GovernedCollectionState? State = null);
+
+public enum GovernedCollectionState { Posted = 1, DocumentCorrected = 2, Reversed = 3 }
+
+/// <summary>Current Transport Terminal and Transportation/Parking share this canonical-only receipt-period view.</summary>
+public sealed record TransportationCurrentActivityDto(
+    DateOnly From, DateOnly To, DateOnly Today,
+    decimal CollectedToday, int TransactionsToday, int ActiveVehicleClassCount,
+    decimal CollectedInPeriod, int TransactionsInPeriod,
+    IReadOnlyList<GovernedServiceActivityDto> Collections);
 
 /// <summary>One collection a collector took through a governed operation, as the server recorded it.</summary>
 public sealed record GovernedServiceRecordDto(

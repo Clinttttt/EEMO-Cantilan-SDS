@@ -64,7 +64,7 @@ public static class GovernedServiceCatalog
 /// collector states transaction facts only; classification, instrument, amount rule and document requirements are
 /// resolved from approved tenant configuration, and money is written by the one canonical posting coordinator.
 /// </summary>
-public sealed class GovernedServiceWorkflow(
+public sealed partial class GovernedServiceWorkflow(
     IAppDbContext db,
     ICurrentUserService currentUser,
     ICurrentMunicipalityAccessor municipality,
@@ -696,14 +696,17 @@ public sealed class GovernedServiceWorkflow(
                 x.MunicipalityId == actor.TenantId && x.OperationCode == entry.Code, ct);
             if (service is null) return Result<IReadOnlyList<GovernedServiceActivityDto>>.Success([]);
 
-            var lines = await db.CollectionLines.AsNoTracking().Where(x =>
-                x.MunicipalityId == actor.TenantId && x.SourceKind == CollectionSourceKind.GovernedService
-                && x.SourceId == service.Id).ToListAsync(ct);
+            var lines = await (from line in db.CollectionLines.AsNoTracking()
+                join collection in db.Collections.AsNoTracking() on line.CollectionId equals collection.Id
+                where line.MunicipalityId == actor.TenantId && collection.MunicipalityId == actor.TenantId
+                    && line.SourceKind == CollectionSourceKind.GovernedService && line.SourceId == service.Id
+                    && collection.BusinessDate >= @from && collection.BusinessDate <= to
+                select line).ToListAsync(ct);
             var ids = lines.Select(x => x.CollectionId).Distinct().ToArray();
             var collections = await db.Collections.AsNoTracking().Where(x =>
                 x.MunicipalityId == actor.TenantId && ids.Contains(x.Id)
                 && x.BusinessDate >= from && x.BusinessDate <= to)
-                .OrderByDescending(x => x.RecordedAtUtc).ToListAsync(ct);
+                .OrderByDescending(x => x.RecordedAtUtc).ThenBy(x => x.Id).ToListAsync(ct);
             var collectionIds = collections.Select(x => x.Id).ToArray();
             var collectorIds = collections.Where(x => x.CollectorId.HasValue).Select(x => x.CollectorId!.Value).Distinct().ToArray();
             var collectors = await db.CollectorUsers.AsNoTracking().Where(x =>
@@ -719,10 +722,16 @@ public sealed class GovernedServiceWorkflow(
                 var effects = corrections.Where(x => x.OriginalCollectionId == collection.Id).ToList();
                 var disposition = effects.Any(x => x.FinancialEffectAmount < 0m) ? "Reversed"
                     : effects.Any(x => x.CorrectionType == CollectionCorrectionType.DocumentCorrection) ? "Document corrected" : "Posted";
+                var state = effects.Any(x => x.FinancialEffectAmount < 0m) ? GovernedCollectionState.Reversed
+                    : effects.Any(x => x.CorrectionType == CollectionCorrectionType.DocumentCorrection)
+                        ? GovernedCollectionState.DocumentCorrected : GovernedCollectionState.Posted;
                 return new GovernedServiceActivityDto(collection.Id, collection.BusinessDate, collection.RecordedAtUtc,
                     collection.ReferenceCode, facts?.Instrument, facts?.Mode,
                     collection.PayerName, facts?.Reference, line.Amount,
-                    collection.CollectorId is { } id ? collectors.GetValueOrDefault(id) : null, disposition, facts?.FeeOptionName);
+                    collection.CollectorId is { } id ? collectors.GetValueOrDefault(id) : null, disposition, facts?.FeeOptionName,
+                    collection.CollectorId, collection.PayorId, facts?.VehicleClassCode, facts?.VehicleClassName,
+                    facts?.VehicleClassRateId, facts?.VehicleClassRateEffectiveDate, facts?.VehicleClassRate,
+                    line.Amount + effects.Sum(x => x.FinancialEffectAmount), state);
             }).ToList();
             return Result<IReadOnlyList<GovernedServiceActivityDto>>.Success(activity);
         }, ct);

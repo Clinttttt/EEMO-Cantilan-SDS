@@ -147,6 +147,8 @@ public sealed class ObligationAccountTests(PostgresFixture db)
         Assert.Equal(new[] { SpaceHolderImportStatus.Ready, SpaceHolderImportStatus.Ready, SpaceHolderImportStatus.NeedsPayor, SpaceHolderImportStatus.Invalid },
             preview.Value!.Rows.Select(x => x.Status));
         Assert.False(preview.Value.CanSave);
+        Assert.Equal(new[] { SpaceHolderImportAction.None, SpaceHolderImportAction.None,
+            SpaceHolderImportAction.SelectPayor, SpaceHolderImportAction.CorrectRow }, preview.Value.Rows.Select(x => x.RequiredAction));
         Assert.Empty(await ctx.ObligationAccounts.ToListAsync());
         var refused = await workflow.ImportSpaceHoldersAsync(new([new(signed), new(space with { PayorId = Guid.Empty })]));
         Assert.Equal(0, refused.Value!.Imported);
@@ -163,6 +165,7 @@ public sealed class ObligationAccountTests(PostgresFixture db)
         Assert.Equal(ResultStatus.Conflict, (await workflow.CreateAccountAsync(space with { SubjectLabel = " SPACE ONLY " })).Status);
         var duplicate = await workflow.PreviewSpaceHoldersAsync(new([new(space)]));
         Assert.Equal("DuplicateSpace", Assert.Single(duplicate.Value!.Rows).Code);
+        Assert.Equal(SpaceHolderImportAction.ResolveDuplicate, Assert.Single(duplicate.Value.Rows).RequiredAction);
         Assert.Empty(await ctx.ObligationPeriods.ToListAsync());
     }
 
