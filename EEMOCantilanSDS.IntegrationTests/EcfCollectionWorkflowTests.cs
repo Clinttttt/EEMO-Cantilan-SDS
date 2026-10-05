@@ -781,6 +781,95 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task TheHeadActivatesALegacyEcfBillThroughTheCutover_AndItThenPostsExactlyOnce_WithTheLegacyPaymentPreserved()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedEcfAsync(canonical: false);
+        await using var context = db.CreateContext(seed.TenantId);
+        var head = new TestActor(seed.UserId, seed.TenantId);
+        var tenant = new FixedTenant(seed.TenantId);
+        var activation = new EcfActivationWorkflow(context, head, tenant, new SettlementCutoverWorkflow(context, head, tenant));
+        var bill = await context.UtilityBills.AsNoTracking().SingleAsync(x => x.Id == seed.BillId);
+        var attested = new SettlementCutoverReconciliationEvidence(true, true, true, true, true, true, "Head checklist 2026-10-05", []);
+
+        // Legacy: it can be drafted and reviewed but not posted.
+        Assert.Equal(SettlementAuthority.Legacy, bill.ElectricitySettlementAuthorityState);
+
+        // An incomplete checklist writes nothing and leaves the bill Legacy.
+        var refused = await activation.ActivateAsync(new(bill.Id, bill.ElectricitySourceVersion, attested with { MobileQueuesDrained = false }));
+        Assert.False(refused.IsSuccess);
+        Assert.Contains("blocked", refused.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(SettlementAuthority.Legacy,
+            (await context.UtilityBills.AsNoTracking().SingleAsync(x => x.Id == seed.BillId)).ElectricitySettlementAuthorityState);
+        Assert.Equal(0, await context.CollectionSettlementCutovers.CountAsync());
+
+        // A stale reviewed version is refused too.
+        Assert.Equal(ResultStatus.Conflict,
+            (await activation.ActivateAsync(new(bill.Id, bill.ElectricitySourceVersion + 7, attested))).Status);
+
+        var ready = await activation.GetReadinessAsync(bill.Id, attested);
+        Assert.True(ready.IsSuccess && ready.Value!.Ready, string.Join("; ", ready.Value?.BlockingReasons ?? []));
+
+        var activated = await activation.ActivateAsync(new(bill.Id, bill.ElectricitySourceVersion, attested));
+        Assert.True(activated.IsSuccess, activated.Error);
+        Assert.Equal(SettlementAuthority.Canonical, activated.Value!.Authority);
+        // The cutover froze what the legacy writer had already collected as the opening position; nothing is re-collected.
+        Assert.Equal((800m, 200m, 600m),
+            (activated.Value.OpeningAssessmentAmount, activated.Value.OpeningLegacySettledAmount, activated.Value.OpeningOutstandingAmount));
+        Assert.Equal(200m, (await context.UtilityBills.AsNoTracking().SingleAsync(x => x.Id == seed.BillId)).ElecAmountPaid);
+        // Already active: a second request is refused rather than repeated.
+        Assert.False((await activation.ActivateAsync(new(bill.Id, bill.ElectricitySourceVersion, attested))).IsSuccess);
+
+        // Now the canonical composer can take it, once.
+        var workflow = Workflow(context, seed);
+        var candidates = await workflow.GetPayorObligationsAsync(seed.PayorId);
+        var ecf = Assert.Single(candidates.Value!, x => x.SourceKind == CollectionSourceKind.UtilityBill);
+        Assert.Equal(600m, ecf.OutstandingAmount);
+        Assert.Equal(RevenueInstrumentType.OfficialReceipt, ecf.Instrument);
+        var draft = (await workflow.CreateDraftAsync(new CreateEcfCollectionDraftRequest(seed.BillId, 600m))).Value!;
+        var reviewed = (await workflow.ReviewAsync(draft.DraftId, new EcfDraftRevisionRequest(draft.Revision))).Value!;
+        var operationId = Guid.NewGuid();
+        var posted = await workflow.PostAsync(draft.DraftId, new PostEcfCollectionDraftRequest(reviewed.Revision, operationId));
+        Assert.True(posted.IsSuccess, posted.Error);
+        var retry = await workflow.PostAsync(draft.DraftId, new PostEcfCollectionDraftRequest(reviewed.Revision, operationId));
+        Assert.True(retry.IsSuccess, retry.Error);
+        Assert.Equal(posted.Value!.ReferenceCode, retry.Value!.ReferenceCode);
+        var collection = await context.Collections.AsNoTracking().SingleAsync();
+        Assert.Equal(600m, collection.TotalAmount);
+        Assert.StartsWith("SRC-", collection.ReferenceCode);
+        Assert.Empty((await workflow.GetPayorObligationsAsync(seed.PayorId)).Value!.Where(x => x.SourceKind == CollectionSourceKind.UtilityBill));
+    }
+
+    [SkippableFact]
+    public async Task OneBillWithBrokenSourceState_DoesNotBreakThePayorsOtherCharges()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedEcfAsync(canonical: false);
+        Guid stallId;
+        await using (var lookup = db.CreateContext(seed.TenantId))
+            stallId = await lookup.UtilityBills.Where(x => x.Id == seed.BillId).Select(x => x.StallId).SingleAsync();
+        var olderPeriod = seed.Period.AddMonths(-3);
+        var brokenBill = UtilityBill.Create(stallId, olderPeriod.Year, olderPeriod.Month, 20m, 80m, 10m, 0m, 4m, 5m, "test");
+        await using (var setup = db.CreateContext(seed.TenantId))
+        {
+            setup.UtilityBills.Add(brokenBill);
+            await setup.SaveChangesAsync();
+            // Canonical authority with no frozen cutover evidence: a state the composer refuses to read, never one a clerk can reach.
+            await setup.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE \"UtilityBills\" SET \"ElectricitySettlementAuthorityState\" = 2 WHERE \"Id\" = {brokenBill.Id}");
+        }
+
+        await using var context = db.CreateContext(seed.TenantId);
+        var candidates = await Workflow(context, seed).GetPayorObligationsAsync(seed.PayorId);
+
+        Assert.True(candidates.IsSuccess, candidates.Error);
+        Assert.Contains(candidates.Value!, x => x.SourceKind == CollectionSourceKind.UtilityBill && x.SourceId == seed.BillId);
+        Assert.DoesNotContain(candidates.Value!, x => x.SourceId == brokenBill.Id);
+    }
+
+    [SkippableFact]
     public async Task PayorSearchIsCaseInsensitive_AndOnlyFindsExplicitBusinessPayors()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);

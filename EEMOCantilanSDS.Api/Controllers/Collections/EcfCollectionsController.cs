@@ -17,6 +17,16 @@ public sealed class EcfCollectionsController(ISender sender, EcfCollectionWorkfl
         [FromQuery] int year, [FromQuery] int month, CancellationToken ct) =>
         HandleResponse(await workflow.GetObligationsAsync(year, month, ct));
 
+    [HttpPost("activation-readiness")]
+    public async Task<ActionResult<SettlementCutoverReadinessDto>> ActivationReadiness(
+        [FromBody] EcfActivationReadinessRequest request, [FromServices] EcfActivationWorkflow activation, CancellationToken ct) =>
+        HandleResponse(await activation.GetReadinessAsync(request.UtilityBillId, request.Evidence, ct));
+
+    [HttpPost("activations")]
+    public async Task<ActionResult<SettlementCutoverOutcomeDto>> Activate(
+        [FromBody] EcfActivationRequest request, [FromServices] EcfActivationWorkflow activation, CancellationToken ct) =>
+        HandleResponse(await activation.ActivateAsync(request, ct));
+
     [HttpGet("obligations/{utilityBillId:guid}")]
     public async Task<ActionResult<EcfObligationQuoteDto>> GetObligation(Guid utilityBillId, CancellationToken ct) =>
         HandleResponse(await workflow.GetObligationAsync(utilityBillId, ct));

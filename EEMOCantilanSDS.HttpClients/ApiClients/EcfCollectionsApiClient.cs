@@ -13,6 +13,14 @@ public sealed class EcfCollectionsApiClient(HttpClient http) : HandleResponse(ht
     public Task<Result<EcfObligationQuoteDto>> GetObligationAsync(Guid utilityBillId) =>
         GetAsync<EcfObligationQuoteDto>($"api/ecf-collections/obligations/{utilityBillId}");
 
+    public Task<Result<SettlementCutoverReadinessDto>> GetActivationReadinessAsync(Guid utilityBillId, SettlementCutoverReconciliationEvidence? evidence) =>
+        PostAsync<EEMOCantilanSDS.Application.Common.Revenue.EcfActivationReadinessRequest, SettlementCutoverReadinessDto>(
+            "api/ecf-collections/activation-readiness", new(utilityBillId, evidence));
+
+    public Task<Result<SettlementCutoverOutcomeDto>> ActivateAsync(EEMOCantilanSDS.Application.Common.Revenue.EcfActivationRequest request) =>
+        PostAsync<EEMOCantilanSDS.Application.Common.Revenue.EcfActivationRequest, SettlementCutoverOutcomeDto>(
+            "api/ecf-collections/activations", request);
+
     public Task<Result<EcfCollectionDraftDto>> GetCurrentDraftAsync() =>
         GetAsync<EcfCollectionDraftDto>("api/ecf-collections/drafts/current");
 

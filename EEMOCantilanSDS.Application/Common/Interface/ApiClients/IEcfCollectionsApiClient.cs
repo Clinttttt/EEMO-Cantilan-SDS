@@ -7,6 +7,8 @@ public interface IEcfCollectionsApiClient
 {
     Task<Result<IReadOnlyList<EcfObligationQuoteDto>>> GetObligationsAsync(int year, int month);
     Task<Result<EcfObligationQuoteDto>> GetObligationAsync(Guid utilityBillId);
+    Task<Result<SettlementCutoverReadinessDto>> GetActivationReadinessAsync(Guid utilityBillId, SettlementCutoverReconciliationEvidence? evidence);
+    Task<Result<SettlementCutoverOutcomeDto>> ActivateAsync(EEMOCantilanSDS.Application.Common.Revenue.EcfActivationRequest request);
     Task<Result<EcfCollectionDraftDto>> GetCurrentDraftAsync();
     Task<Result<EcfCollectionDraftDto>> GetDraftAsync(Guid draftId);
     Task<Result<EcfCollectionDraftDto>> ResumeDraftAsync(Guid draftId, EcfDraftRevisionRequest request);

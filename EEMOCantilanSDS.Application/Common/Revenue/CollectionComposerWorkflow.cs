@@ -15,6 +15,7 @@ using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace EEMOCantilanSDS.Application.Common.Revenue;
 
@@ -27,7 +28,8 @@ public sealed partial class CollectionComposerWorkflow(
     IAppDbContext db,
     ICurrentUserService currentUser,
     ICurrentMunicipalityAccessor municipality,
-    IClock? clock = null)
+    IClock? clock = null,
+    Microsoft.Extensions.Logging.ILogger<CollectionComposerWorkflow>? logger = null)
 {
     private const string WebOrigin = "Web";
     private const int IntentVersion = 1;
@@ -94,10 +96,21 @@ public sealed partial class CollectionComposerWorkflow(
             x.PayorId, x.PayerNameSnapshot, x.OutstandingAmount, x.Instrument, x.CanAddToDraft)));
 
         var policy = await ResolveEcfPolicyAsync(actor.MunicipalityId, BusinessToday, ct);
-        var bills = await UtilityBillQuery(actor.MunicipalityId, tracked: false).ToListAsync(ct);
+        // Only the bills of stalls this Payor is explicitly linked to can answer for it, so the rest are never composed.
+        var bills = await UtilityBillQuery(actor.MunicipalityId, tracked: false)
+            .Where(x => x.Stall!.Contracts.Any(c => c.PayorId == payorId))
+            .ToListAsync(ct);
         foreach (var bill in bills)
         {
-            var facts = await BuildFactsAsync(bill, policy, actor.MunicipalityId, BusinessToday, ct);
+            SourceFacts facts;
+            try { facts = await BuildFactsAsync(bill, policy, actor.MunicipalityId, BusinessToday, ct); }
+            catch (WorkflowProblem problem)
+            {
+                // An expected source-state outcome (missing cutover evidence, no stall context): this one bill is left out and the
+                // Payor's other charges still load. Anything else — a database or tenant failure — is not caught here.
+                logger?.LogWarning("ECF bill {BillId} was left out of payor discovery: {Reason}", bill.Id, problem.Message);
+                continue;
+            }
             if (facts.Quote.PayorId == payorId && facts.Quote.OutstandingAmount > 0m)
                 candidates.Add(new CollectionCandidateDto(
                     CollectionSourceKind.UtilityBill, bill.Id, CollectionSourcePart.Electricity,

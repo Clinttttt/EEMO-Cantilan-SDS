@@ -282,7 +282,10 @@ public sealed class SettlementCutoverWorkflow(
 
         var requiresWcfPayload = source.Scope.SourceKind == CollectionSourceKind.UtilityBill
             && source.Scope.SourcePart == CollectionSourcePart.Water;
-        if (affectedCollectors.Count > 0 && !requiresWcfPayload)
+        // ECF has its own canonical Mobile writer, so an assigned collector is not a standing blocker for it: the per-collector
+        // evidence below (device version, drained legacy queue) is what gates it.
+        var isEcf = source.Scope.SourceKind == CollectionSourceKind.UtilityBill && source.Scope.SourcePart == CollectionSourcePart.Electricity;
+        if (affectedCollectors.Count > 0 && !requiresWcfPayload && !isEcf)
             blockers.Add(source.MobileWriterStatus);
         AddEvidenceBlockers(evidence, affectedCollectors, blockers, requiresWcfPayload);
         var missingCollectorEvidence = GetMissingCollectorEvidence(evidence, affectedCollectors, requiresWcfPayload);
@@ -362,7 +365,7 @@ public sealed class SettlementCutoverWorkflow(
                 "Legacy Web and cumulative Mobile utility writers are disabled while Pending Cutover; late payloads are reconciliation-only.",
                 water
                     ? "The focused WCF payload v1 path exists and remains gated on verified assigned-device capability evidence."
-                    : "ECF has no canonical focused Mobile posting path yet; assigned collector sources must remain Legacy until Mobile and late-payload reconciliation writers are ready.");
+                    : "ECF posts canonically from Collector Mobile (no serial, server SRC, replay-safe); each affected collector must still attest the device version and a drained legacy queue.");
         }
 
         if (scope.SourceKind == CollectionSourceKind.PaymentRecord)
