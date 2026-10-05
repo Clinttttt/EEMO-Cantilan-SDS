@@ -16,12 +16,13 @@
 @* The history of one remittance (IA-052): what it covered, what was expected, what was turned over, and the difference.
    A recorded remittance is never edited; a mistake is voided with a reason. The layout owns the <main> landmark. *@
 <div class="v3-page rm-page">
-    <header class="rd-header no-print">
-        <div><a href="/remittances">Remittance &amp; Liquidation</a>
+    <header class="rm-header rd-header no-print">
+        <div>
             <div class="rd-title"><h1>Remittance</h1>@if (_detail?.Row.Status == RemittanceStatus.Voided) { <span class="rd-status">Voided</span> }</div>
             <p>@Subtitle</p></div>
-        <div>
-            <button class="v3-btn" type="button" @onclick="PrintAsync">Print summary</button>
+        <div class="rm-header-actions">
+            <a class="v3-btn" href="/remittances">Back to remittances</a>
+            <button class="v3-btn v3-btn-primary" type="button" @onclick="PrintAsync">Print summary</button>
         </div>
     </header>
 
@@ -53,7 +54,7 @@
                 <div><dt>Coverage period</dt><dd>@PeriodLabel(d)</dd></div>
                 <div><dt>Instrument</dt><dd>@InstrumentLabel(d.Row.Instrument)</dd></div>
                 <div><dt>Collections</dt><dd>@d.Row.CollectionCount collections</dd></div>
-                <div><dt>Reference</dt><dd>@(d.Row.Reference ?? "—")</dd></div>
+                @if (!string.IsNullOrWhiteSpace(d.Row.Reference)) { <div><dt>Reference</dt><dd>@d.Row.Reference</dd></div> }
                 <div><dt>Recorded by</dt><dd>@d.RecordedBy · @d.Row.RecordedAtUtc.ToLocalTime().ToString("MMM d, yyyy h:mm tt", CultureInfo.InvariantCulture)</dd></div>
                 @if (!string.IsNullOrWhiteSpace(d.Remarks))
                 {

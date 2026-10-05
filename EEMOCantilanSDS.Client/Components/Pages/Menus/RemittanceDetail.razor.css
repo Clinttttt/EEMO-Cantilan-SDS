@@ -6,14 +6,20 @@
     gap: 20px;
 }
 
-.rd-header { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 20px 24px; border: 1px solid #244d79; border-radius: 12px; background: var(--civic-panel, #173b64); color: white; }
-.rd-header a { color: #dce8f5; font-size: .75rem; }
-.rd-title { display: flex; gap: 12px; align-items: center; margin-top: 6px; }
-.rd-title h1 { margin: 0; color: white; font-size: 1.5rem; letter-spacing: -.025em; }
-.rd-header p { margin: 5px 0 0; font-size: .8125rem; color: #dce8f5; }
-.rd-header .v3-btn { background: white; color: #173b64; border-color: white; }
+/* The civic-blue band every V3 workspace shares: same height, radius and padding as the facility hero. */
+.rd-header { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 18px 24px; border: 0; border-radius: 10px; background: var(--civic-panel); color: #ffffff; }
+.rd-title { display: flex; gap: 12px; align-items: center; }
+.rd-title h1 { margin: 0; color: #ffffff; font-size: 1.5rem; font-weight: 700; letter-spacing: -.01em; }
+.rd-header p { margin: 4px 0 0; font-size: .8125rem; color: rgba(255, 255, 255, 0.85); }
+.rm-header-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.rm-header-actions .v3-btn { border-color: #ffffff; background: #ffffff; color: var(--navy); }
+.rm-header-actions .v3-btn-primary { border-color: rgba(255, 255, 255, 0.9); background: rgba(255, 255, 255, 0.16); color: #ffffff; }
+.rm-header-actions .v3-btn-primary:hover { background: rgba(255, 255, 255, 0.26); }
 .rd-status { padding: 3px 10px; border: 1px solid #e2bcbc; border-radius: 999px; color: #842626; background: #fff5f5; font-size: .75rem; font-weight: 700; }
-.rd-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 960px; gap: 16px 24px; }
+/* One compact grid: label above value, left-aligned, as many columns as fit. */
+.rd-facts { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px 32px; padding: 16px 20px 20px; }
+.rd-facts > div { flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 2px; }
+.rd-facts dd { text-align: left; }
 .rd-covered { max-height: 440px; overflow: auto; }
 .rd-covered thead th { position: sticky; top: 0; z-index: 1; background: var(--surface-muted, #f4f7fa); }
 @media (max-width: 640px) { .rd-header { flex-direction: column; align-items: flex-start; padding: 18px; } .rd-facts { grid-template-columns: 1fr; } }

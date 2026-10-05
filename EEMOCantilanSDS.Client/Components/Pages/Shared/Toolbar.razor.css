@@ -309,3 +309,9 @@
     .toolbar-middle + .toolbar-actions {
         margin-left: 0;
     }
+
+/* A page's middle group (several links and actions) may wrap inside the bar instead of running past its edge. */
+.toolbar-middle {
+    min-width: 0;
+    max-width: 100%;
+}

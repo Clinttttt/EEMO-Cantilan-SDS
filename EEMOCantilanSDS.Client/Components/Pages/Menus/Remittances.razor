@@ -22,12 +22,15 @@
 <div class="v3-page rm-page">
     <header class="rm-header no-print">
         <div>
-            @if (Preparation) { <a class="rm-back" href="/remittances">Remittance &amp; Liquidation</a> }
             <h1>@(Preparation ? "New Remittance" : "Remittance & Liquidation")</h1>
             <p>@(Preparation ? "Select collected amounts to remit." : "Review collected amounts and prepare remittances.")</p>
         </div>
         <div class="rm-header-actions">
-        @if (!Preparation)
+        @if (Preparation)
+        {
+            <a class="v3-btn" href="/remittances">Back to remittances</a>
+        }
+        else
         {
             <button class="v3-btn" type="button" @onclick="PrintAsync">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
@@ -57,10 +60,10 @@
         </label>
         <label class="v3-field">
             <span>Instrument</span>
-            <select @bind="_instrumentFilter">
-                <option value="">OR and CT</option>
-                <option value="@((int)RevenueInstrumentType.CashTicket)">Cash Ticket</option>
-                <option value="@((int)RevenueInstrumentType.OfficialReceipt)">Official Receipt</option>
+            <select @onchange="e => InstrumentChoice = e.Value?.ToString() ?? string.Empty">
+                <option value="all" selected="@(InstrumentChoice == "all")">OR and CT</option>
+                <option value="@((int)RevenueInstrumentType.CashTicket)" selected="@(InstrumentChoice == ((int)RevenueInstrumentType.CashTicket).ToString())">Cash Ticket</option>
+                <option value="@((int)RevenueInstrumentType.OfficialReceipt)" selected="@(InstrumentChoice == ((int)RevenueInstrumentType.OfficialReceipt).ToString())">Official Receipt</option>
             </select>
         </label>
         @if (Preparation)
@@ -362,6 +365,12 @@
     private DateOnly _to = PhilippineTime.Today;
     private string _collectorFilter = string.Empty;
     private string _instrumentFilter = string.Empty;
+    /// <summary>The select needs a real value for "all"; the filter itself stays empty for it.</summary>
+    private string InstrumentChoice
+    {
+        get => string.IsNullOrEmpty(_instrumentFilter) ? "all" : _instrumentFilter;
+        set => _instrumentFilter = value == "all" ? string.Empty : value;
+    }
     private string _sourceFilter = string.Empty;
 
     private bool _confirming;
