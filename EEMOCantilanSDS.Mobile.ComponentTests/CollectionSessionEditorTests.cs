@@ -20,6 +20,48 @@ public sealed class CollectionSessionEditorTests : TestContext
     private readonly List<PendingOperation> _queue = [];
     private readonly Guid _payer = Guid.NewGuid(), _stall = Guid.NewGuid();
     private readonly Connectivity _connection = new();
+    [Fact]
+    public void Whole_payment_summary_uses_server_monthly_balance_without_days_covered()
+    {
+        var view = RenderComponent<NpmWholeSummary>(p => p.Add(x => x.Quote,
+            new NpmWholePaymentQuoteDto(_stall, 2026, 2, Today, 28, 600m, 0m, "reviewed",
+                RevenueInstrumentType.OfficialReceipt, MonthlyObligation: 900m, Collected: 300m)));
+        Assert.Contains("February 2026", view.Markup);
+        Assert.Contains("Monthly obligation", view.Markup);
+        Assert.Contains("₱900.00", view.Markup);
+        Assert.Contains("₱300.00", view.Markup);
+        Assert.Contains("Remaining", view.Markup);
+        Assert.Contains("₱600.00", view.Markup);
+        Assert.Contains("Official Receipt", view.Markup);
+        Assert.DoesNotContain("Days covered", view.Markup);
+    }
+
+    [Fact]
+    public void Direct_vendor_fee_has_vendor_amount_and_receipt_without_monthly_account_language()
+    {
+        _api.Setup(x => x.GetDirectVendorFeeSourcesAsync()).ReturnsAsync(
+            Result<IReadOnlyList<DirectVendorFeeSource>>.Success([new(_stall, "12", "Fish section", _payer, "Lisa Ilogans", true, null)]));
+        var view = RenderComponent<VendorFeeEntry>(p => p.Add(x => x.BusinessDate, Today));
+        view.FindAll("button").Single(x => x.TextContent.Contains("Lisa Ilogans")).Click();
+        Assert.Contains("Collect vendor fee", view.Markup);
+        Assert.Contains("Amount received", view.Markup);
+        Assert.Contains("Official Receipt", view.Markup);
+        Assert.Single(view.FindAll("input[type=number]"));
+        foreach (var phrase in new[] { "Monthly vendor fee", "Vendor fees due", "Monthly fee", "Balance", "Nothing due", "Days covered" })
+            Assert.DoesNotContain(phrase, view.Markup);
+        Assert.DoesNotContain("OR number", view.Markup);
+    }
+
+    [Fact]
+    public void Direct_vendor_fee_empty_state_describes_vendors_rather_than_a_due_balance()
+    {
+        _api.Setup(x => x.GetDirectVendorFeeSourcesAsync()).ReturnsAsync(
+            Result<IReadOnlyList<DirectVendorFeeSource>>.Success([]));
+        var view = RenderComponent<VendorFeeEntry>(p => p.Add(x => x.BusinessDate, Today));
+        Assert.Contains("No Fish/Meat vendors available.", view.Markup);
+        Assert.DoesNotContain("Nothing due", view.Markup);
+    }
+
     private sealed class Connectivity : IConnectivityMonitor { public bool Online = true; public bool IsOnline => Online; public event Action? ConnectivityRestored { add { } remove { } } }
     public CollectionSessionEditorTests()
     {

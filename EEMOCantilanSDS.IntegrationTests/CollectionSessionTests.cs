@@ -40,11 +40,11 @@ public sealed class CollectionSessionTests(PostgresFixture database)
         public Task<DayOfWeek> GetMarketDayAsync(DateOnly asOf, CancellationToken ct = default) => throw new InvalidOperationException("Tabo is not an itemized capability.");
         public Task<IReadOnlyList<DateOnly>> GetMarketDatesAsync(int year, int month, CancellationToken ct = default) => throw new InvalidOperationException("Tabo is not an itemized capability.");
     }
-    private sealed class Clock : IClock
+    private sealed class Clock(DateOnly? businessDate = null) : IClock
     {
-        public DateTime UtcNow => DateTime.UtcNow;
-        public DateTime PhilippineNow => PhilippineTime.Now;
-        public DateOnly PhilippineToday => Today;
+        public DateTime UtcNow => businessDate?.ToDateTime(new TimeOnly(4, 0), DateTimeKind.Utc) ?? DateTime.UtcNow;
+        public DateTime PhilippineNow => businessDate?.ToDateTime(new TimeOnly(12, 0)) ?? PhilippineTime.Now;
+        public DateOnly PhilippineToday => businessDate ?? Today;
     }
     private sealed record Caller(Guid Id, Guid TenantId, string Role = "Collector") : ICurrentUserService
     {
@@ -57,7 +57,7 @@ public sealed class CollectionSessionTests(PostgresFixture database)
         public AdminUserDto? GetCurrentUser() => null;
     }
     private sealed record World(Guid TenantId, Guid CollectorId, Guid PayorId, Guid AccountId, Guid StallId);
-    private async Task<World> SeedAsync()
+    private async Task<World> SeedAsync(DateOnly? accountStart = null)
     {
         Skip.IfNot(database.Available, database.UnavailableReason ?? "");
         await database.ResetAsync();
@@ -71,7 +71,7 @@ public sealed class CollectionSessionTests(PostgresFixture database)
         var stall = Stall.Create(facility.Id, "FISH-1", 900m, ApplicableFees.BaseRental | ApplicableFees.Water | ApplicableFees.Electricity,
             MarketSection.FishSection, createdBy: "test", municipalityId: tenant.Id);
         var payor = Payor.Create(tenant.Id, "One Payer", BusinessPayorKind.Person, "test");
-        var contract = Contract.Create(stall.Id, "One Payer", "One Payer", Today.AddYears(-1), 20, 900m, createdBy: "test");
+        var contract = Contract.Create(stall.Id, "One Payer", "One Payer", (accountStart ?? Today).AddYears(-1), 20, 900m, createdBy: "test");
         contract.AssociatePayor(payor.Id, "test");
         collector.FacilityAssignments.Add(CollectorFacilityAssignment.Create(collector.Id, facility.Id, FacilityCode.NPM));
         db.AddRange(collector, facility, stall, payor, contract);
@@ -90,7 +90,8 @@ public sealed class CollectionSessionTests(PostgresFixture database)
         var fish = RevenueClassification.Create(RevenueClassificationCodes.FishMeatVendorFee, tenant.Id);
         var water = RevenueClassification.Create(RevenueClassificationCodes.Wcf, tenant.Id);
         var electricity = RevenueClassification.Create(RevenueClassificationCodes.Ecf, tenant.Id);
-        var start = new DateOnly(Today.Year, Today.Month, 1);
+        var startDate = accountStart ?? Today;
+        var start = new DateOnly(startDate.Year, startDate.Month, 1);
         var account = ObligationAccount.Create(tenant.Id, ObligationKind.FishMeatVendorFee, payor.Id, stall.Id, "Fish vendor", null, null, start, "head");
         db.AddRange(fish, water, electricity,
             RevenueClassificationPolicy.Create(fish.Id, new(2000, 1, 1), "Vendor Fee", RevenueInstrumentType.OfficialReceipt, tenant.Id),
@@ -169,6 +170,35 @@ public sealed class CollectionSessionTests(PostgresFixture database)
         Assert.Empty(await db.DailyCollections.ToListAsync());
         Assert.Equal(900m, (await whole.QuoteAsync(w.StallId, Today.Year, Today.Month)).Value!.Amount);
         Assert.All(await db.CollectionLines.ToListAsync(), x => Assert.Equal(CollectionSourceKind.FishMeatVendorFee, x.SourceKind));
+    }
+
+    [SkippableFact]
+    public async Task Direct_vendor_fee_preserves_pre_cutover_obligation_money_without_allocating_to_it()
+    {
+        var historicalDate = FishMeatVendorFeeRules.DirectEffectiveDate.AddDays(-1);
+        var w = await SeedAsync(historicalDate); await using var db = database.CreateContext(w.TenantId);
+        var historical = new CollectionComposerWorkflow(db, new Caller(w.CollectorId, w.TenantId),
+            new Tenant(w.TenantId), new Clock(historicalDate));
+        var oldRequest = new MobileObligationPostRequest(Guid.NewGuid(), w.AccountId,
+            historicalDate.Year, historicalDate.Month, 50m, historicalDate);
+        var posted = await historical.PostMobileObligationAsync(oldRequest);
+        Assert.True(posted.IsSuccess, posted.Error);
+        var oldCollection = Assert.Single(await db.Collections.AsNoTracking().ToListAsync());
+        var period = Assert.Single(await db.ObligationPeriods.AsNoTracking().ToListAsync());
+        var allocations = await db.CollectionAllocations.CountAsync();
+        var direct = new FishMeatVendorFeeCollectionWorkflow(db, new Caller(w.CollectorId, w.TenantId),
+            new Tenant(w.TenantId), new Clock());
+        Assert.True((await direct.PostAsync(new(Guid.NewGuid(), Today, w.StallId, w.PayorId, 100m))).IsSuccess);
+        Assert.Equal(2, await db.Collections.CountAsync());
+        Assert.Equal(150m, await db.Collections.SumAsync(x => x.TotalAmount));
+        Assert.Equal(allocations, await db.CollectionAllocations.CountAsync());
+        Assert.Equal(period.SettlementVersion, (await db.ObligationPeriods.AsNoTracking().SingleAsync()).SettlementVersion);
+        Assert.Equal(oldCollection.ReferenceCode, (await db.Collections.AsNoTracking().SingleAsync(x => x.Id == oldCollection.Id)).ReferenceCode);
+        var accounts = await db.ObligationAccounts.AsNoTracking().ToListAsync();
+        var quotes = await new ObligationCollectionSource(db).GetQuotesAsync(w.TenantId, accounts, Today, default);
+        Assert.All(quotes, x => Assert.False(x.CanAddToDraft));
+        Assert.Single(await db.ObligationPeriods.ToListAsync());
+        Assert.Empty(await db.DailyCollections.ToListAsync());
     }
 
     [SkippableTheory]
