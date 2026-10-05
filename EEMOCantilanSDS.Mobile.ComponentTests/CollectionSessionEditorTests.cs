@@ -123,6 +123,16 @@ public sealed class CollectionSessionEditorTests : TestContext
             catch (Bunit.Rendering.UnknownEventHandlerIdException) when (attempt < 5) { Thread.Sleep(50); }
         }
     }
+    private static void ClickPayer(IRenderedComponent<CollectionSessionEditor> view, string name)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            var row = view.FindAll(".payer-option").FirstOrDefault(x => x.QuerySelector("strong")!.TextContent.Trim() == name)
+                ?? throw new InvalidOperationException($"No payer \"{name}\" in: " + view.Markup);
+            try { row.Click(); return; }
+            catch (Bunit.Rendering.UnknownEventHandlerIdException) when (attempt < 5) { Thread.Sleep(50); }
+        }
+    }
     private IRenderedComponent<CollectionSessionEditor> Open() => RenderComponent<CollectionSessionEditor>(p => p.Add(x => x.BusinessDate, Today));
     private static void AddLanding(IRenderedComponent<CollectionSessionEditor> view)
     {
@@ -141,10 +151,9 @@ public sealed class CollectionSessionEditorTests : TestContext
     [Fact]
     public void Payer_direct_electricity_and_mixed_instruments_render_every_server_src()
     {
-        var view = Open(); view.Find("input").Input("Lisa"); Click(view, "Search"); Click(view, "Lisa Ilogans ›"); view.WaitForAssertion(() => Assert.NotEmpty(view.FindAll(".payer-selected")));
+        var view = Open(); view.Find("input").Input("Lisa"); Click(view, "Search"); ClickPayer(view, "Lisa Ilogans"); view.WaitForAssertion(() => Assert.NotEmpty(view.FindAll(".payer-selected")));
         AddLanding(view);
         Click(view, "+ Add item"); Click(view, "Electricity ›");
-        Click(view, "Select"); view.Find("button[role=option]").Click();
         view.Find("input[type=number]").Change("44"); Click(view, "Add item"); Click(view, "Review collection");
         Assert.Contains("Official Receipt", view.Markup); Assert.Contains("₱244.00", view.Markup);
         Click(view, "Record collection");
@@ -168,15 +177,98 @@ public sealed class CollectionSessionEditorTests : TestContext
         Assert.True(view.FindAll("button").Single(x => x.TextContent.Trim() == "Record collection").HasAttribute("disabled"));
     }
     [Fact]
-    public void Tapping_the_payer_field_opens_a_bounded_panel_that_says_how_to_search_when_there_are_no_suggestions()
+    public void Tapping_the_payer_field_browses_at_once_and_only_a_genuine_empty_answer_says_no_payer_found()
     {
+        _api.Setup(x => x.SearchCollectionSessionPayorsAsync("")).ReturnsAsync(Result<IReadOnlyList<CollectionPayorDto>>.Success([]));
         var view = Open();
         Assert.Empty(view.FindAll(".payer-panel"));
 
         view.Find("input").Focus();
 
-        view.WaitForAssertion(() => Assert.Contains("Type at least 2 letters to search.", view.Find(".payer-panel").TextContent));
-        Assert.DoesNotContain("No payer found.", view.Markup);                       // only after a genuine search attempt
+        view.WaitForAssertion(() => Assert.Contains("No payer found.", view.Find(".payer-panel").TextContent));
+        _api.Verify(x => x.SearchCollectionSessionPayorsAsync(""), Times.Once);
+        Assert.DoesNotContain("2 letters", view.Markup);                              // the old minimum-length rule is gone
+    }
+    [Fact]
+    public void A_one_character_search_is_sent_and_each_result_shows_the_servers_context()
+    {
+        _api.Setup(x => x.SearchCollectionSessionPayorsAsync("L")).ReturnsAsync(Result<IReadOnlyList<CollectionPayorDto>>.Success(
+            [new(_payer, "Lisa Ilogans", ["NPM · 12", "Fish area"])]));
+        var view = Open();
+
+        view.Find("input").Input("L");
+
+        view.WaitForAssertion(() =>
+        {
+            var row = Assert.Single(view.FindAll(".payer-option"));
+            Assert.Equal("Lisa Ilogans", row.QuerySelector("strong")!.TextContent.Trim());
+            Assert.Equal("NPM · 12 · Fish area", row.QuerySelector("small")!.TextContent.Trim());
+        });
+    }
+    [Fact]
+    public void A_single_valid_source_is_already_chosen_so_the_sheet_shows_no_select_and_asks_only_for_the_amount()
+    {
+        var view = Open(); view.Find("input").Input("Lisa"); Click(view, "Search"); ClickPayer(view, "Lisa Ilogans");
+        view.WaitForAssertion(() => Assert.NotEmpty(view.FindAll(".payer-selected")));
+
+        Click(view, "+ Add item"); Click(view, "Electricity ›");
+
+        var sheet = view.Find("[role=dialog]");
+        Assert.Empty(sheet.QuerySelectorAll(".mc-trigger"));
+        Assert.DoesNotContain("Select", string.Join(" ", sheet.QuerySelectorAll("button").Select(b => b.TextContent.Trim())));
+        Assert.Contains("12", sheet.QuerySelector(".sheet-source")!.TextContent);
+        Assert.True(sheet.QuerySelectorAll(".sheet-actions button").Single(b => b.TextContent.Trim() == "Add item").HasAttribute("disabled"));
+        sheet.QuerySelector("input[type=number]")!.Change("44");
+        Assert.False(view.Find("[role=dialog]").QuerySelectorAll(".sheet-actions button").Single(b => b.TextContent.Trim() == "Add item").HasAttribute("disabled"));
+    }
+    private void ServeSources(Guid[] vendorStalls)
+    {
+        _api.Setup(x => x.GetCollectionSessionDiscoveryAsync(It.IsAny<Guid?>())).ReturnsAsync((Guid? id) => Result<CollectionSessionDiscovery>.Success(new(id, Today,
+            [new(CollectionSessionItemKind.NpmWholePayment, "NPM_WHOLE_PAYMENT", "NPM Whole payment", true, true, null, null, true, []),
+             new(CollectionSessionItemKind.VendorFee, "FISH_MEAT_VENDOR_FEE", "Fish / Meat Vendor Fee", true, true, null, null, true, [])],
+            NpmSources: [new(_stall, "1", id, "Lisa Ilogans", "New Public Market")],
+            VendorFeeSources: vendorStalls.Select((s, n) => new DirectVendorFeeSource(s, (n + 1).ToString(), "Fish area", id, "Lisa Ilogans", true, null)).ToArray())));
+    }
+    [Fact]
+    public void NPM_whole_payment_with_one_stall_shows_its_context_a_year_and_a_month_choice_and_no_source_select()
+    {
+        ServeSources([]);
+        var view = Open(); view.Find("input").Input("Lisa"); Click(view, "Search"); ClickPayer(view, "Lisa Ilogans");
+        view.WaitForAssertion(() => Assert.NotEmpty(view.FindAll(".payer-selected")));
+
+        Click(view, "+ Add item"); Click(view, "NPM Whole payment ›");
+
+        var sheet = view.Find("[role=dialog]");
+        Assert.Contains("New Public Market", sheet.QuerySelector(".sheet-source")!.TextContent);
+        Assert.Equal(new[] { "Month" }, sheet.QuerySelectorAll(".mc-trigger").Select(x => x.ParentElement!.QuerySelector(".mc-label")!.TextContent.Trim()).ToArray());
+        Assert.Empty(sheet.QuerySelectorAll("select"));
+        Assert.False(sheet.QuerySelectorAll(".sheet-actions button").Single(b => b.TextContent.Trim() == "Add item").HasAttribute("disabled"));
+        Click(view, "Add item");
+        Assert.Contains("Lisa Ilogans · NPM Stall 1 · Oct 2026", view.Find(".item-context").TextContent);   // the item row is never empty before review
+    }
+    [Fact]
+    public void Several_valid_sources_are_selectable_rows_in_the_sheet_not_a_dropdown()
+    {
+        ServeSources([Guid.NewGuid(), Guid.NewGuid()]);
+        var view = Open(); view.Find("input").Input("Lisa"); Click(view, "Search"); ClickPayer(view, "Lisa Ilogans");
+        view.WaitForAssertion(() => Assert.NotEmpty(view.FindAll(".payer-selected")));
+
+        Click(view, "+ Add item"); Click(view, "Fish / Meat Vendor Fee ›");
+
+        var sheet = view.Find("[role=dialog]");
+        Assert.Empty(sheet.QuerySelectorAll(".mc-trigger"));
+        Assert.Equal(2, sheet.QuerySelectorAll(".mc-option").Length);
+        Assert.True(sheet.QuerySelectorAll(".sheet-actions button").Single(b => b.TextContent.Trim() == "Add item").HasAttribute("disabled"));
+    }
+    [Fact]
+    public void The_operation_picker_groups_what_the_server_offers_without_offering_anything_else()
+    {
+        var view = Open();
+
+        Click(view, "+ Add item");
+
+        var groups = view.Find("[role=dialog]").QuerySelectorAll(".sheet-group").Select(x => x.TextContent.Trim()).ToArray();
+        Assert.Equal(new[] { "Transport & services" }, groups);                         // only Landing / Berthing is eligible in this discovery
     }
     [Fact]
     public void Suggestions_from_the_server_are_listed_in_a_scrolling_list_and_choosing_one_shows_the_payer_clearly()
@@ -189,7 +281,7 @@ public sealed class CollectionSessionEditorTests : TestContext
 
         view.WaitForAssertion(() => Assert.Equal(8, view.FindAll(".payer-list .payer-option").Count));
         Assert.NotNull(view.Find(".payer-list"));                                   // one bounded list that scrolls inside itself
-        Click(view, "Payer 3 ›");
+        ClickPayer(view, "Payer 3");
         view.WaitForAssertion(() =>
         {
             Assert.Equal("Payer 3", view.Find(".payer-selected .payer-name").TextContent.Trim());
@@ -203,8 +295,6 @@ public sealed class CollectionSessionEditorTests : TestContext
         _api.Setup(x => x.SearchCollectionSessionPayorsAsync("Zed")).ReturnsAsync(Result<IReadOnlyList<CollectionPayorDto>>.Success([]));
         var view = Open();
 
-        view.Find("input").Input("Z");
-        Assert.DoesNotContain("No payer found.", view.Markup);                       // too short to search
         view.Find("input").Input("Zed");
         view.Find("input").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Enter" });
 

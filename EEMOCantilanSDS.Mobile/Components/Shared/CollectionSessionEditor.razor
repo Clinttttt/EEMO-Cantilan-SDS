@@ -2,6 +2,7 @@
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using EEMOCantilanSDS.Application.Dtos.Mobile
 @using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Mobile.Models
 @inject IMobileApiClient Api
@@ -14,18 +15,18 @@
 else if (_queued)
 {
     <section class="collection-entry" aria-live="polite">
-        <h2>@(_result?.Status == CollectionSessionStatus.Recorded ? "Collection recorded" : _needsReview ? "Needs review" : "Waiting to sync")</h2>
+        <h2 class="done-title">@(_result?.Status == CollectionSessionStatus.Recorded ? "Collection recorded" : _needsReview ? "Needs review" : "Waiting to sync")</h2>
         @if (_result?.Status == CollectionSessionStatus.Recorded)
         {
-            <p>@_result.Collections.Count collection records · @Money(_result.GrandTotal)</p>
+            <div class="done-total"><strong>@Money(_result.GrandTotal)</strong><span>@_result.Collections.Count @(_result.Collections.Count == 1 ? "collection record" : "collection records")</span></div>
             @foreach (var collection in _result.Collections)
             {
-                <div class="collection-row">
-                    <div><strong>@Instrument(collection.Instrument) · @CollectionName(collection)</strong><br /><span>@collection.ReferenceCode</span></div>
-                    <strong>@Money(collection.Amount)</strong>
+                <div class="item-row">
+                    <div class="item-main"><strong class="item-name">@CollectionName(collection)</strong><span class="item-context">@collection.ReferenceCode</span></div>
+                    <div class="item-amount"><strong>@Money(collection.Amount)</strong><span>@InstrumentCode(collection.Instrument)</span></div>
                 </div>
             }
-            <button class="btn-primary" type="button" @onclick="StartAnotherAsync">New Collection</button>
+            <button class="collection-primary done-action" type="button" @onclick="StartAnotherAsync">New Collection</button>
         }
         else
         {
@@ -60,13 +61,15 @@ else
                         <div class="payer-list" role="list">
                             @foreach (var payer in _payers)
                             {
-                                <button class="collection-option payer-option" type="button" role="listitem" disabled="@(_items.Count > 0)" @onclick="() => SelectPayerAsync(payer)">@payer.DisplayName <span aria-hidden="true">›</span></button>
+                                <button class="collection-option payer-option" type="button" role="listitem" disabled="@(_items.Count > 0)" @onclick="() => SelectPayerAsync(payer)">
+                                    <span class="payer-option-text"><strong>@payer.DisplayName</strong>@if (payer.Contexts is { Count: > 0 }) { <small>@string.Join(" · ", payer.Contexts)</small> }</span>
+                                    <span aria-hidden="true">›</span></button>
                             }
                         </div>
+                        @if (_searching) { <div class="payer-status payer-status-inline" role="status">Searching…</div> }
                     }
                     else if (_searching) { <div class="payer-status" role="status">Searching…</div> }
                     else if (_searched) { <div class="payer-status" role="status">No payer found.</div> }
-                    else { <div class="payer-status">Type at least 2 letters to search.</div> }
                 </div>
             }
         }
@@ -77,12 +80,20 @@ else
         @foreach (var item in _items)
         {
             var quote = _quote?.Items.FirstOrDefault(x => x.ClientItemId == item.ClientItemId);
-            <div class="collection-row">
-                <div><strong>@(quote?.DisplayName ?? Name(item))</strong><br /><span>@(quote?.Context ?? Context(item))</span><br />
-                    <button class="collection-link" type="button" @onclick="() => Edit(item)">Edit</button>
-                    <button class="collection-link" type="button" @onclick="() => Remove(item)">Remove</button>
+            var problem = _quote?.Problems.Any(x => x.ClientItemId == item.ClientItemId) == true;
+            <div class="item-row @(problem ? "item-row-problem" : "")">
+                <div class="item-main">
+                    <strong class="item-name">@(quote?.DisplayName ?? Name(item))</strong>
+                    <span class="item-context">@ItemContext(item, quote)</span>
+                    <span class="item-actions">
+                        <button class="collection-link" type="button" @onclick="() => Edit(item)">Edit</button>
+                        <button class="collection-link" type="button" @onclick="() => Remove(item)">Remove</button>
+                    </span>
                 </div>
-                <strong>@(quote is not null ? Money(quote.Amount) : item.ConfirmedAmount > 0 ? Money(item.ConfirmedAmount) : "Review")</strong>
+                <div class="item-amount">
+                    <strong>@(quote is not null ? Money(quote.Amount) : item.ConfirmedAmount > 0 ? Money(item.ConfirmedAmount) : "Review")</strong>
+                    @if (quote is not null) { <span>@InstrumentCode(quote.Instrument)</span> }
+                </div>
             </div>
         }
     </section>
@@ -120,7 +131,7 @@ else
                     <div class="sheet-group">@section.Name</div>
                     @foreach (var row in section.Items)
                     {
-                        <button class="collection-option" type="button" @onclick="() => Choose(row.OperationCode!)">@row.Name <span aria-hidden="true">›</span></button>
+                        <button class="collection-option" type="button" @onclick="() => Choose(row.OperationCode!)">@row.DisplayName <span aria-hidden="true">›</span></button>
                     }
                 }
                 @if (!PickerSections.Any()) { <div class="sheet-note">@(_payer is null ? "Select a payer to see what can be collected." : "Nothing available for this payer.")</div> }
@@ -132,16 +143,23 @@ else
                 {
                     var modes = _discovery?.ServiceTerms?.Where(x => x.Terms.OperationCode == _operation.OperationCode).ToList() ?? [];
                     @if (modes.Count > 1)
-                    { <MobileChoice Label="Payment type" Options="@(modes.Select(x => new MobileChoice.Choice(((int?)x.Mode)?.ToString() ?? "", ModeName(x.Mode))).ToArray())" Value="@_mode" ValueChanged="ChangeMode" /> }
+                    { <MobileChoice Inline="true" Label="Payment type" Options="@(modes.Select(x => new MobileChoice.Choice(((int?)x.Mode)?.ToString() ?? "", ModeName(x.Mode))).ToArray())" Value="@_mode" ValueChanged="ChangeMode" /> }
                     @if (Terms?.FeeOptions is { Count: > 0 } options)
-                    { <MobileChoice Label="Fee type" Options="@(options.Select(x => new MobileChoice.Choice(x.Id.ToString(), x.Name, x.Location)).ToArray())" Value="@_option" ValueChanged="ChooseOption" /> }
+                    {
+                        @if (options.Count == 1) { <div class="sheet-source"><strong>@options[0].Name</strong>@if (!string.IsNullOrWhiteSpace(options[0].Location)) { <span>@options[0].Location</span> }</div> }
+                        else { <MobileChoice Inline="true" Label="Fee type" Options="@(options.Select(x => new MobileChoice.Choice(x.Id.ToString(), x.Name, x.Location)).ToArray())" Value="@_option" ValueChanged="ChooseOption" /> }
+                    }
                     @if (Terms?.VehicleClasses is { Count: > 0 } vehicles)
-                    { <MobileChoice Label="Vehicle class" Options="@(vehicles.Select(x => new MobileChoice.Choice(x.Code, x.Name, Money(x.Amount))).ToArray())" Value="@_vehicle" ValueChanged="ChooseVehicle" /> }
-                    @if (FixedAmount is { } fixedAmount) { <div class="sheet-meta"><span>Approved amount</span><strong>@Money(fixedAmount)</strong></div> }
+                    {
+                        @if (vehicles.Count == 1) { <div class="sheet-source"><strong>@vehicles[0].Name</strong><span>@Money(vehicles[0].Amount)</span></div> }
+                        else { <MobileChoice Inline="true" Label="Vehicle class" Options="@(vehicles.Select(x => new MobileChoice.Choice(x.Code, x.Name, Money(x.Amount))).ToArray())" Value="@_vehicle" ValueChanged="ChooseVehicle" /> }
+                    }
+                    @if (FixedAmount is { } fixedAmount) { <div class="sheet-meta"><span>Amount</span><strong>@Money(fixedAmount)</strong></div> }
                 }
                 else if (_operation.Kind == CollectionSessionItemKind.Slaughter)
                 {
-                    <MobileChoice Label="Approved animal" Options="SlaughterChoices" Value="@_source" ValueChanged="ChooseSource" />
+                    @if (SlaughterChoices.Count == 1) { <div class="sheet-source"><strong>@SlaughterChoices[0].Name</strong></div> }
+                    else { <MobileChoice Inline="true" Label="Approved animal" Options="SlaughterChoices" Value="@_source" ValueChanged="ChooseSource" /> }
                     <label class="form-field"><span class="form-label">Heads</span><input class="form-input" type="number" inputmode="numeric" min="1" step="1" @bind="_heads" /></label>
                     @if (_payer is null)
                     { <label class="form-field"><span class="form-label">Owner</span><input class="form-input" @bind="_owner" /></label> }
@@ -149,25 +167,28 @@ else
                 }
                 else
                 {
-                    <MobileChoice Label="@(_operation.Kind == CollectionSessionItemKind.Weighing ? "Vendor" : "Source / period")" Options="SourceChoices" Value="@_source" ValueChanged="ChooseSource" EmptyText="Nothing available for this payer." />
+                    var sources = SourceChoices;
+                    @if (sources.Count == 1)
+                    {
+                        // The server offered exactly one valid source: it is already chosen, so there is nothing to select.
+                        <div class="sheet-source"><strong>@sources[0].Name</strong>@if (!string.IsNullOrWhiteSpace(sources[0].Detail)) { <span>@sources[0].Detail</span> }</div>
+                    }
+                    else { <MobileChoice Inline="true" Label="@SourceLabel" Options="sources" Value="@_source" ValueChanged="ChooseSource" EmptyText="Nothing available for this payer." /> }
                     @if (_operation.Kind == CollectionSessionItemKind.Weighing)
                     {
-                        <MobileChoice Label="Type" Options="@(new[] { new MobileChoice.Choice("1", "Fish"), new MobileChoice.Choice("2", "Meat") })" Value="@_type" ValueChanged="ChooseType" />
+                        <MobileChoice Inline="true" Label="Type" Options="@(new[] { new MobileChoice.Choice("1", "Fish", RateDetail("1")), new MobileChoice.Choice("2", "Meat", RateDetail("2")) })" Value="@_type" ValueChanged="ChooseType" />
                         <label class="form-field"><span class="form-label">Quantity · kg</span><input class="form-input" type="number" inputmode="decimal" min="0.01" step="0.01" @bind="_quantity" /></label>
-                        <div class="sheet-meta"><span>Approved rate</span><strong>@(SelectedRate is { } rate ? Money(rate.RatePerKilo) + " / kg" : "Unavailable")</strong></div>
-                        <div class="sheet-note">Official Receipt · Amount confirmed on review</div>
+                        <div class="sheet-meta"><span>Instrument</span><strong>OR · Official Receipt</strong></div>
                     }
                     @if (_operation.Kind == CollectionSessionItemKind.VendorFee)
-                    { <div class="sheet-note">OR · Official Receipt</div> }
+                    { <div class="sheet-meta"><span>Instrument</span><strong>OR · Official Receipt</strong></div> }
                     @if (_operation.Kind == CollectionSessionItemKind.NpmWholePayment)
                     {
                         <div class="sheet-pair">
-                            <label class="form-field"><span class="form-label">Year</span><input class="form-input" type="number" min="2000" max="2100" @bind="_year" /></label>
-                            <label class="form-field"><span class="form-label">Month</span><select class="form-input" @bind="_month">
-                                @for (var month = 1; month <= 12; month++) { <option value="@month">@CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(month)</option> }
-                            </select></label>
+                            <label class="form-field"><span class="form-label">Year</span><input class="form-input" type="number" inputmode="numeric" min="2000" max="2100" @bind="_year" /></label>
+                            <MobileChoice Label="Month" Options="MonthChoices" Value="@_month.ToString()" ValueChanged="ChooseMonth" />
                         </div>
-                        <div class="sheet-note">Whole payment · Remaining monthly rent confirmed on review</div>
+                        <div class="sheet-note">Remaining monthly rent is confirmed on review</div>
                     }
                 }
                 @if (_operation.Kind is not (CollectionSessionItemKind.Weighing or CollectionSessionItemKind.Slaughter or CollectionSessionItemKind.NpmWholePayment) && FixedAmount is null)
@@ -216,15 +237,27 @@ else
         ?? (Terms?.FeeOptions?.FirstOrDefault(x => x.Id.ToString() == _option) is { Basis: GovernedServiceBasis.FixedAmount } option ? option.Amount : null);
     private WeighingRateDto? SelectedRate => _discovery?.WeighingRates?.FirstOrDefault(x => ((int)x.Type).ToString() == _type);
     private IReadOnlyList<MobileChoice.Choice> SlaughterChoices => (_discovery?.SlaughterOptions ?? []).Select((x, i) => new MobileChoice.Choice(i.ToString(), x.Name)).ToArray();
-    private IReadOnlyList<EEMOCantilanSDS.Mobile.Presentation.WorkSection> PickerSections => EEMOCantilanSDS.Mobile.Presentation.WorkSections.Group(
-        (_discovery?.Operations ?? []).Where(x => x.Supported && x.CanAdd && (OnlyOperation is null || x.OperationCode == OnlyOperation))
-            .Select(x => new EEMOCantilanSDS.Mobile.Presentation.WorkItem(x.DisplayName, "Ready", EEMOCantilanSDS.Mobile.Presentation.WorkTarget.Operation, true, OperationCode: x.OperationCode)).ToArray());
+    // Display groups only: what is offered at all is the server's answer (Supported and CanAdd); the group is just where its row sits.
+    private static readonly string[] PickerGroups = ["Rent & space", "Utilities", "Market & vendor", "Transport & services", "Other"];
+    private static string PickerGroup(string? code) => code switch
+    {
+        "NPM_WHOLE_PAYMENT" or CollectorOperationCodes.VegetableFruitSpaceRental => PickerGroups[0],
+        CollectorOperationCodes.Wcf or "ECF" => PickerGroups[1],
+        CollectorOperationCodes.MarketFees or "FISH_MEAT_VENDOR_FEE" or "WEIGHT_AND_MEASURE" => PickerGroups[2],
+        CollectorOperationCodes.LandingBerthing or CollectorOperationCodes.Transportation
+            or CollectorOperationCodes.TransferLargeCattle or CollectorOperationCodes.Slaughterhouse => PickerGroups[3],
+        _ => PickerGroups[4]
+    };
+    private IReadOnlyList<(string Name, IReadOnlyList<CollectionSessionCapability> Items)> PickerSections =>
+        PickerGroups.Select(group => (group, (IReadOnlyList<CollectionSessionCapability>)(_discovery?.Operations ?? [])
+                .Where(x => x.Supported && x.CanAdd && (OnlyOperation is null || x.OperationCode == OnlyOperation) && PickerGroup(x.OperationCode) == group).ToList()))
+            .Where(x => x.Item2.Count > 0).ToList();
     private IReadOnlyList<MobileChoice.Choice> SourceChoices => _operation?.Kind switch
     {
-        CollectionSessionItemKind.Water => (_discovery?.WaterSources ?? []).Where(x => x.CanCollect || x.CanEnterDirect).Select(x => new MobileChoice.Choice(x.StallId.ToString(), x.StallNo + " · " + x.Section, x.PreparedAmount is null ? "Direct collection" : Money(x.OutstandingAmount) + " outstanding")).ToArray(),
-        CollectionSessionItemKind.Electricity => (_discovery?.ElectricitySources ?? []).Where(x => x.CanPostCanonical).Select(x => new MobileChoice.Choice(ElectricityKey(x), x.StallNo + " · " + Period(x.BillingYear, x.BillingMonth), x.ChargeBasis == "DirectCollection" ? "Direct collection" : Money(x.OutstandingAmount) + " outstanding")).ToArray(),
+        CollectionSessionItemKind.Water => (_discovery?.WaterSources ?? []).Where(x => x.CanCollect || x.CanEnterDirect).Select(x => new MobileChoice.Choice(x.StallId.ToString(), "Stall " + x.StallNo + " · " + x.Section, x.PreparedAmount is null ? "Direct collection" : Money(x.OutstandingAmount) + " outstanding")).ToArray(),
+        CollectionSessionItemKind.Electricity => (_discovery?.ElectricitySources ?? []).Where(x => x.CanPostCanonical).Select(x => new MobileChoice.Choice(ElectricityKey(x), "Stall " + x.StallNo + " · " + Period(x.BillingYear, x.BillingMonth), x.ChargeBasis == "DirectCollection" ? "Direct collection" : Money(x.OutstandingAmount) + " outstanding")).ToArray(),
         CollectionSessionItemKind.Obligation => (_discovery?.ObligationSources ?? []).Where(x => x.CanAddToDraft).Select(x => new MobileChoice.Choice(x.AccountId + "|" + x.PeriodStart.ToString("yyyy-MM"), x.SubjectLabel, Money(x.OutstandingAmount) + " · " + Period(x.PeriodStart.Year, x.PeriodStart.Month))).ToArray(),
-        CollectionSessionItemKind.Weighing => (_discovery?.WeighingSources ?? []).Select(x => new MobileChoice.Choice(x.StallId.ToString(), x.PayerName, x.StallNo + " · " + x.Context)).ToArray(),
+        CollectionSessionItemKind.Weighing => (_discovery?.WeighingSources ?? []).Select(x => new MobileChoice.Choice(x.StallId.ToString(), x.PayerName, "Stall " + x.StallNo + " · " + x.Context)).ToArray(),
         CollectionSessionItemKind.VendorFee => (_discovery?.VendorFeeSources ?? []).Where(x => x.CanCollect).Select(x => new MobileChoice.Choice(x.StallId.ToString(), x.PayerName, x.Section + " · Stall " + x.StallNo)).ToArray(),
         CollectionSessionItemKind.NpmWholePayment => (_discovery?.NpmSources ?? []).Select(x => new MobileChoice.Choice(x.StallId.ToString(), x.PayerName, x.Context + " · Stall " + x.StallNo)).ToArray(),
         _ => []
@@ -260,15 +293,14 @@ else
         _suggestOpen = true;
         if (_browsed || _searched || _payers.Count > 0) return;
         _browsed = true;
-        // The server may offer suggestions before anything is typed; when it does not, the panel says how to search.
-        await RunSearchAsync(string.Empty, announceFailure: false);
+        // The server browses its Business Payors before anything is typed, so the panel is usable at once.
+        await RunSearchAsync(_search, announceFailure: false);
     }
 
     private void OnSearchChanged()
     {
         _searchDelay?.Cancel();
         _suggestOpen = true;
-        if (_search.Trim().Length < 2) { _searched = false; _payers = []; return; }
         _searchDelay = new CancellationTokenSource();
         _ = DebouncedSearchAsync(_searchDelay.Token);
     }
@@ -292,22 +324,22 @@ else
     {
         if (_payer is not null) return;
         _searching = true;
+        StateHasChanged();     // the debounced path has no event handler to re-render for it
         try
         {
             var response = await Api.SearchCollectionSessionPayorsAsync(term);
-            if (_payer is not null || term != (string.IsNullOrEmpty(term) ? term : _search)) return;     // a newer search or a chosen payer supersedes this answer
+            if (_payer is not null || term != _search) return;     // a newer search or a chosen payer supersedes this answer
             _payers = response?.Value ?? [];
-            _searched = term.Trim().Length >= 2;
+            _searched = response is { IsSuccess: true };
             if (response is { IsSuccess: false } && announceFailure) _message = "Payer search is unavailable.";
         }
         catch { if (announceFailure) _message = "Connect to search payers."; }
-        finally { _searching = false; }
+        finally { _searching = false; StateHasChanged(); }
     }
 
     private async Task SelectPayerAsync(CollectionPayorDto payer) { _payer = payer; _payers = []; _suggestOpen = false; _searched = false; _quote = null; await LoadAsync(); }
     private async Task ClearPayerAsync() { _payer = null; _quote = null; _search = ""; _payers = []; _searched = false; _browsed = false; _suggestOpen = false; await LoadAsync(); }
-    private void BackToSources() { _operation = null; _source = _option = _vehicle = ""; _amount = _quantity = 0; }
-    private async Task OpenPickerAsync()
+    private void BackToSources() { _operation = null; _source = _option = _vehicle = ""; _amount = _quantity = 0; }    private async Task OpenPickerAsync()
     {
         _message = null; await LoadAsync(); _editing = null; _operation = null;
         if (OnlyOperation is not null) Choose(OnlyOperation);
@@ -325,12 +357,43 @@ else
         _source = _option = _vehicle = ""; _amount = _quantity = 0;
         _year = BusinessDate.Year; _month = BusinessDate.Month;
         _mode = ((int?)_discovery?.ServiceTerms?.FirstOrDefault(x => x.Terms.OperationCode == code)?.Mode)?.ToString() ?? "";
+        AutoSelect();
     }
-    private void ChangeMode(string value) { _mode = value; _option = _vehicle = ""; }
+    // Whatever the server offers exactly once is already the choice: one source, one fee type, one vehicle class, one animal.
+    private void AutoSelect()
+    {
+        if (_operation is null) return;
+        if (_operation.Kind == CollectionSessionItemKind.Slaughter) { if (SlaughterChoices.Count == 1) _source = SlaughterChoices[0].Value; return; }
+        if (_operation.Kind == CollectionSessionItemKind.GovernedService)
+        {
+            if (Terms?.FeeOptions is { Count: 1 } fees) _option = fees[0].Id.ToString();
+            if (Terms?.VehicleClasses is { Count: 1 } vehicles) _vehicle = vehicles[0].Code;
+            return;
+        }
+        if (SourceChoices is { Count: 1 } sources) { _source = sources[0].Value; PrefillPrepared(); }
+    }
+    // A source the office or a bill has already prepared arrives with the server's remaining amount; the collector confirms it
+    // (the quote still validates whatever is sent). A direct-collection source starts empty.
+    private void PrefillPrepared()
+    {
+        _amount = _operation?.Kind switch
+        {
+            CollectionSessionItemKind.Water => _discovery?.WaterSources?.FirstOrDefault(x => x.StallId.ToString() == _source) is { PreparedAmount: not null } w ? w.OutstandingAmount : 0m,
+            CollectionSessionItemKind.Electricity => _discovery?.ElectricitySources?.FirstOrDefault(x => ElectricityKey(x) == _source) is { } e && e.ChargeBasis != "DirectCollection" ? e.OutstandingAmount : 0m,
+            CollectionSessionItemKind.Obligation => _discovery?.ObligationSources?.FirstOrDefault(x => x.AccountId + "|" + x.PeriodStart.ToString("yyyy-MM") == _source)?.OutstandingAmount ?? 0m,
+            _ => 0m
+        };
+    }
+    private string SourceLabel => _operation?.Kind == CollectionSessionItemKind.Weighing ? "Vendor" : _operation?.Kind == CollectionSessionItemKind.NpmWholePayment ? "Stall" : "Source";
+    private string RateDetail(string type) => _discovery?.WeighingRates?.FirstOrDefault(x => ((int)x.Type).ToString() == type) is { } rate ? Money(rate.RatePerKilo) + " / kg" : "Unavailable";
+    private static IReadOnlyList<MobileChoice.Choice> MonthChoices { get; } = Enumerable.Range(1, 12)
+        .Select(m => new MobileChoice.Choice(m.ToString(), CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m))).ToArray();
+    private void ChooseMonth(string value) => _month = int.Parse(value, CultureInfo.InvariantCulture);
+    private void ChangeMode(string value) { _mode = value; _option = _vehicle = ""; AutoSelect(); }
     private void ChooseOption(string value) => _option = value;
     private void ChooseVehicle(string value) => _vehicle = value;
     private void ChooseType(string value) => _type = value;
-    private void ChooseSource(string value) { _source = value; _amount = 0; }
+    private void ChooseSource(string value) { _source = value; _amount = 0; PrefillPrepared(); }
     private void ClosePicker() => _picker = false;
     private void AddItem()
     {
@@ -419,7 +482,25 @@ else
     private async Task StartAnotherAsync() { _sessionId = Guid.NewGuid(); _items.Clear(); _result = null; _quote = null; _queued = _needsReview = false; await LoadAsync(); }
     private string Name(CollectionSessionItemIntent item) => _discovery?.Operations.FirstOrDefault(x => x.OperationCode == Code(item))?.DisplayName ?? "Collection item";
     private static string Code(CollectionSessionItemIntent item) => item.Kind switch { CollectionSessionItemKind.Water => "WCF", CollectionSessionItemKind.Electricity => "ECF", CollectionSessionItemKind.Obligation or CollectionSessionItemKind.VendorFee => "FISH_MEAT_VENDOR_FEE", CollectionSessionItemKind.NpmWholePayment => "NPM_WHOLE_PAYMENT", CollectionSessionItemKind.Weighing => "WEIGHT_AND_MEASURE", CollectionSessionItemKind.Slaughter => "SLAUGHTERHOUSE", _ => item.Service?.OperationCode ?? "" };
-    private static string Context(CollectionSessionItemIntent item) => item.Weighing is { } kg ? $"{kg.Type} · {kg.Kilograms:N2} kg" : "Review to confirm";
+    private static string InstrumentCode(RevenueInstrumentType instrument) => instrument == RevenueInstrumentType.CashTicket ? "CT" : "OR";
+    // Before the server has quoted it, an item is described from the source the server offered for it, so the list never reads as empty.
+    private string ItemContext(CollectionSessionItemIntent item, CollectionSessionItemQuote? quote)
+    {
+        // The source the collector chose describes the item best; the quote's own context is used only when it adds something.
+        var detail = ItemDetail(item);
+        if (detail is null && quote?.Context is { Length: > 0 } qc && !qc.Equals(quote.DisplayName, StringComparison.OrdinalIgnoreCase)) detail = qc;
+        return string.Join(" · ", new[] { _payer?.DisplayName, detail }.Where(x => !string.IsNullOrWhiteSpace(x))) is { Length: > 0 } text ? text : "Confirmed on review";
+    }
+    private string? ItemDetail(CollectionSessionItemIntent item)
+    {
+        return item.Weighing is { } kg ? $"{(kg.Type == WeighingType.Fish ? "Fish" : "Meat")} · {kg.Kilograms:N2} kg"
+            : item.Water is { } w ? _discovery?.WaterSources?.FirstOrDefault(x => x.StallId == w.StallId) is { } ws ? $"Stall {ws.StallNo} · {Period(w.Year, w.Month)}" : null
+            : item.Electricity is { } e ? _discovery?.ElectricitySources?.FirstOrDefault(x => x.UtilityBillId == e.UtilityBillId && x.StallId == e.StallId) is { } es ? $"Stall {es.StallNo} · {Period(es.BillingYear, es.BillingMonth)}" : null
+            : item.NpmWhole is { } n ? $"NPM Stall {_discovery?.NpmSources?.FirstOrDefault(x => x.StallId == n.StallId)?.StallNo} · {new DateOnly(n.Year, n.Month, 1).ToString("MMM yyyy", CultureInfo.InvariantCulture)}"
+            : item.VendorFee is { } v ? _discovery?.VendorFeeSources?.FirstOrDefault(x => x.StallId == v.StallId) is { } vs ? $"{vs.Section} · Stall {vs.StallNo}" : null
+            : item.Slaughter is { } s ? $"{s.Heads} head{(s.Heads == 1 ? "" : "s")}"
+            : null;
+    }
     private string ProblemName(CollectionSessionProblem problem) => problem.ClientItemId is { } id && _items.FirstOrDefault(x => x.ClientItemId == id) is { } item ? Name(item) + ": " : "";
     private string CollectionName(CollectionSessionCollection collection) => string.Join(", ", collection.ClientItemIds.Select(id => _items.FirstOrDefault(x => x.ClientItemId == id)).Where(x => x is not null).Select(x => Name(x!)));
     private static string ElectricityKey(EcfObligationQuoteDto s) => s.UtilityBillId + "|" + s.StallId + "|" + s.BillingYear + "|" + s.BillingMonth;

@@ -18,6 +18,10 @@ button.vendor-row { cursor: pointer; }
 button.vendor-row:hover { background: var(--mobile-blue-subtle); }
 button.vendor-row:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: -2px; }
 
-/* A vendor the server will not take a collection for: full-strength text, no chevron, the reason as a quiet chip. */
+/* A vendor the server will not take a collection for: full-strength name, no chevron, the reason as one plain line beneath. */
 .vendor-row-unavailable { cursor: default; }
-.vf-reason { flex: 0 1 auto; max-width: 46%; padding: 4px 10px; border: 1px solid var(--mobile-border); border-radius: 999px; background: var(--mobile-surface-subtle); color: var(--mobile-text-secondary); font-size: 12px; font-weight: 600; text-align: center; overflow-wrap: anywhere; }
+.vf-reason { margin-top: 6px; padding-left: 10px; border-left: 2px solid var(--mobile-border); color: var(--mobile-text); font-size: 13px; font-weight: 500; }
+
+/* Section headings: readable, not washed out. */
+.section-label { margin: 18px 2px 8px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--mobile-text-secondary); }
+.section-label .section-count { font-variant-numeric: tabular-nums; }
