@@ -20,7 +20,9 @@
 .rd-facts { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px 32px; padding: 16px 20px 20px; }
 .rd-facts > div { flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 2px; }
 .rd-facts dd { text-align: left; }
-.rd-covered { max-height: 440px; overflow: auto; }
+/* Up to ten rows show at once (header + 10 x 48px); more scroll vertically under the sticky header. */
+.rd-covered { max-height: calc(44px + 10 * 48px); overflow: auto; }
+.rd-covered tbody td { height: 48px; }
 .rd-covered thead th { position: sticky; top: 0; z-index: 1; background: var(--surface-muted, #f4f7fa); }
 @media (max-width: 640px) { .rd-header { flex-direction: column; align-items: flex-start; padding: 18px; } .rd-facts { grid-template-columns: 1fr; } }
 @media print { .rd-covered { max-height: none; overflow: visible; } .rd-covered thead { display: table-header-group; } .rd-covered thead th { position: static; } .rm-page tr, .rm-page tfoot { break-inside: avoid; } }

@@ -194,9 +194,9 @@
                         <div><dt>Total</dt><dd>@Money(SelectedTotal)</dd></div>
                         <div><dt>Remitted</dt><dd>@Money(Recordable.Sum(d => d.Amount ?? 0m))</dd></div>
                     </dl>
-                    <dl class="rm-review-facts"><div><dt>Coverage period</dt><dd>@PeriodLabel</dd></div>
-                        <div><dt>Instrument mix</dt><dd>@SelectedInstruments</dd></div></dl>
-                    <div class="rm-form-row">
+                    <div class="rm-review-meta">
+                        <dl class="rm-review-facts"><div><dt>Coverage period</dt><dd>@PeriodLabel</dd></div>
+                            <div><dt>Instrument mix</dt><dd>@SelectedInstruments</dd></div></dl>
                         <label class="v3-field"><span>Remittance date</span><input type="date" @bind="_newDate" /></label>
                     </div>
                     @foreach (var draft in Recordable)

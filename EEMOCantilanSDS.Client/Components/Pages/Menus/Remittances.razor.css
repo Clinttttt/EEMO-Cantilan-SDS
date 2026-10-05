@@ -440,7 +440,9 @@
 .rm-selection dl { display: flex; gap: 28px; margin: 0; }
 .rm-selection dt { font-size: .75rem; color: var(--text-secondary); }
 .rm-selection dd { margin: 3px 0 0; font-weight: 700; color: #173b64; font-variant-numeric: tabular-nums; }
+.rm-review-meta { display: grid; grid-template-columns: minmax(0, 1fr) minmax(160px, 220px); align-items: end; gap: 16px; }
 .rm-review-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 0; }
+@media (max-width: 640px) { .rm-review-meta { grid-template-columns: 1fr; } }
 .rm-review-facts dt { font-size: .75rem; color: var(--text-secondary); }
 .rm-review-facts dd { margin: 4px 0 0; font-size: .8125rem; font-weight: 600; }
 .rm-pill-void { color: #9b2c2c; border-color: #e5bcbc; background: #fff5f5; }
