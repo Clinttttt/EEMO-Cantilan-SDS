@@ -6,12 +6,18 @@
     <div class="sd-overlay" @onclick="OnClose" aria-hidden="true"></div>
     <aside class="sd-drawer @(Wide ? "sd-wide" : "")" role="dialog" aria-modal="true" aria-labelledby="@_titleId" @onkeydown="HandleKey">
         <header class="sd-header">
-            <div class="sd-header-text">
-                <h2 id="@_titleId" class="sd-title">@Title</h2>
-                @if (!string.IsNullOrWhiteSpace(Subtitle))
+            <div class="sd-header-main">
+                @if (Icon is not null)
                 {
-                    <div class="sd-sub">@Subtitle</div>
+                    <div class="sd-icon" aria-hidden="true">@Icon</div>
                 }
+                <div class="sd-header-text">
+                    <h2 id="@_titleId" class="sd-title">@Title</h2>
+                    @if (!string.IsNullOrWhiteSpace(Subtitle))
+                    {
+                        <div class="sd-sub">@Subtitle</div>
+                    }
+                </div>
             </div>
             <button class="sd-close" type="button" aria-label="Close" @onclick="OnClose">×</button>
         </header>
@@ -33,6 +39,8 @@
     /// <summary>A wider panel for a table (import review); the default suits a form.</summary>
     [Parameter] public bool Wide { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
+    /// <summary>An optional icon (an inline SVG) shown in a tile before the title, as the stallholder drawer does.</summary>
+    [Parameter] public RenderFragment? Icon { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
     [Parameter] public RenderFragment? Footer { get; set; }
 

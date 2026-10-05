@@ -10,12 +10,4 @@
 .vcr-actions-cell { text-align: right; white-space: nowrap; }
 .vcr-actions-cell .v3-btn + .v3-btn { margin-left: 6px; }
 
-/* The drawer form: grouped sections with a hairline between them. */
-.vcr-form { display: flex; flex-direction: column; gap: 20px; padding: 20px; }
-.vcr-section { display: flex; flex-direction: column; gap: 12px; }
-.vcr-section + .vcr-section { padding-top: 20px; border-top: 1px solid var(--border); }
-.vcr-section-title { margin: 0; color: var(--navy); font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-.vcr-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .vcr-note { margin: 0; color: var(--text-secondary); font-size: .8125rem; line-height: 1.45; }
-
-@media (max-width: 520px) { .vcr-pair { grid-template-columns: 1fr; } }

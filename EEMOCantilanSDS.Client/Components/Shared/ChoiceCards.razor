@@ -1,0 +1,26 @@
+@* A small set of mutually exclusive choices as selectable cards: the basis of an occupancy, an event. A visual selector only; what each
+   value means belongs to the page that supplies it. *@
+<div class="cc" role="radiogroup" aria-label="@Label">
+    @foreach (var item in Items)
+    {
+        var selected = item.Value == Value;
+        <button type="button" class="cc-item @(selected ? "is-selected" : "")" role="radio" aria-checked="@(selected ? "true" : "false")" @onclick="() => Pick(item.Value)">
+            <span class="cc-title">@item.Title</span>
+            @if (!string.IsNullOrWhiteSpace(item.Note))
+            {
+                <span class="cc-note">@item.Note</span>
+            }
+        </button>
+    }
+</div>
+
+@code {
+    public sealed record Choice(string Value, string Title, string? Note = null);
+
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public IReadOnlyList<Choice> Items { get; set; } = [];
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    private Task Pick(string value) => ValueChanged.InvokeAsync(value);
+}

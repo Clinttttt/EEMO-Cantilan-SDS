@@ -126,19 +126,6 @@
     }
 }
 
-/* Add New drawer: grouped sections and the occupancy-basis choice, the same shape as the ICE Add Vendor form. */
-.obw-section { display: flex; flex-direction: column; gap: 12px; padding-top: 16px; border-top: 1px solid var(--border); }
-.obw-section:first-child { padding-top: 0; border-top: 0; }
-.obw-section-title { margin: 0; color: var(--navy); font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-.obw-choice { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.obw-choice-item { min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: #ffffff; color: var(--text-primary, var(--navy)); font: inherit; font-size: .8125rem; font-weight: 600; text-align: left; cursor: pointer; }
-.obw-choice-item:hover { background: var(--surface-muted, #f4f7fa); }
-.obw-choice-item:focus-visible { outline: 2px solid var(--civic-panel); outline-offset: 2px; }
-.obw-choice-item.is-selected { border-color: var(--civic-panel); background: #eaf1f9; box-shadow: inset 0 0 0 1px var(--civic-panel); color: var(--navy); }
-.obw-choice-item { display: flex; flex-direction: column; gap: 2px; }
-.obw-choice-note { color: var(--text-secondary); font-size: .75rem; font-weight: 400; }
-.obw-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
-.obw-span { grid-column: 1 / -1; }
 .obw-selected { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border: 1px solid var(--civic-panel); border-radius: 8px; background: #eaf1f9; }
 .obw-selected-name { color: var(--navy); font-size: .9375rem; font-weight: 600; overflow-wrap: anywhere; }
 .obw-results { margin: 0; padding: 0; list-style: none; max-height: 220px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
@@ -146,5 +133,3 @@
 .obw-option { display: block; width: 100%; min-height: 44px; padding: 8px 14px; border: 0; background: transparent; color: var(--navy); font: inherit; font-size: .9375rem; font-weight: 600; text-align: left; cursor: pointer; }
 .obw-option:hover { background: var(--surface-muted); }
 .obw-option:focus-visible { outline: 2px solid var(--civic-panel); outline-offset: -2px; }
-@media (max-width: 640px) { .obw-grid { grid-template-columns: 1fr; } }
-@media (max-width: 520px) { .obw-choice { grid-template-columns: 1fr; } }

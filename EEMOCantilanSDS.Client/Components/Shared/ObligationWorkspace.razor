@@ -168,13 +168,14 @@
 
 <AuthorizeView Roles="SuperAdmin">
     <Authorized>
-        <SideDrawer Show="@(_opening && !ReadOnlyHistory)" Wide="@(Kind != ObligationKind.FishMeatVendorFee)" Title="@($"Open {Name} account")" Subtitle="@OpenSubtitle" OnClose="CloseForm">
-            <ChildContent>
-            <form id="obw-open-form" class="obw-form" @onsubmit="CreateAsync" @onsubmit:preventDefault="true" aria-label="Open account">
-                @if (Kind == ObligationKind.FishMeatVendorFee)
-                {
+        <AddNewDrawer Show="@(_opening && !ReadOnlyHistory)" Wide="@(Kind != ObligationKind.FishMeatVendorFee)" Title="@($"Open {Name} account")" Subtitle="@OpenSubtitle"
+                      FormId="obw-open-form" FormLabel="Open account" SubmitText="Open account" Saving="_saving" Error="@_formError"
+                      OnSubmit="CreateAsync" OnCancel="CloseForm">
+            @if (Kind == ObligationKind.FishMeatVendorFee)
+            {
+                <AddNewSection Title="NPM Fish / Meat stall" Plain="true">
                     <label class="v3-field">
-                        <span>NPM Fish / Meat stall</span>
+                        <span class="v3-sr-only">NPM Fish / Meat stall</span>
                         <select @bind="_stallId" required>
                             <option value="">Choose a stall</option>
                             @foreach (var stall in _stalls.Where(x => !x.HasAccount))
@@ -186,145 +187,110 @@
                         </select>
                     </label>
                     <p class="obw-note">The Payor is the one linked to the stall's occupant in NPM. A stall without a linked Payor cannot be opened.</p>
+                </AddNewSection>
+            }
+            else
+            {
+                @if (Kind == ObligationKind.FiestaArawLotRental)
+                {
+                    <AddNewSection Title="Event" Plain="true">
+                        <ChoiceCards Label="Event" Items="EventChoices" Value="@(((int)_lotEvent).ToString())" ValueChanged="PickEvent" />
+                    </AddNewSection>
                 }
                 else
                 {
-                    @if (Kind == ObligationKind.FiestaArawLotRental)
+                    <AddNewSection Title="Occupancy" Plain="true">
+                        <ChoiceCards Label="Basis of occupancy" Items="BasisChoices" Value="@(_signedContract ? "signed" : "space")" ValueChanged="PickBasis" />
+                    </AddNewSection>
+                }
+
+                <AddNewSection Title="Business Payor" Plain="true">
+                    @if (SelectedPayor is { } chosen)
                     {
-                        <section class="obw-section" aria-labelledby="obw-s-event">
-                            <h3 class="obw-section-title" id="obw-s-event">Event</h3>
-                            <div class="obw-choice" role="radiogroup" aria-label="Event">
-                                <button type="button" class="obw-choice-item @(_lotEvent == LotRentalEvent.Fiesta ? "is-selected" : "")" role="radio" aria-checked="@(_lotEvent == LotRentalEvent.Fiesta ? "true" : "false")" @onclick="() => _lotEvent = LotRentalEvent.Fiesta">
-                                    <span class="obw-choice-title">Fiesta</span>
-                                </button>
-                                <button type="button" class="obw-choice-item @(_lotEvent == LotRentalEvent.Araw ? "is-selected" : "")" role="radio" aria-checked="@(_lotEvent == LotRentalEvent.Araw ? "true" : "false")" @onclick="() => _lotEvent = LotRentalEvent.Araw">
-                                    <span class="obw-choice-title">Araw</span>
-                                </button>
-                            </div>
-                        </section>
+                        <div class="obw-selected" role="status">
+                            <span class="obw-selected-name">@chosen.DisplayName</span>
+                            <button class="obw-link" type="button" @onclick="ClearPayor">Change</button>
+                        </div>
                     }
                     else
                     {
-                        <section class="obw-section" aria-labelledby="obw-s-occupancy">
-                            <h3 class="obw-section-title" id="obw-s-occupancy">Occupancy</h3>
-                            <div class="obw-choice" role="radiogroup" aria-label="Basis of occupancy">
-                                <button type="button" class="obw-choice-item @(_signedContract ? "is-selected" : "")" role="radio" aria-checked="@(_signedContract ? "true" : "false")" @onclick="() => _signedContract = true">
-                                    <span class="obw-choice-title">Signed lease contract</span>
-                                    <span class="obw-choice-note">Leased under a signed contract</span>
-                                </button>
-                                <button type="button" class="obw-choice-item @(!_signedContract ? "is-selected" : "")" role="radio" aria-checked="@(!_signedContract ? "true" : "false")" @onclick="() => _signedContract = false">
-                                    <span class="obw-choice-title">No contract (space only)</span>
-                                    <span class="obw-choice-note">Occupies the space without a contract</span>
-                                </button>
-                            </div>
-                        </section>
+                        <label class="v3-field">
+                            <span class="v3-sr-only">Search Business Payors</span>
+                            <input class="v3-input" type="search" @bind="_payorSearch" @bind:event="oninput" @onkeyup="SearchPayorsAsync" placeholder="Search by name" />
+                        </label>
+                        @if (_payors.Count > 0)
+                        {
+                            <ul class="obw-results" role="listbox" aria-label="Business Payors found">
+                                @foreach (var payor in _payors)
+                                {
+                                    <li><button class="obw-option" type="button" role="option" aria-selected="false" @onclick="() => _payorId = payor.PayorId.ToString()">@payor.DisplayName</button></li>
+                                }
+                            </ul>
+                        }
+                        <p class="obw-payor-hint">
+                            @if (_payors.Count == 0 && _payorSearch.Trim().Length >= 2)
+                            {
+                                <span>No Business Payor found.</span>
+                            }
+                            @if (_payorSearch.Trim().Length >= 2)
+                            {
+                                <button class="obw-link" type="button" @onclick="CreatePayorAsync" disabled="@_saving">Create Business Payor “@_payorSearch.Trim()”</button>
+                            }
+                        </p>
                     }
+                </AddNewSection>
 
-                    <section class="obw-section" aria-labelledby="obw-s-payor">
-                        <h3 class="obw-section-title" id="obw-s-payor">Business Payor</h3>
-                        @if (SelectedPayor is { } chosen)
-                        {
-                            <div class="obw-selected" role="status">
-                                <span class="obw-selected-name">@chosen.DisplayName</span>
-                                <button class="obw-link" type="button" @onclick="ClearPayor">Change</button>
-                            </div>
-                        }
-                        else
-                        {
-                            <label class="v3-field">
-                                <span class="v3-sr-only">Search Business Payors</span>
-                                <input class="v3-input" type="search" @bind="_payorSearch" @bind:event="oninput" @onkeyup="SearchPayorsAsync" placeholder="Search by name" />
-                            </label>
-                            @if (_payors.Count > 0)
-                            {
-                                <ul class="obw-results" role="listbox" aria-label="Business Payors found">
-                                    @foreach (var payor in _payors)
-                                    {
-                                        <li><button class="obw-option" type="button" role="option" aria-selected="false" @onclick="() => _payorId = payor.PayorId.ToString()">@payor.DisplayName</button></li>
-                                    }
-                                </ul>
-                            }
-                            <p class="obw-payor-hint">
-                                @if (_payors.Count == 0 && _payorSearch.Trim().Length >= 2)
-                                {
-                                    <span>No Business Payor found.</span>
-                                }
-                                @if (_payorSearch.Trim().Length >= 2)
-                                {
-                                    <button class="obw-link" type="button" @onclick="CreatePayorAsync" disabled="@_saving">Create Business Payor “@_payorSearch.Trim()”</button>
-                                }
-                            </p>
-                        }
-                    </section>
+                <AddNewSection Title="@(SubjectNoun == "Lot" ? "Lot details" : "Space details")">
+                    @* Left blank, the number is assigned by the server within this operation; it is never worked out here. *@
+                    <label class="v3-field">
+                        <span>@(SubjectNoun == "Lot" ? "Lot No." : "Space No.")</span>
+                        <input class="v3-input" type="text" maxlength="120" placeholder="Assigned automatically" @bind="_subject" />
+                    </label>
+                    @if (Kind == ObligationKind.FiestaArawLotRental)
+                    {
+                        <label class="v3-field">
+                            <span>Event date</span>
+                            <input class="v3-input" type="date" required @bind="_eventDate" />
+                        </label>
+                    }
+                </AddNewSection>
+            }
 
-                    <section class="obw-section" aria-labelledby="obw-s-space">
-                        <h3 class="obw-section-title" id="obw-s-space">@(SubjectNoun == "Lot" ? "Lot details" : "Space details")</h3>
-                        <div class="obw-grid">
-                            <label class="v3-field">
-                                <span>@(SubjectNoun == "Lot" ? "Lot" : "Space No.")</span>
-                                <input class="v3-input" type="text" maxlength="120" required @bind="_subject" />
-                            </label>
-                            @if (Kind == ObligationKind.FiestaArawLotRental)
-                            {
-                                <label class="v3-field">
-                                    <span>Event date</span>
-                                    <input class="v3-input" type="date" required @bind="_eventDate" />
-                                </label>
-                            }
-                        </div>
-                    </section>
-                }
+            @if (Kind == ObligationKind.FiestaArawLotRental)
+            {
+                <AddNewSection Title="Rental details">
+                    <label class="v3-field">
+                        <span>Approved lot amount (₱)</span>
+                        <input class="v3-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
+                    </label>
+                </AddNewSection>
+            }
+            else
+            {
+                <AddNewSection Title="@(Kind == ObligationKind.KanmanggaySpaceRental && _signedContract ? "Contract details" : "Rental details")">
+                    @if (Kind == ObligationKind.KanmanggaySpaceRental && _signedContract)
+                    {
+                        <label class="v3-field ans-span">
+                            <span>Contract reference</span>
+                            <input class="v3-input" type="text" maxlength="200" placeholder="As written on the contract" @bind="_contractRef" />
+                        </label>
+                    }
+                    <label class="v3-field">
+                        <span>@(Kind == ObligationKind.KanmanggaySpaceRental && _signedContract ? "Contract effectivity (month)" : Kind == ObligationKind.KanmanggaySpaceRental ? "Occupying since (month)" : "Starts (month)")</span>
+                        <input class="v3-input" type="month" required aria-label="Start month" value="@_startMonth" @onchange="e => _startMonth = e.Value?.ToString() ?? string.Empty" />
+                    </label>
+                    <label class="v3-field">
+                        <span>Approved monthly amount (₱)</span>
+                        <input class="v3-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
+                    </label>
+                </AddNewSection>
+            }
+        </AddNewDrawer>
 
-                @if (Kind != ObligationKind.FiestaArawLotRental)
-                {
-                    <section class="obw-section" aria-labelledby="obw-s-rental">
-                        <h3 class="obw-section-title" id="obw-s-rental">@(Kind == ObligationKind.KanmanggaySpaceRental && _signedContract ? "Contract details" : "Rental details")</h3>
-                        <div class="obw-grid">
-                            @if (Kind == ObligationKind.KanmanggaySpaceRental && _signedContract)
-                            {
-                                <label class="v3-field obw-span">
-                                    <span>Contract reference</span>
-                                    <input class="v3-input" type="text" maxlength="200" placeholder="As written on the contract" @bind="_contractRef" />
-                                </label>
-                            }
-                            <label class="v3-field">
-                                <span>@(Kind == ObligationKind.KanmanggaySpaceRental && _signedContract ? "Contract effectivity (month)" : Kind == ObligationKind.KanmanggaySpaceRental ? "Occupying since (month)" : "Starts (month)")</span>
-                                <input class="v3-input" type="month" required aria-label="Start month" value="@_startMonth" @onchange="e => _startMonth = e.Value?.ToString() ?? string.Empty" />
-                            </label>
-                            <label class="v3-field">
-                                <span>Approved monthly amount (₱)</span>
-                                <input class="v3-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
-                            </label>
-                        </div>
-                    </section>
-                }
-                else
-                {
-                    <section class="obw-section" aria-labelledby="obw-s-rental">
-                        <h3 class="obw-section-title" id="obw-s-rental">Rental details</h3>
-                        <div class="obw-grid">
-                            <label class="v3-field">
-                                <span>Approved lot amount (₱)</span>
-                                <input class="v3-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
-                            </label>
-                        </div>
-                    </section>
-                }
-                @if (!string.IsNullOrWhiteSpace(_formError))
-                {
-                    <p class="v3-notice v3-notice-error" role="alert">@_formError</p>
-                }
-            </form>
-            </ChildContent>
-            <Footer>
-                <button class="v3-btn" type="button" @onclick="CloseForm">Cancel</button>
-                <button class="v3-btn v3-btn-primary" type="submit" form="obw-open-form" disabled="@_saving">Open account</button>
-            </Footer>
-        </SideDrawer>
-
-        <SideDrawer Show="@(!_opening && _rateFor is not null && !ReadOnlyHistory)" Title="Change approved amount" Subtitle="@_rateFor?.SubjectLabel" OnClose="CloseForm">
-            <ChildContent>
-            <form id="obw-rate-form" class="obw-form" @onsubmit="SaveRateAsync" @onsubmit:preventDefault="true" aria-label="Change approved amount">
+        <AddNewDrawer Show="@(!_opening && _rateFor is not null && !ReadOnlyHistory)" Wide="false" Title="Change approved amount" Subtitle="@_rateFor?.SubjectLabel"
+                      FormId="obw-rate-form" FormLabel="Change approved amount" SubmitText="Save amount" Saving="_saving" Error="@_formError"
+                      OnSubmit="SaveRateAsync" OnCancel="CloseForm">
+            <AddNewSection Title="New amount">
                 <label class="v3-field">
                     <span>Effective from (month)</span>
                     <input class="v3-input" type="month" required aria-label="Effective from (month)" value="@_rateMonth" @onchange="e => _rateMonth = e.Value?.ToString() ?? string.Empty" />
@@ -333,18 +299,8 @@
                     <span>Approved monthly amount (₱)</span>
                     <input class="v3-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
                 </label>
-                <p class="obw-note">Periods already assessed keep their amount.</p>
-                @if (!string.IsNullOrWhiteSpace(_formError))
-                {
-                    <p class="v3-notice v3-notice-error" role="alert">@_formError</p>
-                }
-            </form>
-            </ChildContent>
-            <Footer>
-                <button class="v3-btn" type="button" @onclick="CloseForm">Cancel</button>
-                <button class="v3-btn v3-btn-primary" type="submit" form="obw-rate-form" disabled="@_saving">Save amount</button>
-            </Footer>
-        </SideDrawer>
+            </AddNewSection>
+        </AddNewDrawer>
     </Authorized>
 </AuthorizeView>
 
@@ -478,6 +434,7 @@
         _payors = [];
         _amount = null;
         _opening = true;
+        if (Kind == ObligationKind.FiestaArawLotRental && _operations.Count == 0) await LoadOperationsAsync();
         if (Kind == ObligationKind.FishMeatVendorFee)
         {
             try
@@ -537,6 +494,37 @@
         catch { _payors = []; }
     }
 
+    private static readonly IReadOnlyList<ChoiceCards.Choice> BasisChoices =
+    [
+        new("signed", "Signed lease contract", "Leased under a signed contract"),
+        new("space", "No contract (space only)", "Occupies the space without a contract")
+    ];
+
+    // Fiesta and Araw are the server's own events; they are read from the approved operations and the enum is only the fallback.
+    private IReadOnlyList<SpaceRentalOperationDto> _operations = [];
+    private IReadOnlyList<ChoiceCards.Choice> EventChoices
+    {
+        get
+        {
+            var events = _operations.Where(x => x.Kind == ObligationKind.FiestaArawLotRental && x.Event is not null).ToList();
+            return events.Count > 0
+                ? events.Select(x => new ChoiceCards.Choice(((int)x.Event!.Value).ToString(), x.DisplayName)).ToArray()
+                : [new(((int)LotRentalEvent.Fiesta).ToString(), "Fiesta"), new(((int)LotRentalEvent.Araw).ToString(), "Araw")];
+        }
+    }
+    private void PickBasis(string value) => _signedContract = value == "signed";
+    private void PickEvent(string value) => _lotEvent = (LotRentalEvent)int.Parse(value, CultureInfo.InvariantCulture);
+
+    private async Task LoadOperationsAsync()
+    {
+        try
+        {
+            var result = await ObligationsApi.GetSpaceOperationsAsync();
+            if (result.IsSuccess) _operations = result.Value?.ToList() ?? [];
+        }
+        catch { _operations = []; }
+    }
+
     private static bool TryMonthStart(string value, out DateOnly month)
     {
         month = default;
@@ -566,7 +554,7 @@
         {
             var subject = Kind == ObligationKind.FishMeatVendorFee
                 ? _stalls.FirstOrDefault(x => x.StallId == stallId)?.StallNo ?? string.Empty
-                : _subject;
+                : _subject.Trim();
             var result = await ObligationsApi.CreateAccountAsync(new CreateObligationAccountRequest(
                 Kind, payorId, stallId, subject, isLot ? _lotEvent : null, isLot ? _eventDate : null, start, _amount!.Value,
                 // Occupancy basis is recorded for Kanmanggay only; no contract is implied for a space-only occupancy.

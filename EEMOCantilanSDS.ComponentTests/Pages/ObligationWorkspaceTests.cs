@@ -232,9 +232,9 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var drawer = Assert.Single(cut.FindAll("[role='dialog']"));
-            var titles = drawer.QuerySelectorAll(".obw-section-title").Select(x => x.TextContent.Trim()).ToArray();
+            var titles = drawer.QuerySelectorAll(".ans-title").Select(x => x.TextContent.Trim()).ToArray();
             Assert.Equal(new[] { "Occupancy", "Business Payor", "Space details", "Contract details" }, titles);
-            var basis = drawer.QuerySelectorAll("[role='radio']").Select(x => x.QuerySelector(".obw-choice-title")!.TextContent.Trim()).ToArray();
+            var basis = drawer.QuerySelectorAll("[role='radio']").Select(x => x.QuerySelector(".cc-title")!.TextContent.Trim()).ToArray();
             Assert.Equal(new[] { "Signed lease contract", "No contract (space only)" }, basis);
             Assert.Contains("Contract effectivity", drawer.TextContent);
             Assert.Contains("Contract reference", drawer.TextContent);
@@ -245,7 +245,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var drawer = Assert.Single(cut.FindAll("[role='dialog']"));
-            Assert.Equal("Rental details", drawer.QuerySelectorAll(".obw-section-title").Last().TextContent.Trim());
+            Assert.Equal("Rental details", drawer.QuerySelectorAll(".ans-title").Last().TextContent.Trim());
             Assert.Contains("Occupying since", drawer.TextContent);
             Assert.DoesNotContain("Contract effectivity", drawer.TextContent);
             Assert.DoesNotContain("Contract reference", drawer.TextContent);         // no contract is implied for a space-only occupancy
@@ -283,6 +283,48 @@ public sealed class ObligationWorkspaceTests : TestContext
             Assert.NotNull(sent);
             Assert.Equal((PayorId, "K-7", 900m, OccupancyArrangement.SpaceOnly, (string?)null),
                 (sent!.PayorId, sent.SubjectLabel, sent.Amount, sent.Arrangement, sent.ContractReference));
+        }, Timeout);
+    }
+
+    [Fact]
+    public void FiestaAraw_AddNew_UsesTheSameDrawerFamily_WithAnExplicitEventChoice_AndAServerNumberWhenBlank()
+    {
+        Serve(ObligationKind.FiestaArawLotRental);
+        _collections.Setup(x => x.SearchCollectionPayorsAsync("Ana Reyes")).ReturnsAsync(
+            Result<IReadOnlyList<CollectionPayorDto>>.Success(new[] { new CollectionPayorDto(PayorId, "Ana Reyes") }));
+        CreateObligationAccountRequest? sent = null;
+        _api.Setup(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()))
+            .Callback<CreateObligationAccountRequest>(r => sent = r)
+            .ReturnsAsync(Result<ObligationAccountDto>.Failure("stop"));
+
+        var cut = RenderComponent<FiestaAraw>();
+        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New"), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var drawer = Assert.Single(cut.FindAll("[role='dialog']"));
+            Assert.Equal(new[] { "Event", "Business Payor", "Lot details", "Rental details" }, drawer.QuerySelectorAll(".ans-title").Select(x => x.TextContent.Trim()).ToArray());
+            Assert.Equal(new[] { "Fiesta", "Araw" }, drawer.QuerySelectorAll(".cc-item .cc-title").Select(x => x.TextContent.Trim()).ToArray());
+            Assert.Empty(drawer.QuerySelectorAll("select"));                                          // an explicit choice, not a dropdown
+            Assert.NotNull(drawer.QuerySelector(".sd-footer"));
+        }, Timeout);
+
+        cut.FindAll("[role='radio']").Single(b => b.TextContent.Contains("Araw")).Click();
+        var search = cut.Find("[role='dialog'] input[type='search']");
+        search.Input("Ana Reyes");
+        search.KeyUp(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "s" });
+        cut.WaitForAssertion(() => cut.Find("[aria-label='Business Payors found'] button"), Timeout);
+        cut.Find("[aria-label='Business Payors found'] button").Click();
+        cut.Find("[role='dialog'] input[type='number']").Change("2500");
+        cut.Find("form[aria-label='Open account']").Submit();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(sent);
+            Assert.Equal((ObligationKind.FiestaArawLotRental, LotRentalEvent.Araw, string.Empty, 2500m),
+                (sent!.Kind, sent.Event!.Value, sent.SubjectLabel, sent.Amount));                       // blank number: the server assigns it
+            Assert.Null(sent.Arrangement);                                                              // basis belongs to Kanmanggay only
         }, Timeout);
     }
 

@@ -1,0 +1,40 @@
+@* ADD NEW DRAWER — the one shape every "Add New" takes: the civic-blue SideDrawer with its optional icon, one form of sections, and a
+   fixed footer of Cancel and the primary action. Operations supply their own fields as the form's content (AddNewSection,
+   ChoiceCards, v3-field inputs). Presentation only: validation, state and the save itself stay with the page. *@
+<SideDrawer Show="Show" Wide="Wide" Title="@Title" Subtitle="@Subtitle" OnClose="OnCancel">
+    <Icon>
+        <svg viewBox="0 0 24 24"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
+    </Icon>
+    <ChildContent>
+        <form id="@FormId" class="and-form" aria-label="@FormLabel" @onsubmit="OnSubmit" @onsubmit:preventDefault="true">
+            @ChildContent
+            @if (!string.IsNullOrWhiteSpace(Error))
+            {
+                <p class="v3-notice v3-notice-error" role="alert">@Error</p>
+            }
+        </form>
+    </ChildContent>
+    <Footer>
+        <button class="v3-btn" type="button" @onclick="OnCancel">Cancel</button>
+        <button class="v3-btn v3-btn-primary" type="submit" form="@FormId" disabled="@Saving">@SubmitText</button>
+    </Footer>
+</SideDrawer>
+
+@code {
+    [Parameter] public bool Show { get; set; }
+
+    /// <summary>A wider panel, for forms laid out in two columns.</summary>
+    [Parameter] public bool Wide { get; set; } = true;
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter, EditorRequired] public string FormId { get; set; } = string.Empty;
+
+    /// <summary>The form's accessible name.</summary>
+    [Parameter] public string? FormLabel { get; set; }
+    [Parameter] public string SubmitText { get; set; } = "Save";
+    [Parameter] public bool Saving { get; set; }
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public EventCallback OnSubmit { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

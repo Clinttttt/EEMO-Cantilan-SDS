@@ -1,0 +1,6 @@
+.ans { display: flex; flex-direction: column; gap: 12px; padding-top: 16px; border-top: 1px solid var(--border); }
+.ans:first-child { padding-top: 0; border-top: 0; }
+.ans-title { margin: 0; color: var(--navy); font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.ans-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; }
+.ans-grid ::deep .ans-span { grid-column: 1 / -1; }
+@media (max-width: 640px) { .ans-grid { grid-template-columns: 1fr; } }
