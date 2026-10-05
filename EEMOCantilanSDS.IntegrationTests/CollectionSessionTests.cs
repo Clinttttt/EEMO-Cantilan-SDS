@@ -149,6 +149,8 @@ public sealed class CollectionSessionTests(PostgresFixture database)
         Assert.True(quote.CanRecord, string.Join(";", quote.Problems.Select(p => p.Message)));
         var result = await flow.RecordAsync(new(intent, quote.QuoteFingerprint));
         Assert.True(result.IsSuccess, result.Error);
+        Assert.True(result.Value!.Status == CollectionSessionStatus.Recorded, string.Join(";", result.Value.Problems.Select(x => x.Code + ": " + x.Message)));
+        Assert.Empty(result.Value.Problems);
         return result.Value!;
     }
 
@@ -236,14 +238,30 @@ public sealed class CollectionSessionTests(PostgresFixture database)
     [SkippableTheory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Itemized_rent_vendor_fee_and_weighing_keep_three_classifications_and_atomic_retries(bool injectFailure)
+    public async Task Itemized_six_sources_keep_independent_classifications_and_atomic_retries(bool injectFailure)
     {
         var w = await SeedAsync();
         var intent = new CollectionSessionIntent(Guid.NewGuid(), Today, w.PayorId,
             [new(Guid.Parse("00000000-0000-0000-0000-000000000001"), CollectionSessionItemKind.NpmWholePayment, 0m, NpmWhole: new(w.StallId, Today.Year, Today.Month)),
              new(Guid.Parse("00000000-0000-0000-0000-000000000002"), CollectionSessionItemKind.VendorFee, 100m, VendorFee: new(w.StallId)),
-             new(Guid.Parse("00000000-0000-0000-0000-000000000003"), CollectionSessionItemKind.Weighing, 0m, Weighing: new(w.StallId, WeighingType.Fish, 22m))]);
-        await using (var setup = database.CreateContext(w.TenantId)) await EnableRentAndWeighing(setup, w);
+             new(Guid.Parse("00000000-0000-0000-0000-000000000003"), CollectionSessionItemKind.Weighing, 0m, Weighing: new(w.StallId, WeighingType.Fish, 22m)),
+             new(Guid.Parse("00000000-0000-0000-0000-000000000004"), CollectionSessionItemKind.Water, 20m, Water: new(w.StallId, Today.Year, Today.Month)),
+             new(Guid.Parse("00000000-0000-0000-0000-000000000005"), CollectionSessionItemKind.Electricity, 44m, Electricity: new(Guid.Empty, 0, w.StallId, Today.Year, Today.Month)),
+             new(Guid.Parse("00000000-0000-0000-0000-000000000006"), CollectionSessionItemKind.GovernedService, 200m, Service: new(CollectorOperationCodes.LandingBerthing))]);
+        await using (var setup = database.CreateContext(w.TenantId))
+        {
+            await EnableRentAndWeighing(setup, w);
+            setup.AddRange(CollectorOperationAssignment.Assign(w.TenantId, w.CollectorId, CollectorOperationCodes.Wcf, "head"),
+                CollectorOperationActivation.Activate(w.TenantId, CollectorOperationCodes.Wcf, Today, Guid.NewGuid(), "head", DateTime.UtcNow));
+            await setup.SaveChangesAsync();
+        }
+        if (injectFailure)
+            intent = intent with { Items = intent.Items.Select(x => x.Kind switch
+            {
+                CollectionSessionItemKind.Water => x with { ClientItemId = Guid.Parse("00000000-0000-0000-0000-000000000005") },
+                CollectionSessionItemKind.Electricity => x with { ClientItemId = Guid.Parse("00000000-0000-0000-0000-000000000004") },
+                _ => x
+            }).ToArray() };
         if (injectFailure)
         {
             await using var failing = database.CreateContext(w.TenantId);
@@ -259,28 +277,41 @@ public sealed class CollectionSessionTests(PostgresFixture database)
         var source = new CollectionSessionSources(db, new Caller(w.CollectorId, w.TenantId), new Tenant(w.TenantId), new Clock(), null!, new NoMarketDays(), whole);
         var workflow = Workflow(db, w, source);
         var result = await Record(workflow, intent);
-        Assert.Equal(1066m, result.GrandTotal); Assert.Equal(3, result.Collections.Count);
-        Assert.Equal(3, result.Collections.Select(x => x.ReferenceCode).Distinct().Count());
+        Assert.Equal(1330m, result.GrandTotal); Assert.Equal(6, result.Collections.Count);
+        Assert.Equal(6, result.Collections.Select(x => x.ReferenceCode).Distinct().Count());
+        Assert.Equal(220m, result.Collections.Where(x => x.Instrument == RevenueInstrumentType.CashTicket).Sum(x => x.Amount));
         Assert.Equal(0m, (await whole.QuoteAsync(w.StallId, Today.Year, Today.Month)).Value!.Amount);
         Assert.Empty(await db.ObligationPeriods.ToListAsync());
         var replay = (await workflow.RecordAsync(new(intent, "already recorded"))).Value!;
         Assert.Equal(result.Collections.Select(x => x.CollectionId), replay.Collections.Select(x => x.CollectionId));
-        Assert.Equal(3, await db.Collections.CountAsync());
+        Assert.Equal(6, await db.Collections.CountAsync());
+        Assert.Contains((await workflow.RecordAsync(new(intent with { Items = intent.Items.Skip(1).ToArray() }, "old"))).Value!.Problems,
+            x => x.Code == "SessionIntentConflict");
         var income = new GetOfficialMonthlyIncomeQueryHandler(db, new LegacyMonthlyIncomeReader(db), new Caller(Guid.NewGuid(), w.TenantId, "Admin"), new Tenant(w.TenantId), new Clock());
         var before = (await income.Handle(new(Today.Year, Today.Month), default)).Value!;
         var rows = before.Groups.SelectMany(x => x.Rows).ToArray();
         Assert.Equal(900m, rows.Single(x => x.Key == "RENT_NPM").Total.Total);
         Assert.Equal(100m, rows.Single(x => x.ClassificationCode == RevenueClassificationCodes.FishMeatVendorFee).Total.Total);
         Assert.Equal(66m, rows.Single(x => x.ClassificationCode == RevenueClassificationCodes.WeightAndMeasure).Total.Total);
+        Assert.Equal(20m, rows.Single(x => x.ClassificationCode == RevenueClassificationCodes.Wcf).Total.Total);
+        Assert.Equal(44m, rows.Single(x => x.ClassificationCode == RevenueClassificationCodes.Ecf).Total.Total);
+        Assert.Equal(200m, rows.Single(x => x.ClassificationCode == RevenueClassificationCodes.LandingBerthing).Total.Total);
         var register = (await new CollectionsReportWorkflow(db, new Caller(w.CollectorId, w.TenantId), new Tenant(w.TenantId)).GetMyRegisterAsync(Today, Today)).Value!;
-        Assert.Equal(1066m, register.Net); Assert.Equal(3, register.Rows.Count);
-        Assert.Equal(3, (await new CollectionActivityReader(db).GetAsync(w.TenantId, Today, Today)).Count);
+        Assert.Equal(1330m, register.Net); Assert.Equal(6, register.Rows.Count);
+        Assert.Equal(6, (await new CollectionActivityReader(db).GetAsync(w.TenantId, Today, Today)).Count);
         var report = await new CollectorReportQueries(db).GetCollectionsAsync(w.CollectorId, Today, Today);
-        Assert.Equal(1066m, report.Lines.Sum(x => x.Amount) + (report.OperationCollections?.Sum(x => x.Amount) ?? 0));
+        Assert.Equal(1330m, report.Lines.Sum(x => x.Amount) + (report.OperationCollections?.Sum(x => x.Amount) ?? 0));
         var remittance = new RemittanceWorkflow(db, new Caller(Guid.NewGuid(), w.TenantId, "Admin"), new Tenant(w.TenantId));
-        Assert.Equal(3, (await remittance.GetScopeAsync(w.CollectorId, Today, Today, null)).Value!.Collections.Count);
-        Assert.True((await remittance.RecordAsync(new(Guid.NewGuid(), w.CollectorId, Today, Today, Today, null, result.Collections.Select(x => x.CollectionId).ToArray(), 1066m, null, null))).IsSuccess);
-        Assert.Equal(before.GrandTotal.Total, (await income.Handle(new(Today.Year, Today.Month), default)).Value!.GrandTotal.Total);
+        Assert.Equal(6, (await remittance.GetScopeAsync(w.CollectorId, Today, Today, null)).Value!.Collections.Count);
+        var remitted = await remittance.RecordAsync(new(Guid.NewGuid(), w.CollectorId, Today, Today, Today, null,
+            result.Collections.Select(x => x.CollectionId).ToArray(), 1330m, null, null));
+        Assert.True(remitted.IsSuccess);
+        var countBeforeVoid = await db.Collections.CountAsync();
+        Assert.True((await remittance.VoidAsync(remitted.Value!.Row.Id, new("Test correction"))).IsSuccess);
+        Assert.Equal(6, (await remittance.GetScopeAsync(w.CollectorId, Today, Today, null)).Value!.Collections.Count);
+        Assert.Equal(countBeforeVoid, await db.Collections.CountAsync());
+        Assert.Equal(result.Collections.Select(x => x.ReferenceCode).OrderBy(x => x), (await db.Collections.Select(x => x.ReferenceCode).ToListAsync()).OrderBy(x => x));
+        Assert.Equal(JsonSerializer.Serialize(before.Groups), JsonSerializer.Serialize((await income.Handle(new(Today.Year, Today.Month), default)).Value!.Groups));
     }
 
     [SkippableFact]
@@ -529,8 +560,110 @@ public sealed class CollectionSessionTests(PostgresFixture database)
         Assert.Empty(discovery.ObligationSources!);
         Assert.Equal(w.PayorId, Assert.Single(discovery.VendorFeeSources!).PayorId);
         Assert.Contains(discovery.Operations, x => x.OperationCode == "NPM_WHOLE_PAYMENT" && !x.Supported);
+        Assert.Contains(discovery.Operations, x => x.Kind == CollectionSessionItemKind.Weighing && !x.CanAdd && x.ReasonCode == "SourceNotAvailable");
         Assert.Equal(0, await db.ObligationPeriods.CountAsync()); Assert.Equal(0, await db.Collections.CountAsync());
     }
+    [SkippableFact]
+    public async Task Typed_choices_cover_supported_sources_and_settled_Npm_is_no_longer_selectable()
+    {
+        var w = await SeedAsync(); await using var db = database.CreateContext(w.TenantId);
+        await EnableRentAndWeighing(db, w);
+        db.AddRange(CollectorOperationAssignment.Assign(w.TenantId, w.CollectorId, CollectorOperationCodes.Wcf, "head"),
+            CollectorOperationActivation.Activate(w.TenantId, CollectorOperationCodes.Wcf, Today, Guid.NewGuid(), "head", DateTime.UtcNow));
+        foreach (var (code, classificationCode, basis, instrument) in new[]
+        {
+            (CollectorOperationCodes.Transportation, RevenueClassificationCodes.TransportationParking, GovernedServiceBasis.VehicleClassRate, RevenueInstrumentType.CashTicket),
+            (CollectorOperationCodes.TransferLargeCattle, RevenueClassificationCodes.TransferLargeCattle, GovernedServiceBasis.ApprovedFeeOption, RevenueInstrumentType.OfficialReceipt),
+            (CollectorOperationCodes.VegetableFruitSpaceRental, RevenueClassificationCodes.VegetableFruitSpaceRental, GovernedServiceBasis.DirectApprovedAmount, RevenueInstrumentType.OfficialReceipt)
+        })
+        {
+            var classification = RevenueClassification.Create(classificationCode, w.TenantId);
+            var service = GovernedService.Create(w.TenantId, code, "head");
+            db.AddRange(classification, service, CollectorOperationAssignment.Assign(w.TenantId, w.CollectorId, code, "head"),
+                GovernedServiceSetting.Create(w.TenantId, service.Id, Today, basis, null, null, true, true, "head"));
+            if (code == CollectorOperationCodes.VegetableFruitSpaceRental)
+                db.AddRange(RevenueClassificationPolicy.Create(classification.Id, Today, "Whole", instrument, w.TenantId, businessContext: RevenuePolicyContext.VegetableWholePayment),
+                    RevenueClassificationPolicy.Create(classification.Id, Today, "Daily", RevenueInstrumentType.CashTicket, w.TenantId, businessContext: RevenuePolicyContext.VegetableDailyTransaction));
+            else db.Add(RevenueClassificationPolicy.Create(classification.Id, Today, code, instrument, w.TenantId));
+            if (code == CollectorOperationCodes.TransferLargeCattle)
+                foreach (var amount in new[] { 100m, 200m })
+                {
+                    // Deliberately same labels: identity must come from the option ID, never text.
+                    var option = GovernedServiceFeeOption.Create(w.TenantId, service.Id, "Approved transfer", null, null, null, "head");
+                    db.AddRange(option, GovernedServiceFeeOptionRate.Create(w.TenantId, option.Id, Today, GovernedServiceBasis.FixedAmount, amount, null, "head"));
+                }
+        }
+        var jeepney = VehicleClass.Create(w.TenantId, "JEEPNEY", "Jeepney", "head");
+        var bus = VehicleClass.Create(w.TenantId, "BUS", "Bus", "head");
+        db.AddRange(jeepney, bus, VehicleClassRate.Create(w.TenantId, jeepney.Id, Today, 20m, "head"),
+            VehicleClassRate.Create(w.TenantId, bus.Id, Today, 40m, "head"));
+        var market = await db.GovernedServices.SingleAsync(x => x.OperationCode == CollectorOperationCodes.MarketFees);
+        var fee = GovernedServiceFeeOption.Create(w.TenantId, market.Id, "Configured fee", null, "Terminal", null, "head");
+        db.AddRange(GovernedServiceSetting.Create(w.TenantId, market.Id, Today, GovernedServiceBasis.ApprovedFeeOption, null, null, true, true, "head"),
+            fee, GovernedServiceFeeOptionRate.Create(w.TenantId, fee.Id, Today, GovernedServiceBasis.DirectApprovedAmount, null, 50m, "head"));
+        var slh = Facility.Create(FacilityCode.SLH, "Slaughterhouse", "SLH", municipalityId: w.TenantId);
+        var slaughterClass = RevenueClassification.Create(RevenueClassificationCodes.Slaughterhouse, w.TenantId);
+        var slaughterService = GovernedService.Create(w.TenantId, CollectorOperationCodes.Slaughterhouse, "head");
+        db.AddRange(slh, slaughterClass, slaughterService, CollectorFacilityAssignment.Create(w.CollectorId, slh.Id, FacilityCode.SLH),
+            GovernedServiceSetting.Create(w.TenantId, slaughterService.Id, Today, GovernedServiceBasis.DirectApprovedAmount, null, null, true, true, "head"),
+            RevenueClassificationPolicy.Create(slaughterClass.Id, Today, "Slaughter", RevenueInstrumentType.OfficialReceipt, w.TenantId),
+            FacilityRate.Create(FacilityCode.SLH, FeeRateKey.SlhHogPerHead, 120m, Today, w.TenantId));
+        await db.SaveChangesAsync();
+        var sources = new CollectionSessionSources(db, new Caller(w.CollectorId, w.TenantId), new Tenant(w.TenantId), new Clock(),
+            new DiscoverySender(db, w), new NoMarketDays(), Whole(db, w));
+        var flow = Workflow(db, w, sources);
+        var discovery = (await flow.DiscoverAsync(w.PayorId)).Value!;
+        var available = discovery.Operations.Where(x => x.CanAdd).ToArray();
+        Assert.Equal(11, available.Length);
+        Assert.All(available, x => Assert.NotEmpty(x.Choices!));
+        var water = Assert.Single(available, x => x.Kind == CollectionSessionItemKind.Water);
+        Assert.True(water.CanAutoSelect); Assert.Equal(CollectionSessionAmountRule.DirectAmount, Assert.Single(water.Choices!).AmountRule);
+        Assert.Null(water.Choices![0].ServerAmount);
+        var electricity = Assert.Single(available, x => x.Kind == CollectionSessionItemKind.Electricity);
+        Assert.True(electricity.CanAutoSelect); Assert.Equal(w.StallId, Assert.Single(electricity.Choices!).Identity.StallId);
+        var weighing = Assert.Single(available, x => x.Kind == CollectionSessionItemKind.Weighing);
+        Assert.NotNull(Assert.Single(weighing.Choices!).RateId);
+        var transfer = Assert.Single(available, x => x.OperationCode == CollectorOperationCodes.TransferLargeCattle);
+        Assert.Equal(2, transfer.EligibleChoiceCount); Assert.False(transfer.CanAutoSelect);
+        Assert.Equal(2, transfer.Choices!.Select(x => x.Identity.FeeOptionId).Distinct().Count());
+        var transportation = Assert.Single(available, x => x.OperationCode == CollectorOperationCodes.Transportation);
+        Assert.Equal(new[] { 20m, 40m }, transportation.Choices!.Select(x => x.ServerAmount!.Value).OrderBy(x => x));
+        var marketChoice = Assert.Single(available.Single(x => x.OperationCode == CollectorOperationCodes.MarketFees).Choices!);
+        Assert.Equal(fee.Id, marketChoice.Identity.FeeOptionId); Assert.True(marketChoice.CanEnterAmount); Assert.Equal(50m, marketChoice.MaximumAmount);
+        Assert.Equal(2, available.Single(x => x.OperationCode == CollectorOperationCodes.VegetableFruitSpaceRental).EligibleChoiceCount);
+        var rent = available.Single(x => x.Kind == CollectionSessionItemKind.NpmWholePayment);
+        Assert.True(rent.CanAutoSelect); Assert.NotNull(Assert.Single(rent.Choices!).Identity.OccupancyId);
+        Assert.Equal(Today.Month, rent.Choices![0].Identity.Month); Assert.Equal(900m, rent.Choices[0].ServerAmount);
+        Assert.All(discovery.Operations.Where(x => !x.Supported), x => Assert.Empty(x.Choices!));
+        Assert.Equal(0, await db.Collections.CountAsync()); Assert.Equal(0, await db.UtilityBills.CountAsync());
+        var anonymous = (await flow.DiscoverAsync(null)).Value!;
+        Assert.True(anonymous.Operations.Single(x => x.OperationCode == CollectorOperationCodes.LandingBerthing).CanAutoSelect);
+        Assert.Empty(anonymous.Operations.Single(x => x.Kind == CollectionSessionItemKind.Water).Choices!);
+        var selectedItems = available.Select(operation =>
+        {
+            var choice = operation.Choices![0]; var identity = choice.Identity;
+            return new CollectionSessionItemIntent(Guid.NewGuid(), choice.Kind,
+                choice.AmountRule is CollectionSessionAmountRule.MonthlyRemaining or CollectionSessionAmountRule.QuantityRate ? 0m : choice.ServerAmount ?? 20m,
+                Water: choice.Kind == CollectionSessionItemKind.Water ? new(identity.StallId!.Value, identity.Year!.Value, identity.Month!.Value, identity.UtilityBillId, identity.SourceVersion) : null,
+                Electricity: choice.Kind == CollectionSessionItemKind.Electricity ? new(identity.UtilityBillId ?? Guid.Empty, identity.SourceVersion, identity.StallId, identity.Year, identity.Month) : null,
+                VendorFee: choice.Kind == CollectionSessionItemKind.VendorFee ? new(identity.StallId!.Value) : null,
+                NpmWhole: choice.Kind == CollectionSessionItemKind.NpmWholePayment ? new(identity.StallId!.Value, identity.Year!.Value, identity.Month!.Value) : null,
+                Weighing: choice.Kind == CollectionSessionItemKind.Weighing ? new(identity.StallId!.Value, identity.WeighingType!.Value, 1m) : null,
+                Slaughter: choice.Kind == CollectionSessionItemKind.Slaughter ? new(identity.Animal!.Value, 1, identity.CustomAnimalName) : null,
+                Service: choice.Kind == CollectionSessionItemKind.GovernedService ? new(choice.OperationCode, identity.Mode, identity.FeeOptionId, identity.VehicleClassCode, "Reviewed reference") : null);
+        }).ToArray();
+        var checkout = new CollectionSessionIntent(Guid.NewGuid(), Today, w.PayorId, selectedItems);
+        var approved = (await flow.QuoteAsync(checkout)).Value!;
+        Assert.True(approved.CanRecord, string.Join(";", approved.Problems.Select(x => x.Message)));
+        var posted = await Record(flow, checkout);
+        Assert.Equal(11, posted.Collections.Count); Assert.Equal(11, posted.Collections.Select(x => x.ReferenceCode).Distinct().Count());
+        Assert.Equal(approved.GrandTotal, posted.GrandTotal);
+        Assert.True((await flow.RecordAsync(new(checkout, "unknown response retry"))).Value!.ExistingOutcome);
+        Assert.Equal(11, await db.Collections.CountAsync());
+        var settled = (await flow.DiscoverAsync(w.PayorId)).Value!.Operations.Single(x => x.Kind == CollectionSessionItemKind.NpmWholePayment);
+        Assert.False(settled.CanAdd); Assert.Equal("NoEligibleSource", settled.ReasonCode); Assert.Empty(settled.Choices!);
+    }
+
     private sealed class DiscoverySender(AppDbContext db, World w) : ISender
     {
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken ct = default)
@@ -538,7 +671,11 @@ public sealed class CollectionSessionTests(PostgresFixture database)
             object response = request switch
             {
                 GetCollectorMobileMenuQuery => Result<MobileMenuDto>.Success(new(w.CollectorId, "Collector", "C-1", Today,
-                    [new(FacilityCode.NPM, "Market", "Market", true, true)])),
+                    [new(FacilityCode.NPM, "Market", "Market", true, true),
+                     new(FacilityCode.SLH, "Slaughterhouse", "Slaughterhouse", true,
+                         await db.CollectorFacilityAssignments.AnyAsync(x => x.CollectorId == w.CollectorId && x.FacilityCode == FacilityCode.SLH, ct),
+                         CanonicalCollection: await new GovernedCanonicalAuthority(db, new Tenant(w.TenantId))
+                             .IsCanonicalForCollectorAsync(CollectorOperationCodes.Slaughterhouse, Today, ct))])),
                 GetCollectorOperationCapabilitiesQuery => await new GetCollectorOperationCapabilitiesQueryHandler(db,
                     new Caller(w.CollectorId, w.TenantId), new Tenant(w.TenantId), new Clock()).Handle(new(), ct),
                 _ => throw new NotSupportedException()
