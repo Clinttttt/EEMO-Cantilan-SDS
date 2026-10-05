@@ -1,161 +1,129 @@
-.shi {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
+/* Space-holder bulk import. The same structure and tokens as the stallholder import: a hero with its three steps, an upload card,
+   a review bar, an editable register and a footer bar. Scoped here; nothing is shared by copy. */
 
-.shi-paste textarea {
-    min-height: 88px;
-    font: inherit;
-    resize: vertical;
-}
+.shi { display: flex; flex-direction: column; gap: 16px; }
 
-.shi-actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px;
-}
+/* ── Hero + steps ── */
+.shi-hero { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px 24px; padding: 22px 26px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: var(--elevation-1); }
+.shi-hero-left { display: flex; align-items: center; gap: 18px; min-width: 260px; }
+.shi-hero-icon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 54px; height: 54px; border-radius: 12px; background: var(--accent-soft); }
+.shi-hero-icon svg { width: 26px; height: 26px; stroke: var(--accent); }
+.shi-eyebrow { margin-bottom: 4px; color: var(--accent); font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; }
+.shi-title { margin: 0; color: var(--navy); font-size: 21px; font-weight: 700; line-height: 1.2; }
+.shi-sub { margin-top: 4px; max-width: 460px; color: var(--text-secondary); font-size: 13px; }
 
-.shi-message {
-    color: var(--text-secondary);
-    font-size: 0.8125rem;
-}
-
-.shi-summary {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.shi-count,
-.shi-chip {
-    display: inline-flex;
-    align-items: center;
-    padding: 3px 10px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    white-space: nowrap;
-}
-
-.shi-ready {
-    border-color: #b7dcc4;
-    background: #eef8f1;
-    color: #1d6b3c;
-}
-
-.shi-needs {
-    border-color: #ecd9a8;
-    background: #fbf5e4;
-    color: #7a5a14;
-}
-
-.shi-invalid {
-    border-color: #e2bcbc;
-    background: #fff5f5;
-    color: #842626;
-}
-
-.shi-table {
-    max-height: 52vh;
-}
-
-.shi-cell {
-    min-width: 96px;
-    padding: 5px 8px;
-    min-height: 32px;
-    font-size: 0.8125rem;
-}
-
-.shi-num {
-    min-width: 88px;
-    text-align: right;
-}
-
-.shi-payor {
-    min-width: 220px;
-}
-
-.shi-payor-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-
-.shi-candidate {
-    display: block;
-    margin-top: 6px;
-    padding: 4px 8px;
-    border: 1px solid var(--border-strong);
-    border-radius: 6px;
-    background: var(--surface);
-    color: var(--navy);
-    font: inherit;
-    font-size: 0.8125rem;
-    font-weight: 600;
-    text-align: left;
-    cursor: pointer;
-}
-
-    .shi-candidate:hover {
-        border-color: var(--accent);
-        background: var(--accent-soft);
-        color: var(--accent);
-    }
-
-.shi-link {
-    margin-left: 8px;
-    padding: 0;
-    border: 0;
-    background: none;
-    color: var(--accent);
-    font: inherit;
-    font-size: 0.8125rem;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.shi-muted {
-    display: block;
-    margin-top: 4px;
-    color: var(--text-tertiary);
-    font-size: 0.75rem;
-}
-
-.shi-import .shi-muted {
-    display: inline;
-    margin: 0;
-}
-
-/* Compact cells so all seven columns, status included, fit the drawer without a sideways scroll. */
-.shi .v3-table th,
-.shi .v3-table td {
-    padding: 8px 10px;
-}
-
-.shi-cell {
-    width: 100%;
-    min-width: 64px;
-}
-
-.shi-payor {
-    min-width: 180px;
-}
-
-.shi .v3-table td:last-child {
-    min-width: 104px;
-}
-
-/* Staged flow: Paste list > Review & edit > Import, mirroring the stallholder import. */
-.shi-steps { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 0 0 4px; padding: 0 0 12px; border-bottom: 1px solid var(--border); list-style: none; }
-.shi-step { display: inline-flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: .8125rem; font-weight: 600; }
-.shi-step-no { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border: 1px solid var(--border); border-radius: 50%; background: #ffffff; font-size: .75rem; font-variant-numeric: tabular-nums; }
+.shi-steps { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.shi-step { display: inline-flex; align-items: center; gap: 8px; color: var(--text-subtle); font-size: 12.5px; font-weight: 600; }
+.shi-step-no { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--bg-icon); color: var(--text-secondary); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .shi-step.is-current { color: var(--navy); }
-.shi-step.is-current .shi-step-no { border-color: var(--civic-panel); background: var(--civic-panel); color: #ffffff; }
-.shi-step.is-done .shi-step-no { border-color: var(--civic-panel); color: var(--civic-panel); }
-.shi-rows-total { font-weight: 700; color: var(--navy); font-variant-numeric: tabular-nums; }
-.shi-import { position: sticky; bottom: 0; z-index: 1; padding: 12px 0; border-top: 1px solid var(--border); background: #ffffff; }
-.shi-import-go { margin-left: auto; }
-.shi-table table { min-width: 960px; }
+.shi-step.is-current .shi-step-no { background: var(--accent); color: var(--surface); }
+.shi-step.is-done .shi-step-no { background: var(--accent-soft); color: var(--accent); }
+.shi-step-line { width: 26px; height: 1px; background: var(--border-strong); }
+
+/* ── Upload card ── */
+.shi-card { padding: 22px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-card); box-shadow: 0 1px 2px rgba(13, 33, 55, .04); }
+.shi-drop { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 40px 20px; border: 2px dashed var(--border); border-radius: 12px; text-align: center; cursor: pointer; transition: border-color .15s ease, background .15s ease; }
+.shi-drop:hover, .shi-drop:focus-within { border-color: var(--accent); background: var(--bg); }
+/* The native file input lives in a child component: ::deep reaches it, and the whole dropzone stays the clickable target. */
+.shi-drop ::deep input[type="file"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 0; color: transparent; }
+.shi-drop-icon { display: flex; align-items: center; justify-content: center; width: 52px; height: 52px; margin-bottom: 4px; border-radius: 14px; background: var(--bg-icon); color: var(--navy); }
+.shi-drop-icon svg { width: 24px; height: 24px; }
+.shi-drop-title { color: var(--navy); font-size: 15px; font-weight: 700; }
+.shi-drop-sub { color: var(--text-muted); font-size: 12.5px; }
+.shi-drop-err { margin-top: 6px; color: var(--red); font-size: 12.5px; }
+
+.shi-foot { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+.shi-link { padding: 0; border: 0; background: none; color: var(--navy); font: inherit; font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; }
+.shi-link:hover { color: var(--accent); }
+.shi-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.shi-foot-sep { color: var(--text-subtle); }
+.shi-paste { display: flex; flex-direction: column; gap: 12px; margin-top: 18px; }
+.shi-paste textarea { width: 100%; }
+
+.shi-cols { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+.shi-cols-label { margin-bottom: 10px; color: var(--text-muted); font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.shi-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.shi-chip { padding: 4px 11px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg); color: var(--text); font-size: 11.5px; font-weight: 600; }
+.shi-cols-note { margin-top: 12px; color: var(--text-muted); font-size: 12.5px; line-height: 1.5; }
+
+/* ── Review bar + summary ── */
+.shi-review-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 14px 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card); }
+.shi-review-left { display: flex; align-items: center; gap: 14px; }
+.shi-review-count { padding: 8px 14px; border-radius: 10px; background: var(--bg-icon); color: var(--navy); font-size: 26px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.shi-review-title { color: var(--navy); font-size: 14px; font-weight: 700; }
+.shi-review-sub { margin-top: 2px; color: var(--text-muted); font-size: 12px; }
+.shi-review-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+
+.shi-summary { display: flex; flex-wrap: wrap; gap: 8px; }
+.shi-count { padding: 3px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-muted); color: var(--text-secondary); font-size: .75rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.shi-count.shi-ready { border-color: color-mix(in srgb, var(--green) 35%, var(--border)); background: var(--green-bg); color: var(--green); }
+.shi-count.shi-invalid { border-color: color-mix(in srgb, var(--red) 30%, var(--border)); background: var(--red-bg); color: var(--red); }
+
+/* ── Editable register ── */
+.shi-table-wrap { max-height: 60vh; overflow: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card); }
+.shi-table { width: 100%; min-width: 1180px; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+.shi-table thead th { position: sticky; top: 0; z-index: 1; padding: 10px; border-bottom: 1px solid var(--border); background: var(--bg); color: var(--text-subtle); font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-align: left; text-transform: uppercase; white-space: nowrap; }
+.shi-table tbody td { padding: 6px 8px; border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent); vertical-align: middle; }
+.shi-table tbody tr:last-child td { border-bottom: 0; }
+.shi-th-num, .shi-td-num { width: 44px; color: var(--text-muted); font-weight: 700; text-align: center !important; }
+.shi-th-act, .shi-td-act { width: 48px; text-align: center !important; }
+.shi-th-amount, .shi-td-amount { text-align: right !important; }
+
+.shi-cell { width: 100%; box-sizing: border-box; min-width: 96px; padding: 7px 9px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--text); font: inherit; font-size: 13px; transition: border-color .12s ease, background .12s ease; }
+.shi-cell-wide { min-width: 170px; }
+.shi-cell:hover { background: var(--bg); }
+.shi-cell:focus { outline: none; border-color: var(--accent); background: var(--bg-card); box-shadow: 0 0 0 3px rgba(29, 76, 134, .14); }
+.shi-num { text-align: right; font-variant-numeric: tabular-nums; }
+.shi-select { min-width: 170px; cursor: pointer; }
+/* A contract reference on a space let without a contract: shown settled, not typeable. */
+.shi-cell-locked { color: var(--text-muted); cursor: default; }
+.shi-cell-locked:hover { background: transparent; }
+
+.shi-payor { min-width: 220px; }
+.shi-payor-name { margin-right: 8px; color: var(--navy); font-weight: 600; }
+.shi-payor-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.shi-candidate { display: block; margin-top: 6px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--navy); font: inherit; font-size: 12px; font-weight: 600; text-align: left; cursor: pointer; }
+.shi-candidate:hover { border-color: var(--accent); }
+.shi-muted { display: block; margin-top: 4px; color: var(--text-muted); font-size: 12px; line-height: 1.4; }
+.shi-td-status { min-width: 150px; }
+.shi-chip-status { display: inline-flex; align-items: center; padding: 2px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-muted); color: var(--text-secondary); font-size: .75rem; font-weight: 600; white-space: nowrap; }
+.shi-chip-status.shi-ready { border-color: color-mix(in srgb, var(--green) 35%, var(--border)); background: var(--green-bg); color: var(--green); }
+.shi-chip-status.shi-invalid { border-color: color-mix(in srgb, var(--red) 30%, var(--border)); background: var(--red-bg); color: var(--red); }
+
+.shi-row-del { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 1px solid transparent; border-radius: 8px; background: none; color: var(--text-muted); font-size: 18px; line-height: 1; cursor: pointer; }
+.shi-row-del:hover:not(:disabled) { background: var(--red-bg); color: var(--red); }
+.shi-row-del:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ── Footer bar: stays in reach while the register scrolls ── */
+.shi-foot-bar { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; justify-content: flex-end; gap: 16px; padding: 14px 0; border-top: 1px solid var(--border); background: var(--surface-muted); }
+.shi-foot-note { margin: 0 !important; }
+.shi-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.shi-message { color: var(--text-secondary); font-size: .8125rem; }
+.shi-message-block { margin: 0; }
+
+/* ── Buttons ── */
+.shi-btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; border: 1px solid transparent; border-radius: 9px; font: inherit; font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer; transition: background .14s ease, color .14s ease; }
+.shi-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.shi-btn:disabled { opacity: .5; cursor: not-allowed; }
+.shi-btn-sm { padding: 5px 10px; border-color: var(--border); background: var(--bg-card); color: var(--navy); font-size: 12px; }
+.shi-btn-sm:hover:not(:disabled) { background: var(--bg-icon); }
+.shi-btn-primary { background: var(--accent); color: #fff; }
+.shi-btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+.shi-btn-outline { border-color: var(--border); background: var(--bg-card); color: var(--navy); }
+.shi-btn-outline:hover:not(:disabled) { background: var(--bg-icon); }
+.shi-btn-ghost { border-color: var(--border); background: var(--bg); color: var(--text); }
+.shi-btn-ghost:hover:not(:disabled) { background: var(--bg-icon); }
+
+/* ── Result ── */
+.shi-state { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 40px 20px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-card); text-align: center; }
+.shi-state-ok { border-color: color-mix(in srgb, var(--green) 30%, var(--border)); }
+.shi-state-title { color: var(--navy); font-size: 17px; font-weight: 800; }
+.shi-state-text { max-width: 460px; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
+.shi-result-list { width: 100%; max-width: 640px; max-height: 220px; margin: 0; padding: 10px 14px 10px 30px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font-size: 12.5px; text-align: left; }
+.shi-state-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 6px; }
+
+@media (max-width: 760px) {
+    .shi-hero { padding: 18px; }
+    .shi-title { font-size: 18px; }
+    .shi-steps { width: 100%; }
+}

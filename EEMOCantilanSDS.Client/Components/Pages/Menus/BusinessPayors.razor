@@ -11,8 +11,11 @@
 @* A Business Payor is the stable identity a collection is found by. An occupancy that exists only as occupant text has none, so the
    office links one here, explicitly. Names are never matched automatically. The layout owns the <main> landmark. *@
 <div class="v3-page bp-page">
-    <V3Hero Eyebrow="Spaces &amp; Occupants" Title="Business Payors" Subtitle="Link each occupancy to the person or organization that pays for it." Compact="true">
-        <Actions><a class="v3-btn" href="/vendors">Back to occupancy registry</a></Actions>
+    <V3Hero Eyebrow="Spaces &amp; Occupants" Title="Business Payors" Subtitle="Who pays for each space" Compact="true">
+        <Figures>
+            <V3HeroFigure Label="Showing" Value="@_rows.Count.ToString("N0")" Note="@(Filters.First(x => x.Item1 == _filter).Item2)" />
+        </Figures>
+        <Actions><a class="v3-btn" href="/vendors">Occupancy registry</a></Actions>
     </V3Hero>
 
     @if (!string.IsNullOrWhiteSpace(_message))
@@ -53,6 +56,7 @@
                         <th scope="col">Space</th>
                         <th scope="col">Recorded occupant</th>
                         <th scope="col">Business Payor</th>
+                        <th scope="col">Status</th>
                         <th scope="col"><span class="v3-sr-only">Action</span></th>
                     </tr>
                 </thead>
@@ -62,9 +66,10 @@
                         <tr>
                             <td><span class="v3-strong">@row.FacilityShortName · @row.StallNo</span></td>
                             <td>@row.ActualOccupant</td>
+                            <td>@(row.PayorId is null ? "—" : row.PayorName)</td>
                             <td>
-                                @if (row.PayorId is null) { <span class="v3-state">Needs Payor</span> }
-                                else { <span>@row.PayorName</span> }
+                                @if (row.PayorId is null) { <span class="bp-badge bp-needs">Needs Payor</span> }
+                                else { <span class="bp-badge bp-linked">Linked</span> }
                             </td>
                             <td class="bp-action">
                                 @if (row.PayorId is null)
@@ -77,7 +82,7 @@
                     }
                     @if (_rows.Count == 0)
                     {
-                        <tr><td class="v3-empty" colspan="4">@(_loading ? "Loading occupancies…" : _filter == PayorLinkFilter.NeedsPayor ? "Every occupancy has a Business Payor." : "No occupancies found.")</td></tr>
+                        <tr><td class="v3-empty" colspan="5">@(_loading ? "Loading occupancies…" : _filter == PayorLinkFilter.NeedsPayor ? "Every occupancy has a Business Payor." : "No occupancies found.")</td></tr>
                     }
                 </tbody>
             </table>

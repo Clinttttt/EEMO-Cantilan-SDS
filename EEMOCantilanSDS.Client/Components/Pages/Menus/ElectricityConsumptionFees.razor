@@ -14,9 +14,16 @@
 
 @* The layout owns the <main> landmark; this page is a region inside it. *@
 <div class="v3-page ecf-page">
-    <WorkspaceHeader Parent="Operations" Title="Electricity Consumption Fees" Code="ECF">
-        <Meta><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
-        <Actions>
+    <V3Hero Eyebrow="Operations · ECF" Title="Electricity Consumption Fees" Compact="true">
+        <Meta><span class="ecf-hero-meta">@BillingPeriodLabel · <InstrumentChip Instrument="OR" /> Official Receipt</span></Meta>
+        <Figures>
+            <V3HeroFigure Label="Assessed" Value="@Money(TotalBilled)" />
+            <V3HeroFigure Label="Settled" Value="@Money(TotalSettled)" />
+            <V3HeroFigure Label="Outstanding" Value="@Money(TotalOutstanding)" />
+        </Figures>
+    </V3Hero>
+
+    <div class="ecf-toolbar no-print">
             <div class="v3-btn-group" role="group" aria-label="ECF actions">
                 <button class="v3-btn" type="button" @onclick="ReloadAsync" disabled="@_busy">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7" /><polyline points="20 4 20 11 13 11" /></svg>
@@ -35,8 +42,7 @@
                     Report
                 </a>
             </div>
-        </Actions>
-    </WorkspaceHeader>
+    </div>
 
     @if (!string.IsNullOrWhiteSpace(_message))
     {
@@ -46,8 +52,6 @@
     {
         <p class="v3-notice v3-notice-error" role="alert">@_error</p>
     }
-
-    <SummaryStrip Label="ECF position" Items="SummaryItems" />
 
     <div class="ecf-layout">
         <section class="v3-panel" aria-labelledby="ecf-obligations-title">
@@ -129,7 +133,7 @@
                         @if (!FilteredQuotes.Any())
                         {
                             <tr>
-                                <td class="v3-empty" colspan="6">
+                                <td class="v3-empty" colspan="5">
                                     @if (_busy && _quotes.Count == 0)
                                     {
                                         <span role="status">Loading obligations…</span>
@@ -318,14 +322,6 @@
                 && x.SourceId == quote.UtilityBillId && x.SourcePart == CollectionSourcePart.Electricity)
             .Sum(x => x.Amount) ?? 0m);
 
-    // The same three server-supplied totals the page has always shown, now in the V3 summary strip.
-    private IReadOnlyList<SummaryStrip.SummaryItem> SummaryItems =>
-    [
-        new("Billing period", BillingPeriodLabel),
-        new("Assessed", Money(TotalBilled)),
-        new("Settled", Money(TotalSettled)),
-        new("Outstanding", Money(TotalOutstanding), Emphasis: true),
-    ];
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 

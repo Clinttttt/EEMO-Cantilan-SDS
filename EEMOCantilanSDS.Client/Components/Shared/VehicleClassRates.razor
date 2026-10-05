@@ -7,10 +7,15 @@
 
 @* The vehicle classes Transportation / Parking is collected by, and each class's approved rate (IA-030, IA-050). The Head
    defines them; Head and Admin read them. A rate applies from its effective date and is never retroactive, and a class
-   with no rate in force is not offered to a collector. *@
+   with no rate in force is not offered to a collector. Adding a class and changing a rate share one side drawer. *@
 <section class="v3-panel" aria-labelledby="@_titleId" aria-busy="@(_loading ? "true" : "false")">
     <header class="v3-panel-header">
         <h2 id="@_titleId">Vehicle classes and rates</h2>
+        <AuthorizeView Roles="SuperAdmin">
+            <Authorized>
+                <button class="v3-btn v3-btn-primary v3-btn-sm" type="button" @onclick="OpenAdd">+ Add class</button>
+            </Authorized>
+        </AuthorizeView>
     </header>
 
     @if (!string.IsNullOrWhiteSpace(_error))
@@ -23,9 +28,9 @@
             <caption class="v3-sr-only">Vehicle classes with the approved rate in force today</caption>
             <thead>
                 <tr>
-                    <th scope="col">Class</th>
+                    <th scope="col">Vehicle class</th>
                     <th scope="col" class="v3-num">Approved rate</th>
-                    <th scope="col">Since</th>
+                    <th scope="col">Effective since</th>
                     <th scope="col">Status</th>
                     <th scope="col"><span class="v3-sr-only">Actions</span></th>
                 </tr>
@@ -34,11 +39,11 @@
                 @foreach (var vehicle in _classes)
                 {
                     <tr>
-                        <td class="v3-strong">@vehicle.DisplayName<span class="v3-block">@vehicle.Code</span></td>
+                        <td class="v3-strong">@vehicle.DisplayName<span class="v3-block vcr-code">@vehicle.Code</span></td>
                         <td class="v3-num">@(vehicle.CurrentAmount is { } amount ? $"₱{amount:N2}" : "No rate in force")</td>
                         <td>@(vehicle.CurrentEffectiveDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) ?? "—")</td>
-                        <td>@(vehicle.IsActive ? "Active" : "Retired")</td>
-                        <td>
+                        <td><span class="vcr-badge @(vehicle.IsActive ? "vcr-active" : "")">@(vehicle.IsActive ? "Active" : "Retired")</span></td>
+                        <td class="vcr-actions-cell">
                             <AuthorizeView Roles="SuperAdmin">
                                 <Authorized>
                                     <button class="v3-btn v3-btn-sm" type="button" @onclick="() => Edit(vehicle)">Change rate</button>
@@ -55,34 +60,43 @@
             </tbody>
         </table>
     </div>
-
-    <AuthorizeView Roles="SuperAdmin">
-        <Authorized>
-            <form class="vcr-form" @onsubmit="SaveAsync" @onsubmit:preventDefault="true" aria-label="Define a vehicle class rate">
-                <label class="v3-field"><span>Code</span>
-                    <input class="v3-input" type="text" maxlength="40" required placeholder="e.g. JEEPNEY" @bind="_code" readonly="@_editing" /></label>
-                <label class="v3-field"><span>Display name</span>
-                    <input class="v3-input" type="text" maxlength="80" required @bind="_name" /></label>
-                <label class="v3-field"><span>Effective from</span>
-                    <input class="v3-input" type="date" required @bind="_effective" /></label>
-                <label class="v3-field"><span>Approved rate (₱)</span>
-                    <input class="v3-input" type="number" min="0.01" step="0.01" required @bind="_amount" /></label>
-                @if (!string.IsNullOrWhiteSpace(_formError))
-                {
-                    <p class="v3-notice v3-notice-error" role="alert">@_formError</p>
-                }
-                <p class="vcr-note">A new rate applies from its effective date. Collections already posted keep the rate they were charged, and earlier trips are never re-priced or given a class.</p>
-                <div class="vcr-actions">
-                    @if (_editing)
-                    {
-                        <button class="v3-btn" type="button" @onclick="Reset">Cancel</button>
-                    }
-                    <button class="v3-btn v3-btn-primary" type="submit" disabled="@_saving">@(_editing ? "Save new rate" : "Add class")</button>
-                </div>
-            </form>
-        </Authorized>
-    </AuthorizeView>
 </section>
+
+<AuthorizeView Roles="SuperAdmin">
+    <Authorized>
+        <SideDrawer Show="_open" Title="@(_editing ? "Change rate" : "Add class")" Subtitle="@(_editing ? _name : "A vehicle class and its approved rate")" OnClose="Reset">
+            <ChildContent>
+                <form id="vcr-form" class="vcr-form" @onsubmit="SaveAsync" @onsubmit:preventDefault="true" aria-label="Define a vehicle class rate">
+                    <section class="vcr-section" aria-labelledby="vcr-s-class">
+                        <h3 id="vcr-s-class" class="vcr-section-title">Vehicle class</h3>
+                        <label class="v3-field"><span>Code</span>
+                            <input class="v3-input" type="text" maxlength="40" required placeholder="e.g. JEEPNEY" @bind="_code" readonly="@_editing" /></label>
+                        <label class="v3-field"><span>Display name</span>
+                            <input class="v3-input" type="text" maxlength="80" required @bind="_name" /></label>
+                    </section>
+                    <section class="vcr-section" aria-labelledby="vcr-s-rate">
+                        <h3 id="vcr-s-rate" class="vcr-section-title">Approved rate</h3>
+                        <div class="vcr-pair">
+                            <label class="v3-field"><span>Effective from</span>
+                                <input class="v3-input" type="date" required @bind="_effective" /></label>
+                            <label class="v3-field"><span>Rate (₱)</span>
+                                <input class="v3-input" type="number" min="0.01" step="0.01" required @bind="_amount" /></label>
+                        </div>
+                        <p class="vcr-note">Applies from its effective date. Posted collections keep their rate.</p>
+                    </section>
+                    @if (!string.IsNullOrWhiteSpace(_formError))
+                    {
+                        <p class="v3-notice v3-notice-error" role="alert">@_formError</p>
+                    }
+                </form>
+            </ChildContent>
+            <Footer>
+                <button class="v3-btn" type="button" @onclick="Reset">Cancel</button>
+                <button class="v3-btn v3-btn-primary" type="submit" form="vcr-form" disabled="@_saving">@(_editing ? "Save new rate" : "Add class")</button>
+            </Footer>
+        </SideDrawer>
+    </Authorized>
+</AuthorizeView>
 
 @code {
     private readonly string _titleId = $"vcr-{Guid.NewGuid():N}";
@@ -90,6 +104,7 @@
     private bool _loading = true;
     private bool _saving;
     private bool _editing;
+    private bool _open;
     private string? _error;
     private string? _formError;
     private string _code = string.Empty;
@@ -113,9 +128,12 @@
         finally { _loading = false; }
     }
 
+    private void OpenAdd() { Reset(); _open = true; }
+
     private void Edit(VehicleClassDto vehicle)
     {
         _editing = true;
+        _open = true;
         _formError = null;
         _code = vehicle.Code;
         _name = vehicle.DisplayName;
@@ -126,6 +144,7 @@
     private void Reset()
     {
         _editing = false;
+        _open = false;
         _formError = null;
         _code = _name = string.Empty;
         _amount = null;

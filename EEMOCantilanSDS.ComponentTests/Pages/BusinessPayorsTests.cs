@@ -82,6 +82,9 @@ public sealed class BusinessPayorsTests : TestContext
             Assert.Null(sent);                                                // a candidate is only a candidate
         }, Timeout);
         cut.Find("[aria-label='Business Payors found'] button").Click();
+        Assert.Null(sent);                                                    // choosing a candidate only highlights it
+        Assert.Equal("true", cut.Find("[aria-label='Business Payors found'] button").GetAttribute("aria-selected"));
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Link Payor" && b.ClassList.Contains("v3-btn-primary")).Click();
 
         cut.WaitForAssertion(() =>
         {

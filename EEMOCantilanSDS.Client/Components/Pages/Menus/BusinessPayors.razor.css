@@ -21,6 +21,15 @@
         max-width: 360px;
     }
 
+.bp-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px; font-size: .75rem; font-weight: 600; white-space: nowrap; }
+.bp-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.bp-needs { color: var(--navy); background: var(--surface-muted); }
+.bp-linked { color: var(--civic-panel); border-color: #b8cde3; background: #eaf1f9; }
+
+@media (max-width: 720px) {
+    .bp-toolbar .v3-search { max-width: none; flex-basis: 100%; }
+}
+
 .bp-action {
     text-align: right;
     white-space: nowrap;

@@ -1,6 +1,10 @@
 /* ECF workspace — V3. Panels, tables, buttons, fields and notices come from the shared v3- layer in app.css;
    this file holds only the ECF-specific layout. */
 
+/* Period and instrument sit on the hero's subtitle line; the actions are one quiet group on the right beneath it. */
+.ecf-hero-meta { display: inline-flex; align-items: center; gap: 10px; }
+.ecf-toolbar { display: flex; justify-content: flex-end; margin-bottom: -4px; }
+
 /* Both columns share one height, so the Current collection panel lines up with the Obligations register. */
 .ecf-layout {
     display: grid;

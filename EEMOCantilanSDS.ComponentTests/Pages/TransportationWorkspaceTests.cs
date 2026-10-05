@@ -99,6 +99,9 @@ public sealed class TransportationWorkspaceTests : TestContext
             .ReturnsAsync(Result<VehicleClassDto>.Success(Jeepney()));
 
         var cut = RenderComponent<VehicleClassRatesHost>();
+        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add class"), Timeout);
+        Assert.Empty(cut.FindAll("form"));                                        // the form is not left under the table
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add class").Click();
         cut.WaitForAssertion(() => cut.Find("form[aria-label='Define a vehicle class rate']"), Timeout);
         var form = "form[aria-label='Define a vehicle class rate']";
         cut.FindAll($"{form} input[type='text']")[0].Change("jeepney");

@@ -181,3 +181,5 @@
     gap: 8px 12px;
     margin: 0 0 12px;
 }
+
+.gsw-period .v3-input { min-height: 36px; padding-block: 4px; }

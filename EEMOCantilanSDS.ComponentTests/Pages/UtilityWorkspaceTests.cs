@@ -41,7 +41,7 @@ public sealed class UtilityWorkspaceTests : TestContext
             Assert.Empty(cut.FindAll("main"));
             var title = Assert.Single(cut.FindAll("h1")).TextContent;
             Assert.Contains("Electricity Consumption Fees", title);
-            Assert.Contains("ECF", title);
+            Assert.Contains("ECF", cut.Find("header").TextContent);
             Assert.Contains("Official Receipt", cut.Find("header").TextContent);
             Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/operations/ecf/accounts");
             Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/operations/ecf/report");
@@ -74,7 +74,7 @@ public sealed class UtilityWorkspaceTests : TestContext
         {
             var row = Assert.Single(cut.FindAll("tbody tr"), r => r.TextContent.Contains("Juan Dela Cruz"));
             Assert.Contains("Add to collection", Assert.Single(row.QuerySelectorAll("button")).TextContent);
-            Assert.Contains("₱80.00", cut.Find("dl[aria-label='ECF position']").TextContent);
+            Assert.Contains("₱80.00", cut.Find("dl.v3h-figures").TextContent);
         }, Timeout);
     }
 
