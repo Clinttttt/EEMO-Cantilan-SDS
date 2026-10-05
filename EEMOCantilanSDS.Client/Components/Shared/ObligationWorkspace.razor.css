@@ -57,11 +57,6 @@
 }
 .obw-status { display: inline-flex; padding: 3px 8px; border: 1px solid var(--border); border-radius: 20px; font-size: 11px; color: var(--text-secondary); }
 
-.obw-collect {
-    display: flex;
-    justify-content: flex-end;
-    padding: 10px 16px 14px;
-}
 
 /* Toolbar links: the same size and rhythm as the shared Toolbar's own actions, so this row matches TCC. */
 .obw-actions-bar {

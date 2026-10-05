@@ -82,10 +82,6 @@
                             <td class="obw-actions">
                                 <button class="v3-btn v3-btn-sm" type="button" aria-expanded="@(_selected == account.Id ? "true" : "false")"
                                         @onclick="() => ToggleRegisterAsync(account.Id)">Periods</button>
-                                @if (!ReadOnlyHistory && account.ActiveTo is null && account.OutstandingToDate > 0m)
-                                {
-                                    <a class="v3-btn v3-btn-sm" href="@CollectHref(account)">Collect</a>
-                                }
                                 <AuthorizeView Roles="SuperAdmin">
                                     <Authorized>
                                         @if (!ReadOnlyHistory && account.Kind != ObligationKind.FiestaArawLotRental && account.ActiveTo is null)
@@ -158,10 +154,6 @@
                 }
             </table>
         </div>
-        @if (_accounts.Count > 0 && !ReadOnlyHistory)
-        {
-            <div class="obw-collect"><a class="v3-btn v3-btn-sm" href="/collections/current">Record a collection</a></div>
-        }
     </section>
 
 </div>
@@ -336,8 +328,6 @@
     private ObligationWorkspaceDto? _workspace;
     private string _search = string.Empty, _filter = "All";
     private bool _holders;
-    private static string CollectHref(ObligationAccountDto account) =>
-        $"/collections/current?payor={account.PayorId}&name={Uri.EscapeDataString(account.PayerName ?? string.Empty)}";
     private static readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
     private double CollectionRate => _workspace is { Assessed: > 0m } w ? (double)Math.Min(100m, Math.Round(w.Collected / w.Assessed * 100m, 0)) : 0;
     private RenderFragment ActionBarContent => @<div class="obw-actions-bar">

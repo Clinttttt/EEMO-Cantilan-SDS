@@ -89,7 +89,7 @@ public sealed class ObligationWorkspaceTests : TestContext
             Assert.Contains("₱1,200.00", row.TextContent);
             Assert.Contains("₱400.00", row.TextContent);
             Assert.Contains("₱800.00", row.TextContent);
-            Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/collections/current");
+            Assert.DoesNotContain(cut.FindAll("a"), a => a.GetAttribute("href")?.StartsWith("/collections/current") == true);
         }, Timeout);
     }
 
