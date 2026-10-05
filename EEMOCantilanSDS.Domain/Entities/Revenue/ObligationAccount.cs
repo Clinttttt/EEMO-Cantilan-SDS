@@ -30,6 +30,9 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
 
     public DateOnly ActiveFrom { get; private set; }
     public DateOnly? ActiveTo { get; private set; }
+    /// <summary>Optional documented space occupancy basis; null preserves older unspecified evidence.</summary>
+    public OccupancyArrangement? Arrangement { get; private set; }
+    public string? ContractReference { get; private set; }
     public DateTime CreatedAtUtc { get; private set; }
     public string CreatedBy { get; private set; } = string.Empty;
 
@@ -89,6 +92,22 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
         if (activeTo < ActiveFrom)
             throw new ArgumentException("An account cannot end before it begins.", nameof(activeTo));
         ActiveTo = activeTo;
+    }
+
+    public void SetOccupancyBasis(OccupancyArrangement? arrangement, string? contractReference)
+    {
+        var reference = string.IsNullOrWhiteSpace(contractReference) ? null : contractReference.Trim();
+        if (arrangement is null && reference is null) return;
+        if (Kind != ObligationKind.KanmanggaySpaceRental)
+            throw new ArgumentException("Occupancy basis is only supported for Kanmanggay spaces.");
+        if (arrangement is not (OccupancyArrangement.SignedContract or OccupancyArrangement.SpaceOnly))
+            throw new ArgumentException("Choose signed contract or space only.");
+        if (reference?.Length > 200)
+            throw new ArgumentException("A contract reference must not exceed 200 characters.");
+        if (arrangement == OccupancyArrangement.SpaceOnly && reference is not null)
+            throw new ArgumentException("Space-only occupancy has no contract reference.");
+        Arrangement = arrangement;
+        ContractReference = reference;
     }
 
     /// <summary>

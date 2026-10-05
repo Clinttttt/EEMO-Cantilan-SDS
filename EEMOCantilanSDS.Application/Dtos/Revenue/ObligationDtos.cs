@@ -35,7 +35,9 @@ public sealed record ObligationAccountDto(
     DateOnly? CurrentAmountEffectiveFrom,
     decimal AssessedToDate,
     decimal CollectedToDate,
-    decimal OutstandingToDate);
+    decimal OutstandingToDate,
+    OccupancyArrangement? Arrangement = null,
+    string? ContractReference = null);
 
 public sealed record CreateObligationAccountRequest(
     ObligationKind Kind,
@@ -45,7 +47,9 @@ public sealed record CreateObligationAccountRequest(
     LotRentalEvent? Event,
     DateOnly? EventDate,
     DateOnly ActiveFrom,
-    decimal Amount);
+    decimal Amount,
+    OccupancyArrangement? Arrangement = null,
+    string? ContractReference = null);
 
 public sealed record SetObligationRateRequest(DateOnly EffectiveFrom, decimal Amount);
 
@@ -56,7 +60,12 @@ public sealed record ObligationWorkspaceDto(IReadOnlyList<ObligationAccountDto> 
 
 public sealed record ImportSpaceHolderRow(CreateObligationAccountRequest Account, DateOnly? ClosedOn = null);
 public sealed record ImportSpaceHoldersRequest(IReadOnlyList<ImportSpaceHolderRow> Rows);
-public sealed record ImportSpaceHoldersResult(int Imported, int Skipped, IReadOnlyList<string> NeedsReview);
+public enum SpaceHolderImportStatus { Ready = 1, NeedsPayor = 2, Invalid = 3 }
+public sealed record SpaceHolderImportRowResult(int RowNumber, SpaceHolderImportStatus Status, string? Code,
+    string? Message, Guid? AccountId = null);
+public sealed record SpaceHolderImportPreview(IReadOnlyList<SpaceHolderImportRowResult> Rows, bool CanSave);
+public sealed record ImportSpaceHoldersResult(int Imported, int Skipped, IReadOnlyList<string> NeedsReview,
+    IReadOnlyList<SpaceHolderImportRowResult>? Rows = null);
 
 public sealed record AddObligationDraftAllocationRequest(
     Guid AccountId,

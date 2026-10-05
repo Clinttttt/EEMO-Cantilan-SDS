@@ -29,6 +29,11 @@ public sealed class ObligationsController(ISender sender, ObligationWorkflow wor
     [Authorize(Roles = "SuperAdmin")]
     public async Task<ActionResult<ImportSpaceHoldersResult>> ImportAsync(ImportSpaceHoldersRequest request, CancellationToken ct) =>
         HandleResponse(await workflow.ImportSpaceHoldersAsync(request, ct));
+
+    [HttpPost("import/preview")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<SpaceHolderImportPreview>> PreviewImportAsync(ImportSpaceHoldersRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.PreviewSpaceHoldersAsync(request, ct));
     [HttpGet("accounts")]
     public async Task<ActionResult<IReadOnlyList<ObligationAccountDto>>> AccountsAsync(
         [FromQuery] ObligationKind kind, CancellationToken ct) =>
