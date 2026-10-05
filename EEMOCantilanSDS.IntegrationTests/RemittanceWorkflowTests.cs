@@ -359,6 +359,54 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task VoidingARemittance_ReleasesOnlyItsCoverage_CollectedStaysAndNoCollectionOrSrcChanges()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync();
+        await PostThreeAsync(w);
+        await using var ctx = db.CreateContext(w.Tenant.Id);
+        var remit = Remit(ctx, w);
+        var recorded = (await remit.RecordAsync(Request(w, 110m))).Value!;
+        var references = await ctx.Collections.AsNoTracking().OrderBy(x => x.ReferenceCode).Select(x => x.ReferenceCode).ToListAsync();
+
+        var recordedPosition = (await remit.GetPositionAsync(Today.AddDays(-1), Today)).Value!;
+        Assert.Equal((110m, 110m, 0m), (recordedPosition.Collected, recordedPosition.Remitted, recordedPosition.Unremitted));
+
+        var voided = await remit.VoidAsync(recorded.Row.Id, new VoidRemittanceRequest("Wrong collector counted"));
+        Assert.True(voided.IsSuccess, voided.Error);
+        Assert.Equal(RemittanceStatus.Voided, voided.Value!.Row.Status);
+        Assert.Equal("Wrong collector counted", voided.Value.VoidReason);
+        Assert.False(string.IsNullOrWhiteSpace(voided.Value.VoidedBy));
+        Assert.NotNull(voided.Value.VoidedAtUtc);
+        Assert.Equal(3, voided.Value.Collections.Count);                                   // the covered collections stay on the record
+
+        // Collected is unchanged; what was remitted becomes unremitted again.
+        var afterPosition = (await remit.GetPositionAsync(Today.AddDays(-1), Today)).Value!;
+        Assert.Equal((110m, 0m, 110m), (afterPosition.Collected, afterPosition.Remitted, afterPosition.Unremitted));
+
+        // Nothing financial moved: the same Collections, SRCs and amounts; no new Collection or correction.
+        Assert.Equal(references, await ctx.Collections.AsNoTracking().OrderBy(x => x.ReferenceCode).Select(x => x.ReferenceCode).ToListAsync());
+        Assert.Equal(110m, await ctx.CollectionLines.SumAsync(x => x.Amount));
+        Assert.Equal(0, await ctx.CollectionCorrections.CountAsync());
+        Assert.Equal(1, await ctx.CollectionRemittances.CountAsync());                      // history stays
+        Assert.Equal(3, await ctx.CollectionRemittanceCoverages.CountAsync());
+        Assert.Equal(0, await ctx.CollectionRemittanceCoverages.CountAsync(x => x.IsActive));
+
+        // A second void is refused with no mutation; the voided record still lists as history.
+        var again = await remit.VoidAsync(recorded.Row.Id, new VoidRemittanceRequest("again"));
+        Assert.False(again.IsSuccess);
+        Assert.Equal(ResultStatus.Conflict, again.Status);
+        var history = (await remit.GetHistoryAsync(Today.AddDays(-1), Today, null, null, RemittanceStatus.Voided)).Value!;
+        Assert.Equal(recorded.Row.Id, Assert.Single(history).PrimaryRemittanceId);
+
+        // The returned collections can be remitted again.
+        var scope = (await remit.GetScopeAsync(w.Collector.Id, Today.AddDays(-1), Today, null)).Value!;
+        Assert.Equal(3, scope.Collections.Count);
+        Assert.True((await remit.RecordAsync(Request(w, 110m))).IsSuccess);
+    }
+
+    [SkippableFact]
     public async Task ATenantCanNeitherSeeNorRemitAnotherTenantsCollections_AndOnlyOfficeStaffRecord()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);

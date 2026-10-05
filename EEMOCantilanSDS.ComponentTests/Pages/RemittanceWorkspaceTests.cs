@@ -408,14 +408,10 @@ public sealed class RemittanceWorkspaceTests : TestContext
     }
 
     [Fact]
-    public void Detail_ShowsTheDifferenceAndCoverage_AndAVoidNeedsAReason()
+    public void Detail_ShowsTheDifferenceAndCoverage_AndVoidingIsASeparateReview()
     {
         var detail = Detail(80m, 70m);
         _api.Setup(x => x.GetDetailAsync(detail.Row.Id)).ReturnsAsync(Result<RemittanceDetailDto>.Success(detail));
-        VoidRemittanceRequest? sent = null;
-        _api.Setup(x => x.VoidAsync(detail.Row.Id, It.IsAny<VoidRemittanceRequest>()))
-            .Callback<Guid, VoidRemittanceRequest>((_, r) => sent = r)
-            .ReturnsAsync(Result<RemittanceDetailDto>.Success(detail with { Row = detail.Row with { Status = RemittanceStatus.Voided }, VoidReason = "Counted short" }));
 
         var cut = RenderComponent<RemittanceDetail>(p => p.Add(x => x.Id, detail.Row.Id));
 
@@ -427,18 +423,104 @@ public sealed class RemittanceWorkspaceTests : TestContext
             Assert.Contains("Collected", cut.Find("dl[aria-label='Remittance']").TextContent);
             Assert.Contains("₱30.00", cut.Find("[aria-label='Collection breakdown']").TextContent);
             Assert.Equal(2, cut.FindAll("[aria-label='Collections covered'] tbody tr").Count);
-            Assert.True(cut.Find("form[aria-label='Void remittance'] button").HasAttribute("disabled"));
+            // The void is its own review page: no giant inline form here.
+            Assert.Empty(cut.FindAll("form[aria-label='Void remittance']"));
+            Assert.Equal($"/remittances/{detail.Row.Id}/void", cut.FindAll("a").Single(a => a.TextContent.Trim() == "Void remittance").GetAttribute("href"));
         }, Timeout);
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Print summary").Click();
         Assert.Contains(JSInterop.Invocations, i => i.Identifier == "print");
+    }
 
-        cut.Find("form[aria-label='Void remittance'] input").Change("Counted short");
+    [Fact]
+    public void AVoidedRemittance_ShowsVoided_AndOffersNoVoidAction()
+    {
+        var detail = Detail(80m, 80m);
+        detail = detail with { Row = detail.Row with { Status = RemittanceStatus.Voided }, VoidReason = "Counted short", VoidedBy = "head" };
+        _api.Setup(x => x.GetDetailAsync(detail.Row.Id)).ReturnsAsync(Result<RemittanceDetailDto>.Success(detail));
+
+        var cut = RenderComponent<RemittanceDetail>(p => p.Add(x => x.Id, detail.Row.Id));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Voided", cut.Find("header.rd-header").TextContent);
+            Assert.Contains("Counted short", cut.Find("[aria-label='Remittance details']").TextContent);
+            Assert.DoesNotContain(cut.FindAll("a"), a => a.TextContent.Trim() == "Void remittance");
+        }, Timeout);
+    }
+
+    [Fact]
+    public void TheVoidReview_NeedsAReason_StatesTheConsequence_AndVoidsOnlyThatRemittance()
+    {
+        var detail = Detail(80m, 70m);
+        _api.Setup(x => x.GetDetailAsync(detail.Row.Id)).ReturnsAsync(Result<RemittanceDetailDto>.Success(detail));
+        VoidRemittanceRequest? sent = null;
+        _api.Setup(x => x.VoidAsync(detail.Row.Id, It.IsAny<VoidRemittanceRequest>()))
+            .Callback<Guid, VoidRemittanceRequest>((_, r) => sent = r)
+            .ReturnsAsync(Result<RemittanceDetailDto>.Success(detail with { Row = detail.Row with { Status = RemittanceStatus.Voided } }));
+
+        var cut = RenderComponent<RemittanceVoidReview>(p => p.Add(x => x.Id, detail.Row.Id));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("Void Remittance", Assert.Single(cut.FindAll("h1")).TextContent.Trim());
+            Assert.Contains("This will return the covered collections to Unremitted.", cut.Markup);
+            Assert.True(cut.Find("form[aria-label='Void remittance'] button[type='submit']").HasAttribute("disabled"));
+        }, Timeout);
+        cut.Find("form[aria-label='Void remittance'] input").Input("Counted short");
         cut.Find("form[aria-label='Void remittance']").Submit();
+
         cut.WaitForAssertion(() =>
         {
             Assert.Equal("Counted short", sent!.Reason);
+            Assert.EndsWith($"/remittances/{detail.Row.Id}", Services.GetRequiredService<NavigationManager>().Uri);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void AnAlreadyVoidedRemittance_CannotBeReviewedForVoidingAgain()
+    {
+        var detail = Detail(80m, 80m);
+        detail = detail with { Row = detail.Row with { Status = RemittanceStatus.Voided } };
+        _api.Setup(x => x.GetDetailAsync(detail.Row.Id)).ReturnsAsync(Result<RemittanceDetailDto>.Success(detail));
+
+        var cut = RenderComponent<RemittanceVoidReview>(p => p.Add(x => x.Id, detail.Row.Id));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("already voided", cut.Markup);
             Assert.Empty(cut.FindAll("form[aria-label='Void remittance']"));
-            Assert.Contains("Voided", cut.Find("header.rd-header").TextContent);
+        }, Timeout);
+        _api.Verify(x => x.VoidAsync(It.IsAny<Guid>(), It.IsAny<VoidRemittanceRequest>()), Times.Never);
+    }
+
+    [Fact]
+    public void TheVoidList_OffersReviewForRecordedRemittances_AndViewForVoidedOnes_AndTheOverviewHasNoHistoryStatusFilter()
+    {
+        var recorded = Detail(80m, 80m).Row;
+        var voided = recorded with { Id = Guid.NewGuid(), Status = RemittanceStatus.Voided };
+        _api.Setup(x => x.GetRegisterAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<Guid?>(),
+                It.IsAny<RevenueInstrumentType?>(), RemittanceStatus.Recorded))
+            .ReturnsAsync(Result<IReadOnlyList<RemittanceRowDto>>.Success(new[] { recorded }));
+        _api.Setup(x => x.GetRegisterAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<Guid?>(),
+                It.IsAny<RevenueInstrumentType?>(), RemittanceStatus.Voided))
+            .ReturnsAsync(Result<IReadOnlyList<RemittanceRowDto>>.Success(new[] { voided }));
+
+        var list = RenderComponent<RemittanceVoid>();
+        list.WaitForAssertion(() =>
+        {
+            Assert.Equal($"/remittances/{recorded.Id}/void", Assert.Single(list.FindAll("tbody a")).GetAttribute("href"));
+            Assert.DoesNotContain("SRC-", list.Markup);                                   // SRC is not a primary column here
+        }, Timeout);
+        list.FindAll("button").Single(b => b.TextContent.Trim() == "Voided").Click();
+        list.WaitForAssertion(() =>
+            Assert.Equal($"/remittances/{voided.Id}", Assert.Single(list.FindAll("tbody a")).GetAttribute("href")), Timeout);
+
+        ServePosition(Position());
+        var overview = RenderComponent<Remittances>();
+        overview.WaitForAssertion(() =>
+        {
+            Assert.Equal("/remittances/void", overview.FindAll("a").Single(a => a.TextContent.Trim() == "Void Remittance").GetAttribute("href"));
+            Assert.DoesNotContain("History status", overview.Markup);
         }, Timeout);
     }
 

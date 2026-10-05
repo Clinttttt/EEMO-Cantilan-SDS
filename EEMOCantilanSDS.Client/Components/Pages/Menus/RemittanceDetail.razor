@@ -22,6 +22,10 @@
             <p>@Subtitle</p></div>
         <div class="rm-header-actions">
             <a class="v3-btn" href="/remittances">Back to remittances</a>
+            @if (_detail?.Row.Status == RemittanceStatus.Recorded)
+            {
+                <a class="v3-btn" href="@($"/remittances/{Id}/void")">Void remittance</a>
+            }
             <button class="v3-btn v3-btn-primary" type="button" @onclick="PrintAsync">Print summary</button>
         </div>
     </header>
@@ -107,18 +111,6 @@
                 </table>
             </div>
         </section>
-
-        @if (d.Row.Status == RemittanceStatus.Recorded)
-        {
-            <section class="v3-panel" aria-labelledby="rd-void-title">
-                <header class="v3-panel-header"><h2 id="rd-void-title">Void this remittance</h2></header>
-                <form class="rm-form" aria-label="Void remittance" @onsubmit="VoidAsync" @onsubmit:preventDefault="true">
-                    <label class="v3-field"><span>Reason</span><input required maxlength="300" @bind="_reason" /></label>
-                    @if (!string.IsNullOrWhiteSpace(_voidError)) { <p class="v3-notice v3-notice-error" role="alert">@_voidError</p> }
-                    <div class="rm-actions"><button class="v3-btn" type="submit" disabled="@(_saving || string.IsNullOrWhiteSpace(_reason))">Void remittance</button></div>
-                </form>
-            </section>
-        }
     }
 </div>
 
@@ -132,9 +124,6 @@
 
     private RemittanceDetailDto? _detail;
     private string? _error;
-    private string? _voidError;
-    private string _reason = string.Empty;
-    private bool _saving;
 
     private string? Subtitle => _detail is null ? null
         : $"{_detail.Row.CollectorName} · {_detail.Row.RemittanceDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}";
@@ -163,22 +152,6 @@
 
     private static string SourceLabel(RemittanceCollectionDto collection) => collection.Lines.Count == 0 ? "—"
         : string.Join(" · ", collection.Lines.Select(l => EEMOCantilanSDS.Client.Services.SourceNames.For(l.Name)));
-
-    private async Task VoidAsync()
-    {
-        if (_saving || string.IsNullOrWhiteSpace(_reason)) return;
-        _saving = true;
-        _voidError = null;
-        try
-        {
-            var result = await Api.VoidAsync(Id, new VoidRemittanceRequest(_reason.Trim()));
-            if (!result.IsSuccess) { _voidError = result.Error ?? "The remittance could not be voided."; return; }
-            _detail = result.Value;
-            _reason = string.Empty;
-        }
-        catch (Exception ex) { _voidError = ex.Message; }
-        finally { _saving = false; }
-    }
 
     private IReadOnlyList<SummaryStrip.SummaryItem> Summary(RemittanceDetailDto d) =>
     [

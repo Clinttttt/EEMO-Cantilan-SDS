@@ -1,0 +1,68 @@
+.rv-page {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.rvr-facts {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px 32px;
+    padding: 16px 20px;
+}
+
+    .rvr-facts > div {
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: flex-start;
+        gap: 2px;
+    }
+
+    .rvr-facts dd {
+        text-align: left;
+    }
+
+.rvr-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px 20px 20px;
+}
+
+.rvr-consequence {
+    margin: 0;
+    color: var(--text);
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.rvr-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* Destructive styling appears only here, on the one action that voids. */
+.rvr-danger {
+    border-color: var(--red);
+    background: var(--red);
+    color: #ffffff;
+}
+
+    .rvr-danger:hover:not(:disabled) {
+        border-color: var(--red);
+        background: var(--red);
+        filter: brightness(0.92);
+        color: #ffffff;
+    }
+
+    .rvr-danger:disabled {
+        border-color: var(--border);
+        background: var(--surface-muted);
+        color: var(--text-disabled);
+    }
+
+@media print {
+    .rv-page {
+        display: none;
+    }
+}

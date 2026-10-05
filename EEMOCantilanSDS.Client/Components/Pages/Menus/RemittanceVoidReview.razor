@@ -1,0 +1,122 @@
+@page "/remittances/{Id:guid}/void"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@using EEMOCantilanSDS.Domain.Enums
+@inject IRemittancesApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>StallTrack — Void Remittance</PageTitle>
+
+@* The last look before a remittance is voided. The consequence is stated once; the reason is required. Voiding releases the covered
+   collections to Unremitted: nothing is deleted and no collection, SRC or income changes. The layout owns the <main> landmark. *@
+<div class="v3-page rv-page">
+    <V3Hero Title="Void Remittance" Subtitle="@Subtitle" Compact="true">
+        <Actions><a class="v3-btn" href="@($"/remittances/{Id}")">Back to remittance</a></Actions>
+    </V3Hero>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <p class="v3-notice v3-notice-error" role="alert">@_error</p>
+    }
+    @if (_detail is null && _error is null)
+    {
+        <p role="status">Loading remittance…</p>
+    }
+    @if (_detail is { } d)
+    {
+        <section class="v3-panel" aria-labelledby="rvr-facts-title">
+            <header class="v3-panel-header">
+                <h2 id="rvr-facts-title">Remittance</h2>
+                <span class="v3-panel-meta">@(d.Row.Status == RemittanceStatus.Voided ? "Voided" : "Recorded")</span>
+            </header>
+            <dl class="v3-facts rvr-facts" aria-label="Remittance details">
+                <div><dt>Collector</dt><dd>@d.Row.CollectorName</dd></div>
+                <div><dt>Coverage period</dt><dd>@PeriodLabel(d)</dd></div>
+                <div><dt>Collections</dt><dd>@d.Row.CollectionCount</dd></div>
+                <div><dt>Amount remitted</dt><dd>@Money(d.Row.RemittedAmount)</dd></div>
+            </dl>
+            <div class="v3-table-wrap" role="region" aria-label="Collection breakdown" tabindex="0">
+                <table class="v3-table">
+                    <tbody>
+                        @foreach (var line in d.Breakdown)
+                        {
+                            <tr><td>@EEMOCantilanSDS.Client.Services.SourceNames.For(line.Name)</td><td class="v3-num">@Money(line.Amount)</td></tr>
+                        }
+                    </tbody>
+                    <tfoot><tr><td><strong>Total collected</strong></td><td class="v3-num v3-strong">@Money(d.Row.ExpectedAmount)</td></tr></tfoot>
+                </table>
+            </div>
+        </section>
+
+        @if (d.Row.Status == RemittanceStatus.Voided)
+        {
+            <p class="v3-notice" role="status">This remittance is already voided. <a href="@($"/remittances/{Id}")">View it</a></p>
+        }
+        else
+        {
+            <section class="v3-panel" aria-labelledby="rvr-void-title">
+                <header class="v3-panel-header"><h2 id="rvr-void-title">Void</h2></header>
+                <form class="rvr-form" aria-label="Void remittance" @onsubmit="VoidAsync" @onsubmit:preventDefault="true">
+                    <p class="rvr-consequence">This will return the covered collections to Unremitted.</p>
+                    <label class="v3-field"><span>Reason</span><input required maxlength="300" @bind="_reason" @bind:event="oninput" /></label>
+                    @if (!string.IsNullOrWhiteSpace(_voidError)) { <p class="v3-notice v3-notice-error" role="alert">@_voidError</p> }
+                    <div class="rvr-actions">
+                        <a class="v3-btn" href="@($"/remittances/{Id}")">Cancel</a>
+                        <button class="v3-btn rvr-danger" type="submit" disabled="@(_saving || string.IsNullOrWhiteSpace(_reason))">Void Remittance</button>
+                    </div>
+                </form>
+            </section>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private RemittanceDetailDto? _detail;
+    private string? _error;
+    private string? _voidError;
+    private string _reason = string.Empty;
+    private bool _saving;
+
+    private string? Subtitle => _detail is null ? "Review the remittance before voiding."
+        : $"{_detail.Row.CollectorName} · {_detail.Row.RemittanceDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _error = null;
+        try
+        {
+            var result = await Api.GetDetailAsync(Id);
+            if (result.IsSuccess) _detail = result.Value;
+            else _error = result.Status == EEMOCantilanSDS.Application.Common.ResultStatus.NotFound
+                ? "This remittance was not found." : "The remittance could not be loaded.";
+        }
+        catch { _error = "The remittance could not be loaded."; }
+    }
+
+    private async Task VoidAsync()
+    {
+        if (_saving || string.IsNullOrWhiteSpace(_reason)) return;
+        _saving = true;
+        _voidError = null;
+        try
+        {
+            var result = await Api.VoidAsync(Id, new VoidRemittanceRequest(_reason.Trim()));
+            if (!result.IsSuccess) { _voidError = result.Error ?? "The remittance could not be voided."; return; }
+            Navigation.NavigateTo($"/remittances/{Id}");
+        }
+        catch (Exception ex) { _voidError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private static string PeriodLabel(RemittanceDetailDto d) =>
+        $"{d.PeriodFrom.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)} – {d.PeriodTo.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}";
+
+    private static string Money(decimal amount) => $"₱{amount:N2}";
+}

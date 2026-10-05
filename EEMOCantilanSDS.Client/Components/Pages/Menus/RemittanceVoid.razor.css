@@ -1,0 +1,33 @@
+.rv-page {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.rv-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+}
+
+.rv-action {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.rv-muted {
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+}
+
+@media print {
+    .rv-page {
+        display: none;
+    }
+}

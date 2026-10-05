@@ -1,0 +1,143 @@
+@page "/remittances/void"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@inject IRemittancesApiClient Api
+@inject ICollectorsApiClient CollectorsApi
+
+<PageTitle>StallTrack — Void Remittance</PageTitle>
+
+@* A remittance is never deleted. Voiding one releases the collections it covered back to Unremitted; the collections, their SRCs
+   and Monthly Income are untouched, and the voided record stays in history. This page only lists; the void itself is a separate
+   review. The layout owns the <main> landmark. *@
+<div class="v3-page rv-page">
+    <V3Hero Title="Void Remittance" Subtitle="Review recorded remittances before voiding." Compact="true">
+        <Actions><a class="v3-btn" href="/remittances">Back to remittances</a></Actions>
+    </V3Hero>
+
+    <form class="rv-filters" aria-label="Filters" @onsubmit="LoadAsync" @onsubmit:preventDefault="true">
+        <label class="v3-field"><span>From</span><input type="date" @bind="_from" /></label>
+        <label class="v3-field"><span>To</span><input type="date" @bind="_to" /></label>
+        <label class="v3-field">
+            <span>Collector</span>
+            <select @bind="_collector">
+                <option value="">All collectors</option>
+                @foreach (var collector in _collectors)
+                {
+                    <option value="@collector.Id">@collector.FullName</option>
+                }
+            </select>
+        </label>
+        <div class="v3-btn-group" role="group" aria-label="Status">
+            <button class="v3-btn @(_voided ? "" : "v3-btn-primary")" type="button" aria-pressed="@(_voided ? "false" : "true")" @onclick="() => ShowAsync(false)">Recorded</button>
+            <button class="v3-btn @(_voided ? "v3-btn-primary" : "")" type="button" aria-pressed="@(_voided ? "true" : "false")" @onclick="() => ShowAsync(true)">Voided</button>
+        </div>
+        <button class="v3-btn" type="submit">Apply</button>
+    </form>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <p class="v3-notice v3-notice-error" role="alert">@_error</p>
+    }
+
+    <section class="v3-panel" aria-labelledby="rv-title" aria-busy="@(_loading ? "true" : "false")">
+        <header class="v3-panel-header">
+            <h2 id="rv-title">@(_voided ? "Voided remittances" : "Recorded remittances")</h2>
+            <span class="v3-panel-meta">@_rows.Count @(_rows.Count == 1 ? "remittance" : "remittances")</span>
+        </header>
+        <div class="v3-table-wrap" role="region" aria-label="@(_voided ? "Voided remittances" : "Recorded remittances")" tabindex="0">
+            <table class="v3-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Date</th>
+                        <th scope="col">Collector</th>
+                        <th scope="col" class="v3-num">Collections</th>
+                        <th scope="col" class="v3-num">Amount</th>
+                        <th scope="col">Status</th>
+                        <th scope="col"><span class="v3-sr-only">Action</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _rows)
+                    {
+                        <tr>
+                            <td>@row.RemittanceDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
+                            <td>
+                                <span class="v3-strong">@row.CollectorName</span>
+                                @if (row.SubmissionId is not null) { <span class="v3-block rv-muted">Group submission</span> }
+                            </td>
+                            <td class="v3-num">@row.CollectionCount</td>
+                            <td class="v3-num">@Money(row.RemittedAmount)</td>
+                            <td><span class="v3-state">@(row.Status == RemittanceStatus.Voided ? "Voided" : "Recorded")</span></td>
+                            <td class="rv-action">
+                                @if (row.Status == RemittanceStatus.Voided)
+                                {
+                                    <a class="v3-btn v3-btn-sm" href="@($"/remittances/{row.Id}")" aria-label="@($"View voided remittance of {row.CollectorName}, {row.RemittanceDate.ToString("MMM d", CultureInfo.InvariantCulture)}")">View</a>
+                                }
+                                else
+                                {
+                                    <a class="v3-btn v3-btn-sm" href="@($"/remittances/{row.Id}/void")" aria-label="@($"Review remittance of {row.CollectorName}, {row.RemittanceDate.ToString("MMM d", CultureInfo.InvariantCulture)} for voiding")">Review</a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @if (_rows.Count == 0)
+                    {
+                        <tr><td class="v3-empty" colspan="6">@(_loading ? "Loading remittances…" : _voided ? "No voided remittances for this period." : "No recorded remittances for this period.")</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+@code {
+    private DateOnly _from = PhilippineTime.Today.AddDays(-60);
+    private DateOnly _to = PhilippineTime.Today;
+    private string _collector = string.Empty;
+    private bool _voided;
+    private bool _loading = true;
+    private string? _error;
+    private List<RemittanceRowDto> _rows = [];
+    private List<CollectorListDto> _collectors = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var collectors = await CollectorsApi.GetAllCollectorsAsync();
+            _collectors = collectors.IsSuccess ? collectors.Value?.ToList() ?? [] : [];
+        }
+        catch { _collectors = []; }
+        await LoadAsync();
+    }
+
+    private async Task ShowAsync(bool voided)
+    {
+        _voided = voided;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var result = await Api.GetRegisterAsync(_from, _to, Guid.TryParse(_collector, out var id) ? id : null, null,
+                _voided ? RemittanceStatus.Voided : RemittanceStatus.Recorded);
+            if (result.IsSuccess) _rows = result.Value?.ToList() ?? [];
+            else { _rows = []; _error = "The remittances couldn't be loaded."; }
+        }
+        catch { _rows = []; _error = "The remittances couldn't be loaded."; }
+        finally { _loading = false; }
+    }
+
+    private static string Money(decimal amount) => $"₱{amount:N2}";
+}
