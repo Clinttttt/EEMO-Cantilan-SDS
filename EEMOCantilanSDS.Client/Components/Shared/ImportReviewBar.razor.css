@@ -13,4 +13,3 @@
 .imp-review-title { font-size: 14px; font-weight: 700; color: var(--navy); }
 .imp-review-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 .imp-review-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-
