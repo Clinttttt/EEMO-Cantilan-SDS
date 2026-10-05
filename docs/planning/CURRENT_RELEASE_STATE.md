@@ -1,18 +1,35 @@
 # StallTrack Current Release State
 
-**Status:** Current implementation checkpoint
-**As of:** 2026-10-04
-**Code basis:** `release/v3-final-closure` through the AF No. 51 accountability commits listed in section 1
-**Production baseline:** `origin/master` at `cdcd3701`
+**Status:** Verified itemized Mobile release
+**As of:** 2026-10-05
+**Code / production basis:** `master` at `db75418b68aa221cc5cd30a3bfa2af9799c2a5c6`
+**Collector APK:** `collector-1.1.12-14` (display version 1.1.12, version code 14)
 
 This is the single current implementation-status entry point. Dated audits, handoffs and historical phase documents remain useful evidence, but they must not be used as the current release state without checking this file, current code/tests and Git history.
 
-**2026-10-05 feature-branch supplement:** `codex/mobile-itemized-collection-backend`, based on `19ae118b`, adds a
-bounded backend/shared-contract checkout and durable queue; see [Mobile itemized collection backend](MOBILE_ITEMIZED_COLLECTION_BACKEND.md).
-It is not merged, deployed or activated in production. The October 4 source-rollout statements below are dated evidence:
-later Phase 2.x code/tests already provide more canonical Mobile writers. This supplement does not reopen legacy OR entry.
+## Current verified release
 
-## 1. Repository / release position
+New Collection is published with server quotes, stable payer/session/item identities, durable retry, and all returned
+Collection/SRC references. V1 preserves one item per Collection; the checkout itself is not revenue. Direct/prepared
+ECF and WCF, additional direct Fish/Meat Vendor Fee (IA-064), weighing, NPM Whole Payment and the other supported
+adapters are documented in [the full-stack handoff](ITEMIZED_COLLECTION_FULL_STACK_FOLLOWUP.md).
+
+- [CI](https://github.com/Clinttttt/EEMO-Cantilan-SDS/actions/runs/37274842496),
+  [fresh backup](https://github.com/Clinttttt/EEMO-Cantilan-SDS/actions/runs/37275262538), and
+  [production deployment](https://github.com/Clinttttt/EEMO-Cantilan-SDS/actions/runs/37274842344) succeeded.
+- API and portal container images both carry the full SHA above. API health and portal login return 200; the deployed
+  scoped CSS has balanced braces. These checks did not create or alter production financial records.
+- [Signed publication](https://github.com/Clinttttt/EEMO-Cantilan-SDS/actions/runs/37295944046) succeeded.
+  The [APK](https://github.com/Clinttttt/EEMO-Cantilan-SDS/releases/tag/collector-1.1.12-14) downloads successfully
+  (46,068,927 bytes). Its inspected Android manifest reports 1.1.12 / 14; the API advertises the same values.
+- APK SHA-256: `f3277e31c897d0ad2305a68fe8560979772b5bc96904f942b4dc1efe49a812fe`.
+- Interactive Windows/narrow-width review is still a separate gate: computer/browser surfaces were unavailable to
+  this session. Component tests and a Windows Release compile passed; they are not visual approval.
+
+The October 4 sections below remain historical evidence. Their unmerged/unpublished status, older source rollout and
+blocked Mobile-by-Payor statements are superseded by this release, current code/tests and IA-062/IA-063/IA-064.
+
+## 1. Historical 2026-10-04 repository / release position
 
 - Local branch: `release/v3-final-closure`.
 - Before this documentation-only commit, the branch was three commits ahead of `origin/master` at this checkpoint:
