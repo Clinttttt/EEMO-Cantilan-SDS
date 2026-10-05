@@ -20,9 +20,14 @@ public sealed record SessionWeighingIntent(Guid StallId, WeighingType Type, deci
 public sealed record SessionSlaughterIntent(AnimalType Animal, int Heads, string? CustomAnimalName = null, string? OwnerName = null);
 public sealed record SessionVendorFeeIntent(Guid StallId);
 public sealed record SessionNpmWholeIntent(Guid StallId, int Year, int Month);
-public sealed record SessionSlaughterOption(AnimalType Animal, string Name, string? CustomAnimalName);
-public sealed record WeighingSourceDto(Guid StallId, string StallNo, Guid? PayorId, string PayerName, string Context);
-public sealed record WeighingRateDto(WeighingType Type, decimal RatePerKilo, DateOnly EffectiveDate);
+public sealed record SessionSlaughterOption(AnimalType Animal, string Name, string? CustomAnimalName,
+    RevenueInstrumentType? Instrument = null);
+public sealed record WeighingSourceDto(Guid StallId, string StallNo, Guid? PayorId, string PayerName, string Context,
+    Guid? OccupancyId = null, MarketSection? Section = null);
+public sealed record WeighingRateDto(WeighingType Type, decimal RatePerKilo, DateOnly EffectiveDate, Guid? RateId = null);
+public sealed record SessionNpmWholeSource(Guid StallId, Guid OccupancyId, Guid PayorId, string StallNo,
+    string PayerName, int Year, int Month, RevenueInstrumentType Instrument, decimal RemainingAmount,
+    decimal? MonthlyObligation, decimal? CollectedAmount, decimal? Credits);
 public sealed record CollectionSessionItemIntent(Guid ClientItemId, CollectionSessionItemKind Kind, decimal ConfirmedAmount,
     SessionWaterIntent? Water = null, SessionGovernedIntent? Service = null,
     SessionObligationIntent? Obligation = null, SessionElectricityIntent? Electricity = null, SessionWeighingIntent? Weighing = null,
@@ -48,7 +53,12 @@ public sealed record CollectionSessionResult(Guid ClientCollectionSessionId, Col
     IReadOnlyList<CollectionSessionProblem> Problems, bool ExistingOutcome = false);
 public sealed record CollectionSessionCapability(CollectionSessionItemKind? Kind, string OperationCode,
     string DisplayName, bool Supported, bool CanAdd, string? ReasonCode, string? Reason,
-    bool RequiresPayor, IReadOnlyList<string> RequiredInputs, bool StandaloneAvailable = false);
+    bool RequiresPayor, IReadOnlyList<string> RequiredInputs, bool StandaloneAvailable = false,
+    IReadOnlyList<CollectionSessionSourceChoice>? Choices = null)
+{
+    public int EligibleChoiceCount => Choices?.Count ?? 0;
+    public bool CanAutoSelect => CanAdd && EligibleChoiceCount == 1;
+}
 public sealed record CollectionSessionDiscovery(Guid? PayorId, DateOnly BusinessDate,
     IReadOnlyList<CollectionSessionCapability> Operations,
     IReadOnlyList<WcfMobileSourceDto>? WaterSources = null,
@@ -57,5 +67,21 @@ public sealed record CollectionSessionDiscovery(Guid? PayorId, DateOnly Business
     IReadOnlyList<CollectionSessionServiceTerms>? ServiceTerms = null,
     IReadOnlyList<WeighingSourceDto>? WeighingSources = null, IReadOnlyList<WeighingRateDto>? WeighingRates = null,
     IReadOnlyList<SessionSlaughterOption>? SlaughterOptions = null, string? PayorDisplayName = null,
-    IReadOnlyList<DirectVendorFeeSource>? VendorFeeSources = null, IReadOnlyList<WeighingSourceDto>? NpmSources = null);
+    IReadOnlyList<DirectVendorFeeSource>? VendorFeeSources = null, IReadOnlyList<WeighingSourceDto>? NpmSources = null,
+    IReadOnlyList<SessionNpmWholeSource>? NpmWholeSources = null);
 public sealed record CollectionSessionServiceTerms(GovernedServiceMode? Mode, GovernedServiceTermsDto Terms);
+
+// Display/selection facts only. A choice is not a reviewed quote and grants no posting authority.
+public enum CollectionSessionAmountRule { DirectAmount = 1, PreparedBalance = 2, FixedAmount = 3, QuantityRate = 4, MonthlyRemaining = 5 }
+public sealed record CollectionSessionChoiceIdentity(Guid? StallId = null, Guid? OccupancyId = null,
+    Guid? UtilityBillId = null, long SourceVersion = 0, int? Year = null, int? Month = null,
+    Guid? FeeOptionId = null, string? VehicleClassCode = null, GovernedServiceMode? Mode = null,
+    WeighingType? WeighingType = null, AnimalType? Animal = null, string? CustomAnimalName = null);
+public sealed record CollectionSessionSourceChoice(string SelectionKey, CollectionSessionItemKind Kind,
+    string OperationCode, string DisplayName, string Context, CollectionSessionChoiceIdentity Identity,
+    RevenueInstrumentType Instrument, CollectionSessionAmountRule AmountRule, decimal? ServerAmount = null,
+    decimal? MaximumAmount = null, decimal? Rate = null, DateOnly? RateEffectiveDate = null, Guid? RateId = null,
+    IReadOnlyList<string>? RequiredInputs = null)
+{
+    public bool CanEnterAmount => AmountRule is CollectionSessionAmountRule.DirectAmount or CollectionSessionAmountRule.PreparedBalance;
+}

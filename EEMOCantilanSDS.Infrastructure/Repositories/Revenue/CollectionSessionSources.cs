@@ -52,7 +52,7 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
         rows.Add(new(CollectionSessionItemKind.VendorFee, "FISH_MEAT_VENDOR_FEE", "Fish/Meat Vendor Fee", true, npm && payorId.HasValue && FishMeatVendorFeeRules.UsesDirectCollection(date),
             !npm ? "CollectorNotAssigned" : !payorId.HasValue ? "RequiresPayor" : null, null, true, ["StallId", "AmountReceived"]));
         rows.Add(new(CollectionSessionItemKind.NpmWholePayment, "NPM_WHOLE_PAYMENT", "NPM Whole payment", npmWhole is not null, npm && payorId.HasValue && npmWhole is not null,
-            !npm ? "CollectorNotAssigned" : !payorId.HasValue ? "RequiresPayor" : null, null, true, ["StallId", "Year", "Month"]));
+            npmWhole is null ? "NotSupportedYet" : !npm ? "CollectorNotAssigned" : !payorId.HasValue ? "RequiresPayor" : null, null, true, ["StallId", "Year", "Month"]));
         rows.Add(new(CollectionSessionItemKind.Weighing, "WEIGHT_AND_MEASURE", "Weight & Measure", true, npm && payorId.HasValue,
             !npm ? "CollectorNotAssigned" : !payorId.HasValue ? "RequiresPayor" : null, null, true, ["StallId", "Type", "Kilograms"]));
         foreach (var (code, name) in new[]
@@ -104,7 +104,15 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
             foreach (var type in new[] { WeighingType.Fish, WeighingType.Meat })
             {
                 var rate = snapshot.ResolveEntryOrNull(type == WeighingType.Fish ? FeeRateKey.NpmFishPerKilo : FeeRateKey.NpmMeatPerKilo, date);
-                if (rate is { Amount: > 0m }) weighingRates.Add(new(type, rate.Value.Amount, rate.Value.EffectiveDate));
+                if (rate is { Amount: > 0m })
+                {
+                    var key = type == WeighingType.Fish ? FeeRateKey.NpmFishPerKilo : FeeRateKey.NpmMeatPerKilo;
+                    var rateId = await db.FacilityRates.AsNoTracking().Where(x => x.MunicipalityId == Tenant
+                            && x.FacilityCode == rate.Value.Facility && x.RateKey == key && x.EffectiveDate == rate.Value.EffectiveDate)
+                        .Select(x => (Guid?)x.Id).SingleOrDefaultAsync(ct);
+                    // The writer requires persisted rate evidence; fallback constants cannot become picker authority.
+                    if (rateId.HasValue) weighingRates.Add(new(type, rate.Value.Amount, rate.Value.EffectiveDate, rateId));
+                }
             }
             if (payorId.HasValue)
             {
@@ -116,18 +124,23 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
                 {
                     var contract = stall.OccupancyAnsweringForMonth(date.Year, date.Month, date)?.Contract;
                     if (contract?.PayorId == payorId && contract.Payor?.MunicipalityId == Tenant)
-                        weighingSources.Add(new(stall.Id, stall.StallNo, payorId, contract.Payor.DisplayName, "New Public Market"));
+                        weighingSources.Add(new(stall.Id, stall.StallNo, payorId, contract.Payor.DisplayName, "New Public Market", contract.Id, stall.Section));
                 }
             }
         }
-        var weighingPolicy = npm && weighingRates.Count > 0 && await PolicyIdAsync("WEIGHT_AND_MEASURE", RevenuePolicyContext.Default, date, ct) is not null;
+        var weighingPolicyId = npm && weighingRates.Count > 0
+            ? await PolicyIdAsync("WEIGHT_AND_MEASURE", RevenuePolicyContext.Default, date, ct) : null;
+        var weighingPolicy = weighingPolicyId.HasValue && await db.RevenueClassificationPolicies.AsNoTracking().AnyAsync(x =>
+            x.MunicipalityId == Tenant && x.Id == weighingPolicyId && x.PermittedInstrumentType == RevenueInstrumentType.OfficialReceipt, ct);
         var slaughterOptions = new List<SessionSlaughterOption>();
-        var slaughterCapability = operations.Value?.Operations.FirstOrDefault(x => x.OperationCode == CollectorOperationCodes.Slaughterhouse);
+        // SLH is facility-assigned. It deliberately has no CollectorOperationAssignment entry.
+        var slaughterAvailable = menu.IsSuccess && menu.Value!.Facilities.Any(x => x.Code == FacilityCode.SLH
+            && x.IsAssigned && x.IsAvailable && x.CanonicalCollection);
         rows.RemoveAll(x => x.OperationCode == CollectorOperationCodes.Slaughterhouse);
         rows.Add(new(CollectionSessionItemKind.Slaughter, CollectorOperationCodes.Slaughterhouse, "Slaughterhouse", true,
-            slaughterCapability?.IsCollectible == true, slaughterCapability?.IsCollectible == true ? null : "SourceNotAvailable",
+            slaughterAvailable, slaughterAvailable ? null : "SourceNotAvailable",
             null, false, ["Animal", "Heads", "OwnerNameIfAnonymous"]));
-        if (slaughterCapability?.IsCollectible == true)
+        if (slaughterAvailable)
         {
             var rates = await new FeeRateResolver(db).GetSnapshotAsync(ct);
             foreach (var animal in new[] { AnimalType.Hog, AnimalType.Cow, AnimalType.Carabao })
@@ -135,27 +148,50 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
                     && rates.ResolveOrNull(key, date) is > 0)
                     slaughterOptions.Add(new(animal, animal.ToString(), null));
             slaughterOptions.AddRange(await db.SlaughterAnimalRates.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.IsActive)
-                .Select(x => new SessionSlaughterOption(AnimalType.Other, x.AnimalName, x.AnimalName)).ToListAsync(ct));
+                .Select(x => new SessionSlaughterOption(AnimalType.Other, x.AnimalName, x.AnimalName, null)).ToListAsync(ct));
         }
         for (var i = 0; i < rows.Count; i++)
         {
             if (rows[i].OperationCode == "WEIGHT_AND_MEASURE") rows[i] = rows[i] with
-            { CanAdd = rows[i].CanAdd && weighingPolicy, StandaloneAvailable = weighingPolicy };
+            {
+                CanAdd = rows[i].CanAdd && weighingPolicy, StandaloneAvailable = weighingPolicy,
+                ReasonCode = rows[i].CanAdd && !weighingPolicy ? "SourceNotAvailable" : rows[i].ReasonCode,
+                Reason = rows[i].CanAdd && !weighingPolicy ? "An approved weighing rate and collection policy are required." : rows[i].Reason
+            };
             if (rows[i].OperationCode == "ECF") rows[i] = rows[i] with
             { StandaloneAvailable = npm && await PolicyIdAsync(RevenueClassificationCodes.Ecf, RevenuePolicyContext.Default, date, ct) is not null };
         }
         var payerName = payorId is { } selected ? await db.Payors.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.Id == selected).Select(x => x.DisplayName).SingleOrDefaultAsync(ct) : null;
+        for (var i = slaughterOptions.Count - 1; i >= 0; i--)
+        {
+            var option = slaughterOptions[i];
+            var quote = await FeeSchedule.QuoteSlaughterAsync(new(Guid.Empty, CollectorOperationCodes.Slaughterhouse, date, 0m,
+                Animal: option.Animal, CustomAnimalName: option.CustomAnimalName, Heads: 1,
+                OwnerName: payerName ?? "Walk-in"), ct);
+            if (!quote.IsSuccess) slaughterOptions.RemoveAt(i);
+            else slaughterOptions[i] = option with { Instrument = quote.Value!.Instrument };
+        }
         var vendorSources = npm ? (await VendorFees.DiscoverAsync(payorId, ct)).Value ?? [] : [];
         var npmSources = new List<WeighingSourceDto>();
+        var npmWholeSources = new List<SessionNpmWholeSource>();
         if (npm && payorId.HasValue && npmWhole is not null)
         {
             var stalls = await db.Stalls.AsNoTracking().Include(x => x.Contracts).ThenInclude(x => x.Payor).Where(x => x.MunicipalityId == Tenant
                 && x.Facility!.Code == FacilityCode.NPM && x.Contracts.Any(c => c.PayorId == payorId)).ToListAsync(ct);
             foreach (var stall in stalls)
             {
-                var occupancy = stall.OccupancyAnsweringForMonth(date.Year, date.Month, date)?.Contract;
+                var occupancy = stall.OccupancyAnsweringForMonth(date.Year, date.Month,
+                    new DateOnly(date.Year, date.Month, 1).AddMonths(1).AddDays(-1))?.Contract;
                 if (occupancy?.PayorId == payorId && occupancy.Payor?.MunicipalityId == Tenant)
-                    npmSources.Add(new(stall.Id, stall.StallNo, payorId, occupancy.Payor.DisplayName, "New Public Market"));
+                {
+                    var quote = await npmWhole.QuoteAsync(stall.Id, date.Year, date.Month, ct, date);
+                    if (quote.IsSuccess && quote.Value is { Amount: > 0m } value)
+                    {
+                        npmSources.Add(new(stall.Id, stall.StallNo, payorId, occupancy.Payor.DisplayName, "New Public Market", occupancy.Id, stall.Section));
+                        npmWholeSources.Add(new(stall.Id, occupancy.Id, payorId.Value, stall.StallNo, occupancy.Payor.DisplayName,
+                            date.Year, date.Month, value.Instrument, value.Amount, value.MonthlyObligation, value.Collected, value.Credits));
+                    }
+                }
             }
         }
         for (var i = 0; i < rows.Count; i++)
@@ -172,7 +208,8 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
             if (rows[i].CanAdd && !hasLinkedSource)
                 rows[i] = rows[i] with { CanAdd = false, ReasonCode = "NoEligibleSource", Reason = "No eligible linked source is available for this payer." };
         }
-        return new(payorId, date, rows, waterSources, electricitySources, obligationSources, terms, weighingSources, weighingRates, slaughterOptions, payerName, vendorSources, npmSources);
+        return CollectionSessionChoiceProjection.Apply(new(payorId, date, rows, waterSources, electricitySources, obligationSources,
+            terms, weighingSources, weighingRates, slaughterOptions, payerName, vendorSources, npmSources, npmWholeSources));
     }
 
     public async Task<(CollectionSessionItemQuote? Quote, CollectionSessionProblem? Problem)> QuoteAsync(
@@ -392,8 +429,13 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
             case CollectionSessionItemKind.Water:
                 var w = item.Water!;
                 var source = (await Water.GetMobileSourcesAsync(w.Year, w.Month, ct, w.StallId, session.BusinessDate)).Value!.Single();
+                var waterVersion = w.SourceVersion;
+                if (w.UtilityBillId is null || w.UtilityBillId == Guid.Empty)
+                    if (await SiblingCreatedUtilityBillAsync(session, item, w.StallId, w.Year, w.Month, ct) is { } siblingWaterBill)
+                        waterVersion = siblingWaterBill.WaterSourceVersion;
+                // WCF's existing writer distinguishes direct mode by an empty bill ID and resolves its stall/month itself.
                 var water = await Water.PostMobileAsync(new(1, operation, session.BusinessDate, source.PreparedAmount is null ? Guid.Empty : w.UtilityBillId ?? Guid.Empty,
-                    item.ConfirmedAmount, w.SourceVersion, StallId: w.StallId, BillingYear: w.Year, BillingMonth: w.Month), ct);
+                    item.ConfirmedAmount, waterVersion, StallId: w.StallId, BillingYear: w.Year, BillingMonth: w.Month), ct);
                 if (!water.IsSuccess) throw new CollectionSessionPostingException(item.ClientItemId, "Water changed during posting. Review the checkout.");
                 (id, reference, amount) = (water.Value!.CollectionId, water.Value.ReferenceCode, water.Value.Amount); break;
             case CollectionSessionItemKind.GovernedService:
@@ -410,7 +452,15 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
                 (id, reference, amount) = (obligation.Value!.CollectionId, obligation.Value.ReferenceCode, obligation.Value.Amount); break;
             case CollectionSessionItemKind.Electricity:
                 var e = item.Electricity!;
-                var electricity = await Composer.PostMobileEcfAsync(new(operation, e.UtilityBillId, item.ConfirmedAmount, e.SourceVersion, session.BusinessDate, e.StallId, e.Year, e.Month), ct);
+                var electricityBill = e.UtilityBillId;
+                var electricityVersion = e.SourceVersion;
+                if (electricityBill == Guid.Empty && e.StallId is { } electricityStall && e.Year is { } electricityYear && e.Month is { } electricityMonth)
+                    if (await SiblingCreatedUtilityBillAsync(session, item, electricityStall, electricityYear, electricityMonth, ct) is { } siblingElectricityBill)
+                    {
+                        electricityBill = siblingElectricityBill.Id;
+                        electricityVersion = siblingElectricityBill.ElectricitySourceVersion;
+                    }
+                var electricity = await Composer.PostMobileEcfAsync(new(operation, electricityBill, item.ConfirmedAmount, electricityVersion, session.BusinessDate, e.StallId, e.Year, e.Month), ct);
                 if (!electricity.IsSuccess) throw new CollectionSessionPostingException(item.ClientItemId, "The bill changed during posting. Review the checkout.");
                 (id, reference, amount) = (electricity.Value!.CollectionId, electricity.Value.ReferenceCode, electricity.Value.Amount); break;
             default: throw new CollectionSessionPostingException(item.ClientItemId, "This source is not supported.");
@@ -420,6 +470,31 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
             where line.MunicipalityId == Tenant && line.CollectionId == id && policy.MunicipalityId == Tenant
             select policy.PermittedInstrumentType).FirstAsync(ct);
         return new(id, reference, instrument!.Value, amount, [item.ClientItemId], "Posted");
+    }
+    /// <summary>
+    /// An originally absent bill can be materialized by the other utility child in THIS atomic checkout.
+    /// Resolve it only through that child's deterministic posting identity, never by accepting an arbitrary newer bill.
+    /// The provisional version is replaced by that newly created bill's initial part version. Existing bill versions
+    /// are never replaced. Canonical clean/direct checks still apply, and session replay precedes dispatch.
+    /// </summary>
+    private async Task<EEMOCantilanSDS.Domain.Entities.Payments.UtilityBill?> SiblingCreatedUtilityBillAsync(CollectionSessionIntent session, CollectionSessionItemIntent current,
+        Guid stallId, int year, int month, CancellationToken ct)
+    {
+        if (!db.HasActiveTransaction) return null;
+        var siblings = session.Items.Where(x => x.ClientItemId != current.ClientItemId &&
+            (current.Kind == CollectionSessionItemKind.Electricity && x.Kind == CollectionSessionItemKind.Water
+                && x.Water is { } w && w.StallId == stallId && w.Year == year && w.Month == month && (w.UtilityBillId is null || w.UtilityBillId == Guid.Empty)
+             || current.Kind == CollectionSessionItemKind.Water && x.Kind == CollectionSessionItemKind.Electricity
+                && x.Electricity is { } e && e.StallId == stallId && e.Year == year && e.Month == month && e.UtilityBillId == Guid.Empty))
+            .Select(x => CollectionSessionWorkflow.ChildOperationId(Tenant, session.ClientCollectionSessionId, x.ClientItemId)).ToArray();
+        if (siblings.Length == 0) return null;
+        return await (from collection in db.Collections.AsNoTracking()
+            join line in db.CollectionLines.AsNoTracking() on collection.Id equals line.CollectionId
+            join bill in db.UtilityBills.AsNoTracking() on line.SourceId equals bill.Id
+            where collection.MunicipalityId == Tenant && line.MunicipalityId == Tenant && bill.MunicipalityId == Tenant
+                && collection.ClientOperationId.HasValue && siblings.Contains(collection.ClientOperationId.Value)
+                && line.SourceKind == CollectionSourceKind.UtilityBill && bill.StallId == stallId && bill.BillingYear == year && bill.BillingMonth == month
+            select bill).Distinct().SingleOrDefaultAsync(ct);
     }
     private Task<bool> NpmAssignedAsync(CancellationToken ct) => db.CollectorUsers.AsNoTracking().AnyAsync(x =>
         x.MunicipalityId == Tenant && x.Id == user.CollectorId && x.IsActive && x.FacilityAssignments.Any(a => a.FacilityCode == FacilityCode.NPM), ct);
