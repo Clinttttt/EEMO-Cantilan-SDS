@@ -98,8 +98,8 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
     {
         var reference = string.IsNullOrWhiteSpace(contractReference) ? null : contractReference.Trim();
         if (arrangement is null && reference is null) return;
-        if (Kind != ObligationKind.KanmanggaySpaceRental)
-            throw new ArgumentException("Occupancy basis is only supported for Kanmanggay spaces.");
+        if (Kind is not (ObligationKind.KanmanggaySpaceRental or ObligationKind.FiestaArawLotRental))
+            throw new ArgumentException("Occupancy basis is only supported for space and event lot accounts.");
         if (arrangement is not (OccupancyArrangement.SignedContract or OccupancyArrangement.SpaceOnly))
             throw new ArgumentException("Choose signed contract or space only.");
         if (reference?.Length > 200)

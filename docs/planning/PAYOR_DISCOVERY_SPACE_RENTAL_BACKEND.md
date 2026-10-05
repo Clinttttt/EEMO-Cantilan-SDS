@@ -6,6 +6,10 @@ identity and additional direct Vendor Fees. Rates, rent, classifications, postin
 
 ## Local finding
 
+The subsequent [space/payor domain backend handoff](SPACE_PAYOR_DOMAIN_BACKEND_HANDOFF.md) adds typed occupancy context,
+operation/event-scoped automatic numbering, detailed import preview/save results and vehicle-class rate history.
+Use that contract for the latest frontend integration; the original baseline and data findings below remain historical evidence.
+
 Read-only inspection of the configured localhost development database found Ana Reyes as an active NPM Vegetable
 Area occupant of Stall 1 (occupancy effective 2026-06-05), with no `Contract.PayorId` and no Business Payor row named
 Ana Reyes. She is occupant text, not an authoritative payer. No records were created or linked during the inspection.

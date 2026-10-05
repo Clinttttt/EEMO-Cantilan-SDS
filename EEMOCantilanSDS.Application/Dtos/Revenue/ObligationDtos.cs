@@ -61,9 +61,13 @@ public sealed record ObligationWorkspaceDto(IReadOnlyList<ObligationAccountDto> 
 public sealed record ImportSpaceHolderRow(CreateObligationAccountRequest Account, DateOnly? ClosedOn = null);
 public sealed record ImportSpaceHoldersRequest(IReadOnlyList<ImportSpaceHolderRow> Rows);
 public enum SpaceHolderImportStatus { Ready = 1, NeedsPayor = 2, Invalid = 3 }
+public enum SpaceNumberOrigin { Supplied = 1, ServerSuggested = 2 }
+public sealed record SpaceHolderImportFacts(CreateObligationAccountRequest Account, DateOnly? ClosedOn,
+    SpaceNumberOrigin NumberOrigin, string? PayorDisplayName);
 public sealed record SpaceHolderImportRowResult(int RowNumber, SpaceHolderImportStatus Status, string? Code,
-    string? Message, Guid? AccountId = null);
+    string? Message, Guid? AccountId = null, SpaceHolderImportFacts? Facts = null);
 public sealed record SpaceHolderImportPreview(IReadOnlyList<SpaceHolderImportRowResult> Rows, bool CanSave);
+public sealed record SpaceRentalOperationDto(ObligationKind Kind, LotRentalEvent? Event, string DisplayName, bool IsMonthly);
 public sealed record ImportSpaceHoldersResult(int Imported, int Skipped, IReadOnlyList<string> NeedsReview,
     IReadOnlyList<SpaceHolderImportRowResult>? Rows = null);
 

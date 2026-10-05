@@ -103,7 +103,11 @@ public sealed record FeeOptionTermDto(Guid Id, string Name, string? Location, Go
 public sealed record VehicleClassTermDto(string Code, string Name, decimal Amount);
 
 public sealed record VehicleClassDto(
-    Guid Id, string Code, string DisplayName, bool IsActive, decimal? CurrentAmount, DateOnly? CurrentEffectiveDate);
+    Guid Id, string Code, string DisplayName, bool IsActive, decimal? CurrentAmount, DateOnly? CurrentEffectiveDate,
+    IReadOnlyList<VehicleClassRateVersionDto>? History = null);
+
+public sealed record VehicleClassRateVersionDto(Guid RateId, DateOnly EffectiveDate, decimal Amount,
+    string CreatedBy, DateTime CreatedAtUtc);
 
 public sealed record SaveVehicleClassRequest(string Code, string DisplayName, DateOnly EffectiveDate, decimal Amount);
 

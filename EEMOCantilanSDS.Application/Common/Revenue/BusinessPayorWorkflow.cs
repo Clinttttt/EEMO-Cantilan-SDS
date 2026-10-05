@@ -54,7 +54,8 @@ public sealed class BusinessPayorWorkflow(
                 .OrderBy(c => c.Stall!.Facility!.ShortName).ThenBy(c => c.Stall!.StallNo)
                 .Take(MaxRows)
                 .Select(c => new PayorOccupancyDto(c.Id, c.StallId, c.Stall!.Facility!.ShortName, c.Stall.StallNo,
-                    c.ActualOccupant, c.NameOnContract, c.PayorId, c.Payor != null ? c.Payor.DisplayName : null))
+                    c.ActualOccupant, c.NameOnContract, c.PayorId, c.Payor != null ? c.Payor.DisplayName : null,
+                    c.Stall.FacilityId, c.Stall.Facility!.Code, c.Stall.Facility.Name, c.Arrangement))
                 .ToListAsync(ct);
             return Result<IReadOnlyList<PayorOccupancyDto>>.Success(rows);
         }, ct);

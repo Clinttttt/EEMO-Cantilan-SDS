@@ -17,6 +17,10 @@ namespace EEMOCantilanSDS.Api.Controllers;
 [Authorize(Roles = "SuperAdmin,Admin")]
 public sealed class ObligationsController(ISender sender, ObligationWorkflow workflow) : ApiBaseController(sender)
 {
+    [HttpGet("space-operations")]
+    public async Task<ActionResult<IReadOnlyList<SpaceRentalOperationDto>>> SpaceOperationsAsync(CancellationToken ct) =>
+        HandleResponse(await workflow.GetSpaceOperationsAsync(ct));
+
     [HttpGet("workspace")]
     public async Task<ActionResult<ObligationWorkspaceDto>> WorkspaceAsync(ObligationKind kind, CancellationToken ct) =>
         HandleResponse(await workflow.GetWorkspaceAsync(kind, ct));

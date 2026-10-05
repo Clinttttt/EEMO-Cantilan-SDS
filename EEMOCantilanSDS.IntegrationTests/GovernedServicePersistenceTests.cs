@@ -103,6 +103,20 @@ public sealed class GovernedServicePersistenceTests(PostgresFixture db)
             ctx.Add(VehicleClassRate.Create(a.Id, jeepney.Id, new DateOnly(2026, 1, 1), 20m, "head"));
             await ctx.SaveChangesAsync();
         }
+        await using (var ctx = db.CreateContext(a.Id))
+        {
+            ctx.Add(VehicleClassRate.Create(a.Id, jeepney.Id, new DateOnly(2026, 2, 1), 40m, "head"));
+            await ctx.SaveChangesAsync();
+            var workflow = new VehicleClassWorkflow(ctx, new Caller(Guid.NewGuid(), a.Id, "SuperAdmin"), new FixedTenant(a.Id));
+            var row = Assert.Single((await workflow.GetAsync()).Value!);
+            Assert.Equal(new[] { 40m, 20m }, row.History!.Select(r => r.Amount));
+            Assert.All(row.History!, r => Assert.NotEqual(Guid.Empty, r.RateId));
+            Assert.Equal(20m, VehicleClassRate.Resolve(await ctx.VehicleClassRates.ToListAsync(), new DateOnly(2026, 1, 5))!.Amount);
+            Assert.True((await workflow.SetActiveAsync(jeepney.Id, false)).IsSuccess);
+            var retired = Assert.Single((await workflow.GetAsync()).Value!);
+            Assert.False(retired.IsActive);
+            Assert.Equal(2, retired.History!.Count);
+        }
         // The same code twice in one tenant is refused; another tenant may use it.
         await using (var ctx = db.CreateContext(a.Id))
         {
