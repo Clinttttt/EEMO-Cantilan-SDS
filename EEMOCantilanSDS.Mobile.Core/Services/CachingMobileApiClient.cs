@@ -28,7 +28,10 @@ public sealed class CachingMobileApiClient(
     IConnectivityMonitor connectivity,
     TimeSpan? readBudget = null) : IMobileApiClient
 {
+    public Task<Result<IReadOnlyList<DirectVendorFeeSource>>> GetDirectVendorFeeSourcesAsync() => ReadThroughAsync($"checkout|vendors|{Today}", inner.GetDirectVendorFeeSourcesAsync);
     public Task<Result<CollectionSessionDiscovery>> GetCollectionSessionDiscoveryAsync(Guid? payorId) => ReadThroughAsync($"checkout|eligible|{payorId}|{Today}", () => inner.GetCollectionSessionDiscoveryAsync(payorId));
+    public Task<Result<IReadOnlyList<CollectionPayorDto>>> SearchCollectionSessionPayorsAsync(string search) => inner.SearchCollectionSessionPayorsAsync(search);
+    public Task<Result<IReadOnlyList<EcfObligationQuoteDto>>> GetMobileEcfSourcesAsync() => ReadThroughAsync($"checkout|electricity|{Today}", inner.GetMobileEcfSourcesAsync);
     public Task<Result<CollectionSessionQuote>> QuoteCollectionSessionAsync(CollectionSessionIntent intent) => inner.QuoteCollectionSessionAsync(intent);
     public Task<Result<CollectionSessionResult>> RecordCollectionSessionAsync(RecordCollectionSessionRequest request) => inner.RecordCollectionSessionAsync(request);
     public Task<Result<CollectionSessionResult>> GetCollectionSessionAsync(Guid sessionId) => inner.GetCollectionSessionAsync(sessionId);

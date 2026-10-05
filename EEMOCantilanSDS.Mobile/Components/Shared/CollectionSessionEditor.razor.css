@@ -1,0 +1,27 @@
+/* Same surfaces, density and tokens as the existing operation entry forms. */
+.collection-entry { margin-bottom: 14px; padding: 14px 16px; border: 1px solid var(--mobile-border); border-radius: 14px; background: var(--mobile-surface); }
+.collection-entry h2 { margin: 0; font-size: 13px; font-weight: 600; color: var(--mobile-text-secondary); }
+.collection-entry p, .collection-message { font-size: 13px; color: var(--mobile-text-secondary); }
+.collection-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--mobile-border); font-size: 13px; }
+.collection-row > div { min-width: 0; overflow-wrap: anywhere; }
+.collection-row > strong { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.collection-option { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0; background: transparent; border: 0; border-bottom: 1px solid var(--mobile-border); color: var(--mobile-text); text-align: left; font-size: 14px; }
+.collection-link { border: 0; background: transparent; padding: 8px 8px 8px 0; color: var(--mobile-blue); font-size: 12px; }
+.sheet { max-height: 85dvh; overflow-y: auto; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2px; }
+
+/* ── Polish (2026-10-05): one consistent control language. Search sits beside its input, secondary actions are compact, and the two
+      collection actions share one row at equal width. ── */
+.collection-search { display: flex; align-items: flex-end; gap: 8px; margin-top: 8px; }
+.collection-search .form-field { flex: 1 1 auto; min-width: 0; margin: 0; }
+.collection-small { flex: 0 0 auto; min-height: 44px; padding: 0 16px; border: 1px solid var(--mobile-blue); border-radius: 10px; background: transparent; color: var(--mobile-blue); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.collection-row > .collection-small { min-height: 36px; padding: 0 12px; }
+.collection-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+.collection-primary, .collection-secondary { min-height: 46px; padding: 0 12px; border-radius: 12px; font-size: 14px; font-weight: 600; }
+.collection-primary { border: 1px solid var(--mobile-blue); background: var(--mobile-blue); color: #ffffff; }
+.collection-secondary { border: 1px solid var(--mobile-blue); background: transparent; color: var(--mobile-blue); }
+.collection-small:disabled, .collection-secondary:disabled { border-color: var(--mobile-border); color: var(--mobile-text-secondary); }
+.collection-primary:disabled { border-color: var(--mobile-border); background: var(--mobile-border); color: var(--mobile-text-secondary); }
+.collection-entry > p:last-child { margin-bottom: 0; }
+.collection-message { margin: 10px 2px 0; text-align: center; }

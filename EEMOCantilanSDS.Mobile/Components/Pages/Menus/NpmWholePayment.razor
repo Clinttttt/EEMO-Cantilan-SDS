@@ -9,7 +9,14 @@
 @inject MobileSessionService Session
 
 <div class="page-shell">
-    <AppHeader CollectorName="@Session.CollectorName" />
+    <div class="header">
+        <div class="header-eyebrow">Facility</div>
+        <div class="header-row">
+            <button type="button" class="back-btn" aria-label="Back to stalls" @onclick='() => Navigation.NavigateTo("/market")'><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg></button>
+            <div class="header-title-block"><div class="header-title">New Public Market</div><div class="header-sub">Stall collection</div></div>
+            <img class="header-logo" src="@Session.BrandingSeal" alt="Municipality seal" />
+        </div>
+    </div>
     <main class="whole-workspace">
         <div class="whole-modes" aria-label="Payment type">
             <button type="button" @onclick='() => Navigation.NavigateTo("/market")'>Daily</button>
@@ -18,14 +25,13 @@
         <h1>Whole payment</h1>
         <p class="whole-payor">@Occupant · Stall @SpaceNo</p>
         <div class="whole-period">
-            <label>Year <input type="number" min="2000" max="2100" @bind="Year" disabled="@Saving" /></label>
-            <label>Month <select @bind="Month" disabled="@Saving">
+            <label class="form-field"><span class="form-label">Year</span><input class="form-input" type="number" min="2000" max="2100" @bind="Year" @bind:after="LoadQuoteAsync" disabled="@(Saving || Captured)" /></label>
+            <label class="form-field"><span class="form-label">Month</span><select class="form-input" @bind="Month" @bind:after="LoadQuoteAsync" disabled="@(Saving || Captured)">
                 @for (var m = 1; m <= 12; m++)
                 {
                     <option value="@m">@System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m)</option>
                 }
             </select></label>
-            <button type="button" class="btn-ghost" @onclick="LoadQuoteAsync" disabled="@Saving">Review amount</button>
         </div>
         @if (Loading)
         {
@@ -37,20 +43,16 @@
         }
         @if (Quote is { } quote)
         {
-            <dl class="whole-review">
-                <div><dt>Period</dt><dd>@(new DateOnly(quote.Year, quote.Month, 1).ToString("MMMM yyyy"))</dd></div>
-                <div><dt>Days covered</dt><dd>@quote.Days</dd></div>
-                <div><dt>Instrument</dt><dd>@(quote.Instrument == global::EEMOCantilanSDS.Domain.Enums.RevenueInstrumentType.CashTicket ? "CT" : "OR")</dd></div>
-                @if (quote.Adjustment > 0m) { <div><dt>Month-end adjustment</dt><dd>@Money(quote.Adjustment)</dd></div> }
-                <div class="whole-total"><dt>Amount due</dt><dd>@Money(quote.Amount)</dd></div>
-            </dl>
+            <NpmWholeSummary Quote="quote" />
             @if (!Sync.IsOnline) { <p class="whole-note">Offline · last reviewed amount. The server verifies it when synced.</p> }
-            <button type="button" class="btn-primary" disabled="@(Saving || Captured || quote.Amount <= 0m || quote.Year != Year || quote.Month != Month)" @onclick="ConfirmAsync">
+            @if (!Captured)
+            { <button type="button" class="btn-primary" disabled="@(Saving || quote.Amount <= 0m || quote.Year != Year || quote.Month != Month)" @onclick="ConfirmAsync">
                 @(Saving ? "Recording…" : quote.Amount <= 0m ? "Nothing remaining" : "Confirm whole payment")
-            </button>
+            </button> }
         }
-        @if (!string.IsNullOrWhiteSpace(Notice)) { <p class="whole-notice" role="status">@Notice</p> }
+        @if (!string.IsNullOrWhiteSpace(Notice)) { <div class="state-card" role="status">@Notice</div> }
     </main>
+    <BottomNav ActiveTab="menu" />
 </div>
 
 @code {
@@ -67,6 +69,8 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await Session.InitializeAsync();
+        if (Session.Menu is null) { Navigation.NavigateTo("/login"); return; }
         var today = Session.Menu?.Today ?? DateOnly.FromDateTime(DateTime.Now);
         if (Year == 0) Year = today.Year;
         if (Month == 0) Month = today.Month;
@@ -75,6 +79,7 @@
 
     private async Task LoadQuoteAsync()
     {
+        if (Year is < 2000 or > 2100 || Month is < 1 or > 12) { Error = "Choose a valid period."; Quote = null; return; }
         Loading = true;
         Error = null;
         Quote = null;

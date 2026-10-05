@@ -49,7 +49,8 @@ public static class WorkSections
         }
         return item.OperationCode switch
         {
-            CollectorOperationCodes.Wcf => "Utilities",
+            CollectorOperationCodes.Wcf or "ECF" => "Utilities",
+            "WEIGHT_AND_MEASURE" or "FISH_MEAT_VENDOR_FEE" => "Market & vendor",
             CollectorOperationCodes.MarketFees or CollectorOperationCodes.VegetableFruitSpaceRental or CollectorOperationCodes.Tabo => "Market & vendor",
             CollectorOperationCodes.Transportation or CollectorOperationCodes.LandingBerthing
                 or CollectorOperationCodes.TransferLargeCattle or CollectorOperationCodes.Slaughterhouse => "Transport & services",

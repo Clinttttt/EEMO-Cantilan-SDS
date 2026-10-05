@@ -1,0 +1,14 @@
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Domain.Enums
+<dl class="whole-review">
+    <div><dt>Period</dt><dd>@(new DateOnly(Quote.Year, Quote.Month, 1).ToString("MMMM yyyy"))</dd></div>
+    @if (Quote.MonthlyObligation is { } obligation) { <div><dt>Monthly obligation</dt><dd>@Money(obligation)</dd></div> }
+    @if (Quote.Collected is { } collected) { <div><dt>Paid</dt><dd>@Money(collected)</dd></div> }
+    @if (Quote.Credits is > 0m) { <div><dt>Credits</dt><dd>@Money(Quote.Credits.Value)</dd></div> }
+    <div class="whole-total"><dt>Remaining</dt><dd>@Money(Quote.Amount)</dd></div>
+    <div><dt>Instrument</dt><dd>@(Quote.Instrument == RevenueInstrumentType.CashTicket ? "CT · Cash Ticket" : "OR · Official Receipt")</dd></div>
+</dl>
+@code {
+    [Parameter, EditorRequired] public NpmWholePaymentQuoteDto Quote { get; set; } = null!;
+    private static string Money(decimal amount) => amount.ToString("C2", System.Globalization.CultureInfo.GetCultureInfo("en-PH"));
+}
