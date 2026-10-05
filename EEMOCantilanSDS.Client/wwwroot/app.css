@@ -3731,3 +3731,17 @@ h1[tabindex="-1"]:focus {
 .admin-main .rpt-topbar .live-clock-icon {
     color: #ffffff;
 }
+
+/* Narrow laptop / tablet: the topbar keeps the account chip inside the viewport by dropping the date and period
+   readouts (the page hero already carries the period) and letting the title block shrink. */
+@media (max-width: 1000px) {
+    .topbar-right {
+        min-width: 0;
+        gap: 12px;
+    }
+
+    .topbar-right .topbar-date,
+    .topbar-right .topbar-period {
+        display: none;
+    }
+}
