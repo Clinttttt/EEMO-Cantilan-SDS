@@ -15,118 +15,54 @@
 @* WCF on the Web is monitoring, source review and reporting. Field collection is recorded on Collector Mobile, and
    The layout owns the <main> landmark. *@
 <div class="v3-page wcf-page">
-    <WorkspaceHeader Parent="Operations" Title="Water Consumption Fees" Code="WCF">
-        <Meta><InstrumentChip Instrument="CT" ShowName="true" /></Meta>
-        <Actions>
-            <label class="wcf-period">
-                <span>Through</span>
-                <input class="v3-input" type="month" aria-label="Show obligations through billing month" value="@_monthInput" @onchange="ChangeMonthAsync" />
-            </label>
-            <div class="v3-btn-group" role="group" aria-label="WCF actions">
-                <button class="v3-btn" type="button" @onclick="LoadAsync" disabled="@_busy">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7" /><polyline points="20 4 20 11 13 11" /></svg>
-                    Refresh
-                </button>
-                <a class="v3-btn" href="/operations/water-consumption-fees/accounts">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" /><circle cx="10" cy="7" r="4" /><path d="M21 21v-2a4 4 0 0 0-3-3.9" /></svg>
-                    Accounts
-                </a>
-                <a class="v3-btn" href="/operations/water-consumption-fees/statements">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17" x2="13" y2="17" /></svg>
-                    Statements
-                </a>
-                <a class="v3-btn" href="/operations/water-consumption-fees/report">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17" x2="13" y2="17" /></svg>
-                    Report
-                </a>
-            </div>
-        </Actions>
-    </WorkspaceHeader>
+    <V3Hero Eyebrow="Operations · WCF" Title="Water Consumption Fees" Compact="true">
+        <Meta><span class="wcf-hero-meta">Through @ThroughPeriodLabel · <InstrumentChip Instrument="CT" /> Cash Ticket</span></Meta>
+        <Figures>
+            <V3HeroFigure Label="Assessed" Value="@Money(_quotes.Sum(x => x.AssessedAmount))" />
+            <V3HeroFigure Label="Previously settled" Value="@Money(_quotes.Sum(x => x.CumulativeSettledEvidence))" />
+            <V3HeroFigure Label="Outstanding" Value="@Money(_quotes.Sum(x => x.OutstandingAmount))" Note="@($"{_quotes.Count(x => x.OutstandingAmount > 0m)} open periods")" />
+        </Figures>
+    </V3Hero>
 
     @if (!string.IsNullOrWhiteSpace(_error))
     {
         <p class="v3-notice v3-notice-error" role="alert">@_error</p>
     }
+    @if (_mobileError is not null)
+    {
+        <p class="v3-notice v3-notice-error" role="alert">@_mobileError</p>
+    }
 
-    <SummaryStrip Label="WCF position" Items="SummaryItems" />
-
-    @* Collector Mobile, status first: one state, one action, blockers only when they exist, details on request. Every
-       readiness fact is derived by the server; nothing here is attested or typed by the office. *@
-    <section class="wcf-mobile @MobileClass" aria-labelledby="wcf-mobile-title">
-        <div class="wcf-mobile-head">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2" /><line x1="11" y1="18" x2="13" y2="18" /></svg>
-            <div class="wcf-mobile-text">
-                <h2 id="wcf-mobile-title">Collector Mobile</h2>
-                <p class="wcf-mobile-state"><span class="wcf-mobile-dot" aria-hidden="true"></span>@MobileStateLabel</p>
-                <p class="wcf-mobile-sub">Direct amount · @SettlementReadiness</p>
-            </div>
-            <div class="wcf-mobile-actions">
-                @if (_mobile is { Active: false, ReadyToEnable: true })
+    @* Collector Mobile is mentioned only when something needs the office: it is ready to enable, or something blocks it. When it is active
+       there is nothing to say. Every fact is the server's; nothing here is attested or typed by the office. *@
+    @if (_mobile is { Active: false } mobile)
+    {
+        <section class="wcf-mobile @MobileClass" aria-label="Collector Mobile">
+            <div class="wcf-mobile-bar">
+                <span class="wcf-mobile-state"><span class="wcf-mobile-dot" aria-hidden="true"></span>Collector Mobile · @MobileStateLabel</span>
+                @if (mobile.ReadyToEnable)
                 {
                     <button class="v3-btn v3-btn-sm v3-btn-primary" type="button" @onclick="() => _confirming = true">Enable Mobile Collection</button>
                 }
-                <a class="v3-btn v3-btn-sm" href="/operations/water-consumption-fees/accounts">Optional prepared amounts</a>
             </div>
-        </div>
-
-        @if (_mobileError is not null)
-        {
-            <p class="v3-notice v3-notice-error" role="alert">@_mobileError</p>
-        }
-
-        @if (_mobile is { Active: true } active)
-        {
-            <p class="wcf-mobile-note">Collectors record Water Consumption Fees on Mobile@(active.EffectiveFrom is { } from ? $" since {from:MMM d, yyyy}" : ""). When no amount is prepared, the collector enters it at collection.</p>
-        }
-        else if (_mobile is { Blockers.Count: > 0 } blocked)
-        {
-            <ul class="wcf-blockers" aria-label="Needs attention">
-                @foreach (var blocker in blocked.Blockers)
-                {
-                    <li>
-                        <span class="wcf-blocker-icon" aria-hidden="true">!</span>
-                        <span><strong>@blocker.Title</strong> — @blocker.Detail</span>
-                        @if (blocker.ActionHref is { } href)
-                        {
-                            <a href="@href">@blocker.ActionLabel</a>
-                        }
-                    </li>
-                }
-            </ul>
-        }
-
-        @if (_mobile is { } status)
-        {
-            <details class="wcf-details">
-                <summary>View readiness details</summary>
-                <ul class="wcf-checks" aria-label="Readiness checks">
-                    @foreach (var check in status.Checks)
+            @if (mobile.Blockers.Count > 0)
+            {
+                <ul class="wcf-blockers" aria-label="Needs attention">
+                    @foreach (var blocker in mobile.Blockers)
                     {
-                        <li class="@(check.Ok ? "ok" : "warn")">
-                            <span class="wcf-check-mark" aria-hidden="true">@(check.Ok ? "✓" : "!")</span>
-                            <span class="wcf-check-text"><strong>@check.Title</strong><span>@(check.Ok ? "Ready" : "Needs attention") · @check.Detail</span></span>
+                        <li>
+                            <span class="wcf-blocker-icon" aria-hidden="true">!</span>
+                            <span><strong>@blocker.Title</strong> — @blocker.Detail</span>
+                            @if (blocker.ActionHref is { } href)
+                            {
+                                <a href="@href">@blocker.ActionLabel</a>
+                            }
                         </li>
                     }
                 </ul>
-                @if (status.Collectors.Count > 0)
-                {
-                    <ul class="wcf-checks wcf-collectors" aria-label="Assigned collectors">
-                        @foreach (var collector in status.Collectors)
-                        {
-                            <li class="@(collector.Ready ? "ok" : "warn")">
-                                <span class="wcf-check-mark" aria-hidden="true">@(collector.Ready ? "✓" : "!")</span>
-                                <span class="wcf-check-text"><strong>@collector.Name</strong><span>@(collector.Active ? "Active" : "Inactive")</span></span>
-                            </li>
-                        }
-                    </ul>
-                }
-                @if (status.HistoricalWaterRecords > 0)
-                {
-                    <p class="wcf-mobile-note">@status.HistoricalWaterRecords historical Water record@(status.HistoricalWaterRecords == 1 ? "" : "s") stay on the legacy path and are not changed. <a href="/operations/water-consumption-fees/accounts">Review in Water Accounts</a></p>
-                }
-            </details>
-        }
-    </section>
+            }
+        </section>
+    }
 
     @if (_confirming)
     {
@@ -151,19 +87,42 @@
     }
 
     <section class="v3-panel" aria-labelledby="wcf-obligations-title">
-        <header class="v3-panel-header">
-            <h2 id="wcf-obligations-title">Obligations</h2>
-            <span class="v3-panel-meta">Unpaid periods through @ThroughPeriodLabel stay listed</span>
+        <header class="v3-panel-header wcf-panel-header">
+            <div class="wcf-panel-title">
+                <h2 id="wcf-obligations-title">Obligations</h2>
+                <span class="v3-panel-meta">@FilteredQuotes.Count() of @_quotes.Count · @SettlementReadiness</span>
+            </div>
+            @* One aligned control group: the billing month, a search, and the WCF pages. *@
+            <div class="wcf-controls no-print" aria-label="Obligation filters and WCF actions">
+                <label class="wcf-period">
+                    <span>Through</span>
+                    <input class="v3-input" type="month" aria-label="Show obligations through billing month" value="@_monthInput" @onchange="ChangeMonthAsync" />
+                </label>
+                <label class="v3-search">
+                    <span class="v3-sr-only">Search WCF sources</span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
+                    <input type="search" placeholder="Search payer, stall or facility" aria-label="Search WCF sources" @bind="_searchText" @bind:event="oninput" />
+                </label>
+                <div class="v3-btn-group" role="group" aria-label="WCF actions">
+                    <button class="v3-btn" type="button" @onclick="LoadAsync" disabled="@_busy">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7" /><polyline points="20 4 20 11 13 11" /></svg>
+                        Refresh
+                    </button>
+                    <a class="v3-btn" href="/operations/water-consumption-fees/accounts">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" /><circle cx="10" cy="7" r="4" /><path d="M21 21v-2a4 4 0 0 0-3-3.9" /></svg>
+                        Accounts
+                    </a>
+                    <a class="v3-btn" href="/operations/water-consumption-fees/statements">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17" x2="13" y2="17" /></svg>
+                        Statements
+                    </a>
+                    <a class="v3-btn" href="/operations/water-consumption-fees/report">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17" x2="13" y2="17" /></svg>
+                        Report
+                    </a>
+                </div>
+            </div>
         </header>
-
-        <div class="v3-toolbar" aria-label="Obligation filters">
-            <label class="v3-search">
-                <span class="v3-sr-only">Search WCF sources</span>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
-                <input type="search" placeholder="Search payer, stall or facility" aria-label="Search WCF sources" @bind="_searchText" @bind:event="oninput" />
-            </label>
-            <span class="v3-panel-meta">@FilteredQuotes.Count() of @_quotes.Count</span>
-        </div>
 
         <div class="v3-table-wrap" role="region" aria-label="WCF obligations" tabindex="0">
             <table class="v3-table">
@@ -207,11 +166,7 @@
                                 }
                                 else
                                 {
-                                    <span class="wcf-empty">
-                                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z" /></svg>
-                                        <strong>No outstanding WCF obligations</strong>
-                                        <span>There are no Water Consumption Fee balances through @ThroughPeriodLabel. Set one up in <a href="/operations/water-consumption-fees/accounts">Water Accounts</a>.</span>
-                                    </span>
+                                    <span>No outstanding WCF obligations through @ThroughPeriodLabel.</span>
                                 }
                             </td>
                         </tr>
@@ -269,37 +224,40 @@
         </div>
     </section>
 
-    <section class="v3-panel" aria-labelledby="wcf-reconciliation-title">
-        <header class="v3-panel-header">
-            <h2 id="wcf-reconciliation-title">Collections needing review</h2>
-            <span class="v3-panel-meta">@(_exceptions.Count == 0 ? "None recorded" : $"{_exceptions.Count} need office review")</span>
-        </header>
-        @if (_exceptions.Count > 0)
-        {
-            <p class="v3-panel-note">Earlier collector submissions that could not be accepted as collections. They stay out of the books until the office reviews them.</p>
-        }
-        <div class="v3-table-wrap" role="region" aria-label="WCF reconciliation exceptions" tabindex="0">
-            <table class="v3-table">
-                <thead><tr><th scope="col">Recorded</th><th scope="col">Physical document</th><th scope="col">Operation</th><th scope="col">Reason</th><th scope="col">Evidence</th></tr></thead>
-                <tbody>
-                    @foreach (var exception in _exceptions)
-                    {
-                        <tr>
-                            <td>@PhilippineTime.ToPhilippineTime(exception.RecordedAtUtc).ToString("dd MMM yyyy HH:mm") PHT</td>
-                            <td class="v3-strong">@(exception.DocumentNumber ?? "—")</td>
-                            <td class="v3-muted">@ShortId(exception.ClientOperationId)</td>
-                            <td>@exception.OutcomeCode</td>
-                            <td>@exception.OutcomeDetails</td>
-                        </tr>
-                    }
-                    @if (_exceptions.Count == 0)
-                    {
-                        <tr><td class="v3-empty" colspan="5">No collections need review.</td></tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </section>
+    @if (_exceptions.Count > 0)
+    {
+        <section class="v3-panel" aria-labelledby="wcf-reconciliation-title">
+            <header class="v3-panel-header">
+                <h2 id="wcf-reconciliation-title">Collections needing review</h2>
+                <span class="v3-panel-meta">@(_exceptions.Count == 0 ? "None recorded" : $"{_exceptions.Count} need office review")</span>
+            </header>
+            @if (_exceptions.Count > 0)
+            {
+                <p class="v3-panel-note">Earlier collector submissions that could not be accepted as collections. They stay out of the books until the office reviews them.</p>
+            }
+            <div class="v3-table-wrap" role="region" aria-label="WCF reconciliation exceptions" tabindex="0">
+                <table class="v3-table">
+                    <thead><tr><th scope="col">Recorded</th><th scope="col">Physical document</th><th scope="col">Operation</th><th scope="col">Reason</th><th scope="col">Evidence</th></tr></thead>
+                    <tbody>
+                        @foreach (var exception in _exceptions)
+                        {
+                            <tr>
+                                <td>@PhilippineTime.ToPhilippineTime(exception.RecordedAtUtc).ToString("dd MMM yyyy HH:mm") PHT</td>
+                                <td class="v3-strong">@(exception.DocumentNumber ?? "—")</td>
+                                <td class="v3-muted">@ShortId(exception.ClientOperationId)</td>
+                                <td>@exception.OutcomeCode</td>
+                                <td>@exception.OutcomeDetails</td>
+                            </tr>
+                        }
+                        @if (_exceptions.Count == 0)
+                        {
+                            <tr><td class="v3-empty" colspan="5">No collections need review.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
 </div>
 
 @code {
@@ -314,15 +272,6 @@
 
     private string ThroughPeriodLabel => _through.ToString("MMMM yyyy");
 
-    // The same server-supplied totals the page already showed, in one V3 summary strip.
-    private IReadOnlyList<SummaryStrip.SummaryItem> SummaryItems =>
-    [
-        new("Through", ThroughPeriodLabel),
-        new("Assessed", Money(_quotes.Sum(x => x.AssessedAmount))),
-        new("Previously settled", Money(_quotes.Sum(x => x.CumulativeSettledEvidence))),
-        new("Outstanding", Money(_quotes.Sum(x => x.OutstandingAmount)), Emphasis: true),
-        new("Open periods", _quotes.Count(x => x.OutstandingAmount > 0m).ToString()),
-    ];
     private IEnumerable<WcfObligationQuoteDto> FilteredQuotes => _quotes.Where(x =>
         string.IsNullOrWhiteSpace(_searchText)
         || (x.PayerNameSnapshot?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false)
