@@ -781,6 +781,29 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task PayorSearchIsCaseInsensitive_AndOnlyFindsExplicitBusinessPayors()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedEcfAsync(canonical: true);
+        var other = Payor.Create(seed.TenantId, "Lisa Ilogans", BusinessPayorKind.Person, "test");
+        await using (var setup = db.CreateContext(seed.TenantId))
+        {
+            setup.Payors.Add(other);
+            await setup.SaveChangesAsync();
+        }
+
+        await using var context = db.CreateContext(seed.TenantId);
+        var lower = await Workflow(context, seed).SearchCollectionPayorsAsync("lisa ilo");
+        Assert.True(lower.IsSuccess, lower.Error);
+        Assert.Equal(other.Id, Assert.Single(lower.Value!).PayorId);
+        var upper = await Workflow(context, seed).SearchCollectionPayorsAsync("LISA");
+        Assert.Contains(upper.Value!, x => x.PayorId == other.Id);
+        var none = await Workflow(context, seed).SearchCollectionPayorsAsync("nobody here");
+        Assert.Empty(none.Value!);
+    }
+
+    [SkippableFact]
     public async Task PayorFirstComposerFindsOlderStillOwedEcfPeriod()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
