@@ -74,7 +74,7 @@
 .shi-cell:hover { background: var(--bg); }
 .shi-cell:focus { outline: none; border-color: var(--accent); background: var(--bg-card); box-shadow: 0 0 0 3px rgba(29, 76, 134, .14); }
 .shi-num { text-align: right; font-variant-numeric: tabular-nums; }
-.shi-select { min-width: 170px; cursor: pointer; }
+.shi-select { min-width: 200px; cursor: pointer; }
 /* A contract reference on a space let without a contract: shown settled, not typeable. */
 .shi-cell-locked { color: var(--text-muted); cursor: default; }
 .shi-cell-locked:hover { background: transparent; }

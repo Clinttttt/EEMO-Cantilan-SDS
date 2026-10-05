@@ -287,7 +287,7 @@
             }
         </AddNewDrawer>
 
-        <AddNewDrawer Show="@(!_opening && _rateFor is not null && !ReadOnlyHistory)" Wide="false" Title="Change approved amount" Subtitle="@_rateFor?.SubjectLabel"
+        <AddNewDrawer Show="@(!_opening && _rateFor is not null && !ReadOnlyHistory)" Edit="true" Wide="false" Title="Change approved amount" Subtitle="@_rateFor?.SubjectLabel"
                       FormId="obw-rate-form" FormLabel="Change approved amount" SubmitText="Save amount" Saving="_saving" Error="@_formError"
                       OnSubmit="SaveRateAsync" OnCancel="CloseForm">
             <AddNewSection Title="New amount">

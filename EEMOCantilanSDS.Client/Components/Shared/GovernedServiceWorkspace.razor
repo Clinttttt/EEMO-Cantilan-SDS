@@ -149,7 +149,7 @@
     <Authorized>
         @if (_definition is { } def)
         {
-            <AddNewDrawer Show="_editing" Wide="false" Title="@(def.State == GovernedServiceSetupState.SetupRequired && def.Basis is null ? "Set up amount rule" : "Change amount rule")" Subtitle="@Name"
+            <AddNewDrawer Show="_editing" Edit="true" Wide="false" Title="@(def.State == GovernedServiceSetupState.SetupRequired && def.Basis is null ? "Set up amount rule" : "Change amount rule")" Subtitle="@Name"
                           FormId="@_formId" FormLabel="Amount rule" SubmitText="Save amount rule" Saving="_saving" Error="@_saveError"
                           OnSubmit="SaveAsync" OnCancel="CloseEditor">
                 <AddNewSection Title="Amount rule">

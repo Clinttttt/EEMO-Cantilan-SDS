@@ -3,7 +3,14 @@
    ChoiceCards, v3-field inputs). Presentation only: validation, state and the save itself stay with the page. *@
 <SideDrawer Show="Show" Wide="Wide" Title="@Title" Subtitle="@Subtitle" OnClose="OnCancel">
     <Icon>
-        <svg viewBox="0 0 24 24"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
+        @if (Edit)
+        {
+            <svg viewBox="0 0 24 24"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" /></svg>
+        }
+        else
+        {
+            <svg viewBox="0 0 24 24"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
+        }
     </Icon>
     <ChildContent>
         <form id="@FormId" class="and-form" aria-label="@FormLabel" @onsubmit="OnSubmit" @onsubmit:preventDefault="true">
@@ -22,6 +29,9 @@
 
 @code {
     [Parameter] public bool Show { get; set; }
+
+    /// <summary>A change to something that exists (a rate, a rule) rather than a new record: the header shows a pencil, not a plus.</summary>
+    [Parameter] public bool Edit { get; set; }
 
     /// <summary>A wider panel, for forms laid out in two columns.</summary>
     [Parameter] public bool Wide { get; set; } = true;
