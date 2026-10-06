@@ -4,14 +4,14 @@
 @inject IEcfCollectionsApiClient PayorsApi
 @inject IBusinessPayorsApiClient BusinessPayors
 
-@* Choosing the Business Payor of one import row. The occupant's name only pre-fills the search box; nothing is searched, matched, linked or
+@* Choosing the Account holder of one import row. The occupant's name only pre-fills the search box; nothing is searched, matched, linked or
    created until the office presses Search, selects a result and presses Use Payor, or presses Create. A name match is only a candidate. *@
-<SideDrawer Show="true" Wide="false" Title="Business Payor" Subtitle="@Occupant" OnClose="OnClose">
+<SideDrawer Show="true" Wide="false" Title="Account holder" Subtitle="@Occupant" OnClose="OnClose">
     <ChildContent>
         <div class="ppd-body">
-            <form class="ppd-search" aria-label="Find a Business Payor" @onsubmit="SearchAsync" @onsubmit:preventDefault="true">
+            <form class="ppd-search" aria-label="Find an account holder" @onsubmit="SearchAsync" @onsubmit:preventDefault="true">
                 <label class="v3-field">
-                    <span class="v3-sr-only">Search Business Payors</span>
+                    <span class="v3-sr-only">Search Account holders</span>
                     <input type="search" maxlength="100" placeholder="Search by name" @bind="_search" @bind:event="oninput" />
                 </label>
                 <button class="v3-btn" type="submit" disabled="@_busy">Search</button>
@@ -23,7 +23,7 @@
             }
             else if (_candidates is { Count: > 0 })
             {
-                <ul class="ppd-results" aria-label="Business Payors found" role="listbox">
+                <ul class="ppd-results" aria-label="Account holders found" role="listbox">
                     @foreach (var candidate in _candidates)
                     {
                         var selected = _selected?.PayorId == candidate.PayorId;
@@ -42,18 +42,18 @@
             }
             else if (_searched)
             {
-                <p class="ppd-muted" role="status">No Business Payor found.</p>
+                <p class="ppd-muted" role="status">No Account holder found.</p>
             }
 
             <details class="ppd-create" open="@_duplicate">
-                <summary>Create a new Business Payor</summary>
+                <summary>Create a new account holder</summary>
                 <div class="ppd-create-body">
                     <label class="v3-field"><span>Name</span><input maxlength="200" @bind="_name" @bind:event="oninput" /></label>
                     @if (_duplicate)
                     {
                         <label class="ppd-confirm">
                             <input type="checkbox" @bind="_confirmDuplicate" />
-                            A Business Payor with this name already exists. This is a different person.
+                            An account holder with this name already exists. This is a different person.
                         </label>
                     }
                     <button class="v3-btn" type="button" disabled="@(_busy || string.IsNullOrWhiteSpace(_name) || (_duplicate && !_confirmDuplicate))" @onclick="CreateAsync">Create and use</button>
@@ -115,13 +115,13 @@
             {
                 _duplicate = true;
                 _search = _name;
-                _error = "A Business Payor with this name already exists. Choose it above, or confirm this is a different person.";
+                _error = "An account holder with this name already exists. Choose it above, or confirm this is a different person.";
                 _busy = false;
                 await SearchAsync();
             }
-            else _error = result.Error ?? "The Business Payor could not be created.";
+            else _error = result.Error ?? "The Account holder could not be created.";
         }
-        catch { _error = "The Business Payor could not be created."; }
+        catch { _error = "The Account holder could not be created."; }
         finally { _busy = false; }
     }
 }

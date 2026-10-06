@@ -196,7 +196,7 @@
                         }
                     </div>
                     <div class="avm-row-2">
-                        @* The occupant is the Business Payor the account is held in. It is chosen from the server's list, never matched from the typed name. *@
+                        @* The occupant is the Account holder the account is held in. It is chosen from the server's list, never matched from the typed name. *@
                         <div class="avm-group">
                             <label class="avm-label">Actual Occupant <span class="avm-req">*</span></label>
                             @if (SelectedPayor is { } chosen)
@@ -211,7 +211,7 @@
                                 <input class="avm-input" type="search" aria-label="Search occupants" placeholder="Search by name" @bind="_payorSearch" @bind:event="oninput" @onkeyup="SearchPayorsAsync" />
                                 @if (_payors.Count > 0)
                                 {
-                                    <ul class="obw-results" role="listbox" aria-label="Business Payors found">
+                                    <ul class="obw-results" role="listbox" aria-label="Account holders found">
                                         @foreach (var payor in _payors)
                                         {
                                             <li><button class="obw-option" type="button" role="option" aria-selected="false" @onclick="() => _payorId = payor.PayorId.ToString()">@payor.DisplayName</button></li>
@@ -220,11 +220,11 @@
                                 }
                                 @if (_payors.Count == 0 && _payorSearch.Trim().Length >= 2)
                                 {
-                                    <span class="avm-hint">No Business Payor found.</span>
+                                    <span class="avm-hint">No Account holder found.</span>
                                 }
                                 @if (_payorSearch.Trim().Length >= 2)
                                 {
-                                    <button class="obw-link" type="button" @onclick="CreatePayorAsync" disabled="@_saving">Create Business Payor “@_payorSearch.Trim()”</button>
+                                    <button class="obw-link" type="button" @onclick="CreatePayorAsync" disabled="@_saving">Create Account holder “@_payorSearch.Trim()”</button>
                                 }
                             }
                         </div>
@@ -458,7 +458,7 @@
         ? "A lot for an event, with the approved amount."
         : Kind == ObligationKind.FishMeatVendorFee ? "A vendor stall with its approved monthly amount." : "A space with its approved monthly amount.";
 
-    /// <summary>Creates a Business Payor from the typed name, only on the office's press, and selects it. A same-named Payor is never reused silently.</summary>
+    /// <summary>Creates an account holder from the typed name, only on the office's press, and selects it. A same-named Payor is never reused silently.</summary>
     private async Task CreatePayorAsync()
     {
         var name = _payorSearch.Trim();
@@ -474,10 +474,10 @@
                 _payorId = created.PayorId.ToString();
             }
             else if (result.Error?.StartsWith("DUPLICATE_PAYOR", StringComparison.Ordinal) == true)
-                _formError = $"A Business Payor named {name} already exists. Choose it from the list instead.";
-            else _formError = result.Error ?? "The Business Payor could not be created.";
+                _formError = $"An account holder named {name} already exists. Choose it from the list instead.";
+            else _formError = result.Error ?? "The Account holder could not be created.";
         }
-        catch { _formError = "The Business Payor could not be created."; }
+        catch { _formError = "The Account holder could not be created."; }
         finally { _saving = false; }
     }
 
@@ -545,7 +545,7 @@
             if (!Guid.TryParse(_stallId, out var parsedStall)) { _formError = "Choose an NPM Fish or Meat stall."; return; }
             stallId = parsedStall;
         }
-        else if (!Guid.TryParse(_payorId, out payorId)) { _formError = "Choose a Business Payor."; return; }
+        else if (!Guid.TryParse(_payorId, out payorId)) { _formError = "Choose an account holder."; return; }
 
         _saving = true;
         try

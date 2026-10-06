@@ -9,7 +9,7 @@
 
 @* Bulk import of space holders and event lots. It is the stallholder import's own implementation, adapted rather than imitated: the same hero,
    upload card, review bar, editable grid and footer bar (the shared Import* components); only the columns and what a row means are this
-   page's. Every row is checked here and then by the server's typed preview. A row's Business Payor is the office's explicit choice, made
+   page's. Every row is checked here and then by the server's typed preview. A row's Account holder is the office's explicit choice, made
    from a compact action in its status cell; nothing is linked or created from a name. Occupancy basis is stated per row, never assumed. *@
 <div class="shi">
     <ImportHero Eyebrow="@($"{Name} · Bulk Import")" Title="@($"Import {Name} {Holders}")" Step="Step" />
@@ -203,7 +203,7 @@
         ? "Leave blank to have the server assign the next number." : null;
 
     // A row's state is the server's word once it has been checked there; until then (or if the check is unavailable) it is what this page can
-    // tell: a row that fails its own checks is Invalid, and one without an explicit Business Payor needs one.
+    // tell: a row that fails its own checks is Invalid, and one without an explicit Account holder needs one.
     private static (SpaceHolderImportStatus Status, string? Why) StatusOf(Row row) =>
         row.Error is not null ? (SpaceHolderImportStatus.Invalid, row.Error)
         : row.Preview is { } line ? (line.Status, line.Status is SpaceHolderImportStatus.Ready or SpaceHolderImportStatus.NeedsPayor ? null : line.Message)
@@ -402,7 +402,7 @@
 
     private void ResetAll() { Rows = []; _result = null; Message = null; _uploadError = null; _fileName = null; _notImported = 0; _previewNote = null; }
 
-    // ── Business Payor: the office's explicit choice ───────────────────────────────────────────────────────────────────
+    // ── Account holder: the office's explicit choice ───────────────────────────────────────────────────────────────────
     private void UsePayor(Row row, (Guid Id, string Name) payor)
     {
         row.PayorId = payor.Id.ToString();

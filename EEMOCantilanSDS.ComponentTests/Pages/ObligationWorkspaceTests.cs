@@ -134,8 +134,8 @@ public sealed class ObligationWorkspaceTests : TestContext
         var search = cut.Find("form[aria-label='Open account'] input[type='search']");
         search.Input("ana");
         search.KeyUp(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "a" });
-        cut.WaitForAssertion(() => Assert.Contains("Ana Reyes", cut.Find("[aria-label='Business Payors found']").TextContent), Timeout);
-        cut.Find("[aria-label='Business Payors found'] button").Click();          // an explicit choice of the Payor the server returned
+        cut.WaitForAssertion(() => Assert.Contains("Ana Reyes", cut.Find("[aria-label='Account holders found']").TextContent), Timeout);
+        cut.Find("[aria-label='Account holders found'] button").Click();          // an explicit choice of the Payor the server returned
         cut.Find("#obw-subject").Change("Space K-4");
         cut.Find("input[placeholder='As written on the contract']").Change("LC-2026-014");
         cut.Find("#obw-amount").Change("1200");
@@ -272,8 +272,8 @@ public sealed class ObligationWorkspaceTests : TestContext
         var search = cut.Find("[role='dialog'] input[type='search']");
         search.Input("Ana Reyes");
         search.KeyUp(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "s" });
-        cut.WaitForAssertion(() => cut.Find("[aria-label='Business Payors found'] button"), Timeout);
-        cut.Find("[aria-label='Business Payors found'] button").Click();
+        cut.WaitForAssertion(() => cut.Find("[aria-label='Account holders found'] button"), Timeout);
+        cut.Find("[aria-label='Account holders found'] button").Click();
         cut.WaitForAssertion(() => Assert.Contains("Ana Reyes", cut.Find(".obw-selected").TextContent), Timeout);
         cut.Find("#obw-subject").Change("K-7");
         cut.Find("#obw-amount").Change("900");
@@ -308,8 +308,8 @@ public sealed class ObligationWorkspaceTests : TestContext
         var search = cut.Find("[role='dialog'] input[type='search']");
         search.Input("Ana Reyes");
         search.KeyUp(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "s" });
-        cut.WaitForAssertion(() => cut.Find("[aria-label='Business Payors found'] button"), Timeout);
-        cut.Find("[aria-label='Business Payors found'] button").Click();
+        cut.WaitForAssertion(() => cut.Find("[aria-label='Account holders found'] button"), Timeout);
+        cut.Find("[aria-label='Account holders found'] button").Click();
         cut.Find("#obw-amount").Change("900");
         cut.Find("form[aria-label='Open account']").Submit();
 
@@ -350,8 +350,8 @@ public sealed class ObligationWorkspaceTests : TestContext
         var search = cut.Find("[role='dialog'] input[type='search']");
         search.Input("Ana Reyes");
         search.KeyUp(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "s" });
-        cut.WaitForAssertion(() => cut.Find("[aria-label='Business Payors found'] button"), Timeout);
-        cut.Find("[aria-label='Business Payors found'] button").Click();
+        cut.WaitForAssertion(() => cut.Find("[aria-label='Account holders found'] button"), Timeout);
+        cut.Find("[aria-label='Account holders found'] button").Click();
         cut.Find("#obw-amount").Change("2500");
         cut.Find("form[aria-label='Open account']").Submit();
 
@@ -447,10 +447,10 @@ public sealed class ObligationWorkspaceTests : TestContext
 
         cut.WaitForAssertion(() => Assert.Equal("Maria Santos", cut.Find("[role='dialog'] input[type='search']").GetAttribute("value")), Timeout);
         _collections.Verify(x => x.SearchCollectionPayorsAsync(It.IsAny<string>()), Times.Never);                   // pre-filled, never searched for the office
-        cut.Find("form[aria-label='Find a Business Payor']").Submit();
-        cut.WaitForAssertion(() => Assert.Contains("NPM · 4", cut.Find("[aria-label='Business Payors found']").TextContent), Timeout);
+        cut.Find("form[aria-label='Find an account holder']").Submit();
+        cut.WaitForAssertion(() => Assert.Contains("NPM · 4", cut.Find("[aria-label='Account holders found']").TextContent), Timeout);
         Assert.True(cut.FindAll("[role='dialog'] footer button").Single(b => b.TextContent.Trim() == "Use Payor").HasAttribute("disabled"));
-        cut.Find("[aria-label='Business Payors found'] button").Click();
+        cut.Find("[aria-label='Account holders found'] button").Click();
         cut.FindAll("[role='dialog'] footer button").Single(b => b.TextContent.Trim() == "Use Payor").Click();
 
         cut.WaitForAssertion(() =>
@@ -475,7 +475,7 @@ public sealed class ObligationWorkspaceTests : TestContext
             {
                 var account = row.Account;
                 if (account.PayorId == Guid.Empty)
-                    return new SpaceHolderImportRowResult(i + 1, SpaceHolderImportStatus.NeedsPayor, "RequiresPayor", "Choose a Business Payor.", Facts:
+                    return new SpaceHolderImportRowResult(i + 1, SpaceHolderImportStatus.NeedsPayor, "RequiresPayor", "Choose an account holder.", Facts:
                         new(account with { SubjectLabel = "3" }, row.ClosedOn, SpaceNumberOrigin.ServerSuggested, null));
                 return account.SubjectLabel == "2"
                     ? new SpaceHolderImportRowResult(i + 1, SpaceHolderImportStatus.Invalid, "DuplicateSpace", "This space already has an account.", Facts:
@@ -497,10 +497,10 @@ public sealed class ObligationWorkspaceTests : TestContext
         {
             cut.WaitForAssertion(() => cut.FindAll(".imp-table tbody tr")[i].QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Link Payor"), Timeout);
             cut.FindAll(".imp-table tbody tr")[i].QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Link Payor").Click();
-            cut.WaitForAssertion(() => cut.Find("[role='dialog'] form[aria-label='Find a Business Payor']"), Timeout);
-            cut.Find("[role='dialog'] form[aria-label='Find a Business Payor']").Submit();
-            cut.WaitForAssertion(() => cut.Find("[aria-label='Business Payors found'] button"), Timeout);
-            cut.Find("[aria-label='Business Payors found'] button").Click();
+            cut.WaitForAssertion(() => cut.Find("[role='dialog'] form[aria-label='Find an account holder']"), Timeout);
+            cut.Find("[role='dialog'] form[aria-label='Find an account holder']").Submit();
+            cut.WaitForAssertion(() => cut.Find("[aria-label='Account holders found'] button"), Timeout);
+            cut.Find("[aria-label='Account holders found'] button").Click();
             cut.FindAll("[role='dialog'] footer button").Single(b => b.TextContent.Trim() == "Use Payor").Click();
             cut.WaitForAssertion(() => Assert.Empty(cut.FindAll("[role='dialog']")), Timeout);
         }
