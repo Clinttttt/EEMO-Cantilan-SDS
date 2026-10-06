@@ -80,6 +80,8 @@ public sealed class CollectorOperationAssignmentWorkflowTests
         Assert.Equal(new[]
         {
             CollectorOperationCodes.Wcf,
+            CollectorOperationCodes.KanmanggaySpaceRental,
+            CollectorOperationCodes.FiestaArawLotRental,
             CollectorOperationCodes.VegetableFruitSpaceRental,
             CollectorOperationCodes.LandingBerthing,
             CollectorOperationCodes.TransferLargeCattle,

@@ -28,6 +28,89 @@ namespace EEMOCantilanSDS.IntegrationTests;
 [Collection(PostgresCollection.Name)]
 public sealed class FeeScheduleCollectionWorkflowTests(PostgresFixture db)
 {
+    private sealed class FailSecondCollectionSave : Microsoft.EntityFrameworkCore.Diagnostics.SaveChangesInterceptor
+    {
+        private int _collections;
+        public override ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int>> SavingChangesAsync(
+            Microsoft.EntityFrameworkCore.Diagnostics.DbContextEventData data,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int> result, CancellationToken ct = default)
+        {
+            if (data.Context!.ChangeTracker.Entries<EEMOCantilanSDS.Domain.Entities.Revenue.Collection>()
+                .Any(x => x.State == EntityState.Added) && ++_collections == 2)
+                throw new IOException("Injected failure after the first canonical child save");
+            return ValueTask.FromResult(result);
+        }
+    }
+
+    [SkippableFact]
+    public async Task Tabo_batch_late_failure_rolls_back_child_money_and_retry_uses_original_ids()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+        await db.ResetAsync();
+        var w = await SeedAsync(enabled: true);
+        TaboBatchRequest request;
+        await using (var ctx = db.CreateContext(w.TenantId))
+        {
+            var a = TpmVendor.Create("Vendor A", "Fish");
+            var b = TpmVendor.Create("Vendor B", "Fruit");
+            ctx.AddRange(a, b);
+            await ctx.SaveChangesAsync();
+            var items = new[] { Tabo() with { VendorId = a.Id }, Tabo() with { VendorId = b.Id } };
+            var quote = (await Workflow(ctx, w.TenantId, w.CollectorId).QuoteTaboBatchAsync(new(items))).Value!;
+            Assert.True(quote.CanRecord);
+            request = new(items, quote.Fingerprint);
+        }
+        await using (var raw = db.CreateRawConnection())
+        await using (var failing = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql(raw.ConnectionString)
+            .AddInterceptors(new EEMOCantilanSDS.Infrastructure.Persistence.Interceptors.MunicipalityStampInterceptor(), new FailSecondCollectionSave())
+            .Options, new FixedTenant(w.TenantId)))
+            await Assert.ThrowsAsync<IOException>(() => Workflow(failing, w.TenantId, w.CollectorId).RecordTaboBatchAsync(request));
+        await using var verify = db.CreateContext(w.TenantId);
+        Assert.Empty(await verify.Collections.ToListAsync());
+        Assert.Empty(await verify.CollectionLines.ToListAsync());
+        Assert.Empty(await verify.PostingOperations.ToListAsync());
+        var retry = await Workflow(verify, w.TenantId, w.CollectorId).RecordTaboBatchAsync(request);
+        Assert.True(retry.IsSuccess, retry.Error);
+        Assert.Equal(2, retry.Value!.Collections.Count);
+        Assert.Equal(2, await verify.Collections.CountAsync());
+    }
+
+    [SkippableFact]
+    public async Task Tabo_batch_preserves_vendor_day_evidence_replays_and_preflights_every_child()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+        await db.ResetAsync();
+        var w = await SeedAsync(enabled: true);
+        await using var ctx = db.CreateContext(w.TenantId);
+        var a = TpmVendor.Create("Vendor A", "Fish");
+        var b = TpmVendor.Create("Vendor B", "Fruit");
+        ctx.AddRange(a, b);
+        await ctx.SaveChangesAsync();
+        var flow = Workflow(ctx, w.TenantId, w.CollectorId);
+        var items = new[] { Tabo() with { VendorId = a.Id }, Tabo() with { VendorId = b.Id } };
+        var bad = await flow.QuoteTaboBatchAsync(new([items[0], items[1] with { ReceivedAmount = 99m }]));
+        Assert.False(bad.Value!.CanRecord);
+        Assert.Empty(await ctx.Collections.ToListAsync());
+        var quote = (await flow.QuoteTaboBatchAsync(new(items))).Value!;
+        Assert.True(quote.CanRecord);
+        Assert.Equal(200m, quote.Total);
+        var request = new TaboBatchRequest(items, quote.Fingerprint);
+        var posted = await flow.RecordTaboBatchAsync(request);
+        Assert.True(posted.IsSuccess, posted.Error);
+        Assert.Equal(2, posted.Value!.Collections.Count);
+        Assert.Equal(posted.Value.Collections.Select(x => x.ReferenceCode),
+            (await flow.RecordTaboBatchAsync(request)).Value!.Collections.Select(x => x.ReferenceCode));
+        Assert.Equal(2, await ctx.Collections.CountAsync());
+        Assert.Empty(await ctx.TpmAttendances.ToListAsync()); // no duplicate legacy money projection
+        var lines = await ctx.CollectionLines.ToListAsync();
+        Assert.Contains(lines, x => x.CalculationSnapshot!.Contains(a.Id.ToString()));
+        Assert.Contains(lines, x => x.CalculationSnapshot!.Contains(b.Id.ToString()));
+        Assert.Equal(ResultStatus.Conflict, (await flow.RecordTaboBatchAsync(request with {
+            Items = [items[0] with { ReceivedAmount = 50m }, items[1]] })).Status);
+        Assert.Equal(2, await ctx.Collections.CountAsync());
+    }
+
     private static readonly DateOnly Today = PhilippineTime.Today;
     private static readonly DateOnly Effective = new(2000, 1, 1);
 
