@@ -15,7 +15,7 @@
    Follows the office's own sheet (development evidence, docs/interface/OFFICIAL_MONTHLY_INCOME_REPORT_V3.md): letterhead,
    then one table — revenue line, Annual Target, January to December, Total, Percentage — under "1. Receipts", with the
    lines lettered a. to r. across Income from Market, Rent Income (Stall Rental) and Space Rental, and one closing
-   "Total Income Market Operation". The sheet carries no group subtotals, so none are added here.
+   "OVERALL TOTAL MARKET COLLECTION". The sheet carries no group subtotals, so none are added here.
 
    Every figure is the server's official Monthly Income (legacy before a source's cutover plus canonical after it, once).
    Nothing is computed on this page except the total of months already on it. No target is invented: a missing target
@@ -142,7 +142,7 @@ else
                 }
                 <tfoot>
                     <tr class="omi-grand">
-                        <th scope="row" class="omi-line">Total Income Market Operation</th>
+                        <th scope="row" class="omi-line">OVERALL TOTAL MARKET COLLECTION</th>
                         <td class="omi-num">@(TargetTotal is { } tt ? Amount(tt) : "—")</td>
                         @for (var m = 1; m <= 12; m++)
                         {
@@ -154,6 +154,7 @@ else
                 </tfoot>
             </table>
         </div>
+        <footer class="omi-sign"><SignatureStrip /></footer>
     </article>
 }
 </div>
@@ -239,6 +240,7 @@ else
     {
         OfficialMonthlyIncomeStructure.Market => "A. Income from Market",
         OfficialMonthlyIncomeStructure.Rent => "Rent Income (Stall Rental)",
+        OfficialMonthlyIncomeStructure.Slaughterhouse => "C. Income from Slaughterhouse",
         _ => group.Label
     };
 

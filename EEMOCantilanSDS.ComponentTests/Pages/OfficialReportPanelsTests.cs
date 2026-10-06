@@ -28,6 +28,7 @@ public sealed class OfficialReportPanelsTests : TestContext
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
         Services.AddSingleton(_reports.Object);
+        Services.AddSingleton(Mock.Of<ISettingsApiClient>());
         Services.AddSingleton(_remittances.Object);
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
@@ -305,7 +306,7 @@ public sealed class OfficialReportPanelsTests : TestContext
             var lines = table.QuerySelectorAll("tbody th.omi-line").Select(th => th.TextContent.Trim()).ToList();
             Assert.Equal(["a. Market Fees", "b. General Distribution / ECF", "c. Tampak Commercial Center (TCC)"], lines);
             Assert.DoesNotContain("Subtotal", table.TextContent);
-            Assert.Contains("Total Income Market Operation", table.QuerySelector("tfoot")!.TextContent);
+            Assert.Contains("OVERALL TOTAL MARKET COLLECTION", table.QuerySelector("tfoot")!.TextContent);
             Assert.Contains("1,030.00", table.QuerySelector("tfoot")!.TextContent);
             // No target configured: target and percentage are a dash, never 0 or 0%.
             Assert.DoesNotContain("%", table.QuerySelector("tbody")!.TextContent);
@@ -546,5 +547,29 @@ public sealed class OfficialReportPanelsTests : TestContext
         var complete = Text(Coverage(TargetCoverageState.Complete, 62.5m));
         Assert.Contains("62.5%", complete);
         Assert.DoesNotContain("Partially", complete);
+    }
+
+    [Fact]
+    public void TheOfficialStatement_ShowsEveryServerFamily_NamesSlaughterhouseSectionC_AndCloseswithTheSignatories()
+    {
+        var statement = Statement(null) with { Year = 2025 };
+        var terminal = new OfficialMonthlyIncomeGroupDto("TERMINAL", "B. Income From Terminal",
+            [Row("COMFORT_ROOM", "COMFORT ROOM", 0m, 40m, "Canonical")], Months(0m, 40m), new MonthlyIncomeCellDto(0m, 40m));
+        var slaughter = new OfficialMonthlyIncomeGroupDto("SLAUGHTERHOUSE", "Slaughterhouse",
+            [Row("SLAUGHTERHOUSE", "Slaughterhouse", 200m, 0m, "Legacy")], Months(200m, 0m), new MonthlyIncomeCellDto(200m, 0m));
+        statement = statement with { Groups = statement.Groups.Append(terminal).Append(slaughter).ToList() };
+        _reports.Setup(x => x.GetMonthlyIncomeAsync(2025, null)).ReturnsAsync(Result<OfficialMonthlyIncomeDto>.Success(statement));
+
+        var cut = RenderOfficial(2025);
+
+        cut.WaitForAssertion(() =>
+        {
+            var table = cut.Find("table.omi-table");
+            Assert.Contains("B. Income From Terminal", table.TextContent);          // the server's own family name, never a client guess
+            Assert.Contains("COMFORT ROOM", table.TextContent);
+            Assert.Contains("C. Income from Slaughterhouse", table.TextContent);
+            Assert.DoesNotContain("Awaiting an approved official grouping", cut.Markup);
+            Assert.NotNull(cut.Find("footer.omi-sign .sig-strip"));                    // Prepared by / Certified Correct come from office settings
+        }, Timeout);
     }
 }

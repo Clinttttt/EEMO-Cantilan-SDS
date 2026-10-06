@@ -80,7 +80,7 @@ public sealed class SidebarNavigationTests : TestContext
                 "Operations",
                 "Collection Activity",
                 "Online Payments",
-                "Payors & Accounts",
+                "Spaces & Occupants",
                 "Monitoring",
                 "Remittance & Liquidation",
                 "Reports",
