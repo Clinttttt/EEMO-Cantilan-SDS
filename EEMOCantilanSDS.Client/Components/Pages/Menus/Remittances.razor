@@ -49,16 +49,34 @@
     <form class="rm-filters" aria-label="Filters" @onsubmit="ReloadAsync" @onsubmit:preventDefault="true">
         <label class="v3-field"><span>From</span><input type="date" @bind="_from" /></label>
         <label class="v3-field"><span>To</span><input type="date" @bind="_to" /></label>
-        <label class="v3-field">
-            <span>Collector</span>
-            <select @bind="_collectorFilter">
-                <option value="">All collectors</option>
-                @foreach (var collector in _collectors)
-                {
-                    <option value="@collector.Id">@collector.FullName</option>
-                }
-            </select>
-        </label>
+        <div class="v3-field rm-picker" @onkeydown="OnPickerKey">
+            <span id="rm-collectors-label">Collector</span>
+            <button type="button" class="rm-picker-btn" aria-haspopup="true" aria-expanded="@(_pickerOpen ? "true" : "false")"
+                    aria-labelledby="rm-collectors-label rm-collectors-value" @onclick="() => _pickerOpen = !_pickerOpen">
+                <span id="rm-collectors-value">@CollectorSummaryText</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
+            </button>
+            @if (_pickerOpen)
+            {
+                <button type="button" class="rm-picker-backdrop" tabindex="-1" aria-label="Close collector list" @onclick="() => _pickerOpen = false"></button>
+                <div class="rm-picker-pop" role="group" aria-label="Collectors">
+                    <input type="search" class="rm-picker-search" placeholder="Search collectors" aria-label="Search collectors"
+                           value="@_collectorSearch" @oninput="e => _collectorSearch = e.Value?.ToString() ?? string.Empty" />
+                    <ul class="rm-picker-list">
+                        <li>
+                            <label><input type="checkbox" checked="@(_collectorIds.Count == 0)" @onchange="ClearCollectors" /> <span>All collectors</span></label>
+                        </li>
+                        @foreach (var collector in PickerCollectors)
+                        {
+                            <li @key="collector.Id">
+                                <label><input type="checkbox" checked="@_collectorIds.Contains(collector.Id)" @onchange="() => ToggleCollector(collector.Id)" /> <span>@collector.FullName</span></label>
+                            </li>
+                        }
+                    </ul>
+                    <div class="rm-picker-foot"><button type="button" class="v3-btn v3-btn-sm" @onclick="() => _pickerOpen = false">Done</button></div>
+                </div>
+            }
+        </div>
         <label class="v3-field">
             <span>Instrument</span>
             <select @onchange="e => InstrumentChoice = e.Value?.ToString() ?? string.Empty">
@@ -364,7 +382,33 @@
 
     private DateOnly _from = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
     private DateOnly _to = PhilippineTime.Today;
-    private string _collectorFilter = string.Empty;
+    // Zero selected collectors means all of them.
+    private readonly HashSet<Guid> _collectorIds = [];
+    private string _collectorSearch = string.Empty;
+    private bool _pickerOpen;
+    private string _collectorFilter => string.Join(",", _collectorIds);
+
+    private IEnumerable<CollectorListDto> PickerCollectors => string.IsNullOrWhiteSpace(_collectorSearch)
+        ? _collectors
+        : _collectors.Where(c => c.FullName.Contains(_collectorSearch.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>"All collectors", one name, or the first selected name plus a count of the rest.</summary>
+    private string CollectorSummaryText
+    {
+        get
+        {
+            var names = _collectors.Where(c => _collectorIds.Contains(c.Id)).Select(c => c.FullName).ToList();
+            return names.Count == 0 ? "All collectors" : names.Count == 1 ? names[0] : $"{names[0]} + {names.Count - 1}";
+        }
+    }
+
+    private void ToggleCollector(Guid id) { if (!_collectorIds.Remove(id)) _collectorIds.Add(id); }
+    private void ClearCollectors() => _collectorIds.Clear();
+    private void OnPickerKey(KeyboardEventArgs e) { if (e.Key == "Escape") _pickerOpen = false; }
+
+    private static IEnumerable<Guid> ParseCollectorIds(string? value) =>
+        (value ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(x => Guid.TryParse(x, out var id) ? id : (Guid?)null).Where(x => x is not null).Select(x => x!.Value);
     private string _instrumentFilter = string.Empty;
     /// <summary>The select needs a real value for "all"; the filter itself stays empty for it.</summary>
     private string InstrumentChoice
@@ -419,7 +463,7 @@
     {
         _from = From ?? ParseDate(QueryFrom) ?? _from;
         _to = To ?? ParseDate(QueryTo) ?? _to;
-        _collectorFilter = Collector ?? QueryCollector ?? string.Empty;
+        foreach (var id in ParseCollectorIds(Collector ?? QueryCollector)) _collectorIds.Add(id);
         _instrumentFilter = Instrument ?? QueryInstrument ?? string.Empty;
         var collectors = await CollectorsApi.GetAllCollectorsAsync();
         _collectors = collectors.IsSuccess ? collectors.Value?.ToList() ?? [] : [];
@@ -437,10 +481,13 @@
             if (position.IsSuccess) _position = position.Value;
             else { _position = null; _error = "The collector position couldn't be loaded."; }
 
-            var register = await Api.GetHistoryAsync(_from, _to,
-                Guid.TryParse(_collectorFilter, out var collector) ? collector : null,
-                int.TryParse(_instrumentFilter, out var instrument) ? (RevenueInstrumentType)instrument : null,
-                null);
+            var instrumentFilter = int.TryParse(_instrumentFilter, out var instrument) ? (RevenueInstrumentType)instrument : (RevenueInstrumentType?)null;
+            var register = _collectorIds.Count switch
+            {
+                0 => await Api.GetHistoryAsync(_from, _to, null, instrumentFilter, null),
+                1 => await Api.GetHistoryAsync(_from, _to, _collectorIds.First(), instrumentFilter, null),
+                _ => await Api.GetFilteredHistoryAsync(new RemittanceReviewRequest(_from, _to, _collectorIds.ToList(), instrumentFilter))
+            };
             if (register.IsSuccess) _register = register.Value?.ToList() ?? [];
             else { _register = []; _error ??= "The remittance history couldn't be loaded."; }
 
@@ -476,7 +523,7 @@
     }
 
     private IEnumerable<CollectorPositionDto> VisibleCollectors(AccountabilityPositionDto position) =>
-        position.Collectors.Where(x => !Guid.TryParse(_collectorFilter, out var id) || x.CollectorId == id);
+        position.Collectors.Where(x => _collectorIds.Count == 0 || _collectorIds.Contains(x.CollectorId));
 
     private IReadOnlyList<SummaryStrip.SummaryItem> SummaryItems(AccountabilityPositionDto p) => Preparation
         ? [new("Ready to remit", Money(p.Unremitted)), new("Selected", Money(SelectedTotal), Emphasis: SelectedCount > 0)]
