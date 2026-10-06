@@ -5,7 +5,7 @@ namespace EEMOCantilanSDS.Application.Common.Revenue;
 
 /// <summary>
 /// Analytic metadata for the revenue-source performance register: which operational group a source is read under and which
-/// business model describes it (Rulebook: rent and vendor fees are monthly obligations, Kanmanggay is monthly per space,
+/// business model describes it (rent is monthly; Vendor Fee is a direct additional fee; Kanmanggay is monthly per space,
 /// Market Fees, Landing/Berthing, Transportation and Transfer Large Cattle are paid on service, Lot Rental is per event).
 /// </summary>
 /// <remarks>
@@ -20,6 +20,7 @@ public static class RevenueSourceCatalog
     public const string SpaceGroup = "SPACE";
     public const string OtherGroup = "OTHER";
     public const string ReceivableGroup = "RECEIVABLE";
+    public const string SlaughterhouseGroup = "SLAUGHTERHOUSE";
 
     public static readonly IReadOnlyList<(string Key, string Label)> Groups =
     [
@@ -27,6 +28,7 @@ public static class RevenueSourceCatalog
         (RentGroup, "Rent / facility operations"),
         (SpaceGroup, "Space rental"),
         (OtherGroup, "Other operations"),
+        (SlaughterhouseGroup, "Slaughterhouse"),
         (ReceivableGroup, "Receivables context"),
     ];
 
@@ -38,7 +40,7 @@ public static class RevenueSourceCatalog
         ["ECF"] = new(MarketGroup, RevenueSourceModel.RecurringObligation),
         ["WCF"] = new(MarketGroup, RevenueSourceModel.RecurringObligation),
         ["TABO"] = new(MarketGroup, RevenueSourceModel.Transactional),
-        ["FISH_MEAT_VENDOR_FEE"] = new(MarketGroup, RevenueSourceModel.RecurringObligation),
+        ["FISH_MEAT_VENDOR_FEE"] = new(MarketGroup, RevenueSourceModel.Transactional),
         ["LANDING_BERTHING"] = new(MarketGroup, RevenueSourceModel.Transactional),
         ["TRANSPORTATION_PARKING"] = new(MarketGroup, RevenueSourceModel.Transactional),
         ["WEIGHT_AND_MEASURE"] = new(MarketGroup, RevenueSourceModel.QuantityService),
@@ -56,7 +58,7 @@ public static class RevenueSourceCatalog
         ["FIESTA_ARAW_LOT_RENTAL"] = new(SpaceGroup, RevenueSourceModel.EventRental),
 
         ["PENALTIES_AND_FINES"] = new(OtherGroup, RevenueSourceModel.Transactional),
-        ["SLAUGHTERHOUSE"] = new(OtherGroup, RevenueSourceModel.QuantityService),
+        ["SLAUGHTERHOUSE"] = new(SlaughterhouseGroup, RevenueSourceModel.QuantityService),
 
         ["ARREARS"] = new(ReceivableGroup, RevenueSourceModel.Receivable),
     };

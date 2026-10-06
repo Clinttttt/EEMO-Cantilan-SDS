@@ -162,8 +162,8 @@ public sealed class ObligationWorkflow(
                 account = ObligationAccount.Create(actor.TenantId, request.Kind, payorId, stallId, subject ?? string.Empty,
                     request.Event, request.EventDate, request.ActiveFrom, actor.Username);
                 account.SetOccupancyBasis(request.Arrangement, request.ContractReference);
-                // Preserve the existing rate start. Monthly quotes resolve at the billing month's first day;
-                // no contract metadata or client row changes that financial date rule.
+                // Preserve the actual rate start. Kanmanggay's first period resolves at occupancy start;
+                // subsequent monthly periods use their first day. Contract metadata never prices the account.
                 rate = ObligationRate.Create(actor.TenantId, account.Id, account.ActiveFrom, request.Amount, actor.Username);
             }
             catch (ArgumentException ex)

@@ -7,6 +7,10 @@ namespace EEMOCantilanSDS.HttpClients.ApiClients;
 
 public class ReportsApiClient(HttpClient http) : HandleResponse(http), IReportsApiClient
 {
+    public Task<Result<FollowUpQueueDto>> GetScopedFollowUpQueueAsync(int year, int month, FacilityCode? facility, string? operationCode) =>
+        GetAsync<FollowUpQueueDto>($"api/Reports/follow-up?year={year}&month={month}" +
+            (facility is { } code ? $"&facility={code}" : "") +
+            (operationCode is not null ? $"&operationCode={Uri.EscapeDataString(operationCode)}" : ""));
     public async Task<Result<FinancialReportDto>> GetFinancialReportAsync(
         ReportPeriod period,
         int year,

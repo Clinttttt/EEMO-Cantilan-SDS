@@ -9,8 +9,8 @@ using Microsoft.EntityFrameworkCore;
 namespace EEMOCantilanSDS.Application.Common.Revenue;
 
 /// <summary>
-/// Collector Mobile Fish / Meat Vendor Fee (IA-050/IA-062). The authority is the existing obligation account: an NPM Fish/Meat stall's
-/// explicit Payor, an approved effective-dated monthly amount, and periods assessed from it. This reuses
+/// Collector Mobile obligation-account settlement: independently assigned Kanmanggay and Fiesta/Araw, plus historical
+/// pre-IA-064 Vendor Fee compatibility. Prospective Vendor Fee uses the separate direct writer. This reuses
 /// <see cref="ObligationCollectionSource"/> (the same facts, classification, instrument policy and snapshot the Web composer uses) so the
 /// two channels share one balance authority. It is a distinct source: never NPM daily stall fees, Tabo, Market Fees or Weight and Measure.
 /// </summary>
@@ -59,7 +59,18 @@ public sealed partial class CollectionComposerWorkflow
             return Result<EcfPostOutcomeDto>.Failure("A valid ClientOperationId is required.", ResultStatus.Invalid);
         var collector = await db.CollectorUsers.AsNoTracking().Include(x => x.FacilityAssignments)
             .SingleOrDefaultAsync(x => x.MunicipalityId == tenantId && x.Id == collectorId && x.IsActive, ct);
-        if (collector is null || collector.FacilityAssignments.All(x => x.FacilityCode != FacilityCode.NPM))
+        var requestedAccount = await db.ObligationAccounts.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.MunicipalityId == tenantId && x.Id == request.AccountId, ct);
+        if (collector is null || requestedAccount is null) return Result<EcfPostOutcomeDto>.Forbidden();
+        var operation = requestedAccount.Kind switch
+        {
+            ObligationKind.KanmanggaySpaceRental => CollectorOperationCodes.KanmanggaySpaceRental,
+            ObligationKind.FiestaArawLotRental => CollectorOperationCodes.FiestaArawLotRental,
+            _ => null
+        };
+        if (operation is null ? collector.FacilityAssignments.All(x => x.FacilityCode != FacilityCode.NPM)
+            : !await db.CollectorOperationAssignments.AnyAsync(x => x.MunicipalityId == tenantId &&
+                x.CollectorId == collectorId && x.OperationCode == operation, ct))
             return Result<EcfPostOutcomeDto>.Forbidden();
 
         var actor = new Actor(collectorId, tenantId, collector.Username ?? collector.FullName ?? "Collector", "Collector");
@@ -93,10 +104,21 @@ public sealed partial class CollectionComposerWorkflow
                 return await Reject("INVALID_INTENT", "A valid billing year and month are required.");
 
             var account = await db.ObligationAccounts.AsNoTracking().SingleOrDefaultAsync(x =>
-                x.MunicipalityId == tenantId && x.Id == request.AccountId && x.Kind == ObligationKind.FishMeatVendorFee, ct);
+                x.MunicipalityId == tenantId && x.Id == request.AccountId, ct);
             if (account is null)
-                return await Reject("SOURCE_NOT_FOUND", "The vendor fee account is not available in this tenant.");
-            var periodStart = new DateOnly(request.BillingYear, request.BillingMonth, 1);
+                return await Reject("SOURCE_NOT_FOUND", "The space account is not available in this tenant.");
+            var periodStart = account.Kind == ObligationKind.FiestaArawLotRental
+                ? account.EventDate!.Value : new DateOnly(request.BillingYear, request.BillingMonth, 1);
+            if (periodStart.Year != request.BillingYear || periodStart.Month != request.BillingMonth)
+                return await Reject("INVALID_PERIOD", "Choose this account's event period.");
+            if (!await db.Payors.AsNoTracking().AnyAsync(x => x.MunicipalityId == tenantId && x.Id == account.PayorId, ct))
+                return await Reject("INVALID_PAYOR", "Review this account's Business Payor link.");
+            var preview = (await new ObligationCollectionSource(db).GetQuotesAsync(tenantId, [account], request.BusinessDate, ct))
+                .SingleOrDefault(x => x.PeriodStart == periodStart);
+            if (preview is null || !preview.CanAddToDraft)
+                return await Reject("SOURCE_NOT_COLLECTIBLE", "This period has no collectible remaining balance.");
+            if (request.ReceivedAmount > preview.OutstandingAmount)
+                return await Reject("AMOUNT_EXCEEDS_OUTSTANDING", "The received amount exceeds the remaining balance of this period.");
 
             ObligationSourceFacts? facts;
             try

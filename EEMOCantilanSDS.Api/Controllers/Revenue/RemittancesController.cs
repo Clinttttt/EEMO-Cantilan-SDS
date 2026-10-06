@@ -17,6 +17,12 @@ namespace EEMOCantilanSDS.Api.Controllers;
 [Authorize(Roles = "SuperAdmin,Admin")]
 public sealed class RemittancesController(ISender sender, RemittanceWorkflow workflow) : ApiBaseController(sender)
 {
+    [HttpPost("review")]
+    public async Task<ActionResult<RemittanceReviewDto>> ReviewAsync(RemittanceReviewRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.GetReviewAsync(request, ct));
+    [HttpPost("history/filter")]
+    public async Task<ActionResult<IReadOnlyList<RemittanceHistoryRowDto>>> FilteredHistoryAsync(RemittanceReviewRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.GetHistoryAsync(request.From, request.To, null, request.Instrument, null, ct, request.CollectorIds));
     [HttpGet("scope")]
     public async Task<ActionResult<RemittanceScopeDto>> ScopeAsync(
         [FromQuery] Guid collectorId, [FromQuery] DateOnly from, [FromQuery] DateOnly to,

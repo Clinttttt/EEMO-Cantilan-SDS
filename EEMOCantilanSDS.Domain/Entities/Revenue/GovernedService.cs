@@ -68,6 +68,7 @@ public sealed class GovernedServiceSetting : BaseEntity, IMunicipalityOwned
 
     /// <summary>Whether the approved definition allows Collector Mobile to record it.</summary>
     public bool MobileEnabled { get; private set; }
+    public bool QuickAmountEnabled { get; private set; }
 
     public DateTime CreatedAtUtc { get; private set; }
     public string CreatedBy { get; private set; } = string.Empty;
@@ -77,7 +78,7 @@ public sealed class GovernedServiceSetting : BaseEntity, IMunicipalityOwned
     public static GovernedServiceSetting Create(
         Guid municipalityId, Guid governedServiceId, DateOnly effectiveDate, GovernedServiceBasis basis,
         decimal? fixedAmount, decimal? maximumAmount, bool isEnabled, bool mobileEnabled, string createdBy,
-        DateTime? createdAtUtc = null)
+        DateTime? createdAtUtc = null, bool quickAmountEnabled = false)
     {
         if (municipalityId == Guid.Empty || governedServiceId == Guid.Empty)
             throw new ArgumentException("A tenant and service are required.");
@@ -119,6 +120,7 @@ public sealed class GovernedServiceSetting : BaseEntity, IMunicipalityOwned
             MaximumAmount = maximumAmount,
             IsEnabled = isEnabled,
             MobileEnabled = mobileEnabled,
+            QuickAmountEnabled = quickAmountEnabled,
             CreatedAtUtc = created,
             CreatedBy = createdBy.Trim()
         };

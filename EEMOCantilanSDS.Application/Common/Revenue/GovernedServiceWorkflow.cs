@@ -97,6 +97,8 @@ public sealed partial class GovernedServiceWorkflow(
             var entry = GovernedServiceCatalog.Find(operationCode);
             if (entry is null)
                 return Result<GovernedServiceDefinitionDto>.Failure("This operation is not a governed configurable service.", ResultStatus.NotFound);
+            if (request.QuickAmountEnabled && entry.Code != CollectorOperationCodes.Transportation)
+                return Result<GovernedServiceDefinitionDto>.Failure("Quick amount is supported only for Transportation.", ResultStatus.Invalid);
             if (!entry.AllowedBases.Contains(request.Basis))
                 return Result<GovernedServiceDefinitionDto>.Failure("This service does not support the chosen amount basis.", ResultStatus.Invalid);
             if (request.EffectiveDate < new DateOnly(2020, 1, 1) || request.EffectiveDate > BusinessToday.AddDays(366))
@@ -113,7 +115,8 @@ public sealed partial class GovernedServiceWorkflow(
                     db.GovernedServices.Add(service);
                 }
                 setting = GovernedServiceSetting.Create(actor.TenantId, service.Id, request.EffectiveDate, request.Basis,
-                    request.FixedAmount, request.MaximumAmount, request.IsEnabled, request.MobileEnabled, actor.Username, UtcNow);
+                    request.FixedAmount, request.MaximumAmount, request.IsEnabled, request.MobileEnabled, actor.Username, UtcNow,
+                    request.QuickAmountEnabled && entry.Code == CollectorOperationCodes.Transportation);
             }
             catch (ArgumentException ex)
             {
@@ -394,7 +397,7 @@ public sealed partial class GovernedServiceWorkflow(
                     : "No effective revenue classification policy with an approved instrument.");
         }
 
-        if (setting?.Basis == GovernedServiceBasis.VehicleClassRate
+        if (setting?.Basis == GovernedServiceBasis.VehicleClassRate && !setting.QuickAmountEnabled
             && (await CurrentVehicleClassTermsAsync(tenantId, today, ct)).Count == 0)
             issues.Add("No active vehicle class has an approved rate in force.");
         if (setting?.Basis == GovernedServiceBasis.ApprovedFeeOption
@@ -412,7 +415,7 @@ public sealed partial class GovernedServiceWorkflow(
 
         return new(entry.Code, entry.Name, entry.ClassificationCode, entry.ModeAware, entry.AllowedBases, state,
             setting?.Basis, setting?.FixedAmount, setting?.MaximumAmount, setting?.MobileEnabled ?? false,
-            setting?.EffectiveDate, instruments, issues);
+            setting?.EffectiveDate, instruments, issues, setting?.QuickAmountEnabled ?? false);
     }
 
     // ── Collector reads ────────────────────────────────────────────────────────────────────────────────
@@ -428,7 +431,7 @@ public sealed partial class GovernedServiceWorkflow(
             var entry = GovernedServiceCatalog.Find(operationCode);
             if (actor.Role != "Collector" || entry is null || !await IsAssignedAsync(actor, entry.Code, ct))
                 return Result<GovernedServiceTermsDto>.Forbidden();
-            if (entry.ModeAware != mode.HasValue || mode is { } m && !Enum.IsDefined(m))
+            if (!ValidMode(entry, mode))
                 return Result<GovernedServiceTermsDto>.Failure(
                     entry.ModeAware ? "Choose whole payment or daily transaction." : "This service has no transaction modes.", ResultStatus.Invalid);
             var service = await db.GovernedServices.AsNoTracking().SingleOrDefaultAsync(x =>
@@ -439,11 +442,13 @@ public sealed partial class GovernedServiceWorkflow(
             if (setting is null || !setting.IsEnabled || !setting.MobileEnabled)
                 return Result<GovernedServiceTermsDto>.Failure(
                     "This operation is not set up for Collector Mobile today.", ResultStatus.Conflict);
+            var quick = mode == GovernedServiceMode.QuickAmount;
+            if (quick && !setting.QuickAmountEnabled) return Result<GovernedServiceTermsDto>.Failure("Quick amount is not enabled.", ResultStatus.Conflict);
             var resolved = await ResolvePolicyAsync(actor.TenantId, entry, mode, (businessDate ?? BusinessToday), ct);
             if (resolved?.Policy.PermittedInstrumentType is not { } instrument)
                 return Result<GovernedServiceTermsDto>.Failure(
                     "No approved instrument policy is in effect for this operation today.", ResultStatus.Conflict);
-            var classTerms = setting.Basis == GovernedServiceBasis.VehicleClassRate
+            var classTerms = setting.Basis == GovernedServiceBasis.VehicleClassRate && !quick
                 ? await CurrentVehicleClassTermsAsync(actor.TenantId, (businessDate ?? BusinessToday), ct) : null;
             IReadOnlyList<FeeOptionTermDto>? optionTerms = null;
             if (setting.Basis == GovernedServiceBasis.ApprovedFeeOption)
@@ -453,8 +458,10 @@ public sealed partial class GovernedServiceWorkflow(
                     return Result<GovernedServiceTermsDto>.Failure(
                         "No approved fee option is offered for this operation today.", ResultStatus.Conflict);
             }
-            return Result<GovernedServiceTermsDto>.Success(new(entry.Code, entry.Name, entry.ModeAware, setting.Basis,
-                setting.FixedAmount, setting.MaximumAmount, instrument, false, classTerms, optionTerms));
+            if (quick && instrument != RevenueInstrumentType.CashTicket) return Result<GovernedServiceTermsDto>.Failure("The Transportation policy must permit Cash Ticket.", ResultStatus.Conflict);
+            return Result<GovernedServiceTermsDto>.Success(new(entry.Code, entry.Name, entry.ModeAware,
+                quick ? GovernedServiceBasis.DirectApprovedAmount : setting.Basis,
+                quick ? null : setting.FixedAmount, quick ? null : setting.MaximumAmount, instrument, false, classTerms, optionTerms));
         }, ct);
 
     // ── Mobile posting ─────────────────────────────────────────────────────────────────────────────────
@@ -498,7 +505,7 @@ public sealed partial class GovernedServiceWorkflow(
         if (request.BusinessDate > BusinessToday)
             return await RecordTerminalAsync(actor, request, normalized, "FUTURE_BUSINESS_DATE",
                 "Collection BusinessDate cannot be later than the current Philippine business date.", ct);
-        if (entry.ModeAware != request.Mode.HasValue || request.Mode is { } m && !Enum.IsDefined(m))
+        if (!ValidMode(entry, request.Mode))
             return await RecordTerminalAsync(actor, request, normalized, "INVALID_MODE",
                 entry.ModeAware ? "Choose whole payment or daily transaction." : "This service has no transaction modes.", ct);
 
@@ -528,7 +535,12 @@ public sealed partial class GovernedServiceWorkflow(
             VehicleClass? vehicleClass = null;
             VehicleClassRate? vehicleRate = null;
             var classCode = request.VehicleClassCode?.Trim().ToUpperInvariant();
-            if (setting.Basis == GovernedServiceBasis.VehicleClassRate)
+            var quick = request.Mode == GovernedServiceMode.QuickAmount;
+            if (quick && instrument != RevenueInstrumentType.CashTicket)
+                return await RecordTerminalAsync(actor, request, normalized, "POLICY_NOT_EFFECTIVE", "Quick amount requires the Cash Ticket policy.", ct);
+            if (quick && (!setting.QuickAmountEnabled || request.VehicleClassCode is not null || request.FeeOptionId is not null))
+                return await RecordTerminalAsync(actor, request, normalized, "QUICK_AMOUNT_NOT_AVAILABLE", "Review the Transportation entry mode.", ct);
+            if (setting.Basis == GovernedServiceBasis.VehicleClassRate && !quick)
             {
                 if (string.IsNullOrEmpty(classCode))
                     return await RecordTerminalAsync(actor, request, normalized, "VEHICLE_CLASS_REQUIRED",
@@ -583,7 +595,7 @@ public sealed partial class GovernedServiceWorkflow(
                 return await RecordTerminalAsync(actor, request, normalized, "INVALID_INTENT",
                     "This service does not take a fee option.", ct);
 
-            if (setting.Basis is not (GovernedServiceBasis.VehicleClassRate or GovernedServiceBasis.ApprovedFeeOption)
+            if (!quick && setting.Basis is not (GovernedServiceBasis.VehicleClassRate or GovernedServiceBasis.ApprovedFeeOption)
                 && setting.CheckAmount(request.ReceivedAmount) is { } amountProblem)
                 return await RecordTerminalAsync(actor, request, normalized, amountProblem,
                     amountProblem == "AMOUNT_ABOVE_CEILING"
@@ -801,6 +813,10 @@ public sealed partial class GovernedServiceWorkflow(
     private Task<PostingOperation?> FindOperationAsync(Guid tenantId, Guid operationId, CancellationToken ct) =>
         db.PostingOperations.AsNoTracking().SingleOrDefaultAsync(x =>
             x.MunicipalityId == tenantId && x.ClientOperationId == operationId, ct);
+
+    private static bool ValidMode(GovernedServiceCatalog.Entry entry, GovernedServiceMode? mode) =>
+        entry.Code == CollectorOperationCodes.Transportation ? mode is null or GovernedServiceMode.QuickAmount :
+        entry.ModeAware ? mode is GovernedServiceMode.WholePayment or GovernedServiceMode.DailyTransaction : mode is null;
 
     private static string NormalizeIntent(Actor actor, GovernedServicePostRequest request)
     {

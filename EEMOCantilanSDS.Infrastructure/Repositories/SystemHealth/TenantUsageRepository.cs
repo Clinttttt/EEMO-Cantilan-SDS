@@ -54,6 +54,7 @@ public class TenantUsageRepository(AppDbContext context) : ITenantUsageRepositor
         ["CollectorOperationActivations"] = "Operation Mobile activations",
         ["GovernedServices"] = "Governed services",
         ["GovernedServiceSettings"] = "Governed service settings",
+        ["OfficialReportRevisions"] = "Official report revisions",
         ["PenaltyDefinitions"] = "Penalty definitions",
         ["ObligationAccounts"] = "Obligation accounts",
         ["ObligationRates"] = "Obligation rates",

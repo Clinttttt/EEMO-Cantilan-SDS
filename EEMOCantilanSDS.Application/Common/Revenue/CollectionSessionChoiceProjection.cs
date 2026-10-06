@@ -27,6 +27,19 @@ public static class CollectionSessionChoiceProjection
         var code = operation.OperationCode;
         switch (operation.Kind)
         {
+            case CollectionSessionItemKind.Obligation:
+                foreach (var source in d.ObligationSources ?? [])
+                    if (source.CanAddToDraft && source.OutstandingAmount > 0m &&
+                        (source.Kind == ObligationKind.KanmanggaySpaceRental ? code == "KANMANGGAY_SPACE_RENTAL" :
+                         source.Kind == ObligationKind.FiestaArawLotRental ? code == "FIESTA_ARAW_LOT_RENTAL" : code == "FISH_MEAT_VENDOR_FEE"))
+                        yield return new($"{code}|{source.AccountId:N}|{source.PeriodStart:yyyy-MM-dd}", operation.Kind.Value,
+                            code, source.PayerName ?? source.SubjectLabel,
+                            source.Event is { } rentalEvent ? $"{rentalEvent} · Lot {source.SubjectLabel} · {source.PeriodStart:MMM d, yyyy}" : $"{source.SubjectLabel} · {source.PeriodStart:MMM yyyy}",
+                            new(AccountId: source.AccountId, Year: source.PeriodStart.Year, Month: source.PeriodStart.Month,
+                                PeriodStart: source.PeriodStart, Event: source.Event),
+                            RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.PreparedBalance,
+                            source.OutstandingAmount, source.OutstandingAmount, RateId: source.RateId, RequiredInputs: ["AmountReceived"]);
+                break;
             case CollectionSessionItemKind.Water:
                 foreach (var source in d.WaterSources ?? [])
                     if (source.CanCollect || source.CanEnterDirect)
@@ -104,7 +117,7 @@ public static class CollectionSessionChoiceProjection
                     }
                     else
                         yield return new($"{code}|{entry.Mode}", operation.Kind.Value, code, terms.Name,
-                            entry.Mode == GovernedServiceMode.WholePayment ? "Whole payment" : entry.Mode == GovernedServiceMode.DailyTransaction ? "Daily transaction" : terms.Name,
+                            entry.Mode == GovernedServiceMode.QuickAmount ? "Quick amount" : entry.Mode == GovernedServiceMode.WholePayment ? "Whole payment" : entry.Mode == GovernedServiceMode.DailyTransaction ? "Daily transaction" : terms.Name,
                             new(Mode: entry.Mode), terms.Instrument,
                             terms.Basis == GovernedServiceBasis.FixedAmount ? CollectionSessionAmountRule.FixedAmount : CollectionSessionAmountRule.DirectAmount,
                             terms.FixedAmount, terms.MaximumAmount,

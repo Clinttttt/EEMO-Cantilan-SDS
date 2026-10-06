@@ -16,7 +16,8 @@ public sealed record ObligationQuoteDto(
     Guid PayorId,
     string? PayerName,
     Guid? RateId,
-    bool CanAddToDraft);
+    bool CanAddToDraft,
+    LotRentalEvent? Event = null);
 
 public sealed record ObligationAccountDto(
     Guid Id,

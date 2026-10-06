@@ -28,6 +28,9 @@ public sealed class CachingMobileApiClient(
     IConnectivityMonitor connectivity,
     TimeSpan? readBudget = null) : IMobileApiClient
 {
+    public Task<Result<TaboBatchQuoteDto>> QuoteTaboBatchAsync(TaboBatchRequest request) => inner.QuoteTaboBatchAsync(request);
+    public Task<Result<TaboBatchOutcomeDto>> RecordTaboBatchAsync(TaboBatchRequest request) => InvalidatingAsync(() => inner.RecordTaboBatchAsync(request));
+    public Task<Result<EcfPostOutcomeDto>> PostSpaceObligationAsync(MobileObligationPostRequest request) => InvalidatingAsync(() => inner.PostSpaceObligationAsync(request));
     public Task<Result<IReadOnlyList<DirectVendorFeeSource>>> GetDirectVendorFeeSourcesAsync() => ReadThroughAsync($"checkout|vendors|{Today}", inner.GetDirectVendorFeeSourcesAsync);
     public Task<Result<CollectionSessionDiscovery>> GetCollectionSessionDiscoveryAsync(Guid? payorId) => ReadThroughAsync($"checkout|eligible|{payorId}|{Today}", () => inner.GetCollectionSessionDiscoveryAsync(payorId));
     public Task<Result<IReadOnlyList<CollectionPayorDto>>> SearchCollectionSessionPayorsAsync(string search) => inner.SearchCollectionSessionPayorsAsync(search);

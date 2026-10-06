@@ -116,6 +116,7 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
     /// </summary>
     public IReadOnlyList<DateOnly> PeriodStarts(DateOnly businessDate)
     {
+        if (businessDate < ActiveFrom) return [];
         if (!IsMonthly)
             return EventDate is { } date && date <= businessDate ? [date] : [];
 
@@ -127,6 +128,10 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
             starts.Add(month);
         return starts;
     }
+
+    /// <summary>The first monthly liability uses the approved rate at actual occupancy start, never a backdated rate.</summary>
+    public DateOnly RateAsOf(DateOnly periodStart) => Kind == ObligationKind.KanmanggaySpaceRental && periodStart.Year == ActiveFrom.Year &&
+        periodStart.Month == ActiveFrom.Month && periodStart < ActiveFrom ? ActiveFrom : periodStart;
 
     public static string ClassificationCodeFor(ObligationKind kind) => kind switch
     {
@@ -208,10 +213,10 @@ public sealed class ObligationPeriod : BaseEntity, IMunicipalityOwned
     {
         if (rate.ObligationAccountId != account.Id || rate.MunicipalityId != account.MunicipalityId)
             throw new ArgumentException("The rate does not belong to this account.", nameof(rate));
-        if (rate.EffectiveFrom > periodStart)
+        if (rate.EffectiveFrom > account.RateAsOf(periodStart))
             throw new ArgumentException("The approved rate is not yet in force for this period.", nameof(rate));
         var inWindow = account.IsMonthly
-            ? periodStart.Day == 1 && account.PeriodStarts(periodStart).Contains(periodStart)
+            ? periodStart.Day == 1 && account.PeriodStarts(account.RateAsOf(periodStart)).Contains(periodStart)
             : account.EventDate == periodStart;
         if (!inWindow)
             throw new ArgumentException("The period is outside the account's active window.", nameof(periodStart));

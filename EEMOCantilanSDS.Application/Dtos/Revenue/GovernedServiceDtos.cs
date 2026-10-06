@@ -17,7 +17,8 @@ public enum GovernedServiceSetupState
 public enum GovernedServiceMode
 {
     WholePayment = 1,
-    DailyTransaction = 2
+    DailyTransaction = 2,
+    QuickAmount = 3
 }
 
 /// <summary>The instrument the approved policy resolves for one mode (null mode = the service's only context).</summary>
@@ -37,12 +38,12 @@ public sealed record GovernedServiceDefinitionDto(
     bool MobileEnabled,
     DateOnly? EffectiveDate,
     IReadOnlyList<GovernedServiceInstrumentDto> Instruments,
-    IReadOnlyList<string> SetupIssues);
+    IReadOnlyList<string> SetupIssues, bool QuickAmountEnabled = false);
 
 /// <summary>A new effective-dated setup version. It never edits history.</summary>
 public sealed record ConfigureGovernedServiceRequest(
     DateOnly EffectiveDate, GovernedServiceBasis Basis, decimal? FixedAmount, decimal? MaximumAmount,
-    bool IsEnabled, bool MobileEnabled);
+    bool IsEnabled, bool MobileEnabled, bool QuickAmountEnabled = false);
 
 /// <summary>
 /// Versioned received-money intent for one collection. The collector supplies facts only:

@@ -8,6 +8,8 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 /// <summary>Office view of remittance and liquidation, collector positions and form accountability (IA-052).</summary>
 public interface IRemittancesApiClient
 {
+    Task<Result<RemittanceReviewDto>> GetReviewAsync(RemittanceReviewRequest request);
+    Task<Result<IReadOnlyList<RemittanceHistoryRowDto>>> GetFilteredHistoryAsync(RemittanceReviewRequest request);
     Task<Result<RemittanceScopeDto>> GetScopeAsync(Guid collectorId, DateOnly from, DateOnly to, RevenueInstrumentType? instrument);
     Task<Result<RemittanceDetailDto>> RecordAsync(RecordRemittanceRequest request);
 
