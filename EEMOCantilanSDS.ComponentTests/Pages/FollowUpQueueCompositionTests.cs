@@ -103,11 +103,49 @@ public sealed class FollowUpQueueCompositionTests : TestContext
         }, RenderTimeout);
     }
 
-    private (IRenderedComponent<FollowUpPage> Cut, Mock<IReportsApiClient> Api) RenderQueue()
+    [Fact]
+    public void SpaceOperationScopes_AreServerDriven_AndNeverInventAFacility()
+    {
+        var kanmanggay = new FollowUpScopeDto(FollowUpScopeKind.MonthlySpace, "KANMANGGAY_SPACE_RENTAL", "Kanmanggay");
+        var fiesta = new FollowUpScopeDto(FollowUpScopeKind.EventLot, "FIESTA_ARAW_LOT_RENTAL", "Fiesta / Araw");
+        var queue = SampleQueue() with
+        {
+            ObligationItems = new[]
+            {
+                new ObligationFollowUpItemDto(Guid.NewGuid(), Guid.NewGuid(), "Lisa Ilogans", "K-3", kanmanggay,
+                    new DateOnly(2026, 8, 1), 1_000m, 400m, 600m, "High", null, "/kanmanggay"),
+                new ObligationFollowUpItemDto(Guid.NewGuid(), Guid.NewGuid(), "Ben Cruz", "Lot 1", fiesta,
+                    new DateOnly(2026, 8, 15), 500m, 0m, 500m, "Normal", LotRentalEvent.Fiesta, "/fiesta")
+            }
+        };
+        var (cut, _) = RenderQueue(queue);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains(cut.FindAll(".fq-chip"), c => c.TextContent.Trim() == "All sources");
+            Assert.DoesNotContain(cut.FindAll(".fq-chip"), c => c.TextContent.Trim() == "All Facilities");
+            Assert.Contains("Unpaid and partial periods", cut.Markup);
+            Assert.Contains("August 2026", cut.Markup);                       // monthly period
+            Assert.Contains("Fiesta · Aug 15, 2026", cut.Markup);             // event period
+            Assert.Contains("Partial · ₱400 paid", cut.Markup);
+            Assert.DoesNotContain("KANMANGGAY_SPACE_RENTAL", cut.Markup);       // no raw code
+            Assert.Null(cut.FindAll(".fq-priority").FirstOrDefault(p => p.TextContent.Contains("Critical")));
+        }, RenderTimeout);
+
+        cut.FindAll(".fq-chip").Single(c => c.TextContent.Trim() == "Kanmanggay").Click();
+        Assert.Contains("Lisa Ilogans", cut.Markup);
+        Assert.DoesNotContain("Ben Cruz", cut.Markup);
+        Assert.DoesNotContain("Lower-age delinquent", cut.Markup);            // classic rows are not mixed into a space scope
+
+        cut.FindAll(".fq-chip").Single(c => c.TextContent.Trim().StartsWith("TCC") || c.GetAttribute("title") == "TCC").Click();
+        Assert.DoesNotContain("Lisa Ilogans", cut.Markup);
+    }
+
+    private (IRenderedComponent<FollowUpPage> Cut, Mock<IReportsApiClient> Api) RenderQueue(FollowUpQueueDto? queue = null)
     {
         var reportsApi = new Mock<IReportsApiClient>();
         reportsApi.Setup(api => api.GetFollowUpQueueAsync(It.IsAny<int>(), It.IsAny<int>()))
-            .ReturnsAsync(Result<FollowUpQueueDto>.Success(SampleQueue()));
+            .ReturnsAsync(Result<FollowUpQueueDto>.Success(queue ?? SampleQueue()));
         Services.AddSingleton(reportsApi.Object);
 
         var facilitiesApi = new Mock<IFacilitiesApiClient>();
