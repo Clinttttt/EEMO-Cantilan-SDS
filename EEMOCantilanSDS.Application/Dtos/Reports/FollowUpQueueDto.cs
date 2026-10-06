@@ -12,7 +12,8 @@ namespace EEMOCantilanSDS.Application.Dtos.Reports;
 public record FollowUpQueueDto(
     string PeriodLabel,
     DateOnly AsOf,
-    IReadOnlyList<FollowUpItemDto> Items
+    IReadOnlyList<FollowUpItemDto> Items,
+    IReadOnlyList<ObligationFollowUpItemDto>? ObligationItems = null
 );
 
 /// <summary>

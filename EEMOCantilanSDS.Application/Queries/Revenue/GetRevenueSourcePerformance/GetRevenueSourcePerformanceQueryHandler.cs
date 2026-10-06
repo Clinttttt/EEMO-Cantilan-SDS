@@ -60,7 +60,7 @@ public sealed class GetRevenueSourcePerformanceQueryHandler(
                 null, // A physical document count is no longer derivable: collections are identified by SRC (IA-062).
                 countable ? mine.Where(f => f.CollectorId is not null).Select(f => f.CollectorId).Distinct().Count() : null,
                 RevenueSourceCatalog.StatusFor(entry.Model, cell.Total, awaiting),
-                awaiting));
+                awaiting, cell.AdjustmentAmount, row.AnnualTarget, row.Attainment));
         }
 
         var order = RevenueSourceCatalog.Groups.Select((g, i) => (g.Key, i)).ToDictionary(x => x.Key, x => x.i);
@@ -77,7 +77,7 @@ public sealed class GetRevenueSourcePerformanceQueryHandler(
             "A source paid on service has no assessment, so it never shows an unpaid amount or a collection rate.",
         };
         return Result<RevenueSourcePerformanceDto>.Success(new RevenueSourcePerformanceDto(
-            request.Year, request.Month, groups, rows, rows.Sum(r => r.Collected), notes, income.Value.GeneratedAtUtc));
+            request.Year, request.Month, groups, rows, rows.Sum(r => r.Collected), notes, income.Value.GeneratedAtUtc, income.Value.TargetCoverage));
     }
 
     private async Task<List<CanonicalFact>> CanonicalFactsAsync(Guid tenantId, DateOnly start, DateOnly end, CancellationToken ct)

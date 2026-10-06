@@ -12,6 +12,12 @@ namespace EEMOCantilanSDS.HttpClients.ApiClients;
 
 public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApiClient
 {
+    public Task<Result<TaboBatchQuoteDto>> QuoteTaboBatchAsync(TaboBatchRequest request) =>
+        PostAsync<TaboBatchRequest, TaboBatchQuoteDto>("api/mobile/fast-collections/tabo/quote", request);
+    public Task<Result<TaboBatchOutcomeDto>> RecordTaboBatchAsync(TaboBatchRequest request) =>
+        PostAsync<TaboBatchRequest, TaboBatchOutcomeDto>("api/mobile/fast-collections/tabo/record", request);
+    public Task<Result<EcfPostOutcomeDto>> PostSpaceObligationAsync(MobileObligationPostRequest request) =>
+        PostAsync<MobileObligationPostRequest, EcfPostOutcomeDto>("api/mobile/fast-collections/space-obligation", request);
     public Task<Result<IReadOnlyList<DirectVendorFeeSource>>> GetDirectVendorFeeSourcesAsync() => GetAsync<IReadOnlyList<DirectVendorFeeSource>>("api/mobile/collection-session/vendor-fee-sources");
     public Task<Result<IReadOnlyList<CollectionPayorDto>>> SearchCollectionSessionPayorsAsync(string search) => GetAsync<IReadOnlyList<CollectionPayorDto>>($"api/mobile/collection-session/payors?search={Uri.EscapeDataString(search)}");
     public Task<Result<IReadOnlyList<EcfObligationQuoteDto>>> GetMobileEcfSourcesAsync() => GetAsync<IReadOnlyList<EcfObligationQuoteDto>>("api/mobile/collection-session/electricity-sources");

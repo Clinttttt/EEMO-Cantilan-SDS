@@ -56,6 +56,25 @@ public sealed class OfficialReportPanelsTests : TestContext
     }
 
     [Fact]
+    public void MonthlyIncome_renders_official_adjusted_cell_and_approved_target_from_server()
+    {
+        var cells = Enumerable.Range(1, 12).Select(_ => new MonthlyIncomeCellDto(0m, 0m)).ToArray();
+        cells[8] = new(0m, 30m, 20m);
+        var total = new MonthlyIncomeCellDto(0m, 30m, 20m);
+        var row = new OfficialMonthlyIncomeRowDto("MARKET_FEES", "Market Fees", "MARKET_FEES", cells, total, "Canonical", 1000m, 5m);
+        var report = new OfficialMonthlyIncomeDto(2026, 9, [new("MARKET", "Income from Market", [row], cells, total)],
+            cells, total, true, [], DateTime.UtcNow);
+        _reports.Setup(x => x.GetMonthlyIncomeAsync(2026, 9)).ReturnsAsync(Result<OfficialMonthlyIncomeDto>.Success(report));
+        var cut = RenderComponent<OfficialMonthlyIncomePanel>(p => p.Add(x => x.Year, 2026).Add(x => x.Month, 9));
+        cut.WaitForAssertion(() =>
+        {
+            var text = cut.Find("table.mi-table").TextContent;
+            Assert.Contains("50.00", text);
+            Assert.Contains("1,000.00", text);
+        }, Timeout);
+    }
+
+    [Fact]
     public void MonthlyIncome_FollowsTheOfficeStatement_NotTheFacilities_AndNeverInventsATarget()
     {
         _reports.Setup(x => x.GetMonthlyIncomeAsync(2026, 9)).ReturnsAsync(Result<OfficialMonthlyIncomeDto>.Success(Statement(9)));

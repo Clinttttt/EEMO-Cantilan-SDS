@@ -27,6 +27,83 @@ namespace EEMOCantilanSDS.IntegrationTests;
 [Collection(PostgresCollection.Name)]
 public sealed class OfficialMonthlyIncomeTests(PostgresFixture db)
 {
+    [SkippableFact]
+    public async Task Targets_and_official_adjustments_are_revision_safe_and_do_not_mutate_cash()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+        await db.ResetAsync();
+        var w = await SeedAsync();
+        await using var ctx = db.CreateContext(w.Tenant.Id);
+        var tenant = new FixedTenant(w.Tenant.Id);
+        var head = new Caller(w.HeadId, w.Tenant.Id, "SuperAdmin");
+        var cash = await new GovernedServiceWorkflow(ctx, new Caller(w.Collector.Id, w.Tenant.Id, "Collector"), tenant)
+            .PostMobileAsync(new(1, Guid.NewGuid(), CollectorOperationCodes.MarketFees, Today, 30m, null, "Walk-in", null));
+        Assert.True(cash.IsSuccess, cash.Error);
+        var remittance = new RemittanceWorkflow(ctx, head, tenant);
+        var positionBefore = (await remittance.GetScopeAsync(w.Collector.Id, Today, Today, null)).Value!;
+        var workflow = new ReportGovernanceWorkflow(ctx, head, tenant, new Clock(), new LegacyMonthlyIncomeReader(ctx));
+        var baseline = Statement(w, ctx);
+        var row = baseline.Groups.SelectMany(x => x.Rows).Single(x => x.Key == "MARKET_FEES");
+        var system = row.Months[Today.Month - 1].SystemAmount;
+        var collectionCount = await ctx.Collections.CountAsync();
+        var lineCount = await ctx.CollectionLines.CountAsync();
+        var remittanceCount = await ctx.CollectionRemittances.CountAsync();
+        var obligations = await ctx.ObligationPeriods.CountAsync();
+        var adjustmentRequest = new SetMonthlyIncomeAdjustmentRequest(Guid.NewGuid(), "MARKET_FEES", Today.Year,
+            Today.Month, system, system + 50m, "Office reconciliation", "Supporting document");
+        var adjustment = await workflow.AdjustAsync(adjustmentRequest);
+        Assert.True(adjustment.IsSuccess, adjustment.Error);
+        Assert.Equal(adjustment.Value!.Id, (await workflow.AdjustAsync(adjustmentRequest)).Value!.Id);
+        Assert.Equal(ResultStatus.Conflict, (await workflow.AdjustAsync(adjustmentRequest with { OfficialAmount = system + 60m })).Status);
+        var targetRequest = new SetAnnualTargetRequest(Guid.NewGuid(), "MARKET_FEES", Today.Year, 1000m, "Approved annual budget", "Budget reference");
+        var target = await workflow.SetTargetAsync(targetRequest);
+        Assert.True(target.IsSuccess, target.Error);
+        Assert.Equal(target.Value!.Id, (await workflow.SetTargetAsync(targetRequest with { Amount = 1000.00m })).Value!.Id);
+        Assert.Equal(ResultStatus.Invalid, (await workflow.SetTargetAsync(targetRequest with { Amount = 1000.001m })).Status);
+        Assert.Equal(ResultStatus.Invalid, (await workflow.AdjustAsync(adjustmentRequest with { OfficialAmount = decimal.MaxValue })).Status);
+        var report = Statement(w, ctx);
+        var actual = report.Groups.SelectMany(x => x.Rows).Single(x => x.Key == "MARKET_FEES");
+        Assert.Equal((system, 50m, system + 50m, true), (actual.Months[Today.Month - 1].SystemAmount,
+            actual.Months[Today.Month - 1].AdjustmentAmount, actual.Months[Today.Month - 1].OfficialAmount, actual.Months[Today.Month - 1].IsAdjusted));
+        Assert.Equal(1000m, actual.AnnualTarget);
+        Assert.Equal((system + 50m) / 1000m * 100m, actual.Attainment);
+        Assert.Equal(TargetCoverageState.Partial, report.TargetCoverage!.State);
+        Assert.Null(report.TargetCoverage.Attainment);
+        Assert.Equal(baseline.GrandTotal.SystemAmount, report.GrandTotal.SystemAmount);
+        Assert.Equal(baseline.GrandTotal.Total + 50m, report.GrandTotal.Total);
+        Assert.Equal(collectionCount, await ctx.Collections.CountAsync());
+        Assert.Equal(lineCount, await ctx.CollectionLines.CountAsync());
+        Assert.Equal(remittanceCount, await ctx.CollectionRemittances.CountAsync());
+        Assert.Equal(obligations, await ctx.ObligationPeriods.CountAsync());
+        Assert.Equal(30m, (await ctx.Collections.SingleAsync()).TotalAmount);
+        var positionAfter = (await remittance.GetScopeAsync(w.Collector.Id, Today, Today, null)).Value!;
+        Assert.Equal(positionBefore.ExpectedAmount, positionAfter.ExpectedAmount);
+        Assert.Equal(positionBefore.Collections.Select(x => x.CollectionId), positionAfter.Collections.Select(x => x.CollectionId));
+        Assert.Equal(ResultStatus.Conflict, (await workflow.AdjustAsync(adjustmentRequest with { ClientOperationId = Guid.NewGuid() })).Status);
+        Assert.Equal(ResultStatus.Conflict, (await workflow.AdjustAsync(adjustmentRequest with {
+            ClientOperationId = Guid.NewGuid(), ExpectedRevisionId = adjustment.Value.Id, ExpectedSystemAmount = system + 1m })).Status);
+        var cleared = await workflow.AdjustAsync(adjustmentRequest with { ClientOperationId = Guid.NewGuid(),
+            ExpectedRevisionId = adjustment.Value.Id, OfficialAmount = system, Reason = "Reconciled" });
+        Assert.True(cleared.IsSuccess, cleared.Error);
+        Assert.Equal(adjustment.Value.Id, cleared.Value!.SupersedesId);
+        var zero = await workflow.SetTargetAsync(targetRequest with { ClientOperationId = Guid.NewGuid(),
+            ExpectedRevisionId = target.Value!.Id, Amount = 0m });
+        Assert.True(zero.IsSuccess, zero.Error);
+        Assert.Null(Statement(w, ctx).Groups.SelectMany(x => x.Rows).Single(x => x.Key == "MARKET_FEES").Attainment);
+        Assert.Equal(4, (await workflow.HistoryAsync(Today.Year)).Value!.Count);
+        var unauthorized = new ReportGovernanceWorkflow(ctx, new Caller(w.HeadId, w.Tenant.Id, "Admin"), tenant, new Clock(), new LegacyMonthlyIncomeReader(ctx));
+        Assert.Equal(ResultStatus.Forbidden, (await unauthorized.SetTargetAsync(targetRequest)).Status);
+        var foreign = new ReportGovernanceWorkflow(ctx, new Caller(w.HeadId, Guid.NewGuid(), "SuperAdmin"), tenant, new Clock(), new LegacyMonthlyIncomeReader(ctx));
+        Assert.Equal(ResultStatus.Forbidden, (await foreign.HistoryAsync(Today.Year)).Status);
+    }
+
+    [Fact]
+    public void Approved_grouping_keeps_Bbq_under_rent_and_Slaughterhouse_standalone()
+    {
+        Assert.Equal(OfficialMonthlyIncomeStructure.Rent, OfficialMonthlyIncomeStructure.Rows.Single(x => x.Key == "RENT_BBQ").GroupKey);
+        Assert.Equal(OfficialMonthlyIncomeStructure.Slaughterhouse, OfficialMonthlyIncomeStructure.Rows.Single(x => x.Key == "SLAUGHTERHOUSE").GroupKey);
+    }
+
     private sealed class FixedTenant(Guid id) : ICurrentMunicipalityAccessor
     {
         public Guid MunicipalityId => id;

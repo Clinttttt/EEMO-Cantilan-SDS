@@ -76,7 +76,8 @@ public enum CollectionSessionAmountRule { DirectAmount = 1, PreparedBalance = 2,
 public sealed record CollectionSessionChoiceIdentity(Guid? StallId = null, Guid? OccupancyId = null,
     Guid? UtilityBillId = null, long SourceVersion = 0, int? Year = null, int? Month = null,
     Guid? FeeOptionId = null, string? VehicleClassCode = null, GovernedServiceMode? Mode = null,
-    WeighingType? WeighingType = null, AnimalType? Animal = null, string? CustomAnimalName = null);
+    WeighingType? WeighingType = null, AnimalType? Animal = null, string? CustomAnimalName = null, Guid? AccountId = null,
+    DateOnly? PeriodStart = null, LotRentalEvent? Event = null);
 public sealed record CollectionSessionSourceChoice(string SelectionKey, CollectionSessionItemKind Kind,
     string OperationCode, string DisplayName, string Context, CollectionSessionChoiceIdentity Identity,
     RevenueInstrumentType Instrument, CollectionSessionAmountRule AmountRule, decimal? ServerAmount = null,

@@ -66,6 +66,22 @@ public sealed class GetCollectorOperationCapabilitiesQueryHandler(
             // WCF has its own writer (WcfCollectionWorkflow.PostMobileAsync). Market Fees, Landing/Berthing, Transfer
             // Large Cattle and Vegetable/Fruit are governed configurable services (GovernedServiceWorkflow): collectible
             // only when their approved setup, instrument policy and this collector's document custody all exist.
+            if (CollectorOperationCodes.IsSpaceObligation(code))
+            {
+                var classificationCode = code == CollectorOperationCodes.KanmanggaySpaceRental
+                    ? RevenueClassificationCodes.KanmanggaySpaceRental : RevenueClassificationCodes.FiestaArawLotRental;
+                var classificationId = await db.RevenueClassifications.AsNoTracking().Where(x =>
+                    x.MunicipalityId == tenantId && x.IsActive && x.SemanticCode == classificationCode)
+                    .Select(x => (Guid?)x.Id).SingleOrDefaultAsync(ct);
+                var instrument = await db.RevenueClassificationPolicies.AsNoTracking().Where(x =>
+                    x.MunicipalityId == tenantId && x.RevenueClassificationId == classificationId &&
+                    x.BusinessContext == RevenuePolicyContext.Default && x.EffectiveDate <= today)
+                    .OrderByDescending(x => x.EffectiveDate).Select(x => x.PermittedInstrumentType).FirstOrDefaultAsync(ct);
+                var ready = collector.IsActive && instrument == RevenueInstrumentType.OfficialReceipt;
+                operations.Add(new(code, name, true, ready ? CollectorOperationCapabilityStatus.Ready : CollectorOperationCapabilityStatus.NeedsPolicy,
+                    ready, ready ? [] : [collector.IsActive ? PolicyNotEffective : CollectorInactive]));
+                continue;
+            }
             if (GovernedServiceCatalog.Find(code) is { } governed)
             {
                 operations.Add(await EvaluateGovernedAsync(tenantId, collector.IsActive, collectorId, governed, name, today, ct));

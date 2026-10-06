@@ -5,9 +5,13 @@ namespace EEMOCantilanSDS.Application.Dtos.Revenue;
 /// and month, kept apart so a mixed period can be audited. They are never two views of the same money: a source row that
 /// has gone canonical is excluded from the legacy figure, so the total counts every real collection exactly once.
 /// </summary>
-public sealed record MonthlyIncomeCellDto(decimal Legacy, decimal Canonical)
+public sealed record MonthlyIncomeCellDto(decimal Legacy, decimal Canonical, decimal AdjustmentAmount = 0m,
+    ReportRevisionDto? Adjustment = null)
 {
-    public decimal Total => Legacy + Canonical;
+    public decimal SystemAmount => Legacy + Canonical;
+    public decimal OfficialAmount => SystemAmount + AdjustmentAmount;
+    public bool IsAdjusted => Adjustment is not null || AdjustmentAmount != 0m;
+    public decimal Total => OfficialAmount;
 }
 
 public sealed record OfficialMonthlyIncomeRowDto(
@@ -43,4 +47,4 @@ public sealed record OfficialMonthlyIncomeDto(
     MonthlyIncomeCellDto GrandTotal,
     bool TargetsConfigured,
     IReadOnlyList<string> Notes,
-    DateTime GeneratedAtUtc);
+    DateTime GeneratedAtUtc, TargetCoverageDto? TargetCoverage = null);

@@ -194,6 +194,11 @@ public class ApplicationEfBoundaryTests
         "GovernedCanonicalAuthority.cs",
         "NpmDailyCanonicalPoster.cs",
         "FeeScheduleCollectionWorkflow.cs",
+        // Approved report-governance slice: serializable audited revisions and obligation follow-up reuse the existing
+        // shared unit of work. Tabo batch is a partial of the existing canonical writer, not a second calculation engine.
+        "ReportGovernanceWorkflow.cs",
+        "SpaceFollowUpWorkflow.cs",
+        "FeeScheduleCollectionWorkflow.TaboBatch.cs",
         "ApprovedSlaughterAnimalWorkflow.cs",
         "ObligationCollectionSource.cs",
         // The scoped cutover coordinator reads one source part, its effective instrument policy,

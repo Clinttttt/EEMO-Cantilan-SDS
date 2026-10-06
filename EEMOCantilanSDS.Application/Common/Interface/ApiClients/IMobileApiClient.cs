@@ -12,6 +12,9 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 
 public interface IMobileApiClient
 {
+    Task<Result<TaboBatchQuoteDto>> QuoteTaboBatchAsync(TaboBatchRequest request);
+    Task<Result<TaboBatchOutcomeDto>> RecordTaboBatchAsync(TaboBatchRequest request);
+    Task<Result<EcfPostOutcomeDto>> PostSpaceObligationAsync(MobileObligationPostRequest request);
     Task<Result<IReadOnlyList<DirectVendorFeeSource>>> GetDirectVendorFeeSourcesAsync() => Task.FromResult(Result<IReadOnlyList<DirectVendorFeeSource>>.Failure("Vendor sources are unavailable."));
     Task<Result<IReadOnlyList<CollectionPayorDto>>> SearchCollectionSessionPayorsAsync(string search) => Task.FromResult(Result<IReadOnlyList<CollectionPayorDto>>.Failure("Payer search is unavailable."));
     Task<Result<IReadOnlyList<EcfObligationQuoteDto>>> GetMobileEcfSourcesAsync() => Task.FromResult(Result<IReadOnlyList<EcfObligationQuoteDto>>.Failure("Electricity sources are unavailable."));

@@ -21,6 +21,8 @@ public sealed class CollectorOperationAssignmentWorkflow(
     internal static readonly (string Code, string Name)[] Catalog =
     [
         (CollectorOperationCodes.Wcf, "Water Consumption Fee"),
+        (CollectorOperationCodes.KanmanggaySpaceRental, "Kanmanggay Space Rental"),
+        (CollectorOperationCodes.FiestaArawLotRental, "Fiesta / Araw Lot Rental"),
         (CollectorOperationCodes.VegetableFruitSpaceRental, "Vegetable / Fruit Space Rental"),
         (CollectorOperationCodes.LandingBerthing, "Landing / Berthing"),
         (CollectorOperationCodes.TransferLargeCattle, "Transfer Large Cattle"),

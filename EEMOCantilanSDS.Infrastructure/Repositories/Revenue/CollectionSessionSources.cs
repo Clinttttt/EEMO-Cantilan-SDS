@@ -39,6 +39,13 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
             foreach (var op in operations.Value!.Operations)
             {
                 var water = op.OperationCode == CollectorOperationCodes.Wcf;
+                if (CollectorOperationCodes.IsSpaceObligation(op.OperationCode))
+                {
+                    rows.Add(new(CollectionSessionItemKind.Obligation, op.OperationCode, op.Name, true,
+                        op.IsCollectible && payorId.HasValue, !payorId.HasValue ? "RequiresPayor" : !op.IsCollectible ? "SourceNotAvailable" : null,
+                        null, true, ["AccountId", "Year", "Month", "Amount"]));
+                    continue;
+                }
                 var supported = water || GovernedServiceCatalog.Find(op.OperationCode) is not null && !CollectorOperationCodes.IsFeeSchedule(op.OperationCode);
                 rows.Add(new(water ? CollectionSessionItemKind.Water : supported ? CollectionSessionItemKind.GovernedService : null,
                     op.OperationCode, op.Name, supported, supported && op.IsCollectible && (!water || payorId.HasValue),
@@ -57,7 +64,6 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
             !npm ? "CollectorNotAssigned" : !payorId.HasValue ? "RequiresPayor" : null, null, true, ["StallId", "Type", "Kilograms"]));
         foreach (var (code, name) in new[]
         {
-            ("KANMANGGAY_SPACE_RENTAL", "Kanmanggay"), ("FIESTA_ARAW_LOT_RENTAL", "Fiesta/Araw"),
             (CollectorOperationCodes.NpmDaily, "NPM Daily"),
             (CollectorOperationCodes.Tabo, "Tabo")
         })
@@ -73,7 +79,8 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
         foreach (var row in rows.Where(x => x.CanAdd && x.Kind == CollectionSessionItemKind.GovernedService))
         {
             var entry = GovernedServiceCatalog.Find(row.OperationCode)!;
-            var modes = entry.ModeAware ? new GovernedServiceMode?[] { GovernedServiceMode.WholePayment, GovernedServiceMode.DailyTransaction } : [null];
+            var modes = entry.Code == CollectorOperationCodes.Transportation ? new GovernedServiceMode?[] { null, GovernedServiceMode.QuickAmount }
+                : entry.ModeAware ? new GovernedServiceMode?[] { GovernedServiceMode.WholePayment, GovernedServiceMode.DailyTransaction } : [null];
             foreach (var mode in modes)
             {
                 var response = await Governed.GetTermsAsync(row.OperationCode, mode, ct, date);
@@ -85,13 +92,18 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
         IReadOnlyList<ObligationQuoteDto> obligationSources = [];
         if (payorId is { } payer)
         {
+            var allowedSpaceCodes = rows.Where(x => x.Kind == CollectionSessionItemKind.Obligation && x.CanAdd).Select(x => x.OperationCode).ToArray();
+            var spaceAccounts = await db.ObligationAccounts.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.PayorId == payer &&
+                (x.Kind == ObligationKind.KanmanggaySpaceRental && allowedSpaceCodes.Contains(CollectorOperationCodes.KanmanggaySpaceRental) ||
+                 x.Kind == ObligationKind.FiestaArawLotRental && allowedSpaceCodes.Contains(CollectorOperationCodes.FiestaArawLotRental))).ToListAsync(ct);
+            obligationSources = await new ObligationCollectionSource(db).GetQuotesAsync(Tenant, spaceAccounts, date, ct);
             var water = await Water.GetMobileSourcesAsync(date.Year, date.Month, ct, businessDate: date, selectedPayorId: payer);
             if (water.IsSuccess) waterSources = water.Value!.Where(x => x.PayorId == payer).ToArray();
             if (npm)
             {
                 var accounts = await db.ObligationAccounts.AsNoTracking().Where(x => x.MunicipalityId == Tenant
                     && x.PayorId == payer && x.Kind == ObligationKind.FishMeatVendorFee).ToListAsync(ct);
-                if (!FishMeatVendorFeeRules.UsesDirectCollection(date)) obligationSources = await new ObligationCollectionSource(db).GetQuotesAsync(Tenant, accounts, date, ct);
+                if (!FishMeatVendorFeeRules.UsesDirectCollection(date)) obligationSources = obligationSources.Concat(await new ObligationCollectionSource(db).GetQuotesAsync(Tenant, accounts, date, ct)).ToArray();
                 var electricity = await Composer.GetMobileEcfSourcesAsync(payer, ct);
                 if (electricity.IsSuccess) electricitySources.AddRange(electricity.Value!);
             }
@@ -353,23 +365,31 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
             }
             case CollectionSessionItemKind.Obligation when item.Obligation is { } o:
             {
-                if (FishMeatVendorFeeRules.UsesDirectCollection(session.BusinessDate)) return Fail("SourceStillLegacy", "Monthly vendor-fee accounts are historical. Choose direct Vendor Fee.");
-                if (!await NpmAssignedAsync(ct)) return Fail("CollectorNotAssigned", "This source is not assigned to you.");
                 var account = await db.ObligationAccounts.AsNoTracking().SingleOrDefaultAsync(x => x.MunicipalityId == Tenant && x.Id == o.AccountId, ct);
                 if (account is null) return Fail("InvalidSource", "The selected account is not available.");
-                if (account.Kind != ObligationKind.FishMeatVendorFee) return Fail("NotSupportedYet", "This account has no authorized Collector Mobile adapter yet.");
+                var operationCode = account.Kind switch
+                {
+                    ObligationKind.KanmanggaySpaceRental => CollectorOperationCodes.KanmanggaySpaceRental,
+                    ObligationKind.FiestaArawLotRental => CollectorOperationCodes.FiestaArawLotRental,
+                    _ => "FISH_MEAT_VENDOR_FEE"
+                };
+                if (account.Kind == ObligationKind.FishMeatVendorFee && FishMeatVendorFeeRules.UsesDirectCollection(session.BusinessDate))
+                    return Fail("SourceStillLegacy", "Monthly vendor-fee accounts are historical. Choose direct Vendor Fee.");
+                if (account.Kind == ObligationKind.FishMeatVendorFee ? !await NpmAssignedAsync(ct) :
+                    !await db.CollectorOperationAssignments.AnyAsync(x => x.MunicipalityId == Tenant && x.CollectorId == user.CollectorId && x.OperationCode == operationCode, ct))
+                    return Fail("CollectorNotAssigned", "This source is not assigned to you.");
                 if (!Payer(account.PayorId)) return Fail("PayerMismatch", "Select the authoritative linked payer of this account.");
                 var quote = (await new ObligationCollectionSource(db).GetQuotesAsync(Tenant, [account], session.BusinessDate, ct))
                     .SingleOrDefault(x => x.PeriodStart.Year == o.Year && x.PeriodStart.Month == o.Month);
                 if (quote is null || !quote.CanAddToDraft) return Fail("BalanceChanged", "This period has no collectible balance.");
                 if (item.ConfirmedAmount > quote.OutstandingAmount) return Fail("BalanceChanged", "The amount exceeds the period's remaining balance.");
                 var classificationId = await db.RevenueClassifications.AsNoTracking().Where(x => x.MunicipalityId == Tenant
-                    && x.SemanticCode == RevenueClassificationCodes.FishMeatVendorFee && x.IsActive).Select(x => (Guid?)x.Id).SingleOrDefaultAsync(ct);
+                    && x.SemanticCode == ObligationAccount.ClassificationCodeFor(account.Kind) && x.IsActive).Select(x => (Guid?)x.Id).SingleOrDefaultAsync(ct);
                 var policy = await db.RevenueClassificationPolicies.AsNoTracking().Where(x => x.MunicipalityId == Tenant
                     && x.RevenueClassificationId == classificationId && x.BusinessContext == RevenuePolicyContext.Default && x.EffectiveDate <= session.BusinessDate)
                     .OrderByDescending(x => x.EffectiveDate).FirstOrDefaultAsync(ct);
                 if (policy?.PermittedInstrumentType != RevenueInstrumentType.OfficialReceipt) return Fail("SourceNotAvailable", "No approved vendor-fee policy is effective.");
-                return (Q("FISH_MEAT_VENDOR_FEE", "Fish/Meat Vendor Fee", $"{quote.SubjectLabel} · {o.Year}-{o.Month:00}",
+                return (Q(operationCode, quote.KindLabel, $"{quote.SubjectLabel} · {o.Year}-{o.Month:00}",
                     RevenueInstrumentType.OfficialReceipt, item.ConfirmedAmount, new { quote.AccountId, quote.PeriodId,
                         quote.RateId, quote.AssessedAmount, quote.SettledAmount, quote.OutstandingAmount, Policy = policy.Id }), null);
             }

@@ -34,6 +34,190 @@ namespace EEMOCantilanSDS.IntegrationTests;
 public sealed class CollectionSessionTests(PostgresFixture database)
 {
     [SkippableFact]
+    public async Task Linked_meat_vendor_three_kilograms_quotes_records_and_replays_with_effective_rate()
+    {
+        var w = await SeedAsync(section: MarketSection.MeatSection);
+        await using var db = database.CreateContext(w.TenantId);
+        await EnableRentAndWeighing(db, w);
+        const decimal approvedRate = 22m;
+        db.Add(FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmMeatPerKilo, approvedRate, Today, w.TenantId));
+        await db.SaveChangesAsync();
+        var source = new CollectionSessionSources(db, new Caller(w.CollectorId, w.TenantId), new Tenant(w.TenantId),
+            new Clock(), new DiscoverySender(db, w), new NoMarketDays());
+        var flow = Workflow(db, w, source);
+        var discovery = (await flow.DiscoverAsync(w.PayorId)).Value!;
+        Assert.Contains(discovery.Operations.Single(x => x.Kind == CollectionSessionItemKind.Weighing).Choices!,
+            x => x.Identity.WeighingType == WeighingType.Meat && x.Rate == approvedRate);
+        var intent = new CollectionSessionIntent(Guid.NewGuid(), Today, w.PayorId, [new(Guid.NewGuid(),
+            CollectionSessionItemKind.Weighing, 0m, Weighing: new(w.StallId, WeighingType.Meat, 3m))]);
+        var quote = (await flow.QuoteAsync(intent)).Value!;
+        Assert.True(quote.CanRecord);
+        Assert.Equal(3m * approvedRate, quote.GrandTotal);
+        Assert.Equal(RevenueInstrumentType.OfficialReceipt, Assert.Single(quote.Items).Instrument);
+        var result = (await flow.RecordAsync(new(intent, quote.QuoteFingerprint))).Value!;
+        Assert.Equal(CollectionSessionStatus.Recorded, result.Status);
+        Assert.Equal(result.Collections[0].ReferenceCode,
+            (await flow.RecordAsync(new(intent, quote.QuoteFingerprint))).Value!.Collections[0].ReferenceCode);
+        Assert.Equal(1, await db.Collections.CountAsync());
+        Assert.Empty(await db.ObligationPeriods.ToListAsync());
+    }
+
+    [SkippableFact]
+    public async Task SpaceHolder_created_midmonth_is_immediately_listed_and_collectible_only_by_assigned_operation()
+    {
+        var w = await SeedAsync();
+        await using var db = database.CreateContext(w.TenantId);
+        var tenant = new Tenant(w.TenantId);
+        var head = new Caller(Guid.NewGuid(), w.TenantId, "SuperAdmin");
+        var month = new DateOnly(Today.Year, Today.Month, 1);
+        db.RemoveRange(await db.CollectorFacilityAssignments.Where(x => x.CollectorId == w.CollectorId).ToListAsync());
+        var start = Today.Day > 1 ? Today : month.AddMonths(-1).AddDays(14);
+        var setup = new ObligationWorkflow(db, head, tenant, new Clock());
+        foreach (var kind in new[] { ObligationKind.KanmanggaySpaceRental, ObligationKind.FiestaArawLotRental })
+        {
+            var classification = RevenueClassification.Create(ObligationAccount.ClassificationCodeFor(kind), w.TenantId);
+            db.AddRange(classification, RevenueClassificationPolicy.Create(classification.Id, start.AddYears(-1),
+                "Space rental", RevenueInstrumentType.OfficialReceipt, w.TenantId));
+        }
+        await db.SaveChangesAsync();
+        var created = await setup.CreateAccountAsync(new(ObligationKind.KanmanggaySpaceRental, w.PayorId, null,
+            "", null, null, start, 175m, OccupancyArrangement.SpaceOnly));
+        Assert.True(created.IsSuccess, created.Error);
+        var holder = created.Value!;
+        var listed = (await setup.GetAccountsAsync(ObligationKind.KanmanggaySpaceRental)).Value!;
+        Assert.Equal(175m, Assert.Single(listed).CurrentAmount);
+        Assert.True(Assert.Single(listed).OutstandingToDate >= 175m);
+        Assert.Equal(holder.Id, Assert.Single((await setup.GetWorkspaceAsync(ObligationKind.KanmanggaySpaceRental)).Value!.Accounts).Id);
+        Assert.Empty(await db.ObligationPeriods.ToListAsync()); // browsing never assesses
+        var collector = new Caller(w.CollectorId, w.TenantId);
+        var sources = new CollectionSessionSources(db, collector, tenant, new Clock(), new DiscoverySender(db, w), new NoMarketDays());
+        var flow = Workflow(db, w, sources);
+        var period = new DateOnly(start.Year, start.Month, 1);
+        var intent = new CollectionSessionIntent(Guid.NewGuid(), Today, w.PayorId, [
+            new(Guid.NewGuid(), CollectionSessionItemKind.Obligation, 75m,
+                Obligation: new(holder.Id, period.Year, period.Month))]);
+        Assert.False((await flow.QuoteAsync(intent)).Value!.CanRecord);
+        db.Add(CollectorOperationAssignment.Assign(w.TenantId, w.CollectorId, CollectorOperationCodes.KanmanggaySpaceRental, "head"));
+        await db.SaveChangesAsync();
+        var choices = (await flow.DiscoverAsync(w.PayorId)).Value!.Operations
+            .Single(x => x.OperationCode == CollectorOperationCodes.KanmanggaySpaceRental);
+        Assert.Contains(choices.Choices!, x => x.Identity.AccountId == holder.Id);
+        var otherPayor = Payor.Create(w.TenantId, "Different payer", BusinessPayorKind.Person, "test");
+        db.Add(otherPayor);
+        await db.SaveChangesAsync();
+        Assert.DoesNotContain((await flow.DiscoverAsync(otherPayor.Id)).Value!.Operations.SelectMany(x => x.Choices ?? []),
+            x => x.Identity.AccountId == holder.Id);
+        var posted = await Record(flow, intent);
+        Assert.Equal(RevenueInstrumentType.OfficialReceipt, Assert.Single(posted.Collections).Instrument);
+        Assert.StartsWith("SRC-", posted.Collections[0].ReferenceCode);
+        var replay = (await flow.RecordAsync(new(intent, "unknown-response-retry"))).Value!;
+        Assert.Equal(posted.Collections[0].CollectionId, replay.Collections[0].CollectionId);
+        Assert.Equal(1, await db.ObligationPeriods.CountAsync());
+        Assert.Equal(100m, (await new ObligationCollectionSource(db).GetQuotesAsync(w.TenantId,
+            [await db.ObligationAccounts.SingleAsync(x => x.Id == holder.Id)], Today, default))
+            .Single(x => x.PeriodStart == period).OutstandingAmount);
+        var standalone = new CollectionComposerWorkflow(db, collector, tenant, new Clock());
+        var final = await standalone.PostMobileObligationAsync(new(Guid.NewGuid(), holder.Id, period.Year, period.Month, 100m, Today));
+        Assert.True(final.IsSuccess, final.Error);
+        Assert.Equal(2, await db.Collections.CountAsync());
+        Assert.Equal(1, await db.ObligationPeriods.CountAsync());
+        var future = await setup.CreateAccountAsync(new(ObligationKind.KanmanggaySpaceRental, w.PayorId, null,
+            "", null, null, Today.AddDays(1), 250m, OccupancyArrangement.SpaceOnly));
+        Assert.True(future.IsSuccess, future.Error);
+        Assert.Equal(0m, (await setup.GetAccountsAsync(ObligationKind.KanmanggaySpaceRental)).Value!.Single(x => x.Id == future.Value!.Id).OutstandingToDate);
+    }
+
+    [SkippableFact]
+    public async Task Fiesta_event_collection_and_space_followup_keep_event_and_monthly_semantics()
+    {
+        var w = await SeedAsync();
+        await using var db = database.CreateContext(w.TenantId);
+        var tenant = new Tenant(w.TenantId);
+        var head = new Caller(Guid.NewGuid(), w.TenantId, "SuperAdmin");
+        var setup = new ObligationWorkflow(db, head, tenant, new Clock());
+        foreach (var kind in new[] { ObligationKind.KanmanggaySpaceRental, ObligationKind.FiestaArawLotRental })
+        {
+            var classification = RevenueClassification.Create(ObligationAccount.ClassificationCodeFor(kind), w.TenantId);
+            db.AddRange(classification, RevenueClassificationPolicy.Create(classification.Id, Today.AddYears(-1), "Space", RevenueInstrumentType.OfficialReceipt, w.TenantId));
+        }
+        db.AddRange(CollectorOperationAssignment.Assign(w.TenantId, w.CollectorId, CollectorOperationCodes.FiestaArawLotRental, "head"),
+            CollectorOperationAssignment.Assign(w.TenantId, w.CollectorId, CollectorOperationCodes.KanmanggaySpaceRental, "head"));
+        await db.SaveChangesAsync();
+        var eventDate = Today.AddDays(-1);
+        var lot = (await setup.CreateAccountAsync(new(ObligationKind.FiestaArawLotRental, w.PayorId, null,
+            "", LotRentalEvent.Fiesta, eventDate, eventDate, 400m, OccupancyArrangement.SpaceOnly))).Value!;
+        var monthly = (await setup.CreateAccountAsync(new(ObligationKind.KanmanggaySpaceRental, w.PayorId, null,
+            "", null, null, new DateOnly(Today.Year, Today.Month, 1).AddMonths(-1), 200m, OccupancyArrangement.SpaceOnly))).Value!;
+        var reader = new SpaceFollowUpWorkflow(db, head, tenant);
+        var unpaid = await reader.GetAsync(Today, null, default);
+        Assert.Equal(2, unpaid.Count);
+        Assert.Equal(eventDate, unpaid.Single(x => x.AccountId == lot.Id).PeriodStart);
+        var collector = new Caller(w.CollectorId, w.TenantId);
+        var flow = Workflow(db, w, new CollectionSessionSources(db, collector, tenant, new Clock(), new DiscoverySender(db, w), new NoMarketDays()));
+        var eventChoice = Assert.Single((await flow.DiscoverAsync(w.PayorId)).Value!.Operations
+            .Single(x => x.OperationCode == CollectorOperationCodes.FiestaArawLotRental).Choices!);
+        Assert.Equal((lot.Id, eventDate, LotRentalEvent.Fiesta),
+            (eventChoice.Identity.AccountId, eventChoice.Identity.PeriodStart, eventChoice.Identity.Event));
+        var intent = new CollectionSessionIntent(Guid.NewGuid(), Today, w.PayorId, [
+            new(Guid.NewGuid(), CollectionSessionItemKind.Obligation, 400m, Obligation: new(lot.Id, eventDate.Year, eventDate.Month)),
+            new(Guid.NewGuid(), CollectionSessionItemKind.Obligation, 50m, Obligation: new(monthly.Id, Today.AddMonths(-1).Year, Today.AddMonths(-1).Month))]);
+        Assert.Equal(450m, (await Record(flow, intent)).GrandTotal);
+        var partial = Assert.Single(await reader.GetAsync(Today, null, default));
+        Assert.Equal((monthly.Id, 150m), (partial.AccountId, partial.Outstanding));
+        Assert.Empty(await reader.GetAsync(Today, CollectorOperationCodes.FiestaArawLotRental, default));
+        Assert.Empty(await new SpaceFollowUpWorkflow(db, new Caller(Guid.NewGuid(), Guid.NewGuid(), "Admin"), tenant).GetAsync(Today, null, default));
+        Assert.Equal(2, await db.ObligationPeriods.CountAsync());
+        Assert.Equal(2, await db.Collections.CountAsync());
+        var remaining = await new CollectionComposerWorkflow(db, collector, tenant, new Clock()).PostMobileObligationAsync(
+            new(Guid.NewGuid(), monthly.Id, Today.AddMonths(-1).Year, Today.AddMonths(-1).Month, 150m, Today));
+        Assert.True(remaining.IsSuccess, remaining.Error);
+        Assert.Empty(await reader.GetAsync(Today, null, default));
+        Assert.Equal(2, await db.ObligationPeriods.CountAsync());
+        var income = (await new GetOfficialMonthlyIncomeQueryHandler(db, new LegacyMonthlyIncomeReader(db), head, tenant, new Clock())
+            .Handle(new(Today.Year, Today.Month), default)).Value!;
+        var reportRows = income.Groups.SelectMany(x => x.Rows).ToArray();
+        Assert.Equal(200m, reportRows.Single(x => x.ClassificationCode == RevenueClassificationCodes.KanmanggaySpaceRental).Total.Canonical);
+        Assert.Equal(400m, reportRows.Single(x => x.ClassificationCode == RevenueClassificationCodes.FiestaArawLotRental).Total.Canonical);
+        var remit = (await new RemittanceWorkflow(db, head, tenant).GetReviewAsync(new(Today, Today))).Value!;
+        Assert.Equal((600m, 3), (remit.Total, remit.CollectionCount));
+    }
+
+    [SkippableFact]
+    public async Task Transportation_quick_amount_has_no_vehicle_class_and_uses_same_canonical_writer_in_session()
+    {
+        var w = await SeedAsync();
+        await using var db = database.CreateContext(w.TenantId);
+        var tenant = new Tenant(w.TenantId);
+        var head = new Caller(Guid.NewGuid(), w.TenantId, "SuperAdmin");
+        var classification = RevenueClassification.Create(RevenueClassificationCodes.TransportationParking, w.TenantId);
+        db.AddRange(classification, RevenueClassificationPolicy.Create(classification.Id, Today, "Transport", RevenueInstrumentType.CashTicket, w.TenantId),
+            CollectorOperationAssignment.Assign(w.TenantId, w.CollectorId, CollectorOperationCodes.Transportation, "head"));
+        await db.SaveChangesAsync();
+        var setup = new GovernedServiceWorkflow(db, head, tenant, new Clock());
+        Assert.True((await setup.ConfigureAsync(CollectorOperationCodes.Transportation,
+            new(Today, GovernedServiceBasis.VehicleClassRate, null, null, true, true, QuickAmountEnabled: true))).IsSuccess);
+        var collector = new Caller(w.CollectorId, w.TenantId);
+        var service = new GovernedServiceWorkflow(db, collector, tenant, new Clock());
+        var request = new GovernedServicePostRequest(1, Guid.NewGuid(), CollectorOperationCodes.Transportation,
+            Today, 123m, GovernedServiceMode.QuickAmount, null, "Bulk received");
+        var first = await service.PostMobileAsync(request);
+        Assert.True(first.IsSuccess, first.Error);
+        Assert.Equal(first.Value!.ReferenceCode, (await service.PostMobileAsync(request)).Value!.ReferenceCode);
+        var flow = Workflow(db, w, new CollectionSessionSources(db, collector, tenant, new Clock(), new DiscoverySender(db, w), new NoMarketDays()));
+        var choice = Assert.Single((await flow.DiscoverAsync(null)).Value!.Operations.Single(x => x.OperationCode == CollectorOperationCodes.Transportation).Choices!);
+        Assert.Equal(GovernedServiceMode.QuickAmount, choice.Identity.Mode);
+        Assert.Null(choice.Identity.VehicleClassCode);
+        await Record(flow, new(Guid.NewGuid(), Today, null, [new(Guid.NewGuid(), CollectionSessionItemKind.GovernedService,
+            45m, Service: new(CollectorOperationCodes.Transportation, GovernedServiceMode.QuickAmount))]));
+        var current = (await setup.GetTransportationCurrentAsync(Today, Today)).Value!;
+        Assert.Equal(168m, current.CollectedToday);
+        Assert.All(current.Collections, x => { Assert.Null(x.VehicleClassCode); Assert.Equal(GovernedServiceMode.QuickAmount, x.Mode); });
+        Assert.Empty(await db.TrmTrips.ToListAsync());
+        Assert.Empty(await db.VehicleClasses.ToListAsync());
+        Assert.Equal(2, await db.Collections.CountAsync());
+    }
+
+    [SkippableFact]
     public async Task Transportation_DisablingCanonicalService_DoesNotReopenLegacyTripAuthority()
     {
         var w = await SeedAsync();
@@ -304,7 +488,7 @@ public sealed class CollectionSessionTests(PostgresFixture database)
         public AdminUserDto? GetCurrentUser() => null;
     }
     private sealed record World(Guid TenantId, Guid CollectorId, Guid PayorId, Guid AccountId, Guid StallId);
-    private async Task<World> SeedAsync(DateOnly? accountStart = null, bool linked = true)
+    private async Task<World> SeedAsync(DateOnly? accountStart = null, bool linked = true, MarketSection section = MarketSection.FishSection)
     {
         Skip.IfNot(database.Available, database.UnavailableReason ?? "");
         await database.ResetAsync();
@@ -316,7 +500,7 @@ public sealed class CollectionSessionTests(PostgresFixture database)
             null, null, new HashedPassword("test"), tenant.Id);
         var facility = Facility.Create(FacilityCode.NPM, "Market", "NPM", archetype: BillingArchetype.DailyStall, municipalityId: tenant.Id);
         var stall = Stall.Create(facility.Id, "FISH-1", 900m, ApplicableFees.BaseRental | ApplicableFees.Water | ApplicableFees.Electricity,
-            MarketSection.FishSection, createdBy: "test", municipalityId: tenant.Id);
+            section, createdBy: "test", municipalityId: tenant.Id);
         var payor = Payor.Create(tenant.Id, "One Payer", BusinessPayorKind.Person, "test");
         var contract = Contract.Create(stall.Id, "One Payer", "One Payer", (accountStart ?? Today).AddYears(-1), 20, 900m, createdBy: "test");
         if (linked) contract.AssociatePayor(payor.Id, "test");

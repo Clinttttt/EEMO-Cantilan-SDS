@@ -39,7 +39,13 @@ public sealed record RevenueSourcePerformanceRowDto(
     int? CollectorCount,
     string Status,
     // True when the source has money but no approved official Monthly Income placement yet.
-    bool AwaitingPlacement);
+    bool AwaitingPlacement,
+    decimal AdjustmentAmount = 0m,
+    decimal? AnnualTarget = null,
+    decimal? Attainment = null)
+{
+    public decimal SystemAmount => LegacyCollected + CanonicalCollected;
+}
 
 public sealed record RevenueSourceGroupDto(string Key, string Label, decimal Collected);
 
@@ -50,4 +56,5 @@ public sealed record RevenueSourcePerformanceDto(
     IReadOnlyList<RevenueSourcePerformanceRowDto> Rows,
     decimal TotalCollected,
     IReadOnlyList<string> Notes,
-    DateTime GeneratedAtUtc);
+    DateTime GeneratedAtUtc,
+    TargetCoverageDto? TargetCoverage = null);

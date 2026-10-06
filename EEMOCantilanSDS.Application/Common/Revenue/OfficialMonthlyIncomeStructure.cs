@@ -6,7 +6,7 @@ namespace EEMOCantilanSDS.Application.Common.Revenue;
 /// <summary>
 /// The office Monthly Income statement's rows and groups (IA-050, Rulebook sections 9-13). The hierarchy follows the office
 /// statement, never the facilities: a facility only decides the stall-rent row, because the sheet prints NPM, NCC and TCC
-/// rent separately. Operations whose official placement is not yet confirmed (Slaughterhouse, BBQ, other rental facilities)
+/// rent separately. BBQ belongs to Rent and Slaughterhouse has its own section. Other unconfirmed rental facilities
 /// are listed under their own heading instead of being placed by guess.
 /// </summary>
 public static class OfficialMonthlyIncomeStructure
@@ -18,12 +18,14 @@ public static class OfficialMonthlyIncomeStructure
     public const string Rent = "RENT";
     public const string Space = "SPACE";
     public const string Pending = "PENDING";
+    public const string Slaughterhouse = "SLAUGHTERHOUSE";
 
     public static readonly IReadOnlyList<Group> Groups =
     [
         new(Market, "Income from Market"),
         new(Rent, "Rent Income - Stall Rental"),
         new(Space, "Space Rental"),
+        new(Slaughterhouse, "Slaughterhouse"),
         new(Pending, "Awaiting an approved official grouping"),
     ];
 
@@ -43,6 +45,7 @@ public static class OfficialMonthlyIncomeStructure
         new("RENT_NPM", "New Public Market (NPM)", Rent, RevenueClassificationCodes.PermanentStallRent, FacilityCode.NPM),
         new("RENT_NCC", "New Commercial Center (NCC)", Rent, RevenueClassificationCodes.PermanentStallRent, FacilityCode.NCC),
         new("RENT_TCC", "Tampak Commercial Center (TCC)", Rent, RevenueClassificationCodes.PermanentStallRent, FacilityCode.TCC),
+        new("RENT_BBQ", "Barbecue stands (BBQ) rent", Rent, RevenueClassificationCodes.PermanentStallRent, FacilityCode.BBQ),
         new("ARREARS", "Arrears", Rent, RevenueClassificationCodes.Arrears),
 
         new("VEGETABLE_FRUIT_SPACE_RENTAL", "Vegetable / Fruits", Space, RevenueClassificationCodes.VegetableFruitSpaceRental),
@@ -50,8 +53,7 @@ public static class OfficialMonthlyIncomeStructure
         new("FIESTA_ARAW_LOT_RENTAL", "Lot Rental - Fiesta / Araw", Space, RevenueClassificationCodes.FiestaArawLotRental),
         new("PENALTIES_AND_FINES", "Fines", Space, RevenueClassificationCodes.PenaltiesAndFines),
 
-        new("SLAUGHTERHOUSE", "Slaughterhouse", Pending, RevenueClassificationCodes.Slaughterhouse),
-        new("RENT_BBQ", "Barbecue stands (BBQ) rent", Pending, RevenueClassificationCodes.PermanentStallRent, FacilityCode.BBQ),
+        new("SLAUGHTERHOUSE", "Slaughterhouse", Slaughterhouse, RevenueClassificationCodes.Slaughterhouse),
         new("RENT_OTHER", "Rent - other rental facilities", Pending, RevenueClassificationCodes.PermanentStallRent),
     ];
 

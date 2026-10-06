@@ -165,6 +165,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         public DbSet<EEMOCantilanSDS.Domain.Entities.Revenue.CollectorOperationActivation> CollectorOperationActivations { get; set; }
         public DbSet<GovernedService> GovernedServices { get; set; }
         public DbSet<GovernedServiceSetting> GovernedServiceSettings { get; set; }
+        public DbSet<OfficialReportRevision> OfficialReportRevisions { get; set; }
         public DbSet<PenaltyDefinition> PenaltyDefinitions { get; set; }
         public DbSet<ObligationAccount> ObligationAccounts { get; set; }
         public DbSet<ObligationRate> ObligationRates { get; set; }

@@ -9,6 +9,10 @@ namespace EEMOCantilanSDS.HttpClients.ApiClients;
 
 public sealed class RemittancesApiClient(HttpClient http) : HandleResponse(http), IRemittancesApiClient
 {
+    public Task<Result<RemittanceReviewDto>> GetReviewAsync(RemittanceReviewRequest request) =>
+        PostAsync<RemittanceReviewRequest, RemittanceReviewDto>("api/remittances/review", request);
+    public Task<Result<IReadOnlyList<RemittanceHistoryRowDto>>> GetFilteredHistoryAsync(RemittanceReviewRequest request) =>
+        PostAsync<RemittanceReviewRequest, IReadOnlyList<RemittanceHistoryRowDto>>("api/remittances/history/filter", request);
     private static string D(DateOnly d) => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
     public Task<Result<RemittanceScopeDto>> GetScopeAsync(Guid collectorId, DateOnly from, DateOnly to, RevenueInstrumentType? instrument) =>

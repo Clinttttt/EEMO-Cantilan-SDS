@@ -21,6 +21,24 @@ namespace EEMOCantilanSDS.IntegrationTests;
 [Collection(PostgresCollection.Name)]
 public sealed class RemittanceGroupingTests(PostgresFixture db)
 {
+    [SkippableFact]
+    public async Task Multi_collector_review_is_a_deduplicated_tenant_scoped_union()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+        await db.ResetAsync();
+        var w = await SeedAsync(2, 1, 1);
+        await using var ctx = db.CreateContext(w.Tenant.Id);
+        var office = Office(ctx, w);
+        var ids = new[] { w.Collectors[0].Id, w.Collectors[1].Id, w.Collectors[0].Id };
+        var review = await office.GetReviewAsync(new(Today.AddDays(-1), Today, ids));
+        Assert.True(review.IsSuccess, review.Error);
+        Assert.Equal((90m, 3, 2), (review.Value!.Total, review.Value.CollectionCount, review.Value.Collectors.Count));
+        Assert.Equal((120m, 4), ((await office.GetReviewAsync(new(Today.AddDays(-1), Today))).Value!.Total,
+            (await office.GetReviewAsync(new(Today.AddDays(-1), Today, []))).Value!.CollectionCount));
+        Assert.Equal(ResultStatus.Forbidden, (await office.GetReviewAsync(new(Today.AddDays(-1), Today, [Guid.NewGuid()]))).Status);
+        Assert.Equal(4, await ctx.Collections.CountAsync());
+    }
+
     private sealed class FixedTenant(Guid id) : ICurrentMunicipalityAccessor
     {
         public Guid MunicipalityId => id;

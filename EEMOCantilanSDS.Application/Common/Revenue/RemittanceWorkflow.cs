@@ -42,6 +42,23 @@ public sealed class RemittanceWorkflow(
             return Result<RemittanceScopeDto>.Success(BuildScope(collectorId, from, to, instrument, eligible));
         }, ct);
 
+    public Task<Result<RemittanceReviewDto>> GetReviewAsync(RemittanceReviewRequest request, CancellationToken ct = default) =>
+        Run<RemittanceReviewDto>(async actor =>
+        {
+            if (Validate(request.From, request.To) is { } problem) return Result<RemittanceReviewDto>.Failure(problem, ResultStatus.Invalid);
+            var selected = (request.CollectorIds ?? []).Distinct().ToArray();
+            if (selected.Contains(Guid.Empty)) return Result<RemittanceReviewDto>.Failure("Choose valid collectors.", ResultStatus.Invalid);
+            var valid = await db.CollectorUsers.AsNoTracking().Where(x => x.MunicipalityId == actor.TenantId && selected.Contains(x.Id))
+                .Select(x => x.Id).ToListAsync(ct);
+            if (valid.Count != selected.Length) return Result<RemittanceReviewDto>.Forbidden();
+            var facts = await LoadCollectionFactsAsync(actor.TenantId, null, request.From, request.To, request.Instrument, ct,
+                selectedCollectors: selected);
+            var groups = facts.Where(x => !x.Covered && x.Net > 0m).GroupBy(x => x.CollectorId!.Value).OrderBy(g => g.Key)
+                .Select(g => BuildScope(g.Key, request.From, request.To, request.Instrument,
+                    g.OrderBy(x => x.BusinessDate).ThenBy(x => x.ReferenceCode).Select(ToCollectionDto).ToArray())).ToArray();
+            return Result<RemittanceReviewDto>.Success(new(groups, groups.Sum(g => g.ExpectedAmount), groups.Sum(g => g.Collections.Count)));
+        }, ct);
+
     // ── Record / void ──────────────────────────────────────────────────────────────────────────────────
 
     public Task<Result<RemittanceDetailDto>> RecordAsync(RecordRemittanceRequest request, CancellationToken ct = default) =>
@@ -256,13 +273,17 @@ public sealed class RemittanceWorkflow(
     /// </summary>
     public Task<Result<IReadOnlyList<RemittanceHistoryRowDto>>> GetHistoryAsync(
         DateOnly from, DateOnly to, Guid? collectorId, RevenueInstrumentType? instrument, RemittanceStatus? status,
-        CancellationToken ct = default) =>
+        CancellationToken ct = default, IReadOnlyList<Guid>? collectorIds = null) =>
         Run<IReadOnlyList<RemittanceHistoryRowDto>>(async actor =>
         {
             if (Validate(from, to) is { } problem) return Result<IReadOnlyList<RemittanceHistoryRowDto>>.Failure(problem, ResultStatus.Invalid);
+            var selected = (collectorIds ?? []).Distinct().ToArray();
+            var validCount = await db.CollectorUsers.AsNoTracking().CountAsync(x => x.MunicipalityId == actor.TenantId && selected.Contains(x.Id), ct);
+            if (validCount != selected.Length || selected.Contains(Guid.Empty)) return Result<IReadOnlyList<RemittanceHistoryRowDto>>.Forbidden();
             var query = db.CollectionRemittances.AsNoTracking().Where(x =>
                 x.MunicipalityId == actor.TenantId && x.RemittanceDate >= from && x.RemittanceDate <= to);
             if (collectorId is { } c) query = query.Where(x => x.CollectorId == c);
+            if (selected.Length > 0) query = query.Where(x => selected.Contains(x.CollectorId));
             if (instrument is { } i) query = query.Where(x => x.Instrument == i);
             if (status is { } s) query = query.Where(x => x.Status == s);
             var rows = await query.ToListAsync(ct);
@@ -433,11 +454,12 @@ public sealed class RemittanceWorkflow(
 
     private async Task<List<CollectionFact>> LoadCollectionFactsAsync(
         Guid tenantId, Guid? collectorId, DateOnly from, DateOnly to, RevenueInstrumentType? instrument, CancellationToken ct,
-        DateTime? correctedAfterUtc = null)
+        DateTime? correctedAfterUtc = null, IReadOnlyList<Guid>? selectedCollectors = null)
     {
         var collections = db.Collections.AsNoTracking().Where(x =>
             x.MunicipalityId == tenantId && x.CollectorId != null && x.BusinessDate >= from && x.BusinessDate <= to);
         if (collectorId is { } c) collections = collections.Where(x => x.CollectorId == c);
+        if (selectedCollectors is { Count: > 0 }) collections = collections.Where(x => selectedCollectors.Contains(x.CollectorId!.Value));
         var list = await collections.Select(x => new { x.Id, x.CollectorId, x.BusinessDate, x.PayerName, x.PayorId, x.TotalAmount, x.RecordedAtUtc, x.ReferenceCode })
             .ToListAsync(ct);
         if (list.Count == 0) return [];
