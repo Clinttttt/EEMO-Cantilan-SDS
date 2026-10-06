@@ -374,7 +374,7 @@ public sealed class OfficialReportPanelsTests : TestContext
         }, Timeout);
     }
 
-    // ── Revenue source performance: every source, described by its own model ──
+    // ── Revenue source performance: official money, management activity and attention ──
 
     private static RevenueSourcePerformanceRowDto Source(string key, string label, string group, string model, decimal collected,
         int? transactions, FacilityCode? facility = null, string? instruments = null) =>
@@ -382,75 +382,183 @@ public sealed class OfficialReportPanelsTests : TestContext
             collected != 0m ? "Active" : "Nothing recorded", false);
 
     [Fact]
-    public void SourcePerformance_ListsOperationsBesideFacilities_AndNeverGivesAPaidOnServiceSourceARate()
+    public void SourcePerformance_DefaultOverviewUsesFiveStaticManagementColumns()
     {
         var rows = new[]
         {
-            Source("LANDING_BERTHING", "Landing / Berthing", "MARKET", RevenueSourceModel.Transactional, 100m, 1, instruments: "CT"),
-            Source("RENT_TCC", "Tampak Commercial Center (TCC)", "RENT", RevenueSourceModel.RecurringObligation, 900m, null, FacilityCode.TCC, "OR"),
+            Source("MARKET_FEES", "Market Fees", "MARKET", RevenueSourceModel.Transactional, 200m, 1, instruments: "CT")
+                with { CollectorCount = 2, DocumentCount = 3 },
+            Source("TRANSPORTATION_PARKING", "Transportation Fees", "MARKET", RevenueSourceModel.Transactional, 40m, 3, instruments: "OR")
+                with { CollectorCount = 2, DocumentCount = 3 },
         };
         var dto = new RevenueSourcePerformanceDto(2026, 10,
-            [new RevenueSourceGroupDto("MARKET", "Income from Market", 100m), new RevenueSourceGroupDto("RENT", "Rent / facility operations", 900m)],
-            rows, 1000m, [], DateTime.UtcNow);
+            [new RevenueSourceGroupDto("MARKET", "Income from Market", 240m)], rows, 240m, [], DateTime.UtcNow);
         _reports.Setup(x => x.GetSourcePerformanceAsync(2026, 10)).ReturnsAsync(Result<RevenueSourcePerformanceDto>.Success(dto));
-        var tcc = new EEMOCantilanSDS.Application.Dtos.Reports.FinancialFacilityRowDto(FacilityCode.TCC, "Tampak Commercial Center",
-            "Monthly rental", false, 900m, 300m, 3, 4, 75, "Partial");
 
-        var cut = RenderComponent<RevenueSourcePerformancePanel>(p => p.Add(x => x.Year, 2026).Add(x => x.Month, 10)
-            .Add(x => x.Facilities, new[] { tcc }));
+        var cut = RenderComponent<RevenueSourcePerformancePanel>(p => p.Add(x => x.Year, 2026).Add(x => x.Month, 10).Add(x => x.OverviewMode, true));
 
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("Revenue source performance — October 2026", cut.Find("#rsp-title").TextContent);
-            var landing = cut.FindAll("tr.rsp-row").Single(r => r.TextContent.Contains("Landing / Berthing"));
-            Assert.Contains("Paid on service · CT", landing.TextContent);
-            Assert.Contains("₱100", landing.TextContent);
-            Assert.Contains("1 transaction", landing.TextContent);
-            Assert.DoesNotContain("%", landing.TextContent);
-            Assert.DoesNotContain("unpaid", landing.TextContent);
-            var rent = cut.FindAll("tr.rsp-row").Single(r => r.TextContent.Contains("Tampak Commercial Center"));
-            Assert.Contains("₱300 unpaid · 3/4 paid · 75%", rent.TextContent);
-            Assert.Contains("Outstanding balances", rent.TextContent);
-            Assert.Contains("₱1,000", cut.Find("tr.rsp-total").TextContent);
-        }, Timeout);
-
-        // Expanding a transactional source states its activity and links to its own report.
-        cut.FindAll("button.rsp-toggle").Single(b => b.TextContent.Contains("Landing / Berthing")).Click();
-        cut.WaitForAssertion(() =>
-        {
-            var detail = cut.Find("tr.rsp-detail");
-            Assert.Contains("Posted collections", detail.TextContent);
-            Assert.Equal("/operations/landing-berthing/report", detail.QuerySelector("a.rsp-link")!.GetAttribute("href"));
+            Assert.Equal(new[] { "Source", "Collected", "Activity", "Contribution", "Attention" },
+                cut.FindAll("table.rsp-table thead th").Select(h => h.TextContent.Trim()).ToArray());
+            var market = cut.FindAll("tr.rsp-row").Single(r => r.TextContent.Contains("Market Fees"));
+            Assert.Equal(5, market.QuerySelectorAll("th, td").Length);
+            Assert.Contains("₱200", market.TextContent);
+            Assert.Contains("1 transaction", market.TextContent);
+            Assert.Contains("83.3%", market.TextContent);
+            Assert.Contains("—", market.TextContent);
+            var transport = cut.FindAll("tr.rsp-row").Single(r => r.TextContent.Contains("Transportation Fees"));
+            Assert.Contains("3 transactions", transport.TextContent);
+            Assert.Contains("16.7%", transport.TextContent);
+            Assert.DoesNotContain("collector", cut.Markup, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("document", cut.Markup, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("OR", cut.Markup);
+            Assert.DoesNotContain("CT", cut.Markup);
+            Assert.DoesNotContain("Active", cut.Markup);
+            Assert.DoesNotContain("Basis", cut.Find("table.rsp-table thead").TextContent);
+            Assert.DoesNotContain("Position", cut.Find("table.rsp-table thead").TextContent);
+            Assert.DoesNotContain("Status", cut.Find("table.rsp-table thead").TextContent);
+            Assert.Empty(cut.FindAll("button.rsp-toggle"));
+            Assert.Empty(cut.FindAll("tr.rsp-detail"));
+            Assert.DoesNotContain("aria-expanded", cut.Find("table.rsp-table").OuterHtml);
+            Assert.DoesNotContain("aria-controls", cut.Find("table.rsp-table").OuterHtml);
+            Assert.Contains("₱240", cut.Find("tr.rsp-group").TextContent);
+            Assert.Contains("₱240", cut.Find("tr.rsp-total").TextContent);
         }, Timeout);
     }
 
     [Fact]
-    public void SourcePerformance_DefaultsToAllSources_AndCanNarrowToFacilitiesWithoutReaddingMoney()
+    public void SourcePerformance_ZeroGroupDenominatorShowsDash()
+    {
+        var row = Source("WCF", "Water Consumption Fees / WCF", "MARKET", RevenueSourceModel.RecurringObligation, 0m, 0);
+        _reports.Setup(x => x.GetSourcePerformanceAsync(2026, 10)).ReturnsAsync(Result<RevenueSourcePerformanceDto>.Success(
+            new RevenueSourcePerformanceDto(2026, 10, [new RevenueSourceGroupDto("MARKET", "Income from Market", 0m)], [row], 0m, [], DateTime.UtcNow)));
+
+        var cut = RenderComponent<RevenueSourcePerformancePanel>(p => p.Add(x => x.Year, 2026).Add(x => x.Month, 10).Add(x => x.OverviewMode, true));
+
+        cut.WaitForAssertion(() =>
+        {
+            var row = cut.Find("tr.rsp-row");
+            Assert.Equal("—", row.QuerySelector("td.rsp-contribution")!.TextContent.Trim());
+        }, Timeout);
+    }
+
+    [Fact]
+    public void SourcePerformance_UsesRegisterCoverageAndOnlyRealRecurringBalancesForAttention()
     {
         var rows = new[]
         {
-            Source("LANDING_BERTHING", "Landing / Berthing", "MARKET", RevenueSourceModel.Transactional, 100m, 1, instruments: "CT"),
-            Source("RENT_TCC", "Tampak Commercial Center (TCC)", "RENT", RevenueSourceModel.RecurringObligation, 900m, null, FacilityCode.TCC, "OR"),
+            Source("RENT_TCC", "Tampak Commercial Center (TCC)", "RENT", RevenueSourceModel.RecurringObligation, 300m, null, FacilityCode.TCC),
+            Source("LANDING_BERTHING", "Landing / Berthing", "MARKET", RevenueSourceModel.Transactional, 20m, 1),
+            Source("MARKET_FEES", "Market Fees", "MARKET", RevenueSourceModel.Transactional, 100m, null) with { LegacyCollected = 100m, CanonicalCollected = 0m },
+            Source("PENALTIES_AND_FINES", "Fines", "OTHER", RevenueSourceModel.Transactional, 50m, 1) with { AwaitingPlacement = true },
         };
         _reports.Setup(x => x.GetSourcePerformanceAsync(2026, 10)).ReturnsAsync(Result<RevenueSourcePerformanceDto>.Success(
             new RevenueSourcePerformanceDto(2026, 10,
-                [new RevenueSourceGroupDto("MARKET", "Income from Market", 100m), new RevenueSourceGroupDto("RENT", "Rent / facility operations", 900m)],
-                rows, 1000m, [], DateTime.UtcNow)));
+                [new RevenueSourceGroupDto("MARKET", "Income from Market", 120m), new RevenueSourceGroupDto("RENT", "Rent / facility operations", 300m),
+                    new RevenueSourceGroupDto("OTHER", "Other operations", 50m)], rows, 470m, [], DateTime.UtcNow)));
+        var tcc = new EEMOCantilanSDS.Application.Dtos.Reports.FinancialFacilityRowDto(FacilityCode.TCC, "Tampak Commercial Center",
+            "Monthly rental", false, 300m, 7800m, 18, 24, 75, "Partial");
 
-        var cut = RenderComponent<RevenueSourcePerformancePanel>(p => p.Add(x => x.Year, 2026).Add(x => x.Month, 10));
+        var cut = RenderComponent<RevenueSourcePerformancePanel>(p => p.Add(x => x.Year, 2026).Add(x => x.Month, 10)
+            .Add(x => x.Facilities, new[] { tcc }).Add(x => x.OverviewMode, true));
+
+        cut.WaitForAssertion(() =>
+        {
+            var rent = cut.FindAll("tr.rsp-row").Single(r => r.TextContent.Contains("Tampak Commercial Center"));
+            Assert.Contains("18 / 24 paid", rent.TextContent);
+            Assert.Contains("₱7,800 outstanding", rent.TextContent);
+            Assert.DoesNotContain("unpaid", rent.TextContent, StringComparison.OrdinalIgnoreCase);
+
+            var service = cut.FindAll("tr.rsp-row").Single(r => r.TextContent.Contains("Landing / Berthing"));
+            Assert.Contains("1 transaction", service.TextContent);
+            Assert.Contains("—", service.QuerySelector("td.rsp-attention")!.TextContent.Trim());
+
+            var legacy = cut.FindAll("tr.rsp-row").Single(r => r.TextContent.Contains("Market Fees"));
+            Assert.Contains("Legacy included", legacy.TextContent);
+            Assert.Contains("Legacy data included", legacy.TextContent);
+            Assert.DoesNotContain("0 transactions", legacy.TextContent);
+
+            var placement = cut.FindAll("tr.rsp-row").Single(r => r.TextContent.Contains("Fines"));
+            Assert.Contains("Needs official placement", placement.TextContent);
+            Assert.Contains("warn", placement.QuerySelector("td.rsp-attention")!.ClassName);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void SourcePerformance_NeverShowsOutstandingForAPaidOnServiceSource()
+    {
+        var row = Source("LANDING_BERTHING", "Landing / Berthing", "MARKET", RevenueSourceModel.Transactional, 100m, 1, FacilityCode.TCC);
+        _reports.Setup(x => x.GetSourcePerformanceAsync(2026, 10)).ReturnsAsync(Result<RevenueSourcePerformanceDto>.Success(
+            new RevenueSourcePerformanceDto(2026, 10, [new RevenueSourceGroupDto("MARKET", "Income from Market", 100m)], [row], 100m, [], DateTime.UtcNow)));
+        var facility = new EEMOCantilanSDS.Application.Dtos.Reports.FinancialFacilityRowDto(FacilityCode.TCC, "Tampak Commercial Center",
+            "Monthly rental", false, 100m, 7800m, 1, 1, 100, "Partial");
+
+        var cut = RenderComponent<RevenueSourcePerformancePanel>(p => p.Add(x => x.Year, 2026).Add(x => x.Month, 10)
+            .Add(x => x.Facilities, new[] { facility }).Add(x => x.OverviewMode, true));
+
+        cut.WaitForAssertion(() =>
+        {
+            var source = cut.Find("tr.rsp-row");
+            Assert.Contains("1 transaction", source.TextContent);
+            Assert.Equal("—", source.QuerySelector("td.rsp-attention")!.TextContent.Trim());
+            Assert.DoesNotContain("outstanding", source.TextContent, StringComparison.OrdinalIgnoreCase);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void SourcePerformance_FilterKeepsTheServerGroupDenominatorAndNoCrossGroupSubtotal()
+    {
+        var rows = new[]
+        {
+            Source("ECF", "General Distribution / ECF", "MARKET", RevenueSourceModel.RecurringObligation, 100m, 1),
+            Source("ICE_PLANT", "Ice Plant", "MARKET", RevenueSourceModel.RecurringObligation, 900m, 1, FacilityCode.ICE),
+        };
+        _reports.Setup(x => x.GetSourcePerformanceAsync(2026, 10)).ReturnsAsync(Result<RevenueSourcePerformanceDto>.Success(
+            new RevenueSourcePerformanceDto(2026, 10, [new RevenueSourceGroupDto("MARKET", "Income from Market", 1000m)], rows, 1000m, [], DateTime.UtcNow)));
+
+        var cut = RenderComponent<RevenueSourcePerformancePanel>(p => p.Add(x => x.Year, 2026).Add(x => x.Month, 10).Add(x => x.OverviewMode, true));
 
         cut.WaitForAssertion(() => Assert.Contains("All sources", cut.Find(".rsp-filter").TextContent), Timeout);
         Assert.Equal(2, cut.FindAll("tr.rsp-row").Count);
-
         cut.Find(".rsp-filter .fh-dd-trigger").Click();
         cut.FindAll(".rsp-filter .fh-dd-item").Single(i => i.TextContent.Contains("Facilities only")).Click();
 
         cut.WaitForAssertion(() =>
         {
             var row = Assert.Single(cut.FindAll("tr.rsp-row"));
-            Assert.Contains("Tampak Commercial Center", row.TextContent);
-            // A cross-group scope lists rows only; the server's totals are not re-added on the client.
+            Assert.Contains("Ice Plant", row.TextContent);
+            Assert.Equal("90.0%", row.QuerySelector("td.rsp-contribution")!.TextContent.Trim());
+            Assert.Empty(cut.FindAll("tr.rsp-group td.rsp-num:not(:empty)"));
             Assert.Contains("—", cut.Find("tr.rsp-total").TextContent);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void SourcePerformance_ReportsContextRetainsItsExistingColumnsAndExpandedDetails()
+    {
+        var row = Source("LANDING_BERTHING", "Landing / Berthing", "MARKET", RevenueSourceModel.Transactional, 100m, 1, instruments: "CT");
+        _reports.Setup(x => x.GetSourcePerformanceAsync(2026, 10)).ReturnsAsync(Result<RevenueSourcePerformanceDto>.Success(
+            new RevenueSourcePerformanceDto(2026, 10, [new RevenueSourceGroupDto("MARKET", "Income from Market", 100m)], [row], 100m, [], DateTime.UtcNow)));
+
+        var cut = RenderComponent<RevenueSourcePerformancePanel>(p => p.Add(x => x.Year, 2026).Add(x => x.Month, 10));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(new[] { "Source", "Basis", "Collected", "Annual target", "Activity", "Position", "Status" },
+                cut.FindAll("table.rsp-table thead th").Select(h => h.TextContent.Trim()).ToArray());
+            Assert.Single(cut.FindAll("button.rsp-toggle"));
+        }, Timeout);
+
+        cut.Find("button.rsp-toggle").Click();
+        cut.WaitForAssertion(() =>
+        {
+            var details = cut.Find("tr.rsp-detail");
+            Assert.Contains("Posted collections", details.TextContent);
+            Assert.Contains("Documents", details.TextContent);
+            Assert.Contains("Collectors", details.TextContent);
+            Assert.Equal("/operations/landing-berthing/report", details.QuerySelector("a.rsp-link")!.GetAttribute("href"));
         }, Timeout);
     }
 

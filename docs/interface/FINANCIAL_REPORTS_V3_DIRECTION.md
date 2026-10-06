@@ -78,14 +78,19 @@ the statement never collapses into cards.
   Kanmanggay, Fiesta/Araw, Fines, Slaughterhouse, Arrears, and any unknown classification kept apart by the statement).
 - Server: `GET api/official-reports/source-performance` → `GetRevenueSourcePerformanceQueryHandler`. **Collected is the
   official Monthly Income row for the same period** (legacy before cutover + canonical after, once) — not a second algorithm.
-  Counts (transactions, documents, collectors) come from posted Collections and are **null, not zero**, for a row that also
-  holds legacy money in the period. Instruments are read from the classification policies in force.
-- Analytic grouping and model are `RevenueSourceCatalog` (Income from Market, Rent / facility operations, Space rental,
-  Other operations, Receivables context). This is analysis, **not** official placement; an unplaced source with money is
-  flagged "Needs official placement".
-- Model-aware metrics: paid-on-service and quantity sources show activity and "Paid on service", never unpaid or a rate;
-  recurring facility rows (NPM/NCC/TCC/BBQ rent, Ice Plant) show unpaid · paid/expected · rate only from the facility
-  register for the same period; a receivable points to Receivables. Remittance is never a revenue metric.
+- Dashboard Overview presents a static five-column table: **Source · Collected · Activity · Contribution · Attention**.
+  Rows cannot be expanded. Instrument, collection-model, document, collector and generic active/status labels stay out of
+  this management view. The source name and existing analytic group separators remain unchanged. This reduction applies
+  only to Overview; Reports → Trends & Targets retains its existing analysis columns, expandable detail and target editor.
+- Counts come from posted Collections and are **null, not zero**, for a row that also holds legacy money in the period.
+  Activity shows a transaction count where available, `Legacy included` when the server cannot state that count, and
+  facility-register paid/expected coverage for a recurring facility only when that same-period register is available.
+- Contribution uses the source's existing `RevenueSourceCatalog` group amount. Facility-only and non-facility filters do
+  not create a new filtered denominator; a zero group amount displays `—`.
+- Attention is quiet (`—`) unless official placement is unresolved, a recurring facility register supplies a real unpaid
+  amount, or legacy data materially limits interpretation. A paid-on-service source never receives an unpaid amount.
+  Remittance is never a revenue metric.
+- Annual-target values and editing remain in Reports → Trends & Targets; they are not part of the Overview table.
 - Facility analysis remains under Trends & Targets as **Facility performance**; the toolbar filter is "Facility analysis".
 
 ## Official Monthly Income (final output) — added 2026-10-01
@@ -107,7 +112,8 @@ posted Collections. A Landing/Berthing CT therefore appears once in each.
 - The section strip is a quiet sticky band under the page header on long reports (static in print).
 - Revenue Source Performance has its own scope: All sources (default), Facilities only, Non-facility operations, or one
   analytic group. A cross-group scope lists rows only and states no subtotal: money totals stay the server's.
-- The Dashboard shows the same Revenue Source Performance register (one source list, shared truth); its hero figures are
-  labelled as facility figures because the dashboard reader is facility-scoped.
+- The Dashboard uses the same server Revenue Source Performance row list and money (one source list, shared truth), with
+  the five-column management presentation above; its hero figures are labelled as facility figures because the dashboard
+  reader is facility-scoped.
 - Collection Activity (`/collections/activity`) reads the legacy facility feed only; it says so and points to the
   Collections register for operation, utility and space-rental collections. A combined activity feed remains a backend gap.

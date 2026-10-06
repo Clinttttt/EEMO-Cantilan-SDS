@@ -1,4 +1,4 @@
-/* Revenue source performance: a compact register — group rows, source rows, aligned amounts, quiet model labels. */
+/* Revenue source performance: a compact register with quiet group separators and aligned amounts. */
 .rsp {
     margin-bottom: 20px;
     border: 1px solid var(--border);
@@ -166,6 +166,17 @@
 
     .rsp-status.quiet {
         color: var(--text-tertiary);
+    }
+
+.rsp-attention {
+    font-size: 0.75rem;
+    white-space: nowrap;
+    color: var(--text-tertiary);
+}
+
+    .rsp-attention.warn {
+        color: var(--red);
+        font-weight: 600;
     }
 
 .rsp-detail td {

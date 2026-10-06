@@ -8,15 +8,16 @@
 @* REVENUE SOURCE PERFORMANCE — every source the office collects, facility or not.
 
    The register's money is the server's official Monthly Income for the same period (legacy before cutover plus canonical
-   after it, once), so it can never disagree with the statement. Each source is described by its own model: a source paid
-   on service shows its activity and never an unpaid amount or a rate; a recurring obligation shows its balance and
-   coverage only where the facility register actually measures them; a receivable points to Receivables. Facility
-   analysis stays under Trends & Targets as Facility performance. *@
+   after it, once). The Overview uses a static management table; its contribution uses the existing source-group amount,
+   and recurring coverage or outstanding amounts appear only when the same-period facility register supplies them. The
+   Reports presentation retains its existing analysis and target-management behavior. *@
 <section class="rsp" aria-labelledby="rsp-title" aria-busy="@(_loading ? "true" : "false")">
     <div class="rsp-head">
         <div>
             <h2 id="rsp-title" class="rsp-title">Revenue source performance — @PeriodLabel</h2>
-            <div class="rsp-sub">Collected is the official Monthly Income for the period; secondary figures follow each source's model</div>
+            <div class="rsp-sub">@(OverviewMode
+                ? "Official collections and operating activity by revenue source for the selected period."
+                : "Collected is the official Monthly Income for the period; secondary figures follow each source's model")</div>
             @if (_data?.TargetCoverage is { } coverage)
             {
                 <div class="rsp-cov" role="status">@CoverageText(coverage)</div>
@@ -42,108 +43,153 @@
                 <caption class="v3-sr-only">Revenue source performance for @PeriodLabel</caption>
                 <thead>
                     <tr>
-                        <th scope="col">Source</th>
-                        <th scope="col">Basis</th>
-                        <th scope="col" class="rsp-num">Collected</th>
-                        <th scope="col" class="rsp-num">Annual target</th>
-                        <th scope="col">Activity</th>
-                        <th scope="col">Position</th>
-                        <th scope="col">Status</th>
+                        @if (OverviewMode)
+                        {
+                            <th scope="col">Source</th>
+                            <th scope="col" class="rsp-num">Collected</th>
+                            <th scope="col">Activity</th>
+                            <th scope="col" class="rsp-num">Contribution</th>
+                            <th scope="col">Attention</th>
+                        }
+                        else
+                        {
+                            <th scope="col">Source</th>
+                            <th scope="col">Basis</th>
+                            <th scope="col" class="rsp-num">Collected</th>
+                            <th scope="col" class="rsp-num">Annual target</th>
+                            <th scope="col">Activity</th>
+                            <th scope="col">Position</th>
+                            <th scope="col">Status</th>
+                        }
                     </tr>
                 </thead>
                 @foreach (var group in VisibleGroups)
                 {
                     <tbody>
                         <tr class="rsp-group">
-                            <th scope="rowgroup" colspan="2">@group.Label</th>
-                            <td class="rsp-num">@(CrossGroupScope ? "" : Money(group.Collected))</td>
-                            <td colspan="4"></td>
+                            @if (OverviewMode)
+                            {
+                                <th scope="rowgroup">@group.Label</th>
+                                <td class="rsp-num">@(CrossGroupScope ? "" : Money(group.Collected))</td>
+                                <td colspan="3"></td>
+                            }
+                            else
+                            {
+                                <th scope="rowgroup" colspan="2">@group.Label</th>
+                                <td class="rsp-num">@(CrossGroupScope ? "" : Money(group.Collected))</td>
+                                <td colspan="4"></td>
+                            }
                         </tr>
                         @foreach (var row in _data.Rows.Where(r => r.GroupKey == group.Key && RowVisible(r)))
                         {
-                            var open = _open.Contains(row.Key);
+                            var open = _reportOpen.Contains(row.Key);
                             var facility = FacilityOf(row);
-                            <tr class="rsp-row @(open ? "open" : "")">
-                                <th scope="row" class="rsp-source">
-                                    <button type="button" class="rsp-toggle" aria-expanded="@(open ? "true" : "false")"
-                                            aria-controls="@($"rsp-d-{row.Key}")" @onclick="() => Toggle(row.Key)">
-                                        <span class="rsp-caret" aria-hidden="true"></span>@row.Label
-                                    </button>
-                                </th>
-                                <td class="rsp-basis">@ModelLabel(row.Model)@(row.Instruments is { } i ? $" · {i}" : "")</td>
-                                <td class="rsp-num rsp-collected">@Money(row.Collected)</td>
-                                <td class="rsp-num rsp-target">
-                                    @if (row.AnnualTarget is { } target)
-                                    {
-                                        <span>@Money(target)</span>
-                                        @if (row.Attainment is { } attainment) { <span class="rsp-attain">@(attainment.ToString("N1", CultureInfo.InvariantCulture) + "%")</span> }
-                                    }
-                                    else { <span class="rsp-quiet">Not set</span> }
-                                    <AuthorizeView Roles="SuperAdmin">
-                                        <Authorized>
-                                            @if (!row.AwaitingPlacement)
-                                            {
-                                                <button type="button" class="rsp-target-btn no-print" aria-label="@($"Set annual target for {row.Label}")" @onclick="() => _targetRow = row">
-                                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
-                                                </button>
-                                            }
-                                        </Authorized>
-                                    </AuthorizeView>
-                                </td>
-                                <td>@Activity(row)</td>
-                                <td>@Position(row, facility)</td>
-                                <td><span class="rsp-status @StatusClass(row, facility)">@Status(row, facility)</span></td>
-                            </tr>
-                            @if (open)
+                            @if (OverviewMode)
                             {
-                                <tr class="rsp-detail" id="@($"rsp-d-{row.Key}")">
-                                    <td colspan="7">
-                                        <dl class="rsp-facts">
-                                            <div><dt>Posted collections</dt><dd>@Money(row.CanonicalCollected)</dd></div>
+                                <tr class="rsp-row">
+                                    <th scope="row" class="rsp-source">@row.Label</th>
+                                    <td class="rsp-num rsp-collected">@Money(row.Collected)</td>
+                                    <td>@OverviewActivity(row)</td>
+                                    <td class="rsp-num rsp-contribution">@Contribution(row)</td>
+                                    <td class="rsp-attention @AttentionClass(row, facility)">@Attention(row, facility)</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                <tr class="rsp-row @(open ? "open" : "")">
+                                    <th scope="row" class="rsp-source">
+                                        <button type="button" class="rsp-toggle" aria-expanded="@(open ? "true" : "false")"
+                                                aria-controls="@($"rsp-d-{row.Key}")" @onclick="() => ToggleReportRow(row.Key)">
+                                            <span class="rsp-caret" aria-hidden="true"></span>@row.Label
+                                        </button>
+                                    </th>
+                                    <td class="rsp-basis">@ModelLabel(row.Model)@(row.Instruments is { } i ? $" · {i}" : "")</td>
+                                    <td class="rsp-num rsp-collected">@Money(row.Collected)</td>
+                                    <td class="rsp-num rsp-target">
+                                        @if (row.AnnualTarget is { } target)
+                                        {
+                                            <span>@Money(target)</span>
+                                            @if (row.Attainment is { } attainment) { <span class="rsp-attain">@(attainment.ToString("N1", CultureInfo.InvariantCulture) + "%")</span> }
+                                        }
+                                        else { <span class="rsp-quiet">Not set</span> }
+                                        <AuthorizeView Roles="SuperAdmin">
+                                            <Authorized>
+                                                @if (!row.AwaitingPlacement)
+                                                {
+                                                    <button type="button" class="rsp-target-btn no-print" aria-label="@($"Set annual target for {row.Label}")" @onclick="() => _targetRow = row">
+                                                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
+                                                    </button>
+                                                }
+                                            </Authorized>
+                                        </AuthorizeView>
+                                    </td>
+                                    <td>@ReportActivity(row)</td>
+                                    <td>@Position(row, facility)</td>
+                                    <td><span class="rsp-status @StatusClass(row, facility)">@Status(row, facility)</span></td>
+                                </tr>
+                                @if (open)
+                                {
+                                    <tr class="rsp-detail" id="@($"rsp-d-{row.Key}")">
+                                        <td colspan="7">
+                                            <dl class="rsp-facts">
+                                                <div><dt>Posted collections</dt><dd>@Money(row.CanonicalCollected)</dd></div>
+                                                @if (row.LegacyCollected != 0m)
+                                                {
+                                                    <div><dt>Legacy records before cutover</dt><dd>@Money(row.LegacyCollected)</dd></div>
+                                                }
+                                                <div><dt>Transactions</dt><dd>@Count(row.TransactionCount)</dd></div>
+                                                <div><dt>Documents</dt><dd>@Count(row.DocumentCount)</dd></div>
+                                                <div><dt>Collectors</dt><dd>@Count(row.CollectorCount)</dd></div>
+                                                @if (facility is { } f && !f.PaidOnService)
+                                                {
+                                                    <div><dt>Unpaid this period</dt><dd>@(f.Unpaid is { } u ? Money(u) : "—")</dd></div>
+                                                    <div><dt>Paid / expected</dt><dd>@(f.ExpectedRecords > 0 ? $"{f.PaidRecords} / {f.ExpectedRecords}" : "—")</dd></div>
+                                                }
+                                            </dl>
                                             @if (row.LegacyCollected != 0m)
                                             {
-                                                <div><dt>Legacy records before cutover</dt><dd>@Money(row.LegacyCollected)</dd></div>
+                                                <p class="rsp-note">Counts describe posted collections only, so they are not stated while legacy records remain in the period.</p>
                                             }
-                                            <div><dt>Transactions</dt><dd>@Count(row.TransactionCount)</dd></div>
-                                            <div><dt>Documents</dt><dd>@Count(row.DocumentCount)</dd></div>
-                                            <div><dt>Collectors</dt><dd>@Count(row.CollectorCount)</dd></div>
-                                            @if (facility is { } f && !f.PaidOnService)
+                                            @if (row.AwaitingPlacement)
                                             {
-                                                <div><dt>Unpaid this period</dt><dd>@(f.Unpaid is { } u ? Money(u) : "—")</dd></div>
-                                                <div><dt>Paid / expected</dt><dd>@(f.ExpectedRecords > 0 ? $"{f.PaidRecords} / {f.ExpectedRecords}" : "—")</dd></div>
+                                                <p class="rsp-note">This source has no approved official Monthly Income placement; the statement lists it apart.</p>
                                             }
-                                        </dl>
-                                        @if (row.LegacyCollected != 0m)
-                                        {
-                                            <p class="rsp-note">Counts describe posted collections only, so they are not stated while legacy records remain in the period.</p>
-                                        }
-                                        @if (row.AwaitingPlacement)
-                                        {
-                                            <p class="rsp-note">This source has no approved official Monthly Income placement; the statement lists it apart.</p>
-                                        }
-                                        @if (LinkOf(row.Key) is { } link)
-                                        {
-                                            <a class="rsp-link" href="@link">View report →</a>
-                                        }
-                                    </td>
-                                </tr>
+                                            @if (LinkOf(row.Key) is { } link)
+                                            {
+                                                <a class="rsp-link" href="@link">View report →</a>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
                             }
                         }
                     </tbody>
                 }
                 <tfoot>
                     <tr class="rsp-total">
-                        <th scope="row" colspan="2">@TotalLabel</th>
-                        <td class="rsp-num">@(CrossGroupScope ? "—" : Money(VisibleTotal))</td>
-                        <td colspan="4"></td>
+                        @if (OverviewMode)
+                        {
+                            <th scope="row">@TotalLabel</th>
+                            <td class="rsp-num">@(CrossGroupScope ? "—" : Money(VisibleTotal))</td>
+                            <td colspan="3"></td>
+                        }
+                        else
+                        {
+                            <th scope="row" colspan="2">@TotalLabel</th>
+                            <td class="rsp-num">@(CrossGroupScope ? "—" : Money(VisibleTotal))</td>
+                            <td colspan="4"></td>
+                        }
                     </tr>
                 </tfoot>
             </table>
         </div>
     }
 
-    <AnnualTargetDrawer Show="_targetRow is not null" Year="Year" RowKey="@(_targetRow?.Key ?? string.Empty)" RowLabel="@(_targetRow?.Label ?? string.Empty)"
-                        OnClose="CloseTarget" OnSaved="ReloadAsync" />
+    @if (!OverviewMode)
+    {
+        <AnnualTargetDrawer Show="_targetRow is not null" Year="Year" RowKey="@(_targetRow?.Key ?? string.Empty)" RowLabel="@(_targetRow?.Label ?? string.Empty)"
+                            OnClose="CloseTarget" OnSaved="ReloadAsync" />
+    }
 </section>
 
 @code {
@@ -151,6 +197,9 @@
 
     /// <summary>The selected month, or null for the whole year.</summary>
     [Parameter] public int? Month { get; set; }
+
+    /// <summary>Uses the management-only static table presentation on the Overview Dashboard.</summary>
+    [Parameter] public bool OverviewMode { get; set; }
 
     /// <summary>The facility register's rows for the same period: the only place balances and coverage are measured.</summary>
     [Parameter] public IReadOnlyList<FinancialFacilityRowDto>? Facilities { get; set; }
@@ -179,7 +228,7 @@
     private int _loadedYear;
     private int? _loadedMonth;
     private string _group = "all";
-    private readonly HashSet<string> _open = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _reportOpen = new(StringComparer.Ordinal);
 
     private string PeriodLabel => Month is { } m
         ? $"{CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m)} {Year}" : Year.ToString(CultureInfo.InvariantCulture);
@@ -231,9 +280,9 @@
         await OnCoverage.InvokeAsync(_data?.TargetCoverage);
     }
 
-    private void Toggle(string key)
+    private void ToggleReportRow(string key)
     {
-        if (!_open.Remove(key)) _open.Add(key);
+        if (!_reportOpen.Remove(key)) _reportOpen.Add(key);
     }
 
     private FinancialFacilityRowDto? FacilityOf(RevenueSourcePerformanceRowDto row) =>
@@ -249,7 +298,17 @@
         _ => model
     };
 
-    private static string Activity(RevenueSourcePerformanceRowDto row)
+    private string OverviewActivity(RevenueSourcePerformanceRowDto row)
+    {
+        if (row.Model == RevenueSourceModel.Receivable) return "—";
+        if (row.Model == RevenueSourceModel.RecurringObligation && FacilityOf(row) is { PaidOnService: false, ExpectedRecords: > 0 } facility)
+            return $"{facility.PaidRecords} / {facility.ExpectedRecords} paid";
+        if (row.TransactionCount is not { } n) return row.LegacyCollected != 0m ? "Legacy included" : "—";
+        if (n == 0) return "—";
+        return Plural(n, "transaction");
+    }
+
+    private static string ReportActivity(RevenueSourcePerformanceRowDto row)
     {
         if (row.Model == RevenueSourceModel.Receivable) return "—";
         if (row.TransactionCount is not { } n) return "Includes legacy records";
@@ -259,7 +318,30 @@
         return string.Join(" · ", parts);
     }
 
-    // Balance and coverage are stated only where the facility register measures them; a paid-on-service source has none.
+    // Contribution uses the existing server group amount, even under cross-group source filters; never create a filtered subtotal.
+    private string Contribution(RevenueSourcePerformanceRowDto row)
+    {
+        var group = _data?.Groups.FirstOrDefault(g => g.Key == row.GroupKey);
+        return group is null || group.Collected == 0m
+            ? "—"
+            : (row.Collected / group.Collected * 100m).ToString("N1", CultureInfo.InvariantCulture) + "%";
+    }
+
+    // An outstanding amount belongs only to a recurring source whose facility register supplied it.
+    private static string Attention(RevenueSourcePerformanceRowDto row, FinancialFacilityRowDto? facility)
+    {
+        if (row.AwaitingPlacement) return "Needs official placement";
+        if (row.Model == RevenueSourceModel.RecurringObligation && facility is { PaidOnService: false, Unpaid: > 0m } f)
+            return $"{Money(f.Unpaid.Value)} outstanding";
+        if (row.LegacyCollected != 0m && row.TransactionCount is null) return "Legacy data included";
+        return "—";
+    }
+
+    private static string AttentionClass(RevenueSourcePerformanceRowDto row, FinancialFacilityRowDto? facility) =>
+        row.AwaitingPlacement || row.Model == RevenueSourceModel.RecurringObligation && facility is { PaidOnService: false, Unpaid: > 0m }
+            ? "warn" : "quiet";
+
+    // The Reports view retains its existing model-aware analysis beside the Overview's management summary.
     private static string Position(RevenueSourcePerformanceRowDto row, FinancialFacilityRowDto? facility) => row.Model switch
     {
         RevenueSourceModel.Transactional or RevenueSourceModel.QuantityService => "Paid on service",
@@ -311,7 +393,6 @@
     };
 
     private static string Count(int? value) => value is { } v ? v.ToString(CultureInfo.InvariantCulture) : "—";
-
     private static string Plural(int n, string one) => $"{n} {(n == 1 ? one : one + "s")}";
 
     private static string Money(decimal amount) => "₱" + amount.ToString("N0", CultureInfo.InvariantCulture);

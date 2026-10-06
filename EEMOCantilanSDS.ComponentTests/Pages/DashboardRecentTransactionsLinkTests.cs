@@ -72,7 +72,11 @@ public sealed class DashboardRecentTransactionsLinkTests : TestContext
             var row = cut.FindAll("tr.rsp-row").Single(r => r.TextContent.Contains("Landing / Berthing"));
             Assert.Contains("₱100", row.TextContent);
             Assert.Contains("1 transaction", row.TextContent);
-            Assert.DoesNotContain("%", row.TextContent);
+            Assert.Contains("100.0%", row.TextContent);
+            Assert.Equal(new[] { "Source", "Collected", "Activity", "Contribution", "Attention" },
+                cut.FindAll("table.rsp-table thead th").Select(h => h.TextContent.Trim()).ToArray());
+            Assert.Empty(cut.FindAll("button.rsp-toggle"));
+            Assert.Empty(cut.FindAll("tr.rsp-detail"));
             // The old facility-only title is gone; the facility cards are a labelled secondary snapshot.
             Assert.DoesNotContain("Revenue by Facility", cut.Markup);
             Assert.Contains("Operations overview", cut.Markup);
