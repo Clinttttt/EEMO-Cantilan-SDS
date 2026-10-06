@@ -27,11 +27,21 @@ public sealed record WorkItem(string Name, string Status, WorkTarget Target, boo
 
 public sealed record WorkSection(string Name, IReadOnlyList<WorkItem> Items);
 
-/// <summary>Groups already-authorized rows without deciding availability or routing.</summary>
+/// <summary>
+/// Groups already-authorized rows under the office's Monthly Income families, without deciding availability or routing. The
+/// placement comes from the shared official structure and revenue-source catalog, never from the old facility ownership.
+/// </summary>
 public static class WorkSections
 {
+    public const string Market = "Income from Market";
+    public const string Rent = "Rent Income (Stall Rental)";
+    public const string Space = "Space Rental";
+    public const string Terminal = "Income from Terminal";
+    public const string Slaughterhouse = "Income from Slaughterhouse";
+    public const string Other = "Other operations";
+
     public static IReadOnlyList<WorkSection> Group(IReadOnlyList<WorkItem> available) =>
-        new[] { "Rent & space", "Market & vendor", "Utilities", "Transport & services", "Other operations" }
+        new[] { Market, Rent, Space, Terminal, Slaughterhouse, Other }
             .Select(name => new WorkSection(name, available.Where(item => Section(item) == name).ToList()))
             .Where(section => section.Items.Count > 0).ToList();
 
@@ -39,24 +49,28 @@ public static class WorkSections
     {
         if (Enum.TryParse<EEMOCantilanSDS.Domain.Enums.FacilityCode>(item.FacilityCode, out var facility))
         {
-            if (facility is EEMOCantilanSDS.Domain.Enums.FacilityCode.TCC or EEMOCantilanSDS.Domain.Enums.FacilityCode.NCC
-                or EEMOCantilanSDS.Domain.Enums.FacilityCode.BBQ or EEMOCantilanSDS.Domain.Enums.FacilityCode.ICE || (int)facility >= 101)
-                return "Rent & space";
-            if (facility is EEMOCantilanSDS.Domain.Enums.FacilityCode.NPM or EEMOCantilanSDS.Domain.Enums.FacilityCode.TPM)
-                return "Market & vendor";
-            if (facility is EEMOCantilanSDS.Domain.Enums.FacilityCode.TRM or EEMOCantilanSDS.Domain.Enums.FacilityCode.SLH)
-                return "Transport & services";
+            // A rent facility is placed by the official statement's own row for it (NPM, NCC, TCC, BBQ).
+            var row = OfficialMonthlyIncomeStructure.Rows.FirstOrDefault(r => r.Facility == facility);
+            if (row is not null) return Family(RevenueSourceCatalog.For(row.Key).GroupKey);
+            if (facility == EEMOCantilanSDS.Domain.Enums.FacilityCode.ICE) return Family(RevenueSourceCatalog.For("ICE_PLANT").GroupKey);
+            if (facility == EEMOCantilanSDS.Domain.Enums.FacilityCode.TPM) return Family(RevenueSourceCatalog.For("TABO").GroupKey);
+            if (facility == EEMOCantilanSDS.Domain.Enums.FacilityCode.SLH) return Family(RevenueSourceCatalog.For("SLAUGHTERHOUSE").GroupKey);
+            if ((int)facility >= 101) return Rent;
+            return Other;
         }
-        return item.OperationCode switch
-        {
-            CollectorOperationCodes.Wcf or "ECF" => "Utilities",
-            "WEIGHT_AND_MEASURE" or "FISH_MEAT_VENDOR_FEE" => "Market & vendor",
-            CollectorOperationCodes.MarketFees or CollectorOperationCodes.VegetableFruitSpaceRental or CollectorOperationCodes.Tabo => "Market & vendor",
-            CollectorOperationCodes.Transportation or CollectorOperationCodes.LandingBerthing
-                or CollectorOperationCodes.TransferLargeCattle or CollectorOperationCodes.Slaughterhouse => "Transport & services",
-            _ => "Other operations"
-        };
+        // The operation permission and the official row share a name except Transportation / Parking.
+        var key = item.OperationCode == CollectorOperationCodes.Transportation ? "TRANSPORTATION_PARKING" : item.OperationCode;
+        return key is not null && RevenueSourceCatalog.Knows(key) ? Family(RevenueSourceCatalog.For(key).GroupKey) : Other;
     }
+
+    private static string Family(string groupKey) => groupKey switch
+    {
+        RevenueSourceCatalog.MarketGroup => Market,
+        RevenueSourceCatalog.RentGroup => Rent,
+        RevenueSourceCatalog.SpaceGroup => Space,
+        RevenueSourceCatalog.SlaughterhouseGroup => Slaughterhouse,
+        _ => Other
+    };
 }
 
 /// <summary>Something that needs the collector's attention: queued, failed or review-required work, or a missing form.</summary>

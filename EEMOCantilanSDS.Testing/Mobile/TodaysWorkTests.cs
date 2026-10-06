@@ -18,8 +18,26 @@ public class TodaysWorkTests
         var grouped = WorkSections.Group(rows);
         Assert.Equal(rows.Length, grouped.Sum(g => g.Items.Count));
         Assert.All(rows, row => Assert.Same(row, Assert.Single(grouped.SelectMany(g => g.Items), item => item == row)));
-        Assert.Equal("Rent & space", grouped[0].Name);
+        Assert.Equal(WorkSections.Market, grouped[0].Name);
         Assert.False(Assert.Single(grouped.Single(g => g.Name == "Other operations").Items).CanOpen);
+    }
+
+    [Fact]
+    public void Rows_are_grouped_under_the_official_monthly_income_families()
+    {
+        WorkItem[] rows = [new("Public Market", "Ready", WorkTarget.Facility, true, "NPM"),
+            new("Kanmanggay", "Ready", WorkTarget.Operation, true, OperationCode: CollectorOperationCodes.KanmanggaySpaceRental),
+            new("Fiesta / Araw", "Ready", WorkTarget.Operation, true, OperationCode: CollectorOperationCodes.FiestaArawLotRental),
+            new("Transportation / Parking", "Ready", WorkTarget.Operation, true, OperationCode: CollectorOperationCodes.Transportation),
+            new("Slaughterhouse", "Ready", WorkTarget.Facility, true, "SLH")];
+
+        var sections = WorkSections.Group(rows).ToDictionary(g => g.Name, g => g.Items.Select(i => i.Name).ToArray());
+
+        Assert.Equal(["Public Market"], sections[WorkSections.Rent]);
+        Assert.Equal(["Kanmanggay", "Fiesta / Araw"], sections[WorkSections.Space]);
+        Assert.Equal(["Transportation / Parking"], sections[WorkSections.Market]);       // separate from Terminal, even though both use CT
+        Assert.Equal(["Slaughterhouse"], sections[WorkSections.Slaughterhouse]);
+        Assert.DoesNotContain(WorkSections.Terminal, sections.Keys);                        // nothing is placed under Terminal until the server offers it
     }
     private static CollectorOperationCapabilityDto Op(string code, CollectorOperationCapabilityStatus status, bool assigned = true, bool? collectible = null) =>
         new(code, code, assigned, status, collectible ?? status == CollectorOperationCapabilityStatus.Ready, []);
