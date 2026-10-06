@@ -501,3 +501,6 @@
 .rm-picker-list label { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 6px; border-radius: 6px; font-size: .875rem; cursor: pointer; }
 .rm-picker-list label:hover { background: var(--surface-hover); }
 .rm-picker-foot { display: flex; justify-content: flex-end; }
+.rm-picker .rm-picker-list label { flex-direction: row; align-items: center; width: 100%; color: var(--navy); }
+.rm-picker .rm-picker-list input[type=checkbox] { flex: none; width: 16px; height: 16px; min-height: 0; margin: 0; padding: 0; }
+.rm-picker .rm-picker-list label > span { flex: 1; font-size: .875rem; font-weight: 400; color: var(--navy); }
