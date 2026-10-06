@@ -453,4 +453,98 @@ public sealed class OfficialReportPanelsTests : TestContext
             Assert.Contains("—", cut.Find("tr.rsp-total").TextContent);
         }, Timeout);
     }
+
+    private static ReportRevisionDto Revision(EEMOCantilanSDS.Domain.Entities.Revenue.OfficialReportRevisionKind kind, string key, decimal amount) =>
+        new(Guid.NewGuid(), kind, key, 2026, 9, 1, null, amount, 30m, "Reason", null, null, Guid.NewGuid(), "Head", DateTime.UtcNow);
+
+    [Fact]
+    public void TheHead_AdjustsAnOfficialCell_WithAReason_AndConflictsReadAsOfficeWording()
+    {
+        var cells = Enumerable.Range(1, 12).Select(_ => new MonthlyIncomeCellDto(0m, 0m)).ToArray();
+        cells[8] = new(0m, 30m);
+        var total = new MonthlyIncomeCellDto(0m, 30m);
+        var row = new OfficialMonthlyIncomeRowDto("MARKET_FEES", "Market Fees", "MARKET_FEES", cells, total, "Canonical", null, null);
+        var report = new OfficialMonthlyIncomeDto(2026, 9, [new("MARKET", "Income from Market", [row], cells, total)], cells, total, false, [], DateTime.UtcNow);
+        _reports.Setup(x => x.GetMonthlyIncomeAsync(2026, 9)).ReturnsAsync(Result<OfficialMonthlyIncomeDto>.Success(report));
+        _reports.SetupSequence(x => x.AdjustMonthlyIncomeAsync(It.IsAny<SetMonthlyIncomeAdjustmentRequest>()))
+            .ReturnsAsync(Result<ReportRevisionDto>.Failure("SystemAmountChanged", ResultStatus.Conflict))
+            .ReturnsAsync(Result<ReportRevisionDto>.Success(Revision(EEMOCantilanSDS.Domain.Entities.Revenue.OfficialReportRevisionKind.MonthlyAdjustment, "MARKET_FEES", 20m)));
+
+        var cut = RenderComponent<OfficialMonthlyIncomePanel>(p => p.Add(x => x.Year, 2026).Add(x => x.Month, 9));
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("button.mi-adjust")), Timeout);
+        cut.Find("button.mi-adjust").Click();
+
+        var form = cut.Find("form[aria-label='Adjust official amount']");
+        Assert.Contains("₱30.00", cut.Markup);                                         // the system amount is shown, read only
+        cut.Find("form input[type='number']").Input("50");
+        Assert.Contains("+₱20.00", cut.Markup);                                        // the difference preview
+        cut.Find("form input[maxlength='500']").Input("Corrected per voucher");
+        form.Submit();
+
+        cut.WaitForAssertion(() => Assert.Contains("system amount changed", cut.Find(".avm-error").TextContent), Timeout);
+        Assert.DoesNotContain("SystemAmountChanged", cut.Markup);                       // machine codes never reach the office
+
+        cut.Find("form").Submit();
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll("form[aria-label='Adjust official amount']")), Timeout);
+        var sent = _reports.Invocations.Where(i => i.Method.Name == "AdjustMonthlyIncomeAsync").Select(i => (SetMonthlyIncomeAdjustmentRequest)i.Arguments[0]).Last();
+        Assert.Equal(("MARKET_FEES", 2026, 9, 30m, 50m, "Corrected per voucher", null), (sent.RowKey, sent.Year, sent.Month,
+            sent.ExpectedSystemAmount, sent.OfficialAmount, sent.Reason, sent.ExpectedRevisionId));
+    }
+
+    [Fact]
+    public void AnnualTargets_AreSetOnASourceRow_AndPartialCoverageIsNeverPresentedAsComplete()
+    {
+        var rows = new[]
+        {
+            Source("MARKET_FEES", "Market Fees", "MARKET", RevenueSourceModel.Transactional, 100m, 1, instruments: "CT") with { AnnualTarget = 1000m, Attainment = 45.5m },
+            Source("ECF", "General Distribution / ECF", "MARKET", RevenueSourceModel.Transactional, 50m, 1, instruments: "OR"),
+        };
+        var dto = new RevenueSourcePerformanceDto(2026, 10, [new RevenueSourceGroupDto("MARKET", "Income from Market", 150m)], rows, 150m, [],
+            DateTime.UtcNow, new TargetCoverageDto(TargetCoverageState.Partial, 1, 2, 1000m, 100m, 10m));
+        _reports.Setup(x => x.GetSourcePerformanceAsync(2026, 10)).ReturnsAsync(Result<RevenueSourcePerformanceDto>.Success(dto));
+        _reports.Setup(x => x.GetGovernanceAsync(2026)).ReturnsAsync(Result<IReadOnlyList<ReportRevisionDto>>.Success([]));
+        SetAnnualTargetRequest? sent = null;
+        _reports.Setup(x => x.SetTargetAsync(It.IsAny<SetAnnualTargetRequest>()))
+            .Callback<SetAnnualTargetRequest>(r => sent = r)
+            .ReturnsAsync(Result<ReportRevisionDto>.Success(Revision(EEMOCantilanSDS.Domain.Entities.Revenue.OfficialReportRevisionKind.AnnualTarget, "ECF", 500m)));
+        TargetCoverageDto? reported = null;
+
+        var cut = RenderComponent<RevenueSourcePerformancePanel>(p => p.Add(x => x.Year, 2026).Add(x => x.Month, 10)
+            .Add(x => x.OnCoverage, (TargetCoverageDto? c) => reported = c));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Targets partially configured · 1 of 2 sources", cut.Find(".rsp-cov").TextContent);
+            Assert.DoesNotContain("Targets configured", cut.Markup);
+            var market = cut.FindAll("tr.rsp-row").Single(r => r.TextContent.Contains("Market Fees"));
+            Assert.Contains("₱1,000", market.TextContent);
+            Assert.Contains("45.5%", market.TextContent);
+            Assert.Contains("Not set", cut.FindAll("tr.rsp-row").Single(r => r.TextContent.Contains("ECF")).TextContent);
+            Assert.Equal(TargetCoverageState.Partial, reported?.State);
+        }, Timeout);
+
+        cut.Find("button[aria-label='Set annual target for General Distribution / ECF']").Click();
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("form[aria-label='Annual target']")), Timeout);
+        cut.Find("form input[type='number']").Change("500");
+        cut.FindAll("form input[maxlength='200']").Single().Change("Sangguniang Bayan Res. 12");
+        cut.Find("form[aria-label='Annual target']").Submit();
+
+        cut.WaitForAssertion(() => Assert.NotNull(sent), Timeout);
+        Assert.Equal(("ECF", 2026, 500m, "Sangguniang Bayan Res. 12", null), (sent!.RowKey, sent.Year, sent.Amount, sent.ApprovedSource, sent.ExpectedRevisionId));
+    }
+
+    [Fact]
+    public void TheSummaryStatesTargetAttainmentByCoverage_NeverAnInventedFigure()
+    {
+        TargetCoverageDto Coverage(TargetCoverageState state, decimal? attainment) => new(state, 1, 2, 1000m, 100m, attainment);
+        string Text(TargetCoverageDto? coverage) => RenderComponent<SummaryCashPosition>(p => p
+            .Add(x => x.Collected, 1m).Add(x => x.From, new DateOnly(2026, 1, 1)).Add(x => x.To, new DateOnly(2026, 10, 1))
+            .Add(x => x.TargetCoverage, coverage)).Markup;
+
+        Assert.Contains("Not configured", Text(null));
+        Assert.Contains("Partially configured · 1 of 2", Text(Coverage(TargetCoverageState.Partial, 10m)));
+        var complete = Text(Coverage(TargetCoverageState.Complete, 62.5m));
+        Assert.Contains("62.5%", complete);
+        Assert.DoesNotContain("Partially", complete);
+    }
 }

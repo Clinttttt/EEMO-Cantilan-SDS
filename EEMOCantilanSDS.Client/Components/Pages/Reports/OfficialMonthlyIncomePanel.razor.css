@@ -329,3 +329,12 @@
         transition: none;
     }
 }
+
+/* An adjusted official amount keeps one quiet marker; the audit lives in the adjustment drawer, not in the table. */
+.mi-adj { display: inline-block; width: 6px; height: 6px; margin-left: 4px; border-radius: 50%; background: var(--accent); vertical-align: middle; }
+.mi-adjust { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-right: 4px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--text-subtle); cursor: pointer; opacity: 0; }
+.mi-adjust svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+tr:hover .mi-adjust, .mi-adjust:focus-visible { opacity: 1; }
+.mi-adjust:hover { background: var(--surface-hover); color: var(--accent); }
+.mi-adjust:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (hover: none) { .mi-adjust { opacity: 1; } }

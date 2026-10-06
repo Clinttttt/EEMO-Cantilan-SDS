@@ -238,3 +238,13 @@
         justify-content: flex-start;
     }
 }
+
+/* Annual target column: the approved figure, the attainment to date, and the Head's edit control. */
+.rsp-cov { margin-top: 4px; font-size: 0.8125rem; font-weight: 600; color: var(--navy); }
+.rsp-target { white-space: nowrap; }
+.rsp-attain { display: block; font-size: 0.75rem; color: var(--text-subtle); }
+.rsp-quiet { color: var(--text-muted); }
+.rsp-target-btn { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin-left: 6px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--text-subtle); cursor: pointer; vertical-align: middle; }
+.rsp-target-btn svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.rsp-target-btn:hover { background: var(--surface-hover); color: var(--accent); }
+.rsp-target-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

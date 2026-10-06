@@ -26,6 +26,16 @@
     [Parameter, EditorRequired] public DateOnly From { get; set; }
     [Parameter, EditorRequired] public DateOnly To { get; set; }
 
+    /// <summary>How completely annual targets are set; partial coverage is never presented as a complete percentage.</summary>
+    [Parameter] public TargetCoverageDto? TargetCoverage { get; set; }
+
+    private string TargetText => TargetCoverage switch
+    {
+        { State: TargetCoverageState.Complete, Attainment: { } a } => a.ToString("N1", CultureInfo.InvariantCulture) + "%",
+        { State: TargetCoverageState.Partial } c => $"Partially configured · {c.TargetedRows} of {c.TotalRows}",
+        _ => "Not configured"
+    };
+
     private AccountabilityPositionDto? _position;
     private bool _failed;
     private DateOnly _loadedFrom;
@@ -35,7 +45,7 @@
     [
         new("Collected", Money(Collected)),
         new("Year to date", Money(YtdCollected)),
-        new("Target attainment", "Not configured"),
+        new("Target attainment", TargetText),
         new("Outstanding obligations", Money(Outstanding)),
         new("Unremitted collections", _position is null ? "—" : Money(_position.Unremitted), Emphasis: _position is { Unremitted: not 0m }),
         new("Accountability exceptions", _position is null ? "—" : _position.NeedsReviewCount.ToString(CultureInfo.InvariantCulture)),

@@ -17,6 +17,10 @@
         <div>
             <h2 id="rsp-title" class="rsp-title">Revenue source performance — @PeriodLabel</h2>
             <div class="rsp-sub">Collected is the official Monthly Income for the period; secondary figures follow each source's model</div>
+            @if (_data?.TargetCoverage is { } coverage)
+            {
+                <div class="rsp-cov" role="status">@CoverageText(coverage)</div>
+            }
         </div>
         <div class="rsp-filter no-print">
             <FhSelect Caption="Sources" Value="@_group" Options="@GroupOptions" ValueChanged="@(v => _group = v)" />
@@ -41,6 +45,7 @@
                         <th scope="col">Source</th>
                         <th scope="col">Basis</th>
                         <th scope="col" class="rsp-num">Collected</th>
+                        <th scope="col" class="rsp-num">Annual target</th>
                         <th scope="col">Activity</th>
                         <th scope="col">Position</th>
                         <th scope="col">Status</th>
@@ -52,7 +57,7 @@
                         <tr class="rsp-group">
                             <th scope="rowgroup" colspan="2">@group.Label</th>
                             <td class="rsp-num">@(CrossGroupScope ? "" : Money(group.Collected))</td>
-                            <td colspan="3"></td>
+                            <td colspan="4"></td>
                         </tr>
                         @foreach (var row in _data.Rows.Where(r => r.GroupKey == group.Key && RowVisible(r)))
                         {
@@ -67,6 +72,24 @@
                                 </th>
                                 <td class="rsp-basis">@ModelLabel(row.Model)@(row.Instruments is { } i ? $" · {i}" : "")</td>
                                 <td class="rsp-num rsp-collected">@Money(row.Collected)</td>
+                                <td class="rsp-num rsp-target">
+                                    @if (row.AnnualTarget is { } target)
+                                    {
+                                        <span>@Money(target)</span>
+                                        @if (row.Attainment is { } attainment) { <span class="rsp-attain">@(attainment.ToString("N1", CultureInfo.InvariantCulture) + "%")</span> }
+                                    }
+                                    else { <span class="rsp-quiet">Not set</span> }
+                                    <AuthorizeView Roles="SuperAdmin">
+                                        <Authorized>
+                                            @if (!row.AwaitingPlacement)
+                                            {
+                                                <button type="button" class="rsp-target-btn no-print" aria-label="@($"Set annual target for {row.Label}")" @onclick="() => _targetRow = row">
+                                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
+                                                </button>
+                                            }
+                                        </Authorized>
+                                    </AuthorizeView>
+                                </td>
                                 <td>@Activity(row)</td>
                                 <td>@Position(row, facility)</td>
                                 <td><span class="rsp-status @StatusClass(row, facility)">@Status(row, facility)</span></td>
@@ -74,7 +97,7 @@
                             @if (open)
                             {
                                 <tr class="rsp-detail" id="@($"rsp-d-{row.Key}")">
-                                    <td colspan="6">
+                                    <td colspan="7">
                                         <dl class="rsp-facts">
                                             <div><dt>Posted collections</dt><dd>@Money(row.CanonicalCollected)</dd></div>
                                             @if (row.LegacyCollected != 0m)
@@ -112,12 +135,15 @@
                     <tr class="rsp-total">
                         <th scope="row" colspan="2">@TotalLabel</th>
                         <td class="rsp-num">@(CrossGroupScope ? "—" : Money(VisibleTotal))</td>
-                        <td colspan="3"></td>
+                        <td colspan="4"></td>
                     </tr>
                 </tfoot>
             </table>
         </div>
     }
+
+    <AnnualTargetDrawer Show="_targetRow is not null" Year="Year" RowKey="@(_targetRow?.Key ?? string.Empty)" RowLabel="@(_targetRow?.Label ?? string.Empty)"
+                        OnClose="CloseTarget" OnSaved="ReloadAsync" />
 </section>
 
 @code {
@@ -128,6 +154,24 @@
 
     /// <summary>The facility register's rows for the same period: the only place balances and coverage are measured.</summary>
     [Parameter] public IReadOnlyList<FinancialFacilityRowDto>? Facilities { get; set; }
+
+    /// <summary>Tells the page how completely targets are configured, so the Summary can state attainment truthfully.</summary>
+    [Parameter] public EventCallback<TargetCoverageDto?> OnCoverage { get; set; }
+
+    private RevenueSourcePerformanceRowDto? _targetRow;
+    private void CloseTarget() => _targetRow = null;
+    private async Task ReloadAsync()
+    {
+        _loadedYear = 0;
+        await OnParametersSetAsync();
+    }
+
+    private static string CoverageText(TargetCoverageDto c) => c.State switch
+    {
+        TargetCoverageState.Complete => $"Targets configured{(c.Attainment is { } a ? $" · {a.ToString("N1", CultureInfo.InvariantCulture) + "%"} attained" : "")}",
+        TargetCoverageState.Partial => $"Targets partially configured · {c.TargetedRows} of {c.TotalRows} sources",
+        _ => "Targets not configured"
+    };
 
     private RevenueSourcePerformanceDto? _data;
     private string? _error;
@@ -184,6 +228,7 @@
         }
         catch { _data = null; _error = "Revenue sources could not be loaded."; }
         finally { _loading = false; }
+        await OnCoverage.InvokeAsync(_data?.TargetCoverage);
     }
 
     private void Toggle(string key)

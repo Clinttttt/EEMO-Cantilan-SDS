@@ -116,7 +116,7 @@ else
                                     <td class="omi-num @(IsZero(row.Months[m - 1], m) ? "omi-zero" : "")">@MonthCell(row.Months[m - 1], m)</td>
                                 }
                                 <td class="omi-num omi-total-col">@Amount(row.Total.Total)</td>
-                                <td class="omi-num">@(row.Attainment is { } a ? a.ToString("P2", CultureInfo.InvariantCulture) : "—")</td>
+                                <td class="omi-num">@(row.Attainment is { } a ? a.ToString("N2", CultureInfo.InvariantCulture) + "%" : "—")</td>
                             </tr>
                         }
                     }

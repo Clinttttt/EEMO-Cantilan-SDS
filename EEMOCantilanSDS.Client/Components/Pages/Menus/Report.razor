@@ -338,7 +338,7 @@
         @if (_section == "overview")
         {
             <SummaryCashPosition Collected="Model.Collected" YtdCollected="Model.YtdCollected" Outstanding="Model.CurrentPeriodUnpaid"
-                                 From="OfficialFrom" To="OfficialTo" />
+                                 From="OfficialFrom" To="OfficialTo" TargetCoverage="_targetCoverage" />
         }
 
         @* Every revenue source, facility or not, with the official Monthly Income money for the period. Read only while Summary
@@ -347,7 +347,7 @@
         {
             @* On Trends & Targets this is the primary view: every revenue source by its own model (no collection rate for a
                source paid on service). The physical-facility table below is the secondary analysis. *@
-            <RevenueSourcePerformancePanel Year="OfficialYear" Month="OfficialMonth" Facilities="Model.Facilities" />
+            <RevenueSourcePerformancePanel Year="OfficialYear" Month="OfficialMonth" Facilities="Model.Facilities" OnCoverage="SetTargetCoverage" />
         }
 
         <div class="rpt-panels pdf-include@(SectionOff("overview"))">
@@ -1548,6 +1548,8 @@
 
     // The official tabs read their own server reports; the facility row and the legacy loading skeleton do not apply to them.
     private bool IsOfficialTab => _section is "monthlyincome" or "collections" or "accountability";
+    private EEMOCantilanSDS.Application.Dtos.Revenue.TargetCoverageDto? _targetCoverage;
+    private void SetTargetCoverage(EEMOCantilanSDS.Application.Dtos.Revenue.TargetCoverageDto? coverage) => _targetCoverage = coverage;
     private int OfficialYear => int.TryParse(SelectedYear, out var y) ? y : PhilippineTime.Today.Year;
     private int? OfficialMonth => ActiveTab == "Monthly" && SelectedYear != "all"
         ? DateTime.ParseExact(SelectedMonth, "MMMM", System.Globalization.CultureInfo.InvariantCulture).Month : null;
