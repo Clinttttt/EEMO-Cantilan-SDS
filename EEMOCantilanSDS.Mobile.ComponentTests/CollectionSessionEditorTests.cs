@@ -305,6 +305,36 @@ public sealed class CollectionSessionEditorTests : TestContext
         Assert.Contains("Unavailable", view.Find("[role=dialog]").TextContent);
     }
 
+    [Fact]
+    public void Transportation_offers_vehicle_class_and_quick_amount_and_quick_needs_only_the_amount()
+    {
+        _api.Setup(x => x.GetCollectionSessionDiscoveryAsync(It.IsAny<Guid?>())).ReturnsAsync((Guid? id) => Result<CollectionSessionDiscovery>.Success(new(id, Today,
+            [new(CollectionSessionItemKind.GovernedService, "TRANSPORTATION", "Transportation / Parking", true, true, null, null, false, [])],
+            ServiceTerms:
+            [
+                new(null, new("TRANSPORTATION", "Transportation / Parking", false, GovernedServiceBasis.VehicleClassRate, null, null, RevenueInstrumentType.CashTicket, false,
+                    [new("JN", "Jeepney", 20m), new("VAN", "Van", 30m)])),
+                new(GovernedServiceMode.QuickAmount, new("TRANSPORTATION", "Transportation / Parking", false, GovernedServiceBasis.DirectApprovedAmount, null, null, RevenueInstrumentType.CashTicket, false))
+            ])));
+        var view = Open(); view.Find("input").Input("Lisa"); Click(view, "Search"); ClickPayer(view, "Lisa Ilogans");
+        view.WaitForAssertion(() => Assert.NotEmpty(view.FindAll(".payer-selected")));
+        Click(view, "+ Add item"); Click(view, "Transportation / Parking ›");
+        var sheet = view.Find("[role=dialog]");
+
+        Assert.Contains("Collection method", sheet.TextContent);
+        Assert.Contains("By vehicle class", sheet.TextContent);
+        Assert.Contains("Quick amount", sheet.TextContent);
+        Assert.DoesNotContain("QuickAmount", view.Markup);                                          // no enum names reach the collector
+        Assert.DoesNotContain("ceiling", view.Markup, StringComparison.OrdinalIgnoreCase);
+
+        view.FindAll("button[role=option]").First(b => b.TextContent.Contains("Quick amount")).Click();
+        sheet = view.Find("[role=dialog]");
+        Assert.DoesNotContain("Vehicle class", sheet.TextContent);                                    // no class, no rate, no vehicle count
+        Assert.True(AddDisabled(view));
+        sheet.QuerySelector("input[type=number]")!.Input("85");
+        Assert.False(AddDisabled(view));
+    }
+
     private void ServeSources(Guid[] vendorStalls)
     {
         _api.Setup(x => x.GetCollectionSessionDiscoveryAsync(It.IsAny<Guid?>())).ReturnsAsync((Guid? id) => Result<CollectionSessionDiscovery>.Success(new(id, Today,

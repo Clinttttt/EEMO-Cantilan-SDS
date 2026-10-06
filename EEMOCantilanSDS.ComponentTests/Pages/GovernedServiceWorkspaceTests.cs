@@ -527,4 +527,38 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
         Thread.Sleep(3500);
         Assert.Contains("That fee type already exists.", cut.Markup);
     }
+
+    [Fact]
+    public void Transportation_QuickAmount_IsAHeadSwitch_ThatMarketFeesNeverShows_AndEnablingAgainKeepsIt()
+    {
+        var transportation = Definition(CollectorOperationCodes.Transportation, "Transportation / Parking", GovernedServiceSetupState.Active,
+            GovernedServiceBasis.VehicleClassRate, mobile: true) with
+        {
+            AllowedBases = [GovernedServiceBasis.VehicleClassRate, GovernedServiceBasis.DirectApprovedAmount],
+            QuickAmountEnabled = false
+        };
+        _api.Setup(x => x.GetDefinitionsAsync()).ReturnsAsync(Result<IReadOnlyList<GovernedServiceDefinitionDto>>.Success([transportation]));
+        _api.Setup(x => x.GetActivityAsync(CollectorOperationCodes.Transportation, It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(Result<IReadOnlyList<GovernedServiceActivityDto>>.Success([]));
+        ConfigureGovernedServiceRequest? sent = null;
+        _api.Setup(x => x.ConfigureAsync(CollectorOperationCodes.Transportation, It.IsAny<ConfigureGovernedServiceRequest>()))
+            .Callback<string, ConfigureGovernedServiceRequest>((_, r) => sent = r)
+            .ReturnsAsync(Result<GovernedServiceDefinitionDto>.Success(transportation with { QuickAmountEnabled = true }));
+
+        var cut = RenderComponent<EEMOCantilanSDS.Client.Components.Shared.GovernedServiceWorkspace>(p => p
+            .Add(x => x.OperationCode, CollectorOperationCodes.Transportation).Add(x => x.Name, "Transportation / Parking"));
+        cut.WaitForAssertion(() => cut.Find("aside button.gsw-edit"), Timeout);
+        cut.Find("aside button.gsw-edit").Click();
+
+        var quick = cut.FindAll("[role='dialog'] label.gsw-check").Single(l => l.TextContent.Contains("Allow quick amount"));
+        Assert.DoesNotContain("ceiling", cut.Find("[role='dialog']").TextContent, StringComparison.OrdinalIgnoreCase);
+        quick.QuerySelector("input")!.Change(true);
+        cut.Find("[role=dialog] form").Submit();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(sent);
+            Assert.True(sent!.QuickAmountEnabled);
+        }, Timeout);
+    }
 }

@@ -143,7 +143,7 @@ else
                 {
                     var modes = _discovery?.ServiceTerms?.Where(x => x.Terms.OperationCode == _operation.OperationCode).ToList() ?? [];
                     @if (modes.Count > 1)
-                    { <MobileChoice Inline="true" Label="Payment type" Options="@(modes.Select(x => new MobileChoice.Choice(((int?)x.Mode)?.ToString() ?? "", ModeName(x.Mode))).ToArray())" Value="@_mode" ValueChanged="ChangeMode" /> }
+                    { <MobileChoice Inline="true" Label="@(modes.Any(x => x.Mode == GovernedServiceMode.QuickAmount) ? "Collection method" : "Payment type")" Options="@(modes.Select(x => new MobileChoice.Choice(((int?)x.Mode)?.ToString() ?? "", ModeName(x.Mode))).ToArray())" Value="@_mode" ValueChanged="ChangeMode" /> }
                     @if (Terms?.FeeOptions is { Count: > 0 } options)
                     {
                         @if (options.Count == 1) { <div class="sheet-source"><strong>@options[0].Name</strong>@if (!string.IsNullOrWhiteSpace(options[0].Location)) { <span>@options[0].Location</span> }</div> }
@@ -505,7 +505,13 @@ else
     private string CollectionName(CollectionSessionCollection collection) => string.Join(", ", collection.ClientItemIds.Select(id => _items.FirstOrDefault(x => x.ClientItemId == id)).Where(x => x is not null).Select(x => Name(x!)));
     private static string ElectricityKey(EcfObligationQuoteDto s) => s.UtilityBillId + "|" + s.StallId + "|" + s.BillingYear + "|" + s.BillingMonth;
     private static string Period(int year, int month) => new DateOnly(year, month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
-    private static string ModeName(GovernedServiceMode? mode) => mode == GovernedServiceMode.WholePayment ? "Monthly rental" : "Daily transaction";
+    private static string ModeName(GovernedServiceMode? mode) => mode switch
+    {
+        GovernedServiceMode.WholePayment => "Monthly rental",
+        GovernedServiceMode.QuickAmount => "Quick amount",
+        null => "By vehicle class",
+        _ => "Daily transaction"
+    };
     private static string Instrument(RevenueInstrumentType instrument) => instrument == RevenueInstrumentType.CashTicket ? "Cash Ticket" : "Official Receipt";
     private static string Money(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
 }

@@ -197,6 +197,10 @@
                 <AddNewSection Title="Availability" Plain="true">
                     <label class="gsw-check"><input type="checkbox" @bind="_enabled" /> Enabled for new transactions</label>
                     <label class="gsw-check"><input type="checkbox" @bind="_mobile" disabled="@(!_enabled)" /> Collector Mobile may record it</label>
+                    @if (OperationCode == EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Transportation)
+                    {
+                        <label class="gsw-check"><input type="checkbox" @bind="_quick" disabled="@(!_enabled)" /> Allow quick amount (no vehicle class)</label>
+                    }
                 </AddNewSection>
             </AddNewDrawer>
         }
@@ -259,6 +263,7 @@
     private decimal? _ceiling;
     private bool _enabled = true;
     private bool _mobile = true;
+    private bool _quick;
 
     protected override async Task OnInitializedAsync()
     {
@@ -321,6 +326,7 @@
         // box unchecked (which saved it Disabled again). Turning it off is an explicit uncheck.
         _enabled = true;
         _mobile = current.Basis is null || current.MobileEnabled || current.State == GovernedServiceSetupState.Disabled;
+        _quick = current.QuickAmountEnabled;
         _editing = true;
     }
 
@@ -336,7 +342,7 @@
                 PhilippineTime.Today, basis,
                 basis == GovernedServiceBasis.FixedAmount ? current.FixedAmount : null,
                 basis == GovernedServiceBasis.DirectApprovedAmount ? current.MaximumAmount : null,
-                true, true));
+                true, true, current.QuickAmountEnabled));
             if (!result.IsSuccess) { _saveError = result.Error ?? "New transactions could not be enabled."; return; }
             _definition = result.Value;
             _saved = "New transactions are enabled.";
@@ -385,7 +391,7 @@
                 _effective, _basis,
                 _basis == GovernedServiceBasis.FixedAmount ? _fixedAmount : null,
                 _basis == GovernedServiceBasis.DirectApprovedAmount ? _ceiling : null,
-                _enabled, _enabled && _mobile);
+                _enabled, _enabled && _mobile, _quick && _enabled && OperationCode == EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Transportation);
             var result = await GovernedApi.ConfigureAsync(OperationCode, request);
             if (!result.IsSuccess)
             {
