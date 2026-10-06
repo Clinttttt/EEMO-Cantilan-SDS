@@ -30,7 +30,7 @@ Print beside their heading. No button is labelled as an export that does not exi
 - Monthly mode: Revenue line · Annual target · selected month · YTD · %.
 - Targets are never invented: without configuration the cells show "—" and one legend explains it once.
 - Percentage is YTD actual ÷ annual target, never collection efficiency.
-- Lines whose official placement is unresolved (Slaughterhouse, BBQ rent, other rental) stay in their own
+- IA-066 places BBQ under Rent Income and Slaughterhouse in its own official section. Other unresolved rental rows stay in their own
   "Awaiting an approved official grouping" band; a note says when Total income includes them.
 - Legacy/canonical split lives in a collapsed **Reconciliation details** disclosure; the normal view shows one
   authoritative amount.
@@ -67,8 +67,8 @@ the statement never collapses into cards.
 
 ## Known gaps
 
-- No annual-target source or governance exists; target and % show "—".
-- Official placement of Slaughterhouse, BBQ rent, other rental and recovered Arrears is unresolved (Decision Registry).
+- IA-066 supplies approved annual-target revisions and report-only adjustment contracts. Frontend setup wiring remains a separate lane; unconfigured target cells show "—". OfficialAmount is SystemAmount plus the latest report delta; operational cash remains SystemAmount.
+- BBQ and Slaughterhouse placement is resolved by IA-066. Other rental placement and any genuinely unresolved recovered-Arrears treatment remain separate decision gates.
 - The Financial Summary's Miscellaneous section is still the legacy utility view (see the NPM utility decoupling pass).
 
 ## Revenue Source Performance (Summary) — added 2026-10-01

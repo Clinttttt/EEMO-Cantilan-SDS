@@ -915,6 +915,18 @@ Two cross-document distinctions are explicit at this baseline:
 - **READ CONTRACT:** TRM and Transportation share the canonical current query and correction-aware totals. Unrecorded driver/plate/route/organization/trip numbering is omitted. No Pending OR metric is invented.
 - **NON-GOALS:** No rate/accounting merger, Payor name matching, backfill, physical serial dependency, UI redesign or production change.
 
+### IA-066 - Approved report governance and collector throughput (Clint, 2026-10-06)
+
+- **STATUS:** CONFIRMED by the report-governance task and Space Rental collection-readiness follow-up. Implementation is local branch work, not a production announcement.
+- **OFFICIAL GROUPING:** BBQ remains PERMANENT_STALL_RENT / BBQ and belongs under Rent Income. SLAUGHTERHOUSE keeps its classification and receives a standalone official section. This prospectively supersedes the unresolved-placement clauses of IA-050/IA-051 for those two rows only; other unresolved rows remain separate.
+- **TARGETS:** Annual targets are externally approved tenant/year/official-row amounts, entered by the Head (SuperAdmin), with source, optional reference/note, actor, timestamp and immutable revisions. No inferred growth formula or monthly actual is stored. This resolves IA-027 for this bounded annual-target contract. Zero targets have no percentage; aggregate coverage is explicit and a partial scope has no complete-scope percentage.
+- **OFFICIAL ADJUSTMENT:** Head-authorized report revisions retain system basis, signed delta, reason/reference, actor/time and supersession. Latest delta plus current system amount is the official cell; totals/YTD and target attainment derive from official cells. A delta does not lock the report against later genuine cash changes. Collections, collector position, registers, obligations and remittance are never edited by this mechanism. This is not a decision about statutory RCD cross-period correction (IA-043 remains separate).
+- **TRANSPORTATION:** Existing class/rate entry remains. An explicitly enabled tenant-effective QuickAmount mode records total received under TRANSPORTATION_PARKING and CT, without invented class/vendor/rate. Posted mode and amount remain frozen. No guessed vehicle counts.
+- **TABO:** Aggregate money would lose required vendor/day evidence. The fast path is a reviewed atomic batch of registered vendor/day intents, each using the existing writer and its own deterministic retry identity/SRC. No aggregate vendor or second fee engine.
+- **SPACE COLLECTION:** Kanmanggay and Fiesta/Araw may be independently assigned through operation codes KANMANGGAY_SPACE_RENTAL and FIESTA_ARAW_LOT_RENTAL. They reuse obligation-account quote/allocation authority and OR policy. Kanmanggay is monthly; Fiesta/Araw remains one event/date liability with its existing shared classification and separate event identities. This supersedes the earlier itemized deferral for those two operations only. Tabo/NPM Daily/generic monthly facility itemized deferrals are unchanged.
+- **FIRST SPACE PERIOD:** A Kanmanggay opening mid-month uses its approved opening-date rate for the first monthly period; later periods use their own month start. No prorated or invented amount, historical re-pricing, fake Contract, name-based Payor association or preview reservation.
+- **REFERENCE:** [Typed backend handoff](../planning/REPORT_GOVERNANCE_FAST_COLLECTION_HANDOFF.md).
+
 ## 4. Decision-gate summary
 
 The following items still require MEEDO/Treasury input, a UX decision, authoritative compliance research, or a stated technical prerequisite before their affected capability can be finalized. Superseded gates are not treated as current blockers.
@@ -925,7 +937,7 @@ The following items still require MEEDO/Treasury input, a UX decision, authorita
 | IA-024 | Historical remittance/RCD sequence question | **Remittance portion superseded by IA-052.** Only any still-unconfirmed official RCD/signatory/turnover detail remains outside the approved remittance ledger. |
 | IA-025 | Official report/document set | Report consolidation and print authority |
 | IA-026 | Facility name/code display | Headers, switchers, Mobile, and official documents |
-| IA-027 | Target governance/period/revision | Revenue Target Setup and Attainment |
+| IA-027 | Target governance/period/revision | **Resolved for bounded annual targets by IA-066.** Other target period/approval models remain outside this implementation. |
 | IA-028 | Final classification catalog | Complete classified reporting and collection choices |
 | IA-034 | Stable route identities | Canonical account and SLH activity detail routes |
 | IA-043 | Official cross-period RCD correction treatment | Official revised-earlier-report versus later-period-adjustment behavior; technical AsOf/LatestCorrected queries are approved |

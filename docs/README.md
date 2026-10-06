@@ -85,6 +85,7 @@ Before changing V2 code, read:
 
 - `planning/CURRENT_RELEASE_STATE.md` — single current implementation-status checkpoint. Prefer this over old dated audits/handoffs when asking what is live, canonical, legacy, pending or blocked.
 - `planning/MOBILE_ITEMIZED_COLLECTION_BACKEND.md` — bounded backend feature-branch contract, actual supported/deferred sources, atomic checkout boundaries and Mobile.Core UI handoff; not a production activation checkpoint.
+- `planning/REPORT_GOVERNANCE_FAST_COLLECTION_HANDOFF.md` — IA-066 local backend contracts for approved targets/report adjustments, space assignments/readiness, typed follow-up, multi-collector remittance and fast collection. Not a production activation checkpoint.
 - `planning/ACTIVE_WORKSTREAMS.md` — active V2 session/worktree ownership, shared-file locks, integration boundaries, and completion handoff format. Temporary coordination record only.
 - `planning/STALLTRACK_V2_PHASE_STATUS.md` — historical phase implementation record and release-gate evidence. Use it for phase history, not as a substitute for the current release-state checkpoint.
 - `planning/SOL_HIGH_UI_AUDIT_BASELINE.md` — preserved read-only Sol High Web/Mobile audit findings plus the later Head-rule deltas that supersede stale audit assumptions. Use this as the UI completion handoff, not as business authority.
