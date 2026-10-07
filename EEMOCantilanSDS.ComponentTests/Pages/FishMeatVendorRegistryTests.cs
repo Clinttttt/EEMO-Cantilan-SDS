@@ -52,9 +52,9 @@ public sealed class FishMeatVendorRegistryTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.Single(cut.FindAll("table"));
-            Assert.Equal(["Vendor", "Type", "Registration", "Reference", "Collected this month"], cut.FindAll("thead th").Select(h => h.TextContent.Trim()).ToArray());
+            Assert.Equal(["Vendor", "Type", "Registration", "Address", "Collected this month"], cut.FindAll("thead th").Select(h => h.TextContent.Trim()).ToArray());
             var rows = cut.FindAll("tbody tr").Select(r => r.TextContent).ToList();
-            Assert.Contains(rows, r => r.Contains("Lisa Ilogans") && r.Contains("Ilogans Fish Stall") && r.Contains("Fish") && r.Contains("New") && r.Contains("REG-1") && r.Contains("₱186.00"));
+            Assert.Contains(rows, r => r.Contains("Lisa Ilogans") && r.Contains("Ilogans Fish Stall") && r.Contains("Fish") && r.Contains("New") && r.Contains("Purok 3") && r.Contains("₱186.00"));
             Assert.Contains(rows, r => r.Contains("Pantom Dant") && r.Contains("Meat") && r.Contains("Renew") && r.Contains("₱0.00"));
             Assert.Contains("num", cut.FindAll("tbody tr")[0].QuerySelectorAll("td").Last().ClassName);                              // right-aligned money
             foreach (var word in new[] { "NPM", "Payor", "Stall rent", "Collections this month", "Walk-up" })
@@ -106,8 +106,7 @@ public sealed class FishMeatVendorRegistryTests : TestContext
 
         cut.Find("input.search-input").Input("purok 3");                                              // an address the server holds
         Assert.Contains("Lisa Ilogans", Assert.Single(cut.FindAll("tbody tr")).TextContent);
-        cut.Find("input.search-input").Input("reg-1");                                                 // a reference
-        Assert.Contains("Lisa Ilogans", Assert.Single(cut.FindAll("tbody tr")).TextContent);
+        Assert.DoesNotContain("reference", cut.Find("input.search-input").GetAttribute("placeholder"), StringComparison.OrdinalIgnoreCase);
         cut.Find("input.search-input").Input("no such vendor");
         Assert.Contains("No vendor matches the search", cut.Markup);
     }
@@ -124,12 +123,11 @@ public sealed class FishMeatVendorRegistryTests : TestContext
 
         Assert.Contains("show", cut.Find(".eemo-drawer").ClassName.Split(' '));
         var form = cut.Find("form[aria-label='Register vendor']");
-        var rows = form.QuerySelectorAll(".avm-row-2");
-        Assert.Equal(4, rows.Length);                                                                  // name|business, type, registration, address|reference
-        Assert.Equal(["Vendor name", "Business name"], rows[0].QuerySelectorAll("label").Select(l => l.TextContent.Replace("*", "").Trim()).ToArray());
-        Assert.Equal(["Type"], rows[1].QuerySelectorAll("label").Select(l => l.TextContent.Replace("*", "").Trim()).ToArray());
-        Assert.Equal(["Registration"], rows[2].QuerySelectorAll("label").Select(l => l.TextContent.Replace("*", "").Trim()).ToArray());
-        Assert.Equal(["Address", "Reference"], rows[3].QuerySelectorAll("label").Select(l => l.TextContent.Replace("*", "").Trim()).ToArray());
+        Assert.Empty(form.QuerySelectorAll(".avm-row-2"));
+        Assert.Equal(["Vendor name", "Business name", "Type", "Registration", "Address"],
+            form.QuerySelectorAll(":scope > .avm-group > label").Select(l => l.TextContent.Replace("*", "").Trim()).ToArray());
+        Assert.DoesNotContain("Reference", form.TextContent);
+        Assert.Contains($"Tax year {Year}", cut.Find(".eemo-drawer").TextContent);
         Assert.Empty(form.QuerySelectorAll("select"));                                                 // no native dropdown
         Assert.DoesNotContain("optional", form.TextContent, StringComparison.OrdinalIgnoreCase);
         foreach (var word in new[] { "Payor", "NPM", "stall", "fee amount", "Weight" })
@@ -160,6 +158,7 @@ public sealed class FishMeatVendorRegistryTests : TestContext
         {
             Assert.NotNull(sent);
             Assert.Equal((Year, FishMeatVendorType.Meat, VendorRegistrationKind.Renew, "Lisa Ilogans", "Purok 3"), (sent!.TaxYear, sent.VendorType, sent.RegistrationKind, sent.DisplayName, sent.Address));
+            Assert.Null(sent.Reference);
             Assert.Contains("Lisa Ilogans registered", cut.Markup);
         }, Timeout);
 

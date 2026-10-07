@@ -25,7 +25,7 @@
              ActiveFilter="@_filter"
              OnFilterChanged="v => _filter = v"
              Filters="@TypeFilters"
-             SearchPlaceholder="Search vendor, business, address or reference…"
+             SearchPlaceholder="Search vendor, business or address…"
              MiddleContent="@ActionBarContent" />
 
     @if (!string.IsNullOrWhiteSpace(_saved))
@@ -56,7 +56,7 @@
                         <th scope="col">Vendor</th>
                         <th scope="col">Type</th>
                         <th scope="col">Registration</th>
-                        <th scope="col">Reference</th>
+                        <th scope="col">Address</th>
                         <th scope="col" class="v3-num">Collected this month</th>
                     </tr>
                 </thead>
@@ -71,7 +71,7 @@
                             </td>
                             <td>@vendor.VendorType</td>
                             <td>@vendor.RegistrationKind</td>
-                            <td>@(string.IsNullOrWhiteSpace(vendor.Reference) ? "—" : vendor.Reference)</td>
+                            <td>@(string.IsNullOrWhiteSpace(vendor.Address) ? "—" : vendor.Address)</td>
                             <td class="v3-num">@Money(row.TotalCollected)</td>
                         </tr>
                     }
@@ -104,10 +104,10 @@
 
     private bool HasSearch => !string.IsNullOrWhiteSpace(_search);
 
-    // The search reads what the office reads on its paper: the vendor, the business, the address and the reference the server holds.
+    // Current registry search follows the vendor, business and address facts shown to the office.
     private List<VendorRegistrationManagementRow> VisibleRows => _rows
         .Where(x => _filter switch { "Fish" => x.Registration.VendorType == FishMeatVendorType.Fish, "Meat" => x.Registration.VendorType == FishMeatVendorType.Meat, _ => true })
-        .Where(x => !HasSearch || new[] { x.Registration.DisplayName, x.Registration.BusinessName, x.Registration.Address, x.Registration.Reference }
+        .Where(x => !HasSearch || new[] { x.Registration.DisplayName, x.Registration.BusinessName, x.Registration.Address }
             .Any(text => text?.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
 
     private List<FacilityHero.HeroStat> HeroStats => [
@@ -168,7 +168,7 @@
         try
         {
             var result = await OfficeApi.RegisterAsync(new RegisterFishMeatVendorRequest(_operationId, _taxYear, _form.Type, _form.Kind, _form.Name.Trim(),
-                VendorRegistrationForm.Blank(_form.Business), VendorRegistrationForm.Blank(_form.Address), VendorRegistrationForm.Blank(_form.Reference)));
+                VendorRegistrationForm.Blank(_form.Business), VendorRegistrationForm.Blank(_form.Address), null));
             if (!result.IsSuccess) { _formError = RegistrationProblem(result.Error); return; }
             _registering = false;
             _saved = $"{result.Value!.DisplayName} registered for {_taxYear}.";

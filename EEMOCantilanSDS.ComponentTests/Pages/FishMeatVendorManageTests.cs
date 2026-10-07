@@ -69,7 +69,7 @@ public sealed class FishMeatVendorManageTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Equal(["Vendor", "Type", "Registration", "Reference", "Status", "Collected", "Actions"], cut.FindAll("thead th").Select(h => h.TextContent.Trim()).ToArray());
+            Assert.Equal(["Vendor", "Type", "Registration", "Address", "Status", "Collected", "Actions"], cut.FindAll("thead th").Select(h => h.TextContent.Trim()).ToArray());
             var rows = cut.FindAll("tbody tr").Select(r => r.TextContent).ToList();
             Assert.Contains(rows, r => r.Contains("Lisa Ilogans") && r.Contains("Ilogans Fish Stall · Purok 3") && r.Contains("Active") && r.Contains("₱186.00"));
             Assert.Contains(rows, r => r.Contains("Old Vendor") && r.Contains("Closed"));

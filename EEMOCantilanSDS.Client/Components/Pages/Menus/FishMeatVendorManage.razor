@@ -27,7 +27,7 @@
              ActiveFilter="@_filter"
              OnFilterChanged="v => _filter = v"
              Filters="@TypeFilters"
-             SearchPlaceholder="Search vendor, business, address or reference…"
+             SearchPlaceholder="Search vendor, business or address…"
              MiddleContent="@ControlsContent" />
 
     @if (!string.IsNullOrWhiteSpace(_saved))
@@ -55,7 +55,7 @@
                         <th scope="col">Vendor</th>
                         <th scope="col">Type</th>
                         <th scope="col">Registration</th>
-                        <th scope="col">Reference</th>
+                        <th scope="col">Address</th>
                         <th scope="col">Status</th>
                         <th scope="col" class="v3-num">Collected</th>
                         <th scope="col"><span class="v3-sr-only">Actions</span></th>
@@ -72,7 +72,7 @@
                             </td>
                             <td>@vendor.VendorType</td>
                             <td>@vendor.RegistrationKind</td>
-                            <td>@(string.IsNullOrWhiteSpace(vendor.Reference) ? "—" : vendor.Reference)</td>
+                            <td>@(string.IsNullOrWhiteSpace(vendor.Address) ? "—" : vendor.Address)</td>
                             <td><span class="fmm-status @(row.Status == VendorRegistrationStatus.Closed ? "fmm-status-closed" : "")">@row.Status</span></td>
                             <td class="v3-num">@Money(row.TotalCollected)</td>
                             <td class="fmm-actions">
@@ -117,7 +117,7 @@
                 <dt>Type</dt><dd>@vendor.VendorType</dd>
                 <dt>Tax year</dt><dd>@vendor.TaxYear</dd>
                 <dt>Registration</dt><dd>@vendor.RegistrationKind@(d.PriorRegistrationId is not null ? " · follows an earlier registration" : "")</dd>
-                <dt>Reference</dt><dd>@(vendor.Reference ?? "—")</dd>
+                @if (!string.IsNullOrWhiteSpace(vendor.Reference)) { <dt>Historical reference</dt><dd>@vendor.Reference</dd> }
                 <dt>Status</dt><dd>@d.Status@(d.ClosedOn is { } closed ? $" on {closed.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}" : "")</dd>
                 @if (!string.IsNullOrWhiteSpace(d.CloseNote)) { <dt>Close note</dt><dd>@d.CloseNote</dd> }
             </dl>
@@ -196,7 +196,7 @@
 
     private List<VendorRegistrationManagementRow> VisibleRows => _rows
         .Where(x => _filter switch { "Fish" => x.Registration.VendorType == FishMeatVendorType.Fish, "Meat" => x.Registration.VendorType == FishMeatVendorType.Meat, _ => true })
-        .Where(x => !HasSearch || new[] { x.Registration.DisplayName, x.Registration.BusinessName, x.Registration.Address, x.Registration.Reference }
+        .Where(x => !HasSearch || new[] { x.Registration.DisplayName, x.Registration.BusinessName, x.Registration.Address }
             .Any(text => text?.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
 
     protected override Task OnInitializedAsync() => LoadAsync();
