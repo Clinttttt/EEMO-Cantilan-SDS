@@ -1,6 +1,8 @@
 @page "/collections/new"
 @page "/ecf"
 @page "/weight-measure"
+@page "/vendor-fee"
+@page "/income-terminal"
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 
@@ -23,9 +25,23 @@
     [SupplyParameterFromQuery] public Guid? SessionId { get; set; }
     private bool _ready;
     private DateOnly Today => Session.Menu?.Today ?? DateOnly.FromDateTime(DateTime.Now);
-    private string? OnlyOperation => Navigation.Uri.EndsWith("/ecf", StringComparison.OrdinalIgnoreCase) ? "ECF"
-        : Navigation.Uri.EndsWith("/weight-measure", StringComparison.OrdinalIgnoreCase) ? "WEIGHT_AND_MEASURE" : null;
-    private string Title => OnlyOperation == "ECF" ? "Electricity" : OnlyOperation is not null ? "Weight & Measure" : "New Collection";
+    private string? OnlyOperation => Last switch
+    {
+        "ecf" => "ECF",
+        "weight-measure" => "WEIGHT_AND_MEASURE",
+        "vendor-fee" => "FISH_MEAT_VENDOR_FEE",
+        "income-terminal" => "TERMINAL",
+        _ => null
+    };
+    private string Last => new Uri(Navigation.Uri).AbsolutePath.TrimEnd('/').Split('/').Last().ToLowerInvariant();
+    private string Title => OnlyOperation switch
+    {
+        "ECF" => "Electricity",
+        "WEIGHT_AND_MEASURE" => "Weight & Measure",
+        "FISH_MEAT_VENDOR_FEE" => "Fish / Meat Vendor Fee",
+        "TERMINAL" => "Income From Terminal",
+        _ => "New Collection"
+    };
     protected override async Task OnInitializedAsync()
     {
         await Session.InitializeAsync();

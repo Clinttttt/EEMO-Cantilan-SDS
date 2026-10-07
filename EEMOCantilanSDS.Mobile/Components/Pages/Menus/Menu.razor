@@ -128,26 +128,6 @@
                 }
             </section>
 
-            @if (Facilities.Any(f => f.Code == FacilityCode.NPM && f.IsAvailable))
-            {
-                @* A distinct monthly source owned by NPM Fish/Meat stalls (IA-050): not a daily stall fee. *@
-                <section class="menu-group" aria-labelledby="menu-vendor-fee">
-                    <h2 id="menu-vendor-fee" class="menu-group-title">Vendor fees</h2>
-                    <ul class="menu-list">
-                        <li>
-                            <button class="menu-row" type="button" @onclick='() => Navigation.NavigateTo("/vendor-fee", forceLoad: false)'>
-                                <span class="menu-tile ready" aria-hidden="true">FM</span>
-                                <span class="menu-row-main">
-                                    <span class="menu-row-name">Fish / Meat Vendor Fee</span>
-                                    <span class="menu-chip ready">Monthly</span>
-                                </span>
-                                <span class="menu-row-chevron" aria-hidden="true">›</span>
-                            </button>
-                        </li>
-                    </ul>
-                </section>
-            }
-
             @if (Work.AssignedUnavailable.Count > 0)
             {
                 @* Assignment alone is never collectibility: these are plain status rows with no action. *@
@@ -220,7 +200,7 @@
         get
         {
             var work = TodaysWorkBuilder.Build(Facilities, Operations, Queue);
-            var additional = SessionCapabilities.Where(x => x.StandaloneAvailable)
+            var additional = SessionCapabilities.Where(x => x.StandaloneAvailable && work.Available.All(a => a.OperationCode != x.OperationCode))
                 .Select(x => new WorkItem(x.DisplayName, TodaysWorkBuilder.ReadyLabel, WorkTarget.Operation, true, OperationCode: x.OperationCode));
             return work with { Available = work.Available.Concat(additional).ToArray() };
         }
@@ -286,6 +266,8 @@
     {
         if (item.OperationCode == "ECF") { Navigation.NavigateTo("/ecf"); return; }
         if (item.OperationCode == "WEIGHT_AND_MEASURE") { Navigation.NavigateTo("/weight-measure"); return; }
+        if (item.OperationCode == "FISH_MEAT_VENDOR_FEE") { Navigation.NavigateTo("/vendor-fee"); return; }
+        if (item.OperationCode == "TERMINAL") { Navigation.NavigateTo("/income-terminal"); return; }
         if (!item.CanOpen)
             return;
 

@@ -23,7 +23,8 @@ public static class CapabilityWording
 public enum WorkTarget { None, Facility, Operation }
 
 /// <summary>One row in Today's Work. <see cref="CanOpen"/> is true only for something that is ready to collect.</summary>
-public sealed record WorkItem(string Name, string Status, WorkTarget Target, bool CanOpen, string? FacilityCode = null, string? OperationCode = null);
+public sealed record WorkItem(string Name, string Status, WorkTarget Target, bool CanOpen, string? FacilityCode = null, string? OperationCode = null,
+    CollectionFamily? Family = null);
 
 public sealed record WorkSection(string Name, IReadOnlyList<WorkItem> Items);
 
@@ -47,6 +48,8 @@ public static class WorkSections
 
     private static string Section(WorkItem item)
     {
+        // The server states an operation's official family; a facility, which has none, is placed by the official structure below.
+        if (item.Family is { } stated) return Family(stated);
         if (Enum.TryParse<EEMOCantilanSDS.Domain.Enums.FacilityCode>(item.FacilityCode, out var facility))
         {
             // A rent facility is placed by the official statement's own row for it (NPM, NCC, TCC, BBQ).
@@ -62,6 +65,15 @@ public static class WorkSections
         var key = item.OperationCode == CollectorOperationCodes.Transportation ? "TRANSPORTATION_PARKING" : item.OperationCode;
         return key is not null && RevenueSourceCatalog.Knows(key) ? Family(RevenueSourceCatalog.For(key).GroupKey) : Other;
     }
+
+    private static string Family(CollectionFamily family) => family switch
+    {
+        CollectionFamily.Rent => Rent,
+        CollectionFamily.Space => Space,
+        CollectionFamily.Terminal => Terminal,
+        CollectionFamily.Slaughterhouse => Slaughterhouse,
+        _ => Market
+    };
 
     private static string Family(string groupKey) => groupKey switch
     {
@@ -119,8 +131,9 @@ public static class TodaysWorkBuilder
             {
                 // WCF is a utility operation (IA-053) with its own collection page, so an operation-only collector can open it;
                 // a collector who also holds the market can still collect it from the stall sheet.
-                var opens = op.OperationCode == CollectorOperationCodes.Wcf || GovernedServiceCatalog.Find(op.OperationCode) is not null;
-                available.Add(new WorkItem(op.Name, ReadyLabel, opens ? WorkTarget.Operation : WorkTarget.None, opens, OperationCode: op.OperationCode));
+                var opens = op.OperationCode is CollectorOperationCodes.Wcf or CollectorOperationCodes.Terminal or CollectorOperationCodes.FishMeatVendorFee or CollectorOperationCodes.WeightAndMeasure
+                    || GovernedServiceCatalog.Find(op.OperationCode) is not null;
+                available.Add(new WorkItem(op.Name, ReadyLabel, opens ? WorkTarget.Operation : WorkTarget.None, opens, OperationCode: op.OperationCode, Family: op.Family));
             }
             else if (op.Status == CollectorOperationCapabilityStatus.NeedsDocument)
                 attention.Add(new AttentionItem($"{op.Name}: {CapabilityWording.For(op.Status)}", 1, "form"));

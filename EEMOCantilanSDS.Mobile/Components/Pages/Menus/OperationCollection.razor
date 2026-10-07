@@ -44,9 +44,9 @@
         }
         else
         {
-            @if (_entry is { ModeAware: true } || OffersMethods)
+            @if (_entry is { ModeAware: true })
             {
-                <div class="op-modes" role="radiogroup" aria-label="@(OffersMethods ? "Collection method" : "Collection mode")">
+                <div class="op-modes" role="radiogroup" aria-label="Collection mode">
                     @foreach (var variant in _variants)
                     {
                         <label class="op-mode @(variant.Mode == _mode ? "selected" : "") @(variant.Available ? "" : "disabled")">
@@ -211,7 +211,7 @@
                         <li class="op-record-row">
                             <div class="op-record-main">
                                 <span class="op-record-doc">@record.ReferenceCode</span>
-                                <span class="op-record-sub">@record.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)@(string.IsNullOrWhiteSpace(record.PayerName) ? "" : " · " + record.PayerName)@(record.Mode is { } m ? " · " + ModeLabel(m) : "")</span>
+                                <span class="op-record-sub">@record.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)@(string.IsNullOrWhiteSpace(record.PayerName) ? "" : " · " + record.PayerName)@(_entry is { ModeAware: true } && record.Mode is { } m ? " · " + ModeLabel(m) : "")</span>
                             </div>
                             <div class="op-record-side">
                                 <span class="op-record-amount">@Money(record.Amount)</span>
@@ -364,23 +364,16 @@
             }
 
             _blocked = null;
-            // Transportation can also be collected as one quick amount when the office has allowed it; the server answers
-            // for that method and an unavailable one is simply not offered.
             var modes = _entry!.ModeAware
                 ? new GovernedServiceMode?[] { GovernedServiceMode.WholePayment, GovernedServiceMode.DailyTransaction }
-                : Code == EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Transportation
-                    ? new GovernedServiceMode?[] { null, GovernedServiceMode.QuickAmount }
-                    : new GovernedServiceMode?[] { null };
+                : new GovernedServiceMode?[] { null };
             _variants = [];
             foreach (var mode in modes)
             {
                 var terms = await MobileApi.GetOperationTermsAsync(Code, mode);
                 _variants.Add(new ModeOption(mode, terms.IsSuccess ? terms.Value : null,
-                    terms.IsSuccess ? (_entry is { ModeAware: true } ? InstrumentLabel(terms.Value!.Instrument) : MethodNote(mode, terms.Value!)) : terms.Error ?? "Not available today."));
+                    terms.IsSuccess ? (_entry is { ModeAware: true } ? InstrumentLabel(terms.Value!.Instrument) : AmountHeadline(terms.Value!)) : terms.Error ?? "Not available today."));
             }
-            // A method the office has not enabled is not shown as a broken choice.
-            if (_variants.Count > 1 && _entry is { ModeAware: false })
-                _variants.RemoveAll(v => v.Mode == GovernedServiceMode.QuickAmount && !v.Available);
             if (!_variants.Any(v => v.Available && v.Mode == _mode))
                 _mode = _variants.FirstOrDefault(v => v.Available)?.Mode ?? _variants[0].Mode;
             await LoadRecordsAsync();
@@ -493,12 +486,6 @@
     private static IReadOnlyList<MobileChoice.Choice> FeeChoices(GovernedServiceTermsDto terms) =>
         (terms.FeeOptions ?? []).Select(f => new MobileChoice.Choice(f.Id.ToString(),
             string.IsNullOrWhiteSpace(f.Location) ? f.Name : $"{f.Name} · {f.Location}", FeeAmountText(f))).ToList();
-
-    // Two methods are offered only when the server allows both; one method needs no choice.
-    private bool OffersMethods => _entry is { ModeAware: false } && _variants.Count(v => v.Available) > 1;
-
-    private static string MethodNote(GovernedServiceMode? mode, GovernedServiceTermsDto terms) =>
-        mode == GovernedServiceMode.QuickAmount ? "Enter the amount received" : AmountHeadline(terms);
 
     private static string ModeLabel(GovernedServiceMode? mode) => mode switch
     {
