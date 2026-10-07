@@ -1109,6 +1109,9 @@
 }
 
 /* Days still owed: a labelled control beside Search rather than a bare clock. The count is inline, not a corner badge. */
-.owed-pill { width: auto; height: 44px; padding: 0 12px; gap: 6px; flex: 0 0 auto; font-size: 13px; font-weight: 600; color: var(--mobile-navy); }
+.search-row .search-wrap { flex: 1 1 auto; min-width: 0; height: 44px; padding: 0 8px; gap: 6px; }
+.search-row .search-wrap input { min-width: 0; width: 100%; font-size: 14px; }
+.search-row .search-wrap input::placeholder { font-size: 13px; }
+.owed-pill { width: auto; height: 44px; padding: 0 8px; gap: 5px; flex: 0 0 auto; font-size: 13px; font-weight: 600; color: var(--mobile-navy); }
 .owed-pill svg { color: var(--gold-primary); }
 .owed-pill .owed-count { position: static; min-width: 20px; height: 20px; line-height: 20px; border-radius: 10px; }

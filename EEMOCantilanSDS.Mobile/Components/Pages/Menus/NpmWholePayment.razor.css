@@ -6,7 +6,7 @@
 .whole-modes .selected { background: var(--mobile-blue); color: white; font-weight: 600; }
 
 /* Month and Year read as one period control: two choices side by side, the month the wider. */
-.whole-period { display: grid; grid-template-columns: 3fr 2fr; gap: 10px; margin: 14px 0 16px; }
+.whole-period { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 10px; margin: 14px 0 16px; }
 
 .whole-confirm { display: block; flex: 0 0 auto; width: 100%; height: 48px; min-height: 48px; margin-top: 14px; }
 .whole-error { color: var(--mobile-error); font-size: 14px; }

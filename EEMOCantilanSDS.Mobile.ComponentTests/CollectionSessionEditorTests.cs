@@ -592,6 +592,54 @@ public sealed class CollectionSessionEditorTests : TestContext
         return RenderComponent<CollectionSessionEditor>(p => p.Add(x => x.BusinessDate, Today).Add(x => x.Correction, row));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Weight_measure_edit_uses_reviewed_kilograms_and_does_not_claim_success_when_stale(bool stale)
+    {
+        ServeFishVendor();
+        const decimal rate = 22m;
+        _api.Setup(x => x.QuoteOfficeCollectionAsync(It.IsAny<SourceNativeCollectionRequest>())).ReturnsAsync((SourceNativeCollectionRequest r) =>
+            Result<SourceNativeChargeQuote>.Success(new(CollectorOperationCodes.WeightAndMeasure, "Weight & Measure", "Meat",
+                RevenueInstrumentType.OfficialReceipt, rate * r.Charge!.Kilograms!.Value, "rate-version", r.Charge, Rate: rate)));
+        RecordMobileCollectionEditRequest? sent = null;
+        _api.Setup(x => x.QuoteCollectionEditAsync(It.IsAny<EditMobileCollectionIntent>())).ReturnsAsync((EditMobileCollectionIntent i) =>
+            Result<CollectionSessionQuote>.Success(new(i.Replacement.ClientCollectionSessionId, null, Today,
+                [new(i.Replacement.Items[0].ClientItemId, CollectionSessionItemKind.SourceNative, CollectorOperationCodes.WeightAndMeasure,
+                    "Weight & Measure", "Meat", RevenueInstrumentType.OfficialReceipt, 44m, "rate-version", Guid.NewGuid())],
+                [new(RevenueInstrumentType.OfficialReceipt, 44m)], 44m, "reviewed-edit", [])));
+        _api.Setup(x => x.EditCollectionAsync(It.IsAny<RecordMobileCollectionEditRequest>())).Callback<RecordMobileCollectionEditRequest>(x => sent = x)
+            .ReturnsAsync((RecordMobileCollectionEditRequest r) => stale
+                ? Result<MobileCollectionCorrectionResult>.Failure("QuoteStale", ResultStatus.Conflict)
+                : Result<MobileCollectionCorrectionResult>.Success(new(Guid.NewGuid(), r.Intent.CollectionId, "SRC-original",
+                    new(Guid.NewGuid(), "SRC-replacement", RevenueInstrumentType.OfficialReceipt, 44m, [r.Intent.Replacement.Items[0].ClientItemId], "Posted"))));
+        var row = RecentCollectionsTests.Recent("SRC-original", 66m, "Weight & Measure", "Pantom Dant", edit: true,
+            source: new(FishVendor, CollectionSessionItemKind.SourceNative, CollectorOperationCodes.WeightAndMeasure,
+                new(VendorRegistrationId: FishVendor.Id), new(CollectorOperationCodes.WeightAndMeasure, FishVendor.Id, Kilograms: 3m)));
+        var view = OpenCorrection(row);
+        view.WaitForAssertion(() => Assert.Single(view.FindAll("[role=dialog] input[type=number]")));
+        view.Find("[role=dialog] input[type=number]").Input("2");
+        view.WaitForAssertion(() => Assert.False(AddDisabled(view)));
+        Click(view, "Add item"); view.FindAll(".cr-option").First().Click(); Click(view, "Review collection");
+        view.WaitForAssertion(() => Assert.False(view.FindAll("button").Single(x => x.TextContent.Trim() == "Save changes").HasAttribute("disabled")));
+        Click(view, "Save changes");
+        view.WaitForAssertion(() => Assert.NotNull(sent));
+        Assert.Equal(2m, sent!.Intent.Replacement.Items[0].Native!.Kilograms);
+        Assert.Equal(FishVendor, sent.Intent.Replacement.SourceIdentity); Assert.Equal("reviewed-edit", sent.QuoteFingerprint);
+        if (stale)
+        {
+            view.WaitForAssertion(() => Assert.Contains("The correction could not be completed. Check today's recent collections before trying again.", view.Find(".collection-message[role=status]").TextContent));
+            Assert.DoesNotContain("Collection corrected", view.Markup); Assert.DoesNotContain("SRC-replacement", view.Markup);
+            Assert.Equal(66m, row.Collection.NetAmount);
+        }
+        else
+        {
+            view.WaitForAssertion(() => Assert.Contains("Collection corrected", view.Markup));
+            Assert.Contains("SRC-replacement", view.Markup); Assert.Contains("SRC-original stays on record", view.Markup);
+        }
+        Assert.Empty(_queue);
+    }
+
     [Fact]
     public void Editing_a_recorded_terminal_collection_opens_the_form_on_what_was_recorded()
     {

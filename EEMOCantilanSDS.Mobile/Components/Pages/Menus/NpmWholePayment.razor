@@ -25,8 +25,8 @@
         <h1>@Occupant</h1>
         <p class="whole-payor">Stall @SpaceNo</p>
         <div class="whole-period" role="group" aria-label="Period">
-            <MobileChoice Label="Month" Options="MonthOptions" Value="@Month.ToString()" ValueChanged="ChooseMonthAsync" Disabled="@(Saving || Captured)" />
-            <MobileChoice Label="Year" Options="YearOptions" Value="@Year.ToString()" ValueChanged="ChooseYearAsync" Disabled="@(Saving || Captured)" />
+            <MobileChoice @ref="MonthChoice" Label="Month" Options="MonthOptions" Value="@Month.ToString()" ValueChanged="ChooseMonthAsync" Disabled="@(Saving || Captured)" Popover="true" OnOpening="CloseYear" />
+            <MobileChoice @ref="YearChoice" Label="Year" Options="YearOptions" Value="@Year.ToString()" ValueChanged="ChooseYearAsync" Disabled="@(Saving || Captured)" Popover="true" OnOpening="CloseMonth" />
         </div>
         @if (Loading)
         {
@@ -57,6 +57,9 @@
     [SupplyParameterFromQuery] public string? Occupant { get; set; }
     [SupplyParameterFromQuery] public string? SpaceNo { get; set; }
     private NpmWholePaymentQuoteDto? Quote;
+    private MobileChoice? MonthChoice, YearChoice;
+    private void CloseYear() => YearChoice?.Close();
+    private void CloseMonth() => MonthChoice?.Close();
     private bool Loading, Saving, Captured;
     private string? Error, Notice;
     private readonly Guid OperationId = Guid.NewGuid();
