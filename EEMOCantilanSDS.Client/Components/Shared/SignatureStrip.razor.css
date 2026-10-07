@@ -319,3 +319,10 @@
     font-weight: 700;
     color: var(--red, #8b3a3a);
 }
+
+.sig-title {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--text-secondary);
+}

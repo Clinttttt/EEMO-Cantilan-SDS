@@ -1,0 +1,49 @@
+@using EEMOCantilanSDS.Application.Command.Municipalities.SetReportSignatories
+
+@* The official statement's closing signatures: Prepared by and Certified Correct, each a configured name and title from the office's own
+   settings. Nothing is hard-coded; a role that is not configured prints as a blank rule and the Head is offered the setup. *@
+<div class="osg">
+    @foreach (var slot in Slots)
+    {
+        <div class="osg-slot">
+            <span class="osg-rule"></span>
+            @if (slot.Name is { Length: > 0 })
+            {
+                <strong class="osg-name">@slot.Name</strong>
+                @if (!string.IsNullOrWhiteSpace(slot.Title)) { <span class="osg-title">@slot.Title</span> }
+            }
+            else
+            {
+                <span class="osg-name osg-blank">&nbsp;</span>
+            }
+            <span class="osg-caption">@slot.Caption</span>
+        </div>
+    }
+</div>
+@if (Slots.Any(s => string.IsNullOrWhiteSpace(s.Name)))
+{
+    <AuthorizeView Roles="SuperAdmin">
+        <Authorized>
+            <p class="osg-setup no-print"><a href="/settings/report-signatories">Set up the report signatories</a></p>
+        </Authorized>
+    </AuthorizeView>
+}
+
+@code {
+    public static readonly string[] OfficialRoles = ["Prepared by", "Certified Correct"];
+
+    /// <summary>The signatories the server returned with the statement (Caption, Name, Title).</summary>
+    [Parameter] public IReadOnlyList<ReportSignatoryDto>? Configured { get; set; }
+
+    private IReadOnlyList<ReportSignatoryDto> Slots
+    {
+        get
+        {
+            var configured = Configured ?? [];
+            var roles = OfficialRoles.Select(role => configured.FirstOrDefault(c => string.Equals(c.Caption, role, StringComparison.OrdinalIgnoreCase))
+                ?? new ReportSignatoryDto(role, string.Empty)).ToList();
+            roles.AddRange(configured.Where(c => !OfficialRoles.Contains(c.Caption, StringComparer.OrdinalIgnoreCase)));
+            return roles;
+        }
+    }
+}

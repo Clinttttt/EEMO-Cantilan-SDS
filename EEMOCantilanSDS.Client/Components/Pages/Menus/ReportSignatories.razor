@@ -1,0 +1,93 @@
+@page "/settings/report-signatories"
+@attribute [Authorize(Roles = "SuperAdmin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Client.Services
+@using EEMOCantilanSDS.Domain.Common
+@inject ISettingsApiClient SettingsApi
+@inject BrandingState BrandingStore
+
+<PageTitle>StallTrack — Report signatories</PageTitle>
+
+@* The names and positions printed at the foot of the official Monthly Income. They are the office's own settings, never hard-coded; a role left
+   blank prints as an empty signature line. Any other signatory line the office already keeps is left as it is. *@
+<header class="topbar">
+    <div class="topbar-left">
+        <div class="topbar-title">Report signatories</div>
+        <div class="topbar-breadcrumb">
+            <span>@Branding.OfficeAcronym Admin</span>
+            <span class="breadcrumb-sep">/</span>
+            <a class="breadcrumb-link" href="/settings">Settings</a>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">Report signatories</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-date">@PhilippineTime.Now.ToString("MMMM d, yyyy")</div>
+        <AccountChip />
+    </div>
+</header>
+
+<div class="content-area">
+    <div class="v3-page rs-page">
+        <section class="v3-panel" aria-labelledby="rs-title">
+            <header class="v3-panel-header"><h2 id="rs-title">Official Monthly Income</h2><span class="v3-panel-meta">Printed at the foot of the statement</span></header>
+            <form class="rs-form" aria-label="Report signatories" @onsubmit="SaveAsync" @onsubmit:preventDefault="true">
+                @foreach (var role in OfficialSignatories.OfficialRoles)
+                {
+                    var entry = _entries[role];
+                    <fieldset class="rs-role">
+                        <legend>@role</legend>
+                        <label class="v3-field"><span>Name</span><input type="text" maxlength="60" value="@entry.Name" @oninput="e => entry.Name = e.Value?.ToString() ?? string.Empty" /></label>
+                        <label class="v3-field"><span>Title / position</span><input type="text" maxlength="80" value="@entry.Title" @oninput="e => entry.Title = e.Value?.ToString() ?? string.Empty" /></label>
+                    </fieldset>
+                }
+                @if (!string.IsNullOrWhiteSpace(_message))
+                {
+                    <p class="v3-notice @(_failed ? "v3-notice-error" : "")" role="@(_failed ? "alert" : "status")">@_message</p>
+                }
+                <div class="rs-actions">
+                    <a class="v3-btn" href="/settings">Back to Settings</a>
+                    <button class="v3-btn v3-btn-primary" type="submit" disabled="@_saving">Save signatories</button>
+                </div>
+            </form>
+        </section>
+    </div>
+</div>
+
+@code {
+    private sealed class Entry { public string Name { get; set; } = string.Empty; public string Title { get; set; } = string.Empty; }
+
+    private readonly Dictionary<string, Entry> _entries = OfficialSignatories.OfficialRoles.ToDictionary(r => r, _ => new Entry());
+    private List<BrandingState.Signatory> _others = [];
+    private bool _saving, _failed;
+    private string? _message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await BrandingStore.EnsureLoadedAsync();
+        // Only what the office has itself saved is shown; the system's placeholder lines are never offered as if they were people.
+        if (BrandingStore.SignatoriesAreOfficeDefault) return;
+        foreach (var line in BrandingStore.Signatories)
+        {
+            var role = OfficialSignatories.OfficialRoles.FirstOrDefault(r => string.Equals(r, line.Caption, StringComparison.OrdinalIgnoreCase));
+            if (role is not null) { _entries[role].Name = line.Name; _entries[role].Title = line.Title ?? string.Empty; }
+            else _others.Add(line);
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_saving) return;
+        _saving = true;
+        _message = null;
+        var lines = OfficialSignatories.OfficialRoles
+            .Select(role => new BrandingState.Signatory(role, _entries[role].Name.Trim(), string.IsNullOrWhiteSpace(_entries[role].Title) ? null : _entries[role].Title.Trim()))
+            .Concat(_others).ToList();
+        var error = await BrandingStore.SaveSignatoriesAsync(SettingsApi, lines, BrandingStore.SignatoryAlignment);
+        _failed = error is not null;
+        _message = error ?? "Signatories saved.";
+        _saving = false;
+    }
+}

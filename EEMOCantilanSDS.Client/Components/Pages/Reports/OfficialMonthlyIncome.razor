@@ -103,24 +103,50 @@ else
                 </thead>
                 <tbody>
                     <tr class="omi-section"><th scope="rowgroup" colspan="16">1. Receipts</th></tr>
-                    @foreach (var group in OfficialGroups)
-                    {
-                        <tr class="omi-group"><th scope="rowgroup" colspan="16">@GroupHeading(group)</th></tr>
-                        @foreach (var row in group.Rows)
+                </tbody>
+                @foreach (var section in SectionList)
+                {
+                    var groups = GroupsOf(section);
+                    _letter = 0;
+                    <tbody class="omi-block">
+                        <tr class="omi-group omi-family"><th scope="rowgroup" colspan="16">@section.Key. @section.Label</th></tr>
+                        @foreach (var group in groups)
                         {
-                            <tr>
-                                <th scope="row" class="omi-line"><span class="omi-letter">@NextLetter().</span> @row.Label</th>
-                                <td class="omi-num">@(row.AnnualTarget is { } t ? Amount(t) : "—")</td>
+                            // The first group is the family itself; further groups (Rent, Space Rental) are its subsections.
+                            @if (group != groups[0])
+                            {
+                                <tr class="omi-group"><th scope="rowgroup" colspan="16">@group.Label</th></tr>
+                            }
+                            @foreach (var row in group.Rows)
+                            {
+                                <tr>
+                                    <th scope="row" class="omi-line">@if (section.Key != "C") {<span class="omi-letter">@(NextLetter()).</span>@(" ")}@row.Label</th>
+                                    <td class="omi-num">@(row.AnnualTarget is { } t ? Amount(t) : "—")</td>
+                                    @for (var m = 1; m <= 12; m++)
+                                    {
+                                        <td class="omi-num @(IsZero(row.Months[m - 1], m) ? "omi-zero" : "")">@MonthCell(row.Months[m - 1], m)</td>
+                                    }
+                                    <td class="omi-num omi-total-col">@Amount(row.Total.Total)</td>
+                                    <td class="omi-num">@(row.Attainment is { } a ? a.ToString("N2", CultureInfo.InvariantCulture) + "%" : "—")</td>
+                                </tr>
+                            }
+                        }
+                        @if (section.Key == "B")
+                        {
+                            @* The sheet totals Terminal on its own line; every figure is the server's section total. *@
+                            <tr class="omi-subtotal">
+                                <th scope="row" class="omi-line">Total Income from Terminal</th>
+                                <td class="omi-num"></td>
                                 @for (var m = 1; m <= 12; m++)
                                 {
-                                    <td class="omi-num @(IsZero(row.Months[m - 1], m) ? "omi-zero" : "")">@MonthCell(row.Months[m - 1], m)</td>
+                                    <td class="omi-num">@MonthCell(section.MonthTotals[m - 1], m)</td>
                                 }
-                                <td class="omi-num omi-total-col">@Amount(row.Total.Total)</td>
-                                <td class="omi-num">@(row.Attainment is { } a ? a.ToString("N2", CultureInfo.InvariantCulture) + "%" : "—")</td>
+                                <td class="omi-num omi-total-col">@Amount(section.Total.Total)</td>
+                                <td class="omi-num"></td>
                             </tr>
                         }
-                    }
-                </tbody>
+                    </tbody>
+                }
                 @if (UnplacedRows.Count > 0)
                 {
                     <tbody class="omi-unplaced">
@@ -154,7 +180,7 @@ else
                 </tfoot>
             </table>
         </div>
-        <footer class="omi-sign"><SignatureStrip /></footer>
+        <footer class="omi-sign"><OfficialSignatories Configured="_data.Signatories" /></footer>
     </article>
 }
 </div>
@@ -236,13 +262,12 @@ else
         await LoadAsync();
     }
 
-    private static string GroupHeading(OfficialMonthlyIncomeGroupDto group) => group.Key switch
-    {
-        OfficialMonthlyIncomeStructure.Market => "A. Income from Market",
-        OfficialMonthlyIncomeStructure.Rent => "Rent Income (Stall Rental)",
-        OfficialMonthlyIncomeStructure.Slaughterhouse => "C. Income from Slaughterhouse",
-        _ => group.Label
-    };
+    // The server's sections (A Market, B Terminal, C Slaughterhouse) in order; an older response without them reads as one Market family.
+    private IReadOnlyList<OfficialMonthlyIncomeSectionDto> SectionList => _data?.Sections is { Count: > 0 } sections ? sections
+        : _data is null ? [] : [new("A", "Income From Market", OfficialGroups.Select(g => g.Key).ToArray(), _data.MonthTotals, _data.GrandTotal)];
+
+    private IReadOnlyList<OfficialMonthlyIncomeGroupDto> GroupsOf(OfficialMonthlyIncomeSectionDto section) =>
+        section.GroupKeys.Select(key => OfficialGroups.FirstOrDefault(g => g.Key == key)).OfType<OfficialMonthlyIncomeGroupDto>().ToList();
 
     // Lines are lettered on across the official groups, as on the office sheet (a. Market Fees … r. Fines).
     private string NextLetter()

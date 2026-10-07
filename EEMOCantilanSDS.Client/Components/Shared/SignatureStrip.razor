@@ -37,6 +37,7 @@
                 }
             </span>
             <strong class="sig-name">@slot.Name</strong>
+            @if (!string.IsNullOrWhiteSpace(slot.Title)) { <span class="sig-title">@slot.Title</span> }
         </div>
     }
 
@@ -87,9 +88,14 @@
         </label>
 
         <label class="sig-field">
-            <span>Name or position</span>
+            <span>Name</span>
             <input type="text" value="@_name" @oninput="e => _name = e.Value?.ToString() ?? string.Empty"
                    placeholder="e.g. Administrative Staff" maxlength="60" />
+        </label>
+
+        <label class="sig-field">
+            <span>Title / position (optional)</span>
+            <input type="text" value="@_title" @oninput="e => _title = e.Value?.ToString() ?? string.Empty" maxlength="80" />
         </label>
 
         @if (_error is not null)
@@ -160,6 +166,7 @@
     private int? _editing;                 // index being edited; == Slots.Count when adding
     private string _caption = string.Empty;
     private string _name = string.Empty;
+    private string _title = string.Empty;
     private string? _error;
 
     protected override async Task OnInitializedAsync()
@@ -183,6 +190,7 @@
         _editing = index;
         _caption = Slots[index].Caption;
         _name = Slots[index].Name;
+        _title = Slots[index].Title ?? string.Empty;
         _error = null;
     }
 
@@ -191,6 +199,7 @@
         _editing = Slots.Count;
         _caption = string.Empty;
         _name = string.Empty;
+        _title = string.Empty;
         _error = null;
     }
 
@@ -211,7 +220,7 @@
         }
 
         var next = Slots.ToList();
-        var entry = new BrandingState.Signatory(_caption.Trim(), _name.Trim());
+        var entry = new BrandingState.Signatory(_caption.Trim(), _name.Trim(), string.IsNullOrWhiteSpace(_title) ? null : _title.Trim());
         if (index < next.Count) next[index] = entry; else next.Add(entry);
 
         await Commit(next);

@@ -302,19 +302,19 @@ public sealed class OfficialReportPanelsTests : TestContext
             Assert.Equal(["Annual target", "Jan"], head.Skip(1).Take(2));
             Assert.Equal(["Total", "Percentage"], head.TakeLast(2));
             Assert.Contains("1. Receipts", table.TextContent);
-            Assert.Contains("A. Income from Market", table.TextContent);
+            Assert.Contains("A. Income From Market", table.TextContent);
             var lines = table.QuerySelectorAll("tbody th.omi-line").Select(th => th.TextContent.Trim()).ToList();
             Assert.Equal(["a. Market Fees", "b. General Distribution / ECF", "c. Tampak Commercial Center (TCC)"], lines);
             Assert.DoesNotContain("Subtotal", table.TextContent);
             Assert.Contains("OVERALL TOTAL MARKET COLLECTION", table.QuerySelector("tfoot")!.TextContent);
             Assert.Contains("1,030.00", table.QuerySelector("tfoot")!.TextContent);
             // No target configured: target and percentage are a dash, never 0 or 0%.
-            Assert.DoesNotContain("%", table.QuerySelector("tbody")!.TextContent);
+            Assert.DoesNotContain("%", table.QuerySelector("tbody.omi-block")!.TextContent);
             // The dashes speak for themselves: no explanatory notes or footer clutter on the official output.
             Assert.DoesNotContain("Annual targets are not configured", cut.Markup);
             Assert.Empty(cut.FindAll(".omi-notes"));
             // A past year has every month reached: a month with nothing collected is a known 0.00.
-            Assert.Contains("0.00", table.QuerySelector("tbody")!.TextContent);
+            Assert.Contains("0.00", table.QuerySelector("tbody.omi-block")!.TextContent);
             // No analysis chrome: no report tabs and no source-performance widgets on the final output.
             Assert.Empty(cut.FindAll(".rpt-sec-tabs"));
             Assert.Empty(cut.FindAll(".rsp"));
@@ -557,7 +557,9 @@ public sealed class OfficialReportPanelsTests : TestContext
             [Row("COMFORT_ROOM", "COMFORT ROOM", 0m, 40m, "Canonical")], Months(0m, 40m), new MonthlyIncomeCellDto(0m, 40m));
         var slaughter = new OfficialMonthlyIncomeGroupDto("SLAUGHTERHOUSE", "Slaughterhouse",
             [Row("SLAUGHTERHOUSE", "Slaughterhouse", 200m, 0m, "Legacy")], Months(200m, 0m), new MonthlyIncomeCellDto(200m, 0m));
-        statement = statement with { Groups = statement.Groups.Append(terminal).Append(slaughter).ToList() };
+        var groups = statement.Groups.Append(terminal).Append(slaughter).ToList();
+        OfficialMonthlyIncomeSectionDto Section(string key, string label, params string[] keys) => new(key, label, keys, Months(0m, 0m), new MonthlyIncomeCellDto(0m, 0m));
+        statement = statement with { Groups = groups, Sections = [Section("A", "Income From Market", "MARKET", "RENT"), Section("B", "Income From Terminal", "TERMINAL"), Section("C", "Income from Slaughterhouse", "SLAUGHTERHOUSE")] };
         _reports.Setup(x => x.GetMonthlyIncomeAsync(2025, null)).ReturnsAsync(Result<OfficialMonthlyIncomeDto>.Success(statement));
 
         var cut = RenderOfficial(2025);
@@ -565,11 +567,51 @@ public sealed class OfficialReportPanelsTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var table = cut.Find("table.omi-table");
-            Assert.Contains("B. Income From Terminal", table.TextContent);          // the server's own family name, never a client guess
+            Assert.Contains("B. Income From Terminal", table.TextContent);          // the server's own section, never a client guess
+            Assert.Contains("Total Income from Terminal", table.TextContent);
             Assert.Contains("COMFORT ROOM", table.TextContent);
             Assert.Contains("C. Income from Slaughterhouse", table.TextContent);
             Assert.DoesNotContain("Awaiting an approved official grouping", cut.Markup);
-            Assert.NotNull(cut.Find("footer.omi-sign .sig-strip"));                    // Prepared by / Certified Correct come from office settings
+            Assert.Contains("Prepared by", cut.Find("footer.omi-sign").TextContent);         // the two official roles come from office settings
+            Assert.Contains("Certified Correct", cut.Find("footer.omi-sign").TextContent);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void TheOfficialStatement_PrintsTheConfiguredPreparedByAndCertifiedCorrect_WithTheirTitles()
+    {
+        var statement = Statement(null) with
+        {
+            Year = 2025,
+            Signatories = [new("Prepared by", "A. Aide", "Admin. Aide III"), new("Certified Correct", "M. Supervisor", "Market Supervisor IV")]
+        };
+        _reports.Setup(x => x.GetMonthlyIncomeAsync(2025, null)).ReturnsAsync(Result<OfficialMonthlyIncomeDto>.Success(statement));
+
+        var cut = RenderOfficial(2025);
+
+        cut.WaitForAssertion(() =>
+        {
+            var foot = cut.Find("footer.omi-sign").TextContent;
+            Assert.Contains("A. Aide", foot); Assert.Contains("Admin. Aide III", foot);
+            Assert.Contains("M. Supervisor", foot); Assert.Contains("Market Supervisor IV", foot);
+            Assert.Empty(cut.FindAll(".osg-setup"));                                                // nothing to set up
+        }, Timeout);
+    }
+
+    [Fact]
+    public void WithNoConfiguredSignatories_TheTwoRolesStayBlank_NeverInventedNames_AndTheHeadIsOfferedTheSetup()
+    {
+        var statement = Statement(null) with { Year = 2025, Signatories = [] };
+        _reports.Setup(x => x.GetMonthlyIncomeAsync(2025, null)).ReturnsAsync(Result<OfficialMonthlyIncomeDto>.Success(statement));
+
+        var cut = RenderOfficial(2025);
+
+        cut.WaitForAssertion(() =>
+        {
+            var foot = cut.Find("footer.omi-sign").TextContent;
+            Assert.Contains("Prepared by", foot); Assert.Contains("Certified Correct", foot);
+            Assert.DoesNotContain("GANANCIAS", foot.ToUpperInvariant()); Assert.DoesNotContain("GUAZON", foot.ToUpperInvariant());
+            Assert.Equal("/settings/report-signatories", cut.Find(".osg-setup a").GetAttribute("href"));
         }, Timeout);
     }
 }

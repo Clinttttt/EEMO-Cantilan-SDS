@@ -134,7 +134,7 @@ public class BrandingState(IMunicipalitiesApiClient api)
     // the office's standard trio is used, so every sheet keeps exactly the footer it has today.
 
     /// <summary>One signatory line: the caption above the rule and the name beneath it.</summary>
-    public record Signatory(string Caption, string Name);
+    public record Signatory(string Caption, string Name, string? Title = null);
 
     private IReadOnlyList<Signatory>? _signatories;
     private string? _alignment;
@@ -233,7 +233,7 @@ public class BrandingState(IMunicipalitiesApiClient api)
         ISettingsApiClient settingsApi, IReadOnlyList<Signatory> signatories, string alignment = "left")
     {
         var payload = signatories
-            .Select(s => new Application.Command.Municipalities.SetReportSignatories.ReportSignatoryDto(s.Caption, s.Name))
+            .Select(s => new Application.Command.Municipalities.SetReportSignatories.ReportSignatoryDto(s.Caption, s.Name, s.Title))
             .ToList();
 
         // Alignment rides with the lines rather than in a column of its own, so one save writes one value and the two
