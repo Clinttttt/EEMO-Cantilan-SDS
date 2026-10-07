@@ -1,20 +1,389 @@
 @page "/operations/fish-meat-vendor-fees/import"
 @attribute [Authorize(Roles = "SuperAdmin")]
 @rendermode InteractiveServer
+@using System.Globalization
+@using Microsoft.AspNetCore.Components.Forms
+@using EEMOCantilanSDS.Application.Common
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Mobile
 @using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Client.Services
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@inject IOfficeSourcesApiClient OfficeApi
 
 <PageTitle>StallTrack — Import Fish / Meat Vendors</PageTitle>
 
-@* The shell of the Fish / Meat vendor-list import: the same hero and three steps as every other import. It imports the VENDOR REGISTRY
-   only (name, type, registration, business, address, reference); a photographed list's handwritten monthly amounts are never read as
-   collections. The upload, review and save steps are wired when the import contract exists; until then this page says so rather than
-   pretending to import. The layout owns the <main> landmark. *@
+@* Imports the VENDOR REGISTRY only: name, business, type, registration, address and reference for one tax year, from a CSV or Excel list. The server
+   checks every row first (nothing is saved or reserved by checking) and says which look like an existing registration; the Head confirms each
+   genuinely separate one, and nothing is ever merged or linked by name. A money column, such as the monthly amounts on the office's paper, is not
+   read: those are collections, which Collector Mobile records. The layout owns the <main> landmark. *@
 <OperationTopbar Title="Fish / Meat Vendors" Crumb="Import vendor list" />
 <div class="content-area">
-    <ImportHero Eyebrow="Fish / Meat · Bulk Import" Title="Import Fish / Meat vendors" Subtitle="Registry data only: vendors are registered here, never collected from a list." Step="1" />
-    <section class="v3-panel fmi-note" aria-labelledby="fmi-title">
-        <header class="v3-panel-header"><h2 id="fmi-title">Not available yet</h2></header>
-        <p class="fmi-text">Importing a vendor list needs the registry import service, which is not connected to this office yet. Register vendors one at a time from the registry for now.</p>
-        <p class="fmi-actions"><a class="btn-outline" href="/operations/fish-meat-vendor-fees">Back to Fish / Meat Vendors</a></p>
-    </section>
+    <div class="fmi">
+        <ImportHero Eyebrow="Fish / Meat · Bulk Import" Title="Import Fish / Meat vendors" Subtitle="Registry only: vendors are registered here, never collected from a list." Step="Step" />
+
+        @if (_result is not null)
+        {
+            <ImportResultCard Ok="true">
+                <Title>@_result.Rows.Count @(_result.Rows.Count == 1 ? "vendor" : "vendors") imported for @_taxYear</Title>
+                <ChildContent>
+                    <ImportButton Kind="ghost" OnClick="ResetAll">Import another list</ImportButton>
+                    <ImportButton Kind="primary" Href="/operations/fish-meat-vendor-fees/manage">Open Manage</ImportButton>
+                </ChildContent>
+            </ImportResultCard>
+        }
+        else if (Rows.Count == 0)
+        {
+            <ImportUploadCard Subtitle="the list of Fish / Meat vendors" OnFile="OnFileChange" UploadError="@_uploadError" TemplateHref="@TemplateUri"
+                              TemplateFileName="fish-meat-vendors-template.csv" OnSample="LoadSample" OnManual="StartManual" ColumnsFor="Fish / Meat vendors" ColumnLabels="Columns.Select(c => c.Label)">
+                <Setup>
+                    <div class="fmi-year">
+                        <FhSelect Caption="Tax year" AriaLabel="Tax year" Options="YearOptions" Value="@_taxYear.ToString()" ValueChanged="ChangeYear" />
+                    </div>
+                </Setup>
+                <Notes>
+                    <div class="imp-cols-note"><strong>Type</strong> is Fish or Meat and <strong>Registration</strong> is New or Renew; both are read only from the words, never guessed. Any amount column is ignored: this list registers vendors, it does not record collections.</div>
+                </Notes>
+            </ImportUploadCard>
+        }
+        else
+        {
+            <ImportReviewBar Count="Rows.Count" Subtitle="@($"{(string.IsNullOrEmpty(_fileName) ? "Entered here" : _fileName)} · Tax year {_taxYear}")">
+                <FhSelect Caption="Tax year" AriaLabel="Tax year" Options="YearOptions" Value="@_taxYear.ToString()" ValueChanged="ChangeYear" />
+                <ImportButton Kind="ghost" Class="imp-add-row" OnClick="AddRow">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                    Add row
+                </ImportButton>
+                <ImportButton Kind="outline" Disabled="@_saving" OnClick="ResetAll">Discard</ImportButton>
+            </ImportReviewBar>
+
+            <ImportGrid TRow="Row" Columns="Columns" Rows="Rows" Label="Vendors to import" GetCell="CellOf" OnChange="CellChanged" OnRemove="RemoveRow">
+                <Status Context="row">
+                    @{ var (state, why) = StatusOf(row); }
+                    <div class="fmi-status">
+                        @if (state == RowState.Invalid) { <span class="fmi-chip fmi-invalid">Invalid</span><span class="fmi-why">@why</span> }
+                        else if (state == RowState.Duplicate)
+                        {
+                            <span class="fmi-chip fmi-review">Possible duplicate</span>
+                            <span class="fmi-why">@why</span>
+                            <label class="fmi-confirm">
+                                <input type="checkbox" checked="@row.Confirm" @onchange="e => ToggleConfirm(row, e.Value is true)" />
+                                Register as a separate vendor
+                            </label>
+                        }
+                        else if (state == RowState.Checking) { <span class="fmi-chip">Checking…</span> }
+                        else { <span class="fmi-chip fmi-ready">Ready</span> }
+                    </div>
+                </Status>
+            </ImportGrid>
+
+            <ImportFootBar CancelHref="/operations/fish-meat-vendor-fees" Error="@_message" Saving="_saving" Disabled="@(!CanImport)" OnSave="ImportAsync"
+                           SaveLabel="@($"Import {Rows.Count} {(Rows.Count == 1 ? "vendor" : "vendors")}")">
+                <span class="fmi-foot-note" role="status">
+                    @if (_previewing) { <text>Checking rows…</text> }
+                    else if (_previewNote is not null) { <text>@_previewNote</text> }
+                    else { <text>@ReadyCount of @Rows.Count ready. Every row must be ready before the list is imported.</text> }
+                </span>
+            </ImportFootBar>
+        }
+    </div>
 </div>
+
+@code {
+    private string? _message, _uploadError, _fileName, _previewNote;
+    private bool _saving, _previewing;
+    private int _taxYear = PhilippineTime.Today.Year;
+    private VendorRegistryImportResult? _result;
+    private List<Row> Rows = [];
+
+    private int Step => _result is not null || _saving ? 3 : Rows.Count > 0 ? 2 : 1;
+    private enum RowState { Checking, Ready, Duplicate, Invalid }
+
+    private IReadOnlyList<(string Value, string Label)> YearOptions =>
+        Enumerable.Range(0, 5).Select(i => PhilippineTime.Today.Year + 1 - i).Append(_taxYear).Distinct().OrderByDescending(y => y).Select(y => (y.ToString(), y.ToString())).ToList();
+
+    private static readonly ImportColumn NameCol = new("name", "Vendor name", MinWidth: 200, Placeholder: "Full name");
+    private static readonly ImportColumn BusinessCol = new("business", "Business name", MinWidth: 180);
+    private static readonly ImportColumn TypeCol = new("type", "Type", "select", ["Fish", "Meat"], MinWidth: 110);
+    private static readonly ImportColumn KindCol = new("kind", "Registration", "select", ["New", "Renew"], MinWidth: 130);
+    private static readonly ImportColumn AddressCol = new("address", "Address", MinWidth: 200);
+    private static readonly ImportColumn ReferenceCol = new("reference", "Reference", MinWidth: 150);
+    private static readonly IReadOnlyList<ImportColumn> Columns = [NameCol, BusinessCol, TypeCol, KindCol, AddressCol, ReferenceCol];
+
+    // HEADER ONLY: a template carries column names and nothing the office could mistake for data the platform put there.
+    private static string TemplateUri => "data:text/csv;charset=utf-8," + Uri.EscapeDataString(string.Join(",", Columns.Select(c => c.Label)) + "\r\n");
+
+    private sealed class Row
+    {
+        public Guid OperationId = Guid.NewGuid();
+        public string Name = "", Business = "", TypeText = "", KindText = "", Address = "", Reference = "";
+        public bool Confirm;
+        public string? Error;
+        public VendorRegistryImportPreviewRow? Preview;
+        public FishMeatVendorType? Type => TypeText switch { "Fish" => FishMeatVendorType.Fish, "Meat" => FishMeatVendorType.Meat, _ => null };
+        public VendorRegistrationKind? Kind => KindText switch { "New" => VendorRegistrationKind.New, "Renew" => VendorRegistrationKind.Renew, _ => null };
+    }
+
+    private int ReadyCount => Rows.Count(r => StatusOf(r).State == RowState.Ready);
+    private bool CanImport => !_saving && !_previewing && Rows.Count is > 0 and <= 500 && Rows.All(r => StatusOf(r).State == RowState.Ready);
+
+    private string CellOf(Row row, ImportColumn col) => col.Key switch
+    {
+        "name" => row.Name, "business" => row.Business, "type" => row.TypeText, "kind" => row.KindText, "address" => row.Address, _ => row.Reference
+    };
+
+    private void CellChanged(ImportCellChange<Row> change)
+    {
+        var row = change.Row;
+        var value = change.Value ?? string.Empty;
+        switch (change.Column.Key)
+        {
+            case "name": row.Name = value; break;
+            case "business": row.Business = value; break;
+            case "type": row.TypeText = value; break;
+            case "kind": row.KindText = value; break;
+            case "address": row.Address = value; break;
+            default: row.Reference = value; break;
+        }
+        Touched(row);
+    }
+
+    // An edit is a new intent: its earlier check and confirmation no longer describe it, and it gets a fresh operation ID.
+    private void Touched(Row row)
+    {
+        row.Preview = null; row.Confirm = false; row.OperationId = Guid.NewGuid();
+        Validate(row);
+        SchedulePreview();
+    }
+
+    private void ToggleConfirm(Row row, bool confirmed) { row.Confirm = confirmed; SchedulePreview(); }
+
+    private void ChangeYear(string value)
+    {
+        _taxYear = int.Parse(value);
+        foreach (var row in Rows) { row.Preview = null; row.Confirm = false; row.OperationId = Guid.NewGuid(); }
+        SchedulePreview();
+    }
+
+    // What this page can tell before the server has: a row that fails its own checks is Invalid. The server's word then replaces it.
+    private static (RowState State, string? Why) StatusOf(Row row)
+    {
+        if (row.Error is not null) return (RowState.Invalid, row.Error);
+        if (row.Preview is not { } line) return (RowState.Checking, null);
+        return line.State switch
+        {
+            VendorRegistryImportState.New => (RowState.Ready, null),
+            VendorRegistryImportState.PossibleDuplicateRequiresReview => row.Confirm ? (RowState.Ready, null) : (RowState.Duplicate, ProblemText(line)),
+            _ => (RowState.Invalid, ProblemText(line))
+        };
+    }
+
+    // The server's stable problem codes choose the wording; its message text is never read.
+    private static string ProblemText(VendorRegistryImportPreviewRow line) => string.Join(" ", line.Problems.Select(p => p.Code switch
+    {
+        "PossibleDuplicate" => "Looks like a vendor already registered for this year.",
+        "DuplicateRowIdentity" => "Listed more than once in this file.",
+        "RegistrationIntentConflict" => "Conflicts with an earlier import of this row.",
+        "InvalidRegistration" => "Check the name and details.",
+        _ => "Check this row."
+    }).Distinct());
+
+    private void Validate(Row row)
+    {
+        row.Error = null;
+        if (row.Kind is null) row.Error = "Choose New or Renew";
+        if (row.Type is null) row.Error = "Choose Fish or Meat";
+        if (row.Name.Trim().Length < 2) row.Error = "Vendor name is required";
+        else if (row.Name.Trim().Length > 200) row.Error = "Vendor name is too long";
+        else if (row.Business.Trim().Length > 200 || row.Reference.Trim().Length > 200) row.Error = "Business or reference is too long";
+        else if (row.Address.Trim().Length > 300) row.Error = "Address is too long";
+    }
+
+    // ── Getting rows in ──
+    private void StartManual() { _uploadError = null; _fileName = null; Rows = [NewRow()]; SchedulePreview(); }
+    private void AddRow() { Rows.Add(NewRow()); }
+    private Row NewRow() { var row = new Row(); Validate(row); return row; }
+
+    // Sample rows show what a filled list looks like; they are saved only through the normal, confirmed import.
+    private void LoadSample()
+    {
+        _uploadError = null; _fileName = null;
+        Rows = [Sample("Maria Santos", "Santos Fish Stall", "Fish", "New"), Sample("Jose Ramirez", "", "Meat", "New"), Sample("Ana Lopez", "Lopez Meat Shop", "Meat", "Renew")];
+        foreach (var row in Rows) Validate(row);
+        SchedulePreview();
+    }
+
+    private static Row Sample(string name, string business, string type, string kind) => new() { Name = name, Business = business, TypeText = type, KindText = kind };
+
+    private async Task OnFileChange(InputFileChangeEventArgs e)
+    {
+        _uploadError = null;
+        var file = e.File;
+        if (file is null) return;
+        try
+        {
+            List<string[]> raw;
+            if (file.Name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+            {
+                using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+                using var buffer = new MemoryStream();
+                await stream.CopyToAsync(buffer);
+                buffer.Position = 0;
+                raw = SpreadsheetReader.ReadXlsx(buffer);
+            }
+            else if (file.Name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            {
+                using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+                using var reader = new StreamReader(stream);
+                raw = SpreadsheetReader.ReadCsv(await reader.ReadToEndAsync());
+            }
+            else
+            {
+                _uploadError = "Unsupported file type. Upload a .csv or .xlsx file; a photo of a paper list can't be read.";
+                return;
+            }
+            if (!TryLoad(raw, file.Name)) _uploadError = "No vendors were found in that file, or it has more than 500. Check the columns shown below and try again.";
+        }
+        catch (Exception)
+        {
+            _uploadError = "Couldn't read that file. Make sure it's a valid .csv or .xlsx export and try again.";
+        }
+    }
+
+    private enum Col { None, Name, Business, Type, Kind, Address, Reference }
+    private static readonly Col[] DocumentedOrder = [Col.Name, Col.Business, Col.Type, Col.Kind, Col.Address, Col.Reference];
+
+    private static string Norm(string s) => new((s ?? string.Empty).ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+
+    // Money columns and anything else unrecognised map to nothing: only registry facts are ever read.
+    private static Col ColFor(string header) => Norm(header) switch
+    {
+        "vendor" or "vendorname" or "name" or "displayname" or "nameofvendor" or "nameofbusinessowner" or "owner" => Col.Name,
+        "business" or "businessname" or "stall" or "tradename" => Col.Business,
+        "type" or "vendortype" or "fishmeat" or "category" or "fishormeat" => Col.Type,
+        "registration" or "registrationkind" or "newrenew" or "kind" or "newrenewal" or "status" => Col.Kind,
+        "address" or "location" => Col.Address,
+        "reference" or "ref" or "referenceno" or "registrationno" or "permitno" or "controlno" => Col.Reference,
+        _ => Col.None
+    };
+
+    private static Col[]? HeaderMapFor(string[] cells)
+    {
+        var map = cells.Select(ColFor).ToArray();
+        return map.Count(c => c != Col.None) >= 2 ? map : null;
+    }
+
+    private bool TryLoad(List<string[]> raw, string? fileName)
+    {
+        var map = DocumentedOrder;
+        var rows = new List<Row>();
+        foreach (var cells in raw)
+        {
+            if (cells.Length == 0 || cells.All(string.IsNullOrWhiteSpace)) continue;
+            if (HeaderMapFor(cells) is { } header) { map = header; continue; }
+            var row = new Row();
+            for (var i = 0; i < cells.Length && i < map.Length; i++) Put(row, map[i], (cells[i] ?? string.Empty).Trim());
+            if (string.IsNullOrWhiteSpace(row.Name)) continue;
+            Validate(row);
+            rows.Add(row);
+        }
+        if (rows.Count is 0 or > 500) return false;
+        Rows = rows;
+        _fileName = fileName;
+        _uploadError = null;
+        _message = null;
+        SchedulePreview();
+        return true;
+    }
+
+    private static void Put(Row row, Col column, string value)
+    {
+        switch (column)
+        {
+            case Col.Name: row.Name = System.Text.RegularExpressions.Regex.Replace(value, @"^\s*\d+\s*[\.\)]\s*", string.Empty); break;
+            case Col.Business: row.Business = value; break;
+            case Col.Type: row.TypeText = Norm(value) switch { "fish" => "Fish", "meat" => "Meat", _ => string.Empty }; break;
+            case Col.Kind: row.KindText = Norm(value) switch { "new" => "New", "renew" or "renewal" or "renewed" => "Renew", _ => string.Empty }; break;
+            case Col.Address: row.Address = value; break;
+            case Col.Reference: row.Reference = value; break;
+        }
+    }
+
+    private void RemoveRow(int index)
+    {
+        if (index < 0 || index >= Rows.Count) return;
+        Rows.RemoveAt(index);
+        if (Rows.Count == 0) { _fileName = null; _message = null; _previewNote = null; }
+        else SchedulePreview();
+    }
+
+    private void ResetAll() { Rows = []; _result = null; _message = null; _uploadError = null; _fileName = null; _previewNote = null; }
+
+    // ── The server's typed preview ──
+    private CancellationTokenSource? _previewDelay;
+
+    private VendorRegistryImportRow Build(Row row, int number) => new(number, new RegisterFishMeatVendorRequest(row.OperationId, _taxYear, row.Type!.Value, row.Kind!.Value,
+        row.Name.Trim(), VendorRegistrationForm.Blank(row.Business), VendorRegistrationForm.Blank(row.Address), VendorRegistrationForm.Blank(row.Reference)), row.Confirm);
+
+    private void SchedulePreview()
+    {
+        _previewDelay?.Cancel();
+        _previewDelay = new CancellationTokenSource();
+        _ = DebouncedPreviewAsync(_previewDelay.Token);
+    }
+
+    private async Task DebouncedPreviewAsync(CancellationToken token)
+    {
+        try { await Task.Delay(400, token); } catch (OperationCanceledException) { return; }
+        await InvokeAsync(PreviewAsync);
+    }
+
+    // Asks the server to check every well-formed row without saving or reserving anything: it says which look like an existing registration or a
+    // repeat in this list. Rows come back by their number on the sheet.
+    private async Task PreviewAsync()
+    {
+        foreach (var row in Rows) row.Preview = null;
+        var checkable = Rows.Select((row, i) => (Row: row, Number: i + 1)).Where(x => x.Row.Error is null).ToList();
+        if (checkable.Count == 0 || checkable.Count > 500) { _previewNote = null; StateHasChanged(); return; }
+        _previewing = true;
+        StateHasChanged();
+        try
+        {
+            var result = await OfficeApi.PreviewImportAsync(new VendorRegistryImportRequest(checkable.Select(x => Build(x.Row, x.Number)).ToList()));
+            if (result.IsSuccess && result.Value is { } preview)
+            {
+                foreach (var line in preview.Rows) if (checkable.FirstOrDefault(x => x.Number == line.RowNumber) is { Row: { } row }) row.Preview = line;
+                _previewNote = null;
+            }
+            else _previewNote = "The server check is unavailable. Nothing can be imported until it has checked every row.";
+        }
+        catch { _previewNote = "The server check is unavailable. Nothing can be imported until it has checked every row."; }
+        finally { _previewing = false; StateHasChanged(); }
+    }
+
+    // ── Saving ──
+    private async Task ImportAsync()
+    {
+        if (!CanImport) return;
+        _saving = true;
+        _message = null;
+        try
+        {
+            var result = await OfficeApi.SaveImportAsync(new VendorRegistryImportRequest(Rows.Select((row, i) => Build(row, i + 1)).ToList()));
+            if (result.IsSuccess && result.Value is { } saved) _result = saved;
+            else _message = SaveProblem(result.Error, result.Status);
+        }
+        catch { _message = "The import could not be confirmed. Open Manage to see what was registered before retrying."; }
+        finally { _saving = false; }
+    }
+
+    private static string SaveProblem(string? code, ResultStatus status) => code switch
+    {
+        "ImportNeedsReview" => "Some rows need review. Check the list and try again.",
+        "ConcurrentImport" or "RegistryConcurrencyConflict" => "Another change was saved at the same time. Try the import again.",
+        "RegistrationIntentConflict" => "A row was already submitted with different details. Discard the list and import again.",
+        "InvalidImport" => "The list could not be imported. Check the rows and try again.",
+        _ => status == ResultStatus.Forbidden ? "Only the Head can import a vendor list." : "The import could not be completed."
+    };
+}

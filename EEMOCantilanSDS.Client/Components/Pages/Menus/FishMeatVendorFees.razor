@@ -6,19 +6,18 @@
 @using EEMOCantilanSDS.Application.Dtos.Mobile
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Common
-@using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Domain.Entities.Revenue
 @inject IOfficeSourcesApiClient OfficeApi
 
 <PageTitle>StallTrack — Fish / Meat Vendors</PageTitle>
 
-@* Fish / Meat Vendors own their registry: a vendor is registered here for a tax year as Fish or Meat, never through NPM. The Vendor Fee is a
-   direct amount received (no fixed rate) and Weight & Measure needs a registered vendor; both are recorded on Collector Mobile and read
-   here from the canonical activity. The layout owns the <main> landmark. *@
+@* Fish / Meat Vendors own their registry: a vendor is registered here for a tax year as Fish or Meat, never through NPM. This is the working registry
+   (the current year's active registrations) with what each vendor has paid this month, taken from the server; Manage holds other years, closed
+   registrations and the lifecycle. The Vendor Fee is a direct amount received and Weight & Measure needs a registered vendor; both are recorded on
+   Collector Mobile. The layout owns the <main> landmark. *@
 <OperationTopbar Title="Fish / Meat Vendors" Crumb="Operation" />
 <div class="content-area">
-    @* The same hero and toolbar as the Kanmanggay workspace: a civic-blue operation hero with compact figures, then one toolbar. *@
-    <FacilityHero Title="Fish / Meat Vendors" Eyebrow="OPERATION · FISH / MEAT" Subtitle="@($"Tax year {_year} · OR Official Receipt")" Stats="HeroStats">
+    <FacilityHero Title="Fish / Meat Vendors" Eyebrow="OPERATION · FISH / MEAT" Subtitle="OR Official Receipt" Stats="HeroStats">
         <Icon><svg viewBox="0 0 24 24"><path d="M3 12c3-5 8-6 12-3l4-3v12l-4-3c-4 3-9 2-12-3z" /><circle cx="8" cy="11" r="0.8" /></svg></Icon>
     </FacilityHero>
     <Toolbar SearchQuery="@_search"
@@ -26,7 +25,7 @@
              ActiveFilter="@_filter"
              OnFilterChanged="v => _filter = v"
              Filters="@TypeFilters"
-             SearchPlaceholder="Search vendor…"
+             SearchPlaceholder="Search vendor, business, address or reference…"
              MiddleContent="@ActionBarContent" />
 
     @if (!string.IsNullOrWhiteSpace(_saved))
@@ -37,7 +36,10 @@
     <section class="v3-panel" aria-labelledby="fmv-registry-title" aria-busy="@(_loading ? "true" : "false")">
         <header class="v3-panel-header">
             <h2 id="fmv-registry-title">Vendor registry</h2>
-            <span class="v3-panel-meta">@VisibleRows.Count @(VisibleRows.Count == 1 ? "vendor" : "vendors")</span>
+            <div class="fmv-panel-tools">
+                <span class="v3-panel-meta">@VisibleRows.Count @(VisibleRows.Count == 1 ? "vendor" : "vendors")</span>
+                <a class="v3-btn v3-btn-sm" href="/operations/fish-meat-vendor-fees/manage">Manage</a>
+            </div>
         </header>
         @if (!string.IsNullOrWhiteSpace(_error))
         {
@@ -48,68 +50,34 @@
         }
         <div class="v3-table-wrap fmv-scroll" role="region" aria-label="Registered vendors" tabindex="0">
             <table class="v3-table">
-                <caption class="v3-sr-only">Fish and Meat vendors registered for @_year</caption>
+                <caption class="v3-sr-only">Active Fish and Meat vendors registered for @_taxYear with what each paid in @_monthName</caption>
                 <thead>
                     <tr>
                         <th scope="col">Vendor</th>
                         <th scope="col">Type</th>
                         <th scope="col">Registration</th>
                         <th scope="col">Reference</th>
+                        <th scope="col" class="v3-num">Collected this month</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var row in VisibleRows)
                     {
-                        <tr @key="row.Id">
+                        var vendor = row.Registration;
+                        <tr @key="vendor.Id">
                             <td>
-                                <span class="v3-strong">@row.DisplayName</span>
-                                @if (!string.IsNullOrWhiteSpace(row.BusinessName)) { <span class="v3-block fmv-sub">@row.BusinessName</span> }
+                                <span class="v3-strong">@vendor.DisplayName</span>
+                                @if (!string.IsNullOrWhiteSpace(vendor.BusinessName)) { <span class="v3-block fmv-sub">@vendor.BusinessName</span> }
                             </td>
-                            <td>@row.VendorType</td>
-                            <td>@row.RegistrationKind</td>
-                            <td>@(string.IsNullOrWhiteSpace(row.Reference) ? "—" : row.Reference)</td>
+                            <td>@vendor.VendorType</td>
+                            <td>@vendor.RegistrationKind</td>
+                            <td>@(string.IsNullOrWhiteSpace(vendor.Reference) ? "—" : vendor.Reference)</td>
+                            <td class="v3-num">@Money(row.TotalCollected)</td>
                         </tr>
                     }
                     @if (VisibleRows.Count == 0)
                     {
-                        <tr><td class="v3-empty" colspan="4">@(_loading ? "Loading vendors…" : string.IsNullOrWhiteSpace(_search) ? $"No vendor is registered for {_year}." : "No vendor matches the search.")</td></tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </section>
-
-    <section class="v3-panel fmv-activity" aria-labelledby="fmv-activity-title">
-        <header class="v3-panel-header">
-            <h2 id="fmv-activity-title">Collections this month</h2>
-            <span class="v3-panel-meta">@_activity.Count @(_activity.Count == 1 ? "collection" : "collections")</span>
-        </header>
-        <div class="v3-table-wrap fmv-scroll" role="region" aria-label="Fish and Meat collections this month" tabindex="0">
-            <table class="v3-table">
-                <caption class="v3-sr-only">Vendor Fee and Weight &amp; Measure collections recorded this month</caption>
-                <thead>
-                    <tr>
-                        <th scope="col">Date</th>
-                        <th scope="col">SRC</th>
-                        <th scope="col">Collection</th>
-                        <th scope="col">Vendor</th>
-                        <th scope="col" class="v3-num">Amount</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var item in _activity)
-                    {
-                        <tr @key="item.CollectionId">
-                            <td>@item.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)</td>
-                            <td class="fmv-src">@item.SRC</td>
-                            <td>@(item.OperationCode == CollectorOperationCodes.WeightAndMeasure ? "Weight & Measure" : "Vendor Fee")@if (item.Kilograms is { } kg) { <span class="v3-block fmv-sub">@kg.ToString("0.##", CultureInfo.InvariantCulture) kg</span> }</td>
-                            <td>@VendorOf(item)</td>
-                            <td class="v3-num">@Money(item.NetAmount)</td>
-                        </tr>
-                    }
-                    @if (_activity.Count == 0)
-                    {
-                        <tr><td class="v3-empty" colspan="5">No Fish / Meat collection has been recorded this month.</td></tr>
+                        <tr><td class="v3-empty" colspan="5">@(_loading ? "Loading vendors…" : HasSearch ? "No vendor matches the search." : $"No vendor is registered for {_taxYear}.")</td></tr>
                     }
                 </tbody>
             </table>
@@ -117,83 +85,38 @@
     </section>
 </div>
 
-<AddNewDrawer Show="_registering" Title="Register vendor" Subtitle="@($"Tax year {_year}")" FormId="fmv-register-form" FormLabel="Register vendor"
-              SubmitText="Register" Saving="_saving" Error="@_formError" OnSubmit="RegisterAsync" OnCancel="CloseRegister">
-    <AddNewSection Title="Vendor" Plain="true">
-        <div class="avm-group">
-            <label class="avm-label" for="fmv-name">Vendor name <span class="avm-req">*</span></label>
-            <input id="fmv-name" class="avm-input" type="text" maxlength="200" autocomplete="off" @bind="_name" @bind:event="oninput" />
-        </div>
-    </AddNewSection>
-    <AddNewSection Title="Registration" Plain="true">
-        <div class="avm-row-2">
-            <div class="avm-group">
-                <label class="avm-label">Type <span class="avm-req">*</span></label>
-                <ChoiceCards Label="Vendor type" Items="TypeChoices" Value="@(((int)_type).ToString())" ValueChanged="v => _type = (FishMeatVendorType)int.Parse(v)" />
-            </div>
-            <div class="avm-group">
-                <label class="avm-label">Registration <span class="avm-req">*</span></label>
-                <ChoiceCards Label="Registration" Items="KindChoices" Value="@(((int)_kind).ToString())" ValueChanged="v => _kind = (VendorRegistrationKind)int.Parse(v)" />
-            </div>
-        </div>
-    </AddNewSection>
-    <AddNewSection Title="Details" Plain="true">
-        <div class="avm-group">
-            <label class="avm-label" for="fmv-business">Business name (optional)</label>
-            <input id="fmv-business" class="avm-input" type="text" maxlength="200" @bind="_business" />
-        </div>
-        <div class="avm-group">
-            <label class="avm-label" for="fmv-address">Address (optional)</label>
-            <input id="fmv-address" class="avm-input" type="text" maxlength="300" @bind="_address" />
-        </div>
-        <div class="avm-group">
-            <label class="avm-label" for="fmv-reference">Reference (optional)</label>
-            <input id="fmv-reference" class="avm-input" type="text" maxlength="100" @bind="_reference" />
-        </div>
-    </AddNewSection>
-</AddNewDrawer>
+<VendorRegistrationDrawer Show="_registering" Model="_form" Title="Register vendor" Subtitle="@($"Tax year {_taxYear}")" SubmitText="Register"
+                          Saving="_saving" Error="@_formError" OnSubmit="RegisterAsync" OnCancel="CloseRegister" />
 
 @code {
-    private int _year = PhilippineTime.Today.Year;
-    private List<FishMeatVendorRegistrationDto> _rows = [];
-    private List<SourceNativeActivityDto> _activity = [];
+    private readonly int _taxYear = PhilippineTime.Today.Year;
+    private string _monthName = PhilippineTime.Today.ToString("MMMM", CultureInfo.InvariantCulture);
+    private List<VendorRegistrationManagementRow> _rows = [];
     private bool _loading = true, _saving, _registering;
     private string? _error, _formError, _saved;
-    private string _search = string.Empty;
+    private string _search = string.Empty, _filter = "All";
 
-    private FishMeatVendorType _type = FishMeatVendorType.Fish;
-    private VendorRegistrationKind _kind = VendorRegistrationKind.New;
-    private string _name = string.Empty, _business = string.Empty, _address = string.Empty, _reference = string.Empty;
+    private readonly VendorRegistrationForm _form = new();
     private Guid _operationId = Guid.NewGuid();
+    private string? _submittedFingerprint;
 
-    private static readonly IReadOnlyList<ChoiceCards.Choice> TypeChoices = [new("1", "Fish"), new("2", "Meat")];
-    private static readonly IReadOnlyList<ChoiceCards.Choice> KindChoices = [new("1", "New"), new("2", "Renew")];
-
-    private IReadOnlyList<int> YearOptions => Enumerable.Range(0, 4).Select(i => PhilippineTime.Today.Year - i).Append(_year).Distinct().OrderByDescending(y => y).ToList();
-
-    private string _filter = "All";
     private static readonly List<string> TypeFilters = ["All", "Fish", "Meat"];
 
-    private List<FishMeatVendorRegistrationDto> VisibleRows => _rows
-        .Where(x => _filter switch { "Fish" => x.VendorType == FishMeatVendorType.Fish, "Meat" => x.VendorType == FishMeatVendorType.Meat, _ => true })
-        .Where(x => string.IsNullOrWhiteSpace(_search) || x.DisplayName.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase)
-            || (x.BusinessName?.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
+    private bool HasSearch => !string.IsNullOrWhiteSpace(_search);
+
+    // The search reads what the office reads on its paper: the vendor, the business, the address and the reference the server holds.
+    private List<VendorRegistrationManagementRow> VisibleRows => _rows
+        .Where(x => _filter switch { "Fish" => x.Registration.VendorType == FishMeatVendorType.Fish, "Meat" => x.Registration.VendorType == FishMeatVendorType.Meat, _ => true })
+        .Where(x => !HasSearch || new[] { x.Registration.DisplayName, x.Registration.BusinessName, x.Registration.Address, x.Registration.Reference }
+            .Any(text => text?.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
 
     private List<FacilityHero.HeroStat> HeroStats => [
         new() { Label = "Registered", Value = _rows.Count.ToString("N0", CultureInfo.InvariantCulture) },
-        new() { Label = "Fish", Value = _rows.Count(x => x.VendorType == FishMeatVendorType.Fish).ToString("N0", CultureInfo.InvariantCulture) },
-        new() { Label = "Meat", Value = _rows.Count(x => x.VendorType == FishMeatVendorType.Meat).ToString("N0", CultureInfo.InvariantCulture) }];
+        new() { Label = "Fish", Value = _rows.Count(x => x.Registration.VendorType == FishMeatVendorType.Fish).ToString("N0", CultureInfo.InvariantCulture) },
+        new() { Label = "Meat", Value = _rows.Count(x => x.Registration.VendorType == FishMeatVendorType.Meat).ToString("N0", CultureInfo.InvariantCulture) }];
 
-    // One bar: tax year, then the links and actions, in the order the Kanmanggay bar uses.
+    // One bar: the office's links and actions, in the order the Kanmanggay bar uses.
     private RenderFragment ActionBarContent => @<div class="fmv-actions-bar">
-        <label class="fmv-year" for="fmv-year"><span>Tax year</span>
-            <select id="fmv-year" @onchange="ChangeYearAsync">
-                @foreach (var year in YearOptions)
-                {
-                    <option value="@year" selected="@(year == _year)">@year</option>
-                }
-            </select>
-        </label>
         <a class="btn-outline" href="/collections/activity">Collection Activity</a>
         <a class="btn-outline" href="/operations/fish-meat-vendor-fees/report">Reports</a>
         <AuthorizeView Roles="SuperAdmin"><Authorized>
@@ -210,39 +133,24 @@
         _error = null;
         try
         {
-            var registrations = await OfficeApi.RegistrationsAsync(_year);
-            if (registrations.IsSuccess) _rows = registrations.Value?.ToList() ?? [];
-            else { _rows = []; _error = "The vendor registry couldn't be loaded."; }
-
-            // This month's Vendor Fee and Weight & Measure collections, as the canonical activity records them.
             var today = PhilippineTime.Today;
-            var from = new DateOnly(today.Year, today.Month, 1);
-            var merged = new List<SourceNativeActivityDto>();
-            foreach (var code in new[] { CollectorOperationCodes.FishMeatVendorFee, CollectorOperationCodes.WeightAndMeasure })
-            {
-                var activity = await OfficeApi.ActivityAsync(from, today, code);
-                if (activity.IsSuccess) merged.AddRange(activity.Value ?? []);
-            }
-            _activity = merged.OrderByDescending(x => x.RecordedAtUtc).ToList();
+            var management = await OfficeApi.ManageRegistrationsAsync(_taxYear, today.Month, VendorRegistrationStatus.Active);
+            if (management.IsSuccess) _rows = management.Value?.Rows.ToList() ?? [];
+            else { _rows = []; _error = "The vendor registry couldn't be loaded."; }
         }
         catch { _rows = []; _error = "The vendor registry couldn't be loaded."; }
         finally { _loading = false; }
     }
 
-    private async Task ChangeYearAsync(ChangeEventArgs e)
-    {
-        if (!int.TryParse(e.Value?.ToString(), out var year) || year == _year) return;
-        _year = year;
-        await LoadAsync();
-    }
-
     private void OpenRegister()
     {
-        _name = _business = _address = _reference = string.Empty;
-        _type = FishMeatVendorType.Fish;
-        _kind = VendorRegistrationKind.New;
+        _form.Name = _form.Business = _form.Address = _form.Reference = string.Empty;
+        _form.Type = FishMeatVendorType.Fish;
+        _form.Kind = VendorRegistrationKind.New;
+        _form.TaxYear = _taxYear;
         _formError = null;
         _operationId = Guid.NewGuid();
+        _submittedFingerprint = null;
         _registering = true;
     }
 
@@ -251,28 +159,32 @@
     private async Task RegisterAsync()
     {
         if (_saving) return;
-        if (_name.Trim().Length < 2) { _formError = "Enter the vendor name."; return; }
+        if (_form.Name.Trim().Length < 2) { _formError = "Enter the vendor name."; return; }
         _saving = true;
         _formError = null;
+        // An unchanged retry keeps its operation ID (so an unknown response is never registered twice); any edit is a new intent and gets a new one.
+        if (_submittedFingerprint is not null && _submittedFingerprint != _form.Fingerprint) _operationId = Guid.NewGuid();
+        _submittedFingerprint = _form.Fingerprint;
         try
         {
-            var result = await OfficeApi.RegisterAsync(new RegisterFishMeatVendorRequest(_operationId, _year, _type, _kind, _name.Trim(),
-                Blank(_business), Blank(_address), Blank(_reference)));
-            if (!result.IsSuccess) { _formError = "The vendor could not be registered."; return; }
+            var result = await OfficeApi.RegisterAsync(new RegisterFishMeatVendorRequest(_operationId, _taxYear, _form.Type, _form.Kind, _form.Name.Trim(),
+                VendorRegistrationForm.Blank(_form.Business), VendorRegistrationForm.Blank(_form.Address), VendorRegistrationForm.Blank(_form.Reference)));
+            if (!result.IsSuccess) { _formError = RegistrationProblem(result.Error); return; }
             _registering = false;
-            _saved = $"{result.Value!.DisplayName} registered for {_year}.";
+            _saved = $"{result.Value!.DisplayName} registered for {_taxYear}.";
             await LoadAsync();
         }
         catch { _formError = "The vendor could not be registered."; }
         finally { _saving = false; }
     }
 
-    private static string? Blank(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
-    // A registered vendor shows its register name; a walk-up Vendor Fee shows the payer name given at collection.
-    private string VendorOf(SourceNativeActivityDto item) =>
-        item.VendorRegistrationId is { } id && _rows.FirstOrDefault(x => x.Id == id) is { } vendor ? vendor.DisplayName
-        : string.IsNullOrWhiteSpace(item.PayerSnapshot) ? "—" : item.PayerSnapshot!;
+    // The server's stable codes decide the wording; no message text is read.
+    private static string RegistrationProblem(string? code) => code switch
+    {
+        "RegistrationIntentConflict" => "This registration was already submitted with different details. Close the drawer and register again.",
+        "RegistryConcurrencyConflict" => "Another change was saved at the same time. Try again.",
+        _ => "The vendor could not be registered."
+    };
 
     private static string Money(decimal amount) => $"₱{amount.ToString("N2", CultureInfo.InvariantCulture)}";
 }

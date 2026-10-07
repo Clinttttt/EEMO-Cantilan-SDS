@@ -1,0 +1,99 @@
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+
+@* The Fish / Meat registration drawer: the shared right-hand drawer shell (kept mounted so it slides in and out like the stallholder drawer) around
+   one two-column form. Registering a vendor and renewing a registration are the same drawer; a renewal fixes the vendor's type and asks for the
+   tax year it is for. Presentation only: validation, operation IDs and saving stay with the page. *@
+<VendorDrawerShell Show="Show" KeepMounted="true" Title="@Title" Subtitle="@Subtitle" OnClose="OnCancel">
+    <Icon>
+        @if (IsRenew)
+        {
+            <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><polyline points="21 3 21 8 16 8" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" /><polyline points="3 21 3 16 8 16" /></svg>
+        }
+        else
+        {
+            <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>
+        }
+    </Icon>
+    <ChildContent>
+        <form id="@FormId" aria-label="@FormLabel" @onsubmit="OnSubmit" @onsubmit:preventDefault="true">
+            <div class="avm-row-2">
+                <div class="avm-group">
+                    <label class="avm-label" for="@($"{FormId}-name")">Vendor name <span class="avm-req">*</span></label>
+                    <input id="@($"{FormId}-name")" class="avm-input" type="text" maxlength="200" autocomplete="off" @bind="Model.Name" @bind:event="oninput" />
+                </div>
+                <div class="avm-group">
+                    <label class="avm-label" for="@($"{FormId}-business")">Business name</label>
+                    <input id="@($"{FormId}-business")" class="avm-input" type="text" maxlength="200" autocomplete="off" @bind="Model.Business" @bind:event="oninput" />
+                </div>
+            </div>
+
+            <div class="avm-row-2">
+                @if (IsRenew)
+                {
+                    <div class="avm-group">
+                        <label class="avm-label">Renew for tax year <span class="avm-req">*</span></label>
+                        <FhSelect Block="true" AriaLabel="Renew for tax year" Options="YearOptions" Value="@Model.TaxYear.ToString()" ValueChanged="v => Model.TaxYear = int.Parse(v)" />
+                    </div>
+                    <div class="avm-group">
+                        <label class="avm-label">Type</label>
+                        <div class="avm-input avm-input-locked">@Model.Type</div>
+                    </div>
+                }
+                else
+                {
+                    <div class="avm-group">
+                        <label class="avm-label">Type <span class="avm-req">*</span></label>
+                        <ChoiceCards Label="Vendor type" Items="TypeChoices" Value="@(((int)Model.Type).ToString())" ValueChanged="v => Model.Type = (FishMeatVendorType)int.Parse(v)" />
+                    </div>
+                    <div class="avm-group">
+                        <label class="avm-label">Registration <span class="avm-req">*</span></label>
+                        <ChoiceCards Label="Registration" Items="KindChoices" Value="@(((int)Model.Kind).ToString())" ValueChanged="v => Model.Kind = (VendorRegistrationKind)int.Parse(v)" />
+                    </div>
+                }
+            </div>
+
+            <div class="avm-row-2">
+                <div class="avm-group">
+                    <label class="avm-label" for="@($"{FormId}-address")">Address</label>
+                    <input id="@($"{FormId}-address")" class="avm-input" type="text" maxlength="300" autocomplete="off" @bind="Model.Address" @bind:event="oninput" />
+                </div>
+                <div class="avm-group">
+                    <label class="avm-label" for="@($"{FormId}-reference")">Reference</label>
+                    <input id="@($"{FormId}-reference")" class="avm-input" type="text" maxlength="200" autocomplete="off" @bind="Model.Reference" @bind:event="oninput" />
+                </div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(Error))
+            {
+                <div class="avm-error" role="alert">@Error</div>
+            }
+        </form>
+    </ChildContent>
+    <Footer>
+        <button type="button" class="btn-ghost" @onclick="OnCancel">Cancel</button>
+        <button type="submit" class="btn-primary" form="@FormId" disabled="@Saving">@SubmitText</button>
+    </Footer>
+</VendorDrawerShell>
+
+@code {
+    private static readonly IReadOnlyList<ChoiceCards.Choice> TypeChoices = [new("1", "Fish"), new("2", "Meat")];
+    private static readonly IReadOnlyList<ChoiceCards.Choice> KindChoices = [new("1", "New"), new("2", "Renew")];
+
+    [Parameter] public bool Show { get; set; }
+    [Parameter, EditorRequired] public VendorRegistrationForm Model { get; set; } = new();
+    [Parameter] public string FormId { get; set; } = "fmv-register-form";
+    [Parameter] public string FormLabel { get; set; } = "Register vendor";
+    [Parameter] public string Title { get; set; } = "Register vendor";
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public string SubmitText { get; set; } = "Register";
+    [Parameter] public bool Saving { get; set; }
+    [Parameter] public string? Error { get; set; }
+
+    /// <summary>A renewal: the type is the registration's own and the tax year is chosen from <see cref="TaxYears"/>.</summary>
+    [Parameter] public bool IsRenew { get; set; }
+    [Parameter] public IReadOnlyList<int> TaxYears { get; set; } = [];
+    [Parameter] public EventCallback OnSubmit { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private IReadOnlyList<(string Value, string Label)> YearOptions => TaxYears.Select(y => (y.ToString(), y.ToString())).ToList();
+}

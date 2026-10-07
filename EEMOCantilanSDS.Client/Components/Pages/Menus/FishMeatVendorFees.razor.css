@@ -21,32 +21,10 @@
     white-space: nowrap;
 }
 
-.fmv-year {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--text-secondary);
-    font-size: 0.8125rem;
-}
-
-.fmv-year select {
-    box-sizing: border-box;
-    min-height: 34px;
-    padding: 0 10px;
-    border: 1px solid var(--border-strong);
-    border-radius: 8px;
-    background: var(--surface);
-    color: var(--navy);
-    font: inherit;
-    font-size: 0.8125rem;
-    font-weight: 600;
-}
-
-.fmv-year select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fmv-panel-tools { display: inline-flex; align-items: center; gap: 12px; }
 
 .fmv-saved { margin: 16px 0 0; }
 .fmv-notice { margin: 12px 20px 0; }
-.fmv-activity { margin-top: 16px; }
 .fmv-sub { font-size: 0.75rem; color: var(--text-subtle); }
 .fmv-src { font-variant-numeric: tabular-nums; white-space: nowrap; }
 
