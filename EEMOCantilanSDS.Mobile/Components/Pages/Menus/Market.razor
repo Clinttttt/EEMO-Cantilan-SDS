@@ -344,9 +344,6 @@
                the days. *@
             <div class="arrears-month-note">@MonthSettleBasis</div>
 
-            <input class="form-input mono-input" type="text" inputmode="numeric" maxlength="50"
-                   placeholder="OR no." @bind="MonthSettleOr" @bind:event="oninput" />
-
             @if (!string.IsNullOrWhiteSpace(MonthSettleError))
             {
                 <div class="form-error">@MonthSettleError</div>
@@ -1394,7 +1391,6 @@
     /// <summary>The days being settled when the row tapped is the month still running; null for a closed month.</summary>
     private IReadOnlyList<DateOnly>? MonthSettleDays;
 
-    private string MonthSettleOr = string.Empty;
     private bool MonthSettleSaving;
     private string? MonthSettleError;
 
@@ -1408,7 +1404,6 @@
         MonthSettlePayor = payor;
         MonthSettleMonth = month;
         MonthSettleDays = null;
-        MonthSettleOr = string.Empty;
         MonthSettleError = null;
     }
 
@@ -1430,7 +1425,6 @@
         MonthSettlePayor = payor;
         MonthSettleMonth = null;
         MonthSettleDays = payor.DaysOwedThisMonth.OrderBy(d => d).ToList();
-        MonthSettleOr = string.Empty;
         MonthSettleError = null;
     }
 
@@ -1480,7 +1474,6 @@
         MonthSettlePayor = null;
         MonthSettleMonth = null;
         MonthSettleDays = null;
-        MonthSettleOr = string.Empty;
         MonthSettleError = null;
     }
 
@@ -1496,13 +1489,6 @@
         if (MonthSettlePayor is null || MonthSettleSaving) return;
         if (MonthSettleMonth is null && (MonthSettleDays is null || MonthSettleDays.Count == 0)) return;
 
-        // The office issues a receipt for money taken, so the number is required here as it is on every other collection.
-        if (string.IsNullOrWhiteSpace(MonthSettleOr))
-        {
-            MonthSettleError = "Enter the OR number.";
-            return;
-        }
-
         MonthSettleSaving = true;
         MonthSettleError = null;
 
@@ -1513,9 +1499,9 @@
             // collector settles exactly what was shown rather than whatever the server recomputes.
             var result = MonthSettleMonth is { } month
                 ? await MobileApi.SettleNpmMonthAsync(new SettleMobileNpmMonthRequest(
-                    MonthSettlePayor.StallId, month.Year, month.Month, MonthSettleOr.Trim()))
+                    MonthSettlePayor.StallId, month.Year, month.Month, null))
                 : await MobileApi.SettleNpmDaysAsync(new SettleMobileNpmDaysRequest(
-                    MonthSettlePayor.StallId, MonthSettleDays!, MonthSettleOr.Trim()));
+                    MonthSettlePayor.StallId, MonthSettleDays!, null));
 
             if (!result.IsSuccess)
             {

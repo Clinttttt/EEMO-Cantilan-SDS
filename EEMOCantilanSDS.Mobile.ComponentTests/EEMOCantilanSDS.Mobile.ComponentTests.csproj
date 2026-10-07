@@ -17,6 +17,9 @@
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/CollectionSessionEditor.razor" Link="Components/Shared/CollectionSessionEditor.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/MobileChoice.razor" Link="Components/Shared/MobileChoice.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Pages/Menus/NpmWholePayment.razor" Link="Components/Pages/Menus/NpmWholePayment.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Pages/Menus/Market.razor" Link="Components/Pages/Menus/Market.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/ErrorState.razor" Link="Components/Shared/ErrorState.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/SlowSaveHint.razor" Link="Components/Shared/SlowSaveHint.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/BottomNav.razor" Link="Components/Shared/BottomNav.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/LoadingState.razor" Link="Components/Shared/LoadingState.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/NpmCollectAll.razor" Link="Components/Shared/NpmCollectAll.razor" />
