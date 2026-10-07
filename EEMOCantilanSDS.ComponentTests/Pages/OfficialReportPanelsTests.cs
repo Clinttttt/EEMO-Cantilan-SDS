@@ -558,6 +558,39 @@ public sealed class OfficialReportPanelsTests : TestContext
         }, Timeout);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void SourcePerformance_ShowsIncomeFromTerminalAsItsOwnGroup_ApartFromTransportation_InOverviewAndReports(bool overview)
+    {
+        var rows = new[]
+        {
+            Source("TRANSPORTATION_PARKING", "Transportation / Parking", "MARKET", RevenueSourceModel.Transactional, 150m, 1),
+            Source("TERMINAL_COMFORT_ROOM", "COMFORT ROOM", "TERMINAL", RevenueSourceModel.Transactional, 400m, 1),
+            Source("TERMINAL_PULL_PUL_VANS_CARGO_VANS", "PULL PUL VANS, CARGO VANS", "TERMINAL", RevenueSourceModel.Transactional, 5800m, 1),
+            Source("TERMINAL_TRICYCAD", "TRICYCAD", "TERMINAL", RevenueSourceModel.Transactional, 900m, 1),
+            Source("SLAUGHTERHOUSE", "Slaughterhouse", "SLAUGHTERHOUSE", RevenueSourceModel.QuantityService, 200m, 1),
+        };
+        _reports.Setup(x => x.GetSourcePerformanceAsync(2026, 10)).ReturnsAsync(Result<RevenueSourcePerformanceDto>.Success(
+            new RevenueSourcePerformanceDto(2026, 10,
+                [new RevenueSourceGroupDto("MARKET", "Income From Market", 150m), new RevenueSourceGroupDto("TERMINAL", "Income From Terminal", 7100m),
+                    new RevenueSourceGroupDto("SLAUGHTERHOUSE", "Income From Slaughterhouse", 200m)], rows, 7450m, [], DateTime.UtcNow)));
+
+        var cut = RenderComponent<RevenueSourcePerformancePanel>(p => p.Add(x => x.Year, 2026).Add(x => x.Month, 10).Add(x => x.OverviewMode, overview));
+
+        cut.WaitForAssertion(() =>
+        {
+            var bands = cut.FindAll("tr.rsp-group").Select(r => r.TextContent).ToList();
+            Assert.Contains(bands, b => b.Contains("Income From Terminal", StringComparison.OrdinalIgnoreCase) && b.Contains("₱7,100"));
+            Assert.Contains(bands, b => b.Contains("Income From Slaughterhouse", StringComparison.OrdinalIgnoreCase));
+            var terminalRows = cut.FindAll("tr.rsp-row").Where(r => new[] { "COMFORT ROOM", "PULL PUL VANS", "TRICYCAD" }.Any(n => r.TextContent.Contains(n))).ToList();
+            Assert.Equal(3, terminalRows.Count);
+            Assert.DoesNotContain(terminalRows, r => r.TextContent.Contains("Jeepney") || r.TextContent.Contains("Tricycle"));   // a vehicle class is never a report row
+            var transport = cut.FindAll("tr.rsp-row").Single(r => r.TextContent.Contains("Transportation / Parking"));
+            Assert.DoesNotContain("COMFORT", transport.TextContent);
+        }, Timeout);
+    }
+
     [Fact]
     public void SourcePerformance_NeverShowsOutstandingForAPaidOnServiceSource()
     {
