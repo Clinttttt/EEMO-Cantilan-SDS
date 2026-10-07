@@ -21,4 +21,10 @@ public interface IMunicipalityRepository
     /// <summary>Resolves a single LGU by its registry id. The registry is not tenant-owned, so this is
     /// safe to call from any tenant context (used by the anonymous webhook to pin the transaction's LGU).</summary>
     Task<Municipality?> GetByIdAsync(System.Guid id, CancellationToken ct);
+
+    /// <summary>
+    /// The lookups above return untracked entities, so a handler that edits one must say so before saving: without this the change is
+    /// made in memory and never written. A repository with nothing to track (a test double) needs no override.
+    /// </summary>
+    void MarkChanged(Municipality municipality) { }
 }

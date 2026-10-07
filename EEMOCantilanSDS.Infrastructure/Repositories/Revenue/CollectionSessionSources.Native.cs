@@ -43,7 +43,8 @@ public sealed partial class CollectionSessionSources
         {
             var name = quotes.FirstOrDefault(x => x.AccountId == account.Id)?.PayerName ?? account.SubjectLabel;
             if (name.ToLowerInvariant().Contains(term) || account.SubjectLabel.ToLowerInvariant().Contains(term))
-                results.Add(new(new(SourceIdentityKind.SpaceAccount, account.Id), name, account.SubjectLabel,
+                results.Add(new(new(SourceIdentityKind.SpaceAccount, account.Id), name,
+                    account.Kind == ObligationKind.KanmanggaySpaceRental ? $"Kanmanggay · Space {account.SubjectLabel}" : $"Fiesta / Araw · Lot {account.SubjectLabel}",
                     account.Kind == ObligationKind.KanmanggaySpaceRental ? CollectorOperationCodes.KanmanggaySpaceRental : CollectorOperationCodes.FiestaArawLotRental));
         }
         if (assigned.Contains(CollectorOperationCodes.FishMeatVendorFee) || assigned.Contains(CollectorOperationCodes.WeightAndMeasure))

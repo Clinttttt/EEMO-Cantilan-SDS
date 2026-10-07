@@ -35,6 +35,8 @@ public class MunicipalityRepository(AppDbContext context) : IMunicipalityReposit
             .FirstOrDefaultAsync(m => m.TenantCode.ToLower() == idLower || m.Code == idUpper, ct);
     }
 
+    public void MarkChanged(Municipality municipality) => context.Municipalities.Update(municipality);
+
     public async Task<Municipality?> GetByIdAsync(Guid id, CancellationToken ct)
         => await context.Municipalities
             .AsNoTracking()

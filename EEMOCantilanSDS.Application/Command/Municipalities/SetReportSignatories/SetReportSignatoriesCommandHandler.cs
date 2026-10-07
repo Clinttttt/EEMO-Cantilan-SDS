@@ -62,6 +62,7 @@ public class SetReportSignatoriesCommandHandler(
                 cleaned));
 
         municipality.SetReportSignatories(json, currentUser.Username ?? "Head");
+        municipalityRepository.MarkChanged(municipality);     // the lookup is untracked: without this the lines are set in memory and never saved
         await unitOfWork.SaveChangesAsync(ct);
 
         return Result<bool>.Success(true);
