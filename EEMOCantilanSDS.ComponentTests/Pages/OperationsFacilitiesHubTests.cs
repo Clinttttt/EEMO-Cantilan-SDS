@@ -341,7 +341,7 @@ public sealed class OperationsFacilitiesHubTests : TestContext
             var group = cut.Find("section[aria-labelledby=income-from-terminal-title]");
             var row = group.QuerySelector(".ops-row")!;
             Assert.Equal("/operations/terminal", row.GetAttribute("href"));
-            Assert.Equal("Comfort Room · Pull Pul Vans, Cargo Vans · Tricycad", row.QuerySelector(".ops-row-name")!.TextContent.Trim());
+            Assert.Equal("Terminal", row.QuerySelector(".ops-row-name")!.TextContent.Trim());
             Assert.Contains("Income From Terminal", group.QuerySelector("h2")!.TextContent);
             Assert.DoesNotContain("Income From Terminal", group.QuerySelector(".ops-item")!.TextContent);
             Assert.Contains("Cash Ticket", row.TextContent);

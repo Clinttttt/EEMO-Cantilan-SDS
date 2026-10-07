@@ -1,7 +1,7 @@
 @using EEMOCantilanSDS.Domain.Entities.Revenue
 
 @* The Fish / Meat registration drawer: the shared right-hand drawer shell (kept mounted so it slides in and out like the stallholder drawer) around
-   one two-column form. Registering a vendor and renewing a registration are the same drawer; a renewal fixes the vendor's type and asks for the
+   paired fields and stacked registration choices. Registering a vendor and renewing a registration are the same drawer; a renewal fixes the vendor's type and asks for the
    tax year it is for. Presentation only: validation, operation IDs and saving stay with the page. *@
 <VendorDrawerShell Show="Show" KeepMounted="true" Title="@Title" Subtitle="@Subtitle" OnClose="OnCancel">
     <Icon>
@@ -27,9 +27,9 @@
                 </div>
             </div>
 
-            <div class="avm-row-2">
-                @if (IsRenew)
-                {
+            @if (IsRenew)
+            {
+                <div class="avm-row-2">
                     <div class="avm-group">
                         <label class="avm-label">Renew for tax year <span class="avm-req">*</span></label>
                         <FhSelect Block="true" AriaLabel="Renew for tax year" Options="YearOptions" Value="@Model.TaxYear.ToString()" ValueChanged="v => Model.TaxYear = int.Parse(v)" />
@@ -38,19 +38,23 @@
                         <label class="avm-label">Type</label>
                         <div class="avm-input avm-input-locked">@Model.Type</div>
                     </div>
-                }
-                else
-                {
+                </div>
+            }
+            else
+            {
+                <div class="avm-row-2">
                     <div class="avm-group">
                         <label class="avm-label">Type <span class="avm-req">*</span></label>
                         <ChoiceCards Label="Vendor type" Items="TypeChoices" Value="@(((int)Model.Type).ToString())" ValueChanged="v => Model.Type = (FishMeatVendorType)int.Parse(v)" />
                     </div>
+                </div>
+                <div class="avm-row-2">
                     <div class="avm-group">
                         <label class="avm-label">Registration <span class="avm-req">*</span></label>
                         <ChoiceCards Label="Registration" Items="KindChoices" Value="@(((int)Model.Kind).ToString())" ValueChanged="v => Model.Kind = (VendorRegistrationKind)int.Parse(v)" />
                     </div>
-                }
-            </div>
+                </div>
+            }
 
             <div class="avm-row-2">
                 <div class="avm-group">

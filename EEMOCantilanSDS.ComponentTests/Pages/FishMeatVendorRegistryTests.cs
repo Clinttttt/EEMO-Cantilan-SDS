@@ -125,10 +125,11 @@ public sealed class FishMeatVendorRegistryTests : TestContext
         Assert.Contains("show", cut.Find(".eemo-drawer").ClassName.Split(' '));
         var form = cut.Find("form[aria-label='Register vendor']");
         var rows = form.QuerySelectorAll(".avm-row-2");
-        Assert.Equal(3, rows.Length);                                                                  // name|business, type|registration, address|reference
+        Assert.Equal(4, rows.Length);                                                                  // name|business, type, registration, address|reference
         Assert.Equal(["Vendor name", "Business name"], rows[0].QuerySelectorAll("label").Select(l => l.TextContent.Replace("*", "").Trim()).ToArray());
-        Assert.Equal(["Type", "Registration"], rows[1].QuerySelectorAll("label").Select(l => l.TextContent.Replace("*", "").Trim()).ToArray());
-        Assert.Equal(["Address", "Reference"], rows[2].QuerySelectorAll("label").Select(l => l.TextContent.Replace("*", "").Trim()).ToArray());
+        Assert.Equal(["Type"], rows[1].QuerySelectorAll("label").Select(l => l.TextContent.Replace("*", "").Trim()).ToArray());
+        Assert.Equal(["Registration"], rows[2].QuerySelectorAll("label").Select(l => l.TextContent.Replace("*", "").Trim()).ToArray());
+        Assert.Equal(["Address", "Reference"], rows[3].QuerySelectorAll("label").Select(l => l.TextContent.Replace("*", "").Trim()).ToArray());
         Assert.Empty(form.QuerySelectorAll("select"));                                                 // no native dropdown
         Assert.DoesNotContain("optional", form.TextContent, StringComparison.OrdinalIgnoreCase);
         foreach (var word in new[] { "Payor", "NPM", "stall", "fee amount", "Weight" })
