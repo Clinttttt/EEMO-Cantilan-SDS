@@ -25,12 +25,12 @@ public static class RevenueSourceCatalog
 
     public static readonly IReadOnlyList<(string Key, string Label)> Groups =
     [
-        (MarketGroup, "Income from Market"),
-        (RentGroup, "Rent / facility operations"),
-        (SpaceGroup, "Space rental"),
-        (OtherGroup, "Other operations"),
-        (SlaughterhouseGroup, "Slaughterhouse"),
+        (MarketGroup, "Income From Market"),
+        (RentGroup, "Rent Income"),
+        (SpaceGroup, "Space Rental"),
         (TerminalGroup, "Income From Terminal"),
+        (SlaughterhouseGroup, "Income From Slaughterhouse"),
+        (OtherGroup, "Other operations"),
         (ReceivableGroup, "Receivables context"),
     ];
 

@@ -361,7 +361,7 @@ public sealed class OfficialReportPanelsTests : TestContext
     }
 
     [Fact]
-    public void TheMonthlyIncomeWorkspace_LinksToTheOfficialStatement_ApartFromItsOwnPrint()
+    public void TheMonthlyIncomeWorkspace_LinksToTheOfficialStatement_AndHasNoPrintOfItsOwn()
     {
         _reports.Setup(x => x.GetMonthlyIncomeAsync(2026, 9)).ReturnsAsync(Result<OfficialMonthlyIncomeDto>.Success(Statement(9)));
 
@@ -371,8 +371,28 @@ public sealed class OfficialReportPanelsTests : TestContext
         {
             var link = cut.FindAll("a").Single(a => a.TextContent.Contains("Official Monthly Income"));
             Assert.Equal("/reports/monthly-income/official?year=2026", link.GetAttribute("href"));
-            Assert.Contains("Print this view", cut.Markup);
+            Assert.DoesNotContain("Print this view", cut.Markup);                                     // the formal statement is the one printable document
+            Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Contains("Print"));
         }, Timeout);
+    }
+
+    [Fact]
+    public void TheFormalStatement_NamesTheOfficeWithoutItsTrailingAcronym_ButStillOffersPrintAndSaveAsPdf()
+    {
+        Services.GetRequiredService<EEMOCantilanSDS.Client.Services.BrandingState>().Apply(new(Code: "CNT", TenantCode: "cantilan-sds", Name: "Cantilan", Province: "Surigao del Sur",
+            OfficeName: "Municipal Economic Enterprises Development Office (MEEDO)", SealPath: null, Status: "Active", IsActive: true));
+        _reports.Setup(x => x.GetMonthlyIncomeAsync(2025, null)).ReturnsAsync(Result<OfficialMonthlyIncomeDto>.Success(Statement(null) with { Year = 2025 }));
+
+        var cut = RenderOfficial(2025);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("Municipal Economic Enterprises Development Office", cut.Find("p.omi-office").TextContent.Trim());
+            Assert.DoesNotContain("(MEEDO)", cut.Find("header, .omi-office").ParentElement!.TextContent);
+            Assert.Contains("Print / Save as PDF", cut.Find("button.omi-print").TextContent);
+        }, Timeout);
+        // The tenant's own setting is untouched: the shell can still say what the office calls itself.
+        Assert.EndsWith("(MEEDO)", Services.GetRequiredService<EEMOCantilanSDS.Client.Services.BrandingState>().OfficeName);
     }
 
     // ── Revenue source performance: official money, annual targets and attention ──
