@@ -1103,3 +1103,9 @@
     font-weight: 700;
     color: var(--mobile-navy);
 }
+
+.npm-collect-all {
+    display: flex;
+    justify-content: flex-end;
+    margin: 0 0 8px;
+}

@@ -13,6 +13,7 @@ public sealed class NpmCollectAllTests : TestContext
 {
     private static readonly DateOnly Today = new(2026, 10, 7);
     private readonly Mock<IMobileApiClient> _api = new();
+    private int _recordedCalls;
     private static readonly Guid S1 = Guid.NewGuid(), S2 = Guid.NewGuid(), S3 = Guid.NewGuid(), S4 = Guid.NewGuid();
 
     public NpmCollectAllTests()
@@ -27,7 +28,7 @@ public sealed class NpmCollectAllTests : TestContext
 
     private IRenderedComponent<NpmCollectAll> Open()
     {
-        var view = RenderComponent<NpmCollectAll>(p => p.Add(x => x.BusinessDate, Today));
+        var view = RenderComponent<NpmCollectAll>(p => p.Add(x => x.BusinessDate, Today).Add(x => x.OnRecorded, () => _recordedCalls++));
         view.Find("button.ca-open").Click();
         view.WaitForAssertion(() => Assert.NotEmpty(view.FindAll(".ca-row")));
         return view;
@@ -98,6 +99,9 @@ public sealed class NpmCollectAllTests : TestContext
             Assert.Contains(results, r => r.Contains("Stall 3") && r.Contains("SRC-2026-000110"));
             Assert.DoesNotContain("Juan Dela Cruz", view.Find(".ca-list").TextContent);              // the unticked stall received nothing
         });
+        Assert.Equal(0, _recordedCalls);                                                           // the round behind is not reloaded while the SRC list is on screen
+        view.Find(".btn-cancel").Click();
+        Assert.Equal(1, _recordedCalls);                                                           // ...only when the collector is done
     }
 
     [Fact]

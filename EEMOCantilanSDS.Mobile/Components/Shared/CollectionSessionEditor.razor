@@ -281,7 +281,7 @@ else
         _ => "Source"
     };
     private IReadOnlyList<MobileChoice.Choice> ChoiceOptions => Choices.Select(x => new MobileChoice.Choice(x.SelectionKey, x.DisplayName,
-        string.IsNullOrWhiteSpace(x.Context) ? (x.ServerAmount is { } amount ? Money(amount) : null) : x.Context)).ToArray();
+        string.IsNullOrWhiteSpace(x.Context) || x.Context == _operation?.DisplayName ? (x.ServerAmount is { } amount ? Money(amount) : null) : x.Context)).ToArray();
     private bool IsWeighing => _choice is { Kind: CollectionSessionItemKind.SourceNative, OperationCode: CollectorOperationCodes.WeightAndMeasure };
     private bool IsTerminal => _choice is { Kind: CollectionSessionItemKind.SourceNative, OperationCode: CollectorOperationCodes.Terminal };
     private bool TakesTypedAmount => _choice is { } c && !IsWeighing && c.Kind is not (CollectionSessionItemKind.Slaughter or CollectionSessionItemKind.NpmWholePayment)

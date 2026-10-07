@@ -117,7 +117,14 @@
         finally { _loading = false; }
     }
 
-    private void Close() { _open = false; if (_result is not null) { _sources = []; _unchecked.Clear(); _itemIds.Clear(); _result = null; _quote = null; _confirmedTotal = null; _sessionId = Guid.NewGuid(); } }
+    // The page behind reloads its round only once the collector is done reading the SRC list: reloading earlier would unmount this sheet and lose it.
+    private async Task Close()
+    {
+        _open = false;
+        if (_result is null) return;
+        _sources = []; _unchecked.Clear(); _itemIds.Clear(); _result = null; _quote = null; _confirmedTotal = null; _sessionId = Guid.NewGuid();
+        await OnRecorded.InvokeAsync();
+    }
 
     // Ticking or unticking a stall changes the batch, so the earlier quote and identity no longer describe it.
     private void Toggle(Guid stallId)
@@ -149,7 +156,6 @@
             var recorded = await Api.RecordNpmDailyBatchAsync(new(intent, _quote.QuoteFingerprint));
             if (!recorded.IsSuccess || recorded.Value is null) { _error = "The batch could not be recorded. Check Records before trying again."; return; }
             _result = recorded.Value;
-            await OnRecorded.InvokeAsync();
         }
         catch { _error = "Connection required to quote this batch. Your selection is kept."; }
         finally { _busy = false; }

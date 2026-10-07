@@ -68,8 +68,9 @@
                 </div>
             </div>
 
+            @* Outside the sticky tools bar: that bar is its own stacking context and would trap the sheet beneath the bottom navigation. *@
+            <div class="npm-collect-all"><NpmCollectAll BusinessDate="@Today" OnRecorded="LoadCollectionAsync" /></div>
             <div class="npm-tools">
-            <NpmCollectAll BusinessDate="@Today" OnRecorded="LoadCollectionAsync" />
             <div class="search-row">
                 <div class="search-wrap">
                     <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
