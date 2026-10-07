@@ -15,7 +15,9 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
 {
     public Guid MunicipalityId { get; private set; }
     public ObligationKind Kind { get; private set; }
-    public Guid PayorId { get; private set; }
+    public Guid? PayorId { get; private set; }
+    /// <summary>Explicit source-owned holder snapshot. It never creates or matches a Business Payor.</summary>
+    public string? ActualOccupant { get; private set; }
 
     /// <summary>The NPM Fish/Meat stall that supplies the vendor context. Only for the vendor fee kind.</summary>
     public Guid? StallId { get; private set; }
@@ -44,10 +46,13 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
 
     public static ObligationAccount Create(
         Guid municipalityId, ObligationKind kind, Guid payorId, Guid? stallId, string subjectLabel,
-        LotRentalEvent? lotEvent, DateOnly? eventDate, DateOnly activeFrom, string createdBy, DateTime? createdAtUtc = null)
+        LotRentalEvent? lotEvent, DateOnly? eventDate, DateOnly activeFrom, string createdBy, DateTime? createdAtUtc = null,
+        string? actualOccupant = null)
     {
-        if (municipalityId == Guid.Empty || payorId == Guid.Empty)
-            throw new ArgumentException("A tenant and an explicit Business Payor are required.");
+        var holder = string.IsNullOrWhiteSpace(actualOccupant) ? null : actualOccupant.Trim();
+        if (municipalityId == Guid.Empty || holder?.Length > 200 || payorId == Guid.Empty &&
+            (holder is null || kind is not (ObligationKind.KanmanggaySpaceRental or ObligationKind.FiestaArawLotRental)))
+            throw new ArgumentException("A tenant and an explicit source holder are required.");
         if (!Enum.IsDefined(kind))
             throw new ArgumentOutOfRangeException(nameof(kind));
         var label = (subjectLabel ?? string.Empty).Trim();
@@ -75,7 +80,8 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
             Id = Guid.NewGuid(),
             MunicipalityId = municipalityId,
             Kind = kind,
-            PayorId = payorId,
+            PayorId = payorId == Guid.Empty ? null : payorId,
+            ActualOccupant = holder,
             StallId = stallId,
             SubjectLabel = label,
             Event = lotEvent,

@@ -144,11 +144,11 @@ public sealed class ObligationAccountTests(PostgresFixture db)
         var preview = await workflow.PreviewSpaceHoldersAsync(new([
             new(signed), new(space), new(space with { SubjectLabel = "Unlinked", PayorId = Guid.Empty }),
             new(space with { SubjectLabel = "Invalid", Amount = -1m })]));
-        Assert.Equal(new[] { SpaceHolderImportStatus.Ready, SpaceHolderImportStatus.Ready, SpaceHolderImportStatus.NeedsPayor, SpaceHolderImportStatus.Invalid },
+        Assert.Equal(new[] { SpaceHolderImportStatus.Ready, SpaceHolderImportStatus.Ready, SpaceHolderImportStatus.NeedsSourceHolder, SpaceHolderImportStatus.Invalid },
             preview.Value!.Rows.Select(x => x.Status));
         Assert.False(preview.Value.CanSave);
         Assert.Equal(new[] { SpaceHolderImportAction.None, SpaceHolderImportAction.None,
-            SpaceHolderImportAction.SelectPayor, SpaceHolderImportAction.CorrectRow }, preview.Value.Rows.Select(x => x.RequiredAction));
+            SpaceHolderImportAction.ConfirmSourceHolder, SpaceHolderImportAction.CorrectRow }, preview.Value.Rows.Select(x => x.RequiredAction));
         Assert.Empty(await ctx.ObligationAccounts.ToListAsync());
         var refused = await workflow.ImportSpaceHoldersAsync(new([new(signed), new(space with { PayorId = Guid.Empty })]));
         Assert.Equal(0, refused.Value!.Imported);

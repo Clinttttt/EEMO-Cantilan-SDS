@@ -5,6 +5,9 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Services;
 
 public interface ICollectionSessionSources
 {
+    Task<IReadOnlyList<CollectionSourceSearchResult>> SearchSourcesAsync(string? search, CancellationToken ct) => Task.FromResult<IReadOnlyList<CollectionSourceSearchResult>>([]);
+    Task<CollectionSessionDiscovery> DiscoverNativeAsync(CollectionSourceIdentity? identity, DateOnly date, CancellationToken ct) => throw new NotSupportedException();
+    Task<bool> SourceExistsAsync(CollectionSourceIdentity identity, CancellationToken ct) => Task.FromResult(false);
     Task<CollectionSessionDiscovery> DiscoverAsync(Guid? payorId, DateOnly date, CancellationToken ct);
     Task<(CollectionSessionItemQuote? Quote, CollectionSessionProblem? Problem)> QuoteAsync(
         CollectionSessionIntent session, CollectionSessionItemIntent item, CancellationToken ct);

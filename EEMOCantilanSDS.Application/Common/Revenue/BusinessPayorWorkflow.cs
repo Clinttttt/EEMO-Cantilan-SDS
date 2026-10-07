@@ -71,7 +71,7 @@ public sealed class BusinessPayorWorkflow(
                 .Select(c => new { PayorId = c.PayorId!.Value, Facility = c.Stall!.Facility!.ShortName, c.Stall.StallNo })
                 .ToListAsync(ct);
             var accounts = await db.ObligationAccounts.AsNoTracking()
-                .Where(a => a.MunicipalityId == actor.TenantId && ids.Contains(a.PayorId))
+                .Where(a => a.MunicipalityId == actor.TenantId && a.PayorId.HasValue && ids.Contains(a.PayorId.Value))
                 .Select(a => new { a.PayorId, a.Kind, a.SubjectLabel })
                 .ToListAsync(ct);
             var candidates = payors.Select(p => new PayorCandidateDto(p.Id, p.DisplayName, p.Kind,

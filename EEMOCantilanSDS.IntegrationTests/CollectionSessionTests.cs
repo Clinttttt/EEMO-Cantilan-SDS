@@ -31,7 +31,7 @@ using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorOperationCapabiliti
 namespace EEMOCantilanSDS.IntegrationTests;
 
 [Collection(PostgresCollection.Name)]
-public sealed class CollectionSessionTests(PostgresFixture database)
+public sealed partial class CollectionSessionTests(PostgresFixture database)
 {
     [SkippableFact]
     public async Task Linked_meat_vendor_three_kilograms_quotes_records_and_replays_with_effective_rate()
@@ -326,11 +326,13 @@ public sealed class CollectionSessionTests(PostgresFixture database)
 
         Assert.True((await classes.SaveAsync(new("JEEP", "Renamed Jeepney", Today.AddDays(1), 25m))).IsSuccess);
         var next = new GovernedServiceWorkflow(db, collector, tenant, new Clock(Today.AddDays(1)));
-        Assert.True((await next.PostMobileAsync(request with { ClientOperationId = Guid.NewGuid(), BusinessDate = Today.AddDays(1), ReceivedAmount = 25m })).IsSuccess);
+        // IA-067 separates Terminal vehicle assistance prospectively. Historical class posts remain frozen.
+        var nextRequest = request with { ClientOperationId = Guid.NewGuid(), BusinessDate = Today.AddDays(1), ReceivedAmount = 25m, VehicleClassCode = null };
+        Assert.True((await next.PostMobileAsync(nextRequest)).IsSuccess);
         var after = (await setup.GetTransportationCurrentAsync(Today, Today)).Value!;
         Assert.All(after.Collections, c => { Assert.Equal(20m, c.Amount); Assert.Equal("Jeepney", c.VehicleClassName); });
         var future = new GovernedServiceWorkflow(db, head, tenant, new Clock(Today.AddDays(1)));
-        Assert.Equal(25m, Assert.Single((await future.GetTransportationCurrentAsync(Today.AddDays(1), Today.AddDays(1))).Value!.Collections).FrozenVehicleRate);
+        Assert.Null(Assert.Single((await future.GetTransportationCurrentAsync(Today.AddDays(1), Today.AddDays(1))).Value!.Collections).FrozenVehicleRate);
         Assert.Equal(2, Assert.Single((await classes.GetAsync()).Value!).History!.Count);
         Assert.Equal(ResultStatus.Conflict, (await standalone.PostMobileAsync(request with { ReceivedAmount = 25m })).Status);
         Assert.Equal(3, await db.Collections.CountAsync());
@@ -464,7 +466,8 @@ public sealed class CollectionSessionTests(PostgresFixture database)
         Assert.Equal(4, await db.Collections.CountAsync());
     }
 
-    private static readonly DateOnly Today = PhilippineTime.Today;
+    // These compatibility scenarios prove IA-064 before IA-067/068's source-native cutover.
+    private static readonly DateOnly Today = new(2026, 10, 5);
     private sealed record Tenant(Guid MunicipalityId) : ICurrentMunicipalityAccessor { public void Set(Guid id) { } }
     private sealed class NoMarketDays : ITpmMarketDayProvider
     {
@@ -836,6 +839,9 @@ public sealed class CollectionSessionTests(PostgresFixture database)
     private sealed class FailAfterFirst(ICollectionSessionSources inner) : ICollectionSessionSources
     {
         private int _count;
+        public Task<IReadOnlyList<CollectionSourceSearchResult>> SearchSourcesAsync(string? search, CancellationToken ct) => inner.SearchSourcesAsync(search, ct);
+        public Task<CollectionSessionDiscovery> DiscoverNativeAsync(CollectionSourceIdentity? identity, DateOnly date, CancellationToken ct) => inner.DiscoverNativeAsync(identity, date, ct);
+        public Task<bool> SourceExistsAsync(CollectionSourceIdentity identity, CancellationToken ct) => inner.SourceExistsAsync(identity, ct);
         public Task<CollectionSessionDiscovery> DiscoverAsync(Guid? id, DateOnly date, CancellationToken ct) => inner.DiscoverAsync(id, date, ct);
         public Task<(CollectionSessionItemQuote? Quote, CollectionSessionProblem? Problem)> QuoteAsync(CollectionSessionIntent s, CollectionSessionItemIntent i, CancellationToken ct) => inner.QuoteAsync(s, i, ct);
         public async Task<CollectionSessionCollection> PostAsync(CollectionSessionIntent s, CollectionSessionItemIntent i, Guid id, CancellationToken ct)

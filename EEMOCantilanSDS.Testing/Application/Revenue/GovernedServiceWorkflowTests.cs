@@ -21,7 +21,14 @@ namespace EEMOCantilanSDS.Testing;
 /// </summary>
 public sealed class GovernedServiceWorkflowTests
 {
-    private static readonly DateOnly Today = PhilippineTime.Today;
+    // Preserve proofs of the historical class-rate path before the prospective Terminal split.
+    private static readonly DateOnly Today = new(2026, 10, 5);
+    private sealed class HistoricalClock : EEMOCantilanSDS.Application.Common.Interface.Time.IClock
+    {
+        public DateOnly PhilippineToday => Today;
+        public DateTime UtcNow => DateTime.UtcNow;
+        public DateTime PhilippineNow => Today.ToDateTime(new TimeOnly(12, 0));
+    }
 
     private sealed class FixedTenant(Guid id) : ICurrentMunicipalityAccessor
     {
@@ -60,7 +67,7 @@ public sealed class GovernedServiceWorkflowTests
         var tenantId = tenant ?? w.TenantId;
         var db = new AppDbContext(w.Options, new FixedTenant(tenantId));
         var id = userId ?? (role == "Collector" ? w.Collector.Id : w.HeadId);
-        return (db, new GovernedServiceWorkflow(db, new CurrentUser(id, tenantId, role), new FixedTenant(tenantId)));
+        return (db, new GovernedServiceWorkflow(db, new CurrentUser(id, tenantId, role), new FixedTenant(tenantId), new HistoricalClock()));
     }
 
     /// <summary>Tenant with an active collector holding 3 assigned CT and 3 assigned OR units, plus all classifications/policies.</summary>

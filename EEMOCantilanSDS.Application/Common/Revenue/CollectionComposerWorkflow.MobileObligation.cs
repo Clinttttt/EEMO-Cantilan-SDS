@@ -111,7 +111,7 @@ public sealed partial class CollectionComposerWorkflow
                 ? account.EventDate!.Value : new DateOnly(request.BillingYear, request.BillingMonth, 1);
             if (periodStart.Year != request.BillingYear || periodStart.Month != request.BillingMonth)
                 return await Reject("INVALID_PERIOD", "Choose this account's event period.");
-            if (!await db.Payors.AsNoTracking().AnyAsync(x => x.MunicipalityId == tenantId && x.Id == account.PayorId, ct))
+            if (account.Kind == ObligationKind.FishMeatVendorFee && !await db.Payors.AsNoTracking().AnyAsync(x => x.MunicipalityId == tenantId && x.Id == account.PayorId, ct))
                 return await Reject("INVALID_PAYOR", "Review this account's Business Payor link.");
             var preview = (await new ObligationCollectionSource(db).GetQuotesAsync(tenantId, [account], request.BusinessDate, ct))
                 .SingleOrDefault(x => x.PeriodStart == periodStart);
@@ -146,7 +146,7 @@ public sealed partial class CollectionComposerWorkflow
             var collection = await new CanonicalCollectionPostingCoordinator(db).PostAsync(
                 tenantId, request.ClientOperationId, IntentVersion, normalized, MobileObligationOrigin, ActorIdentity(actor),
                 actor.Username, actor.Role, request.BusinessDate, actor.Username, [line], null,
-                collectorId: collectorId, payorId: facts.Quote.PayorId, payerName: facts.Quote.PayerName,
+                collectorId: collectorId, payorId: facts.Account.PayorId, payerName: facts.Quote.PayerName,
                 sourceProjections: [projection], ct: ct);
             return Result<EcfPostOutcomeDto>.Success(new EcfPostOutcomeDto(
                 collection.Id, collection.ReferenceCode, "Posted", collection.TotalAmount, collection.Lines.Count, false));

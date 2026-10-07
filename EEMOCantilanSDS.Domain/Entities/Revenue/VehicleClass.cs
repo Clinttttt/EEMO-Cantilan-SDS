@@ -9,6 +9,21 @@ namespace EEMOCantilanSDS.Domain.Entities.Revenue;
 /// </summary>
 public sealed class VehicleClass : BaseEntity, IMunicipalityOwned
 {
+    public TerminalSection? TerminalSection { get; private set; }
+    public void AssociateTerminalSection(TerminalSection section)
+    {
+        if (section is not (global::EEMOCantilanSDS.Domain.Entities.Revenue.TerminalSection.PullPulVansCargoVans or global::EEMOCantilanSDS.Domain.Entities.Revenue.TerminalSection.Tricycad))
+            throw new ArgumentException("InvalidTerminalSection");
+        var confirmedSection = Code switch
+        {
+            "TRICYCLE" => global::EEMOCantilanSDS.Domain.Entities.Revenue.TerminalSection.Tricycad,
+            "JEEPNEY" or "MULTICAB" or "VAN" or "PUBLIC_UTILITY_BUS" or "PUBLIC_UTILITY_BABY_BUS" => global::EEMOCantilanSDS.Domain.Entities.Revenue.TerminalSection.PullPulVansCargoVans,
+            _ => (TerminalSection?)null
+        };
+        if (confirmedSection.HasValue && confirmedSection != section)
+            throw new ArgumentException("VehicleSectionConflict");
+        TerminalSection = section;
+    }
     public Guid MunicipalityId { get; private set; }
 
     /// <summary>The stable identity, unique per tenant (for example JEEPNEY).</summary>

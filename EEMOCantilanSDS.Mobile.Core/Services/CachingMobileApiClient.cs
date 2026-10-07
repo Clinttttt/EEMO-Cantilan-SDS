@@ -28,6 +28,13 @@ public sealed class CachingMobileApiClient(
     IConnectivityMonitor connectivity,
     TimeSpan? readBudget = null) : IMobileApiClient
 {
+    public Task<Result<IReadOnlyList<CollectionSourceSearchResult>>> SearchCollectionSourcesAsync(string? search) => inner.SearchCollectionSourcesAsync(search);
+    public Task<Result<CollectionSessionDiscovery>> GetSourceCollectionDiscoveryAsync(CollectionSourceIdentity? identity) => inner.GetSourceCollectionDiscoveryAsync(identity);
+    public Task<Result<SourceNativeChargeQuote>> QuoteOfficeCollectionAsync(SourceNativeCollectionRequest request) => inner.QuoteOfficeCollectionAsync(request);
+    public Task<Result<GovernedServiceOutcomeDto>> RecordOfficeCollectionAsync(SourceNativeCollectionRequest request) => InvalidatingAsync(() => inner.RecordOfficeCollectionAsync(request));
+    public Task<Result<IReadOnlyList<NpmDailyBatchSource>>> GetNpmDailyBatchSourcesAsync() => inner.GetNpmDailyBatchSourcesAsync();
+    public Task<Result<NpmDailyBatchQuote>> QuoteNpmDailyBatchAsync(NpmDailyBatchIntent intent) => inner.QuoteNpmDailyBatchAsync(intent);
+    public Task<Result<CollectionSessionResult>> RecordNpmDailyBatchAsync(RecordNpmDailyBatchRequest request) => InvalidatingAsync(() => inner.RecordNpmDailyBatchAsync(request));
     public Task<Result<TaboBatchQuoteDto>> QuoteTaboBatchAsync(TaboBatchRequest request) => inner.QuoteTaboBatchAsync(request);
     public Task<Result<TaboBatchOutcomeDto>> RecordTaboBatchAsync(TaboBatchRequest request) => InvalidatingAsync(() => inner.RecordTaboBatchAsync(request));
     public Task<Result<EcfPostOutcomeDto>> PostSpaceObligationAsync(MobileObligationPostRequest request) => InvalidatingAsync(() => inner.PostSpaceObligationAsync(request));

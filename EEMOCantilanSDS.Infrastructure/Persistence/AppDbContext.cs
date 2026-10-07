@@ -27,6 +27,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
 {
     public class AppDbContext : DbContext, IAppDbContext
     {
+        public DbSet<FishMeatVendorRegistration> FishMeatVendorRegistrations => Set<FishMeatVendorRegistration>();
         private readonly ICurrentMunicipalityAccessor? _municipality;
 
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)

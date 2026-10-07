@@ -21,6 +21,7 @@ public static class RevenueSourceCatalog
     public const string OtherGroup = "OTHER";
     public const string ReceivableGroup = "RECEIVABLE";
     public const string SlaughterhouseGroup = "SLAUGHTERHOUSE";
+    public const string TerminalGroup = "TERMINAL";
 
     public static readonly IReadOnlyList<(string Key, string Label)> Groups =
     [
@@ -29,6 +30,7 @@ public static class RevenueSourceCatalog
         (SpaceGroup, "Space rental"),
         (OtherGroup, "Other operations"),
         (SlaughterhouseGroup, "Slaughterhouse"),
+        (TerminalGroup, "Income From Terminal"),
         (ReceivableGroup, "Receivables context"),
     ];
 
@@ -43,6 +45,9 @@ public static class RevenueSourceCatalog
         ["FISH_MEAT_VENDOR_FEE"] = new(MarketGroup, RevenueSourceModel.Transactional),
         ["LANDING_BERTHING"] = new(MarketGroup, RevenueSourceModel.Transactional),
         ["TRANSPORTATION_PARKING"] = new(MarketGroup, RevenueSourceModel.Transactional),
+        ["TERMINAL_COMFORT_ROOM"] = new(TerminalGroup, RevenueSourceModel.Transactional),
+        ["TERMINAL_PULL_PUL_VANS_CARGO_VANS"] = new(TerminalGroup, RevenueSourceModel.Transactional),
+        ["TERMINAL_TRICYCAD"] = new(TerminalGroup, RevenueSourceModel.Transactional),
         ["WEIGHT_AND_MEASURE"] = new(MarketGroup, RevenueSourceModel.QuantityService),
         ["TRANSFER_LARGE_CATTLE"] = new(MarketGroup, RevenueSourceModel.Transactional),
         ["ICE_PLANT"] = new(MarketGroup, RevenueSourceModel.RecurringObligation, FacilityCode.ICE),

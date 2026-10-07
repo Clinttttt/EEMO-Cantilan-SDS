@@ -32,4 +32,4 @@ public record SetReportSignatoriesCommand(
     : IRequest<Result<bool>>;
 
 /// <summary>One signatory line: the caption above the rule ("Prepared by") and the name beneath it.</summary>
-public record ReportSignatoryDto(string Caption, string Name);
+public record ReportSignatoryDto(string Caption, string Name, string? Title = null);

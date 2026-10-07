@@ -31,10 +31,12 @@ public sealed class RevenueClassificationSeederTests : RepositoryTestBase
         var policies = await context.RevenueClassificationPolicies
             .Where(x => x.MunicipalityId == cantilan.Id).ToListAsync();
 
-        Assert.Equal(17, classifications.Count);
-        Assert.Equal(17, classifications.Select(x => x.SemanticCode).Distinct().Count());
-        Assert.Equal(17, policies.Count);
-        Assert.All(policies, x => Assert.Equal(seedDate, x.EffectiveDate));
+        Assert.Equal(20, classifications.Count);
+        Assert.Equal(20, classifications.Select(x => x.SemanticCode).Distinct().Count());
+        Assert.Equal(20, policies.Count);
+        var terminalIds = classifications.Where(x => x.SemanticCode.StartsWith("TERMINAL_")).Select(x => x.Id).ToArray();
+        Assert.All(policies, x => Assert.Equal(terminalIds.Contains(x.RevenueClassificationId) ? new DateOnly(2026, 10, 6) : seedDate, x.EffectiveDate));
+        Assert.All(policies.Where(x => terminalIds.Contains(x.RevenueClassificationId)), x => Assert.Equal(RevenueInstrumentType.CashTicket, x.PermittedInstrumentType));
         Assert.Empty(await context.RevenueClassifications.Where(x => x.MunicipalityId == carmen.Id).ToListAsync());
         Assert.Empty(await context.RevenueClassificationPolicies.Where(x => x.MunicipalityId == carmen.Id).ToListAsync());
 
@@ -129,7 +131,7 @@ public sealed class RevenueClassificationSeederTests : RepositoryTestBase
         Assert.Equal(RevenueInstrumentType.CashTicket,
             Assert.Single(vegetable, x => x.BusinessContext == RevenuePolicyContext.VegetableDailyTransaction).PermittedInstrumentType);
         Assert.All(vegetable, x => Assert.Equal(ClarificationDate, x.EffectiveDate));
-        Assert.Equal(18, policies.Count);
+        Assert.Equal(21, policies.Count);
     }
 
     [Fact]

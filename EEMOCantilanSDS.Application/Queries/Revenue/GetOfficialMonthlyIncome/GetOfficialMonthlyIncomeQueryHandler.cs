@@ -74,7 +74,7 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
         {
             "Each row counts a real collection once: cash whose authoritative record is still a legacy source before its cutover, plus the posted Collection after it. A converted source row's legacy fields are never added beside its Collection.",
             "Remittance is not income: a remittance records money already collected and never changes this statement.",
-            "Legacy Fish weighing without frozen rate evidence is priced at the current Fish rate; only newly recorded rows carry a frozen amount.",
+            "Historical weighing without frozen rate evidence remains unresolved; current rates never re-price history.",
             "Targets are office-approved annual amounts. Attainment uses official report actuals, not collection efficiency. Report adjustments never alter collection ledgers.",
         };
         var allRows = groups.SelectMany(g => g.Rows).ToArray();
@@ -83,10 +83,33 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
         var targetTotal = targeted.Sum(r => r.AnnualTarget ?? 0m);
         var through = request.Month ?? (request.Year < clock.PhilippineToday.Year ? 12 : request.Year == clock.PhilippineToday.Year ? clock.PhilippineToday.Month : 0);
         var coveredActual = targeted.Sum(r => r.Months.Take(through).Sum(c => c.Total));
+        var sections = new List<OfficialMonthlyIncomeSectionDto>();
+        foreach (var (key, label, keys) in new[] {
+            ("A", "Income From Market", new[] { OfficialMonthlyIncomeStructure.Market, OfficialMonthlyIncomeStructure.Rent, OfficialMonthlyIncomeStructure.Space }),
+            ("B", "Income From Terminal", new[] { OfficialMonthlyIncomeStructure.Terminal }),
+            ("C", "Income from Slaughterhouse", new[] { OfficialMonthlyIncomeStructure.Slaughterhouse }) })
+        {
+            var members = groups.Where(g => keys.Contains(g.Key)).ToArray();
+            sections.Add(new(key, label, keys, SumMonths(members.Select(g => g.MonthTotals)), SumCell(members.Select(g => g.Total))));
+        }
+        var configured = await db.Municipalities.AsNoTracking().Where(x => x.Id == tenantId).Select(x => x.ReportSignatories).SingleOrDefaultAsync(ct);
+        IReadOnlyList<EEMOCantilanSDS.Application.Command.Municipalities.SetReportSignatories.ReportSignatoryDto> signatories = [];
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            try
+            {
+                using var json = System.Text.Json.JsonDocument.Parse(configured);
+                var lines = json.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array ? json.RootElement : json.RootElement.GetProperty("Lines");
+                signatories = System.Text.Json.JsonSerializer.Deserialize<List<EEMOCantilanSDS.Application.Command.Municipalities.SetReportSignatories.ReportSignatoryDto>>(lines.GetRawText()) ?? [];
+            }
+            catch (System.Text.Json.JsonException) { notes.Add("Report signatories need office configuration."); }
+            catch (KeyNotFoundException) { notes.Add("Report signatories need office configuration."); }
+            catch (InvalidOperationException) { notes.Add("Report signatories need office configuration."); }
+        }
         return Result<OfficialMonthlyIncomeDto>.Success(new OfficialMonthlyIncomeDto(
             request.Year, request.Month, groups, monthTotals, SumCell(monthTotals), targeted.Length > 0, notes, clock.UtcNow,
             new(coverage, targeted.Length, allRows.Length, targetTotal, coveredActual,
-                coverage == TargetCoverageState.Complete && targetTotal > 0m ? coveredActual / targetTotal * 100m : null)));
+                coverage == TargetCoverageState.Complete && targetTotal > 0m ? coveredActual / targetTotal * 100m : null), sections, signatories));
     }
 
     private static OfficialMonthlyIncomeRowDto ToRow(OfficialMonthlyIncomeStructure.Row row, List<Fact> facts,

@@ -27,7 +27,8 @@ public sealed record CollectorOperationCapabilityDto(
     bool IsAssigned,
     CollectorOperationCapabilityStatus Status,
     bool IsCollectible,
-    IReadOnlyList<string> ReasonCodes);
+    IReadOnlyList<string> ReasonCodes,
+    CollectionFamily? Family = null);
 
 public sealed record CollectorOperationCapabilitiesDto(
     Guid CollectorId,
