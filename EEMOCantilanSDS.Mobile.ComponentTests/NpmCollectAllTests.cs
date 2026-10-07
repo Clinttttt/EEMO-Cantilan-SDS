@@ -161,4 +161,43 @@ public sealed class NpmCollectAllTests : TestContext
         view.WaitForAssertion(() => Assert.True(view.Find("button.ca-open").HasAttribute("disabled")));
         Assert.Contains("Nothing left to collect today", view.Find("button.ca-open").TextContent);
     }
+
+    [Theory]
+    [InlineData(0, "Collect All · 5 stalls")]
+    [InlineData(1, "Collect All · 4 stalls")]
+    [InlineData(5, "Nothing left to collect today")]
+    public void Five_stall_readiness_uses_only_server_confirmed_eligibility(int collected, string label)
+    {
+        _api.Setup(x => x.GetNpmDailyBatchReadinessAsync()).ReturnsAsync(Ready(Enumerable.Range(0, 5)
+            .Select(i => new NpmDailyBatchSource(Guid.NewGuid(), Guid.NewGuid(), (i + 1).ToString(), "Vendor", 37m,
+                i >= collected, i < collected ? "AlreadyCollected" : null)).ToArray()));
+        var view = RenderComponent<NpmCollectAll>(p => p.Add(x => x.BusinessDate, Today));
+        view.WaitForAssertion(() => Assert.Equal(label, view.Find(".ca-open").TextContent.Trim()));
+        Assert.Equal(collected == 5, view.Find(".ca-open").HasAttribute("disabled"));
+        if (collected < 5)
+        {
+            view.Find(".ca-open").Click();
+            Assert.Equal(5 - collected, view.FindAll(".ca-row").Count);
+            Assert.All(view.FindAll(".ca-charge"), charge => Assert.Equal("₱37.00", charge.TextContent));
+        }
+    }
+
+    [Theory]
+    [InlineData("SourceStillLegacy")]
+    [InlineData("PolicyNotEffective")]
+    [InlineData("InvalidSource")]
+    [InlineData("AlreadySettledOrUnavailable")]
+    [InlineData("RateNotEffective")]
+    public void Unpaid_but_server_blocked_is_unavailable_not_nothing_left(string reason)
+    {
+        _api.Setup(x => x.GetNpmDailyBatchReadinessAsync()).ReturnsAsync(Ready(Enumerable.Range(1, 5)
+            .Select(i => new NpmDailyBatchSource(Guid.NewGuid(), Guid.NewGuid(), i.ToString(), "Vendor", 37m, false, reason)).ToArray()));
+        var view = RenderComponent<NpmCollectAll>(p => p.Add(x => x.BusinessDate, Today));
+        view.WaitForAssertion(() => Assert.Equal("Collect All unavailable", view.Find(".ca-open").TextContent.Trim()));
+        Assert.True(view.Find(".ca-open").HasAttribute("disabled"));
+        Assert.DoesNotContain("Nothing left to collect today", view.Markup);
+        Assert.DoesNotContain(reason, view.Find("[role=status]").TextContent);
+        Assert.NotEmpty(view.Find("[role=status]").TextContent);
+        _api.Verify(x => x.RecordNpmDailyBatchAsync(It.IsAny<RecordNpmDailyBatchRequest>()), Times.Never);
+    }
 }

@@ -10,7 +10,11 @@
    it is never faint, and its count is the server's, not a guess from the page's figures. *@
 @if (_known && Eligible.Count == 0)
 {
-    <button class="ca-open ca-open-none" type="button" disabled>Nothing left to collect today</button>
+    <button class="ca-open ca-open-none" type="button" disabled>@(HasBlockedSources ? "Collect All unavailable" : "Nothing left to collect today")</button>
+    @if (HasBlockedSources)
+    {
+        <p class="ca-skipped" role="status">@BlockedExplanation</p>
+    }
 }
 else
 {
@@ -85,6 +89,25 @@ else
 }
 
 @code {
+    // Only confirmed collected rows mean the round is done. A policy/source/rate refusal is not a paid stall.
+    private bool HasBlockedSources => _sources.Any(x => !x.CanCollect && x.ReasonCode != "AlreadyCollected");
+    private string BlockedExplanation
+    {
+        get
+        {
+            var reasons = _sources.Where(x => !x.CanCollect && x.ReasonCode != "AlreadyCollected")
+                .Select(x => x.ReasonCode).Distinct().ToArray();
+            return reasons.Length == 1 ? reasons[0] switch
+            {
+                "SourceStillLegacy" => "Daily collection is not enabled for Collect All yet.",
+                "PolicyNotEffective" => "Daily collection is not enabled for this date yet.",
+                "RateNotEffective" => "Today's daily charge is not available yet.",
+                "InvalidSource" => "The stall details need review before collection.",
+                "AlreadySettledOrUnavailable" => "These stalls are not available for daily collection today.",
+                _ => "The stalls need review before using Collect All."
+            } : "Some stalls need review before using Collect All.";
+        }
+    }
     [Parameter] public DateOnly BusinessDate { get; set; }
 
     /// <summary>Raised after a batch is recorded so the page can refresh today's figures.</summary>

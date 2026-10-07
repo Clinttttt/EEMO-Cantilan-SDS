@@ -36,7 +36,9 @@ public sealed class NpmDailyBatchWorkflow(IAppDbContext db, ICollectionSessionSt
             .OrderBy(x => x.StallNo).Select(x => x.Id).ToListAsync(ct);
         var sources = new List<NpmDailyBatchSource>();
         foreach (var chunk in ids.Chunk(500))
-            sources.AddRange((await PreviewCore(new(Guid.NewGuid(), today, chunk.Select(x => new NpmDailyBatchItem(x, x)).ToArray()), ct)).Sources);
+            // The daily round contains occupied sources, not vacant spaces. Explicit quotes still validate every requested ID.
+            sources.AddRange((await PreviewCore(new(Guid.NewGuid(), today, chunk.Select(x => new NpmDailyBatchItem(x, x)).ToArray()), ct))
+                .Sources.Where(x => x.OccupancyId != Guid.Empty));
         return Result<IReadOnlyList<NpmDailyBatchSource>>.Success(sources);
     }
     public async Task<Result<NpmDailyBatchReadiness>> ReadinessAsync(CancellationToken ct = default)
@@ -75,8 +77,9 @@ public sealed class NpmDailyBatchWorkflow(IAppDbContext db, ICollectionSessionSt
             var row = await db.DailyCollections.AsNoTracking().SingleOrDefaultAsync(x => x.StallId == stall.Id && x.CollectionDate == intent.BusinessDate, ct);
             var charge = row?.DailyFee ?? NpmDailyFee.ForStallOrNull(stall, snapshot, intent.BusinessDate) ?? 0m;
             var payable = owner is not null && (await months.GetPayableDaysAsync(stall, intent.BusinessDate.Year, intent.BusinessDate.Month, ct)).Contains(intent.BusinessDate);
-            var reason = !canonical ? "SourceStillLegacy" : instrument is null ? "PolicyNotEffective" : owner is null ? "InvalidSource"
-                : row?.IsPaid == true ? "AlreadyCollected" : !payable ? "AlreadySettledOrUnavailable" : charge <= 0m ? "RateNotEffective" : null;
+            // A paid day is done even before cutover; a legacy refusal must not hide that fact from readiness.
+            var reason = row?.IsPaid == true ? "AlreadyCollected" : !canonical ? "SourceStillLegacy" : instrument is null ? "PolicyNotEffective" : owner is null ? "InvalidSource"
+                : !payable ? "AlreadySettledOrUnavailable" : charge <= 0m ? "RateNotEffective" : null;
             sources.Add(new(stall.Id, owner?.Id ?? Guid.Empty, stall.StallNo, owner?.ActualOccupant ?? "", charge, reason is null, reason));
             if (reason is not null) problems.Add(new(item.ClientItemId, reason, "Review this stall before collecting."));
         }
