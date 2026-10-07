@@ -1,13 +1,27 @@
 # StallTrack Current Release State
 
 **Status:** Production release verified; newer local integration checkpoint accepted for continued development
-**As of:** 2026-10-07
+**As of:** 2026-10-08
 **Production code basis:** `master` at `db75418b68aa221cc5cd30a3bfa2af9799c2a5c6` (2026-10-05 release)
 **Current local integration checkout:** `C:\dev\stalltrack\eemo`
-**Current local integration branch / HEAD:** `integration/report-governance-ui` at `6d3362f9`
+**Current local integration branch / application checkpoint:** `integration/report-governance-ui` at `6051a66d` (documentation checkpoint follows; inspect Git for exact HEAD)
 **Collector APK in production:** `collector-1.1.12-14` (display version 1.1.12, version code 14)
 
 This is the single current implementation-status entry point. It deliberately separates **deployed production** from the **newer accepted local integration state**. Dated audits and handoffs remain evidence; they do not become production merely because their commits are integrated locally. Before changing code, confirm the current Git HEAD because the local integration checkpoint may advance.
+
+## 2026-10-08 accepted local consolidation
+
+Application commit `6051a66d` was developed on `codex/final-eemo-consolidation` in the same primary checkout and accepted for local fast-forward integration. It removes the legacy TRM/PerTrip active Mobile menu entry, keeps source-native Terminal under Income from Terminal with `/income-terminal`, preserves Transportation/Parking separately, and adds focused menu/source-picker regression coverage. No financial writer, historical record, source activation mechanism, migration, or CSS was changed.
+
+Local Cantilan `personal1` now resolves an already-existing `NPM_DAILY` setting effective **2026-10-08**, enabled and Mobile-enabled. The live readiness and quote both authorize five stalls, zero already collected, total **₱150**. Ana Reyes' source discovery offers Daily **₱30**, Whole **₱900 remaining**, Water and Electricity; direct operations stay in a separate source-less session. These are observed server facts, not built-in rates. This session did not activate the service or post Collections.
+
+The current localhost database has the Fish/Meat migration history and actual registry table/lifecycle schema; the authenticated management API loads. **No database repair was required or performed.**
+
+Full validation: Unit **2,523 passed / 0 failed / 0 skipped**; PostgreSQL Integration **366 passed / 0 failed / 7 snapshot-gated skipped**; Mobile components **64 passed / 0 failed / 0 skipped**; Web components **746 passed / 0 failed / 0 skipped**. API, Client and Mobile Windows Release builds passed. `git diff --check` passed. No CSS changed.
+
+API, Client and Windows Mobile were rebuilt/restarted from the primary checkout after the application commit; process paths were verified and the Mobile DLL is newer than that commit. Native/browser UI automation could not initialize because of a sandbox-helper failure. The user performed the requested visual checkpoint against the fresh apps and explicitly confirmed **“Checked — all passed.”** This is user-reported visual acceptance, not an automated screenshot review. See [the consolidation verification record](FINAL_SINGLE_REPO_CONSOLIDATION_20261008.md).
+
+Production remains the separately recorded October 5 release below. No push, master merge, deployment, cloud database change or APK publication occurred.
 
 ## 2026-10-07 accepted local integration checkpoint
 
@@ -42,7 +56,7 @@ Latest implementation handoffs:
 
 Validation evidence across those accepted follow-ups includes a full Unit pass of **2,519**, a full Integration pass of **362 passed / 7 snapshot-gated skipped / 0 failed** at the Mobile Edit atomicity checkpoint, plus later focused NPM/readiness and Mobile component passes after the final UI/readiness refinements. Later focused passes did not rerun every full suite; read each handoff for exact scope.
 
-Current local NPM note: the tested Cantilan `personal1` collector had five unpaid/pending stalls but `CanonicalCollection=false`; batch readiness correctly returned `SourceStillLegacy`. Collect All therefore remains unavailable until the approved NPM canonical switch is enabled. The UI must not describe that state as “nothing left to collect.”
+Historical October 7 local NPM note: the tested Cantilan `personal1` collector had five unpaid/pending stalls but `CanonicalCollection=false`; batch readiness correctly returned `SourceStillLegacy`. The October 8 local observation above supersedes that activation-state snapshot. For any disabled source, the UI must still say Collect All unavailable rather than “nothing left to collect.”
 
 ## 2026-10-06 office clarification — production/runtime divergence
 

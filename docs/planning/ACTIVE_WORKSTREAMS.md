@@ -1,8 +1,8 @@
 # StallTrack — Active Workstreams and Checkout Model
 
-**Status:** Current coordination guidance as of 2026-10-07; older linked-worktree map retained below as archive
+**Status:** Current coordination guidance as of 2026-10-08; older linked-worktree map retained below as archive
 **Primary working checkout:** `C:\dev\stalltrack\eemo`
-**Current local integration branch / checkpoint:** `integration/report-governance-ui` at `6d3362f9`
+**Current local integration branch / application checkpoint:** `integration/report-governance-ui` at `6051a66d` (documentation checkpoint follows; inspect Git for exact HEAD)
 **Shared local Web preview:** `https://localhost:7167`
 
 Read `CURRENT_RELEASE_STATE.md` before using this file for implementation status. Business authority still comes from the Decision Registry, ADRs, operational rulebook, office evidence and source-specific architecture—not from branch naming.
@@ -23,6 +23,8 @@ StallTrack uses one Git repository. The default workflow is intentionally simple
 The current primary checkout intentionally contains canonical documentation/evidence work. Agents must not stage, reset or rewrite those files unless their task explicitly includes documentation.
 
 ## Current accepted October 7 work
+
+October 8 consolidation was performed sequentially in this same primary checkout on `codex/final-eemo-consolidation`, application commit `6051a66d`, accepted for local fast-forward integration. Automated validation and local API/schema verification passed. Native/browser UI-control initialization failed, so the user performed the fresh-app visual checkpoint and explicitly confirmed “Checked — all passed.” No additional worktree was created. See [the verification record](FINAL_SINGLE_REPO_CONSOLIDATION_20261008.md).
 
 The local integration checkpoint includes the accepted collector/productivity chain through `6d3362f9`, including source-native collection, Fish/Meat registry lifecycle/import, Mobile correction atomicity, NPM Daily/Whole and Collect All readiness behavior, and the latest Web/Mobile V3 presentation follow-ups. See `CURRENT_RELEASE_STATE.md` and the four October 7 handoffs for exact validation scope.
 
