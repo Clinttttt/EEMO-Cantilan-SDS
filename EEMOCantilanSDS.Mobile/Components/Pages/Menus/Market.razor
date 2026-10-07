@@ -313,7 +313,7 @@
                                 }
                                 @* What a tap does, and why the two are settled differently. A closed month is one act at the office's
                                    own figure; the month in hand is the days it has actually run. *@
-                                <div class="arrears-month-note">Tap a month to settle it, or the current month to take the days owed.</div>
+                                @if (ReferenceEquals(payor, ArrearsPayors[0])) { <div class="arrears-month-note">Tap a month to settle it, or the current month to take the days owed.</div> }
                             </div>
                         }
                     }
