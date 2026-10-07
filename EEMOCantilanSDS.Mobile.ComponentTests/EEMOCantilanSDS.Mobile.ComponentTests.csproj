@@ -18,6 +18,7 @@
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/MobileChoice.razor" Link="Components/Shared/MobileChoice.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/LoadingState.razor" Link="Components/Shared/LoadingState.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/NpmCollectAll.razor" Link="Components/Shared/NpmCollectAll.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/TerminalActivity.razor" Link="Components/Shared/TerminalActivity.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/NpmWholeSummary.razor" Link="Components/Shared/NpmWholeSummary.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/RecordedNotice.razor" Link="Components/Shared/RecordedNotice.razor" />
     <Using Include="Xunit" />

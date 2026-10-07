@@ -316,4 +316,18 @@ public class CachingMobileApiClientTests
             Guid.NewGuid(), "CT000101", null));
         Assert.False(cache.Has(key));
     }
+
+    [Fact]
+    public async Task Office_activity_is_forwarded_live_and_never_served_from_the_cache()
+    {
+        var inner = new Mock<IMobileApiClient>();
+        IReadOnlyList<SourceNativeActivityDto> rows = [];
+        inner.Setup(x => x.GetOfficeActivityAsync(From, From, "TERMINAL")).ReturnsAsync(Result<IReadOnlyList<SourceNativeActivityDto>>.Success(rows));
+        var sut = Sut(inner.Object, new FakeOfflineReadCache(), online: true);
+
+        var result = await sut.GetOfficeActivityAsync(From, From, "TERMINAL");
+
+        Assert.True(result.IsSuccess);
+        inner.Verify(x => x.GetOfficeActivityAsync(From, From, "TERMINAL"), Times.Once);
+    }
 }

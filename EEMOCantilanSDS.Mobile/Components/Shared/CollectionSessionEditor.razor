@@ -109,11 +109,16 @@ else
                 var quote = _quote?.Items.FirstOrDefault(x => x.ClientItemId == item.ClientItemId);
                 var problem = _quote?.Problems.Any(x => x.ClientItemId == item.ClientItemId) == true;
                 var shown = _shown.GetValueOrDefault(item.ClientItemId);
+                @* A Terminal row always reads as the official section with how it was entered, never as the server's repeated operation name. *@
+                var own = item.Native?.OperationCode == CollectorOperationCodes.Terminal && shown is not null;
                 <div class="item-row @(problem ? "item-row-problem" : "")">
                     <div class="item-main">
-                        <strong class="item-name">@(quote?.DisplayName ?? shown?.Name ?? "Collection item")</strong>
-                        <span class="item-context">@(quote?.Context is { Length: > 0 } qc && !qc.Equals(quote.DisplayName, StringComparison.OrdinalIgnoreCase) ? qc : shown?.Context ?? "Confirmed on review")</span>
-                        <span class="item-actions"><button class="collection-link" type="button" @onclick="() => Remove(item)">Remove</button></span>
+                        <strong class="item-name">@(own ? shown!.Name : quote?.DisplayName ?? shown?.Name ?? "Collection item")</strong>
+                        <span class="item-context">@(own ? shown!.Context : quote?.Context is { Length: > 0 } qc && !qc.Equals(quote.DisplayName, StringComparison.OrdinalIgnoreCase) ? qc : shown?.Context ?? "Confirmed on review")</span>
+                        <span class="item-actions">
+                            @if (_drafts.ContainsKey(item.ClientItemId)) { <button class="collection-link" type="button" disabled="@_busy" @onclick="() => EditAsync(item)">Edit</button> }
+                            <button class="collection-link" type="button" @onclick="() => Remove(item)">Remove</button>
+                        </span>
                     </div>
                     <div class="item-amount">
                         <strong>@(quote is not null ? Money(quote.Amount) : item.ConfirmedAmount > 0 ? Money(item.ConfirmedAmount) : "Review")</strong>
@@ -136,6 +141,7 @@ else
             <button class="collection-secondary" type="button" disabled="@(_busy || _items.Count == 0)" @onclick="ReviewAsync">Review collection</button>
             <button class="collection-primary" type="button" disabled="@(_busy || _quote?.CanRecord != true || Sync.HasStorageFault)" @onclick="RecordAsync">Record collection</button>
         </div>
+        @if (OnlyOperation == CollectorOperationCodes.Terminal) { <TerminalActivity BusinessDate="BusinessDate" /> }
     }
 }
 @if (!string.IsNullOrWhiteSpace(_message)) { <p class="collection-message" role="status">@_message</p> }
@@ -164,7 +170,34 @@ else
             }
             else
             {
-                @if (Choices.Count == 1)
+                @if (_operation.OperationCode == CollectorOperationCodes.Terminal)
+                {
+                    @* The three official sections are the only top-level choices; a vehicle class is an optional aid inside its own section. *@
+                    <div class="term-label" id="term-section-label">Section</div>
+                    <div class="term-sections" role="radiogroup" aria-labelledby="term-section-label">
+                        @foreach (var section in SectionChoices)
+                        {
+                            var chosen = section.Identity.TerminalSection == _termSection;
+                            <button type="button" role="radio" aria-checked="@(chosen ? "true" : "false")" class="term-section @(chosen ? "selected" : "")" @onclick="() => PickSection(section)">
+                                <span class="term-name">@section.DisplayName</span>
+                                @if (chosen) { <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="5 13 10 18 19 7" /></svg> }
+                            </button>
+                        }
+                    </div>
+                    @if (_termSection is not null && VehicleChoices.Count > 0)
+                    {
+                        <div class="term-mode" role="group" aria-label="Collection mode">
+                            <button type="button" class="@(_byVehicle ? "" : "on")" aria-pressed="@(_byVehicle ? "false" : "true")" @onclick="() => SetMode(false)">Section total</button>
+                            <button type="button" class="@(_byVehicle ? "on" : "")" aria-pressed="@(_byVehicle ? "true" : "false")" @onclick="() => SetMode(true)">By vehicle type</button>
+                        </div>
+                    }
+                    @if (_byVehicle)
+                    {
+                        <MobileChoice Inline="@(_choice is null)" Label="Vehicle type" Options="VehicleOptions" Value="@_choiceKey" ValueChanged="ChooseChoice" EmptyText="No approved vehicle type for this section." />
+                        @if (_choice is { Rate: { } approved }) { <div class="sheet-meta"><span>Approved rate</span><strong>@Money(approved)</strong></div> }
+                    }
+                }
+                else if (Choices.Count == 1)
                 {
                     <div class="sheet-source"><strong>@Choices[0].DisplayName</strong>@if (!string.IsNullOrWhiteSpace(Choices[0].Context)) { <span>@Choices[0].Context</span> }</div>
                 }
@@ -237,6 +270,40 @@ else
     private decimal? _serverAmount;
     private int _heads = 1, _tickets;
     private string? _message;
+
+    // Income From Terminal: one of the three official sections, collected as a section total or, optionally, by an approved vehicle type.
+    private TerminalSection? _termSection;
+    private bool _byVehicle;
+    private Guid? _editingId;
+    private sealed record Draft(string OperationCode, string ChoiceKey, decimal Amount, decimal Quantity, int Tickets, int Heads, string Owner, TerminalSection? Section, bool ByVehicle);
+    private readonly Dictionary<Guid, Draft> _drafts = [];
+    private IReadOnlyList<CollectionSessionSourceChoice> SectionChoices => Choices.Where(x => x.Identity.VehicleClassId is null).ToList();
+    private IReadOnlyList<CollectionSessionSourceChoice> VehicleChoices => Choices.Where(x => x.Identity.VehicleClassId is not null && x.Identity.TerminalSection == _termSection).ToList();
+    private IReadOnlyList<MobileChoice.Choice> VehicleOptions => VehicleChoices.Select(x => new MobileChoice.Choice(x.SelectionKey, x.DisplayName, x.Rate is { } rate ? Money(rate) : null)).ToArray();
+
+    private void PickSection(CollectionSessionSourceChoice section)
+    {
+        _termSection = section.Identity.TerminalSection; _byVehicle = false; _tickets = 0;
+        ChooseChoice(section.SelectionKey);
+    }
+
+    private void SetMode(bool byVehicle)
+    {
+        if (_byVehicle == byVehicle) return;
+        _byVehicle = byVehicle; _amount = 0; _tickets = 0;
+        if (byVehicle) { _choice = null; _choiceKey = ""; }
+        else if (SectionChoices.FirstOrDefault(x => x.Identity.TerminalSection == _termSection) is { } section) ChooseChoice(section.SelectionKey);
+    }
+
+    private string TerminalDraftName(CollectionSessionSourceChoice c) =>
+        SectionChoices.FirstOrDefault(x => x.Identity.TerminalSection == c.Identity.TerminalSection)?.DisplayName ?? c.DisplayName;
+
+    private string TerminalDraftContext(CollectionSessionSourceChoice c)
+    {
+        var parts = new List<string> { c.Identity.VehicleClassId is null ? "Section total" : c.Rate is { } rate ? $"{c.DisplayName} · {Money(rate)} approved rate" : c.DisplayName };
+        if (_tickets > 0) parts.Add(_tickets == 1 ? "1 cash ticket" : $"{_tickets} cash tickets");
+        return string.Join(" · ", parts);
+    }
 
     private CollectionSessionIntent Intent => new(_sessionId, BusinessDate, null, _items.ToArray(),
         SourceIdentity: _source?.Identity, PayerSnapshot: _direct && !string.IsNullOrWhiteSpace(_snapshot) ? _snapshot.Trim() : null);
@@ -397,7 +464,7 @@ else
     // ── Adding an item ──────────────────────────────────────────────────────────────────────────────
     private async Task OpenPickerAsync()
     {
-        _message = null; await LoadAsync(); _operation = null; _choice = null; _choiceKey = "";
+        _message = null; _editingId = null; await LoadAsync(); _operation = null; _choice = null; _choiceKey = "";
         if (OnlyOperation is not null && Offered.FirstOrDefault(x => x.OperationCode == OnlyOperation) is not null) Choose(OnlyOperation);
         // Never open a sheet with nothing to choose: say why, in the page, where the collector is looking.
         if (_operation is null && !PickerSections.Any())
@@ -411,7 +478,7 @@ else
     private void Choose(string code)
     {
         _operation = Offered.FirstOrDefault(x => x.OperationCode == code);
-        _choice = null; _choiceKey = ""; _amount = _quantity = 0; _serverAmount = null; _tickets = 0; _heads = 1; _owner = "";
+        _choice = null; _choiceKey = ""; _amount = _quantity = 0; _serverAmount = null; _tickets = 0; _heads = 1; _owner = ""; _termSection = null; _byVehicle = false;
         if (_operation?.Choices is { Count: 1 } only) ChooseChoice(only[0].SelectionKey);
     }
 
@@ -437,7 +504,21 @@ else
         catch { _serverAmount = null; }
     }
 
-    private void ClosePicker() => _picker = false;
+    private void ClosePicker() { _picker = false; _editingId = null; }
+
+    // Editing re-opens the same sheet with what was entered; the original row stays until the changed one is added, so closing loses nothing.
+    private async Task EditAsync(CollectionSessionItemIntent item)
+    {
+        if (!_drafts.TryGetValue(item.ClientItemId, out var draft)) return;
+        _message = null; await LoadAsync();
+        Choose(draft.OperationCode);
+        _termSection = draft.Section; _byVehicle = draft.ByVehicle;
+        ChooseChoice(draft.ChoiceKey);
+        if (_choice is null) { _message = "This item is no longer available. Remove it and add it again."; return; }
+        _amount = draft.Amount; _quantity = draft.Quantity; _tickets = draft.Tickets; _heads = draft.Heads; _owner = draft.Owner;
+        if (IsWeighing) await QuoteWeighingAsync();
+        _editingId = item.ClientItemId; _picker = true;
+    }
 
     private void AddItem()
     {
@@ -465,12 +546,17 @@ else
         var amount = c.Kind is CollectionSessionItemKind.Slaughter or CollectionSessionItemKind.NpmWholePayment ? 0m
             : IsWeighing ? _serverAmount ?? 0m
             : c.AmountRule == CollectionSessionAmountRule.FixedAmount ? c.ServerAmount ?? 0m : _amount;
-        _items.Add(new CollectionSessionItemIntent(id, c.Kind, amount, water, service, obligation, electricity, null, slaughter, null, npmWhole, native, rent));
-        _shown[id] = new(c.DisplayName, string.Join(" · ", new[] { SourceName, c.Context }.Where(x => !string.IsNullOrWhiteSpace(x))));
-        _quote = null; _picker = false;
+        var added = new CollectionSessionItemIntent(id, c.Kind, amount, water, service, obligation, electricity, null, slaughter, null, npmWhole, native, rent);
+        var at = _editingId is { } editing ? _items.FindIndex(x => x.ClientItemId == editing) : -1;
+        if (at >= 0) { _items[at] = added; _shown.Remove(_editingId!.Value); _drafts.Remove(_editingId.Value); }
+        else _items.Add(added);
+        _shown[id] = IsTerminal ? new(TerminalDraftName(c), TerminalDraftContext(c))
+            : new(c.DisplayName, string.Join(" · ", new[] { SourceName, c.Context }.Where(x => !string.IsNullOrWhiteSpace(x))));
+        _drafts[id] = new(c.OperationCode, c.SelectionKey, _amount, _quantity, _tickets, _heads, _owner, _termSection, _byVehicle);
+        _quote = null; _picker = false; _editingId = null;
     }
 
-    private void Remove(CollectionSessionItemIntent item) { _items.Remove(item); _shown.Remove(item.ClientItemId); _quote = null; }
+    private void Remove(CollectionSessionItemIntent item) { _items.Remove(item); _shown.Remove(item.ClientItemId); _drafts.Remove(item.ClientItemId); _quote = null; }
 
     // ── Review, record, result ──────────────────────────────────────────────────────────────────────
     private async Task ReviewAsync()
@@ -526,7 +612,7 @@ else
 
     private async Task StartAnotherAsync()
     {
-        _sessionId = Guid.NewGuid(); _items.Clear(); _shown.Clear(); _result = null; _quote = null; _queued = _needsReview = false;
+        _sessionId = Guid.NewGuid(); _items.Clear(); _shown.Clear(); _drafts.Clear(); _result = null; _quote = null; _queued = _needsReview = false;
         _source = null; _snapshot = ""; _search = ""; _found = []; _searched = _browsed = _suggestOpen = false; _discovery = null;
         _direct = OnlyOperation == CollectorOperationCodes.Terminal;
         await LoadAsync();

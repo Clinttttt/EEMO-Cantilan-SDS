@@ -86,3 +86,37 @@ button:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2p
 .sheet-source { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; padding: 10px 14px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface-subtle); }
 .sheet-source strong { font-size: 15px; font-weight: 600; color: var(--mobile-navy); overflow-wrap: anywhere; }
 .sheet-source span { font-size: 13px; color: var(--mobile-text-secondary); }
+
+/* ── Income From Terminal (2026-10-07): the three official sections, compact; a vehicle type is only an optional aid inside one. ── */
+.term-label { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--mobile-text-secondary); }
+.term-sections { display: flex; flex-direction: column; margin-bottom: 12px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); overflow: hidden; }
+.term-section {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    min-height: 44px;
+    padding: 8px 14px;
+    border: 0;
+    border-bottom: 1px solid var(--mobile-border);
+    border-left: 3px solid transparent;
+    background: transparent;
+    color: var(--mobile-navy);
+    text-align: left;
+}
+.term-sections > :last-child { border-bottom: 0; }
+.term-name { min-width: 0; font-size: 13px; font-weight: 700; line-height: 1.25; letter-spacing: .01em; }
+.term-section svg { flex: none; width: 18px; height: 18px; fill: none; stroke: var(--mobile-blue); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.term-section.selected { border-left-color: var(--mobile-blue); background: var(--mobile-blue-subtle); }
+
+/* One joined control; the selected half is filled. */
+.term-mode { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 12px; border: 1px solid var(--mobile-blue); border-radius: 10px; overflow: hidden; }
+.term-mode button { min-height: 40px; border: 0; background: transparent; color: var(--mobile-blue); font-size: 13px; font-weight: 600; }
+.term-mode button + button { border-left: 1px solid var(--mobile-blue); }
+.term-mode button.on { background: var(--mobile-blue); color: #ffffff; }
+
+/* Breathing room (2026-10-07): the empty Items card, the action row and what follows no longer sit hard against each other. */
+.collection-entry { padding-bottom: 18px; }
+.collection-entry > p { margin: 10px 0 2px; }
+.collection-actions { margin-bottom: 20px; }

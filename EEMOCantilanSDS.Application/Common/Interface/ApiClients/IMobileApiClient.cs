@@ -16,6 +16,7 @@ public interface IMobileApiClient
     Task<Result<CollectionSessionDiscovery>> GetSourceCollectionDiscoveryAsync(CollectionSourceIdentity? identity) => Task.FromResult(Result<CollectionSessionDiscovery>.Failure("Source discovery unavailable."));
     Task<Result<SourceNativeChargeQuote>> QuoteOfficeCollectionAsync(SourceNativeCollectionRequest request) => Task.FromResult(Result<SourceNativeChargeQuote>.Failure("Source quote unavailable."));
     Task<Result<GovernedServiceOutcomeDto>> RecordOfficeCollectionAsync(SourceNativeCollectionRequest request) => Task.FromResult(Result<GovernedServiceOutcomeDto>.Failure("Source collection unavailable."));
+    Task<Result<IReadOnlyList<SourceNativeActivityDto>>> GetOfficeActivityAsync(DateOnly from, DateOnly to, string? operationCode = null) => Task.FromResult(Result<IReadOnlyList<SourceNativeActivityDto>>.Failure("Activity unavailable."));
     Task<Result<IReadOnlyList<NpmDailyBatchSource>>> GetNpmDailyBatchSourcesAsync() => Task.FromResult(Result<IReadOnlyList<NpmDailyBatchSource>>.Failure("Batch unavailable."));
     Task<Result<NpmDailyBatchQuote>> QuoteNpmDailyBatchAsync(NpmDailyBatchIntent intent) => Task.FromResult(Result<NpmDailyBatchQuote>.Failure("Batch unavailable."));
     Task<Result<CollectionSessionResult>> RecordNpmDailyBatchAsync(RecordNpmDailyBatchRequest request) => Task.FromResult(Result<CollectionSessionResult>.Failure("Batch unavailable."));

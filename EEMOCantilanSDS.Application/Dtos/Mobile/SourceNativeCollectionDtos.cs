@@ -25,4 +25,4 @@ public sealed record TerminalVehicleMappingRequest(Guid VehicleClassId, Terminal
 public sealed record SourceNativeActivityDto(Guid CollectionId, string SRC, DateOnly BusinessDate, DateTime RecordedAtUtc,
     string OperationCode, TerminalSection? Section, Guid? VendorRegistrationId, string? PayerSnapshot,
     Guid? CollectorId, string? CollectorName, decimal Amount, decimal NetAmount, string State,
-    int? CashTicketCount, Guid? VehicleClassId, Guid? RateId, decimal? Rate, decimal? Kilograms);
+    int? CashTicketCount, Guid? VehicleClassId, Guid? RateId, decimal? Rate, decimal? Kilograms, string? VehicleClassName = null);

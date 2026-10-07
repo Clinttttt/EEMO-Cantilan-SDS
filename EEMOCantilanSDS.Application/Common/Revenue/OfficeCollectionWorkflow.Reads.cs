@@ -33,17 +33,19 @@ public sealed partial class OfficeCollectionWorkflow
             var charge = root.GetProperty("charge").Deserialize<SourceNativeChargeIntent>()!;
             if (operationCode is not null && charge.OperationCode != operationCode) continue;
             var quoteRate = root.GetProperty("Calculation");
-            Guid? rateId = null; decimal? rate = null;
+            Guid? rateId = null; decimal? rate = null; string? vehicleName = null;
             if (quoteRate.ValueKind == JsonValueKind.Object)
             {
                 if (quoteRate.TryGetProperty("RateId", out var r)) rateId = r.GetGuid();
                 if (quoteRate.TryGetProperty("Rate", out var a)) rate = a.GetDecimal();
+                // The name the vehicle class carried when this was recorded, frozen with the rate; never looked up again by display text.
+                if (charge.VehicleClassId.HasValue && quoteRate.TryGetProperty("DisplayName", out var n) && n.ValueKind == JsonValueKind.String) vehicleName = n.GetString();
             }
             var net = c.TotalAmount + effects.GetValueOrDefault(c.Id);
             rows.Add(new(c.Id, c.ReferenceCode, c.BusinessDate, c.RecordedAtUtc, charge.OperationCode, charge.Section,
                 charge.VendorRegistrationId, c.PayerName, c.CollectorId, c.CollectorId is { } collector ? collectors.GetValueOrDefault(collector) : null,
                 c.TotalAmount, net, net != c.TotalAmount ? "Reversed" : "Posted", charge.CashTicketCount,
-                charge.VehicleClassId, rateId, rate, charge.Kilograms));
+                charge.VehicleClassId, rateId, rate, charge.Kilograms, vehicleName));
         }
         return Result<IReadOnlyList<SourceNativeActivityDto>>.Success(rows);
     }

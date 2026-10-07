@@ -44,6 +44,7 @@ public sealed class CollectionSessionEditorTests : TestContext
             new(FishVendor, "Pantom Dant", "Meat · 2026", CollectorOperationCodes.FishMeatVendorFee, 2026, FishMeatVendorType.Meat),
             new(Kanmanggay, "Juan Cruz", "Kanmanggay · Space 4", CollectorOperationCodes.KanmanggaySpaceRental),
             new(Occupancy, "Ana Reyes", "New Public Market · Stall 1", "FACILITY_NPM")]));
+        _api.Setup(x => x.GetOfficeActivityAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<string?>())).ReturnsAsync(Result<IReadOnlyList<SourceNativeActivityDto>>.Success([]));
         _api.Setup(x => x.QuoteCollectionSessionAsync(It.IsAny<CollectionSessionIntent>())).ReturnsAsync((CollectionSessionIntent i) =>
         {
             var items = i.Items.Select(x => new CollectionSessionItemQuote(x.ClientItemId, x.Kind, x.Native?.OperationCode ?? "OP", Name(x), "Context",
@@ -91,7 +92,11 @@ public sealed class CollectionSessionEditorTests : TestContext
          Op(CollectionSessionItemKind.SourceNative, CollectorOperationCodes.Terminal, "Income From Terminal", CollectionFamily.Terminal,
                 Native(CollectorOperationCodes.Terminal, "COMFORT ROOM", "Income From Terminal", new(TerminalSection: TerminalSection.ComfortRoom), RevenueInstrumentType.CashTicket, CollectionSessionAmountRule.DirectAmount),
                 Native(CollectorOperationCodes.Terminal, "PULL PUL VANS, CARGO VANS", "Income From Terminal", new(TerminalSection: TerminalSection.PullPulVansCargoVans), RevenueInstrumentType.CashTicket, CollectionSessionAmountRule.DirectAmount),
-                Native(CollectorOperationCodes.Terminal, "TRICYCAD", "Income From Terminal", new(TerminalSection: TerminalSection.Tricycad), RevenueInstrumentType.CashTicket, CollectionSessionAmountRule.DirectAmount))])));
+                Native(CollectorOperationCodes.Terminal, "TRICYCAD", "Income From Terminal", new(TerminalSection: TerminalSection.Tricycad), RevenueInstrumentType.CashTicket, CollectionSessionAmountRule.DirectAmount),
+                Native(CollectorOperationCodes.Terminal, "Jeepney", "PULL PUL VANS, CARGO VANS", new(TerminalSection: TerminalSection.PullPulVansCargoVans, VehicleClassId: Jeepney), RevenueInstrumentType.CashTicket, CollectionSessionAmountRule.DirectAmount, 20m),
+                Native(CollectorOperationCodes.Terminal, "Van", "PULL PUL VANS, CARGO VANS", new(TerminalSection: TerminalSection.PullPulVansCargoVans, VehicleClassId: Guid.NewGuid()), RevenueInstrumentType.CashTicket, CollectionSessionAmountRule.DirectAmount, 20m),
+                Native(CollectorOperationCodes.Terminal, "Tricycle", "TRICYCAD", new(TerminalSection: TerminalSection.Tricycad, VehicleClassId: Tricycle), RevenueInstrumentType.CashTicket, CollectionSessionAmountRule.DirectAmount, 5m))])));
+    private static readonly Guid Jeepney = Guid.NewGuid(), Tricycle = Guid.NewGuid();
 
     private IRenderedComponent<CollectionSessionEditor> Open(string? only = null) =>
         RenderComponent<CollectionSessionEditor>(p => p.Add(x => x.BusinessDate, Today).Add(x => x.OnlyOperation, only));
@@ -274,7 +279,7 @@ public sealed class CollectionSessionEditorTests : TestContext
         Click(view, "+ Add item");
         var sheet = view.Find("[role=dialog]");
         foreach (var section in new[] { "COMFORT ROOM", "PULL PUL VANS, CARGO VANS", "TRICYCAD" }) Assert.Contains(section, sheet.TextContent);
-        view.FindAll("button[role=option]").First(b => b.TextContent.Contains("TRICYCAD")).Click();
+        view.FindAll("button[role=radio]").First(b => b.TextContent.Contains("TRICYCAD")).Click();
         Assert.True(AddDisabled(view));
 
         sheet = view.Find("[role=dialog]");
@@ -286,6 +291,99 @@ public sealed class CollectionSessionEditorTests : TestContext
         view.WaitForAssertion(() => Assert.Contains("SRC-2026-000001", view.Markup));
         var item = Assert.Single(_queue[0].CollectionSession!.Intent.Items);
         Assert.Equal((TerminalSection.Tricycad, 30, 900m), (item.Native!.Section, item.Native.CashTicketCount, item.ConfirmedAmount));
+        Assert.Null(item.Native.VehicleClassId);                                                    // a section total names no vehicle
+    }
+
+    private IRenderedComponent<CollectionSessionEditor> OpenTerminalSheet()
+    {
+        ServeDirect();
+        var view = Open("TERMINAL");
+        view.WaitForAssertion(() => Assert.Contains("Income From Terminal", view.Find(".collection-payer h2").TextContent));
+        Click(view, "+ Add item");
+        return view;
+    }
+
+    private static void PickSection(IRenderedComponent<CollectionSessionEditor> view, string name) =>
+        view.FindAll("button[role=radio]").First(b => b.TextContent.Contains(name)).Click();
+
+    [Fact]
+    public void Terminal_offers_exactly_the_three_official_sections_and_never_a_vehicle_class_as_a_section()
+    {
+        var view = OpenTerminalSheet();
+
+        var sections = view.FindAll("button[role=radio]").Select(b => b.TextContent.Trim()).ToList();
+        Assert.Equal(["COMFORT ROOM", "PULL PUL VANS, CARGO VANS", "TRICYCAD"], sections);
+        Assert.DoesNotContain("Jeepney", view.Find("[role=dialog]").TextContent);                    // vehicle types stay hidden until a section with vehicles is in By vehicle type
+        Assert.DoesNotContain("Income From Terminal Income", view.Find(".term-sections").TextContent);
+        Assert.Empty(view.FindAll(".term-mode"));                                                    // nothing selected yet, so no mode and no entry fields
+        Assert.Empty(view.FindAll("[role=dialog] input[type=number]"));
+    }
+
+    [Fact]
+    public void Comfort_Room_has_no_vehicle_mode_while_the_vehicle_sections_default_to_Section_total()
+    {
+        var view = OpenTerminalSheet();
+
+        PickSection(view, "COMFORT ROOM");
+        Assert.Empty(view.FindAll(".term-mode"));
+
+        PickSection(view, "PULL PUL VANS");
+        var mode = view.Find(".term-mode");
+        Assert.Equal(["Section total", "By vehicle type"], mode.QuerySelectorAll("button").Select(b => b.TextContent.Trim()).ToArray());
+        Assert.Equal("true", mode.QuerySelectorAll("button")[0].GetAttribute("aria-pressed"));      // Section total is the default
+        Assert.NotEmpty(view.FindAll("[role=dialog] input[type=number]"));                           // so the whole amount can be entered at once
+    }
+
+    [Fact]
+    public void ByVehicleType_lists_only_the_sections_own_vehicles_with_the_servers_rate_and_the_typed_amount_stays_authoritative()
+    {
+        var view = OpenTerminalSheet();
+        PickSection(view, "PULL PUL VANS");
+        view.FindAll(".term-mode button")[1].Click();
+
+        var options = view.FindAll("[role=dialog] button[role=option]").Select(b => b.TextContent).ToList();
+        Assert.Equal(2, options.Count);
+        Assert.Contains(options, o => o.Contains("Jeepney") && o.Contains("₱20.00"));
+        Assert.DoesNotContain(options, o => o.Contains("Tricycle"));                                  // another section's vehicle
+        Assert.True(AddDisabled(view));                                                                // no vehicle chosen yet
+
+        view.FindAll("[role=dialog] button[role=option]").First(b => b.TextContent.Contains("Jeepney")).Click();
+        Assert.Contains("Approved rate", view.Find("[role=dialog]").TextContent);
+        var sheet = view.Find("[role=dialog]");
+        sheet.QuerySelectorAll("input[type=number]").First(i => i.GetAttribute("step") == "0.01").Input("1234.50");
+        sheet.QuerySelectorAll("input[type=number]").First(i => i.GetAttribute("step") == "1").Input("24");   // 24 × 20 is not 1,234.50 and must not change it
+        Assert.False(AddDisabled(view));                                                               // the button reacts while typing
+        Click(view, "Add item");
+
+        var row = view.Find(".item-row");
+        Assert.Contains("PULL PUL VANS, CARGO VANS", row.TextContent);
+        Assert.Contains("Jeepney · ₱20.00 approved rate · 24 cash tickets", row.TextContent);
+        Assert.DoesNotContain("Income From Terminal", row.TextContent);
+        Click(view, "Review collection"); Click(view, "Record collection");
+        view.WaitForAssertion(() => Assert.Single(_queue));
+        var item = Assert.Single(_queue[0].CollectionSession!.Intent.Items);
+        Assert.Equal((TerminalSection.PullPulVansCargoVans, Jeepney, 24, 1234.50m), (item.Native!.Section, item.Native.VehicleClassId, item.Native.CashTicketCount, item.ConfirmedAmount));
+    }
+
+    [Fact]
+    public void A_draft_item_can_be_edited_in_place_or_removed_and_review_needs_an_item()
+    {
+        var view = OpenTerminalSheet();
+        PickSection(view, "TRICYCAD");
+        view.Find("[role=dialog] input[type=number]").Input("3200"); Click(view, "Add item");
+        Assert.Contains("Section total", view.Find(".item-row").TextContent);
+
+        Click(view, "Edit");
+        view.WaitForAssertion(() => Assert.NotEmpty(view.FindAll("[role=dialog]")));
+        Assert.Equal("3200", view.Find("[role=dialog] input[type=number]").GetAttribute("value"));        // what was entered is back in the sheet
+        view.Find("[role=dialog] input[type=number]").Input("3300"); Click(view, "Add item");
+        Assert.Single(view.FindAll(".item-row"));                                                           // replaced, not duplicated
+        Assert.Contains("₱3,300.00", view.Find(".item-row").TextContent);
+
+        Click(view, "Remove");
+        Assert.Empty(view.FindAll(".item-row"));
+        Assert.True(view.FindAll("button").Single(b => b.TextContent.Trim() == "Review collection").HasAttribute("disabled"));
+        Assert.True(view.FindAll("button").Single(b => b.TextContent.Trim() == "Record collection").HasAttribute("disabled"));
     }
 
     [Fact]

@@ -285,6 +285,39 @@ public sealed partial class CollectionSessionTests
         Assert.Empty(await db.TrmTrips.ToListAsync());
     }
     [SkippableFact]
+    public async Task Vehicle_assisted_and_section_total_entries_all_report_to_the_three_official_Terminal_rows_only()
+    {
+        var date = PhilippineTime.Today; var w = await SeedAsync(); await using var db = database.CreateContext(w.TenantId); await EnableOffice(db, w);
+        VehicleClass Add(string code, string name) { var v = VehicleClass.Create(w.TenantId, code, name, "head"); db.AddRange(v, VehicleClassRate.Create(w.TenantId, v.Id, date, 20m, "head")); return v; }
+        var jeepney = Add("JEEPNEY", "Jeepney"); var tricycle = Add("TRICYCLE", "Tricycle");
+        var legacy = Add("PEDICAB", "Pedicab");                                                                 // exists in data, was never approved for Terminal
+        await db.SaveChangesAsync();
+        var flow = Office(db, w);
+        Assert.Equal(["Jeepney", "Tricycle"], (await flow.VehicleChoicesAsync(date, default)).Select(x => x.DisplayName).Order().ToArray());
+        async Task Post(decimal amount, TerminalSection section, Guid? vehicle = null, int? tickets = null)
+        {
+            var request = new SourceNativeCollectionRequest(Guid.NewGuid(), date, amount, new(CollectorOperationCodes.Terminal, Section: section, VehicleClassId: vehicle, CashTicketCount: tickets));
+            var quote = (await flow.QuoteAsync(request)).Value!;
+            var posted = await flow.PostAsync(request with { ExpectedSourceVersion = quote.SourceVersion }); Assert.True(posted.IsSuccess, posted.Error);
+        }
+        await Post(5800m, TerminalSection.PullPulVansCargoVans, jeepney.Id, 24);                                   // aid + count: the typed amount is still the money
+        await Post(900m, TerminalSection.Tricycad, tricycle.Id);
+        await Post(400m, TerminalSection.ComfortRoom);
+        Assert.Equal("VehicleClassNotAvailable", (await flow.PostAsync(new(Guid.NewGuid(), date, 50m, new(CollectorOperationCodes.Terminal, Section: TerminalSection.Tricycad, VehicleClassId: legacy.Id)))).Error);
+
+        var head = new Caller(Guid.NewGuid(), w.TenantId, "SuperAdmin");
+        var report = (await new GetOfficialMonthlyIncomeQueryHandler(db, new LegacyMonthlyIncomeReader(db), head, new Tenant(w.TenantId), new Clock(date)).Handle(new(date.Year, date.Month), default)).Value!;
+        var terminal = report.Groups.Single(x => x.Key == "TERMINAL").Rows;
+        Assert.Equal(["TERMINAL_COMFORT_ROOM", "TERMINAL_PULL_PUL_VANS_CARGO_VANS", "TERMINAL_TRICYCAD"], terminal.Select(x => x.Key).Order().ToArray());
+        Assert.Equal([400m, 5800m, 900m], terminal.OrderBy(x => x.Key).Select(x => x.Total.SystemAmount).ToArray());
+        Assert.DoesNotContain(report.Groups.SelectMany(g => g.Rows), x => x.Label.Contains("Jeepney") || x.Label.Contains("Tricycle") || x.Label.Contains("Pedicab"));
+
+        var activity = (await Office(db, w, "SuperAdmin").ActivityAsync(date, date)).Value!;
+        var assisted = activity.Single(x => x.VehicleClassId == jeepney.Id);
+        Assert.Equal(("Jeepney", 24, 5800m, 20m), (assisted.VehicleClassName, assisted.CashTicketCount, assisted.Amount, assisted.Rate));
+        Assert.All(activity.Where(x => x.VehicleClassId is null), x => { Assert.Null(x.VehicleClassName); Assert.Null(x.CashTicketCount); });
+    }
+    [SkippableFact]
     public async Task Prospective_Transportation_is_direct_without_vehicle_rate_or_ceiling_and_legacy_class_evidence_is_not_reclassified()
     {
         var date = PhilippineTime.Today;

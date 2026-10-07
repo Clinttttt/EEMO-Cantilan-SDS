@@ -33,6 +33,7 @@ public sealed class CachingMobileApiClient(
     public Task<Result<SourceNativeChargeQuote>> QuoteOfficeCollectionAsync(SourceNativeCollectionRequest request) => inner.QuoteOfficeCollectionAsync(request);
     public Task<Result<GovernedServiceOutcomeDto>> RecordOfficeCollectionAsync(SourceNativeCollectionRequest request) => InvalidatingAsync(() => inner.RecordOfficeCollectionAsync(request));
     public Task<Result<IReadOnlyList<NpmDailyBatchSource>>> GetNpmDailyBatchSourcesAsync() => inner.GetNpmDailyBatchSourcesAsync();
+    public Task<Result<IReadOnlyList<SourceNativeActivityDto>>> GetOfficeActivityAsync(DateOnly from, DateOnly to, string? operationCode = null) => inner.GetOfficeActivityAsync(from, to, operationCode);
     public Task<Result<NpmDailyBatchQuote>> QuoteNpmDailyBatchAsync(NpmDailyBatchIntent intent) => inner.QuoteNpmDailyBatchAsync(intent);
     public Task<Result<CollectionSessionResult>> RecordNpmDailyBatchAsync(RecordNpmDailyBatchRequest request) => InvalidatingAsync(() => inner.RecordNpmDailyBatchAsync(request));
     public Task<Result<TaboBatchQuoteDto>> QuoteTaboBatchAsync(TaboBatchRequest request) => inner.QuoteTaboBatchAsync(request);
