@@ -41,8 +41,8 @@
 .fmm-foot { margin: 0; padding: 12px 20px; border-top: 1px solid var(--border); color: var(--text-secondary); font-size: 0.8125rem; }
 
 /* Facts inside the drawers: a plain two-column list, quiet labels, strong values. */
-.fmm-facts { display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: 8px 16px; margin: 0 0 20px; font-size: 0.875rem; }
-.fmm-facts dt { color: var(--text-secondary); }
+.fmm-facts { display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: 8px 0; margin: 0 0 20px; font-size: 0.875rem; }
+.fmm-facts dt { padding-right: 16px; color: var(--text-secondary); }
 .fmm-facts dd { margin: 0; color: var(--navy); font-weight: 500; overflow-wrap: anywhere; }
 .fmm-facts dd.v3-num { text-align: left; font-variant-numeric: tabular-nums; }
 .fmm-facts .fmm-total { padding-top: 8px; border-top: 1px solid var(--border); font-weight: 700; }

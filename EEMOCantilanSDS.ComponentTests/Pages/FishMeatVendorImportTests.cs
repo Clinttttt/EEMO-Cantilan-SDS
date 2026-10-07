@@ -110,6 +110,21 @@ public sealed class FishMeatVendorImportTests : TestContext
     }
 
     [Fact]
+    public void AConfirmationStaysVisible_AndCanBeTakenBack()
+    {
+        var cut = UploadCsv(Csv);
+        cut.WaitForAssertion(() => Assert.Contains("Possible duplicate", cut.Markup), Timeout);
+        cut.Find(".fmi-confirm input").Change(true);
+        cut.WaitForAssertion(() => Assert.DoesNotContain("Possible duplicate", cut.Markup), Timeout);
+
+        Assert.True(cut.Find(".fmi-confirm input").HasAttribute("checked"));                       // still there once confirmed
+        cut.Find(".fmi-confirm input").Change(false);
+
+        cut.WaitForAssertion(() => Assert.Contains("Possible duplicate", cut.Markup), Timeout);
+        Assert.True(cut.Find("button.imp-btn.imp-btn-primary").HasAttribute("disabled"));
+    }
+
+    [Fact]
     public void ImportSavesTheConfirmedRows_ShowsHowManyWereImported_AndOffersManage()
     {
         var cut = UploadCsv(Csv);

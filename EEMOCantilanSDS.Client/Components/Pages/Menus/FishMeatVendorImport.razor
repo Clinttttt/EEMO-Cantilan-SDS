@@ -73,7 +73,18 @@
                             </label>
                         }
                         else if (state == RowState.Checking) { <span class="fmi-chip">Checking…</span> }
-                        else { <span class="fmi-chip fmi-ready">Ready</span> }
+                        else
+                        {
+                            <span class="fmi-chip fmi-ready">Ready</span>
+                            @if (row.Confirm)
+                            {
+                                @* Stays on screen once chosen, so the Head can take the confirmation back. *@
+                                <label class="fmi-confirm">
+                                    <input type="checkbox" checked="@row.Confirm" @onchange="e => ToggleConfirm(row, e.Value is true)" />
+                                    Registered as a separate vendor
+                                </label>
+                            }
+                        }
                     </div>
                 </Status>
             </ImportGrid>

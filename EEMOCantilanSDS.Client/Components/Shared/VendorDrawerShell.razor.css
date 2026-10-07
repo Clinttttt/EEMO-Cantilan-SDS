@@ -175,11 +175,13 @@
     width: 600px;
     max-width: 90vw;
     background: var(--bg-card);
-    box-shadow: -4px 0 24px rgba(13, 33, 55, 0.15);
     display: flex;
     flex-direction: column;
     transform: translateX(100%);
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    /* A closed drawer that stays mounted (so it can slide) casts no shadow into the page and takes no focus. */
+    box-shadow: none;
+    visibility: hidden;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease, visibility 0s linear 0.3s;
     z-index: 1001;
 }
 
@@ -189,6 +191,9 @@
 
 .vds ::deep .eemo-drawer.show {
     transform: translateX(0);
+    box-shadow: -4px 0 24px rgba(13, 33, 55, 0.15);
+    visibility: visible;
+    transition-delay: 0s;
 }
 
 .vds ::deep .eemo-drawer-footer {
