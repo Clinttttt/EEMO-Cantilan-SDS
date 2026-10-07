@@ -251,7 +251,17 @@
     }
 
     .omi-sheet + .omi-sheet { margin-top: 0; }
-    .omi-continuation { break-before: page; page-break-before: always; break-inside: avoid; }
+
+    /* Page 2 is an intentional continuation sheet. Give it its own printable top inset instead of letting
+       the continuation table sit directly on the page boundary. The short B/C closing block still fits
+       comfortably with the signatories on the same A4 landscape page. */
+    .omi-continuation {
+        box-sizing: border-box;
+        padding-top: 6mm;
+        break-before: page;
+        page-break-before: always;
+        break-inside: avoid;
+    }
 
     .omi-head {
         gap: 4mm;
@@ -340,5 +350,7 @@
 .omi-sign { margin-top: 28px; break-inside: avoid; }
 
 @media print {
-    .omi-sign { margin-top: 5mm; }
+    /* The office sheet leaves a clear signing band after the closing total; captions begin that band,
+       followed by open signature space and the configured names/titles. */
+    .omi-sign { margin-top: 8mm; }
 }

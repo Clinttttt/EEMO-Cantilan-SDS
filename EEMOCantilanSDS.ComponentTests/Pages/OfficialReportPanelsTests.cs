@@ -874,9 +874,13 @@ public sealed class OfficialReportPanelsTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            var foot = cut.Find("footer.omi-sign").TextContent;
+            var footer = cut.Find("footer.omi-sign");
+            var foot = footer.TextContent;
             Assert.Contains("A. Aide", foot); Assert.Contains("Admin. Aide III", foot);
             Assert.Contains("M. Supervisor", foot); Assert.Contains("Market Supervisor IV", foot);
+            Assert.Equal(["Prepared by:", "Certified Correct:"], footer.QuerySelectorAll(".osg-caption").Select(x => x.TextContent).ToArray());
+            Assert.Equal(2, footer.QuerySelectorAll(".osg-signature-space").Length);                 // open signing space, as on the office paper
+            Assert.Empty(footer.QuerySelectorAll(".osg-rule"));                                     // the office paper has no synthetic signature line
             Assert.Empty(cut.FindAll(".osg-setup"));                                                // nothing to set up
         }, Timeout);
     }

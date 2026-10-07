@@ -1,12 +1,14 @@
 @using EEMOCantilanSDS.Application.Command.Municipalities.SetReportSignatories
 
-@* The official statement's closing signatures: Prepared by and Certified Correct, each a configured name and title from the office's own
-   settings. Nothing is hard-coded; a role that is not configured prints as a blank rule and the Head is offered the setup. *@
+@* The official statement's closing signatures follow the office paper: role label first, open signing space, then
+   configured name and title. Nothing is hard-coded; when a role is not configured its name remains blank and the Head
+   is offered the setup. No synthetic signature line is printed because the office reference has none. *@
 <div class="osg">
     @foreach (var slot in Slots)
     {
         <div class="osg-slot">
-            <span class="osg-rule"></span>
+            <span class="osg-caption">@($"{slot.Caption}:")</span>
+            <span class="osg-signature-space" aria-hidden="true"></span>
             @if (slot.Name is { Length: > 0 })
             {
                 <strong class="osg-name">@slot.Name</strong>
@@ -16,7 +18,6 @@
             {
                 <span class="osg-name osg-blank">&nbsp;</span>
             }
-            <span class="osg-caption">@slot.Caption</span>
         </div>
     }
 </div>
