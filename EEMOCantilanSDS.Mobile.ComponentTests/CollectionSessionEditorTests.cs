@@ -114,6 +114,37 @@ public sealed class CollectionSessionEditorTests : TestContext
                     RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.PreparedBalance, 870m, RequiredInputs: [])], CollectionFamily.Rent)],
         SourceIdentity: Occupancy)));
 
+    [Fact]
+    public void Selected_NPM_source_shows_only_its_server_choices_and_never_loads_walk_up_operations()
+    {
+        ServeDirect(); // Direct choices exist, but selecting the occupancy must never request them.
+        CollectionSessionCapability Choice(CollectionSessionItemKind kind, string code, string name, CollectionFamily family,
+            CollectionSessionAmountRule rule, decimal? amount) => Op(kind, code, name, family,
+                new CollectionSessionSourceChoice(code + "|stall", kind, code, name, "New Public Market · Stall 1",
+                    new(StallId: DailyStall, OccupancyId: Occupancy.Id, Year: Today.Year, Month: Today.Month, PeriodStart: Today),
+                    RevenueInstrumentType.OfficialReceipt, rule, amount, RequiredInputs: []));
+        _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(Occupancy)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(new(null, Today,
+            [Choice(CollectionSessionItemKind.NpmDaily, "NPM_DAILY", "Daily stall payment", CollectionFamily.Rent, CollectionSessionAmountRule.FixedAmount, 47.5m),
+             Choice(CollectionSessionItemKind.NpmWholePayment, "NPM_WHOLE_PAYMENT", "NPM Whole payment", CollectionFamily.Rent, CollectionSessionAmountRule.MonthlyRemaining, 812.5m),
+             Choice(CollectionSessionItemKind.Water, "WCF", "Water", CollectionFamily.Market, CollectionSessionAmountRule.DirectAmount, null),
+             Choice(CollectionSessionItemKind.Electricity, "ECF", "Electricity", CollectionFamily.Market, CollectionSessionAmountRule.PreparedBalance, 95m)],
+            SourceIdentity: Occupancy)));
+
+        var view = PickSource("Ana Reyes");
+        Click(view, "+ Add item");
+        var picker = view.Find("[role=dialog]");
+        Assert.Equal(4, picker.QuerySelectorAll(".collection-option").Length);
+        Assert.Contains("Daily stall payment", picker.TextContent);
+        Assert.Contains("Whole payment", picker.TextContent);
+        Assert.Contains("Water", picker.TextContent);
+        Assert.Contains("Electricity", picker.TextContent);
+        Assert.Contains("₱47.50", picker.TextContent);
+        Assert.Contains("₱812.50", picker.TextContent);
+        foreach (var unrelated in new[] { "Market Fees", "Landing / Berthing", "Transfer Large Cattle", "Transportation / Parking", "Income From Terminal" })
+            Assert.DoesNotContain(unrelated, picker.TextContent);
+        _api.Verify(x => x.GetSourceCollectionDiscoveryAsync(null), Times.Never);
+    }
+
 
     private static void Click(IRenderedComponent<CollectionSessionEditor> view, string label)
     {

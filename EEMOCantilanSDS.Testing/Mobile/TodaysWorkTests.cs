@@ -9,6 +9,39 @@ namespace EEMOCantilanSDS.UnitTest.Mobile;
 public class TodaysWorkTests
 {
     [Fact]
+    public void Terminal_catalog_group_does_not_fall_into_other_operations()
+    {
+        var item = new WorkItem("Comfort Room", "Ready", WorkTarget.Operation, true,
+            OperationCode: "TERMINAL_COMFORT_ROOM");
+        Assert.Equal(WorkSections.Terminal, Assert.Single(WorkSections.Group([item])).Name);
+    }
+
+    [Fact]
+    public void Ready_terminal_is_first_class_and_transportation_stays_separate()
+    {
+        var work = Build([Op(CollectorOperationCodes.Terminal, CollectorOperationCapabilityStatus.Ready),
+            Op(CollectorOperationCodes.Transportation, CollectorOperationCapabilityStatus.Ready)]);
+        var sections = WorkSections.Group(work.Available);
+        var terminal = Assert.Single(sections.Single(x => x.Name == WorkSections.Terminal).Items);
+        Assert.Equal(CollectorOperationCodes.Terminal, terminal.OperationCode);
+        Assert.True(terminal.CanOpen);
+        Assert.Equal(WorkTarget.Operation, terminal.Target);
+        Assert.Equal("Ready", terminal.Status);
+        Assert.Equal(CollectorOperationCodes.Transportation,
+            Assert.Single(sections.Single(x => x.Name == WorkSections.Market).Items).OperationCode);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Legacy_terminal_facility_is_not_current_work_even_without_ready_terminal(bool available)
+    {
+        var work = Build(facilities: [new(FacilityCode.TRM, "Transport Terminal", "", true, available, BillingArchetype.PerTrip)]);
+        Assert.Empty(work.Available);
+        Assert.Empty(work.AssignedUnavailable);
+    }
+
+    [Fact]
     public void Presentation_sections_preserve_every_authorized_row_and_its_capability()
     {
         WorkItem[] rows = [new("Public Market", "Ready", WorkTarget.Facility, true, "NPM"),

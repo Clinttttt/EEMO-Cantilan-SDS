@@ -62,6 +62,7 @@ public static class WorkSections
             return Other;
         }
         // The operation permission and the official row share a name except Transportation / Parking.
+        if (item.OperationCode == CollectorOperationCodes.Terminal) return Terminal;
         var key = item.OperationCode == CollectorOperationCodes.Transportation ? "TRANSPORTATION_PARKING" : item.OperationCode;
         return key is not null && RevenueSourceCatalog.Knows(key) ? Family(RevenueSourceCatalog.For(key).GroupKey) : Other;
     }
@@ -80,6 +81,7 @@ public static class WorkSections
         RevenueSourceCatalog.MarketGroup => Market,
         RevenueSourceCatalog.RentGroup => Rent,
         RevenueSourceCatalog.SpaceGroup => Space,
+        RevenueSourceCatalog.TerminalGroup => Terminal,
         RevenueSourceCatalog.SlaughterhouseGroup => Slaughterhouse,
         _ => Other
     };
@@ -117,6 +119,9 @@ public static class TodaysWorkBuilder
 
         foreach (var f in facilities.Where(x => x.IsAssigned))
         {
+            // IA-067: current Terminal work comes from its own server capability. TRM remains historical evidence.
+            if (f.Code == EEMOCantilanSDS.Domain.Enums.FacilityCode.TRM
+                || f.Archetype == EEMOCantilanSDS.Domain.Enums.BillingArchetype.PerTrip) continue;
             if (f.IsAvailable)
                 available.Add(new WorkItem(f.Name, ReadyLabel, WorkTarget.Facility, true, FacilityCode: f.Code.ToString()));
             else

@@ -12,4 +12,7 @@ public sealed class MobileSessionService
     public string BrandingMunicipalityLine => "Scratch municipality";
     public string BrandingSeal => "images/LGU_CANTILAN_LOGO.jpg";
     public Task InitializeAsync() => Task.CompletedTask;
+    public Task<AppUpdateInfo?> GetUpdateInfoAsync() => Task.FromResult<AppUpdateInfo?>(null);
 }
+
+public sealed record AppUpdateInfo(bool Available, bool Mandatory, string ApkUrl, string LatestVersion, string? Notes);

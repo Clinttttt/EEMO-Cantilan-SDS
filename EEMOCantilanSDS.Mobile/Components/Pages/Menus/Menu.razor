@@ -201,7 +201,7 @@
         {
             var work = TodaysWorkBuilder.Build(Facilities, Operations, Queue);
             var additional = SessionCapabilities.Where(x => x.StandaloneAvailable && work.Available.All(a => a.OperationCode != x.OperationCode))
-                .Select(x => new WorkItem(x.DisplayName, TodaysWorkBuilder.ReadyLabel, WorkTarget.Operation, true, OperationCode: x.OperationCode));
+                .Select(x => new WorkItem(x.DisplayName, TodaysWorkBuilder.ReadyLabel, WorkTarget.Operation, true, OperationCode: x.OperationCode, Family: x.Family));
             return work with { Available = work.Available.Concat(additional).ToArray() };
         }
     }
@@ -303,11 +303,6 @@
         }
     }
 
-    // The Transportation service is enabled (and set up) for this tenant: the same condition the server uses to close the legacy trip writer.
-    bool TransportationIsCanonical => Operations.Any(o => o.OperationCode == global::EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Transportation
-        && o.IsAssigned
-        && !o.ReasonCodes.Contains("SERVICE_SETUP_REQUIRED") && !o.ReasonCodes.Contains("SERVICE_DISABLED"));
-
     void OpenFacility(MobileFacilityMenuItemDto facility)
     {
         // Guard: only assigned + built facilities are navigable. The server independently
@@ -331,9 +326,7 @@
                 Navigation.NavigateTo("/slaughter", forceLoad: false);
                 break;
             case BillingArchetype.PerTrip:
-                // IA-051: once the Head enables Transportation, new trips are collected on the canonical Cash Ticket workflow (SRC) and the
-                // legacy trip writer is closed server-side; before that, the legacy Terminal screen stays the truthful path.
-                Navigation.NavigateTo(TransportationIsCanonical ? "/operation/TRANSPORTATION" : "/terminal", forceLoad: false);
+                // IA-067: legacy trip facilities are not current collection entry points. Historical routes remain readable.
                 break;
             case BillingArchetype.WeeklyMarket:
                 Navigation.NavigateTo("/taboan", forceLoad: false);
