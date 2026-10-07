@@ -16,6 +16,12 @@ public sealed class OfficeSourcesController(ISender sender, OfficeCollectionWork
     public async Task<ActionResult<IReadOnlyList<FishMeatVendorRegistrationDto>>> Registrations(int year, CancellationToken ct) => HandleResponse(await workflow.RegistrationsAsync(year, ct));
     [HttpPost("fish-meat/registrations"), Authorize(Roles = "SuperAdmin")]
     public async Task<ActionResult<FishMeatVendorRegistrationDto>> Register(RegisterFishMeatVendorRequest request, CancellationToken ct) => HandleResponse(await workflow.RegisterAsync(request, ct));
+    [HttpPost("fish-meat/import/preview"), Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<VendorRegistryImportPreview>> PreviewImport(VendorRegistryImportRequest request, CancellationToken ct) => HandleResponse(await workflow.PreviewImportAsync(request, ct));
+    [HttpPost("fish-meat/import/save"), Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<VendorRegistryImportResult>> SaveImport(VendorRegistryImportRequest request, CancellationToken ct) => HandleResponse(await workflow.SaveImportAsync(request, ct));
+    [HttpGet("fish-meat/summary"), Authorize(Roles = "SuperAdmin,Admin,Collector")]
+    public async Task<ActionResult<VendorRegistrySummary>> Summary(int year, CancellationToken ct) => HandleResponse(await workflow.RegistrySummaryAsync(year, ct));
     [HttpPut("terminal/vehicle-section"), Authorize(Roles = "SuperAdmin")]
     public async Task<ActionResult<bool>> MapVehicle(TerminalVehicleMappingRequest request, CancellationToken ct) => HandleResponse(await workflow.MapVehicleAsync(request, ct));
     [HttpGet("terminal/vehicle-choices"), Authorize(Roles = "SuperAdmin,Admin,Collector")]

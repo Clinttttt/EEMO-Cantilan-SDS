@@ -155,6 +155,12 @@ public class ApplicationEfBoundaryTests
         "OfficeCollectionWorkflow.cs",
         "OfficeCollectionWorkflow.Reads.cs", // Tenant-scoped canonical audit read for the same source-owned writer.
         "NpmDailyBatchWorkflow.cs",
+        // Collector self-correction releases allocations/daily projections and re-quotes the existing source writer
+        // in ONE shared IAppDbContext transaction. It has no replacement fee algorithm or independent money reader.
+        "MobileCollectionCorrectionWorkflow.cs",
+        // Partial of the existing source-owned registry workflow: preview is read-only and save revalidates/inserts
+        // domain registrations atomically with their existing operation identities. It never imports Collections.
+        "OfficeCollectionWorkflow.Import.cs",
 
         // The shared Composer posting transaction revalidates every participating source and atomically writes
         // the draft, Collection/lines/allocations, compatibility projections, accountable document, and durable

@@ -45,6 +45,9 @@ public sealed class CollectionSessionStore(AppDbContext db) : ICollectionSession
             await tx.CommitAsync(ct);
         }
         catch (DbUpdateException e) { db.ChangeTracker.Clear(); throw new CollectionSessionConcurrencyException(e); }
+        catch (InvalidOperationException e) when (e.InnerException is DbUpdateException
+            { InnerException: Npgsql.PostgresException { SqlState: "40001" or "40P01" } })
+        { db.ChangeTracker.Clear(); throw new CollectionSessionConcurrencyException(e); }
         catch (Npgsql.PostgresException e) when (e.SqlState is "40001" or "40P01" or "25P02")
         { db.ChangeTracker.Clear(); throw new CollectionSessionConcurrencyException(e); }
         catch { db.ChangeTracker.Clear(); throw; }
