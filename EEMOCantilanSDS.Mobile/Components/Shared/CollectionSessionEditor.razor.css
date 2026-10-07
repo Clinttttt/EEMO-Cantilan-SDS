@@ -89,24 +89,25 @@ button:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2p
 
 /* ── Income From Terminal (2026-10-07): the three official sections, compact; a vehicle type is only an optional aid inside one. ── */
 .term-label { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--mobile-text-secondary); }
-.term-sections { display: flex; flex-direction: column; margin-bottom: 12px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); overflow: hidden; }
+.term-sections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
 .term-section {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
     width: 100%;
+    min-width: 0;
     min-height: 44px;
     padding: 8px 14px;
-    border: 0;
-    border-bottom: 1px solid var(--mobile-border);
+    border: 1px solid var(--mobile-border);
     border-left: 3px solid transparent;
-    background: transparent;
+    border-radius: 10px;
+    background: var(--mobile-surface);
     color: var(--mobile-navy);
     text-align: left;
 }
-.term-sections > :last-child { border-bottom: 0; }
-.term-name { min-width: 0; font-size: 13px; font-weight: 700; line-height: 1.25; letter-spacing: .01em; }
+.term-name { min-width: 0; overflow-wrap: anywhere; font-size: 13px; font-weight: 700; line-height: 1.25; letter-spacing: .01em; }
+.term-name small { display: block; margin-top: 3px; font-size: 12px; font-weight: 500; }
 .term-section svg { flex: none; width: 18px; height: 18px; fill: none; stroke: var(--mobile-blue); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
 .term-section.selected { border-left-color: var(--mobile-blue); background: var(--mobile-blue-subtle); }
 

@@ -221,12 +221,22 @@ else
                     }
                     @if (_byVehicle)
                     {
-                        <MobileChoice Inline="@(_choice is null)" Label="Vehicle type" Options="VehicleOptions" Value="@_choiceKey" ValueChanged="ChooseChoice" EmptyText="No approved vehicle type for this section." />
+                        <div class="term-label" id="term-vehicle-label">Vehicle type</div>
+                        <div class="term-sections" role="listbox" aria-labelledby="term-vehicle-label">
+                            @foreach (var vehicle in VehicleChoices)
+                            {
+                                var chosen = vehicle.SelectionKey == _choiceKey;
+                                <button type="button" role="option" aria-selected="@(chosen ? "true" : "false")" class="term-section @(chosen ? "selected" : "")" @onclick="() => ChooseChoice(vehicle.SelectionKey)">
+                                    <span class="term-name">@vehicle.DisplayName@if (vehicle.Rate is { } rate) { <small>@Money(rate)</small> }</span>
+                                    @if (chosen) { <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="5 13 10 18 19 7" /></svg> }
+                                </button>
+                            }
+                        </div>
                         @if (_choice is { Rate: { } approved }) { <div class="sheet-meta"><span>Approved rate</span><strong>@Money(approved)</strong></div> }
                     }
-                    @if (_choice is not null)
+                    @if (_choice?.Identity.VehicleClassId is not null)
                     {
-                        @* Optional frozen payer evidence applies to both section totals and configured vehicle entry. *@
+                        @* A selected vehicle may carry optional frozen driver/payer evidence. *@
                         <label class="form-field"><span class="form-label">Name <span class="form-optional">optional</span></span><input class="form-input" type="text" maxlength="200" autocomplete="off" @bind="_snapshot" @bind:event="oninput" /></label>
                         @if (_items.Count > 0) { <div class="sheet-note">Shared by every item in this collection</div> }
                     }
@@ -323,11 +333,11 @@ else
     private readonly Dictionary<Guid, Draft> _drafts = [];
     private IReadOnlyList<CollectionSessionSourceChoice> SectionChoices => Choices.Where(x => x.Identity.VehicleClassId is null).ToList();
     private IReadOnlyList<CollectionSessionSourceChoice> VehicleChoices => Choices.Where(x => x.Identity.VehicleClassId is not null && x.Identity.TerminalSection == _termSection).ToList();
-    private IReadOnlyList<MobileChoice.Choice> VehicleOptions => VehicleChoices.Select(x => new MobileChoice.Choice(x.SelectionKey, x.DisplayName, x.Rate is { } rate ? Money(rate) : null)).ToArray();
 
     private void PickSection(CollectionSessionSourceChoice section)
     {
         _termSection = section.Identity.TerminalSection; _byVehicle = false; _tickets = 0;
+        if (_items.Count == 0) _snapshot = "";
         ChooseChoice(section.SelectionKey);
     }
 
@@ -335,6 +345,7 @@ else
     {
         if (_byVehicle == byVehicle) return;
         _byVehicle = byVehicle; _amount = 0; _tickets = 0;
+        if (!byVehicle && _items.Count == 0) _snapshot = "";
         if (byVehicle) { _choice = null; _choiceKey = ""; }
         else if (SectionChoices.FirstOrDefault(x => x.Identity.TerminalSection == _termSection) is { } section) ChooseChoice(section.SelectionKey);
     }

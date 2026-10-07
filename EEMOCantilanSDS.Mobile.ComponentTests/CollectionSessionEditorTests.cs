@@ -598,7 +598,7 @@ public sealed class CollectionSessionEditorTests : TestContext
     {
         var view = OpenTerminalSheet();
         PickSection(view, "PULL PUL VANS");
-        Assert.Contains("Name optional", view.Find("[role=dialog]").TextContent);
+        Assert.DoesNotContain("Name optional", view.Find("[role=dialog]").TextContent);
 
         view.FindAll(".term-mode button")[1].Click();
         Assert.DoesNotContain("Name optional", view.Find("[role=dialog]").TextContent);                                         // not until a vehicle is chosen
@@ -614,22 +614,39 @@ public sealed class CollectionSessionEditorTests : TestContext
     }
 
     [Theory]
-    [InlineData("COMFORT ROOM", "Visitor")]
-    [InlineData("COMFORT ROOM", "")]
-    [InlineData("PULL PUL VANS", "Driver")]
-    [InlineData("PULL PUL VANS", "")]
-    [InlineData("TRICYCAD", "Rider")]
-    [InlineData("TRICYCAD", "")]
-    public void Terminal_section_total_has_an_optional_name_without_creating_a_source(string section, string name)
+    [InlineData("COMFORT ROOM")]
+    [InlineData("PULL PUL VANS")]
+    [InlineData("TRICYCAD")]
+    public void Terminal_section_total_has_no_name_and_keeps_direct_amount_without_creating_a_source(string section)
     {
         var view = OpenTerminalSheet();
         PickSection(view, section);
         var sheet = view.Find("[role=dialog]");
-        var field = sheet.QuerySelectorAll("input[type=text]").Single();
-        Assert.False(field.HasAttribute("required"));
-        Assert.Contains("Name optional", sheet.TextContent);
-        field.Input(name);
+        Assert.Empty(sheet.QuerySelectorAll("input[type=text]"));
+        Assert.DoesNotContain("Name optional", sheet.TextContent);
         sheet.QuerySelectorAll("input[type=number]").First(i => i.GetAttribute("step") == "0.01").Input("73.50");
+        Click(view, "Add item"); Click(view, "Review collection"); Click(view, "Record collection");
+        view.WaitForAssertion(() => Assert.Single(_queue));
+        var intent = _queue[0].CollectionSession!.Intent;
+        Assert.Null(intent.PayorId);
+        Assert.Null(intent.SourceIdentity);
+        Assert.Null(intent.PayerSnapshot);
+        Assert.Equal(73.5m, Assert.Single(intent.Items).ConfirmedAmount);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("Driver")]
+    public void Terminal_vehicle_name_is_optional_and_only_a_snapshot(string name)
+    {
+        var view = OpenTerminalSheet();
+        PickSection(view, "PULL PUL VANS");
+        view.FindAll(".term-mode button")[1].Click();
+        view.FindAll("[role=dialog] button[role=option]").First(b => b.TextContent.Contains("Jeepney")).Click();
+        var field = view.Find("[role=dialog] input[type=text]");
+        Assert.False(field.HasAttribute("required"));
+        field.Input(name);
+        view.FindAll("[role=dialog] input[type=number]").First(i => i.GetAttribute("step") == "0.01").Input("73.50");
         Click(view, "Add item"); Click(view, "Review collection"); Click(view, "Record collection");
         view.WaitForAssertion(() => Assert.Single(_queue));
         var intent = _queue[0].CollectionSession!.Intent;
@@ -637,6 +654,24 @@ public sealed class CollectionSessionEditorTests : TestContext
         Assert.Null(intent.SourceIdentity);
         Assert.Equal(string.IsNullOrWhiteSpace(name) ? null : name, intent.PayerSnapshot);
         Assert.Equal(73.5m, Assert.Single(intent.Items).ConfirmedAmount);
+    }
+
+    [Fact]
+    public void Terminal_switching_from_vehicle_to_comfort_room_hides_and_clears_uncommitted_name()
+    {
+        var view = OpenTerminalSheet();
+        PickSection(view, "PULL PUL VANS");
+        view.FindAll(".term-mode button")[1].Click();
+        view.FindAll("[role=dialog] button[role=option]").First(b => b.TextContent.Contains("Jeepney")).Click();
+        Assert.Equal("true", view.Find("[role=dialog] button[aria-selected=true]").GetAttribute("aria-selected"));
+        view.Find("[role=dialog] input[type=text]").Input("Driver");
+        PickSection(view, "COMFORT ROOM");
+        Assert.DoesNotContain("Name optional", view.Find("[role=dialog]").TextContent);
+        Assert.Empty(view.FindAll("[role=dialog] input[type=text]"));
+        view.FindAll("[role=dialog] input[type=number]").First(i => i.GetAttribute("step") == "0.01").Input("73.50");
+        Click(view, "Add item"); Click(view, "Review collection"); Click(view, "Record collection");
+        view.WaitForAssertion(() => Assert.Single(_queue));
+        Assert.Null(_queue[0].CollectionSession!.Intent.PayerSnapshot);
     }
 
     // ── Correcting a recorded collection: the same form, opened on what was recorded; the server reverses the original and posts one replacement ──
