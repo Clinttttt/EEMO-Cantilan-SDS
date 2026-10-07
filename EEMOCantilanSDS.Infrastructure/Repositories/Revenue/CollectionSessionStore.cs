@@ -18,7 +18,7 @@ public sealed class CollectionSessionStore(AppDbContext db) : ICollectionSession
                 && x.IsActive && x.PayorId != null && ids.Contains(x.PayorId.Value))
             .Select(x => new { PayorId = x.PayorId!.Value, Facility = x.Stall!.Facility!.ShortName, x.Stall.StallNo }).ToListAsync(ct);
         var accounts = await db.ObligationAccounts.AsNoTracking().Where(x => x.MunicipalityId == tenantId
-                && ids.Contains(x.PayorId) && x.ActiveTo == null)
+                && x.PayorId.HasValue && ids.Contains(x.PayorId.Value) && x.ActiveTo == null)
             .Select(x => new { x.PayorId, x.Kind, x.SubjectLabel }).ToListAsync(ct);
         return payors.Select(p => p with { Contexts = occupancies.Where(x => x.PayorId == p.PayorId)
                 .Select(x => $"{x.Facility} · {x.StallNo}")

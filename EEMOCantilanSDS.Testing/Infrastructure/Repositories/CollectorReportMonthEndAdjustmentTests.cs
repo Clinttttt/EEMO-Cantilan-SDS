@@ -26,12 +26,12 @@ public class CollectorReportMonthEndAdjustmentTests : RepositoryTestBase
         var recordedAt = PhilippineTime.DayUtcRange(today).StartUtc.AddHours(1);
 
         var normal = DailyCollection.Create(normalStall.Id, today);
-        normal.MarkPaid("OR-NORMAL", collector.Id, fishKilos: 2m);
+        normal.MarkPaid("OR-NORMAL", collector.Id, fishKilos: 2m, fishFeeRatePerKilo: 1m, fishFeeRateEffectiveDate: today);
         normal.CreatedAt = recordedAt;
         normal.UpdatedAt = recordedAt;
 
         var adjusted = DailyCollection.Create(adjustedStall.Id, today, dailyFee: 40m);
-        adjusted.MarkPaid("OR-ADJUSTED", collector.Id, fishKilos: 3m);
+        adjusted.MarkPaid("OR-ADJUSTED", collector.Id, fishKilos: 3m, fishFeeRatePerKilo: 1m, fishFeeRateEffectiveDate: today);
         adjusted.AddMonthEndAdjustment(60m);
         adjusted.CreatedAt = recordedAt;
         adjusted.UpdatedAt = recordedAt;

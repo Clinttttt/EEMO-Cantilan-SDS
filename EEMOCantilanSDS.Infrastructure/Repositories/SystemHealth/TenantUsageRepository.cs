@@ -55,6 +55,7 @@ public class TenantUsageRepository(AppDbContext context) : ITenantUsageRepositor
         ["GovernedServices"] = "Governed services",
         ["GovernedServiceSettings"] = "Governed service settings",
         ["OfficialReportRevisions"] = "Official report revisions",
+        ["FishMeatVendorRegistrations"] = "Fish / Meat Vendor Registrations",
         ["PenaltyDefinitions"] = "Penalty definitions",
         ["ObligationAccounts"] = "Obligation accounts",
         ["ObligationRates"] = "Obligation rates",

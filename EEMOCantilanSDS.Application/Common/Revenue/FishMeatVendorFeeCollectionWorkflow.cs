@@ -28,6 +28,8 @@ public sealed class FishMeatVendorFeeCollectionWorkflow(IAppDbContext db, ICurre
     {
         if (!await Authorized(ct)) return Result<IReadOnlyList<DirectVendorFeeSource>>.Forbidden();
         var today = clock.PhilippineToday;
+        if (today >= OfficeCollectionWorkflow.EffectiveFrom)
+            return Result<IReadOnlyList<DirectVendorFeeSource>>.Success([]); // Compatibility endpoint; current sources are independent registrations.
         var policy = await PolicyAsync(today, ct);
         var stalls = await db.Stalls.AsNoTracking().Include(x => x.Contracts).ThenInclude(x => x.Payor)
             .Where(x => x.MunicipalityId == Tenant && x.Facility!.Code == FacilityCode.NPM
@@ -51,6 +53,7 @@ public sealed class FishMeatVendorFeeCollectionWorkflow(IAppDbContext db, ICurre
     private sealed record Facts(DirectVendorFeeQuote Quote, RevenueClassification Classification, RevenueClassificationPolicy Policy);
     private async Task<Facts?> ResolveAsync(DirectVendorFeeRequest request, CancellationToken ct)
     {
+        if (request.BusinessDate >= OfficeCollectionWorkflow.EffectiveFrom) return null;
         if (!FishMeatVendorFeeRules.UsesDirectCollection(request.BusinessDate) || request.BusinessDate > clock.PhilippineToday
             || request.AmountReceived <= 0m || request.AmountReceived > Collection.MaximumMoneyAmount
             || decimal.Round(request.AmountReceived, 2) != request.AmountReceived || request.PayorId == Guid.Empty) return null;

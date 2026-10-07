@@ -38,7 +38,8 @@ public sealed record ObligationAccountDto(
     decimal CollectedToDate,
     decimal OutstandingToDate,
     OccupancyArrangement? Arrangement = null,
-    string? ContractReference = null);
+    string? ContractReference = null,
+    string? ActualOccupant = null);
 
 public sealed record CreateObligationAccountRequest(
     ObligationKind Kind,
@@ -50,7 +51,8 @@ public sealed record CreateObligationAccountRequest(
     DateOnly ActiveFrom,
     decimal Amount,
     OccupancyArrangement? Arrangement = null,
-    string? ContractReference = null);
+    string? ContractReference = null,
+    string? ActualOccupant = null);
 
 public sealed record SetObligationRateRequest(DateOnly EffectiveFrom, decimal Amount);
 
@@ -61,15 +63,16 @@ public sealed record ObligationWorkspaceDto(IReadOnlyList<ObligationAccountDto> 
 
 public sealed record ImportSpaceHolderRow(CreateObligationAccountRequest Account, DateOnly? ClosedOn = null);
 public sealed record ImportSpaceHoldersRequest(IReadOnlyList<ImportSpaceHolderRow> Rows);
-public enum SpaceHolderImportStatus { Ready = 1, NeedsPayor = 2, Invalid = 3 }
+public enum SpaceHolderImportStatus { Ready = 1, NeedsPayor = 2, Invalid = 3, NeedsSourceHolder = 4 }
 public enum SpaceNumberOrigin { Supplied = 1, ServerSuggested = 2 }
-public enum SpaceHolderImportAction { None = 0, SelectPayor = 1, CorrectRow = 2, ResolveDuplicate = 3 }
+public enum SpaceHolderImportAction { None = 0, SelectPayor = 1, CorrectRow = 2, ResolveDuplicate = 3, ConfirmSourceHolder = 4 }
 public sealed record SpaceHolderImportFacts(CreateObligationAccountRequest Account, DateOnly? ClosedOn,
     SpaceNumberOrigin NumberOrigin, string? PayorDisplayName);
 public sealed record SpaceHolderImportRowResult(int RowNumber, SpaceHolderImportStatus Status, string? Code,
     string? Message, Guid? AccountId = null, SpaceHolderImportFacts? Facts = null)
 {
-    public SpaceHolderImportAction RequiredAction => Status == SpaceHolderImportStatus.NeedsPayor || Code == "InvalidPayor"
+    public SpaceHolderImportAction RequiredAction => Status == SpaceHolderImportStatus.NeedsSourceHolder ? SpaceHolderImportAction.ConfirmSourceHolder
+        : Status == SpaceHolderImportStatus.NeedsPayor || Code == "InvalidPayor"
         ? SpaceHolderImportAction.SelectPayor : Code == "DuplicateSpace" ? SpaceHolderImportAction.ResolveDuplicate
         : Status == SpaceHolderImportStatus.Invalid ? SpaceHolderImportAction.CorrectRow : SpaceHolderImportAction.None;
 }

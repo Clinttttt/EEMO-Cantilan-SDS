@@ -19,13 +19,15 @@ public static class OfficialMonthlyIncomeStructure
     public const string Space = "SPACE";
     public const string Pending = "PENDING";
     public const string Slaughterhouse = "SLAUGHTERHOUSE";
+    public const string Terminal = "TERMINAL";
 
     public static readonly IReadOnlyList<Group> Groups =
     [
-        new(Market, "Income from Market"),
-        new(Rent, "Rent Income - Stall Rental"),
+        new(Market, "Income From Market"),
+        new(Rent, "Rent Income (Stall Rental)"),
         new(Space, "Space Rental"),
-        new(Slaughterhouse, "Slaughterhouse"),
+        new(Terminal, "Income From Terminal"),
+        new(Slaughterhouse, "Income from Slaughterhouse"),
         new(Pending, "Awaiting an approved official grouping"),
     ];
 
@@ -37,8 +39,8 @@ public static class OfficialMonthlyIncomeStructure
         new("TABO", "Tabo", Market, RevenueClassificationCodes.Tabo),
         new("FISH_MEAT_VENDOR_FEE", "Fish / Meat Vendor Fees", Market, RevenueClassificationCodes.FishMeatVendorFee),
         new("LANDING_BERTHING", "Landing / Berthing", Market, RevenueClassificationCodes.LandingBerthing),
-        new("TRANSPORTATION_PARKING", "Transportation Fees", Market, RevenueClassificationCodes.TransportationParking),
-        new("WEIGHT_AND_MEASURE", "Weight & Measure / Registration", Market, RevenueClassificationCodes.WeightAndMeasure),
+        new("TRANSPORTATION_PARKING", "Transportation / Parking", Market, RevenueClassificationCodes.TransportationParking),
+        new("WEIGHT_AND_MEASURE", "Weight & Measure", Market, RevenueClassificationCodes.WeightAndMeasure),
         new("TRANSFER_LARGE_CATTLE", "Transfer Large Cattle", Market, RevenueClassificationCodes.TransferLargeCattle),
         new("ICE_PLANT", "Ice Plant", Market, RevenueClassificationCodes.IcePlant),
 
@@ -53,7 +55,10 @@ public static class OfficialMonthlyIncomeStructure
         new("FIESTA_ARAW_LOT_RENTAL", "Lot Rental - Fiesta / Araw", Space, RevenueClassificationCodes.FiestaArawLotRental),
         new("PENALTIES_AND_FINES", "Fines", Space, RevenueClassificationCodes.PenaltiesAndFines),
 
-        new("SLAUGHTERHOUSE", "Slaughterhouse", Slaughterhouse, RevenueClassificationCodes.Slaughterhouse),
+        new(RevenueClassificationCodes.TerminalComfortRoom, "COMFORT ROOM", Terminal, RevenueClassificationCodes.TerminalComfortRoom),
+        new(RevenueClassificationCodes.TerminalPullPulVansCargoVans, "PULL PUL VANS, CARGO VANS", Terminal, RevenueClassificationCodes.TerminalPullPulVansCargoVans),
+        new(RevenueClassificationCodes.TerminalTricycad, "TRICYCAD", Terminal, RevenueClassificationCodes.TerminalTricycad),
+        new("SLAUGHTERHOUSE", "Income from Slaughterhouse", Slaughterhouse, RevenueClassificationCodes.Slaughterhouse),
         new("RENT_OTHER", "Rent - other rental facilities", Pending, RevenueClassificationCodes.PermanentStallRent),
     ];
 

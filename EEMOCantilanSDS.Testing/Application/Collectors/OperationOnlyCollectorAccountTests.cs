@@ -56,8 +56,7 @@ public class OperationOnlyCollectorAccountTests
     }
 
     [Theory]
-    [InlineData(RevenueClassificationCodes.WeightAndMeasure)]
-    [InlineData(RevenueClassificationCodes.FishMeatVendorFee)]
+    [InlineData("UNAPPROVED_OPERATION")]
     [InlineData("ECF")]
     [InlineData("wcf")]
     [InlineData("")]
@@ -197,6 +196,7 @@ public class OperationOnlyCollectorAccountTests
         var id = Guid.NewGuid();
 
         Assert.True(validator.Validate(new UpdateCollectorCommand(id, "N", "", "", [], OperationCodes: [CollectorOperationCodes.MarketFees])).IsValid);
-        Assert.False(validator.Validate(new UpdateCollectorCommand(id, "N", "", "", [], OperationCodes: [RevenueClassificationCodes.WeightAndMeasure])).IsValid);
+        Assert.True(validator.Validate(new UpdateCollectorCommand(id, "N", "", "", [], OperationCodes: [CollectorOperationCodes.WeightAndMeasure, CollectorOperationCodes.FishMeatVendorFee, CollectorOperationCodes.Terminal])).IsValid);
+        Assert.False(validator.Validate(new UpdateCollectorCommand(id, "N", "", "", [], OperationCodes: ["UNAPPROVED_OPERATION"])).IsValid);
     }
 }

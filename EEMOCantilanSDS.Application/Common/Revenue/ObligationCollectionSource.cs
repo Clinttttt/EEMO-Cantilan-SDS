@@ -49,7 +49,7 @@ public sealed class ObligationCollectionSource(IAppDbContext db)
             .Where(x => x.MunicipalityId == tenantId && accountIds.Contains(x.ObligationAccountId)).ToListAsync(ct))
             .ToDictionary(x => (x.ObligationAccountId, x.PeriodStart));
         var settled = await SettledByPeriodAsync(tenantId, periods.Values.Select(x => x.Id).ToArray(), ct);
-        var payors = await PayorNamesAsync(tenantId, accounts.Select(x => x.PayorId).Distinct().ToArray(), ct);
+        var payors = await PayorNamesAsync(tenantId, accounts.Where(x => x.PayorId.HasValue).Select(x => x.PayorId!.Value).Distinct().ToArray(), ct);
 
         var quotes = new List<ObligationQuoteDto>();
         foreach (var account in accounts)
@@ -66,7 +66,7 @@ public sealed class ObligationCollectionSource(IAppDbContext db)
                 var outstanding = Math.Max(0m, assessed - paid);
                 quotes.Add(new ObligationQuoteDto(
                     account.Id, period?.Id, account.Kind, KindLabel(account.Kind), account.SubjectLabel, start,
-                    assessed, paid, outstanding, account.PayorId, payors.GetValueOrDefault(account.PayorId),
+                    assessed, paid, outstanding, account.PayorId ?? Guid.Empty, account.ActualOccupant ?? payors.GetValueOrDefault(account.PayorId ?? Guid.Empty),
                     period?.ObligationRateId ?? rate!.Id, outstanding > 0m && !(account.Kind == ObligationKind.FishMeatVendorFee && FishMeatVendorFeeRules.UsesDirectCollection(businessDate)), account.Event));
             }
         }
@@ -126,17 +126,17 @@ public sealed class ObligationCollectionSource(IAppDbContext db)
 
         var settled = (await SettledByPeriodAsync(tenantId, [period.Id], ct)).GetValueOrDefault(period.Id);
         var outstanding = Math.Max(0m, period.AssessedAmount - settled);
-        var payorName = (await PayorNamesAsync(tenantId, [account.PayorId], ct)).GetValueOrDefault(account.PayorId);
+        var payorName = account.ActualOccupant ?? (await PayorNamesAsync(tenantId, account.PayorId is { } linked ? [linked] : [], ct)).GetValueOrDefault(account.PayorId ?? Guid.Empty);
         var quote = new ObligationQuoteDto(
             account.Id, period.Id, account.Kind, KindLabel(account.Kind), account.SubjectLabel, period.PeriodStart,
-            period.AssessedAmount, settled, outstanding, account.PayorId, payorName, period.ObligationRateId,
+            period.AssessedAmount, settled, outstanding, account.PayorId ?? Guid.Empty, payorName, period.ObligationRateId,
             outstanding > 0m && !(account.Kind == ObligationKind.FishMeatVendorFee && FishMeatVendorFeeRules.UsesDirectCollection(businessDate)), account.Event);
 
         var snapshot = JsonSerializer.Serialize(new ObligationSnapshot(
             1, tenantId, (int)account.Kind, account.Id, period.Id, period.PeriodStart.Year, period.PeriodStart.Month,
             period.PeriodStart, period.AssessedAmount, period.ObligationRateId, account.SubjectLabel,
             $"{KindLabel(account.Kind)} · {account.SubjectLabel}", (int)SettlementAuthority.Canonical,
-            period.SettlementVersion, settled, outstanding, account.PayorId, payorName, code, policy.Id), JsonOptions);
+            period.SettlementVersion, settled, outstanding, account.PayorId ?? Guid.Empty, payorName, code, policy.Id), JsonOptions);
         return new ObligationSourceFacts(account, period, classification, policy, quote, snapshot);
     }
 

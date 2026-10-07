@@ -1,11 +1,12 @@
 using EEMOCantilanSDS.Application.Dtos.Revenue;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Enums;
 using System.Text.Json.Serialization;
 
 namespace EEMOCantilanSDS.Application.Dtos.Mobile;
 
 // A checkout is orchestration, never an operation or revenue classification.
-public enum CollectionSessionItemKind { Water = 1, GovernedService = 2, Obligation = 3, Electricity = 4, Weighing = 5, Slaughter = 6, VendorFee = 7, NpmWholePayment = 8 }
+public enum CollectionSessionItemKind { Water = 1, GovernedService = 2, Obligation = 3, Electricity = 4, Weighing = 5, Slaughter = 6, VendorFee = 7, NpmWholePayment = 8, SourceNative = 9, MonthlyRent = 10 }
 public enum CollectionSessionStatus { NeedsReview = 1, Recorded = 2 }
 public sealed record SessionWaterIntent(Guid StallId, int Year, int Month, Guid? UtilityBillId = null, long SourceVersion = 0);
 public sealed record SessionGovernedIntent(string OperationCode, GovernedServiceMode? Mode = null,
@@ -20,20 +21,25 @@ public sealed record SessionWeighingIntent(Guid StallId, WeighingType Type, deci
 public sealed record SessionSlaughterIntent(AnimalType Animal, int Heads, string? CustomAnimalName = null, string? OwnerName = null);
 public sealed record SessionVendorFeeIntent(Guid StallId);
 public sealed record SessionNpmWholeIntent(Guid StallId, int Year, int Month);
+public sealed record SessionMonthlyRentIntent(Guid StallId, int Year, int Month, long SourceVersion);
 public sealed record SessionSlaughterOption(AnimalType Animal, string Name, string? CustomAnimalName,
     RevenueInstrumentType? Instrument = null);
 public sealed record WeighingSourceDto(Guid StallId, string StallNo, Guid? PayorId, string PayerName, string Context,
     Guid? OccupancyId = null, MarketSection? Section = null);
 public sealed record WeighingRateDto(WeighingType Type, decimal RatePerKilo, DateOnly EffectiveDate, Guid? RateId = null);
-public sealed record SessionNpmWholeSource(Guid StallId, Guid OccupancyId, Guid PayorId, string StallNo,
+public sealed record SessionNpmWholeSource(Guid StallId, Guid OccupancyId, Guid? PayorId, string StallNo,
     string PayerName, int Year, int Month, RevenueInstrumentType Instrument, decimal RemainingAmount,
     decimal? MonthlyObligation, decimal? CollectedAmount, decimal? Credits);
 public sealed record CollectionSessionItemIntent(Guid ClientItemId, CollectionSessionItemKind Kind, decimal ConfirmedAmount,
     SessionWaterIntent? Water = null, SessionGovernedIntent? Service = null,
     SessionObligationIntent? Obligation = null, SessionElectricityIntent? Electricity = null, SessionWeighingIntent? Weighing = null,
-    SessionSlaughterIntent? Slaughter = null, SessionVendorFeeIntent? VendorFee = null, SessionNpmWholeIntent? NpmWhole = null);
+    SessionSlaughterIntent? Slaughter = null, SessionVendorFeeIntent? VendorFee = null, SessionNpmWholeIntent? NpmWhole = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SourceNativeChargeIntent? Native = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SessionMonthlyRentIntent? Rent = null);
 public sealed record CollectionSessionIntent(Guid ClientCollectionSessionId, DateOnly BusinessDate, Guid? PayorId,
-    IReadOnlyList<CollectionSessionItemIntent> Items);
+    IReadOnlyList<CollectionSessionItemIntent> Items,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CollectionSourceIdentity? SourceIdentity = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? PayerSnapshot = null);
 public sealed record RecordCollectionSessionRequest(CollectionSessionIntent Intent, string? QuoteFingerprint);
 public sealed record CollectionSessionProblem(Guid? ClientItemId, string Code, string Message);
 public sealed record CollectionSessionItemQuote(Guid ClientItemId, CollectionSessionItemKind Kind,
@@ -54,7 +60,7 @@ public sealed record CollectionSessionResult(Guid ClientCollectionSessionId, Col
 public sealed record CollectionSessionCapability(CollectionSessionItemKind? Kind, string OperationCode,
     string DisplayName, bool Supported, bool CanAdd, string? ReasonCode, string? Reason,
     bool RequiresPayor, IReadOnlyList<string> RequiredInputs, bool StandaloneAvailable = false,
-    IReadOnlyList<CollectionSessionSourceChoice>? Choices = null)
+    IReadOnlyList<CollectionSessionSourceChoice>? Choices = null, CollectionFamily? Family = null)
 {
     public int EligibleChoiceCount => Choices?.Count ?? 0;
     public bool CanAutoSelect => CanAdd && EligibleChoiceCount == 1;
@@ -68,7 +74,7 @@ public sealed record CollectionSessionDiscovery(Guid? PayorId, DateOnly Business
     IReadOnlyList<WeighingSourceDto>? WeighingSources = null, IReadOnlyList<WeighingRateDto>? WeighingRates = null,
     IReadOnlyList<SessionSlaughterOption>? SlaughterOptions = null, string? PayorDisplayName = null,
     IReadOnlyList<DirectVendorFeeSource>? VendorFeeSources = null, IReadOnlyList<WeighingSourceDto>? NpmSources = null,
-    IReadOnlyList<SessionNpmWholeSource>? NpmWholeSources = null);
+    IReadOnlyList<SessionNpmWholeSource>? NpmWholeSources = null, CollectionSourceIdentity? SourceIdentity = null);
 public sealed record CollectionSessionServiceTerms(GovernedServiceMode? Mode, GovernedServiceTermsDto Terms);
 
 // Display/selection facts only. A choice is not a reviewed quote and grants no posting authority.
@@ -77,7 +83,8 @@ public sealed record CollectionSessionChoiceIdentity(Guid? StallId = null, Guid?
     Guid? UtilityBillId = null, long SourceVersion = 0, int? Year = null, int? Month = null,
     Guid? FeeOptionId = null, string? VehicleClassCode = null, GovernedServiceMode? Mode = null,
     WeighingType? WeighingType = null, AnimalType? Animal = null, string? CustomAnimalName = null, Guid? AccountId = null,
-    DateOnly? PeriodStart = null, LotRentalEvent? Event = null);
+    DateOnly? PeriodStart = null, LotRentalEvent? Event = null, Guid? VendorRegistrationId = null,
+    TerminalSection? TerminalSection = null, Guid? VehicleClassId = null);
 public sealed record CollectionSessionSourceChoice(string SelectionKey, CollectionSessionItemKind Kind,
     string OperationCode, string DisplayName, string Context, CollectionSessionChoiceIdentity Identity,
     RevenueInstrumentType Instrument, CollectionSessionAmountRule AmountRule, decimal? ServerAmount = null,

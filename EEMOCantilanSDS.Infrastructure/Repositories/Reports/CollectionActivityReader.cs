@@ -102,20 +102,12 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
             facility, subject, status, amount, 0m, amount, "Recorded", null, lines, []);
     }
 
-    private async Task<decimal> FishRateAsync(Guid tenantId, CancellationToken ct) =>
-        // The same reading as the official Monthly Income's legacy reader: a row without a frozen amount is priced at the
-        // current Fish rate, which is the legacy reading and never presented as frozen evidence.
-        await context.FacilityRates.AsNoTracking()
-            .Where(r => r.MunicipalityId == tenantId && r.FacilityCode == FacilityCode.NPM
-                && r.RateKey == FeeRateKey.NpmFishPerKilo && !r.IsDeleted)
-            .OrderByDescending(r => r.EffectiveDate).Select(r => (decimal?)r.Amount).FirstOrDefaultAsync(ct)
-        ?? FeeRates.NpmFishFeePerKilo;
-
     // ── Legacy monthly rent: authoritative only before the row's cutover ──
     private async Task<List<CollectionActivityEventDto>> RentAsync(Window w, IReadOnlyDictionary<Guid, string> collectors,
         IReadOnlyDictionary<string, string> names, CancellationToken ct)
     {
-        var fishRate = await FishRateAsync(w.TenantId, ct);
+        // No frozen price exists on legacy monthly kilogram rows. Current rates cannot price historical evidence.
+        const decimal fishRate = 0m;
         var rows = await context.PaymentRecords.AsNoTracking()
             .Where(p => p.MunicipalityId == w.TenantId && p.Status != PaymentStatus.Unpaid
                 && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) >= w.StartUtc && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) < w.EndUtc)
@@ -156,7 +148,6 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
     private async Task<List<CollectionActivityEventDto>> DailyAsync(Window w, IReadOnlyDictionary<Guid, string> collectors,
         IReadOnlyDictionary<string, string> names, CancellationToken ct)
     {
-        var fishRate = await FishRateAsync(w.TenantId, ct);
         var rows = await context.DailyCollections.AsNoTracking()
             .Where(d => d.MunicipalityId == w.TenantId
                 && (d.IsPaid || (d.SettlementAuthorityState == SettlementAuthority.Canonical && (d.FishKilos > 0m || d.MeatFeeAmount > 0m)))
@@ -182,7 +173,7 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
                 var max = g.Max(x => x.CollectionDate);
                 var days = g.Count(x => x.DailyFee != 0m);
                 var fee = g.Sum(x => x.DailyFee);
-                var weighing = g.Sum(x => (x.FishFeeAmountFrozen ?? (x.FishKilos ?? 0m) * fishRate) + x.MeatFeeAmount);
+                var weighing = g.Sum(x => (x.FishFeeAmountFrozen ?? 0m) + x.MeatFeeAmount);
                 var period = min == max ? $"{min:MMM d, yyyy}" : $"{min:MMM d} – {max:MMM d, yyyy}";
                 var lines = new List<CollectionActivityLineDto>();
                 if (fee != 0m)

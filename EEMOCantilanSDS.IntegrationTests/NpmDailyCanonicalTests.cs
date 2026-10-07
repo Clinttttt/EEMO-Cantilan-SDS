@@ -30,7 +30,7 @@ namespace EEMOCantilanSDS.IntegrationTests;
 /// Collection is corrected only by a void, and month settlement follows the day's own authority.
 /// </summary>
 [Collection(PostgresCollection.Name)]
-public sealed class NpmDailyCanonicalTests(PostgresFixture db)
+public sealed partial class NpmDailyCanonicalTests(PostgresFixture db)
 {
     private static readonly DateOnly Today = PhilippineTime.Today;
     private static readonly DateOnly Effective = new(2000, 1, 1);

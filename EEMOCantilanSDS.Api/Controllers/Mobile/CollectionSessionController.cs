@@ -11,6 +11,12 @@ namespace EEMOCantilanSDS.Api.Controllers;
 [Route("api/mobile/collection-session")]
 public sealed class CollectionSessionController(ISender sender, CollectionSessionWorkflow workflow, CollectionComposerWorkflow composer, FishMeatVendorFeeCollectionWorkflow vendorFees) : ApiBaseController(sender)
 {
+    [HttpGet("sources")]
+    public async Task<ActionResult<IReadOnlyList<CollectionSourceSearchResult>>> Sources(string? search, CancellationToken ct) =>
+        HandleResponse(await workflow.SearchSourcesAsync(search, ct));
+    [HttpPost("source-eligible")]
+    public async Task<ActionResult<CollectionSessionDiscovery>> SourceEligible(CollectionSourceIdentity? identity, CancellationToken ct) =>
+        HandleResponse(await workflow.DiscoverNativeAsync(identity, ct));
     [HttpGet("payors")]
     public async Task<ActionResult<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Revenue.CollectionPayorDto>>> Payors(string? search, CancellationToken ct) =>
         HandleResponse(await workflow.SearchPayorsAsync(search, ct));

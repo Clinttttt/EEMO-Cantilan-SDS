@@ -5,6 +5,9 @@ using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
+using EEMOCantilanSDS.Application.Dtos.Mobile;
+using EEMOCantilanSDS.Application.Common.Revenue;
 
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
@@ -21,7 +24,7 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
         var absences = new List<CollectorAbsenceLine>();
 
         // ── NPM daily fees. The fee's own day is kept, since a receipt may answer for days the payor owed. ──
-        var npmFishRate = await ResolveNpmFishRateAsync(to, ct);
+        const decimal npmFishRate = 0m; // Unresolved legacy kilograms never borrow a later rate.
         var daily = await context.DailyCollections
             .AsNoTracking()
             .Where(d => d.CollectorId == collectorId
@@ -34,6 +37,7 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
                 // A day paid by a canonical Collection is reported by that Collection below; only its weighing is legacy money.
                 DailyFee = d.SettlementAuthorityState == SettlementAuthority.Canonical ? 0m : d.DailyFee - (d.CanonicalAdjustmentCollectionId != null ? d.MonthEndAdjustment ?? 0m : 0m),
                 d.FishKilos,
+                d.FishFeeAmountFrozen,
                 d.MeatFeeAmount,
                 d.IsAbsent,
                 CanonicalDay = d.SettlementAuthorityState == SettlementAuthority.Canonical,
@@ -58,7 +62,7 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
             }
 
             // DailyFee already includes the month-end difference. Weighed charges remain distinct source facts.
-            var legacyAmount = d.DailyFee + ((d.FishKilos ?? 0m) * npmFishRate) + d.MeatFeeAmount;
+            var legacyAmount = d.DailyFee + (d.FishFeeAmountFrozen ?? 0m) + d.MeatFeeAmount;
             if (d.CanonicalDay && legacyAmount == 0m) continue;   // nothing but the canonical stall fee: listed once, below
 
             lines.Add(new CollectorCollectionLine(
@@ -214,10 +218,10 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
                      && (d.IsPaid || (d.SettlementAuthorityState == SettlementAuthority.Canonical && (d.FishKilos > 0m || d.MeatFeeAmount > 0m)))
                      && (d.UpdatedAt ?? d.CreatedAt) >= startUtc && (d.UpdatedAt ?? d.CreatedAt) < endUtc
                      && assigned.Contains(d.Stall!.Facility!.Code))
-            .Select(d => new { DailyFee = d.SettlementAuthorityState == SettlementAuthority.Canonical ? 0m : d.DailyFee - (d.CanonicalAdjustmentCollectionId != null ? d.MonthEndAdjustment ?? 0m : 0m), d.FishKilos, d.MeatFeeAmount })
+            .Select(d => new { DailyFee = d.SettlementAuthorityState == SettlementAuthority.Canonical ? 0m : d.DailyFee - (d.CanonicalAdjustmentCollectionId != null ? d.MonthEndAdjustment ?? 0m : 0m), d.FishFeeAmountFrozen, d.MeatFeeAmount })
             .ToListAsync(ct);
 
-        var officeRecorded = officeDaily.Sum(d => d.DailyFee + ((d.FishKilos ?? 0m) * npmFishRate) + d.MeatFeeAmount);
+        var officeRecorded = officeDaily.Sum(d => d.DailyFee + (d.FishFeeAmountFrozen ?? 0m) + d.MeatFeeAmount);
         var officeReceipts = officeDaily.Count;
 
         // ── Electricity and water this collector took, kept in their own totals ──
@@ -389,6 +393,26 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
                 collection.PayerName, version.Code, version.DisplayName, line.CalculationSnapshot, line.Amount
             })
             .ToListAsync(ct);
+        // Source-native office collections have no legacy twin or invented facility/occupancy.
+        var native = await (
+            from collection in context.Collections.AsNoTracking()
+            join line in context.CollectionLines.AsNoTracking() on collection.Id equals line.CollectionId
+            join classification in context.RevenueClassifications.AsNoTracking() on line.RevenueClassificationId equals classification.Id
+            join policy in context.RevenueClassificationPolicies.AsNoTracking() on line.RevenueClassificationPolicyId equals policy.Id
+            where collection.CollectorId == collectorId
+                && collection.BusinessDate >= businessDateFrom && collection.BusinessDate <= businessDateTo
+                && context.PostingOperations.Any(p => p.CollectionId == collection.Id && p.Origin == "SourceNativeOfficeCollection")
+            select new { collection.ReferenceCode, collection.RecordedAtUtc, collection.BusinessDate, collection.PayerName,
+                classification.SemanticCode, policy.DisplayName, policy.PermittedInstrumentType, line.CalculationSnapshot, line.Amount })
+            .ToListAsync(ct);
+        var nativeOperations = native.Select(x =>
+        {
+            using var snapshot = JsonDocument.Parse(x.CalculationSnapshot!);
+            var charge = snapshot.RootElement.GetProperty("charge").Deserialize<SourceNativeChargeIntent>()!;
+            return new CollectorOperationCollection(x.ReferenceCode, x.RecordedAtUtc, x.BusinessDate,
+                charge.OperationCode, charge.Section is { } section ? OfficeCollectionWorkflow.SectionName(section) : x.DisplayName,
+                x.PermittedInstrumentType, x.PayerName, null, x.Amount);
+        });
         var operations = governed
             .OrderBy(x => x.RecordedAtUtc)
             .Select(x => new CollectorOperationCollection(
@@ -403,6 +427,7 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
             .Concat(penalties.Select(x => new CollectorOperationCollection(
                 x.DocumentNumber, x.RecordedAtUtc, x.BusinessDate, x.Code, x.DisplayName, x.InstrumentType, x.PayerName,
                 Application.Common.Revenue.PenaltyDefinitionWorkflow.ReadOrigin(x.CalculationSnapshot), x.Amount)))
+            .Concat(nativeOperations)
             .OrderBy(x => x.TakenAtUtc)
             .ToList();
 
@@ -425,18 +450,4 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
     }
 
     /// <summary>The office's own fish fee as of the period, falling back to the ordinance constant.</summary>
-    private async Task<decimal> ResolveNpmFishRateAsync(DateOnly asOf, CancellationToken ct)
-    {
-        var rate = await context.FacilityRates
-            .AsNoTracking()
-            .Where(r => r.FacilityCode == FacilityCode.NPM
-                     && r.RateKey == FeeRateKey.NpmFishPerKilo
-                     && r.EffectiveDate <= asOf
-                     && !r.IsDeleted)
-            .OrderByDescending(r => r.EffectiveDate)
-            .Select(r => (decimal?)r.Amount)
-            .FirstOrDefaultAsync(ct);
-
-        return rate ?? Domain.Constants.FeeRates.NpmFishFeePerKilo;
-    }
 }

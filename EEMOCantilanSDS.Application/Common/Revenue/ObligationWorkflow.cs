@@ -54,13 +54,13 @@ public sealed class ObligationWorkflow(
                 var current = ObligationRate.Resolve(rates[account.Id], BusinessToday);
                 var accountQuotes = quotes[account.Id].ToList();
                 return new ObligationAccountDto(
-                    account.Id, account.Kind, ObligationCollectionSource.KindLabel(account.Kind), account.PayorId,
-                    payors.GetValueOrDefault(account.PayorId), account.StallId,
+                    account.Id, account.Kind, ObligationCollectionSource.KindLabel(account.Kind), account.PayorId ?? Guid.Empty,
+                    account.ActualOccupant ?? payors.GetValueOrDefault(account.PayorId ?? Guid.Empty), account.StallId,
                     account.StallId is { } sid ? stallNos.GetValueOrDefault(sid) : null,
                     account.SubjectLabel, account.Event, account.EventDate, account.ActiveFrom, account.ActiveTo,
                     current?.Amount, current?.EffectiveFrom,
                     accountQuotes.Sum(x => x.AssessedAmount), accountQuotes.Sum(x => x.SettledAmount),
-                    accountQuotes.Sum(x => x.OutstandingAmount), account.Arrangement, account.ContractReference);
+                    accountQuotes.Sum(x => x.OutstandingAmount), account.Arrangement, account.ContractReference, account.ActualOccupant);
             }).ToList();
             return Result<IReadOnlyList<ObligationAccountDto>>.Success(rows);
         }, ct);
@@ -135,7 +135,7 @@ public sealed class ObligationWorkflow(
                         && x.Kind == ObligationKind.FishMeatVendorFee && x.StallId == sid && x.ActiveTo == null, ct))
                     return Result<ObligationAccountDto>.Failure("This stall already has an open vendor fee account.", ResultStatus.Conflict);
             }
-            else if (!await db.Payors.AsNoTracking().AnyAsync(x => x.MunicipalityId == actor.TenantId && x.Id == payorId, ct))
+            else if (payorId != Guid.Empty && !await db.Payors.AsNoTracking().AnyAsync(x => x.MunicipalityId == actor.TenantId && x.Id == payorId, ct))
                 return Result<ObligationAccountDto>.Failure("Choose an existing Business Payor.", ResultStatus.Invalid);
 
             await using var transaction = request.Kind is ObligationKind.KanmanggaySpaceRental or ObligationKind.FiestaArawLotRental
@@ -160,7 +160,7 @@ public sealed class ObligationWorkflow(
             try
             {
                 account = ObligationAccount.Create(actor.TenantId, request.Kind, payorId, stallId, subject ?? string.Empty,
-                    request.Event, request.EventDate, request.ActiveFrom, actor.Username);
+                    request.Event, request.EventDate, request.ActiveFrom, actor.Username, actualOccupant: request.ActualOccupant);
                 account.SetOccupancyBasis(request.Arrangement, request.ContractReference);
                 // Preserve the actual rate start. Kanmanggay's first period resolves at occupancy start;
                 // subsequent monthly periods use their first day. Contract metadata never prices the account.
@@ -282,18 +282,18 @@ public sealed class ObligationWorkflow(
                 suggested.Add(input.Kind, input.SubjectLabel, input.Event, input.EventDate);
             }
             var facts = new SpaceHolderImportFacts(input, row!.ClosedOn, origin, payors.GetValueOrDefault(input.PayorId));
-            if (input.PayorId == Guid.Empty) { plan.Rows.Add(new(index + 1, SpaceHolderImportStatus.NeedsPayor, "RequiresPayor", "Select or explicitly create a Business Payor.", Facts: facts)); continue; }
+            if (input.PayorId == Guid.Empty && string.IsNullOrWhiteSpace(input.ActualOccupant)) { plan.Rows.Add(new(index + 1, SpaceHolderImportStatus.NeedsSourceHolder, "RequiresSourceHolder", "Confirm the source holder.", Facts: facts)); continue; }
             try
             {
                 if (input.Kind is not (ObligationKind.KanmanggaySpaceRental or ObligationKind.FiestaArawLotRental))
                     throw new ArgumentException("Only space and event lot accounts can be imported here.");
-                if (!payors.ContainsKey(input.PayorId))
+                if (input.PayorId != Guid.Empty && !payors.ContainsKey(input.PayorId))
                 { plan.Rows.Add(new(index + 1, SpaceHolderImportStatus.Invalid, "InvalidPayor", "The selected Business Payor is not available.", Facts: facts)); continue; }
                 var start = input.Kind == ObligationKind.FiestaArawLotRental ? input.EventDate ?? default : input.ActiveFrom;
                 if (start < new DateOnly(2020, 1, 1) || start > BusinessToday.AddDays(366))
                     throw new ArgumentException("Choose a realistic start or event date.");
                 var account = ObligationAccount.Create(actor.TenantId, input.Kind, input.PayorId, input.StallId,
-                    input.SubjectLabel, input.Event, input.EventDate, input.ActiveFrom, actor.Username);
+                    input.SubjectLabel, input.Event, input.EventDate, input.ActiveFrom, actor.Username, actualOccupant: input.ActualOccupant);
                 account.SetOccupancyBasis(input.Arrangement, input.ContractReference);
                 var rate = ObligationRate.Create(actor.TenantId, account.Id, account.ActiveFrom, input.Amount, actor.Username);
                 if (row!.ClosedOn is { } closed) account.Close(closed);

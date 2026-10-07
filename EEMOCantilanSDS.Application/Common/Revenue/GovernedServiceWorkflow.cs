@@ -38,7 +38,7 @@ public static class GovernedServiceCatalog
         // Transportation / Parking (IA-030, IA-050): a Cash Ticket day-to-day collection whose amount is the approved,
         // effective-dated rate of the vehicle class the collector selects. The rate table is Head-configured.
         new(CollectorOperationCodes.Transportation, "Transportation / Parking", RevenueClassificationCodes.TransportationParking,
-            false, [GovernedServiceBasis.VehicleClassRate]),
+            false, [GovernedServiceBasis.VehicleClassRate, GovernedServiceBasis.DirectApprovedAmount]),
         // Tabo and the current Slaughterhouse transaction already have an office-defined amount (vendor market-day fee;
         // approved per-head rate x heads). The governed setting is only their prospective canonical-collection switch; the
         // amount is never read from it or typed (FeeScheduleCollectionWorkflow computes it from the existing rules).
@@ -397,7 +397,8 @@ public sealed partial class GovernedServiceWorkflow(
                     : "No effective revenue classification policy with an approved instrument.");
         }
 
-        if (setting?.Basis == GovernedServiceBasis.VehicleClassRate && !setting.QuickAmountEnabled
+        if (!(entry.Code == CollectorOperationCodes.Transportation && today >= OfficeCollectionWorkflow.EffectiveFrom)
+            && setting?.Basis == GovernedServiceBasis.VehicleClassRate && !setting.QuickAmountEnabled
             && (await CurrentVehicleClassTermsAsync(tenantId, today, ct)).Count == 0)
             issues.Add("No active vehicle class has an approved rate in force.");
         if (setting?.Basis == GovernedServiceBasis.ApprovedFeeOption
@@ -413,8 +414,10 @@ public sealed partial class GovernedServiceWorkflow(
         else if (!setting.IsEnabled) state = GovernedServiceSetupState.Disabled;
         else state = issues.Count == 0 ? GovernedServiceSetupState.Active : GovernedServiceSetupState.SetupRequired;
 
+        var directTransportation = entry.Code == CollectorOperationCodes.Transportation && today >= OfficeCollectionWorkflow.EffectiveFrom;
         return new(entry.Code, entry.Name, entry.ClassificationCode, entry.ModeAware, entry.AllowedBases, state,
-            setting?.Basis, setting?.FixedAmount, setting?.MaximumAmount, setting?.MobileEnabled ?? false,
+            directTransportation ? GovernedServiceBasis.DirectApprovedAmount : setting?.Basis,
+            directTransportation ? null : setting?.FixedAmount, directTransportation ? null : setting?.MaximumAmount, setting?.MobileEnabled ?? false,
             setting?.EffectiveDate, instruments, issues, setting?.QuickAmountEnabled ?? false);
     }
 
@@ -442,8 +445,9 @@ public sealed partial class GovernedServiceWorkflow(
             if (setting is null || !setting.IsEnabled || !setting.MobileEnabled)
                 return Result<GovernedServiceTermsDto>.Failure(
                     "This operation is not set up for Collector Mobile today.", ResultStatus.Conflict);
-            var quick = mode == GovernedServiceMode.QuickAmount;
-            if (quick && !setting.QuickAmountEnabled) return Result<GovernedServiceTermsDto>.Failure("Quick amount is not enabled.", ResultStatus.Conflict);
+            var prospectiveTransport = entry.Code == CollectorOperationCodes.Transportation && (businessDate ?? BusinessToday) >= OfficeCollectionWorkflow.EffectiveFrom;
+            var quick = mode == GovernedServiceMode.QuickAmount || prospectiveTransport;
+            if (quick && !prospectiveTransport && !setting.QuickAmountEnabled) return Result<GovernedServiceTermsDto>.Failure("Quick amount is not enabled.", ResultStatus.Conflict);
             var resolved = await ResolvePolicyAsync(actor.TenantId, entry, mode, (businessDate ?? BusinessToday), ct);
             if (resolved?.Policy.PermittedInstrumentType is not { } instrument)
                 return Result<GovernedServiceTermsDto>.Failure(
@@ -535,10 +539,11 @@ public sealed partial class GovernedServiceWorkflow(
             VehicleClass? vehicleClass = null;
             VehicleClassRate? vehicleRate = null;
             var classCode = request.VehicleClassCode?.Trim().ToUpperInvariant();
-            var quick = request.Mode == GovernedServiceMode.QuickAmount;
+            var prospectiveTransport = entry.Code == CollectorOperationCodes.Transportation && request.BusinessDate >= OfficeCollectionWorkflow.EffectiveFrom;
+            var quick = request.Mode == GovernedServiceMode.QuickAmount || prospectiveTransport;
             if (quick && instrument != RevenueInstrumentType.CashTicket)
                 return await RecordTerminalAsync(actor, request, normalized, "POLICY_NOT_EFFECTIVE", "Quick amount requires the Cash Ticket policy.", ct);
-            if (quick && (!setting.QuickAmountEnabled || request.VehicleClassCode is not null || request.FeeOptionId is not null))
+            if (quick && ((!prospectiveTransport && !setting.QuickAmountEnabled) || request.VehicleClassCode is not null || request.FeeOptionId is not null))
                 return await RecordTerminalAsync(actor, request, normalized, "QUICK_AMOUNT_NOT_AVAILABLE", "Review the Transportation entry mode.", ct);
             if (setting.Basis == GovernedServiceBasis.VehicleClassRate && !quick)
             {
@@ -603,8 +608,8 @@ public sealed partial class GovernedServiceWorkflow(
                         : "The amount is not the approved amount for this service.", ct);
 
             var snapshot = JsonSerializer.Serialize(new GovernedSnapshot(
-                1, actor.TenantId, service.Id, entry.Code, setting.Id, setting.EffectiveDate, setting.Basis,
-                setting.FixedAmount, setting.MaximumAmount, request.Mode, instrument, entry.ClassificationCode,
+                1, actor.TenantId, service.Id, entry.Code, setting.Id, setting.EffectiveDate, prospectiveTransport ? GovernedServiceBasis.DirectApprovedAmount : setting.Basis,
+                prospectiveTransport ? null : setting.FixedAmount, prospectiveTransport ? null : setting.MaximumAmount, prospectiveTransport ? GovernedServiceMode.QuickAmount : request.Mode, instrument, entry.ClassificationCode,
                 resolved.Policy.Id, resolved.Policy.EffectiveDate,
                 vehicleClass is null ? request.Reference?.Trim()
                     : string.IsNullOrWhiteSpace(request.Reference) ? vehicleClass.DisplayName : $"{vehicleClass.DisplayName} · {request.Reference.Trim()}",

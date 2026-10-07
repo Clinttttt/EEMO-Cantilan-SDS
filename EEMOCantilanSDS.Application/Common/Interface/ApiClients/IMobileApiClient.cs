@@ -12,6 +12,13 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 
 public interface IMobileApiClient
 {
+    Task<Result<IReadOnlyList<CollectionSourceSearchResult>>> SearchCollectionSourcesAsync(string? search) => Task.FromResult(Result<IReadOnlyList<CollectionSourceSearchResult>>.Failure("Source search unavailable."));
+    Task<Result<CollectionSessionDiscovery>> GetSourceCollectionDiscoveryAsync(CollectionSourceIdentity? identity) => Task.FromResult(Result<CollectionSessionDiscovery>.Failure("Source discovery unavailable."));
+    Task<Result<SourceNativeChargeQuote>> QuoteOfficeCollectionAsync(SourceNativeCollectionRequest request) => Task.FromResult(Result<SourceNativeChargeQuote>.Failure("Source quote unavailable."));
+    Task<Result<GovernedServiceOutcomeDto>> RecordOfficeCollectionAsync(SourceNativeCollectionRequest request) => Task.FromResult(Result<GovernedServiceOutcomeDto>.Failure("Source collection unavailable."));
+    Task<Result<IReadOnlyList<NpmDailyBatchSource>>> GetNpmDailyBatchSourcesAsync() => Task.FromResult(Result<IReadOnlyList<NpmDailyBatchSource>>.Failure("Batch unavailable."));
+    Task<Result<NpmDailyBatchQuote>> QuoteNpmDailyBatchAsync(NpmDailyBatchIntent intent) => Task.FromResult(Result<NpmDailyBatchQuote>.Failure("Batch unavailable."));
+    Task<Result<CollectionSessionResult>> RecordNpmDailyBatchAsync(RecordNpmDailyBatchRequest request) => Task.FromResult(Result<CollectionSessionResult>.Failure("Batch unavailable."));
     Task<Result<TaboBatchQuoteDto>> QuoteTaboBatchAsync(TaboBatchRequest request);
     Task<Result<TaboBatchOutcomeDto>> RecordTaboBatchAsync(TaboBatchRequest request);
     Task<Result<EcfPostOutcomeDto>> PostSpaceObligationAsync(MobileObligationPostRequest request);

@@ -151,6 +151,10 @@ public class ApplicationEfBoundaryTests
         // it never owns a mutable receivable balance or writes settlement. The shared Composer validates the
         // source facts and persists only through its single posting save.
         "MonthlyRentCollectionSourceAdapter.cs",
+        // IA-067/068 reuse the canonical coordinator and the daily handler within the established shared transaction.
+        "OfficeCollectionWorkflow.cs",
+        "OfficeCollectionWorkflow.Reads.cs", // Tenant-scoped canonical audit read for the same source-owned writer.
+        "NpmDailyBatchWorkflow.cs",
 
         // The shared Composer posting transaction revalidates every participating source and atomically writes
         // the draft, Collection/lines/allocations, compatibility projections, accountable document, and durable

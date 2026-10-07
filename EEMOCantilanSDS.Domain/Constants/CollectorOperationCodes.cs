@@ -7,6 +7,9 @@ namespace EEMOCantilanSDS.Domain.Constants;
 public static class CollectorOperationCodes
 {
     public const string Wcf = "WCF";
+    public const string Terminal = "TERMINAL";
+    public const string FishMeatVendorFee = "FISH_MEAT_VENDOR_FEE";
+    public const string WeightAndMeasure = "WEIGHT_AND_MEASURE";
     public const string KanmanggaySpaceRental = "KANMANGGAY_SPACE_RENTAL";
     public const string FiestaArawLotRental = "FIESTA_ARAW_LOT_RENTAL";
     public const string VegetableFruitSpaceRental = "VEGETABLE_FRUIT_SPACE_RENTAL";
@@ -27,7 +30,7 @@ public static class CollectorOperationCodes
 
     public static bool IsSupported(string? code) => code is
         Wcf or VegetableFruitSpaceRental or LandingBerthing or TransferLargeCattle or MarketFees or Transportation or
-        KanmanggaySpaceRental or FiestaArawLotRental;
+        KanmanggaySpaceRental or FiestaArawLotRental or Terminal or FishMeatVendorFee or WeightAndMeasure;
 
     public static bool IsSpaceObligation(string? code) => code is KanmanggaySpaceRental or FiestaArawLotRental;
 }

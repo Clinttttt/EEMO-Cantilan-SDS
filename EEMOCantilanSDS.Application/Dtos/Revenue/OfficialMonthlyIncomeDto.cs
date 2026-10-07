@@ -39,6 +39,9 @@ public sealed record OfficialMonthlyIncomeGroupDto(
 /// cash, exactly once (IA-051). Rows follow the office statement, not the facilities; an operation whose official grouping
 /// is not yet approved is listed apart rather than placed by guess.
 /// </summary>
+public sealed record OfficialMonthlyIncomeSectionDto(string Key, string Label, IReadOnlyList<string> GroupKeys,
+    IReadOnlyList<MonthlyIncomeCellDto> MonthTotals, MonthlyIncomeCellDto Total);
+
 public sealed record OfficialMonthlyIncomeDto(
     int Year,
     int? Month,
@@ -47,4 +50,6 @@ public sealed record OfficialMonthlyIncomeDto(
     MonthlyIncomeCellDto GrandTotal,
     bool TargetsConfigured,
     IReadOnlyList<string> Notes,
-    DateTime GeneratedAtUtc, TargetCoverageDto? TargetCoverage = null);
+    DateTime GeneratedAtUtc, TargetCoverageDto? TargetCoverage = null,
+    IReadOnlyList<OfficialMonthlyIncomeSectionDto>? Sections = null,
+    IReadOnlyList<EEMOCantilanSDS.Application.Command.Municipalities.SetReportSignatories.ReportSignatoryDto>? Signatories = null);
