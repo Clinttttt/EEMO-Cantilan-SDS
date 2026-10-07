@@ -179,7 +179,8 @@ Do not hard-code the old EEMO name.
 - Repeat table headers when a page break is necessary.
 - Never clip Total or Percentage columns.
 - Keep rows together where practical.
-- The complete report may legitimately span more than one printed page because the office reference itself continues to a Terminal/Slaughterhouse page. Do not force the complete A/B/C statement into one page by shrinking it into unreadable text.
+- The standard report intentionally uses two sheets. Page 1 contains the letterhead, Receipts and complete Section A (Market, Rent Income and Space Rental). Page 2 begins with Section B (Terminal), then Section C (Slaughterhouse), overall total and configured signatories together. Do not strand signatures on a third page or start Terminal at the bottom of page 1.
+- Both tables share the same sixteen column definitions and widths. Page 2 repeats the column header for continuity, without repeating the large letterhead. The screen preview shows two separate document sheets.
 - Preserve recognizable office ordering and labels.
 
 ## 11. Failure and review states
@@ -196,4 +197,4 @@ However, the following placements are now confirmed and must no longer be treate
 
 ## 12. Implementation note
 
-This document is the target UI/report contract after the 2026-10-06 office clarification. Current runtime code may still implement the older first-page-only version. Verify code/tests before claiming the complete statement is already implemented.
+This document records the UI/report contract after the 2026-10-06 office clarification and 2026-10-08 pagination ruling. Local implementation uses explicit first/continuation sheet containers. Verify the current release checkpoint and actual A4 landscape PDF before claiming printed or deployed acceptance.
