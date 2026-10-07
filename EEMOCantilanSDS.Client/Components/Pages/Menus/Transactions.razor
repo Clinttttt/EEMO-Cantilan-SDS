@@ -46,7 +46,6 @@
 
     <!-- Controls: source scope + source + day navigator (single row) -->
     <div class="txn-controls">
-        <div class="txn-filters">
             <div class="txn-segment" role="group" aria-label="Source scope">
                 @foreach (var g in Scopes)
                 {
@@ -61,16 +60,6 @@
             <div class="txn-source">
                 <FhSelect Caption="Source" Value="@_source" Options="@SourceOptions" ValueChanged="@(v => _source = v)" />
             </div>
-            <div class="txn-search">
-                <svg class="txn-search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                <input type="text" class="txn-search-input" placeholder="Search SRC or payer" aria-label="Search by SRC, document or payer" autocomplete="off"
-                       value="@_search" @oninput="OnSearchInputAsync" />
-                @if (!string.IsNullOrEmpty(_search))
-                {
-                    <button type="button" class="txn-search-clear" aria-label="Clear search" @onclick="ClearSearch">×</button>
-                }
-            </div>
-        </div>
 
         <div class="txn-nav">
             <div class="txn-daynav">
@@ -106,6 +95,15 @@
             <button type="button" class="txn-refresh" title="Refresh" aria-label="Refresh" @onclick="Reload">
                 <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" /><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" /></svg>
             </button>
+        </div>
+        <div class="txn-search">
+            <svg class="txn-search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+            <input type="text" class="txn-search-input" placeholder="Search SRC or payer" aria-label="Search by SRC, document or payer" autocomplete="off"
+                   value="@_search" @oninput="OnSearchInputAsync" />
+            @if (!string.IsNullOrEmpty(_search))
+            {
+                <button type="button" class="txn-search-clear" aria-label="Clear search" @onclick="ClearSearch">×</button>
+            }
         </div>
     </div>
 

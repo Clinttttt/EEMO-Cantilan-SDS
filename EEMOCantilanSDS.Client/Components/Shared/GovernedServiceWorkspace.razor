@@ -5,6 +5,8 @@
 @using EEMOCantilanSDS.Domain.Enums
 @using Microsoft.AspNetCore.Components.Authorization
 @inject IGovernedServicesApiClient GovernedApi
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
 @* The body of a governed configurable service (IA-044): its approved setup, and what has actually been collected.
    Collection itself happens on Collector Mobile; nothing here records money. Every figure is
@@ -24,7 +26,7 @@
             <p class="v3-notice v3-notice-error gsw-notice" role="alert">@_activityError</p>
         }
 
-        <div class="v3-table-wrap gsw-scroll" role="region" aria-label="@($"{Name} collections")" tabindex="0">
+        <div class="v3-table-wrap gsw-scroll @(VisibleCollectionRows > 0 ? "gsw-measured-scroll" : null)" @ref="_history" role="region" aria-label="@($"{Name} collections")" tabindex="0">
             <table class="v3-table">
                 <caption class="v3-sr-only">@Name collections for @PeriodLabel</caption>
                 <thead>
@@ -64,17 +66,15 @@
                         </tr>
                     }
                 </tbody>
-                @if (_activity.Count > 0)
-                {
-                    <tfoot>
-                        <tr>
-                            <td colspan="5"><strong>Total for @PeriodLabel</strong></td>
-                            <td class="v3-num v3-strong">@Money(_activity.Sum(x => x.Amount))</td>
-                        </tr>
-                    </tfoot>
-                }
             </table>
         </div>
+        @if (!_loading && _activityError is null)
+        {
+            <footer class="gsw-total">
+                <strong>Total for @PeriodLabel</strong>
+                <strong>@Money(_activity.Sum(x => x.Amount))</strong>
+            </footer>
+        }
     </section>
 
     <aside class="v3-panel" aria-labelledby="@_setupTitleId">
@@ -240,6 +240,31 @@
 
     /// <summary>Heading of the approved fee options panel, shown when the service may be collected by fee type.</summary>
     [Parameter] public string FeeOptionsTitle { get; set; } = "Fee types";
+
+    /// <summary>Opt-in exact data-row limit; zero preserves the existing history height.</summary>
+    [Parameter] public int VisibleCollectionRows { get; set; }
+
+    private ElementReference _history;
+    private IJSObjectReference? _historyModule;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (VisibleCollectionRows <= 0) return;
+        _historyModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/collectionHistory.js");
+        if (_historyModule is not null)
+            await _historyModule.InvokeVoidAsync("observe", _history, VisibleCollectionRows);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_historyModule is null) return;
+        try
+        {
+            await _historyModule.InvokeVoidAsync("disconnect", _history);
+            await _historyModule.DisposeAsync();
+        }
+        catch (JSDisconnectedException) { }
+    }
 
     private bool HasFeeOptions => _definition?.AllowedBases.Contains(GovernedServiceBasis.ApprovedFeeOption) == true;
 

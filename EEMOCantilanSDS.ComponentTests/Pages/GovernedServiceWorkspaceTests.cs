@@ -71,6 +71,44 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
         amount, "Ana Reyes", "Posted");
 
     [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(5)]
+    [InlineData(6)]
+    public void MarketFees_UsesSharedHero_AndKeepsTotalOutsideItsFiveRowHistory(int count)
+    {
+        Serve(All(GovernedServiceSetupState.Active), Enumerable.Range(1, count).Select(i => Row(10m, $"SRC-2026-{i:000000}")).ToArray());
+        var cut = RenderComponent<MarketFees>();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("Market Fees", Assert.Single(cut.FindAll("h1.v3h-title")).TextContent.Trim());
+            Assert.Contains("Cash Ticket collection workspace", cut.Find(".v3h").TextContent);
+            Assert.Empty(cut.FindAll(".wh"));
+            Assert.Equal("/operations/market-fees/report", cut.Find(".v3h-actions a").GetAttribute("href"));
+            var history = cut.Find(".gsw-measured-scroll");
+            Assert.Equal(count, history.QuerySelectorAll("tbody tr:not(:has(.v3-empty))").Length);
+            Assert.Null(history.QuerySelector("tfoot"));
+            Assert.Null(history.QuerySelector(".gsw-total"));
+            var total = cut.Find("section.v3-panel > footer.gsw-total");
+            Assert.Equal($"₱{count * 10m:N2}", total.LastElementChild!.TextContent);
+            Assert.Equal(5, cut.FindComponent<EEMOCantilanSDS.Client.Components.Shared.GovernedServiceWorkspace>().Instance.VisibleCollectionRows);
+        }, Timeout);
+        cut.Find("aside button.gsw-edit").Click();
+        Assert.NotNull(cut.Find("[role=dialog] form"));
+        Assert.Null(cut.Find(".gsw-layout").QuerySelector("[role=dialog]"));
+    }
+
+    [Fact]
+    public void OtherGovernedWorkspaces_KeepTheirExistingHistoryLimit()
+    {
+        Serve(All(GovernedServiceSetupState.Active));
+        var cut = RenderComponent<LandingBerthing>();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".gsw-scroll")), Timeout);
+        Assert.Empty(cut.FindAll(".gsw-measured-scroll"));
+        Assert.Equal(0, cut.FindComponent<EEMOCantilanSDS.Client.Components.Shared.GovernedServiceWorkspace>().Instance.VisibleCollectionRows);
+    }
+
+    [Theory]
     [InlineData(typeof(MarketFees), "/operations/market-fees", "Market Fees")]
     [InlineData(typeof(LandingBerthing), "/operations/landing-berthing", "Landing / Berthing")]
     [InlineData(typeof(TransferLargeCattle), "/operations/transfer-large-cattle", "Transfer Large Cattle")]
@@ -130,7 +168,7 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
             Assert.Contains("Maria Santos", rows[0].TextContent);
             Assert.Contains("Stall 4", rows[0].TextContent);
             Assert.Contains("Ana Reyes", rows[0].TextContent);
-            Assert.Contains("₱60.00", cut.Find("tfoot").TextContent);
+            Assert.Contains("₱60.00", cut.Find(".gsw-total").TextContent);
             var setup = cut.Find("aside").TextContent;
             Assert.Contains("Active", setup);
             Assert.Contains("Fixed · ₱30.00", setup);
@@ -268,7 +306,8 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
             var region = cut.Find(".gsw-scroll");                                                         // about four rows show; the rest scroll here
             Assert.Equal(7, region.QuerySelectorAll("tbody tr").Length);
             Assert.NotNull(region.QuerySelector("thead th"));
-            Assert.NotNull(region.QuerySelector("tfoot"));
+            Assert.Null(region.QuerySelector("tfoot"));
+            Assert.NotNull(region.ParentElement!.QuerySelector(":scope > .gsw-total"));
             Assert.DoesNotContain("Recorded by assigned collectors", cut.Markup);
             Assert.DoesNotContain("Assign collectors", cut.Markup);
         }, Timeout);

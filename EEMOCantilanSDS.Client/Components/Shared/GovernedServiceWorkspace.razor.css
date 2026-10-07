@@ -3,7 +3,7 @@
 .gsw-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
-    align-items: stretch;
+    align-items: start;
     gap: 20px;
 }
 
@@ -187,4 +187,15 @@
 /* The collections history is bounded: about four rows show, the rest scroll inside the panel, with the heading and the total held in place. */
 .gsw-scroll { max-height: 17.5rem; overflow-y: auto; overscroll-behavior: contain; }
 .gsw-scroll thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-muted); }
-.gsw-scroll tfoot td { position: sticky; bottom: 0; z-index: 1; background: var(--surface-muted); border-top: 1px solid var(--border); }
+.gsw-measured-scroll { max-height: none; }
+.gsw-total {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--surface-muted);
+    font-size: 0.8125rem;
+}
+.gsw-total strong:last-child { white-space: nowrap; font-variant-numeric: tabular-nums; }

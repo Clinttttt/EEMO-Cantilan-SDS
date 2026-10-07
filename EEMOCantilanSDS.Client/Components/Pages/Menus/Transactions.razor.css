@@ -563,11 +563,21 @@
     }
 }
 
-/* Search: an icon, a clear button and a field that takes the row's spare width, so the scope tabs, Source and search read as one control row and the
-   day navigator keeps its own compact row beneath. */
-.txn-controls { flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 12px; }
-.txn-filters { flex-wrap: nowrap; width: 100%; }
-.txn-nav { align-self: flex-start; }
+/* One desktop working toolbar. Date navigation and Refresh always travel together. */
+.txn-controls { flex-direction: row; flex-wrap: nowrap; justify-content: flex-start; gap: 8px; }
+.txn-segment { flex: 0 0 auto; }
+.txn-seg-tab { padding-inline: 10px; min-height: 42px; }
+.txn-source { flex: 0 0 130px; min-width: 0; }
+.txn-source ::deep .fh-dd { width: 100%; }
+.txn-source ::deep .fh-dd-trigger { width: 100%; min-width: 0; min-height: 44px; }
+.txn-source ::deep .fh-dd-val { overflow: hidden; text-overflow: ellipsis; }
+.txn-nav { flex: 0 0 auto; gap: 6px; }
+.txn-daynav { gap: 6px; }
+.txn-datebox { min-width: 0; padding-inline: 10px; gap: 6px; }
+.txn-datebox-icon { width: 24px; height: 24px; }
+.txn-refresh { margin-left: 0; }
+.txn-search { flex: 1 1 auto; min-width: 0; }
+.txn-search-input { min-width: 0; min-height: 44px; font-size: 13px; }
 
 .txn-search-icon { position: absolute; left: 12px; top: 50%; width: 16px; height: 16px; margin-top: -8px; fill: none; stroke: var(--text-tertiary); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 .txn-search-input:focus-visible { border-color: var(--accent); }
@@ -576,6 +586,15 @@
 .txn-search-clear:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 @media (max-width: 1100px) {
-    .txn-filters { flex-wrap: wrap; }
+    .txn-controls { flex-wrap: wrap; }
+    .txn-search { flex: 1 1 220px; }
+}
+
+@media (max-width: 768px) {
+    .txn-controls { align-items: stretch; }
+    .txn-source { flex-basis: 100%; }
+    .txn-nav { flex: 1 1 100%; }
+    .txn-daynav { flex: 1; min-width: 0; }
+    .txn-datebox { flex: 1; }
     .txn-search { flex-basis: 100%; }
 }
