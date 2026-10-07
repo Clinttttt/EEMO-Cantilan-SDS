@@ -318,7 +318,7 @@ public sealed class CollectionSessionEditorTests : TestContext
     }
 
     [Fact]
-    public void Terminal_takes_a_section_a_direct_amount_and_an_optional_ticket_count_that_never_prices_the_amount()
+    public void Terminal_takes_a_section_and_direct_amount_without_collecting_ticket_counts()
     {
         ServeDirect();
         var view = Open("TERMINAL");
@@ -332,13 +332,15 @@ public sealed class CollectionSessionEditorTests : TestContext
 
         sheet = view.Find("[role=dialog]");
         sheet.QuerySelectorAll("input[type=number]").First(i => i.GetAttribute("step") == "0.01").Input("900");
-        sheet.QuerySelectorAll("input[type=number]").First(i => i.GetAttribute("step") == "1").Input("30");
+        Assert.Single(sheet.QuerySelectorAll("input[type=number]"));
+        Assert.DoesNotContain("Cash Ticket count", sheet.TextContent);
         Assert.Contains("CT · Cash Ticket", view.Find("[role=dialog]").TextContent);
         Click(view, "Add item"); Click(view, "Review collection"); Click(view, "Record collection");
 
         view.WaitForAssertion(() => Assert.Contains("SRC-2026-000001", view.Markup));
         var item = Assert.Single(_queue[0].CollectionSession!.Intent.Items);
-        Assert.Equal((TerminalSection.Tricycad, 30, 900m), (item.Native!.Section, item.Native.CashTicketCount, item.ConfirmedAmount));
+        Assert.Equal((TerminalSection.Tricycad, 900m), (item.Native!.Section, item.ConfirmedAmount));
+        Assert.Null(item.Native.CashTicketCount);
         Assert.Null(item.Native.VehicleClassId);                                                    // a section total names no vehicle
     }
 
@@ -400,18 +402,20 @@ public sealed class CollectionSessionEditorTests : TestContext
         Assert.Contains("Approved rate", view.Find("[role=dialog]").TextContent);
         var sheet = view.Find("[role=dialog]");
         sheet.QuerySelectorAll("input[type=number]").First(i => i.GetAttribute("step") == "0.01").Input("1234.50");
-        sheet.QuerySelectorAll("input[type=number]").First(i => i.GetAttribute("step") == "1").Input("24");   // 24 × 20 is not 1,234.50 and must not change it
+        Assert.Single(sheet.QuerySelectorAll("input[type=number]"));
         Assert.False(AddDisabled(view));                                                               // the button reacts while typing
         Click(view, "Add item");
 
         var row = view.Find(".item-row");
         Assert.Contains("PULL PUL VANS, CARGO VANS", row.TextContent);
-        Assert.Contains("Jeepney · ₱20.00 approved rate · 24 cash tickets", row.TextContent);
+        Assert.Contains("Jeepney · ₱20.00 approved rate", row.TextContent);
+        Assert.DoesNotContain("cash tickets", row.TextContent);
         Assert.DoesNotContain("Income From Terminal", row.TextContent);
         Click(view, "Review collection"); Click(view, "Record collection");
         view.WaitForAssertion(() => Assert.Single(_queue));
         var item = Assert.Single(_queue[0].CollectionSession!.Intent.Items);
-        Assert.Equal((TerminalSection.PullPulVansCargoVans, Jeepney, 24, 1234.50m), (item.Native!.Section, item.Native.VehicleClassId, item.Native.CashTicketCount, item.ConfirmedAmount));
+        Assert.Equal((TerminalSection.PullPulVansCargoVans, Jeepney, 1234.50m), (item.Native!.Section, item.Native.VehicleClassId, item.ConfirmedAmount));
+        Assert.Null(item.Native.CashTicketCount);
     }
 
     [Fact]
@@ -743,7 +747,8 @@ public sealed class CollectionSessionEditorTests : TestContext
         var sheet = view.Find("[role=dialog]");
         Assert.Equal("TRICYCAD", view.FindAll("button[role=radio][aria-checked=true]").Single().TextContent.Trim());
         Assert.Equal("3200", sheet.QuerySelectorAll("input[type=number]").First(i => i.GetAttribute("step") == "0.01").GetAttribute("value"));
-        Assert.Equal("80", sheet.QuerySelectorAll("input[type=number]").First(i => i.GetAttribute("step") == "1").GetAttribute("value"));
+        Assert.Single(sheet.QuerySelectorAll("input[type=number]"));
+        Assert.DoesNotContain("Cash Ticket count", sheet.TextContent);
         Assert.Contains("Change", view.FindAll("button").First(b => b.TextContent.Trim() == "Change").TextContent);   // the source is fixed while correcting
     }
 

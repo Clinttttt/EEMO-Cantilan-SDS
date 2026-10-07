@@ -55,12 +55,39 @@ public sealed class TerminalWorkspaceTests : TestContext
         {
             Assert.Equal("Income From Terminal", Assert.Single(cut.FindAll("h1")).TextContent.Trim());
             var sections = cut.FindAll("section[aria-labelledby='trm2-sections-title'] tbody tr").Select(r => r.TextContent).ToList();
-            Assert.Contains(sections, r => r.Contains("COMFORT ROOM") && r.Contains("₱400.00") && r.Contains("40"));
+            Assert.Contains(sections, r => r.Contains("COMFORT ROOM") && r.Contains("₱400.00") && r.Contains("5.6%"));
             Assert.Contains(sections, r => r.Contains("PULL PUL VANS, CARGO VANS") && r.Contains("₱5,800.00"));
-            Assert.Contains(sections, r => r.Contains("TRICYCAD") && r.Contains("₱900.00") && r.Contains("30"));
+            Assert.Contains(sections, r => r.Contains("TRICYCAD") && r.Contains("₱900.00") && r.Contains("12.7%"));
+            Assert.Equal(["Section", "Today", "This month", "Contribution"], cut.FindAll("[aria-label='Terminal sections'] thead th").Select(x => x.TextContent.Trim()).ToArray());
+            Assert.Equal(["Date", "SRC", "Section", "Collector", "Amount"], cut.FindAll("[aria-label='Recent Terminal collections'] thead th").Select(x => x.TextContent.Trim()).ToArray());
             Assert.Contains("SRC-2026-000022", cut.Markup);
             Assert.DoesNotContain("Transportation", cut.Markup);
             Assert.DoesNotContain("TRM", cut.Markup);
+        }, Timeout);
+    }
+
+    [Theory]
+    [InlineData(200, 300, 500, "20.0%", "30.0%", "50.0%")]
+    [InlineData(0, 0, 0, "—", "—", "—")]
+    public void Contribution_uses_monthly_net_amounts_including_corrections_and_zero_total(
+        decimal comfort, decimal vans, decimal tricycad, string comfortShare, string vansShare, string tricycadShare)
+    {
+        var rows = new[] {
+            Row(TerminalSection.ComfortRoom, "SRC-1", 12345m, 999) with { NetAmount = comfort },
+            Row(TerminalSection.PullPulVansCargoVans, "SRC-2", 12345m, 999) with { NetAmount = vans },
+            Row(TerminalSection.Tricycad, "SRC-3", 12345m, 999) with { NetAmount = tricycad }
+        };
+        _office.Setup(x => x.ActivityAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), CollectorOperationCodes.Terminal))
+            .ReturnsAsync(Result<IReadOnlyList<SourceNativeActivityDto>>.Success(rows));
+        _office.Setup(x => x.VehicleChoicesAsync(It.IsAny<DateOnly>())).ReturnsAsync(Result<IReadOnlyList<TerminalVehicleChoice>>.Success([]));
+        _classes.Setup(x => x.GetAsync()).ReturnsAsync(Result<IReadOnlyList<VehicleClassDto>>.Success([]));
+        var cut = RenderComponent<Terminal>();
+        cut.WaitForAssertion(() => {
+            var shares = cut.FindAll("[aria-label='Terminal sections'] tbody tr td:last-child").Select(x => x.TextContent.Trim()).ToArray();
+            Assert.Equal(new[] { comfortShare, vansShare, tricycadShare }, shares);
+            if (comfort + vans + tricycad != 0)
+                Assert.Equal(100m, shares.Sum(x => decimal.Parse(x.TrimEnd('%'), System.Globalization.CultureInfo.InvariantCulture)));
+            Assert.DoesNotContain("Cash Tickets", cut.Markup);
         }, Timeout);
     }
 

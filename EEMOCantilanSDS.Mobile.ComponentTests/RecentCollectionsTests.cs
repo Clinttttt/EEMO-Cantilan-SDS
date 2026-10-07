@@ -55,7 +55,7 @@ public sealed class RecentCollectionsTests : TestContext
         var rows = view.FindAll(".rc-row").Select(r => r.TextContent).ToList();
         Assert.Equal(2, rows.Count);
         Assert.Contains("SRC-2026-000022", rows[0]);                                                    // the server's order, newest first
-        Assert.Contains("TRICYCAD", rows[0]); Assert.Contains("Section total", rows[0]); Assert.Contains("80 CT", rows[0]); Assert.Contains("₱3,200.00", rows[0]);
+        Assert.Contains("TRICYCAD", rows[0]); Assert.Contains("Section total", rows[0]); Assert.DoesNotContain("80 CT", rows[0]); Assert.Contains("₱3,200.00", rows[0]);
         Assert.Contains("Fish / Meat Vendor Fee", rows[1]); Assert.Contains("Walk-up Vendor", rows[1]); Assert.Contains("₱75.00", rows[1]);
         Assert.DoesNotContain("CT", rows[1].Replace("SRC", ""));                                         // no ticket count was recorded, so none is shown
     }

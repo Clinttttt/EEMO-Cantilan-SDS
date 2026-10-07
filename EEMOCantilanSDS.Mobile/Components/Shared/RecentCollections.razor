@@ -206,7 +206,6 @@
         if (row.SourceNativeContext is { OperationCode: "TERMINAL" } terminal)
         {
             parts.Add(string.IsNullOrWhiteSpace(terminal.VehicleClassName) ? "Section total" : terminal.VehicleClassName);
-            if (terminal.CashTicketCount is > 0 and var count) parts.Add(count + " CT");
         }
         else if (!string.IsNullOrWhiteSpace(row.Collection.PayerName)) parts.Add(row.Collection.PayerName!);
         else if (!string.IsNullOrWhiteSpace(row.Collection.Subject)) parts.Add(row.Collection.Subject!);
@@ -221,7 +220,6 @@
             if (native.Section is { } section) yield return new("Section", OfficeCollectionWorkflow.SectionName(section));
             if (!string.IsNullOrWhiteSpace(native.VehicleClassName)) yield return new("Vehicle type", native.VehicleClassName!);
             if (native.Kilograms is { } kg) yield return new("Quantity", kg.ToString("0.##", CultureInfo.InvariantCulture) + " kg");
-            if (native.CashTicketCount is > 0 and var count) yield return new("Cash Tickets", count.ToString(CultureInfo.InvariantCulture));
         }
         var payer = row.SourceNativeContext?.PayerSnapshot ?? row.Collection.PayerName;
         if (!string.IsNullOrWhiteSpace(payer)) yield return new("Payer", payer!);

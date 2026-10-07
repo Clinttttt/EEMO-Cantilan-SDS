@@ -271,10 +271,6 @@ else
                     {
                         <label class="form-field"><span class="form-label">Amount received</span><input class="form-input" type="number" inputmode="decimal" min="0.01" step="0.01" max="@(_choice.MaximumAmount?.ToString(CultureInfo.InvariantCulture))" @bind="_amount" @bind:event="oninput" /></label>
                     }
-                    @if (IsTerminal)
-                    {
-                        <label class="form-field"><span class="form-label">Cash Ticket count <span class="form-optional">optional</span></span><input class="form-input" type="number" inputmode="numeric" min="0" step="1" @bind="_tickets" @bind:event="oninput" /></label>
-                    }
                     <div class="sheet-meta"><span>Instrument</span><strong>@Instrument(_choice.Instrument)</strong></div>
                 }
             }
@@ -322,21 +318,21 @@ else
     private string _search = "", _snapshot = "", _choiceKey = "", _owner = "";
     private decimal _amount, _quantity;
     private decimal? _serverAmount;
-    private int _heads = 1, _tickets;
+    private int _heads = 1;
     private string? _message;
 
     // Income From Terminal: one of the three official sections, collected as a section total or, optionally, by an approved vehicle type.
     private TerminalSection? _termSection;
     private bool _byVehicle;
     private Guid? _editingId;
-    private sealed record Draft(string OperationCode, string ChoiceKey, decimal Amount, decimal Quantity, int Tickets, int Heads, string Owner, TerminalSection? Section, bool ByVehicle);
+    private sealed record Draft(string OperationCode, string ChoiceKey, decimal Amount, decimal Quantity, int Heads, string Owner, TerminalSection? Section, bool ByVehicle);
     private readonly Dictionary<Guid, Draft> _drafts = [];
     private IReadOnlyList<CollectionSessionSourceChoice> SectionChoices => Choices.Where(x => x.Identity.VehicleClassId is null).ToList();
     private IReadOnlyList<CollectionSessionSourceChoice> VehicleChoices => Choices.Where(x => x.Identity.VehicleClassId is not null && x.Identity.TerminalSection == _termSection).ToList();
 
     private void PickSection(CollectionSessionSourceChoice section)
     {
-        _termSection = section.Identity.TerminalSection; _byVehicle = false; _tickets = 0;
+        _termSection = section.Identity.TerminalSection; _byVehicle = false;
         if (_items.Count == 0) _snapshot = "";
         ChooseChoice(section.SelectionKey);
     }
@@ -344,7 +340,7 @@ else
     private void SetMode(bool byVehicle)
     {
         if (_byVehicle == byVehicle) return;
-        _byVehicle = byVehicle; _amount = 0; _tickets = 0;
+        _byVehicle = byVehicle; _amount = 0;
         if (!byVehicle && _items.Count == 0) _snapshot = "";
         if (byVehicle) { _choice = null; _choiceKey = ""; }
         else if (SectionChoices.FirstOrDefault(x => x.Identity.TerminalSection == _termSection) is { } section) ChooseChoice(section.SelectionKey);
@@ -356,7 +352,6 @@ else
     private string TerminalDraftContext(CollectionSessionSourceChoice c)
     {
         var parts = new List<string> { c.Identity.VehicleClassId is null ? "Section total" : c.Rate is { } rate ? $"{c.DisplayName} · {Money(rate)} approved rate" : c.DisplayName };
-        if (_tickets > 0) parts.Add(_tickets == 1 ? "1 cash ticket" : $"{_tickets} cash tickets");
         return string.Join(" · ", parts);
     }
 
@@ -475,7 +470,6 @@ else
         { _termSection = native.Section; _byVehicle = native.VehicleClassId is not null; }
         ChooseChoice(choice.SelectionKey);
         if (choice.CanEnterAmount) _amount = Correction.Collection.Amount;
-        _tickets = edit.Native?.CashTicketCount ?? 0;
         _quantity = edit.Native?.Kilograms ?? 0m;
         if (IsWeighing) await QuoteWeighingAsync();
         _picker = true;
@@ -615,7 +609,7 @@ else
     private void Choose(string code)
     {
         _operation = Offered.FirstOrDefault(x => x.OperationCode == code);
-        _choice = null; _choiceKey = ""; _amount = _quantity = 0; _serverAmount = null; _tickets = 0; _heads = 1; _owner = ""; _termSection = null; _byVehicle = false;
+        _choice = null; _choiceKey = ""; _amount = _quantity = 0; _serverAmount = null; _heads = 1; _owner = ""; _termSection = null; _byVehicle = false;
         if (_operation?.Choices is { Count: 1 } only) ChooseChoice(only[0].SelectionKey);
     }
 
@@ -652,7 +646,7 @@ else
         _termSection = draft.Section; _byVehicle = draft.ByVehicle;
         ChooseChoice(draft.ChoiceKey);
         if (_choice is null) { _message = "This item is no longer available. Remove it and add it again."; return; }
-        _amount = draft.Amount; _quantity = draft.Quantity; _tickets = draft.Tickets; _heads = draft.Heads; _owner = draft.Owner;
+        _amount = draft.Amount; _quantity = draft.Quantity; _heads = draft.Heads; _owner = draft.Owner;
         if (IsWeighing) await QuoteWeighingAsync();
         _editingId = item.ClientItemId; _picker = true;
     }
@@ -679,7 +673,7 @@ else
                 slaughter = new(identity.Animal!.Value, _heads, identity.CustomAnimalName, _source is null && string.IsNullOrWhiteSpace(_snapshot) ? _owner.Trim() : null); break;
             case CollectionSessionItemKind.SourceNative:
                 native = new(c.OperationCode, identity.VendorRegistrationId, identity.TerminalSection, identity.VehicleClassId,
-                    IsTerminal && _tickets > 0 ? _tickets : null, IsWeighing ? _quantity : null); break;
+                    null, IsWeighing ? _quantity : null); break;
         }
         var amount = c.Kind is CollectionSessionItemKind.Slaughter or CollectionSessionItemKind.NpmWholePayment ? 0m
             : IsWeighing ? _serverAmount ?? 0m
@@ -690,7 +684,7 @@ else
         else _items.Add(added);
         _shown[id] = IsTerminal ? new(TerminalDraftName(c), TerminalDraftContext(c))
             : new(c.DisplayName, string.Join(" · ", new[] { SourceName, c.Context }.Where(x => !string.IsNullOrWhiteSpace(x))));
-        _drafts[id] = new(c.OperationCode, c.SelectionKey, _amount, _quantity, _tickets, _heads, _owner, _termSection, _byVehicle);
+        _drafts[id] = new(c.OperationCode, c.SelectionKey, _amount, _quantity, _heads, _owner, _termSection, _byVehicle);
         if (Correction is not null) _sessionId = Guid.NewGuid();
         _quote = null; _picker = false; _editingId = null;
     }

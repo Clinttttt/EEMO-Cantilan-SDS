@@ -16,7 +16,7 @@
 <PageTitle>StallTrack — Income From Terminal</PageTitle>
 
 @* Income From Terminal is its own operation, separate from Transportation / Parking. Collector Mobile records the three office sections as
-   direct amounts on a Cash Ticket (a ticket count is optional evidence and never prices the amount); this page monitors them and holds the
+   direct amounts on a Cash Ticket; this page monitors net amounts and their monthly contribution and holds the
    vehicle-class rates that assist an itemized entry. Nothing here records money. The layout owns the <main> landmark. *@
 <OperationTopbar Title="Income From Terminal" Crumb="Operation" />
 <div class="content-area">
@@ -54,7 +54,7 @@
                         <th scope="col">Section</th>
                         <th scope="col" class="v3-num">Today</th>
                         <th scope="col" class="v3-num">This month</th>
-                        <th scope="col" class="v3-num">Cash Tickets</th>
+                        <th scope="col" class="v3-num"><span title="Share of Terminal income this month">Contribution</span></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -65,7 +65,7 @@
                             <th scope="row" class="v3-strong">@OfficeCollectionWorkflow.SectionName(section)</th>
                             <td class="v3-num">@Money(monthRows.Where(x => x.BusinessDate == Today).Sum(x => x.NetAmount))</td>
                             <td class="v3-num v3-strong">@Money(monthRows.Sum(x => x.NetAmount))</td>
-                            <td class="v3-num">@(monthRows.Any(x => x.CashTicketCount is not null) ? monthRows.Sum(x => x.CashTicketCount ?? 0).ToString("N0") : "—")</td>
+                            <td class="v3-num">@Contribution(monthRows.Sum(x => x.NetAmount))</td>
                         </tr>
                     }
                 </tbody>
@@ -84,7 +84,6 @@
                         <th scope="col">SRC</th>
                         <th scope="col">Section</th>
                         <th scope="col">Collector</th>
-                        <th scope="col" class="v3-num">Tickets</th>
                         <th scope="col" class="v3-num">Amount</th>
                     </tr>
                 </thead>
@@ -96,13 +95,12 @@
                             <td class="trm2-src">@row.SRC</td>
                             <td>@(row.Section is { } s ? OfficeCollectionWorkflow.SectionName(s) : "—")</td>
                             <td>@(row.CollectorName ?? "—")</td>
-                            <td class="v3-num">@(row.CashTicketCount?.ToString("N0") ?? "—")</td>
                             <td class="v3-num v3-strong">@Money(row.NetAmount)</td>
                         </tr>
                     }
                     @if (_rows.Count == 0)
                     {
-                        <tr><td class="v3-empty" colspan="6">@(_loading ? "Loading collections…" : "No Terminal collection has been recorded this month.")</td></tr>
+                        <tr><td class="v3-empty" colspan="5">@(_loading ? "Loading collections…" : "No Terminal collection has been recorded this month.")</td></tr>
                     }
                 </tbody>
             </table>
@@ -169,6 +167,12 @@
     private string? _error;
 
     private IEnumerable<SourceNativeActivityDto> TodayRows => _rows.Where(x => x.BusinessDate == Today);
+
+    private string Contribution(decimal sectionNet)
+    {
+        var monthNet = _rows.Sum(x => x.NetAmount);
+        return monthNet == 0m ? "—" : (sectionNet / monthNet * 100m).ToString("N1", CultureInfo.InvariantCulture) + "%";
+    }
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
