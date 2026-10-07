@@ -109,6 +109,20 @@
         </section>
     </div>
 
+    <div class="ops-sheet ops-sheet-other">
+        <section class="ops-group" aria-labelledby="income-from-terminal-title">
+            <h2 id="income-from-terminal-title" class="ops-group-title">
+                Income From Terminal
+                <span class="ops-group-count">@LineCount(1)</span>
+            </h2>
+            <ul class="ops-rows">
+                <li class="ops-item">
+                    @Line("Comfort Room | Pull Pul Vans, Cargo Vans | Tricycad", null, CashTicket, "/operations/terminal", null, NoLinks, NoWorkspace)
+                </li>
+            </ul>
+        </section>
+    </div>
+
     @* Shown only with authoritative content: a configured slaughterhouse or office-defined facility. An empty shell
        (or a "not configured" line) is not a Monthly Income row and is left out. *@
     @if (SlaughterhouseWorkspace is not null || OtherEconomicEnterpriseWorkspaces.Any())
@@ -159,8 +173,8 @@
             Links: [new("Report", "/operations/fish-meat-vendor-fees/report")]),
         new("Landing | Berthing", CashTicket, Route: "/operations/landing-berthing",
             Links: [new("Report", "/operations/landing-berthing/report")]),
-        // Cash Ticket on Collector Mobile at the approved vehicle-class rate (IA-030, IA-050); legacy trips stay under the TRM facility.
-        new("Transportation Fees", CashTicket, FacilityCode.TRM, Route: "/operations/transportation",
+        // Cash Ticket on Collector Mobile, direct amount received; it is a separate source from Income From Terminal.
+        new("Transportation | Parking", CashTicket, Route: "/operations/transportation",
             Links: [new("Report", "/operations/transportation/report")]),
         new("Weight & Measure | Registration", OfficialReceipt, Route: "/operations/weight-and-measure"),
         // Official Receipt, Collector Mobile, direct approved amount (IA-049).

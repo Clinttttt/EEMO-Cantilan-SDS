@@ -53,12 +53,15 @@ public sealed class TransportationWorkspaceTests : TestContext
         _classes.Setup(x => x.GetAsync()).ReturnsAsync(Result<IReadOnlyList<VehicleClassDto>>.Success(classes));
 
     [Fact]
-    public void Route_IsOfficeOnly_AndStatesTheRateBasisWithoutATypedAmount()
+    public void TransportationIsADirectAmountCashTicketPage_WithNoVehicleClassRateOrCeiling()
     {
         Assert.Equal("/operations/transportation",
             Assert.Single(typeof(Transportation).GetCustomAttributes(typeof(RouteAttribute), true).Cast<RouteAttribute>()).Template);
         Assert.Equal("SuperAdmin,Admin",
             Assert.Single(typeof(Transportation).GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>()).Roles);
+        _governed.Setup(x => x.GetTransportationCurrentAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>())).ReturnsAsync(
+            Result<TransportationCurrentActivityDto>.Success(new(PhilippineTime.Today, PhilippineTime.Today, PhilippineTime.Today, 150m, 2, 6, 150m, 2,
+                [new(Guid.NewGuid(), PhilippineTime.Today, DateTime.UtcNow, "SRC-2026-000031", RevenueInstrumentType.CashTicket, null, "Parking", null, 150m, "Ana", "Posted")])));
         Serve(Jeepney());
 
         var cut = RenderComponent<Transportation>();
@@ -66,10 +69,37 @@ public sealed class TransportationWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.Equal("Transportation / Parking", Assert.Single(cut.FindAll("h1")).TextContent.Trim());
-            Assert.Empty(cut.FindAll("main"));
-            Assert.Contains("Cash Ticket", cut.Find("header").TextContent);
-            Assert.Contains("Approved rate by vehicle class", cut.Markup);
-            Assert.DoesNotContain("aren't recorded in StallTrack yet", cut.Markup);
+            Assert.Contains("Cash Ticket", cut.Find(".v3h").TextContent);
+            Assert.Contains("SRC-2026-000031", cut.Markup);
+            Assert.Contains("₱150.00", cut.Find("tfoot").TextContent);
+            foreach (var word in new[] { "Vehicle class", "vehicle class", "Change amount rule", "Ceiling", "ceiling", "TRM", "transporter", "Rate" })
+                Assert.DoesNotContain(word, cut.Markup);                                           // the old class / rate setup is not on this page
+            Assert.Empty(cut.FindAll("form"));                                                       // nothing here records money
+        }, Timeout);
+    }
+
+    [Fact]
+    public void TheHeadCanOnlySwitchTransportationOnForCollectors_WithADirectAmountAndNoRule()
+    {
+        _governed.Setup(x => x.GetTransportationCurrentAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>())).ReturnsAsync(
+            Result<TransportationCurrentActivityDto>.Success(new(PhilippineTime.Today, PhilippineTime.Today, PhilippineTime.Today, 0m, 0, 0, 0m, 0, [])));
+        ConfigureGovernedServiceRequest? sent = null;
+        _governed.Setup(x => x.ConfigureAsync(CollectorOperationCodes.Transportation, It.IsAny<ConfigureGovernedServiceRequest>()))
+            .Callback<string, ConfigureGovernedServiceRequest>((_, r) => sent = r)
+            .ReturnsAsync(Result<GovernedServiceDefinitionDto>.Success(new GovernedServiceDefinitionDto(CollectorOperationCodes.Transportation, "Transportation / Parking",
+                RevenueClassificationCodes.TransportationParking, false, [GovernedServiceBasis.DirectApprovedAmount], GovernedServiceSetupState.Active,
+                GovernedServiceBasis.DirectApprovedAmount, null, null, true, PhilippineTime.Today, [], [])));
+
+        var cut = RenderComponent<Transportation>();
+        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "Enable for collectors"), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Enable for collectors").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(sent);
+            Assert.Equal((GovernedServiceBasis.DirectApprovedAmount, (decimal?)null, (decimal?)null, true, true),
+                (sent!.Basis, sent.FixedAmount, sent.MaximumAmount, sent.IsEnabled, sent.MobileEnabled));
+            Assert.Contains("Enabled", cut.Find(".tp-status").TextContent);
         }, Timeout);
     }
 

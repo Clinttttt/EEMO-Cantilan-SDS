@@ -1,23 +1,146 @@
 @page "/operations/transportation"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Constants
+@inject IGovernedServicesApiClient GovernedApi
 
 <PageTitle>StallTrack — Transportation / Parking</PageTitle>
 
-@* Transportation / Parking is a day-to-day Cash Ticket collection on Collector Mobile (IA-030, IA-050). The Head sets the
-   vehicle classes and their approved effective-dated rates; the collector selects a class and the approved rate is the
-   amount. It replaces the legacy trip record from the date the Head enables it: earlier trips stay readable and unchanged.
-   Nothing on this page records money. The layout owns the <main> landmark. *@
-<div class="v3-page">
-    <WorkspaceHeader Parent="Operations" Title="Transportation / Parking">
-        <Meta><InstrumentChip Instrument="CT" ShowName="true" /></Meta>
-        <Actions>
-            <a class="v3-btn" href="/facility/trm/legacy">Legacy trip history</a>
-        </Actions>
-    </WorkspaceHeader>
+@* Transportation / Parking is a Cash Ticket collection on Collector Mobile: the collector records the amount received. It has no vehicle
+   class, rate or ceiling, and it is separate from Income From Terminal. Earlier trips stay readable under the legacy history. Nothing on this
+   page records money; the layout owns the <main> landmark. *@
+<OperationTopbar Title="Transportation / Parking" Crumb="Operation" />
+<div class="content-area">
+    <V3Hero Eyebrow="Operation · Transportation" Title="Transportation / Parking" Compact="true">
+        <Meta><span class="tp-meta">@Today.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture) · <InstrumentChip Instrument="CT" /> Cash Ticket</span></Meta>
+        <Figures>
+            <V3HeroFigure Label="Collected today" Value="@Money(_current?.CollectedToday ?? 0m)" />
+            <V3HeroFigure Label="Transactions today" Value="@((_current?.TransactionsToday ?? 0).ToString("N0"))" />
+            <V3HeroFigure Label="Collected this month" Value="@Money(_current?.CollectedInPeriod ?? 0m)" />
+        </Figures>
+    </V3Hero>
 
-    <GovernedServiceWorkspace OperationCode="@CollectorOperationCodes.Transportation" Name="Transportation / Parking" />
-    <VehicleClassRates />
+    <div class="tp-toolbar">
+        <p class="tp-status" role="status">Collector Mobile · <strong>@(MobileReady ? "Enabled" : "Not enabled")</strong></p>
+        <div class="v3-btn-group" role="group" aria-label="Transportation / Parking actions">
+            <AuthorizeView Roles="SuperAdmin">
+                <Authorized>
+                    @if (!MobileReady && _loaded)
+                    {
+                        <button class="v3-btn v3-btn-primary" type="button" @onclick="EnableAsync" disabled="@_saving">Enable for collectors</button>
+                    }
+                </Authorized>
+            </AuthorizeView>
+            <button class="v3-btn" type="button" @onclick="LoadAsync" disabled="@_loading">Refresh</button>
+            <a class="v3-btn" href="/operations/transportation/report">Report</a>
+            <a class="v3-btn" href="/collections/activity">Collection Activity</a>
+            <a class="v3-btn" href="/facility/trm/legacy">Legacy trip history</a>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="tp-notice" role="alert">
+            <p class="v3-notice v3-notice-error">@_error</p>
+            <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadAsync">Try again</button>
+        </div>
+    }
+
+    <section class="v3-panel" aria-labelledby="tp-title" aria-busy="@(_loading ? "true" : "false")">
+        <header class="v3-panel-header">
+            <h2 id="tp-title">Today's collections</h2>
+            <span class="v3-panel-meta">@Rows.Count @(Rows.Count == 1 ? "collection" : "collections")</span>
+        </header>
+        <div class="v3-table-wrap tp-scroll" role="region" aria-label="Today's Transportation / Parking collections" tabindex="0">
+            <table class="v3-table">
+                <caption class="v3-sr-only">Transportation / Parking collections recorded on @Today.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture)</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Time</th>
+                        <th scope="col">SRC</th>
+                        <th scope="col">Payer / reference</th>
+                        <th scope="col">Collector</th>
+                        <th scope="col" class="v3-num">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Rows)
+                    {
+                        <tr>
+                            <td>@PhilippineTime.ToPhilippineTime(row.RecordedAtUtc).ToString("h:mm tt", CultureInfo.InvariantCulture)</td>
+                            <td class="v3-strong">@(row.ReferenceCode ?? "—")</td>
+                            <td>@(string.IsNullOrWhiteSpace(row.PayerName) ? "—" : row.PayerName)@if (!string.IsNullOrWhiteSpace(row.Reference)) { <span class="v3-block">@row.Reference</span> }</td>
+                            <td>@(row.CollectorName ?? "—")</td>
+                            <td class="v3-num v3-strong">@Money(row.Amount)</td>
+                        </tr>
+                    }
+                    @if (Rows.Count == 0)
+                    {
+                        <tr><td class="v3-empty" colspan="5">@(_loading ? "Loading collections…" : _error is not null ? "Collections are unavailable." : "No transportation collection was recorded today.")</td></tr>
+                    }
+                </tbody>
+                @if (Rows.Count > 0)
+                {
+                    <tfoot>
+                        <tr>
+                            <td colspan="4"><strong>Total today</strong></td>
+                            <td class="v3-num v3-strong">@Money(Rows.Sum(x => x.Amount))</td>
+                        </tr>
+                    </tfoot>
+                }
+            </table>
+        </div>
+    </section>
 </div>
+
+@code {
+    private static DateOnly Today => PhilippineTime.Today;
+    private TransportationCurrentActivityDto? _current;
+    private GovernedServiceDefinitionDto? _definition;
+    private bool _loading = true, _loaded, _saving;
+    private string? _error;
+
+    private IReadOnlyList<GovernedServiceActivityDto> Rows => _current?.Collections.Where(x => x.BusinessDate == Today).OrderByDescending(x => x.RecordedAtUtc).ToList() ?? [];
+    private bool MobileReady => _definition is { MobileEnabled: true, State: GovernedServiceSetupState.Active };
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var current = await GovernedApi.GetTransportationCurrentAsync(new DateOnly(Today.Year, Today.Month, 1), Today);
+            if (current.IsSuccess) _current = current.Value;
+            else { _current = null; _error = "The collections couldn't be loaded."; }
+            var definitions = await GovernedApi.GetDefinitionsAsync();
+            if (definitions.IsSuccess) { _definition = definitions.Value?.FirstOrDefault(x => x.OperationCode == CollectorOperationCodes.Transportation); _loaded = true; }
+        }
+        catch { _current = null; _error = "The collections couldn't be loaded."; }
+        finally { _loading = false; }
+    }
+
+    // Direct amount, Cash Ticket: the Head only switches the operation on for collectors; there is no rule to set.
+    private async Task EnableAsync()
+    {
+        if (_saving) return;
+        _saving = true;
+        try
+        {
+            var result = await GovernedApi.ConfigureAsync(CollectorOperationCodes.Transportation,
+                new ConfigureGovernedServiceRequest(Today, GovernedServiceBasis.DirectApprovedAmount, null, null, true, true));
+            if (result.IsSuccess) _definition = result.Value;
+            else _error = "Transportation / Parking couldn't be enabled.";
+        }
+        catch { _error = "Transportation / Parking couldn't be enabled."; }
+        finally { _saving = false; }
+    }
+
+    private static string Money(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
+}

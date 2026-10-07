@@ -1,8 +1,0 @@
-.trm-meta { display: inline-flex; align-items: center; gap: 8px; }
-.trm-toolbar { display: flex; justify-content: flex-end; margin: 16px 0; }
-.trm-notice { margin: 12px 20px 0; }
-
-/* Today's list is bounded: about five rows show, the rest scroll inside the panel, with the heading and total held in place. */
-.trm-scroll { max-height: 21rem; overflow-y: auto; overscroll-behavior: contain; }
-.trm-scroll thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-muted); }
-.trm-scroll tfoot td { position: sticky; bottom: 0; z-index: 1; background: var(--surface-muted); border-top: 1px solid var(--border); }
