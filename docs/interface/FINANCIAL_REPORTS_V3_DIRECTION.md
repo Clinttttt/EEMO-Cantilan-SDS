@@ -71,26 +71,28 @@ the statement never collapses into cards.
 - BBQ and Slaughterhouse placement is resolved by IA-066. Other rental placement and any genuinely unresolved recovered-Arrears treatment remain separate decision gates.
 - The Financial Summary's Miscellaneous section is still the legacy utility view (see the NPM utility decoupling pass).
 
-## Revenue Source Performance (Summary) — added 2026-10-01
+## Revenue Source Performance (Summary) — added 2026-10-01, aligned 2026-10-07
 
 - The management view of **every** revenue source, facility or not (Market Fees, ECF, WCF, Tabo, Fish/Meat Vendor Fees,
   Landing/Berthing, Transportation, Weight & Measure, Transfer Large Cattle, Ice Plant, NPM/NCC/TCC/BBQ rent, Vegetable/Fruit,
   Kanmanggay, Fiesta/Araw, Fines, Slaughterhouse, Arrears, and any unknown classification kept apart by the statement).
 - Server: `GET api/official-reports/source-performance` → `GetRevenueSourcePerformanceQueryHandler`. **Collected is the
   official Monthly Income row for the same period** (legacy before cutover + canonical after, once) — not a second algorithm.
-- Dashboard Overview presents a static five-column table: **Source · Collected · Activity · Contribution · Attention**.
-  Rows cannot be expanded. Instrument, collection-model, document, collector and generic active/status labels stay out of
-  this management view. The source name and existing analytic group separators remain unchanged. This reduction applies
-  only to Overview; Reports → Trends & Targets retains its existing analysis columns, expandable detail and target editor.
-- Counts come from posted Collections and are **null, not zero**, for a row that also holds legacy money in the period.
-  Activity shows a transaction count where available, `Legacy included` when the server cannot state that count, and
-  facility-register paid/expected coverage for a recurring facility only when that same-period register is available.
+- Overview and Reports present the same static five-column table: **Source · Collected · Annual target · Contribution ·
+  Attention**. Rows cannot be expanded. Instrument, collection-model, document, collector and generic active/status labels
+  stay out of this summary. The source name and existing analytic group separators remain unchanged.
+- Annual-target values come from the server in both views. Overview is read-only; Reports → Trends & Targets retains the
+  existing authorized target editor and revision workflow in the Annual target cell. No edit affordance appears on Overview.
+- Posted transaction/document/collector counts remain **null, not zero**, for a row that also holds legacy money in the
+  period; these counts are not displayed in this summary table.
 - Contribution uses the source's existing `RevenueSourceCatalog` group amount. Facility-only and non-facility filters do
   not create a new filtered denominator; a zero group amount displays `—`.
 - Attention is quiet (`—`) unless official placement is unresolved, a recurring facility register supplies a real unpaid
   amount, or legacy data materially limits interpretation. A paid-on-service source never receives an unpaid amount.
   Remittance is never a revenue metric.
-- Annual-target values and editing remain in Reports → Trends & Targets; they are not part of the Overview table.
+- The section uses the same concise period helper on Overview and Reports; target-coverage status remains available in the
+  Reports summary card rather than occupying this table header.
+- The Overview loading skeleton mirrors the five-column read-only table and contains no row or target-edit controls.
 - Facility analysis remains under Trends & Targets as **Facility performance**; the toolbar filter is "Facility analysis".
 
 ## Official Monthly Income (final output) — added 2026-10-01
