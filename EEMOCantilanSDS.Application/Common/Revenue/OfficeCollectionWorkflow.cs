@@ -65,7 +65,7 @@ public sealed partial class OfficeCollectionWorkflow(IAppDbContext db, ICurrentU
             return Result<IReadOnlyList<FishMeatVendorRegistrationDto>>.Forbidden();
         if (year is < 2000 or > 2200) return Result<IReadOnlyList<FishMeatVendorRegistrationDto>>.Failure("InvalidPeriod", ResultStatus.Invalid);
         return Result<IReadOnlyList<FishMeatVendorRegistrationDto>>.Success((await db.FishMeatVendorRegistrations.AsNoTracking()
-            .Where(x => x.MunicipalityId == Tenant && x.TaxYear == year).OrderBy(x => x.DisplayName).ThenBy(x => x.Id).ToListAsync(ct)).Select(ToDto).ToArray());
+            .Where(x => x.MunicipalityId == Tenant && x.TaxYear == year && (user.Role != "Collector" || x.Status == VendorRegistrationStatus.Active)).OrderBy(x => x.DisplayName).ThenBy(x => x.Id).ToListAsync(ct)).Select(ToDto).ToArray());
     }
     public static FishMeatVendorRegistrationDto ToDto(FishMeatVendorRegistration x) => new(x.Id, x.TaxYear, x.VendorType, x.RegistrationKind, x.DisplayName, x.BusinessName, x.Address, x.Reference);
     public async Task<Result<bool>> MapVehicleAsync(TerminalVehicleMappingRequest request, CancellationToken ct = default)
@@ -118,6 +118,7 @@ public sealed partial class OfficeCollectionWorkflow(IAppDbContext db, ICurrentU
             var vendor = charge.VendorRegistrationId is { } id ? await db.FishMeatVendorRegistrations.AsNoTracking().SingleOrDefaultAsync(x =>
                 x.MunicipalityId == Tenant && x.Id == id && x.TaxYear == request.BusinessDate.Year, ct) : null;
             if (charge.VendorRegistrationId.HasValue && vendor is null) return (null, "InvalidSource");
+            if (vendor?.Status == VendorRegistrationStatus.Closed) return (null, "RegistrationClosed");
             if (vendor is not null) { source = vendor.Id; payer = vendor.DisplayName; vendorType = vendor.VendorType; }
             if (charge.OperationCode == CollectorOperationCodes.FishMeatVendorFee)
             {

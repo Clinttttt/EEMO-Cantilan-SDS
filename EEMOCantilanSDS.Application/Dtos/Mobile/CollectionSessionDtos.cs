@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 namespace EEMOCantilanSDS.Application.Dtos.Mobile;
 
 // A checkout is orchestration, never an operation or revenue classification.
-public enum CollectionSessionItemKind { Water = 1, GovernedService = 2, Obligation = 3, Electricity = 4, Weighing = 5, Slaughter = 6, VendorFee = 7, NpmWholePayment = 8, SourceNative = 9, MonthlyRent = 10 }
+public enum CollectionSessionItemKind { Water = 1, GovernedService = 2, Obligation = 3, Electricity = 4, Weighing = 5, Slaughter = 6, VendorFee = 7, NpmWholePayment = 8, SourceNative = 9, MonthlyRent = 10, NpmDaily = 11 }
 public enum CollectionSessionStatus { NeedsReview = 1, Recorded = 2 }
 public sealed record SessionWaterIntent(Guid StallId, int Year, int Month, Guid? UtilityBillId = null, long SourceVersion = 0);
 public sealed record SessionGovernedIntent(string OperationCode, GovernedServiceMode? Mode = null,
@@ -21,6 +21,7 @@ public sealed record SessionWeighingIntent(Guid StallId, WeighingType Type, deci
 public sealed record SessionSlaughterIntent(AnimalType Animal, int Heads, string? CustomAnimalName = null, string? OwnerName = null);
 public sealed record SessionVendorFeeIntent(Guid StallId);
 public sealed record SessionNpmWholeIntent(Guid StallId, int Year, int Month);
+public sealed record SessionNpmDailyIntent(Guid StallId);
 public sealed record SessionMonthlyRentIntent(Guid StallId, int Year, int Month, long SourceVersion);
 public sealed record SessionSlaughterOption(AnimalType Animal, string Name, string? CustomAnimalName,
     RevenueInstrumentType? Instrument = null);
@@ -35,7 +36,8 @@ public sealed record CollectionSessionItemIntent(Guid ClientItemId, CollectionSe
     SessionObligationIntent? Obligation = null, SessionElectricityIntent? Electricity = null, SessionWeighingIntent? Weighing = null,
     SessionSlaughterIntent? Slaughter = null, SessionVendorFeeIntent? VendorFee = null, SessionNpmWholeIntent? NpmWhole = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SourceNativeChargeIntent? Native = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SessionMonthlyRentIntent? Rent = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SessionMonthlyRentIntent? Rent = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SessionNpmDailyIntent? NpmDaily = null);
 public sealed record CollectionSessionIntent(Guid ClientCollectionSessionId, DateOnly BusinessDate, Guid? PayorId,
     IReadOnlyList<CollectionSessionItemIntent> Items,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CollectionSourceIdentity? SourceIdentity = null,

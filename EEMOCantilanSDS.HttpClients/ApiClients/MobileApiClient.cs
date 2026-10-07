@@ -18,6 +18,11 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
     public Task<Result<GovernedServiceOutcomeDto>> RecordOfficeCollectionAsync(SourceNativeCollectionRequest request) => PostAsync<SourceNativeCollectionRequest, GovernedServiceOutcomeDto>("api/office-sources/record", request);
     public Task<Result<IReadOnlyList<SourceNativeActivityDto>>> GetOfficeActivityAsync(DateOnly from, DateOnly to, string? operationCode = null) => GetAsync<IReadOnlyList<SourceNativeActivityDto>>($"api/office-sources/activity?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}&operationCode={Uri.EscapeDataString(operationCode ?? "")}");
     public Task<Result<IReadOnlyList<NpmDailyBatchSource>>> GetNpmDailyBatchSourcesAsync() => GetAsync<IReadOnlyList<NpmDailyBatchSource>>("api/mobile/npm-daily-batch/sources");
+    public Task<Result<NpmDailyBatchReadiness>> GetNpmDailyBatchReadinessAsync() => GetAsync<NpmDailyBatchReadiness>("api/mobile/npm-daily-batch/readiness");
+    public Task<Result<MobileRecentCollections>> GetRecentCollectionsAsync() => GetAsync<MobileRecentCollections>("api/mobile/collections/recent");
+    public Task<Result<CollectionSessionQuote>> QuoteCollectionEditAsync(EditMobileCollectionIntent intent) => PostAsync<EditMobileCollectionIntent, CollectionSessionQuote>("api/mobile/collections/edit/quote", intent);
+    public Task<Result<MobileCollectionCorrectionResult>> EditCollectionAsync(RecordMobileCollectionEditRequest request) => PostAsync<RecordMobileCollectionEditRequest, MobileCollectionCorrectionResult>("api/mobile/collections/edit", request);
+    public Task<Result<MobileCollectionCorrectionResult>> RemoveCollectionAsync(RemoveMobileCollectionRequest request) => PostAsync<RemoveMobileCollectionRequest, MobileCollectionCorrectionResult>("api/mobile/collections/remove", request);
     public Task<Result<NpmDailyBatchQuote>> QuoteNpmDailyBatchAsync(NpmDailyBatchIntent intent) => PostAsync<NpmDailyBatchIntent, NpmDailyBatchQuote>("api/mobile/npm-daily-batch/quote", intent);
     public Task<Result<CollectionSessionResult>> RecordNpmDailyBatchAsync(RecordNpmDailyBatchRequest request) => PostAsync<RecordNpmDailyBatchRequest, CollectionSessionResult>("api/mobile/npm-daily-batch/record", request);
     public Task<Result<TaboBatchQuoteDto>> QuoteTaboBatchAsync(TaboBatchRequest request) =>

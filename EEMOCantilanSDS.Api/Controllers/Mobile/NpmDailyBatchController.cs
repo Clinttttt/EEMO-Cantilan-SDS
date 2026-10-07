@@ -10,6 +10,8 @@ public sealed class NpmDailyBatchController(ISender sender, NpmDailyBatchWorkflo
 {
     [HttpGet("sources")]
     public async Task<ActionResult<IReadOnlyList<NpmDailyBatchSource>>> Sources(CancellationToken ct) => HandleResponse(await workflow.SourcesAsync(ct));
+    [HttpGet("readiness")]
+    public async Task<ActionResult<NpmDailyBatchReadiness>> Readiness(CancellationToken ct) => HandleResponse(await workflow.ReadinessAsync(ct));
     [HttpPost("quote")]
     public async Task<ActionResult<NpmDailyBatchQuote>> Quote(NpmDailyBatchIntent intent, CancellationToken ct) => HandleResponse(await workflow.PreviewAsync(intent, ct));
     [HttpPost("record")]

@@ -34,8 +34,16 @@ public sealed class NpmDailyBatchWorkflow(IAppDbContext db, ICollectionSessionSt
         var today = clock.PhilippineToday;
         var ids = await db.Stalls.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.Facility!.Code == FacilityCode.NPM)
             .OrderBy(x => x.StallNo).Select(x => x.Id).ToListAsync(ct);
-        var q = await PreviewCore(new(Guid.NewGuid(), today, ids.Select(x => new NpmDailyBatchItem(x, x)).ToArray()), ct);
-        return Result<IReadOnlyList<NpmDailyBatchSource>>.Success(q.Sources);
+        var sources = new List<NpmDailyBatchSource>();
+        foreach (var chunk in ids.Chunk(500))
+            sources.AddRange((await PreviewCore(new(Guid.NewGuid(), today, chunk.Select(x => new NpmDailyBatchItem(x, x)).ToArray()), ct)).Sources);
+        return Result<IReadOnlyList<NpmDailyBatchSource>>.Success(sources);
+    }
+    public async Task<Result<NpmDailyBatchReadiness>> ReadinessAsync(CancellationToken ct = default)
+    {
+        var sources = await SourcesAsync(ct);
+        return sources.IsSuccess ? Result<NpmDailyBatchReadiness>.Success(new(clock.PhilippineToday, sources.Value!))
+            : Result<NpmDailyBatchReadiness>.Failure(sources.Error ?? "CollectorNotAssigned", sources.Status);
     }
     private static string Hash(object value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(value, Json))));
     private string IntentHash(NpmDailyBatchIntent intent) => Hash(new { Kind = "NpmDailyBatchV1", Tenant, user.CollectorId,
@@ -68,7 +76,7 @@ public sealed class NpmDailyBatchWorkflow(IAppDbContext db, ICollectionSessionSt
             var charge = row?.DailyFee ?? NpmDailyFee.ForStallOrNull(stall, snapshot, intent.BusinessDate) ?? 0m;
             var payable = owner is not null && (await months.GetPayableDaysAsync(stall, intent.BusinessDate.Year, intent.BusinessDate.Month, ct)).Contains(intent.BusinessDate);
             var reason = !canonical ? "SourceStillLegacy" : instrument is null ? "PolicyNotEffective" : owner is null ? "InvalidSource"
-                : !payable ? "AlreadySettledOrUnavailable" : charge <= 0m ? "RateNotEffective" : null;
+                : row?.IsPaid == true ? "AlreadyCollected" : !payable ? "AlreadySettledOrUnavailable" : charge <= 0m ? "RateNotEffective" : null;
             sources.Add(new(stall.Id, owner?.Id ?? Guid.Empty, stall.StallNo, owner?.ActualOccupant ?? "", charge, reason is null, reason));
             if (reason is not null) problems.Add(new(item.ClientItemId, reason, "Review this stall before collecting."));
         }
