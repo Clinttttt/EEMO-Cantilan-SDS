@@ -107,9 +107,8 @@
                 }
             </ul>
         </section>
-    </div>
 
-    <div class="ops-sheet ops-sheet-other">
+        @* Its own official group (Monthly Income B), in the same register as the others rather than a separate card. *@
         <section class="ops-group" aria-labelledby="income-from-terminal-title">
             <h2 id="income-from-terminal-title" class="ops-group-title">
                 Income From Terminal
@@ -117,27 +116,35 @@
             </h2>
             <ul class="ops-rows">
                 <li class="ops-item">
-                    @Line("Comfort Room | Pull Pul Vans, Cargo Vans | Tricycad", null, CashTicket, "/operations/terminal", null, NoLinks, NoWorkspace)
+                    @Line("Income From Terminal", null, CashTicket, "/operations/terminal", null, NoLinks, NoWorkspace, "Comfort Room · Pull Pul Vans, Cargo Vans · Tricycad")
                 </li>
             </ul>
         </section>
-    </div>
 
-    @* Shown only with authoritative content: a configured slaughterhouse or office-defined facility. An empty shell
-       (or a "not configured" line) is not a Monthly Income row and is left out. *@
-    @if (SlaughterhouseWorkspace is not null || OtherEconomicEnterpriseWorkspaces.Any())
-    {
-        <div class="ops-sheet ops-sheet-other">
+        @* Shown only with authoritative content: a configured slaughterhouse. An empty shell (or a "not configured" line)
+           is not a Monthly Income row and is left out. *@
+        @if (SlaughterhouseWorkspace is { } slaughterhouse)
+        {
+            <section class="ops-group" aria-labelledby="income-from-slaughterhouse-title">
+                <h2 id="income-from-slaughterhouse-title" class="ops-group-title">
+                    Income From Slaughterhouse
+                    <span class="ops-group-count">@LineCount(1)</span>
+                </h2>
+                <ul class="ops-rows">
+                    <li class="ops-item" data-facility-code="@slaughterhouse.Code">
+                        @Line(slaughterhouse.Name, slaughterhouse.Code.ToString(), OfficialReceipt, FacilityHref(slaughterhouse),
+                              $"{slaughterhouse.Name} ({slaughterhouse.Code})", NoLinks, NoWorkspace)
+                    </li>
+                </ul>
+            </section>
+        }
+
+        @* Office-defined facilities that are not an official Monthly Income line. *@
+        @if (OtherEconomicEnterpriseWorkspaces.Any())
+        {
             <section class="ops-group" aria-labelledby="other-operations-title">
                 <h2 id="other-operations-title" class="ops-group-title">Other operations</h2>
-                <ul class="ops-rows" aria-label="Slaughterhouse and other configured economic-enterprise workspaces">
-                    @if (SlaughterhouseWorkspace is { } slaughterhouse)
-                    {
-                        <li class="ops-item" data-facility-code="@slaughterhouse.Code">
-                            @Line(slaughterhouse.Name, slaughterhouse.Code.ToString(), OfficialReceipt, FacilityHref(slaughterhouse),
-                                  $"{slaughterhouse.Name} ({slaughterhouse.Code})", NoLinks, NoWorkspace)
-                        </li>
-                    }
+                <ul class="ops-rows" aria-label="Other configured economic-enterprise workspaces">
                     @foreach (var facility in OtherEconomicEnterpriseWorkspaces)
                     {
                         <li class="ops-item" data-facility-code="@facility.Code">
@@ -147,8 +154,8 @@
                     }
                 </ul>
             </section>
-        </div>
-    }
+        }
+    </div>
 </div>
 
 @code {
@@ -281,18 +288,18 @@
         : "Not configured for this office";
 
     private RenderFragment Line(string name, string? facilityCode, IReadOnlyList<Receipt> receipts, string? href,
-        string? workspace, IReadOnlyList<QuickLink> links, string absence) => __builder =>
+        string? workspace, IReadOnlyList<QuickLink> links, string absence, string? detail = null) => __builder =>
     {
         if (href is not null)
         {
             <a class="ops-row ops-row-link" href="@href">
-                @LineCells(name, facilityCode, receipts, links, linked: true)
+                @LineCells(name, facilityCode, receipts, links, linked: true, detail: detail)
             </a>
         }
         else
         {
             <div class="ops-row">
-                @LineCells(name, facilityCode, receipts, links, linked: false, absence)
+                @LineCells(name, facilityCode, receipts, links, linked: false, absence, detail)
             </div>
         }
 
@@ -323,13 +330,17 @@
     };
 
     private RenderFragment LineCells(string name, string? facilityCode, IReadOnlyList<Receipt> receipts,
-        IReadOnlyList<QuickLink> links, bool linked, string? absence = null) => __builder =>
+        IReadOnlyList<QuickLink> links, bool linked, string? absence = null, string? detail = null) => __builder =>
     {
         <span class="ops-row-name">
             @name
             @if (facilityCode is not null)
             {
                 <span class="ops-row-code">@facilityCode</span>
+            }
+            @if (detail is not null)
+            {
+                <small class="ops-row-detail">@detail</small>
             }
         </span>
         <span class="ops-row-receipts">

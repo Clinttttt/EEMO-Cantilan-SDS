@@ -1,0 +1,17 @@
+.fmi-note { margin-top: 16px; }
+.fmi-text { margin: 0; padding: 16px 20px 4px; color: var(--text-secondary); font-size: 0.875rem; line-height: 1.5; }
+.fmi-actions { margin: 0; padding: 12px 20px 18px; }
+.fmi-actions .btn-outline {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+    padding: 6px 14px;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--navy);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+}
+.fmi-actions .btn-outline:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }

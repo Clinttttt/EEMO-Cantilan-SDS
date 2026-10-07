@@ -25,6 +25,8 @@ public sealed class FishMeatVendorRegistryTests : TestContext
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
+        Services.AddSingleton(Mock.Of<IFacilitiesApiClient>());
+        Services.AddSingleton<EEMOCantilanSDS.Client.Services.FacilityState>();
         Services.AddSingleton(_office.Object);
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
@@ -108,5 +110,50 @@ public sealed class FishMeatVendorRegistryTests : TestContext
             Assert.Contains(rows, r => r.Contains("SRC-2026-000011") && r.Contains("Vendor Fee") && r.Contains("Walk-up Payer") && r.Contains("₱120.00"));
             Assert.Contains(rows, r => r.Contains("SRC-2026-000012") && r.Contains("Weight & Measure") && r.Contains("Ana Reyes") && r.Contains("3 kg") && r.Contains("₱66.00"));
         }, Timeout);
+    }
+
+    [Fact]
+    public void ItUsesTheKanmanggayStructure_HeroFiguresOneToolbarFiltersAndTheOfficeActions()
+    {
+        var cut = RenderComponent<FishMeatVendorFees>();
+        cut.WaitForAssertion(() => Assert.Contains("Pantom Dant", cut.Markup), Timeout);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("OPERATION · FISH / MEAT", cut.Find(".facility-hero-eyebrow").TextContent);
+            Assert.Contains($"Tax year {Year} · OR Official Receipt", cut.Find(".facility-hero-sub").TextContent);
+            var figures = cut.FindAll(".facility-hero-stat").Select(s => s.QuerySelector(".facility-hero-val")!.TextContent.Trim() + "|" + s.QuerySelector(".facility-hero-key")!.TextContent.Trim()).ToList();
+            Assert.Equal(3, figures.Count);
+            Assert.Equal(["2|Registered", "1|Fish", "1|Meat"], figures);
+            Assert.Single(cut.FindAll(".toolbar-unified"));                                            // one toolbar, no second floating row
+            Assert.Equal(["All", "Fish", "Meat"], cut.FindAll(".filter-tab").Select(t => t.TextContent.Trim()).ToArray());
+            var actions = cut.FindAll(".fmv-actions-bar a, .fmv-actions-bar button").Select(a => a.TextContent.Trim()).ToList();
+            Assert.Equal(["Collection Activity", "Reports", "Import list", "Register vendor"], actions);
+            Assert.Equal("/operations/fish-meat-vendor-fees/import", cut.FindAll(".fmv-actions-bar a").Single(a => a.TextContent.Trim() == "Import list").GetAttribute("href"));
+        }, Timeout);
+    }
+
+    [Fact]
+    public void TheFishAndMeatFiltersNarrowTheRegistry()
+    {
+        var cut = RenderComponent<FishMeatVendorFees>();
+        cut.WaitForAssertion(() => Assert.Contains("Pantom Dant", cut.Markup), Timeout);
+
+        cut.FindAll(".filter-tab").Single(t => t.TextContent.Trim() == "Meat").Click();
+
+        var rows = cut.FindAll("table")[0].QuerySelectorAll("tbody tr").Select(r => r.TextContent).ToList();
+        Assert.Single(rows); Assert.Contains("Pantom Dant", rows[0]);
+    }
+
+    [Fact]
+    public void TheRegisterDrawerGroupsVendorRegistrationAndDetails_InTheSharedDrawer()
+    {
+        var cut = RenderComponent<FishMeatVendorFees>();
+        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "Register vendor"), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Register vendor").Click();
+
+        foreach (var heading in new[] { "Vendor", "Registration", "Details" }) Assert.Contains(heading, cut.Find("form[aria-label='Register vendor']").TextContent);
+        foreach (var word in new[] { "Payor", "NPM", "stall", "fee amount", "Weight" })
+            Assert.DoesNotContain(word, cut.Find("form[aria-label='Register vendor']").TextContent, StringComparison.OrdinalIgnoreCase);
     }
 }

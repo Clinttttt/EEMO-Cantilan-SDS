@@ -1,37 +1,50 @@
-/* Fish / Meat Vendors — V3. Shared panels, tables and buttons come from the v3- layer in app.css. */
-.fmv-meta { display: inline-flex; align-items: center; gap: 8px; }
+/* Fish / Meat Vendors — V3. Hero and toolbar are the shared FacilityHero and Toolbar (as Kanmanggay); panels, tables and buttons come from the v3- layer in app.css. */
 
-.fmv-toolbar {
+/* The links and actions inside the shared Toolbar: the same size and rhythm as the Kanmanggay bar. */
+.fmv-actions-bar {
     display: flex;
     flex-wrap: wrap;
-    align-items: flex-end;
-    gap: 12px 16px;
-    margin: 16px 0;
+    align-items: center;
+    gap: 8px;
 }
 
-.fmv-year { display: grid; gap: 4px; }
-.fmv-year label { font-size: 0.75rem; color: var(--text-secondary); }
+.fmv-actions-bar .btn-outline,
+.fmv-actions-bar .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+}
 
-.fmv-year select,
-.fmv-search {
+.fmv-year {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+}
+
+.fmv-year select {
     box-sizing: border-box;
-    min-height: 40px;
-    padding: 0 12px;
-    border: 1px solid var(--border);
+    min-height: 34px;
+    padding: 0 10px;
+    border: 1px solid var(--border-strong);
     border-radius: 8px;
     background: var(--surface);
     color: var(--navy);
     font: inherit;
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
 }
 
-.fmv-search { flex: 1 1 220px; min-width: 0; }
-.fmv-toolbar .v3-btn-group { margin-left: auto; }
+.fmv-year select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.fmv-year select:focus-visible,
-.fmv-search:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-.fmv-saved { margin: 0 0 16px; }
+.fmv-saved { margin: 16px 0 0; }
 .fmv-notice { margin: 12px 20px 0; }
 .fmv-activity { margin-top: 16px; }
 .fmv-sub { font-size: 0.75rem; color: var(--text-subtle); }

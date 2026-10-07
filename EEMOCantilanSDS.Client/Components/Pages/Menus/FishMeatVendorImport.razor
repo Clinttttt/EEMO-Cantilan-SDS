@@ -1,0 +1,20 @@
+@page "/operations/fish-meat-vendor-fees/import"
+@attribute [Authorize(Roles = "SuperAdmin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Client.Components.Shared
+
+<PageTitle>StallTrack — Import Fish / Meat Vendors</PageTitle>
+
+@* The shell of the Fish / Meat vendor-list import: the same hero and three steps as every other import. It imports the VENDOR REGISTRY
+   only (name, type, registration, business, address, reference); a photographed list's handwritten monthly amounts are never read as
+   collections. The upload, review and save steps are wired when the import contract exists; until then this page says so rather than
+   pretending to import. The layout owns the <main> landmark. *@
+<OperationTopbar Title="Fish / Meat Vendors" Crumb="Import vendor list" />
+<div class="content-area">
+    <ImportHero Eyebrow="Fish / Meat · Bulk Import" Title="Import Fish / Meat vendors" Subtitle="Registry data only: vendors are registered here, never collected from a list." Step="1" />
+    <section class="v3-panel fmi-note" aria-labelledby="fmi-title">
+        <header class="v3-panel-header"><h2 id="fmi-title">Not available yet</h2></header>
+        <p class="fmi-text">Importing a vendor list needs the registry import service, which is not connected to this office yet. Register vendors one at a time from the registry for now.</p>
+        <p class="fmi-actions"><a class="btn-outline" href="/operations/fish-meat-vendor-fees">Back to Fish / Meat Vendors</a></p>
+    </section>
+</div>

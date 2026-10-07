@@ -17,35 +17,17 @@
    here from the canonical activity. The layout owns the <main> landmark. *@
 <OperationTopbar Title="Fish / Meat Vendors" Crumb="Operation" />
 <div class="content-area">
-    <V3Hero Eyebrow="Operation · Fish / Meat" Title="Fish / Meat Vendors" Compact="true">
-        <Meta><span class="fmv-meta">Tax year @_year · <InstrumentChip Instrument="OR" /> Official Receipt</span></Meta>
-        <Figures>
-            <V3HeroFigure Label="Registered" Value="@_rows.Count.ToString("N0")" />
-            <V3HeroFigure Label="Fish" Value="@_rows.Count(x => x.VendorType == FishMeatVendorType.Fish).ToString("N0")" />
-            <V3HeroFigure Label="Meat" Value="@_rows.Count(x => x.VendorType == FishMeatVendorType.Meat).ToString("N0")" />
-        </Figures>
-    </V3Hero>
-
-    <div class="fmv-toolbar">
-        <div class="fmv-year">
-            <label for="fmv-year">Tax year</label>
-            <select id="fmv-year" @onchange="ChangeYearAsync">
-                @foreach (var year in YearOptions)
-                {
-                    <option value="@year" selected="@(year == _year)">@year</option>
-                }
-            </select>
-        </div>
-        <input class="fmv-search" type="search" placeholder="Search vendor" aria-label="Search vendors" @bind="_search" @bind:event="oninput" />
-        <div class="v3-btn-group" role="group" aria-label="Fish / Meat actions">
-            <a class="v3-btn" href="/collections/activity">Collection Activity</a>
-            <AuthorizeView Roles="SuperAdmin">
-                <Authorized>
-                    <button class="v3-btn v3-btn-primary" type="button" @onclick="OpenRegister">Register vendor</button>
-                </Authorized>
-            </AuthorizeView>
-        </div>
-    </div>
+    @* The same hero and toolbar as the Kanmanggay workspace: a civic-blue operation hero with compact figures, then one toolbar. *@
+    <FacilityHero Title="Fish / Meat Vendors" Eyebrow="OPERATION · FISH / MEAT" Subtitle="@($"Tax year {_year} · OR Official Receipt")" Stats="HeroStats">
+        <Icon><svg viewBox="0 0 24 24"><path d="M3 12c3-5 8-6 12-3l4-3v12l-4-3c-4 3-9 2-12-3z" /><circle cx="8" cy="11" r="0.8" /></svg></Icon>
+    </FacilityHero>
+    <Toolbar SearchQuery="@_search"
+             OnSearch="v => _search = v"
+             ActiveFilter="@_filter"
+             OnFilterChanged="v => _filter = v"
+             Filters="@TypeFilters"
+             SearchPlaceholder="Search vendor…"
+             MiddleContent="@ActionBarContent" />
 
     @if (!string.IsNullOrWhiteSpace(_saved))
     {
@@ -142,13 +124,17 @@
             <label class="avm-label" for="fmv-name">Vendor name <span class="avm-req">*</span></label>
             <input id="fmv-name" class="avm-input" type="text" maxlength="200" autocomplete="off" @bind="_name" @bind:event="oninput" />
         </div>
-        <div class="avm-group">
-            <label class="avm-label">Type <span class="avm-req">*</span></label>
-            <ChoiceCards Label="Vendor type" Items="TypeChoices" Value="@(((int)_type).ToString())" ValueChanged="v => _type = (FishMeatVendorType)int.Parse(v)" />
-        </div>
-        <div class="avm-group">
-            <label class="avm-label">Registration <span class="avm-req">*</span></label>
-            <ChoiceCards Label="Registration" Items="KindChoices" Value="@(((int)_kind).ToString())" ValueChanged="v => _kind = (VendorRegistrationKind)int.Parse(v)" />
+    </AddNewSection>
+    <AddNewSection Title="Registration" Plain="true">
+        <div class="avm-row-2">
+            <div class="avm-group">
+                <label class="avm-label">Type <span class="avm-req">*</span></label>
+                <ChoiceCards Label="Vendor type" Items="TypeChoices" Value="@(((int)_type).ToString())" ValueChanged="v => _type = (FishMeatVendorType)int.Parse(v)" />
+            </div>
+            <div class="avm-group">
+                <label class="avm-label">Registration <span class="avm-req">*</span></label>
+                <ChoiceCards Label="Registration" Items="KindChoices" Value="@(((int)_kind).ToString())" ValueChanged="v => _kind = (VendorRegistrationKind)int.Parse(v)" />
+            </div>
         </div>
     </AddNewSection>
     <AddNewSection Title="Details" Plain="true">
@@ -185,9 +171,36 @@
 
     private IReadOnlyList<int> YearOptions => Enumerable.Range(0, 4).Select(i => PhilippineTime.Today.Year - i).Append(_year).Distinct().OrderByDescending(y => y).ToList();
 
-    private List<FishMeatVendorRegistrationDto> VisibleRows => string.IsNullOrWhiteSpace(_search) ? _rows
-        : _rows.Where(x => x.DisplayName.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase)
+    private string _filter = "All";
+    private static readonly List<string> TypeFilters = ["All", "Fish", "Meat"];
+
+    private List<FishMeatVendorRegistrationDto> VisibleRows => _rows
+        .Where(x => _filter switch { "Fish" => x.VendorType == FishMeatVendorType.Fish, "Meat" => x.VendorType == FishMeatVendorType.Meat, _ => true })
+        .Where(x => string.IsNullOrWhiteSpace(_search) || x.DisplayName.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase)
             || (x.BusinessName?.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
+
+    private List<FacilityHero.HeroStat> HeroStats => [
+        new() { Label = "Registered", Value = _rows.Count.ToString("N0", CultureInfo.InvariantCulture) },
+        new() { Label = "Fish", Value = _rows.Count(x => x.VendorType == FishMeatVendorType.Fish).ToString("N0", CultureInfo.InvariantCulture) },
+        new() { Label = "Meat", Value = _rows.Count(x => x.VendorType == FishMeatVendorType.Meat).ToString("N0", CultureInfo.InvariantCulture) }];
+
+    // One bar: tax year, then the links and actions, in the order the Kanmanggay bar uses.
+    private RenderFragment ActionBarContent => @<div class="fmv-actions-bar">
+        <label class="fmv-year" for="fmv-year"><span>Tax year</span>
+            <select id="fmv-year" @onchange="ChangeYearAsync">
+                @foreach (var year in YearOptions)
+                {
+                    <option value="@year" selected="@(year == _year)">@year</option>
+                }
+            </select>
+        </label>
+        <a class="btn-outline" href="/collections/activity">Collection Activity</a>
+        <a class="btn-outline" href="/operations/fish-meat-vendor-fees/report">Reports</a>
+        <AuthorizeView Roles="SuperAdmin"><Authorized>
+            <a class="btn-outline" href="/operations/fish-meat-vendor-fees/import">Import list</a>
+            <button class="btn-primary" type="button" @onclick="OpenRegister">Register vendor</button>
+        </Authorized></AuthorizeView>
+    </div>;
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
