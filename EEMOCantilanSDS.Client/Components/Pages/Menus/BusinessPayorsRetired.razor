@@ -1,0 +1,10 @@
+@page "/business-payors"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@inject NavigationManager Navigation
+
+@* Business Payors are retired from the product: every source holds its own occupant, vendor or holder. The old address only forwards
+   a saved link to Spaces & Occupants; the server keeps its compatibility APIs and history. *@
+
+@code {
+    protected override void OnInitialized() => Navigation.NavigateTo("/vendors", replace: true);
+}

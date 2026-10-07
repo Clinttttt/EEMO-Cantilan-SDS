@@ -9,7 +9,7 @@
 
 @* Bulk import of space holders and event lots. It is the stallholder import's own implementation, adapted rather than imitated: the same hero,
    upload card, review bar, editable grid and footer bar (the shared Import* components); only the columns and what a row means are this
-   page's. Every row is checked here and then by the server's typed preview. A row's Account holder is the office's explicit choice, made
+   page's. Every row is checked here and then by the server's typed preview. A row's holder is its own typed occupant, never a master record, made
    from a compact action in its status cell; nothing is linked or created from a name. Occupancy basis is stated per row, never assumed. *@
 <div class="shi">
     <ImportHero Eyebrow="@($"{Name} · Bulk Import")" Title="@($"Import {Name} {Holders}")" Step="Step" />
@@ -65,16 +65,8 @@
                 @{ var (state, why) = StatusOf(row); }
                 <div class="shi-status">
                     @if (state == SpaceHolderImportStatus.Invalid) { <span class="shi-chip-status shi-invalid" title="@why">Invalid</span><span class="shi-why">@why</span> }
-                    else if (state == SpaceHolderImportStatus.NeedsPayor) { <span class="shi-chip-status shi-needs">Needs Payor</span> }
+                    else if (state == SpaceHolderImportStatus.NeedsSourceHolder) { <span class="shi-chip-status shi-needs">Needs holder</span> }
                     else { <span class="shi-chip-status shi-ready">Ready</span> }
-                    @if (row.PayorName is not null)
-                    {
-                        <span class="shi-payor-line">@row.PayorName <button class="shi-payor-act" type="button" @onclick="() => _picking = row">Change</button></span>
-                    }
-                    else
-                    {
-                        <button class="shi-payor-act" type="button" disabled="@(Saving || string.IsNullOrWhiteSpace(row.Name))" @onclick="() => _picking = row">Link Payor</button>
-                    }
                 </div>
             </Status>
         </ImportGrid>
@@ -84,16 +76,11 @@
             <span class="shi-foot-note" role="status">
                 @if (_previewing) { <text>Checking rows…</text> }
                 else if (_previewNote is not null) { <text>@_previewNote</text> }
-                else { <text>@ReadyCount ready · @NeedsPayorCount need a Payor · @InvalidCount invalid. Only ready rows are imported.</text> }
+                else { <text>@ReadyCount ready · @InvalidCount invalid. Only ready rows are imported.</text> }
             </span>
         </ImportFootBar>
     }
 </div>
-
-@if (_picking is { } picking)
-{
-    <PayorPickerDrawer Occupant="@picking.Name" OnClose="() => _picking = null" OnPicked="p => UsePayor(picking, p)" />
-}
 
 @code {
     [Parameter] public ObligationKind Kind { get; set; }
@@ -112,11 +99,9 @@
     private int _notImported;
     private ImportSpaceHoldersResult? _result;
     private List<Row> Rows = [];
-    private Row? _picking;
 
     private int Step => _result is not null || Saving ? 3 : Rows.Count > 0 ? 2 : 1;
     private int ReadyCount => Rows.Count(r => StatusOf(r).Status == SpaceHolderImportStatus.Ready);
-    private int NeedsPayorCount => Rows.Count(r => StatusOf(r).Status == SpaceHolderImportStatus.NeedsPayor);
     private int InvalidCount => Rows.Count(r => StatusOf(r).Status == SpaceHolderImportStatus.Invalid);
 
     private const string Signed = "Signed lease contract", SpaceOnly = "No contract (space only)";
@@ -143,8 +128,7 @@
 
     private sealed class Row
     {
-        public string Subject = "", Name = "", Amount = "", Start = "", ClosedText = "", EventName = "", ContractRef = "", BasisText = "", PayorId = "";
-        public string? PayorName;
+        public string Subject = "", Name = "", Amount = "", Start = "", ClosedText = "", EventName = "", ContractRef = "", BasisText = "";
         public decimal Approved;
         public DateOnly StartDate;
         public DateOnly? Closed;
@@ -175,7 +159,7 @@
         switch (change.Column.Label)
         {
             case "Space No." or "Lot No.": row.Subject = value; break;
-            case "Actual Occupant": row.Name = value; row.PayorId = string.Empty; row.PayorName = null; break;      // a changed name is never the same Payor
+            case "Actual Occupant": row.Name = value; break;
             case "Occupancy basis":
                 row.BasisText = value;
                 if (row.Basis != OccupancyArrangement.SignedContract) row.ContractRef = string.Empty;                // a space let without a contract carries no contract data
@@ -203,19 +187,18 @@
         ? "Leave blank to have the server assign the next number." : null;
 
     // A row's state is the server's word once it has been checked there; until then (or if the check is unavailable) it is what this page can
-    // tell: a row that fails its own checks is Invalid, and one without an explicit Account holder needs one.
+    // tell: a row that fails its own checks is Invalid.
     private static (SpaceHolderImportStatus Status, string? Why) StatusOf(Row row) =>
         row.Error is not null ? (SpaceHolderImportStatus.Invalid, row.Error)
-        : row.Preview is { } line ? (line.Status, line.Status is SpaceHolderImportStatus.Ready or SpaceHolderImportStatus.NeedsPayor ? null : line.Message)
-        : (row.PayorId.Length == 0 ? SpaceHolderImportStatus.NeedsPayor : SpaceHolderImportStatus.Ready, null);
+        : row.Preview is { } line ? (line.Status, line.Status is SpaceHolderImportStatus.Ready ? null : line.Message)
+        : (SpaceHolderImportStatus.Ready, null);
 
     // ── Getting rows in ────────────────────────────────────────────────────────────────────────────────────────────────
     private void StartManual() { _uploadError = null; _fileName = null; Rows = [NewRow()]; SchedulePreview(); }
     private void AddRow() { Rows.Add(NewRow()); }
     private Row NewRow() { var row = new Row(); Validate(row); return row; }
 
-    // Sample rows exist to show what a filled register looks like. They are never saved except through the normal import, and a Business
-    // Payor is never attached to them: the office still chooses one for each.
+    // Sample rows exist to show what a filled register looks like. They are never saved except through the normal import.
     private void LoadSample()
     {
         _uploadError = null;
@@ -402,24 +385,14 @@
 
     private void ResetAll() { Rows = []; _result = null; Message = null; _uploadError = null; _fileName = null; _notImported = 0; _previewNote = null; }
 
-    // ── Account holder: the office's explicit choice ───────────────────────────────────────────────────────────────────
-    private void UsePayor(Row row, (Guid Id, string Name) payor)
-    {
-        row.PayorId = payor.Id.ToString();
-        row.PayorName = payor.Name;
-        row.Preview = null;
-        _picking = null;
-        SchedulePreview();
-    }
-
     // ── The server's typed preview ─────────────────────────────────────────────────────────────────────────────────────
     private bool _previewing;
     private string? _previewNote;
     private CancellationTokenSource? _previewDelay;
 
-    private ImportSpaceHolderRow BuildRow(Row r) => new(new(Kind, Guid.TryParse(r.PayorId, out var payor) ? payor : Guid.Empty, null, r.Subject.Trim(),
+    private ImportSpaceHolderRow BuildRow(Row r) => new(new(Kind, Guid.Empty, null, r.Subject.Trim(),
         r.Event, IsEvent ? r.StartDate : null, r.StartDate, r.Approved,
-        IsEvent ? null : r.Basis, IsEvent || r.Basis != OccupancyArrangement.SignedContract || string.IsNullOrWhiteSpace(r.ContractRef) ? null : r.ContractRef.Trim()), r.Closed);
+        IsEvent ? null : r.Basis, IsEvent || r.Basis != OccupancyArrangement.SignedContract || string.IsNullOrWhiteSpace(r.ContractRef) ? null : r.ContractRef.Trim(), r.Name.Trim()), r.Closed);
 
     private void SchedulePreview()
     {
@@ -463,7 +436,7 @@
     {
         // Only rows the office's own checks and the server's preview call Ready are sent. A blank number stays blank, so the server numbers it
         // again under its own lock when it saves; the suggestion shown in the grid is only a hint.
-        var ready = Rows.Where(r => StatusOf(r).Status == SpaceHolderImportStatus.Ready && Guid.TryParse(r.PayorId, out _)).ToList();
+        var ready = Rows.Where(r => StatusOf(r).Status == SpaceHolderImportStatus.Ready).ToList();
         if (Saving || _previewing || ready.Count == 0) return;
         Saving = true;
         Message = null;

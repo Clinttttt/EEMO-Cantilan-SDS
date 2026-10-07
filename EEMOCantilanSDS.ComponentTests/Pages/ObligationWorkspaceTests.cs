@@ -131,11 +131,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         var cut = RenderComponent<Kanmanggay>();
         cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New"), Timeout);
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New").Click();
-        var search = cut.Find("form[aria-label='Open account'] input[type='search']");
-        search.Input("ana");
-        search.KeyUp(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "a" });
-        cut.WaitForAssertion(() => Assert.Contains("Ana Reyes", cut.Find("[aria-label='Account holders found']").TextContent), Timeout);
-        cut.Find("[aria-label='Account holders found'] button").Click();          // an explicit choice of the Payor the server returned
+        cut.Find("#obw-occupant").Input("ana");
         cut.Find("#obw-subject").Change("Space K-4");
         cut.Find("input[placeholder='As written on the contract']").Change("LC-2026-014");
         cut.Find("#obw-amount").Change("1200");
@@ -144,7 +140,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.NotNull(sent);
-            Assert.Equal((ObligationKind.KanmanggaySpaceRental, PayorId, "Space K-4", 1200m),
+            Assert.Equal((ObligationKind.KanmanggaySpaceRental, Guid.Empty, "Space K-4", 1200m),
                 (sent!.Kind, sent.PayorId, sent.SubjectLabel, sent.Amount));
             Assert.Null(sent.StallId);
             Assert.Equal((OccupancyArrangement.SignedContract, "LC-2026-014"), (sent.Arrangement, sent.ContractReference));
@@ -267,14 +263,9 @@ public sealed class ObligationWorkspaceTests : TestContext
         var cut = RenderComponent<Kanmanggay>();
         cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New"), Timeout);
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New").Click();
-        cut.WaitForAssertion(() => cut.Find("[role='dialog'] input[type='search']"), Timeout);
+        cut.WaitForAssertion(() => cut.Find("#obw-occupant"), Timeout);
         cut.FindAll("[role='radio']").Single(b => b.TextContent.Contains("No contract")).Click();
-        var search = cut.Find("[role='dialog'] input[type='search']");
-        search.Input("Ana Reyes");
-        search.KeyUp(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "s" });
-        cut.WaitForAssertion(() => cut.Find("[aria-label='Account holders found'] button"), Timeout);
-        cut.Find("[aria-label='Account holders found'] button").Click();
-        cut.WaitForAssertion(() => Assert.Contains("Ana Reyes", cut.Find(".obw-selected").TextContent), Timeout);
+        cut.Find("#obw-occupant").Input("Ana Reyes");
         cut.Find("#obw-subject").Change("K-7");
         cut.Find("#obw-amount").Change("900");
         cut.Find("form[aria-label='Open account']").Submit();
@@ -282,7 +273,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.NotNull(sent);
-            Assert.Equal((PayorId, "K-7", 900m, OccupancyArrangement.SpaceOnly, (string?)null),
+            Assert.Equal((Guid.Empty, "K-7", 900m, OccupancyArrangement.SpaceOnly, (string?)null),
                 (sent!.PayorId, sent.SubjectLabel, sent.Amount, sent.Arrangement, sent.ContractReference));
         }, Timeout);
     }
@@ -305,11 +296,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() => Assert.DoesNotContain("Space K-4", cut.Find("[aria-label='Kanmanggay accounts'] tbody").TextContent), Timeout);
 
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New").Click();
-        var search = cut.Find("[role='dialog'] input[type='search']");
-        search.Input("Ana Reyes");
-        search.KeyUp(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "s" });
-        cut.WaitForAssertion(() => cut.Find("[aria-label='Account holders found'] button"), Timeout);
-        cut.Find("[aria-label='Account holders found'] button").Click();
+        cut.Find("#obw-occupant").Input("Ana Reyes");
         cut.Find("#obw-amount").Change("900");
         cut.Find("form[aria-label='Open account']").Submit();
 
@@ -347,11 +334,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         }, Timeout);
 
         cut.FindAll("[role='radio']").Single(b => b.TextContent.Contains("Araw")).Click();
-        var search = cut.Find("[role='dialog'] input[type='search']");
-        search.Input("Ana Reyes");
-        search.KeyUp(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "s" });
-        cut.WaitForAssertion(() => cut.Find("[aria-label='Account holders found'] button"), Timeout);
-        cut.Find("[aria-label='Account holders found'] button").Click();
+        cut.Find("#obw-occupant").Input("Ana Reyes");
         cut.Find("#obw-amount").Change("2500");
         cut.Find("form[aria-label='Open account']").Submit();
 
@@ -406,10 +389,10 @@ public sealed class ObligationWorkspaceTests : TestContext
             Assert.Equal(new[] { "#", "Space No.", "Actual Occupant", "Occupancy basis", "Contract reference", "Contract Effectivity (month)", "Approved monthly rental", "Closed on", "Status" },
                 cut.FindAll(".imp-table thead th").Select(x => x.TextContent.Trim()).Where(x => x.Length > 0).ToArray());
             Assert.Equal(3, cut.FindAll(".imp-table tbody tr").Count);
-            Assert.All(cut.FindAll(".imp-table tbody tr"), r => Assert.Contains("Needs Payor", r.TextContent));        // a sample never carries a Payor
+            Assert.All(cut.FindAll(".imp-table tbody tr"), r => Assert.Contains("Ready", r.TextContent));             // each sample row carries its own occupant
             Assert.NotNull(cut.Find(".imp-add-row"));
-            Assert.Equal(new[] { "Cancel", "Import 0 ready rows" }, cut.FindAll(".imp-foot-bar .imp-btn").Select(x => x.TextContent.Trim()).ToArray());
-            Assert.True(cut.Find(".imp-foot-bar .imp-btn-primary").HasAttribute("disabled"));
+            Assert.Equal(new[] { "Cancel", "Import 3 ready rows" }, cut.FindAll(".imp-foot-bar .imp-btn").Select(x => x.TextContent.Trim()).ToArray());
+            Assert.False(cut.Find(".imp-foot-bar .imp-btn-primary").HasAttribute("disabled"));
         }, Timeout);
 
         cut.FindAll(".imp-review-actions button").Single(b => b.TextContent.Trim() == "Discard").Click();
@@ -435,32 +418,29 @@ public sealed class ObligationWorkspaceTests : TestContext
     }
 
     [Fact]
-    public void Import_APayorIsChosenFromACompactRowAction_AndNeverFromTheName()
+    public void Import_TheTypedOccupantIsTheSourceHolder_AndNoPayorIsEverChosenOrSearched()
     {
-        _collections.Setup(x => x.SearchCollectionPayorsAsync("Maria Santos")).ReturnsAsync(
-            Result<IReadOnlyList<CollectionPayorDto>>.Success(new[] { new CollectionPayorDto(PayorId, "Maria Santos", ["NPM · 4"]) }));
+        ImportSpaceHoldersRequest? previewed = null;
+        _api.Setup(x => x.PreviewSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>())).Returns((ImportSpaceHoldersRequest r) =>
+        {
+            previewed = r;
+            var rows = r.Rows.Select((row, i) => new SpaceHolderImportRowResult(i + 1, SpaceHolderImportStatus.Ready, null, null,
+                Facts: new(row.Account, row.ClosedOn, SpaceNumberOrigin.Supplied, null))).ToList();
+            return Task.FromResult(Result<SpaceHolderImportPreview>.Success(new(rows, true)));
+        });
         var cut = RenderComponent<KanmanggayImport>();
         cut.Find(".imp-use-sample").Click();
         cut.WaitForAssertion(() => Assert.Equal(3, cut.FindAll(".imp-table tbody tr").Count), Timeout);
 
-        cut.FindAll(".imp-table tbody tr")[0].QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Link Payor").Click();
-
-        cut.WaitForAssertion(() => Assert.Equal("Maria Santos", cut.Find("[role='dialog'] input[type='search']").GetAttribute("value")), Timeout);
-        _collections.Verify(x => x.SearchCollectionPayorsAsync(It.IsAny<string>()), Times.Never);                   // pre-filled, never searched for the office
-        cut.Find("form[aria-label='Find an account holder']").Submit();
-        cut.WaitForAssertion(() => Assert.Contains("NPM · 4", cut.Find("[aria-label='Account holders found']").TextContent), Timeout);
-        Assert.True(cut.FindAll("[role='dialog'] footer button").Single(b => b.TextContent.Trim() == "Use Payor").HasAttribute("disabled"));
-        cut.Find("[aria-label='Account holders found'] button").Click();
-        cut.FindAll("[role='dialog'] footer button").Single(b => b.TextContent.Trim() == "Use Payor").Click();
-
         cut.WaitForAssertion(() =>
         {
-            Assert.Empty(cut.FindAll("[role='dialog']"));
-            var row = cut.FindAll(".imp-table tbody tr")[0].TextContent;
-            Assert.Contains("Maria Santos", row);
-            Assert.Contains("Ready", row);
-            Assert.Contains("1 ready", cut.Find(".shi-foot-note").TextContent);
+            Assert.NotNull(previewed);
+            Assert.All(previewed!.Rows, x => { Assert.Equal(Guid.Empty, x.Account.PayorId); Assert.False(string.IsNullOrWhiteSpace(x.Account.ActualOccupant)); });
+            Assert.Equal("Maria Santos", previewed.Rows[0].Account.ActualOccupant);
+            Assert.DoesNotContain(cut.FindAll("button"), button => button.TextContent.Contains("Link Payor"));
+            Assert.Contains("3 ready", cut.Find(".shi-foot-note").TextContent);
         }, Timeout);
+        _collections.Verify(x => x.SearchCollectionPayorsAsync(It.IsAny<string>()), Times.Never);
     }
 
     [Fact]
@@ -474,8 +454,8 @@ public sealed class ObligationWorkspaceTests : TestContext
             var rows = r.Rows.Select((row, i) =>
             {
                 var account = row.Account;
-                if (account.PayorId == Guid.Empty)
-                    return new SpaceHolderImportRowResult(i + 1, SpaceHolderImportStatus.NeedsPayor, "RequiresPayor", "Choose an account holder.", Facts:
+                if (string.IsNullOrWhiteSpace(account.ActualOccupant))
+                    return new SpaceHolderImportRowResult(i + 1, SpaceHolderImportStatus.NeedsSourceHolder, "RequiresSourceHolder", "Enter the occupant.", Facts:
                         new(account with { SubjectLabel = "3" }, row.ClosedOn, SpaceNumberOrigin.ServerSuggested, null));
                 return account.SubjectLabel == "2"
                     ? new SpaceHolderImportRowResult(i + 1, SpaceHolderImportStatus.Invalid, "DuplicateSpace", "This space already has an account.", Facts:
@@ -492,18 +472,7 @@ public sealed class ObligationWorkspaceTests : TestContext
 
         var cut = RenderComponent<KanmanggayImport>();
         cut.Find(".imp-use-sample").Click();
-        // Sample rows: 1 Maria (signed), 2 Jose (space only), and a third with no number. Each gets the office's explicit Payor.
-        for (var i = 0; i < 3; i++)
-        {
-            cut.WaitForAssertion(() => cut.FindAll(".imp-table tbody tr")[i].QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Link Payor"), Timeout);
-            cut.FindAll(".imp-table tbody tr")[i].QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Link Payor").Click();
-            cut.WaitForAssertion(() => cut.Find("[role='dialog'] form[aria-label='Find an account holder']"), Timeout);
-            cut.Find("[role='dialog'] form[aria-label='Find an account holder']").Submit();
-            cut.WaitForAssertion(() => cut.Find("[aria-label='Account holders found'] button"), Timeout);
-            cut.Find("[aria-label='Account holders found'] button").Click();
-            cut.FindAll("[role='dialog'] footer button").Single(b => b.TextContent.Trim() == "Use Payor").Click();
-            cut.WaitForAssertion(() => Assert.Empty(cut.FindAll("[role='dialog']")), Timeout);
-        }
+        // Sample rows: 1 Maria (signed), 2 Jose (space only), and a third with no number. Each row's occupant is its own holder.
 
         cut.WaitForAssertion(() =>
         {
@@ -518,7 +487,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.Equal(new[] { "1", string.Empty }, saved!.Rows.Select(x => x.Account.SubjectLabel).ToArray());   // a blank number stays blank: the server numbers it
-            Assert.All(saved.Rows, x => Assert.Equal(PayorId, x.Account.PayorId));
+            Assert.All(saved.Rows, x => { Assert.Equal(Guid.Empty, x.Account.PayorId); Assert.False(string.IsNullOrWhiteSpace(x.Account.ActualOccupant)); });
             Assert.Contains("active", cut.FindAll(".imp-step")[2].ClassList);
             Assert.Contains("2 space holders imported", cut.Find(".imp-state-title").TextContent);
         }, Timeout);

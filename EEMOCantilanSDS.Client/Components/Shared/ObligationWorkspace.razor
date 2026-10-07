@@ -5,8 +5,6 @@
 @using EEMOCantilanSDS.Domain.Enums
 @using Microsoft.AspNetCore.Components.Authorization
 @inject IObligationsApiClient ObligationsApi
-@inject IEcfCollectionsApiClient CollectionsApi
-@inject IBusinessPayorsApiClient PayorsApi
 
 @* The body of a specialized obligation line (IA-050): Fish/Meat Vendor Fee, Kanmanggay space rental, Fiesta/Araw lot
    rental. The Head opens an account and approves its amount; the register shows what was assessed, collected and is
@@ -52,7 +50,7 @@
                 <caption class="v3-sr-only">@Name accounts with approved amount, assessed, collected and remaining</caption>
                 <thead>
                     <tr>
-                        <th scope="col">Payor</th>
+                        <th scope="col">@(Kind == ObligationKind.FiestaArawLotRental ? "Lot holder" : "Occupant")</th>
                         <th scope="col">@SubjectNoun</th>
                         @if (SpaceExperience && _holders) { <th scope="col">Start date</th><th scope="col">Status</th> }
                         <th scope="col" class="v3-num">@AmountHeading</th>
@@ -196,37 +194,10 @@
                         }
                     </div>
                     <div class="avm-row-2">
-                        @* The occupant is the Account holder the account is held in. It is chosen from the server's list, never matched from the typed name. *@
+                        @* The holder is the source's own occupant: typed once on the account, never a master record or a name match. *@
                         <div class="avm-group">
-                            <label class="avm-label">Actual Occupant <span class="avm-req">*</span></label>
-                            @if (SelectedPayor is { } chosen)
-                            {
-                                <div class="obw-selected" role="status">
-                                    <span class="obw-selected-name">@chosen.DisplayName</span>
-                                    <button class="obw-link" type="button" @onclick="ClearPayor">Change</button>
-                                </div>
-                            }
-                            else
-                            {
-                                <input class="avm-input" type="search" aria-label="Search occupants" placeholder="Search by name" @bind="_payorSearch" @bind:event="oninput" @onkeyup="SearchPayorsAsync" />
-                                @if (_payors.Count > 0)
-                                {
-                                    <ul class="obw-results" role="listbox" aria-label="Account holders found">
-                                        @foreach (var payor in _payors)
-                                        {
-                                            <li><button class="obw-option" type="button" role="option" aria-selected="false" @onclick="() => _payorId = payor.PayorId.ToString()">@payor.DisplayName</button></li>
-                                        }
-                                    </ul>
-                                }
-                                @if (_payors.Count == 0 && _payorSearch.Trim().Length >= 2)
-                                {
-                                    <span class="avm-hint">No Account holder found.</span>
-                                }
-                                @if (_payorSearch.Trim().Length >= 2)
-                                {
-                                    <button class="obw-link" type="button" @onclick="CreatePayorAsync" disabled="@_saving">Create Account holder “@_payorSearch.Trim()”</button>
-                                }
-                            }
+                            <label class="avm-label" for="obw-occupant">@(Kind == ObligationKind.FiestaArawLotRental ? "Lot holder" : "Actual occupant") <span class="avm-req">*</span></label>
+                            <input id="obw-occupant" class="avm-input" type="text" maxlength="200" autocomplete="off" aria-label="Actual occupant" @bind="_occupant" @bind:event="oninput" />
                         </div>
                         @if (Kind == ObligationKind.KanmanggaySpaceRental)
                         {
@@ -360,7 +331,6 @@
     private List<ObligationAccountDto> _accounts = [];
     private List<ObligationQuoteDto> _register = [];
     private List<VendorFeeStallDto> _stalls = [];
-    private List<CollectionPayorDto> _payors = [];
     private bool _loading = true;
     private bool _registerLoading;
     private string? _error;
@@ -371,12 +341,9 @@
     private bool _saving;
     private bool _signedContract = true;
     private string _contractRef = string.Empty;
-    private CollectionPayorDto? SelectedPayor => _payors.FirstOrDefault(x => x.PayorId.ToString() == _payorId);
-    private void ClearPayor() { _payorId = string.Empty; _payorSearch = string.Empty; _payors = []; }
     private string? _formError;
     private string? _saved;
-    private string _payorSearch = string.Empty;
-    private string _payorId = string.Empty;
+    private string _occupant = string.Empty;
     private string _stallId = string.Empty;
     private string _subject = string.Empty;
     private LotRentalEvent _lotEvent = LotRentalEvent.Fiesta;
@@ -427,9 +394,8 @@
     private async Task OpenForm()
     {
         _formError = null; _saved = null; _rateFor = null;
-        _payorSearch = _payorId = _stallId = _subject = _contractRef = string.Empty;
+        _occupant = _stallId = _subject = _contractRef = string.Empty;
         _signedContract = true; _lotEvent = LotRentalEvent.Fiesta;
-        _payors = [];
         _amount = null;
         _opening = true;
         if (Kind == ObligationKind.FiestaArawLotRental && _operations.Count == 0) await LoadOperationsAsync();
@@ -457,40 +423,6 @@
     private string OpenSubtitle => Kind == ObligationKind.FiestaArawLotRental
         ? "A lot for an event, with the approved amount."
         : Kind == ObligationKind.FishMeatVendorFee ? "A vendor stall with its approved monthly amount." : "A space with its approved monthly amount.";
-
-    /// <summary>Creates an account holder from the typed name, only on the office's press, and selects it. A same-named Payor is never reused silently.</summary>
-    private async Task CreatePayorAsync()
-    {
-        var name = _payorSearch.Trim();
-        if (name.Length < 2 || _saving) return;
-        _saving = true;
-        _formError = null;
-        try
-        {
-            var result = await PayorsApi.CreatePayorAsync(new CreatePayorRequest(name, BusinessPayorKind.Person));
-            if (result.IsSuccess && result.Value is { } created)
-            {
-                _payors = [new CollectionPayorDto(created.PayorId, created.DisplayName)];
-                _payorId = created.PayorId.ToString();
-            }
-            else if (result.Error?.StartsWith("DUPLICATE_PAYOR", StringComparison.Ordinal) == true)
-                _formError = $"An account holder named {name} already exists. Choose it from the list instead.";
-            else _formError = result.Error ?? "The Account holder could not be created.";
-        }
-        catch { _formError = "The Account holder could not be created."; }
-        finally { _saving = false; }
-    }
-
-    private async Task SearchPayorsAsync()
-    {
-        if (_payorSearch.Trim().Length < 2) { _payors = []; return; }
-        try
-        {
-            var result = await CollectionsApi.SearchCollectionPayorsAsync(_payorSearch.Trim());
-            _payors = result.IsSuccess ? result.Value?.ToList() ?? [] : [];
-        }
-        catch { _payors = []; }
-    }
 
     private static readonly IReadOnlyList<ChoiceCards.Choice> BasisChoices =
     [
@@ -545,7 +477,7 @@
             if (!Guid.TryParse(_stallId, out var parsedStall)) { _formError = "Choose an NPM Fish or Meat stall."; return; }
             stallId = parsedStall;
         }
-        else if (!Guid.TryParse(_payorId, out payorId)) { _formError = "Choose an account holder."; return; }
+        else if (_occupant.Trim().Length < 2) { _formError = Kind == ObligationKind.FiestaArawLotRental ? "Enter the lot holder." : "Enter the actual occupant."; return; }
 
         _saving = true;
         try
@@ -557,7 +489,8 @@
                 Kind, payorId, stallId, subject, isLot ? _lotEvent : null, isLot ? _eventDate : null, start, _amount!.Value,
                 // Occupancy basis is recorded for Kanmanggay only; no contract is implied for a space-only occupancy.
                 Kind == ObligationKind.KanmanggaySpaceRental ? (_signedContract ? OccupancyArrangement.SignedContract : OccupancyArrangement.SpaceOnly) : null,
-                Kind == ObligationKind.KanmanggaySpaceRental && _signedContract && !string.IsNullOrWhiteSpace(_contractRef) ? _contractRef.Trim() : null));
+                Kind == ObligationKind.KanmanggaySpaceRental && _signedContract && !string.IsNullOrWhiteSpace(_contractRef) ? _contractRef.Trim() : null,
+                Kind == ObligationKind.FishMeatVendorFee ? null : _occupant.Trim()));
             if (!result.IsSuccess) { _formError = result.Error ?? "The account could not be opened."; return; }
             _opening = false;
             _saved = $"{Name} account opened.";
