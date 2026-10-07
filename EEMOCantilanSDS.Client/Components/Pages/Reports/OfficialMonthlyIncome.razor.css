@@ -326,3 +326,7 @@
 
 /* The office's signatories close the statement; Prepared by / Certified Correct are the Head's own settings. */
 .omi-sign { margin-top: 28px; break-inside: avoid; }
+
+@media print {
+    .omi-sign { margin-top: 5mm; }
+}

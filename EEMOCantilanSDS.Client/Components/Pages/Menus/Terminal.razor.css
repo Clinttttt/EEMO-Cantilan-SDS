@@ -22,3 +22,5 @@
 /* Recent collections are bounded: about five rows show, the rest scroll under a held heading. */
 .trm2-scroll { max-height: 21rem; overflow-y: auto; overscroll-behavior: contain; }
 .trm2-scroll thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-muted); }
+
+.v3-table tbody th { background: transparent; font-weight: 600; text-align: left; }

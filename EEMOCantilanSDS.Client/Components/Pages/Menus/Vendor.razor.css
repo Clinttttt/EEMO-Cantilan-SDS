@@ -2003,3 +2003,8 @@ TABLE
     font-variant-numeric: tabular-nums;
     color: var(--text-secondary);
 }
+
+/* Below a wide desktop the registry toolbar wraps instead of pushing the page wider than the window. */
+@media (max-width: 1200px) {
+    .vs-toolbar-unified { flex-wrap: wrap; }
+}

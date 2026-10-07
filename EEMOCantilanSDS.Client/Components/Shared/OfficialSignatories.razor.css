@@ -45,3 +45,8 @@
 
 .osg-setup { margin: 12px 0 0; font-size: 0.8125rem; }
 .osg-setup a { color: var(--accent); }
+
+@media print {
+    .osg { margin-top: 4px; }
+    .osg-rule { height: 22px; }
+}
