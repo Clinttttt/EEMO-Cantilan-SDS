@@ -57,7 +57,7 @@
                Rendered once the page is interactive, so prerendering does not read it twice. *@
             @if (RendererInfo.IsInteractive)
             {
-                <RevenueSourcePerformancePanel Year="_now.Year" Month="_now.Month" />
+                <RevenueSourcePerformancePanel Year="_now.Year" Month="_now.Month" OverviewMode="true" />
             }
 
             <!-- Operations overview -->

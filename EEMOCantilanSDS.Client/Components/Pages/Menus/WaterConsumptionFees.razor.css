@@ -422,5 +422,12 @@
 .wcf-mobile-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .wcf-panel-header { flex-wrap: wrap; align-items: flex-start; gap: 12px 16px; }
 .wcf-panel-title { display: flex; flex-direction: column; gap: 2px; min-width: 9rem; }
-.wcf-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-left: auto; }
-.wcf-controls .v3-search { flex: 0 1 13rem; min-width: 10rem; }
+.wcf-controls { display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: 8px; margin-left: auto; }
+.wcf-controls .wcf-period,
+.wcf-controls .v3-btn-group { flex: 0 0 auto; }
+.wcf-controls .v3-search { flex: 1 1 13rem; min-width: 10rem; }
+
+@media (max-width: 720px) {
+    .wcf-controls { flex-wrap: wrap; }
+    .wcf-controls .v3-search { flex: 1 1 100%; }
+}

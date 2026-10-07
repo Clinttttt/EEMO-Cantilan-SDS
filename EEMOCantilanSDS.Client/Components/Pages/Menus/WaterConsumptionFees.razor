@@ -89,8 +89,7 @@
     <section class="v3-panel" aria-labelledby="wcf-obligations-title">
         <header class="v3-panel-header wcf-panel-header">
             <div class="wcf-panel-title">
-                <h2 id="wcf-obligations-title">Obligations</h2>
-                <span class="v3-panel-meta">@FilteredQuotes.Count() of @_quotes.Count · @SettlementReadiness</span>
+                <h2 id="wcf-obligations-title">Payer accounts</h2>
             </div>
             @* One aligned control group: the billing month, a search, and the WCF pages. *@
             <div class="wcf-controls no-print" aria-label="Obligation filters and WCF actions">
@@ -400,22 +399,6 @@
             _mobileError = "WCF Mobile collection could not be enabled.";
         }
         finally { _enabling = false; }
-    }
-
-    // Mobile readiness from server truth only: settlement authority on the returned obligations, and the office's
-    // in-office Cash Ticket stock (for Head/Admin, "available" tickets are unassigned office stock — a collector can
-    // issue only tickets assigned to them in Accountable Forms). Per-collector capability is decided by the server
-    // on Collector Mobile.
-    private string SettlementReadiness
-    {
-        get
-        {
-            var open = _quotes.Count(q => q.OutstandingAmount > 0m && q.CanCollectCanonical);
-            var owing = _quotes.Count(q => q.OutstandingAmount > 0m);
-            if (owing == 0) return "No outstanding obligations";
-            if (open == 0) return "Not yet active for Mobile — activate in Water Accounts";
-            return $"{open} of {owing} open for collection";
-        }
     }
 
     /// <summary>Read-only state of one obligation; collection itself happens on Collector Mobile.</summary>

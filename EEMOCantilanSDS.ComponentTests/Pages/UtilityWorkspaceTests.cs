@@ -64,7 +64,7 @@ public sealed class UtilityWorkspaceTests : TestContext
     }
 
     [Fact]
-    public void Ecf_ControlsShareOneGroupInTheObligationsHeader_AndAnEmptyCurrentCollectionIsACompactSummary()
+    public void Ecf_ControlsShareOneGroupUnderThePayerAccountsHeading_AndAnEmptyCurrentCollectionIsACompactSummary()
     {
         Services.AddSingleton(EcfApi(EcfQuote(outstanding: 80m, canAdd: true, SettlementAuthority.Canonical)).Object);
 
@@ -72,6 +72,11 @@ public sealed class UtilityWorkspaceTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
+            var header = cut.Find(".ecf-panel-header");
+            Assert.Equal("Payer accounts", header.QuerySelector("h2")!.TextContent.Trim());
+            Assert.Empty(header.QuerySelectorAll(".ecf-panel-title .v3-panel-meta"));
+            Assert.DoesNotContain("0 of 0", header.TextContent);
+
             var controls = cut.Find(".ecf-panel-header .ecf-controls");                                   // search, area and the ECF pages together
             Assert.NotNull(controls.QuerySelector("input[type='search']"));
             Assert.NotNull(controls.QuerySelector("select[aria-label='Filter by area']"));
@@ -143,7 +148,6 @@ public sealed class UtilityWorkspaceTests : TestContext
             // Read-only evidence and reporting stay.
             Assert.Contains(cut.FindAll("h2"), h => h.TextContent.Trim() == "Collection activity");
             Assert.DoesNotContain(cut.FindAll("h2"), h => h.TextContent.Trim() == "Collections needing review");     // an empty review list is not shown
-            Assert.Contains("1 of 1 open for collection", cut.Markup);
             Assert.DoesNotContain("unassigned CT", cut.Markup);   // physical stock never gates readiness (IA-062)
         }, Timeout);
 
@@ -161,6 +165,9 @@ public sealed class UtilityWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("Cash Ticket", cut.Markup);
+            var header = cut.Find(".wcf-panel-header");
+            Assert.Equal("Payer accounts", header.QuerySelector("h2")!.TextContent.Trim());
+            Assert.Empty(header.QuerySelectorAll(".wcf-panel-title .v3-panel-meta"));
             Assert.Contains("No outstanding WCF obligations", cut.Markup);
             foreach (var meter in new[] { "meter", "cubic", "m³", "consumption ×" })
                 Assert.DoesNotContain(meter, cut.Find("table").TextContent, StringComparison.OrdinalIgnoreCase);
@@ -179,7 +186,7 @@ public sealed class UtilityWorkspaceTests : TestContext
     }
 
     [Fact]
-    public void Wcf_WhenNoSourceIsCanonical_ReadinessSaysMobileCannotIssueYet()
+    public void Wcf_WhenNoSourceIsCanonical_KeepsTheRowStateWithoutAHeaderSubtitle()
     {
         // In-office stock is not "available for field collection": a collector issues only tickets assigned to them,
         // and only against a source the server has opened for canonical settlement.
@@ -189,7 +196,11 @@ public sealed class UtilityWorkspaceTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Contains("Not yet active for Mobile", cut.Markup);
+            var header = cut.Find(".wcf-panel-header");
+            Assert.Equal("Payer accounts", header.QuerySelector("h2")!.TextContent.Trim());
+            Assert.Empty(header.QuerySelectorAll(".wcf-panel-title .v3-panel-meta"));
+            Assert.DoesNotContain("Not yet active for Mobile", header.TextContent);
+            Assert.Contains("Not open for collection", cut.Find("section[aria-labelledby='wcf-obligations-title'] tbody tr").TextContent);
             Assert.DoesNotContain("available for field collection", cut.Markup);
         }, Timeout);
     }
