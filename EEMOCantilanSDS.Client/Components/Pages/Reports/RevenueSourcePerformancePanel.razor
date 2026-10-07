@@ -18,7 +18,7 @@
             <div class="rsp-sub">@(OverviewMode
                 ? "Official collections and operating activity by revenue source for the selected period."
                 : "Collected is the official Monthly Income for the period; secondary figures follow each source's model")</div>
-            @if (_data?.TargetCoverage is { } coverage)
+            @if (!OverviewMode && _data?.TargetCoverage is { } coverage)
             {
                 <div class="rsp-cov" role="status">@CoverageText(coverage)</div>
             }
@@ -47,7 +47,7 @@
                         {
                             <th scope="col">Source</th>
                             <th scope="col" class="rsp-num">Collected</th>
-                            <th scope="col">Activity</th>
+                            <th scope="col" class="rsp-num">Annual target</th>
                             <th scope="col" class="rsp-num">Contribution</th>
                             <th scope="col">Attention</th>
                         }
@@ -89,7 +89,14 @@
                                 <tr class="rsp-row">
                                     <th scope="row" class="rsp-source">@row.Label</th>
                                     <td class="rsp-num rsp-collected">@Money(row.Collected)</td>
-                                    <td>@OverviewActivity(row)</td>
+                                    <td class="rsp-num rsp-target">
+                                        @if (row.AnnualTarget is { } target)
+                                        {
+                                            <span>@Money(target)</span>
+                                            @if (row.Attainment is { } attainment) { <span class="rsp-attain">@(attainment.ToString("N1", CultureInfo.InvariantCulture) + "%")</span> }
+                                        }
+                                        else { <span class="rsp-quiet">Not set</span> }
+                                    </td>
                                     <td class="rsp-num rsp-contribution">@Contribution(row)</td>
                                     <td class="rsp-attention @AttentionClass(row, facility)">@Attention(row, facility)</td>
                                 </tr>
@@ -297,16 +304,6 @@
         RevenueSourceModel.Receivable => "Receivable",
         _ => model
     };
-
-    private string OverviewActivity(RevenueSourcePerformanceRowDto row)
-    {
-        if (row.Model == RevenueSourceModel.Receivable) return "—";
-        if (row.Model == RevenueSourceModel.RecurringObligation && FacilityOf(row) is { PaidOnService: false, ExpectedRecords: > 0 } facility)
-            return $"{facility.PaidRecords} / {facility.ExpectedRecords} paid";
-        if (row.TransactionCount is not { } n) return row.LegacyCollected != 0m ? "Legacy included" : "—";
-        if (n == 0) return "—";
-        return Plural(n, "transaction");
-    }
 
     private static string ReportActivity(RevenueSourcePerformanceRowDto row)
     {

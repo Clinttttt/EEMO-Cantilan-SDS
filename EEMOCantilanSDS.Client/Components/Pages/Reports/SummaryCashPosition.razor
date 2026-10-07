@@ -32,7 +32,7 @@
     private string TargetText => TargetCoverage switch
     {
         { State: TargetCoverageState.Complete, Attainment: { } a } => a.ToString("N1", CultureInfo.InvariantCulture) + "%",
-        { State: TargetCoverageState.Partial } c => $"Partially configured · {c.TargetedRows} of {c.TotalRows}",
+        { State: TargetCoverageState.Partial } c => $"{c.TargetedRows} of {c.TotalRows} configured",
         _ => "Not configured"
     };
 

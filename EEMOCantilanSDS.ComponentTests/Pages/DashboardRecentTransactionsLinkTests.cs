@@ -60,7 +60,7 @@ public sealed class DashboardRecentTransactionsLinkTests : TestContext
     public void TheDashboard_ShowsEverySourceFromTheSharedProjection_NotOnlyTheFacilities()
     {
         var landing = new RevenueSourcePerformanceRowDto("LANDING_BERTHING", "Landing / Berthing", "MARKET", "Income from Market",
-            RevenueSourceModel.Transactional, "CT", null, 100m, 0m, 100m, 1, 1, 1, "Active", false);
+            RevenueSourceModel.Transactional, "CT", null, 100m, 0m, 100m, 1, 1, 1, "Active", false) with { AnnualTarget = 1200m, Attainment = 8.3m };
         _official.Setup(x => x.GetSourcePerformanceAsync(It.IsAny<int>(), It.IsAny<int?>()))
             .ReturnsAsync(Result<RevenueSourcePerformanceDto>.Success(new RevenueSourcePerformanceDto(2026, 10,
                 [new RevenueSourceGroupDto("MARKET", "Income from Market", 100m)], [landing], 100m, [], DateTime.UtcNow)));
@@ -71,10 +71,12 @@ public sealed class DashboardRecentTransactionsLinkTests : TestContext
         {
             var row = cut.FindAll("tr.rsp-row").Single(r => r.TextContent.Contains("Landing / Berthing"));
             Assert.Contains("₱100", row.TextContent);
-            Assert.Contains("1 transaction", row.TextContent);
+            Assert.Contains("₱1,200", row.QuerySelector("td.rsp-target")!.TextContent);
             Assert.Contains("100.0%", row.TextContent);
-            Assert.Equal(new[] { "Source", "Collected", "Activity", "Contribution", "Attention" },
+            Assert.Equal(new[] { "Source", "Collected", "Annual target", "Contribution", "Attention" },
                 cut.FindAll("table.rsp-table thead th").Select(h => h.TextContent.Trim()).ToArray());
+            Assert.DoesNotContain("1 transaction", row.TextContent);
+            Assert.Empty(cut.FindAll(".rsp-cov"));
             Assert.Empty(cut.FindAll("button.rsp-toggle"));
             Assert.Empty(cut.FindAll("tr.rsp-detail"));
             // The old facility-only title is gone; the facility cards are a labelled secondary snapshot.

@@ -374,7 +374,7 @@ public sealed class OfficialReportPanelsTests : TestContext
         }, Timeout);
     }
 
-    // ── Revenue source performance: official money, management activity and attention ──
+    // ── Revenue source performance: official money, annual targets and attention ──
 
     private static RevenueSourcePerformanceRowDto Source(string key, string label, string group, string model, decimal collected,
         int? transactions, FacilityCode? facility = null, string? instruments = null) =>
@@ -387,13 +387,13 @@ public sealed class OfficialReportPanelsTests : TestContext
         var rows = new[]
         {
             Source("MARKET_FEES", "Market Fees", "MARKET", RevenueSourceModel.Transactional, 200m, 1, instruments: "CT")
-                with { CollectorCount = 2, DocumentCount = 3 },
+                with { CollectorCount = 2, DocumentCount = 3, AnnualTarget = 1200m, Attainment = 16.7m },
             Source("TRANSPORTATION_PARKING", "Transportation Fees", "MARKET", RevenueSourceModel.Transactional, 40m, 3, instruments: "OR")
                 with { CollectorCount = 2, DocumentCount = 3 },
         };
         var dto = new RevenueSourcePerformanceDto(2026, 10,
             [new RevenueSourceGroupDto("MARKET", "Income from Market", 240m), new RevenueSourceGroupDto("RENT", "Rent / facility operations", 0m)],
-            rows, 240m, [], DateTime.UtcNow);
+            rows, 240m, [], DateTime.UtcNow, new TargetCoverageDto(TargetCoverageState.Partial, 1, 20, 1200m, 200m, 16.7m));
         _reports.Setup(x => x.GetSourcePerformanceAsync(2026, 10)).ReturnsAsync(Result<RevenueSourcePerformanceDto>.Success(dto));
 
         var cut = RenderComponent<RevenueSourcePerformancePanel>(p => p.Add(x => x.Year, 2026).Add(x => x.Month, 10).Add(x => x.OverviewMode, true));
@@ -401,16 +401,19 @@ public sealed class OfficialReportPanelsTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("Revenue source performance — October 2026", cut.Find("#rsp-title").TextContent);
-            Assert.Equal(new[] { "Source", "Collected", "Activity", "Contribution", "Attention" },
+            Assert.Equal(new[] { "Source", "Collected", "Annual target", "Contribution", "Attention" },
                 cut.FindAll("table.rsp-table thead th").Select(h => h.TextContent.Trim()).ToArray());
             var market = cut.FindAll("tr.rsp-row").Single(r => r.TextContent.Contains("Market Fees"));
             Assert.Equal(5, market.QuerySelectorAll("th, td").Length);
             Assert.Contains("₱200", market.TextContent);
-            Assert.Contains("1 transaction", market.TextContent);
             Assert.Contains("83.3%", market.TextContent);
+            Assert.Contains("₱1,200", market.QuerySelector("td.rsp-target")!.TextContent);
+            Assert.Contains("16.7%", market.QuerySelector("td.rsp-target")!.TextContent);
+            Assert.DoesNotContain("transaction", market.TextContent, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("—", market.TextContent);
             var transport = cut.FindAll("tr.rsp-row").Single(r => r.TextContent.Contains("Transportation Fees"));
-            Assert.Contains("3 transactions", transport.TextContent);
+            Assert.Contains("Not set", transport.QuerySelector("td.rsp-target")!.TextContent);
+            Assert.DoesNotContain("transaction", transport.TextContent, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("16.7%", transport.TextContent);
             Assert.DoesNotContain("collector", cut.Markup, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("document", cut.Markup, StringComparison.OrdinalIgnoreCase);
@@ -420,6 +423,8 @@ public sealed class OfficialReportPanelsTests : TestContext
             Assert.DoesNotContain("Basis", cut.Find("table.rsp-table thead").TextContent);
             Assert.DoesNotContain("Position", cut.Find("table.rsp-table thead").TextContent);
             Assert.DoesNotContain("Status", cut.Find("table.rsp-table thead").TextContent);
+            Assert.Empty(cut.FindAll(".rsp-cov"));
+            Assert.DoesNotContain("Targets partially configured", cut.Markup);
             Assert.Empty(cut.FindAll("button.rsp-toggle"));
             Assert.Empty(cut.FindAll("tr.rsp-detail"));
             Assert.DoesNotContain("aria-expanded", cut.Find("table.rsp-table").OuterHtml);
@@ -452,7 +457,7 @@ public sealed class OfficialReportPanelsTests : TestContext
     }
 
     [Fact]
-    public void SourcePerformance_UsesRegisterCoverageAndOnlyRealRecurringBalancesForAttention()
+    public void SourcePerformance_UsesOnlyRealRecurringBalancesForAttention()
     {
         var rows = new[]
         {
@@ -474,16 +479,17 @@ public sealed class OfficialReportPanelsTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var rent = cut.FindAll("tr.rsp-row").Single(r => r.TextContent.Contains("Tampak Commercial Center"));
-            Assert.Contains("18 / 24 paid", rent.TextContent);
+            Assert.DoesNotContain("18 / 24 paid", rent.TextContent);
             Assert.Contains("₱7,800 outstanding", rent.TextContent);
             Assert.DoesNotContain("unpaid", rent.TextContent, StringComparison.OrdinalIgnoreCase);
 
             var service = cut.FindAll("tr.rsp-row").Single(r => r.TextContent.Contains("Landing / Berthing"));
-            Assert.Contains("1 transaction", service.TextContent);
+            Assert.DoesNotContain("transaction", service.TextContent, StringComparison.OrdinalIgnoreCase);
             Assert.Contains("—", service.QuerySelector("td.rsp-attention")!.TextContent.Trim());
 
             var legacy = cut.FindAll("tr.rsp-row").Single(r => r.TextContent.Contains("Market Fees"));
-            Assert.Contains("Legacy included", legacy.TextContent);
+            Assert.Contains("Not set", legacy.QuerySelector("td.rsp-target")!.TextContent);
+            Assert.DoesNotContain("Legacy included", legacy.TextContent);
             Assert.Contains("Legacy data included", legacy.TextContent);
             Assert.DoesNotContain("0 transactions", legacy.TextContent);
 
@@ -508,7 +514,7 @@ public sealed class OfficialReportPanelsTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var source = cut.Find("tr.rsp-row");
-            Assert.Contains("1 transaction", source.TextContent);
+            Assert.DoesNotContain("transaction", source.TextContent, StringComparison.OrdinalIgnoreCase);
             Assert.Equal("—", source.QuerySelector("td.rsp-attention")!.TextContent.Trim());
             Assert.DoesNotContain("outstanding", source.TextContent, StringComparison.OrdinalIgnoreCase);
         }, Timeout);
@@ -657,7 +663,9 @@ public sealed class OfficialReportPanelsTests : TestContext
             .Add(x => x.TargetCoverage, coverage)).Markup;
 
         Assert.Contains("Not configured", Text(null));
-        Assert.Contains("Partially configured · 1 of 2", Text(Coverage(TargetCoverageState.Partial, 10m)));
+        var partial = Text(Coverage(TargetCoverageState.Partial, 10m));
+        Assert.Contains("1 of 2 configured", partial);
+        Assert.DoesNotContain("Partially", partial);
         var complete = Text(Coverage(TargetCoverageState.Complete, 62.5m));
         Assert.Contains("62.5%", complete);
         Assert.DoesNotContain("Partially", complete);
