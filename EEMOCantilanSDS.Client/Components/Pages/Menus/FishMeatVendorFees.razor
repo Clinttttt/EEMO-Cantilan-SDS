@@ -1,39 +1,265 @@
 @page "/operations/fish-meat-vendor-fees"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Mobile
 @using EEMOCantilanSDS.Client.Components.Shared
-@using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Constants
-@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@inject IOfficeSourcesApiClient OfficeApi
 
-<PageTitle>StallTrack — Fish / Meat Vendor Fees</PageTitle>
+<PageTitle>StallTrack — Fish / Meat Vendors</PageTitle>
 
-@* NPM owns vendor identity. IA-064 direct Vendor Fee collections remain separate from rent and weighing.
-   The superseded IA-050 accounts are preserved as read-only historical evidence after cutover. *@
-<div class="v3-page fm-page">
-    <WorkspaceHeader Parent="Operations" Title="Fish / Meat Vendor Fees" Subtitle="Vendor fee collections">
-        <Meta><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
-        <Actions>
-            <a class="v3-btn" href="/collections/activity">Collection activity</a>
-            <a class="v3-btn" href="/facility/npm">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18" /><path d="M5 21V7l7-4 7 4v14" /><path d="M9 21v-5h6v5" /></svg>
-                Open @NpmName
-            </a>
-        </Actions>
-    </WorkspaceHeader>
+@* Fish / Meat Vendors own their registry: a vendor is registered here for a tax year as Fish or Meat, never through NPM. The Vendor Fee is a
+   direct amount received (no fixed rate) and Weight & Measure needs a registered vendor; both are recorded on Collector Mobile and read
+   here from the canonical activity. The layout owns the <main> landmark. *@
+<OperationTopbar Title="Fish / Meat Vendors" Crumb="Operation" />
+<div class="content-area">
+    <V3Hero Eyebrow="Operation · Fish / Meat" Title="Fish / Meat Vendors" Compact="true">
+        <Meta><span class="fmv-meta">Tax year @_year · <InstrumentChip Instrument="OR" /> Official Receipt</span></Meta>
+        <Figures>
+            <V3HeroFigure Label="Registered" Value="@_rows.Count.ToString("N0")" />
+            <V3HeroFigure Label="Fish" Value="@_rows.Count(x => x.VendorType == FishMeatVendorType.Fish).ToString("N0")" />
+            <V3HeroFigure Label="Meat" Value="@_rows.Count(x => x.VendorType == FishMeatVendorType.Meat).ToString("N0")" />
+        </Figures>
+    </V3Hero>
 
-    <ObligationWorkspace Kind="ObligationKind.FishMeatVendorFee" Name="Fish / Meat Vendor Fee" SubjectNoun="Stall" ReadOnlyHistory="@DirectRuleApplies" />
+    <div class="fmv-toolbar">
+        <div class="fmv-year">
+            <label for="fmv-year">Tax year</label>
+            <select id="fmv-year" @onchange="ChangeYearAsync">
+                @foreach (var year in YearOptions)
+                {
+                    <option value="@year" selected="@(year == _year)">@year</option>
+                }
+            </select>
+        </div>
+        <input class="fmv-search" type="search" placeholder="Search vendor" aria-label="Search vendors" @bind="_search" @bind:event="oninput" />
+        <div class="v3-btn-group" role="group" aria-label="Fish / Meat actions">
+            <a class="v3-btn" href="/collections/activity">Collection Activity</a>
+            <AuthorizeView Roles="SuperAdmin">
+                <Authorized>
+                    <button class="v3-btn v3-btn-primary" type="button" @onclick="OpenRegister">Register vendor</button>
+                </Authorized>
+            </AuthorizeView>
+        </div>
+    </div>
 
-    <aside class="fm-related" aria-label="Related charges">
-        <p><strong>Separate charges.</strong> Stall rent, Vendor Fee and Weight &amp; Measure are reported separately.</p>
-        <a class="fm-related-link" href="/operations/weight-and-measure">Weight &amp; Measure</a>
-    </aside>
+    @if (!string.IsNullOrWhiteSpace(_saved))
+    {
+        <p class="v3-notice fmv-saved" role="status">@_saved</p>
+    }
+
+    <section class="v3-panel" aria-labelledby="fmv-registry-title" aria-busy="@(_loading ? "true" : "false")">
+        <header class="v3-panel-header">
+            <h2 id="fmv-registry-title">Vendor registry</h2>
+            <span class="v3-panel-meta">@VisibleRows.Count @(VisibleRows.Count == 1 ? "vendor" : "vendors")</span>
+        </header>
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="fmv-notice" role="alert">
+                <p class="v3-notice v3-notice-error">@_error</p>
+                <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadAsync">Try again</button>
+            </div>
+        }
+        <div class="v3-table-wrap fmv-scroll" role="region" aria-label="Registered vendors" tabindex="0">
+            <table class="v3-table">
+                <caption class="v3-sr-only">Fish and Meat vendors registered for @_year</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Vendor</th>
+                        <th scope="col">Type</th>
+                        <th scope="col">Registration</th>
+                        <th scope="col">Reference</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in VisibleRows)
+                    {
+                        <tr @key="row.Id">
+                            <td>
+                                <span class="v3-strong">@row.DisplayName</span>
+                                @if (!string.IsNullOrWhiteSpace(row.BusinessName)) { <span class="v3-block fmv-sub">@row.BusinessName</span> }
+                            </td>
+                            <td>@row.VendorType</td>
+                            <td>@row.RegistrationKind</td>
+                            <td>@(string.IsNullOrWhiteSpace(row.Reference) ? "—" : row.Reference)</td>
+                        </tr>
+                    }
+                    @if (VisibleRows.Count == 0)
+                    {
+                        <tr><td class="v3-empty" colspan="4">@(_loading ? "Loading vendors…" : string.IsNullOrWhiteSpace(_search) ? $"No vendor is registered for {_year}." : "No vendor matches the search.")</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="v3-panel fmv-activity" aria-labelledby="fmv-activity-title">
+        <header class="v3-panel-header">
+            <h2 id="fmv-activity-title">Collections this month</h2>
+            <span class="v3-panel-meta">@_activity.Count @(_activity.Count == 1 ? "collection" : "collections")</span>
+        </header>
+        <div class="v3-table-wrap fmv-scroll" role="region" aria-label="Fish and Meat collections this month" tabindex="0">
+            <table class="v3-table">
+                <caption class="v3-sr-only">Vendor Fee and Weight &amp; Measure collections recorded this month</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Date</th>
+                        <th scope="col">SRC</th>
+                        <th scope="col">Collection</th>
+                        <th scope="col">Vendor</th>
+                        <th scope="col" class="v3-num">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in _activity)
+                    {
+                        <tr @key="item.CollectionId">
+                            <td>@item.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)</td>
+                            <td class="fmv-src">@item.SRC</td>
+                            <td>@(item.OperationCode == CollectorOperationCodes.WeightAndMeasure ? "Weight & Measure" : "Vendor Fee")@if (item.Kilograms is { } kg) { <span class="v3-block fmv-sub">@kg.ToString("0.##", CultureInfo.InvariantCulture) kg</span> }</td>
+                            <td>@VendorOf(item)</td>
+                            <td class="v3-num">@Money(item.NetAmount)</td>
+                        </tr>
+                    }
+                    @if (_activity.Count == 0)
+                    {
+                        <tr><td class="v3-empty" colspan="5">No Fish / Meat collection has been recorded this month.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
 </div>
 
-@code {
-    private string NpmName => FacilityCatalog.NameOf(FacilityCode.NPM);
-    private static bool DirectRuleApplies => PhilippineTime.Today >= FishMeatVendorFeeRules.DirectEffectiveDate;
+<AddNewDrawer Show="_registering" Title="Register vendor" Subtitle="@($"Tax year {_year}")" FormId="fmv-register-form" FormLabel="Register vendor"
+              SubmitText="Register" Saving="_saving" Error="@_formError" OnSubmit="RegisterAsync" OnCancel="CloseRegister">
+    <AddNewSection Title="Vendor" Plain="true">
+        <div class="avm-group">
+            <label class="avm-label" for="fmv-name">Vendor name <span class="avm-req">*</span></label>
+            <input id="fmv-name" class="avm-input" type="text" maxlength="200" autocomplete="off" @bind="_name" @bind:event="oninput" />
+        </div>
+        <div class="avm-group">
+            <label class="avm-label">Type <span class="avm-req">*</span></label>
+            <ChoiceCards Label="Vendor type" Items="TypeChoices" Value="@(((int)_type).ToString())" ValueChanged="v => _type = (FishMeatVendorType)int.Parse(v)" />
+        </div>
+        <div class="avm-group">
+            <label class="avm-label">Registration <span class="avm-req">*</span></label>
+            <ChoiceCards Label="Registration" Items="KindChoices" Value="@(((int)_kind).ToString())" ValueChanged="v => _kind = (VendorRegistrationKind)int.Parse(v)" />
+        </div>
+    </AddNewSection>
+    <AddNewSection Title="Details" Plain="true">
+        <div class="avm-group">
+            <label class="avm-label" for="fmv-business">Business name (optional)</label>
+            <input id="fmv-business" class="avm-input" type="text" maxlength="200" @bind="_business" />
+        </div>
+        <div class="avm-group">
+            <label class="avm-label" for="fmv-address">Address (optional)</label>
+            <input id="fmv-address" class="avm-input" type="text" maxlength="300" @bind="_address" />
+        </div>
+        <div class="avm-group">
+            <label class="avm-label" for="fmv-reference">Reference (optional)</label>
+            <input id="fmv-reference" class="avm-input" type="text" maxlength="100" @bind="_reference" />
+        </div>
+    </AddNewSection>
+</AddNewDrawer>
 
-    protected override Task OnInitializedAsync() => FacilityCatalog.EnsureLoadedAsync();
+@code {
+    private int _year = PhilippineTime.Today.Year;
+    private List<FishMeatVendorRegistrationDto> _rows = [];
+    private List<SourceNativeActivityDto> _activity = [];
+    private bool _loading = true, _saving, _registering;
+    private string? _error, _formError, _saved;
+    private string _search = string.Empty;
+
+    private FishMeatVendorType _type = FishMeatVendorType.Fish;
+    private VendorRegistrationKind _kind = VendorRegistrationKind.New;
+    private string _name = string.Empty, _business = string.Empty, _address = string.Empty, _reference = string.Empty;
+    private Guid _operationId = Guid.NewGuid();
+
+    private static readonly IReadOnlyList<ChoiceCards.Choice> TypeChoices = [new("1", "Fish"), new("2", "Meat")];
+    private static readonly IReadOnlyList<ChoiceCards.Choice> KindChoices = [new("1", "New"), new("2", "Renew")];
+
+    private IReadOnlyList<int> YearOptions => Enumerable.Range(0, 4).Select(i => PhilippineTime.Today.Year - i).Append(_year).Distinct().OrderByDescending(y => y).ToList();
+
+    private List<FishMeatVendorRegistrationDto> VisibleRows => string.IsNullOrWhiteSpace(_search) ? _rows
+        : _rows.Where(x => x.DisplayName.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase)
+            || (x.BusinessName?.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var registrations = await OfficeApi.RegistrationsAsync(_year);
+            if (registrations.IsSuccess) _rows = registrations.Value?.ToList() ?? [];
+            else { _rows = []; _error = "The vendor registry couldn't be loaded."; }
+
+            // This month's Vendor Fee and Weight & Measure collections, as the canonical activity records them.
+            var today = PhilippineTime.Today;
+            var from = new DateOnly(today.Year, today.Month, 1);
+            var merged = new List<SourceNativeActivityDto>();
+            foreach (var code in new[] { CollectorOperationCodes.FishMeatVendorFee, CollectorOperationCodes.WeightAndMeasure })
+            {
+                var activity = await OfficeApi.ActivityAsync(from, today, code);
+                if (activity.IsSuccess) merged.AddRange(activity.Value ?? []);
+            }
+            _activity = merged.OrderByDescending(x => x.RecordedAtUtc).ToList();
+        }
+        catch { _rows = []; _error = "The vendor registry couldn't be loaded."; }
+        finally { _loading = false; }
+    }
+
+    private async Task ChangeYearAsync(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var year) || year == _year) return;
+        _year = year;
+        await LoadAsync();
+    }
+
+    private void OpenRegister()
+    {
+        _name = _business = _address = _reference = string.Empty;
+        _type = FishMeatVendorType.Fish;
+        _kind = VendorRegistrationKind.New;
+        _formError = null;
+        _operationId = Guid.NewGuid();
+        _registering = true;
+    }
+
+    private void CloseRegister() => _registering = false;
+
+    private async Task RegisterAsync()
+    {
+        if (_saving) return;
+        if (_name.Trim().Length < 2) { _formError = "Enter the vendor name."; return; }
+        _saving = true;
+        _formError = null;
+        try
+        {
+            var result = await OfficeApi.RegisterAsync(new RegisterFishMeatVendorRequest(_operationId, _year, _type, _kind, _name.Trim(),
+                Blank(_business), Blank(_address), Blank(_reference)));
+            if (!result.IsSuccess) { _formError = "The vendor could not be registered."; return; }
+            _registering = false;
+            _saved = $"{result.Value!.DisplayName} registered for {_year}.";
+            await LoadAsync();
+        }
+        catch { _formError = "The vendor could not be registered."; }
+        finally { _saving = false; }
+    }
+
+    private static string? Blank(string value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    // A registered vendor shows its register name; a walk-up Vendor Fee shows the payer name given at collection.
+    private string VendorOf(SourceNativeActivityDto item) =>
+        item.VendorRegistrationId is { } id && _rows.FirstOrDefault(x => x.Id == id) is { } vendor ? vendor.DisplayName
+        : string.IsNullOrWhiteSpace(item.PayerSnapshot) ? "—" : item.PayerSnapshot!;
+
+    private static string Money(decimal amount) => $"₱{amount.ToString("N2", CultureInfo.InvariantCulture)}";
 }

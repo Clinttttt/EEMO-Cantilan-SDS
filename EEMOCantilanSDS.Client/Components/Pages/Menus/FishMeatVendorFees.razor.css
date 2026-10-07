@@ -1,44 +1,42 @@
-/* Fish / Meat Vendor Fees — V3. Shared panels/tables/buttons come from the v3- layer in app.css. */
+/* Fish / Meat Vendors — V3. Shared panels, tables and buttons come from the v3- layer in app.css. */
+.fmv-meta { display: inline-flex; align-items: center; gap: 8px; }
 
-.fm-related {
+.fmv-toolbar {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px 16px;
-    padding: 12px 16px;
+    align-items: flex-end;
+    gap: 12px 16px;
+    margin: 16px 0;
+}
+
+.fmv-year { display: grid; gap: 4px; }
+.fmv-year label { font-size: 0.75rem; color: var(--text-secondary); }
+
+.fmv-year select,
+.fmv-search {
+    box-sizing: border-box;
+    min-height: 40px;
+    padding: 0 12px;
     border: 1px solid var(--border);
-    border-left: 3px solid var(--gold);
-    border-radius: 10px;
+    border-radius: 8px;
     background: var(--surface);
-}
-
-.fm-related p {
-    margin: 0;
-    color: var(--text-secondary);
-    font-size: 0.8125rem;
-    line-height: 1.45;
-}
-
-.fm-related strong {
     color: var(--navy);
-    font-weight: 600;
+    font: inherit;
+    font-size: 0.875rem;
 }
 
-.fm-related-link {
-    border-radius: 4px;
-    color: var(--accent);
-    font-size: 0.8125rem;
-    font-weight: 600;
-    text-decoration: none;
-    white-space: nowrap;
-}
+.fmv-search { flex: 1 1 220px; min-width: 0; }
+.fmv-toolbar .v3-btn-group { margin-left: auto; }
 
-.fm-related-link:hover {
-    text-decoration: underline;
-}
+.fmv-year select:focus-visible,
+.fmv-search:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.fm-related-link:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-}
+.fmv-saved { margin: 0 0 16px; }
+.fmv-notice { margin: 12px 20px 0; }
+.fmv-activity { margin-top: 16px; }
+.fmv-sub { font-size: 0.75rem; color: var(--text-subtle); }
+.fmv-src { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Both lists are bounded: about five rows show, the rest scroll inside the panel under a held heading. */
+.fmv-scroll { max-height: 21rem; overflow-y: auto; overscroll-behavior: contain; }
+.fmv-scroll thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-muted); }
