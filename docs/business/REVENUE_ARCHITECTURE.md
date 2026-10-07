@@ -90,8 +90,11 @@ This is the confirmed Cantilan tenant policy, not a universal rule for every mun
 | ECF | OR | |
 | WCF | CT | |
 | Tabo | OR | Supersedes the earlier CT working assumption. |
-| Fish/Meat Vendor Fee | OR | |
-| Transportation/Parking | CT | |
+| Fish/Meat Vendor Fee | OR | Independent Fish/Meat vendor registry; direct amount received. |
+| Transportation/Parking | CT | Independent direct-amount source; no vehicle-class/rate basis required. |
+| Terminal — Comfort Room | CT | Direct section total; optional Cash Ticket count. |
+| Terminal — Pull Pul Vans, Cargo Vans | CT | Direct section total; optional Cash Ticket count; Jeepney/Multicab/Van/PUB/PUBB classes belong here for assisted entry. |
+| Terminal — Tricycad | CT | Direct section total; optional Cash Ticket count; Tricycle belongs here for assisted entry. |
 | Vegetable/Fruit Space Rental | OR or CT | Full/whole payment uses OR; daily transactions use CT. CT remains the common day-to-day instrument. |
 | Landing/Berthing | CT | |
 | Weight & Measure / Registration | OR | |
@@ -108,12 +111,15 @@ The existing singular-instrument implementation is therefore insufficient as the
 ### Other confirmed distinctions
 
 - Vegetable/Fruit Space Rental is temporary/open-space revenue, not permanent NPM stall tenancy.
-- Fish/Meat Vendor Fee and Weight & Measure are separate reportable classifications, even when collected from the same vendor.
-- Transportation rates are based on configured vehicle class and effective-dated rates, not one universal per-trip amount. Ordinance No. 12-2021 is the current Cantilan V2 planning basis: Public Utility Buses ₱30, Public Utility Baby Buses ₱30, Jeepneys ₱20, Vans ₱20, Multicabs ₱10 and Tricycles ₱5, with route/service context; the ordinance also describes Cash Ticket issuance. Historical `TrmTrip.Fee` is never re-priced or assigned a missing class retroactively. Revisit only if MEEDO supplies a superseding schedule.
+- Fish/Meat Vendor Fee and Weight & Measure are separate reportable classifications. From 2026-10-06, Fish/Meat uses an independent Fish/Meat vendor registry rather than NPM/BusinessPayor linkage; Weight & Measure requires a registered vendor from that registry.
+- Transportation/Parking is a separate direct-amount Cash Ticket source and no longer owns the vehicle-class/rate model in the target design.
+- The existing effective-dated vehicle classes/rates move prospectively to **Income From Terminal**: Jeepney, Multicab, Van, Public Utility Bus and Public Utility Baby Bus belong to **PULL PUL VANS, CARGO VANS**; Tricycle belongs to **TRICYCAD**. Terminal also permits direct aggregate section totals, so vehicle-class evidence is optional for that aggregate path. Historical `TrmTrip`/Transportation evidence is never re-priced or reclassified by guess.
 - BBQ Stand may roll up under the broader Market operation for operational hierarchy, but remains distinct from Kanmanggay. Kanmanggay is **Space Rental**, charged monthly per space, and uses OR. Lot Rental is charged per lot and uses OR. Market hierarchy does not by itself determine BBQ's final semantic revenue code; BBQ is not thereby `MARKET_FEES`.
 - Penalties and slaughter add-ons are controlled by approved configuration, not arbitrary collector-entered prices.
 - The configured standard slaughter package remains valid; approved add-ons are selected from controlled configuration. ECF and WCF are separate revenue classifications and broader MEEDO Utility Operations, may be collected separately from rent, and retain their respective Cantilan OR/CT policy. They are not globally owned by NPM merely because legacy UtilityBill currently points to a Stall.
-- Payor identity may be optional for appropriate transactional Cash Ticket collections.
+- Payer identity may be optional for appropriate transactional Cash Ticket collections.
+- The target unified collection workflow uses **source-native identity**, not a mandatory Business Payor master. Source records such as occupancies, rental accounts, vendor registrations and utility accounts own eligibility. Equal names are never auto-merged. Direct/one-off operations may freeze typed payer/reference text where their policy allows it.
+- The Business Payors page/manual-linking workflow is retired from the target product. Existing persistence may remain temporarily only as compatibility while source-native contracts are migrated; see ADR-007.
 - Accountable-form inventory and annual revenue targets are separate from collection money. IA-066 resolves bounded tenant/calendar-year/official-row targets: externally approved amounts, Head configuration and auditable revisions. Monthly/YTD actual and percentage derive from official report cells. Report-only adjustment revisions never modify Collections, obligations or remittance. Other target scopes/approval schemes are not implied.
 - **WCF target entry requirement:** WCF must eventually be recordable from both Collector Mobile and Web/Admin. These are two entry surfaces into one canonical backend collection flow and one financial transaction source; reports derive from that recorded collection, never from manually duplicated report entries. This is target behavior, not a claim that the dual-entry production flow exists. The future mobile path must preserve retry/idempotency and offline-safety discipline.
 - Lot/event rentals must not be represented as permanent stall contracts merely because they occur at a market. Cantilan Lot Rental uses OR; Kanmanggay Space Rental also uses OR.
@@ -139,10 +145,11 @@ These are conceptual responsibilities, not an EF schema prescription. Tenant-own
 | ChargeDefinition / ChargeRate | Approved charge identity, calculation basis and effective-dated tenant rate. Resolves through controlled configuration; it does not independently decide obligation balance. |
 | ConfigurableServiceDefinition | Governed tenant-owned operation definition for a structurally simple local service. Links approved classification/policy, supported calculation basis, Payor requirement, required transaction fields, setup state and allowed channels. Incomplete setup cannot produce a Collection. |
 | ConfigurableServiceRate / Policy | Effective-dated approved rate/calculation and instrument/channel policy for a configurable service. Historical posted lines retain the policy/calculation snapshot; later setup changes are prospective. |
-| VehicleClass | Tenant-configurable stable vehicle identity used by transport/parking charges. Effective-dated rate is separate from its display name; trip, driver, plate and route may be optional operational context. |
+| TerminalVehicleClass | Tenant-configurable stable vehicle identity used by assisted Terminal collection. Effective-dated rate is separate from its display name. Vehicle classes map to the official Terminal section (Pull Pul Vans/Cargo Vans or Tricycad). They are not required evidence for the direct aggregate Terminal-total path and are not the basis of Transportation/Parking. |
 | PenaltyDefinition | Approved penalty type, applicability, rate/amount rule and effective dates. Collectors select an approved charge; they do not invent financial meaning or price. |
 | SlaughterApprovedAddon | Approved configurable add-on and effective rate, selected in addition to the standard package. Whether each component is a separate official classification remains a decision gate. |
 | RevenueTarget | IA-066: tenant/calendar-year/official-row amount supplied from an external approved source, configured by Head and retained as audited OfficialReportRevisions. Actuals/YTD/attainment derive from official report cells; arbitrary group/fiscal-year target policies remain outside this bounded contract. |
+| FishMeatVendorRegistration | Source-owned annual/tax-year vendor identity independent of NPM. Records one vendor type (Fish or Meat) plus office registration facts such as New/Renew. Vendor Fee may freeze a free-text payer/vendor snapshot when collection occurs before registration, but Weight & Measure requires this registered identity. |
 | Temporary/Event Rental | Separate activity for event/lot/open-space rental with date/event, location/lot, renter, optional area/supporting details and configured charges. It is not a permanent Stall/Contract. Cantilan Lot Rental uses OR; Kanmanggay Space Rental uses OR; Vegetable/Fruit Space Rental uses OR for full/whole payment and CT for daily transactions. |
 
 **AF No. 51 as implemented (IA-061).** The conceptual names above map to the existing structures: `AccountableFormBook` is the received batch (actual quantity, literal suffix, optional variant, received date, source authority and reference); `AccountableDocument` is the unit, with its exact printed `DocumentNumber`, a unique `NormalizedNumber` lookup key and a state (in office, assigned, consumed, needs review, cancelled, lost); `AccountableFormAssignment` is the append-only custody history; `AccountableFormSpoilage`, `AccountableFormLossReport` (whole set or per copy) and `AccountableFormReference` (external RCD or notice) are append-only exception events. Position, history and the RAAF-support view are read from these and report forms, never pesos. None of them creates a Collection or changes a remittance.
@@ -179,7 +186,7 @@ Existing specialized module rows remain historical evidence. Additive adapters l
 | DailyCollection | Remains authoritative for NPM daily marks, amount, business date, absence and RentGoal month-end adjustment. A later adapter may link its captured money to Collection/classified lines without moving month calculation into the generic ledger. |
 | UtilityBill | Remains authoritative for the existing NPM/stall-bound utility assessment/balance records; its current basis is a direct approved amount (IA-053), and legacy reading fields are kept only as historical evidence that never reprices a recorded charge. New payment events can link to it. Treat it as a legacy/current specialized source adapter, not proof that all future ECF/WCF must belong to NPM. Future utility subjects may require an additive generalized source/context model. Existing utility totals or receipt fields do not justify invented installment detail. |
 | TpmAttendance | Remains the Tabo-an market-day activity/source. Future collections classify the resulting revenue and use the tenant's configured Official Receipt policy. |
-| TrmTrip | Remains historical trip activity. Future transport/parking design moves toward vehicle-class, effective-rate and Cash Ticket semantics. Do not infer a historical vehicle class or turn an old OR value into a CT serial. |
+| TrmTrip | Remains historical Transport Terminal/trip evidence only. The 2026-10-06 clarification separates Terminal from Transportation/Parking. Do not infer a historical vehicle class, move historical money between Terminal and Transportation/Parking, or reinterpret old document evidence. Current vehicle-class configuration is migrated prospectively to Terminal; Transportation/Parking becomes direct amount. |
 | SlaughterTransaction | Remains the per-animal activity and preserves known package breakdown. Future collection/document links expose approved classifications/add-ons without replacing the activity model. |
 | OnlinePaymentTransaction | Remains the payment-provider lifecycle and idempotency record. A settled provider payment can produce/link to Collection; official document issuance may follow asynchronously. The provider record is not itself an OR/CT. |
 | OrNumberRegistry | Continues to protect tenant-scoped number reservation/uniqueness during transition. It is not the authoritative receipt parent. Reconcile it with AccountableDocument uniqueness before migrating writers. |
@@ -225,20 +232,22 @@ Use an explicit LegacyAggregate / DetailUnknown representation only where a repo
 
 The approved top-level workspaces are:
 
-1. Dashboard
+1. Dashboard / Overview
 2. Operations
 3. Collections
-4. Payors & Accounts
+4. Spaces & Occupants
 5. Monitoring
 6. Accountable Forms
 7. Reports
 8. Administration
 
-Operations groups work by operation (configured facilities, market services, space operations, Utility Operations, slaughterhouse, transportation/parking and other enterprises). Public Market/NPM permanent stalls remain distinct from market collections, temporary space, Tabo, utilities and vendor charges. ECF/WCF may be linked contextually to an NPM stall, another facility/space, or an event/service context without making NPM their global parent.
+**ADR-007 / IA-068 supersede the earlier Payors & Accounts target.** There is no separate Business Payor workspace in the target product. Source-owned registries stay with their owning operations and unified New Collection searches those source identities.
 
-Collections provides Today, History, a general Record Collection entry, Awaiting Document and Corrections/Reversals. Specialized collection should normally begin from its operation/account/activity and open a context-aware capture flow; the general entry progressively asks for context and is not a form containing every possible field.
+Operations groups work by operation (configured facilities, market services, space operations, Utility Operations, independent Fish/Meat vendor registration, Income From Terminal, Transportation/Parking, slaughterhouse and other enterprises). Public Market/NPM permanent stalls remain distinct from market collections, temporary space, Tabo, utilities and vendor charges. ECF/WCF may be linked contextually to an NPM stall, another facility/space, or an event/service context without making NPM their global parent.
 
-Payors & Accounts owns the canonical browse/detail view for Outstanding Obligations. Monitoring owns attention and action queues: delinquency, old/lapsed debt, exceptions, expiring/expired occupancies and follow-up.
+Collections provides Today/History plus source-aware collection entry and Corrections/Reversals. Unified New Collection searches typed source-owned identities first, then asks the server for eligible items. It may fall back to direct/one-off operations only where the operation explicitly permits payer snapshot text. It is never a form that exposes every operation indiscriminately.
+
+Spaces & Occupants owns permanent-space/occupancy browsing where that domain exists. Other identities remain with their source operation. Monitoring owns attention and action queues: delinquency, old/lapsed debt, exceptions, expiring/expired occupancies and follow-up.
 
 Reports separates Receivables, Cash Revenue, Management and Operational reporting. Administration groups setup, including Revenue Setup and **Revenue Target Setup**, apart from read-only Management target reports.
 
@@ -285,7 +294,7 @@ This roadmap is retained to explain the approved migration sequence and architec
 | Phase 6 — Cash Ticket / accountable forms | Add CT document issuance and accountability after operating policy is decided: received series/ranges, assignment to collectors/accountable officers, used and remaining units, spoiled/cancelled forms where applicable, and reconciliation. |
 | Phase 7 — source adapters | Adapt utilities, TPM, transportation, fish/weight, penalties, slaughter and other sources as appropriate. Each specialized activity retains its owning domain. |
 | Phase 8 — production classified reporting | Switch approved RCD, Monthly Income and collector revenue views to verified posted classified lines after shadow reconciliation. |
-| Phase 9 — annual targets | Add target setup, revision history, YTD and attainment after target source/period/governance rules are decided. Existing MEEDO Monthly Income sheets provide Annual Target/monthly actual/Total/Percentage precedent but do not by themselves grant edit authority. Keep attainment separate from Collection Efficiency. |
+| Phase 9 — annual targets | **Historical roadmap item; governance later resolved by IA-066.** Implement approved tenant/calendar-year/official-row targets with Head-only audited revisions, YTD and attainment. Existing Monthly Income sheets provide the report structure; target values are externally approved and never inferred. Keep attainment separate from Collection Efficiency. |
 | Later — broader MEEDO operations | Add event rentals, additional enterprise operations and other configured revenue sources without forcing every source into Facility or Stall/Contract. |
 
 ### UI migration dependency map

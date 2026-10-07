@@ -4,6 +4,9 @@
 **Baseline:** `22f45239adf998d22c33e402aa4c87e2465ac106`
 **Target architecture:** [INFORMATION_ARCHITECTURE.md](INFORMATION_ARCHITECTURE.md)
 **Decision registry:** [DECISION_REGISTRY.md](../decisions/DECISION_REGISTRY.md)
+**Current business-refactor overlay:** [OFFICE_CLARIFICATION_REFACTOR_20261006.md](../planning/OFFICE_CLARIFICATION_REFACTOR_20261006.md)
+
+> **2026-10-06 precedence:** this document began as the structural V2 interface-migration roadmap. Where an older phase assumes Payors & Accounts, TRM=Transportation, NPM-linked Fish/Meat/Weight & Measure, hidden Accountable Forms, or unresolved target governance, the later IA-067/IA-068/ADR-007 direction wins. Do not execute an old phase literally when it conflicts with the current business-refactor overlay.
 
 ## 1. Purpose
 
@@ -20,7 +23,7 @@ The plan changes interface structure only unless a separately authorized busines
 5. **Keep authorization stable.** Navigation visibility may improve, but endpoint, page, guard, and role authorization remain unchanged unless separately approved.
 6. **Reconcile financial views like for like.** Any report composition change compares the same tenant, facility, occupancy scope, period, as-of date, and money/date basis.
 7. **Keep old routes working.** Bookmarks, training material, activation/token links, payment callbacks, and contextual links remain compatible.
-8. **Expose capability only when usable.** Accountable Forms, Remittance, classified reports, target attainment, WCF dual entry, and transportation classes remain hidden until their domain capabilities are approved and shipped.
+8. **Expose capability only when usable.** Current availability is read from `planning/CURRENT_RELEASE_STATE.md` and the active branch/tests, not from this historical phase list. New Terminal, source-native Fish/Meat, NPM Daily Collect All and Business-Payor retirement work becomes visible only after its corresponding backend contract and migration are proven.
 9. **Separate structural and financial work.** No interface phase may hide a financial refactor inside navigation or component extraction.
 10. **Ship small role-complete slices.** A phase is complete only when affected Head/Admin/Collector/Payor paths are reachable, authorized, and regression-tested.
 
@@ -107,7 +110,7 @@ Navigation visibility and authorization are separate controls.
 | Role | Navigation visibility |
 |---|---|
 | Head | All released Web workspaces and authorized Administration areas |
-| Admin | Overview, Operations, Collections, Payors & Accounts, Monitoring, Reports; no unusable Head-only global rows |
+| Admin | Overview, Operations, Collections, Spaces & Occupants, Monitoring, Accountable Forms where authorized, Reports; no unusable Head-only global rows |
 | Collector | Collect, Activity, Summary, Me in Mobile only |
 | Payor | Home, Balances, Payment & Receipt History, Profile |
 
@@ -131,8 +134,8 @@ Establish the target Web workspace vocabulary and compatibility routes while pre
 
 ### Structural change
 
-- Add the released workspace groups: Overview, Operations, Collections, Payors & Accounts, Monitoring, Reports, Administration.
-- Keep Accountable Forms absent.
+- Add/use the current workspace groups: Overview, Operations, Collections, Spaces & Occupants, Monitoring, Accountable Forms, Reports, Administration.
+- Do not create a Business Payors/Payors & Accounts replacement workspace; source-specific registries stay under their owning operations and unified collection uses source-native search.
 - Add a single Facilities landing entry using existing facility catalog data.
 - Add only the bounded canonical aliases required by the first slice in Section 9.
 - Update newly generated global navigation links to canonical aliases.
@@ -256,8 +259,9 @@ Replace global facility-list growth with one hub and consistent facility context
 ### Business/financial behavior that must not change
 
 - NPM daily and month-settlement logic remains specialized.
-- Monthly-rental, TPM, TRM, SLH, utilities, and custom-facility writers remain unchanged.
-- Effective-dated rates and tenant facility naming remain authoritative.
+- Monthly-rental, TPM, SLH, utilities, custom-facility and historical TRM writers remain preserved until each explicit cutover/refactor.
+- IA-067 changes the **target** transport model prospectively: Terminal is separate from Transportation/Parking; historical TRM/Transportation rows are not rewritten.
+- Effective-dated rates and tenant facility naming remain authoritative where the source still uses them.
 - Facility KPIs and report figures retain current sources.
 
 ### Likely files/surfaces
@@ -546,9 +550,11 @@ Restore Settings as the navigation directory while retaining target aliases. Do 
 
 ## Phase H — Collector Mobile navigation and sync architecture
 
+> **Superseded target overlay (2026-10-06):** the original structural phase below remains migration history. Current Mobile collection direction is source-native New Collection organized by the Monthly Income families, with separate Terminal and Transportation/Parking, independent Fish/Meat registration/Weight & Measure, and NPM Daily Collect All. See `STALLTRACK_MOBILE_V3_DIRECTION.md`, IA-067/IA-068 and the office-clarification refactor plan.
+
 ### Objective
 
-Adopt Collect, Activity, Summary, and Me without changing field collection semantics.
+Adopt Collect, Activity, Summary, and Me while preserving proven offline/idempotency behavior and applying business-semantic changes only through their separately authorized backend contracts.
 
 ### Structural change
 
@@ -562,11 +568,11 @@ Adopt Collect, Activity, Summary, and Me without changing field collection seman
 
 ### Business/financial behavior that must not change
 
-- Billing-archetype routing remains intact.
-- Specialized NPM, monthly, TPM, TRM, and SLH capture flows remain source-owned.
+- Existing billing-archetype routing remains intact until an approved source-specific migration replaces it.
+- Specialized NPM, monthly, TPM, historical TRM and SLH evidence/writers remain source-owned.
 - `ClientOperationId`, queue persistence, retry safety, and sync-result handling remain intact.
 - Server-issued session business date remains primary; device clock remains fallback.
-- No AccountableDocument, Cash Ticket custody, remittance, WCF, or vehicle-class workflow is added.
+- New business flows (Terminal, direct Transportation/Parking, source-native Fish/Meat/Weight & Measure, NPM Daily Collect All) must call approved server writers and may not be implemented as presentation-only shortcuts.
 
 ### Likely files/surfaces
 

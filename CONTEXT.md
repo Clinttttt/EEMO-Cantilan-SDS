@@ -2,17 +2,25 @@
 
 This glossary defines business terms used across StallTrack V2. It contains domain meaning only; implementation details belong elsewhere.
 
-## Payor
-The tenant-scoped canonical business identity of a person or organization whose identity StallTrack intentionally maintains across approved operational relationships. Payor identifies who those relationships belong to; specialized domains determine what is owed. It is independent of portal activation and cannot be inferred from matching names or other non-authoritative text. A single accountable document has one payer context, which may remain anonymous, named-snapshot-only, or one-off where the operation permits it. Posted payer evidence is preserved independently of later master-record edits. See [ADR-001](docs/decisions/ADR_001_BUSINESS_PAYOR_IDENTITY.md) for the accepted target constraints and conservative migration rules.
+## Business Payor (compatibility / historical target)
+A tenant-scoped business identity introduced by the earlier ADR-001 design. **ADR-007 / IA-068 supersede Business Payor as the target collection-discovery model.** Existing BusinessPayor IDs/links may remain during compatibility migration, but new product workflows must not require a Business Payor master, manual Business Payor linking, or a Business Payors page.
+
+The safety rules survive the supersession: never merge identities from matching names/text, never cross tenant boundaries, and never rewrite posted payer evidence because a master/source record later changes.
+
+## Source Identity
+The stable, tenant-scoped identity owned by the specialized operation that proves a real relationship and collection eligibility. Examples include an NPM occupancy/stallholder, monthly rental account/space holder, Fish/Meat vendor registration, utility subject/account, or another approved operation-owned record. Unified New Collection searches typed Source Identities and asks the server which operations are actually eligible.
+
+## Payer Snapshot
+Name/reference text frozen on a posted Collection when an operation permits direct/one-off collection without a registered Source Identity. A Payer Snapshot is historical evidence only; it never creates, merges, or proves a cross-operation identity.
 
 ## PayorUser
-The authentication/access identity. Its relationship to a business Payor, where supported, is explicit and optional; it is not the authoritative financial/business identity.
+The authentication/access identity. It may be linked to source-owned business records for portal access where supported, but authentication identity is not the authoritative source of collection eligibility.
 
 ## Obligation
 An amount owed under a specialized business domain, such as stall rental or a utility assessment. An obligation is not the same thing as money received.
 
 ## Collection
-One posted money-received event for one payor context and business date. A collection contains one or more itemized Collection Lines.
+One posted money-received event for one source/payer context and business date. A Collection may reference a typed Source Identity or preserve only a permitted Payer Snapshot. It contains one or more itemized Collection Lines and receives one immutable SRC when canonical.
 
 ## Collection Line
 One classified portion of a Collection. Each line states what revenue the money represents and its amount, while preserving the source obligation/activity when applicable.
@@ -48,22 +56,40 @@ The sum of the Collection Lines represented by the active accountable document.
 The rule that determines whether a Revenue Classification belongs to OR or Cash Ticket for the applicable tenant/date. Latest Cantilan clarification: Weight & Measure = OR, WCF = CT, Tabo = OR, and Vegetable/Fruit Space Rental uses OR for full/whole payment and CT for daily transactions. IA-046 is therefore resolved. A posted Collection still resolves to exactly one instrument family and never mixes OR and CT lines on one accountable document.
 
 ## Fish/Meat Vendor Fee
-A reportable revenue classification distinct from Weight & Measure when the office records them separately.
+A reportable OR revenue classification distinct from NPM rent and Weight & Measure. Under IA-068 it belongs to an independent Fish/Meat vendor-registration context rather than NPM. The current clarified collection basis is the **actual amount received**; there is no approved fixed Vendor Fee rate. A permitted collection may freeze a typed vendor/payer snapshot when registration does not yet exist.
+
+## Fish/Meat Vendor Registration
+The source-owned annual/tax-year registration record for one vendor type: **Fish** or **Meat**. It records New/Renew plus office-evidenced registration facts, has an **Active/Closed** lifecycle, and is renewed by creating a new annual registration linked by ID rather than mutating history or matching by name. Closing is prospective: historical registrations and Collections remain readable, while future registered-source Weight & Measure collection is blocked. It is independent from NPM occupancy and is the required source identity for Weight & Measure.
 
 ## Weight & Measure
-A reportable revenue classification for the confirmed Cantilan policy and an Official Receipt item.
+A separate OR revenue classification using weighed quantity × the server's effective configured rate. It requires a registered Fish/Meat Vendor Registration; there is no free-text unregistered-vendor fallback. Vendor Fee, weighing, and NPM rent never settle one another.
+
+## Income From Terminal
+The separate official CT operation/report family confirmed by IA-067. It contains **Comfort Room**, **Pull Pul Vans, Cargo Vans**, and **Tricycad**. Each section permits direct aggregate peso entry; optional Cash Ticket count is supporting evidence only. Vehicle-class-assisted entry maps Jeepney, Multicab, Van, Public Utility Bus and Public Utility Baby Bus to Pull Pul Vans/Cargo Vans, and Tricycle to Tricycad.
+
+## Transportation / Parking
+A CT revenue source separate from Income From Terminal. The clarified target basis is **direct amount received** with no required vehicle-class/rate evidence and no TRM/Terminal synonym. Historical TRM/Transportation records remain compatibility evidence and are not reclassified by guess.
+
+## Official Monthly Income Adjustment
+A Head-only audited report revision that changes the official reported cell without changing Collections, source balances, collector position, remittance, or accountable-form history. It preserves the system basis, signed delta/official amount, required reason, optional reference, actor/time, and revision/supersession history.
 
 ## Slaughterhouse Breakdown
 Transparent calculation detail for the fixed/approved slaughterhouse charge package. The component breakdown does not become separate revenue classifications unless the office formally reports those components independently.
 
 ## Collection Composer
-The shared working surface used to assemble compatible Collection Lines before money is posted. It may be entered from a specialized Operation or from a Payor/Account, but both paths represent the same collection workflow.
+The shared working surface used to assemble compatible Collection Lines before money is posted. It may be entered from a specialized Operation or from source-native New Collection after selecting a Source Identity. The UI must show only server-confirmed eligible items; direct/one-off fallback is allowed only where the source policy permits it.
 
 ## Draft Collection
 An unposted working collection. In the approved Web target, it is server-persisted with a stable DraftId and revision, but creates no revenue, money allocation, document consumption, RCD entry or Collection Activity. Review and successful canonical posting create the resulting financial history. See [ADR-004](docs/decisions/ADR_004_VERSIONED_WEB_COLLECTION_DRAFTS.md).
 
 ## Collection Session
 A user-facing visit/work session that may result in more than one Collection when the payer is settling both OR-compatible and CT-compatible items. A Collection Session is not itself a financial transaction.
+
+## NPM Daily Collect All
+A reviewed batch convenience for **NPM Daily only**. The server returns readiness per stall; only `CanCollect` stalls may be selected. Each selected stall posts its own canonical Collection/SRC. Unchecked or blocked stalls remain unpaid and are not marked absent. “Pending” on the round and “eligible for Collect All” are different facts: a pending stall may still be blocked by canonical/source/rate policy. `SourceStillLegacy` means canonical NPM batch collection is not enabled for that source; it must not be presented as “nothing left to collect.”
+
+## Mobile Collection Correction
+A collector-authorized correction never edits or deletes posted money. **Edit** atomically records the original reversal and a replacement Collection with a new SRC; **Remove** records an audited reversal with no replacement. If replacement posting fails, the entire edit transaction rolls back so the original remains financially effective. Ownership, business date, remittance/source locks and server capability flags determine whether correction is allowed.
 
 ## Explicit Allocation
 A visible user-confirmed allocation of a payment amount to specific obligations or periods. StallTrack may suggest an allocation, but it must not silently decide the final allocation without confirmed policy.
@@ -75,10 +101,10 @@ ECF and WCF are broader MEEDO Utility Operations, not globally owned by the NPM 
 A valid partial settlement of an ECF or WCF obligation that leaves the exact remaining balance outstanding.
 
 ## Cash Ticket Transaction
-One recorded issuance/use of a Cash Ticket for a CT-compatible collection. Individual CT transactions are the source from which category totals and RCD-style summaries are derived.
+A Collection/Collection Line whose resolved instrument policy is Cash Ticket. Financial reporting derives from the posted Collection facts; separately recorded physical CT issue/custody belongs to Accountable Forms and is not required to create the Collection.
 
 ## Accountable Form Assignment
-Custody of an OR or CT series/range assigned to a collector/accountable officer. Normal collection should consume a valid assigned number rather than accept unrestricted free-form numbering.
+Custody of an OR or CT series/range assigned to a collector/accountable officer in the separate Accountable Forms register. Under IA-062, assignment/custody does **not** gate Collection posting and a Collection does not automatically consume a form. The register tracks the office's physical stock/custody events independently from money received.
 
 ## Issued Document Correction
 An issued OR or CT is not edited in place. Correction uses attributable void/reversal/replacement history, and the original physical number remains permanently consumed.
@@ -90,36 +116,36 @@ The preserved quantity, rate, readings, category, basis, and other calculation d
 The OR-versus-CT choice is resolved from the Revenue Classification policy. Staff do not override the instrument ad hoc. If a user attempts to combine incompatible items, StallTrack separates them into distinct collections/documents.
 
 ## Current Collection
-The persistent draft collection visible while staff move between Operations and Payor/Account workflows. It may collect multiple compatible lines for one payor until explicitly reviewed, posted, or discarded.
+A persistent draft/working collection that may originate from an Operation or source-native collection flow. It keeps the selected Source Identity or permitted Payer Snapshot plus reviewed compatible items until explicitly posted or discarded. It must not infer eligibility from a matching name.
 
 ## Approved Charge Line
 A Collection Line must map to an approved Revenue Classification/charge definition. Arbitrary free-text financial lines are not allowed; optional descriptive detail does not create a new revenue identity.
 
 ## Governed Configurable Service
-A tenant-owned operational service whose structurally simple financial policy is defined through approved configuration rather than hard-coded guesswork. Required configuration may include stable service identity, Revenue Classification, effective-dated OR/CT policy, calculation basis/rate, Payor requirement, operational fields, active state, and allowed channels. It does not allow free-form collector-created charges. See [ADR-006](docs/decisions/ADR_006_GOVERNED_CONFIGURABLE_SERVICE_OPERATIONS.md).
+A tenant-owned operational service whose structurally simple financial policy is defined through approved configuration rather than hard-coded guesswork. Required configuration may include stable service identity, Revenue Classification, effective-dated OR/CT policy, calculation basis/rate, source-identity or payer-snapshot rule, operational fields, active state, and allowed channels. It does not allow free-form collector-created charges. See [ADR-006](docs/decisions/ADR_006_GOVERNED_CONFIGURABLE_SERVICE_OPERATIONS.md).
 
 ## Setup Required Operation
-A known operation that may appear in authorized Web directory/setup surfaces while required financial policy is incomplete. It cannot create a financial Collection until the required configuration is valid and active. Transfer Large Cattle may use this state until its Cantilan fee/accountable-form configuration is complete; the Head has already confirmed the operation is a transfer with a corresponding direct approved amount.
+A known operation that may appear in authorized Web directory/setup surfaces while required financial policy is incomplete. It cannot create a financial Collection until the required classification, amount/calculation and instrument/channel policy is valid and active. Physical accountable-form stock/custody is not a collection-readiness gate under IA-062. Transfer Large Cattle may use this state until its approved fee/instrument policy is complete.
 
 ## Mobile Configured Operation
-A focused Collector Mobile workflow exposed only when the operation is Active, Mobile-enabled, authorized/assigned to the collector, and compatible with accountable-document custody. The collector supplies transaction facts; the specialized source or approved configuration supplies classification, instrument, rate/calculation policy, and document requirements.
+A focused Collector Mobile workflow exposed only when the operation is Active, Mobile-enabled, authorized/assigned to the collector, and server-ready for the source. The collector supplies permitted transaction facts; the specialized source or approved configuration supplies classification, instrument policy, rate/calculation policy, and eligibility. Physical OR/CT stock is separate accountability metadata and never a canonical collection-readiness gate (IA-062).
 ## Obligation Payment Limit
 An obligation-backed Collection Line cannot allocate more than the amount actually outstanding. V2 does not create unapplied customer credit, deposit, or advance balances unless a future approved business rule explicitly introduces them.
 
-## Document Consumption
-On Web, an OR/CT number is consumed when posting succeeds. On Mobile offline, a physically issued assigned CT is marked locally consumed immediately and remains consumed even if later synchronization fails.
+## Physical Form Use versus Collection Posting
+Physical OR/CT issuance/custody is separate from canonical Collection posting. A canonical Collection neither requires nor consumes an AccountableDocument; it is identified by its SRC. If the office records a physical form as issued/cancelled/lost/returned in Accountable Forms, that is an auditable form event and must not create or alter revenue.
 
 ## Collection Activity Record
 The primary Collection Activity row represents one posted collection/document event. Itemized Collection Lines appear as expandable/detail content beneath that event rather than as unrelated top-level transactions.
 
 ## Derived RCD
-RCD/category totals are derived from posted Collection Lines and accountable-document usage, grouped by the applicable business date, collector, instrument, and revenue classification. Staff do not re-enter the same financial totals manually.
+RCD/category totals are derived from authoritative posted Collection Lines and their resolved instrument/classification facts, grouped by the applicable business date, collector and revenue classification. Physical accountable-form usage is separate accountability evidence and must not add money or duplicate Collection totals. Staff do not re-enter the same financial totals manually.
 
 ## Legacy Financial History
 Pre-itemization records remain valid historical evidence. StallTrack adapts only facts actually stored and never invents old receipt groupings, line breakdowns, allocations, CT numbers, vehicle classes, or document composition.
 
-## Payor Collect View
-A Payor/Account may start a collection from the payor context by showing open OR-compatible and CT-compatible items separately. It feeds the same Collection Composer used by Operations.
+## Source-native Collect View
+A selected Source Identity may start collection by showing only the server-confirmed eligible items for that source. Compatible items feed the same approved posting writers used by their standalone operations; the view is orchestration, not a second financial engine.
 
 ## Collection Detail Levels
 The document/receipt view shows clean financial lines and totals. The audit/detail view additionally preserves source operation, facility, stall/space, obligation period, allocation, quantity/rate, readings, calculation basis, and historical policy snapshot where applicable.
@@ -129,7 +155,7 @@ The document/receipt view shows clean financial lines and totals. The audit/deta
 Head and Admin may create, assemble, allocate, review, and post normal office collections through the shared Collection Composer.
 
 ## Mobile Collection Authority
-Collector uses the same canonical backend collection model through focused Mobile workflows limited to assigned facilities/operations. The Mobile app does not initially expose the full cross-operation office Collection Composer.
+Collector uses approved backend writers through focused Mobile workflows limited to assigned operations. The target New Collection flow may search across source-owned identities and assemble several eligible items, but every financial child still posts through its owning writer and receives its own Collection/SRC. Offline/retry identity remains server-safe and replay-stable.
 
 ## Manual Approved Authority
 A Manual Approved amount may be entered operationally by Head or Admin only when the approved charge definition explicitly permits that basis. It does not authorize inventing a new charge or changing a configured ordinance/rate.
@@ -141,16 +167,16 @@ Head and Admin may post normal Web collections. Collector may post/sync Mobile c
 Head and Admin may void/replace issued OR or CT records through attributable, audited correction flows. Issued document history is retained; Collector cannot silently delete or rewrite a synced issued document.
 
 ## Accountable Form Management Authority
-Head and Admin may manage OR/CT books, series/ranges, assignment, and office custody within their LGU. Collectors may consume only accountable-form units assigned to them.
+Head and Admin may manage OR/CT books, series/ranges, assignment, transfer/return, cancellation/loss and office custody within their LGU. Authorized collectors may hold/receive physical forms according to office procedure. These form events remain separate from Collection posting.
 
 ## Physical Document Requirement
-A normal physical office collection cannot be posted without its required valid OR/CT number. Controlled exception workflows such as legitimate Awaiting OR online payments remain separate and do not weaken this rule.
+Under IA-062, a physical OR/CT serial is **not required to post a canonical Collection** on Web or Mobile. Instrument type remains policy metadata, and the real-world office may still hand over a physical form; its optional back-office record never blocks, quarantines, or identifies the digital Collection.
 
 ## Draft Ownership
 A Web draft belongs to its tenant and owning user and can be recovered in a later authenticated session. Mutations require its expected revision; review binds the exact meaningful financial state/revision. Posting revalidates current facts and requires renewed review for material changes. One DraftId produces at most one successful Collection, even across different ClientOperationId values. Initial ownership excludes shared editing/handoff; discard remains non-financial. See [ADR-004](docs/decisions/ADR_004_VERSIONED_WEB_COLLECTION_DRAFTS.md).
 
 ## Concurrent Posting Guard
-Final posting revalidates outstanding amounts, allocations, document-number uniqueness/custody, instrument policy, and totals atomically. A stale concurrent attempt fails cleanly instead of double-settling an obligation.
+Final posting revalidates outstanding amounts, allocations, source eligibility, reviewed intent, instrument policy, idempotency/replay identity, and totals atomically. Accountable-form custody is validated only inside its own form-management events, not as a canonical Collection gate. A stale concurrent attempt fails cleanly instead of double-settling an obligation.
 
 ## Itemized Collection Statement
-StallTrack may print an Itemized Collection Details / Collection Statement linked to the physical OR/CT number. It must not present that digital statement as a replacement government Official Receipt or Cash Ticket.
+StallTrack may print an Itemized Collection Details / Collection Statement identified by the Collection's SRC and may display separately recorded physical OR/CT evidence when available. It must never present that digital statement or SRC as a replacement government Official Receipt or Cash Ticket.

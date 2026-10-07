@@ -6,7 +6,7 @@
 
 **Architecture authority:** MASTER / V2 Planner
 
-**Canonical destination:** `C:\dev\stalltrack-v2-clean`, `interface-v2/clean-adoption`
+**Historical canonical destination at this 2026-09-26 checkpoint:** `C:\dev\stalltrack-v2-clean`, `interface-v2/clean-adoption`. **Current primary checkout is `C:\dev\stalltrack\eemo`; use `../planning/CURRENT_RELEASE_STATE.md` and `../planning/ACTIVE_WORKSTREAMS.md` for current integration/branch guidance.**
 
 **Inspected code baseline:** `db2abac32fb48035959424a1e21abad89a8b67af`, plus uncommitted canonical decision documentation
 
