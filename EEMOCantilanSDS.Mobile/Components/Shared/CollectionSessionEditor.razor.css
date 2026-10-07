@@ -127,3 +127,8 @@ button:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2p
 .sheet .form-field .form-input { display: block; width: 100%; box-sizing: border-box; }
 .sheet .form-field + .sheet-meta,
 .sheet .form-field + .sheet-note { margin-top: 6px; }
+
+/* Picker rows with a supporting amount (NPM Daily / Whole payment): the name, then the server's figure beneath it. */
+.collection-option .option-text { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.collection-option .option-text strong { font-size: 15px; font-weight: 600; color: var(--mobile-navy); }
+.collection-option .option-text small { margin-top: 2px; font-size: 12px; color: var(--mobile-text-secondary); }

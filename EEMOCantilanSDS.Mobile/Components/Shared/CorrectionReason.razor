@@ -1,0 +1,40 @@
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+
+@* Why a collection is being corrected: the five reasons the server accepts, chosen from a short list, with a note when it is "Other". The reason
+   is recorded with the correction; it never changes any amount. *@
+<div class="cr" role="radiogroup" aria-label="Reason">
+    @foreach (var (code, label) in Reasons)
+    {
+        var chosen = Value?.Code == code;
+        <button type="button" role="radio" aria-checked="@(chosen ? "true" : "false")" class="cr-option @(chosen ? "selected" : "")" @onclick="() => Pick(code)">
+            <span class="cr-name">@label</span>
+            @if (chosen) { <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="5 13 10 18 19 7" /></svg> }
+        </button>
+    }
+    @if (Value?.Code == MobileCorrectionReason.Other)
+    {
+        <label class="form-field cr-note"><span class="form-label">Note</span>
+            <input class="form-input" type="text" maxlength="300" autocomplete="off" value="@Value.Note" @oninput="e => NoteChanged(e.Value?.ToString())" /></label>
+    }
+</div>
+
+@code {
+    private static readonly (MobileCorrectionReason Code, string Label)[] Reasons =
+    [
+        (MobileCorrectionReason.EnteredByMistake, "Entered by mistake"),
+        (MobileCorrectionReason.WrongPayerOrSource, "Wrong payer or source"),
+        (MobileCorrectionReason.WrongAmount, "Wrong amount"),
+        (MobileCorrectionReason.Duplicate, "Duplicate"),
+        (MobileCorrectionReason.Other, "Other")
+    ];
+
+    [Parameter] public MobileCorrectionReasonIntent? Value { get; set; }
+    [Parameter] public EventCallback<MobileCorrectionReasonIntent?> ValueChanged { get; set; }
+
+    /// <summary>True once a reason is chosen and, for "Other", a note is given: what the server needs before it will accept the correction.</summary>
+    public static bool IsComplete(MobileCorrectionReasonIntent? reason) =>
+        reason is not null && (reason.Code != MobileCorrectionReason.Other || !string.IsNullOrWhiteSpace(reason.Note));
+
+    private Task Pick(MobileCorrectionReason code) => ValueChanged.InvokeAsync(new MobileCorrectionReasonIntent(code, code == MobileCorrectionReason.Other ? Value?.Note : null));
+    private Task NoteChanged(string? note) => ValueChanged.InvokeAsync(new MobileCorrectionReasonIntent(MobileCorrectionReason.Other, note));
+}

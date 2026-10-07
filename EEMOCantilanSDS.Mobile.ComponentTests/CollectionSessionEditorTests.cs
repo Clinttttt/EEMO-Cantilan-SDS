@@ -98,8 +98,22 @@ public sealed class CollectionSessionEditorTests : TestContext
                 Native(CollectorOperationCodes.Terminal, "Tricycle", "TRICYCAD", new(TerminalSection: TerminalSection.Tricycad, VehicleClassId: Tricycle), RevenueInstrumentType.CashTicket, CollectionSessionAmountRule.DirectAmount, 5m))])));
     private static readonly Guid Jeepney = Guid.NewGuid(), Tricycle = Guid.NewGuid();
 
-    private IRenderedComponent<CollectionSessionEditor> Open(string? only = null) =>
-        RenderComponent<CollectionSessionEditor>(p => p.Add(x => x.BusinessDate, Today).Add(x => x.OnlyOperation, only));
+    private IRenderedComponent<CollectionSessionEditor> Open(string? only = null, string[]? also = null) =>
+        RenderComponent<CollectionSessionEditor>(p => p.Add(x => x.BusinessDate, Today).Add(x => x.OnlyOperation, only).Add(x => x.AlsoOperations, also));
+
+    // The dedicated Fish / Meat page: the collection family, so a registered vendor is offered what the server confirms (Vendor Fee and Weight & Measure).
+    private IRenderedComponent<CollectionSessionEditor> OpenFishMeatPage() => Open(CollectorOperationCodes.FishMeatVendorFee, [CollectorOperationCodes.WeightAndMeasure]);
+
+    private static readonly Guid DailyStall = Guid.NewGuid();
+    private void ServeNpmOccupancy() => _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(Occupancy)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(new(null, Today,
+        [new(CollectionSessionItemKind.NpmDaily, "NPM_DAILY", "Daily stall payment", true, true, null, null, false, [], true,
+                [new("Daily|stall", CollectionSessionItemKind.NpmDaily, "NPM_DAILY", "Daily stall payment", "Stall 2 · Oct 7, 2026", new(StallId: DailyStall, OccupancyId: Guid.NewGuid(), PeriodStart: Today),
+                    RevenueInstrumentType.CashTicket, CollectionSessionAmountRule.FixedAmount, 30m, RequiredInputs: [])], CollectionFamily.Rent),
+         new(CollectionSessionItemKind.NpmWholePayment, "NPM_WHOLE_PAYMENT", "NPM Whole payment", true, true, null, null, false, [], true,
+                [new("Whole|stall", CollectionSessionItemKind.NpmWholePayment, "NPM_WHOLE_PAYMENT", "NPM Whole payment", "Stall 2 · October", new(StallId: DailyStall, OccupancyId: Guid.NewGuid(), Year: 2026, Month: 10),
+                    RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.PreparedBalance, 870m, RequiredInputs: [])], CollectionFamily.Rent)],
+        SourceIdentity: Occupancy)));
+
 
     private static void Click(IRenderedComponent<CollectionSessionEditor> view, string label)
     {
@@ -449,5 +463,215 @@ public sealed class CollectionSessionEditorTests : TestContext
         var waiting = RenderComponent<RecordedNotice>(p => p.Add(x => x.Message, "Saved on this device. Waiting to sync."));
         Assert.Empty(waiting.FindAll(".recorded-ref"));
         Assert.DoesNotContain("SRC-", waiting.Markup);
+    }
+
+    [Fact]
+    public void The_dedicated_fish_meat_page_offers_a_registered_vendor_both_the_vendor_fee_and_weight_and_measure()
+    {
+        ServeFishVendor();
+        var view = OpenFishMeatPage();
+        view.Find("input[type=search]").Focus();
+        view.WaitForAssertion(() => Assert.NotEmpty(view.FindAll(".payer-option")));
+        ClickSource(view, "Pantom Dant");
+        view.WaitForAssertion(() => Assert.NotEmpty(view.FindAll(".payer-selected")));
+
+        Click(view, "+ Add item");
+
+        var offered = view.Find("[role=dialog]").QuerySelectorAll(".collection-option").Select(x => x.TextContent.Replace("›", "").Trim()).ToList();
+        Assert.Equal(["Fish / Meat Vendor Fee", "Weight & Measure"], offered);                         // the page no longer hides what the server confirms
+        Assert.DoesNotContain("NPM", view.Find("[role=dialog]").TextContent);
+    }
+
+    [Fact]
+    public void The_dedicated_fish_meat_page_weighs_with_the_servers_rate_and_amount_never_its_own()
+    {
+        ServeFishVendor();
+        _api.Setup(x => x.QuoteOfficeCollectionAsync(It.IsAny<SourceNativeCollectionRequest>())).ReturnsAsync((SourceNativeCollectionRequest r) => Result<SourceNativeChargeQuote>.Success(
+            new(CollectorOperationCodes.WeightAndMeasure, "Weight & Measure", "Meat", RevenueInstrumentType.OfficialReceipt, 66m * (r.Charge!.Kilograms ?? 0m), "v1", new(CollectorOperationCodes.WeightAndMeasure), Rate: 66m)));
+        var view = OpenFishMeatPage();
+        view.Find("input[type=search]").Focus();
+        view.WaitForAssertion(() => Assert.NotEmpty(view.FindAll(".payer-option")));
+        ClickSource(view, "Pantom Dant");
+        view.WaitForAssertion(() => Assert.NotEmpty(view.FindAll(".payer-selected")));
+        Click(view, "+ Add item"); Click(view, "Weight & Measure ›");
+        Assert.True(AddDisabled(view));
+
+        view.Find("[role=dialog] input[type=number]").Input("3");
+
+        view.WaitForAssertion(() =>
+        {
+            Assert.Contains("₱198.00", view.Find("[role=dialog]").TextContent);                        // the server's quote for 3 kg, shown
+            Assert.False(AddDisabled(view));
+        });
+        Click(view, "Add item");
+        _api.Verify(x => x.QuoteOfficeCollectionAsync(It.Is<SourceNativeCollectionRequest>(r => r.Charge!.Kilograms == 3m && r.Charge.VendorRegistrationId == FishVendor.Id)), Times.AtLeastOnce);
+        Assert.Equal(198m, Assert.Single(view.FindAll(".item-amount strong").Select(x => x.TextContent)) is var shown && shown.Contains("198.00") ? 198m : 0m);
+    }
+
+    [Fact]
+    public void The_dedicated_fish_meat_page_never_offers_weight_and_measure_to_a_walk_up_payer()
+    {
+        _api.Setup(x => x.SearchCollectionSourcesAsync(It.IsAny<string?>())).ReturnsAsync(Result<IReadOnlyList<CollectionSourceSearchResult>>.Success([]));
+        ServeDirect();
+        var view = OpenFishMeatPage();
+        view.Find("input[type=search]").Input("Walk Up Vendor");
+        view.WaitForAssertion(() => Assert.Contains("Continue with payer name", view.Markup));
+        view.FindAll(".payer-option").First(x => x.TextContent.Contains("Continue with payer name")).Click();
+        view.WaitForAssertion(() => Assert.Contains("Walk Up Vendor", view.Find(".payer-selected").TextContent));
+
+        Click(view, "+ Add item");
+
+        var sheet = view.Find("[role=dialog]").TextContent;
+        Assert.Contains("Fish / Meat Vendor Fee", sheet);
+        Assert.DoesNotContain("Weight & Measure", sheet);
+    }
+
+    [Fact]
+    public void An_npm_occupancy_offers_the_daily_stall_payment_and_the_whole_payment_with_the_servers_amounts_and_no_npm_prefix()
+    {
+        ServeNpmOccupancy();
+        var view = PickSource("Ana Reyes");
+
+        Click(view, "+ Add item");
+
+        var rows = view.Find("[role=dialog]").QuerySelectorAll(".collection-option").Select(x => x.TextContent.Replace("›", "").Trim()).ToList();
+        Assert.Contains(rows, r => r.StartsWith("Daily stall payment") && r.Contains("₱30.00") && r.Contains("Today"));
+        Assert.Contains(rows, r => r.StartsWith("Whole payment") && r.Contains("₱870.00") && r.Contains("remaining"));
+        Assert.DoesNotContain("NPM", view.Find("[role=dialog]").TextContent);
+        Assert.Contains("Rent Income", view.Find("[role=dialog]").TextContent);                       // grouped where the office reads them
+    }
+
+    [Fact]
+    public void The_daily_stall_payment_is_the_servers_charge_and_goes_in_as_a_daily_item_for_that_stall()
+    {
+        ServeNpmOccupancy();
+        var view = PickSource("Ana Reyes");
+        Click(view, "+ Add item"); Click(view, "Daily stall payment₱30.00 · Today ›");
+
+        Assert.Contains("₱30.00", view.Find("[role=dialog]").TextContent);
+        Assert.Empty(view.FindAll("[role=dialog] input[type=number]"));                                 // no amount to type: the charge is the server's
+        Click(view, "Add item"); Click(view, "Review collection"); Click(view, "Record collection");
+
+        view.WaitForAssertion(() => Assert.Single(_queue));
+        var item = Assert.Single(_queue[0].CollectionSession!.Intent.Items);
+        Assert.Equal((CollectionSessionItemKind.NpmDaily, 30m, DailyStall), (item.Kind, item.ConfirmedAmount, item.NpmDaily!.StallId));
+        Assert.Equal(Occupancy, _queue[0].CollectionSession!.Intent.SourceIdentity);
+    }
+
+    [Fact]
+    public void By_vehicle_type_offers_an_optional_name_after_the_vehicle_and_it_travels_as_the_payer_snapshot()
+    {
+        var view = OpenTerminalSheet();
+        PickSection(view, "PULL PUL VANS");
+        Assert.DoesNotContain("Name", string.Join(" ", view.FindAll("[role=dialog] label").Select(l => l.TextContent)));     // not in Section total
+
+        view.FindAll(".term-mode button")[1].Click();
+        Assert.DoesNotContain("Name optional", view.Find("[role=dialog]").TextContent);                                         // not until a vehicle is chosen
+        view.FindAll("[role=dialog] button[role=option]").First(b => b.TextContent.Contains("Jeepney")).Click();
+        var labels = view.FindAll("[role=dialog] label").Select(l => l.TextContent.Trim()).ToList();
+        Assert.True(labels.FindIndex(l => l.StartsWith("Name")) < labels.FindIndex(l => l.StartsWith("Amount received")));      // after the vehicle, before the amount
+        view.FindAll("[role=dialog] input[type=text]").Single().Input("Mang Pedro");
+        view.FindAll("[role=dialog] input[type=number]").First(i => i.GetAttribute("step") == "0.01").Input("480");
+        Click(view, "Add item"); Click(view, "Review collection"); Click(view, "Record collection");
+
+        view.WaitForAssertion(() => Assert.Single(_queue));
+        Assert.Equal("Mang Pedro", _queue[0].CollectionSession!.Intent.PayerSnapshot);
+    }
+
+    // ── Correcting a recorded collection: the same form, opened on what was recorded; the server reverses the original and posts one replacement ──
+    private static MobileRecentCollection TerminalRecent(decimal amount = 3200m) => RecentCollectionsTests.Recent("SRC-2026-000022", amount, "TRICYCAD", edit: true, remove: true,
+        instrument: RevenueInstrumentType.CashTicket,
+        native: new(Guid.NewGuid(), "SRC-2026-000022", Today, DateTime.UtcNow, "TERMINAL", TerminalSection.Tricycad, null, null, null, "Cora", amount, amount, "Posted", 80, null, null, null, null),
+        source: new(null, CollectionSessionItemKind.SourceNative, "TERMINAL", new(TerminalSection: TerminalSection.Tricycad), new(CollectorOperationCodes.Terminal, null, TerminalSection.Tricycad, null, 80)));
+
+    private IRenderedComponent<CollectionSessionEditor> OpenCorrection(MobileRecentCollection row)
+    {
+        ServeDirect();
+        return RenderComponent<CollectionSessionEditor>(p => p.Add(x => x.BusinessDate, Today).Add(x => x.Correction, row));
+    }
+
+    [Fact]
+    public void Editing_a_recorded_terminal_collection_opens_the_form_on_what_was_recorded()
+    {
+        var view = OpenCorrection(TerminalRecent());
+
+        view.WaitForAssertion(() => Assert.NotEmpty(view.FindAll("[role=dialog]")));
+        var sheet = view.Find("[role=dialog]");
+        Assert.Equal("TRICYCAD", view.FindAll("button[role=radio][aria-checked=true]").Single().TextContent.Trim());
+        Assert.Equal("3200", sheet.QuerySelectorAll("input[type=number]").First(i => i.GetAttribute("step") == "0.01").GetAttribute("value"));
+        Assert.Equal("80", sheet.QuerySelectorAll("input[type=number]").First(i => i.GetAttribute("step") == "1").GetAttribute("value"));
+        Assert.Contains("Change", view.FindAll("button").First(b => b.TextContent.Trim() == "Change").TextContent);   // the source is fixed while correcting
+    }
+
+    [Fact]
+    public void A_correction_needs_a_reason_then_quotes_and_saves_with_one_stable_operation_and_shows_both_srcs()
+    {
+        EditMobileCollectionIntent? quoted = null; RecordMobileCollectionEditRequest? saved = null;
+        var row = TerminalRecent();
+        _api.Setup(x => x.QuoteCollectionEditAsync(It.IsAny<EditMobileCollectionIntent>())).Callback<EditMobileCollectionIntent>(i => quoted = i).ReturnsAsync((EditMobileCollectionIntent i) =>
+            Result<CollectionSessionQuote>.Success(new(i.Replacement.ClientCollectionSessionId, null, Today,
+                i.Replacement.Items.Select(x => new CollectionSessionItemQuote(x.ClientItemId, x.Kind, "TERMINAL", "TRICYCAD", "Section total", RevenueInstrumentType.CashTicket, x.ConfirmedAmount, "v", Guid.NewGuid())).ToArray(),
+                [new(RevenueInstrumentType.CashTicket, i.Replacement.Items.Sum(x => x.ConfirmedAmount))], i.Replacement.Items.Sum(x => x.ConfirmedAmount), "fp-1", [])));
+        _api.Setup(x => x.EditCollectionAsync(It.IsAny<RecordMobileCollectionEditRequest>())).Callback<RecordMobileCollectionEditRequest>(r => saved = r).ReturnsAsync((RecordMobileCollectionEditRequest r) =>
+            Result<MobileCollectionCorrectionResult>.Success(new(Guid.NewGuid(), r.Intent.CollectionId, "SRC-2026-000022",
+                new(Guid.NewGuid(), "SRC-2026-000031", RevenueInstrumentType.CashTicket, 3300m, r.Intent.Replacement.Items.Select(x => x.ClientItemId).ToArray(), "Posted"))));
+        var view = OpenCorrection(row);
+        view.WaitForAssertion(() => Assert.NotEmpty(view.FindAll("[role=dialog]")));
+        view.Find("[role=dialog]").QuerySelectorAll("input[type=number]").First(i => i.GetAttribute("step") == "0.01").Input("3300");
+        Click(view, "Add item");
+
+        Click(view, "Review collection");                                                                              // no reason yet
+        Assert.Contains("Choose a reason first", view.Markup);
+        _api.Verify(x => x.QuoteCollectionEditAsync(It.IsAny<EditMobileCollectionIntent>()), Times.Never);
+
+        view.FindAll(".cr-option").Single(o => o.TextContent.Contains("Wrong amount")).Click();
+        Click(view, "Review collection");
+        view.WaitForAssertion(() => Assert.NotNull(quoted));
+        Assert.Equal(quoted!.ClientOperationId, quoted.Replacement.ClientCollectionSessionId);                           // the server requires the same ID on both
+        Assert.Equal(row.Collection.CollectionId, quoted.CollectionId);
+        Assert.Equal(MobileCorrectionReason.WrongAmount, quoted.Reason.Code);
+        Assert.Equal(Today, quoted.Replacement.BusinessDate);
+        Assert.Equal(3300m, Assert.Single(quoted.Replacement.Items).ConfirmedAmount);
+
+        Click(view, "Save changes");
+
+        view.WaitForAssertion(() => Assert.Contains("Collection corrected", view.Markup));
+        Assert.Equal("fp-1", saved!.QuoteFingerprint);
+        Assert.Equal(quoted.ClientOperationId, saved.Intent.ClientOperationId);                                           // unchanged between quote and confirm
+        Assert.Contains("SRC-2026-000022 stays on record", view.Markup);
+        Assert.Contains("SRC-2026-000031", view.Markup);                                                                   // and the replacement's own SRC
+        Assert.Empty(_queue);                                                                                              // a correction is made online, never queued
+        _api.Verify(x => x.QuoteCollectionSessionAsync(It.IsAny<CollectionSessionIntent>()), Times.Never);
+    }
+
+    [Fact]
+    public void A_collection_the_form_has_no_entry_for_says_so_and_offers_nothing_wrong()
+    {
+        var row = RecentCollectionsTests.Recent("SRC-2026-000020", 500m, "Water Consumption", edit: true);   // no resolved edit source
+
+        var view = OpenCorrection(row);
+
+        view.WaitForAssertion(() => Assert.Contains("can't be edited here", view.Markup));
+        Assert.Empty(view.FindAll("[role=dialog]"));
+    }
+
+    [Fact]
+    public void A_changed_reason_after_a_quote_is_a_different_proposed_correction_with_a_fresh_operation()
+    {
+        var ids = new List<Guid>();
+        _api.Setup(x => x.QuoteCollectionEditAsync(It.IsAny<EditMobileCollectionIntent>())).Callback<EditMobileCollectionIntent>(i => ids.Add(i.ClientOperationId)).ReturnsAsync((EditMobileCollectionIntent i) =>
+            Result<CollectionSessionQuote>.Success(new(i.Replacement.ClientCollectionSessionId, null, Today,
+                i.Replacement.Items.Select(x => new CollectionSessionItemQuote(x.ClientItemId, x.Kind, "TERMINAL", "TRICYCAD", "", RevenueInstrumentType.CashTicket, x.ConfirmedAmount, "v", Guid.NewGuid())).ToArray(),
+                [], 3200m, "fp", [])));
+        var view = OpenCorrection(TerminalRecent());
+        view.WaitForAssertion(() => Assert.NotEmpty(view.FindAll("[role=dialog]")));
+        Click(view, "Add item");
+        view.FindAll(".cr-option").First().Click(); Click(view, "Review collection");
+        view.WaitForAssertion(() => Assert.Single(ids));
+
+        view.FindAll(".cr-option").Single(o => o.TextContent.Contains("Duplicate")).Click(); Click(view, "Review collection");
+
+        view.WaitForAssertion(() => Assert.Equal(2, ids.Count));
+        Assert.NotEqual(ids[0], ids[1]);
     }
 }

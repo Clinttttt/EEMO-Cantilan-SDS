@@ -121,8 +121,8 @@ else
         _loading = true;
         try
         {
-            var response = await Api.GetNpmDailyBatchSourcesAsync();
-            _sources = response.IsSuccess ? response.Value ?? [] : [];
+            var response = await Api.GetNpmDailyBatchReadinessAsync();
+            _sources = response.IsSuccess ? response.Value?.Sources ?? [] : [];
             _known = response.IsSuccess;
             if (!response.IsSuccess) _error = "Connect to load today's stalls.";
         }

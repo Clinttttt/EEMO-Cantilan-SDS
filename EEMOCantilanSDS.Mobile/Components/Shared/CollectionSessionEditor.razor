@@ -7,6 +7,7 @@
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Mobile.Models
 @inject IMobileApiClient Api
+@inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSyncService Sync
 
 @* New Collection is source-native: the collector finds the real source (an occupant, a space holder, a registered vendor), the server says what
@@ -15,6 +16,21 @@
 @if (_loading)
 {
     <LoadingState Text="Loading collection sources…" />
+}
+else if (_correctionResult is { } corrected)
+{
+    <section class="collection-entry" aria-live="polite">
+        <h2 class="done-title">Collection corrected</h2>
+        <div class="done-total"><strong>@(corrected.Replacement is { } replacement ? Money(replacement.Amount) : "Removed")</strong><span>@corrected.OriginalSRC stays on record</span></div>
+        @if (corrected.Replacement is { } replaced)
+        {
+            <div class="item-row">
+                <div class="item-main"><strong class="item-name">Replacement</strong><span class="item-context">@replaced.ReferenceCode</span></div>
+                <div class="item-amount"><strong>@Money(replaced.Amount)</strong><span>@InstrumentCode(replaced.Instrument)</span></div>
+            </div>
+        }
+        <button class="collection-primary done-action" type="button" @onclick='() => Navigation.NavigateTo("/menu")'>Done</button>
+    </section>
 }
 else if (_queued)
 {
@@ -47,7 +63,7 @@ else
         <h2>@(SourceHeading)</h2>
         @if (_source is not null)
         {
-            <div class="payer-selected"><span class="payer-option-text"><strong class="payer-name">@_source.DisplayName</strong><small>@_source.Context</small></span><button class="collection-small" type="button" disabled="@(_items.Count > 0)" @onclick="ClearSourceAsync">Change</button></div>
+            <div class="payer-selected"><span class="payer-option-text"><strong class="payer-name">@_source.DisplayName</strong><small>@_source.Context</small></span><button class="collection-small" type="button" disabled="@(_items.Count > 0 || Correction is not null)" @onclick="ClearSourceAsync">Change</button></div>
         }
         else if (_direct)
         {
@@ -92,10 +108,12 @@ else
             }
         }
     </section>
+    @* The empty space under the finder: today's own collections, until a source is chosen or the finder's list needs the room. *@
+    @if (_source is null && !_direct && Correction is null && OnlyOperation is null && !_suggestOpen) { <RecentCollections /> }
     @if (_source is not null || _direct)
     {
         <section class="collection-entry">
-            <div class="collection-row"><h2>Items</h2><button class="collection-small" type="button" disabled="@_busy" @onclick="OpenPickerAsync">+ Add item</button></div>
+            <div class="collection-row"><h2>Items</h2><button class="collection-small" type="button" disabled="@(_busy || (Correction is not null && _items.Count > 0))" @onclick="OpenPickerAsync">+ Add item</button></div>
             @if (_items.Count == 0)
             {
                 <p>@(NothingDue ? "No linked collection is due for this source." : "No items added.")</p>
@@ -137,11 +155,18 @@ else
                 { <p class="review-problem" role="alert"><strong>Needs review</strong>@ProblemName(problem)@problem.Message</p> }
             </section>
         }
+        @if (Correction is not null)
+        {
+            <section class="collection-entry" aria-label="Reason">
+                <h2>Reason</h2>
+                <CorrectionReason Value="_reason" ValueChanged="ReasonChanged" />
+            </section>
+        }
         <div class="collection-actions">
             <button class="collection-secondary" type="button" disabled="@(_busy || _items.Count == 0)" @onclick="ReviewAsync">Review collection</button>
-            <button class="collection-primary" type="button" disabled="@(_busy || _quote?.CanRecord != true || Sync.HasStorageFault)" @onclick="RecordAsync">Record collection</button>
+            <button class="collection-primary" type="button" disabled="@(_busy || _quote?.CanRecord != true || Sync.HasStorageFault || (Correction is not null && !Sync.IsOnline))" @onclick="RecordAsync">@(Correction is null ? "Record collection" : "Save changes")</button>
         </div>
-        @if (OnlyOperation == CollectorOperationCodes.Terminal) { <TerminalActivity BusinessDate="BusinessDate" /> }
+        @if (OnlyOperation == CollectorOperationCodes.Terminal) { <RecentCollections OnlyOperation="@CollectorOperationCodes.Terminal" Heading="Today's Terminal collections" /> }
     }
 }
 @if (!string.IsNullOrWhiteSpace(_message)) { <p class="collection-message" role="status">@_message</p> }
@@ -163,7 +188,7 @@ else
                     <div class="sheet-group">@section.Name</div>
                     @foreach (var row in section.Items)
                     {
-                        <button class="collection-option" type="button" @onclick="() => Choose(row.OperationCode!)">@row.DisplayName <span aria-hidden="true">›</span></button>
+                        <button class="collection-option" type="button" @onclick="() => Choose(row.OperationCode!)"><span class="option-text"><strong>@OperationLabel(row)</strong>@if (OperationDetail(row) is { } detail) { <small>@detail</small> }</span> <span aria-hidden="true">›</span></button>
                     }
                 }
                 @if (!PickerSections.Any()) { <div class="sheet-note">Nothing available for this source.</div> }
@@ -195,6 +220,12 @@ else
                     {
                         <MobileChoice Inline="@(_choice is null)" Label="Vehicle type" Options="VehicleOptions" Value="@_choiceKey" ValueChanged="ChooseChoice" EmptyText="No approved vehicle type for this section." />
                         @if (_choice is { Rate: { } approved }) { <div class="sheet-meta"><span>Approved rate</span><strong>@Money(approved)</strong></div> }
+                        @if (_choice is not null)
+                        {
+                            @* A name or reference given at the counter, kept with this collection. It is a snapshot, not a register of transporters or payers. *@
+                            <label class="form-field"><span class="form-label">Name <span class="form-optional">optional</span></span><input class="form-input" type="text" maxlength="200" autocomplete="off" @bind="_snapshot" @bind:event="oninput" /></label>
+                            @if (_items.Count > 0) { <div class="sheet-note">Shared by every item in this collection</div> }
+                        }
                     }
                 }
                 else if (Choices.Count == 1)
@@ -249,7 +280,17 @@ else
 @code {
     [Parameter] public DateOnly BusinessDate { get; set; }
     [Parameter] public string? OnlyOperation { get; set; }
+
+    /// <summary>Further operations of the same family a dedicated page also offers (Fish / Meat: Vendor Fee and Weight &amp; Measure). Whether either is
+    /// available is still the server's answer for the chosen source; this only stops the page hiding one the server confirms.</summary>
+    [Parameter] public IReadOnlyCollection<string>? AlsoOperations { get; set; }
     [Parameter] public Guid? ResumeSessionId { get; set; }
+
+    /// <summary>The collection being corrected. The form opens on its recorded source and facts; the server reverses the original and posts one replacement
+    /// under a new SRC. The original is never changed, and a correction is made online.</summary>
+    [Parameter] public MobileRecentCollection? Correction { get; set; }
+
+    private bool Allows(string? code) => OnlyOperation is null || code == OnlyOperation || (AlsoOperations?.Contains(code ?? "") ?? false);
 
     private sealed record Shown(string Name, string Context);
 
@@ -322,10 +363,10 @@ else
     private string SourceName => _source?.DisplayName ?? (_direct && !string.IsNullOrWhiteSpace(_snapshot) ? _snapshot.Trim() : "");
 
     // A source with nothing collectible says so; the collector may then start a separate direct collection.
-    private bool NothingDue => _source is not null && _discovery is not null && !_discovery.Operations.Any(x => x.CanAdd && (OnlyOperation is null || x.OperationCode == OnlyOperation));
+    private bool NothingDue => _source is not null && _discovery is not null && !_discovery.Operations.Any(x => x.CanAdd && Allows(x.OperationCode));
 
     private IReadOnlyList<CollectionSessionCapability> Offered => (_discovery?.Operations ?? [])
-        .Where(x => x.Supported && x.CanAdd && (OnlyOperation is null || x.OperationCode == OnlyOperation)).ToList();
+        .Where(x => x.Supported && x.CanAdd && Allows(x.OperationCode)).ToList();
 
     private static string FamilyName(CollectionFamily? family) => family switch
     {
@@ -340,6 +381,21 @@ else
     private IReadOnlyList<(string Name, IReadOnlyList<CollectionSessionCapability> Items)> PickerSections =>
         Offered.GroupBy(x => x.Family ?? CollectionFamily.Market).OrderBy(g => (int)g.Key)
             .Select(g => (FamilyName(g.Key), (IReadOnlyList<CollectionSessionCapability>)g.ToList())).ToList();
+
+    // The source header already says New Public Market and the stall, so the NPM items read as what they are. The names are by operation code; the amounts are the server's.
+    private string OperationLabel(CollectionSessionCapability row) => row.OperationCode switch
+    {
+        "NPM_DAILY" => "Daily stall payment",
+        "NPM_WHOLE_PAYMENT" => "Whole payment",
+        _ => row.DisplayName
+    };
+
+    private string? OperationDetail(CollectionSessionCapability row) => row.OperationCode switch
+    {
+        "NPM_DAILY" when row.Choices is [{ ServerAmount: { } amount }] => Money(amount) + " · Today",
+        "NPM_WHOLE_PAYMENT" when row.Choices is [{ ServerAmount: { } amount }] => Money(amount) + " remaining",
+        _ => null
+    };
 
     private IReadOnlyList<CollectionSessionSourceChoice> Choices => _operation?.Choices ?? [];
     private string ChoiceLabel => _operation?.OperationCode switch
@@ -371,8 +427,74 @@ else
             else { _direct = true; _snapshot = saved.PayerSnapshot ?? ""; }
             _queued = true; await RefreshResultAsync();
         }
+        else if (Correction is not null) await PrepareCorrectionAsync();
         else if (OnlyOperation == CollectorOperationCodes.Terminal) { _direct = true; await LoadAsync(); }
         _loading = false;
+    }
+
+    // ── Correcting a recorded collection ─────────────────────────────────────────────────────────────
+    private MobileCorrectionReasonIntent? _reason;
+    private MobileCollectionCorrectionResult? _correctionResult;
+
+    // The form opens on what the server resolved from the original: its source, and the item with the facts it was recorded with. The choice comes from
+    // the server's discovery for that source (never rebuilt from a name); a Daily stall payment, which is no longer offered once paid, is described from
+    // the recorded source. A kind of collection this form has no entry for says so rather than offering a wrong form.
+    private async Task PrepareCorrectionAsync()
+    {
+        _sessionId = Guid.NewGuid();                                   // the correction's operation ID: the replacement session carries the same one
+        if (Correction?.EditSource is not { } edit || Correction.Collection.CollectionId is null)
+        { _message = "This collection can't be edited here. Remove it and record the correct one."; return; }
+        if (edit.SourceIdentity is { } identity) _source = new(identity, Correction.Collection.PayerName ?? "Selected source", Correction.Collection.Subject ?? "", edit.OperationCode);
+        else { _direct = true; _snapshot = edit.PayerSnapshot ?? ""; }
+        await LoadAsync();
+        var choice = _discovery?.Operations.SelectMany(o => o.Choices ?? []).FirstOrDefault(c => MatchesRecorded(c, edit));
+        if (choice is null && edit.Kind == CollectionSessionItemKind.NpmDaily && edit.Identity.StallId is not null)
+        {
+            var instrument = Correction.Collection.InstrumentType ?? RevenueInstrumentType.CashTicket;
+            choice = new($"Daily|{edit.Identity.StallId:N}", CollectionSessionItemKind.NpmDaily, edit.OperationCode, "Daily stall payment",
+                Correction.Collection.Subject ?? "", edit.Identity, instrument, CollectionSessionAmountRule.FixedAmount, Correction.Collection.Amount, RequiredInputs: []);
+            _discovery = (_discovery ?? new(null, BusinessDate, [])) with { Operations = [.. _discovery?.Operations ?? [], new(CollectionSessionItemKind.NpmDaily, edit.OperationCode, "Daily stall payment", true, true, null, null, false, [], true, [choice], CollectionFamily.Rent)] };
+        }
+        if (choice is null) { _message = "This collection can't be edited here. Remove it and record the correct one."; return; }
+        Choose(choice.OperationCode);
+        if (edit.Native is { } native && choice.OperationCode == CollectorOperationCodes.Terminal)
+        { _termSection = native.Section; _byVehicle = native.VehicleClassId is not null; }
+        ChooseChoice(choice.SelectionKey);
+        if (choice.CanEnterAmount) _amount = Correction.Collection.Amount;
+        _tickets = edit.Native?.CashTicketCount ?? 0;
+        _quantity = edit.Native?.Kilograms ?? 0m;
+        if (IsWeighing) await QuoteWeighingAsync();
+        _picker = true;
+    }
+
+    private static bool MatchesRecorded(CollectionSessionSourceChoice c, MobileCollectionEditSource edit) =>
+        c.OperationCode == edit.OperationCode && c.Kind == edit.Kind && edit.Kind switch
+        {
+            CollectionSessionItemKind.SourceNative => c.Identity.VendorRegistrationId == edit.Identity.VendorRegistrationId
+                && c.Identity.TerminalSection == edit.Native?.Section && c.Identity.VehicleClassId == edit.Native?.VehicleClassId,
+            CollectionSessionItemKind.GovernedService => true,
+            CollectionSessionItemKind.NpmDaily => c.Identity.StallId == edit.Identity.StallId,
+            _ => false
+        };
+
+    // A changed reason or item is a different proposed correction: it gets a fresh operation ID, as the server requires.
+    private void ReasonChanged(MobileCorrectionReasonIntent? reason) { _reason = reason; _sessionId = Guid.NewGuid(); _quote = null; }
+
+    private EditMobileCollectionIntent EditIntent => new(_sessionId, Correction!.Collection.CollectionId!.Value, _reason! with { Note = _reason!.Note?.Trim() }, Intent);
+
+    private async Task RecordCorrectionAsync()
+    {
+        if (_quote?.CanRecord != true || _busy) return;
+        if (!Sync.IsOnline) { _message = "Connect to correct a collection."; return; }
+        _busy = true; _message = null;
+        try
+        {
+            var result = await Api.EditCollectionAsync(new RecordMobileCollectionEditRequest(EditIntent, _quote.QuoteFingerprint));
+            if (result.IsSuccess && result.Value is { } outcome) _correctionResult = outcome;
+            else _message = RecentCollections.ProblemText(result.Error);
+        }
+        catch { _message = "Couldn't reach the server. Nothing was changed; try again."; }
+        finally { _busy = false; }
     }
 
     private async Task LoadAsync()
@@ -465,7 +587,8 @@ else
     private async Task OpenPickerAsync()
     {
         _message = null; _editingId = null; await LoadAsync(); _operation = null; _choice = null; _choiceKey = "";
-        if (OnlyOperation is not null && Offered.FirstOrDefault(x => x.OperationCode == OnlyOperation) is not null) Choose(OnlyOperation);
+        // A dedicated page with a single thing on offer goes straight to it; one with several (Fish / Meat: Vendor Fee and Weight & Measure) lists them.
+        if (OnlyOperation is not null && Offered is [{ } only]) Choose(only.OperationCode);
         // Never open a sheet with nothing to choose: say why, in the page, where the collector is looking.
         if (_operation is null && !PickerSections.Any())
         {
@@ -525,7 +648,7 @@ else
         if (!CanAddItem || _choice is not { } c) return;
         var id = Guid.NewGuid(); var identity = c.Identity;
         SessionWaterIntent? water = null; SessionElectricityIntent? electricity = null; SessionObligationIntent? obligation = null;
-        SessionGovernedIntent? service = null; SessionSlaughterIntent? slaughter = null; SessionNpmWholeIntent? npmWhole = null;
+        SessionGovernedIntent? service = null; SessionSlaughterIntent? slaughter = null; SessionNpmWholeIntent? npmWhole = null; SessionNpmDailyIntent? npmDaily = null;
         SourceNativeChargeIntent? native = null; SessionMonthlyRentIntent? rent = null;
         var year = identity.Year ?? identity.PeriodStart?.Year ?? BusinessDate.Year;
         var month = identity.Month ?? identity.PeriodStart?.Month ?? BusinessDate.Month;
@@ -535,6 +658,7 @@ else
             case CollectionSessionItemKind.Electricity: electricity = new(identity.UtilityBillId!.Value, identity.SourceVersion, identity.StallId, year, month); break;
             case CollectionSessionItemKind.Obligation: obligation = new(identity.AccountId!.Value, year, month); break;
             case CollectionSessionItemKind.NpmWholePayment: npmWhole = new(identity.StallId!.Value, year, month); break;
+            case CollectionSessionItemKind.NpmDaily: npmDaily = new(identity.StallId!.Value); break;
             case CollectionSessionItemKind.MonthlyRent: rent = new(identity.StallId!.Value, year, month, identity.SourceVersion); break;
             case CollectionSessionItemKind.GovernedService: service = new(c.OperationCode, identity.Mode, identity.FeeOptionId, identity.VehicleClassCode); break;
             case CollectionSessionItemKind.Slaughter:
@@ -546,29 +670,32 @@ else
         var amount = c.Kind is CollectionSessionItemKind.Slaughter or CollectionSessionItemKind.NpmWholePayment ? 0m
             : IsWeighing ? _serverAmount ?? 0m
             : c.AmountRule == CollectionSessionAmountRule.FixedAmount ? c.ServerAmount ?? 0m : _amount;
-        var added = new CollectionSessionItemIntent(id, c.Kind, amount, water, service, obligation, electricity, null, slaughter, null, npmWhole, native, rent);
+        var added = new CollectionSessionItemIntent(id, c.Kind, amount, water, service, obligation, electricity, null, slaughter, null, npmWhole, native, rent, npmDaily);
         var at = _editingId is { } editing ? _items.FindIndex(x => x.ClientItemId == editing) : -1;
         if (at >= 0) { _items[at] = added; _shown.Remove(_editingId!.Value); _drafts.Remove(_editingId.Value); }
         else _items.Add(added);
         _shown[id] = IsTerminal ? new(TerminalDraftName(c), TerminalDraftContext(c))
             : new(c.DisplayName, string.Join(" · ", new[] { SourceName, c.Context }.Where(x => !string.IsNullOrWhiteSpace(x))));
         _drafts[id] = new(c.OperationCode, c.SelectionKey, _amount, _quantity, _tickets, _heads, _owner, _termSection, _byVehicle);
+        if (Correction is not null) _sessionId = Guid.NewGuid();
         _quote = null; _picker = false; _editingId = null;
     }
 
-    private void Remove(CollectionSessionItemIntent item) { _items.Remove(item); _shown.Remove(item.ClientItemId); _drafts.Remove(item.ClientItemId); _quote = null; }
+    private void Remove(CollectionSessionItemIntent item) { if (Correction is not null) _sessionId = Guid.NewGuid(); _items.Remove(item); _shown.Remove(item.ClientItemId); _drafts.Remove(item.ClientItemId); _quote = null; }
 
     // ── Review, record, result ──────────────────────────────────────────────────────────────────────
     private async Task ReviewAsync()
     {
+        if (Correction is not null && !CorrectionReason.IsComplete(_reason)) { _message = "Choose a reason first."; return; }
         _busy = true; _message = null;
-        try { var response = await Api.QuoteCollectionSessionAsync(Intent); _quote = response.Value; if (!response.IsSuccess) _message = "Collection review is unavailable."; }
+        try { var response = Correction is null ? await Api.QuoteCollectionSessionAsync(Intent) : await Api.QuoteCollectionEditAsync(EditIntent); _quote = response.Value; if (!response.IsSuccess) _message = "Collection review is unavailable."; }
         catch { _message = "Connection required to review."; }
         finally { _busy = false; }
     }
 
     private async Task RecordAsync()
     {
+        if (Correction is not null) { await RecordCorrectionAsync(); return; }
         if (_quote?.CanRecord != true || _busy) return;
         _busy = true;
         try

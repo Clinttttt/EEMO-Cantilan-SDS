@@ -1,0 +1,230 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Common.Revenue
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Domain.Enums
+@inject IMobileApiClient Api
+@inject EEMOCantilanSDS.Mobile.Services.MobileSyncService Sync
+@inject NavigationManager Navigation
+
+@* This collector's collections for today, newest first, from the server. Only facts that exist are shown. A recorded collection is never edited in
+   place or deleted: when the server says the collector may correct it (their own, today, not yet remitted), Edit records an audited replacement
+   under a new SRC and Remove an audited reversal; otherwise the server's reason is shown. Corrections need a connection. *@
+<section class="rc" aria-label="@Heading">
+    <h2 class="rc-title">@Heading</h2>
+    @if (_loading)
+    {
+        <p class="rc-note" role="status">Loading…</p>
+    }
+    else if (_error)
+    {
+        <p class="rc-note" role="status">Recent collections are unavailable offline.</p>
+    }
+    else if (_rows.Count == 0)
+    {
+        <p class="rc-note">@(OnlyOperation is null ? "Nothing recorded yet today." : "Nothing recorded here yet today.")</p>
+    }
+    else
+    {
+        <div class="rc-list" role="list">
+            @foreach (var row in _rows)
+            {
+                <button type="button" class="rc-row" role="listitem" @onclick="() => Open(row)">
+                    <span class="rc-main">
+                        <strong class="rc-name">@Title(row)</strong>
+                        <small>@Detail(row)</small>
+                        <small class="rc-src">@row.Collection.ReferenceCode</small>
+                    </span>
+                    <span class="rc-amount @(IsReversed(row) ? "rc-reversed" : "")">
+                        <strong>@Money(row.Collection.NetAmount)</strong>
+                        @if (IsReversed(row)) { <small>@(row.Collection.NetAmount == 0m ? "Removed" : "Corrected")</small> }
+                    </span>
+                </button>
+            }
+        </div>
+        @if (_truncated) { <p class="rc-note">Showing the latest @_rows.Count.</p> }
+    }
+</section>
+
+@if (_open is { } shown)
+{
+    <div class="sheet-overlay" @onclick="Close">
+        <section class="sheet sheet-flex" role="dialog" aria-modal="true" aria-label="@Title(shown)" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <header class="sheet-head">
+                <h2 class="sheet-title">@Title(shown)</h2>
+                <div class="sheet-context">@shown.Collection.ReferenceCode</div>
+            </header>
+            <div class="sheet-body">
+                @if (_removing)
+                {
+                    <h3 class="rc-sub">Remove this collection?</h3>
+                    <p class="rc-note">The original @shown.Collection.ReferenceCode stays on record. Removing it reverses the collection and its effect.</p>
+                    <CorrectionReason Value="_reason" ValueChanged="r => _reason = r" />
+                    @if (_problem is not null) { <p class="form-error" role="alert">@_problem</p> }
+                }
+                else if (_done is not null)
+                {
+                    <div class="done-total"><strong>Removed</strong><span>@_done.OriginalSRC is reversed and stays on record.</span></div>
+                }
+                else
+                {
+                    <div class="sheet-meta"><span>Amount</span><strong>@Money(shown.Collection.Amount)</strong></div>
+                    @if (IsReversed(shown)) { <div class="sheet-meta"><span>After correction</span><strong>@Money(shown.Collection.NetAmount)</strong></div> }
+                    @foreach (var fact in Facts(shown)) { <div class="sheet-meta"><span>@fact.Key</span><strong>@fact.Value</strong></div> }
+                    <div class="sheet-meta"><span>Recorded</span><strong>@Time(shown, "MMM d · h:mm tt")</strong></div>
+                    @if (shown.CanEdit || shown.CanRemove)
+                    {
+                        @if (!Sync.IsOnline) { <p class="rc-note">Connect to correct a collection.</p> }
+                    }
+                    else if (!string.IsNullOrWhiteSpace(shown.BlockReason))
+                    {
+                        <p class="rc-block" role="status">@shown.BlockReason</p>
+                    }
+                    @if (_problem is not null) { <p class="form-error" role="alert">@_problem</p> }
+                }
+            </div>
+            <div class="sheet-actions">
+                @if (_removing)
+                {
+                    <button class="btn-cancel" type="button" disabled="@_busy" @onclick="() => _removing = false">Back</button>
+                    <button class="btn-primary rc-danger" type="button" disabled="@(_busy || !CorrectionReason.IsComplete(_reason))" @onclick="RemoveAsync">@(_busy ? "Removing…" : "Remove collection")</button>
+                }
+                else if (_done is not null)
+                {
+                    <button class="btn-primary" type="button" @onclick="Close">Done</button>
+                }
+                else
+                {
+                    <button class="btn-cancel" type="button" @onclick="Close">Close</button>
+                    @if (shown.CanRemove) { <button class="btn-cancel rc-remove" type="button" disabled="@(!Sync.IsOnline)" @onclick="StartRemove">Remove</button> }
+                    @if (shown.CanEdit) { <button class="btn-primary" type="button" disabled="@(!Sync.IsOnline)" @onclick="Edit">Edit</button> }
+                }
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    /// <summary>Raised after a collection is removed, so the page can refresh what depends on it (the source's balance, the day's totals).</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    /// <summary>The list's heading; a dedicated page (Income From Terminal) narrows it to its own operation.</summary>
+    [Parameter] public string Heading { get; set; } = "Today's recent collections";
+
+    /// <summary>When set, only this operation's collections are listed (by the operation the server froze on them).</summary>
+    [Parameter] public string? OnlyOperation { get; set; }
+
+    private IReadOnlyList<MobileRecentCollection> _rows = [];
+    private MobileRecentCollection? _open;
+    private bool _loading = true, _error, _truncated, _removing, _busy;
+    private string? _problem;
+    private MobileCorrectionReasonIntent? _reason;
+    private MobileCollectionCorrectionResult? _done;
+    private Guid _operationId = Guid.NewGuid();
+    private string? _submitted;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var response = await Api.GetRecentCollectionsAsync();
+            if (response.IsSuccess && response.Value is { } recent) { _rows = OnlyOperation is null ? recent.Rows : recent.Rows.Where(r => r.SourceNativeContext?.OperationCode == OnlyOperation).ToList(); _truncated = recent.Truncated; _error = false; }
+            else _error = true;
+        }
+        catch { _error = true; }
+        finally { _loading = false; }
+    }
+
+    private void Open(MobileRecentCollection row) { _open = row; _removing = false; _done = null; _problem = null; _reason = null; }
+
+    private async Task Close()
+    {
+        var changed = _done is not null;
+        _open = null; _removing = false; _done = null; _problem = null;
+        if (changed) { await LoadAsync(); await OnChanged.InvokeAsync(); }
+    }
+
+    private void Edit()
+    {
+        if (_open?.Collection.CollectionId is { } id) Navigation.NavigateTo($"/collections/new?correct={id}");
+    }
+
+    private void StartRemove() { _removing = true; _problem = null; _reason = null; _operationId = Guid.NewGuid(); _submitted = null; }
+
+    private async Task RemoveAsync()
+    {
+        if (_busy || _open?.Collection.CollectionId is not { } id || !CorrectionReason.IsComplete(_reason)) return;
+        _busy = true; _problem = null;
+        // An unchanged retry keeps its operation ID, so an unknown response can never remove twice; a changed reason is a new request.
+        var fingerprint = $"{_reason!.Code}|{_reason.Note?.Trim()}";
+        if (_submitted is not null && _submitted != fingerprint) _operationId = Guid.NewGuid();
+        _submitted = fingerprint;
+        try
+        {
+            var result = await Api.RemoveCollectionAsync(new RemoveMobileCollectionRequest(_operationId, id, _reason with { Note = _reason.Note?.Trim() }));
+            if (result.IsSuccess && result.Value is { } outcome) { _done = outcome; _removing = false; }
+            else _problem = ProblemText(result.Error);
+        }
+        catch { _problem = "Couldn't reach the server. Nothing was changed; try again."; }
+        finally { _busy = false; }
+    }
+
+    // The server's stable codes choose the words; its message text is not read.
+    internal static string ProblemText(string? code) => code switch
+    {
+        "Remitted" => "This collection is already remitted.",
+        "AlreadyCorrected" => "This collection has already been corrected.",
+        "OutsideCurrentBusinessDate" => "Only today's collections can be corrected.",
+        "DifferentCollector" => "This collection belongs to another collector.",
+        "LaterSettlementExists" => "A later settlement depends on this collection.",
+        "SourceCorrectionUnavailable" => "This kind of collection can't be corrected here.",
+        "CorrectionIntentConflict" or "ConcurrentCorrection" => "Another change was saved at the same time. Close this and check the list.",
+        "InvalidReason" => "Choose a reason (and a note for Other).",
+        _ => "The correction could not be saved. Nothing was changed."
+    };
+
+    // ── What a row says: the source or operation, who, when; nothing that was not recorded ──
+    private static bool IsReversed(MobileRecentCollection row) => row.Collection.NetAmount != row.Collection.Amount;
+
+    private static string Title(MobileRecentCollection row) =>
+        row.SourceNativeContext is { OperationCode: "TERMINAL", Section: { } section } ? OfficeCollectionWorkflow.SectionName(section)
+        : string.Join(" · ", row.Collection.Lines.Select(l => l.ClassificationName).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct()) is { Length: > 0 } name ? name
+        : "Collection";
+
+    private static string Detail(MobileRecentCollection row)
+    {
+        var parts = new List<string>();
+        if (row.SourceNativeContext is { OperationCode: "TERMINAL" } terminal)
+        {
+            parts.Add(string.IsNullOrWhiteSpace(terminal.VehicleClassName) ? "Section total" : terminal.VehicleClassName);
+            if (terminal.CashTicketCount is > 0 and var count) parts.Add(count + " CT");
+        }
+        else if (!string.IsNullOrWhiteSpace(row.Collection.PayerName)) parts.Add(row.Collection.PayerName!);
+        else if (!string.IsNullOrWhiteSpace(row.Collection.Subject)) parts.Add(row.Collection.Subject!);
+        if (Time(row, "h:mm tt") is { Length: > 0 } time) parts.Add(time);
+        return string.Join(" · ", parts);
+    }
+
+    private static IEnumerable<KeyValuePair<string, string>> Facts(MobileRecentCollection row)
+    {
+        if (row.SourceNativeContext is { } native)
+        {
+            if (native.Section is { } section) yield return new("Section", OfficeCollectionWorkflow.SectionName(section));
+            if (!string.IsNullOrWhiteSpace(native.VehicleClassName)) yield return new("Vehicle type", native.VehicleClassName!);
+            if (native.Kilograms is { } kg) yield return new("Quantity", kg.ToString("0.##", CultureInfo.InvariantCulture) + " kg");
+            if (native.CashTicketCount is > 0 and var count) yield return new("Cash Tickets", count.ToString(CultureInfo.InvariantCulture));
+        }
+        var payer = row.SourceNativeContext?.PayerSnapshot ?? row.Collection.PayerName;
+        if (!string.IsNullOrWhiteSpace(payer)) yield return new("Payer", payer!);
+        else if (!string.IsNullOrWhiteSpace(row.Collection.Subject)) yield return new("Source", row.Collection.Subject!);
+        if (row.Collection.InstrumentType is { } instrument) yield return new("Instrument", instrument == RevenueInstrumentType.CashTicket ? "CT · Cash Ticket" : "OR · Official Receipt");
+    }
+
+    private static string Time(MobileRecentCollection row, string format) =>
+        row.Collection.RecordedAtUtc is { } at ? at.ToLocalTime().ToString(format, CultureInfo.InvariantCulture) : string.Empty;
+
+    private static string Money(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
+}

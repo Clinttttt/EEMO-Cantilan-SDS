@@ -16,10 +16,12 @@ public sealed class NpmCollectAllTests : TestContext
     private int _recordedCalls;
     private static readonly Guid S1 = Guid.NewGuid(), S2 = Guid.NewGuid(), S3 = Guid.NewGuid(), S4 = Guid.NewGuid();
 
+    private static Result<NpmDailyBatchReadiness> Ready(NpmDailyBatchSource[] sources) => Result<NpmDailyBatchReadiness>.Success(new(Today, sources));
+
     public NpmCollectAllTests()
     {
         Services.AddSingleton(_api.Object);
-        _api.Setup(x => x.GetNpmDailyBatchSourcesAsync()).ReturnsAsync(Result<IReadOnlyList<NpmDailyBatchSource>>.Success([
+        _api.Setup(x => x.GetNpmDailyBatchReadinessAsync()).ReturnsAsync(Ready([
             new(S1, Guid.NewGuid(), "1", "Ana Reyes", 35m, true, null),
             new(S2, Guid.NewGuid(), "2", "Juan Dela Cruz", 35m, true, null),
             new(S3, Guid.NewGuid(), "3", "Maria Santos", 40m, true, null),
@@ -137,7 +139,7 @@ public sealed class NpmCollectAllTests : TestContext
     [Fact]
     public void TheActionIsSolidAndCountsWhatTheServerSaysCanStillBeCollected_EvenWhenOnlyOneRemains()
     {
-        _api.Setup(x => x.GetNpmDailyBatchSourcesAsync()).ReturnsAsync(Result<IReadOnlyList<NpmDailyBatchSource>>.Success([
+        _api.Setup(x => x.GetNpmDailyBatchReadinessAsync()).ReturnsAsync(Ready([
             new(S1, Guid.NewGuid(), "1", "Ana Reyes", 35m, false, "AlreadyCollected"),
             new(S2, Guid.NewGuid(), "2", "Juan Dela Cruz", 35m, true, null)]));
         var view = RenderComponent<NpmCollectAll>(p => p.Add(x => x.BusinessDate, Today));
@@ -152,7 +154,7 @@ public sealed class NpmCollectAllTests : TestContext
     [Fact]
     public void WhenNothingCanBeCollectedTheActionIsPlainlyDisabled()
     {
-        _api.Setup(x => x.GetNpmDailyBatchSourcesAsync()).ReturnsAsync(Result<IReadOnlyList<NpmDailyBatchSource>>.Success([
+        _api.Setup(x => x.GetNpmDailyBatchReadinessAsync()).ReturnsAsync(Ready([
             new(S1, Guid.NewGuid(), "1", "Ana Reyes", 35m, false, "AlreadyCollected")]));
         var view = RenderComponent<NpmCollectAll>(p => p.Add(x => x.BusinessDate, Today));
 
