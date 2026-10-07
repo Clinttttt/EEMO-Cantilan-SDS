@@ -83,6 +83,7 @@ public sealed class CollectionSessionWorkflow(ICollectionSessionStore store, ICo
                     CollectionSessionItemKind.Weighing or CollectionSessionItemKind.Slaughter or CollectionSessionItemKind.SourceNative => $"Transaction|{item.ClientItemId}",
                     CollectionSessionItemKind.VendorFee => $"VendorFee|{item.ClientItemId}",
                     CollectionSessionItemKind.NpmWholePayment when item.NpmWhole is { } n => $"Npm|{n.StallId}|{n.Year}|{n.Month}",
+                    CollectionSessionItemKind.NpmDaily when item.NpmDaily is { } daily => $"Npm|{daily.StallId}|{intent.BusinessDate.Year}|{intent.BusinessDate.Month}",
                     CollectionSessionItemKind.MonthlyRent when item.Rent is { } r => $"Rent|{r.StallId}|{r.Year}|{r.Month}",
                     _ => JsonSerializer.Serialize(new { item.Kind, item.Service }, Json)
                 };

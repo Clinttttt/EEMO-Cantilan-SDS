@@ -11,3 +11,10 @@ public sealed record NpmDailyBatchQuote(NpmDailyBatchIntent Intent, IReadOnlyLis
     public bool CanRecord => Problems.Count == 0 && ItemCount > 0;
 }
 public sealed record RecordNpmDailyBatchRequest(NpmDailyBatchIntent Intent, string QuoteFingerprint);
+public sealed record NpmDailyBatchReadiness(DateOnly BusinessDate, IReadOnlyList<NpmDailyBatchSource> Sources)
+{
+    public int EligibleCount => Sources.Count(x => x.CanCollect);
+    public int AlreadyCollectedCount => Sources.Count(x => x.ReasonCode == "AlreadyCollected");
+    public bool CanCollectAll => EligibleCount > 0;
+    public decimal EligibleTotal => Sources.Where(x => x.CanCollect).Sum(x => x.EffectiveCharge);
+}

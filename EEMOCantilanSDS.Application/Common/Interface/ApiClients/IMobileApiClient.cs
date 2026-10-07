@@ -18,6 +18,11 @@ public interface IMobileApiClient
     Task<Result<GovernedServiceOutcomeDto>> RecordOfficeCollectionAsync(SourceNativeCollectionRequest request) => Task.FromResult(Result<GovernedServiceOutcomeDto>.Failure("Source collection unavailable."));
     Task<Result<IReadOnlyList<SourceNativeActivityDto>>> GetOfficeActivityAsync(DateOnly from, DateOnly to, string? operationCode = null) => Task.FromResult(Result<IReadOnlyList<SourceNativeActivityDto>>.Failure("Activity unavailable."));
     Task<Result<IReadOnlyList<NpmDailyBatchSource>>> GetNpmDailyBatchSourcesAsync() => Task.FromResult(Result<IReadOnlyList<NpmDailyBatchSource>>.Failure("Batch unavailable."));
+    Task<Result<NpmDailyBatchReadiness>> GetNpmDailyBatchReadinessAsync() => Task.FromResult(Result<NpmDailyBatchReadiness>.Failure("Batch unavailable."));
+    Task<Result<MobileRecentCollections>> GetRecentCollectionsAsync() => Task.FromResult(Result<MobileRecentCollections>.Failure("Recent collections unavailable."));
+    Task<Result<CollectionSessionQuote>> QuoteCollectionEditAsync(EditMobileCollectionIntent intent) => Task.FromResult(Result<CollectionSessionQuote>.Failure("Correction unavailable."));
+    Task<Result<MobileCollectionCorrectionResult>> EditCollectionAsync(RecordMobileCollectionEditRequest request) => Task.FromResult(Result<MobileCollectionCorrectionResult>.Failure("Correction unavailable."));
+    Task<Result<MobileCollectionCorrectionResult>> RemoveCollectionAsync(RemoveMobileCollectionRequest request) => Task.FromResult(Result<MobileCollectionCorrectionResult>.Failure("Correction unavailable."));
     Task<Result<NpmDailyBatchQuote>> QuoteNpmDailyBatchAsync(NpmDailyBatchIntent intent) => Task.FromResult(Result<NpmDailyBatchQuote>.Failure("Batch unavailable."));
     Task<Result<CollectionSessionResult>> RecordNpmDailyBatchAsync(RecordNpmDailyBatchRequest request) => Task.FromResult(Result<CollectionSessionResult>.Failure("Batch unavailable."));
     Task<Result<TaboBatchQuoteDto>> QuoteTaboBatchAsync(TaboBatchRequest request);

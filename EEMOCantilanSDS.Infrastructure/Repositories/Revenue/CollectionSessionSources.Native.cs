@@ -99,6 +99,21 @@ public sealed partial class CollectionSessionSources
                 var water = await Water.GetMobileSourcesAsync(date.Year, date.Month, ct, stall.Id, date);
                 var electric = await Composer.GetMobileEcfSourcesAsync(ct: ct);
                 var operations = new List<CollectionSessionCapability>();
+                if (npmDaily is not null && stall.Facility!.Code == FacilityCode.NPM)
+                {
+                    var daily = await npmDaily.PreviewAsync(new(Guid.NewGuid(), date, [new(Guid.NewGuid(), stall.Id)]), ct);
+                    if (daily.IsSuccess && daily.Value!.CanRecord)
+                    {
+                        var source = daily.Value.Sources.Single();
+                        var instrument = await DailyPoster.GetInstrumentAsync(date, ct);
+                        if (instrument.HasValue) rows.Add(new(CollectionSessionItemKind.NpmDaily, CollectorOperationCodes.NpmDaily,
+                            "Daily stall payment", true, true, null, null, false, [], true,
+                            [new($"Daily|{stall.Id:N}|{date:yyyy-MM-dd}", CollectionSessionItemKind.NpmDaily, CollectorOperationCodes.NpmDaily,
+                                "Daily stall payment", $"Stall {stall.StallNo} · {date:MMM d, yyyy}",
+                                new(StallId: stall.Id, OccupancyId: owner.Id, PeriodStart: date), instrument.Value,
+                                CollectionSessionAmountRule.FixedAmount, source.EffectiveCharge, RequiredInputs: [])], CollectionFamily.Rent));
+                    }
+                }
                 if (water.IsSuccess) operations.Add(new(CollectionSessionItemKind.Water, "WCF", "Water", true, true, null, null, false, [], Family: CollectionFamily.Market));
                 if (electric.IsSuccess) operations.Add(new(CollectionSessionItemKind.Electricity, "ECF", "Electricity", true, true, null, null, false, [], Family: CollectionFamily.Market));
                 var whole = npmWhole is not null && stall.Facility!.Code == FacilityCode.NPM ? await npmWhole.QuoteAsync(stall.Id, date.Year, date.Month, ct, date) : null;
@@ -164,7 +179,7 @@ public sealed partial class CollectionSessionSources
         if (item.Kind is CollectionSessionItemKind.GovernedService or CollectionSessionItemKind.Slaughter) return false; // Payer-optional services belong to a direct (source-less) session only.
         if (identity.Kind == SourceIdentityKind.SpaceAccount) return item.Obligation?.AccountId == identity.Id;
         if (identity.Kind != SourceIdentityKind.Occupancy) return false;
-        var stallId = item.Water?.StallId ?? item.NpmWhole?.StallId ?? item.Electricity?.StallId ?? item.Rent?.StallId;
+        var stallId = item.Water?.StallId ?? item.NpmWhole?.StallId ?? item.NpmDaily?.StallId ?? item.Electricity?.StallId ?? item.Rent?.StallId;
         if (!stallId.HasValue && item.Electricity is { } e)
             stallId = await db.UtilityBills.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.Id == e.UtilityBillId).Select(x => (Guid?)x.StallId).SingleOrDefaultAsync(ct);
         if (!stallId.HasValue) return false;
@@ -176,6 +191,29 @@ public sealed partial class CollectionSessionSources
     }
     private SourceNativeCollectionRequest NativeRequest(CollectionSessionIntent session, CollectionSessionItemIntent item, Guid operation) =>
         new(operation, session.BusinessDate, item.ConfirmedAmount, item.Native!, session.PayerSnapshot);
+    private NpmDailyCanonicalPoster DailyPoster => new(db, user, municipality, new GovernedCanonicalAuthority(db, municipality));
+    private async Task<(CollectionSessionItemQuote? Quote, CollectionSessionProblem? Problem)> QuoteNativeDailyAsync(CollectionSessionIntent session, CollectionSessionItemIntent item, CancellationToken ct)
+    {
+        if (npmDaily is null || item.Kind != CollectionSessionItemKind.NpmDaily || session.SourceIdentity?.Kind != SourceIdentityKind.Occupancy)
+            return (null, new(item.ClientItemId, "InvalidIntent", "Select today's stall payment."));
+        var result = await npmDaily.PreviewAsync(new(session.ClientCollectionSessionId, session.BusinessDate, [new(item.ClientItemId, item.NpmDaily!.StallId)]), ct);
+        if (!result.IsSuccess) return (null, new(item.ClientItemId, "SourceNotAvailable", "Today's payment is unavailable."));
+        var q = result.Value!;
+        if (!q.CanRecord) return (null, q.Problems.FirstOrDefault() ?? new(item.ClientItemId, "SourceNotAvailable", "Today's payment is unavailable."));
+        if (item.ConfirmedAmount != q.Total) return (null, new(item.ClientItemId, "AmountChanged", "Review today's stall payment."));
+        var instrument = await DailyPoster.GetInstrumentAsync(session.BusinessDate, ct);
+        return (new(item.ClientItemId, item.Kind, CollectorOperationCodes.NpmDaily, "Daily stall payment",
+            $"Stall {q.Sources.Single().StallNumber} · {session.BusinessDate:MMM d, yyyy}", instrument!.Value, q.Total, q.QuoteFingerprint!, Guid.Empty), null);
+    }
+    private async Task<CollectionSessionCollection> PostNativeDailyAsync(CollectionSessionIntent session, CollectionSessionItemIntent item, Guid operation, CancellationToken ct)
+    {
+        var result = await sender.Send(new EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection.RecordDailyCollectionCommand(
+            item.NpmDaily!.StallId, session.BusinessDate, true, ClientOperationId: operation), ct);
+        var posted = result.IsSuccess ? await DailyPoster.FindPostedAsync(operation, ct) : null;
+        if (posted is null || posted.Amount != item.ConfirmedAmount) throw new CollectionSessionPostingException(item.ClientItemId, "Review today's stall payment.");
+        return new(posted.CollectionId, posted.ReferenceCode, (await DailyPoster.GetInstrumentAsync(session.BusinessDate, ct))!.Value,
+            posted.Amount, [item.ClientItemId], "Posted");
+    }
     private async Task<(CollectionSessionItemQuote? Quote, CollectionSessionProblem? Problem)> QuoteNativeRentAsync(CollectionSessionIntent session, CollectionSessionItemIntent item, CancellationToken ct)
     {
         var r = item.Rent!;

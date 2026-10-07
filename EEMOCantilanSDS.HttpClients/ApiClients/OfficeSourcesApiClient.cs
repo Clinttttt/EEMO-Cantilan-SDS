@@ -7,6 +7,9 @@ public sealed class OfficeSourcesApiClient(HttpClient http) : HandleResponse(htt
 {
     public Task<Result<IReadOnlyList<FishMeatVendorRegistrationDto>>> RegistrationsAsync(int year) => GetAsync<IReadOnlyList<FishMeatVendorRegistrationDto>>($"api/office-sources/fish-meat/registrations?year={year}");
     public Task<Result<FishMeatVendorRegistrationDto>> RegisterAsync(RegisterFishMeatVendorRequest request) => PostAsync<RegisterFishMeatVendorRequest, FishMeatVendorRegistrationDto>("api/office-sources/fish-meat/registrations", request);
+    public Task<Result<VendorRegistryImportPreview>> PreviewImportAsync(VendorRegistryImportRequest request) => PostAsync<VendorRegistryImportRequest, VendorRegistryImportPreview>("api/office-sources/fish-meat/import/preview", request);
+    public Task<Result<VendorRegistryImportResult>> SaveImportAsync(VendorRegistryImportRequest request) => PostAsync<VendorRegistryImportRequest, VendorRegistryImportResult>("api/office-sources/fish-meat/import/save", request);
+    public Task<Result<VendorRegistrySummary>> RegistrySummaryAsync(int year) => GetAsync<VendorRegistrySummary>($"api/office-sources/fish-meat/summary?year={year}");
     public Task<Result<IReadOnlyList<TerminalVehicleChoice>>> VehicleChoicesAsync(DateOnly date) => GetAsync<IReadOnlyList<TerminalVehicleChoice>>($"api/office-sources/terminal/vehicle-choices?date={date:yyyy-MM-dd}");
     public Task<Result<bool>> MapVehicleAsync(TerminalVehicleMappingRequest request) => PutAsync<TerminalVehicleMappingRequest, bool>("api/office-sources/terminal/vehicle-section", request);
     public Task<Result<IReadOnlyList<SourceNativeActivityDto>>> ActivityAsync(DateOnly from, DateOnly to, string? operationCode = null) =>
