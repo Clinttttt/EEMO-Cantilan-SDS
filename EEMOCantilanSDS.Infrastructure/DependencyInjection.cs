@@ -61,14 +61,14 @@ namespace EEMOCantilanSDS.Infrastructure
                 options.AddInterceptors(sp.GetRequiredService<AuditSaveChangesInterceptor>());
                 options.AddInterceptors(sp.GetRequiredService<MunicipalityStampInterceptor>());
             });
-            service.AddScoped<IAppDbContext, AppDbContext>();
+            // Alias the existing scoped context: correction workflows, source writers and repositories
+            // must participate in the same transaction and see each other's uncommitted changes.
+            service.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
             service.AddScoped<ICollectionSessionStore, Repositories.Revenue.CollectionSessionStore>();
             service.AddScoped<ICollectionSessionSources, Repositories.Revenue.CollectionSessionSources>();
             service.AddScoped<IUnitOfWork, UnitOfWork>();
-            // The NPM daily handlers work through the repositories, which hold THIS scoped AppDbContext. IAppDbContext above is a
-            // second instance in the same scope, so a workflow given that one would post the Collection in one context while the
-            // day rows it pays sat unsaved in the other. The canonical NPM poster is therefore built on the repositories' own
-            // context: the day rows and the Collection commit together or not at all.
+            // The NPM poster uses the same scoped context as the repositories and application workflows:
+            // the day rows and canonical Collection commit together or not at all.
             service.AddScoped(sp =>
             {
                 var context = sp.GetRequiredService<AppDbContext>();

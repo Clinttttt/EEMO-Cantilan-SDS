@@ -35,6 +35,7 @@ public sealed class PostgresFixture : IAsyncLifetime
 
     private string ConnectionString => _postgres?.GetConnectionString()
         ?? throw new InvalidOperationException(UnavailableReason ?? "The test database was never started.");
+    internal string ApiConnectionString => ConnectionString;
 
     public async Task InitializeAsync()
     {
