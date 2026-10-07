@@ -306,8 +306,9 @@ public sealed class OfficialReportPanelsTests : TestContext
             var lines = table.QuerySelectorAll("tbody th.omi-line").Select(th => th.TextContent.Trim()).ToList();
             Assert.Equal(["a. Market Fees", "b. General Distribution / ECF", "c. Tampak Commercial Center (TCC)"], lines);
             Assert.DoesNotContain("Subtotal", table.TextContent);
-            Assert.Contains("OVERALL TOTAL MARKET COLLECTION", table.QuerySelector("tfoot")!.TextContent);
-            Assert.Contains("1,030.00", table.QuerySelector("tfoot")!.TextContent);
+            var closing = cut.Find("[data-report-page='2'] tfoot");
+            Assert.Contains("OVERALL TOTAL MARKET COLLECTION", closing.TextContent);
+            Assert.Contains("1,030.00", closing.TextContent);
             // No target configured: target and percentage are a dash, never 0 or 0%.
             Assert.DoesNotContain("%", table.QuerySelector("tbody.omi-block")!.TextContent);
             // The dashes speak for themselves: no explanatory notes or footer clutter on the official output.
@@ -822,7 +823,8 @@ public sealed class OfficialReportPanelsTests : TestContext
         var slaughter = new OfficialMonthlyIncomeGroupDto("SLAUGHTERHOUSE", "Slaughterhouse",
             [Row("SLAUGHTERHOUSE", "Slaughterhouse", 200m, 0m, "Legacy")], Months(200m, 0m), new MonthlyIncomeCellDto(200m, 0m));
         var groups = statement.Groups.Append(terminal).Append(slaughter).ToList();
-        OfficialMonthlyIncomeSectionDto Section(string key, string label, params string[] keys) => new(key, label, keys, Months(0m, 0m), new MonthlyIncomeCellDto(0m, 0m));
+        OfficialMonthlyIncomeSectionDto Section(string key, string label, params string[] keys) => new(key, label, keys,
+            key == "B" ? terminal.MonthTotals : Months(0m, 0m), key == "B" ? terminal.Total : new MonthlyIncomeCellDto(0m, 0m));
         statement = statement with { Groups = groups, Sections = [Section("A", "Income From Market", "MARKET", "RENT"), Section("B", "Income From Terminal", "TERMINAL"), Section("C", "Income from Slaughterhouse", "SLAUGHTERHOUSE")] };
         _reports.Setup(x => x.GetMonthlyIncomeAsync(2025, null)).ReturnsAsync(Result<OfficialMonthlyIncomeDto>.Success(statement));
 
@@ -830,11 +832,28 @@ public sealed class OfficialReportPanelsTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            var table = cut.Find("table.omi-table");
+            Assert.Equal(2, cut.FindAll("article.omi-sheet").Count);
+            var first = cut.Find("[data-report-page='1']");
+            var continuation = cut.Find("[data-report-page='2']");
+            var table = continuation.QuerySelector("table.omi-table")!;
+            Assert.Contains("A. Income From Market", first.TextContent);
+            Assert.DoesNotContain("B. Income From Terminal", first.TextContent);
+            Assert.DoesNotContain("C. Income from Slaughterhouse", first.TextContent);
+            Assert.Empty(first.QuerySelectorAll("tfoot, .omi-sign"));
+            Assert.Single(first.QuerySelectorAll(".omi-head"));
+            Assert.Empty(continuation.QuerySelectorAll(".omi-head"));
             Assert.Contains("B. Income From Terminal", table.TextContent);          // the server's own section, never a client guess
             Assert.Contains("Total Income from Terminal", table.TextContent);
             Assert.Contains("COMFORT ROOM", table.TextContent);
             Assert.Contains("C. Income from Slaughterhouse", table.TextContent);
+            Assert.Contains("OVERALL TOTAL MARKET COLLECTION", continuation.TextContent);
+            Assert.Single(continuation.QuerySelectorAll("footer.omi-sign"));
+            Assert.Equal(first.QuerySelector("colgroup")!.InnerHtml, table.QuerySelector("colgroup")!.InnerHtml);
+            Assert.Equal(16, table.QuerySelectorAll("thead th").Length);
+            Assert.Equal(groups.Sum(g => g.Rows.Count), cut.FindAll("tbody.omi-block tr:not(.omi-subtotal) > th.omi-line").Count);
+            foreach (var row in groups.SelectMany(g => g.Rows))
+                Assert.Single(cut.FindAll("tbody.omi-block tr"), r => r.QuerySelector("th.omi-line")?.TextContent.EndsWith(row.Label) == true);
+            Assert.Contains("40.00", continuation.QuerySelector(".omi-subtotal")!.TextContent);
             Assert.DoesNotContain("Awaiting an approved official grouping", cut.Markup);
             Assert.Contains("Prepared by", cut.Find("footer.omi-sign").TextContent);         // the two official roles come from office settings
             Assert.Contains("Certified Correct", cut.Find("footer.omi-sign").TextContent);

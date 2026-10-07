@@ -13,7 +13,7 @@
    OFFICIAL MONTHLY INCOME — the final statement, not the analysis workspace.
 
    Follows the office's own sheet (development evidence, docs/interface/OFFICIAL_MONTHLY_INCOME_REPORT_V3.md): letterhead,
-   then one table — revenue line, Annual Target, January to December, Total, Percentage — under "1. Receipts", with the
+   then two aligned table fragments — revenue line, Annual Target, January to December, Total, Percentage — under "1. Receipts", with the
    lines lettered a. to r. across Income from Market, Rent Income (Stall Rental) and Space Rental, and one closing
    "OVERALL TOTAL MARKET COLLECTION". The sheet carries no group subtotals, so none are added here.
 
@@ -59,9 +59,13 @@ else
         </div>
     }
 
-    <article class="omi-sheet" aria-labelledby="omi-title">
+    @foreach (var pageNumber in new[] { 1, 2 })
+    {
+    <article class="omi-sheet @(pageNumber == 2 ? "omi-continuation" : "")" data-report-page="@pageNumber" aria-labelledby="@(pageNumber == 1 ? "omi-title" : "omi-continuation-title")">
         @* The office sheet's letterhead: the municipal seal, the three government lines and the national Bagong Pilipinas
            mark, then the office. The statement's own title is the table's first heading, as on the sheet. *@
+        @if (pageNumber == 1)
+        {
         <header class="omi-head">
             <img class="omi-seal" src="@Branding.SealPath" alt="@Branding.Municipality seal" />
             <div class="omi-head-text">
@@ -73,11 +77,16 @@ else
         </header>
         <p class="omi-office">@Branding.FormalOfficeName</p>
         <h1 id="omi-title" class="v3-sr-only">Monthly Income @Year</h1>
+        }
+        else
+        {
+            <h2 id="omi-continuation-title" class="v3-sr-only">Monthly Income @Year — continuation</h2>
+        }
 
-        <div class="omi-scroll" role="region" aria-label="Monthly Income statement" tabindex="0">
+        <div class="omi-scroll" role="region" aria-label="Monthly Income statement page @pageNumber" tabindex="0">
             @{ _letter = 0; }
             <table class="omi-table">
-                <caption class="v3-sr-only">Monthly Income @Year by revenue line, January to December</caption>
+                <caption class="v3-sr-only">Monthly Income @Year by revenue line, January to December — page @pageNumber</caption>
                 @* Column widths for paper: sixteen columns share an A4 landscape line without clipping Total or Percentage. *@
                 <colgroup>
                     <col class="omi-col-line" />
@@ -91,7 +100,7 @@ else
                 </colgroup>
                 <thead>
                     <tr>
-                        <th scope="col" class="omi-line">Monthly Income @Year</th>
+                        <th scope="col" class="omi-line">@(pageNumber == 1 ? $"Monthly Income {Year}" : "Revenue line")</th>
                         <th scope="col" class="omi-num">Annual target</th>
                         @foreach (var name in MonthNames)
                         {
@@ -101,10 +110,13 @@ else
                         <th scope="col" class="omi-num">Percent<wbr />age</th>
                     </tr>
                 </thead>
+                @if (pageNumber == 1)
+                {
                 <tbody>
                     <tr class="omi-section"><th scope="rowgroup" colspan="16">1. Receipts</th></tr>
                 </tbody>
-                @foreach (var section in SectionList)
+                }
+                @foreach (var section in SectionList.Where(s => (s.Key == "A") == (pageNumber == 1)))
                 {
                     var groups = GroupsOf(section);
                     _letter = 0;
@@ -147,7 +159,7 @@ else
                         }
                     </tbody>
                 }
-                @if (UnplacedRows.Count > 0)
+                @if (pageNumber == 2 && UnplacedRows.Count > 0)
                 {
                     <tbody class="omi-unplaced">
                         <tr class="omi-group"><th scope="rowgroup" colspan="16">Awaiting an approved official grouping</th></tr>
@@ -166,6 +178,8 @@ else
                         }
                     </tbody>
                 }
+                @if (pageNumber == 2)
+                {
                 <tfoot>
                     <tr class="omi-grand">
                         <th scope="row" class="omi-line">OVERALL TOTAL MARKET COLLECTION</th>
@@ -178,10 +192,15 @@ else
                         <td class="omi-num">—</td>
                     </tr>
                 </tfoot>
+                }
             </table>
         </div>
-        <footer class="omi-sign"><OfficialSignatories Configured="_data.Signatories" /></footer>
+        @if (pageNumber == 2)
+        {
+            <footer class="omi-sign"><OfficialSignatories Configured="_data.Signatories" /></footer>
+        }
     </article>
+    }
 }
 </div>
 

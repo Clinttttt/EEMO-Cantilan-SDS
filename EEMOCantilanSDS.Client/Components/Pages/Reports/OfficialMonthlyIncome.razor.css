@@ -60,6 +60,8 @@
     background: var(--surface);
 }
 
+.omi-sheet + .omi-sheet { margin-top: 20px; }
+
 /* Letterhead, as on the office sheet: seal, the three government lines, the Bagong Pilipinas mark — one centred row. */
 .omi-head {
     display: flex;
@@ -115,11 +117,18 @@
 .omi-table {
     width: 100%;
     min-width: 1240px;
+    table-layout: fixed;
     border-collapse: separate;
     border-spacing: 0;
     font-size: 0.75rem;
     color: var(--text);
 }
+
+/* Identical column proportions on both preview sheets; paper widths below use the same proportions. */
+.omi-col-line { width: 20.13%; }
+.omi-col-wide { width: 6.34%; }
+.omi-col-month { width: 5.26%; }
+.omi-col-pct { width: 4.07%; }
 
     /* Separate borders (right and bottom per cell) so the sticky line column keeps its rule while scrolling. */
     .omi-table th,
@@ -224,9 +233,9 @@
     background: var(--surface-muted);
 }
 
-/* Paper: A4 landscape via the print helper (body padding 10 mm × 12 mm leaves 273 × 190 mm). ONE sheet for the full
-   standard statement: a slim letterhead, a line column wide enough that line names stay on one line (wrapped names were
-   what pushed Fines and the totals onto a second page), month columns sized to their amounts, and compact rows. The
+/* Paper: A4 landscape via the print helper (body padding 10 mm × 12 mm leaves 273 × 190 mm). Section A is the first
+   sheet; Terminal, Slaughterhouse, the overall total and configured signatories share the intentional continuation sheet.
+   A slim letterhead, month columns sized to their amounts, and compact rows preserve room for the closing signatures. The
    type stays at a legible 7 pt (6 pt column headings). Column widths sum to 268.2 mm, inside the printable line. */
 @media print {
     .omi-page {
@@ -240,6 +249,9 @@
         border: 0;
         border-radius: 0;
     }
+
+    .omi-sheet + .omi-sheet { margin-top: 0; }
+    .omi-continuation { break-before: page; page-break-before: always; break-inside: avoid; }
 
     .omi-head {
         gap: 4mm;
