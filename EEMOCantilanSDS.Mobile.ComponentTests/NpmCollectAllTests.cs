@@ -133,4 +133,30 @@ public sealed class NpmCollectAllTests : TestContext
         view.WaitForAssertion(() => Assert.Contains("₱150.00", view.FindAll(".sheet-meta").Last().TextContent));
         _api.Verify(x => x.RecordNpmDailyBatchAsync(It.IsAny<RecordNpmDailyBatchRequest>()), Times.Never);
     }
+
+    [Fact]
+    public void TheActionIsSolidAndCountsWhatTheServerSaysCanStillBeCollected_EvenWhenOnlyOneRemains()
+    {
+        _api.Setup(x => x.GetNpmDailyBatchSourcesAsync()).ReturnsAsync(Result<IReadOnlyList<NpmDailyBatchSource>>.Success([
+            new(S1, Guid.NewGuid(), "1", "Ana Reyes", 35m, false, "AlreadyCollected"),
+            new(S2, Guid.NewGuid(), "2", "Juan Dela Cruz", 35m, true, null)]));
+        var view = RenderComponent<NpmCollectAll>(p => p.Add(x => x.BusinessDate, Today));
+
+        view.WaitForAssertion(() => Assert.Equal("Collect All · 1 stall", view.Find("button.ca-open").TextContent.Trim()));
+        Assert.False(view.Find("button.ca-open").HasAttribute("disabled"));
+        view.Find("button.ca-open").Click();
+        view.WaitForAssertion(() => Assert.Single(view.FindAll(".ca-row")));                       // the collected stall is not offered again
+        Assert.Contains("Collect 1 stall", view.Find(".btn-primary").TextContent);
+    }
+
+    [Fact]
+    public void WhenNothingCanBeCollectedTheActionIsPlainlyDisabled()
+    {
+        _api.Setup(x => x.GetNpmDailyBatchSourcesAsync()).ReturnsAsync(Result<IReadOnlyList<NpmDailyBatchSource>>.Success([
+            new(S1, Guid.NewGuid(), "1", "Ana Reyes", 35m, false, "AlreadyCollected")]));
+        var view = RenderComponent<NpmCollectAll>(p => p.Add(x => x.BusinessDate, Today));
+
+        view.WaitForAssertion(() => Assert.True(view.Find("button.ca-open").HasAttribute("disabled")));
+        Assert.Contains("Nothing left to collect today", view.Find("button.ca-open").TextContent);
+    }
 }

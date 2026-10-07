@@ -6,7 +6,16 @@
 @* Collect All is only for today's NPM Daily charge. The collector sees every stall the server says can be collected today, with its own
    charge, unticks the exceptions and records the rest. An unticked stall is simply not collected in this batch: it is never marked absent.
    Each ticked stall gets its own Collection and SRC; the batch needs a live quote and is never queued unquoted. *@
-<button class="collection-small ca-open" type="button" @onclick="OpenAsync">Collect All</button>
+@* A solid, full-width action when the server says something can still be collected today, and a plainly disabled one when nothing can:
+   it is never faint, and its count is the server's, not a guess from the page's figures. *@
+@if (_known && Eligible.Count == 0)
+{
+    <button class="ca-open ca-open-none" type="button" disabled>Nothing left to collect today</button>
+}
+else
+{
+    <button class="ca-open" type="button" @onclick="OpenAsync">@(_known ? $"Collect All · {Eligible.Count} {(Eligible.Count == 1 ? "stall" : "stalls")}" : "Collect All")</button>
+}
 
 @if (_open)
 {
@@ -88,7 +97,10 @@
     private CollectionSessionResult? _result;
     private Guid _sessionId = Guid.NewGuid();
     private decimal? _confirmedTotal;
-    private bool _open, _loading, _busy;
+    private bool _open, _loading, _busy, _known;
+
+    // Whether anything can still be collected is the server's answer, asked once when the round opens.
+    protected override Task OnInitializedAsync() => LoadAsync();
     private string? _error;
 
     // Only what the server can collect today is offered; a stall it will not take is counted, never listed as a choice.
@@ -111,6 +123,7 @@
         {
             var response = await Api.GetNpmDailyBatchSourcesAsync();
             _sources = response.IsSuccess ? response.Value ?? [] : [];
+            _known = response.IsSuccess;
             if (!response.IsSuccess) _error = "Connect to load today's stalls.";
         }
         catch { _sources = []; _error = "Connect to load today's stalls."; }
@@ -122,7 +135,7 @@
     {
         _open = false;
         if (_result is null) return;
-        _sources = []; _unchecked.Clear(); _itemIds.Clear(); _result = null; _quote = null; _confirmedTotal = null; _sessionId = Guid.NewGuid();
+        _sources = []; _known = false; _unchecked.Clear(); _itemIds.Clear(); _result = null; _quote = null; _confirmedTotal = null; _sessionId = Guid.NewGuid();
         await OnRecorded.InvokeAsync();
     }
 

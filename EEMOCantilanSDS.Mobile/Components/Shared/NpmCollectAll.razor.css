@@ -1,4 +1,23 @@
-.ca-open { white-space: nowrap; }
+/* Solid and full width: the office asked for this action, so it is never faint. */
+.ca-open {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 44px;
+    padding: 0 16px;
+    border: 1px solid var(--mobile-blue);
+    border-radius: 12px;
+    background: var(--mobile-blue);
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.ca-open:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2px; }
+.ca-open-none,
+.ca-open:disabled { border-color: var(--mobile-border); background: var(--mobile-border); color: var(--mobile-text-secondary); cursor: not-allowed; }
 
 /* About seven stalls show at once; the rest scroll inside the sheet. */
 .ca-list { max-height: 21rem; overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); }
