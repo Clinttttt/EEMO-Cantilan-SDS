@@ -1,9 +1,9 @@
 # ADR-007 — Source-native collection identity and Business Payor retirement
 
-**Status:** Accepted  
-**Date:** 2026-10-06  
-**Owners:** Clint / StallTrack V3  
-**Business evidence:** [2026-10-06 MEEDO office clarification](../evidence/2026-10-06_meedo_office_terminal_fish_vendor_monthly_income_clarification.md)  
+**Status:** Accepted
+**Date:** 2026-10-06
+**Owners:** Clint / StallTrack V3
+**Business evidence:** [2026-10-06 MEEDO office clarification](../evidence/2026-10-06_meedo_office_terminal_fish_vendor_monthly_income_clarification.md)
 **Supersedes:** ADR-001 as the target product identity architecture. Historical ADR-001 remains useful evidence for why name matching is unsafe.
 
 ## Context

@@ -1,8 +1,8 @@
 # StallTrack V3 — 2026-10-06 Office Clarification Refactor Plan
 
-**Status:** Approved business/refactor baseline; substantially implemented in the accepted local integration checkpoint as of 2026-10-07, with production rollout/activation still separate.  
-**Authority:** [2026-10-06 MEEDO office clarification](../evidence/2026-10-06_meedo_office_terminal_fish_vendor_monthly_income_clarification.md).  
-**Current implementation checkpoint:** `integration/report-governance-ui` at `6d3362f9`; see `CURRENT_RELEASE_STATE.md` and the October 7 handoffs for exact verified scope.  
+**Status:** Approved business/refactor baseline; substantially implemented in the accepted local integration checkpoint as of 2026-10-07, with production rollout/activation still separate.
+**Authority:** [2026-10-06 MEEDO office clarification](../evidence/2026-10-06_meedo_office_terminal_fish_vendor_monthly_income_clarification.md).
+**Current implementation checkpoint:** `integration/report-governance-ui` at `6d3362f9`; see `CURRENT_RELEASE_STATE.md` and the October 7 handoffs for exact verified scope.
 **Purpose:** Give frontend/backend agents one precise target after the office clarified Terminal, Transportation/Parking, Fish/Meat registration, Weight & Measure, Business Payor retirement, NPM Daily batch collection, and the complete Official Monthly Income structure.
 
 > Implementation note: the major contracts in this plan now exist locally, including source-native discovery, independent Fish/Meat registry/lifecycle/import, Terminal separation, Transportation direct amount, NPM Daily/Whole and Daily Collect All contracts, recent collection correction, and the report topology. Do not interpret this as a production deployment declaration. Source activation (for example NPM canonical Daily where `SourceStillLegacy` still applies), local/production database migration state, deployment, and APK publication remain explicit gates.

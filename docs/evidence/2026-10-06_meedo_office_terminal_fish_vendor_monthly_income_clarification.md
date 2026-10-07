@@ -1,7 +1,7 @@
 # MEEDO office clarification — Monthly Income continuation, Terminal, Transportation/Parking, Fish/Meat registry, and collection workflow
 
-**Date recorded:** 2026-10-06  
-**Authority:** Direct clarification from Cantilan MEEDO staff/Head during office review, accompanied by office reference sheets supplied to the StallTrack project.  
+**Date recorded:** 2026-10-06
+**Authority:** Direct clarification from Cantilan MEEDO staff/Head during office review, accompanied by office reference sheets supplied to the StallTrack project.
 **Status:** Current Cantilan business authority. Where this evidence conflicts with earlier StallTrack planning assumptions, the later 2026-10-06 clarification governs prospectively. Historical records are not rewritten merely because the target workflow changed.
 
 ## Evidence files
