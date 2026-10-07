@@ -2,7 +2,7 @@
 
 **Status:** Current coordination guidance as of 2026-10-08; older linked-worktree map retained below as archive
 **Primary working checkout:** `C:\dev\stalltrack\eemo`
-**Current local integration branch / application checkpoint:** `integration/report-governance-ui` at `6051a66d` (documentation checkpoint follows; inspect Git for exact HEAD)
+**Current local integration branch / application checkpoint:** `integration/report-governance-ui` at `08232726` (documentation checkpoint follows; inspect Git for exact HEAD)
 **Shared local Web preview:** `https://localhost:7167`
 
 Read `CURRENT_RELEASE_STATE.md` before using this file for implementation status. Business authority still comes from the Decision Registry, ADRs, operational rulebook, office evidence and source-specific architecture—not from branch naming.
@@ -25,6 +25,8 @@ The current primary checkout intentionally contains canonical documentation/evid
 ## Current accepted October 7 work
 
 October 8 consolidation was performed sequentially in this same primary checkout on `codex/final-eemo-consolidation`, application commit `6051a66d`, accepted for local fast-forward integration. Automated validation and local API/schema verification passed. Native/browser UI-control initialization failed, so the user performed the fresh-app visual checkpoint and explicitly confirmed “Checked — all passed.” No additional worktree was created. See [the verification record](FINAL_SINGLE_REPO_CONSOLIDATION_20261008.md).
+
+The subsequent UI addenda continued on the existing `codex/terminal-input-contrast` branch through application commit `08232726`. Full Mobile **70/0/0** and Web **748/0/0** passed, Release builds and CSS checks passed, and the user explicitly confirmed **“Checked — all passed, including two-page PDF”** against fresh apps. The branch was fast-forwarded locally through documentation commit `ab13fcb1`; this documentation reconciliation follows. No push or production change occurred. The verification record distinguishes local Terminal vehicle-section configuration from unchanged rates/history and records the full two-sheet report, simplified Fish/Meat form, and Terminal contribution/count cleanup.
 
 The local integration checkpoint includes the accepted collector/productivity chain through `6d3362f9`, including source-native collection, Fish/Meat registry lifecycle/import, Mobile correction atomicity, NPM Daily/Whole and Collect All readiness behavior, and the latest Web/Mobile V3 presentation follow-ups. See `CURRENT_RELEASE_STATE.md` and the four October 7 handoffs for exact validation scope.
 
