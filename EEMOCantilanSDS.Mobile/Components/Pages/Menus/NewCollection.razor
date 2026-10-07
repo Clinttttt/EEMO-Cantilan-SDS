@@ -16,7 +16,7 @@
             <img class="header-logo" src="@Session.BrandingSeal" alt="Municipality seal" />
         </div>
     </div>
-    <main class="content">
+    <main class="content collection-workspace">
         @if (_ready && CorrectId is not null && _correction is null) { <p class="collection-message" role="status">This collection can't be edited. It may be remitted, from an earlier day, or already corrected.</p> }
         else if (_ready) { <CollectionSessionEditor @key="(OnlyOperation, SessionId, CorrectId)" Correction="_correction" BusinessDate="@Today" OnlyOperation="@OnlyOperation" AlsoOperations="@AlsoOperations" ResumeSessionId="@SessionId" /> }
     </main>

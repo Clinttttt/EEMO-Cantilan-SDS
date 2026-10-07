@@ -159,6 +159,8 @@ public sealed class CollectionSessionEditorTests : TestContext
         Assert.Contains("February 2026", view.Markup);
         Assert.Contains("₱600.00", view.Markup);
         Assert.DoesNotContain("Days covered", view.Markup);
+        Assert.Contains("Remaining due", view.Markup); Assert.Contains("Collected", view.Markup);
+        Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(view.Markup, "February 2026").Count);              // the period is stated once
     }
 
     [Fact]
@@ -673,5 +675,39 @@ public sealed class CollectionSessionEditorTests : TestContext
 
         view.WaitForAssertion(() => Assert.Equal(2, ids.Count));
         Assert.NotEqual(ids[0], ids[1]);
+    }
+
+    [Fact]
+    public void A_stall_that_has_paid_today_is_not_offered_the_daily_payment_but_whole_payment_follows_its_own_eligibility()
+    {
+        _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(Occupancy)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(new(null, Today,
+            [new(CollectionSessionItemKind.NpmWholePayment, "NPM_WHOLE_PAYMENT", "NPM Whole payment", true, true, null, null, false, [], true,
+                [new("Whole|stall", CollectionSessionItemKind.NpmWholePayment, "NPM_WHOLE_PAYMENT", "NPM Whole payment", "Stall 2 · October", new(StallId: DailyStall, OccupancyId: Guid.NewGuid(), Year: 2026, Month: 10),
+                    RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.PreparedBalance, 870m, RequiredInputs: [])], CollectionFamily.Rent)],
+            SourceIdentity: Occupancy)));
+        var view = PickSource("Ana Reyes");
+
+        Click(view, "+ Add item");
+
+        var rows = view.Find("[role=dialog]").QuerySelectorAll(".collection-option").Select(x => x.TextContent.Replace("›", "").Trim()).ToList();
+        Assert.DoesNotContain(rows, r => r.Contains("Daily"));
+        Assert.Contains(rows, r => r.StartsWith("Whole payment") && r.Contains("₱870.00 remaining"));
+    }
+
+    [Fact]
+    public void The_daily_amount_shown_is_whatever_the_server_returned_never_a_built_in_rate()
+    {
+        _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(Occupancy)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(new(null, Today,
+            [new(CollectionSessionItemKind.NpmDaily, "NPM_DAILY", "Daily stall payment", true, true, null, null, false, [], true,
+                [new("Daily|stall", CollectionSessionItemKind.NpmDaily, "NPM_DAILY", "Daily stall payment", "Stall 2", new(StallId: DailyStall, OccupancyId: Guid.NewGuid(), PeriodStart: Today),
+                    RevenueInstrumentType.CashTicket, CollectionSessionAmountRule.FixedAmount, 47.5m, RequiredInputs: [])], CollectionFamily.Rent)],
+            SourceIdentity: Occupancy)));
+        var view = PickSource("Ana Reyes");
+
+        Click(view, "+ Add item");
+
+        var daily = view.Find("[role=dialog]").QuerySelectorAll(".collection-option").Single().TextContent;
+        Assert.Contains("₱47.50", daily);
+        Assert.DoesNotContain("₱30", daily);
     }
 }

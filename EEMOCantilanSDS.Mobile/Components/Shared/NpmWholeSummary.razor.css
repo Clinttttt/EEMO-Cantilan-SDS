@@ -1,5 +1,11 @@
-.whole-review { padding: 14px 16px; background: var(--mobile-surface); border: 1px solid var(--mobile-border); border-radius: 14px; }
-.whole-review > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 7px 0; font-size: 13px; }
-.whole-review dt { color: var(--mobile-text-secondary); }
-.whole-review dd { margin: 0; text-align: right; color: var(--mobile-text); font-variant-numeric: tabular-nums; }
-.whole-review .whole-total { border-top: 1px solid var(--mobile-border); margin-top: 4px; padding-top: 12px; font-weight: 700; }
+/* The review: remaining due is the figure; the rest is quiet support. */
+.whole-review { padding: 14px 16px 12px; background: var(--mobile-surface); border: 1px solid var(--mobile-border); border-radius: 12px; }
+.whole-period-label { margin-bottom: 6px; font-size: 13px; font-weight: 600; color: var(--mobile-text-secondary); }
+.whole-review dl { margin: 0; }
+.whole-review dl > div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 6px 0; }
+.whole-review dt { color: var(--mobile-text-secondary); font-size: 13px; }
+.whole-review dd { margin: 0; font-size: 14px; font-variant-numeric: tabular-nums; text-align: right; color: var(--mobile-text); }
+.whole-total { margin-top: 6px; padding-top: 12px !important; border-top: 1px solid var(--mobile-border); }
+.whole-total dt { font-size: 14px; font-weight: 600; color: var(--mobile-navy); }
+.whole-total dd { font-size: 22px; font-weight: 700; color: var(--mobile-navy); }
+.whole-instrument { margin-top: 6px; font-size: 12px; color: var(--mobile-text-secondary); }

@@ -1,18 +1,14 @@
-.whole-workspace { padding: 20px 16px; color: var(--mobile-text); }
-.whole-workspace h1 { margin: 18px 0 4px; font-size: 22px; color: var(--mobile-navy); }
-.whole-payor, .whole-note { color: var(--mobile-text-secondary); font-size: 13px; }
+.whole-workspace { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 16px 16px calc(72px + env(safe-area-inset-bottom, 0px)); color: var(--mobile-text); }
+.whole-workspace h1 { margin: 16px 0 2px; font-size: 20px; line-height: 1.25; color: var(--mobile-navy); }
+.whole-payor, .whole-note { margin: 0; color: var(--mobile-text-secondary); font-size: 13px; }
 .whole-modes { display: flex; padding: 4px; gap: 4px; border: 1px solid var(--mobile-border); border-radius: 10px; background: var(--mobile-surface); }
 .whole-modes button { flex: 1; min-height: 44px; border: 0; border-radius: 8px; background: transparent; color: var(--mobile-navy); font: inherit; }
 .whole-modes .selected { background: var(--mobile-blue); color: white; font-weight: 600; }
-.whole-period { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; margin: 20px 0; }
-.whole-period label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
-.whole-period input, .whole-period select { width: 100%; min-height: 44px; padding: 8px; border: 1px solid var(--mobile-border); border-radius: 8px; background: var(--mobile-surface); color: var(--mobile-text); font: inherit; }
-.whole-period button { grid-column: 1 / -1; }
-.whole-review { padding: 16px; background: var(--mobile-surface); border: 1px solid var(--mobile-border); border-radius: 12px; }
-.whole-review div { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; }
-.whole-review dt { color: var(--mobile-text-secondary); font-size: 13px; }
-.whole-review dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
-.whole-total { border-top: 1px solid var(--mobile-border); margin-top: 8px; color: var(--mobile-blue); }
+
+/* Month and Year read as one period control: two choices side by side, the month the wider. */
+.whole-period { display: grid; grid-template-columns: 3fr 2fr; gap: 10px; margin: 14px 0 16px; }
+
+.whole-confirm { display: block; width: 100%; min-height: 48px; margin-top: 14px; }
 .whole-error { color: var(--mobile-error); font-size: 14px; }
 .whole-notice { color: var(--mobile-blue); font-size: 14px; font-weight: 600; }
 button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--mobile-focus); outline-offset: 2px; }

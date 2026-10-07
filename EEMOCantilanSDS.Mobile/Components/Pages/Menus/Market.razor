@@ -82,12 +82,13 @@
                    which earlier day a payment settles is a decision that belongs beside the arrears, not inside the
                    sheet a collector uses forty times a day. The count is the number of payors with an outstanding day
                    this period, so it is visible before anybody is opened. *@
-                <button class="owed-btn" type="button"
-                        title="Payors with days still owed" aria-label="Days still owed"
+                <button class="owed-btn owed-pill" type="button"
+                        title="Payors with days still owed" aria-label="@(OwedPayorCount > 0 ? $"Days still owed, {OwedPayorCount} payors" : "Days still owed")"
                         @onclick="OpenArrears">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
                     </svg>
+                    <span class="owed-label">Owed</span>
                     @if (OwedPayorCount > 0)
                     {
                         <span class="owed-count">@OwedPayorCount</span>

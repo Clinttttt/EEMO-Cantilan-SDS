@@ -1,0 +1,2 @@
+/* The collection workspace is a column, so a register on it (Today's recent collections) can take the remaining height. Page-scoped on purpose. */
+.collection-workspace { display: flex; flex-direction: column; }

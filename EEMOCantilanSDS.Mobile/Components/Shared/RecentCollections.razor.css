@@ -1,11 +1,12 @@
-.rc { margin-top: 4px; }
+/* The register takes the height the page has left above the bottom navigation, then scrolls inside itself: a flex column all the way down,
+   with no fixed height. The page (collection-workspace) is the flex container; when other content is taller, the page scrolls instead. */
+.rc { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 9rem; margin-top: 4px; }
 .rc-title { margin: 0 0 8px 2px; font-size: 13px; font-weight: 600; color: var(--mobile-text-secondary); }
 .rc-note { margin: 0 2px 8px; font-size: 13px; color: var(--mobile-text-secondary); }
 .rc-sub { margin: 0 0 6px; font-size: 15px; font-weight: 700; color: var(--mobile-navy); }
 .rc-block { margin: 12px 0 0; padding: 8px 10px; border-left: 3px solid var(--mobile-border); background: var(--mobile-canvas); border-radius: 0 8px 8px 0; font-size: 13px; color: var(--mobile-text-secondary); }
 
-/* About five rows show at once; the rest scroll inside the list so the page never grows with the day. */
-.rc-list { max-height: 21rem; overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); }
+.rc-list { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); }
 
 .rc-row {
     display: flex;
