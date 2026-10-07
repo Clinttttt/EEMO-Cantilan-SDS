@@ -4,12 +4,16 @@
 **As of:** 2026-10-08
 **Production code basis:** `master` at `db75418b68aa221cc5cd30a3bfa2af9799c2a5c6` (2026-10-05 release)
 **Current local integration checkout:** `C:\dev\stalltrack\eemo`
-**Current local integration branch / application checkpoint:** `integration/report-governance-ui` at `6051a66d` (documentation checkpoint follows; inspect Git for exact HEAD)
+**Current local integration branch / application checkpoint:** `6051a66d` accepted; follow-up `ed4b295b` on `codex/terminal-input-contrast` awaiting visual acceptance and same-checkout fast-forward (inspect Git for exact HEAD)
 **Collector APK in production:** `collector-1.1.12-14` (display version 1.1.12, version code 14)
 
 This is the single current implementation-status entry point. It deliberately separates **deployed production** from the **newer accepted local integration state**. Dated audits and handoffs remain evidence; they do not become production merely because their commits are integrated locally. Before changing code, confirm the current Git HEAD because the local integration checkpoint may advance.
 
 ## 2026-10-08 accepted local consolidation
+
+The subsequent local UI follow-up contains Mobile commit `4df9bfda`, Web commit `2249573b`, and final Mobile polish `ed4b295b`. Terminal has no redundant title card; official sections and server-configured vehicle choices use two columns, with optional Name only for a selected vehicle class. Amount received remains authoritative direct input where the server specifies direct amount; optional CT count does not price it. Collect All row amounts use stronger contrast. Fish/Meat registration choices occupy separate rows, and Operations displays the child label Terminal under the unchanged Income From Terminal group. No backend, migration, financial rule or production state changed.
+
+Follow-up validation: Mobile components **70 passed / 0 failed / 0 skipped**; focused Web components **20 passed / 0 failed / 0 skipped**; full Web components **746 passed / 0 failed / 0 skipped**. Mobile Windows Release passed with **17 warnings / 0 errors**; Client Release passed with **0 warnings / 0 errors** on the standalone retry after a concurrent compiler-output lock. Diff whitespace and edited/generated Mobile CSS brace checks passed. Fresh primary-checkout apps are running; follow-up visual acceptance is pending and is separate from the earlier confirmed checkpoint below.
 
 Application commit `6051a66d` was developed on `codex/final-eemo-consolidation` in the same primary checkout and accepted for local fast-forward integration. It removes the legacy TRM/PerTrip active Mobile menu entry, keeps source-native Terminal under Income from Terminal with `/income-terminal`, preserves Transportation/Parking separately, and adds focused menu/source-picker regression coverage. No financial writer, historical record, source activation mechanism, migration, or CSS was changed.
 

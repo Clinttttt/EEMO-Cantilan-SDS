@@ -63,6 +63,18 @@ The manual gate passed. The authorized remaining sequence is documentation commi
 
 ## Documentation and production
 
+### Subsequent UI follow-up (2026-10-08)
+
+Starting local integration HEAD was `b7c91cd9`. Work continued in the same physical checkout on `codex/terminal-input-contrast`, without additional worktrees. Application commits: `4df9bfda` (Mobile Terminal card/Name and Collect All contrast), `2249573b` (Web drawer hierarchy and Terminal row label), `ed4b295b` (two-column Terminal choices and vehicle-only optional Name, superseding the earlier section-total Name presentation).
+
+Terminal section labels and vehicle choices remain server-provided. Sections are not split or renamed to invent choices. Vehicle type remains an optional assisted mode within its official section. Direct amount entry, optional ticket count, CT instrument, source-native identity and historical compatibility remain intact. An uncommitted vehicle Name is cleared when switching to a section total; posted/history evidence is untouched.
+
+The Web registration drawer keeps the original segmented controls at the existing compact width, placing Type on one row and Registration on the next; name/business and address/reference remain paired. Renewal, validation and tax-year behavior are unchanged. Only the Operations child row reads Terminal; the group and workspace section rules are unchanged.
+
+Validation: full Mobile components **70/0/0** (passed/failed/skipped), focused Web **20/0/0**, full Web **746/0/0**. Mobile Windows Release **17 warnings/0 errors**. Client Release standalone retry **0 warnings/0 errors**; its first concurrent attempt failed with one compiler-output lock error, resolved by sequential execution. `git diff --check` and edited source plus generated Release Mobile CSS brace checks passed. Unit/Integration results above remain the consolidation run; no backend logic changed in this follow-up.
+
+Fresh Mobile PID 17860 points into this checkout; DLL timestamp **01:44:51 +08:00** is newer than `ed4b295b` at **01:44:10 +08:00**. Fresh Client PID 37912 points to this checkout's Debug DLL and `/login` returns 200. Follow-up visual acceptance has been requested for Terminal, 346px/390px Collect All, and the two Web changes. It is pending; the prior user acceptance does not cover these later changes.
+
 `CURRENT_RELEASE_STATE.md` and `ACTIVE_WORKSTREAMS.md` record accepted local application commit `6051a66d` and this verification record. `CONTEXT.md` was reviewed; its domain semantics remain current and required no change. Stable business rules were not rewritten.
 
 Production remains the separately recorded October 5 release (`db75418b`, APK `collector-1.1.12-14`). These local checks do not declare production activation or deployment.
