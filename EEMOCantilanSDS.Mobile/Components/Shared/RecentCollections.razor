@@ -77,9 +77,9 @@
                     {
                         @if (!Sync.IsOnline) { <p class="rc-note">Connect to correct a collection.</p> }
                     }
-                    else if (!string.IsNullOrWhiteSpace(shown.BlockReason))
+                    else if (BlockText(shown) is { } blocked)
                     {
-                        <p class="rc-block" role="status">@shown.BlockReason</p>
+                        <p class="rc-block" role="status">@blocked</p>
                     }
                     @if (_problem is not null) { <p class="form-error" role="alert">@_problem</p> }
                 }
@@ -168,9 +168,15 @@
             if (result.IsSuccess && result.Value is { } outcome) { _done = outcome; _removing = false; }
             else _problem = ProblemText(result.Error);
         }
-        catch { _problem = "Couldn't reach the server. Nothing was changed; try again."; }
+        catch { _problem = "Couldn't confirm the result. Check today's recent collections before trying again."; }
         finally { _busy = false; }
     }
+
+    // A blocked row says why in plain words chosen by the server's stable code; a code this page does not know falls back to the server's own sentence.
+    private static string? BlockText(MobileRecentCollection row) =>
+        row.BlockReasonCode is { Length: > 0 } code && ProblemText(code) is var known && known != DefaultProblem ? known : string.IsNullOrWhiteSpace(row.BlockReason) ? null : row.BlockReason;
+
+    private const string DefaultProblem = "The correction could not be completed. Check today's recent collections before trying again.";
 
     // The server's stable codes choose the words; its message text is not read.
     internal static string ProblemText(string? code) => code switch
@@ -183,7 +189,7 @@
         "SourceCorrectionUnavailable" => "This kind of collection can't be corrected here.",
         "CorrectionIntentConflict" or "ConcurrentCorrection" => "Another change was saved at the same time. Close this and check the list.",
         "InvalidReason" => "Choose a reason (and a note for Other).",
-        _ => "The correction could not be saved. Nothing was changed."
+        _ => DefaultProblem
     };
 
     // ── What a row says: the source or operation, who, when; nothing that was not recorded ──

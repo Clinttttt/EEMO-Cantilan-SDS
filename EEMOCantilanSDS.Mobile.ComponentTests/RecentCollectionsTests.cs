@@ -96,7 +96,7 @@ public sealed class RecentCollectionsTests : TestContext
 
         var sheet = view.Find("[role=dialog]");
         Assert.Equal(["Close"], sheet.QuerySelectorAll(".sheet-actions button").Select(b => b.TextContent.Trim()).ToArray());
-        Assert.Contains("Already remitted", sheet.QuerySelector(".rc-block")!.TextContent);
+        Assert.Contains("already remitted", sheet.QuerySelector(".rc-block")!.TextContent);   // worded from the code
     }
 
     [Fact]

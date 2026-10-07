@@ -493,7 +493,7 @@ else
             if (result.IsSuccess && result.Value is { } outcome) _correctionResult = outcome;
             else _message = RecentCollections.ProblemText(result.Error);
         }
-        catch { _message = "Couldn't reach the server. Nothing was changed; try again."; }
+        catch { _message = "Couldn't confirm the result. Check today's recent collections before trying again."; }
         finally { _busy = false; }
     }
 

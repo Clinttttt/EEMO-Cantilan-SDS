@@ -54,12 +54,23 @@
     {
         await Session.InitializeAsync();
         if (Session.Menu is null) { Navigation.NavigateTo("/login"); return; }
+    }
+
+    private Guid? _loadedCorrectId;
+
+    // Editing navigates from this same page to /collections/new?correct=..., which reuses this component: the correction is therefore resolved whenever the
+    // query changes, not only on first load. Only what the server still lets this collector edit opens, taken from the same recent list that offered it.
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Session.Menu is null || (_ready && CorrectId == _loadedCorrectId)) return;
+        _ready = false;
+        _correction = null;
         if (CorrectId is { } id)
         {
-            // Only what the server still lets this collector edit opens: the row comes from the same recent list that offered it.
             var recent = await Api.GetRecentCollectionsAsync();
             _correction = recent.IsSuccess ? recent.Value?.Rows.FirstOrDefault(r => r.Collection.CollectionId == id && r.CanEdit) : null;
         }
+        _loadedCorrectId = CorrectId;
         _ready = true;
     }
 }
