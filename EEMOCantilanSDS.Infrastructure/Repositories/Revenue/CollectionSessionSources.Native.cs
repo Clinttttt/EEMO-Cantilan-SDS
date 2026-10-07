@@ -136,7 +136,9 @@ public sealed partial class CollectionSessionSources
                 }
             }
         }
-        // Payer-optional services are available alongside a selected source too. They do not acquire ownership from it.
+        // Payer-optional services are offered only to a direct session (no Source Identity); a selected source never carries them.
+        if (identity is null)
+        {
         foreach (var section in Enum.GetValues<TerminalSection>()) await AddOffice(CollectorOperationCodes.Terminal, new(CollectorOperationCodes.Terminal, Section: section),
             OfficeCollectionWorkflow.SectionName(section), "Income From Terminal", CollectionSessionAmountRule.DirectAmount, CollectionFamily.Terminal);
         foreach (var vehicle in await Office.VehicleChoicesAsync(date, ct))
@@ -149,6 +151,7 @@ public sealed partial class CollectionSessionSources
                 .Select(x => x with { RequiresPayor = false, Family = x.Kind == CollectionSessionItemKind.Slaughter ? CollectionFamily.Slaughterhouse
                     : x.OperationCode == CollectorOperationCodes.VegetableFruitSpaceRental ? CollectionFamily.Space : CollectionFamily.Market }));
         }
+        }
         return new(null, date, rows.GroupBy(x => x.OperationCode).Select(g => g.First() with {
             DisplayName = g.Key == CollectorOperationCodes.Terminal ? "Income From Terminal" : g.First().DisplayName,
             Choices = g.SelectMany(x => x.Choices ?? []).OrderBy(x => x.SelectionKey, StringComparer.Ordinal).ToArray()
@@ -157,7 +160,7 @@ public sealed partial class CollectionSessionSources
     private async Task<bool> NativeItemMatchesAsync(CollectionSessionIntent session, CollectionSessionItemIntent item, CancellationToken ct)
     {
         var identity = session.SourceIdentity!;
-        if (item.Kind is CollectionSessionItemKind.GovernedService or CollectionSessionItemKind.Slaughter) return true; // Only their existing payer-optional policies can quote/post.
+        if (item.Kind is CollectionSessionItemKind.GovernedService or CollectionSessionItemKind.Slaughter) return false; // Payer-optional services belong to a direct (source-less) session only.
         if (identity.Kind == SourceIdentityKind.SpaceAccount) return item.Obligation?.AccountId == identity.Id;
         if (identity.Kind != SourceIdentityKind.Occupancy) return false;
         var stallId = item.Water?.StallId ?? item.NpmWhole?.StallId ?? item.Electricity?.StallId ?? item.Rent?.StallId;
@@ -200,6 +203,9 @@ public sealed partial class CollectionSessionSources
     private async Task<(CollectionSessionItemQuote? Quote, CollectionSessionProblem? Problem)> QuoteNativeChargeAsync(CollectionSessionIntent session, CollectionSessionItemIntent item, CancellationToken ct)
     {
         var native = item.Native!;
+        // Terminal (like every payer-optional service) belongs to a direct session only; a selected source never carries it.
+        if (session.SourceIdentity is not null && native.OperationCode == CollectorOperationCodes.Terminal)
+            return (null, new(item.ClientItemId, "PayerMismatch", "Terminal is collected as a direct collection, not under a selected source."));
         if (native.OperationCode is CollectorOperationCodes.FishMeatVendorFee or CollectorOperationCodes.WeightAndMeasure)
         {
             // A registration is a source identity, never an inferred relation from a selected occupancy or matching name.

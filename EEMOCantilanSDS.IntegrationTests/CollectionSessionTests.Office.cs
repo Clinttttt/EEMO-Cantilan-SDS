@@ -148,14 +148,13 @@ public sealed partial class CollectionSessionTests
             Assert.Throws<ArgumentException>(() => vehicle.AssociateTerminalSection(TerminalSection.PullPulVansCargoVans));
             intent = new(Guid.NewGuid(), date, null, [
                 new(Guid.NewGuid(), CollectionSessionItemKind.SourceNative, 100m, Native: new(CollectorOperationCodes.FishMeatVendorFee, vendor.Id)),
-                new(Guid.NewGuid(), CollectionSessionItemKind.SourceNative, 9m, Native: new(CollectorOperationCodes.WeightAndMeasure, vendor.Id, Kilograms: 3m)),
-                new(Guid.NewGuid(), CollectionSessionItemKind.SourceNative, 80m, Native: new(CollectorOperationCodes.Terminal, Section: TerminalSection.ComfortRoom))],
+                new(Guid.NewGuid(), CollectionSessionItemKind.SourceNative, 9m, Native: new(CollectorOperationCodes.WeightAndMeasure, vendor.Id, Kilograms: 3m))],
                 SourceIdentity: new(SourceIdentityKind.FishMeatVendorRegistration, vendor.Id));
             var sources = new CollectionSessionSources(db, new Caller(w.CollectorId, w.TenantId), new Tenant(w.TenantId), new Clock(date), null!, new NoMarketDays());
             var flow = NativeWorkflow(db, w, new FailAfterFirst(sources));
             var reviewed = (await flow.QuoteAsync(intent)).Value!;
             Assert.True(reviewed.CanRecord, string.Join("; ", reviewed.Problems.Select(x => $"{x.Code}: {x.Message}")));
-            Assert.Equal(2, reviewed.InstrumentTotals.Count);
+            Assert.Single(reviewed.InstrumentTotals);
             await Assert.ThrowsAsync<IOException>(() => flow.RecordAsync(new(intent, reviewed.QuoteFingerprint)));
         }
         await using var verify = database.CreateContext(w.TenantId);
@@ -163,8 +162,69 @@ public sealed partial class CollectionSessionTests
         Assert.Empty(await verify.MobileCollectionSessions.ToListAsync());
         var actualSources = new CollectionSessionSources(verify, new Caller(w.CollectorId, w.TenantId), new Tenant(w.TenantId), new Clock(date), null!, new NoMarketDays());
         var outcome = await Record(NativeWorkflow(verify, w, actualSources), intent);
-        Assert.Equal(189m, outcome.GrandTotal); Assert.Equal(3, outcome.Collections.Count);
-        Assert.Equal(3, outcome.Collections.Select(x => x.ReferenceCode).Distinct().Count());
+        Assert.Equal(109m, outcome.GrandTotal); Assert.Equal(2, outcome.Collections.Count);
+        Assert.Equal(2, outcome.Collections.Select(x => x.ReferenceCode).Distinct().Count());
+    }
+    [SkippableFact]
+    public async Task A_selected_source_is_offered_only_its_own_items_and_direct_operations_belong_to_a_source_less_session()
+    {
+        var date = PhilippineTime.Today; var w = await SeedAsync(linked: false);
+        await using var db = database.CreateContext(w.TenantId); await EnableOffice(db, w);
+        var vendor = (await Office(db, w, "SuperAdmin").RegisterAsync(new(Guid.NewGuid(), date.Year, FishMeatVendorType.Fish, VendorRegistrationKind.New, "Independent vendor"))).Value!;
+        var sources = new CollectionSessionSources(db, new Caller(w.CollectorId, w.TenantId), new Tenant(w.TenantId), new Clock(date), null!, new NoMarketDays());
+
+        var fish = await sources.DiscoverNativeAsync(new(SourceIdentityKind.FishMeatVendorRegistration, vendor.Id), date, default);
+        Assert.Equal([CollectorOperationCodes.FishMeatVendorFee, CollectorOperationCodes.WeightAndMeasure],
+            fish.Operations.Select(x => x.OperationCode).OrderBy(x => x, StringComparer.Ordinal).ToArray());      // nothing else, however payer-optional
+
+        var occupancy = (await db.Contracts.SingleAsync()).Id;
+        var npm = await sources.DiscoverNativeAsync(new(SourceIdentityKind.Occupancy, occupancy), date, default);
+        Assert.DoesNotContain(npm.Operations, x => x.OperationCode is CollectorOperationCodes.Terminal or CollectorOperationCodes.Transportation
+            or CollectorOperationCodes.FishMeatVendorFee or CollectorOperationCodes.WeightAndMeasure);
+
+        // A source with nothing collectible is empty; walk-up work is a separate direct session with no Source Identity.
+        var direct = await sources.DiscoverNativeAsync(null, date, default);
+        Assert.Contains(direct.Operations, x => x.OperationCode == CollectorOperationCodes.Terminal);
+        Assert.Contains(direct.Operations, x => x.OperationCode == CollectorOperationCodes.FishMeatVendorFee);
+        Assert.DoesNotContain(direct.Operations, x => x.OperationCode == CollectorOperationCodes.WeightAndMeasure);   // a weighing needs a registered vendor
+    }
+    [SkippableFact]
+    public async Task A_source_bound_session_rejects_an_unrelated_direct_item_but_a_direct_session_accepts_it()
+    {
+        var date = PhilippineTime.Today; var w = await SeedAsync(linked: false);
+        await using var db = database.CreateContext(w.TenantId); await EnableOffice(db, w);
+        var vendor = (await Office(db, w, "SuperAdmin").RegisterAsync(new(Guid.NewGuid(), date.Year, FishMeatVendorType.Fish, VendorRegistrationKind.New, "Independent vendor"))).Value!;
+        var sources = new CollectionSessionSources(db, new Caller(w.CollectorId, w.TenantId), new Tenant(w.TenantId), new Clock(date), null!, new NoMarketDays());
+        var flow = NativeWorkflow(db, w, sources);
+        CollectionSessionItemIntent Terminal() => new(Guid.NewGuid(), CollectionSessionItemKind.SourceNative, 80m,
+            Native: new(CollectorOperationCodes.Terminal, Section: TerminalSection.ComfortRoom));
+
+        var crafted = (await flow.QuoteAsync(new(Guid.NewGuid(), date, null, [Terminal()],
+            SourceIdentity: new(SourceIdentityKind.FishMeatVendorRegistration, vendor.Id)))).Value!;
+        Assert.False(crafted.CanRecord);
+        Assert.Contains(crafted.Problems, x => x.Code == "PayerMismatch");
+        Assert.Empty(await db.Collections.ToListAsync());
+
+        var outcome = await Record(flow, new(Guid.NewGuid(), date, null, [Terminal()], PayerSnapshot: "Walk-up payer"));
+        Assert.Equal(80m, outcome.GrandTotal); Assert.Single(outcome.Collections);
+    }
+    [SkippableFact]
+    public async Task Terminal_resolves_exact_known_vehicle_codes_without_re_mapping_and_leaves_custom_classes_unmapped()
+    {
+        var date = PhilippineTime.Today; var w = await SeedAsync(); await using var db = database.CreateContext(w.TenantId); await EnableOffice(db, w);
+        VehicleClass Add(string code) { var v = VehicleClass.Create(w.TenantId, code, code, "head"); db.AddRange(v, VehicleClassRate.Create(w.TenantId, v.Id, date, 20m, "head")); return v; }
+        var jeepney = Add("JEEPNEY"); var tricycle = Add("TRICYCLE"); var custom = Add("PEDICAB");
+        await db.SaveChangesAsync();
+        Assert.Null(jeepney.TerminalSection);                                                                    // no explicit mapping was ever saved
+
+        var choices = await Office(db, w).VehicleChoicesAsync(date, default);
+        Assert.Equal(TerminalSection.PullPulVansCargoVans, choices.Single(x => x.VehicleClassId == jeepney.Id).Section);
+        Assert.Equal(TerminalSection.Tricycad, choices.Single(x => x.VehicleClassId == tricycle.Id).Section);
+        Assert.DoesNotContain(choices, x => x.VehicleClassId == custom.Id);                                      // unknown/custom: only the Head can map it
+
+        Assert.True((await Office(db, w, "SuperAdmin").MapVehicleAsync(new(custom.Id, TerminalSection.Tricycad))).IsSuccess);
+        Assert.Contains(await Office(db, w).VehicleChoicesAsync(date, default), x => x.VehicleClassId == custom.Id);
+        Assert.Empty(await db.Collections.ToListAsync());                                                        // configuration interpretation only: no money moved
     }
     [SkippableFact]
     public async Task Unregistered_vendor_fee_preserves_snapshot_but_cannot_weigh_or_create_identity()

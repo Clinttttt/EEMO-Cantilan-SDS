@@ -10,16 +10,25 @@ namespace EEMOCantilanSDS.Domain.Entities.Revenue;
 public sealed class VehicleClass : BaseEntity, IMunicipalityOwned
 {
     public TerminalSection? TerminalSection { get; private set; }
+
+    /// <summary>
+    /// The section MEEDO has already confirmed for an exact stable class code (never inferred from a display name); null for any
+    /// other class, which stays unmapped until the Head maps it explicitly.
+    /// </summary>
+    public static TerminalSection? ConfirmedSection(string? code) => code switch
+    {
+        "TRICYCLE" => global::EEMOCantilanSDS.Domain.Entities.Revenue.TerminalSection.Tricycad,
+        "JEEPNEY" or "MULTICAB" or "VAN" or "PUBLIC_UTILITY_BUS" or "PUBLIC_UTILITY_BABY_BUS" => global::EEMOCantilanSDS.Domain.Entities.Revenue.TerminalSection.PullPulVansCargoVans,
+        _ => null
+    };
+
+    /// <summary>An explicit mapping always wins; otherwise the confirmed section of an exact known code. For NEW Terminal use only.</summary>
+    public TerminalSection? EffectiveTerminalSection => TerminalSection ?? ConfirmedSection(Code);
     public void AssociateTerminalSection(TerminalSection section)
     {
         if (section is not (global::EEMOCantilanSDS.Domain.Entities.Revenue.TerminalSection.PullPulVansCargoVans or global::EEMOCantilanSDS.Domain.Entities.Revenue.TerminalSection.Tricycad))
             throw new ArgumentException("InvalidTerminalSection");
-        var confirmedSection = Code switch
-        {
-            "TRICYCLE" => global::EEMOCantilanSDS.Domain.Entities.Revenue.TerminalSection.Tricycad,
-            "JEEPNEY" or "MULTICAB" or "VAN" or "PUBLIC_UTILITY_BUS" or "PUBLIC_UTILITY_BABY_BUS" => global::EEMOCantilanSDS.Domain.Entities.Revenue.TerminalSection.PullPulVansCargoVans,
-            _ => (TerminalSection?)null
-        };
+        var confirmedSection = ConfirmedSection(Code);
         if (confirmedSection.HasValue && confirmedSection != section)
             throw new ArgumentException("VehicleSectionConflict");
         TerminalSection = section;

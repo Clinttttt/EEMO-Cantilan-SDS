@@ -81,11 +81,11 @@ public sealed partial class OfficeCollectionWorkflow(IAppDbContext db, ICurrentU
     {
         if (!TenantValid || !user.IsAuthenticated || user.Role is not ("SuperAdmin" or "Admin" or "Collector")) return [];
         if (user.Role == "Collector" && !await IsAssignedAsync(CollectorOperationCodes.Terminal, ct)) return [];
-        var vehicles = await db.VehicleClasses.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.IsActive && x.TerminalSection != null).ToListAsync(ct);
+        var vehicles = (await db.VehicleClasses.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.IsActive).ToListAsync(ct)).Where(x => x.EffectiveTerminalSection != null).ToList();
         var ids = vehicles.Select(x => x.Id).ToArray();
         var versions = (await db.VehicleClassRates.AsNoTracking().Where(x => x.MunicipalityId == Tenant && ids.Contains(x.VehicleClassId)).ToListAsync(ct)).ToLookup(x => x.VehicleClassId);
         return vehicles.Select(v => (v, rate: VehicleClassRate.Resolve(versions[v.Id], date))).Where(x => x.rate is not null)
-            .Select(x => new TerminalVehicleChoice(x.v.Id, x.v.Code, x.v.DisplayName, x.v.TerminalSection!.Value, x.rate!.Amount, x.rate.Id, x.rate.EffectiveDate)).ToArray();
+            .Select(x => new TerminalVehicleChoice(x.v.Id, x.v.Code, x.v.DisplayName, x.v.EffectiveTerminalSection!.Value, x.rate!.Amount, x.rate.Id, x.rate.EffectiveDate)).ToArray();
     }
     private sealed record Facts(SourceNativeChargeQuote Quote, RevenueClassification Classification, RevenueClassificationPolicy Policy,
         Guid? SourceId, string? Payer, string Snapshot);
