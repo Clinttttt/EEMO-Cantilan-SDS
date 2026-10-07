@@ -59,6 +59,8 @@ else if (_queued)
 }
 else
 {
+    @if (OnlyOperation != CollectorOperationCodes.Terminal)
+    {
     <section class="collection-entry collection-payer">
         <h2>@(SourceHeading)</h2>
         @if (_source is not null)
@@ -108,6 +110,7 @@ else
             }
         }
     </section>
+    }
     @* The empty space under the finder: today's own collections, until a source is chosen or the finder's list needs the room. *@
     @if (_source is null && !_direct && Correction is null && OnlyOperation is null && !_suggestOpen) { <RecentCollections /> }
     @if (_source is not null || _direct)
@@ -220,12 +223,12 @@ else
                     {
                         <MobileChoice Inline="@(_choice is null)" Label="Vehicle type" Options="VehicleOptions" Value="@_choiceKey" ValueChanged="ChooseChoice" EmptyText="No approved vehicle type for this section." />
                         @if (_choice is { Rate: { } approved }) { <div class="sheet-meta"><span>Approved rate</span><strong>@Money(approved)</strong></div> }
-                        @if (_choice is not null)
-                        {
-                            @* A name or reference given at the counter, kept with this collection. It is a snapshot, not a register of transporters or payers. *@
-                            <label class="form-field"><span class="form-label">Name <span class="form-optional">optional</span></span><input class="form-input" type="text" maxlength="200" autocomplete="off" @bind="_snapshot" @bind:event="oninput" /></label>
-                            @if (_items.Count > 0) { <div class="sheet-note">Shared by every item in this collection</div> }
-                        }
+                    }
+                    @if (_choice is not null)
+                    {
+                        @* Optional frozen payer evidence applies to both section totals and configured vehicle entry. *@
+                        <label class="form-field"><span class="form-label">Name <span class="form-optional">optional</span></span><input class="form-input" type="text" maxlength="200" autocomplete="off" @bind="_snapshot" @bind:event="oninput" /></label>
+                        @if (_items.Count > 0) { <div class="sheet-note">Shared by every item in this collection</div> }
                     }
                 }
                 else if (Choices.Count == 1)

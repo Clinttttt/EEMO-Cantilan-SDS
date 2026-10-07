@@ -322,7 +322,8 @@ public sealed class CollectionSessionEditorTests : TestContext
     {
         ServeDirect();
         var view = Open("TERMINAL");
-        view.WaitForAssertion(() => Assert.Contains("Income From Terminal", view.Find(".collection-payer h2").TextContent));
+        view.WaitForAssertion(() => Assert.Equal("Items", view.Find(".collection-row h2").TextContent));
+        Assert.Empty(view.FindAll(".collection-payer"));
         Click(view, "+ Add item");
         var sheet = view.Find("[role=dialog]");
         foreach (var section in new[] { "COMFORT ROOM", "PULL PUL VANS, CARGO VANS", "TRICYCAD" }) Assert.Contains(section, sheet.TextContent);
@@ -345,7 +346,8 @@ public sealed class CollectionSessionEditorTests : TestContext
     {
         ServeDirect();
         var view = Open("TERMINAL");
-        view.WaitForAssertion(() => Assert.Contains("Income From Terminal", view.Find(".collection-payer h2").TextContent));
+        view.WaitForAssertion(() => Assert.Equal("Items", view.Find(".collection-row h2").TextContent));
+        Assert.Empty(view.FindAll(".collection-payer"));
         Click(view, "+ Add item");
         return view;
     }
@@ -596,7 +598,7 @@ public sealed class CollectionSessionEditorTests : TestContext
     {
         var view = OpenTerminalSheet();
         PickSection(view, "PULL PUL VANS");
-        Assert.DoesNotContain("Name", string.Join(" ", view.FindAll("[role=dialog] label").Select(l => l.TextContent)));     // not in Section total
+        Assert.Contains("Name optional", view.Find("[role=dialog]").TextContent);
 
         view.FindAll(".term-mode button")[1].Click();
         Assert.DoesNotContain("Name optional", view.Find("[role=dialog]").TextContent);                                         // not until a vehicle is chosen
@@ -609,6 +611,32 @@ public sealed class CollectionSessionEditorTests : TestContext
 
         view.WaitForAssertion(() => Assert.Single(_queue));
         Assert.Equal("Mang Pedro", _queue[0].CollectionSession!.Intent.PayerSnapshot);
+    }
+
+    [Theory]
+    [InlineData("COMFORT ROOM", "Visitor")]
+    [InlineData("COMFORT ROOM", "")]
+    [InlineData("PULL PUL VANS", "Driver")]
+    [InlineData("PULL PUL VANS", "")]
+    [InlineData("TRICYCAD", "Rider")]
+    [InlineData("TRICYCAD", "")]
+    public void Terminal_section_total_has_an_optional_name_without_creating_a_source(string section, string name)
+    {
+        var view = OpenTerminalSheet();
+        PickSection(view, section);
+        var sheet = view.Find("[role=dialog]");
+        var field = sheet.QuerySelectorAll("input[type=text]").Single();
+        Assert.False(field.HasAttribute("required"));
+        Assert.Contains("Name optional", sheet.TextContent);
+        field.Input(name);
+        sheet.QuerySelectorAll("input[type=number]").First(i => i.GetAttribute("step") == "0.01").Input("73.50");
+        Click(view, "Add item"); Click(view, "Review collection"); Click(view, "Record collection");
+        view.WaitForAssertion(() => Assert.Single(_queue));
+        var intent = _queue[0].CollectionSession!.Intent;
+        Assert.Null(intent.PayorId);
+        Assert.Null(intent.SourceIdentity);
+        Assert.Equal(string.IsNullOrWhiteSpace(name) ? null : name, intent.PayerSnapshot);
+        Assert.Equal(73.5m, Assert.Single(intent.Items).ConfirmedAmount);
     }
 
     // ── Correcting a recorded collection: the same form, opened on what was recorded; the server reverses the original and posts one replacement ──
