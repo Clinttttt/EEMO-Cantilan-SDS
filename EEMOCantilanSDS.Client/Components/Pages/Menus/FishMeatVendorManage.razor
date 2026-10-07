@@ -1,0 +1,326 @@
+@page "/operations/fish-meat-vendor-fees/manage"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@inject IOfficeSourcesApiClient OfficeApi
+
+<PageTitle>StallTrack — Manage Fish / Meat Vendors</PageTitle>
+
+@* Registry administration: any tax year, any month's collections, closed registrations, and the lifecycle (Renew, Close). There is no delete: a
+   registration is closed, never removed, and its Collections and SRCs stay as they were. Every figure, status and rule is the server's; this page
+   shows them and sends the Head's explicit choices. The layout owns the <main> landmark. *@
+<OperationTopbar Title="Manage Fish / Meat Vendors" Crumb="Operation" />
+<div class="content-area">
+    <header class="fmm-head">
+        <a class="fmm-back" href="/operations/fish-meat-vendor-fees">← Fish / Meat Vendors</a>
+        <h1 class="fmm-title">Manage Fish / Meat Vendors</h1>
+    </header>
+
+    <Toolbar SearchQuery="@_search"
+             OnSearch="v => _search = v"
+             ActiveFilter="@_filter"
+             OnFilterChanged="v => _filter = v"
+             Filters="@TypeFilters"
+             SearchPlaceholder="Search vendor, business or address…"
+             MiddleContent="@ControlsContent" />
+
+    @if (!string.IsNullOrWhiteSpace(_saved))
+    {
+        <p class="v3-notice fmm-saved" role="status">@_saved</p>
+    }
+
+    <section class="v3-panel" aria-labelledby="fmm-title" aria-busy="@(_loading ? "true" : "false")">
+        <header class="v3-panel-header">
+            <h2 id="fmm-title">Registrations · @_taxYear</h2>
+            <span class="v3-panel-meta">@VisibleRows.Count @(VisibleRows.Count == 1 ? "registration" : "registrations") · collected in @MonthLabel</span>
+        </header>
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="fmm-notice" role="alert">
+                <p class="v3-notice v3-notice-error">@_error</p>
+                <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadAsync">Try again</button>
+            </div>
+        }
+        <div class="v3-table-wrap fmm-scroll" role="region" aria-label="Registrations" tabindex="0">
+            <table class="v3-table">
+                <caption class="v3-sr-only">Fish and Meat registrations for @_taxYear with their status and what each paid in @MonthLabel</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Vendor</th>
+                        <th scope="col">Type</th>
+                        <th scope="col">Registration</th>
+                        <th scope="col">Address</th>
+                        <th scope="col">Status</th>
+                        <th scope="col" class="v3-num">Collected</th>
+                        <th scope="col"><span class="v3-sr-only">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in VisibleRows)
+                    {
+                        var vendor = row.Registration;
+                        <tr @key="vendor.Id">
+                            <td>
+                                <span class="v3-strong">@vendor.DisplayName</span>
+                                @if (SecondLine(vendor) is { } second) { <span class="v3-block fmm-sub">@second</span> }
+                            </td>
+                            <td>@vendor.VendorType</td>
+                            <td>@vendor.RegistrationKind</td>
+                            <td>@(string.IsNullOrWhiteSpace(vendor.Address) ? "—" : vendor.Address)</td>
+                            <td><span class="fmm-status @(row.Status == VendorRegistrationStatus.Closed ? "fmm-status-closed" : "")">@row.Status</span></td>
+                            <td class="v3-num">@Money(row.TotalCollected)</td>
+                            <td class="fmm-actions">
+                                <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenDetails(row)">Details</button>
+                                <AuthorizeView Roles="SuperAdmin">
+                                    <Authorized>
+                                        <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenRenew(row)">Renew</button>
+                                        @if (row.Status == VendorRegistrationStatus.Active)
+                                        {
+                                            <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenClose(row)">Close</button>
+                                        }
+                                    </Authorized>
+                                </AuthorizeView>
+                            </td>
+                        </tr>
+                    }
+                    @if (VisibleRows.Count == 0)
+                    {
+                        <tr><td class="v3-empty" colspan="7">@(_loading ? "Loading registrations…" : HasSearch || _filter != "All" || _status != "All" ? "No registration matches." : $"No vendor is registered for {_taxYear}.")</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (_walkUp > 0m)
+        {
+            <p class="fmm-foot">Walk-up Vendor Fee collected in @MonthLabel: @Money(_walkUp) — not attributed to any registration.</p>
+        }
+    </section>
+</div>
+
+@* ── One registration, in full ── *@
+<VendorDrawerShell Show="_detail is not null" KeepMounted="true" Title="@(_detail?.Registration.DisplayName ?? "Registration")" Subtitle="@DetailSubtitle" OnClose="CloseDetails">
+    <Icon><svg viewBox="0 0 24 24"><path d="M3 12c3-5 8-6 12-3l4-3v12l-4-3c-4 3-9 2-12-3z" /></svg></Icon>
+    <ChildContent>
+        @if (_detail is { } d)
+        {
+            var vendor = d.Registration;
+            <dl class="fmm-facts" aria-label="Registration details">
+                <dt>Vendor</dt><dd>@vendor.DisplayName</dd>
+                <dt>Business</dt><dd>@(vendor.BusinessName ?? "—")</dd>
+                <dt>Address</dt><dd>@(vendor.Address ?? "—")</dd>
+                <dt>Type</dt><dd>@vendor.VendorType</dd>
+                <dt>Tax year</dt><dd>@vendor.TaxYear</dd>
+                <dt>Registration</dt><dd>@vendor.RegistrationKind@(d.PriorRegistrationId is not null ? " · follows an earlier registration" : "")</dd>
+                @if (!string.IsNullOrWhiteSpace(vendor.Reference)) { <dt>Historical reference</dt><dd>@vendor.Reference</dd> }
+                <dt>Status</dt><dd>@d.Status@(d.ClosedOn is { } closed ? $" on {closed.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}" : "")</dd>
+                @if (!string.IsNullOrWhiteSpace(d.CloseNote)) { <dt>Close note</dt><dd>@d.CloseNote</dd> }
+            </dl>
+            <h3 class="fmm-facts-title">Collected in @MonthLabel</h3>
+            <dl class="fmm-facts" aria-label="Monthly collections">
+                <dt>Vendor Fee</dt><dd class="v3-num">@Money(d.VendorFeeCollected)</dd>
+                <dt>Weight &amp; Measure</dt><dd class="v3-num">@Money(d.WeightMeasureCollected)</dd>
+                <dt class="fmm-total">Total</dt><dd class="v3-num fmm-total">@Money(d.TotalCollected)</dd>
+            </dl>
+            <p class="fmm-audit">Registered by @d.CreatedBy · @PhilippineTime.ToPhilippineTime(d.RecordedAtUtc).ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</p>
+        }
+    </ChildContent>
+    <Footer>
+        <button type="button" class="btn-ghost" @onclick="CloseDetails">Close</button>
+    </Footer>
+</VendorDrawerShell>
+
+@* ── Renew: the same registration drawer, for a later tax year ── *@
+<VendorRegistrationDrawer Show="_renewing" IsRenew="true" Model="_form" FormId="fmm-renew-form" FormLabel="Renew registration" Title="Renew registration"
+                          Subtitle="@RenewSubtitle" SubmitText="Renew" TaxYears="_renewYears" Saving="_saving" Error="@_formError" OnSubmit="RenewAsync" OnCancel="CloseRenew" />
+
+@* ── Close: restrained, final for the registration, silent about money ── *@
+<VendorDrawerShell Show="_closing is not null" KeepMounted="true" Title="Close registration" Subtitle="@(_closing?.Registration.DisplayName)" OnClose="CloseClose">
+    <Icon><svg viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg></Icon>
+    <ChildContent>
+        <form id="fmm-close-form" aria-label="Close registration" @onsubmit="CloseAsync" @onsubmit:preventDefault="true">
+            <p class="fmm-close-text">Closing stops this registration from being offered for new collections. Its Collections, SRCs and history stay exactly as they are, and it cannot be reopened. A vendor who returns is registered again or renewed.</p>
+            <div class="avm-group">
+                <label class="avm-label" for="fmm-close-note">Note</label>
+                <input id="fmm-close-note" class="avm-input" type="text" maxlength="300" autocomplete="off" @bind="_closeNote" @bind:event="oninput" />
+            </div>
+            @if (!string.IsNullOrWhiteSpace(_formError)) { <div class="avm-error" role="alert">@_formError</div> }
+        </form>
+    </ChildContent>
+    <Footer>
+        <button type="button" class="btn-ghost" @onclick="CloseClose">Cancel</button>
+        <button type="submit" class="btn-primary" form="fmm-close-form" disabled="@_saving">Close registration</button>
+    </Footer>
+</VendorDrawerShell>
+
+@code {
+    private static readonly List<string> TypeFilters = ["All", "Fish", "Meat"];
+    private static readonly string[] Months = CultureInfo.InvariantCulture.DateTimeFormat.MonthNames.Take(12).ToArray();
+
+    private int _taxYear = PhilippineTime.Today.Year;
+    private int _month = PhilippineTime.Today.Month;
+    private string _status = "All", _search = string.Empty, _filter = "All";
+    private List<VendorRegistrationManagementRow> _rows = [];
+    private decimal _walkUp;
+    private bool _loading = true, _saving, _renewing;
+    private string? _error, _formError, _saved;
+
+    private VendorRegistrationManagementRow? _detail, _closing, _renewSource;
+    private readonly VendorRegistrationForm _form = new();
+    private IReadOnlyList<int> _renewYears = [];
+    private Guid _operationId = Guid.NewGuid();
+    private string? _submittedFingerprint;
+    private string _closeNote = string.Empty;
+
+    private bool HasSearch => !string.IsNullOrWhiteSpace(_search);
+    private string MonthLabel => $"{Months[_month - 1]} {_taxYear}";
+    private string DetailSubtitle => _detail is null ? string.Empty : $"{_detail.Registration.VendorType} · Tax year {_detail.Registration.TaxYear}";
+    private string RenewSubtitle => _renewSource is null ? string.Empty : $"Renewing the {_renewSource.Registration.TaxYear} registration";
+
+    private IReadOnlyList<(string Value, string Label)> YearOptions =>
+        Enumerable.Range(0, 7).Select(i => PhilippineTime.Today.Year + 1 - i).Append(_taxYear).Distinct().OrderByDescending(y => y).Select(y => (y.ToString(), y.ToString())).ToList();
+    private static readonly IReadOnlyList<(string Value, string Label)> MonthOptions = Months.Select((name, i) => ((i + 1).ToString(), name)).ToList();
+    private static readonly IReadOnlyList<(string Value, string Label)> StatusOptions = [("All", "All"), ("Active", "Active"), ("Closed", "Closed")];
+
+    // Tax year, month and status are the page's own controls, in the one toolbar with the search and the type filter.
+    private RenderFragment ControlsContent => @<div class="fmm-controls">
+        <FhSelect Caption="Tax year" AriaLabel="Tax year" Options="YearOptions" Value="@_taxYear.ToString()" ValueChanged="ChangeYearAsync" />
+        <FhSelect Caption="Month" AriaLabel="Month" Options="MonthOptions" Value="@_month.ToString()" ValueChanged="ChangeMonthAsync" />
+        <FhSelect Caption="Status" AriaLabel="Status" Options="StatusOptions" Value="@_status" ValueChanged="ChangeStatusAsync" />
+    </div>;
+
+    private List<VendorRegistrationManagementRow> VisibleRows => _rows
+        .Where(x => _filter switch { "Fish" => x.Registration.VendorType == FishMeatVendorType.Fish, "Meat" => x.Registration.VendorType == FishMeatVendorType.Meat, _ => true })
+        .Where(x => !HasSearch || new[] { x.Registration.DisplayName, x.Registration.BusinessName, x.Registration.Address }
+            .Any(text => text?.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            VendorRegistrationStatus? status = _status switch { "Active" => VendorRegistrationStatus.Active, "Closed" => VendorRegistrationStatus.Closed, _ => null };
+            var result = await OfficeApi.ManageRegistrationsAsync(_taxYear, _month, status);
+            if (result.IsSuccess && result.Value is { } management) { _rows = management.Rows.ToList(); _walkUp = management.WalkUpVendorFeeCollected; }
+            else { _rows = []; _walkUp = 0m; _error = "The registrations couldn't be loaded."; }
+        }
+        catch { _rows = []; _walkUp = 0m; _error = "The registrations couldn't be loaded."; }
+        finally { _loading = false; }
+    }
+
+    private Task ChangeYearAsync(string value) { _taxYear = int.Parse(value); return LoadAsync(); }
+    private Task ChangeMonthAsync(string value) { _month = int.Parse(value); return LoadAsync(); }
+    private Task ChangeStatusAsync(string value) { _status = value; return LoadAsync(); }
+
+    private static string? SecondLine(FishMeatVendorRegistrationDto vendor) =>
+        string.Join(" · ", new[] { vendor.BusinessName, vendor.Address }.Where(x => !string.IsNullOrWhiteSpace(x))) is { Length: > 0 } line ? line : null;
+
+    // ── Details ──
+    private void OpenDetails(VendorRegistrationManagementRow row) => _detail = row;
+    private void CloseDetails() => _detail = null;
+
+    // ── Renew ──
+    private void OpenRenew(VendorRegistrationManagementRow row)
+    {
+        var source = row.Registration;
+        _detail = null;
+        _renewSource = row;
+        _form.Name = source.DisplayName; _form.Business = source.BusinessName ?? string.Empty; _form.Address = source.Address ?? string.Empty;
+        _form.Reference = source.Reference ?? string.Empty; _form.Type = source.VendorType; _form.Kind = VendorRegistrationKind.Renew;
+        // Later years only: the server refuses anything else. The current year's renewal is offered first, then a few ahead.
+        var first = source.TaxYear + 1;
+        var last = Math.Max(first, Math.Min(2200, PhilippineTime.Today.Year + 1));
+        _renewYears = Enumerable.Range(first, last - first + 1).ToList();
+        _form.TaxYear = _renewYears.Contains(PhilippineTime.Today.Year) ? PhilippineTime.Today.Year : _renewYears[0];
+        _formError = null;
+        _operationId = Guid.NewGuid();
+        _submittedFingerprint = null;
+        _renewing = true;
+    }
+
+    private void CloseRenew() { _renewing = false; _renewSource = null; }
+
+    private async Task RenewAsync()
+    {
+        if (_saving || _renewSource is null) return;
+        if (_form.Name.Trim().Length < 2) { _formError = "Enter the vendor name."; return; }
+        _saving = true;
+        _formError = null;
+        if (_submittedFingerprint is not null && _submittedFingerprint != _form.Fingerprint) _operationId = Guid.NewGuid();
+        _submittedFingerprint = _form.Fingerprint;
+        try
+        {
+            // The explicit values are the Head's: a blank optional field clears it, the name is required, and the type is the registration's own.
+            var result = await OfficeApi.RenewRegistrationAsync(_renewSource.Registration.Id, new RenewVendorRegistrationRequest(_operationId, _form.TaxYear,
+                _form.Name.Trim(), _form.Business.Trim(), _form.Address.Trim(), _form.Reference.Trim()));
+            if (!result.IsSuccess) { _formError = RenewProblem(result.Error, result.Status); return; }
+            var renewed = result.Value!;
+            _saved = $"{renewed.Registration.DisplayName} renewed for {renewed.Registration.TaxYear}.";
+            CloseRenew();
+            await LoadAsync();
+        }
+        catch { _formError = "The registration could not be renewed."; }
+        finally { _saving = false; }
+    }
+
+    private string RenewProblem(string? code, ResultStatus status) => code switch
+    {
+        "RenewalAlreadyExists" => $"A renewal for {_form.TaxYear} already exists. Choose that tax year to find it.",
+        "RegistryConcurrencyConflict" => "Another change was saved at the same time. Try again.",
+        "RegistrationIntentConflict" => "This renewal was already submitted with different details. Close the drawer and renew again.",
+        "InvalidRenewalYear" => "Choose a tax year later than the registration's.",
+        "InvalidRegistration" => "Check the vendor name and details.",
+        _ => status == ResultStatus.Forbidden ? "Only the Head can renew a registration." : "The registration could not be renewed."
+    };
+
+    // ── Close ──
+    private void OpenClose(VendorRegistrationManagementRow row)
+    {
+        _detail = null;
+        _closing = row;
+        _closeNote = string.Empty;
+        _formError = null;
+        _operationId = Guid.NewGuid();
+        _submittedFingerprint = null;
+    }
+
+    private void CloseClose() => _closing = null;
+
+    private async Task CloseAsync()
+    {
+        if (_saving || _closing is null) return;
+        _saving = true;
+        _formError = null;
+        var fingerprint = _closeNote.Trim();
+        if (_submittedFingerprint is not null && _submittedFingerprint != fingerprint) _operationId = Guid.NewGuid();
+        _submittedFingerprint = fingerprint;
+        try
+        {
+            var result = await OfficeApi.CloseRegistrationAsync(_closing.Registration.Id, new CloseVendorRegistrationRequest(_operationId, VendorRegistrationForm.Blank(_closeNote)));
+            if (!result.IsSuccess) { _formError = CloseProblem(result.Error, result.Status); return; }
+            _saved = $"{result.Value!.Registration.DisplayName} closed for {result.Value.Registration.TaxYear}.";
+            _closing = null;
+            await LoadAsync();
+        }
+        catch { _formError = "The registration could not be closed."; }
+        finally { _saving = false; }
+    }
+
+    private static string CloseProblem(string? code, ResultStatus status) => code switch
+    {
+        "RegistrationClosed" => "This registration is already closed.",
+        "RegistrationIntentConflict" => "This close was already submitted with a different note. Cancel and close again.",
+        "InvalidCloseIntent" => "Check the note (up to 300 characters).",
+        _ => status == ResultStatus.Forbidden ? "Only the Head can close a registration." : status == ResultStatus.NotFound ? "This registration is no longer available." : "The registration could not be closed."
+    };
+
+    private static string Money(decimal amount) => $"₱{amount.ToString("N2", CultureInfo.InvariantCulture)}";
+}

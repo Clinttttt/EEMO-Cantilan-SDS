@@ -7,6 +7,9 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 /// <summary>The official financial readers: Monthly Income, the Collections register with its RCD-style summary, and the serial trace.</summary>
 public interface IOfficialReportsApiClient
 {
+    Task<Result<IReadOnlyList<ReportRevisionDto>>> GetGovernanceAsync(int year);
+    Task<Result<ReportRevisionDto>> SetTargetAsync(SetAnnualTargetRequest request);
+    Task<Result<ReportRevisionDto>> AdjustMonthlyIncomeAsync(SetMonthlyIncomeAdjustmentRequest request);
     Task<Result<OfficialMonthlyIncomeDto>> GetMonthlyIncomeAsync(int year, int? month);
 
     /// <summary>Every revenue source for the period, with the official Monthly Income money and model-aware counts.</summary>

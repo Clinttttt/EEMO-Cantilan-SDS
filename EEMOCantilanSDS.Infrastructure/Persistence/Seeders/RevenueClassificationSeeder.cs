@@ -31,6 +31,9 @@ public static class RevenueClassificationSeeder
         new(RevenueClassificationCodes.MarketFees, "Market Fees", RevenueInstrumentType.CashTicket),
         new(RevenueClassificationCodes.Tabo, "Tabo", RevenueInstrumentType.OfficialReceipt),
         new(RevenueClassificationCodes.TransportationParking, "Transportation/Parking", RevenueInstrumentType.CashTicket),
+        new(RevenueClassificationCodes.TerminalComfortRoom, "COMFORT ROOM", RevenueInstrumentType.CashTicket),
+        new(RevenueClassificationCodes.TerminalPullPulVansCargoVans, "PULL PUL VANS, CARGO VANS", RevenueInstrumentType.CashTicket),
+        new(RevenueClassificationCodes.TerminalTricycad, "TRICYCAD", RevenueInstrumentType.CashTicket),
         new(RevenueClassificationCodes.VegetableFruitSpaceRental, "Vegetable/Fruit Space Rental", RevenueInstrumentType.CashTicket),
         new(RevenueClassificationCodes.Wcf, "WCF", RevenueInstrumentType.CashTicket),
         new(RevenueClassificationCodes.LandingBerthing, "Landing/Berthing", RevenueInstrumentType.CashTicket),
@@ -89,7 +92,9 @@ public static class RevenueClassificationSeeder
                 || definition.Code == RevenueClassificationCodes.VegetableFruitSpaceRental && seedDate >= InstrumentClarificationDate)
                 continue;
 
-            var policyEffectiveDate = definition.Code == RevenueClassificationCodes.Tabo && seedDate >= InstrumentClarificationDate
+            var policyEffectiveDate = definition.Code.StartsWith("TERMINAL_", StringComparison.Ordinal)
+                ? new DateOnly(2026, 10, 6)
+                : definition.Code == RevenueClassificationCodes.Tabo && seedDate >= InstrumentClarificationDate
                 ? InstrumentClarificationDate
                 : seedDate;
             var instrument = definition.Code == RevenueClassificationCodes.Tabo && seedDate < InstrumentClarificationDate

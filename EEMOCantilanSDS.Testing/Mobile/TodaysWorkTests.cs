@@ -9,6 +9,39 @@ namespace EEMOCantilanSDS.UnitTest.Mobile;
 public class TodaysWorkTests
 {
     [Fact]
+    public void Terminal_catalog_group_does_not_fall_into_other_operations()
+    {
+        var item = new WorkItem("Comfort Room", "Ready", WorkTarget.Operation, true,
+            OperationCode: "TERMINAL_COMFORT_ROOM");
+        Assert.Equal(WorkSections.Terminal, Assert.Single(WorkSections.Group([item])).Name);
+    }
+
+    [Fact]
+    public void Ready_terminal_is_first_class_and_transportation_stays_separate()
+    {
+        var work = Build([Op(CollectorOperationCodes.Terminal, CollectorOperationCapabilityStatus.Ready),
+            Op(CollectorOperationCodes.Transportation, CollectorOperationCapabilityStatus.Ready)]);
+        var sections = WorkSections.Group(work.Available);
+        var terminal = Assert.Single(sections.Single(x => x.Name == WorkSections.Terminal).Items);
+        Assert.Equal(CollectorOperationCodes.Terminal, terminal.OperationCode);
+        Assert.True(terminal.CanOpen);
+        Assert.Equal(WorkTarget.Operation, terminal.Target);
+        Assert.Equal("Ready", terminal.Status);
+        Assert.Equal(CollectorOperationCodes.Transportation,
+            Assert.Single(sections.Single(x => x.Name == WorkSections.Market).Items).OperationCode);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Legacy_terminal_facility_is_not_current_work_even_without_ready_terminal(bool available)
+    {
+        var work = Build(facilities: [new(FacilityCode.TRM, "Transport Terminal", "", true, available, BillingArchetype.PerTrip)]);
+        Assert.Empty(work.Available);
+        Assert.Empty(work.AssignedUnavailable);
+    }
+
+    [Fact]
     public void Presentation_sections_preserve_every_authorized_row_and_its_capability()
     {
         WorkItem[] rows = [new("Public Market", "Ready", WorkTarget.Facility, true, "NPM"),
@@ -18,8 +51,26 @@ public class TodaysWorkTests
         var grouped = WorkSections.Group(rows);
         Assert.Equal(rows.Length, grouped.Sum(g => g.Items.Count));
         Assert.All(rows, row => Assert.Same(row, Assert.Single(grouped.SelectMany(g => g.Items), item => item == row)));
-        Assert.Equal("Rent & space", grouped[0].Name);
+        Assert.Equal(WorkSections.Market, grouped[0].Name);
         Assert.False(Assert.Single(grouped.Single(g => g.Name == "Other operations").Items).CanOpen);
+    }
+
+    [Fact]
+    public void Rows_are_grouped_under_the_official_monthly_income_families()
+    {
+        WorkItem[] rows = [new("Public Market", "Ready", WorkTarget.Facility, true, "NPM"),
+            new("Kanmanggay", "Ready", WorkTarget.Operation, true, OperationCode: CollectorOperationCodes.KanmanggaySpaceRental),
+            new("Fiesta / Araw", "Ready", WorkTarget.Operation, true, OperationCode: CollectorOperationCodes.FiestaArawLotRental),
+            new("Transportation / Parking", "Ready", WorkTarget.Operation, true, OperationCode: CollectorOperationCodes.Transportation),
+            new("Slaughterhouse", "Ready", WorkTarget.Facility, true, "SLH")];
+
+        var sections = WorkSections.Group(rows).ToDictionary(g => g.Name, g => g.Items.Select(i => i.Name).ToArray());
+
+        Assert.Equal(["Public Market"], sections[WorkSections.Rent]);
+        Assert.Equal(["Kanmanggay", "Fiesta / Araw"], sections[WorkSections.Space]);
+        Assert.Equal(["Transportation / Parking"], sections[WorkSections.Market]);       // separate from Terminal, even though both use CT
+        Assert.Equal(["Slaughterhouse"], sections[WorkSections.Slaughterhouse]);
+        Assert.DoesNotContain(WorkSections.Terminal, sections.Keys);                        // nothing is placed under Terminal until the server offers it
     }
     private static CollectorOperationCapabilityDto Op(string code, CollectorOperationCapabilityStatus status, bool assigned = true, bool? collectible = null) =>
         new(code, code, assigned, status, collectible ?? status == CollectorOperationCapabilityStatus.Ready, []);

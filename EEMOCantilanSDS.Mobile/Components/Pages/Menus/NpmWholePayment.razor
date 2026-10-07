@@ -22,16 +22,11 @@
             <button type="button" @onclick='() => Navigation.NavigateTo("/market")'>Daily</button>
             <button type="button" class="selected" aria-pressed="true">Whole payment</button>
         </div>
-        <h1>Whole payment</h1>
-        <p class="whole-payor">@Occupant · Stall @SpaceNo</p>
-        <div class="whole-period">
-            <label class="form-field"><span class="form-label">Year</span><input class="form-input" type="number" min="2000" max="2100" @bind="Year" @bind:after="LoadQuoteAsync" disabled="@(Saving || Captured)" /></label>
-            <label class="form-field"><span class="form-label">Month</span><select class="form-input" @bind="Month" @bind:after="LoadQuoteAsync" disabled="@(Saving || Captured)">
-                @for (var m = 1; m <= 12; m++)
-                {
-                    <option value="@m">@System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m)</option>
-                }
-            </select></label>
+        <h1>@Occupant</h1>
+        <p class="whole-payor">Stall @SpaceNo</p>
+        <div class="whole-period" role="group" aria-label="Period">
+            <MobileChoice @ref="MonthChoice" Label="Month" Options="MonthOptions" Value="@Month.ToString()" ValueChanged="ChooseMonthAsync" Disabled="@(Saving || Captured)" Popover="true" OnOpening="CloseYear" />
+            <MobileChoice @ref="YearChoice" Label="Year" Options="YearOptions" Value="@Year.ToString()" ValueChanged="ChooseYearAsync" Disabled="@(Saving || Captured)" Popover="true" OnOpening="CloseMonth" />
         </div>
         @if (Loading)
         {
@@ -46,7 +41,7 @@
             <NpmWholeSummary Quote="quote" />
             @if (!Sync.IsOnline) { <p class="whole-note">Offline · last reviewed amount. The server verifies it when synced.</p> }
             @if (!Captured)
-            { <button type="button" class="btn-primary" disabled="@(Saving || quote.Amount <= 0m || quote.Year != Year || quote.Month != Month)" @onclick="ConfirmAsync">
+            { <button type="button" class="btn-primary whole-confirm" disabled="@(Saving || quote.Amount <= 0m || quote.Year != Year || quote.Month != Month)" @onclick="ConfirmAsync">
                 @(Saving ? "Recording…" : quote.Amount <= 0m ? "Nothing remaining" : "Confirm whole payment")
             </button> }
         }
@@ -62,9 +57,18 @@
     [SupplyParameterFromQuery] public string? Occupant { get; set; }
     [SupplyParameterFromQuery] public string? SpaceNo { get; set; }
     private NpmWholePaymentQuoteDto? Quote;
+    private MobileChoice? MonthChoice, YearChoice;
+    private void CloseYear() => YearChoice?.Close();
+    private void CloseMonth() => MonthChoice?.Close();
     private bool Loading, Saving, Captured;
     private string? Error, Notice;
     private readonly Guid OperationId = Guid.NewGuid();
+
+    private static readonly IReadOnlyList<MobileChoice.Choice> MonthOptions = Enumerable.Range(1, 12)
+        .Select(m => new MobileChoice.Choice(m.ToString(), System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m))).ToArray();
+    private IReadOnlyList<MobileChoice.Choice> YearOptions => Enumerable.Range(Math.Min(Year, DateTime.Now.Year) - 2, 4 + Math.Max(0, Year - DateTime.Now.Year)).Select(y => new MobileChoice.Choice(y.ToString(), y.ToString())).ToArray();
+    private Task ChooseMonthAsync(string value) { Month = int.Parse(value); return LoadQuoteAsync(); }
+    private Task ChooseYearAsync(string value) { Year = int.Parse(value); return LoadQuoteAsync(); }
     private static string Money(decimal amount) => amount.ToString("C2", System.Globalization.CultureInfo.GetCultureInfo("en-PH"));
 
     protected override async Task OnInitializedAsync()

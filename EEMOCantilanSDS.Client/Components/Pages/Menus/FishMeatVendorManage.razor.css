@@ -1,0 +1,51 @@
+/* Manage Fish / Meat Vendors — calm and administrative. Panels, tables and buttons come from the v3- layer in app.css; the Toolbar is the shared one. */
+.fmm-head { margin: 4px 0 16px; }
+
+.fmm-back {
+    display: inline-block;
+    margin-bottom: 6px;
+    color: var(--accent);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.fmm-back:hover { text-decoration: underline; }
+.fmm-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+.fmm-title {
+    margin: 0;
+    color: var(--navy);
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.25;
+}
+
+.fmm-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+.fmm-saved { margin: 16px 0 0; }
+.fmm-notice { margin: 12px 20px 0; }
+.fmm-sub { font-size: 0.75rem; color: var(--text-subtle); }
+
+.fmm-status { font-size: 0.8125rem; font-weight: 600; color: var(--green, #1f7a4d); }
+.fmm-status-closed { color: var(--text-secondary); }
+
+.fmm-actions { white-space: nowrap; text-align: right; }
+.fmm-actions .v3-btn + .v3-btn { margin-left: 6px; }
+
+/* The list is bounded: about eight rows show, the rest scroll inside the panel under a held heading. */
+.fmm-scroll { max-height: 30rem; overflow-y: auto; overscroll-behavior: contain; }
+.fmm-scroll thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-muted); }
+
+.fmm-foot { margin: 0; padding: 12px 20px; border-top: 1px solid var(--border); color: var(--text-secondary); font-size: 0.8125rem; }
+
+/* Facts inside the drawers: a plain two-column list, quiet labels, strong values. */
+.fmm-facts { display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: 8px 0; margin: 0 0 20px; font-size: 0.875rem; }
+.fmm-facts dt { padding-right: 16px; color: var(--text-secondary); }
+.fmm-facts dd { margin: 0; color: var(--navy); font-weight: 500; overflow-wrap: anywhere; }
+.fmm-facts dd.v3-num { text-align: left; font-variant-numeric: tabular-nums; }
+.fmm-facts .fmm-total { padding-top: 8px; border-top: 1px solid var(--border); font-weight: 700; }
+.fmm-facts-title { margin: 0 0 8px; color: var(--navy); font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.02em; }
+.fmm-audit { margin: 0; color: var(--text-tertiary); font-size: 0.75rem; }
+.fmm-close-text { margin: 0 0 16px; color: var(--text-secondary); font-size: 0.875rem; line-height: 1.5; }

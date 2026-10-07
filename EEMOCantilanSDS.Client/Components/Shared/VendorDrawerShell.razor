@@ -1,0 +1,47 @@
+@* VENDOR DRAWER SHELL — the stallholder Add New drawer's own shell, shared so every Add New is that drawer: the dim overlay, the right-hand
+   panel with its civic-blue header (icon tile, title, one line, close), a scrolling body and a fixed footer. The form's sections, labels,
+   inputs and choice cards are the avm-* classes this shell carries (see VendorDrawerShell.razor.css); the page supplies the content.
+   Presentation only: validation, state and saving stay with the page. *@
+@if (Show || KeepMounted)
+{
+<div class="vds">
+    <div class="eemo-drawer-overlay @(Show ? "show" : "")" @onclick="OnClose"></div>
+
+    <div class="eemo-drawer eemo-drawer-right @(Show ? "show" : "")" role="@(Show ? "dialog" : null)" aria-modal="@(Show ? "true" : null)" aria-labelledby="@_titleId" @onclick:stopPropagation="true" @onkeydown="HandleKey">
+        <div class="eemo-drawer-header">
+            <div class="eemo-drawer-header-left">
+                <div class="eemo-drawer-header-icon">@Icon</div>
+                <div>
+                    <div class="eemo-drawer-header-title" id="@_titleId">@Title</div>
+                    <div class="eemo-drawer-header-sub">@Subtitle</div>
+                </div>
+            </div>
+            <button class="eemo-drawer-header-close" type="button" @onclick="OnClose" aria-label="Close">
+                <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            </button>
+        </div>
+
+        <div class="eemo-modal-body">@ChildContent</div>
+
+        <footer class="eemo-drawer-footer">@Footer</footer>
+    </div>
+</div>
+}
+
+@code {
+    private readonly string _titleId = $"vds-{Guid.NewGuid():N}";
+    private async Task HandleKey(KeyboardEventArgs args) { if (args.Key == "Escape") await OnClose.InvokeAsync(); }
+
+    [Parameter] public bool Show { get; set; }
+
+    /// <summary>Keep the drawer in the page while closed so it can slide in (the stallholder drawer does); otherwise it exists only while open.</summary>
+    [Parameter] public bool KeepMounted { get; set; }
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>The icon (an inline SVG) shown in the header tile.</summary>
+    [Parameter] public RenderFragment? Icon { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? Footer { get; set; }
+}

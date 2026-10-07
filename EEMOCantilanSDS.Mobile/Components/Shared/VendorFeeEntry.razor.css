@@ -1,7 +1,0 @@
-.vendor-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 14px 0; border: 0; border-bottom: 1px solid var(--mobile-border); background: transparent; color: var(--mobile-text); text-align: left; font: inherit; font-size: 14px; }
-.vendor-row > span { min-width: 0; overflow-wrap: anywhere; }
-.vendor-row small { display: block; margin-top: 4px; color: var(--mobile-text-secondary); font-size: 12px; }
-.vendor-row > strong { white-space: nowrap; font-variant-numeric: tabular-nums; }
-.vendor-row:disabled { opacity: .65; }
-.vendor-row:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2px; }
-.sheet { max-height: 85dvh; overflow-y: auto; }

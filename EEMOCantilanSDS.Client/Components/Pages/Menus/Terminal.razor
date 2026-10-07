@@ -1,0 +1,211 @@
+@page "/operations/terminal"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Common.Revenue
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Constants
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@inject IOfficeSourcesApiClient OfficeApi
+@inject IVehicleClassesApiClient VehicleClassesApi
+
+<PageTitle>StallTrack — Income From Terminal</PageTitle>
+
+@* Income From Terminal is its own operation, separate from Transportation / Parking. Collector Mobile records the three office sections as
+   direct amounts on a Cash Ticket; this page monitors net amounts and their monthly contribution and holds the
+   vehicle-class rates that assist an itemized entry. Nothing here records money. The layout owns the <main> landmark. *@
+<OperationTopbar Title="Income From Terminal" Crumb="Operation" />
+<div class="content-area">
+    <V3Hero Eyebrow="Operation · Terminal" Title="Income From Terminal" Compact="true">
+        <Meta><span class="trm2-meta">@Today.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture) · <InstrumentChip Instrument="CT" /> Cash Ticket</span></Meta>
+        <Figures>
+            <V3HeroFigure Label="Collected today" Value="@Money(TodayRows.Sum(x => x.NetAmount))" />
+            <V3HeroFigure Label="Collected this month" Value="@Money(_rows.Sum(x => x.NetAmount))" />
+            <V3HeroFigure Label="Collections today" Value="@TodayRows.Count().ToString("N0")" />
+        </Figures>
+    </V3Hero>
+
+    <div class="trm2-toolbar">
+        <div class="v3-btn-group" role="group" aria-label="Income From Terminal actions">
+            <button class="v3-btn" type="button" @onclick="LoadAsync" disabled="@_loading">Refresh</button>
+            <a class="v3-btn" href="/collections/activity">Collection Activity</a>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="trm2-notice" role="alert">
+            <p class="v3-notice v3-notice-error">@_error</p>
+            <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadAsync">Try again</button>
+        </div>
+    }
+
+    <section class="v3-panel" aria-labelledby="trm2-sections-title" aria-busy="@(_loading ? "true" : "false")">
+        <header class="v3-panel-header"><h2 id="trm2-sections-title">Sections</h2><span class="v3-panel-meta">This month</span></header>
+        <div class="v3-table-wrap" role="region" aria-label="Terminal sections" tabindex="0">
+            <table class="v3-table">
+                <caption class="v3-sr-only">Income From Terminal by office section</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Section</th>
+                        <th scope="col" class="v3-num">Today</th>
+                        <th scope="col" class="v3-num">This month</th>
+                        <th scope="col" class="v3-num"><span title="Share of Terminal income this month">Contribution</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var section in Sections)
+                    {
+                        var monthRows = _rows.Where(x => x.Section == section).ToList();
+                        <tr>
+                            <th scope="row" class="v3-strong">@OfficeCollectionWorkflow.SectionName(section)</th>
+                            <td class="v3-num">@Money(monthRows.Where(x => x.BusinessDate == Today).Sum(x => x.NetAmount))</td>
+                            <td class="v3-num v3-strong">@Money(monthRows.Sum(x => x.NetAmount))</td>
+                            <td class="v3-num">@Contribution(monthRows.Sum(x => x.NetAmount))</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="v3-panel trm2-gap" aria-labelledby="trm2-recent-title">
+        <header class="v3-panel-header"><h2 id="trm2-recent-title">Recent collections</h2><span class="v3-panel-meta">@_rows.Count @(_rows.Count == 1 ? "collection" : "collections")</span></header>
+        <div class="v3-table-wrap trm2-scroll" role="region" aria-label="Recent Terminal collections" tabindex="0">
+            <table class="v3-table">
+                <caption class="v3-sr-only">Terminal collections recorded this month</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Date</th>
+                        <th scope="col">SRC</th>
+                        <th scope="col">Section</th>
+                        <th scope="col">Collector</th>
+                        <th scope="col" class="v3-num">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _rows)
+                    {
+                        <tr @key="row.CollectionId">
+                            <td>@row.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)</td>
+                            <td class="trm2-src">@row.SRC</td>
+                            <td>@(row.Section is { } s ? OfficeCollectionWorkflow.SectionName(s) : "—")</td>
+                            <td>@(row.CollectorName ?? "—")</td>
+                            <td class="v3-num v3-strong">@Money(row.NetAmount)</td>
+                        </tr>
+                    }
+                    @if (_rows.Count == 0)
+                    {
+                        <tr><td class="v3-empty" colspan="5">@(_loading ? "Loading collections…" : "No Terminal collection has been recorded this month.")</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="v3-panel trm2-gap" aria-labelledby="trm2-classes-title">
+        <header class="v3-panel-header"><h2 id="trm2-classes-title">Vehicle classes by section</h2></header>
+        <div class="v3-table-wrap" role="region" aria-label="Vehicle classes by section" tabindex="0">
+            <table class="v3-table">
+                <caption class="v3-sr-only">Each vehicle class and the Terminal section it belongs to</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Vehicle class</th>
+                        <th scope="col">Section</th>
+                        <th scope="col" class="v3-num">Rate (aid)</th>
+                        <th scope="col"><span class="v3-sr-only">Action</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var vehicle in _classes.Where(x => x.IsActive))
+                    {
+                        var section = SectionOf(vehicle);
+                        <tr @key="vehicle.Id">
+                            <td class="v3-strong">@vehicle.DisplayName</td>
+                            <td>@(section is { } s ? OfficeCollectionWorkflow.SectionName(s) : "Not mapped")</td>
+                            <td class="v3-num">@(vehicle.CurrentAmount is { } rate ? Money(rate) : "—")</td>
+                            <td class="trm2-actions">
+                                @if (section is null)
+                                {
+                                    <AuthorizeView Roles="SuperAdmin">
+                                        <Authorized>
+                                            <select class="trm2-map" aria-label="@($"Section for {vehicle.DisplayName}")" @onchange="e => MapAsync(vehicle, e.Value?.ToString())">
+                                                <option value="">Map to section…</option>
+                                                <option value="@((int)TerminalSection.PullPulVansCargoVans)">@OfficeCollectionWorkflow.SectionName(TerminalSection.PullPulVansCargoVans)</option>
+                                                <option value="@((int)TerminalSection.Tricycad)">@OfficeCollectionWorkflow.SectionName(TerminalSection.Tricycad)</option>
+                                            </select>
+                                        </Authorized>
+                                    </AuthorizeView>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @if (!_classes.Any(x => x.IsActive))
+                    {
+                        <tr><td class="v3-empty" colspan="4">@(_loading ? "Loading vehicle classes…" : "No vehicle class has been set up.")</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <VehicleClassRates />
+</div>
+
+@code {
+    private static DateOnly Today => PhilippineTime.Today;
+    private static readonly TerminalSection[] Sections = Enum.GetValues<TerminalSection>();
+
+    private List<SourceNativeActivityDto> _rows = [];
+    private List<VehicleClassDto> _classes = [];
+    private List<TerminalVehicleChoice> _choices = [];
+    private bool _loading = true;
+    private string? _error;
+
+    private IEnumerable<SourceNativeActivityDto> TodayRows => _rows.Where(x => x.BusinessDate == Today);
+
+    private string Contribution(decimal sectionNet)
+    {
+        var monthNet = _rows.Sum(x => x.NetAmount);
+        return monthNet == 0m ? "—" : (sectionNet / monthNet * 100m).ToString("N1", CultureInfo.InvariantCulture) + "%";
+    }
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var activity = await OfficeApi.ActivityAsync(new DateOnly(Today.Year, Today.Month, 1), Today, CollectorOperationCodes.Terminal);
+            if (activity.IsSuccess) _rows = activity.Value?.OrderByDescending(x => x.RecordedAtUtc).ToList() ?? [];
+            else { _rows = []; _error = "The Terminal collections couldn't be loaded."; }
+
+            var classes = await VehicleClassesApi.GetAsync();
+            _classes = classes.IsSuccess ? classes.Value?.ToList() ?? [] : [];
+            var choices = await OfficeApi.VehicleChoicesAsync(Today);
+            _choices = choices.IsSuccess ? choices.Value?.ToList() ?? [] : [];
+        }
+        catch { _rows = []; _error = "The Terminal collections couldn't be loaded."; }
+        finally { _loading = false; }
+    }
+
+    // The section the server resolves for this class: an explicit mapping, else the office's confirmed section for its exact code.
+    private TerminalSection? SectionOf(VehicleClassDto vehicle) =>
+        _choices.FirstOrDefault(x => x.VehicleClassId == vehicle.Id)?.Section ?? VehicleClass.ConfirmedSection(vehicle.Code);
+
+    private async Task MapAsync(VehicleClassDto vehicle, string? value)
+    {
+        if (!int.TryParse(value, out var section)) return;
+        var result = await OfficeApi.MapVehicleAsync(new TerminalVehicleMappingRequest(vehicle.Id, (TerminalSection)section));
+        if (!result.IsSuccess) _error = "The vehicle class couldn't be mapped.";
+        await LoadAsync();
+    }
+
+    private static string Money(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
+}

@@ -1,0 +1,19 @@
+@* One titled group of fields in an Add New form: the stallholder drawer's own section (avm-section) with its label. Fields go two to a row
+   (avm-row-2) in the order they are written; content that lays itself out (choice cards, a selected-payor row) is passed with Plain. *@
+<div class="avm-section">
+    <div class="avm-section-label">@Title</div>
+    @if (Plain)
+    {
+        @ChildContent
+    }
+    else
+    {
+        <div class="avm-row-2">@ChildContent</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public bool Plain { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

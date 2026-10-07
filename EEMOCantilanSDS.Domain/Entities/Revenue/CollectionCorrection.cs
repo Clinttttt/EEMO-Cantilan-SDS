@@ -24,6 +24,15 @@ public sealed class CollectionCorrection : BaseEntity, IMunicipalityOwned
 
     private CollectionCorrection() { }
 
+    /// <summary>Completes the reversal/replacement link inside the posting transaction. Never changes financial evidence.</summary>
+    public void CompleteReplacement(Guid replacementCollectionId)
+    {
+        if (CorrectionType != CollectionCorrectionType.Reversal || ReplacementCollectionId.HasValue
+            || replacementCollectionId == Guid.Empty || replacementCollectionId == OriginalCollectionId)
+            throw new InvalidOperationException("Invalid correction replacement link.");
+        ReplacementCollectionId = replacementCollectionId;
+    }
+
     public static CollectionCorrection Record(
         Guid municipalityId,
         Guid originalCollectionId,

@@ -57,11 +57,6 @@
 }
 .obw-status { display: inline-flex; padding: 3px 8px; border: 1px solid var(--border); border-radius: 20px; font-size: 11px; color: var(--text-secondary); }
 
-.obw-collect {
-    display: flex;
-    justify-content: flex-end;
-    padding: 10px 16px 14px;
-}
 
 /* Toolbar links: the same size and rhythm as the shared Toolbar's own actions, so this row matches TCC. */
 .obw-actions-bar {
@@ -125,3 +120,11 @@
         flex-wrap: wrap;
     }
 }
+
+.obw-selected { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border: 1px solid var(--civic-panel); border-radius: 8px; background: #eaf1f9; }
+.obw-selected-name { color: var(--navy); font-size: .9375rem; font-weight: 600; overflow-wrap: anywhere; }
+.obw-results { margin: 0; padding: 0; list-style: none; max-height: 220px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.obw-results li + li { border-top: 1px solid var(--border); }
+.obw-option { display: block; width: 100%; min-height: 44px; padding: 8px 14px; border: 0; background: transparent; color: var(--navy); font: inherit; font-size: .9375rem; font-weight: 600; text-align: left; cursor: pointer; }
+.obw-option:hover { background: var(--surface-muted); }
+.obw-option:focus-visible { outline: 2px solid var(--civic-panel); outline-offset: -2px; }

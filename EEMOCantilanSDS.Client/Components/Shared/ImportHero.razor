@@ -1,0 +1,35 @@
+@* The bulk-import hero: eyebrow, title, one line, and the three steps. Taken from the stallholder import so every import opens the same way. *@
+<div class="imp-hero">
+    <div class="imp-hero-left">
+        <div class="imp-hero-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+        </div>
+        <div>
+            <div class="imp-hero-eyebrow">@Eyebrow</div>
+            <div class="imp-hero-title">@Title</div>
+            <div class="imp-hero-sub">@Subtitle</div>
+        </div>
+    </div>
+    <div class="imp-steps">
+        <div class="imp-step @StepClass(1)"><span class="imp-step-no">1</span> Upload</div>
+        <div class="imp-step-line"></div>
+        <div class="imp-step @StepClass(2)"><span class="imp-step-no">2</span> Review &amp; edit</div>
+        <div class="imp-step-line"></div>
+        <div class="imp-step @StepClass(3)"><span class="imp-step-no">3</span> Save</div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Eyebrow { get; set; } = string.Empty;
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public string Subtitle { get; set; } = "Upload a list, review & edit, then save.";
+
+    /// <summary>The current step, 1 to 3.</summary>
+    [Parameter] public int Step { get; set; } = 1;
+
+    private string StepClass(int step) => step < Step ? "done" : step == Step ? "active" : string.Empty;
+}

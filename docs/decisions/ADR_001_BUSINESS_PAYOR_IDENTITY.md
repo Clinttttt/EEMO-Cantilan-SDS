@@ -1,6 +1,6 @@
 # ADR-001 — Business Payor identity independent of authentication
 
-**Status:** Accepted
+**Status:** Superseded as target product architecture on 2026-10-06 by [ADR-007 — Source-native collection identity and Business Payor retirement](ADR_007_SOURCE_NATIVE_COLLECTION_IDENTITY.md). Its prohibition on name-based identity inference remains valid.
 
 **Date:** 2026-09-26
 
@@ -77,4 +77,6 @@ Current evidence: `EEMOCantilanSDS.Domain/Entities/Users/PayorUser.cs`, `EEMOCan
 
 ## Supersedes / superseded by
 
-Supersedes any target assumption that `PayorUserId`, portal activation, or matching payer text is sufficient canonical business identity. Does not supersede existing authentication behavior or established EEMO assessment rules.
+Originally superseded any target assumption that `PayorUserId`, portal activation, or matching payer text was sufficient canonical business identity.
+
+**Superseded by ADR-007 (2026-10-06):** the target product no longer requires a canonical Business Payor master or Business Payors page as the normal cross-operation collection identity. Source-owned identities now govern eligibility. The safety rules in this ADR against name-based merging, cross-tenant linkage, rewriting posted payer evidence, and speculative historical backfill remain in force during migration.

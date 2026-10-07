@@ -89,6 +89,12 @@ public class BrandingState(IMunicipalitiesApiClient api)
     /// build this LGU's per-account webhook URL.</summary>
     public string TenantCode => _branding?.TenantCode ?? string.Empty;
 
+    /// <summary>
+    /// The office name as a formal printed document states it: the full name without a trailing parenthetical acronym such as
+    /// "(MEEDO)". Display only; the tenant's own setting is never changed, and the header, sidebar and profile keep <see cref="OfficeName"/>.
+    /// </summary>
+    public string FormalOfficeName => System.Text.RegularExpressions.Regex.Replace(OfficeName, @"\s*\([A-Za-z0-9&.\- ]{2,12}\)\s*$", string.Empty).Trim();
+
     public string OfficeName => Nonempty(_branding?.OfficeName, DefaultOfficeName);    // A set acronym wins; Cantilan falls back to MEEDO; any other LGU without an acronym falls back to its
     // own municipality name (never "MEEDO").
     public string OfficeAcronym =>
@@ -134,7 +140,7 @@ public class BrandingState(IMunicipalitiesApiClient api)
     // the office's standard trio is used, so every sheet keeps exactly the footer it has today.
 
     /// <summary>One signatory line: the caption above the rule and the name beneath it.</summary>
-    public record Signatory(string Caption, string Name);
+    public record Signatory(string Caption, string Name, string? Title = null);
 
     private IReadOnlyList<Signatory>? _signatories;
     private string? _alignment;
@@ -233,7 +239,7 @@ public class BrandingState(IMunicipalitiesApiClient api)
         ISettingsApiClient settingsApi, IReadOnlyList<Signatory> signatories, string alignment = "left")
     {
         var payload = signatories
-            .Select(s => new Application.Command.Municipalities.SetReportSignatories.ReportSignatoryDto(s.Caption, s.Name))
+            .Select(s => new Application.Command.Municipalities.SetReportSignatories.ReportSignatoryDto(s.Caption, s.Name, s.Title))
             .ToList();
 
         // Alignment rides with the lines rather than in a column of its own, so one save writes one value and the two

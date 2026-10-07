@@ -71,6 +71,44 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
         amount, "Ana Reyes", "Posted");
 
     [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(5)]
+    [InlineData(6)]
+    public void MarketFees_UsesSharedHero_AndKeepsTotalOutsideItsFiveRowHistory(int count)
+    {
+        Serve(All(GovernedServiceSetupState.Active), Enumerable.Range(1, count).Select(i => Row(10m, $"SRC-2026-{i:000000}")).ToArray());
+        var cut = RenderComponent<MarketFees>();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("Market Fees", Assert.Single(cut.FindAll("h1.v3h-title")).TextContent.Trim());
+            Assert.Contains("Cash Ticket collection workspace", cut.Find(".v3h").TextContent);
+            Assert.Empty(cut.FindAll(".wh"));
+            Assert.Equal("/operations/market-fees/report", cut.Find(".v3h-actions a").GetAttribute("href"));
+            var history = cut.Find(".gsw-measured-scroll");
+            Assert.Equal(count, history.QuerySelectorAll("tbody tr:not(:has(.v3-empty))").Length);
+            Assert.Null(history.QuerySelector("tfoot"));
+            Assert.Null(history.QuerySelector(".gsw-total"));
+            var total = cut.Find("section.v3-panel > footer.gsw-total");
+            Assert.Equal($"₱{count * 10m:N2}", total.LastElementChild!.TextContent);
+            Assert.Equal(5, cut.FindComponent<EEMOCantilanSDS.Client.Components.Shared.GovernedServiceWorkspace>().Instance.VisibleCollectionRows);
+        }, Timeout);
+        cut.Find("aside button.gsw-edit").Click();
+        Assert.NotNull(cut.Find("[role=dialog] form"));
+        Assert.Null(cut.Find(".gsw-layout").QuerySelector("[role=dialog]"));
+    }
+
+    [Fact]
+    public void OtherGovernedWorkspaces_KeepTheirExistingHistoryLimit()
+    {
+        Serve(All(GovernedServiceSetupState.Active));
+        var cut = RenderComponent<LandingBerthing>();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".gsw-scroll")), Timeout);
+        Assert.Empty(cut.FindAll(".gsw-measured-scroll"));
+        Assert.Equal(0, cut.FindComponent<EEMOCantilanSDS.Client.Components.Shared.GovernedServiceWorkspace>().Instance.VisibleCollectionRows);
+    }
+
+    [Theory]
     [InlineData(typeof(MarketFees), "/operations/market-fees", "Market Fees")]
     [InlineData(typeof(LandingBerthing), "/operations/landing-berthing", "Landing / Berthing")]
     [InlineData(typeof(TransferLargeCattle), "/operations/transfer-large-cattle", "Transfer Large Cattle")]
@@ -130,7 +168,7 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
             Assert.Contains("Maria Santos", rows[0].TextContent);
             Assert.Contains("Stall 4", rows[0].TextContent);
             Assert.Contains("Ana Reyes", rows[0].TextContent);
-            Assert.Contains("₱60.00", cut.Find("tfoot").TextContent);
+            Assert.Contains("₱60.00", cut.Find(".gsw-total").TextContent);
             var setup = cut.Find("aside").TextContent;
             Assert.Contains("Active", setup);
             Assert.Contains("Fixed · ₱30.00", setup);
@@ -177,9 +215,9 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
         cut.WaitForAssertion(() => cut.Find("aside button.gsw-edit"), Timeout);
         cut.Find("aside button.gsw-edit").Click();
 
-        cut.Find("aside select").Change(GovernedServiceBasis.FixedAmount.ToString());
-        cut.Find("aside input[type='number']").Change("25");
-        cut.Find("aside form").Submit();
+        cut.Find("[role='dialog'] select").Change(GovernedServiceBasis.FixedAmount.ToString());
+        cut.Find("[role='dialog'] input[type='number']").Change("25");
+        cut.Find("[role=dialog] form").Submit();
 
         cut.WaitForAssertion(() =>
         {
@@ -255,6 +293,63 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
         Guid.NewGuid(), code, name, location, null, basis, amount, ceiling, basis is null ? null : new DateOnly(2026, 9, 1), status,
         status == "Retired" ? new DateOnly(2026, 9, 15) : null,
         basis is null ? [] : [new FeeOptionRateVersionDto(new DateOnly(2026, 9, 1), basis.Value, amount, ceiling, "head", DateTime.UtcNow)]);
+
+    [Fact]
+    public void Collections_ScrollInsideABoundedRegion_TheHelperSentenceIsGone_AndTheSetupDrawerLeavesThePageAlone()
+    {
+        Serve(All(GovernedServiceSetupState.Active), Enumerable.Range(1, 7).Select(i => Row(10m * i, $"SRC-2026-0000{i:00}")).ToArray());
+
+        var cut = RenderComponent<LandingBerthing>();
+
+        cut.WaitForAssertion(() =>
+        {
+            var region = cut.Find(".gsw-scroll");                                                         // about four rows show; the rest scroll here
+            Assert.Equal(7, region.QuerySelectorAll("tbody tr").Length);
+            Assert.NotNull(region.QuerySelector("thead th"));
+            Assert.Null(region.QuerySelector("tfoot"));
+            Assert.NotNull(region.ParentElement!.QuerySelector(":scope > .gsw-total"));
+            Assert.DoesNotContain("Recorded by assigned collectors", cut.Markup);
+            Assert.DoesNotContain("Assign collectors", cut.Markup);
+        }, Timeout);
+
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Change amount rule").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var drawer = Assert.Single(cut.FindAll("[role='dialog']"));
+            Assert.Contains("Change amount rule", drawer.QuerySelector(".eemo-drawer-header-title")!.TextContent);
+            Assert.NotNull(drawer.QuerySelector("form"));
+            Assert.Empty(cut.Find("aside").QuerySelectorAll("form"));                                     // nothing stretches the Setup panel
+            Assert.Equal(7, cut.Find(".gsw-scroll").QuerySelectorAll("tbody tr").Length);                  // and the collections stay where they are
+        }, Timeout);
+        cut.FindAll("footer button").Single(b => b.TextContent.Trim() == "Cancel").Click();
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll("[role='dialog']")), Timeout);
+    }
+
+    [Fact]
+    public void LandingBerthing_ListsItsFeeTypes_ByTheServersOwnDefinitions_WhenTheyExist()
+    {
+        Serve([Definition(CollectorOperationCodes.LandingBerthing, "Landing / Berthing", GovernedServiceSetupState.Active,
+                GovernedServiceBasis.ApprovedFeeOption, mobile: true) with
+            { AllowedBases = [GovernedServiceBasis.FixedAmount, GovernedServiceBasis.ApprovedFeeOption] }]);
+        _api.Setup(x => x.GetFeeOptionsAsync(CollectorOperationCodes.LandingBerthing)).ReturnsAsync(
+            Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success([
+                Option("Landing", null, null, GovernedServiceBasis.FixedAmount, 100m, null, "Active"),
+                Option("Berthing", null, null, GovernedServiceBasis.FixedAmount, 250m, null, "Active")]));
+        _api.Setup(x => x.GetFeeOptionTotalsAsync(CollectorOperationCodes.LandingBerthing, It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(Result<IReadOnlyList<FeeOptionTotalDto>>.Success([]));
+
+        var cut = RenderComponent<LandingBerthing>();
+
+        cut.WaitForAssertion(() =>
+        {
+            var panel = cut.Find("[aria-label='Landing / Berthing fees']");
+            Assert.Equal(new[] { "Landing", "Berthing" }, panel.QuerySelectorAll("tbody tr td.v3-strong").Select(x => x.TextContent.Trim()).ToArray());
+            Assert.Contains("₱100.00", panel.TextContent);
+            Assert.Contains("₱250.00", panel.TextContent);
+            Assert.Contains(cut.FindAll("button"), b => b.TextContent.Trim() == "Add fee type");
+        }, Timeout);
+    }
 
     [Fact]
     public void MarketFeeDefinitions_ListNameRuleAmountAndStatus_FromServerData_WithoutInternalCodes()
@@ -425,9 +520,9 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
         var cut = RenderComponent<MarketFees>();
         cut.WaitForAssertion(() => Assert.Contains("No fee type has been defined yet.", cut.Markup), Timeout);
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Add fee type").Click();
-        cut.Find("form.fod-form input[type=text]").Change("Comfort Room");
-        cut.Find("form.fod-form input[type=number]").Change("5");
-        cut.Find("form.fod-form").Submit();
+        cut.Find("[role=dialog] form input[type=text]").Change("Comfort Room");
+        cut.Find("[role=dialog] form input[type=number]").Change("5");
+        cut.Find("[role=dialog] form").Submit();
 
         cut.WaitForAssertion(() =>
         {
@@ -436,6 +531,73 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
                 (sent!.DisplayName, sent.Basis, sent.FixedAmount, sent.MaximumAmount));
             Assert.Contains("Fee type added.", cut.Markup);
             Assert.DoesNotContain("No fee type has been defined yet.", cut.Markup);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void TheFeeTypeSuccessNotice_ClearsItselfAfterAFewSeconds_ButAnErrorStays()
+    {
+        Serve([FeeTypeDefinition()]);
+        _api.Setup(x => x.GetFeeOptionsAsync(CollectorOperationCodes.MarketFees))
+            .ReturnsAsync(Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success([]));
+        _api.Setup(x => x.GetFeeOptionTotalsAsync(CollectorOperationCodes.MarketFees, It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(Result<IReadOnlyList<FeeOptionTotalDto>>.Success([]));
+        _api.SetupSequence(x => x.AddFeeOptionAsync(CollectorOperationCodes.MarketFees, It.IsAny<AddFeeOptionRequest>()))
+            .ReturnsAsync(Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success([
+                Option("Comfort Room", null, null, GovernedServiceBasis.FixedAmount, 5m, null, "Active")]))
+            .ReturnsAsync(Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure("That fee type already exists."));
+
+        var cut = RenderComponent<MarketFees>();
+        cut.WaitForAssertion(() => Assert.Contains("No fee type has been defined yet.", cut.Markup), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Add fee type").Click();
+        cut.Find("[role=dialog] form input[type=text]").Change("Comfort Room");
+        cut.Find("[role=dialog] form input[type=number]").Change("5");
+        cut.Find("[role=dialog] form").Submit();
+
+        cut.WaitForAssertion(() => Assert.Contains("Fee type added.", cut.Markup), Timeout);
+        cut.WaitForAssertion(() => Assert.DoesNotContain("Fee type added.", cut.Markup), TimeSpan.FromSeconds(6));
+
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Add fee type").Click();
+        cut.Find("[role=dialog] form input[type=text]").Change("Comfort Room");
+        cut.Find("[role=dialog] form input[type=number]").Change("5");
+        cut.Find("[role=dialog] form").Submit();
+
+        cut.WaitForAssertion(() => Assert.Contains("That fee type already exists.", cut.Markup), Timeout);
+        Thread.Sleep(3500);
+        Assert.Contains("That fee type already exists.", cut.Markup);
+    }
+
+    [Fact]
+    public void Transportation_QuickAmount_IsAHeadSwitch_ThatMarketFeesNeverShows_AndEnablingAgainKeepsIt()
+    {
+        var transportation = Definition(CollectorOperationCodes.Transportation, "Transportation / Parking", GovernedServiceSetupState.Active,
+            GovernedServiceBasis.VehicleClassRate, mobile: true) with
+        {
+            AllowedBases = [GovernedServiceBasis.VehicleClassRate, GovernedServiceBasis.DirectApprovedAmount],
+            QuickAmountEnabled = false
+        };
+        _api.Setup(x => x.GetDefinitionsAsync()).ReturnsAsync(Result<IReadOnlyList<GovernedServiceDefinitionDto>>.Success([transportation]));
+        _api.Setup(x => x.GetActivityAsync(CollectorOperationCodes.Transportation, It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(Result<IReadOnlyList<GovernedServiceActivityDto>>.Success([]));
+        ConfigureGovernedServiceRequest? sent = null;
+        _api.Setup(x => x.ConfigureAsync(CollectorOperationCodes.Transportation, It.IsAny<ConfigureGovernedServiceRequest>()))
+            .Callback<string, ConfigureGovernedServiceRequest>((_, r) => sent = r)
+            .ReturnsAsync(Result<GovernedServiceDefinitionDto>.Success(transportation with { QuickAmountEnabled = true }));
+
+        var cut = RenderComponent<EEMOCantilanSDS.Client.Components.Shared.GovernedServiceWorkspace>(p => p
+            .Add(x => x.OperationCode, CollectorOperationCodes.Transportation).Add(x => x.Name, "Transportation / Parking"));
+        cut.WaitForAssertion(() => cut.Find("aside button.gsw-edit"), Timeout);
+        cut.Find("aside button.gsw-edit").Click();
+
+        var quick = cut.FindAll("[role='dialog'] label.gsw-check").Single(l => l.TextContent.Contains("Allow quick amount"));
+        Assert.DoesNotContain("ceiling", cut.Find("[role='dialog']").TextContent, StringComparison.OrdinalIgnoreCase);
+        quick.QuerySelector("input")!.Change(true);
+        cut.Find("[role=dialog] form").Submit();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(sent);
+            Assert.True(sent!.QuickAmountEnabled);
         }, Timeout);
     }
 }

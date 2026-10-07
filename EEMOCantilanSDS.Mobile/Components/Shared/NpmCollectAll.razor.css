@@ -1,0 +1,42 @@
+/* Solid and full width: the office asked for this action, so it is never faint. */
+.ca-open {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 44px;
+    padding: 0 16px;
+    border: 1px solid var(--mobile-blue);
+    border-radius: 12px;
+    background: var(--mobile-blue);
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.ca-open:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2px; }
+.ca-open-none,
+.ca-open:disabled { border-color: var(--mobile-border); background: var(--mobile-border); color: var(--mobile-text-secondary); cursor: not-allowed; }
+
+/* About seven stalls show at once; the rest scroll inside the sheet. */
+.ca-list { max-height: 21rem; overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); }
+
+.ca-row,
+.ca-result {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 48px;
+    padding: 6px 14px;
+    border-bottom: 1px solid var(--mobile-border);
+}
+
+.ca-list > :last-child { border-bottom: 0; }
+
+.ca-row input[type=checkbox] { flex: none; width: 22px; height: 22px; margin: 0; accent-color: var(--mobile-blue); }
+.ca-main, .ca-result > span { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.ca-main strong, .ca-result strong { font-size: 15px; font-weight: 600; color: var(--mobile-navy); }
+.ca-main small, .ca-result small { margin-top: 2px; font-size: 12px; color: var(--mobile-text-secondary); }
+.ca-charge { flex: none; color: var(--mobile-navy); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.ca-skipped { margin: 8px 2px 0; font-size: 12px; color: var(--mobile-text-secondary); }

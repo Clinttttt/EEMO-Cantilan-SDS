@@ -12,6 +12,22 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 
 public interface IMobileApiClient
 {
+    Task<Result<IReadOnlyList<CollectionSourceSearchResult>>> SearchCollectionSourcesAsync(string? search) => Task.FromResult(Result<IReadOnlyList<CollectionSourceSearchResult>>.Failure("Source search unavailable."));
+    Task<Result<CollectionSessionDiscovery>> GetSourceCollectionDiscoveryAsync(CollectionSourceIdentity? identity) => Task.FromResult(Result<CollectionSessionDiscovery>.Failure("Source discovery unavailable."));
+    Task<Result<SourceNativeChargeQuote>> QuoteOfficeCollectionAsync(SourceNativeCollectionRequest request) => Task.FromResult(Result<SourceNativeChargeQuote>.Failure("Source quote unavailable."));
+    Task<Result<GovernedServiceOutcomeDto>> RecordOfficeCollectionAsync(SourceNativeCollectionRequest request) => Task.FromResult(Result<GovernedServiceOutcomeDto>.Failure("Source collection unavailable."));
+    Task<Result<IReadOnlyList<SourceNativeActivityDto>>> GetOfficeActivityAsync(DateOnly from, DateOnly to, string? operationCode = null) => Task.FromResult(Result<IReadOnlyList<SourceNativeActivityDto>>.Failure("Activity unavailable."));
+    Task<Result<IReadOnlyList<NpmDailyBatchSource>>> GetNpmDailyBatchSourcesAsync() => Task.FromResult(Result<IReadOnlyList<NpmDailyBatchSource>>.Failure("Batch unavailable."));
+    Task<Result<NpmDailyBatchReadiness>> GetNpmDailyBatchReadinessAsync() => Task.FromResult(Result<NpmDailyBatchReadiness>.Failure("Batch unavailable."));
+    Task<Result<MobileRecentCollections>> GetRecentCollectionsAsync() => Task.FromResult(Result<MobileRecentCollections>.Failure("Recent collections unavailable."));
+    Task<Result<CollectionSessionQuote>> QuoteCollectionEditAsync(EditMobileCollectionIntent intent) => Task.FromResult(Result<CollectionSessionQuote>.Failure("Correction unavailable."));
+    Task<Result<MobileCollectionCorrectionResult>> EditCollectionAsync(RecordMobileCollectionEditRequest request) => Task.FromResult(Result<MobileCollectionCorrectionResult>.Failure("Correction unavailable."));
+    Task<Result<MobileCollectionCorrectionResult>> RemoveCollectionAsync(RemoveMobileCollectionRequest request) => Task.FromResult(Result<MobileCollectionCorrectionResult>.Failure("Correction unavailable."));
+    Task<Result<NpmDailyBatchQuote>> QuoteNpmDailyBatchAsync(NpmDailyBatchIntent intent) => Task.FromResult(Result<NpmDailyBatchQuote>.Failure("Batch unavailable."));
+    Task<Result<CollectionSessionResult>> RecordNpmDailyBatchAsync(RecordNpmDailyBatchRequest request) => Task.FromResult(Result<CollectionSessionResult>.Failure("Batch unavailable."));
+    Task<Result<TaboBatchQuoteDto>> QuoteTaboBatchAsync(TaboBatchRequest request);
+    Task<Result<TaboBatchOutcomeDto>> RecordTaboBatchAsync(TaboBatchRequest request);
+    Task<Result<EcfPostOutcomeDto>> PostSpaceObligationAsync(MobileObligationPostRequest request);
     Task<Result<IReadOnlyList<DirectVendorFeeSource>>> GetDirectVendorFeeSourcesAsync() => Task.FromResult(Result<IReadOnlyList<DirectVendorFeeSource>>.Failure("Vendor sources are unavailable."));
     Task<Result<IReadOnlyList<CollectionPayorDto>>> SearchCollectionSessionPayorsAsync(string search) => Task.FromResult(Result<IReadOnlyList<CollectionPayorDto>>.Failure("Payer search is unavailable."));
     Task<Result<IReadOnlyList<EcfObligationQuoteDto>>> GetMobileEcfSourcesAsync() => Task.FromResult(Result<IReadOnlyList<EcfObligationQuoteDto>>.Failure("Electricity sources are unavailable."));

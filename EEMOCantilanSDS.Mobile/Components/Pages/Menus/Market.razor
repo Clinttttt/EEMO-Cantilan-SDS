@@ -68,6 +68,8 @@
                 </div>
             </div>
 
+            @* Outside the sticky tools bar: that bar is its own stacking context and would trap the sheet beneath the bottom navigation. *@
+            <div class="npm-collect-all"><NpmCollectAll BusinessDate="@Today" OnRecorded="LoadCollectionAsync" /></div>
             <div class="npm-tools">
             <div class="search-row">
                 <div class="search-wrap">
@@ -80,12 +82,13 @@
                    which earlier day a payment settles is a decision that belongs beside the arrears, not inside the
                    sheet a collector uses forty times a day. The count is the number of payors with an outstanding day
                    this period, so it is visible before anybody is opened. *@
-                <button class="owed-btn" type="button"
-                        title="Payors with days still owed" aria-label="Days still owed"
+                <button class="owed-btn owed-pill" type="button"
+                        title="Payors with days still owed" aria-label="@(OwedPayorCount > 0 ? $"Days still owed, {OwedPayorCount} payors" : "Days still owed")"
                         @onclick="OpenArrears">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
                     </svg>
+                    <span class="owed-label">Owed</span>
                     @if (OwedPayorCount > 0)
                     {
                         <span class="owed-count">@OwedPayorCount</span>
@@ -310,7 +313,7 @@
                                 }
                                 @* What a tap does, and why the two are settled differently. A closed month is one act at the office's
                                    own figure; the month in hand is the days it has actually run. *@
-                                <div class="arrears-month-note">Tap a month to settle it, or the current month to take the days owed.</div>
+                                @if (ReferenceEquals(payor, ArrearsPayors[0])) { <div class="arrears-month-note">Tap a month to settle it, or the current month to take the days owed.</div> }
                             </div>
                         }
                     }
@@ -340,9 +343,6 @@
                at ₱30 IS ₱540 invites the collector to hunt for a difference that does not exist. The days of a running month are just
                the days. *@
             <div class="arrears-month-note">@MonthSettleBasis</div>
-
-            <input class="form-input mono-input" type="text" inputmode="numeric" maxlength="50"
-                   placeholder="OR no." @bind="MonthSettleOr" @bind:event="oninput" />
 
             @if (!string.IsNullOrWhiteSpace(MonthSettleError))
             {
@@ -477,6 +477,7 @@
                     <div class="form-label">Instrument</div>
                     <div><span class="tx-tag">@NpmInstrumentLabel</span></div>
                 </div>
+                <div class="sheet-meta-row"><span>Reference</span><strong>SRC assigned after recording</strong></div>
             }
             else if (SelectedIsPaid)
             {
@@ -1390,7 +1391,6 @@
     /// <summary>The days being settled when the row tapped is the month still running; null for a closed month.</summary>
     private IReadOnlyList<DateOnly>? MonthSettleDays;
 
-    private string MonthSettleOr = string.Empty;
     private bool MonthSettleSaving;
     private string? MonthSettleError;
 
@@ -1404,7 +1404,6 @@
         MonthSettlePayor = payor;
         MonthSettleMonth = month;
         MonthSettleDays = null;
-        MonthSettleOr = string.Empty;
         MonthSettleError = null;
     }
 
@@ -1426,7 +1425,6 @@
         MonthSettlePayor = payor;
         MonthSettleMonth = null;
         MonthSettleDays = payor.DaysOwedThisMonth.OrderBy(d => d).ToList();
-        MonthSettleOr = string.Empty;
         MonthSettleError = null;
     }
 
@@ -1476,7 +1474,6 @@
         MonthSettlePayor = null;
         MonthSettleMonth = null;
         MonthSettleDays = null;
-        MonthSettleOr = string.Empty;
         MonthSettleError = null;
     }
 
@@ -1492,13 +1489,6 @@
         if (MonthSettlePayor is null || MonthSettleSaving) return;
         if (MonthSettleMonth is null && (MonthSettleDays is null || MonthSettleDays.Count == 0)) return;
 
-        // The office issues a receipt for money taken, so the number is required here as it is on every other collection.
-        if (string.IsNullOrWhiteSpace(MonthSettleOr))
-        {
-            MonthSettleError = "Enter the OR number.";
-            return;
-        }
-
         MonthSettleSaving = true;
         MonthSettleError = null;
 
@@ -1509,9 +1499,9 @@
             // collector settles exactly what was shown rather than whatever the server recomputes.
             var result = MonthSettleMonth is { } month
                 ? await MobileApi.SettleNpmMonthAsync(new SettleMobileNpmMonthRequest(
-                    MonthSettlePayor.StallId, month.Year, month.Month, MonthSettleOr.Trim()))
+                    MonthSettlePayor.StallId, month.Year, month.Month, null))
                 : await MobileApi.SettleNpmDaysAsync(new SettleMobileNpmDaysRequest(
-                    MonthSettlePayor.StallId, MonthSettleDays!, MonthSettleOr.Trim()));
+                    MonthSettlePayor.StallId, MonthSettleDays!, null));
 
             if (!result.IsSuccess)
             {

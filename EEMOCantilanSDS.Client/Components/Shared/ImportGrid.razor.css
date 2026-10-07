@@ -1,0 +1,69 @@
+/* Import editable register — moved verbatim from the stallholder import. */
+/* ── Editable table ── */
+.imp-table-wrap {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+    overflow: auto; max-height: 60vh;
+}
+.imp-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+.imp-table thead th {
+    position: sticky; top: 0; z-index: 1;
+    text-align: center; white-space: nowrap;
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--text-subtle); background: var(--bg);
+    padding: 10px 10px; border-bottom: 1px solid var(--border);
+}
+.imp-th-num, .imp-td-num { width: 44px; text-align: center; color: var(--text-muted); font-weight: 700; }
+.imp-th-act, .imp-td-act { width: 48px; text-align: center; }
+.imp-table tbody td { padding: 6px 8px; border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent); vertical-align: middle; }
+.imp-table tbody tr:last-child td { border-bottom: none; }
+
+.imp-cell {
+    width: 100%; box-sizing: border-box;
+    font-size: 13px; color: var(--text); text-align: center;
+    border: 1px solid transparent; border-radius: 7px;
+    padding: 7px 9px; background: transparent; transition: border-color .12s ease, background .12s ease;
+}
+.imp-cell:hover { background: var(--bg); }
+.imp-cell:focus { outline: none; border-color: var(--accent); background: var(--bg-card); box-shadow: 0 0 0 3px rgba(200, 168, 75, .14); }
+.imp-cell-num { text-align: center; font-variant-numeric: tabular-nums; }
+
+/* A space the office does not number: the identifier is shown, because the row has to be identifiable on
+   screen, but it is the system's own and is not the office's to type over. It reads as settled rather than
+   disabled - the muted ink already in use, and none of the hover or focus affordances that invite typing. */
+.imp-cell-locked { color: var(--text-muted); cursor: default; }
+.imp-cell-locked:hover { background: transparent; }
+.imp-cell-locked:focus { outline: none; border-color: transparent; background: transparent; box-shadow: none; }
+
+/* Dropdown — native arrow removed; a single overlay caret (.imp-select-caret) is positioned by
+   the wrapping .imp-select-wrap, so there's exactly one caret regardless of browser. */
+.imp-cell-select {
+    cursor: pointer;
+    -webkit-appearance: none; -moz-appearance: none; appearance: none;
+    text-align: center; text-align-last: center;
+    padding: 7px 26px 7px 12px;
+}
+.imp-cell-select:hover { background-color: var(--bg); }
+.imp-cell-select:focus { border-color: var(--accent); background-color: var(--bg-card); }
+.imp-cell-select::-ms-expand { display: none; }
+.imp-cell-select option { text-align: left; color: var(--text); }
+
+.imp-select-wrap { position: relative; display: block; }
+.imp-select-caret {
+    position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
+    width: 13px; height: 13px; pointer-events: none; color: var(--text-muted);
+}
+.imp-select-wrap:focus-within .imp-select-caret { color: var(--accent); }
+
+.imp-row-del {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; border-radius: 8px;
+    border: 1px solid transparent; background: none; color: var(--text-muted); cursor: pointer;
+}
+.imp-row-del:hover { background: var(--red-bg); color: var(--red); }
+.imp-row-del svg { width: 16px; height: 16px; }
+.imp-empty { text-align: center; color: var(--text-muted); padding: 28px 12px; font-size: 13px; }
+
+.imp-cell-dup {
+    color: var(--red, #8b3a3a) !important;
+}
+.imp-th-status, .imp-td-status { text-align: left; }

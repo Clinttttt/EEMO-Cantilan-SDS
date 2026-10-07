@@ -1,165 +1,372 @@
 @using System.Globalization
+@using Microsoft.AspNetCore.Components.Forms
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Services
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
 @inject IObligationsApiClient Api
-@inject IEcfCollectionsApiClient PayorsApi
-@inject IBusinessPayorsApiClient BusinessPayors
 
-@* Import space holders: paste, review, decide, import. Every row is validated, and every row's Business Payor is the office's own
-   decision: an exact name match is only ever offered as a candidate, a Payor is created only on a press, and a row without a Payor
-   stays out of the import. Nothing is linked or created from a name. *@
+@* Bulk import of space holders and event lots. It is the stallholder import's own implementation, adapted rather than imitated: the same hero,
+   upload card, review bar, editable grid and footer bar (the shared Import* components); only the columns and what a row means are this
+   page's. Every row is checked here and then by the server's typed preview. A row's holder is its own typed occupant, never a master record, made
+   from a compact action in its status cell; nothing is linked or created from a name. Occupancy basis is stated per row, never assumed. *@
 <div class="shi">
-    <label class="v3-field shi-paste">
-        <span>@(IsEvent ? "Columns: Lot, Occupant, Amount, Event date, Event (Fiesta/Araw), Closed on (optional)" : "Columns: Space, Occupant, Monthly amount, Start date, Closed on (optional)")</span>
-        <textarea class="v3-input" rows="4" @bind="Text" aria-label="Spreadsheet rows"></textarea>
-    </label>
-    <div class="shi-actions">
-        <button class="v3-btn" type="button" @onclick="Review">Review rows</button>
-        @if (Message is not null) { <span class="shi-message" role="status">@Message</span> }
-    </div>
+    <ImportHero Eyebrow="@($"{Name} · Bulk Import")" Title="@($"Import {Name} {Holders}")" Step="Step" />
 
-    @if (Rows.Count > 0)
+    @if (_result is not null)
     {
-        <div class="shi-summary" role="status" aria-label="Import summary">
-            <span class="shi-count shi-ready">@ReadyCount Ready</span>
-            <span class="shi-count shi-needs">@NeedsPayorCount Needs Payor</span>
-            <span class="shi-count shi-invalid">@InvalidCount Invalid</span>
-        </div>
-        <div class="v3-table-wrap shi-table" role="region" aria-label="Rows to import" tabindex="0">
-            <table class="v3-table">
-                <thead>
-                    <tr>
-                        <th scope="col">@(IsEvent ? "Lot" : "Space")</th>
-                        <th scope="col">Occupant</th>
-                        <th scope="col">Business Payor</th>
-                        <th scope="col" class="v3-num">@(IsEvent ? "Amount" : "Approved monthly")</th>
-                        <th scope="col">@(IsEvent ? "Event date" : "Start date")</th>
-                        <th scope="col">Closed on</th>
-                        <th scope="col">Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var row in Rows)
-                    {
-                        <tr>
-                            <td><input class="v3-input shi-cell" aria-label="@($"Space for {row.Name}")" value="@row.Subject" @onchange="e => Edit(row, r => r.Subject = e.Value?.ToString() ?? string.Empty)" /></td>
-                            <td><input class="v3-input shi-cell" aria-label="@($"Occupant of {row.Subject}")" value="@row.Name" @onchange="e => Edit(row, r => { r.Name = e.Value?.ToString() ?? string.Empty; r.PayorId = string.Empty; r.PayorName = null; r.Candidates = []; })" /></td>
-                            <td class="shi-payor">
-                                @if (row.PayorName is not null)
-                                {
-                                    <span class="v3-strong">@row.PayorName</span>
-                                    <button class="shi-link" type="button" @onclick="() => ClearPayor(row)">Change</button>
-                                }
-                                else
-                                {
-                                    <div class="shi-payor-actions">
-                                        <button class="v3-btn v3-btn-sm" type="button" disabled="@(Saving || row.Error is not null)" @onclick="() => FindAsync(row)">Find Payor</button>
-                                        <button class="v3-btn v3-btn-sm" type="button" disabled="@(Saving || string.IsNullOrWhiteSpace(row.Name))" @onclick="() => CreatePayorAsync(row)">@(row.DuplicateSeen ? "Create anyway" : "Create Payor")</button>
-                                    </div>
-                                    @foreach (var candidate in row.Candidates)
-                                    {
-                                        <button class="shi-candidate" type="button" @onclick="() => UsePayor(row, candidate)">
-                                            Use @candidate.DisplayName@(string.Equals(candidate.DisplayName, row.Name.Trim(), StringComparison.OrdinalIgnoreCase) ? " · same name" : "")
-                                        </button>
-                                    }
-                                    @if (row.Searched && row.Candidates.Count == 0) { <span class="shi-muted">No Business Payor found.</span> }
-                                    @if (row.DuplicateSeen) { <span class="shi-muted">A Payor with this name exists. Use it, or create another only if this is a different person.</span> }
-                                }
-                            </td>
-                            <td class="v3-num"><input class="v3-input shi-cell shi-num" aria-label="@($"Amount for {row.Subject}")" value="@row.Amount" @onchange="e => Edit(row, r => r.Amount = e.Value?.ToString() ?? string.Empty)" /></td>
-                            <td><input class="v3-input shi-cell" aria-label="@($"Start for {row.Subject}")" value="@row.Start" @onchange="e => Edit(row, r => r.Start = e.Value?.ToString() ?? string.Empty)" /></td>
-                            <td><input class="v3-input shi-cell" aria-label="@($"Closed on for {row.Subject}")" value="@row.ClosedText" @onchange="e => Edit(row, r => r.ClosedText = e.Value?.ToString() ?? string.Empty)" /></td>
-                            <td>
-                                @if (row.Error is not null) { <span class="shi-chip shi-invalid" title="@row.Error">Invalid</span><span class="shi-muted">@row.Error</span> }
-                                else if (row.PayorId.Length == 0) { <span class="shi-chip shi-needs">Needs Payor</span> }
-                                else { <span class="shi-chip shi-ready">Ready</span> }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-        <div class="shi-actions shi-import">
-            <button class="v3-btn v3-btn-primary" type="button" disabled="@(Saving || ReadyCount == 0)" @onclick="ImportAsync">@(Saving ? "Importing…" : $"Import ready rows ({ReadyCount})")</button>
-            @if (ReadyCount < Rows.Count) { <span class="shi-muted">The other rows stay out of the import.</span> }
-        </div>
+        var notImported = _result.NeedsReview.Count + _notImported;
+        <ImportResultCard Ok="@(_result.Imported > 0 && notImported == 0)"
+                          Errors="@(_result.NeedsReview.Select((line, i) => new ImportResultError(i + 1, string.Empty, line)).ToList())">
+            <Title>@_result.Imported @(_result.Imported == 1 ? (IsEvent ? "lot holder" : "space holder") : Holders.ToLowerInvariant()) imported</Title>
+            <Text>
+                @if (notImported > 0) { <text>@notImported need review and were not imported.</text> }
+                @if (_result.Skipped > 0) { <text> @_result.Skipped skipped.</text> }
+                @if (notImported == 0 && _result.Skipped == 0) { <text>Every row was imported.</text> }
+            </Text>
+            <ChildContent>
+                <ImportButton Kind="ghost" OnClick="ResetAll">Import another list</ImportButton>
+                <ImportButton Kind="primary" Href="@BackHref">Back to @Name</ImportButton>
+            </ChildContent>
+        </ImportResultCard>
+    }
+    else if (Rows.Count == 0)
+    {
+        <ImportUploadCard Subtitle="@($"the list of {Name} {Holders.ToLowerInvariant()}")" OnFile="OnFileChange" UploadError="@_uploadError"
+                          TemplateHref="@TemplateUri" TemplateFileName="@($"{Slug}-template.csv")" OnSample="LoadSample" OnManual="StartManual"
+                          ColumnsFor="@Name" ColumnLabels="Columns.Select(c => c.Label)">
+            <Notes>
+                @if (!IsEvent)
+                {
+                    <div class="imp-cols-note"><strong>Occupancy basis</strong> is <em>Signed lease contract</em> or <em>No contract (space only)</em>. A contract reference applies only to a signed contract; leave the space number blank to have it assigned automatically.</div>
+                }
+                else
+                {
+                    <div class="imp-cols-note">Each row names its <strong>Event</strong>, Fiesta or Araw. Leave the lot number blank to have it assigned automatically within that event.</div>
+                }
+            </Notes>
+        </ImportUploadCard>
+    }
+    else
+    {
+        <ImportReviewBar Count="Rows.Count" Subtitle="@($"{(string.IsNullOrEmpty(_fileName) ? "Entered here" : _fileName)} · {Name}")">
+            <ImportButton Kind="ghost" Class="imp-add-row" OnClick="AddRow">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                Add row
+            </ImportButton>
+            <ImportButton Kind="outline" Disabled="@Saving" OnClick="ResetAll">Discard</ImportButton>
+        </ImportReviewBar>
+
+
+        <ImportGrid TRow="Row" Columns="Columns" Rows="Rows" Label="Rows to import" GetCell="CellOf" OnChange="CellChanged" OnRemove="RemoveRow"
+                    IsReadonly="IsLocked" Placeholder="PlaceholderOf" CellTitle="TitleOf">
+            <Status Context="row">
+                @{ var (state, why) = StatusOf(row); }
+                <div class="shi-status">
+                    @if (state == SpaceHolderImportStatus.Invalid) { <span class="shi-chip-status shi-invalid" title="@why">Invalid</span><span class="shi-why">@why</span> }
+                    else if (state == SpaceHolderImportStatus.NeedsSourceHolder) { <span class="shi-chip-status shi-needs">Needs holder</span> }
+                    else { <span class="shi-chip-status shi-ready">Ready</span> }
+                </div>
+            </Status>
+        </ImportGrid>
+
+        <ImportFootBar CancelHref="@BackHref" Error="@Message" Saving="Saving" Disabled="@(ReadyCount == 0 || _previewing)" OnSave="ImportAsync"
+                       SaveLabel="@($"Import {ReadyCount} ready {(ReadyCount == 1 ? "row" : "rows")}")">
+            <span class="shi-foot-note" role="status">
+                @if (_previewing) { <text>Checking rows…</text> }
+                else if (_previewNote is not null) { <text>@_previewNote</text> }
+                else { <text>@ReadyCount ready · @InvalidCount invalid. Only ready rows are imported.</text> }
+            </span>
+        </ImportFootBar>
     }
 </div>
 
 @code {
     [Parameter] public ObligationKind Kind { get; set; }
 
-    /// <summary>Raised after an import saved something, with the one-line result for the page to show.</summary>
-    [Parameter] public EventCallback<string> OnImported { get; set; }
+    /// <summary>The operation's name as the office knows it ("Kanmanggay", "Fiesta / Araw").</summary>
+    [Parameter] public string Name { get; set; } = "Kanmanggay";
+
+    /// <summary>Where "Back to ..." and Cancel return to.</summary>
+    [Parameter] public string BackHref { get; set; } = "/menu";
 
     private bool IsEvent => Kind == ObligationKind.FiestaArawLotRental;
-    private string Text = "";
-    private string? Message;
+    private string Holders => IsEvent ? "Lot Holders" : "Space Holders";
+    private string Slug => IsEvent ? "fiesta-araw-lot-holders" : "kanmanggay-space-holders";
+    private string? Message, _uploadError, _fileName;
     private bool Saving;
+    private int _notImported;
+    private ImportSpaceHoldersResult? _result;
     private List<Row> Rows = [];
 
-    private int ReadyCount => Rows.Count(r => r.Error is null && r.PayorId.Length > 0);
-    private int NeedsPayorCount => Rows.Count(r => r.Error is null && r.PayorId.Length == 0);
-    private int InvalidCount => Rows.Count(r => r.Error is not null);
+    private int Step => _result is not null || Saving ? 3 : Rows.Count > 0 ? 2 : 1;
+    private int ReadyCount => Rows.Count(r => StatusOf(r).Status == SpaceHolderImportStatus.Ready);
+    private int InvalidCount => Rows.Count(r => StatusOf(r).Status == SpaceHolderImportStatus.Invalid);
+
+    private const string Signed = "Signed lease contract", SpaceOnly = "No contract (space only)";
+
+    // The same register for both: a space's columns, or a lot's. Keys are this page's; the grid only shows and reports them.
+    private static readonly ImportColumn SubjectCol = new("subject", "Space No.", MinWidth: 110, Placeholder: "Auto");
+    private static readonly ImportColumn LotCol = new("subject", "Lot No.", MinWidth: 110, Placeholder: "Auto");
+    private static readonly ImportColumn OccupantCol = new("name", "Actual Occupant", MinWidth: 200, Placeholder: "Full name");
+    private static readonly ImportColumn BasisCol = new("basis", "Occupancy basis", "select", [Signed, SpaceOnly], MinWidth: 200);
+    private static readonly ImportColumn ContractCol = new("contractRef", "Contract reference", MinWidth: 160, Placeholder: "Per contract");
+    private static readonly ImportColumn EffectivityCol = new("start", "Contract Effectivity (month)", "month", MinWidth: 170);
+    private static readonly ImportColumn MonthlyCol = new("amount", "Approved monthly rental", "number", MinWidth: 160, Placeholder: "0.00");
+    private static readonly ImportColumn EventCol = new("event", "Event", "select", ["Fiesta", "Araw"], MinWidth: 130);
+    private static readonly ImportColumn EventDateCol = new("start", "Event date", "date", MinWidth: 150);
+    private static readonly ImportColumn LotAmountCol = new("amount", "Approved lot amount", "number", MinWidth: 160, Placeholder: "0.00");
+    private static readonly ImportColumn ClosedCol = new("closed", "Closed on", "date", MinWidth: 150);
+
+    private IReadOnlyList<ImportColumn> Columns => IsEvent
+        ? [LotCol, OccupantCol, EventCol, EventDateCol, LotAmountCol, ClosedCol]
+        : [SubjectCol, OccupantCol, BasisCol, ContractCol, EffectivityCol, MonthlyCol, ClosedCol];
+
+    // HEADER ONLY: a template carries column names and nothing the office could mistake for data the platform put there.
+    private string TemplateUri => "data:text/csv;charset=utf-8," + Uri.EscapeDataString(string.Join(",", Columns.Select(c => c.Label)) + "\r\n");
 
     private sealed class Row
     {
-        public string Subject = "", Name = "", Amount = "", Start = "", ClosedText = "", EventName = "", PayorId = "";
-        public string? PayorName;
+        public string Subject = "", Name = "", Amount = "", Start = "", ClosedText = "", EventName = "", ContractRef = "", BasisText = "";
         public decimal Approved;
         public DateOnly StartDate;
         public DateOnly? Closed;
         public LotRentalEvent? Event;
         public string? Error;
-        public bool Searched, DuplicateSeen;
-        public IReadOnlyList<CollectionPayorDto> Candidates = [];
+        public SpaceHolderImportRowResult? Preview;
+
+        public OccupancyArrangement? Basis => BasisText switch { Signed => OccupancyArrangement.SignedContract, SpaceOnly => OccupancyArrangement.SpaceOnly, _ => null };
     }
 
-    private void Review()
+    // ── The grid's view of a row ───────────────────────────────────────────────────────────────────────────────────────
+    private string CellOf(Row row, ImportColumn col) => col.Label switch
     {
-        Rows = [];
-        Message = null;
-        foreach (var line in Text.Replace("\r", "").Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        "Space No." or "Lot No." => row.Subject,
+        "Actual Occupant" => row.Name,
+        "Occupancy basis" => row.BasisText,
+        "Contract reference" => row.ContractRef,
+        "Event" => row.EventName,
+        "Closed on" => row.ClosedText,
+        "Approved monthly rental" or "Approved lot amount" => row.Amount,
+        _ => row.Start
+    };
+
+    private void CellChanged(ImportCellChange<Row> change)
+    {
+        var row = change.Row;
+        var value = change.Value ?? string.Empty;
+        switch (change.Column.Label)
         {
-            var cells = line.Split('\t');
-            if (cells[0].Trim().Equals("Space", StringComparison.OrdinalIgnoreCase) || cells[0].Trim().Equals("Lot", StringComparison.OrdinalIgnoreCase)) continue;
-            var row = new Row
-            {
-                Subject = cells[0].Trim(), Name = cells.ElementAtOrDefault(1)?.Trim() ?? "",
-                Amount = cells.ElementAtOrDefault(2)?.Trim() ?? "", Start = cells.ElementAtOrDefault(3)?.Trim() ?? "",
-                EventName = IsEvent ? cells.ElementAtOrDefault(4)?.Trim() ?? "" : "",
-                ClosedText = cells.ElementAtOrDefault(IsEvent ? 5 : 4)?.Trim() ?? ""
-            };
-            Validate(row);
-            Rows.Add(row);
+            case "Space No." or "Lot No.": row.Subject = value; break;
+            case "Actual Occupant": row.Name = value; break;
+            case "Occupancy basis":
+                row.BasisText = value;
+                if (row.Basis != OccupancyArrangement.SignedContract) row.ContractRef = string.Empty;                // a space let without a contract carries no contract data
+                break;
+            case "Contract reference": row.ContractRef = value; break;
+            case "Event": row.EventName = value; break;
+            case "Closed on": row.ClosedText = value; break;
+            case "Approved monthly rental" or "Approved lot amount": row.Amount = value; break;
+            default: row.Start = value; break;
         }
-        if (Rows.Count is 0 or > 200) { Rows = []; Message = "Paste between 1 and 200 rows."; }
-    }
-
-    private void Edit(Row row, Action<Row> change)
-    {
-        change(row);
+        row.Preview = null;
         Validate(row);
+        SchedulePreview();
     }
 
+    // A contract reference on a space let without a contract is shown settled, not typeable.
+    private bool IsLocked(Row row, ImportColumn col) => !IsEvent && col.Label == "Contract reference" && row.Basis != OccupancyArrangement.SignedContract;
+
+    private static string? PlaceholderOf(Row row, ImportColumn col) =>
+        col.Label is "Space No." or "Lot No."
+            ? row.Preview?.Facts is { NumberOrigin: SpaceNumberOrigin.ServerSuggested } facts && !string.IsNullOrWhiteSpace(facts.Account.SubjectLabel) ? $"Auto · {facts.Account.SubjectLabel}" : "Auto"
+            : col.Label == "Contract reference" && row.Basis != OccupancyArrangement.SignedContract ? "—" : null;
+
+    private static string? TitleOf(Row row, ImportColumn col) => col.Label is "Space No." or "Lot No."
+        ? "Leave blank to have the server assign the next number." : null;
+
+    // A row's state is the server's word once it has been checked there; until then (or if the check is unavailable) it is what this page can
+    // tell: a row that fails its own checks is Invalid.
+    private static (SpaceHolderImportStatus Status, string? Why) StatusOf(Row row) =>
+        row.Error is not null ? (SpaceHolderImportStatus.Invalid, row.Error)
+        : row.Preview is { } line ? (line.Status, line.Status is SpaceHolderImportStatus.Ready ? null : line.Message)
+        : (SpaceHolderImportStatus.Ready, null);
+
+    // ── Getting rows in ────────────────────────────────────────────────────────────────────────────────────────────────
+    private void StartManual() { _uploadError = null; _fileName = null; Rows = [NewRow()]; SchedulePreview(); }
+    private void AddRow() { Rows.Add(NewRow()); }
+    private Row NewRow() { var row = new Row(); Validate(row); return row; }
+
+    // Sample rows exist to show what a filled register looks like. They are never saved except through the normal import.
+    private void LoadSample()
+    {
+        _uploadError = null;
+        _fileName = null;
+        var month = PhilippineTime.Today.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+        var today = PhilippineTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        Rows = IsEvent
+            ? [Sample("1", "Maria Santos", amount: "2500", start: today, evt: "Fiesta"), Sample("2", "Jose Ramirez", amount: "3000", start: today, evt: "Fiesta"), Sample("1", "Ana Lopez", amount: "2500", start: today, evt: "Araw")]
+            : [Sample("1", "Maria Santos", amount: "1500", start: month, basis: Signed, contract: "LC-2026-001"), Sample("2", "Jose Ramirez", amount: "1200", start: month, basis: SpaceOnly), Sample("", "Ana Lopez", amount: "1800", start: month, basis: SpaceOnly)];
+        foreach (var row in Rows) Validate(row);
+        SchedulePreview();
+    }
+
+    private static Row Sample(string subject, string name, string amount, string start, string basis = "", string contract = "", string evt = "") =>
+        new() { Subject = subject, Name = name, Amount = amount, Start = start, BasisText = basis, ContractRef = contract, EventName = evt };
+
+    private async Task OnFileChange(InputFileChangeEventArgs e)
+    {
+        _uploadError = null;
+        var file = e.File;
+        if (file is null) return;
+        try
+        {
+            List<string[]> raw;
+            if (file.Name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+            {
+                using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+                using var buffer = new MemoryStream();
+                await stream.CopyToAsync(buffer);
+                buffer.Position = 0;
+                raw = SpreadsheetReader.ReadXlsx(buffer);
+            }
+            else if (file.Name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))
+            {
+                using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+                using var reader = new StreamReader(stream);
+                raw = SpreadsheetReader.ReadCsv(await reader.ReadToEndAsync());
+            }
+            else
+            {
+                _uploadError = file.Name.EndsWith(".xls", StringComparison.OrdinalIgnoreCase)
+                    ? "The old .xls format isn't supported. Save it as .xlsx or .csv and upload again."
+                    : "Unsupported file type. Upload a .csv or .xlsx file.";
+                return;
+            }
+            if (!TryLoad(raw, file.Name)) _uploadError = "No rows were found in that file, or it has more than 200. Check the columns shown below and try again.";
+        }
+        catch (Exception)
+        {
+            _uploadError = "Couldn't read that file. Make sure it's a valid .csv or .xlsx export and try again.";
+        }
+    }
+
+    // Reads rows by the file's own header when it has one we recognise, and by the documented column order when it has not.
+    private bool TryLoad(List<string[]> raw, string? fileName)
+    {
+        var map = ColumnOrder;
+        var rows = new List<Row>();
+        foreach (var cells in raw)
+        {
+            if (cells.Length == 0 || cells.All(string.IsNullOrWhiteSpace)) continue;
+            if (HeaderMapFor(cells) is { } header) { map = header; continue; }
+            var row = new Row();
+            for (var i = 0; i < cells.Length && i < map.Length; i++) Put(row, map[i], (cells[i] ?? string.Empty).Trim());
+            if (string.IsNullOrWhiteSpace(row.Subject) && string.IsNullOrWhiteSpace(row.Name)) continue;
+            if (!string.IsNullOrWhiteSpace(row.BasisText)) row.BasisText = CanonicalBasis(row.BasisText);
+            else if (!string.IsNullOrWhiteSpace(row.ContractRef)) row.BasisText = Signed;
+            Validate(row);
+            rows.Add(row);
+        }
+        if (rows.Count is 0 or > 200) return false;
+        Rows = rows;
+        _fileName = fileName;
+        _uploadError = null;
+        Message = null;
+        SchedulePreview();
+        return true;
+    }
+
+    private enum Col { None, Subject, Name, Amount, Start, Closed, Event, Basis, Contract }
+
+    private Col[] ColumnOrder => IsEvent
+        ? [Col.Subject, Col.Name, Col.Event, Col.Start, Col.Amount, Col.Closed]
+        : [Col.Subject, Col.Name, Col.Basis, Col.Contract, Col.Start, Col.Amount, Col.Closed];
+
+    private static string Norm(string s) => new((s ?? string.Empty).ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+
+    private static Col ColFor(string header) => Norm(header) switch
+    {
+        "space" or "spaceno" or "spacenumber" or "lot" or "lotno" or "stallspaceno" => Col.Subject,
+        "occupant" or "actualoccupant" or "name" or "nameofoccupant" or "holder" => Col.Name,
+        "monthly" or "monthlyrental" or "approvedmonthly" or "approvedmonthlyrental" or "approvedamount" or "approvedlotamount" or "amount" or "rental" or "actualmorental" => Col.Amount,
+        "start" or "startdate" or "startmonth" or "effectivity" or "effectivitydate" or "contracteffectivitymonth" or "startcontracteffectivity" or "eventdate" or "occupyingsince" => Col.Start,
+        "closedon" or "closed" or "closeddate" or "enddate" => Col.Closed,
+        "event" or "eventfiestaaraw" => Col.Event,
+        "occupancybasis" or "basis" or "basisofoccupancy" or "arrangement" => Col.Basis,
+        "contractreference" or "contractref" or "contractno" or "contract" or "nameoncontract" => Col.Contract,
+        _ => Col.None
+    };
+
+    // A header row is recognised when at least three of its cells name columns; its order then replaces the documented one.
+    private static Col[]? HeaderMapFor(string[] cells)
+    {
+        var map = cells.Select(ColFor).ToArray();
+        return map.Count(c => c != Col.None) >= 3 ? map : null;
+    }
+
+    private void Put(Row row, Col column, string value)
+    {
+        switch (column)
+        {
+            case Col.Subject: row.Subject = value; break;
+            case Col.Name: row.Name = StripLeadingIndex(value); break;
+            case Col.Amount: row.Amount = SheetNumber.Normalize(value); break;
+            case Col.Start: row.Start = NormalizeStart(value); break;
+            case Col.Closed: row.ClosedText = NormalizeDate(value); break;
+            case Col.Event: row.EventName = value; break;
+            case Col.Basis: row.BasisText = value; break;
+            case Col.Contract: row.ContractRef = value; break;
+        }
+    }
+
+    private static string StripLeadingIndex(string value) => System.Text.RegularExpressions.Regex.Replace(value, @"^\s*\d+\s*[\.\)]\s*", string.Empty);
+
+    // An Excel date arrives as a serial number; a text date is read as written.
+    private static string NormalizeDate(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+        if (double.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out var serial) && serial > 59 && serial < 100000)
+            return DateTime.FromOADate(serial).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        if (raw.Length == 7 && raw[4] == '-') return raw + "-01";
+        return DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : raw;
+    }
+
+    // A space's start is a month (the register shows yyyy-MM); an event's is the event date.
+    private string NormalizeStart(string raw)
+    {
+        var date = NormalizeDate(raw);
+        return !IsEvent && date.Length == 10 && date[4] == '-' ? date[..7] : date;
+    }
+
+    // The basis is read only from words that say it. Anything else is left blank for the office to choose, never guessed.
+    private static string CanonicalBasis(string text)
+    {
+        var n = Norm(text);
+        if (n.Contains("nocontract") || n.Contains("spaceonly") || n == "space") return SpaceOnly;
+        if (n.Contains("signed") || n.Contains("lease") || n.Contains("contract")) return Signed;
+        return string.Empty;
+    }
+
+    // ── Validation ─────────────────────────────────────────────────────────────────────────────────────────────────────
     private void Validate(Row row)
     {
         row.Error = null;
-        // The same number normalizer used by the existing stallholder spreadsheet import.
         if (!decimal.TryParse(SheetNumber.Normalize(row.Amount), NumberStyles.Number, CultureInfo.InvariantCulture, out row.Approved) || row.Approved <= 0m)
             row.Error = "Check approved amount";
         var date = row.Start.Length == 7 ? row.Start + "-01" : row.Start;
         if (!DateOnly.TryParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out row.StartDate))
-            row.Error = "Use yyyy-MM-dd or yyyy-MM";
-        if (string.IsNullOrWhiteSpace(row.Subject) || string.IsNullOrWhiteSpace(row.Name))
-            row.Error = "Space and occupant are required";
+            row.Error = IsEvent ? "Use yyyy-MM-dd" : "Choose the effectivity month";
         if (IsEvent)
         {
             if (Enum.TryParse<LotRentalEvent>(row.EventName, true, out var ev) && Enum.IsDefined(ev)) row.Event = ev;
-            else row.Error = "Choose Fiesta or Araw";
+            else { row.Event = null; row.Error = "Choose Fiesta or Araw"; }
         }
+        else if (row.Basis is null) row.Error = "Choose an occupancy basis";
+        else if (row.Basis == OccupancyArrangement.SpaceOnly && !string.IsNullOrWhiteSpace(row.ContractRef)) row.Error = "No contract has no contract reference";
+        // The number may be blank: the server numbers it. Only the occupant is required here.
+        if (string.IsNullOrWhiteSpace(row.Name)) row.Error = "Occupant is required";
         row.Closed = null;
         if (!string.IsNullOrWhiteSpace(row.ClosedText))
         {
@@ -168,68 +375,78 @@
         }
     }
 
-    private async Task FindAsync(Row row)
+    private void RemoveRow(int index)
     {
-        var result = await PayorsApi.SearchCollectionPayorsAsync(row.Name.Trim());
-        row.Candidates = result.IsSuccess ? result.Value ?? [] : [];
-        row.Searched = true;
+        if (index < 0 || index >= Rows.Count) return;
+        Rows.RemoveAt(index);
+        if (Rows.Count == 0) { _fileName = null; Message = null; _previewNote = null; }
+        else SchedulePreview();
     }
 
-    // Identity is the office's explicit choice: a candidate is chosen by pressing Use, never because its name matched.
-    private static void UsePayor(Row row, CollectionPayorDto candidate)
+    private void ResetAll() { Rows = []; _result = null; Message = null; _uploadError = null; _fileName = null; _notImported = 0; _previewNote = null; }
+
+    // ── The server's typed preview ─────────────────────────────────────────────────────────────────────────────────────
+    private bool _previewing;
+    private string? _previewNote;
+    private CancellationTokenSource? _previewDelay;
+
+    private ImportSpaceHolderRow BuildRow(Row r) => new(new(Kind, Guid.Empty, null, r.Subject.Trim(),
+        r.Event, IsEvent ? r.StartDate : null, r.StartDate, r.Approved,
+        IsEvent ? null : r.Basis, IsEvent || r.Basis != OccupancyArrangement.SignedContract || string.IsNullOrWhiteSpace(r.ContractRef) ? null : r.ContractRef.Trim(), r.Name.Trim()), r.Closed);
+
+    private void SchedulePreview()
     {
-        row.PayorId = candidate.PayorId.ToString();
-        row.PayorName = candidate.DisplayName;
-        row.Candidates = [];
+        _previewDelay?.Cancel();
+        _previewDelay = new CancellationTokenSource();
+        _ = DebouncedPreviewAsync(_previewDelay.Token);
     }
 
-    private static void ClearPayor(Row row)
+    private async Task DebouncedPreviewAsync(CancellationToken token)
     {
-        row.PayorId = string.Empty;
-        row.PayorName = null;
+        try { await Task.Delay(400, token); } catch (OperationCanceledException) { return; }
+        await InvokeAsync(PreviewAsync);
     }
 
-    private async Task CreatePayorAsync(Row row)
+    // Asks the server to check every well-formed row without saving anything: it answers Ready / Needs Payor / Invalid with a stable code,
+    // finds duplicate spaces, and suggests the next number in this operation. Nothing is created or reserved by asking.
+    private async Task PreviewAsync()
     {
-        if (Saving || string.IsNullOrWhiteSpace(row.Name)) return;
-        Saving = true;
+        foreach (var row in Rows) row.Preview = null;
+        var checkable = Rows.Where(r => r.Error is null).ToList();
+        if (checkable.Count == 0 || checkable.Count > 200) { _previewNote = null; StateHasChanged(); return; }
+        _previewing = true;
+        StateHasChanged();
         try
         {
-            var result = await BusinessPayors.CreatePayorAsync(new CreatePayorRequest(row.Name.Trim(), BusinessPayorKind.Person, row.DuplicateSeen));
-            if (result.IsSuccess && result.Value is { } created)
+            var result = await Api.PreviewSpaceHoldersAsync(new(checkable.Select(BuildRow).ToList()));
+            if (result.IsSuccess && result.Value is { } preview && preview.Rows.Count == checkable.Count)
             {
-                row.PayorId = created.PayorId.ToString();
-                row.PayorName = created.DisplayName;
-                row.Candidates = [];
+                var ordered = preview.Rows.OrderBy(x => x.RowNumber).ToList();
+                for (var i = 0; i < checkable.Count; i++) checkable[i].Preview = ordered[i];
+                _previewNote = null;
             }
-            else if (result.Error?.StartsWith("DUPLICATE_PAYOR", StringComparison.Ordinal) == true)
-            {
-                row.DuplicateSeen = true;
-                await FindAsync(row);
-            }
-            else Message = result.Error ?? "The Business Payor could not be created.";
+            else _previewNote = "The server check is unavailable. Rows are checked here only; the server checks them again when you import.";
         }
-        catch { Message = "The Business Payor could not be created."; }
-        finally { Saving = false; }
+        catch { _previewNote = "The server check is unavailable. Rows are checked here only; the server checks them again when you import."; }
+        finally { _previewing = false; StateHasChanged(); }
     }
 
+    // ── Saving ─────────────────────────────────────────────────────────────────────────────────────────────────────────
     private async Task ImportAsync()
     {
-        var ready = Rows.Where(r => r.Error is null && Guid.TryParse(r.PayorId, out _)).ToList();
-        if (Saving || ready.Count == 0) return;
+        // Only rows the office's own checks and the server's preview call Ready are sent. A blank number stays blank, so the server numbers it
+        // again under its own lock when it saves; the suggestion shown in the grid is only a hint.
+        var ready = Rows.Where(r => StatusOf(r).Status == SpaceHolderImportStatus.Ready).ToList();
+        if (Saving || _previewing || ready.Count == 0) return;
         Saving = true;
+        Message = null;
         try
         {
-            var requests = ready.Select(r => new ImportSpaceHolderRow(new(Kind, Guid.Parse(r.PayorId), null, r.Subject.Trim(),
-                r.Event, IsEvent ? r.StartDate : null, r.StartDate, r.Approved), r.Closed)).ToList();
-            var result = await Api.ImportSpaceHoldersAsync(new(requests));
+            var result = await Api.ImportSpaceHoldersAsync(new(ready.Select(BuildRow).ToList()));
             if (result.IsSuccess && result.Value is { } summary)
             {
-                var needsReview = summary.NeedsReview.Count + Rows.Count - ready.Count;
-                var message = $"Imported {summary.Imported} · Needs review {needsReview}";
-                if (summary.Skipped > 0) message += $" · Skipped {summary.Skipped}";
-                if (summary.Imported > 0) { Rows = []; Text = ""; await OnImported.InvokeAsync(message); }
-                else Message = message;
+                _notImported = Rows.Count - ready.Count;
+                _result = summary;
             }
             else Message = result.Error ?? "The import could not be completed.";
         }

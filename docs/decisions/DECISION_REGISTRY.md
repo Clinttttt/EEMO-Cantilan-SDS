@@ -2,7 +2,7 @@
 
 **Status:** Active interface / business decision registry
 **Historical baseline:** `22f45239adf998d22c33e402aa4c87e2465ac106`
-**Current implementation status:** [CURRENT_RELEASE_STATE.md](../planning/CURRENT_RELEASE_STATE.md) plus current Git/code/tests
+**Current implementation status:** [CURRENT_RELEASE_STATE.md](../planning/CURRENT_RELEASE_STATE.md) plus current Git/code/tests. The accepted local integration checkpoint as of 2026-10-07 is `integration/report-governance-ui` at `6d3362f9`; deployed production remains the separately documented 2026-10-05 release until an explicit rollout occurs.
 **Architecture:** [INFORMATION_ARCHITECTURE.md](../interface/INFORMATION_ARCHITECTURE.md)
 **Migration:** [MIGRATION_PLAN.md](../interface/MIGRATION_PLAN.md)
 
@@ -57,9 +57,9 @@ Two cross-document distinctions are explicit at this baseline:
 
 - **ID:** IA-002
 - **SUBJECT:** Canonical Web Office workspaces
-- **STATUS:** CONFIRMED
-- **TYPE:** APPROVED ARCHITECTURE
-- **DECISION / QUESTION:** Released Web workspaces are Overview, Operations, Collections, Payors & Accounts, Monitoring, Reports, and Administration. Accountable Forms has reserved future placement and remains hidden.
+- **STATUS:** **SUPERSEDED IN PART by IA-068 / ADR-007 and later Accountable Forms release state.**
+- **TYPE:** APPROVED ARCHITECTURE (historical baseline with current update)
+- **DECISION / QUESTION:** The original workspace set used Overview, Operations, Collections, Payors & Accounts, Monitoring, Reports, and Administration with Accountable Forms reserved. **Current target:** Overview, Operations, Collections, Spaces & Occupants, Monitoring, Accountable Forms, Reports, and Administration. Source-specific registries remain under their owning operations; there is no replacement Business Payor workspace.
 - **RATIONALE:** The model separates operational context, money received, business accounts, attention queues, read-only reporting, and administration.
 - **EVIDENCE / SOURCE:** Current interface architecture ruling; [REVENUE_ARCHITECTURE.md](../business/REVENUE_ARCHITECTURE.md), section 10, with the Dashboard-to-Overview label refinement recorded in IA-003.
 - **IMPACT:** New global navigation and canonical routes must use these ownership boundaries.
@@ -95,7 +95,7 @@ Two cross-document distinctions are explicit at this baseline:
 - **SUBJECT:** Shared facility shell versus shared business workflow
 - **STATUS:** CONFIRMED
 - **TYPE:** APPROVED ARCHITECTURE
-- **DECISION / QUESTION:** Share context, headers, switching, structural sections, and report entry points. Keep NPM, monthly rental, TPM, TRM, SLH, utilities, and custom-facility business workflows in their owning domains.
+- **DECISION / QUESTION:** Share context, headers, switching, structural sections, and report entry points. Keep NPM, monthly rental, TPM, SLH, utilities, custom facilities and legacy TRM evidence/workflows in their owning domains. IA-067 adds separate source-owned target workflows for Income From Terminal and Transportation/Parking; do not merge them merely because historical TRM existed.
 - **RATIONALE:** Similar placement does not make billing, activity, or collection semantics interchangeable.
 - **EVIDENCE / SOURCE:** [REVENUE_ARCHITECTURE.md](../business/REVENUE_ARCHITECTURE.md), sections 3, 4, and 7; [ARCHITECTURE_RULES.md](../architecture/ARCHITECTURE_RULES.md), money rules.
 - **IMPACT:** `FacilityShell` may compose specialized work but may not calculate obligations or issue generic commands.
@@ -116,10 +116,10 @@ Two cross-document distinctions are explicit at this baseline:
 ### IA-007 — Administrator Accounts namespace migration
 
 - **ID:** IA-007
-- **SUBJECT:** Current `/accounts` route and future business-account namespace
-- **STATUS:** CONFIRMED
+- **SUBJECT:** Administrator/login account namespace
+- **STATUS:** **CONFIRMED for admin-account separation; future Business Payor/account-namespace reservation superseded by IA-068 / ADR-007.**
 - **TYPE:** APPROVED ARCHITECTURE
-- **DECISION / QUESTION:** Move administrator/collector login-account management to Administration > People & Access before using `/accounts` for payor/occupancy financial relationships.
+- **DECISION / QUESTION:** Administrator/collector login-account management belongs to Administration > People & Access. Do **not** reserve or repurpose `/accounts` for a generic Business Payor workspace; source-owned spaces/occupancies/registries keep their own routes.
 - **RATIONALE:** Login accounts and business accounts are different concepts and require different role boundaries.
 - **EVIDENCE / SOURCE:** Current `Menus/Accounts.razor`; target account architecture.
 - **IMPACT:** `/admin/access/administrators` is introduced first; current `/accounts` remains an alias during transition.
@@ -128,10 +128,10 @@ Two cross-document distinctions are explicit at this baseline:
 ### IA-008 — Payors & Accounts workspace terminology
 
 - **ID:** IA-008
-- **SUBJECT:** Canonical business-account workspace label
-- **STATUS:** CONFIRMED
-- **TYPE:** APPROVED ARCHITECTURE
-- **DECISION / QUESTION:** Use `Payors & Accounts` for the target workspace. Account means the interface view of one occupancy/term and its financial relationship; it is not a new backend aggregate requirement.
+- **SUBJECT:** Historical canonical business-account workspace label
+- **STATUS:** **SUPERSEDED by IA-068 / ADR-007 on 2026-10-06.**
+- **TYPE:** APPROVED ARCHITECTURE (historical)
+- **DECISION / QUESTION:** The earlier target used `Payors & Accounts`. The current target retires that workspace: permanent spaces use **Spaces & Occupants**, Fish/Meat uses its own vendor registry, and other identities stay with their source operation. Unified New Collection performs typed cross-source discovery without a Business Payor master.
 - **RATIONALE:** The label supports browse-by-person and browse-by-financial-relationship tasks while retaining occupancy context.
 - **EVIDENCE / SOURCE:** [REVENUE_ARCHITECTURE.md](../business/REVENUE_ARCHITECTURE.md), section 10; target account model.
 - **IMPACT:** Page labels must continue to identify Space/Stall and Occupancy/Term rather than flattening them into Account.
@@ -143,7 +143,7 @@ Two cross-document distinctions are explicit at this baseline:
 - **SUBJECT:** Space, occupancy, payor, and account relationship
 - **STATUS:** CONFIRMED
 - **TYPE:** APPROVED ARCHITECTURE
-- **DECISION / QUESTION:** Space/Stall, Occupancy/Term, Payor, and Account remain distinct. Occupancy/Term identifies the period that owns liability; current and earlier terms remain separate.
+- **DECISION / QUESTION:** Space/Stall, Occupancy/Term, source-owned identity, payer snapshot, and login Account remain distinct. Occupancy/Term identifies the period that owns liability; current and earlier terms remain separate. A collection payer snapshot is not enough to infer or merge a source identity (IA-068 / ADR-007).
 - **RATIONALE:** A stall outlives its holders, and historical liability cannot be inferred from the current occupant or rate.
 - **EVIDENCE / SOURCE:** [ARCHITECTURE_RULES.md](../architecture/ARCHITECTURE_RULES.md), money rules; `StallOccupancy.AnsweringForMonth`; current Stall Profile and closed-account behavior.
 - **IMPACT:** Account detail and reporting must identify term/occupancy scope for balances and history.
@@ -392,14 +392,14 @@ Two cross-document distinctions are explicit at this baseline:
 ### IA-030 — Transportation classifications and rates
 
 - **ID:** IA-030
-- **SUBJECT:** Future transport/parking configuration
-- **STATUS:** CONFIRMED
-- **TYPE:** APPROVED BUSINESS RULE
-- **DECISION / QUESTION:** Use the documented Ordinance No. 12-2021 vehicle-class schedule as the current Cantilan basis for V2 transport/parking planning: Public Utility Buses ₱30, Public Utility Baby Buses ₱30, Jeepneys ₱20, Vans ₱20, Multicabs ₱10, and Tricycles ₱5, with route/service context where applicable. Transportation/Parking uses Cash Ticket. Future configuration remains effective-dated and prospective.
-- **RATIONALE:** The office reference and latest project ruling confirm that the schedule is the working basis; the remaining design problem is implementation, not rate discovery. Historical TRM trips do not reliably encode vehicle class and must not be retroactively reclassified or repriced.
-- **EVIDENCE / SOURCE:** Ordinance No. 12-2021 office reference; direct current project/business ruling consolidated in [EEMO_OPERATIONAL_RULEBOOK.md](../business/EEMO_OPERATIONAL_RULEBOOK.md), section 10; [REVENUE_ARCHITECTURE.md](../business/REVENUE_ARCHITECTURE.md).
-- **IMPACT:** Future setup belongs under Administration. Historical `TrmTrip.Fee` remains financial truth; new effective rates apply only to future applicable collections. The old driver/trip-heavy UI must not obscure that the office's primary concern is CT-based transport/parking collection.
-- **REVISIT CONDITION:** Revisit only if EEMO supplies a superseding ordinance/schedule or explicitly changes the vehicle-class basis.
+- **SUBJECT:** Historical placement of the vehicle-class schedule
+- **STATUS:** **SUPERSEDED IN PART by IA-067 on 2026-10-06.**
+- **TYPE:** APPROVED BUSINESS RULE (historical placement; schedule evidence retained)
+- **DECISION / QUESTION:** The documented Ordinance No. 12-2021 vehicle-class schedule remains valid evidence for the supported vehicle classes/rates, but **IA-067 moves that class/rate model prospectively to Income From Terminal rather than Transportation/Parking**. Transportation/Parking remains Cash Ticket but is direct amount with no required class/rate basis. Historical records are not reclassified.
+- **RATIONALE:** The schedule still provides vehicle-class/rate evidence, but the later office clarification corrected which operation owns it. Historical TRM/Transportation rows do not reliably support retroactive movement into Terminal and must not be reclassified or repriced.
+- **EVIDENCE / SOURCE:** Ordinance No. 12-2021 office reference; [2026-10-06 MEEDO office clarification](../evidence/2026-10-06_meedo_office_terminal_fish_vendor_monthly_income_clarification.md); [EEMO_OPERATIONAL_RULEBOOK.md](../business/EEMO_OPERATIONAL_RULEBOOK.md).
+- **IMPACT:** Future vehicle-class setup belongs to Terminal configuration. Historical `TrmTrip.Fee` / Transportation collections remain financial truth in their recorded source/classification; Transportation/Parking target capture is direct amount.
+- **REVISIT CONDITION:** Revisit if MEEDO supplies a superseding vehicle schedule or changes the Terminal section/class mapping.
 
 ### IA-031 — AccountableDocument production authority
 
@@ -477,9 +477,9 @@ Two cross-document distinctions are explicit at this baseline:
 
 - **ID:** IA-037
 - **SUBJECT:** Global Web sidebar composition and V2 visual baseline
-- **STATUS:** CONFIRMED
-- **TYPE:** APPROVED UX DECISION
-- **DECISION / QUESTION:** The global sidebar is a curated set of real, high-frequency destinations rather than a literal rendering of every V2 capability domain. Preserve the proven production sidebar visual treatment by default. The current approved destinations are Overview, Operations, Collection Activity, Online Payments, Payors & Accounts, Monitoring, Reports, Collectors, Audit Trail, and Settings; Collectors/Audit retain current Head-only authority.
+- **STATUS:** **SUPERSEDED IN PART:** V3 presentation supersedes the old visual-preservation clause; IA-068/ADR-007 supersede the Payors & Accounts destination.
+- **TYPE:** APPROVED UX DECISION (curated-sidebar principle retained)
+- **DECISION / QUESTION:** The global sidebar remains a curated set of real, high-frequency destinations rather than a literal rendering of every capability domain. Current target navigation uses Overview, Operations, Collection Activity, Online Payments, Spaces & Occupants, Monitoring, Accountable Forms, Reports, Collectors, Audit Trail, and Settings where authorized. Source-specific registries such as Fish/Meat remain contextual under Operations.
 - **RATIONALE:** Capability ownership and global navigation answer different questions. A compact real-destination sidebar keeps daily office work fast while deeper V2 subdivisions remain contextual inside their owning workspace. V2 is not a visual-reset project.
 - **EVIDENCE / SOURCE:** Current approved V2 task ruling; current production sidebar/code; [STALLTRACK_V2_MASTER_SPECIFICATION.md](../v2/STALLTRACK_V2_MASTER_SPECIFICATION.md), sections 3 and 8; [DESIGN_SYSTEM.md](../interface/DESIGN_SYSTEM.md), production UI preservation rule.
 - **IMPACT:** Individual facilities, Collection Manager, Follow-up History, and Export Data are not required permanent global entries. Existing routes remain compatible. A navigation-content change does not authorize page-body redesign.
@@ -488,10 +488,10 @@ Two cross-document distinctions are explicit at this baseline:
 ### IA-038 — Business Payor identity independent of authentication
 
 - **ID:** IA-038
-- **SUBJECT:** Tenant-owned business identity for approved operational relationships
-- **STATUS:** CONFIRMED
-- **TYPE:** APPROVED ARCHITECTURE
-- **DECISION / QUESTION:** Adopt a small, stable business Payor independent of authentication, governed by the twelve constraints in [ADR-001](ADR_001_BUSINESS_PAYOR_IDENTITY.md). `PayorUser` remains optional authentication/access identity; authoritative source relationships determine eligible obligations; posted payer evidence is frozen.
+- **SUBJECT:** Historical tenant-owned Business Payor target
+- **STATUS:** **SUPERSEDED AS TARGET IDENTITY ARCHITECTURE by IA-068 / ADR-007 on 2026-10-06.**
+- **TYPE:** APPROVED ARCHITECTURE (historical; safety constraints retained)
+- **DECISION / QUESTION:** The earlier design introduced a small stable Business Payor independent of authentication. The current target uses **source-owned identity** instead. `PayorUser` remains authentication/access identity; source relationships determine eligibility; posted payer evidence remains frozen; and name/text similarity still never authorizes identity merging.
 - **RATIONALE:** Office obligations must not depend on portal registration, and textual similarity cannot establish financial identity. Payor identifies who, without introducing assessment, balance, receivable, or settlement authority.
 - **EVIDENCE / SOURCE:** Clint's explicit acceptance of MASTER Grill Me Q41 on 2026-09-26, including all twelve constraints, recorded in [ADR-001](ADR_001_BUSINESS_PAYOR_IDENTITY.md). This is a StallTrack engineering/domain decision, not an additional EEMO accounting policy.
 - **IMPACT:** Approved target semantics only. Preserve permitted anonymous/one-off payer contexts, tenant isolation, historical evidence, and unresolved legacy identity. MASTER owns sequential implementation; N/O/P/Q remain paused candidate workstreams. No partial candidate work or financial cutover is approved by this decision.
@@ -610,7 +610,7 @@ Two cross-document distinctions are explicit at this baseline:
 - **SUBJECT:** Utility operation scope, current ECF/WCF basis, and latest Transfer Large Cattle office direction
 - **STATUS:** CONFIRMED
 - **TYPE:** BUSINESS + TARGET ARCHITECTURE CLARIFICATION
-- **DECISION / QUESTION:** ECF and WCF are broader **EEMO Utility Operations**, not globally owned by the NPM facility. An NPM stall may be one service subject/context, but NPM must not be the architectural parent of every utility assessment. Current Head direction is **ECF = OR with direct approved amount entry** and **WCF = CT at the currently stated PHP 10 rate**. Transfer Large Cattle is an occasional transfer transaction with a corresponding **direct approved amount**.
+- **DECISION / QUESTION:** ECF and WCF are broader **MEEDO Utility Operations**, not globally owned by the NPM facility. An NPM stall may be one service subject/context, but NPM must not be the architectural parent of every utility assessment. ECF remains OR + direct approved amount. The older WCF fixed-PHP-10 wording is **superseded by IA-063**: WCF remains CT, but the current collection contract supports office-prepared amounts/balances and prospective collector direct amount when no prepared amount governs that source/period. Transfer Large Cattle is an occasional transfer transaction with a corresponding **direct approved amount**.
 - **RATIONALE:** The office Monthly Income/board material presents ECF and WCF as separate revenue lines, and earlier Head clarification already distinguished the broader EEMO/Public Market operation from NPM. The current code's UtilityBill is explicitly stall/NPM-bound and should therefore be treated as a legacy/current specialized source, not as proof that all future utilities are NPM-owned.
 - **EVIDENCE / SOURCE:** Direct EEMO Head clarification on 2026-09-27, office Monthly Income/board evidence, and earlier confirmed Public Market-versus-NPM scope. See [2026-09-27 EEMO Head final clarifications](../evidence/2026-09-27_eemo_head_final_clarifications.md).
 - **IMPACT:** Operations keeps a separate Utility Operations section. NPM may expose contextual utility links for its occupants but must not own global ECF/WCF navigation or reporting. Existing UtilityBill rows remain valid and must not be destructively rewritten; future non-NPM utility subjects should be handled additively through an appropriate generalized source/context model or adapter. Do not hard-code PHP 10 or direct ECF amounts into UI markup; resolve approved effective configuration/policy.
@@ -620,22 +620,22 @@ Two cross-document distinctions are explicit at this baseline:
 
 - **ID:** IA-049
 - **SUBJECT:** Instrument, basis, channel and receipt rules for the remaining Monthly Income operations, and the itemized OR model
-- **STATUS:** CONFIRMED (Clint / Core Brain direction for the operational functionalization program; recorded from the task brief, not a new EEMO staff interview)
+- **STATUS:** **SUPERSEDED IN PART by IA-062, IA-064, IA-067 and IA-068.** Retained as the 2026-09-30 functionalization decision history.
 - **TYPE:** BUSINESS DECISION + IMPLEMENTATION DIRECTION
 - **DECISION / QUESTION:**
   - **Itemized OR:** one physical OR may carry several OR-compatible classified lines for one payer context (for example NPM rent + ECF + Fish/Meat Vendor Fee + Weight & Measure + Penalty). Each line keeps its own revenue classification. **OR and CT are never mixed on one physical document**; a visit that also needs CT-based lines uses separate Cash Tickets.
-  - **Billing basis is not payment cadence.** Monthly-obligation sources (NPM, TCC, NCC, BBQ, Ice Plant where configured, Fish/Meat Vendor Fee, Kanmanggay) keep a monthly obligation; ₱30/day style payments are installments/allocations against it and never a daily billing model.
-  - **Fish/Meat Vendor Fee != NPM stall rent != Weight & Measure.** Vendor Fee is its own OR classification with a monthly-style goal (about PHP 900, commonly collected as PHP 30 installments) resolved from effective configuration. NPM remains the source authority for Fish/Meat vendor context; no second vendor registry.
+  - **Billing basis is not payment cadence.** This principle still applies to genuine monthly-obligation sources (NPM under its configured basis, TCC, NCC, BBQ, Ice Plant where configured, Kanmanggay). **Fish/Meat Vendor Fee is no longer in this monthly-obligation list; IA-064 makes it direct amount received.**
+  - **Fish/Meat Vendor Fee != NPM stall rent != Weight & Measure.** The separation remains valid. The former monthly-goal/NPM-source/no-second-registry clauses are **superseded by IA-064 and IA-068**: Vendor Fee is direct amount received and the target source is an independent Fish/Meat vendor registry.
   - **Weight & Measure** = OR, quantity x approved effective rate, frozen (quantity, rate, effective date, amount) at collection time for new rows. Historical Fish rows without frozen evidence stay unresolved.
-  - **ECF** = OR, current basis direct approved amount. **WCF** = CT, current approved rate PHP 10 through effective configuration (not hard-coded).
+  - **ECF** = OR, current basis direct approved amount. **WCF** = CT. The historical working-rate assumption is superseded by IA-063's prepared/direct contract: a prepared amount controls when present; otherwise authorized direct amount entry may be used prospectively.
   - **Vegetable / Fruit** (temporary open-space rental, not permanent NPM tenancy): the transaction mode resolves the instrument - whole payment = OR, daily transaction = CT; the collector chooses the mode, never the instrument.
   - **Market Fees** = CT, **Landing / Berthing** = CT, both direct field transactions on Collector Mobile using an approved fixed amount or, only where the approved operation definition enables it, a direct approved amount. **Transfer Large Cattle** = **OR** (supersedes the unresolved instrument in IA-044/IA-048 wording), Collector Mobile, occasional, direct approved amount, deliberately simple (no livestock registry).
-  - **Transportation / TRM** target = CT at approved vehicle-class effective-dated rates; historical `TrmTrip` money and the existing legacy OR workflow stay readable and are not relabelled.
+  - **Transportation / TRM** historical functionalization placed CT vehicle-class rates here. **IA-067 supersedes that prospective placement:** vehicle-class-assisted collection belongs to Income From Terminal; Transportation/Parking is separate CT direct amount. Historical `TrmTrip` / Transportation evidence stays readable and is not relabelled.
   - **Kanmanggay** = Space Rental, OR, monthly per space. **Fiesta / Araw lot rental** = OR, temporary/event lot rental; Aug 15 and Oct 16 are event dates, not billing dates.
   - **Fines / Penalties** = OR under their own classification, created only from approved penalty definitions; never a free-text line with a collector-typed amount.
   - **Ice Plant** behaves like a monthly-obligation source but keeps its own classification/report line; it is not BBQ or Stall Rent.
   - **Slaughterhouse** keeps its specialized workflow, OR, controlled rates and transparent itemization (ante mortem, post mortem, slaughter fee and approved add-ons on the OR detail); reports still roll up to Slaughterhouse. No arbitrary collector-entered rates.
-  - **OR custody** must exist before any new Mobile OR writer is activated; a collector may use only documents assigned to that collector.
+  - **OR custody (historical rule):** this collection-gating requirement is **superseded by IA-062**. Physical OR/CT stock remains optional back-office accountability evidence and does not gate canonical collection posting/readiness.
 - **RATIONALE:** Removes the remaining "unresolved instrument" and "not recorded yet" wording once a writer is genuinely functional, while keeping every amount, instrument and classification server-resolved from approved policy.
 - **EVIDENCE / SOURCE:** Clint / Core Brain task brief of 2026-09-30 (highest precedence for this program); IA-044, IA-045, IA-046, IA-048; [EEMO_OPERATIONAL_RULEBOOK.md](../business/EEMO_OPERATIONAL_RULEBOOK.md) sections 9-13.
 - **IMPACT:** Supersedes the "collection disabled until the instrument is confirmed" statements for Transfer Large Cattle. Does **not** activate any source, cut over any report, backfill history or publish an APK. Where a rule above would create double billing or invent an amount (for example the Fish/Meat Vendor Fee versus the existing NPM Fish/Meat daily fee, or a collector-typed Slaughterhouse custom rate) the affected slice stays blocked pending an explicit answer, recorded in [OPERATIONAL_FUNCTIONALIZATION_V3_20260930.md](../planning/OPERATIONAL_FUNCTIONALIZATION_V3_20260930.md).
@@ -645,38 +645,38 @@ Two cross-document distinctions are explicit at this baseline:
 
 - **ID:** IA-050
 - **SUBJECT:** Resolution of the ten open policy questions left by IA-049
-- **STATUS:** CONFIRMED (Clint / Core Brain direction; supersedes the "blocked pending an answer" wording in IA-049 IMPACT)
+- **STATUS:** **SUPERSEDED IN PART by IA-064, IA-067 and IA-068.** Retained as the 2026-09-30 grill-me decision history.
 - **TYPE:** BUSINESS DECISION + IMPLEMENTATION DIRECTION
 - **DECISION / QUESTION:**
-  - **Fish/Meat Vendor Fee** is an additional, separate obligation from NPM Stall Rental and from Weight & Measure; one vendor may owe all three. Classification Fish/Meat Vendor Fees, OR, monthly goal, flexible cadence (PHP 30/day installments supported), effective-configured amount (not eternal constants), not part of BaseRentalAmount. **The existing NPM `DailyFee`/`DailyCollection` history is never reclassified as Vendor Fee**, and rows are not rewritten because amounts resemble PHP 30; a distinct Vendor Fee obligation/source is introduced prospectively.
+  - **Fish/Meat Vendor Fee** remains separate from NPM Stall Rental and Weight & Measure, and historical NPM `DailyFee`/`DailyCollection` rows are never reclassified by amount similarity. The former monthly-goal/NPM obligation model is **superseded by IA-064**, and the NPM/BusinessPayor source identity is **superseded by IA-068**.
   - **Ice Plant** = OR, own classification (ICE_PLANT), monthly obligation with effective-configured amount (about PHP 1,000 working figure), partial/daily installments and remaining balance allowed. Not Stall Rental. No ice inventory, bag/kg sales or manufacturing workflow.
   - **WCF** is not meter x rate. It is Cash Ticket + direct approved amount on Collector Mobile, the approved office amount (PHP 10 working figure) coming from effective policy, never hard-coded in Razor/Mobile. If the policy allows DirectApproved the collector may state the amount; classification and instrument stay server-controlled. No cubic-meter assumption. Historical UtilityBill/WCF evidence is preserved.
   - **ECF** = OR + direct approved amount; no meter or kWh x rate. It reuses the existing authoritative ECF/utility source (payor/source identity, period, approved amount, collected, balance, status, calculation basis, optional reference). It may share an itemized OR. Web and Mobile capture must converge on one source and never create duplicate assessments; collectors do not enter arbitrary ECF rates.
-  - **Transportation / TRM**: target policy CT at approved vehicle-class effective-dated rates is confirmed, but **no cutover effective date is authorized**. Nothing may invent or backdate one; legacy TRM evidence stays intact; new CT architecture may exist inactive/shadow-ready. Status: TARGET CONFIRMED, CUTOVER DATE NOT AUTHORIZED.
-  - **Kanmanggay** = Space Rental, monthly per space, OR, Business Payor identity, lightweight Space Rental account (payor, space identifier, active period, effective monthly approved rate, monthly obligations, settlement history). Not BBQ, not a permanent NPM stall/contract. Partial and installment settlement supported.
+  - **Transportation / TRM**: this historical decision confirmed CT vehicle-class collection and preserved legacy TRM evidence. **IA-067 later separates the target operations:** vehicle-class/rate assistance belongs to Terminal, while Transportation/Parking is direct amount CT. Nothing may invent a historical reclassification or backdated boundary.
+  - **Kanmanggay** = Space Rental, monthly per space, OR, lightweight Space Rental source/account (space holder, space identifier, active period, effective monthly approved rate, monthly obligations, settlement history). Not BBQ and not a permanent NPM stall/contract. Partial/installment settlement remains supported. **ADR-007 / IA-068 remove Business Payor as a required target identity; the source-owned holder/account establishes eligibility.**
   - **Slaughterhouse**: collector-entered arbitrary CustomRate is not the target. Head/Admin manage approved definitions, packages and add-ons (effective-dated); the collector selects approved definitions only; receipt/detail stays itemized; Monthly Income still aggregates under Slaughterhouse. Historical CustomRate evidence is preserved.
   - **Fiesta / Araw** = Space Rental group, operation Lot Rental - Fiesta/Araw, OR, temporary event lot rental (event dates Aug 15 / Oct 16 are event dates, not billing dates). Head/Admin approve event, lot, amount, payor, period and availability; the collector never invents the lot amount; never a permanent stall tenancy.
   - **Collector totals** cover all real collections attributable to the collector from legacy or canonical sources, **counted exactly once** through explicit source coverage / cutover authority: legacy is authoritative before a source cutover, canonical after it, shadow/reconciled representations are comparison only. Applies to Collector Records, Collector Report of Collections, Collection Activity and Monthly Income.
   - **CB-06 Monthly Income cutover is NOT authorized.** The canonical reader remains shadow/readiness only until every line has coverage mapping, reconciliation is understood, no double counting remains, corrections are right, opening settlement is not current cash, unresolved history is safely handled, totals reconcile with the office's Monthly Income, and Core Brain/Clint explicitly authorize it.
-  - Locked reminders: Market Fees/Landing/Transfer Large Cattle/Vegetable-Fruit/Fines as in IA-049; monthly sources (NPM, TCC, NCC, BBQ, Ice Plant, Fish/Meat Vendor Fee, Kanmanggay) keep a monthly billing basis regardless of installment cadence.
+  - Locked reminders retained from this checkpoint: Market Fees/Landing/Transfer Large Cattle/Vegetable-Fruit/Fines as in IA-049; genuine monthly sources (NPM, TCC, NCC, BBQ, Ice Plant, Kanmanggay) keep their monthly billing basis regardless of installment cadence. **Fish/Meat Vendor Fee was removed from the monthly-source list by IA-064.**
 - **RATIONALE:** Removes the remaining policy gates so the sources can be built on server-resolved configuration without inventing amounts, instruments or classifications.
 - **EVIDENCE / SOURCE:** Clint / Core Brain GRILL-ME ANSWERS of 2026-09-30.
-- **IMPACT:** Only two gates remain: TRM cutover date and CB-06. A NEW contradiction that could change money, document identity, classification or historical meaning must be grilled again.
+- **IMPACT (historical checkpoint):** At 2026-09-30 only the TRM cutover date and CB-06 remained under this pass. Later decisions resolved/superseded those gates. The enduring rule is that a new contradiction affecting money, document identity, classification or history must be escalated rather than guessed.
 - **REVISIT CONDITION:** Any newer EEMO staff ruling; the TRM cutover date or CB-06 authorization.
 
 ### IA-051 - Final Transportation and Monthly Income go-live rulings (Clint / Core Brain, 2026-09-30)
 
 - **ID:** IA-051
 - **SUBJECT:** Transportation / TRM cutover and the Monthly Income (CB-06) cutover authority
-- **STATUS:** CONFIRMED (Clint / Core Brain direction; supersedes the "cutover date not authorized" wording in IA-050 for TRM and CB-06)
+- **STATUS:** **SUPERSEDED IN PART by IA-067 for Terminal/Transportation semantics.** Monthly Income/source-authority go-live principles remain historical authority where not superseded by later report decisions.
 - **TYPE:** BUSINESS DECISION + IMPLEMENTATION DIRECTION
 - **DECISION / QUESTION:**
-  - **Transportation / TRM** is a day-to-day **Cash Ticket** collection on Collector Mobile at an approved vehicle-class, effective-dated rate. There is no unresolved question about a historical OR-to-CT date. The technical cutover takes effect when the approved production release containing the canonical Transportation workflow goes live: before it, legacy TRM history is preserved unchanged; after it, all new Transportation collections use the canonical CT workflow. Old TRM rows are never rewritten, old OR fields never converted to CT, no old CT numbers invented, history never re-priced, and missing vehicle classes never inferred.
+  - **Transportation / TRM** was activated as a canonical CT vehicle-class workflow under this 2026-09-30 decision. **IA-067 later changes the prospective business split:** Transportation/Parking becomes separate direct-amount CT and vehicle-class-assisted collection moves to Terminal. The preservation rule remains: old TRM/Transportation rows are never rewritten, old document evidence is not converted, history is never re-priced, and missing vehicle classes are never inferred.
   - **Monthly Income cutover (CB-06)** is **authorized prospectively at the approved production go-live, source by source, with exactly-once coverage.** When the release ships and a source is activated, new financial events for that source use canonical Collection / CollectionLine / Allocation / AccountableDocument / PostingOperation and the Monthly Income and reporting paths use those rows. No arbitrary historical date is chosen and no old money is backfilled. Pre-go-live legacy stays the historical authority; post-go-live canonical is the authority for activated sources; a mixed period combines legacy pre-cutover and canonical post-cutover collections exactly once, and shadow or compatibility rows are comparison only and never add money.
   - The release itself establishes the real go-live boundary; this session does not deploy.
 - **RATIONALE:** Removes the last two gates. Activation is per source (a row's settlement authority, or the Head enabling a new service), which is what makes a mixed period countable exactly once.
 - **EVIDENCE / SOURCE:** Clint / Core Brain FINAL FUNCTIONALIZATION PASS direction of 2026-09-30.
-- **IMPACT:** `CollectionSourceAuthorityMap` is the single decision of which representation is authoritative per source kind. The Head enabling the Transportation service is the Transportation boundary and closes the legacy trip writer from that date.
+- **IMPACT:** `CollectionSourceAuthorityMap` remains the source-by-source authority for exactly-once reporting. The old Transportation activation boundary remains historical implementation evidence; **IA-067 requires a new explicit prospective boundary for the separated Terminal and Transportation/Parking target model rather than reusing the old merge assumption blindly.**
 - **REVISIT CONDITION:** Any newer EEMO staff ruling.
 
 ### IA-052 - Accountable-form custody and cash remittance are separate ledgers (Clint / Core Brain, 2026-09-30)
@@ -885,10 +885,10 @@ Two cross-document distinctions are explicit at this baseline:
 - **TYPE:** BUSINESS DECISION + IMPLEMENTATION DIRECTION.
 - **DECISION:**
   - ECF permits an authorized Collector to enter **amount received** for a safe, clean prospective source. Head preparation and routine activation are optional. OR policy remains unchanged; there is no typed OR serial and the server issues the SRC.
-  - WCF occupied sources remain visible without prepared amounts. Linked Business Payor names take precedence; ActualOccupant is a display fallback, never an identity link. CT policy remains unchanged.
+  - WCF occupied sources remain visible without prepared amounts. The current implementation may still prefer a linked BusinessPayor display name over ActualOccupant as a compatibility detail, but **ADR-007 / IA-068 prohibit making Business Payor a new target prerequisite**. Future source-native discovery must use the authoritative utility/source identity. CT policy remains unchanged.
   - Prepared ECF/WCF periods accept partial payments against the approved remaining balance and refuse overpayment. Without an assessment, repeated direct collections are append-only receipts. The first receipt is never manufactured into a monthly assessment.
   - The period's mode freezes at its first canonical collection: an existing assessment establishes prepared mode; otherwise the first direct collection establishes direct mode. Later preparation cannot reinterpret that period. Ambiguous historical monetary evidence requires office review; no historical conversion or backfill is authorized.
-  - Weight & Measure is a standalone Collector capability using existing NPM Fish/Meat source identity. It remains separate from NPM rent and the monthly Fish/Meat Vendor Fee. OR applies. Quantity multiplied by the server's effective configured rate determines the amount; quantity, rate identity/effective evidence and amount are frozen. Historical rows lacking rate evidence are not repriced.
+  - Weight & Measure is a standalone Collector capability. **The original NPM Fish/Meat source-identity assumption in this sentence is superseded prospectively by IA-068:** Weight & Measure now requires the independent registered Fish/Meat vendor source. It remains separate from NPM rent and Fish/Meat Vendor Fee. OR applies. Quantity multiplied by the server's effective configured rate determines the amount; quantity, rate identity/effective evidence and amount are frozen. Historical rows lacking rate evidence are not repriced.
   - Itemized checkout delegates to the same canonical utility, weighing and operation writers. One checkout can produce multiple Collections/SRCs; V1 retains one item per Collection. The session is orchestration metadata, never revenue. Only reviewed intent can enter the durable queue; stale quotes require review.
 - **SUPERSESSION:** IA-053's prohibition on Collector-entered ECF amounts and mandatory preparation is superseded for safe prospective direct collection. IA-054's interpretation that the first direct Water amount establishes an approved assessment is superseded. Prepared balance safeguards and historical authority boundaries remain.
 - **NON-GOALS:** No classification merger, manual receipt-number authority, automatic payer creation/name matching, historical repricing, or production migration.
@@ -896,14 +896,69 @@ Two cross-document distinctions are explicit at this baseline:
 ### IA-064 - Additional direct Fish/Meat Vendor Fee (Clint, 2026-10-05)
 
 - **ID:** IA-064
-- **STATUS:** CONFIRMED by the NPM/Fish-Meat correction and mandatory itemized-capability clarification.
+- **STATUS:** CONFIRMED historical 2026-10-05 direction; **source-identity/NPM/BusinessPayor requirements superseded prospectively by IA-068 on 2026-10-06**.
 - **EFFECTIVE BUSINESS DATE:** 2026-10-05, prospectively. `FishMeatVendorFeeRules.DirectEffectiveDate` defines the boundary.
-- **DECISION:** Fish/Meat Vendor Fee is an additional direct amount received for an eligible existing NPM Fish/Meat stall/vendor with an explicitly linked Business Payor. It is not rent, weighing, or a monthly obligation. Separate legitimate intents may collect repeatedly. The existing Vendor Fee classification and OR policy remain; each Collection receives a server SRC. No typed OR serial or new vendor registry is introduced.
+- **DECISION (historical 2026-10-05):** Fish/Meat Vendor Fee is an additional direct amount received. The earlier requirement for an eligible NPM Fish/Meat stall/vendor with an explicitly linked Business Payor, and the statement that no new vendor registry is introduced, are **superseded by IA-068**. The durable parts remain: it is not rent or weighing, separate legitimate intents may collect repeatedly, OR/classification remain, and each canonical Collection receives a server SRC.
 - **SUPERSESSION:** The Fish/Meat monthly goal, approximately ₱900 monthly amount, ₱30/day installments and ObligationAccount billing clauses of IA-049 and IA-050 are superseded from the effective date. IA-063's reference to a *monthly* Vendor Fee is also superseded. These historical decisions remain recorded; their historical assessments, Collections, classifications and SRCs are not rewritten or refunded.
 - **ISOLATION:** NPM rent retains its approved monthly basis (`NpmMonthBasis`), daily/partial credits and remaining-month Whole Payment rules. Weight & Measure retains quantity × effective configured rate and frozen evidence. Paying any of these sources cannot settle either other source.
 - **IMPLEMENTATION:** `FishMeatVendorFeeCollectionWorkflow` is shared by standalone Mobile and itemized checkout. New monthly Vendor Fee accounts/assessments/postings are refused after cutover. Existing old-model records remain readable. Itemized Vendor Fee remains selectable and takes **Amount received**, with server classification/instrument and its own Collection/SRC boundary.
 - **OFFLINE / REPORTING:** Stable session/item and child operation identities preserve durable retry. Only canonical child Collections count in reports and ordinary remittance; the session is not revenue.
 - **NON-GOALS:** No historical backfill, automatic Payor/name linking, rent recalculation, weighing repricing, or classification merger.
+
+### IA-065 - Current Transport Terminal and Transportation authority convergence (Clint, 2026-10-06)
+
+- **ID:** IA-065
+- **STATUS:** **SUPERSEDED prospectively by IA-067 (2026-10-06 office clarification).** Retained only as evidence of the short-lived integration assumption and current compatibility code where not yet refactored.
+- **DECISION:** TRM/Transport Terminal and Transportation/Parking are one current operation. Current terminal activity reads canonical Transportation Collections, frozen vehicle-class facts and server SRC. Existing classification, CT policy, rates and assignments remain unchanged. No transporter registry, TripNumber or duplicate TrmTrip is required or created.
+- **BOUNDARY:** The first existing Head-enabled Transportation effective date remains authoritative. Disabling collection cannot reopen legacy trip posting. No date is invented or backdated.
+- **HISTORY:** TrmTrip/TrmTransporter and legacy contracts remain historical compatibility separately from current activity. No historical migration, rewriting or double counting. This clarifies IA-050/IA-051 without changing their evidence or classification.
+- **READ CONTRACT:** TRM and Transportation share the canonical current query and correction-aware totals. Unrecorded driver/plate/route/organization/trip numbering is omitted. No Pending OR metric is invented.
+- **NON-GOALS:** No rate/accounting merger, Payor name matching, backfill, physical serial dependency, UI redesign or production change.
+
+### IA-066 - Approved report governance and collector throughput (Clint, 2026-10-06)
+
+- **STATUS:** CONFIRMED by the report-governance task and Space Rental collection-readiness follow-up. Implementation is local branch work, not a production announcement.
+- **OFFICIAL GROUPING:** BBQ remains PERMANENT_STALL_RENT / BBQ and belongs under Rent Income. SLAUGHTERHOUSE keeps its classification and receives a standalone official section. This prospectively supersedes the unresolved-placement clauses of IA-050/IA-051 for those two rows only; other unresolved rows remain separate.
+- **TARGETS:** Annual targets are externally approved tenant/year/official-row amounts, entered by the Head (SuperAdmin), with source, optional reference/note, actor, timestamp and immutable revisions. No inferred growth formula or monthly actual is stored. This resolves IA-027 for this bounded annual-target contract. Zero targets have no percentage; aggregate coverage is explicit and a partial scope has no complete-scope percentage.
+- **OFFICIAL ADJUSTMENT:** Head-authorized report revisions retain system basis, signed delta, reason/reference, actor/time and supersession. Latest delta plus current system amount is the official cell; totals/YTD and target attainment derive from official cells. A delta does not lock the report against later genuine cash changes. Collections, collector position, registers, obligations and remittance are never edited by this mechanism. This is not a decision about statutory RCD cross-period correction (IA-043 remains separate).
+- **TRANSPORTATION:** An explicitly enabled tenant-effective QuickAmount/direct mode records total received under TRANSPORTATION_PARKING and CT, without invented class/vendor/rate. Posted mode and amount remain frozen. No guessed vehicle counts. **IA-067 supersedes the placement of vehicle classes/rates:** they belong prospectively to Income From Terminal, while Transportation/Parking is direct amount with no required class/rate basis.
+- **TABO:** Aggregate money would lose required vendor/day evidence. The fast path is a reviewed atomic batch of registered vendor/day intents, each using the existing writer and its own deterministic retry identity/SRC. No aggregate vendor or second fee engine.
+- **SPACE COLLECTION:** Kanmanggay and Fiesta/Araw may be independently assigned through operation codes KANMANGGAY_SPACE_RENTAL and FIESTA_ARAW_LOT_RENTAL. They reuse obligation-account quote/allocation authority and OR policy. Kanmanggay is monthly; Fiesta/Araw remains one event/date liability with its existing shared classification and separate event identities. This supersedes the earlier itemized deferral for those two operations only. Generic monthly facility itemized deferrals remain unchanged. **IA-068 later approves NPM Daily Collect All for today's daily charge only; that batch UX is separate from generic monthly collection.**
+- **FIRST SPACE PERIOD:** A Kanmanggay opening mid-month uses its approved opening-date rate for the first monthly period; later periods use their own month start. No prorated or invented amount, historical re-pricing, fake Contract, name-based Payor association or preview reservation.
+- **REFERENCE:** [Typed backend handoff](../planning/REPORT_GOVERNANCE_FAST_COLLECTION_HANDOFF.md).
+
+### IA-067 - Complete Official Monthly Income structure; Terminal is separate from Transportation/Parking (MEEDO office, 2026-10-06)
+
+- **ID:** IA-067
+- **STATUS:** CONFIRMED by direct MEEDO office clarification and photographed office references.
+- **TYPE:** BUSINESS DECISION + REPORTING / OPERATION BOUNDARY.
+- **OFFICIAL REPORT:** The Monthly Income reference continues beyond the previously implemented page. Its current top-level structure is **A. Income From Market**, **B. Income From Terminal**, and **C. Income from Slaughterhouse**, followed by **OVERALL TOTAL MARKET COLLECTION** and Prepared by / Certified Correct signatories.
+- **TERMINAL LINES:** B. Income From Terminal contains **a. COMFORT ROOM**, **b. PULL PUL VANS, CARGO VANS**, **c. TRICYCAD**, then Total Income from Terminal. All use **Cash Ticket**.
+- **TERMINAL ENTRY:** Each Terminal section permits a **direct aggregate peso total**. Cash Ticket count may be captured as optional supporting evidence; the peso total alone is sufficient.
+- **VEHICLE MAPPING:** Jeepney, Multicab, Van, Public Utility Bus and Public Utility Baby Bus belong to **PULL PUL VANS, CARGO VANS**. Tricycle belongs to **TRICYCAD**. Existing effective-dated class/rate configuration moves prospectively to Terminal and may support assisted/individual entry; it is not required evidence for the aggregate section-total path.
+- **TRANSPORTATION/PARKING:** Transportation/Parking remains **Cash Ticket** but is a separate direct-amount source. It has no required vehicle-class/rate basis and must not use TRM/Terminal as a synonym.
+- **SUPERSESSION:** IA-065's rule that current TRM/Transport Terminal and Transportation/Parking are one operation is superseded prospectively. Historical TRM/Transportation records remain unchanged until a deliberate compatibility/migration boundary is implemented.
+- **REPORT GOVERNANCE:** IA-066's Head-only annual-target revisions and report-only official adjustments remain in force. The 2026-10-06 clarification confirms that Prepared by and Certified Correct name/position values are configurable office settings, not hard-coded people. Finalized/exported historical output should preserve the signatory snapshot it used where persisted report versions exist.
+- **EVIDENCE:** [2026-10-06 office clarification](../evidence/2026-10-06_meedo_office_terminal_fish_vendor_monthly_income_clarification.md), `2026-10-06_terminal_income_monthly_report.png`.
+- **NON-GOALS:** No historical money reclassification by guess; no requirement to record every vehicle/person when an approved aggregate Terminal total is entered.
+
+### IA-068 - Independent Fish/Meat vendor registry, source-native collection identity, and NPM Daily Collect All (MEEDO office, 2026-10-06)
+
+- **ID:** IA-068
+- **STATUS:** CONFIRMED by direct MEEDO office clarification.
+- **TYPE:** BUSINESS DECISION + ARCHITECTURE DIRECTION.
+- **FISH/MEAT REGISTRY:** Fish/Meat Vendor Fee is independent from NPM. StallTrack shall maintain a source-owned Fish/Meat vendor-registration context with one vendor type (**Fish** or **Meat**), annual/tax-year context and office registration status such as **New** / **Renew**. Do not silently create a dual Fish+Meat registration.
+- **FISH/MEAT FEE:** The fee remains its own OR classification and has **no approved fixed rate** under the current clarification. The collector records the actual amount received. A legitimate payment may be posted with a typed vendor/payer name before a registry row exists; that name is frozen collection evidence and does not auto-create or auto-link a permanent identity.
+- **WEIGHT & MEASURE:** Weight & Measure remains a separate OR classification and requires selection from the registered Fish/Meat vendor registry. No free-text unregistered-vendor fallback is allowed. Vendor type controls the valid weighing context; quantity/rate/amount evidence remains separate from Vendor Fee and NPM rent.
+- **HISTORICAL SHEET:** Handwritten Fish Retailing amounts supplied on 2026-10-06 are monthly report totals, not approved rates or individual transaction rows. They must not be imported as new Collections without transaction-level evidence.
+- **SOURCE-NATIVE IDENTITY:** Unified collection discovery uses source-owned identities (occupancy/stallholder, rental account/space holder, Fish/Meat vendor registration, utility/source account, etc.), not a mandatory Business Payor master. Equal names never authorize automatic merging.
+- **BUSINESS PAYOR RETIREMENT:** The Business Payors page/manual-linking workflow is retired from the target product. Existing BusinessPayor persistence may remain temporarily only as migration compatibility; new features must not deepen the dependency. ADR-007 supersedes ADR-001 as target product architecture while retaining ADR-001's no-name-matching safety rule.
+- **NEW COLLECTION:** After a source-native result is chosen, the server offers only operations genuinely eligible for that source. If no source relationship exists, only operations whose own policy permits optional/free-text payer context may be offered. Relationship-backed rent, utility and weighing eligibility may never be fabricated through this fallback.
+- **ITEMIZATION:** Unified checkout remains orchestration. Each posted financial child keeps its source writer, classification, Collection and SRC.
+- **NPM DAILY COLLECT ALL:** Approved only for **today's NPM Daily charge**. Staff may start with all eligible stalls selected and uncheck exceptions/absent payers; unchecked stalls remain unpaid. Every selected stall posts its own Collection/SRC. Do not extend this rule to TCC/NCC/BBQ/ICE/Kanmanggay monthly obligations without a later office decision.
+- **SUPERSESSION:** IA-064's requirement for an eligible NPM Fish/Meat stall and explicitly linked Business Payor is superseded prospectively. IA-063's NPM-linked Weight & Measure source assumption is superseded prospectively. Existing posted history is not rewritten.
+- **EVIDENCE:** [2026-10-06 office clarification](../evidence/2026-10-06_meedo_office_terminal_fish_vendor_monthly_income_clarification.md), `2026-10-06_fish_retailing_business_table.png`, [ADR-007](ADR_007_SOURCE_NATIVE_COLLECTION_IDENTITY.md).
+- **NON-GOALS:** No automatic vendor/name merge, no historical backfill by text similarity, no monthly-rental Collect All, and no destructive BusinessPayor table removal before dependency proof.
 
 ## 4. Decision-gate summary
 
@@ -915,7 +970,7 @@ The following items still require MEEDO/Treasury input, a UX decision, authorita
 | IA-024 | Historical remittance/RCD sequence question | **Remittance portion superseded by IA-052.** Only any still-unconfirmed official RCD/signatory/turnover detail remains outside the approved remittance ledger. |
 | IA-025 | Official report/document set | Report consolidation and print authority |
 | IA-026 | Facility name/code display | Headers, switchers, Mobile, and official documents |
-| IA-027 | Target governance/period/revision | Revenue Target Setup and Attainment |
+| IA-027 | Target governance/period/revision | **Resolved for bounded annual targets by IA-066.** Other target period/approval models remain outside this implementation. |
 | IA-028 | Final classification catalog | Complete classified reporting and collection choices |
 | IA-034 | Stable route identities | Canonical account and SLH activity detail routes |
 | IA-043 | Official cross-period RCD correction treatment | Official revised-earlier-report versus later-period-adjustment behavior; technical AsOf/LatestCorrected queries are approved |

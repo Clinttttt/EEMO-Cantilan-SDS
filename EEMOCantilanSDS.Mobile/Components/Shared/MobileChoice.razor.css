@@ -144,6 +144,21 @@
     color: var(--mobile-blue);
 }
 
+.mc-inline { max-height: none; overflow: visible; }
+.mc-popover { position: relative; min-width: 0; }
+.mc-popover.open { z-index: 2; }
+.mc-popover .mc-list {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    width: 100%;
+    box-sizing: border-box;
+    max-height: 240px;
+    overscroll-behavior: contain;
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--mobile-navy) 12%, transparent);
+}
+.mc-inline .mc-option { min-height: 52px; }
+
 .mc-empty {
     padding: 12px 14px;
     border: 1px dashed var(--mobile-border);

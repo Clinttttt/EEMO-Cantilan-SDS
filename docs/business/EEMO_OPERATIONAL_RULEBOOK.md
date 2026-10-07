@@ -54,11 +54,19 @@ If the month closes with an unpaid remainder, the exact outstanding amount carri
 
 The **Monthly Income sheet is the official reporting grouping** StallTrack should reproduce for the formal Monthly Income/report structure.
 
-Its current Market Operations-oriented groups include:
+The complete office reference now confirms three top-level report families:
 
-- Income from Market
-- Rent Income (Stall Rental)
-- Space Rental
+- **A. Income From Market**
+  - includes the existing market revenue lines plus the documented **Rent Income (Stall Rental)** and **Space Rental** subsections;
+- **B. Income From Terminal**
+  - a. COMFORT ROOM
+  - b. PULL PUL VANS, CARGO VANS
+  - c. TRICYCAD
+  - Total Income from Terminal;
+- **C. Income from Slaughterhouse**
+  - separate top-level Slaughterhouse income.
+
+The report closes with **OVERALL TOTAL MARKET COLLECTION**, then Prepared by / Certified Correct signatories.
 
 The office board remains valid operational/tally evidence and may show the same revenue in a more practical monthly-working arrangement, including headings such as:
 
@@ -208,7 +216,9 @@ Every recorded collection line should map to one approved revenue classification
 
 The broader **MEEDO/Public Market revenue operation** is not the same thing as the **New Public Market (NPM) facility**.
 
-Charges such as Market Fees, ECF, WCF, Fish/Meat Vendor Fees, Landing/Berthing, Transportation and Weight & Measure belong to the broader MEEDO market/revenue operation unless MEEDO explicitly assigns them to NPM.
+Charges such as Market Fees, ECF, WCF, Fish/Meat Vendor Fees, Landing/Berthing, Transportation/Parking and Weight & Measure belong to broader MEEDO revenue classifications and are not automatically NPM-owned.
+
+**Income From Terminal is a separate operation/report family from Transportation/Parking.** Terminal contains Comfort Room, Pull Pul Vans/Cargo Vans and Tricycad. Do not use TRM/Terminal as a synonym for Transportation/Parking in the target model.
 
 NPM remains a specialized permanent-stall/rental workspace.
 
@@ -220,36 +230,52 @@ Do not put all market-related revenue inside the NPM stall page merely because t
 
 ## 9. Fish, meat, and weighing-related collections
 
-Confirmed points:
+Confirmed points from the 2026-10-06 office clarification:
 
-- **Fish/Meat Vendor Fee and Weight & Measure / Registration are two separate charges.**
-- **From 2026-10-05 (IA-064), Fish/Meat Vendor Fee is an additional direct collection of the amount actually received.** It has no monthly assessment, rent goal or outstanding balance. It uses the eligible NPM Fish/Meat vendor's explicitly linked Business Payor and remains OR/canonical SRC. Repeated distinct collections are valid. The former IA-049/IA-050 monthly vendor-fee interpretation is superseded prospectively; its historical accounts and Collections remain unchanged.
-- NPM stall rent is a separate approved monthly obligation; daily/partial payments reduce that rent and Whole Payment collects its remaining monthly balance. Vendor Fee and weighing never settle rent or each other.
-- Weight & Measure is separate and uses weighed quantity.
-- Working examples: fish ≈ ₱1/kg; meat ≈ ₱66/kg.
+- **Fish/Meat Vendor Fee and Weight & Measure / Registration are separate charges and separate revenue lines.**
+- Fish/Meat Vendor Fee is owned by an **independent Fish/Meat vendor registry**, not NPM occupancy.
+- A vendor registration has one type: **Fish** or **Meat**. Do not silently treat one registration as both.
+- The registry is annual/tax-year oriented and records the office's New/Renew status where applicable.
+- Fish/Meat Vendor Fee has **no approved fixed rate** in the current clarification. The collector records the **actual amount received**.
+- Fish/Meat Vendor Fee remains OR under the current instrument mapping.
+- A legitimate Fish/Meat fee may be posted with a typed vendor/payer name before that vendor exists in the registry. That name is frozen collection evidence; it is not an automatic permanent identity/link.
+- NPM stall rent is independent and never settles Vendor Fee or weighing.
+- Weight & Measure remains OR, uses weighed quantity and server-approved rate evidence, and **requires selection from the independent registered Fish/Meat vendor registry**.
+- Weight & Measure has no free-text unregistered-vendor fallback.
+- Working rate examples already accepted for planning remain fish ≈ ₱1/kg and meat ≈ ₱66/kg until an authorized rate change replaces them.
 - These are not Slaughterhouse charges.
-- Fish/Meat Vendor Fee is currently treated as OR in the approved Cantilan mapping.
-- Weight & Measure / Registration is currently treated as OR in the approved Cantilan mapping.
-- Keep their collection/report lines distinct even when one vendor pays both.
+- Historical Fish Retailing sheet amounts supplied on 2026-10-06 are **monthly report totals**, not approved rates or transaction rows. Do not import them as new Collections without transaction-level evidence.
+
+The earlier IA-064 requirement for an eligible NPM Fish/Meat stall and explicitly linked Business Payor is superseded prospectively by the independent vendor-registry rule. Existing historical Collections remain unchanged.
+
 ## 10. Transportation / parking
 
-Current V2 rule:
+Current clarified rule:
 
-- the office concern is primarily collection of transportation/parking fees through Cash Tickets;
-- the old StallTrack concept of tracking detailed trips/drivers/plates is not the primary business requirement;
-- rates vary by vehicle type;
-- the referenced schedule is accepted for current V2 planning and should not be re-questioned unless MEEDO supplies a superseding schedule.
+- Transportation/Parking is **separate from Income From Terminal**;
+- it remains Cash Ticket;
+- there is **no required vehicle-class/rate basis**;
+- the collector records the **amount received directly**;
+- payer/reference may remain optional where the operation permits it;
+- detailed trip/driver/plate and vehicle-class evidence is not required for the financial event.
 
-Known vehicle examples include:
+Do not label the target Transportation/Parking operation as TRM/Transport Terminal.
 
-- Public Utility Bus
-- Public Utility Baby Bus
-- Jeepney
-- Van
-- Multicab
-- Tricycle
+The vehicle-class schedule previously placed here belongs to the Terminal operation prospectively. Preserve historical Transportation/vehicle-class evidence until a deliberate migration/version boundary is implemented; do not rewrite posted history by guess.
 
-Future configuration should remain effective-dated and flexible by vehicle class.
+## 10A. Income From Terminal
+
+Income From Terminal is a separate official operation/report family and uses Cash Ticket.
+
+Confirmed official sections:
+
+- **COMFORT ROOM** — direct total amount; optional Cash Ticket count.
+- **PULL PUL VANS, CARGO VANS** — direct total amount; optional Cash Ticket count. Jeepney, Multicab, Van, Public Utility Bus and Public Utility Baby Bus belong to this section.
+- **TRICYCAD** — direct total amount; optional Cash Ticket count. Tricycle belongs to this section.
+
+The peso total alone is sufficient for the office's aggregate/high-volume entry. Vehicle-class rates may remain useful for an assisted individual-entry path, but they are not mandatory evidence for an approved aggregate Terminal total.
+
+Use the office's printed wording in the formal report unless MEEDO issues a corrected official form.
 
 ## 11. Slaughterhouse
 
@@ -281,6 +307,28 @@ Additional confirmed rules:
 - **Kanmanggay is Space Rental**, charged per space on a monthly basis, and uses **Official Receipt (OR)**.
 - **Lot Rental (Fiesta/Araw)** is priced per lot and uses **Official Receipt (OR)**.
 - **Fines/Penalties report under their own dedicated Fines/Penalties revenue line**, even when the fine originated from a rental or vendor context.
+
+## 12A. Unified collection identity and NPM Daily batch
+
+The 2026-10-06 office clarification supersedes the target requirement for a separate Business Payor management workflow.
+
+- Source-owned records are the collection-eligibility authority: occupancy/stallholder, rental account/space holder, Fish/Meat vendor registration, utility account or another specialized source.
+- Unified Mobile search is a cross-source search over those records. Equal display names never authorize automatic identity merging.
+- After selecting a source record, show only the operations actually eligible for that source.
+- If no relationship exists, only operations whose own policy permits optional/free-text payer context may be offered.
+- The **Business Payors page/manual-linking workflow is retired from the target product**. Existing persistence may remain temporarily for safe compatibility migration, but new features must not depend on it.
+- Posted payer/vendor/occupant snapshots remain historical evidence.
+
+**NPM Daily Collect All is approved for today's daily charge only.**
+
+- Staff may start with all eligible stalls selected and uncheck exceptions/absent payers.
+- Unchecked stalls remain unpaid for the day.
+- Each selected stall posts its own Collection/SRC.
+- Do not create one synthetic aggregate Collection.
+- Do not extend Collect All to TCC/NCC/BBQ/ICE/Kanmanggay monthly obligations without a later office ruling.
+
+See [ADR-007](../decisions/ADR_007_SOURCE_NATIVE_COLLECTION_IDENTITY.md).
+
 ## 13. BBQ, Ice Plant, Slaughterhouse, and additional enterprises
 
 ### BBQ Stand
@@ -331,14 +379,15 @@ See [ADR-006](../decisions/ADR_006_GOVERNED_CONFIGURABLE_SERVICE_OPERATIONS.md).
 
 Confirmed target direction:
 
-- StallTrack should eventually store annual revenue targets.
-- Monthly actuals should be derived from classified collections.
-- Reports should support Annual Target → Jan–Dec → YTD/Total → Percentage.
-- Each collection line should map to one official revenue classification so the Monthly Income report can be generated cleanly.
+- StallTrack stores approved annual revenue targets by tenant/year/official row; values are never inferred from history.
+- Monthly actuals are derived from classified collections plus authorized report-only adjustments.
+- Reports support Annual Target → Jan–Dec → YTD/Total → Percentage.
+- Each collection line maps to one official revenue classification so the Monthly Income report can be generated cleanly.
+- Annual target revisions and official Monthly Income adjustments are **Head-only**, audited and revisioned.
+- An official report adjustment changes report presentation only; it must never edit/delete Collections, balances, remittance or collector position.
+- Prepared-by and Certified-Correct names/positions are configurable office settings, not hard-coded identities. Historical finalized/exported output should preserve the signatory snapshot it used.
 
 Do not confuse Revenue Target Attainment with Collection Efficiency.
-
-Target edit authority/governance can be finalized later; it does not block the current UI catalog.
 
 ### Goodwill / Refund
 
@@ -370,9 +419,15 @@ Unless MEEDO provides contradictory new evidence, do not spend staff time re-ask
 - whether CT payor name may be optional;
 - whether partial remittance is allowed in the normal workflow - a remittance covers whole collections; a shortfall against them is a visible difference, never an adjusted collection (IA-052);
 - whether Cash Ticket remittance is triggered before the assigned range is consumed - it is not blocked by remaining stock; remittance and form custody are separate ledgers (IA-052);
-- whether current transportation vehicle-rate evidence is usable for V2 planning;
-- whether the Monthly Income sheet is the formal reporting grouping — it is; the board remains valid working/tally evidence;
+- whether Transportation/Parking and Terminal are the same operation — they are not; Transportation/Parking is direct-amount CT, while Terminal is the separate B-section family;
+- whether the Terminal vehicle mapping is known — Jeepney, Multicab, Van, Public Utility Bus and Public Utility Baby Bus belong to PULL PUL VANS, CARGO VANS; Tricycle belongs to TRICYCAD;
+- whether Terminal requires per-vehicle entry — it does not; a direct section total is sufficient and Cash Ticket count is optional;
+- whether the Monthly Income sheet is the formal reporting grouping — it is, and the 2026-10-06 continuation confirms A. Income From Market, B. Income From Terminal and C. Income from Slaughterhouse;
 - whether Fish/Meat Vendor Fee and Weight & Measure are separate charges — they are;
+- whether Fish/Meat depends on NPM or Business Payor — it does not;
+- whether Weight & Measure permits an unregistered free-text vendor — it does not; it requires the Fish/Meat vendor registry;
+- whether a Business Payors page is required for the target workflow — it is retired in favor of source-native records;
+- whether NPM Daily Collect All collects the monthly ₱900 — it does not; it collects today's daily charge for selected stalls only;
 - whether Kanmanggay is Space Rental — it is, charged monthly per space;
 - whether Fines/Penalties report to a dedicated revenue line — they do;
 - whether Kanmanggay and Lot Rental use OR — they do;
@@ -390,9 +445,11 @@ The MEEDO Head directed StallTrack to use the office Monthly Income 2026 sheet a
 
 Under **Income from Market**, Market Fees is a sibling row alongside General Distribution/ECF, WCF, Tabo, Fish/Meat Vendor Fees, Landing/Berthing, Transportation Fees, Weight & Measure/Registration, Transfer Large Cattle, and Ice Plant. These must not be treated as sub-items hidden inside Market Fees.
 
-This resolves the report-classification question. Do not invent additional official Market Fees sub-classifications from UI assumptions. A specific item such as Comfort Room needs separate office evidence before becoming its own official line.
+This resolves the report-classification question for A. Income From Market.
 
-See [2026-09-27 EEMO Head clarification](../evidence/2026-09-27_eemo_head_monthly_income_clarification.md).
+**2026-10-06 update:** Comfort Room now has separate office evidence under **B. Income From Terminal**, alongside **PULL PUL VANS, CARGO VANS** and **TRICYCAD**. These Terminal lines are not Market Fees sub-classifications.
+
+See [2026-09-27 EEMO Head clarification](../evidence/2026-09-27_eemo_head_monthly_income_clarification.md) and [2026-10-06 MEEDO office clarification](../evidence/2026-10-06_meedo_office_terminal_fish_vendor_monthly_income_clarification.md).
 ### Q2 — How are ECF and WCF amounts calculated?
 
 **Confirmed latest Head direction (2026-09-27):**
@@ -442,8 +499,8 @@ See [2026-09-27 EEMO Head final clarifications](../evidence/2026-09-27_eemo_head
 Do not distract staff with these during the presentation sprint unless they become necessary:
 
 - online-payment exception ownership;
-- final signatory matrix for every official report;
-- full revenue-target approval workflow;
+- signatory requirements for other official reports beyond the confirmed configurable Monthly Income Prepared by / Certified Correct settings;
+- target models beyond the confirmed annual-target revision workflow;
 - future cross-tenant facility-code display policy;
 - canonical stable account/detail route identities.
 

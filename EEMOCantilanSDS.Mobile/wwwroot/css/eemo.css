@@ -2618,3 +2618,32 @@ textarea {
 .header .collection-month-pill svg {
     stroke: #ffffff;
 }
+
+/* ── Shared bottom-sheet structure (2026-10-06): head, scrolling body, sticky action row. Used by New Collection and Fish / Meat. ── */
+/* Add item sheet: handle, title and context stay put; the body scrolls; the actions stay reachable above the keyboard. */
+.sheet-flex { display: flex; flex-direction: column; overflow: hidden; padding: 12px 20px 0; max-height: 88dvh; }
+.sheet-flex .sheet-handle { margin-bottom: 12px; flex: 0 0 auto; }
+.sheet-head { flex: 0 0 auto; padding-bottom: 12px; border-bottom: 1px solid var(--mobile-border); }
+.sheet-head .sheet-title { margin: 0; }
+.sheet-context { margin-top: 2px; font-size: 13px; color: var(--mobile-text-secondary); overflow-wrap: anywhere; }
+.sheet-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 8px 0 12px; overscroll-behavior: contain; }
+.sheet-actions { flex: 0 0 auto; display: flex; gap: 10px; padding: 12px 0 calc(16px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--mobile-border); background: var(--mobile-surface); }
+.sheet-actions .btn-cancel, .sheet-actions .btn-primary { flex: 1 1 0; min-height: 46px; padding: 0 12px; font-size: 14px; }
+.sheet-actions .btn-cancel { border-color: var(--mobile-blue); background: transparent; color: var(--mobile-blue); font-weight: 600; }
+.sheet-actions .btn-primary:disabled { background: var(--mobile-border); color: var(--mobile-text-secondary); opacity: 1; }
+.sheet-group { margin: 14px 0 4px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--mobile-text-secondary); }
+.sheet-back { display: inline-block; margin: 0 0 8px; padding: 6px 0; font-size: 13px; font-weight: 600; }
+.sheet-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid var(--mobile-border); font-size: 13px; color: var(--mobile-text-secondary); }
+.sheet-meta strong { color: var(--mobile-navy); font-size: 15px; font-variant-numeric: tabular-nums; }
+.sheet-note { padding: 10px 0; font-size: 13px; color: var(--mobile-text-secondary); }
+.sheet-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.sheet-body .form-field { margin-bottom: 12px; }
+
+.sheet-body .form-label { display: block; font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--mobile-text-secondary); margin-bottom: 6px; }
+.sheet-body .form-input { min-height: 46px; padding: 10px 14px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); color: var(--mobile-text); font-size: 16px; }
+.sheet-body .form-input:focus { border-color: var(--mobile-blue); box-shadow: inset 0 0 0 1px var(--mobile-blue); background: var(--mobile-surface); }
+.sheet-body .form-error { margin: 8px 0 0; font-size: 13px; color: var(--mobile-danger); }
+
+/* A read-only fact in a sheet (an instrument, a reference the server will issue): label left, value right, never an input. */
+.sheet-meta-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; padding: 12px 0; border-top: 1px solid var(--mobile-border); border-bottom: 1px solid var(--mobile-border); font-size: 13px; color: var(--mobile-text-secondary); }
+.sheet-meta-row strong { color: var(--mobile-navy); font-weight: 600; text-align: right; }

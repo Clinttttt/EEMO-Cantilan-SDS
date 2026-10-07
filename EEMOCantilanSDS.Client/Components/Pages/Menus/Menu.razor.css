@@ -355,11 +355,15 @@
 .section-header-actions {
     display: flex;
     align-items: center;
-    flex-shrink: 0;
+    flex-shrink: 1;
+    min-width: 0;
 }
 
+/* The five shortcuts wrap onto a second line on a narrower desktop instead of pushing the page sideways. */
 .dashboard-report-tabs {
     display: inline-flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     align-items: center;
     gap: 3px;
     padding: 4px;

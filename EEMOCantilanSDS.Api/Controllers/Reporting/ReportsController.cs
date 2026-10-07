@@ -37,9 +37,9 @@ public class ReportsController(ISender sender) : ApiBaseController(sender)
     [HttpGet("follow-up")]
     public async Task<ActionResult<FollowUpQueueDto>> GetFollowUp(
         [FromQuery] int year,
-        [FromQuery] int month)
+        [FromQuery] int month, [FromQuery] FacilityCode? facility = null, [FromQuery] string? operationCode = null)
     {
-        var result = await Sender.Send(new GetFollowUpQueueQuery(year, month));
+        var result = await Sender.Send(new GetFollowUpQueueQuery(year, month, facility, operationCode));
         return HandleResponse(result);
     }
 

@@ -421,10 +421,15 @@
 .rm-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 24px; border: 0; border-radius: 10px; background: var(--civic-panel); color: #ffffff; }
 .rm-header h1 { margin: 0; color: #ffffff; font-size: 1.5rem; font-weight: 700; letter-spacing: -.01em; }
 .rm-header p { margin: 4px 0 0; color: rgba(255, 255, 255, 0.85); font-size: .8125rem; }
-.rm-header-actions { display: flex; gap: 8px; flex-shrink: 0; }
-.rm-header-actions .v3-btn { border-color: #ffffff; background: #ffffff; color: var(--navy); }
-.rm-header-actions .v3-btn-primary { border-color: rgba(255, 255, 255, 0.9); background: rgba(255, 255, 255, 0.16); color: #ffffff; }
-.rm-header-actions .v3-btn-primary:hover { background: rgba(255, 255, 255, 0.26); }
+/* Three actions, one height, one row: Print summary (neutral) < Void Remittance (secondary) < New Remittance (primary). */
+.rm-header-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; flex-shrink: 0; }
+.rm-header-actions .v3-btn { box-sizing: border-box; min-height: 40px; padding: 0 16px; white-space: nowrap; border: 1px solid rgba(255, 255, 255, 0.4); background: transparent; color: #ffffff; font-weight: 600; }
+.rm-header-actions .v3-btn:hover { background: rgba(255, 255, 255, 0.14); }
+.rm-header-actions .v3-btn:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+.rm-header-actions .rm-act-secondary { border-color: rgba(255, 255, 255, 0.85); background: rgba(255, 255, 255, 0.16); }
+.rm-header-actions .rm-act-secondary:hover { background: rgba(255, 255, 255, 0.26); }
+.rm-header-actions .v3-btn-primary { border-color: #ffffff; background: #ffffff; color: var(--navy); font-weight: 700; }
+.rm-header-actions .v3-btn-primary:hover { background: #eef3f9; }
 .rm-section-actions { display: flex; align-items: center; gap: 12px; }
 .rm-preview { max-height: 320px; overflow: auto; }
 .rm-preview tbody td { height: 56px; }
@@ -435,7 +440,9 @@
 .rm-selection dl { display: flex; gap: 28px; margin: 0; }
 .rm-selection dt { font-size: .75rem; color: var(--text-secondary); }
 .rm-selection dd { margin: 3px 0 0; font-weight: 700; color: #173b64; font-variant-numeric: tabular-nums; }
+.rm-review-meta { display: grid; grid-template-columns: minmax(0, 1fr) minmax(160px, 220px); align-items: end; gap: 16px; }
 .rm-review-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 0; }
+@media (max-width: 640px) { .rm-review-meta { grid-template-columns: 1fr; } }
 .rm-review-facts dt { font-size: .75rem; color: var(--text-secondary); }
 .rm-review-facts dd { margin: 4px 0 0; font-size: .8125rem; font-weight: 600; }
 .rm-pill-void { color: #9b2c2c; border-color: #e5bcbc; background: #fff5f5; }
@@ -480,3 +487,20 @@
         display: none;
     }
 }
+
+/* Collector multi-select: a compact trigger that summarises the choice, with a searchable list in a small popover. */
+.rm-picker { position: relative; }
+.rm-picker-btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 40px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--navy); font: inherit; font-size: .875rem; text-align: left; cursor: pointer; }
+.rm-picker-btn > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rm-picker-btn svg { flex-shrink: 0; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.rm-picker-btn:focus-visible, .rm-picker-search:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rm-picker-backdrop { position: fixed; inset: 0; z-index: 20; border: 0; background: transparent; cursor: default; }
+.rm-picker-pop { position: absolute; top: calc(100% + 4px); left: 0; z-index: 21; width: max(100%, 260px); padding: 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); box-shadow: 0 6px 18px rgba(13, 33, 55, .12); }
+.rm-picker-search { box-sizing: border-box; width: 100%; min-height: 36px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; font: inherit; font-size: .8125rem; }
+.rm-picker-list { max-height: 220px; margin: 8px 0; padding: 0; overflow: auto; list-style: none; }
+.rm-picker-list label { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 6px; border-radius: 6px; font-size: .875rem; cursor: pointer; }
+.rm-picker-list label:hover { background: var(--surface-hover); }
+.rm-picker-foot { display: flex; justify-content: flex-end; }
+.rm-picker .rm-picker-list label { flex-direction: row; align-items: center; width: 100%; color: var(--navy); }
+.rm-picker .rm-picker-list input[type=checkbox] { flex: none; width: 16px; height: 16px; min-height: 0; margin: 0; padding: 0; }
+.rm-picker .rm-picker-list label > span { flex: 1; font-size: .875rem; font-weight: 400; color: var(--navy); }

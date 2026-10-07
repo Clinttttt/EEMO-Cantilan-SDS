@@ -145,7 +145,6 @@
                                 <div class="op-fee-fixed" aria-label="Amount">
                                     <span class="form-label">Amount</span>
                                     <span class="op-fee-fixed-value">@Money(fixedFee.Amount ?? 0m)</span>
-                                    <span class="op-form-note">Approved by the office · not editable here.</span>
                                 </div>
                             }
                             else if (SelectedFeeOption is { Basis: GovernedServiceBasis.DirectApprovedAmount } directFee)
@@ -212,7 +211,7 @@
                         <li class="op-record-row">
                             <div class="op-record-main">
                                 <span class="op-record-doc">@record.ReferenceCode</span>
-                                <span class="op-record-sub">@record.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)@(string.IsNullOrWhiteSpace(record.PayerName) ? "" : " · " + record.PayerName)@(record.Mode is { } m ? " · " + ModeLabel(m) : "")</span>
+                                <span class="op-record-sub">@record.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)@(string.IsNullOrWhiteSpace(record.PayerName) ? "" : " · " + record.PayerName)@(_entry is { ModeAware: true } && record.Mode is { } m ? " · " + ModeLabel(m) : "")</span>
                             </div>
                             <div class="op-record-side">
                                 <span class="op-record-amount">@Money(record.Amount)</span>
@@ -375,7 +374,8 @@
                 _variants.Add(new ModeOption(mode, terms.IsSuccess ? terms.Value : null,
                     terms.IsSuccess ? (_entry is { ModeAware: true } ? InstrumentLabel(terms.Value!.Instrument) : AmountHeadline(terms.Value!)) : terms.Error ?? "Not available today."));
             }
-            _mode = _variants.FirstOrDefault(v => v.Available)?.Mode ?? _variants[0].Mode;
+            if (!_variants.Any(v => v.Available && v.Mode == _mode))
+                _mode = _variants.FirstOrDefault(v => v.Available)?.Mode ?? _variants[0].Mode;
             await LoadRecordsAsync();
         }
         catch (HttpRequestException)
@@ -487,8 +487,13 @@
         (terms.FeeOptions ?? []).Select(f => new MobileChoice.Choice(f.Id.ToString(),
             string.IsNullOrWhiteSpace(f.Location) ? f.Name : $"{f.Name} · {f.Location}", FeeAmountText(f))).ToList();
 
-    private static string ModeLabel(GovernedServiceMode? mode) =>
-        mode == GovernedServiceMode.WholePayment ? "Monthly rental" : "Daily transaction";
+    private static string ModeLabel(GovernedServiceMode? mode) => mode switch
+    {
+        GovernedServiceMode.WholePayment => "Monthly rental",
+        GovernedServiceMode.QuickAmount => "Quick amount",
+        null => "By vehicle class",
+        _ => "Daily transaction"
+    };
 
 
     private static string AmountRule(GovernedServiceTermsDto terms) => terms.Basis switch

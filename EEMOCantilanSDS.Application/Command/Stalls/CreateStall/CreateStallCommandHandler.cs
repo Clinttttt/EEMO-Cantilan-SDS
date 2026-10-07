@@ -99,7 +99,8 @@ public class CreateStallCommandHandler(
             request.AreaLocation,
             request.AreaNote,
             null,
-            CustomSectionName: stall.CustomSectionName
+            CustomSectionName: stall.CustomSectionName,
+            OccupancyId: contract.Id
             );
 
         return Result<StallDto>.Success(dto);
@@ -167,6 +168,6 @@ public class CreateStallCommandHandler(
             stall.AreaLocation,
             stall.AreaNote,
             null,
-            CustomSectionName: stall.CustomSectionName));
+            CustomSectionName: stall.CustomSectionName, OccupancyId: contract.Id));
     }
 }

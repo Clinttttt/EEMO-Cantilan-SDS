@@ -64,6 +64,8 @@ public class SectionRateReadersAreNamedTests
             "The one reader that matters: it loads the rows into the fee snapshot, which is what NpmDailyFee asks. "
             + "Everything that bills goes through here.",
 
+        ["NpmDailyBatchWorkflow.cs"] = "Hashes effective rate evidence to reject stale batch previews; calculations still use NpmDailyFee through the existing daily writer.",
+
         ["FacilityRepository.cs"] =
             "The office's own configuration screen, stating back the fee it entered, section by section. It bills nothing: "
             + "it answers what the office SAID, not what a stall is charged.",

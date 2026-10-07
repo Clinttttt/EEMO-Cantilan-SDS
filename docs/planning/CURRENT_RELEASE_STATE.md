@@ -1,18 +1,123 @@
 # StallTrack Current Release State
 
-**Status:** Current implementation checkpoint
-**As of:** 2026-10-04
-**Code basis:** `release/v3-final-closure` through the AF No. 51 accountability commits listed in section 1
-**Production baseline:** `origin/master` at `cdcd3701`
+**Status:** Production release verified; newer local integration checkpoint accepted for continued development
+**As of:** 2026-10-08
+**Production code basis:** `master` at `db75418b68aa221cc5cd30a3bfa2af9799c2a5c6` (2026-10-05 release)
+**Current local integration checkout:** `C:\dev\stalltrack\eemo`
+**Current local integration branch / application checkpoint:** `integration/report-governance-ui` at `08232726` (documentation checkpoint follows; inspect Git for exact HEAD)
+**Collector APK in production:** `collector-1.1.12-14` (display version 1.1.12, version code 14)
 
-This is the single current implementation-status entry point. Dated audits, handoffs and historical phase documents remain useful evidence, but they must not be used as the current release state without checking this file, current code/tests and Git history.
+This is the single current implementation-status entry point. It deliberately separates **deployed production** from the **newer accepted local integration state**. Dated audits and handoffs remain evidence; they do not become production merely because their commits are integrated locally. Before changing code, confirm the current Git HEAD because the local integration checkpoint may advance.
 
-**2026-10-05 feature-branch supplement:** `codex/mobile-itemized-collection-backend`, based on `19ae118b`, adds a
-bounded backend/shared-contract checkout and durable queue; see [Mobile itemized collection backend](MOBILE_ITEMIZED_COLLECTION_BACKEND.md).
-It is not merged, deployed or activated in production. The October 4 source-rollout statements below are dated evidence:
-later Phase 2.x code/tests already provide more canonical Mobile writers. This supplement does not reopen legacy OR entry.
+## 2026-10-08 accepted local consolidation
 
-## 1. Repository / release position
+The subsequent local UI follow-up contains Mobile commit `4df9bfda`, Web commit `2249573b`, and final Mobile polish `ed4b295b`. Terminal has no redundant title card; official sections and server-configured vehicle choices use two columns, with optional Name only for a selected vehicle class. Amount received remains authoritative direct input where the server specifies direct amount; optional CT count does not price it. Collect All row amounts use stronger contrast. Fish/Meat registration choices occupy separate rows, and Operations displays the child label Terminal under the unchanged Income From Terminal group. No backend, migration, financial rule or production state changed.
+
+Follow-up validation: Mobile components **70 passed / 0 failed / 0 skipped**; focused Web components **20 passed / 0 failed / 0 skipped**; full Web components **746 passed / 0 failed / 0 skipped**. Mobile Windows Release passed with **17 warnings / 0 errors**; Client Release passed with **0 warnings / 0 errors** on the standalone retry after a concurrent compiler-output lock. Diff whitespace and edited/generated Mobile CSS brace checks passed. This earlier follow-up checkpoint was superseded by the accepted final addenda below.
+
+The user's screenshot rejected the initial Terminal tile presentation and exposed missing local vehicle mapping. Commit `838c4f51` gives each tile an even complete border and compact padding. The existing Head-only Terminal mapping API was used in the **localhost Cantilan development database only** to assign the six existing approved vehicle classes to the October 6 office-confirmed sections. Existing abbreviated codes had no Terminal mapping, so discovery previously returned section totals only. Collector discovery now returns all six configured vehicle choices alongside the three section totals; rates and posted financial history were not changed. Focused Mobile editor tests **37 passed / 0 failed / 0 skipped**, Windows Release **17 warnings / 0 errors**, whitespace/CSS brace checks passed. This presentation is included in the final visual acceptance below.
+
+Later requested addenda supersede earlier UI descriptions above: `0d67c325` makes Fish/Meat registration fields full-width and removes Reference from ordinary registration/search/table presentation (historical references remain persisted and available in Details). `c8d7691c` intentionally splits Official Monthly Income into Section A on sheet 1 and B/C, overall total and configured signatories on sheet 2. `08232726` removes current Terminal ticket-count inputs/details and replaces the Web monthly ticket metric with Contribution based on existing `NetAmount`; new Mobile items send a null count. Backend contracts and historical evidence remain intact.
+
+Latest validation: Fish/Meat focused **17/0/0**, official report focused **27/0/0**, Terminal focused **5/0/0**, full Web **748/0/0**, full Mobile **70/0/0** (passed/failed/skipped). Client Release **0 warnings/0 errors**, Mobile Windows Release **16 warnings/0 errors**. Net contribution regression was proved by temporarily substituting gross amounts: **1 failed/1 passed**, then restoring net amounts before the passing full suite. Diff/CSS source and generated bundle checks pass. Browser control cannot initialize because its sandbox helper fails. The user checked the fresh latest apps and explicitly confirmed **“Checked — all passed, including two-page PDF”**: exactly two A4 landscape pages with closing totals/signatories together, plus the latest Mobile/Web visual checkpoints. This is user-reported visual/print acceptance; the follow-up is accepted for same-checkout local integration.
+
+Application commit `6051a66d` was developed on `codex/final-eemo-consolidation` in the same primary checkout and accepted for local fast-forward integration. It removes the legacy TRM/PerTrip active Mobile menu entry, keeps source-native Terminal under Income from Terminal with `/income-terminal`, preserves Transportation/Parking separately, and adds focused menu/source-picker regression coverage. No financial writer, historical record, source activation mechanism, migration, or CSS was changed.
+
+Local Cantilan `personal1` now resolves an already-existing `NPM_DAILY` setting effective **2026-10-08**, enabled and Mobile-enabled. The live readiness and quote both authorize five stalls, zero already collected, total **₱150**. Ana Reyes' source discovery offers Daily **₱30**, Whole **₱900 remaining**, Water and Electricity; direct operations stay in a separate source-less session. These are observed server facts, not built-in rates. This session did not activate the service or post Collections.
+
+The current localhost database has the Fish/Meat migration history and actual registry table/lifecycle schema; the authenticated management API loads. **No database repair was required or performed.**
+
+Full validation: Unit **2,523 passed / 0 failed / 0 skipped**; PostgreSQL Integration **366 passed / 0 failed / 7 snapshot-gated skipped**; Mobile components **64 passed / 0 failed / 0 skipped**; Web components **746 passed / 0 failed / 0 skipped**. API, Client and Mobile Windows Release builds passed. `git diff --check` passed. No CSS changed.
+
+API, Client and Windows Mobile were rebuilt/restarted from the primary checkout after the application commit; process paths were verified and the Mobile DLL is newer than that commit. Native/browser UI automation could not initialize because of a sandbox-helper failure. The user performed the requested visual checkpoint against the fresh apps and explicitly confirmed **“Checked — all passed.”** This is user-reported visual acceptance, not an automated screenshot review. See [the consolidation verification record](FINAL_SINGLE_REPO_CONSOLIDATION_20261008.md).
+
+Production remains the separately recorded October 5 release below. No push, master merge, deployment, cloud database change or APK publication occurred.
+
+## 2026-10-07 accepted local integration checkpoint
+
+The local integration branch now contains the October 6 office-clarification implementation and the October 7 collector/productivity follow-ups. These changes are **not pushed, not merged to master, not deployed, and not published as an APK** at this checkpoint.
+
+Integrated local behavior includes:
+
+- complete A/B/C Official Monthly Income structure support, with **Income From Terminal** separate from Transportation/Parking and Slaughterhouse standalone;
+- Transportation/Parking as CT direct amount, with Terminal owning its own section/vehicle-assisted workflow;
+- independent Fish/Meat vendor registration, Active/Closed lifecycle, ID-based annual renewal, management totals, registry import, and Weight & Measure requiring the registered vendor source;
+- source-native New Collection behavior without a required Business Payor master;
+- NPM Daily and Whole Payment discovery, reviewed Daily Collect All with one Collection/SRC per selected stall, and truthful blocked-readiness messaging;
+- current-collector recent collections plus audited Edit/Remove correction; Mobile Edit is atomic through the real API/DI path and creates a replacement Collection/SRC rather than mutating posted money;
+- Terminal optional payer/name snapshot without identity creation;
+- Revenue Source Performance aligned to the static five-column management view: **Source · Collected · Annual target · Contribution · Attention**;
+- Web/Mobile V3 presentation follow-ups for Fish/Meat, Collection Activity, Market Fees, recent registers, NPM Whole Payment, and related responsive states.
+
+Additive local migrations now present in the accepted integration history include:
+
+- `20261006173902_OfficeSourceNativeIdentity`
+- `20261007000912_NativeCollectionSourceShapeAndSpaceHolder`
+- `20261007072024_FishMeatRegistryLifecycle`
+
+They have been exercised against throwaway/local PostgreSQL during development. **They have not been applied to production by this local integration checkpoint.** A local development database that has not applied them may fail with missing-table errors such as `FishMeatVendorRegistrations`.
+
+Latest implementation handoffs:
+
+- `COLLECTOR_PRODUCTIVITY_FOLLOWUP_HANDOFF_20261007.md`
+- `FISH_MEAT_REGISTRY_MANAGEMENT_HANDOFF_20261007.md`
+- `MOBILE_EDIT_ATOMICITY_FOLLOWUP_HANDOFF_20261007.md`
+- `NPM_ARREARS_READINESS_HANDOFF_20261007.md`
+
+Validation evidence across those accepted follow-ups includes a full Unit pass of **2,519**, a full Integration pass of **362 passed / 7 snapshot-gated skipped / 0 failed** at the Mobile Edit atomicity checkpoint, plus later focused NPM/readiness and Mobile component passes after the final UI/readiness refinements. Later focused passes did not rerun every full suite; read each handoff for exact scope.
+
+Historical October 7 local NPM note: the tested Cantilan `personal1` collector had five unpaid/pending stalls but `CanonicalCollection=false`; batch readiness correctly returned `SourceStillLegacy`. The October 8 local observation above supersedes that activation-state snapshot. For any disabled source, the UI must still say Collect All unavailable rather than “nothing left to collect.”
+
+## 2026-10-06 office clarification — production/runtime divergence
+
+Direct MEEDO office clarification on 2026-10-06 changed several target business rules after the published 2026-10-05 release.
+
+**The 2026-10-06 clarification remains business authority. The accepted local integration checkpoint now implements most of this direction, while the currently deployed production release may still show the older behavior until an explicit production rollout occurs.**
+
+Confirmed changes:
+
+- the Official Monthly Income continues with **B. Income From Terminal** (Comfort Room; Pull Pul Vans, Cargo Vans; Tricycad), **C. Income from Slaughterhouse**, and **OVERALL TOTAL MARKET COLLECTION**;
+- Terminal is separate from Transportation/Parking;
+- Transportation/Parking becomes CT + direct amount, with no required vehicle-class/rate basis;
+- vehicle classes/rates move prospectively to Terminal;
+- Fish/Meat Vendor Fee becomes independent from NPM/BusinessPayor and uses an independent Fish/Meat vendor registry;
+- Weight & Measure requires that registered vendor source;
+- the Business Payors product workflow is retired in favor of source-native collection identity;
+- NPM Daily may add a reviewed Collect All flow that still posts one Collection/SRC per selected stall;
+- Official Monthly Income adjustments are Head-only and signatories are configurable office settings.
+
+Evidence and implementation plan:
+
+- `docs/evidence/2026-10-06_meedo_office_terminal_fish_vendor_monthly_income_clarification.md`
+- `docs/planning/OFFICE_CLARIFICATION_REFACTOR_20261006.md`
+- IA-067 / IA-068
+- ADR-007
+
+No production financial records should be rewritten to make old data resemble the new model. The refactor must be prospective and compatibility-safe.
+
+## Current verified release
+
+New Collection is published with server quotes, stable payer/session/item identities, durable retry, and all returned
+Collection/SRC references. V1 preserves one item per Collection; the checkout itself is not revenue. Direct/prepared
+ECF and WCF, additional direct Fish/Meat Vendor Fee (IA-064), weighing, NPM Whole Payment and the other supported
+adapters are documented in [the full-stack handoff](ITEMIZED_COLLECTION_FULL_STACK_FOLLOWUP.md).
+
+- [CI](https://github.com/Clinttttt/EEMO-Cantilan-SDS/actions/runs/37274842496),
+  [fresh backup](https://github.com/Clinttttt/EEMO-Cantilan-SDS/actions/runs/37275262538), and
+  [production deployment](https://github.com/Clinttttt/EEMO-Cantilan-SDS/actions/runs/37274842344) succeeded.
+- API and portal container images both carry the full SHA above. API health and portal login return 200; the deployed
+  scoped CSS has balanced braces. These checks did not create or alter production financial records.
+- [Signed publication](https://github.com/Clinttttt/EEMO-Cantilan-SDS/actions/runs/37295944046) succeeded.
+  The [APK](https://github.com/Clinttttt/EEMO-Cantilan-SDS/releases/tag/collector-1.1.12-14) downloads successfully
+  (46,068,927 bytes). Its inspected Android manifest reports 1.1.12 / 14; the API advertises the same values.
+- APK SHA-256: `f3277e31c897d0ad2305a68fe8560979772b5bc96904f942b4dc1efe49a812fe`.
+- Interactive Windows/narrow-width review is still a separate gate: computer/browser surfaces were unavailable to
+  this session. Component tests and a Windows Release compile passed; they are not visual approval.
+
+The October 4 sections below remain historical evidence. Their unmerged/unpublished status, older source rollout and
+blocked Mobile-by-Payor statements are superseded by this release, current code/tests and IA-062/IA-063/IA-064.
+
+## 1. Historical 2026-10-04 repository / release position
 
 - Local branch: `release/v3-final-closure`.
 - Before this documentation-only commit, the branch was three commits ahead of `origin/master` at this checkpoint:
@@ -96,15 +201,15 @@ Authoritative DOF/BLGF/COA research is now recorded in `docs/evidence/2026-10-04
 
 1. **Cash Ticket denomination policy:** the open sub-gate recorded under IA-056 still requires office confirmation. Do not infer printed denominations from the current serial-number model.
 2. **AF No. 51 printed serial suffix meaning:** IA-059 remains open. Preserve the exact printed value; no suffix-dependent automation is authorized. This does not block the AF No. 51 accountability implementation under IA-057/IA-058/IA-060.
-3. **Mobile Collect by Payor:** not built. Current canonical Mobile payor identity exists for WCF; governed walk-up services cannot be attached to a Payor by name. A truthful combined workflow needs a payor-linked collectible-item contract and/or authorized Rent/ECF/penalty canonical cutover.
+3. **Source-native Mobile New Collection refactor:** the 2026-10-06 target is confirmed (IA-068 / ADR-007) but is not part of the Oct 5 production release. Replace the Business-Payor-first discovery contract with typed source-native search and server-returned eligible items. Do not attach operations by payer-name matching.
 4. **Collection Activity:** still has an older legacy feed boundary in the Web page; the backend/current-report contract follow-up remains.
-5. **Annual targets:** governance/source/revision policy remains unresolved; do not invent values.
+5. **Annual targets / official adjustments:** governance is now resolved for the bounded annual-target/report-revision model by IA-066. The remaining gap is implementation/integration/release of those contracts and UI where not already present on the active integration branch; do not invent target values.
 6. **Mobile Electricity:** legacy-path/cutover decision remains open.
 7. **Snapshot validation:** run the seven snapshot-gated tests against a restored local production snapshot before final release sign-off.
 8. **Rendered review:** complete localhost / Windows-Mobile review and an Android runtime check on an appropriate device or installed system image.
 9. **AF No. 51 sequence (IA-061) — superseded for collection by IA-062:** collection screens no longer offer a next receipt; sequence/skipped review applies only inside the optional Accountable Forms register. Whether the office wants a hard block there remains an open ruling.
 10. **Multi-line OR for Legacy-authority sources:** rent, ECF and similar rows still on Legacy settlement authority cannot join a canonical multi-line OR until a controlled source cutover is approved and run.
-11. **Mobile OR paths:** Mobile's Electricity OR remains the legacy typed-number path (a legacy writer awaiting its own cutover, not an SRC path); Mobile Collect by Payor is still not built.
+11. **Mobile OR/source-discovery paths:** Mobile's Electricity OR remains the legacy typed-number path (a legacy writer awaiting its own cutover, not an SRC path). The confirmed source-native New Collection refactor is also not in the Oct 5 production release.
 12. **AF No. 51 rendered review:** the new Accountable Forms views were reviewed from real components with the compiled CSS in headless Chrome (desktop and 390px), not through a logged-in session against a seeded database.
 13. **Migration pre-check:** before applying `AddAf51SerialIdentityAndAccountabilityEvents` to a database with existing accountable documents, confirm no two documents of one instrument differ only by case or whitespace.
 

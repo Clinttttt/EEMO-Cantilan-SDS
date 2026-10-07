@@ -1,6 +1,9 @@
 /* ECF workspace — V3. Panels, tables, buttons, fields and notices come from the shared v3- layer in app.css;
    this file holds only the ECF-specific layout. */
 
+/* Period and instrument sit on the hero's subtitle line; the actions are one quiet group on the right beneath it. */
+.ecf-hero-meta { display: inline-flex; align-items: center; gap: 10px; }
+
 /* Both columns share one height, so the Current collection panel lines up with the Obligations register. */
 .ecf-layout {
     display: grid;
@@ -122,3 +125,16 @@
 }
 
 /* Official Receipt: the next assigned receipt is the normal path; choosing another is a secondary recovery action. */
+
+/* The Obligations header carries one aligned control group (search, area, and the ECF pages); it wraps deliberately when the panel is narrow. */
+.ecf-panel-header { flex-wrap: wrap; align-items: flex-start; gap: 12px 16px; }
+.ecf-panel-title { display: flex; flex-direction: column; gap: 2px; min-width: 9rem; }
+.ecf-controls { display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: 8px; margin-left: auto; }
+.ecf-controls .v3-search { flex: 1 1 13rem; min-width: 10rem; }
+.ecf-controls .v3-select { flex: 0 0 auto; min-width: 8rem; }
+.ecf-controls .v3-btn-group { flex: 0 0 auto; }
+
+@media (max-width: 720px) {
+    .ecf-controls { flex-wrap: wrap; }
+    .ecf-controls .v3-search { flex: 1 1 100%; }
+}

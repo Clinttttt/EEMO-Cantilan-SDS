@@ -19,9 +19,9 @@ using EEMOCantilanSDS.Infrastructure.Fees;
 namespace EEMOCantilanSDS.Infrastructure.Repositories.Revenue;
 
 /// <summary>Source dispatcher, not an amount engine. All writers use this SAME concrete context as the session transaction.</summary>
-public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserService user,
+public sealed partial class CollectionSessionSources(AppDbContext db, ICurrentUserService user,
     ICurrentMunicipalityAccessor municipality, IClock clock, ISender sender, ITpmMarketDayProvider marketDays,
-    NpmWholePaymentWorkflow? npmWhole = null) : ICollectionSessionSources
+    NpmWholePaymentWorkflow? npmWhole = null, NpmDailyBatchWorkflow? npmDaily = null) : ICollectionSessionSources
 {
     private WcfCollectionWorkflow Water => new(db, user, municipality, clock);
     private GovernedServiceWorkflow Governed => new(db, user, municipality, clock);
@@ -39,6 +39,13 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
             foreach (var op in operations.Value!.Operations)
             {
                 var water = op.OperationCode == CollectorOperationCodes.Wcf;
+                if (CollectorOperationCodes.IsSpaceObligation(op.OperationCode))
+                {
+                    rows.Add(new(CollectionSessionItemKind.Obligation, op.OperationCode, op.Name, true,
+                        op.IsCollectible && payorId.HasValue, !payorId.HasValue ? "RequiresPayor" : !op.IsCollectible ? "SourceNotAvailable" : null,
+                        null, true, ["AccountId", "Year", "Month", "Amount"]));
+                    continue;
+                }
                 var supported = water || GovernedServiceCatalog.Find(op.OperationCode) is not null && !CollectorOperationCodes.IsFeeSchedule(op.OperationCode);
                 rows.Add(new(water ? CollectionSessionItemKind.Water : supported ? CollectionSessionItemKind.GovernedService : null,
                     op.OperationCode, op.Name, supported, supported && op.IsCollectible && (!water || payorId.HasValue),
@@ -52,12 +59,11 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
         rows.Add(new(CollectionSessionItemKind.VendorFee, "FISH_MEAT_VENDOR_FEE", "Fish/Meat Vendor Fee", true, npm && payorId.HasValue && FishMeatVendorFeeRules.UsesDirectCollection(date),
             !npm ? "CollectorNotAssigned" : !payorId.HasValue ? "RequiresPayor" : null, null, true, ["StallId", "AmountReceived"]));
         rows.Add(new(CollectionSessionItemKind.NpmWholePayment, "NPM_WHOLE_PAYMENT", "NPM Whole payment", npmWhole is not null, npm && payorId.HasValue && npmWhole is not null,
-            !npm ? "CollectorNotAssigned" : !payorId.HasValue ? "RequiresPayor" : null, null, true, ["StallId", "Year", "Month"]));
+            npmWhole is null ? "NotSupportedYet" : !npm ? "CollectorNotAssigned" : !payorId.HasValue ? "RequiresPayor" : null, null, true, ["StallId", "Year", "Month"]));
         rows.Add(new(CollectionSessionItemKind.Weighing, "WEIGHT_AND_MEASURE", "Weight & Measure", true, npm && payorId.HasValue,
             !npm ? "CollectorNotAssigned" : !payorId.HasValue ? "RequiresPayor" : null, null, true, ["StallId", "Type", "Kilograms"]));
         foreach (var (code, name) in new[]
         {
-            ("KANMANGGAY_SPACE_RENTAL", "Kanmanggay"), ("FIESTA_ARAW_LOT_RENTAL", "Fiesta/Araw"),
             (CollectorOperationCodes.NpmDaily, "NPM Daily"),
             (CollectorOperationCodes.Tabo, "Tabo")
         })
@@ -73,7 +79,8 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
         foreach (var row in rows.Where(x => x.CanAdd && x.Kind == CollectionSessionItemKind.GovernedService))
         {
             var entry = GovernedServiceCatalog.Find(row.OperationCode)!;
-            var modes = entry.ModeAware ? new GovernedServiceMode?[] { GovernedServiceMode.WholePayment, GovernedServiceMode.DailyTransaction } : [null];
+            var modes = entry.Code == CollectorOperationCodes.Transportation && date < OfficeCollectionWorkflow.EffectiveFrom ? new GovernedServiceMode?[] { null, GovernedServiceMode.QuickAmount }
+                : entry.ModeAware ? new GovernedServiceMode?[] { GovernedServiceMode.WholePayment, GovernedServiceMode.DailyTransaction } : [null];
             foreach (var mode in modes)
             {
                 var response = await Governed.GetTermsAsync(row.OperationCode, mode, ct, date);
@@ -85,13 +92,18 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
         IReadOnlyList<ObligationQuoteDto> obligationSources = [];
         if (payorId is { } payer)
         {
+            var allowedSpaceCodes = rows.Where(x => x.Kind == CollectionSessionItemKind.Obligation && x.CanAdd).Select(x => x.OperationCode).ToArray();
+            var spaceAccounts = await db.ObligationAccounts.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.PayorId == payer &&
+                (x.Kind == ObligationKind.KanmanggaySpaceRental && allowedSpaceCodes.Contains(CollectorOperationCodes.KanmanggaySpaceRental) ||
+                 x.Kind == ObligationKind.FiestaArawLotRental && allowedSpaceCodes.Contains(CollectorOperationCodes.FiestaArawLotRental))).ToListAsync(ct);
+            obligationSources = await new ObligationCollectionSource(db).GetQuotesAsync(Tenant, spaceAccounts, date, ct);
             var water = await Water.GetMobileSourcesAsync(date.Year, date.Month, ct, businessDate: date, selectedPayorId: payer);
             if (water.IsSuccess) waterSources = water.Value!.Where(x => x.PayorId == payer).ToArray();
             if (npm)
             {
                 var accounts = await db.ObligationAccounts.AsNoTracking().Where(x => x.MunicipalityId == Tenant
                     && x.PayorId == payer && x.Kind == ObligationKind.FishMeatVendorFee).ToListAsync(ct);
-                if (!FishMeatVendorFeeRules.UsesDirectCollection(date)) obligationSources = await new ObligationCollectionSource(db).GetQuotesAsync(Tenant, accounts, date, ct);
+                if (!FishMeatVendorFeeRules.UsesDirectCollection(date)) obligationSources = obligationSources.Concat(await new ObligationCollectionSource(db).GetQuotesAsync(Tenant, accounts, date, ct)).ToArray();
                 var electricity = await Composer.GetMobileEcfSourcesAsync(payer, ct);
                 if (electricity.IsSuccess) electricitySources.AddRange(electricity.Value!);
             }
@@ -104,7 +116,15 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
             foreach (var type in new[] { WeighingType.Fish, WeighingType.Meat })
             {
                 var rate = snapshot.ResolveEntryOrNull(type == WeighingType.Fish ? FeeRateKey.NpmFishPerKilo : FeeRateKey.NpmMeatPerKilo, date);
-                if (rate is { Amount: > 0m }) weighingRates.Add(new(type, rate.Value.Amount, rate.Value.EffectiveDate));
+                if (rate is { Amount: > 0m })
+                {
+                    var key = type == WeighingType.Fish ? FeeRateKey.NpmFishPerKilo : FeeRateKey.NpmMeatPerKilo;
+                    var rateId = await db.FacilityRates.AsNoTracking().Where(x => x.MunicipalityId == Tenant
+                            && x.FacilityCode == rate.Value.Facility && x.RateKey == key && x.EffectiveDate == rate.Value.EffectiveDate)
+                        .Select(x => (Guid?)x.Id).SingleOrDefaultAsync(ct);
+                    // The writer requires persisted rate evidence; fallback constants cannot become picker authority.
+                    if (rateId.HasValue) weighingRates.Add(new(type, rate.Value.Amount, rate.Value.EffectiveDate, rateId));
+                }
             }
             if (payorId.HasValue)
             {
@@ -116,18 +136,23 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
                 {
                     var contract = stall.OccupancyAnsweringForMonth(date.Year, date.Month, date)?.Contract;
                     if (contract?.PayorId == payorId && contract.Payor?.MunicipalityId == Tenant)
-                        weighingSources.Add(new(stall.Id, stall.StallNo, payorId, contract.Payor.DisplayName, "New Public Market"));
+                        weighingSources.Add(new(stall.Id, stall.StallNo, payorId, contract.Payor.DisplayName, "New Public Market", contract.Id, stall.Section));
                 }
             }
         }
-        var weighingPolicy = npm && weighingRates.Count > 0 && await PolicyIdAsync("WEIGHT_AND_MEASURE", RevenuePolicyContext.Default, date, ct) is not null;
+        var weighingPolicyId = npm && weighingRates.Count > 0
+            ? await PolicyIdAsync("WEIGHT_AND_MEASURE", RevenuePolicyContext.Default, date, ct) : null;
+        var weighingPolicy = weighingPolicyId.HasValue && await db.RevenueClassificationPolicies.AsNoTracking().AnyAsync(x =>
+            x.MunicipalityId == Tenant && x.Id == weighingPolicyId && x.PermittedInstrumentType == RevenueInstrumentType.OfficialReceipt, ct);
         var slaughterOptions = new List<SessionSlaughterOption>();
-        var slaughterCapability = operations.Value?.Operations.FirstOrDefault(x => x.OperationCode == CollectorOperationCodes.Slaughterhouse);
+        // SLH is facility-assigned. It deliberately has no CollectorOperationAssignment entry.
+        var slaughterAvailable = menu.IsSuccess && menu.Value!.Facilities.Any(x => x.Code == FacilityCode.SLH
+            && x.IsAssigned && x.IsAvailable && x.CanonicalCollection);
         rows.RemoveAll(x => x.OperationCode == CollectorOperationCodes.Slaughterhouse);
         rows.Add(new(CollectionSessionItemKind.Slaughter, CollectorOperationCodes.Slaughterhouse, "Slaughterhouse", true,
-            slaughterCapability?.IsCollectible == true, slaughterCapability?.IsCollectible == true ? null : "SourceNotAvailable",
+            slaughterAvailable, slaughterAvailable ? null : "SourceNotAvailable",
             null, false, ["Animal", "Heads", "OwnerNameIfAnonymous"]));
-        if (slaughterCapability?.IsCollectible == true)
+        if (slaughterAvailable)
         {
             var rates = await new FeeRateResolver(db).GetSnapshotAsync(ct);
             foreach (var animal in new[] { AnimalType.Hog, AnimalType.Cow, AnimalType.Carabao })
@@ -135,49 +160,96 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
                     && rates.ResolveOrNull(key, date) is > 0)
                     slaughterOptions.Add(new(animal, animal.ToString(), null));
             slaughterOptions.AddRange(await db.SlaughterAnimalRates.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.IsActive)
-                .Select(x => new SessionSlaughterOption(AnimalType.Other, x.AnimalName, x.AnimalName)).ToListAsync(ct));
+                .Select(x => new SessionSlaughterOption(AnimalType.Other, x.AnimalName, x.AnimalName, null)).ToListAsync(ct));
         }
         for (var i = 0; i < rows.Count; i++)
         {
             if (rows[i].OperationCode == "WEIGHT_AND_MEASURE") rows[i] = rows[i] with
-            { CanAdd = rows[i].CanAdd && weighingPolicy, StandaloneAvailable = weighingPolicy };
+            {
+                CanAdd = rows[i].CanAdd && weighingPolicy, StandaloneAvailable = weighingPolicy,
+                ReasonCode = rows[i].CanAdd && !weighingPolicy ? "SourceNotAvailable" : rows[i].ReasonCode,
+                Reason = rows[i].CanAdd && !weighingPolicy ? "An approved weighing rate and collection policy are required." : rows[i].Reason
+            };
             if (rows[i].OperationCode == "ECF") rows[i] = rows[i] with
             { StandaloneAvailable = npm && await PolicyIdAsync(RevenueClassificationCodes.Ecf, RevenuePolicyContext.Default, date, ct) is not null };
         }
         var payerName = payorId is { } selected ? await db.Payors.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.Id == selected).Select(x => x.DisplayName).SingleOrDefaultAsync(ct) : null;
+        for (var i = slaughterOptions.Count - 1; i >= 0; i--)
+        {
+            var option = slaughterOptions[i];
+            var quote = await FeeSchedule.QuoteSlaughterAsync(new(Guid.Empty, CollectorOperationCodes.Slaughterhouse, date, 0m,
+                Animal: option.Animal, CustomAnimalName: option.CustomAnimalName, Heads: 1,
+                OwnerName: payerName ?? "Walk-in"), ct);
+            if (!quote.IsSuccess) slaughterOptions.RemoveAt(i);
+            else slaughterOptions[i] = option with { Instrument = quote.Value!.Instrument };
+        }
         var vendorSources = npm ? (await VendorFees.DiscoverAsync(payorId, ct)).Value ?? [] : [];
         var npmSources = new List<WeighingSourceDto>();
+        var npmWholeSources = new List<SessionNpmWholeSource>();
         if (npm && payorId.HasValue && npmWhole is not null)
         {
             var stalls = await db.Stalls.AsNoTracking().Include(x => x.Contracts).ThenInclude(x => x.Payor).Where(x => x.MunicipalityId == Tenant
                 && x.Facility!.Code == FacilityCode.NPM && x.Contracts.Any(c => c.PayorId == payorId)).ToListAsync(ct);
             foreach (var stall in stalls)
             {
-                var occupancy = stall.OccupancyAnsweringForMonth(date.Year, date.Month, date)?.Contract;
+                var occupancy = stall.OccupancyAnsweringForMonth(date.Year, date.Month,
+                    new DateOnly(date.Year, date.Month, 1).AddMonths(1).AddDays(-1))?.Contract;
                 if (occupancy?.PayorId == payorId && occupancy.Payor?.MunicipalityId == Tenant)
-                    npmSources.Add(new(stall.Id, stall.StallNo, payorId, occupancy.Payor.DisplayName, "New Public Market"));
+                {
+                    var quote = await npmWhole.QuoteAsync(stall.Id, date.Year, date.Month, ct, date);
+                    if (quote.IsSuccess && quote.Value is { Amount: > 0m } value)
+                    {
+                        npmSources.Add(new(stall.Id, stall.StallNo, payorId, occupancy.Payor.DisplayName, "New Public Market", occupancy.Id, stall.Section));
+                        npmWholeSources.Add(new(stall.Id, occupancy.Id, payorId.Value, stall.StallNo, occupancy.Payor.DisplayName,
+                            date.Year, date.Month, value.Instrument, value.Amount, value.MonthlyObligation, value.Collected, value.Credits));
+                    }
+                }
             }
         }
-        return new(payorId, date, rows, waterSources, electricitySources, obligationSources, terms, weighingSources, weighingRates, slaughterOptions, payerName, vendorSources, npmSources);
+        for (var i = 0; i < rows.Count; i++)
+        {
+            var hasLinkedSource = rows[i].Kind switch
+            {
+                CollectionSessionItemKind.Water => waterSources.Any(x => x.CanCollect || x.CanEnterDirect),
+                CollectionSessionItemKind.Electricity => electricitySources.Any(x => x.CanPostCanonical),
+                CollectionSessionItemKind.VendorFee => vendorSources.Any(x => x.CanCollect),
+                CollectionSessionItemKind.Weighing => weighingSources.Count > 0,
+                CollectionSessionItemKind.NpmWholePayment => npmSources.Count > 0,
+                _ => true
+            };
+            if (rows[i].CanAdd && !hasLinkedSource)
+                rows[i] = rows[i] with { CanAdd = false, ReasonCode = "NoEligibleSource", Reason = "No eligible linked source is available for this payer." };
+        }
+        if (date >= OfficeCollectionWorkflow.EffectiveFrom)
+            for (var i = 0; i < rows.Count; i++)
+                if (rows[i].Kind is CollectionSessionItemKind.VendorFee or CollectionSessionItemKind.Weighing)
+                    rows[i] = rows[i] with { CanAdd = false, ReasonCode = "RequiresSourceIdentity", Reason = "Select a Fish or Meat Vendor Registration." };
+        return CollectionSessionChoiceProjection.Apply(new(payorId, date, rows, waterSources, electricitySources, obligationSources,
+            terms, weighingSources, weighingRates, slaughterOptions, payerName, vendorSources, npmSources, npmWholeSources));
     }
 
     public async Task<(CollectionSessionItemQuote? Quote, CollectionSessionProblem? Problem)> QuoteAsync(
         CollectionSessionIntent session, CollectionSessionItemIntent item, CancellationToken ct)
     {
         (CollectionSessionItemQuote?, CollectionSessionProblem?) Fail(string code, string message) => (null, new(item.ClientItemId, code, message));
-        var count = (item.Water is null ? 0 : 1) + (item.Service is null ? 0 : 1) + (item.Obligation is null ? 0 : 1) + (item.Electricity is null ? 0 : 1) + (item.Weighing is null ? 0 : 1) + (item.Slaughter is null ? 0 : 1) + (item.VendorFee is null ? 0 : 1) + (item.NpmWhole is null ? 0 : 1);
+        var count = (item.Water is null ? 0 : 1) + (item.Service is null ? 0 : 1) + (item.Obligation is null ? 0 : 1) + (item.Electricity is null ? 0 : 1) + (item.Weighing is null ? 0 : 1) + (item.Slaughter is null ? 0 : 1) + (item.VendorFee is null ? 0 : 1) + (item.NpmWhole is null ? 0 : 1) + (item.Native is null ? 0 : 1) + (item.Rent is null ? 0 : 1) + (item.NpmDaily is null ? 0 : 1);
         if (count != 1 || (item.Kind is CollectionSessionItemKind.Weighing or CollectionSessionItemKind.Slaughter or CollectionSessionItemKind.NpmWholePayment ? item.ConfirmedAmount < 0m : item.ConfirmedAmount <= 0m) || item.ConfirmedAmount > EEMOCantilanSDS.Domain.Entities.Revenue.Collection.MaximumMoneyAmount
             || decimal.Round(item.ConfirmedAmount, 2) != item.ConfirmedAmount)
             return Fail("InvalidIntent", "Supply one source-specific intent and a positive amount with at most two decimals.");
-        if (item.Kind is not (CollectionSessionItemKind.GovernedService or CollectionSessionItemKind.Slaughter) && !session.PayorId.HasValue)
+        if (item.Native is not null) return await QuoteNativeChargeAsync(session, item, ct);
+        if (session.SourceIdentity is not null && !await NativeItemMatchesAsync(session, item, ct)) return Fail("PayerMismatch", "This item belongs to a different Source Identity.");
+        if (item.Rent is not null) return await QuoteNativeRentAsync(session, item, ct);
+        if (item.NpmDaily is not null) return await QuoteNativeDailyAsync(session, item, ct);
+        if (item.Kind is not (CollectionSessionItemKind.GovernedService or CollectionSessionItemKind.Slaughter) && !session.PayorId.HasValue && session.SourceIdentity is null)
             return Fail("RequiresPayor", "Select the authoritative linked payer before adding this source.");
         CollectionSessionItemQuote Q(string code, string name, string context, RevenueInstrumentType instrument, decimal amount, object version) =>
             new(item.ClientItemId, item.Kind, code, name, context, instrument, amount, JsonSerializer.Serialize(version), Guid.Empty);
-        bool Payer(Guid? linked) => session.PayorId is { } selected && linked == selected;
+        bool Payer(Guid? linked) => session.SourceIdentity is not null || session.PayorId is { } selected && linked == selected;
         switch (item.Kind)
         {
             case CollectionSessionItemKind.VendorFee when item.VendorFee is { } vendor:
             {
+                if (session.BusinessDate >= OfficeCollectionWorkflow.EffectiveFrom) return Fail("RequiresSourceIdentity", "Use the independent vendor source or a Payer Snapshot.");
                 var stall = await db.Stalls.AsNoTracking().Include(x => x.Contracts).ThenInclude(x => x.Payor)
                     .SingleOrDefaultAsync(x => x.MunicipalityId == Tenant && x.Id == vendor.StallId && x.Facility!.Code == FacilityCode.NPM
                         && (x.Section == MarketSection.FishSection || x.Section == MarketSection.MeatSection), ct);
@@ -195,7 +267,7 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
                 if (n.Year is < 2000 or > 2100 || n.Month is < 1 or > 12) return Fail("InvalidIntent", "Choose a valid period.");
                 var stall = await db.Stalls.AsNoTracking().Include(x => x.Contracts).ThenInclude(x => x.Payor).SingleOrDefaultAsync(x => x.MunicipalityId == Tenant && x.Id == n.StallId && x.Facility!.Code == FacilityCode.NPM, ct);
                 var occupancy = stall?.OccupancyAnsweringForMonth(n.Year, n.Month, new DateOnly(n.Year, n.Month, 1).AddMonths(1).AddDays(-1))?.Contract;
-                if (!Payer(occupancy?.PayorId) || occupancy?.Payor?.MunicipalityId != Tenant) return Fail("PayerMismatch", "The selected payer does not own this period.");
+                if (occupancy is null || !Payer(occupancy.PayorId) || session.SourceIdentity is null && occupancy.Payor?.MunicipalityId != Tenant) return Fail("PayerMismatch", "The selected payer does not own this period.");
                 var result = await npmWhole.QuoteAsync(n.StallId, n.Year, n.Month, ct, session.BusinessDate);
                 if (!result.IsSuccess || result.Value?.Amount is not > 0m) return Fail("SourceNotAvailable", "The month has no collectible remaining rent.");
                 var quote = result.Value!;
@@ -214,6 +286,7 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
             }
             case CollectionSessionItemKind.Weighing when item.Weighing is { } weighing:
             {
+                if (session.BusinessDate >= OfficeCollectionWorkflow.EffectiveFrom) return Fail("RequiresRegisteredVendor", "Select a registered Fish or Meat vendor.");
                 var facts = await new WeighingCollectionSource(db).QuoteAsync(Tenant, user.CollectorId!.Value,
                     session.BusinessDate, session.PayorId, weighing, ct);
                 if (facts is null) return Fail("SourceNotAvailable", "Select a linked weighing vendor and an approved effective rate.");
@@ -302,23 +375,31 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
             }
             case CollectionSessionItemKind.Obligation when item.Obligation is { } o:
             {
-                if (FishMeatVendorFeeRules.UsesDirectCollection(session.BusinessDate)) return Fail("SourceStillLegacy", "Monthly vendor-fee accounts are historical. Choose direct Vendor Fee.");
-                if (!await NpmAssignedAsync(ct)) return Fail("CollectorNotAssigned", "This source is not assigned to you.");
                 var account = await db.ObligationAccounts.AsNoTracking().SingleOrDefaultAsync(x => x.MunicipalityId == Tenant && x.Id == o.AccountId, ct);
                 if (account is null) return Fail("InvalidSource", "The selected account is not available.");
-                if (account.Kind != ObligationKind.FishMeatVendorFee) return Fail("NotSupportedYet", "This account has no authorized Collector Mobile adapter yet.");
+                var operationCode = account.Kind switch
+                {
+                    ObligationKind.KanmanggaySpaceRental => CollectorOperationCodes.KanmanggaySpaceRental,
+                    ObligationKind.FiestaArawLotRental => CollectorOperationCodes.FiestaArawLotRental,
+                    _ => "FISH_MEAT_VENDOR_FEE"
+                };
+                if (account.Kind == ObligationKind.FishMeatVendorFee && FishMeatVendorFeeRules.UsesDirectCollection(session.BusinessDate))
+                    return Fail("SourceStillLegacy", "Monthly vendor-fee accounts are historical. Choose direct Vendor Fee.");
+                if (account.Kind == ObligationKind.FishMeatVendorFee ? !await NpmAssignedAsync(ct) :
+                    !await db.CollectorOperationAssignments.AnyAsync(x => x.MunicipalityId == Tenant && x.CollectorId == user.CollectorId && x.OperationCode == operationCode, ct))
+                    return Fail("CollectorNotAssigned", "This source is not assigned to you.");
                 if (!Payer(account.PayorId)) return Fail("PayerMismatch", "Select the authoritative linked payer of this account.");
                 var quote = (await new ObligationCollectionSource(db).GetQuotesAsync(Tenant, [account], session.BusinessDate, ct))
                     .SingleOrDefault(x => x.PeriodStart.Year == o.Year && x.PeriodStart.Month == o.Month);
                 if (quote is null || !quote.CanAddToDraft) return Fail("BalanceChanged", "This period has no collectible balance.");
                 if (item.ConfirmedAmount > quote.OutstandingAmount) return Fail("BalanceChanged", "The amount exceeds the period's remaining balance.");
                 var classificationId = await db.RevenueClassifications.AsNoTracking().Where(x => x.MunicipalityId == Tenant
-                    && x.SemanticCode == RevenueClassificationCodes.FishMeatVendorFee && x.IsActive).Select(x => (Guid?)x.Id).SingleOrDefaultAsync(ct);
+                    && x.SemanticCode == ObligationAccount.ClassificationCodeFor(account.Kind) && x.IsActive).Select(x => (Guid?)x.Id).SingleOrDefaultAsync(ct);
                 var policy = await db.RevenueClassificationPolicies.AsNoTracking().Where(x => x.MunicipalityId == Tenant
                     && x.RevenueClassificationId == classificationId && x.BusinessContext == RevenuePolicyContext.Default && x.EffectiveDate <= session.BusinessDate)
                     .OrderByDescending(x => x.EffectiveDate).FirstOrDefaultAsync(ct);
                 if (policy?.PermittedInstrumentType != RevenueInstrumentType.OfficialReceipt) return Fail("SourceNotAvailable", "No approved vendor-fee policy is effective.");
-                return (Q("FISH_MEAT_VENDOR_FEE", "Fish/Meat Vendor Fee", $"{quote.SubjectLabel} · {o.Year}-{o.Month:00}",
+                return (Q(operationCode, quote.KindLabel, $"{quote.SubjectLabel} · {o.Year}-{o.Month:00}",
                     RevenueInstrumentType.OfficialReceipt, item.ConfirmedAmount, new { quote.AccountId, quote.PeriodId,
                         quote.RateId, quote.AssessedAmount, quote.SettledAmount, quote.OutstandingAmount, Policy = policy.Id }), null);
             }
@@ -343,6 +424,9 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
 
     public async Task<CollectionSessionCollection> PostAsync(CollectionSessionIntent session, CollectionSessionItemIntent item, Guid operation, CancellationToken ct)
     {
+        if (item.Native is not null) return await PostNativeChargeAsync(session, item, operation, ct);
+        if (item.Rent is not null) return await PostNativeRentAsync(session, item, operation, ct);
+        if (item.NpmDaily is not null) return await PostNativeDailyAsync(session, item, operation, ct);
         Guid id; string reference; decimal amount;
         switch (item.Kind)
         {
@@ -378,13 +462,18 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
             case CollectionSessionItemKind.Water:
                 var w = item.Water!;
                 var source = (await Water.GetMobileSourcesAsync(w.Year, w.Month, ct, w.StallId, session.BusinessDate)).Value!.Single();
+                var waterVersion = w.SourceVersion;
+                if (w.UtilityBillId is null || w.UtilityBillId == Guid.Empty)
+                    if (await SiblingCreatedUtilityBillAsync(session, item, w.StallId, w.Year, w.Month, ct) is { } siblingWaterBill)
+                        waterVersion = siblingWaterBill.WaterSourceVersion;
+                // WCF's existing writer distinguishes direct mode by an empty bill ID and resolves its stall/month itself.
                 var water = await Water.PostMobileAsync(new(1, operation, session.BusinessDate, source.PreparedAmount is null ? Guid.Empty : w.UtilityBillId ?? Guid.Empty,
-                    item.ConfirmedAmount, w.SourceVersion, StallId: w.StallId, BillingYear: w.Year, BillingMonth: w.Month), ct);
+                    item.ConfirmedAmount, waterVersion, StallId: w.StallId, BillingYear: w.Year, BillingMonth: w.Month), ct);
                 if (!water.IsSuccess) throw new CollectionSessionPostingException(item.ClientItemId, "Water changed during posting. Review the checkout.");
                 (id, reference, amount) = (water.Value!.CollectionId, water.Value.ReferenceCode, water.Value.Amount); break;
             case CollectionSessionItemKind.GovernedService:
                 var g = item.Service!;
-                var name = session.PayorId is { } payor ? await db.Payors.AsNoTracking().Where(x => x.Id == payor && x.MunicipalityId == Tenant).Select(x => x.DisplayName).SingleAsync(ct) : null;
+                var name = session.PayorId is { } payor ? await db.Payors.AsNoTracking().Where(x => x.Id == payor && x.MunicipalityId == Tenant).Select(x => x.DisplayName).SingleAsync(ct) : session.PayerSnapshot;
                 var service = await Governed.PostMobileAsync(new(1, operation, g.OperationCode.Trim().ToUpperInvariant(), session.BusinessDate,
                     item.ConfirmedAmount, g.Mode, name, g.Reference, VehicleClassCode: g.VehicleClassCode, FeeOptionId: g.FeeOptionId), ct);
                 if (!service.IsSuccess) throw new CollectionSessionPostingException(item.ClientItemId, "The service changed during posting. Review the checkout.");
@@ -396,7 +485,15 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
                 (id, reference, amount) = (obligation.Value!.CollectionId, obligation.Value.ReferenceCode, obligation.Value.Amount); break;
             case CollectionSessionItemKind.Electricity:
                 var e = item.Electricity!;
-                var electricity = await Composer.PostMobileEcfAsync(new(operation, e.UtilityBillId, item.ConfirmedAmount, e.SourceVersion, session.BusinessDate, e.StallId, e.Year, e.Month), ct);
+                var electricityBill = e.UtilityBillId;
+                var electricityVersion = e.SourceVersion;
+                if (electricityBill == Guid.Empty && e.StallId is { } electricityStall && e.Year is { } electricityYear && e.Month is { } electricityMonth)
+                    if (await SiblingCreatedUtilityBillAsync(session, item, electricityStall, electricityYear, electricityMonth, ct) is { } siblingElectricityBill)
+                    {
+                        electricityBill = siblingElectricityBill.Id;
+                        electricityVersion = siblingElectricityBill.ElectricitySourceVersion;
+                    }
+                var electricity = await Composer.PostMobileEcfAsync(new(operation, electricityBill, item.ConfirmedAmount, electricityVersion, session.BusinessDate, e.StallId, e.Year, e.Month), ct);
                 if (!electricity.IsSuccess) throw new CollectionSessionPostingException(item.ClientItemId, "The bill changed during posting. Review the checkout.");
                 (id, reference, amount) = (electricity.Value!.CollectionId, electricity.Value.ReferenceCode, electricity.Value.Amount); break;
             default: throw new CollectionSessionPostingException(item.ClientItemId, "This source is not supported.");
@@ -406,6 +503,31 @@ public sealed class CollectionSessionSources(AppDbContext db, ICurrentUserServic
             where line.MunicipalityId == Tenant && line.CollectionId == id && policy.MunicipalityId == Tenant
             select policy.PermittedInstrumentType).FirstAsync(ct);
         return new(id, reference, instrument!.Value, amount, [item.ClientItemId], "Posted");
+    }
+    /// <summary>
+    /// An originally absent bill can be materialized by the other utility child in THIS atomic checkout.
+    /// Resolve it only through that child's deterministic posting identity, never by accepting an arbitrary newer bill.
+    /// The provisional version is replaced by that newly created bill's initial part version. Existing bill versions
+    /// are never replaced. Canonical clean/direct checks still apply, and session replay precedes dispatch.
+    /// </summary>
+    private async Task<EEMOCantilanSDS.Domain.Entities.Payments.UtilityBill?> SiblingCreatedUtilityBillAsync(CollectionSessionIntent session, CollectionSessionItemIntent current,
+        Guid stallId, int year, int month, CancellationToken ct)
+    {
+        if (!db.HasActiveTransaction) return null;
+        var siblings = session.Items.Where(x => x.ClientItemId != current.ClientItemId &&
+            (current.Kind == CollectionSessionItemKind.Electricity && x.Kind == CollectionSessionItemKind.Water
+                && x.Water is { } w && w.StallId == stallId && w.Year == year && w.Month == month && (w.UtilityBillId is null || w.UtilityBillId == Guid.Empty)
+             || current.Kind == CollectionSessionItemKind.Water && x.Kind == CollectionSessionItemKind.Electricity
+                && x.Electricity is { } e && e.StallId == stallId && e.Year == year && e.Month == month && e.UtilityBillId == Guid.Empty))
+            .Select(x => CollectionSessionWorkflow.ChildOperationId(Tenant, session.ClientCollectionSessionId, x.ClientItemId)).ToArray();
+        if (siblings.Length == 0) return null;
+        return await (from collection in db.Collections.AsNoTracking()
+            join line in db.CollectionLines.AsNoTracking() on collection.Id equals line.CollectionId
+            join bill in db.UtilityBills.AsNoTracking() on line.SourceId equals bill.Id
+            where collection.MunicipalityId == Tenant && line.MunicipalityId == Tenant && bill.MunicipalityId == Tenant
+                && collection.ClientOperationId.HasValue && siblings.Contains(collection.ClientOperationId.Value)
+                && line.SourceKind == CollectionSourceKind.UtilityBill && bill.StallId == stallId && bill.BillingYear == year && bill.BillingMonth == month
+            select bill).Distinct().SingleOrDefaultAsync(ct);
     }
     private Task<bool> NpmAssignedAsync(CancellationToken ct) => db.CollectorUsers.AsNoTracking().AnyAsync(x =>
         x.MunicipalityId == Tenant && x.Id == user.CollectorId && x.IsActive && x.FacilityAssignments.Any(a => a.FacilityCode == FacilityCode.NPM), ct);

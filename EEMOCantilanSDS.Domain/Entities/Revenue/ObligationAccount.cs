@@ -15,7 +15,9 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
 {
     public Guid MunicipalityId { get; private set; }
     public ObligationKind Kind { get; private set; }
-    public Guid PayorId { get; private set; }
+    public Guid? PayorId { get; private set; }
+    /// <summary>Explicit source-owned holder snapshot. It never creates or matches a Business Payor.</summary>
+    public string? ActualOccupant { get; private set; }
 
     /// <summary>The NPM Fish/Meat stall that supplies the vendor context. Only for the vendor fee kind.</summary>
     public Guid? StallId { get; private set; }
@@ -30,6 +32,9 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
 
     public DateOnly ActiveFrom { get; private set; }
     public DateOnly? ActiveTo { get; private set; }
+    /// <summary>Optional documented space occupancy basis; null preserves older unspecified evidence.</summary>
+    public OccupancyArrangement? Arrangement { get; private set; }
+    public string? ContractReference { get; private set; }
     public DateTime CreatedAtUtc { get; private set; }
     public string CreatedBy { get; private set; } = string.Empty;
 
@@ -41,10 +46,13 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
 
     public static ObligationAccount Create(
         Guid municipalityId, ObligationKind kind, Guid payorId, Guid? stallId, string subjectLabel,
-        LotRentalEvent? lotEvent, DateOnly? eventDate, DateOnly activeFrom, string createdBy, DateTime? createdAtUtc = null)
+        LotRentalEvent? lotEvent, DateOnly? eventDate, DateOnly activeFrom, string createdBy, DateTime? createdAtUtc = null,
+        string? actualOccupant = null)
     {
-        if (municipalityId == Guid.Empty || payorId == Guid.Empty)
-            throw new ArgumentException("A tenant and an explicit Business Payor are required.");
+        var holder = string.IsNullOrWhiteSpace(actualOccupant) ? null : actualOccupant.Trim();
+        if (municipalityId == Guid.Empty || holder?.Length > 200 || payorId == Guid.Empty &&
+            (holder is null || kind is not (ObligationKind.KanmanggaySpaceRental or ObligationKind.FiestaArawLotRental)))
+            throw new ArgumentException("A tenant and an explicit source holder are required.");
         if (!Enum.IsDefined(kind))
             throw new ArgumentOutOfRangeException(nameof(kind));
         var label = (subjectLabel ?? string.Empty).Trim();
@@ -72,7 +80,8 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
             Id = Guid.NewGuid(),
             MunicipalityId = municipalityId,
             Kind = kind,
-            PayorId = payorId,
+            PayorId = payorId == Guid.Empty ? null : payorId,
+            ActualOccupant = holder,
             StallId = stallId,
             SubjectLabel = label,
             Event = lotEvent,
@@ -91,12 +100,29 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
         ActiveTo = activeTo;
     }
 
+    public void SetOccupancyBasis(OccupancyArrangement? arrangement, string? contractReference)
+    {
+        var reference = string.IsNullOrWhiteSpace(contractReference) ? null : contractReference.Trim();
+        if (arrangement is null && reference is null) return;
+        if (Kind is not (ObligationKind.KanmanggaySpaceRental or ObligationKind.FiestaArawLotRental))
+            throw new ArgumentException("Occupancy basis is only supported for space and event lot accounts.");
+        if (arrangement is not (OccupancyArrangement.SignedContract or OccupancyArrangement.SpaceOnly))
+            throw new ArgumentException("Choose signed contract or space only.");
+        if (reference?.Length > 200)
+            throw new ArgumentException("A contract reference must not exceed 200 characters.");
+        if (arrangement == OccupancyArrangement.SpaceOnly && reference is not null)
+            throw new ArgumentException("Space-only occupancy has no contract reference.");
+        Arrangement = arrangement;
+        ContractReference = reference;
+    }
+
     /// <summary>
     /// The period starts an account may be billed for, up to and including the business date's month. A monthly account
     /// bills each calendar month it is active in; a lot rental has exactly one period, on its event date.
     /// </summary>
     public IReadOnlyList<DateOnly> PeriodStarts(DateOnly businessDate)
     {
+        if (businessDate < ActiveFrom) return [];
         if (!IsMonthly)
             return EventDate is { } date && date <= businessDate ? [date] : [];
 
@@ -108,6 +134,10 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
             starts.Add(month);
         return starts;
     }
+
+    /// <summary>The first monthly liability uses the approved rate at actual occupancy start, never a backdated rate.</summary>
+    public DateOnly RateAsOf(DateOnly periodStart) => Kind == ObligationKind.KanmanggaySpaceRental && periodStart.Year == ActiveFrom.Year &&
+        periodStart.Month == ActiveFrom.Month && periodStart < ActiveFrom ? ActiveFrom : periodStart;
 
     public static string ClassificationCodeFor(ObligationKind kind) => kind switch
     {
@@ -189,10 +219,10 @@ public sealed class ObligationPeriod : BaseEntity, IMunicipalityOwned
     {
         if (rate.ObligationAccountId != account.Id || rate.MunicipalityId != account.MunicipalityId)
             throw new ArgumentException("The rate does not belong to this account.", nameof(rate));
-        if (rate.EffectiveFrom > periodStart)
+        if (rate.EffectiveFrom > account.RateAsOf(periodStart))
             throw new ArgumentException("The approved rate is not yet in force for this period.", nameof(rate));
         var inWindow = account.IsMonthly
-            ? periodStart.Day == 1 && account.PeriodStarts(periodStart).Contains(periodStart)
+            ? periodStart.Day == 1 && account.PeriodStarts(account.RateAsOf(periodStart)).Contains(periodStart)
             : account.EventDate == periodStart;
         if (!inWindow)
             throw new ArgumentException("The period is outside the account's active window.", nameof(periodStart));

@@ -111,8 +111,9 @@ public sealed class OperationsFacilitiesHubTests : TestContext
             AssertFacilityLink(cut, FacilityCode.BBQ, "/facility/bbq");
             AssertFacilityLink(cut, FacilityCode.ICE, "/facility/ice");
             AssertFacilityLink(cut, FacilityCode.SLH, "/facility/slh");
-            // Transportation is a Cash Ticket workspace (IA-050); the legacy trip pages stay on the TRM facility route below.
-            AssertFacilityLink(cut, FacilityCode.TRM, "/operations/transportation");
+            // Transportation / Parking and Income From Terminal are separate Cash Ticket operations, neither labelled TRM.
+            Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/operations/transportation" && a.TextContent.Contains("Transportation | Parking"));
+            Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/operations/terminal");
             AssertFacilityLink(cut, FacilityCode.TPM, "/facility/tpm");
             AssertFacilityLink(cut, FacilityCode.Custom1, "/facility/tcr");
             AssertFacilityLink(cut, FacilityCode.Custom2, "/facility/tc2");
@@ -312,7 +313,7 @@ public sealed class OperationsFacilitiesHubTests : TestContext
     }
 
     [Fact]
-    public void OtherOperations_AppearsOnlyWithAConfiguredSlaughterhouseOrCustomFacility()
+    public void Slaughterhouse_IsItsOwnOfficialGroup_AndOtherOperationsOnlyHoldsCustomFacilities()
     {
         Services.AddSingleton(FacilityApi(new[] { Summary(FacilityCode.SLH, "Tenant Slaughter Facility", "TSF") }).Object);
 
@@ -320,8 +321,32 @@ public sealed class OperationsFacilitiesHubTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Contains(cut.FindAll("h2"), h => h.TextContent.Trim() == "Other operations");
+            var groups = cut.FindAll("h2").Select(h => h.TextContent.Trim()).ToArray();
+            Assert.Contains(groups, g => g.StartsWith("Income From Slaughterhouse", StringComparison.Ordinal));
+            Assert.DoesNotContain(groups, g => g == "Other operations");
             AssertFacilityLink(cut, FacilityCode.SLH, "/facility/slh");
+        }, Timeout);
+    }
+
+    [Fact]
+    public void IncomeFromTerminal_SitsInTheSameRegisterAsTheOtherOperations_NotAStandaloneCard()
+    {
+        Services.AddSingleton(FacilityApi(new[] { Summary(FacilityCode.NPM, "Tenant Daily Market", "TDM") }).Object);
+
+        var cut = RenderComponent<Operations>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Single(cut.FindAll(".ops-sheet"));                                            // one register, not a second floating card
+            var group = cut.Find("section[aria-labelledby=income-from-terminal-title]");
+            var row = group.QuerySelector(".ops-row")!;
+            Assert.Equal("/operations/terminal", row.GetAttribute("href"));
+            Assert.Equal("Terminal", row.QuerySelector(".ops-row-name")!.TextContent.Trim());
+            Assert.Contains("Income From Terminal", group.QuerySelector("h2")!.TextContent);
+            Assert.DoesNotContain("Income From Terminal", group.QuerySelector(".ops-item")!.TextContent);
+            Assert.Contains("Cash Ticket", row.TextContent);
+            Assert.Contains("Workspace", row.TextContent);
+            Assert.DoesNotContain("|", row.QuerySelector(".ops-row-name")!.TextContent);          // never one pipe-joined primary label
         }, Timeout);
     }
 

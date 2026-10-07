@@ -24,6 +24,12 @@ public sealed class ObligationWorkflow(
 {
     private DateOnly BusinessToday => clock?.PhilippineToday ?? PhilippineTime.Today;
 
+    public Task<Result<IReadOnlyList<SpaceRentalOperationDto>>> GetSpaceOperationsAsync(CancellationToken ct = default) =>
+        Run<IReadOnlyList<SpaceRentalOperationDto>>(_ => Task.FromResult(Result<IReadOnlyList<SpaceRentalOperationDto>>.Success([
+            new(ObligationKind.KanmanggaySpaceRental, null, "Kanmanggay", true),
+            new(ObligationKind.FiestaArawLotRental, LotRentalEvent.Fiesta, "Fiesta", false),
+            new(ObligationKind.FiestaArawLotRental, LotRentalEvent.Araw, "Araw", false)])), ct);
+
     public Task<Result<IReadOnlyList<ObligationAccountDto>>> GetAccountsAsync(ObligationKind kind, CancellationToken ct = default) =>
         Run<IReadOnlyList<ObligationAccountDto>>(async actor =>
         {
@@ -48,13 +54,13 @@ public sealed class ObligationWorkflow(
                 var current = ObligationRate.Resolve(rates[account.Id], BusinessToday);
                 var accountQuotes = quotes[account.Id].ToList();
                 return new ObligationAccountDto(
-                    account.Id, account.Kind, ObligationCollectionSource.KindLabel(account.Kind), account.PayorId,
-                    payors.GetValueOrDefault(account.PayorId), account.StallId,
+                    account.Id, account.Kind, ObligationCollectionSource.KindLabel(account.Kind), account.PayorId ?? Guid.Empty,
+                    account.ActualOccupant ?? payors.GetValueOrDefault(account.PayorId ?? Guid.Empty), account.StallId,
                     account.StallId is { } sid ? stallNos.GetValueOrDefault(sid) : null,
                     account.SubjectLabel, account.Event, account.EventDate, account.ActiveFrom, account.ActiveTo,
                     current?.Amount, current?.EffectiveFrom,
                     accountQuotes.Sum(x => x.AssessedAmount), accountQuotes.Sum(x => x.SettledAmount),
-                    accountQuotes.Sum(x => x.OutstandingAmount));
+                    accountQuotes.Sum(x => x.OutstandingAmount), account.Arrangement, account.ContractReference, account.ActualOccupant);
             }).ToList();
             return Result<IReadOnlyList<ObligationAccountDto>>.Success(rows);
         }, ct);
@@ -129,8 +135,20 @@ public sealed class ObligationWorkflow(
                         && x.Kind == ObligationKind.FishMeatVendorFee && x.StallId == sid && x.ActiveTo == null, ct))
                     return Result<ObligationAccountDto>.Failure("This stall already has an open vendor fee account.", ResultStatus.Conflict);
             }
-            else if (!await db.Payors.AsNoTracking().AnyAsync(x => x.MunicipalityId == actor.TenantId && x.Id == payorId, ct))
+            else if (payorId != Guid.Empty && !await db.Payors.AsNoTracking().AnyAsync(x => x.MunicipalityId == actor.TenantId && x.Id == payorId, ct))
                 return Result<ObligationAccountDto>.Failure("Choose an existing Business Payor.", ResultStatus.Invalid);
+
+            await using var transaction = request.Kind is ObligationKind.KanmanggaySpaceRental or ObligationKind.FiestaArawLotRental
+                ? await db.BeginSpaceAccountTransactionAsync(actor.TenantId, ct)
+                : await db.BeginSerializableTransactionAsync(ct);
+            var subject = request.SubjectLabel;
+            if (request.Kind is ObligationKind.KanmanggaySpaceRental or ObligationKind.FiestaArawLotRental)
+            {
+                var numbering = await LoadSpaceNumberingAsync(actor.TenantId, ct);
+                if (string.IsNullOrWhiteSpace(subject)) subject = numbering.Next(request.Kind, request.Event, request.EventDate);
+                if (!numbering.Add(request.Kind, subject, request.Event, request.EventDate))
+                    return Result<ObligationAccountDto>.Failure("This space already has an account. Review its history before opening another.", ResultStatus.Conflict);
+            }
 
             var earliest = new DateOnly(2020, 1, 1);
             var start = request.Kind == ObligationKind.FiestaArawLotRental ? request.EventDate ?? default : request.ActiveFrom;
@@ -141,9 +159,11 @@ public sealed class ObligationWorkflow(
             ObligationRate rate;
             try
             {
-                account = ObligationAccount.Create(actor.TenantId, request.Kind, payorId, stallId, request.SubjectLabel ?? string.Empty,
-                    request.Event, request.EventDate, request.ActiveFrom, actor.Username);
-                // The first approved amount is in force from the account's first day, so its first period is billable.
+                account = ObligationAccount.Create(actor.TenantId, request.Kind, payorId, stallId, subject ?? string.Empty,
+                    request.Event, request.EventDate, request.ActiveFrom, actor.Username, actualOccupant: request.ActualOccupant);
+                account.SetOccupancyBasis(request.Arrangement, request.ContractReference);
+                // Preserve the actual rate start. Kanmanggay's first period resolves at occupancy start;
+                // subsequent monthly periods use their first day. Contract metadata never prices the account.
                 rate = ObligationRate.Create(actor.TenantId, account.Id, account.ActiveFrom, request.Amount, actor.Username);
             }
             catch (ArgumentException ex)
@@ -158,6 +178,7 @@ public sealed class ObligationWorkflow(
                 db.ChangeTracker.Clear();
                 return Result<ObligationAccountDto>.Failure("The account conflicts with another saved account. Reload and try again.", ResultStatus.Conflict);
             }
+            await transaction.CommitAsync(ct);
             var listed = await GetAccountsAsync(account.Kind, ct);
             return listed.IsSuccess && listed.Value!.FirstOrDefault(x => x.Id == account.Id) is { } dto
                 ? Result<ObligationAccountDto>.Success(dto)
@@ -192,51 +213,100 @@ public sealed class ObligationWorkflow(
             rows.Sum(a => a.CollectedToDate), rows.Sum(a => a.OutstandingToDate)));
     }
 
+    public Task<Result<SpaceHolderImportPreview>> PreviewSpaceHoldersAsync(ImportSpaceHoldersRequest request, CancellationToken ct = default) =>
+        Run<SpaceHolderImportPreview>(async actor =>
+        {
+            if (actor.Role != "SuperAdmin") return Result<SpaceHolderImportPreview>.Forbidden();
+            if (request.Rows is null || request.Rows.Count is 0 or > 200)
+                return Result<SpaceHolderImportPreview>.Failure("Import between 1 and 200 reviewed rows.", ResultStatus.Invalid);
+            var plan = await PlanSpaceImportAsync(request, actor, ct);
+            return Result<SpaceHolderImportPreview>.Success(new(plan.Rows,
+                plan.Additions.Count > 0 && plan.Rows.All(x => x.Code is null or "DuplicateSpace")));
+        }, ct);
+
     public Task<Result<ImportSpaceHoldersResult>> ImportSpaceHoldersAsync(ImportSpaceHoldersRequest request, CancellationToken ct = default) =>
         Run<ImportSpaceHoldersResult>(async actor =>
         {
             if (actor.Role != "SuperAdmin") return Result<ImportSpaceHoldersResult>.Forbidden();
             if (request.Rows is null || request.Rows.Count is 0 or > 200)
                 return Result<ImportSpaceHoldersResult>.Failure("Import between 1 and 200 reviewed rows.", ResultStatus.Invalid);
-            await using var transaction = await db.BeginSerializableTransactionAsync(ct);
-            var payors = await db.Payors.AsNoTracking().Where(p => p.MunicipalityId == actor.TenantId)
-                .Select(p => p.Id).ToListAsync(ct);
-            var existing = await db.ObligationAccounts.AsNoTracking().Where(a => a.MunicipalityId == actor.TenantId)
-                .Select(a => new { a.Kind, a.SubjectLabel, a.Event, a.EventDate }).ToListAsync(ct);
-            static string Key(ObligationKind kind, string label, LotRentalEvent? ev, DateOnly? date) =>
-                $"{kind}|{label.Trim().ToUpperInvariant()}|{ev}|{date:yyyy-MM-dd}";
-            var seen = existing.Select(a => Key(a.Kind, a.SubjectLabel, a.Event, a.EventDate)).ToHashSet();
-            var additions = new List<(ObligationAccount Account, ObligationRate Rate)>();
-            var review = new List<string>();
-            var skipped = 0;
-            for (var index = 0; index < request.Rows.Count; index++)
-            {
-                var row = request.Rows[index];
-                var input = row.Account;
-                try
-                {
-                    if (input.Kind is not (ObligationKind.KanmanggaySpaceRental or ObligationKind.FiestaArawLotRental))
-                        throw new ArgumentException("Only space and event lot accounts can be imported here.");
-                    if (!payors.Contains(input.PayorId)) throw new ArgumentException("Choose an existing Business Payor.");
-                    var start = input.Kind == ObligationKind.FiestaArawLotRental ? input.EventDate ?? default : input.ActiveFrom;
-                    if (start < new DateOnly(2020, 1, 1) || start > BusinessToday.AddDays(366))
-                        throw new ArgumentException("Choose a realistic start or event date.");
-                    var account = ObligationAccount.Create(actor.TenantId, input.Kind, input.PayorId, input.StallId,
-                        input.SubjectLabel, input.Event, input.EventDate, input.ActiveFrom, actor.Username);
-                    var rate = ObligationRate.Create(actor.TenantId, account.Id, account.ActiveFrom, input.Amount, actor.Username);
-                    if (row.ClosedOn is { } closed) account.Close(closed);
-                    if (!seen.Add(Key(account.Kind, account.SubjectLabel, account.Event, account.EventDate))) { skipped++; continue; }
-                    additions.Add((account, rate));
-                }
-                catch (ArgumentException ex) { review.Add($"Row {index + 1}: {ex.Message}"); }
-            }
+            await using var transaction = await db.BeginSpaceAccountTransactionAsync(actor.TenantId, ct);
+            var plan = await PlanSpaceImportAsync(request, actor, ct);
+            var review = plan.Rows.Where(x => x.Code is not (null or "DuplicateSpace"))
+                .Select(x => $"Row {x.RowNumber}: {x.Message}").ToArray();
+            var skipped = plan.Rows.Count(x => x.Code == "DuplicateSpace");
             // Validate the complete list before any account or financial assessment is written.
-            if (review.Count > 0) return Result<ImportSpaceHoldersResult>.Success(new(0, skipped, review));
-            foreach (var item in additions) { db.ObligationAccounts.Add(item.Account); db.ObligationRates.Add(item.Rate); }
+            if (review.Length > 0) return Result<ImportSpaceHoldersResult>.Success(new(0, skipped, review, plan.Rows));
+            foreach (var item in plan.Additions) { db.ObligationAccounts.Add(item.Account); db.ObligationRates.Add(item.Rate); }
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
-            return Result<ImportSpaceHoldersResult>.Success(new(additions.Count, skipped, []));
+            var saved = plan.Additions.GetEnumerator();
+            for (var i = 0; i < plan.Rows.Count; i++)
+                if (plan.Rows[i].Status == SpaceHolderImportStatus.Ready && saved.MoveNext())
+                    plan.Rows[i] = plan.Rows[i] with { AccountId = saved.Current.Account.Id };
+            return Result<ImportSpaceHoldersResult>.Success(new(plan.Additions.Count, skipped, [], plan.Rows));
         }, ct);
+
+    private sealed record SpaceImportPlan(List<(ObligationAccount Account, ObligationRate Rate)> Additions,
+        List<SpaceHolderImportRowResult> Rows);
+
+    private async Task<SpaceAccountNumbering> LoadSpaceNumberingAsync(Guid tenantId, CancellationToken ct)
+    {
+        var rows = await db.ObligationAccounts.AsNoTracking().Where(a => a.MunicipalityId == tenantId)
+            .Select(a => new { a.Kind, a.SubjectLabel, a.Event, a.EventDate }).ToListAsync(ct);
+        return new(rows.Select(a => (a.Kind, a.SubjectLabel, a.Event, a.EventDate)));
+    }
+
+    private async Task<SpaceImportPlan> PlanSpaceImportAsync(ImportSpaceHoldersRequest request, Actor actor, CancellationToken ct)
+    {
+        var payorIds = request.Rows.Where(x => x?.Account is not null).Select(x => x.Account.PayorId).Distinct().ToArray();
+        var payors = await db.Payors.AsNoTracking().Where(p => p.MunicipalityId == actor.TenantId && payorIds.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id, p => p.DisplayName, ct);
+        var existing = await db.ObligationAccounts.AsNoTracking().Where(a => a.MunicipalityId == actor.TenantId)
+            .Select(a => new { a.Kind, a.SubjectLabel, a.Event, a.EventDate }).ToListAsync(ct);
+        var seen = new SpaceAccountNumbering(existing.Select(a => (a.Kind, a.SubjectLabel, a.Event, a.EventDate)));
+        // Supplied numbers later in the batch also constrain suggestions. Preview does not reserve in the database.
+        var suggested = new SpaceAccountNumbering(existing.Select(a => (a.Kind, a.SubjectLabel, a.Event, a.EventDate))
+            .Concat(request.Rows.Where(r => r?.Account is not null && !string.IsNullOrWhiteSpace(r.Account.SubjectLabel))
+                .Select(r => (r.Account.Kind, r.Account.SubjectLabel, r.Account.Event, r.Account.EventDate))));
+        var plan = new SpaceImportPlan([], []);
+        for (var index = 0; index < request.Rows.Count; index++)
+        {
+            var row = request.Rows[index];
+            var input = row?.Account;
+            if (input is null) { plan.Rows.Add(new(index + 1, SpaceHolderImportStatus.Invalid, "InvalidRow", "A reviewed account row is required.")); continue; }
+            var origin = string.IsNullOrWhiteSpace(input.SubjectLabel) ? SpaceNumberOrigin.ServerSuggested : SpaceNumberOrigin.Supplied;
+            if (origin == SpaceNumberOrigin.ServerSuggested)
+            {
+                input = input with { SubjectLabel = suggested.Next(input.Kind, input.Event, input.EventDate) };
+                suggested.Add(input.Kind, input.SubjectLabel, input.Event, input.EventDate);
+            }
+            var facts = new SpaceHolderImportFacts(input, row!.ClosedOn, origin, payors.GetValueOrDefault(input.PayorId));
+            if (input.PayorId == Guid.Empty && string.IsNullOrWhiteSpace(input.ActualOccupant)) { plan.Rows.Add(new(index + 1, SpaceHolderImportStatus.NeedsSourceHolder, "RequiresSourceHolder", "Confirm the source holder.", Facts: facts)); continue; }
+            try
+            {
+                if (input.Kind is not (ObligationKind.KanmanggaySpaceRental or ObligationKind.FiestaArawLotRental))
+                    throw new ArgumentException("Only space and event lot accounts can be imported here.");
+                if (input.PayorId != Guid.Empty && !payors.ContainsKey(input.PayorId))
+                { plan.Rows.Add(new(index + 1, SpaceHolderImportStatus.Invalid, "InvalidPayor", "The selected Business Payor is not available.", Facts: facts)); continue; }
+                var start = input.Kind == ObligationKind.FiestaArawLotRental ? input.EventDate ?? default : input.ActiveFrom;
+                if (start < new DateOnly(2020, 1, 1) || start > BusinessToday.AddDays(366))
+                    throw new ArgumentException("Choose a realistic start or event date.");
+                var account = ObligationAccount.Create(actor.TenantId, input.Kind, input.PayorId, input.StallId,
+                    input.SubjectLabel, input.Event, input.EventDate, input.ActiveFrom, actor.Username, actualOccupant: input.ActualOccupant);
+                account.SetOccupancyBasis(input.Arrangement, input.ContractReference);
+                var rate = ObligationRate.Create(actor.TenantId, account.Id, account.ActiveFrom, input.Amount, actor.Username);
+                if (row!.ClosedOn is { } closed) account.Close(closed);
+                if (!seen.Add(account.Kind, account.SubjectLabel, account.Event, account.EventDate))
+                { plan.Rows.Add(new(index + 1, SpaceHolderImportStatus.Invalid, "DuplicateSpace", "This space or event lot is already recorded.", Facts: facts)); continue; }
+                plan.Additions.Add((account, rate));
+                // A quote/preview never publishes a transient account identity.
+                plan.Rows.Add(new(index + 1, SpaceHolderImportStatus.Ready, null, null, Facts: facts));
+            }
+            catch (ArgumentException ex) { plan.Rows.Add(new(index + 1, SpaceHolderImportStatus.Invalid, "InvalidAccount", ex.Message, Facts: facts)); }
+        }
+        return plan;
+    }
 
     /// <summary>Appends an approved amount. It is never retroactive: it must begin after every period already assessed.</summary>
     public Task<Result<bool>> SetRateAsync(Guid accountId, SetObligationRateRequest request, CancellationToken ct = default) =>

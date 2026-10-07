@@ -29,9 +29,8 @@ public partial class CollectorRepository
 
         var collectorIds = collectors.Select(c => c.Id).ToList();
 
-        // Resolve the municipality's fish rate as of the period (constant fallback → Cantilan unchanged).
-        var npmFish = (await _feeRateResolver.GetSnapshotAsync(cancellationToken))
-            .Resolve(FeeRateKey.NpmFishPerKilo, new DateOnly(year, month, 1));
+        // Old monthly Fish kilos have no frozen rate evidence. Do not re-price them using today's ordinance.
+        const decimal unresolvedLegacyFishRate = 0m;
 
         var (monthStartUtc, monthEndUtc) = PhilippineTime.MonthUtcRange(year, month);
 
@@ -56,10 +55,10 @@ public partial class CollectorRepository
                 // banked separately and are no part of a collector's fee accountability — the rule stated once in
                 // CollectorFeeMoney, which the report applies; written out here because EF must translate it to SQL.
                 Total = g.Sum(p => p.Status == PaymentStatus.Partial
-                    ? (p.PartialAmount < p.BaseRentalAmount + (p.FishKilos ?? 0) * npmFish
+                    ? (p.PartialAmount < p.BaseRentalAmount + (p.FishKilos ?? 0) * unresolvedLegacyFishRate
                         ? p.PartialAmount
-                        : p.BaseRentalAmount + (p.FishKilos ?? 0) * npmFish)
-                    : p.BaseRentalAmount + (p.FishKilos ?? 0) * npmFish),
+                        : p.BaseRentalAmount + (p.FishKilos ?? 0) * unresolvedLegacyFishRate)
+                    : p.BaseRentalAmount + (p.FishKilos ?? 0) * unresolvedLegacyFishRate),
                 Count = g.Count()
             })
             .ToDictionaryAsync(x => x.CollectorId, cancellationToken);
@@ -76,7 +75,7 @@ public partial class CollectorRepository
             .Select(g => new
             {
                 CollectorId = g.Key,
-                Total = g.Sum(d => d.DailyFee + (d.FishKilos ?? 0) * npmFish + d.MeatFeeAmount),
+                Total = g.Sum(d => d.DailyFee + (d.FishFeeAmountFrozen ?? 0m) + d.MeatFeeAmount),
                 Count = g.Count()
             })
             .ToDictionaryAsync(x => x.CollectorId, cancellationToken);
@@ -218,9 +217,8 @@ public partial class CollectorRepository
         if (collector is null)
             return null;
 
-        // Resolve this municipality's fish rate for the period (constant fallback -> Cantilan ₱1/kg).
-        var rateSnapshot = await _feeRateResolver.GetSnapshotAsync(cancellationToken);
-        var fishRate = rateSnapshot.Resolve(FeeRateKey.NpmFishPerKilo, new DateOnly(year, month, 1));
+        // Monthly legacy kilograms have no frozen price evidence; they remain unresolved.
+        const decimal fishRate = 0m;
 
         var (mStartUtc, mEndUtc) = PhilippineTime.MonthUtcRange(year, month);
 
@@ -242,7 +240,7 @@ public partial class CollectorRepository
                         && d.IsPaid
                         && (d.UpdatedAt ?? d.CreatedAt) >= mStartUtc
                         && (d.UpdatedAt ?? d.CreatedAt) < mEndUtc)
-            .SumAsync(d => d.DailyFee + ((d.FishKilos ?? 0) * fishRate) + d.MeatFeeAmount, cancellationToken) +
+            .SumAsync(d => d.DailyFee + (d.FishFeeAmountFrozen ?? 0m) + d.MeatFeeAmount, cancellationToken) +
             await _context.PaymentRecords
             .Where(p => p.CollectorId == collector.Id
                         && p.Status != PaymentStatus.Unpaid
@@ -313,7 +311,7 @@ public partial class CollectorRepository
                 d.Stall!.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault() ?? "—",
                 d.Stall.Facility!.Code,
                 "Daily Fee",
-                d.DailyFee + ((d.FishKilos ?? 0) * fishRate) + d.MeatFeeAmount,
+                d.DailyFee + (d.FishFeeAmountFrozen ?? 0m) + d.MeatFeeAmount,
                 "Paid",
                 d.UpdatedAt ?? d.CreatedAt))
             .ToListAsync(cancellationToken);

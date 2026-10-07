@@ -175,9 +175,9 @@ public class CollectorRepositoryTests : RepositoryTestBase
         var adjustedContract = Contract.Create(adjustedStall.Id, "Adjusted", "Adjusted", new DateOnly(2020, 1, 1), 20, 900m);
 
         var normal = DailyCollection.Create(normalStall.Id, today);
-        normal.MarkPaid("OR-NORMAL", collector.Id, fishKilos: 2m);
+        normal.MarkPaid("OR-NORMAL", collector.Id, fishKilos: 2m, fishFeeRatePerKilo: 1m, fishFeeRateEffectiveDate: today);
         var adjusted = DailyCollection.Create(adjustedStall.Id, today, dailyFee: 40m);
-        adjusted.MarkPaid("OR-ADJUSTED", collector.Id, fishKilos: 3m);
+        adjusted.MarkPaid("OR-ADJUSTED", collector.Id, fishKilos: 3m, fishFeeRatePerKilo: 1m, fishFeeRateEffectiveDate: today);
         adjusted.AddMonthEndAdjustment(60m);
 
         ctx.AddRange(collector, facility, normalStall, adjustedStall, normalContract, adjustedContract, normal, adjusted);

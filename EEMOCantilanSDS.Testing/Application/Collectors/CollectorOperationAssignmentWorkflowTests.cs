@@ -68,7 +68,7 @@ public sealed class CollectorOperationAssignmentWorkflowTests
         new(setup.Context, new CurrentUser(Guid.NewGuid(), setup.TenantId, role), new FixedTenant(setup.TenantId));
 
     [Fact]
-    public async Task CatalogIsStableAndExcludesClassificationOnlyAndRetiredFishMeatIdentities()
+    public async Task CatalogIncludesIndependentOfficeSourcesWithoutBorrowingNpmAuthority()
     {
         var setup = await CreateAsync();
         await using var _ = setup.Context;
@@ -80,14 +80,19 @@ public sealed class CollectorOperationAssignmentWorkflowTests
         Assert.Equal(new[]
         {
             CollectorOperationCodes.Wcf,
+            CollectorOperationCodes.Terminal,
+            CollectorOperationCodes.FishMeatVendorFee,
+            CollectorOperationCodes.WeightAndMeasure,
+            CollectorOperationCodes.KanmanggaySpaceRental,
+            CollectorOperationCodes.FiestaArawLotRental,
             CollectorOperationCodes.VegetableFruitSpaceRental,
             CollectorOperationCodes.LandingBerthing,
             CollectorOperationCodes.TransferLargeCattle,
             CollectorOperationCodes.MarketFees,
             CollectorOperationCodes.Transportation
         }, catalog.Select(x => x.Code));
-        Assert.DoesNotContain(catalog, x => x.Code == RevenueClassificationCodes.WeightAndMeasure);
-        Assert.DoesNotContain(catalog, x => x.Code == RevenueClassificationCodes.FishMeatVendorFee);
+        Assert.Contains(catalog, x => x.Code == CollectorOperationCodes.WeightAndMeasure);
+        Assert.Contains(catalog, x => x.Code == CollectorOperationCodes.FishMeatVendorFee);
     }
 
     [Fact]
@@ -124,7 +129,7 @@ public sealed class CollectorOperationAssignmentWorkflowTests
     }
 
     [Fact]
-    public async Task UnknownDuplicateWeightAndMeasureAndFishMeatCodesAreRejected()
+    public async Task UnknownAndDuplicateCodesAreRejected()
     {
         var setup = await CreateAsync();
         await using var _ = setup.Context;
@@ -134,8 +139,8 @@ public sealed class CollectorOperationAssignmentWorkflowTests
         {
             new[] { "UNKNOWN_OPERATION" },
             new[] { CollectorOperationCodes.Wcf, CollectorOperationCodes.Wcf },
-            new[] { RevenueClassificationCodes.WeightAndMeasure },
-            new[] { RevenueClassificationCodes.FishMeatVendorFee }
+            new[] { CollectorOperationCodes.WeightAndMeasure, CollectorOperationCodes.WeightAndMeasure },
+            new[] { CollectorOperationCodes.FishMeatVendorFee, CollectorOperationCodes.FishMeatVendorFee }
         })
         {
             var result = await workflow.ReplaceAsync(setup.Collector.Id,

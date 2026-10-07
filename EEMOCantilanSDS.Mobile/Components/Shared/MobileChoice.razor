@@ -1,9 +1,9 @@
 @* One Mobile V3 selection control for short, mutually exclusive lists (vehicle class, approved animal, a stall's Water
    period). Not a native <select>: a 48px trigger that states the label, the current choice and its read-only detail (an
-   approved rate, an outstanding amount), opening an inline list in the page flow — so it never floats off-screen or over
-   the bottom navigation. The selected row is marked by a check and the word "Selected", not by colour alone. It formats
+   approved rate, an outstanding amount), opening a list in page flow by default. Period controls may opt into a bounded
+   popover. The selected row is marked by a check and the word "Selected", not by colour alone. It formats
    and decides nothing: values, names and details come from the page (and so from the server); no amount is typed here. *@
-<div class="mc @(_open ? "open" : "") @(Disabled ? "disabled" : "") @(string.IsNullOrWhiteSpace(Error) ? "" : "has-error")">
+<div class="mc @(Popover && !ShowInline ? "mc-popover" : "") @(_open ? "open" : "") @(Disabled ? "disabled" : "") @(string.IsNullOrWhiteSpace(Error) ? "" : "has-error")" @onkeydown="HandleKey">
     <span class="mc-label" id="@_labelId">@Label</span>
 
     @if (Options.Count == 0)
@@ -12,28 +12,31 @@
     }
     else
     {
-        <button type="button" class="mc-trigger" aria-haspopup="listbox" aria-expanded="@(_open ? "true" : "false")"
-                aria-labelledby="@($"{_labelId} {_valueId}")" disabled="@Disabled" @onclick="Toggle">
-            <span class="mc-value" id="@_valueId">
-                @if (Current is { } current)
-                {
-                    <span class="mc-name">@current.Name</span>
-                    @if (!string.IsNullOrWhiteSpace(current.Detail))
-                    {
-                        <span class="mc-detail">@current.Detail</span>
-                    }
-                }
-                else
-                {
-                    <span class="mc-placeholder">@Placeholder</span>
-                }
-            </span>
-            <svg class="mc-chevron" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
-        </button>
-
-        @if (_open)
+        @if (!ShowInline)
         {
-            <ul class="mc-list" role="listbox" aria-labelledby="@_labelId">
+            <button type="button" class="mc-trigger" aria-haspopup="listbox" aria-expanded="@(_open ? "true" : "false")"
+                    aria-labelledby="@($"{_labelId} {_valueId}")" disabled="@Disabled" @onclick="Toggle">
+                <span class="mc-value" id="@_valueId">
+                    @if (Current is { } current)
+                    {
+                        <span class="mc-name">@current.Name</span>
+                        @if (!string.IsNullOrWhiteSpace(current.Detail))
+                        {
+                            <span class="mc-detail">@current.Detail</span>
+                        }
+                    }
+                    else
+                    {
+                        <span class="mc-placeholder">@Placeholder</span>
+                    }
+                </span>
+                <svg class="mc-chevron" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
+            </button>
+        }
+
+        @if (_open || ShowInline)
+        {
+            <ul class="mc-list @(ShowInline ? "mc-inline" : "")" role="listbox" aria-labelledby="@_labelId">
                 @foreach (var option in Options)
                 {
                     var selected = option.Value == Value;
@@ -75,13 +78,28 @@
     [Parameter] public bool Disabled { get; set; }
     [Parameter] public string? Error { get; set; }
 
+    /// <summary>Shows a short list as always-visible rows instead of a trigger that opens one (a sheet has no room for an expanding list).</summary>
+    [Parameter] public bool Inline { get; set; }
+    /// <summary>Opt-in floating list; existing callers continue opening in page flow.</summary>
+    [Parameter] public bool Popover { get; set; }
+    [Parameter] public EventCallback OnOpening { get; set; }
+    private bool ShowInline => Inline && Options.Count <= 6;
+
     private readonly string _labelId = $"mc-l-{Guid.NewGuid():N}";
     private readonly string _valueId = $"mc-v-{Guid.NewGuid():N}";
     private bool _open;
 
     private Choice? Current => Options.FirstOrDefault(x => x.Value == Value);
 
-    private void Toggle() => _open = !_open;
+    private async Task Toggle()
+    {
+        if (Disabled) return;
+        if (!_open) await OnOpening.InvokeAsync();
+        _open = !_open;
+    }
+
+    public void Close() { _open = false; StateHasChanged(); }
+    private void HandleKey(KeyboardEventArgs e) { if (e.Key == "Escape") Close(); }
 
     private async Task PickAsync(string value)
     {

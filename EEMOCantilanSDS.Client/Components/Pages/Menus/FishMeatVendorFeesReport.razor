@@ -3,10 +3,13 @@
 @rendermode InteractiveServer
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Constants
 
 <PageTitle>StallTrack — Fish | Meat Vendor Fees Report</PageTitle>
 
 @* Fish | Meat Vendor Fees report: the standard operation-report shell with an obligation body (ObligationOperationReport). The layout owns the
    <main> landmark. *@
 <ObligationOperationReport Kind="ObligationKind.FishMeatVendorFee" Name="Fish | Meat Vendor Fees" ParentHref="/operations/fish-meat-vendor-fees" RowKey="FISH_MEAT_VENDOR_FEE" Classification="Fish / Meat Vendor Fees"
-                           SubjectNoun="Stall" IdPrefix="fmvr" Basis="A monthly obligation on a Fish / Meat stall, settled by Official Receipt and payable in instalments. It is separate from NPM stall rent and from Weight &amp; Measure weighing." />
+                           SubjectNoun="Stall" IdPrefix="fmvr" HistoricalPosition="@(PhilippineTime.Today >= FishMeatVendorFeeRules.DirectEffectiveDate)"
+                           Basis="Additional vendor fee received, separate from NPM stall rent and Weight &amp; Measure. Earlier monthly accounts remain historical." />

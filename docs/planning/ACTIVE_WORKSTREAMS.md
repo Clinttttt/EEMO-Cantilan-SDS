@@ -1,32 +1,38 @@
-# StallTrack V2 — Active Workstreams
+# StallTrack — Active Workstreams and Checkout Model
 
-**Status:** Active linked-worktree development
-**Repository model:** One Git repository, multiple linked worktrees/branches
-**Canonical integration checkout:** `C:\dev\stalltrack-v2-clean`
-**Canonical integration branch:** `interface-v2/clean-adoption`
-**Shared browser preview:** `https://localhost:7167`
+**Status:** Current coordination guidance as of 2026-10-08; older linked-worktree map retained below as archive
+**Primary working checkout:** `C:\dev\stalltrack\eemo`
+**Current local integration branch / application checkpoint:** `integration/report-governance-ui` at `08232726` (documentation checkpoint follows; inspect Git for exact HEAD)
+**Shared local Web preview:** `https://localhost:7167`
 
-## Development model
+Read `CURRENT_RELEASE_STATE.md` before using this file for implementation status. Business authority still comes from the Decision Registry, ADRs, operational rulebook, office evidence and source-specific architecture—not from branch naming.
 
-StallTrack V2 uses one Git repository.
+## Current development model
 
-The directories under:
+StallTrack uses one Git repository. The default workflow is intentionally simple:
 
-`C:\dev\stalltrack-v2-worktrees`
+1. Work from `C:\dev\stalltrack\eemo`.
+2. For a normal sequential ticket, create a short-lived feature branch in that same checkout.
+3. Finish and commit the ticket, then return to the local integration branch and integrate the accepted commit.
+4. Do **not** create a separate worktree for a small sequential tweak.
+5. Create an additional linked worktree only when two agents genuinely need different branches checked out at the same time.
+6. A worktree is only an isolated checkout of the same repository. It does not become a separate authority, and accepted work is not considered the current local baseline until it is integrated into `C:\dev\stalltrack\eemo`.
+7. Never reset, overwrite or discard another session's dirty files. Inspect `git status --branch` before every branch switch or merge.
+8. After integrating code into the primary checkout, rebuild/restart the affected API/Client/Mobile from `C:\dev\stalltrack\eemo` before visual/runtime review. A current Git HEAD does not prove the running `bin/Debug` or MAUI process was rebuilt; verify process paths and binary timestamps when UI appears stale.
 
-are Git worktrees linked to the same repository as:
+The current primary checkout intentionally contains canonical documentation/evidence work. Agents must not stage, reset or rewrite those files unless their task explicitly includes documentation.
 
-`C:\dev\stalltrack-v2-clean`
+## Current accepted October 7 work
 
-They are not separate clones or independent projects.
+October 8 consolidation was performed sequentially in this same primary checkout on `codex/final-eemo-consolidation`, application commit `6051a66d`, accepted for local fast-forward integration. Automated validation and local API/schema verification passed. Native/browser UI-control initialization failed, so the user performed the fresh-app visual checkpoint and explicitly confirmed “Checked — all passed.” No additional worktree was created. See [the verification record](FINAL_SINGLE_REPO_CONSOLIDATION_20261008.md).
 
-This lets multiple Codex sessions work on different branches simultaneously while sharing the same repository history.
+The subsequent UI addenda continued on the existing `codex/terminal-input-contrast` branch through application commit `08232726`. Full Mobile **70/0/0** and Web **748/0/0** passed, Release builds and CSS checks passed, and the user explicitly confirmed **“Checked — all passed, including two-page PDF”** against fresh apps. The branch was fast-forwarded locally through documentation commit `ab13fcb1`; this documentation reconciliation follows. No push or production change occurred. The verification record distinguishes local Terminal vehicle-section configuration from unchanged rates/history and records the full two-sheet report, simplified Fish/Meat form, and Terminal contribution/count cleanup.
 
-The canonical integration branch is:
+The local integration checkpoint includes the accepted collector/productivity chain through `6d3362f9`, including source-native collection, Fish/Meat registry lifecycle/import, Mobile correction atomicity, NPM Daily/Whole and Collect All readiness behavior, and the latest Web/Mobile V3 presentation follow-ups. See `CURRENT_RELEASE_STATE.md` and the four October 7 handoffs for exact validation scope.
 
-`interface-v2/clean-adoption`
+## Historical linked-worktree archive
 
-Feature branches are merged back into this branch after review.
+The remainder of this file records the earlier V2 many-worktree coordination model. It is retained only to explain old branch/session references. **Do not create or assign new work from the archived map below.** The former Business Payor target is superseded by IA-068/ADR-007 and the former TRM/Transportation convergence is superseded by IA-067.
 
 ## Current consolidated baseline
 
@@ -87,7 +93,7 @@ N/O/P/Q are paused candidate workstreams, not active implementation agents.
 
 MASTER proceeds through the approved phases sequentially. Candidate guidance does not authorize O/P/Q to work simultaneously or N to resume as a contract authority. MASTER decides whether candidate pieces are kept, adapted, rejected or deferred; prior implementation is not architectural approval.
 
-[IA-038 / ADR-001 — Business Payor identity](../decisions/ADR_001_BUSINESS_PAYOR_IDENTITY.md) is a confirmed StallTrack domain decision. MASTER implements its minimal shared contract and explicit source associations, preserves unresolved historical identity, and freezes posted payer evidence. This introduces no new assessment or settlement authority.
+[IA-038 / ADR-001 — Business Payor identity](../decisions/ADR_001_BUSINESS_PAYOR_IDENTITY.md) was the approved target at this historical checkpoint. **It is superseded prospectively by IA-068 / ADR-007.** Preserve the still-valid safety rules—no name-based merging, no cross-tenant linkage, and frozen posted payer evidence—but do not build new product workflows around a Business Payor master.
 
 [IA-039 / Q42 and IA-040 / Q43 — Per-source canonical settlement cutover](../decisions/ADR_002_CANONICAL_SETTLEMENT_CUTOVER.md) are confirmed target architecture: an explicit scoped reconciliation gate before freezing opening evidence and activating Canonical authority, followed by canonical posting with atomic compatibility projections. MASTER owns the transition/posting contracts, writer enforcement and reconciliation evidence. Every affected writer and in-flight channel must be covered, including physical issued documents. Unready sources remain Legacy; late old submissions remain preserved reconciliation exceptions.
 

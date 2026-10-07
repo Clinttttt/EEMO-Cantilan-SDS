@@ -5,8 +5,6 @@
 @using EEMOCantilanSDS.Domain.Enums
 @using Microsoft.AspNetCore.Components.Authorization
 @inject IObligationsApiClient ObligationsApi
-@inject IEcfCollectionsApiClient CollectionsApi
-@inject IBusinessPayorsApiClient PayorsApi
 
 @* The body of a specialized obligation line (IA-050): Fish/Meat Vendor Fee, Kanmanggay space rental, Fiesta/Araw lot
    rental. The Head opens an account and approves its amount; the register shows what was assessed, collected and is
@@ -28,10 +26,10 @@
 <div class="obw-layout">
     <section class="v3-panel" aria-labelledby="@_accountsTitleId" aria-busy="@(_loading ? "true" : "false")">
         <header class="v3-panel-header">
-            <h2 id="@_accountsTitleId">@(SpaceExperience ? (_holders ? "Space Holders" : $"All {SubjectNoun}s") : $"{Name} accounts")</h2>
+            <h2 id="@_accountsTitleId">@(ReadOnlyHistory ? "Historical accounts" : SpaceExperience ? (_holders ? "Space Holders" : $"All {SubjectNoun}s") : $"{Name} accounts")</h2>
             <AuthorizeView Roles="SuperAdmin">
                 <Authorized>
-                    @if (!_opening && !SpaceExperience)
+                    @if (!_opening && !SpaceExperience && !ReadOnlyHistory)
                     {
                         <button class="v3-btn v3-btn-sm" type="button" @onclick="OpenForm">Open account</button>
                     }
@@ -52,7 +50,7 @@
                 <caption class="v3-sr-only">@Name accounts with approved amount, assessed, collected and remaining</caption>
                 <thead>
                     <tr>
-                        <th scope="col">Payor</th>
+                        <th scope="col">@(Kind == ObligationKind.FiestaArawLotRental ? "Lot holder" : "Occupant")</th>
                         <th scope="col">@SubjectNoun</th>
                         @if (SpaceExperience && _holders) { <th scope="col">Start date</th><th scope="col">Status</th> }
                         <th scope="col" class="v3-num">@AmountHeading</th>
@@ -82,17 +80,13 @@
                             <td class="obw-actions">
                                 <button class="v3-btn v3-btn-sm" type="button" aria-expanded="@(_selected == account.Id ? "true" : "false")"
                                         @onclick="() => ToggleRegisterAsync(account.Id)">Periods</button>
-                                @if (account.ActiveTo is null && account.OutstandingToDate > 0m)
-                                {
-                                    <a class="v3-btn v3-btn-sm" href="@CollectHref(account)">Collect</a>
-                                }
                                 <AuthorizeView Roles="SuperAdmin">
                                     <Authorized>
-                                        @if (account.Kind != ObligationKind.FiestaArawLotRental && account.ActiveTo is null)
+                                        @if (!ReadOnlyHistory && account.Kind != ObligationKind.FiestaArawLotRental && account.ActiveTo is null)
                                         {
                                             <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenRate(account)">Change amount</button>
                                         }
-                                        @if (account.ActiveTo is null)
+                                        @if (!ReadOnlyHistory && account.ActiveTo is null)
                                         {
                                             <button class="v3-btn v3-btn-sm" type="button" @onclick="() => CloseAsync(account.Id)">@(SpaceExperience ? "Close account" : "End")</button>
                                         }
@@ -158,24 +152,21 @@
                 }
             </table>
         </div>
-        @if (_accounts.Count > 0)
-        {
-            <div class="obw-collect"><a class="v3-btn v3-btn-sm" href="/collections/current">Record a collection</a></div>
-        }
     </section>
 
 </div>
 
 <AuthorizeView Roles="SuperAdmin">
     <Authorized>
-        <SideDrawer Show="_opening" Title="@($"Open {Name} account")" Subtitle="@OpenSubtitle" OnClose="CloseForm">
-            <ChildContent>
-            <form id="obw-open-form" class="obw-form" @onsubmit="CreateAsync" @onsubmit:preventDefault="true" aria-label="Open account">
-                @if (Kind == ObligationKind.FishMeatVendorFee)
-                {
-                    <label class="v3-field">
-                        <span>NPM Fish / Meat stall</span>
-                        <select @bind="_stallId" required>
+        <AddNewDrawer Show="@(_opening && !ReadOnlyHistory)" Title="@($"Open {Name} account")" Subtitle="@OpenSubtitle"
+                      FormId="obw-open-form" FormLabel="Open account" SubmitText="Open account" Saving="_saving" Error="@_formError"
+                      OnSubmit="CreateAsync" OnCancel="CloseForm">
+            @if (Kind == ObligationKind.FishMeatVendorFee)
+            {
+                <AddNewSection Title="NPM Fish / Meat stall" Plain="true">
+                    <div class="avm-group">
+                        <label class="avm-label" for="obw-stall">Stall <span class="avm-req">*</span></label>
+                        <select id="obw-stall" class="avm-input" @bind="_stallId" required>
                             <option value="">Choose a stall</option>
                             @foreach (var stall in _stalls.Where(x => !x.HasAccount))
                             {
@@ -184,105 +175,103 @@
                                 </option>
                             }
                         </select>
-                    </label>
-                    <p class="obw-note">The Payor is the one linked to the stall's occupant in NPM. A stall without a linked Payor cannot be opened.</p>
-                }
-                else
-                {
-                    <label class="v3-field">
-                        <span>Business Payor</span>
-                        <input class="v3-input" type="search" @bind="_payorSearch" @bind:event="oninput" @onkeyup="SearchPayorsAsync" placeholder="Search by name" />
-                    </label>
-                    <label class="v3-field">
-                        <span class="v3-sr-only">Choose a Payor</span>
-                        <select @bind="_payorId" required>
-                            <option value="">Choose a Payor</option>
-                            @foreach (var payor in _payors)
-                            {
-                                <option value="@payor.PayorId">@payor.DisplayName</option>
-                            }
-                        </select>
-                    </label>
-                    <p class="obw-payor-hint">
-                        @if (_payors.Count == 0 && _payorSearch.Trim().Length >= 2)
+                        <span class="avm-hint">The Payor is the one linked to the stall's occupant in NPM.</span>
+                    </div>
+                </AddNewSection>
+            }
+            else
+            {
+                <AddNewSection Title="@(Kind == ObligationKind.FiestaArawLotRental ? "Event & Occupant Information" : "Occupant Information")" Plain="true">
+                    <div class="avm-group">
+                        <label class="avm-label">@(Kind == ObligationKind.FiestaArawLotRental ? "Event" : "Basis of Occupancy") <span class="avm-req">*</span></label>
+                        @if (Kind == ObligationKind.FiestaArawLotRental)
                         {
-                            <span>No Business Payor found.</span>
+                            <ChoiceCards Label="Event" Items="EventChoices" Value="@(((int)_lotEvent).ToString())" ValueChanged="PickEvent" />
                         }
-                        @if (_payorSearch.Trim().Length >= 2)
+                        else
                         {
-                            <button class="obw-link" type="button" @onclick="CreatePayorAsync" disabled="@_saving">Create Business Payor “@_payorSearch.Trim()”</button>
+                            <ChoiceCards Label="Basis of occupancy" Items="BasisChoices" Value="@(_signedContract ? "signed" : "space")" ValueChanged="PickBasis" />
                         }
-                    </p>
-                    <label class="v3-field">
-                        <span>@SubjectNoun</span>
-                        <input class="v3-input" type="text" maxlength="120" required @bind="_subject" />
-                    </label>
-                }
+                    </div>
+                    <div class="avm-row-2">
+                        @* The holder is the source's own occupant: typed once on the account, never a master record or a name match. *@
+                        <div class="avm-group">
+                            <label class="avm-label" for="obw-occupant">@(Kind == ObligationKind.FiestaArawLotRental ? "Lot holder" : "Actual occupant") <span class="avm-req">*</span></label>
+                            <input id="obw-occupant" class="avm-input" type="text" maxlength="200" autocomplete="off" aria-label="Actual occupant" @bind="_occupant" @bind:event="oninput" />
+                        </div>
+                        @if (Kind == ObligationKind.KanmanggaySpaceRental)
+                        {
+                            <div class="avm-group">
+                                <label class="avm-label">Contract reference</label>
+                                @if (_signedContract)
+                                {
+                                    <input class="avm-input" type="text" maxlength="200" placeholder="As written on the contract" @bind="_contractRef" />
+                                }
+                                else
+                                {
+                                    <div class="avm-input avm-input-locked">No contract (space only)</div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </AddNewSection>
 
-                @if (Kind == ObligationKind.FiestaArawLotRental)
-                {
-                    <label class="v3-field">
-                        <span>Event</span>
-                        <select @bind="_lotEvent">
-                            <option value="@LotRentalEvent.Fiesta">Fiesta</option>
-                            <option value="@LotRentalEvent.Araw">Araw</option>
-                        </select>
-                    </label>
-                    <label class="v3-field">
-                        <span>Event date</span>
-                        <input class="v3-input" type="date" required @bind="_eventDate" />
-                    </label>
-                }
-                else
-                {
-                    <label class="v3-field">
-                        <span>Starts (month)</span>
-                        <input class="v3-input" type="month" required aria-label="Starts (month)" value="@_startMonth" @onchange="e => _startMonth = e.Value?.ToString() ?? string.Empty" />
-                    </label>
-                }
-                <label class="v3-field">
-                    <span>@(Kind == ObligationKind.FiestaArawLotRental ? "Approved lot amount (₱)" : "Approved monthly amount (₱)")</span>
-                    <input class="v3-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
-                </label>
-                @if (!string.IsNullOrWhiteSpace(_formError))
-                {
-                    <p class="v3-notice v3-notice-error" role="alert">@_formError</p>
-                }
-            </form>
-            </ChildContent>
-            <Footer>
-                <button class="v3-btn" type="button" @onclick="CloseForm">Cancel</button>
-                <button class="v3-btn v3-btn-primary" type="submit" form="obw-open-form" disabled="@_saving">Open account</button>
-            </Footer>
-        </SideDrawer>
+                <AddNewSection Title="@(Kind == ObligationKind.FiestaArawLotRental ? "Lot & Event Details" : "Space & Contract Details")" Plain="true">
+                    <div class="avm-row-2">
+                        <div class="avm-group">
+                            <label class="avm-label">Operation</label>
+                            <div class="avm-input avm-input-locked">@(Kind == ObligationKind.FiestaArawLotRental ? EventChoices.FirstOrDefault(x => x.Value == ((int)_lotEvent).ToString())?.Title ?? Name : Name)</div>
+                        </div>
+                        <div class="avm-group">
+                            @* Left blank, the number is assigned by the server within this operation; it is never worked out here. *@
+                            <label class="avm-label" for="obw-subject">@(SubjectNoun == "Lot" ? "Lot No." : "Space No.")</label>
+                            <input id="obw-subject" class="avm-input" type="text" maxlength="120" placeholder="Assigned automatically" @bind="_subject" />
+                        </div>
+                    </div>
+                    <div class="avm-row-2">
+                        @if (Kind == ObligationKind.FiestaArawLotRental)
+                        {
+                            <div class="avm-group">
+                                <label class="avm-label" for="obw-event-date">Event date <span class="avm-req">*</span></label>
+                                <input id="obw-event-date" class="avm-input" type="date" required @bind="_eventDate" />
+                            </div>
+                            <div class="avm-group">
+                                <label class="avm-label" for="obw-amount">Approved lot amount (₱) <span class="avm-req">*</span></label>
+                                <input id="obw-amount" class="avm-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="avm-group">
+                                <label class="avm-label" for="obw-start">@(_signedContract ? "Contract Effectivity (month)" : "Occupying Since (month)") <span class="avm-req">*</span></label>
+                                <input id="obw-start" class="avm-input" type="month" required aria-label="Start month" value="@_startMonth" @onchange="e => _startMonth = e.Value?.ToString() ?? string.Empty" />
+                            </div>
+                            <div class="avm-group">
+                                <label class="avm-label" for="obw-amount">Approved monthly rental (₱) <span class="avm-req">*</span></label>
+                                <input id="obw-amount" class="avm-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
+                            </div>
+                        }
+                    </div>
+                </AddNewSection>
+            }
+        </AddNewDrawer>
 
-        <SideDrawer Show="@(!_opening && _rateFor is not null)" Title="Change approved amount" Subtitle="@_rateFor?.SubjectLabel" OnClose="CloseForm">
-            <ChildContent>
-            <form id="obw-rate-form" class="obw-form" @onsubmit="SaveRateAsync" @onsubmit:preventDefault="true" aria-label="Change approved amount">
-                <label class="v3-field">
-                    <span>Effective from (month)</span>
-                    <input class="v3-input" type="month" required aria-label="Effective from (month)" value="@_rateMonth" @onchange="e => _rateMonth = e.Value?.ToString() ?? string.Empty" />
-                </label>
-                <label class="v3-field">
-                    <span>Approved monthly amount (₱)</span>
-                    <input class="v3-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
-                </label>
-                <p class="obw-note">Periods already assessed keep their amount.</p>
-                @if (!string.IsNullOrWhiteSpace(_formError))
-                {
-                    <p class="v3-notice v3-notice-error" role="alert">@_formError</p>
-                }
-            </form>
-            </ChildContent>
-            <Footer>
-                <button class="v3-btn" type="button" @onclick="CloseForm">Cancel</button>
-                <button class="v3-btn v3-btn-primary" type="submit" form="obw-rate-form" disabled="@_saving">Save amount</button>
-            </Footer>
-        </SideDrawer>
-
-        <SideDrawer Show="_importing" Wide="true" Title="@($"Import {(SubjectNoun == "Lot" ? "lot" : "space")} holders")" Subtitle="Paste a list, review each row, then import the ready ones." OnClose="CloseImport">
-            <SpaceHolderImport Kind="Kind" OnImported="ImportedAsync" />
-        </SideDrawer>
+        <AddNewDrawer Show="@(!_opening && _rateFor is not null && !ReadOnlyHistory)" Edit="true" Title="Change approved amount" Subtitle="@_rateFor?.SubjectLabel"
+                      FormId="obw-rate-form" FormLabel="Change approved amount" SubmitText="Save amount" Saving="_saving" Error="@_formError"
+                      OnSubmit="SaveRateAsync" OnCancel="CloseForm">
+            <AddNewSection Title="New amount" Plain="true">
+                <div class="avm-row-2">
+                    <div class="avm-group">
+                        <label class="avm-label" for="obw-rate-month">Effective from (month) <span class="avm-req">*</span></label>
+                        <input id="obw-rate-month" class="avm-input" type="month" required aria-label="Effective from (month)" value="@_rateMonth" @onchange="e => _rateMonth = e.Value?.ToString() ?? string.Empty" />
+                    </div>
+                    <div class="avm-group">
+                        <label class="avm-label" for="obw-rate-amount">Approved monthly amount (₱) <span class="avm-req">*</span></label>
+                        <input id="obw-rate-amount" class="avm-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
+                    </div>
+                </div>
+            </AddNewSection>
+        </AddNewDrawer>
     </Authorized>
 </AuthorizeView>
 
@@ -302,12 +291,14 @@
     /// <summary>What an account is for: Stall, Space or Lot.</summary>
     [Parameter, EditorRequired] public string SubjectNoun { get; set; } = string.Empty;
     [Parameter] public bool SpaceExperience { get; set; }
+    [Parameter] public bool ReadOnlyHistory { get; set; }
     [Parameter] public string? ReportsHref { get; set; }
+
+    /// <summary>The bulk-import page for this line; the Import list action is offered only when there is one.</summary>
+    [Parameter] public string? ImportHref { get; set; }
     private ObligationWorkspaceDto? _workspace;
     private string _search = string.Empty, _filter = "All";
-    private bool _holders, _importing;
-    private static string CollectHref(ObligationAccountDto account) =>
-        $"/collections/current?payor={account.PayorId}&name={Uri.EscapeDataString(account.PayerName ?? string.Empty)}";
+    private bool _holders;
     private static readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
     private double CollectionRate => _workspace is { Assessed: > 0m } w ? (double)Math.Min(100m, Math.Round(w.Collected / w.Assessed * 100m, 0)) : 0;
     private RenderFragment ActionBarContent => @<div class="obw-actions-bar">
@@ -315,7 +306,7 @@
         <button class="btn-outline" type="button" @onclick="() => _holders = false">Manage Space Holders</button>
         <a class="btn-outline" href="@ReportsHref">Reports</a>
         <AuthorizeView Roles="SuperAdmin"><Authorized>
-            <button class="btn-outline" type="button" @onclick="() => _importing = !_importing">Import list</button>
+            @if (!string.IsNullOrWhiteSpace(ImportHref)) { <a class="btn-outline" href="@ImportHref">Import list</a> }
             <button class="btn-primary" type="button" @onclick="OpenForm">+ Add New</button>
         </Authorized></AuthorizeView>
     </div>;
@@ -340,7 +331,6 @@
     private List<ObligationAccountDto> _accounts = [];
     private List<ObligationQuoteDto> _register = [];
     private List<VendorFeeStallDto> _stalls = [];
-    private List<CollectionPayorDto> _payors = [];
     private bool _loading = true;
     private bool _registerLoading;
     private string? _error;
@@ -349,10 +339,11 @@
     private bool _opening;
     private ObligationAccountDto? _rateFor;
     private bool _saving;
+    private bool _signedContract = true;
+    private string _contractRef = string.Empty;
     private string? _formError;
     private string? _saved;
-    private string _payorSearch = string.Empty;
-    private string _payorId = string.Empty;
+    private string _occupant = string.Empty;
     private string _stallId = string.Empty;
     private string _subject = string.Empty;
     private LotRentalEvent _lotEvent = LotRentalEvent.Fiesta;
@@ -403,10 +394,11 @@
     private async Task OpenForm()
     {
         _formError = null; _saved = null; _rateFor = null;
-        _payorSearch = _payorId = _stallId = _subject = string.Empty;
-        _payors = [];
+        _occupant = _stallId = _subject = _contractRef = string.Empty;
+        _signedContract = true; _lotEvent = LotRentalEvent.Fiesta;
         _amount = null;
         _opening = true;
+        if (Kind == ObligationKind.FiestaArawLotRental && _operations.Count == 0) await LoadOperationsAsync();
         if (Kind == ObligationKind.FishMeatVendorFee)
         {
             try
@@ -432,47 +424,35 @@
         ? "A lot for an event, with the approved amount."
         : Kind == ObligationKind.FishMeatVendorFee ? "A vendor stall with its approved monthly amount." : "A space with its approved monthly amount.";
 
-    private void CloseImport() => _importing = false;
+    private static readonly IReadOnlyList<ChoiceCards.Choice> BasisChoices =
+    [
+        new("signed", "Signed lease contract", "Leased under a signed contract"),
+        new("space", "No contract (space only)", "Occupies the space without a contract")
+    ];
 
-    private async Task ImportedAsync(string message)
+    // Fiesta and Araw are the server's own events; they are read from the approved operations and the enum is only the fallback.
+    private IReadOnlyList<SpaceRentalOperationDto> _operations = [];
+    private IReadOnlyList<ChoiceCards.Choice> EventChoices
     {
-        _importing = false;
-        await LoadAsync();
-        _saved = message;
+        get
+        {
+            var events = _operations.Where(x => x.Kind == ObligationKind.FiestaArawLotRental && x.Event is not null).ToList();
+            return events.Count > 0
+                ? events.Select(x => new ChoiceCards.Choice(((int)x.Event!.Value).ToString(), x.DisplayName)).ToArray()
+                : [new(((int)LotRentalEvent.Fiesta).ToString(), "Fiesta"), new(((int)LotRentalEvent.Araw).ToString(), "Araw")];
+        }
     }
+    private void PickBasis(string value) => _signedContract = value == "signed";
+    private void PickEvent(string value) => _lotEvent = (LotRentalEvent)int.Parse(value, CultureInfo.InvariantCulture);
 
-    /// <summary>Creates a Business Payor from the typed name, only on the office's press, and selects it. A same-named Payor is never reused silently.</summary>
-    private async Task CreatePayorAsync()
+    private async Task LoadOperationsAsync()
     {
-        var name = _payorSearch.Trim();
-        if (name.Length < 2 || _saving) return;
-        _saving = true;
-        _formError = null;
         try
         {
-            var result = await PayorsApi.CreatePayorAsync(new CreatePayorRequest(name, BusinessPayorKind.Person));
-            if (result.IsSuccess && result.Value is { } created)
-            {
-                _payors = [new CollectionPayorDto(created.PayorId, created.DisplayName)];
-                _payorId = created.PayorId.ToString();
-            }
-            else if (result.Error?.StartsWith("DUPLICATE_PAYOR", StringComparison.Ordinal) == true)
-                _formError = $"A Business Payor named {name} already exists. Choose it from the list instead.";
-            else _formError = result.Error ?? "The Business Payor could not be created.";
+            var result = await ObligationsApi.GetSpaceOperationsAsync();
+            if (result.IsSuccess) _operations = result.Value?.ToList() ?? [];
         }
-        catch { _formError = "The Business Payor could not be created."; }
-        finally { _saving = false; }
-    }
-
-    private async Task SearchPayorsAsync()
-    {
-        if (_payorSearch.Trim().Length < 2) { _payors = []; return; }
-        try
-        {
-            var result = await CollectionsApi.SearchCollectionPayorsAsync(_payorSearch.Trim());
-            _payors = result.IsSuccess ? result.Value?.ToList() ?? [] : [];
-        }
-        catch { _payors = []; }
+        catch { _operations = []; }
     }
 
     private static bool TryMonthStart(string value, out DateOnly month)
@@ -497,19 +477,26 @@
             if (!Guid.TryParse(_stallId, out var parsedStall)) { _formError = "Choose an NPM Fish or Meat stall."; return; }
             stallId = parsedStall;
         }
-        else if (!Guid.TryParse(_payorId, out payorId)) { _formError = "Choose a Business Payor."; return; }
+        else if (_occupant.Trim().Length < 2) { _formError = Kind == ObligationKind.FiestaArawLotRental ? "Enter the lot holder." : "Enter the actual occupant."; return; }
 
         _saving = true;
         try
         {
             var subject = Kind == ObligationKind.FishMeatVendorFee
                 ? _stalls.FirstOrDefault(x => x.StallId == stallId)?.StallNo ?? string.Empty
-                : _subject;
+                : _subject.Trim();
             var result = await ObligationsApi.CreateAccountAsync(new CreateObligationAccountRequest(
-                Kind, payorId, stallId, subject, isLot ? _lotEvent : null, isLot ? _eventDate : null, start, _amount!.Value));
+                Kind, payorId, stallId, subject, isLot ? _lotEvent : null, isLot ? _eventDate : null, start, _amount!.Value,
+                // Occupancy basis is recorded for Kanmanggay only; no contract is implied for a space-only occupancy.
+                Kind == ObligationKind.KanmanggaySpaceRental ? (_signedContract ? OccupancyArrangement.SignedContract : OccupancyArrangement.SpaceOnly) : null,
+                Kind == ObligationKind.KanmanggaySpaceRental && _signedContract && !string.IsNullOrWhiteSpace(_contractRef) ? _contractRef.Trim() : null,
+                Kind == ObligationKind.FishMeatVendorFee ? null : _occupant.Trim()));
             if (!result.IsSuccess) { _formError = result.Error ?? "The account could not be opened."; return; }
             _opening = false;
             _saved = $"{Name} account opened.";
+            // A holder that was just added must be visible: a Paid / Partial filter or a search left on the list would hide it.
+            _filter = "All";
+            _search = string.Empty;
             await LoadAsync();
         }
         catch (Exception ex) { _formError = ex.Message; }

@@ -16,8 +16,22 @@ namespace EEMOCantilanSDS.Api.Controllers;
 [ApiController]
 [Route("api/official-reports")]
 [Authorize(Roles = "SuperAdmin,Admin")]
-public sealed class OfficialReportsController(ISender sender, CollectionsReportWorkflow collections) : ApiBaseController(sender)
+public sealed class OfficialReportsController(ISender sender, CollectionsReportWorkflow collections, ReportGovernanceWorkflow governance) : ApiBaseController(sender)
 {
+    [HttpGet("governance")]
+    public async Task<ActionResult<IReadOnlyList<ReportRevisionDto>>> GovernanceAsync([FromQuery] int year, CancellationToken ct) =>
+        HandleResponse(await governance.HistoryAsync(year, ct));
+
+    [HttpPost("targets")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<ReportRevisionDto>> TargetAsync(SetAnnualTargetRequest request, CancellationToken ct) =>
+        HandleResponse(await governance.SetTargetAsync(request, ct));
+
+    [HttpPost("monthly-income/adjustments")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<ReportRevisionDto>> AdjustmentAsync(SetMonthlyIncomeAdjustmentRequest request, CancellationToken ct) =>
+        HandleResponse(await governance.AdjustAsync(request, ct));
+
     [HttpGet("monthly-income")]
     public async Task<ActionResult<OfficialMonthlyIncomeDto>> MonthlyIncomeAsync(
         [FromQuery] int year, [FromQuery] int? month, CancellationToken ct) =>

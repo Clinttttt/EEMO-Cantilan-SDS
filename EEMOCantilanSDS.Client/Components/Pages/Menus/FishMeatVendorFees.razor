@@ -1,40 +1,190 @@
 @page "/operations/fish-meat-vendor-fees"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Mobile
 @using EEMOCantilanSDS.Client.Components.Shared
-@using EEMOCantilanSDS.Domain.Enums
-@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@inject IOfficeSourcesApiClient OfficeApi
 
-<PageTitle>StallTrack — Fish / Meat Vendor Fees</PageTitle>
+<PageTitle>StallTrack — Fish / Meat Vendors</PageTitle>
 
-@* ONE SOURCE OWNER: NPM owns the Fish / Meat stalls, occupants and vendor relationships. This page is the focused
-   financial view of the separate Fish / Meat Vendor Fee obligation. Stall rent, Fish / Meat Vendor Fee and Weight &
-   Measure are three different charges even when one person owes all three.
+@* Fish / Meat Vendors own their registry: a vendor is registered here for a tax year as Fish or Meat, never through NPM. This is the working registry
+   (the current year's active registrations) with what each vendor has paid this month, taken from the server; Manage holds other years, closed
+   registrations and the lifecycle. The Vendor Fee is a direct amount received and Weight & Measure needs a registered vendor; both are recorded on
+   Collector Mobile. The layout owns the <main> landmark. *@
+<OperationTopbar Title="Fish / Meat Vendors" Crumb="Operation" />
+<div class="content-area">
+    <FacilityHero Title="Fish / Meat Vendors" Eyebrow="OPERATION · FISH / MEAT" Subtitle="OR Official Receipt" Stats="HeroStats">
+        <Icon><svg viewBox="0 0 24 24"><path d="M3 12c3-5 8-6 12-3l4-3v12l-4-3c-4 3-9 2-12-3z" /><circle cx="8" cy="11" r="0.8" /></svg></Icon>
+    </FacilityHero>
+    <Toolbar SearchQuery="@_search"
+             OnSearch="v => _search = v"
+             ActiveFilter="@_filter"
+             OnFilterChanged="v => _filter = v"
+             Filters="@TypeFilters"
+             SearchPlaceholder="Search vendor, business or address…"
+             MiddleContent="@ActionBarContent" />
 
-   It reads the obligation accounts (IA-050): each is anchored to an NPM Fish/Meat stall and takes its Payor from that
-   stall's linked occupancy. Nothing is derived from stall rent or NPM daily-fee history. It adds no vendor, stall,
-   collector, payment or weighing action; money is collected on an Official Receipt in Current Collection. *@
-<div class="v3-page fm-page">
-    <WorkspaceHeader Parent="Operations" Title="Fish / Meat Vendor Fees" Subtitle="Vendor fee obligations for NPM Fish and Meat vendors">
-        <Meta><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
-        <Actions>
-            <a class="v3-btn" href="/facility/npm">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18" /><path d="M5 21V7l7-4 7 4v14" /><path d="M9 21v-5h6v5" /></svg>
-                Open @NpmName
-            </a>
-        </Actions>
-    </WorkspaceHeader>
+    @if (!string.IsNullOrWhiteSpace(_saved))
+    {
+        <p class="v3-notice fmv-saved" role="status">@_saved</p>
+    }
 
-    <ObligationWorkspace Kind="ObligationKind.FishMeatVendorFee" Name="Fish / Meat Vendor Fee" SubjectNoun="Stall" />
-
-    <aside class="fm-related" aria-label="Related charges">
-        <p><strong>Separate charges.</strong> Stall rent, the Fish / Meat Vendor Fee and Weight &amp; Measure are billed and reported separately, even for the same vendor.</p>
-        <a class="fm-related-link" href="/operations/weight-and-measure">Weight &amp; Measure</a>
-    </aside>
+    <section class="v3-panel" aria-labelledby="fmv-registry-title" aria-busy="@(_loading ? "true" : "false")">
+        <header class="v3-panel-header">
+            <h2 id="fmv-registry-title">Vendor registry</h2>
+            <div class="fmv-panel-tools">
+                <span class="v3-panel-meta">@VisibleRows.Count @(VisibleRows.Count == 1 ? "vendor" : "vendors")</span>
+                <a class="v3-btn v3-btn-sm" href="/operations/fish-meat-vendor-fees/manage">Manage</a>
+            </div>
+        </header>
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="fmv-notice" role="alert">
+                <p class="v3-notice v3-notice-error">@_error</p>
+                <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadAsync">Try again</button>
+            </div>
+        }
+        <div class="v3-table-wrap fmv-scroll" role="region" aria-label="Registered vendors" tabindex="0">
+            <table class="v3-table">
+                <caption class="v3-sr-only">Active Fish and Meat vendors registered for @_taxYear with what each paid in @_monthName</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Vendor</th>
+                        <th scope="col">Type</th>
+                        <th scope="col">Registration</th>
+                        <th scope="col">Address</th>
+                        <th scope="col" class="v3-num">Collected this month</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in VisibleRows)
+                    {
+                        var vendor = row.Registration;
+                        <tr @key="vendor.Id">
+                            <td>
+                                <span class="v3-strong">@vendor.DisplayName</span>
+                                @if (!string.IsNullOrWhiteSpace(vendor.BusinessName)) { <span class="v3-block fmv-sub">@vendor.BusinessName</span> }
+                            </td>
+                            <td>@vendor.VendorType</td>
+                            <td>@vendor.RegistrationKind</td>
+                            <td>@(string.IsNullOrWhiteSpace(vendor.Address) ? "—" : vendor.Address)</td>
+                            <td class="v3-num">@Money(row.TotalCollected)</td>
+                        </tr>
+                    }
+                    @if (VisibleRows.Count == 0)
+                    {
+                        <tr><td class="v3-empty" colspan="5">@(_loading ? "Loading vendors…" : HasSearch ? "No vendor matches the search." : $"No vendor is registered for {_taxYear}.")</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
 </div>
 
-@code {
-    private string NpmName => FacilityCatalog.NameOf(FacilityCode.NPM);
+<VendorRegistrationDrawer Show="_registering" Model="_form" Title="Register vendor" Subtitle="@($"Tax year {_taxYear}")" SubmitText="Register"
+                          Saving="_saving" Error="@_formError" OnSubmit="RegisterAsync" OnCancel="CloseRegister" />
 
-    protected override Task OnInitializedAsync() => FacilityCatalog.EnsureLoadedAsync();
+@code {
+    private readonly int _taxYear = PhilippineTime.Today.Year;
+    private string _monthName = PhilippineTime.Today.ToString("MMMM", CultureInfo.InvariantCulture);
+    private List<VendorRegistrationManagementRow> _rows = [];
+    private bool _loading = true, _saving, _registering;
+    private string? _error, _formError, _saved;
+    private string _search = string.Empty, _filter = "All";
+
+    private readonly VendorRegistrationForm _form = new();
+    private Guid _operationId = Guid.NewGuid();
+    private string? _submittedFingerprint;
+
+    private static readonly List<string> TypeFilters = ["All", "Fish", "Meat"];
+
+    private bool HasSearch => !string.IsNullOrWhiteSpace(_search);
+
+    // Current registry search follows the vendor, business and address facts shown to the office.
+    private List<VendorRegistrationManagementRow> VisibleRows => _rows
+        .Where(x => _filter switch { "Fish" => x.Registration.VendorType == FishMeatVendorType.Fish, "Meat" => x.Registration.VendorType == FishMeatVendorType.Meat, _ => true })
+        .Where(x => !HasSearch || new[] { x.Registration.DisplayName, x.Registration.BusinessName, x.Registration.Address }
+            .Any(text => text?.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
+
+    private List<FacilityHero.HeroStat> HeroStats => [
+        new() { Label = "Registered", Value = _rows.Count.ToString("N0", CultureInfo.InvariantCulture) },
+        new() { Label = "Fish", Value = _rows.Count(x => x.Registration.VendorType == FishMeatVendorType.Fish).ToString("N0", CultureInfo.InvariantCulture) },
+        new() { Label = "Meat", Value = _rows.Count(x => x.Registration.VendorType == FishMeatVendorType.Meat).ToString("N0", CultureInfo.InvariantCulture) }];
+
+    // One bar: the office's links and actions, in the order the Kanmanggay bar uses.
+    private RenderFragment ActionBarContent => @<div class="fmv-actions-bar">
+        <a class="btn-outline" href="/collections/activity">Collection Activity</a>
+        <a class="btn-outline" href="/operations/fish-meat-vendor-fees/report">Reports</a>
+        <AuthorizeView Roles="SuperAdmin"><Authorized>
+            <a class="btn-outline" href="/operations/fish-meat-vendor-fees/import">Import list</a>
+            <button class="btn-primary" type="button" @onclick="OpenRegister">Register vendor</button>
+        </Authorized></AuthorizeView>
+    </div>;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var today = PhilippineTime.Today;
+            var management = await OfficeApi.ManageRegistrationsAsync(_taxYear, today.Month, VendorRegistrationStatus.Active);
+            if (management.IsSuccess) _rows = management.Value?.Rows.ToList() ?? [];
+            else { _rows = []; _error = "The vendor registry couldn't be loaded."; }
+        }
+        catch { _rows = []; _error = "The vendor registry couldn't be loaded."; }
+        finally { _loading = false; }
+    }
+
+    private void OpenRegister()
+    {
+        _form.Name = _form.Business = _form.Address = _form.Reference = string.Empty;
+        _form.Type = FishMeatVendorType.Fish;
+        _form.Kind = VendorRegistrationKind.New;
+        _form.TaxYear = _taxYear;
+        _formError = null;
+        _operationId = Guid.NewGuid();
+        _submittedFingerprint = null;
+        _registering = true;
+    }
+
+    private void CloseRegister() => _registering = false;
+
+    private async Task RegisterAsync()
+    {
+        if (_saving) return;
+        if (_form.Name.Trim().Length < 2) { _formError = "Enter the vendor name."; return; }
+        _saving = true;
+        _formError = null;
+        // An unchanged retry keeps its operation ID (so an unknown response is never registered twice); any edit is a new intent and gets a new one.
+        if (_submittedFingerprint is not null && _submittedFingerprint != _form.Fingerprint) _operationId = Guid.NewGuid();
+        _submittedFingerprint = _form.Fingerprint;
+        try
+        {
+            var result = await OfficeApi.RegisterAsync(new RegisterFishMeatVendorRequest(_operationId, _taxYear, _form.Type, _form.Kind, _form.Name.Trim(),
+                VendorRegistrationForm.Blank(_form.Business), VendorRegistrationForm.Blank(_form.Address), null));
+            if (!result.IsSuccess) { _formError = RegistrationProblem(result.Error); return; }
+            _registering = false;
+            _saved = $"{result.Value!.DisplayName} registered for {_taxYear}.";
+            await LoadAsync();
+        }
+        catch { _formError = "The vendor could not be registered."; }
+        finally { _saving = false; }
+    }
+
+    // The server's stable codes decide the wording; no message text is read.
+    private static string RegistrationProblem(string? code) => code switch
+    {
+        "RegistrationIntentConflict" => "This registration was already submitted with different details. Close the drawer and register again.",
+        "RegistryConcurrencyConflict" => "Another change was saved at the same time. Try again.",
+        _ => "The vendor could not be registered."
+    };
+
+    private static string Money(decimal amount) => $"₱{amount.ToString("N2", CultureInfo.InvariantCulture)}";
 }

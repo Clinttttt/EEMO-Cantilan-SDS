@@ -1,0 +1,107 @@
+@typeparam TRow
+@* The editable review register of every bulk import, taken from the stallholder import: a numbered row per record, one editable cell per
+   column (text, number, date or a choice), an optional trailing status cell, and a remove button. The page owns the rows and what a
+   cell change means; the grid only shows them and reports edits. *@
+<div class="imp-table-wrap" role="region" aria-label="@Label" tabindex="0">
+    <table class="imp-table">
+        <thead>
+            <tr>
+                <th class="imp-th-num">#</th>
+                @foreach (var c in Columns)
+                {
+                    <th style="@($"min-width:{c.MinWidth}px")">@c.Label</th>
+                }
+                @if (Status is not null)
+                {
+                    <th class="imp-th-status" style="min-width:150px">@StatusHeader</th>
+                }
+                <th class="imp-th-act"></th>
+            </tr>
+        </thead>
+        <tbody>
+            @for (var i = 0; i < Rows.Count; i++)
+            {
+                var row = Rows[i];
+                var rowIndex = i;
+                <tr>
+                    <td class="imp-td-num">@(rowIndex + 1)</td>
+                    @foreach (var c in Columns)
+                    {
+                        var col = c;
+                        <td>
+                            @if (col.Type == "select")
+                            {
+                                <div class="imp-select-wrap">
+                                    <select class="imp-cell imp-cell-select @CellClass?.Invoke(row, col)"
+                                            aria-label="@($"{col.Label} of row {rowIndex + 1}")"
+                                            value="@GetCell(row, col)"
+                                            @onchange="e => Changed(row, col, e.Value?.ToString())">
+                                        <option value=""></option>
+                                        @foreach (var opt in col.Options)
+                                        {
+                                            <option value="@opt">@opt</option>
+                                        }
+                                    </select>
+                                    <svg class="imp-select-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                                </div>
+                            }
+                            else
+                            {
+                                var locked = IsReadonly?.Invoke(row, col) == true;
+                                <input class="imp-cell @(col.Type == "number" ? "imp-cell-num" : "") @CellClass?.Invoke(row, col) @(locked ? "imp-cell-locked" : "")"
+                                       aria-label="@($"{col.Label} of row {rowIndex + 1}")"
+                                       type="@(col.Type == "date" ? "date" : col.Type == "number" ? "number" : col.Type == "month" ? "month" : "text")"
+                                       value="@GetCell(row, col)"
+                                       placeholder="@(Placeholder?.Invoke(row, col) ?? col.Placeholder)"
+                                       readonly="@locked"
+                                       tabindex="@(locked ? "-1" : null)"
+                                       title="@CellTitle?.Invoke(row, col)"
+                                       @oninput="e => Changed(row, col, e.Value?.ToString())" />
+                            }
+                        </td>
+                    }
+                    @if (Status is not null)
+                    {
+                        <td class="imp-td-status">@Status(row)</td>
+                    }
+                    <td class="imp-td-act">
+                        <button class="imp-row-del" type="button" title="Remove row" aria-label="@($"Remove row {rowIndex + 1}")" @onclick="() => OnRemove.InvokeAsync(rowIndex)">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
+                        </button>
+                    </td>
+                </tr>
+            }
+            @if (Rows.Count == 0)
+            {
+                <tr>
+                    <td colspan="@(Columns.Count + (Status is not null ? 3 : 2))" class="imp-empty">@EmptyText</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    /// <summary>The columns, in order.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<ImportColumn> Columns { get; set; } = [];
+    [Parameter, EditorRequired] public IReadOnlyList<TRow> Rows { get; set; } = [];
+    [Parameter, EditorRequired] public Func<TRow, ImportColumn, string> GetCell { get; set; } = (_, _) => string.Empty;
+    [Parameter] public EventCallback<ImportCellChange<TRow>> OnChange { get; set; }
+    [Parameter] public EventCallback<int> OnRemove { get; set; }
+
+    /// <summary>Extra classes for a cell (a duplicate flag, a hook for tests).</summary>
+    [Parameter] public Func<TRow, ImportColumn, string?>? CellClass { get; set; }
+    [Parameter] public Func<TRow, ImportColumn, bool>? IsReadonly { get; set; }
+    [Parameter] public Func<TRow, ImportColumn, string?>? CellTitle { get; set; }
+
+    /// <summary>A placeholder for one cell, when it differs from the column's own (a number the server will assign).</summary>
+    [Parameter] public Func<TRow, ImportColumn, string?>? Placeholder { get; set; }
+
+    /// <summary>An optional trailing status cell for each row.</summary>
+    [Parameter] public RenderFragment<TRow>? Status { get; set; }
+    [Parameter] public string StatusHeader { get; set; } = "Status";
+    [Parameter] public string Label { get; set; } = "Rows to import";
+    [Parameter] public string EmptyText { get; set; } = "No rows. Use “Add row” to start, or discard and upload again.";
+
+    private Task Changed(TRow row, ImportColumn column, string? value) => OnChange.InvokeAsync(new ImportCellChange<TRow>(row, column, value));
+}

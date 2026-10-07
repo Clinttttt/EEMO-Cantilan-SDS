@@ -3,7 +3,8 @@
 **Status:** Canonical V2 orientation and change-control specification
 **Historical clean-adoption baseline:** `396b7ee5f13c9887b896d8c6cb3380e9945d4679`
 **Historical clean-adoption branch:** `interface-v2/clean-adoption`
-**Current implementation status:** `../planning/CURRENT_RELEASE_STATE.md` plus current Git/code/tests
+**Current implementation status:** `../planning/CURRENT_RELEASE_STATE.md` plus current Git/code/tests. As of 2026-10-07, the accepted local integration checkpoint is `C:\dev\stalltrack\eemo` / `integration/report-governance-ui` at `6d3362f9`; this is newer than the deployed 2026-10-05 production release and is not itself a deployment declaration.
+**Current business-direction overlay:** IA-067, IA-068, ADR-007, and `../planning/OFFICE_CLARIFICATION_REFACTOR_20261006.md` supersede older target assumptions about Terminal/Transportation, Fish/Meat identity, Business Payors, NPM Daily batch collection, and the completeness of Official Monthly Income.
 **Applies to:** Web Office portal, Collector Mobile where stated, Payor portal where stated, and future V2 capability placement.
 
 ## 1. Purpose
@@ -123,17 +124,21 @@ The sidebar is a curated list of real, high-frequency destinations. It is **not*
 Use the established old/production sidebar visual treatment and replace/adopt content only as needed.
 ### Target global destinations
 
+The 2026-10-06 office clarification retires the planned global **Payors & Accounts / Business Payors** workspace as a collection prerequisite. Source-owned registries stay with their owning operations; unified New Collection searches across them.
+
 1. **Overview** → `/overview`
 2. **Operations** → `/operations`
 3. **Collection Activity** → `/collections/activity`
 4. **Online Payments** → `/online-payments`
-5. **Payors & Accounts** → current implementation may land on `/vendors` until a true landing workspace exists
+5. **Spaces & Occupants** → current permanent-space registry route `/vendors`
 6. **Monitoring** → current implementation may land on `/monitoring/follow-up` until a true landing workspace exists
-   - **Accountable Forms** → `/accountable-forms`, Head/Admin — released 2026-09-30 for the implemented Cash Ticket inventory/custody slice only; see `docs/interface/STALLTRACK_UI_V3_DIRECTION.md` §14a.
-7. **Reports** → `/reports`
-8. **Collectors** → `/collectors`, Head-only
-9. **Audit Trail** → `/audit-trail`, Head-only
-10. **Settings** → `/settings`
+7. **Accountable Forms** → `/accountable-forms`, Head/Admin
+8. **Reports** → `/reports`
+9. **Collectors** → `/collectors`, Head-only
+10. **Audit Trail** → `/audit-trail`, Head-only
+11. **Settings** → `/settings`
+
+Fish/Meat vendors and other source-specific identities are **not** replacement global payor pages. They belong under the operation that owns the record and are discoverable through source-native collection search.
 
 A subtle visual divider may separate the last three administrative/system destinations; they remain actual navigations, not category labels.
 
@@ -157,15 +162,25 @@ Owns high-level collection position, facility summaries, recent activity, and at
 
 Purpose: facility discovery and source-domain work.
 
-The Facilities landing uses the tenant-scoped configured facility catalog. Selecting a facility enters the specialized facility workflow; V2 structure must not erase NPM, monthly rental, SLH, TRM, TPM, utility, or custom-facility behavior.
+The Facilities landing uses the tenant-scoped configured facility catalog. Selecting a facility enters the specialized facility workflow; V2 structure must not erase NPM, monthly rental, SLH, TPM, utility, or custom-facility behavior. Legacy TRM data/routes remain compatibility evidence, but the target model now separates **Income From Terminal** from **Transportation/Parking**.
 
 Operations may also list non-facility source operations and governed configurable services. A known but incomplete operation may appear as **Setup Required** for authorized Web users; that state is informational/configurational and cannot create money until all required approved policy is complete.
 
 Transfer Large Cattle is now understood as an occasional transfer transaction with a corresponding fee/amount. The Head prefers direct approved amount input. Keep the amount policy configurable and preserve the governed-service boundary; Philippine regulatory references may guide optional transfer/ownership/certificate details and OR-oriented presentation until Cantilan supplies a different local instrument/form rule.
 
-Latest MEEDO Head correction (2026-09-27): **Tabo uses OR**. **Vegetable/Fruit Space Rental uses OR for full/whole payment and CT for daily transactions.** **ECF uses OR with direct approved amount entry as the current office preference; WCF uses CT at the currently stated PHP 10 rate.** ECF/WCF are broader MEEDO Utility Operations rather than NPM-owned revenue types. The office Monthly Income sheet remains the report-grouping authority: Market Fees is one sibling income row, not a container for ECF/WCF/Tabo/Fish-Meat/Landing/Transportation/Weight & Measure/Transfer Large Cattle/Ice Plant.
+Latest confirmed office direction:
 
-**Latest clarification precedence:** direct Head guidance now supersedes IA-047 for Vegetable/Fruit and current ECF/WCF presentation. IA-047 remains reference-only for unresolved regulatory detail, especially Transfer Large Cattle. See [2026-09-27 EEMO Head final clarifications](../evidence/2026-09-27_eemo_head_final_clarifications.md).
+- **Tabo uses OR**.
+- **Vegetable/Fruit Space Rental** uses OR for full/whole payment and CT for daily transactions.
+- **ECF** uses OR with direct approved amount entry; **WCF** uses CT and follows its current direct/prepared workflow.
+- ECF/WCF are broader MEEDO Utility Operations rather than NPM-owned revenue types.
+- **Transportation/Parking** is a separate CT direct-amount source with no required vehicle-class/rate basis.
+- **Income From Terminal** is a separate official operation/report family: Comfort Room; Pull Pul Vans, Cargo Vans; Tricycad. All are CT and allow direct aggregate amount entry; vehicle-class/rate configuration belongs prospectively to Terminal.
+- **Fish/Meat Vendor Fee** is independent from NPM and from a mandatory Business Payor. It uses an independent Fish/Meat vendor registry; Weight & Measure requires a registered vendor from that registry.
+
+The office Monthly Income sheet remains the report-grouping authority. The 2026-10-06 continuation confirms A. Income From Market, B. Income From Terminal, C. Income from Slaughterhouse, and the overall total/signatories.
+
+See [2026-10-06 MEEDO office clarification](../evidence/2026-10-06_meedo_office_terminal_fish_vendor_monthly_income_clarification.md), IA-067, IA-068, and ADR-007.
 Do not fabricate Cash Ticket, OR, Accountable Forms, classification, or export workflows on the landing page merely because future architecture reserves them.
 ### Collections
 
@@ -177,15 +192,23 @@ Online Payments remains a real operational destination. Provider configuration b
 
 Mutable correction/status work must not be mislabeled as read-only reporting merely because its current component lives under a reports folder/route.
 
-### Payors & Accounts
+### Source records and registries
 
-Purpose: eventually provide one coherent browse/detail model for Payor, Space, Occupancy/Term, obligations, collections, and ended relationships.
+There is no longer a target global **Payors & Accounts / Business Payors** workspace.
 
-**CURRENT:** `/vendors` is the permanent-space / occupant registry surface.
+**CURRENT:** `/vendors` remains the permanent-space / occupant registry surface.
 
-**TARGET V2:** a broader Payors & Accounts landing and account-detail model.
+**TARGET:** each business source owns the identity/relationship record it actually needs:
 
-**BLOCKED:** do not replace stall-key/name-based detail routes until stable account/occupancy/activity IDs exist.
+- permanent spaces → stall/occupancy records;
+- monthly/space rental → renter/occupancy/account records;
+- Fish/Meat → independent vendor registration;
+- utilities → utility/source account;
+- other operations → their own approved source records.
+
+Unified New Collection performs **cross-source search** over these records and returns typed source identity/context. Equal names are never auto-merged. A free-text payer snapshot is allowed only for operations whose server policy explicitly permits a one-off/direct payer context.
+
+See [ADR-007](../decisions/ADR_007_SOURCE_NATIVE_COLLECTION_IDENTITY.md).
 ### Monitoring
 
 Purpose: operational attention, not financial classification.
@@ -248,7 +271,7 @@ Canonical facility codes plus configured custom facilities remain tenant-aware.
 | BBQ | Barbecue Stand | monthly space rental |
 | ICE | Iceplant | monthly space rental |
 | SLH | Slaughterhouse | per-head/service transaction |
-| TRM | Transport Terminal | per-trip |
+| TRM | Legacy Transport Terminal compatibility code | historical per-trip/transport evidence; target Terminal is a separate official operation family, while Transportation/Parking is an independent direct-amount CT source |
 | TPM | Tabo-an Public Market | per-vendor market-day/weekly operation |
 
 Do not infer one shared billing model from similar UI. Facility-specific writers, rates, dates, participants, and reporting semantics remain source-owned.
@@ -290,21 +313,39 @@ Revenue Classification is separate from Facility.
 
 Future classified cash reporting must map collection lines to approved classification identities rather than guessing from facility names.
 
-Office Monthly Income evidence uses Annual Target, monthly actuals, Total/YTD, and Percentage. This supports the relevance of future target reporting but does not establish unrestricted edit authority, governance, revision policy, or complete classification scope.
+Office Monthly Income uses Annual Target, monthly actuals, Total/YTD, and Percentage.
+
+IA-066 now establishes bounded target governance:
+
+- tenant + calendar year + official row;
+- externally approved amount;
+- Head-only configuration;
+- source/reference evidence;
+- immutable audited revisions;
+- no inferred growth formula.
+
+Head-only official report adjustments may revise the reported cell through an audited delta/revision without editing Collections, source obligations, remittance or collector position.
 
 Revenue Target Attainment remains separate from Collection Efficiency.
 ## 14. Reports and official-office evidence
 
 Current documentation identifies candidate office outputs including Financial Summary, Monthly Collection Report, List of Stallholders, Slaughterhouse List, Collector Report of Collections, rental/occupant monitoring, Monthly Income/Market Operations, and accountable-form reporting.
 
-**NEEDS MEEDO INPUT:** which outputs are formally official, their authoritative scope, signatories, retention, and final print requirements.
+The complete **Official Monthly Income** structure is now confirmed by office evidence: A. Income From Market, B. Income From Terminal, C. Income from Slaughterhouse, OVERALL TOTAL MARKET COLLECTION, Prepared by, and Certified Correct.
 
-Until confirmed:
+For Monthly Income:
+
+- Prepared by / Certified Correct name + position are configurable Office Settings;
+- report adjustments are Head-only and audited;
+- the complete report may span multiple print pages rather than being forced into one unreadable page.
+
+Other office outputs may still require separate confirmation of statutory/official status, retention and final signatory rules.
+
+Until separately confirmed for those other outputs:
 
 - preserve office-evidenced fields and recognizable print structures;
 - do not retire a report merely because another page looks similar;
-- distinguish operational registers from official documents and management analysis;
-- do not make future classification/target reports appear current.
+- distinguish operational registers from official documents and management analysis.
 
 Export actions should become contextual to their owning operation/report rather than a permanent global sidebar destination once ownership is clear.
 ## 15. Collector Mobile
@@ -312,6 +353,15 @@ Export actions should become contextual to their owning operation/report rather 
 Mobile remains task-focused and specialized.
 
 Target direction: Collect, Activity, Summary, and Me, with clear sync/connectivity state and resume behavior.
+
+The 2026-10-06 Mobile target is **source-native and report-family aware**:
+
+- organize collection work around Income From Market, Rent Income, Space Rental, Income From Terminal, and Income From Slaughterhouse;
+- New Collection searches source-owned identities instead of a Business Payor master;
+- after selecting a source, show only server-confirmed eligible operations;
+- Fish/Meat vendors may expose Vendor Fee + Weight & Measure when registered;
+- Transportation/Parking is direct amount; Terminal owns the vehicle-class-assisted path;
+- NPM Daily may offer Collect All for today's daily charge only, with unchecked exceptions remaining unpaid and one Collection/SRC per selected stall.
 
 Do not copy the Web sidebar into Mobile.
 
@@ -329,6 +379,17 @@ For governed configurable services, Mobile remains transaction-only. It may rend
 Do not expose Setup Required services as collectible actions to ordinary collectors. Head/Admin Web may still see their setup state. Mobile must never provide a generic form for inventing a charge name, arbitrary amount/rate, classification, or OR/CT choice.
 
 No AccountableDocument, Cash Ticket custody, remittance, WCF, vehicle-class, or configurable-service collection workflow is implied merely by a navigation change. Activation still requires its approved backend authority and rollout gate. See [ADR-006](../decisions/ADR_006_GOVERNED_CONFIGURABLE_SERVICE_OPERATIONS.md).
+
+### 2026-10-06 current-direction overlay
+
+The historical matrix below is intentionally preserved, but these old target rows are now superseded:
+
+- **Broader Payors & Accounts landing/detail** → retired as a target; use source-owned registries and source-native search (ADR-007 / IA-068).
+- **Transportation class/rate redesign** → vehicle classes/rates move to Terminal; Transportation/Parking is direct amount (IA-067).
+- **Revenue target setup/attainment** → bounded Head-only annual target governance is confirmed under IA-066.
+- **Official Monthly Income structure** → A. Market, B. Terminal, C. Slaughterhouse, overall total and configurable signatories are confirmed (IA-067).
+- **NPM Daily batch collection** → Collect All is approved for today's daily charge only, with one Collection/SRC per selected stall (IA-068).
+
 ## 16. Historical capability status matrix
 
 > This matrix is retained as a clean-adoption-era status snapshot. It is **not** the current implementation-status authority. Use [`docs/planning/CURRENT_RELEASE_STATE.md`](../planning/CURRENT_RELEASE_STATE.md), current Git/code/tests, and later Decision Registry entries before acting on any row below. `STALLTRACK_V2_PHASE_STATUS.md` remains phase history.
@@ -397,7 +458,7 @@ The next clean-client sidebar implementation should:
 
 - keep the old production sidebar styling and interaction model;
 - remove permanent facility rows from global navigation once Operations reliably reaches all configured facilities;
-- expose the ten real destinations defined in section 8;
+- expose the current global destinations defined in section 8;
 - keep Collectors/Audit authority unchanged;
 - keep compatibility routes;
 - avoid new category-heavy visual hierarchy unless explicitly requested.
@@ -409,10 +470,10 @@ At minimum, consult `docs/decisions/DECISION_REGISTRY.md` before work involving:
 
 - IA-022 — online-payment operational ownership;
 - IA-024 — exact remittance/RCD operating sequence;
-- IA-025 — official report/document set;
+- IA-025 — official report/document set beyond the now-confirmed Official Monthly Income structure;
 - IA-026 — facility name/code display policy;
-- IA-027 — revenue-target governance and revision;
-- IA-028 — final revenue-classification catalog and unresolved income/service mappings;
+- IA-027 — only target models beyond the bounded Head-only annual-target governance already resolved by IA-066;
+- IA-028 — final revenue-classification catalog and any mappings still unresolved after IA-067/IA-068;
 - IA-034 — canonical account/detail route identity.
 
 A UI label cannot close a business decision gate.
@@ -432,13 +493,16 @@ Read this master specification first, then follow the detailed source for the ta
 
 - `docs/README.md` — authority, documentation map, conflict handling.
 - `docs/planning/CURRENT_RELEASE_STATE.md` — current implementation/release checkpoint; use before dated audits or phase snapshots.
+- `docs/planning/OFFICE_CLARIFICATION_REFACTOR_20261006.md` — current implementation plan for the Terminal/Transportation split, independent Fish/Meat registry, source-native New Collection, NPM Daily Collect All, Business Payor retirement and complete Monthly Income.
+- `docs/evidence/2026-10-06_meedo_office_terminal_fish_vendor_monthly_income_clarification.md` — direct office authority for those changes.
 - `docs/business/EEMO_OPERATIONAL_RULEBOOK.md` — direct MEEDO Head/staff rulings, office-evidence reconciliation, confirmed workflow rules, and the current high-value open questions.
 - `docs/business/EEMO_BUSINESS_RULES.md` — current accepted business semantics.
 - `docs/business/REVENUE_ARCHITECTURE.md` — approved target revenue/document architecture and migration phases.
 - `docs/interface/INFORMATION_ARCHITECTURE.md` — detailed target interface/workspace model.
 - `docs/interface/MIGRATION_PLAN.md` — phased interface migration and rollback.
 - `docs/interface/DESIGN_SYSTEM.md` — presentation/accessibility guidance.
-- `docs/decisions/DECISION_REGISTRY.md` — confirmed, blocked, future, and MEEDO-input decisions.
+- `docs/decisions/DECISION_REGISTRY.md` — confirmed, superseded, blocked, future, and MEEDO-input decisions.
+- `docs/decisions/ADR_007_SOURCE_NATIVE_COLLECTION_IDENTITY.md` — source-native collection identity and Business Payor retirement.
 - `docs/architecture/ARCHITECTURE_RULES.md` — non-negotiable implementation boundaries.
 - `docs/architecture/APPLICATION_PATTERNS.md` — established implementation patterns.
 - `docs/security/SECURITY_ARCHITECTURE.md` and `TENANT_ISOLATION.md` — security/tenant invariants.
@@ -451,7 +515,7 @@ Before changing V2 code, an agent must be able to answer:
 1. Is this behavior CURRENT, TARGET V2, FUTURE/HIDDEN, BLOCKED, or NEEDS MEEDO INPUT?
 2. Which source/domain currently owns the data or mutation?
 3. Does the task actually require a visual change?
-4. Which production UI pattern should be preserved?
+4. Which current V3/shared UI pattern should be reused without changing the source's business semantics?
 5. Which route/role/tenant/financial invariants must stay unchanged?
 6. Which decision gate could this accidentally assume?
 7. What focused tests and localhost visual check will prove the slice?
@@ -461,5 +525,3 @@ If those answers are unclear, stop and resolve the ambiguity before implementati
 ---
 
 This file is the orientation layer for StallTrack V2. Detailed domain rules continue to live in their canonical documents; do not duplicate or silently fork them here.
-
-[executed on device: DESKTOP-93OK679 (11330eea-ecbf-4333-8834-60d02bbefb3e)]

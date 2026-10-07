@@ -33,7 +33,7 @@
                             <td class="v3-num">@Cell(cell.Total)</td>
                         }
                         <td class="v3-num v3-strong">@Cell(row.Total.Total)</td>
-                        <td class="v3-num">@(row.Attainment is { } a ? a.ToString("P2", CultureInfo.InvariantCulture) : "—")</td>
+                        <td class="v3-num">@(row.Attainment is { } a ? a.ToString("N2", CultureInfo.InvariantCulture) + "%" : "—")</td>
                     }
                     else
                     {

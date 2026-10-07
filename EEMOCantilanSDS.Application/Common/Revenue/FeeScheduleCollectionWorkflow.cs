@@ -25,7 +25,7 @@ namespace EEMOCantilanSDS.Application.Common.Revenue;
 /// one payment can never be both a legacy record and a Collection. The Head enabling the service (as for Transportation) is the
 /// prospective boundary; before it, and for Web/Admin entry, the existing legacy writers are unchanged.
 /// </summary>
-public sealed class FeeScheduleCollectionWorkflow(
+public sealed partial class FeeScheduleCollectionWorkflow(
     IAppDbContext db,
     ICurrentUserService currentUser,
     ICurrentMunicipalityAccessor municipality,

@@ -7,6 +7,7 @@ using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -52,13 +53,19 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
                 k.Replace("OTHER_", string.Empty))).ToList();
 
         var groups = new List<OfficialMonthlyIncomeGroupDto>();
+        var revisions = await db.OfficialReportRevisions.AsNoTracking().Where(x =>
+            x.MunicipalityId == tenantId && x.Year == request.Year).ToListAsync(ct);
+        var currentRevisions = revisions.GroupBy(x => (x.Kind, x.RowKey, x.Month))
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.Revision).First());
         foreach (var group in OfficialMonthlyIncomeStructure.Groups)
         {
             var rows = OfficialMonthlyIncomeStructure.Rows.Where(r => r.GroupKey == group.Key)
                 .Concat(pendingExtras.Where(r => r.GroupKey == group.Key)).ToList();
-            var rowDtos = rows.Select(row => ToRow(row, rowFacts.GetValueOrDefault(row.Key) ?? [])).ToList();
+            var rowDtos = rows.Select(row => ToRow(row, rowFacts.GetValueOrDefault(row.Key) ?? [], currentRevisions,
+                request.Month ?? (request.Year < clock.PhilippineToday.Year ? 12 : request.Year == clock.PhilippineToday.Year ? clock.PhilippineToday.Month : 0))).ToList();
             // Pending rows with no cash are not listed: nothing has been recorded that needs a home.
-            if (group.Key == OfficialMonthlyIncomeStructure.Pending) rowDtos = rowDtos.Where(r => r.Total.Total != 0m).ToList();
+            if (group.Key == OfficialMonthlyIncomeStructure.Pending) rowDtos = rowDtos.Where(r =>
+                r.Total.Total != 0m || r.AnnualTarget.HasValue || r.Months.Any(m => m.IsAdjusted)).ToList();
             if (rowDtos.Count == 0) continue;
             groups.Add(new(group.Key, group.Label, rowDtos, SumMonths(rowDtos.Select(r => r.Months)), SumCell(rowDtos.Select(r => r.Total))));
         }
@@ -67,34 +74,71 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
         {
             "Each row counts a real collection once: cash whose authoritative record is still a legacy source before its cutover, plus the posted Collection after it. A converted source row's legacy fields are never added beside its Collection.",
             "Remittance is not income: a remittance records money already collected and never changes this statement.",
-            "Legacy Fish weighing without frozen rate evidence is priced at the current Fish rate; only newly recorded rows carry a frozen amount.",
-            "No annual target is configured, so target and attainment are not shown. Attainment is never replaced by collection efficiency.",
+            "Historical weighing without frozen rate evidence remains unresolved; current rates never re-price history.",
+            "Targets are office-approved annual amounts. Attainment uses official report actuals, not collection efficiency. Report adjustments never alter collection ledgers.",
         };
+        var allRows = groups.SelectMany(g => g.Rows).ToArray();
+        var targeted = allRows.Where(r => r.AnnualTarget.HasValue).ToArray();
+        var coverage = targeted.Length == 0 ? TargetCoverageState.None : targeted.Length == allRows.Length ? TargetCoverageState.Complete : TargetCoverageState.Partial;
+        var targetTotal = targeted.Sum(r => r.AnnualTarget ?? 0m);
+        var through = request.Month ?? (request.Year < clock.PhilippineToday.Year ? 12 : request.Year == clock.PhilippineToday.Year ? clock.PhilippineToday.Month : 0);
+        var coveredActual = targeted.Sum(r => r.Months.Take(through).Sum(c => c.Total));
+        var sections = new List<OfficialMonthlyIncomeSectionDto>();
+        foreach (var (key, label, keys) in new[] {
+            ("A", "Income From Market", new[] { OfficialMonthlyIncomeStructure.Market, OfficialMonthlyIncomeStructure.Rent, OfficialMonthlyIncomeStructure.Space }),
+            ("B", "Income From Terminal", new[] { OfficialMonthlyIncomeStructure.Terminal }),
+            ("C", "Income from Slaughterhouse", new[] { OfficialMonthlyIncomeStructure.Slaughterhouse }) })
+        {
+            var members = groups.Where(g => keys.Contains(g.Key)).ToArray();
+            sections.Add(new(key, label, keys, SumMonths(members.Select(g => g.MonthTotals)), SumCell(members.Select(g => g.Total))));
+        }
+        var configured = await db.Municipalities.AsNoTracking().Where(x => x.Id == tenantId).Select(x => x.ReportSignatories).SingleOrDefaultAsync(ct);
+        IReadOnlyList<EEMOCantilanSDS.Application.Command.Municipalities.SetReportSignatories.ReportSignatoryDto> signatories = [];
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            try
+            {
+                using var json = System.Text.Json.JsonDocument.Parse(configured);
+                var lines = json.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array ? json.RootElement : json.RootElement.GetProperty("Lines");
+                signatories = System.Text.Json.JsonSerializer.Deserialize<List<EEMOCantilanSDS.Application.Command.Municipalities.SetReportSignatories.ReportSignatoryDto>>(lines.GetRawText()) ?? [];
+            }
+            catch (System.Text.Json.JsonException) { notes.Add("Report signatories need office configuration."); }
+            catch (KeyNotFoundException) { notes.Add("Report signatories need office configuration."); }
+            catch (InvalidOperationException) { notes.Add("Report signatories need office configuration."); }
+        }
         return Result<OfficialMonthlyIncomeDto>.Success(new OfficialMonthlyIncomeDto(
-            request.Year, request.Month, groups, monthTotals, SumCell(monthTotals), false, notes, clock.UtcNow));
+            request.Year, request.Month, groups, monthTotals, SumCell(monthTotals), targeted.Length > 0, notes, clock.UtcNow,
+            new(coverage, targeted.Length, allRows.Length, targetTotal, coveredActual,
+                coverage == TargetCoverageState.Complete && targetTotal > 0m ? coveredActual / targetTotal * 100m : null), sections, signatories));
     }
 
-    private static OfficialMonthlyIncomeRowDto ToRow(OfficialMonthlyIncomeStructure.Row row, List<Fact> facts)
+    private static OfficialMonthlyIncomeRowDto ToRow(OfficialMonthlyIncomeStructure.Row row, List<Fact> facts,
+        Dictionary<(OfficialReportRevisionKind Kind, string RowKey, int Month), OfficialReportRevision> revisions, int through)
     {
         var months = Enumerable.Range(1, 12).Select(m => new MonthlyIncomeCellDto(
             facts.Where(f => f.Month == m && !f.Canonical).Sum(f => f.Amount),
-            facts.Where(f => f.Month == m && f.Canonical).Sum(f => f.Amount))).ToList();
+            facts.Where(f => f.Month == m && f.Canonical).Sum(f => f.Amount),
+            revisions.GetValueOrDefault((OfficialReportRevisionKind.MonthlyAdjustment, row.Key, m))?.Amount ?? 0m,
+            revisions.TryGetValue((OfficialReportRevisionKind.MonthlyAdjustment, row.Key, m), out var adjustment)
+                ? ReportGovernanceWorkflow.ToDto(adjustment) : null)).ToList();
         var total = SumCell(months);
         var authority = total.Legacy != 0m && total.Canonical != 0m ? "Mixed"
             : total.Canonical != 0m ? "Canonical" : total.Legacy != 0m ? "Legacy" : "None";
-        return new(row.Key, row.Label, row.ClassificationCode, months, total, authority, null, null);
+        var target = revisions.GetValueOrDefault((OfficialReportRevisionKind.AnnualTarget, row.Key, 0))?.Amount;
+        return new(row.Key, row.Label, row.ClassificationCode, months, total, authority, target,
+            target is > 0m ? months.Take(through).Sum(c => c.Total) / target.Value * 100m : null);
     }
 
     private static MonthlyIncomeCellDto SumCell(IEnumerable<MonthlyIncomeCellDto> cells)
     {
         var list = cells.ToList();
-        return new(list.Sum(x => x.Legacy), list.Sum(x => x.Canonical));
+        return new(list.Sum(x => x.Legacy), list.Sum(x => x.Canonical), list.Sum(x => x.AdjustmentAmount));
     }
 
     private static IReadOnlyList<MonthlyIncomeCellDto> SumMonths(IEnumerable<IReadOnlyList<MonthlyIncomeCellDto>> rows)
     {
         var list = rows.ToList();
-        return Enumerable.Range(0, 12).Select(i => new MonthlyIncomeCellDto(list.Sum(r => r[i].Legacy), list.Sum(r => r[i].Canonical))).ToList();
+        return Enumerable.Range(0, 12).Select(i => new MonthlyIncomeCellDto(list.Sum(r => r[i].Legacy), list.Sum(r => r[i].Canonical), list.Sum(r => r[i].AdjustmentAmount))).ToList();
     }
 
     private async Task<List<Fact>> CanonicalAsync(Guid tenantId, int year, CancellationToken ct)

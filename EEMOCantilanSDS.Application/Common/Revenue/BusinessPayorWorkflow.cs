@@ -54,7 +54,8 @@ public sealed class BusinessPayorWorkflow(
                 .OrderBy(c => c.Stall!.Facility!.ShortName).ThenBy(c => c.Stall!.StallNo)
                 .Take(MaxRows)
                 .Select(c => new PayorOccupancyDto(c.Id, c.StallId, c.Stall!.Facility!.ShortName, c.Stall.StallNo,
-                    c.ActualOccupant, c.NameOnContract, c.PayorId, c.Payor != null ? c.Payor.DisplayName : null))
+                    c.ActualOccupant, c.NameOnContract, c.PayorId, c.Payor != null ? c.Payor.DisplayName : null,
+                    c.Stall.FacilityId, c.Stall.Facility!.Code, c.Stall.Facility.Name, c.Arrangement))
                 .ToListAsync(ct);
             return Result<IReadOnlyList<PayorOccupancyDto>>.Success(rows);
         }, ct);
@@ -63,19 +64,14 @@ public sealed class BusinessPayorWorkflow(
     public Task<Result<IReadOnlyList<PayorCandidateDto>>> SearchPayorsAsync(string? search, CancellationToken ct = default) =>
         Run<IReadOnlyList<PayorCandidateDto>>(async actor =>
         {
-            var term = search?.Trim().ToLower();
-            if (string.IsNullOrEmpty(term) || term.Length < 2)
-                return Result<IReadOnlyList<PayorCandidateDto>>.Success([]);
-            var payors = await db.Payors.AsNoTracking()
-                .Where(p => p.MunicipalityId == actor.TenantId && p.DisplayName.ToLower().Contains(term))
-                .OrderBy(p => p.DisplayName).Take(20).ToListAsync(ct);
+            var payors = await BusinessPayorSearch.Apply(db.Payors.AsNoTracking(), actor.TenantId, search).ToListAsync(ct);
             var ids = payors.Select(p => p.Id).ToList();
             var occupancies = await db.Contracts.AsNoTracking()
                 .Where(c => c.MunicipalityId == actor.TenantId && c.PayorId != null && ids.Contains(c.PayorId.Value))
                 .Select(c => new { PayorId = c.PayorId!.Value, Facility = c.Stall!.Facility!.ShortName, c.Stall.StallNo })
                 .ToListAsync(ct);
             var accounts = await db.ObligationAccounts.AsNoTracking()
-                .Where(a => a.MunicipalityId == actor.TenantId && ids.Contains(a.PayorId))
+                .Where(a => a.MunicipalityId == actor.TenantId && a.PayorId.HasValue && ids.Contains(a.PayorId.Value))
                 .Select(a => new { a.PayorId, a.Kind, a.SubjectLabel })
                 .ToListAsync(ct);
             var candidates = payors.Select(p => new PayorCandidateDto(p.Id, p.DisplayName, p.Kind,

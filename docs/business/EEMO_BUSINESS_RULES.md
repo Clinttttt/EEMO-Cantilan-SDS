@@ -4,11 +4,14 @@
 
 > **Filename compatibility note:** This file keeps its historical `EEMO_BUSINESS_RULES.md` path so existing repository links remain stable. Current office-facing terminology is **Municipal Economic Enterprises Development Office (MEEDO)**.
 >
-> **Supersession note:** The latest direct Cantilan MEEDO Head clarifications and approved target revenue architecture are
-> recorded in `REVENUE_ARCHITECTURE.md`. They supersede older contradictory assumptions in this historical/current-system
-> reference, including the former delinquency-versus-arrears rule. This document remains the reference for existing specialized
-> behavior unless a newer ruling explicitly supersedes it; the new architecture document describes target behavior, not an
-> assertion that the current runtime already implements it.
+> **Supersession note:** The latest direct Cantilan MEEDO Head/staff clarifications and approved target revenue architecture are
+> recorded in `REVENUE_ARCHITECTURE.md`, IA-067/IA-068, ADR-007 and
+> `../planning/OFFICE_CLARIFICATION_REFACTOR_20261006.md`. They supersede older contradictory assumptions in this
+> historical/current-system reference. In particular, the 2026-10-06 office clarification separates Terminal from
+> Transportation/Parking, removes the NPM/BusinessPayor dependency from Fish/Meat, requires a registered Fish/Meat vendor for
+> Weight & Measure, retires the Business Payors product workflow, and confirms the complete Monthly Income structure.
+> This document still records existing specialized/runtime behavior where noted; target rules do not claim the current deployment
+> has already been refactored.
 
 **First and reference tenant:** Municipal Economic Enterprises Development Office (MEEDO), Municipality of Cantilan, Surigao del Sur
 **Status:** In production. Web portal, API and collector app are all live; further LGUs onboard through the platform console.
@@ -38,24 +41,39 @@ Eight canonical facility codes, plus per-LGU custom facilities.
 
 | Code | Facility (Cantilan name) | Billing model |
 |------|--------------------------|---------------|
-| NPM | New Public Market | **Daily** per stall, marked on a calendar; the tenant chooses fixed-month `RentGoal` or calendar-day `PureDays`; Fish section also charges per kilo; electricity and water billed separately |
+| NPM | New Public Market | **Daily** per stall, marked on a calendar; the tenant chooses fixed-month `RentGoal` or calendar-day `PureDays`; utilities remain separate. Historical/current NPM Fish-kilo coupling is superseded prospectively by IA-068. |
 | TCC | Tampak Commercial Center | Monthly rental per contract |
 | NCC | New Commercial Center | Monthly rental per contract (Extension / Corner classifications) |
 | BBQ | Barbecue Stand | Monthly space rental |
 | ICE | Iceplant | Monthly space rental |
 | SLH | Slaughterhouse | Per head, by animal type |
-| TRM | Transport Terminal | Per trip, with queue/dispatch order |
+| TRM | Legacy Transport Terminal compatibility code | Historical trip/transport evidence. IA-067 supersedes IA-065 prospectively: Terminal is its own CT operation/report family; Transportation/Parking is a separate direct-amount CT source. |
 | TPM | Tabo-an Public Market | Per vendor per market day (a weekly market; the market DAY is per-LGU configurable) |
 
 **Custom facilities.** A Head can add facilities beyond the eight (`FacilityCode.Custom1..5`), which bill as
-monthly rental. NPM also supports **custom sections** beyond Vegetable / Meat / Fish; a custom section carries
+monthly rental. NPM also supports custom sections beyond its built-in section labels; a custom section carries
 its own daily rate.
+
+### 2026-10-06 authoritative business corrections
+
+These rules remain authoritative. Most are now implemented in the accepted local integration checkpoint at `6d3362f9`; deployed production may still reflect older behavior until an explicit rollout/activation occurs:
+
+- **Income From Terminal** is separate from Transportation/Parking and has three official CT sections: Comfort Room; Pull Pul Vans, Cargo Vans; Tricycad.
+- Terminal supports direct aggregate amount entry; Cash Ticket count is optional. Vehicle-class-assisted entry maps Jeepney, Multicab, Van, Public Utility Bus and Public Utility Baby Bus to Pull Pul Vans/Cargo Vans, and Tricycle to Tricycad.
+- **Transportation/Parking** is CT + direct amount with no required vehicle-class/rate basis and no TRM synonym.
+- **Fish/Meat Vendor Fee** is independent from NPM and from a mandatory Business Payor. It uses an independent annual/tax-year Fish-or-Meat vendor registry and direct amount received.
+- **Weight & Measure** remains separate and requires selection from that registered vendor source; free-text unregistered vendor fallback is not allowed.
+- **Business Payors** is retired as a product workflow. Unified New Collection searches source-native identities and shows only source-eligible operations.
+- **NPM Daily Collect All** is approved for today's daily charge only; unchecked stalls stay unpaid and every selected stall gets its own Collection/SRC.
+- Official Monthly Income continues with B. Income From Terminal, C. Income from Slaughterhouse, OVERALL TOTAL MARKET COLLECTION, and configurable Prepared by / Certified Correct signatories.
 
 ### Rates are per-tenant data, not constants
 
-`FeeRates` holds the Cantilan ordinance figures (NPM ₱30/day, fish ₱1/kg, SLH ₱250 hog and ₱365 large animal,
-TRM ₱30/trip, TPM ₱100/vendor) and they remain the **fallback**. Each LGU may set its own amounts, effective
-from a date, in the `FacilityRates` table.
+`FeeRates` still contains historical/runtime fallback figures such as NPM daily, fish weighing, slaughterhouse,
+legacy TRM and TPM amounts. Those constants are implementation compatibility evidence, not target business ownership.
+After IA-067/IA-068, fish weighing belongs to the independent registered Fish/Meat vendor context and vehicle-class/rate
+configuration belongs prospectively to Terminal rather than Transportation/Parking. Each LGU may set supported amounts,
+effective from a date, through its approved configuration path.
 
 - Always resolve through `IFeeRateResolver.GetSnapshotAsync()` then `snapshot.Resolve(FeeRateKey.X, asOf)`.
 - Never read `FeeRates.*` directly in a handler or repository to bill or report.
@@ -140,8 +158,8 @@ Consequences the whole system holds to:
   paid-vs-unpaid invariant (Paid + Unpaid == Billable) and is additionally surfaced as a partial count.
 - **OR numbers** (legacy-authoritative writers only; canonical collections are identified by SRC and need none, IA-062) are entered by hand from the physical receipt book, never generated. Adding an OR number
   never rewrites the original collector or timestamp. OR uniqueness is enforced per tenant.
-- **NPM is never billed monthly.** `RecordPayment` refuses an NPM stall — daily collections and the
-  month-settlement service are the only routes — and online payment routes NPM to a daily-derived path.
+- **NPM does not use the generic monthly-rental writer.** `RecordPayment` refuses an NPM stall — daily collections and the
+  month-settlement service are the specialized routes — and online payment routes NPM to a daily-derived path. Under `RentGoal`, those daily collections settle a fixed monthly obligation; under `PureDays`, the obligation is calendar-day-derived.
 - **Collector attribution:** `CollectorId` is taken from the authenticated user, never from the request body.
   An admin-recorded entry leaves it null and is attributed through the audit fields instead.
 - **Business-day logic** (today, current month, expiry, streaks, trip day, market day) uses
@@ -195,14 +213,14 @@ Rules that matter:
 
 ## 6. Money in and money out
 
-- **Field collection** (collector app): daily NPM marking, monthly stalls, slaughter transactions, terminal
-  trips, Tabo-an attendance. Reads fall back to an offline cache; writes carry a **client operation id** so a
-  retry after a flaky connection cannot double-record.
+- **Field collection** (collector app): current runtime still contains the established NPM/monthly-rental/Slaughterhouse/Tabo and transport-oriented flows. The approved target refactor adds source-native New Collection, independent Fish/Meat + registered-vendor weighing, direct Transportation/Parking, separate Terminal collection, and NPM Daily Collect All. Reads remain offline-tolerant; writes carry durable client operation identity so a retry after a flaky connection cannot double-record.
 - **Office collection** (portal): the same records, plus OR entry, utilities (electricity/water) and
   corrections.
 - **Online payment** (payor portal): PayMongo, with each LGU able to hold its own credentials. One unfinished
-  checkout is reused rather than duplicated — the double-payment guard. NPM pays a whole month of daily fees,
-  fish days and utilities through their own paths.
+  checkout is reused rather than duplicated — the double-payment guard. Existing NPM online-payment adapters remain
+  current-runtime compatibility. IA-068 does not authorize carrying the old NPM Fish/Meat coupling into new source-native
+  collection work; any portal migration must preserve posted history and move Fish/Meat/Weight & Measure only through their
+  approved independent source contracts.
 
 ### Bulk import of a stallholder list
 

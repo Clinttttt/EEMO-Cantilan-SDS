@@ -5,6 +5,8 @@
 @using EEMOCantilanSDS.Domain.Enums
 @using Microsoft.AspNetCore.Components.Authorization
 @inject IGovernedServicesApiClient GovernedApi
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
 @* The body of a governed configurable service (IA-044): its approved setup, and what has actually been collected.
    Collection itself happens on Collector Mobile; nothing here records money. Every figure is
@@ -24,7 +26,7 @@
             <p class="v3-notice v3-notice-error gsw-notice" role="alert">@_activityError</p>
         }
 
-        <div class="v3-table-wrap" role="region" aria-label="@($"{Name} collections")" tabindex="0">
+        <div class="v3-table-wrap gsw-scroll @(VisibleCollectionRows > 0 ? "gsw-measured-scroll" : null)" @ref="_history" role="region" aria-label="@($"{Name} collections")" tabindex="0">
             <table class="v3-table">
                 <caption class="v3-sr-only">@Name collections for @PeriodLabel</caption>
                 <thead>
@@ -64,21 +66,15 @@
                         </tr>
                     }
                 </tbody>
-                @if (_activity.Count > 0)
-                {
-                    <tfoot>
-                        <tr>
-                            <td colspan="5"><strong>Total for @PeriodLabel</strong></td>
-                            <td class="v3-num v3-strong">@Money(_activity.Sum(x => x.Amount))</td>
-                        </tr>
-                    </tfoot>
-                }
             </table>
         </div>
-        <p class="v3-panel-note">
-            Recorded by assigned collectors on Collector Mobile.
-            <a href="/collectors">Collectors</a> assigns the operation; Each collection is recorded with its own StallTrack reference code (SRC).
-        </p>
+        @if (!_loading && _activityError is null)
+        {
+            <footer class="gsw-total">
+                <strong>Total for @PeriodLabel</strong>
+                <strong>@Money(_activity.Sum(x => x.Amount))</strong>
+            </footer>
+        }
     </section>
 
     <aside class="v3-panel" aria-labelledby="@_setupTitleId">
@@ -127,71 +123,13 @@
 
                 <AuthorizeView Roles="SuperAdmin">
                     <Authorized>
-                        @if (!_editing && _definition is { State: GovernedServiceSetupState.Disabled, Basis: not null })
+                        @if (_definition is { State: GovernedServiceSetupState.Disabled, Basis: not null })
                         {
-                            <p class="gsw-note">New transactions are turned off, so collectors cannot record this on Collector Mobile.</p>
                             <button class="v3-btn v3-btn-primary gsw-edit" type="button" @onclick="EnableAsync" disabled="@_saving">Enable new transactions</button>
                         }
-                        @if (!_editing)
-                        {
-                            <button class="v3-btn gsw-edit" type="button" @onclick="OpenEditor">
-                                @(_definition.State == GovernedServiceSetupState.SetupRequired && _definition.Basis is null ? "Set up amount rule" : "Change amount rule")
-                            </button>
-                        }
-                        else
-                        {
-                            <form class="gsw-form" id="@_formId" @onsubmit="SaveAsync" @onsubmit:preventDefault="true">
-                                <label class="v3-field">
-                                    <span>Effective from</span>
-                                    <input type="date" required @bind="_effective" />
-                                </label>
-                                @if (_definition.AllowedBases.Count > 1)
-                                {
-                                    <label class="v3-field">
-                                        <span>Amount rule</span>
-                                        <select @bind="_basis">
-                                            @foreach (var basis in _definition.AllowedBases)
-                                            {
-                                                <option value="@basis">@BasisName(basis)</option>
-                                            }
-                                        </select>
-                                    </label>
-                                }
-                                @if (_basis == GovernedServiceBasis.FixedAmount)
-                                {
-                                    <label class="v3-field">
-                                        <span>Approved amount (₱)</span>
-                                        <input type="number" min="0.01" step="0.01" required @bind="_fixedAmount" />
-                                    </label>
-                                }
-                                else if (_basis == GovernedServiceBasis.DirectApprovedAmount)
-                                {
-                                    <label class="v3-field">
-                                        <span>Ceiling per transaction (₱, optional)</span>
-                                        <input type="number" min="0.01" step="0.01" @bind="_ceiling" />
-                                    </label>
-                                }
-                                else if (_basis == GovernedServiceBasis.ApprovedFeeOption)
-                                {
-                                    <p class="gsw-note">The collector selects one of the approved fee types below; each carries its own amount rule.</p>
-                                }
-                                else
-                                {
-                                    <p class="gsw-note">The amount is the approved rate of the vehicle class the collector selects. Set the classes and rates below.</p>
-                                }
-                                <label class="gsw-check"><input type="checkbox" @bind="_enabled" /> Enabled for new transactions</label>
-                                <label class="gsw-check"><input type="checkbox" @bind="_mobile" disabled="@(!_enabled)" /> Collector Mobile may record it@(_enabled ? "" : " (needs new transactions enabled)")</label>
-                                @if (!string.IsNullOrWhiteSpace(_saveError))
-                                {
-                                    <p class="v3-notice v3-notice-error" role="alert">@_saveError</p>
-                                }
-                                <p class="gsw-note">A new version applies from its effective date. Collections already posted keep the rule they used.</p>
-                                <div class="gsw-actions">
-                                    <button class="v3-btn" type="button" @onclick="CloseEditor">Cancel</button>
-                                    <button class="v3-btn v3-btn-primary" type="submit" disabled="@_saving">Save amount rule</button>
-                                </div>
-                            </form>
-                        }
+                        <button class="v3-btn gsw-edit" type="button" @onclick="OpenEditor">
+                            @(_definition.State == GovernedServiceSetupState.SetupRequired && _definition.Basis is null ? "Set up amount rule" : "Change amount rule")
+                        </button>
                     </Authorized>
                 </AuthorizeView>
                 @if (!string.IsNullOrWhiteSpace(_saved))
@@ -205,6 +143,69 @@
         </div>
     </aside>
 </div>
+
+@* Changing the amount rule opens in the shared side drawer, so editing never stretches the Setup panel or moves the collections beside it. *@
+<AuthorizeView Roles="SuperAdmin">
+    <Authorized>
+        @if (_definition is { } def)
+        {
+            <AddNewDrawer Show="_editing" Edit="true" Title="@(def.State == GovernedServiceSetupState.SetupRequired && def.Basis is null ? "Set up amount rule" : "Change amount rule")" Subtitle="@Name"
+                          FormId="@_formId" FormLabel="Amount rule" SubmitText="Save amount rule" Saving="_saving" Error="@_saveError"
+                          OnSubmit="SaveAsync" OnCancel="CloseEditor">
+                <AddNewSection Title="Amount rule" Plain="true">
+                    @if (def.AllowedBases.Count > 1)
+                    {
+                        <div class="avm-group">
+                            <label class="avm-label" for="@($"{_formId}-rule")">Rule</label>
+                            <select id="@($"{_formId}-rule")" class="avm-input" @bind="_basis">
+                                @foreach (var basis in def.AllowedBases)
+                                {
+                                    <option value="@basis">@BasisName(basis)</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                    <div class="avm-row-2">
+                        @if (_basis == GovernedServiceBasis.FixedAmount)
+                        {
+                            <div class="avm-group">
+                                <label class="avm-label" for="@($"{_formId}-amount")">Approved amount (₱) <span class="avm-req">*</span></label>
+                                <input id="@($"{_formId}-amount")" class="avm-input" type="number" min="0.01" step="0.01" required @bind="_fixedAmount" />
+                            </div>
+                        }
+                        else if (_basis == GovernedServiceBasis.DirectApprovedAmount)
+                        {
+                            <div class="avm-group">
+                                <label class="avm-label" for="@($"{_formId}-ceiling")">Maximum per transaction (₱, optional)</label>
+                                <input id="@($"{_formId}-ceiling")" class="avm-input" type="number" min="0.01" step="0.01" @bind="_ceiling" />
+                            </div>
+                        }
+                        <div class="avm-group">
+                            <label class="avm-label" for="@($"{_formId}-effective")">Effective from <span class="avm-req">*</span></label>
+                            <input id="@($"{_formId}-effective")" class="avm-input" type="date" required @bind="_effective" />
+                        </div>
+                    </div>
+                    @if (_basis == GovernedServiceBasis.ApprovedFeeOption)
+                    {
+                        <span class="avm-hint">Each approved fee type carries its own amount.</span>
+                    }
+                    else if (_basis == GovernedServiceBasis.VehicleClassRate)
+                    {
+                        <span class="avm-hint">The amount is the rate of the selected vehicle class.</span>
+                    }
+                </AddNewSection>
+                <AddNewSection Title="Availability" Plain="true">
+                    <label class="gsw-check"><input type="checkbox" @bind="_enabled" /> Enabled for new transactions</label>
+                    <label class="gsw-check"><input type="checkbox" @bind="_mobile" disabled="@(!_enabled)" /> Collector Mobile may record it</label>
+                    @if (OperationCode == EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Transportation)
+                    {
+                        <label class="gsw-check"><input type="checkbox" @bind="_quick" disabled="@(!_enabled)" /> Allow quick amount (no vehicle class)</label>
+                    }
+                </AddNewSection>
+            </AddNewDrawer>
+        }
+    </Authorized>
+</AuthorizeView>
 
 @if (HasFeeOptions)
 {
@@ -240,6 +241,31 @@
     /// <summary>Heading of the approved fee options panel, shown when the service may be collected by fee type.</summary>
     [Parameter] public string FeeOptionsTitle { get; set; } = "Fee types";
 
+    /// <summary>Opt-in exact data-row limit; zero preserves the existing history height.</summary>
+    [Parameter] public int VisibleCollectionRows { get; set; }
+
+    private ElementReference _history;
+    private IJSObjectReference? _historyModule;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (VisibleCollectionRows <= 0) return;
+        _historyModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/collectionHistory.js");
+        if (_historyModule is not null)
+            await _historyModule.InvokeVoidAsync("observe", _history, VisibleCollectionRows);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_historyModule is null) return;
+        try
+        {
+            await _historyModule.InvokeVoidAsync("disconnect", _history);
+            await _historyModule.DisposeAsync();
+        }
+        catch (JSDisconnectedException) { }
+    }
+
     private bool HasFeeOptions => _definition?.AllowedBases.Contains(GovernedServiceBasis.ApprovedFeeOption) == true;
 
     private GovernedServiceDefinitionDto? _definition;
@@ -262,6 +288,7 @@
     private decimal? _ceiling;
     private bool _enabled = true;
     private bool _mobile = true;
+    private bool _quick;
 
     protected override async Task OnInitializedAsync()
     {
@@ -324,6 +351,7 @@
         // box unchecked (which saved it Disabled again). Turning it off is an explicit uncheck.
         _enabled = true;
         _mobile = current.Basis is null || current.MobileEnabled || current.State == GovernedServiceSetupState.Disabled;
+        _quick = current.QuickAmountEnabled;
         _editing = true;
     }
 
@@ -339,7 +367,7 @@
                 PhilippineTime.Today, basis,
                 basis == GovernedServiceBasis.FixedAmount ? current.FixedAmount : null,
                 basis == GovernedServiceBasis.DirectApprovedAmount ? current.MaximumAmount : null,
-                true, true));
+                true, true, current.QuickAmountEnabled));
             if (!result.IsSuccess) { _saveError = result.Error ?? "New transactions could not be enabled."; return; }
             _definition = result.Value;
             _saved = "New transactions are enabled.";
@@ -388,7 +416,7 @@
                 _effective, _basis,
                 _basis == GovernedServiceBasis.FixedAmount ? _fixedAmount : null,
                 _basis == GovernedServiceBasis.DirectApprovedAmount ? _ceiling : null,
-                _enabled, _enabled && _mobile);
+                _enabled, _enabled && _mobile, _quick && _enabled && OperationCode == EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Transportation);
             var result = await GovernedApi.ConfigureAsync(OperationCode, request);
             if (!result.IsSuccess)
             {

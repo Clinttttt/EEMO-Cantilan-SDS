@@ -17,7 +17,8 @@ public enum GovernedServiceSetupState
 public enum GovernedServiceMode
 {
     WholePayment = 1,
-    DailyTransaction = 2
+    DailyTransaction = 2,
+    QuickAmount = 3
 }
 
 /// <summary>The instrument the approved policy resolves for one mode (null mode = the service's only context).</summary>
@@ -37,12 +38,12 @@ public sealed record GovernedServiceDefinitionDto(
     bool MobileEnabled,
     DateOnly? EffectiveDate,
     IReadOnlyList<GovernedServiceInstrumentDto> Instruments,
-    IReadOnlyList<string> SetupIssues);
+    IReadOnlyList<string> SetupIssues, bool QuickAmountEnabled = false);
 
 /// <summary>A new effective-dated setup version. It never edits history.</summary>
 public sealed record ConfigureGovernedServiceRequest(
     DateOnly EffectiveDate, GovernedServiceBasis Basis, decimal? FixedAmount, decimal? MaximumAmount,
-    bool IsEnabled, bool MobileEnabled);
+    bool IsEnabled, bool MobileEnabled, bool QuickAmountEnabled = false);
 
 /// <summary>
 /// Versioned received-money intent for one collection. The collector supplies facts only:
@@ -70,12 +71,25 @@ public sealed record GovernedServicePostRequest(
 
 public sealed record GovernedServiceOutcomeDto(
     Guid CollectionId, string ReferenceCode, DateOnly BusinessDate,
-    decimal Amount, RevenueInstrumentType Instrument, string Disposition, bool ExistingOutcome);
+    decimal Amount, RevenueInstrumentType Instrument, string Disposition, bool ExistingOutcome,
+    Guid? FeeOptionId = null, string? FeeOptionName = null, Guid? FeeOptionRateId = null);
 
 public sealed record GovernedServiceActivityDto(
     Guid CollectionId, DateOnly BusinessDate, DateTime RecordedAtUtc, string? ReferenceCode,
     RevenueInstrumentType? Instrument, GovernedServiceMode? Mode, string? PayerName, string? Reference,
-    decimal Amount, string? CollectorName, string Disposition, string? FeeOptionName = null);
+    decimal Amount, string? CollectorName, string Disposition, string? FeeOptionName = null,
+    Guid? CollectorId = null, Guid? PayorId = null, string? VehicleClassCode = null, string? VehicleClassName = null,
+    Guid? VehicleClassRateId = null, DateOnly? VehicleClassRateEffectiveDate = null, decimal? FrozenVehicleRate = null,
+    decimal? NetAmount = null, GovernedCollectionState? State = null);
+
+public enum GovernedCollectionState { Posted = 1, DocumentCorrected = 2, Reversed = 3 }
+
+/// <summary>Current Transport Terminal and Transportation/Parking share this canonical-only receipt-period view.</summary>
+public sealed record TransportationCurrentActivityDto(
+    DateOnly From, DateOnly To, DateOnly Today,
+    decimal CollectedToday, int TransactionsToday, int ActiveVehicleClassCount,
+    decimal CollectedInPeriod, int TransactionsInPeriod,
+    IReadOnlyList<GovernedServiceActivityDto> Collections);
 
 /// <summary>One collection a collector took through a governed operation, as the server recorded it.</summary>
 public sealed record GovernedServiceRecordDto(
@@ -97,13 +111,18 @@ public sealed record GovernedServiceTermsDto(
 /// One approved fee option a collector may select today: a fixed approved amount (read-only on Mobile) or a direct amount
 /// the collector enters (optionally up to an approved ceiling).
 /// </summary>
-public sealed record FeeOptionTermDto(Guid Id, string Name, string? Location, GovernedServiceBasis Basis, decimal? Amount, decimal? MaximumAmount);
+public sealed record FeeOptionTermDto(Guid Id, string Name, string? Location, GovernedServiceBasis Basis, decimal? Amount, decimal? MaximumAmount,
+    string? Code = null, Guid? RateId = null, DateOnly? EffectiveDate = null);
 
 /// <summary>One approved vehicle class and the rate in force today, for a collector to select. Display only; posting revalidates.</summary>
 public sealed record VehicleClassTermDto(string Code, string Name, decimal Amount);
 
 public sealed record VehicleClassDto(
-    Guid Id, string Code, string DisplayName, bool IsActive, decimal? CurrentAmount, DateOnly? CurrentEffectiveDate);
+    Guid Id, string Code, string DisplayName, bool IsActive, decimal? CurrentAmount, DateOnly? CurrentEffectiveDate,
+    IReadOnlyList<VehicleClassRateVersionDto>? History = null);
+
+public sealed record VehicleClassRateVersionDto(Guid RateId, DateOnly EffectiveDate, decimal Amount,
+    string CreatedBy, DateTime CreatedAtUtc);
 
 public sealed record SaveVehicleClassRequest(string Code, string DisplayName, DateOnly EffectiveDate, decimal Amount);
 
@@ -111,10 +130,15 @@ public sealed record SaveVehicleClassRequest(string Code, string DisplayName, Da
 public sealed record GovernedServiceFeeOptionDto(
     Guid Id, string? Code, string DisplayName, string? Location, string? Description,
     GovernedServiceBasis? Basis, decimal? Amount, decimal? MaximumAmount, DateOnly? EffectiveDate,
-    string Status, DateOnly? RetiredFrom, IReadOnlyList<FeeOptionRateVersionDto> History, string? RetiredBy = null);
+    string Status, DateOnly? RetiredFrom, IReadOnlyList<FeeOptionRateVersionDto> History, string? RetiredBy = null,
+    FeeOptionAvailability? Availability = null, bool CanCollect = false, string? ReasonCode = null,
+    Guid? RateId = null, RevenueInstrumentType? Instrument = null);
+
+public enum FeeOptionAvailability { Active = 1, Scheduled = 2, Retiring = 3, Retired = 4, NeedsApprovedRule = 5 }
 
 public sealed record FeeOptionRateVersionDto(
-    DateOnly EffectiveDate, GovernedServiceBasis Basis, decimal? FixedAmount, decimal? MaximumAmount, string CreatedBy, DateTime CreatedAtUtc);
+    DateOnly EffectiveDate, GovernedServiceBasis Basis, decimal? FixedAmount, decimal? MaximumAmount, string CreatedBy, DateTime CreatedAtUtc,
+    Guid? RateId = null);
 
 /// <summary>Head request to add an approved fee option with its first amount rule (Fixed or Direct amount).</summary>
 public sealed record AddFeeOptionRequest(

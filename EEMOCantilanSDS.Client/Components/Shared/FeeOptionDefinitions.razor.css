@@ -177,7 +177,7 @@
 }
 
 .fod-saved {
-    margin: 12px 20px 0;
+    margin: 12px 20px 16px;
     padding: 10px 12px;
     border-radius: 8px;
     background: var(--green-bg);

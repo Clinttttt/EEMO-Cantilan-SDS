@@ -7,7 +7,6 @@
 .collection-row > strong { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .collection-option { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0; background: transparent; border: 0; border-bottom: 1px solid var(--mobile-border); color: var(--mobile-text); text-align: left; font-size: 14px; }
 .collection-link { border: 0; background: transparent; padding: 8px 8px 8px 0; color: var(--mobile-blue); font-size: 12px; }
-.sheet { max-height: 85dvh; overflow-y: auto; }
 button:disabled { opacity: .5; cursor: not-allowed; }
 button:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2px; }
 
@@ -25,3 +24,111 @@ button:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2p
 .collection-primary:disabled { border-color: var(--mobile-border); background: var(--mobile-border); color: var(--mobile-text-secondary); }
 .collection-entry > p:last-child { margin-bottom: 0; }
 .collection-message { margin: 10px 2px 0; text-align: center; }
+
+/* ── New Collection polish (2026-10-06): readable payer discovery and a finished Add item sheet ── */
+.collection-entry .form-label { font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--mobile-text-secondary); margin-bottom: 6px; display: block; }
+.collection-entry .form-input, .sheet .form-input { min-height: 46px; padding: 10px 14px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); color: var(--mobile-text); font-size: 16px; }
+.collection-entry .form-input::placeholder, .sheet .form-input::placeholder { color: var(--mobile-text-secondary); opacity: .8; }
+.collection-entry .form-input:focus, .sheet .form-input:focus { border-color: var(--mobile-blue); box-shadow: inset 0 0 0 1px var(--mobile-blue); background: var(--mobile-surface); }
+
+/* The chosen payer reads at full strength and wraps rather than breaking the row. */
+.payer-selected { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 8px; }
+.payer-name { min-width: 0; overflow-wrap: anywhere; font-size: 17px; font-weight: 700; line-height: 1.25; color: var(--mobile-navy); }
+
+/* Suggestions: a bounded panel (about five rows), scrolling inside itself so the page never grows with the list. */
+.payer-panel { margin-top: 10px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); overflow: hidden; }
+.payer-list { max-height: 272px; overflow-y: auto; overscroll-behavior: contain; }
+.payer-option { padding: 0 14px; min-height: 54px; border-bottom: 1px solid var(--mobile-border); font-size: 15px; font-weight: 600; color: var(--mobile-navy); }
+.payer-list > .payer-option:last-child { border-bottom: 0; }
+.payer-option:hover:not(:disabled) { background: var(--mobile-blue-subtle); }
+.payer-option { padding-top: 8px; padding-bottom: 8px; }
+.payer-option > span[aria-hidden] { color: var(--mobile-text-secondary); }
+.payer-option-text { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.payer-option-text strong { font-size: 15px; font-weight: 600; color: var(--mobile-navy); }
+.payer-option-text small { margin-top: 2px; font-size: 12px; font-weight: 400; color: var(--mobile-text-secondary); }
+.payer-status { padding: 14px; font-size: 13px; color: var(--mobile-text-secondary); }
+.payer-status-inline { padding: 8px 14px; border-top: 1px solid var(--mobile-border); }
+
+/* Added items: a compact row, never a card inside a card. */
+.item-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--mobile-border); }
+.item-row:last-child { border-bottom: 0; }
+.item-row-problem { box-shadow: inset 3px 0 var(--mobile-danger); padding-left: 10px; }
+.item-main { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.item-name { font-size: 14px; font-weight: 600; color: var(--mobile-navy); }
+.item-context { margin-top: 2px; font-size: 12px; color: var(--mobile-text-secondary); }
+.item-actions { display: flex; gap: 4px; margin-top: 2px; }
+.item-amount { display: flex; flex-direction: column; align-items: flex-end; flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.item-amount strong { font-size: 14px; color: var(--mobile-navy); }
+.item-amount span { margin-top: 2px; font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--mobile-text-secondary); }
+
+/* Recorded: the total first, each SRC beneath it, one full-width way to carry on. */
+.collection-entry .done-title { font-size: 15px; font-weight: 700; color: var(--mobile-navy); }
+.done-total { display: flex; flex-direction: column; gap: 2px; padding: 8px 0 10px; border-bottom: 1px solid var(--mobile-border); }
+.done-total strong { font-size: 24px; font-weight: 700; color: var(--mobile-navy); font-variant-numeric: tabular-nums; }
+.done-total span { font-size: 13px; color: var(--mobile-text-secondary); }
+.done-action { width: 100%; margin-top: 14px; }
+
+/* Review summary: readable labels, strong right-aligned amounts, the Total the strongest line, errors as quiet lines. */
+.review-summary { padding-top: 6px; padding-bottom: 12px; }
+.review-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--mobile-border); font-size: 14px; color: var(--mobile-text-secondary); font-variant-numeric: tabular-nums; }
+.review-row strong { font-weight: 600; color: var(--mobile-navy); }
+.review-total { padding-top: 12px; border-bottom: 0; font-size: 15px; font-weight: 700; color: var(--mobile-navy); }
+.review-total strong { font-size: 20px; font-weight: 700; }
+.review-problem { margin: 8px 0 0 !important; padding: 8px 10px; border-left: 3px solid var(--mobile-danger); border-radius: 0 6px 6px 0; background: var(--mobile-danger-subtle); font-size: 13px !important; line-height: 1.4; color: var(--mobile-text) !important; }
+.review-problem strong { margin-right: 6px; color: var(--mobile-danger); }
+
+/* Disabled controls stay readable: the global dim (opacity .5) halved already-light text, so they use opaque colours instead. */
+.collection-small:disabled, .collection-secondary:disabled, .collection-primary:disabled { opacity: 1; cursor: not-allowed; }
+.collection-small:disabled, .collection-secondary:disabled { border-color: #c3cfdc; color: #46586d; background: transparent; }
+.collection-primary:disabled { border-color: #d5dde7; background: #d5dde7; color: #3b4d62; }
+
+/* One valid source: already chosen, shown as context rather than asked about. */
+.sheet-source { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; padding: 10px 14px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface-subtle); }
+.sheet-source strong { font-size: 15px; font-weight: 600; color: var(--mobile-navy); overflow-wrap: anywhere; }
+.sheet-source span { font-size: 13px; color: var(--mobile-text-secondary); }
+
+/* ── Income From Terminal (2026-10-07): the three official sections, compact; a vehicle type is only an optional aid inside one. ── */
+.term-label { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--mobile-text-secondary); }
+.term-sections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+.term-section {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+    min-height: 64px;
+    padding: 10px 12px;
+    border: 1px solid var(--mobile-border);
+    border-radius: 10px;
+    background: var(--mobile-surface);
+    color: var(--mobile-navy);
+    text-align: left;
+}
+.term-name { min-width: 0; overflow-wrap: anywhere; font-size: 13px; font-weight: 700; line-height: 1.25; letter-spacing: .01em; }
+.term-name small { display: block; margin-top: 3px; font-size: 12px; font-weight: 500; }
+.term-section svg { flex: none; width: 18px; height: 18px; fill: none; stroke: var(--mobile-blue); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.term-section.selected { border-color: var(--mobile-blue); background: var(--mobile-blue-subtle); }
+
+/* One joined control; the selected half is filled. */
+.term-mode { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 12px; border: 1px solid var(--mobile-blue); border-radius: 10px; overflow: hidden; }
+.term-mode button { min-height: 40px; border: 0; background: transparent; color: var(--mobile-blue); font-size: 13px; font-weight: 600; }
+.term-mode button + button { border-left: 1px solid var(--mobile-blue); }
+.term-mode button.on { background: var(--mobile-blue); color: #ffffff; }
+
+/* Breathing room (2026-10-07): the empty Items card, the action row and what follows no longer sit hard against each other. */
+.collection-entry { padding-bottom: 18px; }
+.collection-entry > p { margin: 10px 0 2px; }
+.collection-actions { margin-bottom: 20px; }
+
+/* Numeric entry in the Add item sheet (2026-10-07): fields keep their own spacing, so an input never sits on the next label or on the divider
+   of the row beneath it. Shared by every amount, quantity, heads and ticket-count field in the sheet. */
+.sheet .form-field { display: block; margin: 0 0 14px; }
+.sheet .form-field .form-input { display: block; width: 100%; box-sizing: border-box; }
+.sheet .form-field + .sheet-meta,
+.sheet .form-field + .sheet-note { margin-top: 6px; }
+
+/* Picker rows with a supporting amount (NPM Daily / Whole payment): the name, then the server's figure beneath it. */
+.collection-option .option-text { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.collection-option .option-text strong { font-size: 15px; font-weight: 600; color: var(--mobile-navy); }
+.collection-option .option-text small { margin-top: 2px; font-size: 12px; color: var(--mobile-text-secondary); }

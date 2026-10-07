@@ -113,6 +113,8 @@ public class SpaceOnlyOccupancyTests
 
         Assert.True(result.IsSuccess);
         Assert.NotNull(saved);
+        Assert.Equal(saved!.Id, result.Value!.OccupancyId);
+        Assert.Null(saved.PayorId); // The next step explicitly selects/creates a Business Payor; names never link it.
         Assert.Equal(OccupancyArrangement.SpaceOnly, saved!.Arrangement);
         Assert.Null(saved.NameOnContract);
         Assert.Equal(1_600m, saved.MonthlyRentalRate);

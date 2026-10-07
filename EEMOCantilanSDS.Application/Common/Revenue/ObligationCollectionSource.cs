@@ -49,7 +49,7 @@ public sealed class ObligationCollectionSource(IAppDbContext db)
             .Where(x => x.MunicipalityId == tenantId && accountIds.Contains(x.ObligationAccountId)).ToListAsync(ct))
             .ToDictionary(x => (x.ObligationAccountId, x.PeriodStart));
         var settled = await SettledByPeriodAsync(tenantId, periods.Values.Select(x => x.Id).ToArray(), ct);
-        var payors = await PayorNamesAsync(tenantId, accounts.Select(x => x.PayorId).Distinct().ToArray(), ct);
+        var payors = await PayorNamesAsync(tenantId, accounts.Where(x => x.PayorId.HasValue).Select(x => x.PayorId!.Value).Distinct().ToArray(), ct);
 
         var quotes = new List<ObligationQuoteDto>();
         foreach (var account in accounts)
@@ -59,15 +59,15 @@ public sealed class ObligationCollectionSource(IAppDbContext db)
                 if (start < businessDate.AddMonths(-LookbackMonths)) continue;
                 periods.TryGetValue((account.Id, start), out var period);
                 if (account.Kind == ObligationKind.FishMeatVendorFee && FishMeatVendorFeeRules.UsesDirectCollection(businessDate) && period is null) continue;
-                var rate = period is null ? ObligationRate.Resolve(rates[account.Id], start) : null;
+                var rate = period is null ? ObligationRate.Resolve(rates[account.Id], account.RateAsOf(start)) : null;
                 if (period is null && rate is null) continue;   // no approved amount in force: not billable, never invented
                 var assessed = period?.AssessedAmount ?? rate!.Amount;
                 var paid = period is null ? 0m : settled.GetValueOrDefault(period.Id);
                 var outstanding = Math.Max(0m, assessed - paid);
                 quotes.Add(new ObligationQuoteDto(
                     account.Id, period?.Id, account.Kind, KindLabel(account.Kind), account.SubjectLabel, start,
-                    assessed, paid, outstanding, account.PayorId, payors.GetValueOrDefault(account.PayorId),
-                    period?.ObligationRateId ?? rate!.Id, outstanding > 0m && !(account.Kind == ObligationKind.FishMeatVendorFee && FishMeatVendorFeeRules.UsesDirectCollection(businessDate))));
+                    assessed, paid, outstanding, account.PayorId ?? Guid.Empty, account.ActualOccupant ?? payors.GetValueOrDefault(account.PayorId ?? Guid.Empty),
+                    period?.ObligationRateId ?? rate!.Id, outstanding > 0m && !(account.Kind == ObligationKind.FishMeatVendorFee && FishMeatVendorFeeRules.UsesDirectCollection(businessDate)), account.Event));
             }
         }
         return quotes.OrderBy(x => x.PeriodStart).ThenBy(x => x.SubjectLabel, StringComparer.OrdinalIgnoreCase).ToList();
@@ -85,6 +85,7 @@ public sealed class ObligationCollectionSource(IAppDbContext db)
         var account = await (tracked ? accounts : accounts.AsNoTracking()).SingleOrDefaultAsync(ct);
         if (account is null || !account.PeriodStarts(businessDate).Contains(periodStart)) return null;
         if (assess && account.Kind == ObligationKind.FishMeatVendorFee && FishMeatVendorFeeRules.UsesDirectCollection(businessDate)) return null;
+        if (assess) await ResolvePolicyAsync(tenantId, account.Kind, businessDate, ct);
 
         IQueryable<ObligationPeriod> periods = db.ObligationPeriods.Where(x =>
             x.MunicipalityId == tenantId && x.ObligationAccountId == accountId && x.PeriodStart == periodStart);
@@ -97,7 +98,7 @@ public sealed class ObligationCollectionSource(IAppDbContext db)
             if (!assess) return null;
             var rates = await db.ObligationRates.AsNoTracking()
                 .Where(x => x.MunicipalityId == tenantId && x.ObligationAccountId == accountId).ToListAsync(ct);
-            var rate = ObligationRate.Resolve(rates, periodStart);
+            var rate = ObligationRate.Resolve(rates, account.RateAsOf(periodStart));
             if (rate is null) return null;
             period = ObligationPeriod.Assess(account, rate, periodStart, actor);
             db.ObligationPeriods.Add(period);
@@ -121,6 +122,28 @@ public sealed class ObligationCollectionSource(IAppDbContext db)
         Guid tenantId, ObligationAccount account, ObligationPeriod period, DateOnly businessDate, CancellationToken ct)
     {
         var code = ObligationAccount.ClassificationCodeFor(account.Kind);
+        var (classification, policy) = await ResolvePolicyAsync(tenantId, account.Kind, businessDate, ct);
+
+        var settled = (await SettledByPeriodAsync(tenantId, [period.Id], ct)).GetValueOrDefault(period.Id);
+        var outstanding = Math.Max(0m, period.AssessedAmount - settled);
+        var payorName = account.ActualOccupant ?? (await PayorNamesAsync(tenantId, account.PayorId is { } linked ? [linked] : [], ct)).GetValueOrDefault(account.PayorId ?? Guid.Empty);
+        var quote = new ObligationQuoteDto(
+            account.Id, period.Id, account.Kind, KindLabel(account.Kind), account.SubjectLabel, period.PeriodStart,
+            period.AssessedAmount, settled, outstanding, account.PayorId ?? Guid.Empty, payorName, period.ObligationRateId,
+            outstanding > 0m && !(account.Kind == ObligationKind.FishMeatVendorFee && FishMeatVendorFeeRules.UsesDirectCollection(businessDate)), account.Event);
+
+        var snapshot = JsonSerializer.Serialize(new ObligationSnapshot(
+            1, tenantId, (int)account.Kind, account.Id, period.Id, period.PeriodStart.Year, period.PeriodStart.Month,
+            period.PeriodStart, period.AssessedAmount, period.ObligationRateId, account.SubjectLabel,
+            $"{KindLabel(account.Kind)} · {account.SubjectLabel}", (int)SettlementAuthority.Canonical,
+            period.SettlementVersion, settled, outstanding, account.PayorId ?? Guid.Empty, payorName, code, policy.Id), JsonOptions);
+        return new ObligationSourceFacts(account, period, classification, policy, quote, snapshot);
+    }
+
+    private async Task<(RevenueClassification Classification, RevenueClassificationPolicy Policy)> ResolvePolicyAsync(
+        Guid tenantId, ObligationKind kind, DateOnly businessDate, CancellationToken ct)
+    {
+        var code = ObligationAccount.ClassificationCodeFor(kind);
         var classification = await db.RevenueClassifications.AsNoTracking().SingleOrDefaultAsync(x =>
             x.MunicipalityId == tenantId && x.SemanticCode == code && x.IsActive, ct);
         var policy = classification is null ? null : await db.RevenueClassificationPolicies.AsNoTracking()
@@ -128,22 +151,8 @@ public sealed class ObligationCollectionSource(IAppDbContext db)
                 && x.BusinessContext == RevenuePolicyContext.Default && x.EffectiveDate <= businessDate)
             .OrderByDescending(x => x.EffectiveDate).FirstOrDefaultAsync(ct);
         if (classification is null || policy?.PermittedInstrumentType != RevenueInstrumentType.OfficialReceipt)
-            throw new InvalidOperationException($"{KindLabel(account.Kind)} has no effective Official Receipt policy for this tenant.");
-
-        var settled = (await SettledByPeriodAsync(tenantId, [period.Id], ct)).GetValueOrDefault(period.Id);
-        var outstanding = Math.Max(0m, period.AssessedAmount - settled);
-        var payorName = (await PayorNamesAsync(tenantId, [account.PayorId], ct)).GetValueOrDefault(account.PayorId);
-        var quote = new ObligationQuoteDto(
-            account.Id, period.Id, account.Kind, KindLabel(account.Kind), account.SubjectLabel, period.PeriodStart,
-            period.AssessedAmount, settled, outstanding, account.PayorId, payorName, period.ObligationRateId,
-            outstanding > 0m && !(account.Kind == ObligationKind.FishMeatVendorFee && FishMeatVendorFeeRules.UsesDirectCollection(businessDate)));
-
-        var snapshot = JsonSerializer.Serialize(new ObligationSnapshot(
-            1, tenantId, (int)account.Kind, account.Id, period.Id, period.PeriodStart.Year, period.PeriodStart.Month,
-            period.PeriodStart, period.AssessedAmount, period.ObligationRateId, account.SubjectLabel,
-            $"{KindLabel(account.Kind)} · {account.SubjectLabel}", (int)SettlementAuthority.Canonical,
-            period.SettlementVersion, settled, outstanding, account.PayorId, payorName, code, policy.Id), JsonOptions);
-        return new ObligationSourceFacts(account, period, classification, policy, quote, snapshot);
+            throw new InvalidOperationException($"{KindLabel(kind)} has no effective Official Receipt policy for this tenant.");
+        return (classification, policy);
     }
 
     /// <summary>Collected per period: canonical allocations plus their corrections. The one balance authority.</summary>

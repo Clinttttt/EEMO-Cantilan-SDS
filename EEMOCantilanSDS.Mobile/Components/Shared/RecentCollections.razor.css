@@ -1,0 +1,42 @@
+/* The register takes the height the page has left above the bottom navigation, then scrolls inside itself: a flex column all the way down,
+   with no fixed height. The page (collection-workspace) is the flex container; when other content is taller, the page scrolls instead. */
+.rc { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 9rem; margin-top: 4px; }
+.rc-title { margin: 0 0 8px 2px; font-size: 13px; font-weight: 600; color: var(--mobile-text-secondary); }
+.rc-note { margin: 0 2px 8px; font-size: 13px; color: var(--mobile-text-secondary); }
+.rc-sub { margin: 0 0 6px; font-size: 15px; font-weight: 700; color: var(--mobile-navy); }
+.rc-block { margin: 12px 0 0; padding: 8px 10px; border-left: 3px solid var(--mobile-border); background: var(--mobile-canvas); border-radius: 0 8px 8px 0; font-size: 13px; color: var(--mobile-text-secondary); }
+
+.rc-list { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); }
+
+.rc-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    min-height: 56px;
+    padding: 10px 14px;
+    border: 0;
+    border-bottom: 1px solid var(--mobile-border);
+    background: transparent;
+    color: var(--mobile-text);
+    text-align: left;
+}
+
+.rc-list > :last-child { border-bottom: 0; }
+.rc-row:hover { background: var(--mobile-blue-subtle); }
+.rc-row:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: -2px; }
+
+.rc-main { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.rc-name { font-size: 13px; font-weight: 700; line-height: 1.3; color: var(--mobile-navy); }
+.rc-main small { margin-top: 2px; font-size: 12px; color: var(--mobile-text-secondary); }
+.rc-src { font-variant-numeric: tabular-nums; }
+
+.rc-amount { display: flex; flex-direction: column; align-items: flex-end; flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.rc-amount strong { font-size: 14px; font-weight: 700; color: var(--mobile-navy); }
+.rc-amount small { margin-top: 2px; font-size: 11px; color: var(--mobile-text-secondary); }
+.rc-reversed strong { color: var(--mobile-text-secondary); }
+
+/* Remove is a quiet outline until the reason sheet; the destructive colour belongs only to its final confirmation. */
+.rc-remove { color: var(--mobile-danger); border-color: var(--mobile-danger); }
+.rc-danger { background: var(--mobile-danger); border-color: var(--mobile-danger); }

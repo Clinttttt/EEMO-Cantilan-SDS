@@ -23,6 +23,31 @@ namespace EEMOCantilanSDS.IntegrationTests;
 [Collection(PostgresCollection.Name)]
 public sealed class BusinessPayorLinkingTests(PostgresFixture db)
 {
+    [SkippableFact]
+    public async Task BusinessPayorBrowse_IsBoundedDeterministicCaseInsensitiveAndTenantScoped()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync();
+        var other = await SeedAsync();
+        await using var ctx = db.CreateContext(w.TenantId);
+        var hidden = Payor.Create(w.TenantId, "A deleted", BusinessPayorKind.Person, "test");
+        hidden.SoftDelete("test");
+        ctx.Payors.Add(hidden);
+        ctx.Payors.Add(Payor.Create(other.TenantId, "Ana Foreign", BusinessPayorKind.Person, "test"));
+        ctx.Payors.AddRange(Enumerable.Range(0, 60).Select(i => Payor.Create(w.TenantId, $"Ana {i:D2}", BusinessPayorKind.Person, "test")));
+        await ctx.SaveChangesAsync();
+        var store = new EEMOCantilanSDS.Infrastructure.Repositories.Revenue.CollectionSessionStore(ctx);
+        var browse = await store.SearchPayorsAsync(w.TenantId, "", default);
+        Assert.Equal(50, browse.Count);
+        Assert.Equal(browse.Select(x => x.PayorId), (await store.SearchPayorsAsync(w.TenantId, " ", default)).Select(x => x.PayorId));
+        Assert.Equal(50, (await store.SearchPayorsAsync(w.TenantId, "a", default)).Count);
+        Assert.Equal(10, (await store.SearchPayorsAsync(w.TenantId, "NA 1", default)).Count);
+        Assert.DoesNotContain(browse, x => x.DisplayName.Contains("Foreign") || x.DisplayName.Contains("deleted"));
+        Assert.Empty(await store.SearchPayorsAsync(other.TenantId, "", default));
+        Assert.Equal(50, (await Linking(ctx, w).SearchPayorsAsync(null)).Value!.Count);
+        Assert.Null((await ctx.Contracts.AsNoTracking().SingleAsync()).PayorId);
+    }
     private sealed record World(Guid TenantId, Guid HeadId, Guid ContractId, Guid StallId, Guid BillId);
 
     private sealed class Actor(Guid userId, Guid tenantId, string role = "Admin") : ICurrentUserService
@@ -93,6 +118,12 @@ public sealed class BusinessPayorLinkingTests(PostgresFixture db)
 
         var needs = (await Linking(ctx, w).GetOccupanciesAsync(null, PayorLinkFilter.NeedsPayor)).Value!;
         var occupancy = Assert.Single(needs);
+        Assert.Equal(w.ContractId, occupancy.OccupancyId);
+        Assert.Equal(PayorOccupancyLinkStatus.NeedsPayor, occupancy.LinkStatus);
+        Assert.Equal(FacilityCode.NPM, occupancy.FacilityCode);
+        Assert.NotNull(occupancy.FacilityId);
+        Assert.NotNull(occupancy.FacilityName);
+        Assert.Equal(OccupancyArrangement.SignedContract, occupancy.Arrangement);
         Assert.Equal(("NPM", "12", "Lisa Ilogans", null), (occupancy.FacilityShortName, occupancy.StallNo, occupancy.ActualOccupant, occupancy.PayorId));
         Assert.Null((await ctx.Contracts.AsNoTracking().SingleAsync()).PayorId);
         Assert.Empty((await Linking(ctx, w).GetOccupanciesAsync(null, PayorLinkFilter.Linked)).Value!);
@@ -119,6 +150,8 @@ public sealed class BusinessPayorLinkingTests(PostgresFixture db)
         var linked = await linking.LinkAsync(new(w.ContractId, payor.Id));
         Assert.True(linked.IsSuccess, linked.Error);
         Assert.False(linked.Value!.CreatedPayor);
+        Assert.Equal(PayorOccupancyLinkStatus.Linked,
+            Assert.Single((await linking.GetOccupanciesAsync(null, PayorLinkFilter.Linked)).Value!).LinkStatus);
         var contract = await ctx.Contracts.AsNoTracking().SingleAsync();
         Assert.Equal(payor.Id, contract.PayorId);
         Assert.Equal(("Lisa Ilogans", "Lisa Ilogans"), (contract.ActualOccupant, contract.NameOnContract));      // history is untouched

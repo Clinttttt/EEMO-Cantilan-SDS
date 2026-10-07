@@ -9,6 +9,12 @@ namespace EEMOCantilanSDS.HttpClients.ApiClients;
 public sealed class OfficialReportsApiClient(HttpClient http) : HandleResponse(http), IOfficialReportsApiClient
 {
     private static string D(DateOnly d) => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    public Task<Result<IReadOnlyList<ReportRevisionDto>>> GetGovernanceAsync(int year) =>
+        GetAsync<IReadOnlyList<ReportRevisionDto>>($"api/official-reports/governance?year={year}");
+    public Task<Result<ReportRevisionDto>> SetTargetAsync(SetAnnualTargetRequest request) =>
+        PostAsync<SetAnnualTargetRequest, ReportRevisionDto>("api/official-reports/targets", request);
+    public Task<Result<ReportRevisionDto>> AdjustMonthlyIncomeAsync(SetMonthlyIncomeAdjustmentRequest request) =>
+        PostAsync<SetMonthlyIncomeAdjustmentRequest, ReportRevisionDto>("api/official-reports/monthly-income/adjustments", request);
 
     public Task<Result<OfficialMonthlyIncomeDto>> GetMonthlyIncomeAsync(int year, int? month) =>
         GetAsync<OfficialMonthlyIncomeDto>($"api/official-reports/monthly-income?year={year}" + (month is { } m ? $"&month={m}" : string.Empty));

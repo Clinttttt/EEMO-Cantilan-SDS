@@ -134,6 +134,44 @@ public sealed class RemittanceWorkspaceTests : TestContext
     }
 
     [Fact]
+    public void CollectorFilter_ChoosesOneOrMany_SummarisesThem_AndAsksTheServerForTheUnion()
+    {
+        var b = Guid.NewGuid(); var c = Guid.NewGuid();
+        var many = new Mock<ICollectorsApiClient>();
+        many.Setup(x => x.GetAllCollectorsAsync()).ReturnsAsync(Result<IReadOnlyList<CollectorListDto>>.Success(new[]
+        {
+            new CollectorListDto(CollectorId, "Ana Reyes", "a@example.test", "C-001", [], 0m, 0, null, true),
+            new CollectorListDto(b, "Bobby Mercado", "b@example.test", "C-002", [], 0m, 0, null, true),
+            new CollectorListDto(c, "Cora Lim", "c@example.test", "C-003", [], 0m, 0, null, true)
+        }));
+        Services.AddSingleton(many.Object);
+        ServePosition(Position());
+        RemittanceReviewRequest? filtered = null;
+        _api.Setup(x => x.GetFilteredHistoryAsync(It.IsAny<RemittanceReviewRequest>()))
+            .Callback<RemittanceReviewRequest>(r => filtered = r)
+            .ReturnsAsync(Result<IReadOnlyList<RemittanceHistoryRowDto>>.Success([]));
+
+        var cut = RenderComponent<Remittances>();
+        cut.WaitForAssertion(() => Assert.Equal("All collectors", cut.Find("#rm-collectors-value").TextContent.Trim()), Timeout);
+
+        cut.Find(".rm-picker-btn").Click();
+        cut.FindAll(".rm-picker-list label").Single(l => l.TextContent.Contains("Bobby")).QuerySelector("input")!.Change(true);
+        Assert.Equal("Bobby Mercado", cut.Find("#rm-collectors-value").TextContent.Trim());
+        cut.FindAll(".rm-picker-list label").Single(l => l.TextContent.Contains("Cora")).QuerySelector("input")!.Change(true);
+        Assert.Equal("Bobby Mercado + 1", cut.Find("#rm-collectors-value").TextContent.Trim());
+
+        cut.Find("form.rm-filters").Submit();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(filtered);
+            Assert.Equal(new[] { b, c }.OrderBy(x => x), filtered!.CollectorIds!.OrderBy(x => x));
+        }, Timeout);
+
+        cut.FindAll(".rm-picker-list label").First().QuerySelector("input")!.Change(true);       // "All collectors" clears the selection
+        Assert.Equal("All collectors", cut.Find("#rm-collectors-value").TextContent.Trim());
+    }
+
+    [Fact]
     public void EligibleCollectionsAreListedWithTheirSrc_SelectingThemTotals_AndTheRemittanceIsRecordedWithTheSelectionAndOperationId()
     {
         ServePosition(Position(20000m, 19920m));

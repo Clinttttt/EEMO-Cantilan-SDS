@@ -1,0 +1,45 @@
+@* The outcome of an import: a badge, what happened, any rows that did not make it, and where to go next. *@
+<div class="imp-state @(Ok ? "imp-state-ok" : "")" role="status">
+    <div class="imp-state-badge @(Ok ? "" : "warn")">
+        @if (Ok)
+        {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+        }
+        else
+        {
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4" /><path d="M12 17h.01" /><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /></svg>
+        }
+    </div>
+    <div class="imp-state-title">@Title</div>
+    <div class="imp-state-text">@Text</div>
+    @if (Errors.Count > 0)
+    {
+        <div class="imp-result-errors">
+            @foreach (var error in Errors)
+            {
+                <div class="imp-result-err-row">
+                    <span class="imp-result-err-row-no">Row @error.RowNumber</span>
+                    <span class="imp-result-err-row-name">@error.Label</span>
+                    <span class="imp-result-err-row-msg">@error.Message</span>
+                </div>
+            }
+        </div>
+    }
+    @Details
+    <div class="imp-state-actions">@ChildContent</div>
+</div>
+
+@code {
+    [Parameter] public bool Ok { get; set; }
+    [Parameter] public RenderFragment? Title { get; set; }
+    [Parameter] public RenderFragment? Text { get; set; }
+
+    /// <summary>Rows that were not imported, each with the reason.</summary>
+    [Parameter] public IReadOnlyList<ImportResultError> Errors { get; set; } = [];
+
+    /// <summary>Anything else the page wants to say under the outcome.</summary>
+    [Parameter] public RenderFragment? Details { get; set; }
+
+    /// <summary>The next actions (another file, back to the list).</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

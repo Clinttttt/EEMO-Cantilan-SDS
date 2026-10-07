@@ -43,6 +43,9 @@ public sealed record RecordRemittanceRequest(
 
 /// <summary>Several collectors' remittances recorded together; each stays its own record with its own operation identity.</summary>
 public sealed record RecordRemittanceBatchRequest(IReadOnlyList<RecordRemittanceRequest> Remittances);
+public sealed record RemittanceReviewRequest(DateOnly From, DateOnly To, IReadOnlyList<Guid>? CollectorIds = null,
+    RevenueInstrumentType? Instrument = null);
+public sealed record RemittanceReviewDto(IReadOnlyList<RemittanceScopeDto> Collectors, decimal Total, int CollectionCount);
 
 public sealed record VoidRemittanceRequest(string Reason);
 

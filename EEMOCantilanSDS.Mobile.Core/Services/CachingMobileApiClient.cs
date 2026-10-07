@@ -28,6 +28,22 @@ public sealed class CachingMobileApiClient(
     IConnectivityMonitor connectivity,
     TimeSpan? readBudget = null) : IMobileApiClient
 {
+    public Task<Result<IReadOnlyList<CollectionSourceSearchResult>>> SearchCollectionSourcesAsync(string? search) => inner.SearchCollectionSourcesAsync(search);
+    public Task<Result<CollectionSessionDiscovery>> GetSourceCollectionDiscoveryAsync(CollectionSourceIdentity? identity) => inner.GetSourceCollectionDiscoveryAsync(identity);
+    public Task<Result<SourceNativeChargeQuote>> QuoteOfficeCollectionAsync(SourceNativeCollectionRequest request) => inner.QuoteOfficeCollectionAsync(request);
+    public Task<Result<GovernedServiceOutcomeDto>> RecordOfficeCollectionAsync(SourceNativeCollectionRequest request) => InvalidatingAsync(() => inner.RecordOfficeCollectionAsync(request));
+    public Task<Result<IReadOnlyList<NpmDailyBatchSource>>> GetNpmDailyBatchSourcesAsync() => inner.GetNpmDailyBatchSourcesAsync();
+    public Task<Result<NpmDailyBatchReadiness>> GetNpmDailyBatchReadinessAsync() => inner.GetNpmDailyBatchReadinessAsync();
+    public Task<Result<MobileRecentCollections>> GetRecentCollectionsAsync() => inner.GetRecentCollectionsAsync();
+    public Task<Result<CollectionSessionQuote>> QuoteCollectionEditAsync(EditMobileCollectionIntent intent) => inner.QuoteCollectionEditAsync(intent);
+    public Task<Result<MobileCollectionCorrectionResult>> EditCollectionAsync(RecordMobileCollectionEditRequest request) => inner.EditCollectionAsync(request);
+    public Task<Result<MobileCollectionCorrectionResult>> RemoveCollectionAsync(RemoveMobileCollectionRequest request) => inner.RemoveCollectionAsync(request);
+    public Task<Result<IReadOnlyList<SourceNativeActivityDto>>> GetOfficeActivityAsync(DateOnly from, DateOnly to, string? operationCode = null) => inner.GetOfficeActivityAsync(from, to, operationCode);
+    public Task<Result<NpmDailyBatchQuote>> QuoteNpmDailyBatchAsync(NpmDailyBatchIntent intent) => inner.QuoteNpmDailyBatchAsync(intent);
+    public Task<Result<CollectionSessionResult>> RecordNpmDailyBatchAsync(RecordNpmDailyBatchRequest request) => InvalidatingAsync(() => inner.RecordNpmDailyBatchAsync(request));
+    public Task<Result<TaboBatchQuoteDto>> QuoteTaboBatchAsync(TaboBatchRequest request) => inner.QuoteTaboBatchAsync(request);
+    public Task<Result<TaboBatchOutcomeDto>> RecordTaboBatchAsync(TaboBatchRequest request) => InvalidatingAsync(() => inner.RecordTaboBatchAsync(request));
+    public Task<Result<EcfPostOutcomeDto>> PostSpaceObligationAsync(MobileObligationPostRequest request) => InvalidatingAsync(() => inner.PostSpaceObligationAsync(request));
     public Task<Result<IReadOnlyList<DirectVendorFeeSource>>> GetDirectVendorFeeSourcesAsync() => ReadThroughAsync($"checkout|vendors|{Today}", inner.GetDirectVendorFeeSourcesAsync);
     public Task<Result<CollectionSessionDiscovery>> GetCollectionSessionDiscoveryAsync(Guid? payorId) => ReadThroughAsync($"checkout|eligible|{payorId}|{Today}", () => inner.GetCollectionSessionDiscoveryAsync(payorId));
     public Task<Result<IReadOnlyList<CollectionPayorDto>>> SearchCollectionSessionPayorsAsync(string search) => inner.SearchCollectionSessionPayorsAsync(search);

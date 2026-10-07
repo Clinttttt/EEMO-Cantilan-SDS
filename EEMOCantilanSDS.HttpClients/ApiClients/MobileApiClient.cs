@@ -12,6 +12,25 @@ namespace EEMOCantilanSDS.HttpClients.ApiClients;
 
 public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApiClient
 {
+    public Task<Result<IReadOnlyList<CollectionSourceSearchResult>>> SearchCollectionSourcesAsync(string? search) => GetAsync<IReadOnlyList<CollectionSourceSearchResult>>($"api/mobile/collection-session/sources?search={Uri.EscapeDataString(search ?? "")}");
+    public Task<Result<CollectionSessionDiscovery>> GetSourceCollectionDiscoveryAsync(CollectionSourceIdentity? identity) => PostAsync<CollectionSourceIdentity?, CollectionSessionDiscovery>("api/mobile/collection-session/source-eligible", identity);
+    public Task<Result<SourceNativeChargeQuote>> QuoteOfficeCollectionAsync(SourceNativeCollectionRequest request) => PostAsync<SourceNativeCollectionRequest, SourceNativeChargeQuote>("api/office-sources/quote", request);
+    public Task<Result<GovernedServiceOutcomeDto>> RecordOfficeCollectionAsync(SourceNativeCollectionRequest request) => PostAsync<SourceNativeCollectionRequest, GovernedServiceOutcomeDto>("api/office-sources/record", request);
+    public Task<Result<IReadOnlyList<SourceNativeActivityDto>>> GetOfficeActivityAsync(DateOnly from, DateOnly to, string? operationCode = null) => GetAsync<IReadOnlyList<SourceNativeActivityDto>>($"api/office-sources/activity?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}&operationCode={Uri.EscapeDataString(operationCode ?? "")}");
+    public Task<Result<IReadOnlyList<NpmDailyBatchSource>>> GetNpmDailyBatchSourcesAsync() => GetAsync<IReadOnlyList<NpmDailyBatchSource>>("api/mobile/npm-daily-batch/sources");
+    public Task<Result<NpmDailyBatchReadiness>> GetNpmDailyBatchReadinessAsync() => GetAsync<NpmDailyBatchReadiness>("api/mobile/npm-daily-batch/readiness");
+    public Task<Result<MobileRecentCollections>> GetRecentCollectionsAsync() => GetAsync<MobileRecentCollections>("api/mobile/collections/recent");
+    public Task<Result<CollectionSessionQuote>> QuoteCollectionEditAsync(EditMobileCollectionIntent intent) => PostAsync<EditMobileCollectionIntent, CollectionSessionQuote>("api/mobile/collections/edit/quote", intent);
+    public Task<Result<MobileCollectionCorrectionResult>> EditCollectionAsync(RecordMobileCollectionEditRequest request) => PostAsync<RecordMobileCollectionEditRequest, MobileCollectionCorrectionResult>("api/mobile/collections/edit", request);
+    public Task<Result<MobileCollectionCorrectionResult>> RemoveCollectionAsync(RemoveMobileCollectionRequest request) => PostAsync<RemoveMobileCollectionRequest, MobileCollectionCorrectionResult>("api/mobile/collections/remove", request);
+    public Task<Result<NpmDailyBatchQuote>> QuoteNpmDailyBatchAsync(NpmDailyBatchIntent intent) => PostAsync<NpmDailyBatchIntent, NpmDailyBatchQuote>("api/mobile/npm-daily-batch/quote", intent);
+    public Task<Result<CollectionSessionResult>> RecordNpmDailyBatchAsync(RecordNpmDailyBatchRequest request) => PostAsync<RecordNpmDailyBatchRequest, CollectionSessionResult>("api/mobile/npm-daily-batch/record", request);
+    public Task<Result<TaboBatchQuoteDto>> QuoteTaboBatchAsync(TaboBatchRequest request) =>
+        PostAsync<TaboBatchRequest, TaboBatchQuoteDto>("api/mobile/fast-collections/tabo/quote", request);
+    public Task<Result<TaboBatchOutcomeDto>> RecordTaboBatchAsync(TaboBatchRequest request) =>
+        PostAsync<TaboBatchRequest, TaboBatchOutcomeDto>("api/mobile/fast-collections/tabo/record", request);
+    public Task<Result<EcfPostOutcomeDto>> PostSpaceObligationAsync(MobileObligationPostRequest request) =>
+        PostAsync<MobileObligationPostRequest, EcfPostOutcomeDto>("api/mobile/fast-collections/space-obligation", request);
     public Task<Result<IReadOnlyList<DirectVendorFeeSource>>> GetDirectVendorFeeSourcesAsync() => GetAsync<IReadOnlyList<DirectVendorFeeSource>>("api/mobile/collection-session/vendor-fee-sources");
     public Task<Result<IReadOnlyList<CollectionPayorDto>>> SearchCollectionSessionPayorsAsync(string search) => GetAsync<IReadOnlyList<CollectionPayorDto>>($"api/mobile/collection-session/payors?search={Uri.EscapeDataString(search)}");
     public Task<Result<IReadOnlyList<EcfObligationQuoteDto>>> GetMobileEcfSourcesAsync() => GetAsync<IReadOnlyList<EcfObligationQuoteDto>>("api/mobile/collection-session/electricity-sources");

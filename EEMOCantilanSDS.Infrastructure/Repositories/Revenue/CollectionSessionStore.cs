@@ -11,11 +11,19 @@ public sealed class CollectionSessionStore(AppDbContext db) : ICollectionSession
 {
     public async Task<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Revenue.CollectionPayorDto>> SearchPayorsAsync(Guid tenantId, string search, CancellationToken ct)
     {
-        var term = search.Trim().ToLowerInvariant();
-        if (term.Length < 2) return [];
-        return await db.Payors.AsNoTracking().Where(x => x.MunicipalityId == tenantId && x.DisplayName.ToLower().Contains(term))
-            .OrderBy(x => x.DisplayName).Take(50)
-            .Select(x => new EEMOCantilanSDS.Application.Dtos.Revenue.CollectionPayorDto(x.Id, x.DisplayName)).ToListAsync(ct);
+        var payors = await BusinessPayorSearch.Apply(db.Payors.AsNoTracking(), tenantId, search)
+            .Select(x => new EEMOCantilanSDS.Application.Dtos.Revenue.CollectionPayorDto(x.Id, x.DisplayName, null)).ToListAsync(ct);
+        var ids = payors.Select(x => x.PayorId).ToArray();
+        var occupancies = await db.Contracts.AsNoTracking().Where(x => x.MunicipalityId == tenantId
+                && x.IsActive && x.PayorId != null && ids.Contains(x.PayorId.Value))
+            .Select(x => new { PayorId = x.PayorId!.Value, Facility = x.Stall!.Facility!.ShortName, x.Stall.StallNo }).ToListAsync(ct);
+        var accounts = await db.ObligationAccounts.AsNoTracking().Where(x => x.MunicipalityId == tenantId
+                && x.PayorId.HasValue && ids.Contains(x.PayorId.Value) && x.ActiveTo == null)
+            .Select(x => new { x.PayorId, x.Kind, x.SubjectLabel }).ToListAsync(ct);
+        return payors.Select(p => p with { Contexts = occupancies.Where(x => x.PayorId == p.PayorId)
+                .Select(x => $"{x.Facility} · {x.StallNo}")
+                .Concat(accounts.Where(x => x.PayorId == p.PayorId).Select(x => $"{ObligationCollectionSource.KindLabel(x.Kind)} · {x.SubjectLabel}"))
+                .Distinct().OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray() }).ToArray();
     }
     public Task<bool> IsActiveCollectorAsync(Guid tenantId, Guid collectorId, CancellationToken ct) =>
         db.CollectorUsers.AsNoTracking().AnyAsync(x => x.MunicipalityId == tenantId && x.Id == collectorId && x.IsActive, ct);
@@ -37,6 +45,9 @@ public sealed class CollectionSessionStore(AppDbContext db) : ICollectionSession
             await tx.CommitAsync(ct);
         }
         catch (DbUpdateException e) { db.ChangeTracker.Clear(); throw new CollectionSessionConcurrencyException(e); }
+        catch (InvalidOperationException e) when (e.InnerException is DbUpdateException
+            { InnerException: Npgsql.PostgresException { SqlState: "40001" or "40P01" } })
+        { db.ChangeTracker.Clear(); throw new CollectionSessionConcurrencyException(e); }
         catch (Npgsql.PostgresException e) when (e.SqlState is "40001" or "40P01" or "25P02")
         { db.ChangeTracker.Clear(); throw new CollectionSessionConcurrencyException(e); }
         catch { db.ChangeTracker.Clear(); throw; }

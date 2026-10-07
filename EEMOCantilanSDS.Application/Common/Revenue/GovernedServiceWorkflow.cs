@@ -19,11 +19,9 @@ public static class GovernedServiceCatalog
         string Code, string Name, string ClassificationCode, bool ModeAware,
         IReadOnlyList<GovernedServiceBasis> AllowedBases);
 
-    private static readonly GovernedServiceBasis[] Both =
-        [GovernedServiceBasis.FixedAmount, GovernedServiceBasis.DirectApprovedAmount];
-
     // Services whose office may collect more than one approved fee under the same classification (Market Fees: e.g. a
-    // comfort room at a named location; Transfer Large Cattle: more than one approved amount). The option is selected,
+    // comfort room at a named location; Landing/Berthing: distinct fee types; Transfer Large Cattle: approved amounts).
+    // The option is selected,
     // never typed; classification and instrument stay the service's.
     private static readonly GovernedServiceBasis[] BothOrOptions =
         [GovernedServiceBasis.FixedAmount, GovernedServiceBasis.DirectApprovedAmount, GovernedServiceBasis.ApprovedFeeOption];
@@ -31,7 +29,7 @@ public static class GovernedServiceCatalog
     public static readonly IReadOnlyList<Entry> All =
     [
         new(CollectorOperationCodes.MarketFees, "Market Fees", RevenueClassificationCodes.MarketFees, false, BothOrOptions),
-        new(CollectorOperationCodes.LandingBerthing, "Landing / Berthing", RevenueClassificationCodes.LandingBerthing, false, Both),
+        new(CollectorOperationCodes.LandingBerthing, "Landing / Berthing", RevenueClassificationCodes.LandingBerthing, false, BothOrOptions),
         new(CollectorOperationCodes.TransferLargeCattle, "Transfer Large Cattle", RevenueClassificationCodes.TransferLargeCattle, false, BothOrOptions),
         // A whole payment and a daily transaction are different amounts under different instruments; one fixed amount
         // cannot describe both, so this service records an approved direct amount (with an optional ceiling).
@@ -40,7 +38,7 @@ public static class GovernedServiceCatalog
         // Transportation / Parking (IA-030, IA-050): a Cash Ticket day-to-day collection whose amount is the approved,
         // effective-dated rate of the vehicle class the collector selects. The rate table is Head-configured.
         new(CollectorOperationCodes.Transportation, "Transportation / Parking", RevenueClassificationCodes.TransportationParking,
-            false, [GovernedServiceBasis.VehicleClassRate]),
+            false, [GovernedServiceBasis.VehicleClassRate, GovernedServiceBasis.DirectApprovedAmount]),
         // Tabo and the current Slaughterhouse transaction already have an office-defined amount (vendor market-day fee;
         // approved per-head rate x heads). The governed setting is only their prospective canonical-collection switch; the
         // amount is never read from it or typed (FeeScheduleCollectionWorkflow computes it from the existing rules).
@@ -66,7 +64,7 @@ public static class GovernedServiceCatalog
 /// collector states transaction facts only; classification, instrument, amount rule and document requirements are
 /// resolved from approved tenant configuration, and money is written by the one canonical posting coordinator.
 /// </summary>
-public sealed class GovernedServiceWorkflow(
+public sealed partial class GovernedServiceWorkflow(
     IAppDbContext db,
     ICurrentUserService currentUser,
     ICurrentMunicipalityAccessor municipality,
@@ -99,6 +97,8 @@ public sealed class GovernedServiceWorkflow(
             var entry = GovernedServiceCatalog.Find(operationCode);
             if (entry is null)
                 return Result<GovernedServiceDefinitionDto>.Failure("This operation is not a governed configurable service.", ResultStatus.NotFound);
+            if (request.QuickAmountEnabled && entry.Code != CollectorOperationCodes.Transportation)
+                return Result<GovernedServiceDefinitionDto>.Failure("Quick amount is supported only for Transportation.", ResultStatus.Invalid);
             if (!entry.AllowedBases.Contains(request.Basis))
                 return Result<GovernedServiceDefinitionDto>.Failure("This service does not support the chosen amount basis.", ResultStatus.Invalid);
             if (request.EffectiveDate < new DateOnly(2020, 1, 1) || request.EffectiveDate > BusinessToday.AddDays(366))
@@ -115,7 +115,8 @@ public sealed class GovernedServiceWorkflow(
                     db.GovernedServices.Add(service);
                 }
                 setting = GovernedServiceSetting.Create(actor.TenantId, service.Id, request.EffectiveDate, request.Basis,
-                    request.FixedAmount, request.MaximumAmount, request.IsEnabled, request.MobileEnabled, actor.Username, UtcNow);
+                    request.FixedAmount, request.MaximumAmount, request.IsEnabled, request.MobileEnabled, actor.Username, UtcNow,
+                    request.QuickAmountEnabled && entry.Code == CollectorOperationCodes.Transportation);
             }
             catch (ArgumentException ex)
             {
@@ -168,12 +169,12 @@ public sealed class GovernedServiceWorkflow(
             .Where(x => x.Rate is not null)
             .OrderBy(x => FeeOptionLabel(x.Option), StringComparer.OrdinalIgnoreCase)
             .Select(x => new FeeOptionTermDto(x.Option.Id, x.Option.DisplayName, x.Option.Location, x.Rate!.Basis,
-                x.Rate.FixedAmount, x.Rate.MaximumAmount)).ToList();
+                x.Rate.FixedAmount, x.Rate.MaximumAmount, x.Option.Code, x.Rate.Id, x.Rate.EffectiveDate)).ToList();
     }
 
     // ── Approved fee options (Head configures; Head/Admin read) ─────────────────────────────────────────
 
-    public Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> GetFeeOptionsAsync(string operationCode, CancellationToken ct = default) =>
+    public Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> GetFeeOptionsAsync(string operationCode, CancellationToken ct = default, bool activeOnly = false) =>
         Run<IReadOnlyList<GovernedServiceFeeOptionDto>>(async actor =>
         {
             if (actor.Role == "Collector") return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Forbidden();
@@ -183,7 +184,9 @@ public sealed class GovernedServiceWorkflow(
             var service = await db.GovernedServices.AsNoTracking().SingleOrDefaultAsync(x =>
                 x.MunicipalityId == actor.TenantId && x.OperationCode == entry.Code, ct);
             if (service is null) return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success([]);
-            return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success(await FeeOptionDtosAsync(actor.TenantId, service.Id, ct));
+            var rows = await FeeOptionDtosAsync(actor.TenantId, service.Id, ct);
+            return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success(activeOnly
+                ? rows.Where(x => x.Availability is FeeOptionAvailability.Active or FeeOptionAvailability.Retiring).ToArray() : rows);
         }, ct);
 
     public Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> AddFeeOptionAsync(
@@ -331,6 +334,12 @@ public sealed class GovernedServiceWorkflow(
     private async Task<IReadOnlyList<GovernedServiceFeeOptionDto>> FeeOptionDtosAsync(Guid tenantId, Guid serviceId, CancellationToken ct)
     {
         var today = BusinessToday;
+        var service = await db.GovernedServices.AsNoTracking().SingleAsync(x => x.MunicipalityId == tenantId && x.Id == serviceId, ct);
+        var entry = GovernedServiceCatalog.Find(service.OperationCode)!;
+        var instrument = (await ResolvePolicyAsync(tenantId, entry, null, today, ct))?.Policy.PermittedInstrumentType;
+        var settings = await db.GovernedServiceSettings.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenantId && x.GovernedServiceId == serviceId).ToListAsync(ct);
+        var setting = GovernedServiceSetting.Resolve(settings, today);
         var options = await db.GovernedServiceFeeOptions.AsNoTracking()
             .Where(x => x.MunicipalityId == tenantId && x.GovernedServiceId == serviceId).ToListAsync(ct);
         var ids = options.Select(x => x.Id).ToArray();
@@ -339,14 +348,23 @@ public sealed class GovernedServiceWorkflow(
         return options.Select(o =>
         {
             var current = GovernedServiceFeeOptionRate.Resolve(rates[o.Id], today);
+            var availability = !o.IsOfferedOn(today) ? FeeOptionAvailability.Retired
+                : current is null ? (rates[o.Id].Any() ? FeeOptionAvailability.Scheduled : FeeOptionAvailability.NeedsApprovedRule)
+                : o.RetiredFrom is not null ? FeeOptionAvailability.Retiring : FeeOptionAvailability.Active;
+            var reason = availability == FeeOptionAvailability.Retired ? "FeeTypeRetired"
+                : current is null ? "FeeTypeRuleNotEffective"
+                : setting is not { Basis: GovernedServiceBasis.ApprovedFeeOption } ? "FeeTypeModeNotActive"
+                : !setting.IsEnabled || !setting.MobileEnabled ? "SourceNotAvailable"
+                : instrument is null ? "InstrumentPolicyNotEffective" : null;
             var status = !o.IsOfferedOn(today) ? "Retired"
                 : current is null ? (rates[o.Id].Any() ? "Scheduled" : "No amount rule")
                 : o.RetiredFrom is not null ? "Retiring" : "Active";
             var history = rates[o.Id].OrderByDescending(x => x.EffectiveDate).ThenByDescending(x => x.CreatedAtUtc)
-                .Select(x => new FeeOptionRateVersionDto(x.EffectiveDate, x.Basis, x.FixedAmount, x.MaximumAmount, x.CreatedBy, x.CreatedAtUtc))
+                .Select(x => new FeeOptionRateVersionDto(x.EffectiveDate, x.Basis, x.FixedAmount, x.MaximumAmount, x.CreatedBy, x.CreatedAtUtc, x.Id))
                 .ToList();
             return new GovernedServiceFeeOptionDto(o.Id, o.Code, o.DisplayName, o.Location, o.Description,
-                current?.Basis, current?.FixedAmount, current?.MaximumAmount, current?.EffectiveDate, status, o.RetiredFrom, history, o.RetiredBy);
+                current?.Basis, current?.FixedAmount, current?.MaximumAmount, current?.EffectiveDate, status, o.RetiredFrom, history, o.RetiredBy,
+                availability, reason is null, reason, current?.Id, instrument);
         }).OrderBy(x => x.Status == "Retired").ThenBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Location).ToList();
     }
 
@@ -379,7 +397,8 @@ public sealed class GovernedServiceWorkflow(
                     : "No effective revenue classification policy with an approved instrument.");
         }
 
-        if (setting?.Basis == GovernedServiceBasis.VehicleClassRate
+        if (!(entry.Code == CollectorOperationCodes.Transportation && today >= OfficeCollectionWorkflow.EffectiveFrom)
+            && setting?.Basis == GovernedServiceBasis.VehicleClassRate && !setting.QuickAmountEnabled
             && (await CurrentVehicleClassTermsAsync(tenantId, today, ct)).Count == 0)
             issues.Add("No active vehicle class has an approved rate in force.");
         if (setting?.Basis == GovernedServiceBasis.ApprovedFeeOption
@@ -395,9 +414,11 @@ public sealed class GovernedServiceWorkflow(
         else if (!setting.IsEnabled) state = GovernedServiceSetupState.Disabled;
         else state = issues.Count == 0 ? GovernedServiceSetupState.Active : GovernedServiceSetupState.SetupRequired;
 
+        var directTransportation = entry.Code == CollectorOperationCodes.Transportation && today >= OfficeCollectionWorkflow.EffectiveFrom;
         return new(entry.Code, entry.Name, entry.ClassificationCode, entry.ModeAware, entry.AllowedBases, state,
-            setting?.Basis, setting?.FixedAmount, setting?.MaximumAmount, setting?.MobileEnabled ?? false,
-            setting?.EffectiveDate, instruments, issues);
+            directTransportation ? GovernedServiceBasis.DirectApprovedAmount : setting?.Basis,
+            directTransportation ? null : setting?.FixedAmount, directTransportation ? null : setting?.MaximumAmount, setting?.MobileEnabled ?? false,
+            setting?.EffectiveDate, instruments, issues, setting?.QuickAmountEnabled ?? false);
     }
 
     // ── Collector reads ────────────────────────────────────────────────────────────────────────────────
@@ -413,7 +434,7 @@ public sealed class GovernedServiceWorkflow(
             var entry = GovernedServiceCatalog.Find(operationCode);
             if (actor.Role != "Collector" || entry is null || !await IsAssignedAsync(actor, entry.Code, ct))
                 return Result<GovernedServiceTermsDto>.Forbidden();
-            if (entry.ModeAware != mode.HasValue || mode is { } m && !Enum.IsDefined(m))
+            if (!ValidMode(entry, mode))
                 return Result<GovernedServiceTermsDto>.Failure(
                     entry.ModeAware ? "Choose whole payment or daily transaction." : "This service has no transaction modes.", ResultStatus.Invalid);
             var service = await db.GovernedServices.AsNoTracking().SingleOrDefaultAsync(x =>
@@ -424,11 +445,14 @@ public sealed class GovernedServiceWorkflow(
             if (setting is null || !setting.IsEnabled || !setting.MobileEnabled)
                 return Result<GovernedServiceTermsDto>.Failure(
                     "This operation is not set up for Collector Mobile today.", ResultStatus.Conflict);
+            var prospectiveTransport = entry.Code == CollectorOperationCodes.Transportation && (businessDate ?? BusinessToday) >= OfficeCollectionWorkflow.EffectiveFrom;
+            var quick = mode == GovernedServiceMode.QuickAmount || prospectiveTransport;
+            if (quick && !prospectiveTransport && !setting.QuickAmountEnabled) return Result<GovernedServiceTermsDto>.Failure("Quick amount is not enabled.", ResultStatus.Conflict);
             var resolved = await ResolvePolicyAsync(actor.TenantId, entry, mode, (businessDate ?? BusinessToday), ct);
             if (resolved?.Policy.PermittedInstrumentType is not { } instrument)
                 return Result<GovernedServiceTermsDto>.Failure(
                     "No approved instrument policy is in effect for this operation today.", ResultStatus.Conflict);
-            var classTerms = setting.Basis == GovernedServiceBasis.VehicleClassRate
+            var classTerms = setting.Basis == GovernedServiceBasis.VehicleClassRate && !quick
                 ? await CurrentVehicleClassTermsAsync(actor.TenantId, (businessDate ?? BusinessToday), ct) : null;
             IReadOnlyList<FeeOptionTermDto>? optionTerms = null;
             if (setting.Basis == GovernedServiceBasis.ApprovedFeeOption)
@@ -438,8 +462,10 @@ public sealed class GovernedServiceWorkflow(
                     return Result<GovernedServiceTermsDto>.Failure(
                         "No approved fee option is offered for this operation today.", ResultStatus.Conflict);
             }
-            return Result<GovernedServiceTermsDto>.Success(new(entry.Code, entry.Name, entry.ModeAware, setting.Basis,
-                setting.FixedAmount, setting.MaximumAmount, instrument, false, classTerms, optionTerms));
+            if (quick && instrument != RevenueInstrumentType.CashTicket) return Result<GovernedServiceTermsDto>.Failure("The Transportation policy must permit Cash Ticket.", ResultStatus.Conflict);
+            return Result<GovernedServiceTermsDto>.Success(new(entry.Code, entry.Name, entry.ModeAware,
+                quick ? GovernedServiceBasis.DirectApprovedAmount : setting.Basis,
+                quick ? null : setting.FixedAmount, quick ? null : setting.MaximumAmount, instrument, false, classTerms, optionTerms));
         }, ct);
 
     // ── Mobile posting ─────────────────────────────────────────────────────────────────────────────────
@@ -461,7 +487,7 @@ public sealed class GovernedServiceWorkflow(
         var fingerprint = PostingOperation.ComputeIntentFingerprint(IntentVersion, normalized, MobileOrigin, ActorId(actor));
         var prior = await FindOperationAsync(actor.TenantId, request.ClientOperationId, ct);
         if (prior is not null)
-            return await ResolvePriorAsync(prior, fingerprint, actor, ct, request.ReceivedAmount);
+            return await ResolvePriorAsync(prior, fingerprint, actor, ct, normalized);
 
         var entry = GovernedServiceCatalog.Find(request.OperationCode);
         if (entry is null)
@@ -483,7 +509,7 @@ public sealed class GovernedServiceWorkflow(
         if (request.BusinessDate > BusinessToday)
             return await RecordTerminalAsync(actor, request, normalized, "FUTURE_BUSINESS_DATE",
                 "Collection BusinessDate cannot be later than the current Philippine business date.", ct);
-        if (entry.ModeAware != request.Mode.HasValue || request.Mode is { } m && !Enum.IsDefined(m))
+        if (!ValidMode(entry, request.Mode))
             return await RecordTerminalAsync(actor, request, normalized, "INVALID_MODE",
                 entry.ModeAware ? "Choose whole payment or daily transaction." : "This service has no transaction modes.", ct);
 
@@ -513,7 +539,13 @@ public sealed class GovernedServiceWorkflow(
             VehicleClass? vehicleClass = null;
             VehicleClassRate? vehicleRate = null;
             var classCode = request.VehicleClassCode?.Trim().ToUpperInvariant();
-            if (setting.Basis == GovernedServiceBasis.VehicleClassRate)
+            var prospectiveTransport = entry.Code == CollectorOperationCodes.Transportation && request.BusinessDate >= OfficeCollectionWorkflow.EffectiveFrom;
+            var quick = request.Mode == GovernedServiceMode.QuickAmount || prospectiveTransport;
+            if (quick && instrument != RevenueInstrumentType.CashTicket)
+                return await RecordTerminalAsync(actor, request, normalized, "POLICY_NOT_EFFECTIVE", "Quick amount requires the Cash Ticket policy.", ct);
+            if (quick && ((!prospectiveTransport && !setting.QuickAmountEnabled) || request.VehicleClassCode is not null || request.FeeOptionId is not null))
+                return await RecordTerminalAsync(actor, request, normalized, "QUICK_AMOUNT_NOT_AVAILABLE", "Review the Transportation entry mode.", ct);
+            if (setting.Basis == GovernedServiceBasis.VehicleClassRate && !quick)
             {
                 if (string.IsNullOrEmpty(classCode))
                     return await RecordTerminalAsync(actor, request, normalized, "VEHICLE_CLASS_REQUIRED",
@@ -568,7 +600,7 @@ public sealed class GovernedServiceWorkflow(
                 return await RecordTerminalAsync(actor, request, normalized, "INVALID_INTENT",
                     "This service does not take a fee option.", ct);
 
-            if (setting.Basis is not (GovernedServiceBasis.VehicleClassRate or GovernedServiceBasis.ApprovedFeeOption)
+            if (!quick && setting.Basis is not (GovernedServiceBasis.VehicleClassRate or GovernedServiceBasis.ApprovedFeeOption)
                 && setting.CheckAmount(request.ReceivedAmount) is { } amountProblem)
                 return await RecordTerminalAsync(actor, request, normalized, amountProblem,
                     amountProblem == "AMOUNT_ABOVE_CEILING"
@@ -576,8 +608,8 @@ public sealed class GovernedServiceWorkflow(
                         : "The amount is not the approved amount for this service.", ct);
 
             var snapshot = JsonSerializer.Serialize(new GovernedSnapshot(
-                1, actor.TenantId, service.Id, entry.Code, setting.Id, setting.EffectiveDate, setting.Basis,
-                setting.FixedAmount, setting.MaximumAmount, request.Mode, instrument, entry.ClassificationCode,
+                1, actor.TenantId, service.Id, entry.Code, setting.Id, setting.EffectiveDate, prospectiveTransport ? GovernedServiceBasis.DirectApprovedAmount : setting.Basis,
+                prospectiveTransport ? null : setting.FixedAmount, prospectiveTransport ? null : setting.MaximumAmount, prospectiveTransport ? GovernedServiceMode.QuickAmount : request.Mode, instrument, entry.ClassificationCode,
                 resolved.Policy.Id, resolved.Policy.EffectiveDate,
                 vehicleClass is null ? request.Reference?.Trim()
                     : string.IsNullOrWhiteSpace(request.Reference) ? vehicleClass.DisplayName : $"{vehicleClass.DisplayName} · {request.Reference.Trim()}",
@@ -593,13 +625,14 @@ public sealed class GovernedServiceWorkflow(
                 actor.Username, actor.Role, request.BusinessDate, actor.Username, [line], null,
                 collectorId: actor.UserId, payerName: string.IsNullOrWhiteSpace(request.PayerName) ? null : request.PayerName.Trim(), ct: ct);
             return Result<GovernedServiceOutcomeDto>.Success(new(collection.Id, collection.ReferenceCode,
-                collection.BusinessDate, collection.TotalAmount, instrument, "Posted", false));
+                collection.BusinessDate, collection.TotalAmount, instrument, "Posted", false,
+                feeOption?.Id, feeOption is null ? null : FeeOptionLabel(feeOption), feeRate?.Id));
         }
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
             var winner = await FindOperationAsync(actor.TenantId, request.ClientOperationId, ct);
-            if (winner is not null) return await ResolvePriorAsync(winner, fingerprint, actor, ct, request.ReceivedAmount);
+            if (winner is not null) return await ResolvePriorAsync(winner, fingerprint, actor, ct, normalized);
             return await RecordTerminalAsync(actor, request, normalized, "POST_CONFLICT",
                 "The operation identity conflicts with another posting; no Collection was partially posted.", ct);
         }
@@ -619,16 +652,17 @@ public sealed class GovernedServiceWorkflow(
             var prior = await FindOperationAsync(actor.TenantId, request.ClientOperationId, ct);
             if (prior is not null)
                 return await ResolvePriorAsync(prior,
-                    PostingOperation.ComputeIntentFingerprint(IntentVersion, normalized, MobileOrigin, ActorId(actor)), actor, ct);
+                    PostingOperation.ComputeIntentFingerprint(IntentVersion, normalized, MobileOrigin, ActorId(actor)), actor, ct, normalized);
             throw;
         }
         return Result<GovernedServiceOutcomeDto>.Failure(message, ResultStatus.Conflict);
     }
 
     private async Task<Result<GovernedServiceOutcomeDto>> ResolvePriorAsync(
-        PostingOperation prior, string fingerprint, Actor actor, CancellationToken ct, decimal? requestedAmount = null)
+        PostingOperation prior, string fingerprint, Actor actor, CancellationToken ct, string normalized)
     {
-        if (prior.Origin != MobileOrigin || prior.ActorId != ActorId(actor) || (prior.IntentFingerprint != fingerprint && prior.AccountableDocumentId is null))   // a pre-SRC operation bound a physical document into its intent; it still replays
+        if (prior.Origin != MobileOrigin || prior.ActorId != ActorId(actor) ||
+            (prior.IntentFingerprint != fingerprint && !MatchesPreSrcIntent(prior, normalized)))
             return Result<GovernedServiceOutcomeDto>.Failure(
                 "IDEMPOTENCY CONFLICT: this ClientOperationId is already bound to a different posting intent.", ResultStatus.Conflict);
         if (prior.Status != PostingOperationStatus.Succeeded || prior.CollectionId is not { } collectionId)
@@ -638,15 +672,30 @@ public sealed class GovernedServiceWorkflow(
             .SingleOrDefaultAsync(x => x.MunicipalityId == actor.TenantId && x.Id == collectionId, ct);
         if (collection is null)
             return Result<GovernedServiceOutcomeDto>.Failure("The recorded Collection outcome is unavailable.", ResultStatus.Conflict);
-        // A pre-SRC operation cannot be compared by fingerprint (its intent bound a physical document), so it replays only
-        // for the same money: a different amount under the same ClientOperationId is still a conflict.
-        if (prior.IntentFingerprint != fingerprint && requestedAmount is { } amount && amount != collection.TotalAmount)
-            return Result<GovernedServiceOutcomeDto>.Failure(
-                "IDEMPOTENCY CONFLICT: this ClientOperationId is already bound to a different posting intent.", ResultStatus.Conflict);
-        var instrument = ReadSnapshot(collection.Lines.OrderBy(x => x.Id).FirstOrDefault()?.CalculationSnapshot)?.Instrument
+        var facts = ReadSnapshot(collection.Lines.OrderBy(x => x.Id).FirstOrDefault()?.CalculationSnapshot);
+        var instrument = facts?.Instrument
             ?? RevenueInstrumentType.CashTicket;
         return Result<GovernedServiceOutcomeDto>.Success(new(collection.Id, collection.ReferenceCode,
-            collection.BusinessDate, collection.TotalAmount, instrument, "Posted", true));
+            collection.BusinessDate, collection.TotalAmount, instrument, "Posted", true,
+            facts?.FeeOptionId, facts?.FeeOptionName, facts?.FeeOptionRateId));
+    }
+
+    private static bool MatchesPreSrcIntent(PostingOperation prior, string normalized)
+    {
+        if (prior.AccountableDocumentId is null || prior.IntentVersion != IntentVersion) return false;
+        try
+        {
+            var historical = System.Text.Json.Nodes.JsonNode.Parse(prior.NormalizedIntent)?.AsObject();
+            if (historical is null) return false;
+            // Pre-SRC payloads bound these physical-document facts. Remove only those obsolete facts;
+            // source, choice, payer, date, mode, reference and money still have to match exactly.
+            historical.Remove("accountableDocumentId");
+            historical.Remove("documentNumber");
+            historical.Remove("issuedAtUtc");
+            return System.Text.Json.Nodes.JsonNode.DeepEquals(historical, System.Text.Json.Nodes.JsonNode.Parse(normalized));
+        }
+        catch (JsonException) { return false; }
+        catch (InvalidOperationException) { return false; }
     }
 
     // ── Office activity ────────────────────────────────────────────────────────────────────────────────
@@ -664,14 +713,17 @@ public sealed class GovernedServiceWorkflow(
                 x.MunicipalityId == actor.TenantId && x.OperationCode == entry.Code, ct);
             if (service is null) return Result<IReadOnlyList<GovernedServiceActivityDto>>.Success([]);
 
-            var lines = await db.CollectionLines.AsNoTracking().Where(x =>
-                x.MunicipalityId == actor.TenantId && x.SourceKind == CollectionSourceKind.GovernedService
-                && x.SourceId == service.Id).ToListAsync(ct);
+            var lines = await (from line in db.CollectionLines.AsNoTracking()
+                join collection in db.Collections.AsNoTracking() on line.CollectionId equals collection.Id
+                where line.MunicipalityId == actor.TenantId && collection.MunicipalityId == actor.TenantId
+                    && line.SourceKind == CollectionSourceKind.GovernedService && line.SourceId == service.Id
+                    && collection.BusinessDate >= @from && collection.BusinessDate <= to
+                select line).ToListAsync(ct);
             var ids = lines.Select(x => x.CollectionId).Distinct().ToArray();
             var collections = await db.Collections.AsNoTracking().Where(x =>
                 x.MunicipalityId == actor.TenantId && ids.Contains(x.Id)
                 && x.BusinessDate >= from && x.BusinessDate <= to)
-                .OrderByDescending(x => x.RecordedAtUtc).ToListAsync(ct);
+                .OrderByDescending(x => x.RecordedAtUtc).ThenBy(x => x.Id).ToListAsync(ct);
             var collectionIds = collections.Select(x => x.Id).ToArray();
             var collectorIds = collections.Where(x => x.CollectorId.HasValue).Select(x => x.CollectorId!.Value).Distinct().ToArray();
             var collectors = await db.CollectorUsers.AsNoTracking().Where(x =>
@@ -687,10 +739,16 @@ public sealed class GovernedServiceWorkflow(
                 var effects = corrections.Where(x => x.OriginalCollectionId == collection.Id).ToList();
                 var disposition = effects.Any(x => x.FinancialEffectAmount < 0m) ? "Reversed"
                     : effects.Any(x => x.CorrectionType == CollectionCorrectionType.DocumentCorrection) ? "Document corrected" : "Posted";
+                var state = effects.Any(x => x.FinancialEffectAmount < 0m) ? GovernedCollectionState.Reversed
+                    : effects.Any(x => x.CorrectionType == CollectionCorrectionType.DocumentCorrection)
+                        ? GovernedCollectionState.DocumentCorrected : GovernedCollectionState.Posted;
                 return new GovernedServiceActivityDto(collection.Id, collection.BusinessDate, collection.RecordedAtUtc,
                     collection.ReferenceCode, facts?.Instrument, facts?.Mode,
                     collection.PayerName, facts?.Reference, line.Amount,
-                    collection.CollectorId is { } id ? collectors.GetValueOrDefault(id) : null, disposition, facts?.FeeOptionName);
+                    collection.CollectorId is { } id ? collectors.GetValueOrDefault(id) : null, disposition, facts?.FeeOptionName,
+                    collection.CollectorId, collection.PayorId, facts?.VehicleClassCode, facts?.VehicleClassName,
+                    facts?.VehicleClassRateId, facts?.VehicleClassRateEffectiveDate, facts?.VehicleClassRate,
+                    line.Amount + effects.Sum(x => x.FinancialEffectAmount), state);
             }).ToList();
             return Result<IReadOnlyList<GovernedServiceActivityDto>>.Success(activity);
         }, ct);
@@ -760,6 +818,10 @@ public sealed class GovernedServiceWorkflow(
     private Task<PostingOperation?> FindOperationAsync(Guid tenantId, Guid operationId, CancellationToken ct) =>
         db.PostingOperations.AsNoTracking().SingleOrDefaultAsync(x =>
             x.MunicipalityId == tenantId && x.ClientOperationId == operationId, ct);
+
+    private static bool ValidMode(GovernedServiceCatalog.Entry entry, GovernedServiceMode? mode) =>
+        entry.Code == CollectorOperationCodes.Transportation ? mode is null or GovernedServiceMode.QuickAmount :
+        entry.ModeAware ? mode is GovernedServiceMode.WholePayment or GovernedServiceMode.DailyTransaction : mode is null;
 
     private static string NormalizeIntent(Actor actor, GovernedServicePostRequest request)
     {

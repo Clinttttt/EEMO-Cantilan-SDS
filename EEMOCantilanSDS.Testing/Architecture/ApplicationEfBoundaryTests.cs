@@ -151,6 +151,19 @@ public class ApplicationEfBoundaryTests
         // it never owns a mutable receivable balance or writes settlement. The shared Composer validates the
         // source facts and persists only through its single posting save.
         "MonthlyRentCollectionSourceAdapter.cs",
+        // IA-067/068 reuse the canonical coordinator and the daily handler within the established shared transaction.
+        "OfficeCollectionWorkflow.cs",
+        "OfficeCollectionWorkflow.Reads.cs", // Tenant-scoped canonical audit read for the same source-owned writer.
+        "NpmDailyBatchWorkflow.cs",
+        // Collector self-correction releases allocations/daily projections and re-quotes the existing source writer
+        // in ONE shared IAppDbContext transaction. It has no replacement fee algorithm or independent money reader.
+        "MobileCollectionCorrectionWorkflow.cs",
+        // Partial of the existing source-owned registry workflow: preview is read-only and save revalidates/inserts
+        // domain registrations atomically with their existing operation identities. It never imports Collections.
+        "OfficeCollectionWorkflow.Import.cs",
+        // Registry lifecycle commands share the existing source workflow/Serializable boundary; management totals
+        // delegate to its canonical correction-aware activity reader instead of defining a second money query.
+        "OfficeCollectionWorkflow.Management.cs",
 
         // The shared Composer posting transaction revalidates every participating source and atomically writes
         // the draft, Collection/lines/allocations, compatibility projections, accountable document, and durable
@@ -194,6 +207,11 @@ public class ApplicationEfBoundaryTests
         "GovernedCanonicalAuthority.cs",
         "NpmDailyCanonicalPoster.cs",
         "FeeScheduleCollectionWorkflow.cs",
+        // Approved report-governance slice: serializable audited revisions and obligation follow-up reuse the existing
+        // shared unit of work. Tabo batch is a partial of the existing canonical writer, not a second calculation engine.
+        "ReportGovernanceWorkflow.cs",
+        "SpaceFollowUpWorkflow.cs",
+        "FeeScheduleCollectionWorkflow.TaboBatch.cs",
         "ApprovedSlaughterAnimalWorkflow.cs",
         "ObligationCollectionSource.cs",
         // The scoped cutover coordinator reads one source part, its effective instrument policy,

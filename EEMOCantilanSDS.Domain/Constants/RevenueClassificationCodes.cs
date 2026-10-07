@@ -17,6 +17,9 @@ public static class RevenueClassificationCodes
     public const string TransportationParking = "TRANSPORTATION_PARKING";
     public const string VegetableFruitSpaceRental = "VEGETABLE_FRUIT_SPACE_RENTAL";
     public const string Wcf = "WCF";
+    public const string TerminalComfortRoom = "TERMINAL_COMFORT_ROOM";
+    public const string TerminalPullPulVansCargoVans = "TERMINAL_PULL_PUL_VANS_CARGO_VANS";
+    public const string TerminalTricycad = "TERMINAL_TRICYCAD";
     public const string LandingBerthing = "LANDING_BERTHING";
     public const string Arrears = "ARREARS";
     public const string TransferLargeCattle = "TRANSFER_LARGE_CATTLE";

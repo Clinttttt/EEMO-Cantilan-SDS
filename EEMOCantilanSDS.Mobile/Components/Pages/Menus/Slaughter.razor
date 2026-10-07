@@ -69,9 +69,7 @@
 
             @if (!string.IsNullOrWhiteSpace(CanonicalNotice))
             {
-                <div class="state-card" role="status">
-                    <div class="state-text">@CanonicalNotice</div>
-                </div>
+                <RecordedNotice Message="@CanonicalNotice" />
             }
 
             <div class="section-label">Today's Transactions</div>

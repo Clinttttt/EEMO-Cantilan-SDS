@@ -66,6 +66,39 @@ public sealed class GetCollectorOperationCapabilitiesQueryHandler(
             // WCF has its own writer (WcfCollectionWorkflow.PostMobileAsync). Market Fees, Landing/Berthing, Transfer
             // Large Cattle and Vegetable/Fruit are governed configurable services (GovernedServiceWorkflow): collectible
             // only when their approved setup, instrument policy and this collector's document custody all exist.
+            if (code is CollectorOperationCodes.Terminal or CollectorOperationCodes.FishMeatVendorFee or CollectorOperationCodes.WeightAndMeasure)
+            {
+                var codes = code == CollectorOperationCodes.Terminal
+                    ? new[] { RevenueClassificationCodes.TerminalComfortRoom, RevenueClassificationCodes.TerminalPullPulVansCargoVans, RevenueClassificationCodes.TerminalTricycad }
+                    : new[] { code == CollectorOperationCodes.FishMeatVendorFee ? RevenueClassificationCodes.FishMeatVendorFee : RevenueClassificationCodes.WeightAndMeasure };
+                var expected = code == CollectorOperationCodes.Terminal ? RevenueInstrumentType.CashTicket : RevenueInstrumentType.OfficialReceipt;
+                var policies = await (from p in db.RevenueClassificationPolicies.AsNoTracking()
+                    join c in db.RevenueClassifications.AsNoTracking() on p.RevenueClassificationId equals c.Id
+                    where c.MunicipalityId == tenantId && c.IsActive && codes.Contains(c.SemanticCode)
+                        && p.BusinessContext == RevenuePolicyContext.Default && p.EffectiveDate <= today
+                    select p).ToListAsync(ct);
+                var ready = collector.IsActive && today >= OfficeCollectionWorkflow.EffectiveFrom && policies
+                    .GroupBy(x => x.RevenueClassificationId).Any(g => g.OrderByDescending(x => x.EffectiveDate).First().PermittedInstrumentType == expected);
+                operations.Add(new(code, name, true, ready ? CollectorOperationCapabilityStatus.Ready : CollectorOperationCapabilityStatus.NeedsPolicy,
+                    ready, ready ? [] : [collector.IsActive ? PolicyNotEffective : CollectorInactive]));
+                continue;
+            }
+            if (CollectorOperationCodes.IsSpaceObligation(code))
+            {
+                var classificationCode = code == CollectorOperationCodes.KanmanggaySpaceRental
+                    ? RevenueClassificationCodes.KanmanggaySpaceRental : RevenueClassificationCodes.FiestaArawLotRental;
+                var classificationId = await db.RevenueClassifications.AsNoTracking().Where(x =>
+                    x.MunicipalityId == tenantId && x.IsActive && x.SemanticCode == classificationCode)
+                    .Select(x => (Guid?)x.Id).SingleOrDefaultAsync(ct);
+                var instrument = await db.RevenueClassificationPolicies.AsNoTracking().Where(x =>
+                    x.MunicipalityId == tenantId && x.RevenueClassificationId == classificationId &&
+                    x.BusinessContext == RevenuePolicyContext.Default && x.EffectiveDate <= today)
+                    .OrderByDescending(x => x.EffectiveDate).Select(x => x.PermittedInstrumentType).FirstOrDefaultAsync(ct);
+                var ready = collector.IsActive && instrument == RevenueInstrumentType.OfficialReceipt;
+                operations.Add(new(code, name, true, ready ? CollectorOperationCapabilityStatus.Ready : CollectorOperationCapabilityStatus.NeedsPolicy,
+                    ready, ready ? [] : [collector.IsActive ? PolicyNotEffective : CollectorInactive]));
+                continue;
+            }
             if (GovernedServiceCatalog.Find(code) is { } governed)
             {
                 operations.Add(await EvaluateGovernedAsync(tenantId, collector.IsActive, collectorId, governed, name, today, ct));
@@ -81,7 +114,12 @@ public sealed class GetCollectorOperationCapabilitiesQueryHandler(
             operations.Add(await EvaluateWcfAsync(tenantId, collector.IsActive, collectorId, code, name, today, ct));
         }
 
-        return Result<CollectorOperationCapabilitiesDto>.Success(new(collectorId, today, operations));
+        return Result<CollectorOperationCapabilitiesDto>.Success(new(collectorId, today, operations.Select(x => x with {
+            Family = x.OperationCode == CollectorOperationCodes.Terminal ? CollectionFamily.Terminal
+                : x.OperationCode == CollectorOperationCodes.Slaughterhouse ? CollectionFamily.Slaughterhouse
+                : CollectorOperationCodes.IsSpaceObligation(x.OperationCode) || x.OperationCode == CollectorOperationCodes.VegetableFruitSpaceRental ? CollectionFamily.Space
+                : x.OperationCode == CollectorOperationCodes.NpmDaily ? CollectionFamily.Rent : CollectionFamily.Market
+        }).ToArray()));
     }
 
     public const string ServiceSetupRequired = "SERVICE_SETUP_REQUIRED";

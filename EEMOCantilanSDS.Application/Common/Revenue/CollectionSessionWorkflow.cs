@@ -36,6 +36,15 @@ public sealed class CollectionSessionWorkflow(ICollectionSessionStore store, ICo
         return Result<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Revenue.CollectionPayorDto>>.Success(
             await store.SearchPayorsAsync(municipality.MunicipalityId, search ?? "", ct));
     }
+    public async Task<Result<IReadOnlyList<CollectionSourceSearchResult>>> SearchSourcesAsync(string? search, CancellationToken ct = default) =>
+        !await AuthorizedAsync(ct) ? Result<IReadOnlyList<CollectionSourceSearchResult>>.Forbidden() :
+        Result<IReadOnlyList<CollectionSourceSearchResult>>.Success(await sources.SearchSourcesAsync(search, ct));
+    public async Task<Result<CollectionSessionDiscovery>> DiscoverNativeAsync(CollectionSourceIdentity? identity, CancellationToken ct = default)
+    {
+        if (!await AuthorizedAsync(ct)) return Result<CollectionSessionDiscovery>.Forbidden();
+        if (identity is not null && !await sources.SourceExistsAsync(identity, ct)) return Result<CollectionSessionDiscovery>.NotFound();
+        return Result<CollectionSessionDiscovery>.Success(await sources.DiscoverNativeAsync(identity, clock.PhilippineToday, ct));
+    }
 
     public async Task<Result<CollectionSessionQuote>> QuoteAsync(CollectionSessionIntent intent, CancellationToken ct = default)
     {
@@ -55,6 +64,9 @@ public sealed class CollectionSessionWorkflow(ICollectionSessionStore store, ICo
             errors.Add(new(null, "InvalidBusinessDate", "Choose a valid collection business date."));
         if (intent.PayorId is { } payor && !await store.PayorExistsAsync(municipality.MunicipalityId, payor, ct))
             errors.Add(new(null, "InvalidPayor", "The selected payer is not available."));
+        if (intent.SourceIdentity is not null && (intent.PayorId.HasValue || !await sources.SourceExistsAsync(intent.SourceIdentity, ct)))
+            errors.Add(new(null, "InvalidSource", "Choose one valid Source Identity."));
+        if (intent.PayerSnapshot?.Trim().Length > 200) errors.Add(new(null, "InvalidPayerSnapshot", "Use a payer name of at most 200 characters."));
         if (errors.Count == 0)
         {
             // Duplicate source contexts in one checkout cannot spend the same balance twice.
@@ -68,9 +80,11 @@ public sealed class CollectionSessionWorkflow(ICollectionSessionStore store, ICo
                     CollectionSessionItemKind.Electricity when item.Electricity is { UtilityBillId: var bill } && bill != Guid.Empty => $"Electricity|{bill}",
                     CollectionSessionItemKind.Electricity when item.Electricity is { } e => $"Electricity|{e.StallId}|{e.Year}|{e.Month}",
                     // These are independent transactions, not shared balances. Each keeps its own document boundary.
-                    CollectionSessionItemKind.Weighing or CollectionSessionItemKind.Slaughter => $"Transaction|{item.ClientItemId}",
+                    CollectionSessionItemKind.Weighing or CollectionSessionItemKind.Slaughter or CollectionSessionItemKind.SourceNative => $"Transaction|{item.ClientItemId}",
                     CollectionSessionItemKind.VendorFee => $"VendorFee|{item.ClientItemId}",
                     CollectionSessionItemKind.NpmWholePayment when item.NpmWhole is { } n => $"Npm|{n.StallId}|{n.Year}|{n.Month}",
+                    CollectionSessionItemKind.NpmDaily when item.NpmDaily is { } daily => $"Npm|{daily.StallId}|{intent.BusinessDate.Year}|{intent.BusinessDate.Month}",
+                    CollectionSessionItemKind.MonthlyRent when item.Rent is { } r => $"Rent|{r.StallId}|{r.Year}|{r.Month}",
                     _ => JsonSerializer.Serialize(new { item.Kind, item.Service }, Json)
                 };
                 if (!seen.Add(key)) { errors.Add(new(item.ClientItemId, "DuplicateBusinessEvent", "This source is already in the checkout.")); continue; }
@@ -161,6 +175,9 @@ public sealed class CollectionSessionWorkflow(ICollectionSessionStore store, ICo
 
     public static string IntentFingerprint(CollectionSessionIntent intent)
     {
+        if (intent.SourceIdentity is not null || intent.PayerSnapshot is not null || intent.Items.Any(i => i.Native is not null))
+            return Hash(JsonSerializer.Serialize(new { Version = 3, intent.BusinessDate, intent.PayorId, intent.SourceIdentity,
+                PayerSnapshot = intent.PayerSnapshot?.Trim(), Items = intent.Items.OrderBy(i => i.ClientItemId) }, Json));
         var original = JsonSerializer.Serialize(new
     {
         Version = 1, intent.BusinessDate, intent.PayorId,

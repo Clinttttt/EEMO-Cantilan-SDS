@@ -6,6 +6,7 @@ using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
+using EEMOCantilanSDS.Application.Common.Revenue;
 
 namespace EEMOCantilanSDS.Application.Queries.Reports.GetFollowUpQueue;
 
@@ -25,7 +26,8 @@ public class GetFollowUpQueueQueryHandler(
     ITrmRepository trmRepository,
     ITpmRepository tpmRepository,
     IUtilityBillRepository utilityBillRepository,
-    IClock clock
+    IClock clock,
+    SpaceFollowUpWorkflow? spaceFollowUp = null
 ) : IRequestHandler<GetFollowUpQueueQuery, Result<FollowUpQueueDto>>
 {
     public async Task<Result<FollowUpQueueDto>> Handle(GetFollowUpQueueQuery request, CancellationToken ct)
@@ -84,7 +86,14 @@ public class GetFollowUpQueueQueryHandler(
             delinquencySpanLabel: RollingYearLabel(year, month, clock.PhilippineToday),
             endedOccupancies: endedThisPeriod);
 
-        return Result<FollowUpQueueDto>.Success(dto);
+        var spaceItems = request.Facility is null && spaceFollowUp is not null
+            ? await spaceFollowUp.GetAsync(periodEnd < clock.PhilippineToday ? periodEnd : clock.PhilippineToday, request.OperationCode, ct) : [];
+        return Result<FollowUpQueueDto>.Success(dto with
+        {
+            Items = request.OperationCode is not null ? [] : request.Facility is { } facility
+                ? dto.Items.Where(x => x.Facility == facility).ToArray() : dto.Items,
+            ObligationItems = spaceItems
+        });
     }
 
     /// <summary>"12 months to July 2026" — the span a rolling delinquency figure actually covers, ending with the

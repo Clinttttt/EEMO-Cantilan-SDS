@@ -1,0 +1,208 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@inject IMobileApiClient Api
+
+@* Collect All is only for today's NPM Daily charge. The collector sees every stall the server says can be collected today, with its own
+   charge, unticks the exceptions and records the rest. An unticked stall is simply not collected in this batch: it is never marked absent.
+   Each ticked stall gets its own Collection and SRC; the batch needs a live quote and is never queued unquoted. *@
+@* A solid, full-width action when the server says something can still be collected today, and a plainly disabled one when nothing can:
+   it is never faint, and its count is the server's, not a guess from the page's figures. *@
+@if (_known && Eligible.Count == 0)
+{
+    <button class="ca-open ca-open-none" type="button" disabled>@(HasBlockedSources ? "Collect All unavailable" : "Nothing left to collect today")</button>
+    @if (HasBlockedSources)
+    {
+        <p class="ca-skipped" role="status">@BlockedExplanation</p>
+    }
+}
+else
+{
+    <button class="ca-open" type="button" @onclick="OpenAsync">@(_known ? $"Collect All · {Eligible.Count} {(Eligible.Count == 1 ? "stall" : "stalls")}" : "Collect All")</button>
+}
+
+@if (_open)
+{
+    <div class="sheet-overlay" @onclick="Close">
+        <section class="sheet sheet-flex" role="dialog" aria-modal="true" aria-label="Collect all" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <header class="sheet-head">
+                <h2 class="sheet-title">@(_result is null ? "Collect today" : "Collected")</h2>
+                <div class="sheet-context">Daily collection · @BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</div>
+            </header>
+            <div class="sheet-body">
+                @if (_loading)
+                {
+                    <LoadingState Text="Loading today's stalls…" />
+                }
+                else if (_result is not null)
+                {
+                    <div class="done-total"><strong>@Money(_result.GrandTotal)</strong><span>@_result.Collections.Count @(_result.Collections.Count == 1 ? "collection record" : "collection records")</span></div>
+                    <div class="ca-list" role="list" aria-label="Collections">
+                        @foreach (var collection in _result.Collections)
+                        {
+                            <div class="ca-result" role="listitem">
+                                <span><strong>@StallOf(collection)</strong><small>@collection.ReferenceCode</small></span>
+                                <strong>@Money(collection.Amount)</strong>
+                            </div>
+                        }
+                    </div>
+                }
+                else if (_sources.Count == 0)
+                {
+                    <p class="sheet-note">@(_error ?? "No stall can be collected today.")</p>
+                }
+                else
+                {
+                    <div class="ca-list" role="list" aria-label="Stalls to collect">
+                        @foreach (var source in Eligible)
+                        {
+                            <label class="ca-row" role="listitem">
+                                <input type="checkbox" checked="@(!_unchecked.Contains(source.StallId))" @onchange="() => Toggle(source.StallId)" />
+                                <span class="ca-main"><strong>Stall @source.StallNumber</strong><small>@source.Occupant</small></span>
+                                <strong class="ca-charge">@Money(source.EffectiveCharge)</strong>
+                            </label>
+                        }
+                    </div>
+                    @if (_sources.Count > Eligible.Count)
+                    {
+                        <p class="ca-skipped">@(_sources.Count - Eligible.Count) not collectible today</p>
+                    }
+                    <div class="sheet-meta"><span>Selected</span><strong>@SelectedCount</strong></div>
+                    <div class="sheet-meta"><span>Total</span><strong>@Money(_quote?.Total ?? SelectedTotal)</strong></div>
+                    @foreach (var problem in _quote?.Problems ?? [])
+                    {
+                        <p class="form-error" role="alert">@problem.Message</p>
+                    }
+                    @if (_error is not null) { <p class="form-error" role="alert">@_error</p> }
+                }
+            </div>
+            <div class="sheet-actions">
+                <button class="btn-cancel" type="button" @onclick="Close">@(_result is null ? "Cancel" : "Done")</button>
+                @if (_result is null && _sources.Count > 0)
+                {
+                    <button class="btn-primary" type="button" disabled="@(_busy || SelectedCount == 0)" @onclick="CollectAsync">@(_busy ? "Collecting…" : $"Collect {SelectedCount} {(SelectedCount == 1 ? "stall" : "stalls")}")</button>
+                }
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    // Only confirmed collected rows mean the round is done. A policy/source/rate refusal is not a paid stall.
+    private bool HasBlockedSources => _sources.Any(x => !x.CanCollect && x.ReasonCode != "AlreadyCollected");
+    private string BlockedExplanation
+    {
+        get
+        {
+            var reasons = _sources.Where(x => !x.CanCollect && x.ReasonCode != "AlreadyCollected")
+                .Select(x => x.ReasonCode).Distinct().ToArray();
+            return reasons.Length == 1 ? reasons[0] switch
+            {
+                "SourceStillLegacy" => "Daily collection is not enabled for Collect All yet.",
+                "PolicyNotEffective" => "Daily collection is not enabled for this date yet.",
+                "RateNotEffective" => "Today's daily charge is not available yet.",
+                "InvalidSource" => "The stall details need review before collection.",
+                "AlreadySettledOrUnavailable" => "These stalls are not available for daily collection today.",
+                _ => "The stalls need review before using Collect All."
+            } : "Some stalls need review before using Collect All.";
+        }
+    }
+    [Parameter] public DateOnly BusinessDate { get; set; }
+
+    /// <summary>Raised after a batch is recorded so the page can refresh today's figures.</summary>
+    [Parameter] public EventCallback OnRecorded { get; set; }
+
+    private IReadOnlyList<NpmDailyBatchSource> _sources = [];
+    private readonly HashSet<Guid> _unchecked = [];
+    private readonly Dictionary<Guid, Guid> _itemIds = [];
+    private NpmDailyBatchQuote? _quote;
+    private CollectionSessionResult? _result;
+    private Guid _sessionId = Guid.NewGuid();
+    private decimal? _confirmedTotal;
+    private bool _open, _loading, _busy, _known;
+
+    // Whether anything can still be collected is the server's answer, asked once when the round opens.
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private string? _error;
+
+    // Only what the server can collect today is offered; a stall it will not take is counted, never listed as a choice.
+    private IReadOnlyList<NpmDailyBatchSource> Eligible => _sources.Where(x => x.CanCollect).ToList();
+    private IReadOnlyList<NpmDailyBatchSource> Selected => Eligible.Where(x => !_unchecked.Contains(x.StallId)).ToList();
+    private int SelectedCount => Selected.Count;
+    private decimal SelectedTotal => Selected.Sum(x => x.EffectiveCharge);
+
+    private async Task OpenAsync()
+    {
+        _open = true; _error = null; _result = null; _quote = null;
+        if (_sources.Count > 0) return;      // a selection kept from an earlier attempt is not thrown away
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var response = await Api.GetNpmDailyBatchReadinessAsync();
+            _sources = response.IsSuccess ? response.Value?.Sources ?? [] : [];
+            _known = response.IsSuccess;
+            if (!response.IsSuccess) _error = "Connect to load today's stalls.";
+        }
+        catch { _sources = []; _error = "Connect to load today's stalls."; }
+        finally { _loading = false; }
+    }
+
+    // The page behind reloads its round only once the collector is done reading the SRC list: reloading earlier would unmount this sheet and lose it.
+    private async Task Close()
+    {
+        _open = false;
+        if (_result is null) return;
+        _sources = []; _known = false; _unchecked.Clear(); _itemIds.Clear(); _result = null; _quote = null; _confirmedTotal = null; _sessionId = Guid.NewGuid();
+        await OnRecorded.InvokeAsync();
+    }
+
+    // Ticking or unticking a stall changes the batch, so the earlier quote and identity no longer describe it.
+    private void Toggle(Guid stallId)
+    {
+        if (!_unchecked.Remove(stallId)) _unchecked.Add(stallId);
+        _quote = null; _error = null; _confirmedTotal = null; _sessionId = Guid.NewGuid(); _itemIds.Clear();
+    }
+
+    private NpmDailyBatchIntent Intent()
+    {
+        foreach (var source in Selected) if (!_itemIds.ContainsKey(source.StallId)) _itemIds[source.StallId] = Guid.NewGuid();
+        return new(_sessionId, BusinessDate, Selected.Select(x => new NpmDailyBatchItem(_itemIds[x.StallId], x.StallId)).ToArray());
+    }
+
+    // One tap quotes the ticked stalls with the server. If the server's total is the one on screen it is recorded at once; if anything
+    // moved the new total is shown first and a second tap records it.
+    private async Task CollectAsync()
+    {
+        if (_busy || SelectedCount == 0) return;
+        _busy = true; _error = null;
+        try
+        {
+            var intent = Intent();
+            var quote = await Api.QuoteNpmDailyBatchAsync(intent);
+            if (!quote.IsSuccess || quote.Value is null) { _error = "Connection required to quote this batch. Your selection is kept."; return; }
+            _quote = quote.Value;
+            if (!_quote.CanRecord || _quote.QuoteFingerprint is null) return;
+            if (_quote.Total != (_confirmedTotal ?? SelectedTotal)) { _confirmedTotal = _quote.Total; return; }
+            var recorded = await Api.RecordNpmDailyBatchAsync(new(intent, _quote.QuoteFingerprint));
+            if (!recorded.IsSuccess || recorded.Value is null) { _error = "The batch could not be recorded. Check Records before trying again."; return; }
+            _result = recorded.Value;
+        }
+        catch { _error = "Connection required to quote this batch. Your selection is kept."; }
+        finally { _busy = false; }
+    }
+
+    private string StallOf(CollectionSessionCollection collection)
+    {
+        var stallId = _itemIds.FirstOrDefault(x => collection.ClientItemIds.Contains(x.Value)).Key;
+        var source = _sources.FirstOrDefault(x => x.StallId == stallId);
+        return source is null ? "Stall" : $"Stall {source.StallNumber} · {source.Occupant}";
+    }
+
+    private static string Money(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
+}

@@ -15,10 +15,20 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
     <ProjectReference Include="../EEMOCantilanSDS.Mobile.Core/EEMOCantilanSDS.Mobile.Core.csproj" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/CollectionSessionEditor.razor" Link="Components/Shared/CollectionSessionEditor.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Pages/Menus/Menu.razor" Link="Components/Pages/Menus/Menu.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/AppHeader.razor" Link="Components/Shared/AppHeader.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/MobileChoice.razor" Link="Components/Shared/MobileChoice.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Pages/Menus/NpmWholePayment.razor" Link="Components/Pages/Menus/NpmWholePayment.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Pages/Menus/Market.razor" Link="Components/Pages/Menus/Market.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/ErrorState.razor" Link="Components/Shared/ErrorState.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/SlowSaveHint.razor" Link="Components/Shared/SlowSaveHint.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/BottomNav.razor" Link="Components/Shared/BottomNav.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/LoadingState.razor" Link="Components/Shared/LoadingState.razor" />
-    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/VendorFeeEntry.razor" Link="Components/Shared/VendorFeeEntry.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/NpmCollectAll.razor" Link="Components/Shared/NpmCollectAll.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/RecentCollections.razor" Link="Components/Shared/RecentCollections.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/CorrectionReason.razor" Link="Components/Shared/CorrectionReason.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/NpmWholeSummary.razor" Link="Components/Shared/NpmWholeSummary.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/RecordedNotice.razor" Link="Components/Shared/RecordedNotice.razor" />
     <Using Include="Xunit" />
     <Using Include="EEMOCantilanSDS.Application.Common" />
   </ItemGroup>

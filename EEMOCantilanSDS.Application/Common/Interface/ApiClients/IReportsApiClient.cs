@@ -14,6 +14,7 @@ public interface IReportsApiClient
         bool allTime = false);
 
     Task<Result<FollowUpQueueDto>> GetFollowUpQueueAsync(int year, int month);
+    Task<Result<FollowUpQueueDto>> GetScopedFollowUpQueueAsync(int year, int month, FacilityCode? facility, string? operationCode);
 
     /// <param name="allTime">
     /// True for the cumulative view: outstanding accounts with their whole balances, independent of any period.

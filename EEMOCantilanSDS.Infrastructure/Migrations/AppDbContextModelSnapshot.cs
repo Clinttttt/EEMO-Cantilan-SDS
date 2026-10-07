@@ -2214,7 +2214,7 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("CK_CollectionLines_Amount_Positive", "\"Amount\" > 0");
 
-                            t.HasCheckConstraint("CK_CollectionLines_SourceShape", "((\"SourceKind\" IS NULL AND \"SourceId\" IS NULL AND \"SourcePart\" IS NULL) OR (\"SourceKind\" = 3 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (1, 2)) OR (\"SourceKind\" = 2 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (3, 4, 5)) OR (\"SourceKind\" IN (1, 4, 5, 6, 7, 8, 9, 10, 11, 12) AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IS NULL))");
+                            t.HasCheckConstraint("CK_CollectionLines_SourceShape", "((\"SourceKind\" IS NULL AND \"SourceId\" IS NULL AND \"SourcePart\" IS NULL) OR (\"SourceKind\" = 3 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (1, 2)) OR (\"SourceKind\" = 2 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (3, 4, 5)) OR (\"SourceKind\" IN (1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14) AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IS NULL))");
                         });
                 });
 
@@ -2473,6 +2473,100 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.FishMeatVendorRegistration", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("BusinessName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("ClientOperationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CloseClientOperationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CloseNote")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTime?>("ClosedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ClosedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateOnly?>("ClosedOn")
+                        .HasColumnType("date");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("MunicipalityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("PriorRegistrationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("RecordedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("RegistrationKind")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Status")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1);
+
+                    b.Property<int>("TaxYear")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("VendorType")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MunicipalityId", "ClientOperationId")
+                        .IsUnique();
+
+                    b.HasIndex("MunicipalityId", "CloseClientOperationId")
+                        .IsUnique()
+                        .HasFilter("\"CloseClientOperationId\" IS NOT NULL");
+
+                    b.HasIndex("MunicipalityId", "PriorRegistrationId", "TaxYear")
+                        .IsUnique()
+                        .HasFilter("\"PriorRegistrationId\" IS NOT NULL");
+
+                    b.ToTable("FishMeatVendorRegistrations", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_VendorRegistration_Lifecycle", "(\"Status\" = 1 AND \"CloseClientOperationId\" IS NULL AND \"ClosedOn\" IS NULL AND \"ClosedAtUtc\" IS NULL AND \"ClosedBy\" IS NULL AND \"CloseNote\" IS NULL) OR (\"Status\" = 2 AND \"CloseClientOperationId\" IS NOT NULL AND \"ClosedOn\" IS NOT NULL AND \"ClosedAtUtc\" IS NOT NULL AND \"ClosedBy\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_VendorRegistration_Type", "\"VendorType\" IN (1,2) AND \"RegistrationKind\" IN (1,2)");
+
+                            t.HasCheckConstraint("CK_VendorRegistration_Year", "\"TaxYear\" BETWEEN 2000 AND 2200");
+                        });
+                });
+
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.GovernedService", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2648,6 +2742,9 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.Property<Guid>("MunicipalityId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("QuickAmountEnabled")
+                        .HasColumnType("boolean");
+
                     b.HasKey("Id");
 
                     b.HasIndex("MunicipalityId", "GovernedServiceId", "EffectiveDate");
@@ -2710,6 +2807,17 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.Property<DateOnly?>("ActiveTo")
                         .HasColumnType("date");
 
+                    b.Property<string>("ActualOccupant")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int?>("Arrangement")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ContractReference")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -2730,7 +2838,7 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.Property<Guid>("MunicipalityId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("PayorId")
+                    b.Property<Guid?>("PayorId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid?>("StallId")
@@ -2756,6 +2864,8 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                             t.HasCheckConstraint("CK_ObligationAccounts_Kind", "\"Kind\" IN (1, 2, 3)");
 
                             t.HasCheckConstraint("CK_ObligationAccounts_Shape", "((\"Kind\" = 1 AND \"StallId\" IS NOT NULL AND \"Event\" IS NULL AND \"EventDate\" IS NULL) OR (\"Kind\" = 2 AND \"StallId\" IS NULL AND \"Event\" IS NULL AND \"EventDate\" IS NULL) OR (\"Kind\" = 3 AND \"StallId\" IS NULL AND \"Event\" IN (1, 2) AND \"EventDate\" IS NOT NULL))");
+
+                            t.HasCheckConstraint("CK_ObligationAccounts_SourceHolder", "\"PayorId\" IS NOT NULL OR (\"Kind\" IN (2, 3) AND \"ActualOccupant\" IS NOT NULL AND length(trim(\"ActualOccupant\")) > 0)");
 
                             t.HasCheckConstraint("CK_ObligationAccounts_Window", "\"ActiveTo\" IS NULL OR \"ActiveTo\" >= \"ActiveFrom\"");
                         });
@@ -2846,6 +2956,89 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.ToTable("ObligationRates", null, t =>
                         {
                             t.HasCheckConstraint("CK_ObligationRates_Amount", "\"Amount\" > 0");
+                        });
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.OfficialReportRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ActorName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("ClientOperationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("IntentFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("MunicipalityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("RecordedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RowKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("SourceOrReason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid?>("SupersedesId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("SystemAmountAtRevision")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MunicipalityId", "ClientOperationId")
+                        .IsUnique();
+
+                    b.HasIndex("MunicipalityId", "Kind", "RowKey", "Year", "Month", "Revision")
+                        .IsUnique();
+
+                    b.ToTable("OfficialReportRevisions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_OfficialReportRevision_Scope", "\"Year\" BETWEEN 2000 AND 2200 AND \"Revision\" > 0 AND ((\"Kind\" = 1 AND \"Month\" = 0 AND \"Amount\" >= 0) OR (\"Kind\" = 2 AND \"Month\" BETWEEN 1 AND 12 AND \"SystemAmountAtRevision\" IS NOT NULL))");
                         });
                 });
 
@@ -3160,6 +3353,9 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
 
                     b.Property<Guid>("MunicipalityId")
                         .HasColumnType("uuid");
+
+                    b.Property<int?>("TerminalSection")
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 
@@ -4908,6 +5104,21 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.FishMeatVendorRegistration", b =>
+                {
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Tenancy.Municipality", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.FishMeatVendorRegistration", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "PriorRegistrationId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.GovernedService", b =>
                 {
                     b.HasOne("EEMOCantilanSDS.Domain.Entities.Tenancy.Municipality", null)
@@ -4959,8 +5170,7 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("MunicipalityId", "PayorId")
                         .HasPrincipalKey("MunicipalityId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.ObligationPeriod", b =>

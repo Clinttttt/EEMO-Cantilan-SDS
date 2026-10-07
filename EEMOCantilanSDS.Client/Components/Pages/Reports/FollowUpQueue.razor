@@ -102,11 +102,15 @@
                     <button class="fq-search-clear" type="button" @onclick="ClearSearch" aria-label="Clear search">&times;</button>
                 }
             </div>
-            <div class="fq-filters" role="group" aria-label="Filter by facility">
-                <button type="button" class="fq-chip @(_facility is null ? "fq-chip-active" : "")" @onclick="@(() => SelectFacility(null))">All Facilities</button>
+            <div class="fq-filters" role="group" aria-label="Filter by source">
+                <button type="button" class="fq-chip @(_facility is null && _operation is null ? "fq-chip-active" : "")" @onclick="@(() => SelectFacility(null))">@(OperationScopes.Count > 0 ? "All sources" : "All Facilities")</button>
                 @foreach (var fc in FacilityCatalog.All)
                 {
                     <button type="button" class="fq-chip @(_facility == fc ? "fq-chip-active" : "")" title="@fc" @onclick="@(() => SelectFacility(fc))">@FacilityCatalog.ShortNameOf(fc)</button>
+                }
+                @foreach (var scope in OperationScopes)
+                {
+                    <button type="button" class="fq-chip @(_operation == scope.OperationCode ? "fq-chip-active" : "")" @onclick="@(() => SelectOperation(scope.OperationCode))">@scope.DisplayName</button>
                 }
             </div>
             <a class="btn-outline fq-history-link" href="/reports/follow-up/history" title="Past-period snapshot from source records; this is not a log of actions or local hides.">
@@ -165,7 +169,7 @@
             <button class="fq-retry" type="button" @onclick="Load">Try again</button>
         </div>
     }
-    else if (visibleSections.Count == 0)
+    else if (visibleSections.Count == 0 && VisibleObligations.Count == 0)
     {
         <div class="fq-empty">
             <div class="fq-empty-icon">
@@ -219,8 +223,8 @@
                                                 <td>
                                                     <div class="fq-row-signals">
                                                         <span class="fq-reason">@it.Reason</span>
-                                                        @* Only an urgent row is tagged; Normal needs no label. *@
-                                                        @if (!string.Equals(it.Priority, "Normal", StringComparison.OrdinalIgnoreCase))
+                                                        @* The rail and amount tone carry urgency: Critical and Normal rows carry no pill; other priorities keep theirs. *@
+                                                        @if (!string.Equals(it.Priority, "Normal", StringComparison.OrdinalIgnoreCase) && !string.Equals(it.Priority, "Critical", StringComparison.OrdinalIgnoreCase))
                                                         {
                                                             <span class="fq-priority fq-rb-@PriClass(it.Priority)">@it.Priority</span>
                                                         }
@@ -279,6 +283,43 @@
                                                 break;
                                         }
                                     }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        }
+
+        @if (VisibleObligations.Count > 0)
+        {
+            @* Space operations come from their own typed feed: no facility code is implied, and nothing is assessed here. *@
+            <section class="fq-section" aria-labelledby="fq-space-title">
+                <div class="fq-sec-head fq-sec-normal">
+                    <span class="fq-sec-rail"></span>
+                    <span class="fq-sec-count">@VisibleObligations.Count</span>
+                    <div class="fq-sec-info">
+                        <div class="fq-sec-title" id="fq-space-title">Space rentals</div>
+                        <div class="fq-sec-sub">Unpaid and partial periods</div>
+                    </div>
+                </div>
+                <div class="fq-table-wrap">
+                    <table class="fq-table">
+                        <thead>
+                            <tr><th>Payor</th><th>Period</th><th>Status</th><th>Outstanding</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var ob in VisibleObligations)
+                            {
+                                <tr class="fq-row fq-pri-@PriClass(ob.Priority)" @key="@($"{ob.AccountId}|{ob.PeriodStart:yyyy-MM-dd}")">
+                                    <td>
+                                        <div class="fq-person">@(string.IsNullOrWhiteSpace(ob.PayerName) ? "—" : ob.PayerName)</div>
+                                        <div class="fq-sub">@ob.Scope.DisplayName · @ob.SpaceNumber</div>
+                                    </td>
+                                    <td><div class="fq-period">@ObligationPeriod(ob)</div></td>
+                                    <td><span class="fq-note">@(ob.Collected > 0m ? $"Partial · ₱{ob.Collected:N0} paid" : "Unpaid")</span></td>
+                                    <td><span class="fq-amount">₱@ob.Outstanding.ToString("N0")</span></td>
+                                    <td><div class="fq-action-cell"><a class="fq-action" href="@ob.Link">View<span class="fq-action-arrow">→</span></a></div></td>
                                 </tr>
                             }
                         </tbody>
@@ -464,6 +505,7 @@
     private string _filter = "all";
     private string _search = "";
     private FacilityCode? _facility;   // null = all facilities
+    private string? _operation;        // a space-operation scope; mutually exclusive with _facility
 
     // ── Browser-local hide for action-required items ───────────────────────────────
     // Hidden keys persist in this browser via localStorage. They do not create a server action or follow-up-history event.
@@ -1014,7 +1056,28 @@
     }
 
     private void SelectFilter(string key) => _filter = key;
-    private void SelectFacility(FacilityCode? code) => _facility = code;
+    private void SelectFacility(FacilityCode? code) { _facility = code; _operation = null; }
+    private void SelectOperation(string operationCode) { _operation = operationCode; _facility = null; }
+
+    // Space-operation scopes come from the server's typed feed; only what it returns is offered.
+    private IReadOnlyList<FollowUpScopeDto> OperationScopes =>
+        (_data?.ObligationItems ?? [])
+            .Select(i => i.Scope).Where(s => s.Kind != FollowUpScopeKind.Facility)
+            .GroupBy(s => s.OperationCode).Select(g => g.First()).OrderBy(s => s.DisplayName).ToList();
+
+    private IReadOnlyList<ObligationFollowUpItemDto> VisibleObligations =>
+        _filter != "all" ? [] : (_data?.ObligationItems ?? []).Where(MatchesObligation).ToList();
+
+    private bool MatchesObligation(ObligationFollowUpItemDto i) =>
+        (_operation is null && _facility is null
+            || _operation is not null && i.Scope.OperationCode == _operation
+            || _facility is not null && i.Scope.Facility == _facility)
+        && (!HasSearch || Contains(i.PayerName, _search.Trim()) || Contains(i.SpaceNumber, _search.Trim())
+            || Contains(i.Scope.DisplayName, _search.Trim()));
+
+    private static string ObligationPeriod(ObligationFollowUpItemDto i) => i.Scope.Kind == FollowUpScopeKind.EventLot
+        ? $"{(i.Event is { } e ? e.ToString() : i.Scope.DisplayName)} · {i.PeriodStart:MMM d, yyyy}"
+        : i.PeriodStart.ToString("MMMM yyyy");
     private void OnSearchInput(ChangeEventArgs e) => _search = e.Value?.ToString() ?? "";
     private void ClearSearch() => _search = "";
 
@@ -1027,7 +1090,7 @@
     private IReadOnlyList<FollowUpItemDto> Filtered() =>
         AllItems.Where(i => (_filter == "all" || i.ReasonKind == _filter) && MatchesFacility(i) && MatchesSearch(i)).ToList();
 
-    private bool MatchesFacility(FollowUpItemDto i) => _facility is null || i.Facility == _facility;
+    private bool MatchesFacility(FollowUpItemDto i) => _operation is null && (_facility is null || i.Facility == _facility);
 
     private List<FollowUpItemDto> ItemsFor(int section)
     {

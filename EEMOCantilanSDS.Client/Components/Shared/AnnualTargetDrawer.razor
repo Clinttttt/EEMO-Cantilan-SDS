@@ -1,0 +1,112 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@inject IOfficialReportsApiClient Api
+
+@* Head-only annual target for one official revenue line. A target is an approved figure for the year, kept as audited revisions;
+   it is never cash and never changes what was collected. *@
+<AddNewDrawer Show="Show" Edit="true" Title="Annual target" Subtitle="@($"{RowLabel} · {Year}")"
+              FormId="@_formId" FormLabel="Annual target" SubmitText="Save target" Saving="_saving" Error="@_error"
+              OnSubmit="SaveAsync" OnCancel="CloseAsync">
+    @if (_loading)
+    {
+        <p role="status">Loading…</p>
+    }
+    else
+    {
+        <AddNewSection Title="Target" Plain="true">
+            <div class="avm-group">
+                <label class="avm-label" for="@($"{_formId}-amount")">Annual target (₱) <span class="avm-req">*</span></label>
+                <input id="@($"{_formId}-amount")" class="avm-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
+            </div>
+            <div class="avm-group">
+                <label class="avm-label" for="@($"{_formId}-source")">Approved source <span class="avm-req">*</span></label>
+                <input id="@($"{_formId}-source")" class="avm-input" maxlength="200" required @bind="_source" />
+            </div>
+        </AddNewSection>
+        <AddNewSection Title="Details" Plain="true">
+            <div class="avm-group">
+                <label class="avm-label" for="@($"{_formId}-ref")">Reference (optional)</label>
+                <input id="@($"{_formId}-ref")" class="avm-input" maxlength="100" @bind="_reference" />
+            </div>
+            <div class="avm-group">
+                <label class="avm-label" for="@($"{_formId}-note")">Note (optional)</label>
+                <input id="@($"{_formId}-note")" class="avm-input" maxlength="500" @bind="_note" />
+            </div>
+        </AddNewSection>
+    }
+</AddNewDrawer>
+
+@code {
+    private readonly string _formId = $"atd-{Guid.NewGuid():N}";
+
+    [Parameter] public bool Show { get; set; }
+    [Parameter, EditorRequired] public int Year { get; set; }
+    [Parameter, EditorRequired] public string RowKey { get; set; } = string.Empty;
+    [Parameter] public string RowLabel { get; set; } = string.Empty;
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private decimal? _amount;
+    private string _source = string.Empty, _reference = string.Empty, _note = string.Empty;
+    private string? _error;
+    private bool _saving, _loading, _wasShown;
+    private Guid _operationId = Guid.NewGuid();
+    private Guid? _expectedRevision;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var opening = Show && !_wasShown;
+        _wasShown = Show;
+        if (!opening) return;
+        _error = null;
+        _amount = null;
+        _source = _reference = _note = string.Empty;
+        _expectedRevision = null;
+        _operationId = Guid.NewGuid();
+        _loading = true;
+        try
+        {
+            // The latest saved revision for this line is both the starting point and the revision the server expects next.
+            var result = await Api.GetGovernanceAsync(Year);
+            if (result.IsSuccess)
+            {
+                var current = result.Value!.Where(r => r.Kind == OfficialReportRevisionKind.AnnualTarget && r.RowKey == RowKey)
+                    .OrderByDescending(r => r.Revision).FirstOrDefault();
+                if (current is not null)
+                {
+                    _expectedRevision = current.Id;
+                    _amount = current.Amount;
+                    _source = current.SourceOrReason;
+                    _reference = current.Reference ?? string.Empty;
+                    _note = current.Note ?? string.Empty;
+                }
+            }
+            else _error = "The current target could not be loaded.";
+        }
+        catch { _error = "The current target could not be loaded."; }
+        finally { _loading = false; }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_saving) return;
+        if (_amount is not > 0m || string.IsNullOrWhiteSpace(_source)) { _error = "Enter the annual target and its approved source."; return; }
+        _saving = true;
+        _error = null;
+        try
+        {
+            var result = await Api.SetTargetAsync(new SetAnnualTargetRequest(_operationId, RowKey, Year, _amount.Value, _source.Trim(),
+                string.IsNullOrWhiteSpace(_reference) ? null : _reference.Trim(), string.IsNullOrWhiteSpace(_note) ? null : _note.Trim(),
+                _expectedRevision));
+            if (!result.IsSuccess) { _error = ReportGovernanceMessages.For(result.Error); return; }
+            await OnSaved.InvokeAsync();
+            await OnClose.InvokeAsync();
+        }
+        catch { _error = ReportGovernanceMessages.For(null); }
+        finally { _saving = false; }
+    }
+
+    private Task CloseAsync() => OnClose.InvokeAsync();
+}

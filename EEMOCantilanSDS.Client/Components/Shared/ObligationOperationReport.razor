@@ -61,7 +61,7 @@
         <OperationMonthlyIncome Classification="@Classification" RowKey="@RowKey" Year="_year" HeadingId="@($"{IdPrefix}-official")" />
 
         <section class="v3-report-section" aria-labelledby="@($"{IdPrefix}-position")">
-            <h3 id="@($"{IdPrefix}-position")">Obligation position · @(Kind == ObligationKind.FishMeatVendorFee ? "to date" : _year.ToString())</h3>
+            <h3 id="@($"{IdPrefix}-position")">@(HistoricalPosition ? "Historical account position" : "Obligation position") · @(Kind == ObligationKind.FishMeatVendorFee ? "to date" : _year.ToString())</h3>
             <div class="v3-table-wrap">
                 <table class="v3-report-table">
                     <thead>
@@ -98,7 +98,7 @@
                             {
                                 <th scope="col">Event</th>
                             }
-                            <th scope="col" class="v3-num">@(ShowEvent ? "Approved amount" : "Monthly obligation")</th>
+                            <th scope="col" class="v3-num">@(HistoricalPosition ? "Historical monthly amount" : ShowEvent ? "Approved amount" : "Monthly obligation")</th>
                             <th scope="col" class="v3-num">Assessed</th>
                             <th scope="col" class="v3-num">Settled</th>
                             <th scope="col" class="v3-num">Outstanding</th>
@@ -152,6 +152,7 @@
 
     /// <summary>Event lot rental states the event and its approved amount rather than a monthly obligation.</summary>
     [Parameter] public bool ShowEvent { get; set; }
+    [Parameter] public bool HistoricalPosition { get; set; }
 
     [Parameter] public string? Basis { get; set; }
 

@@ -1,0 +1,14 @@
+@page "/operations/kanmanggay/import"
+@attribute [Authorize(Roles = "SuperAdmin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Enums
+
+<PageTitle>StallTrack — Import Kanmanggay Space Holders</PageTitle>
+
+@* The bulk import of Kanmanggay space holders. Same three steps as the stallholder import; every Business Payor is the office's own
+   explicit choice. The layout owns the <main> landmark. *@
+<OperationTopbar Title="Kanmanggay" Crumb="Import space holders" />
+<div class="content-area">
+    <SpaceHolderImport Kind="ObligationKind.KanmanggaySpaceRental" Name="Kanmanggay" BackHref="/operations/kanmanggay" />
+</div>

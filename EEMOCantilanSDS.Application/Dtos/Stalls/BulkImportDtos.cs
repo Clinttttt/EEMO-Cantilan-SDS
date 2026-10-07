@@ -27,7 +27,8 @@ public record ImportStallRow(
 /// <see cref="Renewed"/> (reused an existing expired/closed stall) is true on success; on skip/failure
 /// both are false and <see cref="Error"/> explains why (e.g. duplicate live payor, occupied active stall).
 /// </summary>
-public record BulkImportRowResult(int RowNumber, string StallNo, string Occupant, bool Created, bool Renewed, string? Error);
+public record BulkImportRowResult(int RowNumber, string StallNo, string Occupant, bool Created, bool Renewed, string? Error,
+    Guid? OccupancyId = null);
 
 /// <summary>Summary of a bulk import: new stalls created, expired/closed stalls renewed, rest reported per-row.</summary>
 public record BulkImportResultDto(

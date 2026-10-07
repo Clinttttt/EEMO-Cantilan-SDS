@@ -21,14 +21,8 @@ public sealed class LegacyMonthlyIncomeReader(AppDbContext context) : ILegacyMon
         var (_, endUtc) = PhilippineTime.MonthUtcRange(year, 12);
         var facts = new List<LegacyIncomeFact>();
         static int MonthOf(DateTime utc) => PhilippineTime.ToPhilippineTime(utc).Month;
-        var fishRate = await context.FacilityRates.AsNoTracking()
-            .Where(r => r.FacilityCode == FacilityCode.NPM && r.RateKey == FeeRateKey.NpmFishPerKilo && !r.IsDeleted)
-            .OrderByDescending(r => r.EffectiveDate).Select(r => (decimal?)r.Amount).FirstOrDefaultAsync(ct)
-            ?? FeeRates.NpmFishFeePerKilo;
-
-        // NPM daily collections: the daily fee is stall rent; weighing money is Weight and Measure. New Fish rows carry a
-        // frozen amount; an older row without one is priced at the Fish rate read now, which is the legacy reading and is
-        // never presented as frozen evidence.
+        // NPM daily collections: the daily fee is stall rent; weighing money is Weight and Measure. Only frozen
+        // weighing evidence is reported; older rows without a frozen amount remain unresolved.
         var daily = await context.DailyCollections.AsNoTracking()
             .Where(d => (d.IsPaid || (d.SettlementAuthorityState == SettlementAuthority.Canonical && (d.FishKilos > 0m || d.MeatFeeAmount > 0m)))
                 && (d.UpdatedAt ?? d.CreatedAt) >= startUtc && (d.UpdatedAt ?? d.CreatedAt) < endUtc)
@@ -45,7 +39,7 @@ public sealed class LegacyMonthlyIncomeReader(AppDbContext context) : ILegacyMon
             // A day paid by a canonical Collection is reported by that Collection; only its weighing stays on this side.
             if (CollectionSourceAuthorityMap.LegacyMoneyCounts(CollectionSourceKind.DailyCollection, d.SettlementAuthorityState))
                 facts.Add(new(month, RevenueClassificationCodes.PermanentStallRent, d.Code, d.DailyFee, "DailyCollection"));
-            var fish = d.FishFeeAmountFrozen ?? ((d.FishKilos ?? 0m) * fishRate);
+            var fish = d.FishFeeAmountFrozen ?? 0m; // Unresolved history is not priced using a later ordinance.
             if (fish + d.MeatFeeAmount != 0m)
                 facts.Add(new(month, RevenueClassificationCodes.WeightAndMeasure, null, fish + d.MeatFeeAmount, "DailyCollection.Weighing"));
         }
@@ -62,7 +56,7 @@ public sealed class LegacyMonthlyIncomeReader(AppDbContext context) : ILegacyMon
         foreach (var p in monthly)
         {
             var portion = EEMOCantilanSDS.Application.Common.Fees.CollectorFeeMoney.MonthlyFeePortion(
-                p.Status, p.BaseRentalAmount, p.FishKilos, p.PartialAmount, fishRate);
+                p.Status, p.BaseRentalAmount, p.FishKilos, p.PartialAmount, 0m);
             var rent = Math.Min(portion, p.BaseRentalAmount);
             var month = MonthOf(p.When);
             var classification = p.Code == FacilityCode.ICE ? RevenueClassificationCodes.IcePlant : RevenueClassificationCodes.PermanentStallRent;

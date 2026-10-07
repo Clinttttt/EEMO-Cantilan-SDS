@@ -37,12 +37,13 @@ public class SetReportSignatoriesCommandHandler(
         var cleaned = (request.Signatories ?? Array.Empty<ReportSignatoryDto>())
             .Select(s => new ReportSignatoryDto(
                 (s.Caption ?? string.Empty).Trim(),
-                (s.Name ?? string.Empty).Trim()))
+                (s.Name ?? string.Empty).Trim(),
+                s.Title?.Trim()))
             .Where(s => s.Caption.Length > 0 || s.Name.Length > 0)
             .Take(MaxSignatories)
             .ToList();
 
-        if (cleaned.Any(s => s.Caption.Length > MaxLength || s.Name.Length > MaxLength))
+        if (cleaned.Any(s => s.Caption.Length > MaxLength || s.Name.Length > MaxLength || s.Title?.Length > MaxLength))
             return Result<bool>.Failure($"A signatory caption or name may be at most {MaxLength} characters.", ResultStatus.Invalid);
 
         // Three states, not two, and the difference matters on paper:
@@ -61,6 +62,7 @@ public class SetReportSignatoriesCommandHandler(
                 cleaned));
 
         municipality.SetReportSignatories(json, currentUser.Username ?? "Head");
+        municipalityRepository.MarkChanged(municipality);     // the lookup is untracked: without this the lines are set in memory and never saved
         await unitOfWork.SaveChangesAsync(ct);
 
         return Result<bool>.Success(true);

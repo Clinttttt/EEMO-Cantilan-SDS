@@ -1,0 +1,26 @@
+.trm2-meta { display: inline-flex; align-items: center; gap: 8px; }
+.trm2-toolbar { display: flex; justify-content: flex-end; margin: 16px 0; }
+.trm2-notice { margin: 0 0 16px; }
+.trm2-gap { margin-top: 16px; }
+.trm2-src { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.trm2-actions { text-align: right; }
+
+.trm2-map {
+    box-sizing: border-box;
+    min-height: 36px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--navy);
+    font: inherit;
+    font-size: 0.8125rem;
+}
+
+.trm2-map:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Recent collections are bounded: about five rows show, the rest scroll under a held heading. */
+.trm2-scroll { max-height: 21rem; overflow-y: auto; overscroll-behavior: contain; }
+.trm2-scroll thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-muted); }
+
+.v3-table tbody th { background: transparent; font-weight: 600; text-align: left; }

@@ -1,0 +1,47 @@
+@* ADD NEW DRAWER — the one shape every "Add New" takes, and it is the stallholder drawer's own: VendorDrawerShell (overlay, civic-blue header with its
+   icon tile, scrolling body, fixed footer) around one form of sections. Operations supply their fields as the form's content (AddNewSection,
+   ChoiceCards, avm-* groups). Presentation only: validation, state and the save itself stay with the page. *@
+<VendorDrawerShell Show="Show" Title="@Title" Subtitle="@Subtitle" OnClose="OnCancel">
+    <Icon>
+        @if (Edit)
+        {
+            <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+        }
+        else
+        {
+            <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>
+        }
+    </Icon>
+    <ChildContent>
+        <form id="@FormId" aria-label="@FormLabel" @onsubmit="OnSubmit" @onsubmit:preventDefault="true">
+            @ChildContent
+            @if (!string.IsNullOrWhiteSpace(Error))
+            {
+                <div class="avm-error" role="alert">@Error</div>
+            }
+        </form>
+    </ChildContent>
+    <Footer>
+        <button type="button" class="btn-ghost" @onclick="OnCancel">Cancel</button>
+        <button type="submit" class="btn-primary" form="@FormId" disabled="@Saving">@SubmitText</button>
+    </Footer>
+</VendorDrawerShell>
+
+@code {
+    [Parameter] public bool Show { get; set; }
+
+    /// <summary>A change to something that exists (a rate, a rule) rather than a new record: the header shows a pencil.</summary>
+    [Parameter] public bool Edit { get; set; }
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter, EditorRequired] public string FormId { get; set; } = string.Empty;
+
+    /// <summary>The form's accessible name.</summary>
+    [Parameter] public string? FormLabel { get; set; }
+    [Parameter] public string SubmitText { get; set; } = "Save";
+    [Parameter] public bool Saving { get; set; }
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public EventCallback OnSubmit { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

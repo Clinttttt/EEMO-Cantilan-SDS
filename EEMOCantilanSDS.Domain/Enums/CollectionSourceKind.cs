@@ -19,5 +19,7 @@ public enum CollectionSourceKind
     /// <summary>NPM weighing event; source is the existing stall/vendor context, facts frozen on the line.</summary>
     NpmWeighing = 11,
     /// <summary>Additional direct vendor fee; source is the existing NPM stall/vendor, with no monthly allocation.</summary>
-    FishMeatVendorFee = 12
+    FishMeatVendorFee = 12,
+    FishMeatVendorRegistration = 13,
+    TerminalSection = 14
 }

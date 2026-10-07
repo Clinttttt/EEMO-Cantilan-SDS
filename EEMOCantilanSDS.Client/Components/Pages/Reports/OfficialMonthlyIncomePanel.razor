@@ -5,7 +5,6 @@
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Common
 @inject IOfficialReportsApiClient Api
-@inject IJSRuntime JS
 
 @* The official Monthly Income statement (IA-051) laid out like the office's own sheet: Annual Target, the months, Total/YTD
    and Percentage, with the office rows lettered under their groups — never the facilities. Each figure is authoritative
@@ -28,12 +27,8 @@
             {
                 <span class="mi-doc-generated">Generated @PhilippineTime.ToPhilippineTime(_data.GeneratedAtUtc).ToString("MMM d, yyyy · h:mm tt", CultureInfo.InvariantCulture)</span>
             }
-            @* The final statement is its own document; Print here prints this working view. *@
+            @* This is the working view. The formal printable statement is its own document, opened here. *@
             <a class="v3-btn v3-btn-sm v3-btn-primary" href="@OfficialUrl">Official Monthly Income</a>
-            <button class="v3-btn v3-btn-sm" type="button" @onclick="PrintAsync">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
-                Print this view
-            </button>
         </div>
     </header>
 
@@ -94,12 +89,25 @@
                                 {
                                     @foreach (var cell in row.Months)
                                     {
-                                        <td class="mi-num">@Cell(cell.Total)</td>
+                                        <td class="mi-num">@Cell(cell.Total)@if (cell.IsAdjusted) { <span class="mi-adj no-print" title="Official amount adjusted" role="img" aria-label="Official amount adjusted"></span> }</td>
                                     }
                                 }
                                 else
                                 {
-                                    <td class="mi-num">@Cell(row.Months[_data.Month!.Value - 1].Total)</td>
+                                    var monthCell = row.Months[_data.Month!.Value - 1];
+                                    <td class="mi-num">
+                                        @if (official)
+                                        {
+                                            <AuthorizeView Roles="SuperAdmin">
+                                                <Authorized>
+                                                    <button type="button" class="mi-adjust no-print" aria-label="@($"Adjust {row.Label}")" @onclick="() => OpenAdjust(row, monthCell)">
+                                                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
+                                                    </button>
+                                                </Authorized>
+                                            </AuthorizeView>
+                                        }
+                                        @Cell(monthCell.Total)@if (monthCell.IsAdjusted) { <span class="mi-adj no-print" title="Official amount adjusted" role="img" aria-label="Official amount adjusted"></span> }
+                                    </td>
                                     @if (_split)
                                     {
                                         <td class="mi-num mi-recon-col">@Cell(row.Months[_data.Month!.Value - 1].Legacy)</td>
@@ -107,7 +115,7 @@
                                     }
                                 }
                                 <td class="mi-num mi-ytd">@Cell(Through(row.Months))</td>
-                                <td class="mi-num mi-pct">@(row.Attainment is { } a ? a.ToString("P2", CultureInfo.InvariantCulture) : "—")</td>
+                                <td class="mi-num mi-pct">@(row.Attainment is { } a ? a.ToString("N2", CultureInfo.InvariantCulture) + "%" : "—")</td>
                             </tr>
                         }
                         <tr class="mi-subtotal">
@@ -172,6 +180,12 @@
             </details>
         }
     }
+
+    @if (_adjust is { } target && _adjustCell is { } adjustCell && _data is { Month: { } adjustMonth })
+    {
+        <ReportAdjustmentDrawer Show="true" Year="Year" Month="adjustMonth" RowKey="@target.Key" RowLabel="@target.Label" Cell="adjustCell"
+                                OnClose="CloseAdjust" OnSaved="ReloadAsync" />
+    }
 </section>
 
 @code {
@@ -233,5 +247,17 @@
 
     private static string Amount(decimal amount) => amount.ToString("N2", CultureInfo.InvariantCulture);
 
-    private async Task PrintAsync() => await JS.InvokeVoidAsync("print");
+
+    // The Head's audited correction of one official cell; reloads the statement from the server once it is saved.
+    private OfficialMonthlyIncomeRowDto? _adjust;
+    private MonthlyIncomeCellDto? _adjustCell;
+
+    private void OpenAdjust(OfficialMonthlyIncomeRowDto row, MonthlyIncomeCellDto cell) { _adjust = row; _adjustCell = cell; }
+    private void CloseAdjust() { _adjust = null; _adjustCell = null; }
+
+    private async Task ReloadAsync()
+    {
+        _loadedYear = 0;
+        await OnParametersSetAsync();
+    }
 }

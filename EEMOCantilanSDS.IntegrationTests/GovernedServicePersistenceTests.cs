@@ -103,6 +103,20 @@ public sealed class GovernedServicePersistenceTests(PostgresFixture db)
             ctx.Add(VehicleClassRate.Create(a.Id, jeepney.Id, new DateOnly(2026, 1, 1), 20m, "head"));
             await ctx.SaveChangesAsync();
         }
+        await using (var ctx = db.CreateContext(a.Id))
+        {
+            ctx.Add(VehicleClassRate.Create(a.Id, jeepney.Id, new DateOnly(2026, 2, 1), 40m, "head"));
+            await ctx.SaveChangesAsync();
+            var workflow = new VehicleClassWorkflow(ctx, new Caller(Guid.NewGuid(), a.Id, "SuperAdmin"), new FixedTenant(a.Id));
+            var row = Assert.Single((await workflow.GetAsync()).Value!);
+            Assert.Equal(new[] { 40m, 20m }, row.History!.Select(r => r.Amount));
+            Assert.All(row.History!, r => Assert.NotEqual(Guid.Empty, r.RateId));
+            Assert.Equal(20m, VehicleClassRate.Resolve(await ctx.VehicleClassRates.ToListAsync(), new DateOnly(2026, 1, 5))!.Amount);
+            Assert.True((await workflow.SetActiveAsync(jeepney.Id, false)).IsSuccess);
+            var retired = Assert.Single((await workflow.GetAsync()).Value!);
+            Assert.False(retired.IsActive);
+            Assert.Equal(2, retired.History!.Count);
+        }
         // The same code twice in one tenant is refused; another tenant may use it.
         await using (var ctx = db.CreateContext(a.Id))
         {
@@ -195,6 +209,45 @@ public sealed class GovernedServicePersistenceTests(PostgresFixture db)
     private static GovernedServicePostRequest Request(Fixture f, Guid? operationId = null) => new(
         1, operationId ?? Guid.NewGuid(), CollectorOperationCodes.MarketFees, PhilippineTime.Today, 30m, null,
         "Walk-up", "PG test", f.Document.Id, f.Document.DocumentNumber, DateTime.UtcNow.AddMinutes(-1));
+
+    [SkippableFact]
+    public async Task PreSrcReplay_IgnoresOnlyObsoleteSerialFacts_AndRefusesChangedFinancialIntent()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var f = await SeedPostableAsync();
+        var workflow = CollectorWorkflow(f, out var ctx);
+        await using (ctx)
+        {
+            var request = Request(f);
+            var posted = await workflow.PostMobileAsync(request);
+            Assert.True(posted.IsSuccess, posted.Error);
+            var original = await ctx.PostingOperations.SingleAsync();
+            var historical = System.Text.Json.Nodes.JsonNode.Parse(original.NormalizedIntent)!.AsObject();
+            historical["accountableDocumentId"] = f.Document.Id.ToString("D");
+            historical["documentNumber"] = f.Document.DocumentNumber;
+            historical["issuedAtUtc"] = request.IssuedAtUtc!.Value.ToUniversalTime().ToString("O");
+            // Reconstruct the repository's pre-SRC intent shape in test data only.
+            var old = PostingOperation.Record(f.Tenant.Id, request.ClientOperationId, original.IntentVersion,
+                historical.ToJsonString(), original.Origin, original.ActorId, original.Status,
+                original.OutcomeCode, original.OutcomeDetails, original.CollectionId, f.Document.Id, original.RecordedAtUtc);
+            ctx.PostingOperations.Remove(original);
+            await ctx.SaveChangesAsync();
+            ctx.PostingOperations.Add(old);
+            await ctx.SaveChangesAsync();
+            Assert.Equal(posted.Value!.ReferenceCode, (await workflow.PostMobileAsync(request with
+                { AccountableDocumentId = null, DocumentNumber = null, IssuedAtUtc = null })).Value!.ReferenceCode);
+            foreach (var changed in new[]
+            {
+                request with { FeeOptionId = Guid.NewGuid() },
+                request with { OperationCode = CollectorOperationCodes.LandingBerthing },
+                request with { ReceivedAmount = 31m },
+                request with { PayerName = "Another payer" },
+                request with { BusinessDate = request.BusinessDate.AddDays(-1) }
+            }) Assert.Equal(ResultStatus.Conflict, (await workflow.PostMobileAsync(changed)).Status);
+            Assert.Single(await ctx.Collections.ToListAsync());
+        }
+    }
 
     [SkippableFact]
     public async Task GovernedLine_IsAcceptedByTheWidenedSourceConstraint_AndConsumesNoPhysicalDocument()

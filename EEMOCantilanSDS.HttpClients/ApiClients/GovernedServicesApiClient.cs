@@ -7,6 +7,8 @@ namespace EEMOCantilanSDS.HttpClients.ApiClients;
 
 public sealed class GovernedServicesApiClient(HttpClient http) : HandleResponse(http), IGovernedServicesApiClient
 {
+    public Task<Result<TransportationCurrentActivityDto>> GetTransportationCurrentAsync(DateOnly from, DateOnly to) =>
+        GetAsync<TransportationCurrentActivityDto>($"api/governed-services/transportation/current?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}");
     public Task<Result<IReadOnlyList<GovernedServiceDefinitionDto>>> GetDefinitionsAsync() =>
         GetAsync<IReadOnlyList<GovernedServiceDefinitionDto>>("api/governed-services");
 
@@ -20,6 +22,9 @@ public sealed class GovernedServicesApiClient(HttpClient http) : HandleResponse(
 
     public Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> GetFeeOptionsAsync(string operationCode) =>
         GetAsync<IReadOnlyList<GovernedServiceFeeOptionDto>>($"api/governed-services/{Uri.EscapeDataString(operationCode)}/fee-options");
+
+    public Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> GetFeeOptionsAsync(string operationCode, bool activeOnly) =>
+        GetAsync<IReadOnlyList<GovernedServiceFeeOptionDto>>($"api/governed-services/{Uri.EscapeDataString(operationCode)}/fee-options?activeOnly={activeOnly.ToString().ToLowerInvariant()}");
 
     public Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> AddFeeOptionAsync(string operationCode, AddFeeOptionRequest request) =>
         PostAsync<AddFeeOptionRequest, IReadOnlyList<GovernedServiceFeeOptionDto>>(

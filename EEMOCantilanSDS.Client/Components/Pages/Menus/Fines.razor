@@ -20,7 +20,7 @@
     <WorkspaceHeader Parent="Operations" Title="Fines">
         <Meta><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
         <Actions>
-            <a class="v3-btn" href="/collections/current">Current Collection</a>
+            <a class="v3-btn" href="/collections/activity">Collection Activity</a>
         </Actions>
     </WorkspaceHeader>
 
@@ -109,7 +109,7 @@
                             }
                             else
                             {
-                                <label class="v3-field"><span>Ceiling (₱, optional)</span><input type="number" min="0.01" step="0.01" @bind="_ceiling" /></label>
+                                <label class="v3-field"><span>Maximum per transaction (₱, optional)</span><input type="number" min="0.01" step="0.01" @bind="_ceiling" /></label>
                             }
                         </div>
                         <label class="fn-check"><input type="checkbox" @bind="_active" /> Active for new fines</label>
@@ -196,8 +196,8 @@
             </table>
         </div>
         <p class="v3-panel-note">
-            A fine is added to an Official Receipt in <a href="/collections/current">Current Collection</a>, beside the rent or ECF
-            item it relates to. This register reads the posted lines; it records nothing.
+            A fine is collected on an Official Receipt, beside the rent or ECF
+            item it relates to. This register reads the posted lines (see <a href="/collections/activity">Collection Activity</a>); it records nothing.
         </p>
     </section>
 </div>

@@ -104,17 +104,20 @@ The Platform Operator remains outside this interface architecture in the separat
 
 ## 6. Target Web workspace architecture
 
-**TARGET ARCHITECTURE:** the released Web Office workspaces are:
+**TARGET ARCHITECTURE:** the Web Office workspaces are:
 
 1. Overview
 2. Operations
 3. Collections
-4. Payors & Accounts
+4. Spaces & Occupants
 5. Monitoring
-6. Reports
-7. Administration
+6. Accountable Forms
+7. Reports
+8. Administration
 
-**FUTURE CAPABILITY:** Accountable Forms has a reserved target position between Monitoring and Reports but remains hidden until a functional capability is released.
+The former target **Payors & Accounts / Business Payors** workspace is retired by ADR-007 / IA-068. Source-specific registries remain under the operation that owns them, while unified New Collection searches across those sources.
+
+Accountable Forms is a bounded active workspace; its exact available functions follow the current release state rather than this historical IA outline.
 
 These workspaces describe **capability ownership and user responsibility**. They do not require the global sidebar to reproduce every workspace subdivision as permanent group labels. The approved global sidebar is a curated set of real, high-frequency destinations; contextual and secondary destinations remain inside their owning workspace. See `../v2/STALLTRACK_V2_MASTER_SPECIFICATION.md`, section 8.
 
@@ -126,8 +129,8 @@ These workspaces describe **capability ownership and user responsibility**. They
 |---|---|---|
 | Overview | Portfolio status, today's activity, attention summaries, recent/relevant facilities | Full reports, configuration, record-changing queues |
 | Operations | Facility selection and source-domain work | Cross-facility financial reporting or system configuration |
-| Collections | Recorded collection activity, allowed recording/correction work, online-payment operations | Obligation calculation, future remittance without approval, provider credentials |
-| Payors & Accounts | Canonical browse/detail for payor, space, occupancy/term, obligations, collections, and ended accounts | Login-account administration |
+| Collections | Recorded collection activity, allowed recording/correction work, online-payment operations, and unified source-native New Collection | Obligation calculation, identity inference, provider credentials |
+| Spaces & Occupants | Permanent-space and occupancy registry/detail for facilities that actually use spaces/stalls | Generic cross-operation Payor master data or Fish/Meat registration |
 | Monitoring | Delinquency, exceptions, expiring/expired occupancies, ended-occupancy balances, and follow-up | Financial classification or report generation as the primary purpose |
 | Reports | Read-only Receivables, Cash Revenue, Management, and Operational reporting | Mutable workflows |
 | Administration | Business configuration, people/access, office setup, system administration | Daily collection work |
@@ -147,14 +150,22 @@ StallTrack
 │   └── Facility status
 │
 ├── Operations
-│   └── Facilities
-│       ├── Facilities landing
-│       └── {Selected facility}
-│           ├── Overview
-│           ├── Work
-│           ├── Accounts / Participants [where applicable]
-│           ├── Activity
-│           └── Reports
+│   ├── Facilities
+│   │   ├── Facilities landing
+│   │   └── {Selected facility}
+│   │       ├── Overview
+│   │       ├── Work
+│   │       ├── Spaces / Participants [where applicable]
+│   │       ├── Activity
+│   │       └── Reports
+│   └── Source operations
+│       ├── Market services
+│       ├── Utilities
+│       ├── Space rental
+│       ├── Fish / Meat vendor registry
+│       ├── Income From Terminal
+│       ├── Transportation / Parking
+│       └── Other approved specialized/governed services
 │
 ├── Collections
 │   ├── Collection Activity
@@ -164,19 +175,17 @@ StallTrack
 │   │   └── Payment History
 │   └── Remittance & Reconciliation [future; requires renewed approval]
 │
-├── Payors & Accounts
-│   ├── Account Registry
-│   ├── Payors
-│   ├── Spaces & Occupancies
-│   ├── Ended Occupancies
-│   └── Account Detail [contextual]
+├── Spaces & Occupants
+│   ├── Current spaces / stalls
+│   ├── Occupancies / terms
+│   ├── Ended occupancies
+│   └── Occupancy detail [contextual]
 │       ├── Summary
 │       ├── Obligations
 │       ├── Collections
 │       ├── Occupancy / Contract
 │       ├── Follow-up
-│       ├── Activity
-│       └── Documents [future]
+│       └── Activity
 │
 ├── Monitoring
 │   ├── Follow-up Queue
@@ -185,7 +194,7 @@ StallTrack
 │   ├── Expiring / Expired Occupancies
 │   └── Follow-up History
 │
-├── Accountable Forms [future; hidden]
+├── Accountable Forms
 │   ├── Documents
 │   ├── Official Receipts
 │   ├── Cash Tickets
@@ -205,7 +214,7 @@ StallTrack
 │   ├── Management
 │   │   ├── Facility Performance
 │   │   ├── Revenue Trends
-│   │   └── Revenue Target Attainment [future]
+│   │   └── Revenue Target Attainment
 │   └── Operational
 │       ├── Facility Reports
 │       ├── Stallholder Registers
@@ -216,7 +225,7 @@ StallTrack
     │   ├── Facilities & Billing Policies
     │   ├── Revenue Classifications
     │   ├── Collection Channels
-    │   └── Revenue Targets [future]
+    │   └── Revenue Targets
     ├── People & Access
     │   ├── Administrators
     │   ├── Collectors
@@ -268,34 +277,45 @@ The shell standardizes context and placement. It does not own billing or collect
 
 | Operation | Shared context | Domain-owned work |
 |---|---|---|
-| NPM / daily stall | Overview, Spaces & Occupancies, Activity, Reports | Daily round, sections, catch-up days, closures/absence, contextual links to applicable utilities, fish-kilo fee, RentGoal/PureDays settlement. ECF/WCF remain separate EEMO Utility Operations rather than NPM-owned revenue types. |
+| NPM / daily stall | Overview, Spaces & Occupancies, Activity, Reports | Daily round, sections, catch-up days, closures/absence, contextual links to applicable utilities, RentGoal/PureDays settlement, and approved NPM Daily Collect All for today's daily charge only. Fish/Meat Vendor Fee and Weight & Measure are separate source operations, not NPM-owned. |
 | TCC/NCC/BBQ/ICE/custom monthly rental | Overview, Spaces & Occupancies, Activity, Reports | Monthly status, installment/full/partial collection under current production rules, OR evidence, history |
 | TPM / weekly market | Overview, Participants, Activity, Reports | Market-day calendar, vendor attendance, goods |
-| TRM / per trip | Overview, Transporters, Activity, Reports | Quick trip, registered transporter trip, route context |
+| Income From Terminal | Overview, Activity, Reports | CT direct aggregate entry for Comfort Room, Pull Pul Vans/Cargo Vans, and Tricycad; optional Cash Ticket count; vehicle-class-assisted entry where useful |
+| Transportation / Parking | Overview, Activity, Reports | CT direct amount received; no required vehicle-class/rate basis and no TRM synonym |
+| Fish / Meat Vendor | Registry, Activity, Reports | Independent annual/tax-year Fish-or-Meat registration, direct Vendor Fee collection, and registered-vendor eligibility for Weight & Measure |
 | SLH / per head | Overview, Activity, Reports | Client, animal lines, head count, package/add-on context, receipt grouping |
 
 Facility-specific navigation may omit inapplicable sections. Uniform empty tabs are not required.
 
-### Transportation rate evidence
+### Terminal vehicle-rate evidence
 
-Ordinance No. 12-2021 is available office reference evidence for the future TRM/transportation configuration model. The visible schedule records Public Utility Buses ₱30, Public Utility Baby Buses ₱30, Jeepneys ₱20, Vans ₱20, Multicabs ₱10, and Tricycles ₱5, with route/service context; it also describes Cash Ticket issuance for terminal-fee collection.
+The previously captured vehicle schedule remains useful **Terminal** configuration evidence, not Transportation/Parking policy.
 
-This evidence does not authorize retroactive classification. Historical `TrmTrip.Fee` remains the recorded financial truth. Future class/rate changes are effective-dated and prospective. Production configuration remains gated on confirming that Ordinance No. 12-2021 is still current or obtaining the superseding schedule.
+Prospective mapping:
+
+- Public Utility Bus, Public Utility Baby Bus, Jeepney, Van and Multicab → **PULL PUL VANS, CARGO VANS**;
+- Tricycle → **TRICYCAD**.
+
+The current office clarification also permits direct aggregate Terminal totals, so vehicle class/rate detail is optional for that aggregate path.
+
+This evidence does not authorize retroactive reclassification. Historical `TrmTrip.Fee` and canonical Transportation records remain historical truth in their existing source/classification. Any cutover from legacy TRM/Transportation assumptions to the separated Terminal and Transportation/Parking model must be explicit, prospective and reconciliation-safe.
 
 ### Facility reports
 
 A facility-context Reports entry and a global Reports entry may open the same report definition with different preselected scope. They must use the same source and state the selected facility, period, as-of date, and basis.
 
-## 9. Account, payor, occupancy, and space model
+## 9. Source identity, occupancy, and space model
 
-The interface must not force one entity to answer every question.
+The interface must not force one entity to answer every question, and it must not reintroduce a universal Business Payor master after ADR-007.
 
 | Question | Interface object |
 |---|---|
 | What physical unit is this? | Space; use Stall where that is the official facility term |
 | Who holds it now or held it for a period? | Occupancy / Term |
-| Who is responsible for or making payment? | Payor |
-| What is owed, collected, credited, and outstanding for this relationship? | Account |
+| Which registered Fish/Meat business is this? | Fish/Meat Vendor Registration |
+| Which source record establishes collection eligibility? | Typed source identity owned by that operation |
+| What payer name/reference was recorded for a permitted one-off collection? | Frozen payer snapshot on the Collection |
+| What is owed, collected, credited, and outstanding for a relationship-backed source? | The owning source account/obligation view |
 | What happened under an earlier holder or term? | Earlier occupancy/account |
 
 ### Person terminology by operation
@@ -303,9 +323,9 @@ The interface must not force one entity to answer every question.
 Use relationship-specific language rather than treating `Vendor` as universal:
 
 - **Vendor** — temporary/TPM seller or participant where that term matches the operation;
+- **Fish/Meat Vendor** — independently registered Fish or Meat business/vendor; this is a source-owned registration identity, not an NPM occupant or Business Payor;
 - **Occupant** — permanent rental-space holder;
-- **Payor** — person or organization financially responsible for or making payment;
-- **Transporter** — TRM actor;
+- **Payer / Payor snapshot** — name/reference frozen on a posted collection when the operation allows direct/one-off collection; it does not create a cross-source identity;
 - **Client** — Slaughterhouse actor;
 - **Stallholder** — retained where it is established office/report terminology.
 
@@ -391,7 +411,7 @@ Monitoring may link into an account or operation to complete work. Its queues mu
 
 ### Read-only principle
 
-**TARGET ARCHITECTURE:** Reports are read-only analytical or document surfaces. Mutable workflows move to Operations, Collections, Payors & Accounts, Monitoring, or Administration.
+**TARGET ARCHITECTURE:** Reports are read-only analytical or document surfaces. Mutable workflows move to Operations, Collections, Spaces & Occupants, the owning source operation, Monitoring, or Administration.
 
 ### Report families
 
@@ -426,7 +446,7 @@ Print, PDF, and CSV are actions on a scoped report. They are not independent top
 - online payments awaiting OR;
 - market closure and collection exception work.
 
-The official report/document set remains an EEMO decision gate in the decision registry.
+The complete Official Monthly Income structure/signatories are now confirmed by IA-067. Other report/document families may still have separate official-status, retention or signatory decision gates.
 
 ### Office-reference report structures
 
@@ -434,16 +454,34 @@ Recent EEMO reference material provides business-structure evidence for future r
 
 - **Monthly Rental of Stall Occupants:** occupant, monthly rental, January–December collections, total payment, total yearly rental, balance, totals/subtotals, Prepared by, and Verified by.
 - **Lessee / Stall Monitoring:** actual occupant/lessee, stall or space number, actual monthly rental, whole-year rental, yearly collection, and balance.
-- **Monthly Income / Market Operations:** Annual Target, monthly actual columns, Total/YTD, Percentage, and revenue lines such as Market Fees, ECF, WCF, Tabo, Fish/Meat Vendor Fees, Landing/Berthing, Transportation Fees, Weight & Measure/Registration, Ice Plant, NPM/NCC/TCC rent, Arrears, Vegetable/Fruit Space Rental, Kanmanggay, Lot Rental, and Fines.
-  - 2026-09-27 Head clarification: these Market Income rows are sibling report lines; do not nest the listed rows inside Market Fees. Tabo uses OR. Vegetable/Fruit Space Rental uses OR for full/whole payment and CT for daily transactions. ECF uses OR with direct approved amount entry as the current office preference; WCF uses CT at the currently stated PHP 10 rate. ECF/WCF are broader EEMO Utility Operations, not globally owned by NPM.
-  - IA-047 is now reference-only where direct Head clarification exists. Use the confirmed full-payment OR / daily-transaction CT Vegetable rule and current ECF/WCF office direction. Transfer Large Cattle may still use the Philippine regulatory reference for optional transfer/certificate details while its exact Cantilan fee/form policy remains configurable. See [EEMO Head final clarifications](../evidence/2026-09-27_eemo_head_final_clarifications.md).
+- **Monthly Income / Market Operations:** Annual Target, monthly actual columns, Total/YTD and Percentage.
+  - **A. Income From Market** keeps the confirmed Market sibling lines and the documented Rent Income / Space Rental subsections.
+  - **B. Income From Terminal** contains **COMFORT ROOM**, **PULL PUL VANS, CARGO VANS**, **TRICYCAD**, then Total Income from Terminal.
+  - **C. Income from Slaughterhouse** is a separate top-level section.
+  - The statement closes with **OVERALL TOTAL MARKET COLLECTION**, Prepared by, and Certified Correct.
+  - Tabo uses OR. Vegetable/Fruit Space Rental uses OR for full/whole payment and CT for daily transactions. ECF uses OR; WCF uses CT. Transportation/Parking is separate from Terminal and uses direct-amount CT.
+  - Fish/Meat Vendor Fee is independent from NPM; Weight & Measure requires the independent registered Fish/Meat vendor source.
+  - See [2026-10-06 MEEDO office clarification](../evidence/2026-10-06_meedo_office_terminal_fish_vendor_monthly_income_clarification.md), IA-067 and IA-068.
 - **Accountable-form reporting:** includes collection/accountability and remittance/deposit sections; its existence does not make digital remittance a current StallTrack capability.
 
 **TARGET ARCHITECTURE:** preserve required business information and configurable report date/signatories while allowing a cleaner StallTrack-owned layout. Office evidence does not by itself prove that every referenced sheet is an official statutory output or that every revenue line already has a final production `RevenueClassification`.
 
-### Revenue-target evidence
+### Revenue-target and report-adjustment governance
 
-The office Monthly Income reference already uses **Annual Target → monthly actuals → Total/YTD → Percentage**, so target reporting has office precedent. Target setup remains future because the authoritative target source, approval/governance, revision rules, period, and classification/facility scope are still unresolved. Existing report columns do not authorize unrestricted target editing.
+The office Monthly Income reference uses **Annual Target → monthly actuals → Total/YTD → Percentage**.
+
+IA-066 now confirms a bounded governance model:
+
+- tenant/calendar-year/official-row target;
+- externally approved source amount;
+- Head-only entry/revision;
+- source/reference/actor/timestamp evidence;
+- immutable revision history;
+- no inferred growth formula.
+
+Head-only official report adjustments may revise a reported Monthly Income cell through an audited delta/revision while preserving the system basis. They never edit Collections, source obligations, remittance or collector position.
+
+Prepared by / Certified Correct name + position are configurable Office Settings under IA-067.
 
 ## 13. Administration and configuration architecture
 
@@ -453,7 +491,7 @@ Administration
 │   ├── Facilities & Billing Policies
 │   ├── Revenue Classifications
 │   ├── Collection Channels
-│   └── Revenue Targets [future]
+│   └── Revenue Targets
 ├── People & Access
 │   ├── Administrators
 │   ├── Collectors
@@ -495,13 +533,18 @@ Collector Mobile is a separate task architecture. It does not mirror the Web wor
 Collector Mobile
 ├── Collect
 │   ├── Resume current work
-│   ├── Assigned facilities
-│   └── Facility workflow
-│       ├── NPM daily collection
-│       ├── Monthly rental collection
-│       ├── TPM market-day attendance
-│       ├── TRM trip collection
-│       └── SLH slaughter collection
+│   ├── New Collection
+│   │   ├── Search source records
+│   │   ├── Relevant eligible items
+│   │   └── Direct/one-off fallback when server policy allows
+│   ├── Income From Market
+│   ├── Rent Income
+│   ├── Space Rental
+│   ├── Income From Terminal
+│   │   ├── Comfort Room
+│   │   ├── Pull Pul Vans, Cargo Vans
+│   │   └── Tricycad
+│   └── Income From Slaughterhouse
 ├── Activity
 │   ├── Today
 │   ├── History
@@ -511,11 +554,11 @@ Collector Mobile
 │       └── Rejected / action required
 ├── Summary
 │   ├── By period
-│   ├── By payor / participant
-│   └── Assigned facilities
+│   ├── By source / participant
+│   └── Assigned operations
 └── Me
     ├── Profile
-    ├── Assigned facilities
+    ├── Assigned operations
     ├── App settings
     ├── App update
     └── Sign out
@@ -524,12 +567,16 @@ Collector Mobile
 ### Collect
 
 - Display the server-issued business date when available.
-- Put Resume Current Work before the assigned facility list when a safe resume context exists.
-- Emphasize assigned and available facilities.
-- Place assigned but unavailable/coming-soon facilities in a secondary informational area.
-- Remove unassigned facilities from routine field navigation.
-- Preserve routing by billing archetype and all specialized capture flows.
-- Keep Collect selected in the bottom navigation while inside a facility workflow.
+- Put Resume Current Work first when a safe resume context exists.
+- Organize operations using the confirmed Monthly Income families.
+- New Collection searches **source-native records** rather than Business Payors; the result must state its source context.
+- Show only server-confirmed eligible operations for the chosen source record.
+- Registered Fish/Meat vendors may expose Vendor Fee and Weight & Measure; Weight & Measure never accepts an unregistered free-text vendor.
+- If no source relationship exists, offer only direct/one-off operations whose policy permits payer snapshot text.
+- Transportation/Parking is direct amount CT; Terminal is separate and owns the vehicle-class-assisted collection path.
+- NPM Daily may provide **Collect All** for today's daily charge only. Unchecked stalls remain unpaid and each selected stall posts its own Collection/SRC.
+- Remove unassigned/unavailable operations from routine field navigation or place them in a clearly secondary state.
+- Keep Collect selected in the bottom navigation while inside collection work.
 
 ### Activity and Summary
 
@@ -566,7 +613,7 @@ Sync Center lives under Activity and is reachable from the global indicator. A q
 | Revenue Classification | Stable semantic classification of revenue | Does not determine facility, billing basis, or instrument by itself |
 | Space | Generic physical assignable unit | Use Stall where that is the official operational term |
 | Stall | A market stall/space | Do not use for transporter, slaughter owner, or every temporary participant |
-| Payor | Person or organization responsible for or making payment | May be absent for appropriate future transactional Cash Ticket collections |
+| Payer snapshot | Name/reference recorded on a specific Collection when the source permits it | Not a cross-source master identity and never enough to infer eligibility |
 | Occupant | Person actually occupying a space | May differ from contract name or payor |
 | Occupancy / Term | Period in which a party holds a space and answers for that period's liability | Current and earlier terms remain separate |
 | Account | Interface view of one occupancy/term and its financial relationship | Not an administrator login account after namespace migration |
@@ -587,7 +634,7 @@ Sync Center lives under Activity and is reachable from the global indicator. A q
 | Collector | Assigned field collection user | Distinct from payor and office administrator |
 | Remittance | Handoff/reconciliation of collected money | No current complete workflow; not a Collection |
 | Collection Efficiency | Collected against eligible obligation for matching scope | Not Revenue Target Attainment |
-| Revenue Target Attainment | Classified actual revenue against an approved target | Future; governance unresolved |
+| Revenue Target Attainment | Classified official actual revenue against an approved annual target | Head-governed target revisions under IA-066; not Collection Efficiency |
 | Report | Read-only result with explicit scope, period, basis, and source | Mutable work does not belong under Reports |
 
 Facility display names, office identity, section labels, rates, series, and market day must be tenant-resolved. Codes may accompany names according to the unresolved facility-name UX decision.
@@ -717,9 +764,10 @@ Principles:
 | Cash Ticket books/series | Accountable Forms > Cash Tickets > Inventory & Custody | Future; detailed custody policy unresolved |
 | Remittance reconciliation | Accountable Forms > Remittance & Liquidation (IA-052) | Whole-collection coverage, exactly once; no Treasury approval workflow |
 | Revenue-classification reporting | Reports > Cash Revenue > Revenue Classification | Future production report; current classifications/setup do not make it authoritative |
-| Annual revenue targets | Reports > Management > Target Attainment; setup under Administration | Future; governance/period/revision policy unresolved |
-| WCF dual entry | Relevant facility operation on Web and Mobile | Future; one canonical backend flow, offline-safe Mobile path |
-| Transportation classifications/rates | Administration > Business Configuration; used by TRM operation | Future; vehicle catalog/rates unresolved |
+| Annual revenue targets | Reports > Management > Target Attainment; setup under Administration | IA-066 confirms Head-only annual target revisions with source/reference audit evidence |
+| WCF collection | Relevant utility operation on Web/Mobile according to the current release contract | One canonical financial source; direct/prepared rules stay server-owned |
+| Terminal vehicle classes/rates | Administration > Business Configuration; used by Income From Terminal assisted entry | Prospectively mapped to Pull Pul Vans/Cargo Vans or Tricycad; aggregate Terminal entry does not require class/rate detail |
+| Transportation / Parking | Operations > Market source; Mobile direct collection | CT direct amount; no Terminal/TRM dependency |
 | Additional facility types | Operations > Facilities | Add an archetype-specific Work surface without new permanent global navigation |
 
 ## 21. Explicit non-goals

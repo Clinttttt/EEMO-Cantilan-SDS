@@ -78,6 +78,7 @@ public class BulkImportStallholdersCommandHandlerTests
 
         Assert.True(result.IsSuccess, result.Error);
         Assert.Equal(2, result.Value!.CreatedCount);
+        Assert.All(result.Value.Results, row => Assert.NotNull(row.OccupancyId));
     }
 
     [Fact]

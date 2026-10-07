@@ -23,40 +23,68 @@ public static class CapabilityWording
 public enum WorkTarget { None, Facility, Operation }
 
 /// <summary>One row in Today's Work. <see cref="CanOpen"/> is true only for something that is ready to collect.</summary>
-public sealed record WorkItem(string Name, string Status, WorkTarget Target, bool CanOpen, string? FacilityCode = null, string? OperationCode = null);
+public sealed record WorkItem(string Name, string Status, WorkTarget Target, bool CanOpen, string? FacilityCode = null, string? OperationCode = null,
+    CollectionFamily? Family = null);
 
 public sealed record WorkSection(string Name, IReadOnlyList<WorkItem> Items);
 
-/// <summary>Groups already-authorized rows without deciding availability or routing.</summary>
+/// <summary>
+/// Groups already-authorized rows under the office's Monthly Income families, without deciding availability or routing. The
+/// placement comes from the shared official structure and revenue-source catalog, never from the old facility ownership.
+/// </summary>
 public static class WorkSections
 {
+    public const string Market = "Income from Market";
+    public const string Rent = "Rent Income (Stall Rental)";
+    public const string Space = "Space Rental";
+    public const string Terminal = "Income from Terminal";
+    public const string Slaughterhouse = "Income from Slaughterhouse";
+    public const string Other = "Other operations";
+
     public static IReadOnlyList<WorkSection> Group(IReadOnlyList<WorkItem> available) =>
-        new[] { "Rent & space", "Market & vendor", "Utilities", "Transport & services", "Other operations" }
+        new[] { Market, Rent, Space, Terminal, Slaughterhouse, Other }
             .Select(name => new WorkSection(name, available.Where(item => Section(item) == name).ToList()))
             .Where(section => section.Items.Count > 0).ToList();
 
     private static string Section(WorkItem item)
     {
+        // The server states an operation's official family; a facility, which has none, is placed by the official structure below.
+        if (item.Family is { } stated) return Family(stated);
         if (Enum.TryParse<EEMOCantilanSDS.Domain.Enums.FacilityCode>(item.FacilityCode, out var facility))
         {
-            if (facility is EEMOCantilanSDS.Domain.Enums.FacilityCode.TCC or EEMOCantilanSDS.Domain.Enums.FacilityCode.NCC
-                or EEMOCantilanSDS.Domain.Enums.FacilityCode.BBQ or EEMOCantilanSDS.Domain.Enums.FacilityCode.ICE || (int)facility >= 101)
-                return "Rent & space";
-            if (facility is EEMOCantilanSDS.Domain.Enums.FacilityCode.NPM or EEMOCantilanSDS.Domain.Enums.FacilityCode.TPM)
-                return "Market & vendor";
-            if (facility is EEMOCantilanSDS.Domain.Enums.FacilityCode.TRM or EEMOCantilanSDS.Domain.Enums.FacilityCode.SLH)
-                return "Transport & services";
+            // A rent facility is placed by the official statement's own row for it (NPM, NCC, TCC, BBQ).
+            var row = OfficialMonthlyIncomeStructure.Rows.FirstOrDefault(r => r.Facility == facility);
+            if (row is not null) return Family(RevenueSourceCatalog.For(row.Key).GroupKey);
+            if (facility == EEMOCantilanSDS.Domain.Enums.FacilityCode.ICE) return Family(RevenueSourceCatalog.For("ICE_PLANT").GroupKey);
+            if (facility == EEMOCantilanSDS.Domain.Enums.FacilityCode.TPM) return Family(RevenueSourceCatalog.For("TABO").GroupKey);
+            if (facility == EEMOCantilanSDS.Domain.Enums.FacilityCode.SLH) return Family(RevenueSourceCatalog.For("SLAUGHTERHOUSE").GroupKey);
+            if ((int)facility >= 101) return Rent;
+            return Other;
         }
-        return item.OperationCode switch
-        {
-            CollectorOperationCodes.Wcf or "ECF" => "Utilities",
-            "WEIGHT_AND_MEASURE" or "FISH_MEAT_VENDOR_FEE" => "Market & vendor",
-            CollectorOperationCodes.MarketFees or CollectorOperationCodes.VegetableFruitSpaceRental or CollectorOperationCodes.Tabo => "Market & vendor",
-            CollectorOperationCodes.Transportation or CollectorOperationCodes.LandingBerthing
-                or CollectorOperationCodes.TransferLargeCattle or CollectorOperationCodes.Slaughterhouse => "Transport & services",
-            _ => "Other operations"
-        };
+        // The operation permission and the official row share a name except Transportation / Parking.
+        if (item.OperationCode == CollectorOperationCodes.Terminal) return Terminal;
+        var key = item.OperationCode == CollectorOperationCodes.Transportation ? "TRANSPORTATION_PARKING" : item.OperationCode;
+        return key is not null && RevenueSourceCatalog.Knows(key) ? Family(RevenueSourceCatalog.For(key).GroupKey) : Other;
     }
+
+    private static string Family(CollectionFamily family) => family switch
+    {
+        CollectionFamily.Rent => Rent,
+        CollectionFamily.Space => Space,
+        CollectionFamily.Terminal => Terminal,
+        CollectionFamily.Slaughterhouse => Slaughterhouse,
+        _ => Market
+    };
+
+    private static string Family(string groupKey) => groupKey switch
+    {
+        RevenueSourceCatalog.MarketGroup => Market,
+        RevenueSourceCatalog.RentGroup => Rent,
+        RevenueSourceCatalog.SpaceGroup => Space,
+        RevenueSourceCatalog.TerminalGroup => Terminal,
+        RevenueSourceCatalog.SlaughterhouseGroup => Slaughterhouse,
+        _ => Other
+    };
 }
 
 /// <summary>Something that needs the collector's attention: queued, failed or review-required work, or a missing form.</summary>
@@ -91,6 +119,9 @@ public static class TodaysWorkBuilder
 
         foreach (var f in facilities.Where(x => x.IsAssigned))
         {
+            // IA-067: current Terminal work comes from its own server capability. TRM remains historical evidence.
+            if (f.Code == EEMOCantilanSDS.Domain.Enums.FacilityCode.TRM
+                || f.Archetype == EEMOCantilanSDS.Domain.Enums.BillingArchetype.PerTrip) continue;
             if (f.IsAvailable)
                 available.Add(new WorkItem(f.Name, ReadyLabel, WorkTarget.Facility, true, FacilityCode: f.Code.ToString()));
             else
@@ -105,8 +136,9 @@ public static class TodaysWorkBuilder
             {
                 // WCF is a utility operation (IA-053) with its own collection page, so an operation-only collector can open it;
                 // a collector who also holds the market can still collect it from the stall sheet.
-                var opens = op.OperationCode == CollectorOperationCodes.Wcf || GovernedServiceCatalog.Find(op.OperationCode) is not null;
-                available.Add(new WorkItem(op.Name, ReadyLabel, opens ? WorkTarget.Operation : WorkTarget.None, opens, OperationCode: op.OperationCode));
+                var opens = op.OperationCode is CollectorOperationCodes.Wcf or CollectorOperationCodes.Terminal or CollectorOperationCodes.FishMeatVendorFee or CollectorOperationCodes.WeightAndMeasure
+                    || GovernedServiceCatalog.Find(op.OperationCode) is not null;
+                available.Add(new WorkItem(op.Name, ReadyLabel, opens ? WorkTarget.Operation : WorkTarget.None, opens, OperationCode: op.OperationCode, Family: op.Family));
             }
             else if (op.Status == CollectorOperationCapabilityStatus.NeedsDocument)
                 attention.Add(new AttentionItem($"{op.Name}: {CapabilityWording.For(op.Status)}", 1, "form"));
