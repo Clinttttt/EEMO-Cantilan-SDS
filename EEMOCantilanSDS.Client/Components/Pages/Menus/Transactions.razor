@@ -62,8 +62,13 @@
                 <FhSelect Caption="Source" Value="@_source" Options="@SourceOptions" ValueChanged="@(v => _source = v)" />
             </div>
             <div class="txn-search">
-                <input type="search" class="txn-search-input" placeholder="Search SRC or payer" aria-label="Search by SRC, document or payer" autocomplete="off"
+                <svg class="txn-search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input type="text" class="txn-search-input" placeholder="Search SRC or payer" aria-label="Search by SRC, document or payer" autocomplete="off"
                        value="@_search" @oninput="OnSearchInputAsync" />
+                @if (!string.IsNullOrEmpty(_search))
+                {
+                    <button type="button" class="txn-search-clear" aria-label="Clear search" @onclick="ClearSearch">×</button>
+                }
             </div>
         </div>
 
@@ -335,6 +340,8 @@
     // that Collection's business date. Partial text only filters the loaded day.
     private static readonly System.Text.RegularExpressions.Regex SrcPattern = new("^SRC-[0-9]{4}-[0-9]{6,}$",
         System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    private void ClearSearch() => _search = string.Empty;
 
     private async Task OnSearchInputAsync(ChangeEventArgs e)
     {

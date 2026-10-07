@@ -76,6 +76,30 @@ public sealed class CollectionActivityPageTests : TestContext
     }
 
     [Fact]
+    public void TheScopeTabsSourceAndSearchShareOneControlRow_WithTheDayNavigatorApart_AndTheSearchHasAnIconAndAClear()
+    {
+        var page = RenderPage();
+        page.WaitForAssertion(() => Assert.NotNull(page.Find(".txn-filters")), TimeSpan.FromSeconds(5));
+
+        var row = page.Find(".txn-filters");
+        Assert.NotNull(row.QuerySelector(".txn-segment"));                                          // category tabs
+        Assert.NotNull(row.QuerySelector(".txn-source .fh-dd-trigger"));                            // Source
+        Assert.NotNull(row.QuerySelector(".txn-search"));                                           // search, in the same row rather than on a line of its own
+        Assert.Null(row.QuerySelector(".txn-daynav"));                                              // the temporal control is its own compact row
+        Assert.NotNull(page.Find(".txn-nav .txn-daynav"));
+        Assert.NotNull(page.Find(".txn-search .txn-search-icon"));
+        Assert.Equal("Search SRC or payer", page.Find("input.txn-search-input").GetAttribute("placeholder"));
+        Assert.Empty(page.FindAll(".txn-search-clear"));                                            // nothing to clear yet
+
+        page.Find("input.txn-search-input").Input("juan");
+
+        var clear = page.Find(".txn-search-clear");
+        Assert.Equal("Clear search", clear.GetAttribute("aria-label"));
+        clear.Click();
+        Assert.Empty(page.FindAll(".txn-search-clear"));
+    }
+
+    [Fact]
     public void ACompleteSrcNotOnTheLoadedDay_IsLookedUpOnTheServer_AndThePageJumpsToItsDay()
     {
         var other = PhilippineTime.Today.AddDays(-9);
