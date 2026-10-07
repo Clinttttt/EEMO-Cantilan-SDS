@@ -29,6 +29,20 @@
     margin-left: auto;
 }
 
+/* Only the Overview's Sources menu is widened; the shared selector keeps its existing sizing elsewhere. */
+.rsp-filter-overview ::deep .fh-dd-menu {
+    width: max-content;
+    min-width: max(100%, min(16rem, calc(100vw - 2rem)));
+    max-width: min(20rem, calc(100vw - 2rem));
+    box-sizing: border-box;
+}
+
+.rsp-filter-overview ::deep .fh-dd-menu .fh-dd-name {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
 .rsp-title {
     margin: 0;
     font-size: 1.0625rem;

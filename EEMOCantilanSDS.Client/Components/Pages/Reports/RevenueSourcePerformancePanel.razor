@@ -23,8 +23,8 @@
                 <div class="rsp-cov" role="status">@CoverageText(coverage)</div>
             }
         </div>
-        <div class="rsp-filter no-print">
-            <FhSelect Caption="Sources" Value="@_group" Options="@GroupOptions" ValueChanged="@(v => _group = v)" />
+        <div class="rsp-filter no-print @(OverviewMode ? "rsp-filter-overview" : "")">
+            <FhSelect Caption="Sources" Value="@_group" Options="@GroupOptions" ValueChanged="@(v => _group = v)" RightAlign="@OverviewMode" />
         </div>
     </div>
 

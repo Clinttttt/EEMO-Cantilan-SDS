@@ -392,7 +392,8 @@ public sealed class OfficialReportPanelsTests : TestContext
                 with { CollectorCount = 2, DocumentCount = 3 },
         };
         var dto = new RevenueSourcePerformanceDto(2026, 10,
-            [new RevenueSourceGroupDto("MARKET", "Income from Market", 240m)], rows, 240m, [], DateTime.UtcNow);
+            [new RevenueSourceGroupDto("MARKET", "Income from Market", 240m), new RevenueSourceGroupDto("RENT", "Rent / facility operations", 0m)],
+            rows, 240m, [], DateTime.UtcNow);
         _reports.Setup(x => x.GetSourcePerformanceAsync(2026, 10)).ReturnsAsync(Result<RevenueSourcePerformanceDto>.Success(dto));
 
         var cut = RenderComponent<RevenueSourcePerformancePanel>(p => p.Add(x => x.Year, 2026).Add(x => x.Month, 10).Add(x => x.OverviewMode, true));
@@ -426,6 +427,12 @@ public sealed class OfficialReportPanelsTests : TestContext
             Assert.Contains("₱240", cut.Find("tr.rsp-group").TextContent);
             Assert.Contains("₱240", cut.Find("tr.rsp-total").TextContent);
         }, Timeout);
+
+        cut.Find(".rsp-filter-overview .fh-dd-trigger").Click();
+        var sourceMenu = cut.Find(".rsp-filter-overview .fh-dd-menu");
+        Assert.Contains("Non-facility operations", sourceMenu.TextContent);
+        Assert.Contains("Rent / facility operations", sourceMenu.TextContent);
+        Assert.Contains("fh-dd-menu-right", sourceMenu.ClassName);
     }
 
     [Fact]
