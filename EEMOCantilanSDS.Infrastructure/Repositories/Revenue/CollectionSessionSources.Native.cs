@@ -48,7 +48,7 @@ public sealed partial class CollectionSessionSources
                     account.Kind == ObligationKind.KanmanggaySpaceRental ? CollectorOperationCodes.KanmanggaySpaceRental : CollectorOperationCodes.FiestaArawLotRental));
         }
         if (assigned.Contains(CollectorOperationCodes.FishMeatVendorFee) || assigned.Contains(CollectorOperationCodes.WeightAndMeasure))
-            results.AddRange(await db.FishMeatVendorRegistrations.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.TaxYear == today.Year && x.DisplayName.ToLower().Contains(term))
+            results.AddRange(await db.FishMeatVendorRegistrations.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.TaxYear == today.Year && x.Status == VendorRegistrationStatus.Active && x.DisplayName.ToLower().Contains(term))
                 .OrderBy(x => x.DisplayName).ThenBy(x => x.Id).Take(50).Select(x => new CollectionSourceSearchResult(new(SourceIdentityKind.FishMeatVendorRegistration, x.Id),
                     x.DisplayName, x.VendorType.ToString() + " · " + x.TaxYear, CollectorOperationCodes.FishMeatVendorFee, x.TaxYear, x.VendorType)).ToListAsync(ct));
         return results.OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Identity.Kind).ThenBy(x => x.Identity.Id).Take(50).ToArray();
@@ -70,7 +70,7 @@ public sealed partial class CollectionSessionSources
         if (identity?.Kind == SourceIdentityKind.FishMeatVendorRegistration)
         {
             var vendor = await db.FishMeatVendorRegistrations.AsNoTracking().SingleOrDefaultAsync(x => x.MunicipalityId == Tenant && x.Id == identity.Id && x.TaxYear == date.Year, ct);
-            if (vendor is not null)
+            if (vendor is { Status: VendorRegistrationStatus.Active })
             {
                 await AddOffice(CollectorOperationCodes.FishMeatVendorFee, new(CollectorOperationCodes.FishMeatVendorFee, vendor.Id), "Fish / Meat Vendor Fee", vendor.DisplayName, CollectionSessionAmountRule.DirectAmount, CollectionFamily.Market);
                 await AddOffice(CollectorOperationCodes.WeightAndMeasure, new(CollectorOperationCodes.WeightAndMeasure, vendor.Id, Kilograms: 1m), "Weight & Measure", vendor.VendorType.ToString(), CollectionSessionAmountRule.QuantityRate, CollectionFamily.Market);

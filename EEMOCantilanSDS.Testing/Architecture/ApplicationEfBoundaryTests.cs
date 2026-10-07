@@ -161,6 +161,9 @@ public class ApplicationEfBoundaryTests
         // Partial of the existing source-owned registry workflow: preview is read-only and save revalidates/inserts
         // domain registrations atomically with their existing operation identities. It never imports Collections.
         "OfficeCollectionWorkflow.Import.cs",
+        // Registry lifecycle commands share the existing source workflow/Serializable boundary; management totals
+        // delegate to its canonical correction-aware activity reader instead of defining a second money query.
+        "OfficeCollectionWorkflow.Management.cs",
 
         // The shared Composer posting transaction revalidates every participating source and atomically writes
         // the draft, Collection/lines/allocations, compatibility projections, accountable document, and durable
