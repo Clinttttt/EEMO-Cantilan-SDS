@@ -553,6 +553,8 @@
         border-radius: 0 !important;
         padding: 0 !important;
         box-shadow: none !important;
+        /* The screen's 900px floor exceeds one landscape sheet and otherwise emits a blank trailing page. */
+        min-height: 0 !important;
     }
 
     .lsh-section-label-row {

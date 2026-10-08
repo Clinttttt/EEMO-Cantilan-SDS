@@ -50,7 +50,7 @@
                 <div class="lsh-hero-stats">
                     <div class="lsh-hero-stat">
                         <div class="lsh-hero-val">@AllActiveStalls.Count()</div>
-                        <div class="lsh-hero-key">Total @(IsFacility("npm") ? "Stalls" : "Spaces")</div>
+                        <div class="lsh-hero-key">Total @HolderUnitPlural</div>
                     </div>
                     @if (IsFacility("npm"))
                     {
@@ -74,7 +74,7 @@
                 <div class="toolbar-left">
                     <div class="search-box">
                         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                        <input type="text" placeholder="@(IsFacility("npm") ? "Search name or stall no…" : "Search name or space no…")"
+                        <input type="text" placeholder="@($"Search name or {HolderUnit.ToLowerInvariant()} no…")"
                                @bind="SearchQuery" @bind:event="oninput" />
                         @if (!string.IsNullOrEmpty(SearchQuery))
                         {
@@ -253,8 +253,8 @@
                     <!-- For non-NPM facilities: Simple flat list without sections -->
                     <div class="lsh-section-block">
                         <div class="lsh-section-label-row">
-                            <span class="lsh-section-label">ALL STALLS</span>
-                            <span class="lsh-section-count">@FilteredNonNpmStalls.Count() stall@(FilteredNonNpmStalls.Count() != 1 ? "s" : "")</span>
+                            <span class="lsh-section-label">ALL @HolderUnitPlural.ToUpperInvariant()</span>
+                            <span class="lsh-section-count">@FilteredNonNpmStalls.Count() @HolderUnit.ToLowerInvariant()@(FilteredNonNpmStalls.Count() != 1 ? "s" : "")</span>
                         </div>
 
                         <div class="lsh-table-wrap"><table class="lsh-table">
@@ -326,7 +326,7 @@
                         <div class="lsh-grand-stats">
                             <div class="lsh-grand-stat">
                                 <div class="lsh-grand-val">@AllActiveStalls.Count()</div>
-                                <div class="lsh-grand-key">Active Stalls</div>
+                                <div class="lsh-grand-key">Active @HolderUnitPlural</div>
                             </div>
                             @if (IsPureDays)
                             {
@@ -356,7 +356,11 @@
     [Parameter]
     [SupplyParameterFromQuery]
     public string? Facility { get; set; }
-    private string HolderTitle => IsFacility("npm") ? "Stall Holder List" : "Space Holder List";
+    // Known stall-based facilities use the office's Stall terminology. ICE/custom retain their existing Space wording.
+    private bool IsStallRoster => IsFacility("npm") || IsFacility("ncc") || IsFacility("tcc") || IsFacility("bbq");
+    private string HolderUnit => IsStallRoster ? "Stall" : "Space";
+    private string HolderUnitPlural => HolderUnit + "s";
+    private string HolderTitle => $"{HolderUnit} Holder List";
 
     string SearchQuery = string.Empty;
     string ActiveSection = "All";
