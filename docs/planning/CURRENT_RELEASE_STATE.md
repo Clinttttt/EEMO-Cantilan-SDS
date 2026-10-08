@@ -1,5 +1,7 @@
 # StallTrack Current Release State
 
+Latest space-holder test/render evidence: [final workspace handoff](SPACE_HOLDER_WORKSPACE_HANDOFF_20261008.md). Its final counts and actual fixture-PDF checks supersede the initial follow-up evidence below; logged-in visual acceptance and integration remain pending.
+
 **Status:** Production release verified; newer local integration checkpoint accepted for continued development
 **As of:** 2026-10-08
 **Production code basis:** `master` at `db75418b68aa221cc5cd30a3bfa2af9799c2a5c6` (2026-10-05 release)

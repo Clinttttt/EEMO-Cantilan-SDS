@@ -1,5 +1,7 @@
 # Vegetable / Fruits workspace — 2026-10-08
 
+Latest holder-workspace verification: [final handoff](SPACE_HOLDER_WORKSPACE_HANDOFF_20261008.md). Final Web **770/0/0**, Unit **2,525/0/0**, Client Release and actual fixture-PDF checks passed; live visual acceptance and local integration remain pending. This supersedes initial follow-up validation counts/PDF limitations below.
+
 Status: implemented and automated validation passed; user visual acceptance pending. Not production deployed or integrated into the local integration branch yet.
 
 Physical checkout: `C:\dev\stalltrack\eemo`. Clean starting integration HEAD: `4b4be8f8`. Feature branch: `codex/vegetable-fruit-space-workspace`. Account/source authority commit: `f21431aa`. Workspace/Mobile presentation commit: `cfef4261`. No additional checkout was created.
