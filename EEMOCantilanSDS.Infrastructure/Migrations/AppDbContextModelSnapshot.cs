@@ -2861,11 +2861,11 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
 
                     b.ToTable("ObligationAccounts", null, t =>
                         {
-                            t.HasCheckConstraint("CK_ObligationAccounts_Kind", "\"Kind\" IN (1, 2, 3)");
+                            t.HasCheckConstraint("CK_ObligationAccounts_Kind", "\"Kind\" IN (1, 2, 3, 4)");
 
-                            t.HasCheckConstraint("CK_ObligationAccounts_Shape", "((\"Kind\" = 1 AND \"StallId\" IS NOT NULL AND \"Event\" IS NULL AND \"EventDate\" IS NULL) OR (\"Kind\" = 2 AND \"StallId\" IS NULL AND \"Event\" IS NULL AND \"EventDate\" IS NULL) OR (\"Kind\" = 3 AND \"StallId\" IS NULL AND \"Event\" IN (1, 2) AND \"EventDate\" IS NOT NULL))");
+                            t.HasCheckConstraint("CK_ObligationAccounts_Shape", "((\"Kind\" = 1 AND \"StallId\" IS NOT NULL AND \"Event\" IS NULL AND \"EventDate\" IS NULL) OR (\"Kind\" IN (2, 4) AND \"StallId\" IS NULL AND \"Event\" IS NULL AND \"EventDate\" IS NULL) OR (\"Kind\" = 3 AND \"StallId\" IS NULL AND \"Event\" IN (1, 2) AND \"EventDate\" IS NOT NULL))");
 
-                            t.HasCheckConstraint("CK_ObligationAccounts_SourceHolder", "\"PayorId\" IS NOT NULL OR (\"Kind\" IN (2, 3) AND \"ActualOccupant\" IS NOT NULL AND length(trim(\"ActualOccupant\")) > 0)");
+                            t.HasCheckConstraint("CK_ObligationAccounts_SourceHolder", "\"PayorId\" IS NOT NULL OR (\"Kind\" IN (2, 3, 4) AND \"ActualOccupant\" IS NOT NULL AND length(trim(\"ActualOccupant\")) > 0)");
 
                             t.HasCheckConstraint("CK_ObligationAccounts_Window", "\"ActiveTo\" IS NULL OR \"ActiveTo\" >= \"ActiveFrom\"");
                         });

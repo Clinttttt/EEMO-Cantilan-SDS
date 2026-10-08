@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Domain.Enums;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 
 namespace EEMOCantilanSDS.Application.Common.Revenue;
 
@@ -30,8 +31,7 @@ public static class CollectionSessionChoiceProjection
             case CollectionSessionItemKind.Obligation:
                 foreach (var source in d.ObligationSources ?? [])
                     if (source.CanAddToDraft && source.OutstandingAmount > 0m &&
-                        (source.Kind == ObligationKind.KanmanggaySpaceRental ? code == "KANMANGGAY_SPACE_RENTAL" :
-                         source.Kind == ObligationKind.FiestaArawLotRental ? code == "FIESTA_ARAW_LOT_RENTAL" : code == "FISH_MEAT_VENDOR_FEE"))
+                        code == (ObligationAccount.OperationCodeFor(source.Kind) ?? "FISH_MEAT_VENDOR_FEE"))
                         yield return new($"{code}|{source.AccountId:N}|{source.PeriodStart:yyyy-MM-dd}", operation.Kind.Value,
                             code, source.PayerName ?? source.SubjectLabel,
                             source.Event is { } rentalEvent ? $"{rentalEvent} · Lot {source.SubjectLabel} · {source.PeriodStart:MMM d, yyyy}" : $"{source.SubjectLabel} · {source.PeriodStart:MMM yyyy}",

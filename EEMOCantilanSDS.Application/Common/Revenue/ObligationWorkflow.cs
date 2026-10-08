@@ -27,6 +27,7 @@ public sealed class ObligationWorkflow(
     public Task<Result<IReadOnlyList<SpaceRentalOperationDto>>> GetSpaceOperationsAsync(CancellationToken ct = default) =>
         Run<IReadOnlyList<SpaceRentalOperationDto>>(_ => Task.FromResult(Result<IReadOnlyList<SpaceRentalOperationDto>>.Success([
             new(ObligationKind.KanmanggaySpaceRental, null, "Kanmanggay", true),
+            new(ObligationKind.VegetableFruitSpaceRental, null, "Vegetable / Fruits", true),
             new(ObligationKind.FiestaArawLotRental, LotRentalEvent.Fiesta, "Fiesta", false),
             new(ObligationKind.FiestaArawLotRental, LotRentalEvent.Araw, "Araw", false)])), ct);
 
@@ -138,11 +139,13 @@ public sealed class ObligationWorkflow(
             else if (payorId != Guid.Empty && !await db.Payors.AsNoTracking().AnyAsync(x => x.MunicipalityId == actor.TenantId && x.Id == payorId, ct))
                 return Result<ObligationAccountDto>.Failure("Choose an existing Business Payor.", ResultStatus.Invalid);
 
-            await using var transaction = request.Kind is ObligationKind.KanmanggaySpaceRental or ObligationKind.FiestaArawLotRental
+            if (request.Kind == ObligationKind.VegetableFruitSpaceRental && !string.IsNullOrWhiteSpace(request.SubjectLabel))
+                return Result<ObligationAccountDto>.Failure("Vegetable / Fruits space numbers are assigned by the server.", ResultStatus.Invalid);
+            await using var transaction = ObligationAccount.IsSpaceKind(request.Kind)
                 ? await db.BeginSpaceAccountTransactionAsync(actor.TenantId, ct)
                 : await db.BeginSerializableTransactionAsync(ct);
             var subject = request.SubjectLabel;
-            if (request.Kind is ObligationKind.KanmanggaySpaceRental or ObligationKind.FiestaArawLotRental)
+            if (ObligationAccount.IsSpaceKind(request.Kind))
             {
                 var numbering = await LoadSpaceNumberingAsync(actor.TenantId, ct);
                 if (string.IsNullOrWhiteSpace(subject)) subject = numbering.Next(request.Kind, request.Event, request.EventDate);
@@ -285,8 +288,10 @@ public sealed class ObligationWorkflow(
             if (input.PayorId == Guid.Empty && string.IsNullOrWhiteSpace(input.ActualOccupant)) { plan.Rows.Add(new(index + 1, SpaceHolderImportStatus.NeedsSourceHolder, "RequiresSourceHolder", "Confirm the source holder.", Facts: facts)); continue; }
             try
             {
-                if (input.Kind is not (ObligationKind.KanmanggaySpaceRental or ObligationKind.FiestaArawLotRental))
+                if (!ObligationAccount.IsSpaceKind(input.Kind))
                     throw new ArgumentException("Only space and event lot accounts can be imported here.");
+                if (input.Kind == ObligationKind.VegetableFruitSpaceRental && origin == SpaceNumberOrigin.Supplied)
+                    throw new ArgumentException("Vegetable / Fruits space numbers are assigned by the server.");
                 if (input.PayorId != Guid.Empty && !payors.ContainsKey(input.PayorId))
                 { plan.Rows.Add(new(index + 1, SpaceHolderImportStatus.Invalid, "InvalidPayor", "The selected Business Payor is not available.", Facts: facts)); continue; }
                 var start = input.Kind == ObligationKind.FiestaArawLotRental ? input.EventDate ?? default : input.ActiveFrom;

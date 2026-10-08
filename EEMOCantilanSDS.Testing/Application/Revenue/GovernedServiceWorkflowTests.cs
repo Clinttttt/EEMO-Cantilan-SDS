@@ -378,7 +378,7 @@ public sealed class GovernedServiceWorkflowTests
     }
 
     [Fact]
-    public async Task Vegetable_ModeResolvesTheInstrument_WholeIsOrDailyIsCt_AndTheCollectorNeverChoosesIt()
+    public async Task Vegetable_ModeResolvesTheInstrument_NewWholeRequiresAnAccount_DailyIsCt()
     {
         var w = await CreateAsync();
         await ConfigureAsync(w, CollectorOperationCodes.VegetableFruitSpaceRental, GovernedServiceBasis.DirectApprovedAmount, null, null);
@@ -390,13 +390,14 @@ public sealed class GovernedServiceWorkflowTests
         var daily = await workflow.PostMobileAsync(Post(w, code, 20m, w.Ct[0], GovernedServiceMode.DailyTransaction));
         var noMode = await workflow.PostMobileAsync(Post(w, code, 20m, w.Ct[2], mode: null));
 
-        Assert.Equal(RevenueInstrumentType.OfficialReceipt, whole.Value!.Instrument);
+        Assert.False(whole.IsSuccess);
+        Assert.Contains("registered Vegetable / Fruits space account", whole.Error);
         Assert.Equal(RevenueInstrumentType.CashTicket, daily.Value!.Instrument);
         Assert.False(noMode.IsSuccess);
-        Assert.Equal(2, await db.Collections.CountAsync());
+        Assert.Single(await db.Collections.ToListAsync());
         var lines = await db.CollectionLines.ToListAsync();
         Assert.All(lines, l => Assert.Equal(CollectionSourceKind.GovernedService, l.SourceKind));
-        Assert.Contains(lines, l => l.CalculationSnapshot!.Contains("\"mode\":1"));
+        Assert.DoesNotContain(lines, l => l.CalculationSnapshot!.Contains("\"mode\":1"));
         Assert.Contains(lines, l => l.CalculationSnapshot!.Contains("\"mode\":2"));
     }
 
@@ -473,11 +474,11 @@ public sealed class GovernedServiceWorkflowTests
         await using var _ = db;
 
         var fees = (await workflow.GetTermsAsync(CollectorOperationCodes.MarketFees, null)).Value!;
-        var whole = (await workflow.GetTermsAsync(CollectorOperationCodes.VegetableFruitSpaceRental, GovernedServiceMode.WholePayment)).Value!;
+        var whole = await workflow.GetTermsAsync(CollectorOperationCodes.VegetableFruitSpaceRental, GovernedServiceMode.WholePayment);
         var daily = (await workflow.GetTermsAsync(CollectorOperationCodes.VegetableFruitSpaceRental, GovernedServiceMode.DailyTransaction)).Value!;
 
         Assert.Equal((GovernedServiceBasis.FixedAmount, 30m, RevenueInstrumentType.CashTicket), (fees.Basis, fees.FixedAmount, fees.Instrument));
-        Assert.Equal((RevenueInstrumentType.OfficialReceipt, 400m), (whole.Instrument, whole.MaximumAmount));
+        Assert.Equal(ResultStatus.Conflict, whole.Status);
         Assert.Equal(RevenueInstrumentType.CashTicket, daily.Instrument);
         Assert.Equal(ResultStatus.Invalid, (await workflow.GetTermsAsync(CollectorOperationCodes.VegetableFruitSpaceRental, null)).Status);
         Assert.Equal(ResultStatus.Forbidden, (await Open(w, "Collector", w.OtherCollector.Id).Workflow

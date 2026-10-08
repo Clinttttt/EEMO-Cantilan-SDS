@@ -11,15 +11,15 @@ public sealed class ObligationAccountConfiguration : IEntityTypeConfiguration<Ob
     {
         builder.ToTable("ObligationAccounts", table =>
         {
-            table.HasCheckConstraint("CK_ObligationAccounts_Kind", "\"Kind\" IN (1, 2, 3)");
+            table.HasCheckConstraint("CK_ObligationAccounts_Kind", "\"Kind\" IN (1, 2, 3, 4)");
             // A vendor fee is anchored to an NPM stall; a lot rental carries its event; nothing else carries either.
             table.HasCheckConstraint(
                 "CK_ObligationAccounts_Shape",
                 "((\"Kind\" = 1 AND \"StallId\" IS NOT NULL AND \"Event\" IS NULL AND \"EventDate\" IS NULL) " +
-                "OR (\"Kind\" = 2 AND \"StallId\" IS NULL AND \"Event\" IS NULL AND \"EventDate\" IS NULL) " +
+                "OR (\"Kind\" IN (2, 4) AND \"StallId\" IS NULL AND \"Event\" IS NULL AND \"EventDate\" IS NULL) " +
                 "OR (\"Kind\" = 3 AND \"StallId\" IS NULL AND \"Event\" IN (1, 2) AND \"EventDate\" IS NOT NULL))");
             table.HasCheckConstraint("CK_ObligationAccounts_Window", "\"ActiveTo\" IS NULL OR \"ActiveTo\" >= \"ActiveFrom\"");
-            table.HasCheckConstraint("CK_ObligationAccounts_SourceHolder", "\"PayorId\" IS NOT NULL OR (\"Kind\" IN (2, 3) AND \"ActualOccupant\" IS NOT NULL AND length(trim(\"ActualOccupant\")) > 0)");
+            table.HasCheckConstraint("CK_ObligationAccounts_SourceHolder", "\"PayorId\" IS NOT NULL OR (\"Kind\" IN (2, 3, 4) AND \"ActualOccupant\" IS NOT NULL AND length(trim(\"ActualOccupant\")) > 0)");
         });
         builder.HasKey(x => x.Id);
         builder.HasAlternateKey(x => new { x.MunicipalityId, x.Id });

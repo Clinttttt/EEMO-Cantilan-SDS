@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace EEMOCantilanSDS.Application.Common.Revenue;
 
 /// <summary>
-/// Collector Mobile obligation-account settlement: independently assigned Kanmanggay and Fiesta/Araw, plus historical
+/// Collector Mobile obligation-account settlement: independently assigned Kanmanggay, Vegetable/Fruits and Fiesta/Araw, plus historical
 /// pre-IA-064 Vendor Fee compatibility. Prospective Vendor Fee uses the separate direct writer. This reuses
 /// <see cref="ObligationCollectionSource"/> (the same facts, classification, instrument policy and snapshot the Web composer uses) so the
 /// two channels share one balance authority. It is a distinct source: never NPM daily stall fees, Tabo, Market Fees or Weight and Measure.
@@ -62,12 +62,7 @@ public sealed partial class CollectionComposerWorkflow
         var requestedAccount = await db.ObligationAccounts.AsNoTracking().SingleOrDefaultAsync(x =>
             x.MunicipalityId == tenantId && x.Id == request.AccountId, ct);
         if (collector is null || requestedAccount is null) return Result<EcfPostOutcomeDto>.Forbidden();
-        var operation = requestedAccount.Kind switch
-        {
-            ObligationKind.KanmanggaySpaceRental => CollectorOperationCodes.KanmanggaySpaceRental,
-            ObligationKind.FiestaArawLotRental => CollectorOperationCodes.FiestaArawLotRental,
-            _ => null
-        };
+        var operation = ObligationAccount.OperationCodeFor(requestedAccount.Kind);
         if (operation is null ? collector.FacilityAssignments.All(x => x.FacilityCode != FacilityCode.NPM)
             : !await db.CollectorOperationAssignments.AnyAsync(x => x.MunicipalityId == tenantId &&
                 x.CollectorId == collectorId && x.OperationCode == operation, ct))

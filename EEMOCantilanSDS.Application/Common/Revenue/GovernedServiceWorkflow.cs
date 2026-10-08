@@ -31,8 +31,8 @@ public static class GovernedServiceCatalog
         new(CollectorOperationCodes.MarketFees, "Market Fees", RevenueClassificationCodes.MarketFees, false, BothOrOptions),
         new(CollectorOperationCodes.LandingBerthing, "Landing / Berthing", RevenueClassificationCodes.LandingBerthing, false, BothOrOptions),
         new(CollectorOperationCodes.TransferLargeCattle, "Transfer Large Cattle", RevenueClassificationCodes.TransferLargeCattle, false, BothOrOptions),
-        // A whole payment and a daily transaction are different amounts under different instruments; one fixed amount
-        // cannot describe both, so this service records an approved direct amount (with an optional ceiling).
+        // Daily CT remains governed direct amount. Monthly OR now settles a registered obligation period;
+        // WholePayment mode is retained only for immutable history and successful posting retries.
         new(CollectorOperationCodes.VegetableFruitSpaceRental, "Vegetable / Fruit Space Rental",
             RevenueClassificationCodes.VegetableFruitSpaceRental, true, [GovernedServiceBasis.DirectApprovedAmount]),
         // Transportation / Parking (IA-030, IA-050): a Cash Ticket day-to-day collection whose amount is the approved,
@@ -385,7 +385,7 @@ public sealed partial class GovernedServiceWorkflow(
         var issues = new List<string>();
         var instruments = new List<GovernedServiceInstrumentDto>();
         var modes = entry.ModeAware
-            ? new GovernedServiceMode?[] { GovernedServiceMode.WholePayment, GovernedServiceMode.DailyTransaction }
+            ? new GovernedServiceMode?[] { GovernedServiceMode.DailyTransaction }
             : new GovernedServiceMode?[] { null };
         foreach (var mode in modes)
         {
@@ -434,6 +434,8 @@ public sealed partial class GovernedServiceWorkflow(
             var entry = GovernedServiceCatalog.Find(operationCode);
             if (actor.Role != "Collector" || entry is null || !await IsAssignedAsync(actor, entry.Code, ct))
                 return Result<GovernedServiceTermsDto>.Forbidden();
+            if (entry.Code == CollectorOperationCodes.VegetableFruitSpaceRental && mode == GovernedServiceMode.WholePayment)
+                return Result<GovernedServiceTermsDto>.Failure("Monthly collection requires a registered Vegetable / Fruits space account and period.", ResultStatus.Conflict);
             if (!ValidMode(entry, mode))
                 return Result<GovernedServiceTermsDto>.Failure(
                     entry.ModeAware ? "Choose whole payment or daily transaction." : "This service has no transaction modes.", ResultStatus.Invalid);
@@ -496,6 +498,10 @@ public sealed partial class GovernedServiceWorkflow(
         if (!await IsAssignedAsync(actor, entry.Code, ct))
             return await RecordTerminalAsync(actor, request, normalized, "COLLECTOR_OPERATION_NOT_ASSIGNED",
                 "An explicit operation assignment for an active collector is required.", ct);
+        // Successful historical retries were resolved above. New Monthly money has one account-period writer.
+        if (entry.Code == CollectorOperationCodes.VegetableFruitSpaceRental && request.Mode == GovernedServiceMode.WholePayment)
+            return await RecordTerminalAsync(actor, request, normalized, "MONTHLY_ACCOUNT_REQUIRED",
+                "Monthly collection requires a registered Vegetable / Fruits space account and period. No Collection was created.", ct);
         if (request.SchemaVersion != 1)
             return await RecordTerminalAsync(actor, request, normalized, "PAYLOAD_VERSION_UNSUPPORTED",
                 "This collection payload version is not supported.", ct);

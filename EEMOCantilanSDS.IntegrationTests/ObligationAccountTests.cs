@@ -93,7 +93,7 @@ public sealed class ObligationAccountTests(PostgresFixture db)
         var workflow = Setup(ctx, seed);
         var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
         var operations = (await workflow.GetSpaceOperationsAsync()).Value!;
-        Assert.Equal(3, operations.Count);
+        Assert.Equal(4, operations.Count);
         Assert.True(Assert.Single(operations.Where(o => o.Kind == ObligationKind.KanmanggaySpaceRental)).IsMonthly);
         Assert.Equal(new[] { LotRentalEvent.Fiesta, LotRentalEvent.Araw }, operations.Where(o => !o.IsMonthly).Select(o => o.Event!.Value));
         var input = new CreateObligationAccountRequest(ObligationKind.KanmanggaySpaceRental, seed.PayorId, null,

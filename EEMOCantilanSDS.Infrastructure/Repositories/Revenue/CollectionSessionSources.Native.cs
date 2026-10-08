@@ -13,7 +13,7 @@ public sealed partial class CollectionSessionSources
     private OfficeCollectionWorkflow Office => new(db, user, municipality, clock, new FeeRateResolver(db));
     public async Task<bool> SourceExistsAsync(CollectionSourceIdentity identity, CancellationToken ct) => identity.Kind switch {
         SourceIdentityKind.Occupancy => await db.Stalls.AsNoTracking().AnyAsync(x => x.MunicipalityId == Tenant && x.Contracts.Any(c => c.Id == identity.Id), ct),
-        SourceIdentityKind.SpaceAccount => await db.ObligationAccounts.AsNoTracking().AnyAsync(x => x.MunicipalityId == Tenant && x.Id == identity.Id && (x.Kind == ObligationKind.KanmanggaySpaceRental || x.Kind == ObligationKind.FiestaArawLotRental), ct),
+        SourceIdentityKind.SpaceAccount => await db.ObligationAccounts.AsNoTracking().AnyAsync(x => x.MunicipalityId == Tenant && x.Id == identity.Id && (x.Kind == ObligationKind.KanmanggaySpaceRental || x.Kind == ObligationKind.FiestaArawLotRental || x.Kind == ObligationKind.VegetableFruitSpaceRental), ct),
         SourceIdentityKind.FishMeatVendorRegistration => await db.FishMeatVendorRegistrations.AsNoTracking().AnyAsync(x => x.MunicipalityId == Tenant && x.Id == identity.Id, ct),
         _ => false };
     public async Task<IReadOnlyList<CollectionSourceSearchResult>> SearchSourcesAsync(string? search, CancellationToken ct)
@@ -36,6 +36,7 @@ public sealed partial class CollectionSessionSources
             (x.ActiveTo == null || x.ActiveTo >= today) &&
             (x.SubjectLabel.ToLower().Contains(term) || x.ActualOccupant != null && x.ActualOccupant.ToLower().Contains(term) || db.Payors.Any(p => p.MunicipalityId == Tenant && p.Id == x.PayorId && p.DisplayName.ToLower().Contains(term))) &&
             (x.Kind == ObligationKind.KanmanggaySpaceRental && assigned.Contains(CollectorOperationCodes.KanmanggaySpaceRental) ||
+                x.Kind == ObligationKind.VegetableFruitSpaceRental && assigned.Contains(CollectorOperationCodes.VegetableFruitSpaceRental) ||
                 x.Kind == ObligationKind.FiestaArawLotRental && assigned.Contains(CollectorOperationCodes.FiestaArawLotRental))).OrderBy(x => x.SubjectLabel).ThenBy(x => x.Id).Take(50).ToListAsync(ct);
         // Historical master links supply display compatibility only. Source account identity, never name/Payor, authorizes collection.
         var quotes = await new ObligationCollectionSource(db).GetQuotesAsync(Tenant, accounts, today, ct);
@@ -44,8 +45,9 @@ public sealed partial class CollectionSessionSources
             var name = quotes.FirstOrDefault(x => x.AccountId == account.Id)?.PayerName ?? account.SubjectLabel;
             if (name.ToLowerInvariant().Contains(term) || account.SubjectLabel.ToLowerInvariant().Contains(term))
                 results.Add(new(new(SourceIdentityKind.SpaceAccount, account.Id), name,
+                    account.Kind == ObligationKind.VegetableFruitSpaceRental ? $"Vegetable / Fruits · Space {account.SubjectLabel}" :
                     account.Kind == ObligationKind.KanmanggaySpaceRental ? $"Kanmanggay · Space {account.SubjectLabel}" : $"Fiesta / Araw · Lot {account.SubjectLabel}",
-                    account.Kind == ObligationKind.KanmanggaySpaceRental ? CollectorOperationCodes.KanmanggaySpaceRental : CollectorOperationCodes.FiestaArawLotRental));
+                    ObligationAccount.OperationCodeFor(account.Kind)!));
         }
         if (assigned.Contains(CollectorOperationCodes.FishMeatVendorFee) || assigned.Contains(CollectorOperationCodes.WeightAndMeasure))
             results.AddRange(await db.FishMeatVendorRegistrations.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.TaxYear == today.Year && x.Status == VendorRegistrationStatus.Active && x.DisplayName.ToLower().Contains(term))
@@ -81,7 +83,7 @@ public sealed partial class CollectionSessionSources
         else if (identity.Kind == SourceIdentityKind.SpaceAccount)
         {
             var account = await db.ObligationAccounts.AsNoTracking().SingleAsync(x => x.MunicipalityId == Tenant && x.Id == identity.Id, ct);
-            var code = account.Kind == ObligationKind.KanmanggaySpaceRental ? CollectorOperationCodes.KanmanggaySpaceRental : CollectorOperationCodes.FiestaArawLotRental;
+            var code = ObligationAccount.OperationCodeFor(account.Kind)!;
             if (await db.CollectorOperationAssignments.AnyAsync(x => x.MunicipalityId == Tenant && x.CollectorId == user.CollectorId && x.OperationCode == code, ct))
             {
                 var quotes = await new ObligationCollectionSource(db).GetQuotesAsync(Tenant, [account], date, ct);

@@ -51,7 +51,7 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
     {
         var holder = string.IsNullOrWhiteSpace(actualOccupant) ? null : actualOccupant.Trim();
         if (municipalityId == Guid.Empty || holder?.Length > 200 || payorId == Guid.Empty &&
-            (holder is null || kind is not (ObligationKind.KanmanggaySpaceRental or ObligationKind.FiestaArawLotRental)))
+            (holder is null || !IsSpaceKind(kind)))
             throw new ArgumentException("A tenant and an explicit source holder are required.");
         if (!Enum.IsDefined(kind))
             throw new ArgumentOutOfRangeException(nameof(kind));
@@ -104,7 +104,7 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
     {
         var reference = string.IsNullOrWhiteSpace(contractReference) ? null : contractReference.Trim();
         if (arrangement is null && reference is null) return;
-        if (Kind is not (ObligationKind.KanmanggaySpaceRental or ObligationKind.FiestaArawLotRental))
+        if (!IsSpaceKind(Kind))
             throw new ArgumentException("Occupancy basis is only supported for space and event lot accounts.");
         if (arrangement is not (OccupancyArrangement.SignedContract or OccupancyArrangement.SpaceOnly))
             throw new ArgumentException("Choose signed contract or space only.");
@@ -136,7 +136,7 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
     }
 
     /// <summary>The first monthly liability uses the approved rate at actual occupancy start, never a backdated rate.</summary>
-    public DateOnly RateAsOf(DateOnly periodStart) => Kind == ObligationKind.KanmanggaySpaceRental && periodStart.Year == ActiveFrom.Year &&
+    public DateOnly RateAsOf(DateOnly periodStart) => IsMonthlySpaceKind(Kind) && periodStart.Year == ActiveFrom.Year &&
         periodStart.Month == ActiveFrom.Month && periodStart < ActiveFrom ? ActiveFrom : periodStart;
 
     public static string ClassificationCodeFor(ObligationKind kind) => kind switch
@@ -144,8 +144,13 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
         ObligationKind.FishMeatVendorFee => RevenueClassificationCodes.FishMeatVendorFee,
         ObligationKind.KanmanggaySpaceRental => RevenueClassificationCodes.KanmanggaySpaceRental,
         ObligationKind.FiestaArawLotRental => RevenueClassificationCodes.FiestaArawLotRental,
+        ObligationKind.VegetableFruitSpaceRental => RevenueClassificationCodes.VegetableFruitSpaceRental,
         _ => throw new ArgumentOutOfRangeException(nameof(kind))
     };
+
+    public static bool IsMonthlySpaceKind(ObligationKind kind) => kind is ObligationKind.KanmanggaySpaceRental or ObligationKind.VegetableFruitSpaceRental;
+    public static bool IsSpaceKind(ObligationKind kind) => IsMonthlySpaceKind(kind) || kind == ObligationKind.FiestaArawLotRental;
+    public static string? OperationCodeFor(ObligationKind kind) => IsSpaceKind(kind) ? ClassificationCodeFor(kind) : null;
 }
 
 /// <summary>

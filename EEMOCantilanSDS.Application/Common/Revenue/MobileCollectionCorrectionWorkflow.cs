@@ -184,9 +184,9 @@ public sealed class MobileCollectionCorrectionWorkflow(IAppDbContext db, ICollec
                 kind = CollectionSessionItemKind.MonthlyRent; code = "FACILITY_" + stalls[stallId.Value].Facility!.Code;
             }
             else if (periods.TryGetValue(id.Value, out var period) && accounts.TryGetValue(period.ObligationAccountId, out var account)
-                && account.Kind is ObligationKind.KanmanggaySpaceRental or ObligationKind.FiestaArawLotRental)
+                && ObligationAccount.IsSpaceKind(account.Kind))
             {
-                code = account.Kind == ObligationKind.KanmanggaySpaceRental ? CollectorOperationCodes.KanmanggaySpaceRental : CollectorOperationCodes.FiestaArawLotRental;
+                code = ObligationAccount.OperationCodeFor(account.Kind)!;
                 result[c.Id] = new(new(SourceIdentityKind.SpaceAccount, account.Id), CollectionSessionItemKind.Obligation, code,
                     new(AccountId: account.Id, Year: period.PeriodStart.Year, Month: period.PeriodStart.Month, PeriodStart: period.PeriodStart));
                 continue;

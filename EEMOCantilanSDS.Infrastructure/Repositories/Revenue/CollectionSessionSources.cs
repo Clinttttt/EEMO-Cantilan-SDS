@@ -377,12 +377,7 @@ public sealed partial class CollectionSessionSources(AppDbContext db, ICurrentUs
             {
                 var account = await db.ObligationAccounts.AsNoTracking().SingleOrDefaultAsync(x => x.MunicipalityId == Tenant && x.Id == o.AccountId, ct);
                 if (account is null) return Fail("InvalidSource", "The selected account is not available.");
-                var operationCode = account.Kind switch
-                {
-                    ObligationKind.KanmanggaySpaceRental => CollectorOperationCodes.KanmanggaySpaceRental,
-                    ObligationKind.FiestaArawLotRental => CollectorOperationCodes.FiestaArawLotRental,
-                    _ => "FISH_MEAT_VENDOR_FEE"
-                };
+                var operationCode = ObligationAccount.OperationCodeFor(account.Kind) ?? "FISH_MEAT_VENDOR_FEE";
                 if (account.Kind == ObligationKind.FishMeatVendorFee && FishMeatVendorFeeRules.UsesDirectCollection(session.BusinessDate))
                     return Fail("SourceStillLegacy", "Monthly vendor-fee accounts are historical. Choose direct Vendor Fee.");
                 if (account.Kind == ObligationKind.FishMeatVendorFee ? !await NpmAssignedAsync(ct) :
