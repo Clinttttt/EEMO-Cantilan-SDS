@@ -2,6 +2,50 @@
 
 Status: implemented on the existing feature branch; automated and rendered-fixture verification passed. Logged-in localhost review and user visual acceptance remain pending. Not integrated or production deployed.
 
+## Final UI consistency follow-up — 2026-10-08
+
+This section supersedes the initial presentation/test checkpoint below. Started at `0dab3777` on `codex/vegetable-fruit-space-workspace`, in the same physical checkout. The three concurrent planning-document diffs remain untouched and unstaged. No branch/worktree/checkout was created and integration remains pending explicit user visual acceptance.
+
+Implementation and regression tests are committed at `190142a5` (`fix(web): align space rental workspaces and stall terminology`). The integration branch remains `4b4be8f8`.
+
+Kanmanggay and Vegetable/Fruits Monthly now use the same compact hero → toolbar → **Space Rentals** table hierarchy. The overview shows space, occupant, recorded effectivity, approved monthly amount, collected, remaining and lifecycle, without an Account/Actions column or per-row Open account link. Overview All/Paid/Partial/Unpaid show active accounts; Closed shows historical closed accounts, matching the existing facility overview convention. Search/filter changes preserve server-supplied operation totals; their full-account/to-date scope is accessible on the hero.
+
+Dedicated management pages retain their routes, account operations and authorization. The long introduction/scope paragraph is removed. Active/Closed and payment-position filters are distinct groups within one toolbar; the panel shows a concise `n of N spaces shown` count. Total scope remains `All accounts · to date`, with an explanatory tooltip. Account facts use a bounded two-column description grid, followed by the canonical period register. At laptop/narrow widths the management rows stack with labelled balances and visible actions; the smallest overview also stacks. The shared toolbar now avoids a desktop flex basis creating a 150px mobile search field. Contextual breadcrumbs wrap complete links instead of splitting their words.
+
+`FacilityState.HolderUnitOf` is the single enum-based presentation distinction: NPM/NCC/TCC/BBQ use Stall; ICE/custom retain Space. ActionBar, the shared facility overview/table, facility roster and occupancy management consume that distinction. NCC says **Stall Holder List**, **Manage Stall Holders**, **Total Stalls**, **Stall No.** and **Stall Rent**. Its document/CSV number-column heading agrees; existing contract/area/amount fields remain intact. Area measurement units are unchanged. Global `/stall-holders` is unchanged.
+
+The management action remains `/vendors?facility=ncc`, an existing stall occupancy registry with inspection, edit, closure/reopening and profile workflows. Inspection exposed that the destination previously ignored the facility query and could select NPM. It now selects the requested registered facility, updates its holder terminology, and offers a contextual facility breadcrumb. No new registry or registration engine was added. The roster destination remains `/list-stall-holders?facility=ncc`.
+
+Vegetable/Fruits Monthly receives the shared improvements and keeps its dedicated roster/management routes. Daily CT implementation is unchanged. Monthly OR settlements, import/numbering, account kinds, canonical balances and all financial writers/contracts remain unchanged. No backend, Domain, Application, Mobile or database change was needed.
+
+Validation: focused Web **83 passed / 0 failed / 0 skipped**; final full Web **779 passed / 0 failed / 0 skipped**; final Client Release **0 warnings / 0 errors**. CSS sources/bundle **155** brace-balanced; diff whitespace check passed. Unit/Integration/Mobile suites were not repeated for this Client-only follow-up; no shared financial contract changed. The earlier full Unit result below is historical evidence, not a rerun for this follow-up.
+
+Fresh Chromium fixture screenshots cover Kanmanggay overview/management/expanded canonical periods/roster, Vegetable/Fruits Monthly overview/management/roster, and NCC overview/management/roster at 1440px, 1024px and 390px. Fixture PDFs retain 1-page small documents and a 5-page 90-row A4-landscape roster. These are real rendered components with test data, not authenticated tenant browser acceptance. Computer-use initialization still fails with the Windows sandbox-helper error. Local API/Client listeners were present on 7097/7167 during this follow-up; their running processes were not restarted or used to claim fresh authenticated acceptance. Review the latest built apps and confirm visual acceptance before integration.
+
+### Exact files changed by this follow-up
+
+- `EEMOCantilanSDS.Client/Services/FacilityState.cs`
+- `EEMOCantilanSDS.Client/Components/Pages/Menus/Vendor.razor`
+- `EEMOCantilanSDS.Client/Components/Pages/Shared/ButtonGroup/ActionBar.razor`
+- `EEMOCantilanSDS.Client/Components/Pages/Shared/FacilityStallsTable.razor`
+- `EEMOCantilanSDS.Client/Components/Pages/Shared/SH/StallHoldersList.razor`
+- `EEMOCantilanSDS.Client/Components/Pages/Shared/Toolbar.razor`
+- `EEMOCantilanSDS.Client/Components/Pages/Shared/Toolbar.razor.css`
+- `EEMOCantilanSDS.Client/Components/Shared/FacilityPage.razor`
+- `EEMOCantilanSDS.Client/Components/Shared/ObligationWorkspace.razor`
+- `EEMOCantilanSDS.Client/Components/Shared/ObligationWorkspace.razor.css`
+- `EEMOCantilanSDS.Client/Components/Shared/OperationTopbar.razor.css`
+- `EEMOCantilanSDS.Client/Components/Shared/SpaceAccountSnapshot.razor`
+- `EEMOCantilanSDS.Client/Components/Shared/SpaceAccountSnapshot.razor.css`
+- `EEMOCantilanSDS.Client/Components/Shared/SpaceHolderManagement.razor`
+- `EEMOCantilanSDS.ComponentTests/Pages/ObligationWorkspaceTests.cs`
+- `EEMOCantilanSDS.ComponentTests/Pages/SpaceHolderWorkspaceTests.cs`
+- `EEMOCantilanSDS.ComponentTests/Pages/SpaceRentalConsistencyTests.cs`
+- `EEMOCantilanSDS.ComponentTests/Pages/VendorRegistryTerminologyTests.cs`
+- `docs/planning/SPACE_HOLDER_WORKSPACE_HANDOFF_20261008.md`
+
+Ignored screenshot/PDF/HTML/check artifacts remain under `artifacts/space-holder-workspace/` and are not committed.
+
 ## Checkout and authority
 
 Physical checkout: `C:\dev\stalltrack\eemo`. Starting branch: `codex/vegetable-fruit-space-workspace`, clean at `5fc26ae6`. Existing Vegetable/Fruits commits remain in its ancestry. No branch switch, reset, stash, second checkout, worktree, origin push, master merge, migration, deployment or APK publication occurred in this follow-up.
