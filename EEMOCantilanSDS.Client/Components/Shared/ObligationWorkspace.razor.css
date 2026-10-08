@@ -1,5 +1,9 @@
 /* Obligation workspace — V3. Panels, tables, fields and buttons come from the v3- layer in app.css. */
-.obw-lifecycle { display: flex; gap: 4px; flex-shrink: 0; }
+.obw-lifecycle { display: inline-flex; gap: 0; flex-shrink: 0; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--surface-muted); }
+.obw-lifecycle .v3-btn { flex: 1; min-height: 34px; border: 0; border-radius: 0; }
+.obw-lifecycle .v3-btn + .v3-btn { border-left: 1px solid var(--border); }
+.obw-lifecycle .v3-btn:first-child { border-radius: 6px 0 0 6px; }
+.obw-lifecycle .v3-btn:last-child { border-radius: 0 6px 6px 0; }
 .obw-lifecycle button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
 .obw-account-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; max-width: 720px; margin: 12px 0 16px; }
 .obw-account-facts div { min-width: 0; }
@@ -15,7 +19,7 @@
     .obw-management-table > tbody > tr:not(.obw-register-row) { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 10px 12px; border-bottom: 1px solid var(--border); }
     .obw-management-table > tbody > tr > td { min-width: 0; padding: 8px; border: 0; text-align: left; overflow-wrap: anywhere; white-space: normal; }
     .obw-management-table td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 4px; font-size: 11px; font-weight: 500; color: var(--text-secondary); }
-    .obw-management-table .obw-actions { grid-column: 1 / -1; justify-content: flex-start; }
+    .obw-management-table .obw-actions-cell { grid-column: 1 / -1; text-align: left; }
     .obw-management-table .v3-empty { grid-column: 1 / -1; }
     .obw-management-table .obw-register-row, .obw-management-table .obw-register-row > td { display: block; width: 100%; box-sizing: border-box; }
     .obw-management-table > tfoot > tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 10px 12px; }
@@ -42,11 +46,21 @@
 }
 
 .obw-actions {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 6px;
+    display: inline-flex;
+    align-items: stretch;
+    gap: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: 7px;
 }
+.obw-actions-cell { text-align: right; }
+.obw-actions .v3-btn { border: 0; border-radius: 0; min-height: 34px; padding: 6px 9px; }
+.obw-actions .v3-btn + .v3-btn { border-left: 1px solid var(--border); }
+.obw-actions .v3-btn:first-child { border-radius: 6px 0 0 6px; }
+.obw-actions .v3-btn:last-child { border-radius: 0 6px 6px 0; }
+.obw-actions .v3-btn:only-child { border-radius: 6px; }
+.obw-actions .v3-btn:focus-visible, .obw-lifecycle .v3-btn:focus-visible { position: relative; z-index: 1; outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 600px) { .obw-actions { display: flex; } .obw-actions .v3-btn { flex: 1; min-width: 0; min-height: 38px; padding: 6px; white-space: normal; } }
+.obw-success { margin: 16px 0 0; background: var(--green-bg); color: var(--green); border-color: var(--green); }
 
 .obw-register-row > td {
     padding: 4px 20px 16px;
@@ -85,7 +99,6 @@
         grid-template-columns: minmax(0, 1fr);
     }
 }
-.obw-status { display: inline-flex; padding: 3px 8px; border: 1px solid var(--border); border-radius: 20px; font-size: 11px; color: var(--text-secondary); }
 
 
 /* Toolbar links: the same size and rhythm as the shared Toolbar's own actions, so this row matches TCC. */

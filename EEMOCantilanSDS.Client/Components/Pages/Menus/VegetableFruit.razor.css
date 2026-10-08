@@ -1,8 +1,10 @@
-.vf-mode { display: flex; width: fit-content; gap: 4px; padding: 4px; margin: 16px 0; background: var(--surface-muted); border: 1px solid var(--border); border-radius: 10px; }
-.vf-mode button { border: 1px solid transparent; border-radius: 7px; background: transparent; padding: 8px 22px; font: inherit; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
+.vf-mode { display: inline-flex; flex-shrink: 0; width: fit-content; gap: 2px; padding: 2px; margin: 0; background: var(--surface-muted); border: 1px solid var(--border); border-radius: 8px; }
+.vf-mode button { border: 1px solid transparent; border-radius: 6px; background: transparent; min-height: 30px; padding: 5px 12px; font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; color: var(--text-secondary); cursor: pointer; }
 .vf-mode button.selected { background: var(--surface); color: var(--accent); border-color: var(--border-strong); }
 .vf-mode button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .vf-daily-toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
-.vf-search { flex: 1; min-width: 180px; }
-.vf-search input { width: 100%; }
+.vf-search { flex: 1 1 180px; min-width: 0; max-width: 350px; }
+.vf-search input { width: 100%; min-width: 0; }
+.content-area ::deep .toolbar-unified:has(.vf-mode) .search-box { min-width: 0; }
+.content-area ::deep .toolbar-unified:has(.vf-mode) { justify-content: flex-start; }
 [hidden] { display: none !important; }

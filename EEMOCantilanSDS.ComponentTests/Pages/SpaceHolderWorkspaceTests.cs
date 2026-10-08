@@ -45,6 +45,47 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
     private static void Click(IRenderedFragment cut, string label) => cut.FindAll("button").Single(x => x.TextContent.Trim() == label).Click();
 
     [Theory]
+    [InlineData("Active", "pill-active")]
+    [InlineData("Closed", "pill-inactive")]
+    [InlineData("Paid", "pill-paid")]
+    [InlineData("Partial", "pill-partial")]
+    [InlineData("Unpaid", "pill-unpaid")]
+    public void StatusPillsKeepTextAndSemanticTone(string status, string tone)
+    {
+        var cut = RenderComponent<AccountStatusPill>(p => p.Add(x => x.Status, status));
+        Assert.Equal(status, cut.Find("span").TextContent);
+        Assert.Contains(tone, cut.Find("span").ClassList);
+    }
+
+    [Theory]
+    [InlineData("All", "All", 4)]
+    [InlineData("All", "Unpaid", 2)]
+    [InlineData("Active", "All", 2)]
+    [InlineData("Active", "Partial", 1)]
+    [InlineData("Closed", "All", 2)]
+    [InlineData("Closed", "Paid", 1)]
+    [InlineData("Closed", "Unpaid", 1)]
+    public void LifecycleSegmentsAndPaymentFiltersCombineWithoutChangingTotals(string lifecycle, string payment, int count)
+    {
+        Serve(Account("Active unpaid"), Account("Active partial", collected: 400m), Account("Closed paid", true, 900m), Account("Closed unpaid", true));
+        var cut = RenderComponent<KanmanggayManageSpaceHolders>();
+        var before = cut.Find("tfoot").TextContent;
+        var group = cut.Find("[aria-label='Account lifecycle']");
+        Assert.Equal(new[] { "All", "Active", "Closed" }, group.QuerySelectorAll("button").Select(x => x.TextContent));
+        group.QuerySelectorAll("button").Single(x => x.TextContent == lifecycle).Click();
+        cut.FindAll("[aria-label='Payment status'] .filter-tab").Single(x => x.TextContent == payment).Click();
+        Assert.Equal(count, cut.FindAll("tbody > tr .obw-actions").Count);
+        Assert.Equal(before, cut.Find("tfoot").TextContent);
+        foreach (var row in cut.FindAll("tbody > tr").Where(x => x.QuerySelector(".obw-actions") is not null))
+        {
+            var closed = row.TextContent.Contains("Closed");
+            Assert.Equal(closed ? new[] { "Periods" } : new[] { "Periods", "Change amount", "Close account" }, row.QuerySelectorAll(".obw-actions button").Select(x => x.TextContent));
+        }
+        cut.Find(".search-input").Input("No match");
+        Assert.Equal(before, cut.Find("tfoot").TextContent);
+    }
+
+    [Theory]
     [InlineData(typeof(KanmanggaySpaceHolders), "/operations/kanmanggay/space-holders")]
     [InlineData(typeof(KanmanggayManageSpaceHolders), "/operations/kanmanggay/manage-space-holders")]
     [InlineData(typeof(VegetableFruitSpaceHolders), "/operations/vegetable-fruit/space-holders")]

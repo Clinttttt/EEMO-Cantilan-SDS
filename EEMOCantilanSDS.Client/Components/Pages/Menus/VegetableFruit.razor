@@ -20,16 +20,16 @@
                              SpaceExperience="true" Overview="true" Presentation="EEMOCantilanSDS.Client.Services.SpaceAccountPresentation.VegetableFruit" ServerAssignedNumber="true" EffectiveMonthLabel="Effective month"
                              AccountCountLabel="Registered spaces" ReportsHref="/operations/vegetable-fruit/report"
                              ImportHref="/operations/vegetable-fruit/import">
-            <AfterHero>@ModeSwitch</AfterHero>
+            <ToolbarMode>@ModeSwitch</ToolbarMode>
         </ObligationWorkspace>
     </div>
     <div hidden="@(!_daily)" role="region" id="vf-daily" aria-label="Daily collections">
         <FacilityHero Title="Vegetable / Fruits" Eyebrow="OPERATION · DAILY SPACE RENTAL" Stats="DailyStats">
             <Icon><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></svg></Icon>
         </FacilityHero>
-        @ModeSwitch
         <div class="vf-daily-toolbar">
             <label class="vf-search"><span class="v3-sr-only">Search daily collections</span><input class="v3-input" type="search" placeholder="Search name or SRC…" @bind="_search" @bind:event="oninput" /></label>
+            @ModeSwitch
             <label class="v3-period"><span>Month</span><input class="v3-input" type="month" aria-label="Daily collection month" value="@_month" @onchange="ChangeMonth" /></label>
             <a class="btn-outline" href="/operations/vegetable-fruit/daily-report">Reports</a>
             <AuthorizeView Roles="SuperAdmin"><Authorized><a class="btn-outline" href="/operations/vegetable-fruit/daily-setup">Daily setup</a></Authorized></AuthorizeView>

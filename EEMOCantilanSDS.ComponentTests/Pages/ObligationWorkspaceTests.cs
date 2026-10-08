@@ -72,7 +72,9 @@ public sealed class ObligationWorkspaceTests : TestContext
         Assert.NotNull(cut.Find("#vf-monthly a[href='/operations/vegetable-fruit/space-holders']"));
         Assert.NotNull(cut.Find("#vf-monthly a[href='/operations/vegetable-fruit/manage-space-holders']"));
         SpaceHolderWorkspaceTests.SaveVisualArtifact("vegetable-fruit-overview", cut.Markup);
-        cut.Find("#vf-monthly .filter-tab").Click();
+        Assert.NotNull(cut.Find("#vf-monthly .toolbar-unified .vf-mode"));
+        cut.Find("#vf-monthly .search-input").Input("Ana");
+        cut.FindAll("#vf-monthly .filter-tab").Single(x => x.TextContent == "Partial").Click();
         cut.FindAll("#vf-monthly .vf-mode button").Single(x => x.TextContent == "Daily").Click();
         Assert.True(cut.Find("#vf-monthly").HasAttribute("hidden"));
         var daily = cut.Find("#vf-daily");
@@ -81,9 +83,20 @@ public sealed class ObligationWorkspaceTests : TestContext
         Assert.Contains("Daily holder", daily.TextContent);
         Assert.Contains("₱40.00", daily.TextContent);
         cut.Find("#vf-daily input[type='search']").Input("SRC-DAILY");
+        var month = PhilippineTime.Today.AddMonths(-1).ToString("yyyy-MM");
+        cut.Find("#vf-daily input[type='month']").Change(month);
+        Assert.NotNull(cut.Find("#vf-daily .vf-daily-toolbar .vf-mode"));
+        Assert.Single(cut.FindAll("#vf-daily .vf-mode [aria-pressed='true']"));
+        SpaceHolderWorkspaceTests.SaveVisualArtifact("vegetable-fruit-daily", cut.Markup);
+        var calls = _governed.Invocations.Count;
         cut.FindAll("#vf-daily .vf-mode button").Single(x => x.TextContent == "Monthly").Click();
+        Assert.Equal("Ana", cut.Find("#vf-monthly .search-input").GetAttribute("value"));
+        Assert.Equal("Partial", cut.Find("#vf-monthly .filter-tab.active").TextContent);
+        Assert.Single(cut.FindAll("#vf-monthly .vf-mode [aria-pressed='true']"));
         cut.FindAll("#vf-monthly .vf-mode button").Single(x => x.TextContent == "Daily").Click();
         Assert.Equal("SRC-DAILY", cut.Find("#vf-daily input[type='search']").GetAttribute("value"));
+        Assert.Equal(month, cut.Find("#vf-daily input[type='month']").GetAttribute("value"));
+        Assert.Equal(calls, _governed.Invocations.Count);
     }
 
     [Fact]
@@ -380,6 +393,132 @@ public sealed class ObligationWorkspaceTests : TestContext
             Assert.Contains(rows, r => r.Contains("Space K-4"));
             Assert.Equal("All", cut.Find(".filter-tab.active").TextContent.Trim());
         }, Timeout);
+    }
+
+    [Fact]
+    public void FutureMonthLotRegistrationWaitsForExplicitConfirmation()
+    {
+        Serve(ObligationKind.FiestaArawLotRental);
+        var future = new DateOnly(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1).AddMonths(1);
+        var cut = RenderComponent<FiestaAraw>();
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New").Click();
+        cut.Find("#obw-occupant").Input("Advance holder");
+        cut.Find("#obw-event-date").Change(future.ToString("yyyy-MM-dd"));
+        cut.Find("#obw-amount").Change("2500");
+        cut.Find("form[aria-label='Open account']").Submit();
+        _api.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Never);
+        Assert.Contains("Register lot holder in advance?", cut.Find("[role='dialog']").TextContent);
+        SpaceHolderWorkspaceTests.SaveVisualArtifact("fiesta-araw-confirmation", cut.Markup);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    public void LotRegistrationInCurrentOrPastMonthDoesNotRequireConfirmation(int offset)
+    {
+        Serve(ObligationKind.FiestaArawLotRental);
+        _api.Setup(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>())).ReturnsAsync(Result<ObligationAccountDto>.Failure("Server validation"));
+        var cut = OpenLotForm();
+        cut.Find("#obw-event-date").Change(PhilippineTime.Today.AddMonths(offset).ToString("yyyy-MM-dd"));
+        cut.Find("form[aria-label='Open account']").Submit();
+        _api.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Once);
+        Assert.Contains("Server validation", cut.Find("[role='alert']").TextContent);
+        Assert.Empty(cut.FindAll("#obw-advance-form"));
+    }
+
+    [Theory]
+    [InlineData("holder")]
+    [InlineData("amount")]
+    [InlineData("date")]
+    [InlineData("event")]
+    public void ReviewingAdvanceRegistrationPreservesInputsAndConfirmsUpdatedValues(string field)
+    {
+        Serve(ObligationKind.FiestaArawLotRental);
+        CreateObligationAccountRequest? sent = null;
+        _api.Setup(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()))
+            .Callback<CreateObligationAccountRequest>(r => sent = r).ReturnsAsync(Result<ObligationAccountDto>.Failure("Duplicate event account"));
+        var cut = OpenLotForm();
+        var future = PhilippineTime.Today.AddMonths(1);
+        cut.Find("#obw-event-date").Change(future.ToString("yyyy-MM-dd"));
+        cut.Find("form[aria-label='Open account']").Submit();
+        cut.FindAll("button").Single(b => b.TextContent == "Review details").Click();
+        Assert.Equal("Advance holder", cut.Find("#obw-occupant").GetAttribute("value"));
+        Assert.Equal("2500", cut.Find("#obw-amount").GetAttribute("value"));
+        if (field == "holder") cut.Find("#obw-occupant").Input("Updated holder");
+        if (field == "amount") cut.Find("#obw-amount").Change("3000");
+        if (field == "date") cut.Find("#obw-event-date").Change(future.AddDays(1).ToString("yyyy-MM-dd"));
+        if (field == "event") cut.FindAll("[role='radio']").Single(b => b.TextContent.Contains("Araw")).Click();
+        cut.Find("form[aria-label='Open account']").Submit();
+        _api.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Never);
+        Assert.Contains(field == "holder" ? "Updated holder" : "Advance holder", cut.Find("#obw-advance-form").TextContent);
+        cut.Find("#obw-advance-form").Submit();
+        Assert.NotNull(sent);
+        Assert.Equal(field == "holder" ? "Updated holder" : "Advance holder", sent!.ActualOccupant);
+        Assert.Equal(field == "amount" ? 3000m : 2500m, sent.Amount);
+        Assert.Equal(field == "event" ? LotRentalEvent.Araw : LotRentalEvent.Fiesta, sent.Event);
+        Assert.Equal(field == "date" ? future.AddDays(1) : future, sent.EventDate);
+        Assert.Equal(sent.EventDate, sent.ActiveFrom);
+        Assert.Equal(Guid.Empty, sent.PayorId);
+        Assert.Contains("Duplicate event account", cut.Find("[role='alert']").TextContent);
+        Assert.Empty(_collections.Invocations);
+        Assert.Empty(Mock.Get(Services.GetRequiredService<IBusinessPayorsApiClient>()).Invocations);
+        cut.Find("form[aria-label='Open account']").Submit();
+        _api.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Once);
+        Assert.NotNull(cut.Find("#obw-advance-form"));
+    }
+
+    [Fact]
+    public async Task AdvanceConfirmationPreventsDuplicateSubmissionAndShowsSeparateSuccess()
+    {
+        Serve(ObligationKind.FiestaArawLotRental);
+        var pending = new TaskCompletionSource<Result<ObligationAccountDto>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _api.Setup(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>())).Returns(pending.Task);
+        var cut = OpenLotForm();
+        cut.Find("#obw-event-date").Change(PhilippineTime.Today.AddMonths(1).ToString("yyyy-MM-dd"));
+        cut.Find("form[aria-label='Open account']").Submit();
+        var submit = cut.Find("#obw-advance-form");
+        var first = submit.SubmitAsync();
+        await submit.SubmitAsync();
+        _api.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Once);
+        pending.SetResult(Result<ObligationAccountDto>.Success(Space() with { Kind = ObligationKind.FiestaArawLotRental }));
+        await first;
+        Assert.Empty(cut.FindAll("#obw-advance-form"));
+        _api.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Once);
+        var notice = cut.Find(".obw-success[role='status'][aria-live='polite']");
+        Assert.Equal("Lot account opened successfully.", notice.TextContent);
+        Assert.Null(notice.Closest(".v3-panel"));
+        Assert.Empty(_collections.Invocations);
+        SpaceHolderWorkspaceTests.SaveVisualArtifact("fiesta-araw-success", cut.Markup);
+    }
+
+    [Fact]
+    public void InvalidLotDetailsAndCanceledFormNeverSubmit()
+    {
+        Serve(ObligationKind.FiestaArawLotRental);
+        var cut = OpenLotForm();
+        cut.Find("#obw-event-date").Change(PhilippineTime.Today.AddMonths(1).ToString("yyyy-MM-dd"));
+        cut.Find("#obw-amount").Change("0");
+        cut.Find("form[aria-label='Open account']").Submit();
+        Assert.Contains("Enter the approved amount", cut.Find("[role='alert']").TextContent);
+        cut.Find("#obw-amount").Change("2500");
+        cut.Find("#obw-occupant").Input("");
+        cut.Find("form[aria-label='Open account']").Submit();
+        Assert.Contains("Enter the lot holder", cut.Find("[role='alert']").TextContent);
+        cut.Find("#obw-occupant").Input("Advance holder");
+        cut.Find("form[aria-label='Open account']").Submit();
+        cut.FindAll("button").Single(b => b.TextContent == "Review details").Click();
+        cut.FindAll("button").Single(b => b.TextContent == "Cancel").Click();
+        Assert.Empty(cut.FindAll("[role='dialog']"));
+        _api.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Never);
+    }
+
+    private IRenderedComponent<FiestaAraw> OpenLotForm()
+    {
+        var cut = RenderComponent<FiestaAraw>();
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New").Click();
+        cut.Find("#obw-occupant").Input("Advance holder");
+        cut.Find("#obw-amount").Change("2500");
+        return cut;
     }
 
     [Fact]

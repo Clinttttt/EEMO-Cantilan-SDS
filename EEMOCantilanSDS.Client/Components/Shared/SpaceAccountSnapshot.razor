@@ -7,7 +7,7 @@
         <tbody>
             @foreach (var account in Accounts)
             {
-                <tr><td data-label="Space No.">@account.SubjectLabel</td><td data-label="Occupant" class="v3-strong">@SpaceAccountPresentation.Occupant(account)</td><td data-label="Effective date">@account.ActiveFrom.ToString("MMM d, yyyy")</td><td data-label="Approved monthly" class="v3-num">@(account.CurrentAmount is { } amount ? $"₱{amount:N2}" : "—")</td><td data-label="Collected" class="v3-num">₱@account.CollectedToDate.ToString("N2")</td><td data-label="Remaining" class="v3-num">₱@account.OutstandingToDate.ToString("N2")</td><td data-label="Status">@(account.ActiveTo is null ? "Active" : "Closed")</td></tr>
+                <tr><td data-label="Space No.">@account.SubjectLabel</td><td data-label="Occupant" class="v3-strong">@SpaceAccountPresentation.Occupant(account)</td><td data-label="Effective date">@account.ActiveFrom.ToString("MMM d, yyyy")</td><td data-label="Approved monthly" class="v3-num">@(account.CurrentAmount is { } amount ? $"₱{amount:N2}" : "—")</td><td data-label="Collected" class="v3-num">₱@account.CollectedToDate.ToString("N2")</td><td data-label="Remaining" class="v3-num">₱@account.OutstandingToDate.ToString("N2")</td><td data-label="Status"><AccountStatusPill Status="@(account.ActiveTo is null ? "Active" : "Closed")" /></td></tr>
             }
             @if (!Accounts.Any())
             {

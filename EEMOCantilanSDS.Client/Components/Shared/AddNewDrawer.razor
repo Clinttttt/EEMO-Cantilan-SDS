@@ -22,7 +22,7 @@
         </form>
     </ChildContent>
     <Footer>
-        <button type="button" class="btn-ghost" @onclick="OnCancel">Cancel</button>
+        <button type="button" class="btn-ghost" @onclick="OnCancel">@CancelText</button>
         <button type="submit" class="btn-primary" form="@FormId" disabled="@Saving">@SubmitText</button>
     </Footer>
 </VendorDrawerShell>
@@ -39,6 +39,7 @@
     /// <summary>The form's accessible name.</summary>
     [Parameter] public string? FormLabel { get; set; }
     [Parameter] public string SubmitText { get; set; } = "Save";
+    [Parameter] public string CancelText { get; set; } = "Cancel";
     [Parameter] public bool Saving { get; set; }
     [Parameter] public string? Error { get; set; }
     [Parameter] public EventCallback OnSubmit { get; set; }

@@ -27,8 +27,8 @@
              ActiveFilter="@_filter"
              OnFilterChanged="v => _filter = v"
              Filters="@(Overview ? OverviewFilters : StatusFilters)"
-             BeforeFilters="@(Management ? LifecycleFilters : null)"
-             FilterLabel="@(Management ? "Payment position" : "Account position")"
+             BeforeFilters="@(Management ? LifecycleFilters : ToolbarMode)"
+             FilterLabel="@(Management ? "Payment status" : "Account position")"
              SearchPlaceholder="@($"Search {SubjectNoun.ToLowerInvariant()} no. or occupant…")"
              MiddleContent="@ActionBarContent" />
 }
@@ -88,13 +88,13 @@
                             @if (SpaceExperience)
                             {
                                 <td data-label="Start date">@account.ActiveFrom.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
-                                <td data-label="Status"><span class="obw-status">@(account.ActiveTo is not null ? "Closed" : "Active")</span></td>
+                                <td data-label="Status"><AccountStatusPill Status="@(account.ActiveTo is not null ? "Closed" : "Active")" /></td>
                             }
                             <td class="v3-num" data-label="Approved monthly">@(account.CurrentAmount is { } amount ? Money(amount) : "—")</td>
                             <td class="v3-num" data-label="Assessed">@Money(account.AssessedToDate)</td>
                             <td class="v3-num" data-label="Collected">@Money(account.CollectedToDate)</td>
                             <td class="v3-num v3-strong" data-label="Remaining">@Money(account.OutstandingToDate)</td>
-                            <td class="obw-actions">
+                            <td class="obw-actions-cell"><div class="obw-actions" role="group" aria-label="@($"Account actions for {account.SubjectLabel}")">
                                 <button class="v3-btn v3-btn-sm" type="button" aria-expanded="@(_selected == account.Id ? "true" : "false")"
                                         @onclick="() => ToggleRegisterAsync(account.Id)">Periods</button>
                                 <AuthorizeView Roles="SuperAdmin">
@@ -109,7 +109,7 @@
                                         }
                                     </Authorized>
                                 </AuthorizeView>
-                            </td>
+                            </div></td>
                         </tr>
                         @if (_selected == account.Id)
                         {
@@ -164,7 +164,7 @@
                             <td class="v3-empty" colspan="@(SpaceExperience ? 9 : 7)">
                                 @if (_loading) { <span role="status">Loading accounts…</span><Skeleton Height="24px" /> }
                                 else if (_error is not null) { <span>Accounts are unavailable.</span> }
-                                else if (SpaceExperience && _accounts.Count > 0) { <span>@(!string.IsNullOrWhiteSpace(_search) ? "No accounts match this search." : _lifecycle == "Closed" ? "No closed accounts match the selected payment position." : "No active registrations match the selected payment position.")</span> }
+                                else if (SpaceExperience && _accounts.Count > 0) { <span>@(!string.IsNullOrWhiteSpace(_search) ? "No accounts match this search." : _lifecycle == "All" ? "No accounts match the selected payment position." : _lifecycle == "Closed" ? "No closed accounts match the selected payment position." : "No active registrations match the selected payment position.")</span> }
                                 else { <span>No @(SubjectNoun == "Lot" ? "lots" : "spaces") found.</span> }
                             </td>
                         </tr>
@@ -191,7 +191,7 @@
 
 <AuthorizeView Roles="SuperAdmin">
     <Authorized>
-        <AddNewDrawer Show="@(_opening && !ReadOnlyHistory)" Title="@($"Open {Name} account")" Subtitle="@OpenSubtitle"
+        <AddNewDrawer Show="@(_opening && _advanceRequest is null && !ReadOnlyHistory)" Title="@($"Open {Name} account")" Subtitle="@OpenSubtitle"
                       FormId="obw-open-form" FormLabel="Open account" SubmitText="Open account" Saving="_saving" Error="@_formError"
                       OnSubmit="CreateAsync" OnCancel="CloseForm">
             @if (Kind == ObligationKind.FishMeatVendorFee)
@@ -284,6 +284,21 @@
             }
         </AddNewDrawer>
 
+        @if (_advanceRequest is { } advance)
+        {
+            <AddNewDrawer Show="true" Title="Register lot holder in advance?"
+                          Subtitle="The selected event is scheduled for a future month. Confirm the details before opening this account."
+                          FormId="obw-advance-form" FormLabel="Confirm advance registration" SubmitText="Confirm registration" CancelText="Review details"
+                          Saving="_saving" OnSubmit="ConfirmAdvanceAsync" OnCancel="ReviewAdvance">
+                <dl class="obw-account-facts">
+                    <div><dt>Event</dt><dd>@AdvanceEventName</dd></div>
+                    <div><dt>Lot holder</dt><dd>@advance.ActualOccupant</dd></div>
+                    <div><dt>Event date</dt><dd>@advance.EventDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</dd></div>
+                    <div><dt>Approved amount</dt><dd>@Money(advance.Amount)</dd></div>
+                </dl>
+            </AddNewDrawer>
+        }
+
         <AddNewDrawer Show="@(!_opening && _rateFor is not null && !ReadOnlyHistory)" Edit="true" Title="Change approved amount" Subtitle="@_rateFor?.SubjectLabel"
                       FormId="obw-rate-form" FormLabel="Change approved amount" SubmitText="Save amount" Saving="_saving" Error="@_formError"
                       OnSubmit="SaveRateAsync" OnCancel="CloseForm">
@@ -316,7 +331,7 @@
 
 @if (!string.IsNullOrWhiteSpace(_saved))
 {
-    <p class="v3-notice" role="status">@_saved</p>
+    <p class="v3-notice obw-success" role="status" aria-live="polite">@_saved</p>
 }
 
 @code {
@@ -338,6 +353,7 @@
     [Parameter] public string? EffectiveMonthLabel { get; set; }
     [Parameter] public string? AccountCountLabel { get; set; }
     [Parameter] public RenderFragment? AfterHero { get; set; }
+    [Parameter] public RenderFragment? ToolbarMode { get; set; }
     private bool SupportsContractBasis => EEMOCantilanSDS.Domain.Entities.Revenue.ObligationAccount.IsMonthlySpaceKind(Kind);
     [Parameter] public bool ReadOnlyHistory { get; set; }
     [Parameter] public string? ReportsHref { get; set; }
@@ -350,7 +366,7 @@
     private static readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid" };
     private static readonly List<string> OverviewFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
     private RenderFragment LifecycleFilters => @<div role="group" aria-label="Account lifecycle" class="obw-lifecycle">
-        @foreach (var lifecycle in new[] { "Active", "Closed" })
+        @foreach (var lifecycle in new[] { "All", "Active", "Closed" })
         {
             <button class="v3-btn v3-btn-sm" type="button" aria-pressed="@(_lifecycle == lifecycle ? "true" : "false")" @onclick="() => _lifecycle = lifecycle">@lifecycle</button>
         }
@@ -373,7 +389,7 @@
         new() { Label = "Remaining", Value = _workspace is null ? "—" : Money(_workspace.Outstanding) },
         new() { Label = AccountCountLabel ?? $"Registered {SubjectNoun.ToLowerInvariant()}s", Value = _loading || _error is not null ? "—" : _accounts.Count.ToString(CultureInfo.InvariantCulture) }];
     private IEnumerable<ObligationAccountDto> VisibleAccounts => _accounts.Where(a =>
-        (!SpaceExperience || ((Overview ? _filter == "Closed" : _lifecycle == "Closed") ? a.ActiveTo is not null : a.ActiveTo is null))
+        (!SpaceExperience || (!Overview && _lifecycle == "All") || ((Overview ? _filter == "Closed" : _lifecycle == "Closed") ? a.ActiveTo is not null : a.ActiveTo is null))
         && (!SpaceExperience || _filter switch
         {
             "Paid" => a.AssessedToDate > 0m && a.OutstandingToDate == 0m,
@@ -397,6 +413,7 @@
     private Guid? _selected;
 
     private bool _opening;
+    private CreateObligationAccountRequest? _advanceRequest;
     private ObligationAccountDto? _rateFor;
     private bool _saving;
     private bool _signedContract = true;
@@ -472,7 +489,7 @@
 
     private async Task OpenForm()
     {
-        _formError = null; _saved = null; _rateFor = null;
+        _formError = null; _saved = null; _rateFor = null; _advanceRequest = null;
         _occupant = _stallId = _subject = _contractRef = string.Empty;
         _signedContract = true; _lotEvent = LotRentalEvent.Fiesta;
         _amount = null;
@@ -492,12 +509,14 @@
 
     private void OpenRate(ObligationAccountDto account)
     {
-        _formError = null; _saved = null; _opening = false;
+        _formError = null; _saved = null; _opening = false; _advanceRequest = null;
         _rateFor = account;
         _amount = account.CurrentAmount;
     }
 
-    private void CloseForm() { _opening = false; _rateFor = null; _formError = null; }
+    private void CloseForm() { if (_saving) return; _opening = false; _rateFor = null; _formError = null; _advanceRequest = null; }
+    private void ReviewAdvance() { if (!_saving) _advanceRequest = null; }
+    private string AdvanceEventName => EventChoices.FirstOrDefault(x => x.Value == ((int)_advanceRequest!.Event!.Value).ToString())?.Title ?? _advanceRequest!.Event.ToString()!;
 
     private string OpenSubtitle => Kind == ObligationKind.FiestaArawLotRental
         ? "A lot for an event, with the approved amount."
@@ -540,9 +559,12 @@
         return DateOnly.TryParseExact(value + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out month);
     }
 
-    private async Task CreateAsync()
+    private Task CreateAsync() => SubmitAccountAsync(false);
+    private Task ConfirmAdvanceAsync() => SubmitAccountAsync(true);
+
+    private async Task SubmitAccountAsync(bool confirmed)
     {
-        if (_saving) return;
+        if (_saving || !_opening || ReadOnlyHistory || (confirmed && _advanceRequest is null)) return;
         _formError = null;
         var isLot = Kind == ObligationKind.FiestaArawLotRental;
         if (_amount is not > 0m) { _formError = "Enter the approved amount."; return; }
@@ -558,21 +580,29 @@
         }
         else if (_occupant.Trim().Length < 2) { _formError = Kind == ObligationKind.FiestaArawLotRental ? "Enter the lot holder." : "Enter the actual occupant."; return; }
 
+        var subject = Kind == ObligationKind.FishMeatVendorFee
+            ? _stalls.FirstOrDefault(x => x.StallId == stallId)?.StallNo ?? string.Empty
+            : ServerAssignedNumber ? string.Empty : _subject.Trim();
+        var request = new CreateObligationAccountRequest(
+            Kind, payorId, stallId, subject, isLot ? _lotEvent : null, isLot ? _eventDate : null, start, _amount!.Value,
+            // Monthly space accounts record occupancy basis; space-only occupancy implies no contract.
+            SupportsContractBasis ? (_signedContract ? OccupancyArrangement.SignedContract : OccupancyArrangement.SpaceOnly) : null,
+            SupportsContractBasis && _signedContract && !string.IsNullOrWhiteSpace(_contractRef) ? _contractRef.Trim() : null,
+            Kind == ObligationKind.FishMeatVendorFee ? null : _occupant.Trim());
+        var today = PhilippineTime.Today;
+        var futureMonth = isLot && new DateOnly(start.Year, start.Month, 1) > new DateOnly(today.Year, today.Month, 1);
+        if ((futureMonth && !confirmed) || (confirmed && request != _advanceRequest))
+        {
+            _advanceRequest = request;
+            return;
+        }
         _saving = true;
         try
         {
-            var subject = Kind == ObligationKind.FishMeatVendorFee
-                ? _stalls.FirstOrDefault(x => x.StallId == stallId)?.StallNo ?? string.Empty
-                : ServerAssignedNumber ? string.Empty : _subject.Trim();
-            var result = await ObligationsApi.CreateAccountAsync(new CreateObligationAccountRequest(
-                Kind, payorId, stallId, subject, isLot ? _lotEvent : null, isLot ? _eventDate : null, start, _amount!.Value,
-                // Monthly space accounts record occupancy basis; space-only occupancy implies no contract.
-                SupportsContractBasis ? (_signedContract ? OccupancyArrangement.SignedContract : OccupancyArrangement.SpaceOnly) : null,
-                SupportsContractBasis && _signedContract && !string.IsNullOrWhiteSpace(_contractRef) ? _contractRef.Trim() : null,
-                Kind == ObligationKind.FishMeatVendorFee ? null : _occupant.Trim()));
+            var result = await ObligationsApi.CreateAccountAsync(request);
             if (!result.IsSuccess) { _formError = result.Error ?? "The account could not be opened."; return; }
             _opening = false;
-            _saved = $"{Name} account opened.";
+            _saved = isLot ? "Lot account opened successfully." : $"{Name} account opened.";
             // A holder that was just added must be visible: a Paid / Partial filter or a search left on the list would hide it.
             _filter = "All";
             _lifecycle = "Active";
@@ -580,7 +610,7 @@
             await LoadAsync();
         }
         catch (Exception ex) { _formError = ex.Message; }
-        finally { _saving = false; }
+        finally { _saving = false; _advanceRequest = null; }
     }
 
     private async Task SaveRateAsync()
