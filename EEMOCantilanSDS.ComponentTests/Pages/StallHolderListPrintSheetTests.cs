@@ -31,6 +31,14 @@ public class StallHolderListPrintSheetTests
         return css[at..];
     }
 
+    [Fact]
+    public void FacilityRosterDoesNotCarryItsScreenHeightOntoLandscapePaper()
+    {
+        var css = ClientFile("Components", "Pages", "Shared", "SH", "StallHoldersList.razor.css");
+        var print = css[css.IndexOf("@media print", StringComparison.Ordinal)..];
+        Assert.Matches(@"\.lsh-doc-panel\s*\{[^}]*min-height:\s*0\s*!important", print);
+    }
+
     /// <summary>
     /// The two downloads are ONE control with two working halves.
     /// </summary>

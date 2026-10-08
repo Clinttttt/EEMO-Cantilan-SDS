@@ -171,7 +171,7 @@ public sealed class ObligationWorkspaceTests : TestContext
                 "Space K-4", new DateOnly(2026, 9, 1), 1200m, 400m, 800m, PayorId, "Ana Reyes", Guid.NewGuid(), true)
         }));
 
-        var cut = RenderComponent<Kanmanggay>();
+        var cut = RenderComponent<KanmanggayManageSpaceHolders>();
         cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "Periods"), Timeout);
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Periods").Click();
 
@@ -222,7 +222,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         context.SetAuthorized("admin").SetRoles("Admin");
         Serve(ObligationKind.KanmanggaySpaceRental, Space());
 
-        var cut = RenderComponent<Kanmanggay>();
+        var cut = RenderComponent<KanmanggayManageSpaceHolders>();
 
         cut.WaitForAssertion(() =>
         {
@@ -262,7 +262,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         var cut = RenderComponent<Kanmanggay>();
         cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New"), Timeout);
         Assert.Empty(cut.FindAll("[role='dialog']"));
-        Assert.Equal(1, cut.FindAll("[aria-label='Kanmanggay accounts'] tbody tr").Count);
+        Assert.Single(cut.FindAll("[aria-label='Kanmanggay accounts'] tbody tr"));
 
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New").Click();
 
@@ -279,7 +279,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.Empty(cut.FindAll("[role='dialog']"));
-            Assert.Equal(1, cut.FindAll("[aria-label='Kanmanggay accounts'] tbody tr").Count);
+            Assert.Single(cut.FindAll("[aria-label='Kanmanggay accounts'] tbody tr"));
         }, Timeout);
     }
 
