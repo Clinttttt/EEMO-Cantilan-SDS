@@ -1,0 +1,4 @@
+@page "/operations/kanmanggay/space-holders"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+<SpaceHolderRoster Source="EEMOCantilanSDS.Client.Services.SpaceAccountPresentation.Kanmanggay" />

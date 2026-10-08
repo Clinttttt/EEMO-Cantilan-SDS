@@ -17,7 +17,7 @@
     @* Keep both views mounted so register filters and the daily period survive mode switches. *@
     <div hidden="@_daily" role="region" id="vf-monthly" aria-label="Monthly space register">
         <ObligationWorkspace Kind="ObligationKind.VegetableFruitSpaceRental" Name="Vegetable / Fruits" SubjectNoun="Space"
-                             SpaceExperience="true" ServerAssignedNumber="true" EffectiveMonthLabel="Effective month"
+                             SpaceExperience="true" Overview="true" Presentation="EEMOCantilanSDS.Client.Services.SpaceAccountPresentation.VegetableFruit" ServerAssignedNumber="true" EffectiveMonthLabel="Effective month"
                              AccountCountLabel="Registered spaces" ReportsHref="/operations/vegetable-fruit/report"
                              ImportHref="/operations/vegetable-fruit/import">
             <AfterHero>@ModeSwitch</AfterHero>

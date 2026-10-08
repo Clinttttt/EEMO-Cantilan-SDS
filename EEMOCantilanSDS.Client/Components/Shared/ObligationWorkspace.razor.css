@@ -1,4 +1,8 @@
 /* Obligation workspace — V3. Panels, tables, fields and buttons come from the v3- layer in app.css. */
+.obw-scope { display: flex; align-items: center; gap: 16px; margin: 0 0 16px; }
+.obw-lifecycle { display: flex; gap: 4px; flex-shrink: 0; }
+.obw-lifecycle button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+@media (max-width: 768px) { .obw-scope { align-items: start; flex-direction: column; gap: 8px; } }
 
 .obw-layout {
     display: grid;

@@ -1,0 +1,7 @@
+@page "/operations/vegetable-fruit/manage-space-holders"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+<SpaceHolderManagement Source="EEMOCantilanSDS.Client.Services.SpaceAccountPresentation.VegetableFruit" AccountId="Account" />
+@code {
+    [SupplyParameterFromQuery(Name = "account")] public Guid? Account { get; set; }
+}

@@ -4,18 +4,22 @@
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
 @using Microsoft.AspNetCore.Components.Authorization
+@using EEMOCantilanSDS.Client.Services
 @inject IObligationsApiClient ObligationsApi
 
 @* The body of a specialized obligation line (IA-050): Fish/Meat Vendor Fee, Kanmanggay space rental, Fiesta/Araw lot
    rental. The Head opens an account and approves its amount; the register shows what was assessed, collected and is
    still owed. Money is never recorded here: it is collected on an Official Receipt in Current Collection, and the
    balance is only what canonical allocations say. *@
-@if (SpaceExperience)
+@if (SpaceExperience && !Management)
 {
     <FacilityHero Title="@Name" Eyebrow="@(Kind == ObligationKind.FiestaArawLotRental ? "OPERATION · EVENT LOT RENTAL" : "OPERATION · SPACE RENTAL")" Stats="SpaceStats" ShowProgress="true" ProgressPercentage="@CollectionRate">
         <Icon><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></svg></Icon>
     </FacilityHero>
     @AfterHero
+}
+@if (SpaceExperience)
+{
     <Toolbar SearchQuery="@_search"
              OnSearch="v => _search = v"
              ActiveFilter="@_filter"
@@ -23,11 +27,22 @@
              Filters="@StatusFilters"
              SearchPlaceholder="@($"Search {SubjectNoun.ToLowerInvariant()} no. or occupant…")"
              MiddleContent="@ActionBarContent" />
+    <div class="obw-scope">
+        <div role="group" aria-label="Account lifecycle" class="obw-lifecycle">
+            @foreach (var lifecycle in new[] { "Active", "Closed" })
+            {
+                <button class="v3-btn v3-btn-sm" type="button" aria-pressed="@(_lifecycle == lifecycle ? "true" : "false")" @onclick="() => _lifecycle = lifecycle">@lifecycle</button>
+            }
+        </div>
+        <p class="obw-note">@if (_loading || _error is not null) { <span>@(_loading ? "Loading account scope…" : "Account scope is unavailable.")</span> }
+            else { <span>@VisibleAccounts.Count() matching accounts · @_accounts.Count registered · @_accounts.Count(a => a.ActiveTo is null) active.</span> }
+            Financial totals: all registered accounts, including closed accounts, to date as of @PhilippineTime.Today.ToString("MMM d, yyyy"). Search and filters do not change totals.</p>
+    </div>
 }
 <div class="obw-layout">
     <section class="v3-panel" aria-labelledby="@_accountsTitleId" aria-busy="@(_loading ? "true" : "false")">
         <header class="v3-panel-header">
-            <h2 id="@_accountsTitleId">@(ReadOnlyHistory ? "Historical accounts" : SpaceExperience ? (_holders ? "Space Holders" : $"All {SubjectNoun}s") : $"{Name} accounts")</h2>
+            <h2 id="@_accountsTitleId">@(ReadOnlyHistory ? "Historical accounts" : Overview ? "Current account snapshot" : SpaceExperience ? "Space account management" : $"{Name} accounts")</h2>
             <AuthorizeView Roles="SuperAdmin">
                 <Authorized>
                     @if (!_opening && !SpaceExperience && !ReadOnlyHistory)
@@ -46,6 +61,12 @@
             </div>
         }
 
+        @if (Overview)
+        {
+            <SpaceAccountSnapshot Accounts="VisibleAccounts" Name="@Name" ManagementHref="@Presentation?.ManagementHref" Loading="_loading" Failed="@(_error is not null)" />
+        }
+        else
+        {
         <div class="v3-table-wrap" role="region" aria-label="@($"{Name} accounts")" tabindex="0">
             <table class="v3-table">
                 <caption class="v3-sr-only">@Name accounts with approved amount, assessed, collected and remaining</caption>
@@ -53,7 +74,7 @@
                     <tr>
                         <th scope="col">@(Kind == ObligationKind.FiestaArawLotRental ? "Lot holder" : "Occupant")</th>
                         <th scope="col">@SubjectNoun</th>
-                        @if (SpaceExperience && _holders) { <th scope="col">Start date</th><th scope="col">Status</th> }
+                        @if (SpaceExperience) { <th scope="col">Effective date</th><th scope="col">Lifecycle</th> }
                         <th scope="col" class="v3-num">@AmountHeading</th>
                         <th scope="col" class="v3-num">Assessed</th>
                         <th scope="col" class="v3-num">Collected</th>
@@ -65,11 +86,11 @@
                     @foreach (var account in VisibleAccounts)
                     {
                         <tr>
-                            <td class="v3-strong">@(account.PayerName ?? "—")</td>
+                            <td class="v3-strong">@SpaceAccountPresentation.Occupant(account)</td>
                             <td>@account.SubjectLabel@if (account.Kind == ObligationKind.FiestaArawLotRental && account.Event is { } lotEvent)
                             {<span class="v3-block">@LotLabel(account)</span>}
                             else if (account.ActiveTo is { } ended) {<span class="v3-block">Ended @ended.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</span>}</td>
-                            @if (SpaceExperience && _holders)
+                            @if (SpaceExperience)
                             {
                                 <td>@account.ActiveFrom.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
                                 <td><span class="obw-status">@(account.ActiveTo is not null ? "Closed" : "Active")</span></td>
@@ -98,7 +119,21 @@
                         @if (_selected == account.Id)
                         {
                             <tr class="obw-register-row">
-                                <td colspan="@(_holders ? 9 : 7)">
+                                <td colspan="@(SpaceExperience ? 9 : 7)">
+                                    @if (SupportsContractBasis)
+                                    {
+                                        <dl class="v3-facts">
+                                            <div><dt>Occupancy basis</dt><dd>@SpaceAccountPresentation.Basis(account)</dd></div>
+                                            @if (!string.IsNullOrWhiteSpace(SpaceAccountPresentation.Reference(account)))
+                                            { <div><dt>Contract reference</dt><dd>@account.ContractReference</dd></div> }
+                                            <div><dt>Approved amount effective from</dt><dd>@(account.CurrentAmountEffectiveFrom?.ToString("MMM yyyy") ?? "Not recorded")</dd></div>
+                                            @if (account.ActiveTo is { } closed) { <div><dt>Closed on</dt><dd>@closed.ToString("MMM d, yyyy")</dd></div> }
+                                        </dl>
+                                    }
+                                    @if (_registerError is not null)
+                                    {
+                                        <div role="alert" class="v3-notice v3-notice-error">@_registerError <button class="v3-btn v3-btn-sm" type="button" @onclick="() => LoadRegisterAsync(account.Id)">Try again</button></div>
+                                    }
                                     <table class="v3-table obw-register" aria-label="@($"{account.SubjectLabel} periods")">
                                         <thead>
                                             <tr>
@@ -120,7 +155,7 @@
                                             }
                                             @if (_register.Count == 0)
                                             {
-                                                <tr><td class="v3-empty" colspan="4">@(_registerLoading ? "Loading periods…" : "No period is billable yet.")</td></tr>
+                                                <tr><td class="v3-empty" colspan="4">@(_registerLoading ? "Loading periods…" : _registerError is not null ? "Periods are unavailable." : "No period is billable yet.")</td></tr>
                                             }
                                         </tbody>
                                     </table>
@@ -131,9 +166,10 @@
                     @if (!VisibleAccounts.Any())
                     {
                         <tr>
-                            <td class="v3-empty" colspan="@(_holders ? 9 : 7)">
-                                @if (_loading) { <span role="status">Loading accounts…</span> }
+                            <td class="v3-empty" colspan="@(SpaceExperience ? 9 : 7)">
+                                @if (_loading) { <span role="status">Loading accounts…</span><Skeleton Height="24px" /> }
                                 else if (_error is not null) { <span>Accounts are unavailable.</span> }
+                                else if (SpaceExperience && _accounts.Count > 0) { <span>@(!string.IsNullOrWhiteSpace(_search) ? "No accounts match this search." : _lifecycle == "Closed" ? "No closed accounts match the selected payment position." : "No active registrations match the selected payment position.")</span> }
                                 else { <span>No @(SubjectNoun == "Lot" ? "lots" : "spaces") found.</span> }
                             </td>
                         </tr>
@@ -143,7 +179,7 @@
                 {
                     <tfoot>
                         <tr>
-                            <td colspan="@(_holders ? 5 : 3)"><strong>Total</strong></td>
+                            <td colspan="@(SpaceExperience ? 5 : 3)"><strong>All accounts · to date</strong></td>
                             <td class="v3-num v3-strong">@Money(_workspace?.Assessed ?? _accounts.Sum(x => x.AssessedToDate))</td>
                             <td class="v3-num v3-strong">@Money(_workspace?.Collected ?? _accounts.Sum(x => x.CollectedToDate))</td>
                             <td class="v3-num v3-strong">@Money(_workspace?.Outstanding ?? _accounts.Sum(x => x.OutstandingToDate))</td>
@@ -153,6 +189,7 @@
                 }
             </table>
         </div>
+        }
     </section>
 
 </div>
@@ -271,6 +308,17 @@
     </Authorized>
 </AuthorizeView>
 
+<AuthorizeView Roles="SuperAdmin"><Authorized>
+@if (_closeFor is { } closing)
+{
+    <AddNewDrawer Show="true" Edit="true" Title="Close space account" Subtitle="@SpaceAccountPresentation.Occupant(closing)"
+                  FormId="obw-close-form" FormLabel="Confirm account closure" SubmitText="Confirm closure" Saving="_saving" Error="@_formError"
+                  OnSubmit="ConfirmCloseAsync" OnCancel="CancelClose">
+        <p class="v3-notice">Close @closing.SubjectLabel as of @PhilippineTime.Today.ToString("MMM d, yyyy")? Previously assessed periods and collections remain readable. Future assessments stop according to the account's closure date.</p>
+    </AddNewDrawer>
+}
+</Authorized></AuthorizeView>
+
 @if (!string.IsNullOrWhiteSpace(_saved))
 {
     <p class="v3-notice" role="status">@_saved</p>
@@ -287,6 +335,10 @@
     /// <summary>What an account is for: Stall, Space or Lot.</summary>
     [Parameter, EditorRequired] public string SubjectNoun { get; set; } = string.Empty;
     [Parameter] public bool SpaceExperience { get; set; }
+    [Parameter] public bool Overview { get; set; }
+    [Parameter] public bool Management { get; set; }
+    [Parameter] public Guid? AccountId { get; set; }
+    [Parameter] public SpaceAccountPresentation? Presentation { get; set; }
     [Parameter] public bool ServerAssignedNumber { get; set; }
     [Parameter] public string? EffectiveMonthLabel { get; set; }
     [Parameter] public string? AccountCountLabel { get; set; }
@@ -299,12 +351,15 @@
     [Parameter] public string? ImportHref { get; set; }
     private ObligationWorkspaceDto? _workspace;
     private string _search = string.Empty, _filter = "All";
-    private bool _holders;
-    private static readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
+    private string _lifecycle = "Active";
+    private static readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid" };
     private double CollectionRate => _workspace is { Assessed: > 0m } w ? (double)Math.Min(100m, Math.Round(w.Collected / w.Assessed * 100m, 0)) : 0;
     private RenderFragment ActionBarContent => @<div class="obw-actions-bar">
-        <button class="btn-outline" type="button" @onclick="() => _holders = true">@(SubjectNoun == "Lot" ? "Lot / Space Holder List" : "Space Holder List")</button>
-        <button class="btn-outline" type="button" @onclick="() => _holders = false">Manage Space Holders</button>
+        @if (Presentation is { } presentation)
+        {
+            <a class="btn-outline" href="@presentation.RosterHref">Space Holder List</a>
+            @if (!Management) { <a class="btn-outline" href="@presentation.ManagementHref">Manage Space Holders</a> }
+        }
         <a class="btn-outline" href="@ReportsHref">Reports</a>
         <AuthorizeView Roles="SuperAdmin"><Authorized>
             @if (!string.IsNullOrWhiteSpace(ImportHref)) { <a class="btn-outline" href="@ImportHref">Import list</a> }
@@ -314,9 +369,9 @@
     private List<FacilityHero.HeroStat> SpaceStats => [
         new() { Label = "Collected", Value = _workspace is null ? "—" : Money(_workspace.Collected) },
         new() { Label = "Remaining", Value = _workspace is null ? "—" : Money(_workspace.Outstanding) },
-        new() { Label = AccountCountLabel ?? $"Total {SubjectNoun.ToLowerInvariant()}s", Value = _accounts.Count.ToString(CultureInfo.InvariantCulture) }];
+        new() { Label = AccountCountLabel ?? $"Registered {SubjectNoun.ToLowerInvariant()}s", Value = _loading || _error is not null ? "—" : _accounts.Count.ToString(CultureInfo.InvariantCulture) }];
     private IEnumerable<ObligationAccountDto> VisibleAccounts => _accounts.Where(a =>
-        (!SpaceExperience || (_filter == "Closed" ? a.ActiveTo is not null : a.ActiveTo is null))
+        (!SpaceExperience || (_lifecycle == "Closed" ? a.ActiveTo is not null : a.ActiveTo is null))
         && (!SpaceExperience || _filter switch
         {
             "Paid" => a.AssessedToDate > 0m && a.OutstandingToDate == 0m,
@@ -325,7 +380,7 @@
             _ => true
         })
         && (string.IsNullOrWhiteSpace(_search) || a.SubjectLabel.Contains(_search, StringComparison.OrdinalIgnoreCase)
-            || (a.PayerName?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false)));
+            || SpaceAccountPresentation.Occupant(a).Contains(_search, StringComparison.OrdinalIgnoreCase)));
 
     private string AmountHeading => Kind == ObligationKind.FiestaArawLotRental ? "Approved amount" : "Approved monthly";
 
@@ -334,6 +389,8 @@
     private List<VendorFeeStallDto> _stalls = [];
     private bool _loading = true;
     private bool _registerLoading;
+    private int _registerRequest;
+    private string? _registerError;
     private string? _error;
     private Guid? _selected;
 
@@ -353,12 +410,22 @@
     private string _rateMonth = PhilippineTime.Today.AddMonths(1).ToString("yyyy-MM", CultureInfo.InvariantCulture);
     private decimal? _amount;
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        if (Management && AccountId is { } id && _accounts.FirstOrDefault(a => a.Id == id) is { } selected)
+        {
+            _lifecycle = selected.ActiveTo is null ? "Active" : "Closed";
+            await ToggleRegisterAsync(id);
+        }
+    }
 
     private async Task LoadAsync()
     {
         _loading = true;
         _error = null;
+        _workspace = null;
+        _accounts = [];
         try
         {
             if (SpaceExperience)
@@ -381,15 +448,24 @@
     {
         if (_selected == accountId) { _selected = null; return; }
         _selected = accountId;
+        await LoadRegisterAsync(accountId);
+    }
+
+    private async Task LoadRegisterAsync(Guid accountId)
+    {
+        var request = ++_registerRequest;
         _register = [];
+        _registerError = null;
         _registerLoading = true;
         try
         {
             var result = await ObligationsApi.GetRegisterAsync(accountId);
+            if (request != _registerRequest || _selected != accountId) return;
             _register = result.IsSuccess ? result.Value?.ToList() ?? [] : [];
+            if (!result.IsSuccess) _registerError = result.Error ?? "Periods could not be loaded.";
         }
-        catch { _register = []; }
-        finally { _registerLoading = false; }
+        catch { if (request == _registerRequest && _selected == accountId) { _register = []; _registerError = "Periods could not be loaded."; } }
+        finally { if (request == _registerRequest) _registerLoading = false; }
     }
 
     private async Task OpenForm()
@@ -497,6 +573,7 @@
             _saved = $"{Name} account opened.";
             // A holder that was just added must be visible: a Paid / Partial filter or a search left on the list would hide it.
             _filter = "All";
+            _lifecycle = "Active";
             _search = string.Empty;
             await LoadAsync();
         }
@@ -518,18 +595,36 @@
             _rateFor = null;
             _saved = "Approved amount saved. It applies from its effective month.";
             await LoadAsync();
+            if (_selected is { } selected) await LoadRegisterAsync(selected);
         }
         catch (Exception ex) { _formError = ex.Message; }
         finally { _saving = false; }
     }
 
-    private async Task CloseAsync(Guid accountId)
+    private ObligationAccountDto? _closeFor;
+    private Task CloseAsync(Guid accountId)
     {
+        _closeFor = _accounts.FirstOrDefault(a => a.Id == accountId);
+        _formError = null;
+        return Task.CompletedTask;
+    }
+    private void CancelClose() { _closeFor = null; _formError = null; }
+    private async Task ConfirmCloseAsync()
+    {
+        if (_saving || _closeFor is null) return;
+        _saving = true;
         _saved = null;
-        var result = await ObligationsApi.CloseAccountAsync(accountId, new CloseObligationAccountRequest(PhilippineTime.Today));
-        if (!result.IsSuccess) { _error = result.Error ?? "The account could not be ended."; return; }
-        _saved = "Account ended. Its assessed periods and collections are unchanged.";
-        await LoadAsync();
+        try
+        {
+            var result = await ObligationsApi.CloseAccountAsync(_closeFor.Id, new CloseObligationAccountRequest(PhilippineTime.Today));
+            if (!result.IsSuccess) { _formError = result.Error ?? "The account could not be ended."; return; }
+            _closeFor = null;
+            _selected = null;
+            _saved = "Account ended. Its assessed periods and collections are unchanged.";
+            await LoadAsync();
+        }
+        catch { _formError = "The account could not be ended."; }
+        finally { _saving = false; }
     }
 
     private static string Money(decimal amount) => $"₱{amount:N2}";

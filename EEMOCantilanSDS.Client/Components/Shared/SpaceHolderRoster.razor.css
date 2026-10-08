@@ -1,0 +1,26 @@
+.space-roster { min-width: 0; }
+.space-roster .v3-toolbar { flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+.space-roster-table-wrap { overflow-x: auto; }
+.space-roster-table { width: 100%; min-width: 880px; table-layout: fixed; }
+.space-roster-table th, .space-roster-table td { overflow-wrap: anywhere; vertical-align: top; }
+.space-roster-table thead th { white-space: normal; }
+.space-roster-table .v3-num { white-space: normal; font-variant-numeric: tabular-nums; }
+.roster-number { width: 4%; }
+.roster-occupant { width: 20%; }
+.roster-space { width: 8%; }
+.roster-basis { width: 16%; }
+.roster-reference { width: 15%; }
+.roster-date { width: 11%; }
+.roster-amount { width: 14%; }
+.roster-status { width: 12%; }
+@media print {
+    .space-roster { padding: 0 !important; margin: 0 !important; }
+    .space-roster-sheet { display: block; width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; border: 0; box-shadow: none; break-inside: auto; }
+    .space-roster-table-wrap { overflow: visible; }
+    .space-roster-table { min-width: 0; font-size: 9pt; }
+    .space-roster-table thead { display: table-header-group; }
+    .space-roster-table tr { break-inside: avoid; page-break-inside: avoid; }
+    .space-roster-table th, .space-roster-table td { padding: 5px 7px; }
+    .space-roster-table thead th { padding-top: 5mm; }
+    .v3-report-note { font-size: 8pt; break-inside: avoid; }
+}
