@@ -67,6 +67,11 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() => Assert.Contains("Ana Reyes", cut.Find("#vf-monthly").TextContent), Timeout);
         Assert.True(cut.Find("#vf-daily").HasAttribute("hidden"));
         Assert.Equal("/operations/vegetable-fruit/import", cut.Find("#vf-monthly a[href$='/import']").GetAttribute("href"));
+        Assert.Equal("Space Rentals", cut.Find("#vf-monthly .v3-panel-header h2").TextContent);
+        Assert.Empty(cut.FindAll("#vf-monthly tbody a"));
+        Assert.NotNull(cut.Find("#vf-monthly a[href='/operations/vegetable-fruit/space-holders']"));
+        Assert.NotNull(cut.Find("#vf-monthly a[href='/operations/vegetable-fruit/manage-space-holders']"));
+        SpaceHolderWorkspaceTests.SaveVisualArtifact("vegetable-fruit-overview", cut.Markup);
         cut.Find("#vf-monthly .filter-tab").Click();
         cut.FindAll("#vf-monthly .vf-mode button").Single(x => x.TextContent == "Daily").Click();
         Assert.True(cut.Find("#vf-monthly").HasAttribute("hidden"));
@@ -182,6 +187,7 @@ public sealed class ObligationWorkspaceTests : TestContext
             Assert.Contains("₱800.00", period.TextContent);
         }, Timeout);
         _api.Verify(x => x.GetRegisterAsync(account.Id), Times.Once);
+        SpaceHolderWorkspaceTests.SaveVisualArtifact("kanmanggay-management-periods", cut.Markup);
     }
 
     [Fact]

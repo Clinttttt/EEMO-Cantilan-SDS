@@ -24,9 +24,10 @@
     }
 
     <!-- CENTER-LEFT: Filter Tabs -->
+    @BeforeFilters
     @if (Filters?.Any() == true)
     {
-        <div class="filter-tabs-inline">
+        <div class="filter-tabs-inline" role="group" aria-label="@FilterLabel">
             @foreach (var filter in Filters)
             {
                 <div class="filter-tab @(ActiveFilter == filter ? "active" : "")"
@@ -97,6 +98,9 @@
 
     [Parameter]
     public RenderFragment? MiddleContent { get; set; }
+
+    [Parameter] public RenderFragment? BeforeFilters { get; set; }
+    [Parameter] public string FilterLabel { get; set; } = "Account filters";
 
     private async Task OnSearchInput(ChangeEventArgs e)
     {

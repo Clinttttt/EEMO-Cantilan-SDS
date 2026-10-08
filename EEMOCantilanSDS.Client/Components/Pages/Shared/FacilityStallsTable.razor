@@ -183,7 +183,7 @@
         else if (ColumnSet == "MonthlyTable")
         {
             <div class="table-wrap"><table class="data-table">
-                <thead><tr><th>Space No.</th><th>Occupant / Payor</th><th>Contract</th><th>Start date</th><th class="monthly-money">Monthly amount</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>@HolderUnit No.</th><th>Occupant / Payor</th><th>Contract</th><th>Start date</th><th class="monthly-money">Monthly amount</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>@foreach (var s in FilteredStalls)
                 {
                     var active = GetPropertyValue<bool?>(s, "IsActive") ?? true;
@@ -351,6 +351,8 @@
 </div>
 
 @code {
+    private string HolderUnit => EEMOCantilanSDS.Client.Services.FacilityState.HolderUnitOf(
+        Enum.TryParse<EEMOCantilanSDS.Domain.Enums.FacilityCode>(Facility, true, out var code) ? code : default);
 
     [Parameter] public string Facility { get; set; } = string.Empty;
 

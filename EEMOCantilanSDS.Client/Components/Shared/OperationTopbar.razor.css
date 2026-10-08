@@ -47,3 +47,7 @@
 .operation-context .topbar-title,
 .operation-context .topbar-breadcrumb { overflow-wrap: anywhere; white-space: normal; }
 .operation-context .topbar-right { flex-shrink: 0; }
+@media (max-width: 600px) {
+    .operation-context .topbar-breadcrumb { flex-wrap: wrap; gap: 2px 4px; }
+    .operation-context .breadcrumb-link { white-space: nowrap; }
+}

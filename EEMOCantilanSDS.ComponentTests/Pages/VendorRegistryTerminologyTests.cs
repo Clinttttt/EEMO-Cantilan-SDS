@@ -47,13 +47,13 @@ public sealed class VendorRegistryTerminologyTests : TestContext
         var markup = codeStart >= 0 ? source[..codeStart] : source;
         markup = Regex.Replace(markup, "<!--[\\s\\S]*?-->", string.Empty);
 
-        Assert.Contains("StallTrack — Spaces &amp; Occupants", markup);
+        Assert.Contains("StallTrack — @ManagementTitle", markup);
         Assert.Contains("Occupancy Registry", markup);
-        Assert.Contains("Total spaces", markup);
-        Assert.Contains("billable spaces", markup);
-        Assert.Contains("Add Occupant &amp; Space", markup);
+        Assert.Contains("Registered units", markup);
+        Assert.Contains("billable units", markup);
+        Assert.Contains("Add Occupant &amp; @HolderUnit", markup);
         Assert.Contains("Occupant &amp; contract", markup);
-        Assert.Contains("Edit Occupant &amp; Space", markup);
+        Assert.Contains("Edit Occupant &amp; @FacilityCatalog.HolderUnitFor", markup);
         Assert.Contains("UseOccupantTerminology=\"true\"", markup);
 
         Assert.DoesNotContain("Vendors &amp; Stalls", markup);

@@ -65,8 +65,29 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         Assert.NotNull(cut.Find("a[href='/operations/kanmanggay/report']"));
         Assert.Contains(cut.FindAll("button"), b => b.TextContent == "+ Add New");
         Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent is "Periods" or "Change amount" or "Close account");
-        Assert.StartsWith("/operations/kanmanggay/manage-space-holders?account=", cut.Find("tbody a").GetAttribute("href"));
+        Assert.Equal("Space Rentals", cut.Find(".v3-panel-header h2").TextContent);
+        Assert.Empty(cut.FindAll("tbody a"));
+        Assert.DoesNotContain(cut.FindAll("thead th"), th => th.TextContent is "Account" or "Actions");
+        Assert.DoesNotContain(cut.FindAll("button, a"), b => b.TextContent.Trim() == "Open account");
+        Assert.Contains("Effective date", cut.Find("thead").TextContent);
         SaveVisualArtifact("kanmanggay-overview", cut.Markup);
+    }
+
+    [Fact]
+    public void OverviewFiltersRowsWithoutChangingServerTotals()
+    {
+        Serve(Account("Unpaid holder"), Account("Paid holder", collected: 900m), Account("Closed holder", closed: true));
+        var cut = RenderComponent<Kanmanggay>();
+        var hero = cut.FindComponent<FacilityHero>().Markup;
+        cut.FindAll(".filter-tab").Single(b => b.TextContent == "Paid").Click();
+        Assert.Contains("Paid holder", cut.Find("tbody").TextContent);
+        Assert.DoesNotContain("Unpaid holder", cut.Find("tbody").TextContent);
+        cut.FindAll(".filter-tab").Single(b => b.TextContent == "Closed").Click();
+        Assert.Contains("Closed holder", cut.Find("tbody").TextContent);
+        Assert.DoesNotContain("Paid holder", cut.Find("tbody").TextContent);
+        cut.Find(".search-input").Input("absent");
+        Assert.Contains("No spaces found", cut.Find("tbody").TextContent);
+        Assert.Equal(hero, cut.FindComponent<FacilityHero>().Markup);
     }
 
     [Fact]
@@ -138,7 +159,11 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         Assert.Contains("Closed paid", cut.Find("tbody").TextContent);
         Assert.DoesNotContain("Active unpaid", cut.Find("tbody").TextContent);
         Assert.Contains("₱1,800.00", cut.Find("tfoot").TextContent);
-        Assert.Contains("including closed accounts", cut.Markup);
+        Assert.Contains("including closed accounts", cut.Find("tfoot [title]").GetAttribute("title"));
+        Assert.Contains("1 of 2 spaces shown", cut.Find(".v3-panel-header").TextContent);
+        Assert.DoesNotContain("Space Account Management", cut.Markup);
+        Assert.DoesNotContain("Financial totals:", cut.Markup);
+        Assert.NotNull(cut.Find(".toolbar-unified [aria-label='Account lifecycle']"));
         cut.FindAll(".filter-tab").Single(b => b.TextContent == "Unpaid").Click();
         Assert.DoesNotContain("Closed paid", cut.Find("tbody").TextContent);
         Assert.Contains("₱1,800.00", cut.Find("tfoot").TextContent);
@@ -184,6 +209,9 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         Click(cut, "Periods");
         Assert.Contains("Periods offline", cut.Find("[role='alert']").TextContent);
         Assert.DoesNotContain("No period is billable", cut.Markup);
+        Assert.NotNull(cut.Find("dl.obw-account-facts"));
+        Assert.DoesNotContain("Must not print", cut.Find("dl").TextContent);
+        SaveVisualArtifact("kanmanggay-management-details", cut.Markup);
         Click(cut, "Change amount");
         cut.Find("#obw-rate-month").Change("2026-11"); cut.Find("#obw-rate-amount").Change("1000");
         cut.Find("form[aria-label='Change approved amount']").Submit();

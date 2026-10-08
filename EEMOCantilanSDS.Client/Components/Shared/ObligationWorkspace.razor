@@ -13,9 +13,11 @@
    balance is only what canonical allocations say. *@
 @if (SpaceExperience && !Management)
 {
+    <div role="region" aria-label="@($"{Name} totals: all registered accounts, including closed accounts, to date")">
     <FacilityHero Title="@Name" Eyebrow="@(Kind == ObligationKind.FiestaArawLotRental ? "OPERATION · EVENT LOT RENTAL" : "OPERATION · SPACE RENTAL")" Stats="SpaceStats" ShowProgress="true" ProgressPercentage="@CollectionRate">
         <Icon><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></svg></Icon>
     </FacilityHero>
+    </div>
     @AfterHero
 }
 @if (SpaceExperience)
@@ -24,25 +26,18 @@
              OnSearch="v => _search = v"
              ActiveFilter="@_filter"
              OnFilterChanged="v => _filter = v"
-             Filters="@StatusFilters"
+             Filters="@(Overview ? OverviewFilters : StatusFilters)"
+             BeforeFilters="@(Management ? LifecycleFilters : null)"
+             FilterLabel="@(Management ? "Payment position" : "Account position")"
              SearchPlaceholder="@($"Search {SubjectNoun.ToLowerInvariant()} no. or occupant…")"
              MiddleContent="@ActionBarContent" />
-    <div class="obw-scope">
-        <div role="group" aria-label="Account lifecycle" class="obw-lifecycle">
-            @foreach (var lifecycle in new[] { "Active", "Closed" })
-            {
-                <button class="v3-btn v3-btn-sm" type="button" aria-pressed="@(_lifecycle == lifecycle ? "true" : "false")" @onclick="() => _lifecycle = lifecycle">@lifecycle</button>
-            }
-        </div>
-        <p class="obw-note">@if (_loading || _error is not null) { <span>@(_loading ? "Loading account scope…" : "Account scope is unavailable.")</span> }
-            else { <span>@VisibleAccounts.Count() matching accounts · @_accounts.Count registered · @_accounts.Count(a => a.ActiveTo is null) active.</span> }
-            Financial totals: all registered accounts, including closed accounts, to date as of @PhilippineTime.Today.ToString("MMM d, yyyy"). Search and filters do not change totals.</p>
-    </div>
 }
 <div class="obw-layout">
     <section class="v3-panel" aria-labelledby="@_accountsTitleId" aria-busy="@(_loading ? "true" : "false")">
         <header class="v3-panel-header">
-            <h2 id="@_accountsTitleId">@(ReadOnlyHistory ? "Historical accounts" : Overview ? "Current account snapshot" : SpaceExperience ? "Space account management" : $"{Name} accounts")</h2>
+            <h2 id="@_accountsTitleId">@(ReadOnlyHistory ? "Historical accounts" : Overview ? "Space Rentals" : Management ? Name : $"{Name} accounts")</h2>
+            @if (SpaceExperience && !_loading && _error is null)
+            { <span class="obw-note">@VisibleAccounts.Count() of @_accounts.Count spaces shown</span> }
             <AuthorizeView Roles="SuperAdmin">
                 <Authorized>
                     @if (!_opening && !SpaceExperience && !ReadOnlyHistory)
@@ -63,18 +58,18 @@
 
         @if (Overview)
         {
-            <SpaceAccountSnapshot Accounts="VisibleAccounts" Name="@Name" ManagementHref="@Presentation?.ManagementHref" Loading="_loading" Failed="@(_error is not null)" />
+            <SpaceAccountSnapshot Accounts="VisibleAccounts" Name="@Name" Loading="_loading" Failed="@(_error is not null)" />
         }
         else
         {
         <div class="v3-table-wrap" role="region" aria-label="@($"{Name} accounts")" tabindex="0">
-            <table class="v3-table">
+            <table class="v3-table @(Management ? "obw-management-table" : "")">
                 <caption class="v3-sr-only">@Name accounts with approved amount, assessed, collected and remaining</caption>
                 <thead>
                     <tr>
-                        <th scope="col">@(Kind == ObligationKind.FiestaArawLotRental ? "Lot holder" : "Occupant")</th>
                         <th scope="col">@SubjectNoun</th>
-                        @if (SpaceExperience) { <th scope="col">Effective date</th><th scope="col">Lifecycle</th> }
+                        <th scope="col">@(Kind == ObligationKind.FiestaArawLotRental ? "Lot holder" : "Occupant")</th>
+                        @if (SpaceExperience) { <th scope="col">Start date</th><th scope="col">Status</th> }
                         <th scope="col" class="v3-num">@AmountHeading</th>
                         <th scope="col" class="v3-num">Assessed</th>
                         <th scope="col" class="v3-num">Collected</th>
@@ -86,19 +81,19 @@
                     @foreach (var account in VisibleAccounts)
                     {
                         <tr>
-                            <td class="v3-strong">@SpaceAccountPresentation.Occupant(account)</td>
-                            <td>@account.SubjectLabel@if (account.Kind == ObligationKind.FiestaArawLotRental && account.Event is { } lotEvent)
+                            <td data-label="Space">@account.SubjectLabel@if (account.Kind == ObligationKind.FiestaArawLotRental && account.Event is { } lotEvent)
                             {<span class="v3-block">@LotLabel(account)</span>}
                             else if (account.ActiveTo is { } ended) {<span class="v3-block">Ended @ended.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</span>}</td>
+                            <td class="v3-strong" data-label="Occupant">@SpaceAccountPresentation.Occupant(account)</td>
                             @if (SpaceExperience)
                             {
-                                <td>@account.ActiveFrom.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
-                                <td><span class="obw-status">@(account.ActiveTo is not null ? "Closed" : "Active")</span></td>
+                                <td data-label="Start date">@account.ActiveFrom.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
+                                <td data-label="Status"><span class="obw-status">@(account.ActiveTo is not null ? "Closed" : "Active")</span></td>
                             }
-                            <td class="v3-num">@(account.CurrentAmount is { } amount ? Money(amount) : "—")</td>
-                            <td class="v3-num">@Money(account.AssessedToDate)</td>
-                            <td class="v3-num">@Money(account.CollectedToDate)</td>
-                            <td class="v3-num v3-strong">@Money(account.OutstandingToDate)</td>
+                            <td class="v3-num" data-label="Approved monthly">@(account.CurrentAmount is { } amount ? Money(amount) : "—")</td>
+                            <td class="v3-num" data-label="Assessed">@Money(account.AssessedToDate)</td>
+                            <td class="v3-num" data-label="Collected">@Money(account.CollectedToDate)</td>
+                            <td class="v3-num v3-strong" data-label="Remaining">@Money(account.OutstandingToDate)</td>
                             <td class="obw-actions">
                                 <button class="v3-btn v3-btn-sm" type="button" aria-expanded="@(_selected == account.Id ? "true" : "false")"
                                         @onclick="() => ToggleRegisterAsync(account.Id)">Periods</button>
@@ -122,7 +117,7 @@
                                 <td colspan="@(SpaceExperience ? 9 : 7)">
                                     @if (SupportsContractBasis)
                                     {
-                                        <dl class="v3-facts">
+                                        <dl class="obw-account-facts">
                                             <div><dt>Occupancy basis</dt><dd>@SpaceAccountPresentation.Basis(account)</dd></div>
                                             @if (!string.IsNullOrWhiteSpace(SpaceAccountPresentation.Reference(account)))
                                             { <div><dt>Contract reference</dt><dd>@account.ContractReference</dd></div> }
@@ -179,10 +174,10 @@
                 {
                     <tfoot>
                         <tr>
-                            <td colspan="@(SpaceExperience ? 5 : 3)"><strong>All accounts · to date</strong></td>
-                            <td class="v3-num v3-strong">@Money(_workspace?.Assessed ?? _accounts.Sum(x => x.AssessedToDate))</td>
-                            <td class="v3-num v3-strong">@Money(_workspace?.Collected ?? _accounts.Sum(x => x.CollectedToDate))</td>
-                            <td class="v3-num v3-strong">@Money(_workspace?.Outstanding ?? _accounts.Sum(x => x.OutstandingToDate))</td>
+                            <td colspan="@(SpaceExperience ? 5 : 3)"><strong>Total</strong> <span class="obw-note" title="All registered accounts, including closed accounts. Search and filters do not change totals.">All accounts · to date</span></td>
+                            <td class="v3-num v3-strong" data-label="Assessed">@Money(_workspace?.Assessed ?? _accounts.Sum(x => x.AssessedToDate))</td>
+                            <td class="v3-num v3-strong" data-label="Collected">@Money(_workspace?.Collected ?? _accounts.Sum(x => x.CollectedToDate))</td>
+                            <td class="v3-num v3-strong" data-label="Remaining">@Money(_workspace?.Outstanding ?? _accounts.Sum(x => x.OutstandingToDate))</td>
                             <td></td>
                         </tr>
                     </tfoot>
@@ -353,6 +348,13 @@
     private string _search = string.Empty, _filter = "All";
     private string _lifecycle = "Active";
     private static readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid" };
+    private static readonly List<string> OverviewFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
+    private RenderFragment LifecycleFilters => @<div role="group" aria-label="Account lifecycle" class="obw-lifecycle">
+        @foreach (var lifecycle in new[] { "Active", "Closed" })
+        {
+            <button class="v3-btn v3-btn-sm" type="button" aria-pressed="@(_lifecycle == lifecycle ? "true" : "false")" @onclick="() => _lifecycle = lifecycle">@lifecycle</button>
+        }
+    </div>;
     private double CollectionRate => _workspace is { Assessed: > 0m } w ? (double)Math.Min(100m, Math.Round(w.Collected / w.Assessed * 100m, 0)) : 0;
     private RenderFragment ActionBarContent => @<div class="obw-actions-bar">
         @if (Presentation is { } presentation)
@@ -371,7 +373,7 @@
         new() { Label = "Remaining", Value = _workspace is null ? "—" : Money(_workspace.Outstanding) },
         new() { Label = AccountCountLabel ?? $"Registered {SubjectNoun.ToLowerInvariant()}s", Value = _loading || _error is not null ? "—" : _accounts.Count.ToString(CultureInfo.InvariantCulture) }];
     private IEnumerable<ObligationAccountDto> VisibleAccounts => _accounts.Where(a =>
-        (!SpaceExperience || (_lifecycle == "Closed" ? a.ActiveTo is not null : a.ActiveTo is null))
+        (!SpaceExperience || ((Overview ? _filter == "Closed" : _lifecycle == "Closed") ? a.ActiveTo is not null : a.ActiveTo is null))
         && (!SpaceExperience || _filter switch
         {
             "Paid" => a.AssessedToDate > 0m && a.OutstandingToDate == 0m,

@@ -3,28 +3,23 @@
 
 <div class="v3-table-wrap" role="region" aria-label="@($"{Name} accounts")" tabindex="0">
     <table class="v3-table">
-        <thead><tr><th scope="col">Actual occupant</th><th scope="col">Space No.</th><th scope="col" class="v3-num">Approved monthly</th><th scope="col" class="v3-num">Collected</th><th scope="col" class="v3-num">Remaining</th><th scope="col">Account</th></tr></thead>
+        <thead><tr><th scope="col">Space No.</th><th scope="col">Occupant</th><th scope="col">Effective date</th><th scope="col" class="v3-num">Approved monthly</th><th scope="col" class="v3-num">Collected</th><th scope="col" class="v3-num">Remaining</th><th scope="col">Status</th></tr></thead>
         <tbody>
-            @foreach (var account in Accounts.Take(10))
+            @foreach (var account in Accounts)
             {
-                <tr><td class="v3-strong">@SpaceAccountPresentation.Occupant(account)</td><td>@account.SubjectLabel</td><td class="v3-num">@(account.CurrentAmount is { } amount ? $"₱{amount:N2}" : "—")</td><td class="v3-num">₱@account.CollectedToDate.ToString("N2")</td><td class="v3-num">₱@account.OutstandingToDate.ToString("N2")</td><td><a class="v3-btn v3-btn-sm" href="@($"{ManagementHref}?account={account.Id}")">Open account</a></td></tr>
+                <tr><td data-label="Space No.">@account.SubjectLabel</td><td data-label="Occupant" class="v3-strong">@SpaceAccountPresentation.Occupant(account)</td><td data-label="Effective date">@account.ActiveFrom.ToString("MMM d, yyyy")</td><td data-label="Approved monthly" class="v3-num">@(account.CurrentAmount is { } amount ? $"₱{amount:N2}" : "—")</td><td data-label="Collected" class="v3-num">₱@account.CollectedToDate.ToString("N2")</td><td data-label="Remaining" class="v3-num">₱@account.OutstandingToDate.ToString("N2")</td><td data-label="Status">@(account.ActiveTo is null ? "Active" : "Closed")</td></tr>
             }
             @if (!Accounts.Any())
             {
-                <tr><td colspan="6" class="v3-empty">@(Loading ? "Loading accounts…" : Failed ? "Accounts are unavailable." : "No spaces found.")</td></tr>
+                <tr><td colspan="7" class="v3-empty">@(Loading ? "Loading accounts…" : Failed ? "Accounts are unavailable." : "No spaces found.")</td></tr>
             }
         </tbody>
     </table>
 </div>
-@if (Accounts.Count() > 10)
-{
-    <p class="v3-report-note">Showing the first 10 of @Accounts.Count() matching accounts. <a href="@ManagementHref">Manage all space holders</a></p>
-}
 
 @code {
     [Parameter] public IEnumerable<ObligationAccountDto> Accounts { get; set; } = [];
     [Parameter] public string Name { get; set; } = "";
-    [Parameter] public string ManagementHref { get; set; } = "";
     [Parameter] public bool Loading { get; set; }
     [Parameter] public bool Failed { get; set; }
 }

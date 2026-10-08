@@ -161,7 +161,7 @@
                                         <th class="col-no">#</th>
                                         <th class="col-name">Name of Lessee<br /><span class="th-sub">(Actual Occupants)</span></th>
                                         <th class="col-contract">Name of Lessee per<br />Signed Contract</th>
-                                        <th class="col-stall">Stall /<br />Space No.</th>
+                                        <th class="col-stall">@HolderUnit No.</th>
                                         <th class="col-date">Effectivity of<br />Lessee Contract</th>
                                         <th class="col-years">No. of<br />Years</th>
                                         <th class="col-area">Area</th>
@@ -263,7 +263,7 @@
                                     <th class="col-no">#</th>
                                     <th class="col-name">Name of Lessee<br /><span class="th-sub">(Actual Occupants)</span></th>
                                     <th class="col-contract">Name of Lessee per<br />Signed Contract</th>
-                                    <th class="col-stall">Stall /<br />Space No.</th>
+                                    <th class="col-stall">@HolderUnit No.</th>
                                     <th class="col-date">Effectivity of<br />Lessee Contract</th>
                                     <th class="col-years">No. of<br />Years</th>
                                     <th class="col-area">Area</th>
@@ -356,9 +356,7 @@
     [Parameter]
     [SupplyParameterFromQuery]
     public string? Facility { get; set; }
-    // Known stall-based facilities use the office's Stall terminology. ICE/custom retain their existing Space wording.
-    private bool IsStallRoster => IsFacility("npm") || IsFacility("ncc") || IsFacility("tcc") || IsFacility("bbq");
-    private string HolderUnit => IsStallRoster ? "Stall" : "Space";
+    private string HolderUnit => FacilityCatalog.HolderUnitFor(Facility);
     private string HolderUnitPlural => HolderUnit + "s";
     private string HolderTitle => $"{HolderUnit} Holder List";
 
@@ -411,8 +409,8 @@
         {
             var sb = new System.Text.StringBuilder();
             sb.AppendLine(IsPureDays
-                ? "Section,Name of Lessee (Actual Occupant),Name on Signed Contract,Stall/Space No.,Effectivity,No. of Years,Area (sq.m),Billing Basis,Daily Rate,Fixed Annual Rental"
-                : "Section,Name of Lessee (Actual Occupant),Name on Signed Contract,Stall/Space No.,Effectivity,No. of Years,Area (sq.m),Monthly Rental,Actual Monthly Rental,Whole Year Rental");
+                ? $"Section,Name of Lessee (Actual Occupant),Name on Signed Contract,{HolderUnit} No.,Effectivity,No. of Years,Area (sq.m),Billing Basis,Daily Rate,Fixed Annual Rental"
+                : $"Section,Name of Lessee (Actual Occupant),Name on Signed Contract,{HolderUnit} No.,Effectivity,No. of Years,Area (sq.m),Monthly Rental,Actual Monthly Rental,Whole Year Rental");
 
             void AppendRows(string sectionName, IEnumerable<NpmStall> rows)
             {

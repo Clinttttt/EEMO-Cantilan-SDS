@@ -11,15 +11,15 @@
 @inject IPaymentsApiClient PaymentsApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @inject IDailyCollectionApiClient DailyCollectionApi
-<PageTitle>StallTrack — Spaces &amp; Occupants</PageTitle>
+<PageTitle>StallTrack — @ManagementTitle</PageTitle>
 
 <header class="topbar">
             <div class="topbar-left">
-                <div class="topbar-title">Spaces &amp; Occupants</div>
+                <div class="topbar-title">@ManagementTitle</div>
                 <div class="topbar-breadcrumb">
-                    <span>@Branding.OfficeAcronym Admin</span>
+                    <a class="breadcrumb-link" href="@($"/facility/{ActiveFacility.ToLowerInvariant()}")">@ActiveFacilityTab.Name</a>
                     <span class="breadcrumb-sep">/</span>
-                    <span class="breadcrumb-active">Spaces &amp; Occupants</span>
+                    <span class="breadcrumb-active">@ManagementTitle</span>
                 </div>
             </div>
             <div class="topbar-right">
@@ -39,7 +39,7 @@
                     var allPaid = RegistryData?.PaidThisMonth ?? 0;
                     var overallRate = allActive > 0 ? (allPaid * 100.0 / allActive) : 0;
                 }
-                <V3Hero Eyebrow="Spaces &amp; Occupants" Title="Occupancy Registry"
+                <V3Hero Eyebrow="@ManagementTitle" Title="Occupancy Registry"
                         Subtitle="@($"Municipality of {Branding.Municipality}, {Branding.Province}")" Progress="overallRate">
                     <Icon>
                         <svg viewBox="0 0 24 24">
@@ -50,10 +50,10 @@
                         </svg>
                     </Icon>
                     <Figures>
-                        <V3HeroFigure Label="Total spaces" Value="@((RegistryData?.TotalVendors ?? 0).ToString())"
+                        <V3HeroFigure Label="Registered units" Value="@((RegistryData?.TotalVendors ?? 0).ToString())"
                                       Note="@($"{RegistryData?.ActiveVendors ?? 0} active · {RegistryData?.ClosedVendors ?? 0} closed")" />
                         <V3HeroFigure Label="Paid this month" Value="@((RegistryData?.PaidThisMonth ?? 0).ToString())"
-                                      Note="@($"of {RegistryData?.MonthlyBillableVendors ?? 0} billable spaces")" />
+                                      Note="@($"of {RegistryData?.MonthlyBillableVendors ?? 0} billable units · all rental facilities")" />
                         <V3HeroFigure Label="Unpaid" Value="@((RegistryData?.UnpaidCount ?? 0).ToString())"
                                       Note="@($"₱{(RegistryData?.TotalOutstanding ?? 0):N0} outstanding{(RegistryData is { PartialCount: > 0 } ? $" · {RegistryData.PartialCount} partial" : "")}")" />
                         <V3HeroFigure Label="Monthly target" Value="@($"₱{(RegistryData?.MonthlyTarget ?? 0):N0}")"
@@ -120,10 +120,10 @@
 
                     <!-- Right: Add Vendor + Count -->
                     <div class="vs-actions-compact">
-                        <span class="vs-count-label">@FilteredVendors.Count() stalls</span>
+                        <span class="vs-count-label">@FilteredVendors.Count() @(HolderUnit.ToLowerInvariant())s</span>
                         <button class="btn-primary" @onclick="OpenCreate">
                             <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                            Add Occupant &amp; Space
+                            Add Occupant &amp; @HolderUnit
                         </button>
                     </div>
                 </div>
@@ -185,7 +185,7 @@
                     {
                         <div class="empty-state">
                             <svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" /></svg>
-                            <div class="empty-title">No matching spaces or occupants</div>
+                            <div class="empty-title">No matching @(HolderUnit.ToLowerInvariant())s or occupants</div>
                             <div class="empty-sub">Try adjusting the filters or search.</div>
                         </div>
                     }
@@ -472,7 +472,7 @@
                         @if (DetailVendor.FacilityCode != "NPM")
                         {
                             <li class="dv-fee">
-                                <span class="dv-fee-name">Monthly rental<span class="dv-fee-note">Space rental · Billed monthly</span></span>
+                                <span class="dv-fee-name">Monthly rental<span class="dv-fee-note">@FacilityCatalog.HolderUnitFor(DetailVendor.FacilityCode) rental · Billed monthly</span></span>
                                 <span class="dv-fee-amount">₱@DetailVendor.MonthlyRate.ToString("N0")<span class="dv-fee-unit">/mo</span></span>
                             </li>
                         }
@@ -580,7 +580,7 @@
                     History
                 </button>
                 <button type="button" class="btn-primary" @onclick="() => { ShowDetail = false; OpenEdit(DetailVendor); }">
-                    Edit Occupant &amp; Space
+                    Edit Occupant &amp; @FacilityCatalog.HolderUnitFor(DetailVendor.FacilityCode)
                 </button>
             </footer>
         </div>
@@ -870,6 +870,19 @@
     // -- Filters ---------------------------------------------------------------
     string SearchQuery = string.Empty;
     string ActiveFacility = "NPM";
+    [Parameter, SupplyParameterFromQuery(Name = "facility")] public string? Facility { get; set; }
+    private string? _appliedFacility;
+    private string HolderUnit => FacilityCatalog.HolderUnitFor(ActiveFacility);
+    private string ManagementTitle => $"Manage {HolderUnit} Holders";
+
+    protected override void OnParametersSet()
+    {
+        if (Facility == _appliedFacility) return;
+        _appliedFacility = Facility;
+        if (FacilityCatalog.TryResolveSlug(Facility, out var code)
+            && FacilityTabs.Any(tab => tab.Code == code.ToString()))
+            SelectFacility(code.ToString());
+    }
     string ActiveStatus = "All";
 
     readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };

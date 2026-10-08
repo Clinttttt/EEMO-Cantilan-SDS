@@ -52,7 +52,7 @@
 
             <div class="tcc-section-info">
                 <div class="tcc-section-info-left">
-                    <div class="tcc-section-label">All @(SpaceWord)s</div>
+                    <div class="tcc-section-label">@(FacilityCodeEnum == FacilityCode.NCC ? "Stall Rent" : $"All {SpaceWord}s")</div>
                     <div class="tcc-section-desc">@FacilityDescription</div>
                 </div>
                 <div class="tcc-section-mini-stats">
@@ -582,12 +582,7 @@
     }
 
     /// <summary>
-    /// What this facility calls its units. A commercial centre lets spaces, a market lets stalls; the offer should
-    /// read in the office's own words rather than calling everything a stall.
+    /// Shared facility vocabulary for headings, search, counters and registration actions.
     /// </summary>
-    private string SpaceWord => FacilityCodeEnum switch
-    {
-        FacilityCode.NPM => "Stall",
-        _ => "Space",
-    };
+    private string SpaceWord => EEMOCantilanSDS.Client.Services.FacilityState.HolderUnitOf(FacilityCodeEnum);
 }
