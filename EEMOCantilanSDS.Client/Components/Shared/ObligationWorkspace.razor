@@ -15,6 +15,7 @@
     <FacilityHero Title="@Name" Eyebrow="@(Kind == ObligationKind.FiestaArawLotRental ? "OPERATION · EVENT LOT RENTAL" : "OPERATION · SPACE RENTAL")" Stats="SpaceStats" ShowProgress="true" ProgressPercentage="@CollectionRate">
         <Icon><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></svg></Icon>
     </FacilityHero>
+    @AfterHero
     <Toolbar SearchQuery="@_search"
              OnSearch="v => _search = v"
              ActiveFilter="@_filter"
@@ -193,40 +194,35 @@
                             <ChoiceCards Label="Basis of occupancy" Items="BasisChoices" Value="@(_signedContract ? "signed" : "space")" ValueChanged="PickBasis" />
                         }
                     </div>
-                    <div class="avm-row-2">
+                    <div class="@(SupportsContractBasis && _signedContract ? "avm-row-2" : "avm-group")">
                         @* The holder is the source's own occupant: typed once on the account, never a master record or a name match. *@
                         <div class="avm-group">
                             <label class="avm-label" for="obw-occupant">@(Kind == ObligationKind.FiestaArawLotRental ? "Lot holder" : "Actual occupant") <span class="avm-req">*</span></label>
                             <input id="obw-occupant" class="avm-input" type="text" maxlength="200" autocomplete="off" aria-label="Actual occupant" @bind="_occupant" @bind:event="oninput" />
                         </div>
-                        @if (Kind == ObligationKind.KanmanggaySpaceRental)
+                        @if (SupportsContractBasis && _signedContract)
                         {
                             <div class="avm-group">
                                 <label class="avm-label">Contract reference</label>
-                                @if (_signedContract)
-                                {
-                                    <input class="avm-input" type="text" maxlength="200" placeholder="As written on the contract" @bind="_contractRef" />
-                                }
-                                else
-                                {
-                                    <div class="avm-input avm-input-locked">No contract (space only)</div>
-                                }
+                                <input class="avm-input" type="text" maxlength="200" placeholder="As written on the contract" @bind="_contractRef" />
                             </div>
                         }
                     </div>
                 </AddNewSection>
 
                 <AddNewSection Title="@(Kind == ObligationKind.FiestaArawLotRental ? "Lot & Event Details" : "Space & Contract Details")" Plain="true">
-                    <div class="avm-row-2">
+                    <div class="@(ServerAssignedNumber ? "avm-group" : "avm-row-2")">
                         <div class="avm-group">
                             <label class="avm-label">Operation</label>
                             <div class="avm-input avm-input-locked">@(Kind == ObligationKind.FiestaArawLotRental ? EventChoices.FirstOrDefault(x => x.Value == ((int)_lotEvent).ToString())?.Title ?? Name : Name)</div>
                         </div>
+                        @if (!ServerAssignedNumber)
+                        {
                         <div class="avm-group">
-                            @* Left blank, the number is assigned by the server within this operation; it is never worked out here. *@
                             <label class="avm-label" for="obw-subject">@(SubjectNoun == "Lot" ? "Lot No." : "Space No.")</label>
                             <input id="obw-subject" class="avm-input" type="text" maxlength="120" placeholder="Assigned automatically" @bind="_subject" />
                         </div>
+                        }
                     </div>
                     <div class="avm-row-2">
                         @if (Kind == ObligationKind.FiestaArawLotRental)
@@ -243,7 +239,7 @@
                         else
                         {
                             <div class="avm-group">
-                                <label class="avm-label" for="obw-start">@(_signedContract ? "Contract Effectivity (month)" : "Occupying Since (month)") <span class="avm-req">*</span></label>
+                                <label class="avm-label" for="obw-start">@(EffectiveMonthLabel ?? (_signedContract ? "Contract Effectivity (month)" : "Occupying Since (month)")) <span class="avm-req">*</span></label>
                                 <input id="obw-start" class="avm-input" type="month" required aria-label="Start month" value="@_startMonth" @onchange="e => _startMonth = e.Value?.ToString() ?? string.Empty" />
                             </div>
                             <div class="avm-group">
@@ -291,6 +287,11 @@
     /// <summary>What an account is for: Stall, Space or Lot.</summary>
     [Parameter, EditorRequired] public string SubjectNoun { get; set; } = string.Empty;
     [Parameter] public bool SpaceExperience { get; set; }
+    [Parameter] public bool ServerAssignedNumber { get; set; }
+    [Parameter] public string? EffectiveMonthLabel { get; set; }
+    [Parameter] public string? AccountCountLabel { get; set; }
+    [Parameter] public RenderFragment? AfterHero { get; set; }
+    private bool SupportsContractBasis => EEMOCantilanSDS.Domain.Entities.Revenue.ObligationAccount.IsMonthlySpaceKind(Kind);
     [Parameter] public bool ReadOnlyHistory { get; set; }
     [Parameter] public string? ReportsHref { get; set; }
 
@@ -313,7 +314,7 @@
     private List<FacilityHero.HeroStat> SpaceStats => [
         new() { Label = "Collected", Value = _workspace is null ? "—" : Money(_workspace.Collected) },
         new() { Label = "Remaining", Value = _workspace is null ? "—" : Money(_workspace.Outstanding) },
-        new() { Label = $"Total {SubjectNoun.ToLowerInvariant()}s", Value = _accounts.Count.ToString(CultureInfo.InvariantCulture) }];
+        new() { Label = AccountCountLabel ?? $"Total {SubjectNoun.ToLowerInvariant()}s", Value = _accounts.Count.ToString(CultureInfo.InvariantCulture) }];
     private IEnumerable<ObligationAccountDto> VisibleAccounts => _accounts.Where(a =>
         (!SpaceExperience || (_filter == "Closed" ? a.ActiveTo is not null : a.ActiveTo is null))
         && (!SpaceExperience || _filter switch
@@ -484,12 +485,12 @@
         {
             var subject = Kind == ObligationKind.FishMeatVendorFee
                 ? _stalls.FirstOrDefault(x => x.StallId == stallId)?.StallNo ?? string.Empty
-                : _subject.Trim();
+                : ServerAssignedNumber ? string.Empty : _subject.Trim();
             var result = await ObligationsApi.CreateAccountAsync(new CreateObligationAccountRequest(
                 Kind, payorId, stallId, subject, isLot ? _lotEvent : null, isLot ? _eventDate : null, start, _amount!.Value,
-                // Occupancy basis is recorded for Kanmanggay only; no contract is implied for a space-only occupancy.
-                Kind == ObligationKind.KanmanggaySpaceRental ? (_signedContract ? OccupancyArrangement.SignedContract : OccupancyArrangement.SpaceOnly) : null,
-                Kind == ObligationKind.KanmanggaySpaceRental && _signedContract && !string.IsNullOrWhiteSpace(_contractRef) ? _contractRef.Trim() : null,
+                // Monthly space accounts record occupancy basis; space-only occupancy implies no contract.
+                SupportsContractBasis ? (_signedContract ? OccupancyArrangement.SignedContract : OccupancyArrangement.SpaceOnly) : null,
+                SupportsContractBasis && _signedContract && !string.IsNullOrWhiteSpace(_contractRef) ? _contractRef.Trim() : null,
                 Kind == ObligationKind.FishMeatVendorFee ? null : _occupant.Trim()));
             if (!result.IsSuccess) { _formError = result.Error ?? "The account could not be opened."; return; }
             _opening = false;

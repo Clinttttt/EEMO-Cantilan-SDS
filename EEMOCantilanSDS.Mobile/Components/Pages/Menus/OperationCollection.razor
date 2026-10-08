@@ -44,7 +44,11 @@
         }
         else
         {
-            @if (_entry is { ModeAware: true })
+            @if (Code == global::EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.VegetableFruitSpaceRental)
+            {
+                <div class="menu-state-card">Daily collections use CT. For Monthly rental, <a href="/collections/new">open New Collection</a> and select the registered space holder.</div>
+            }
+            @if (_variants.Count > 1)
             {
                 <div class="op-modes" role="radiogroup" aria-label="Collection mode">
                     @foreach (var variant in _variants)
@@ -365,7 +369,7 @@
 
             _blocked = null;
             var modes = _entry!.ModeAware
-                ? new GovernedServiceMode?[] { GovernedServiceMode.WholePayment, GovernedServiceMode.DailyTransaction }
+                ? new GovernedServiceMode?[] { GovernedServiceMode.DailyTransaction }
                 : new GovernedServiceMode?[] { null };
             _variants = [];
             foreach (var mode in modes)

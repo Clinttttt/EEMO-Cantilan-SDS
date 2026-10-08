@@ -90,6 +90,9 @@
 
     /// <summary>Where "Back to ..." and Cancel return to.</summary>
     [Parameter] public string BackHref { get; set; } = "/menu";
+    /// <summary>Historical registers may retain their documented numbers; ordinary imports use server allocation.</summary>
+    [Parameter] public bool AllowImportedNumbers { get; set; } = true;
+    [Parameter] public string EffectiveMonthLabel { get; set; } = "Contract Effectivity (month)";
 
     private bool IsEvent => Kind == ObligationKind.FiestaArawLotRental;
     private string Holders => IsEvent ? "Lot Holders" : "Space Holders";
@@ -112,7 +115,7 @@
     private static readonly ImportColumn OccupantCol = new("name", "Actual Occupant", MinWidth: 200, Placeholder: "Full name");
     private static readonly ImportColumn BasisCol = new("basis", "Occupancy basis", "select", [Signed, SpaceOnly], MinWidth: 200);
     private static readonly ImportColumn ContractCol = new("contractRef", "Contract reference", MinWidth: 160, Placeholder: "Per contract");
-    private static readonly ImportColumn EffectivityCol = new("start", "Contract Effectivity (month)", "month", MinWidth: 170);
+    private ImportColumn EffectivityCol => new("start", EffectiveMonthLabel, "month", MinWidth: 170);
     private static readonly ImportColumn MonthlyCol = new("amount", "Approved monthly rental", "number", MinWidth: 160, Placeholder: "0.00");
     private static readonly ImportColumn EventCol = new("event", "Event", "select", ["Fiesta", "Araw"], MinWidth: 130);
     private static readonly ImportColumn EventDateCol = new("start", "Event date", "date", MinWidth: 150);
@@ -121,7 +124,8 @@
 
     private IReadOnlyList<ImportColumn> Columns => IsEvent
         ? [LotCol, OccupantCol, EventCol, EventDateCol, LotAmountCol, ClosedCol]
-        : [SubjectCol, OccupantCol, BasisCol, ContractCol, EffectivityCol, MonthlyCol, ClosedCol];
+        : AllowImportedNumbers ? [SubjectCol, OccupantCol, BasisCol, ContractCol, EffectivityCol, MonthlyCol, ClosedCol]
+        : [OccupantCol, BasisCol, ContractCol, EffectivityCol, MonthlyCol, ClosedCol];
 
     // HEADER ONLY: a template carries column names and nothing the office could mistake for data the platform put there.
     private string TemplateUri => "data:text/csv;charset=utf-8," + Uri.EscapeDataString(string.Join(",", Columns.Select(c => c.Label)) + "\r\n");
@@ -282,7 +286,8 @@
 
     private Col[] ColumnOrder => IsEvent
         ? [Col.Subject, Col.Name, Col.Event, Col.Start, Col.Amount, Col.Closed]
-        : [Col.Subject, Col.Name, Col.Basis, Col.Contract, Col.Start, Col.Amount, Col.Closed];
+        : AllowImportedNumbers ? [Col.Subject, Col.Name, Col.Basis, Col.Contract, Col.Start, Col.Amount, Col.Closed]
+        : [Col.Name, Col.Basis, Col.Contract, Col.Start, Col.Amount, Col.Closed];
 
     private static string Norm(string s) => new((s ?? string.Empty).ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
 
@@ -291,7 +296,7 @@
         "space" or "spaceno" or "spacenumber" or "lot" or "lotno" or "stallspaceno" => Col.Subject,
         "occupant" or "actualoccupant" or "name" or "nameofoccupant" or "holder" => Col.Name,
         "monthly" or "monthlyrental" or "approvedmonthly" or "approvedmonthlyrental" or "approvedamount" or "approvedlotamount" or "amount" or "rental" or "actualmorental" => Col.Amount,
-        "start" or "startdate" or "startmonth" or "effectivity" or "effectivitydate" or "contracteffectivitymonth" or "startcontracteffectivity" or "eventdate" or "occupyingsince" => Col.Start,
+        "start" or "startdate" or "startmonth" or "effectivemonth" or "effectivity" or "effectivitydate" or "contracteffectivitymonth" or "startcontracteffectivity" or "eventdate" or "occupyingsince" => Col.Start,
         "closedon" or "closed" or "closeddate" or "enddate" => Col.Closed,
         "event" or "eventfiestaaraw" => Col.Event,
         "occupancybasis" or "basis" or "basisofoccupancy" or "arrangement" => Col.Basis,
@@ -310,7 +315,7 @@
     {
         switch (column)
         {
-            case Col.Subject: row.Subject = value; break;
+            case Col.Subject: row.Subject = AllowImportedNumbers ? value : string.Empty; break;
             case Col.Name: row.Name = StripLeadingIndex(value); break;
             case Col.Amount: row.Amount = SheetNumber.Normalize(value); break;
             case Col.Start: row.Start = NormalizeStart(value); break;
@@ -390,7 +395,7 @@
     private string? _previewNote;
     private CancellationTokenSource? _previewDelay;
 
-    private ImportSpaceHolderRow BuildRow(Row r) => new(new(Kind, Guid.Empty, null, r.Subject.Trim(),
+    private ImportSpaceHolderRow BuildRow(Row r) => new(new(Kind, Guid.Empty, null, AllowImportedNumbers ? r.Subject.Trim() : string.Empty,
         r.Event, IsEvent ? r.StartDate : null, r.StartDate, r.Approved,
         IsEvent ? null : r.Basis, IsEvent || r.Basis != OccupancyArrangement.SignedContract || string.IsNullOrWhiteSpace(r.ContractRef) ? null : r.ContractRef.Trim(), r.Name.Trim()), r.Closed);
 

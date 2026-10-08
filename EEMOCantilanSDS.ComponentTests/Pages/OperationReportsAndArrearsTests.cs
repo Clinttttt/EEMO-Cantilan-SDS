@@ -86,9 +86,10 @@ public sealed class OperationReportsAndArrearsTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var facts = cut.Find(".lh-meta").TextContent;
-            Assert.Contains("Official Receipt for a whole payment", facts);
-            Assert.Contains("Cash Ticket for a daily transaction", facts);
-            Assert.Contains("Mode", cut.Find("section[aria-labelledby='vfr-register'] thead").TextContent);
+            Assert.Contains("Official Receipt for Monthly accounts", facts);
+            Assert.Contains("Cash Ticket for daily transactions", facts);
+            Assert.Contains("Obligation position", cut.Find("section[aria-labelledby='vfr-position']").TextContent);
+            Assert.Equal("/operations/vegetable-fruit/daily-report", cut.Find("a[href$='/daily-report']").GetAttribute("href"));
         }, Timeout);
     }
 
