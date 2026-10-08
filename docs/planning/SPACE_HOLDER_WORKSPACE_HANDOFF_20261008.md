@@ -105,3 +105,29 @@ Computer-use initialization fails with `windows sandbox failed: helper_unknown_e
 ## Next gate
 
 Review both operation overviews and their new routes, NCC and global `/stall-holders` with freshly built local apps. Confirm desktop/narrow behavior, registration visibility/numbering, authorized account actions and local-data PDFs. Only after user acceptance should this branch fast-forward into `integration/report-governance-ui` in this checkout. Production remains the separately recorded October 5 release.
+
+## 2026-10-09 micro-polish and advance lot registration checkpoint
+
+Sequential follow-up starts at `c9376e68` in the same physical checkout and feature branch; implementation/tests are committed as `d9cc9fd7`. The three concurrent planning-document diffs remain untouched and unstaged. This checkpoint supersedes the older control descriptions above; it does not change source identities, account contracts, assessment rules, allocation totals or collection paths.
+
+- `AccountStatusPill` reuses V3 semantic colors: Active/Paid green, Partial amber, Unpaid rose and Closed muted. Status text remains visible; the component does not determine lifecycle or payment position.
+- Shared management now offers connected **All / Active / Closed** lifecycle controls (initial Active), independently of **All / Paid / Partial / Unpaid** payment filters. Search and both filters leave full-operation totals unchanged. Available Periods / Change amount / Close account actions form a connected group; closed accounts retain Periods only and existing authorization/confirmation remains in place.
+- Vegetable/Fruits Monthly and Daily mode switches now live beside search inside their respective toolbars. Both views remain mounted. Monthly search/payment state and Daily search/month survive switches without reloading either workspace. Monthly OR and Daily direct CT remain separate; the CT instrument stays visible.
+- Shared success notices use a restrained green treatment, a 16px gap below the panel and polite status semantics. Fiesta/Araw says **Lot account opened successfully.** Errors retain their alert/error treatment.
+
+### Fiesta/Araw confirmation boundary
+
+Only Fiesta/Araw lot registration asks **Register lot holder in advance?** when the selected event date's calendar month is later than `PhilippineTime.Today`'s calendar month. Early registration remains allowed; there is no rolling-day restriction or fixed Fiesta/Araw month. Current/past months retain the ordinary flow. Existing amount/holder/month validation runs first. The confirmation shows the actual configured event label, entered source-owned holder, selected event date and approved amount.
+
+Review details returns to the preserved form without an API write. Edited details need fresh confirmation; an immutable request snapshot is compared again on submission. Confirm registration calls the existing account endpoint once, with an in-flight guard and no replay after success. Cancellation clears pending confirmation. A backend rejection returns to the form with its error and requires a new confirmation before another future-month request. EventDate and ActiveFrom are passed through unchanged. Registration creates no Collection, SRC, receipt, paid status or master Business Payor.
+
+### Verification and remaining acceptance gate
+
+- Red-before-green proof: the future-month regression initially failed because `CreateAccountAsync` was called once before confirmation (**0 passed / 1 failed / 0 skipped**).
+- Focused Web components: **59 passed / 0 failed / 0 skipped**. Full Web suite: **800 passed / 0 failed / 0 skipped**. Coverage includes semantic status text/classes, lifecycle/payment combinations, full totals under filters/search, permitted row actions, Monthly/Daily state retention, ordinary lot registration, validation, review/edit/reconfirm, duplicate submits, server errors and no Collection/Business Payor API call.
+- Client Release build passed. Final standalone incremental build: **0 warnings / 0 errors**; recompilation during tests emitted existing repository warnings. CSS validation passed for **156** source/bundle stylesheets; `git diff --check` passed.
+- Chromium rendered the actual bUnit HTML with application/scoped CSS at **1440 / 1024 / 390px**, covering both overviews, both management routes, Daily, advance confirmation and success notice: **21 fixture/viewport checks**, no horizontal page overflow. Screenshots and geometry results are ignored under `artifacts/space-holder-workspace/`. Connected actions and responsive wrapping were inspected. These are test fixtures, not authenticated API-backed browser validation.
+- Computer-use inventory returned no browser surfaces, and creating an in-app browser returned **Browser is not available: iab**. Live Head-role review at the configured local Client URL remains pending, including future-event review/confirmation against local tenant data. No real account or financial write was made during verification.
+- No standalone Unit run was needed: confirmation state is private Web component behavior covered above; no separate helper, backend/shared financial contract, persistence or Mobile change. No integration/database/Mobile suites or PDF regeneration were needed for this polish; the accepted official roster implementation and earlier PDF evidence remain unchanged.
+
+No integration, push, deployment, production data change or APK publication occurred. `integration/report-governance-ui` remains at `4b4be8f8641ad50f43198b0f724d3d4c3d5a817e`. Final user visual acceptance is still required before local integration.
