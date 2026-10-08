@@ -478,6 +478,8 @@ See [2026-09-27 EEMO Head final clarifications](../evidence/2026-09-27_eemo_head
 
 This closes the former IA-046 decision gate and supersedes the IA-047 presentation-only regular/fixed-versus-transient/temporary inference.
 
+The 2026-10-08 workspace ruling preserves these instruments while giving Monthly its own registered space account/period. Daily remains a CT transaction without account registration. The Head approves the Monthly rental and effective month; numbering belongs to the server. Both modes remain one official Vegetable / Fruits revenue line. See [the transition checkpoint](../planning/VEGETABLE_FRUIT_WORKSPACE_20261008.md) for implementation and historical-writer compatibility.
+
 See [2026-09-27 EEMO Head final clarifications](../evidence/2026-09-27_eemo_head_final_clarifications.md).
 
 ### Q3 — Transfer Large Cattle
