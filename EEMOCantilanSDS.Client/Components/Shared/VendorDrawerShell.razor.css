@@ -207,6 +207,12 @@
     flex-shrink: 0;
 }
 
+.vds ::deep .add-new-footer-leading { margin-right: auto; }
+.vds ::deep .eemo-drawer-footer:has(.add-new-footer-leading),
+.vds ::deep .eemo-drawer-footer:has(.avm-import-group) { flex-wrap: wrap; }
+.vds ::deep .avm-import-group { flex-wrap: wrap; }
+.vds ::deep .add-new-footer-leading .btn-ghost { min-height: 36px; }
+
 /* Override modal body to allow scrolling in drawer */
 .vds ::deep .eemo-drawer .eemo-modal-body {
     flex: 1;

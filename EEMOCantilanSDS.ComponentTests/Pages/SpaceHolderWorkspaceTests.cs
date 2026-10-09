@@ -45,6 +45,31 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
     private static void Click(IRenderedFragment cut, string label) => cut.FindAll("button").Single(x => x.TextContent.Trim() == label).Click();
 
     [Theory]
+    [InlineData(typeof(Kanmanggay), ObligationKind.KanmanggaySpaceRental, "kanmanggay")]
+    [InlineData(typeof(KanmanggayManageSpaceHolders), ObligationKind.KanmanggaySpaceRental, "kanmanggay")]
+    [InlineData(typeof(VegetableFruit), ObligationKind.VegetableFruitSpaceRental, "vegetable-fruit")]
+    [InlineData(typeof(VegetableFruitManageSpaceHolders), ObligationKind.VegetableFruitSpaceRental, "vegetable-fruit")]
+    [InlineData(typeof(FiestaAraw), ObligationKind.FiestaArawLotRental, "fiesta-araw")]
+    public void ImportLivesInRegistrationFooterAndNeverCreatesAnAccount(Type page, ObligationKind kind, string operation)
+    {
+        _api.Setup(x => x.GetAccountsAsync(kind)).ReturnsAsync(Result<IReadOnlyList<ObligationAccountDto>>.Success([]));
+        _api.Setup(x => x.GetWorkspaceAsync(kind)).ReturnsAsync(Result<ObligationWorkspaceDto>.Success(new([], 0m, 0m, 0m)));
+        Services.AddSingleton(Mock.Of<IGovernedServicesApiClient>());
+        Services.AddSingleton(Mock.Of<IEcfCollectionsApiClient>());
+        var cut = Render(builder => { builder.OpenComponent(0, page); builder.CloseComponent(); });
+        Assert.DoesNotContain(cut.FindAll("button, a"), x => x.TextContent.Trim() == "Import list");
+        Click(cut, "+ Add New");
+        Assert.Equal(new[] { "Import list", "Cancel", "Open account" }, cut.FindAll("footer button").Select(x => x.TextContent.Trim()));
+        Assert.NotNull(cut.Find("#obw-occupant"));
+        SaveVisualArtifact(operation + "-registration", cut.Markup);
+        Click(cut, "Import list");
+        Assert.EndsWith($"/operations/{operation}/import", Services.GetRequiredService<NavigationManager>().Uri);
+        _api.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Never);
+        Click(cut, "Cancel");
+        Assert.Empty(cut.FindAll("form[aria-label='Open account']"));
+    }
+
+    [Theory]
     [InlineData("Active", "pill-active")]
     [InlineData("Closed", "pill-inactive")]
     [InlineData("Paid", "pill-paid")]
@@ -102,7 +127,7 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         var cut = RenderComponent<Kanmanggay>();
         Assert.Equal("/operations/kanmanggay/space-holders", cut.FindAll("a").Single(a => a.TextContent == "Space Holder List").GetAttribute("href"));
         Assert.Equal("/operations/kanmanggay/manage-space-holders", cut.FindAll("a").Single(a => a.TextContent == "Manage Space Holders").GetAttribute("href"));
-        Assert.NotNull(cut.Find("a[href='/operations/kanmanggay/import']"));
+        Assert.Empty(cut.FindAll("a[href='/operations/kanmanggay/import']"));
         Assert.NotNull(cut.Find("a[href='/operations/kanmanggay/report']"));
         Assert.Contains(cut.FindAll("button"), b => b.TextContent == "+ Add New");
         Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent is "Periods" or "Change amount" or "Close account");

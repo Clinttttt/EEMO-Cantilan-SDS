@@ -66,7 +66,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         var cut = RenderComponent<VegetableFruit>();
         cut.WaitForAssertion(() => Assert.Contains("Ana Reyes", cut.Find("#vf-monthly").TextContent), Timeout);
         Assert.True(cut.Find("#vf-daily").HasAttribute("hidden"));
-        Assert.Equal("/operations/vegetable-fruit/import", cut.Find("#vf-monthly a[href$='/import']").GetAttribute("href"));
+        Assert.Empty(cut.FindAll("#vf-monthly a[href$='/import']"));
         Assert.Equal("Space Rentals", cut.Find("#vf-monthly .v3-panel-header h2").TextContent);
         Assert.Empty(cut.FindAll("#vf-monthly tbody a"));
         Assert.NotNull(cut.Find("#vf-monthly a[href='/operations/vegetable-fruit/space-holders']"));
@@ -560,13 +560,41 @@ public sealed class ObligationWorkspaceTests : TestContext
     }
 
     [Fact]
-    public void ImportList_IsOfferedFromTheWorkspace_AsALinkToItsOwnPage()
+    public void ImportList_IsOfferedOnlyInsideRegistration_WithoutSubmitting()
     {
         Serve(ObligationKind.KanmanggaySpaceRental);
         var cut = RenderComponent<Kanmanggay>();
 
-        cut.WaitForAssertion(() =>
-            Assert.Equal("/operations/kanmanggay/import", cut.FindAll("a").Single(a => a.TextContent.Trim() == "Import list").GetAttribute("href")), Timeout);
+        Assert.DoesNotContain(cut.FindAll("button, a"), x => x.TextContent.Trim() == "Import list");
+        cut.FindAll("button").Single(x => x.TextContent.Trim() == "+ Add New").Click();
+        var import = cut.Find(".add-new-footer-leading button");
+        Assert.Equal("button", import.GetAttribute("type"));
+        import.Click();
+        Assert.EndsWith("/operations/kanmanggay/import", Services.GetRequiredService<NavigationManager>().Uri);
+        _api.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RegistrationSaveBlocksImportCancelAndDuplicateSubmission()
+    {
+        Serve(ObligationKind.KanmanggaySpaceRental);
+        var pending = new TaskCompletionSource<Result<ObligationAccountDto>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _api.Setup(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>())).Returns(pending.Task);
+        var cut = RenderComponent<Kanmanggay>();
+        cut.FindAll("button").Single(x => x.TextContent.Trim() == "+ Add New").Click();
+        cut.Find("#obw-occupant").Input("Holder");
+        cut.Find("#obw-amount").Change("1200");
+        var form = cut.Find("form[aria-label='Open account']");
+        var first = form.SubmitAsync();
+        await form.SubmitAsync();
+        Assert.All(cut.FindAll("footer button"), x => Assert.True(x.HasAttribute("disabled")));
+        var before = Services.GetRequiredService<NavigationManager>().Uri;
+        cut.Find(".add-new-footer-leading button").Click();
+        Assert.Equal(before, Services.GetRequiredService<NavigationManager>().Uri);
+        _api.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Once);
+        pending.SetResult(Result<ObligationAccountDto>.Success(Space()));
+        await first;
+        Assert.Empty(cut.FindAll("form[aria-label='Open account']"));
     }
 
     [Fact]

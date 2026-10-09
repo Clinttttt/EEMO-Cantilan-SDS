@@ -6,6 +6,7 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using EEMOCantilanSDS.Client.Services
 @inject IObligationsApiClient ObligationsApi
+@inject NavigationManager Navigation
 
 @* The body of a specialized obligation line (IA-050): Fish/Meat Vendor Fee, Kanmanggay space rental, Fiesta/Araw lot
    rental. The Head opens an account and approves its amount; the register shows what was assessed, collected and is
@@ -193,7 +194,7 @@
     <Authorized>
         <AddNewDrawer Show="@(_opening && _advanceRequest is null && !ReadOnlyHistory)" Title="@($"Open {Name} account")" Subtitle="@OpenSubtitle"
                       FormId="obw-open-form" FormLabel="Open account" SubmitText="Open account" Saving="_saving" Error="@_formError"
-                      OnSubmit="CreateAsync" OnCancel="CloseForm">
+                      OnSubmit="CreateAsync" OnCancel="CloseForm" LeadingFooterActions="@ImportAction">
             @if (Kind == ObligationKind.FishMeatVendorFee)
             {
                 <AddNewSection Title="NPM Fish / Meat stall" Plain="true">
@@ -380,10 +381,11 @@
         }
         <a class="btn-outline" href="@ReportsHref">Reports</a>
         <AuthorizeView Roles="SuperAdmin"><Authorized>
-            @if (!string.IsNullOrWhiteSpace(ImportHref)) { <a class="btn-outline" href="@ImportHref">Import list</a> }
             <button class="btn-primary" type="button" @onclick="OpenForm">+ Add New</button>
         </Authorized></AuthorizeView>
     </div>;
+    private RenderFragment? ImportAction => string.IsNullOrWhiteSpace(ImportHref) ? null : @<button type="button" class="btn-ghost" disabled="@_saving" @onclick="OpenImport">Import list</button>;
+    private void OpenImport() { if (!_saving && !string.IsNullOrWhiteSpace(ImportHref)) Navigation.NavigateTo(ImportHref); }
     private List<FacilityHero.HeroStat> SpaceStats => [
         new() { Label = "Collected", Value = _workspace is null ? "—" : Money(_workspace.Collected) },
         new() { Label = "Remaining", Value = _workspace is null ? "—" : Money(_workspace.Outstanding) },

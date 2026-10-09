@@ -22,7 +22,11 @@
         </form>
     </ChildContent>
     <Footer>
-        <button type="button" class="btn-ghost" @onclick="OnCancel">@CancelText</button>
+        @if (LeadingFooterActions is not null)
+        {
+            <div class="add-new-footer-leading">@LeadingFooterActions</div>
+        }
+        <button type="button" class="btn-ghost" disabled="@Saving" @onclick="OnCancel">@CancelText</button>
         <button type="submit" class="btn-primary" form="@FormId" disabled="@Saving">@SubmitText</button>
     </Footer>
 </VendorDrawerShell>
@@ -45,4 +49,6 @@
     [Parameter] public EventCallback OnSubmit { get; set; }
     [Parameter] public EventCallback OnCancel { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
+    /// <summary>Optional navigation actions before Cancel/Submit; callers retain permission and saving guards.</summary>
+    [Parameter] public RenderFragment? LeadingFooterActions { get; set; }
 }
