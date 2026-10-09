@@ -352,18 +352,7 @@
                                                 case "action":
                                                     <td>
                                                         <div class="fh-action-cell">
-                                                            @if (r.Action == "Add OR")
-                                                            {
-                                                                <button type="button" class="fh-action fh-action-btn" @onclick="() => OpenAddOr(r)">@r.Action<span class="fh-action-arrow">→</span></button>
-                                                            }
-                                                            else if (CanPay(r))
-                                                            {
-                                                                <button type="button" class="fh-action fh-action-btn" @onclick="() => OpenPayBill(r)">Record payment<span class="fh-action-arrow">→</span></button>
-                                                            }
-                                                            else
-                                                            {
-                                                                <a class="fh-action" href="@r.Link">@r.Action<span class="fh-action-arrow">→</span></a>
-                                                            }
+                                                            <button type="button" class="fh-action fh-action-btn" @onclick="() => Review(r)">@(new EEMOCantilanSDS.Client.Services.FollowUpReviewContext(r, null, _data?.AsOf ?? PhilippineTime.Today).IsAccount ? "Review account" : "Review item")<span class="fh-action-arrow">→</span></button>
                                                         </div>
                                                     </td>
                                                     break;
@@ -521,12 +510,32 @@
               StallNo="@PayStallNo"
               Occupant="@(_payItem?.Person ?? string.Empty)"
               ContractId="@(_payItem?.ContractId)"
-              PeriodYear="@_payPeriod?.Year"
-              PeriodMonth="@_payPeriod?.Month"
+              PeriodYear="@(_reviewPeriod?.Year ?? _payPeriod?.Year)"
+              PeriodMonth="@(_reviewPeriod?.Month ?? _payPeriod?.Month)"
               OnClose="ClosePayBill"
               OnChanged="OnPaid" />
 
+@if (_review is not null)
+{
+    <FollowUpAccountReview @key="_review" Context="_review" OnClose="() => _review = null" OnAction="ContinueReview" OnPeriodSelected="date => _reviewPeriod = date" ActionLabel="@(_review.FacilityItem?.Action == "Add OR" ? "Review receipt evidence" : _review.CanRecordPayment ? "Record payment" : null)" />
+}
+
 @code {
+    private EEMOCantilanSDS.Client.Services.FollowUpReviewContext? _review;
+    private EEMOCantilanSDS.Client.Services.FollowUpReviewContext? _returnReview;
+    private void Review(FollowUpItemDto item)
+    {
+        _reviewPeriod = null; _returnReview = null;
+        var period = ParsePeriodMonth(item.Period, _data?.AsOf ?? PhilippineTime.Today);
+        _review = new(item, null, _data?.AsOf ?? PhilippineTime.Today, CanPay(item), period.Year, period.Month);
+    }
+    private async Task ContinueReview()
+    {
+        var item = _review?.FacilityItem; _returnReview = _review; _review = null;
+        if (item is null) return;
+        if (item.Action == "Add OR") await OpenAddOr(item);
+        else if (CanPay(item)) OpenPayBill(item);
+    }
     // ── Inline Add-OR (records missing a receipt number) ───────────────────────────
     // Works for every facility model. Reuses each facility's existing OR-save; for SLH one OR
     // covers a whole visit (all animal rows on that date). Period comes from the loaded history
@@ -608,6 +617,7 @@
 
     /// <summary>The billing period of the row the payment dialog was opened from.</summary>
     private (int Year, int Month)? _payPeriod;
+    private DateOnly? _reviewPeriod;
 
     // Any stall-scoped account behind on payments (or an expired contract with a balance) is payable
     // here. NPM opens the daily calendar; monthly facilities open the month grid — both in PayBillModal.
@@ -645,8 +655,14 @@
     {
         _payItem = null;
         _payPeriod = null;
+        _review = _returnReview; _returnReview = null;
     }
-    private async Task OnPaid() => await Load();
+    private async Task OnPaid()
+    {
+        _payItem = null;
+        await Load();
+        _review = _returnReview; _returnReview = null;
+    }
 
     private static OrModel ModelFor(FacilityCode f) => f switch
     {
@@ -844,6 +860,7 @@
         _orRows = new();
         _orSavedAny = false;
         if (reload) await Load();   // receipted records drop off the snapshot → refresh it
+        _review = _returnReview; _returnReview = null;
     }
 
     private readonly DateTime _now = PhilippineTime.Now;

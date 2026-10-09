@@ -1,0 +1,29 @@
+.review-scope { color: var(--text-secondary); font-size: .8125rem; line-height: 1.5; }
+.review-summary, .review-facts { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin: 12px 0 20px; }
+.review-summary dt, .review-facts dt { color: var(--text-secondary); font-size: .75rem; }
+.review-summary dd, .review-facts dd { margin: 4px 0 0; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+h3 { font-size: .9375rem; margin: 20px 0 10px; }
+p { font-size: .8125rem; line-height: 1.5; }
+.review-year { border: 1px solid var(--border); border-radius: 8px; margin: 10px 0; }
+.review-year > summary { padding: 12px; cursor: pointer; font-weight: 600; font-size: .875rem; }
+.review-year > summary span { display: block; margin: 4px 0 0 16px; font-weight: 400; color: var(--text-secondary); font-size: .75rem; }
+.review-year .review-facts { padding: 0 12px; }
+.review-table-wrap { overflow-x: auto; }
+.review-table { width: 100%; font-variant-numeric: tabular-nums; }
+.review-table th, .review-table td { padding: 9px; font-size: .75rem; text-align: right; white-space: nowrap; }
+.review-table th:first-child, .review-table td:first-child { text-align: left; white-space: normal; min-width: 110px; }
+.review-period-detail { max-width: 240px; font-weight: 400; }
+.review-period-detail p { font-size: .75rem; }
+summary:focus-visible { outline: 2px solid var(--civic-panel); outline-offset: -2px; }
+.review-footer-actions { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 8px; width: 100%; min-width: 0; }
+@media(max-width: 768px) { .account-review ::deep .eemo-drawer { width: 100%; max-width: 100%; } }
+@media(max-width: 480px) {
+    .review-summary, .review-facts { grid-template-columns: minmax(0,1fr); }
+    .review-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    .review-table tbody, .review-table tr { display: block; }
+    .review-table tr { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); border-top: 1px solid var(--border); }
+    .review-table td { display: block; text-align: left; white-space: normal; min-width: 0; border: 0; }
+    .review-table td:first-child { grid-column: 1 / -1; min-width: 0; }
+    .review-table td[data-label]::before { content: attr(data-label); display: block; font-size: .6875rem; color: var(--text-secondary); margin-bottom: 4px; }
+    .review-period-detail { max-width: none; }
+}

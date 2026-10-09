@@ -10,14 +10,14 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @inject IPenaltiesApiClient PenaltiesApi
 
-<PageTitle>StallTrack — Fines</PageTitle>
+<PageTitle>StallTrack — Fines &amp; Penalties</PageTitle>
 
 @* Fines / Penalties is one Monthly Income line with its own classification, always on an Official Receipt (IA-049). A
    fine is collected only from an approved definition, added to an OR in Current Collection beside the rent or ECF item it
    relates to; the register below is a read of the canonical posted lines. Nothing on this page records money. The layout
    owns the <main> landmark. *@
 <div class="v3-page fn-page">
-    <WorkspaceHeader Parent="Operations" Title="Fines">
+    <WorkspaceHeader Parent="Operations" Title="Fines & Penalties">
         <Meta><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
         <Actions>
             <a class="v3-btn" href="/collections/activity">Collection Activity</a>

@@ -6,6 +6,9 @@ using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Dtos.Reports;
 using EEMOCantilanSDS.Application.Dtos.Tenancy;
+using EEMOCantilanSDS.Application.Dtos.Payments;
+using EEMOCantilanSDS.Client.Components.Shared;
+using EEMOCantilanSDS.Client.Components.Pages.Shared.Actions;
 using EEMOCantilanSDS.Client.Services;
 using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.Extensions.DependencyInjection;
@@ -92,11 +95,9 @@ public sealed class FollowUpQueueCompositionTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Contains(cut.FindAll("button"), button => button.TextContent.Contains("Record payment", StringComparison.Ordinal));
-            Assert.Contains(cut.FindAll("button"), button => button.TextContent.Contains("Add OR", StringComparison.Ordinal));
-            Assert.Contains(cut.FindAll("button"), button => button.TextContent.Contains("Pay Bill", StringComparison.Ordinal));
+            Assert.Contains(cut.FindAll("button"), button => button.TextContent.Contains("Review account", StringComparison.Ordinal));
+            Assert.Contains(cut.FindAll("button"), button => button.TextContent.Contains("Review item", StringComparison.Ordinal));
             Assert.Contains(cut.FindAll("button"), button => button.TextContent.Contains("Hide locally", StringComparison.Ordinal));
-            Assert.Contains(cut.FindAll("a"), link => link.TextContent.Contains("Review contract", StringComparison.Ordinal));
             Assert.Contains("Past-period view", cut.Markup);
             Assert.False(cut.Markup.Contains("Arrears", StringComparison.OrdinalIgnoreCase));
             Assert.Contains("not recorded as follow-up history", cut.Markup);
@@ -141,8 +142,32 @@ public sealed class FollowUpQueueCompositionTests : TestContext
         Assert.DoesNotContain("Lisa Ilogans", cut.Markup);
     }
 
-    private (IRenderedComponent<FollowUpPage> Cut, Mock<IReportsApiClient> Api) RenderQueue(FollowUpQueueDto? queue = null)
+    [Fact]
+    public void ReviewCarriesActualAccountAndPeriodToExistingPaymentDialogWithoutNestedReview()
     {
+        var queue=SampleQueue(); var account=queue.Items.First();
+        var payments=new Mock<IPaymentsApiClient>();
+        payments.Setup(x=>x.GetOutstandingMonthsAsync(account.StallId!.Value,account.ContractId,null,null))
+            .ReturnsAsync(Result<IReadOnlyList<PaymentHistoryDto>>.Success([new("2026-08",PaymentStatus.Partial,1000,200,800,null,null)]));
+        payments.Setup(x=>x.GetOutstandingMonthsAsync(account.StallId!.Value,account.ContractId,2026,8))
+            .ReturnsAsync(Result<IReadOnlyList<PaymentHistoryDto>>.Success([new("2026-08",PaymentStatus.Partial,1000,200,800,null,null)]));
+        var (cut,_)=RenderQueue(queue,payments.Object);
+        cut.WaitForAssertion(()=>Assert.NotNull(RowFor(cut,account.Person)),RenderTimeout);
+        RowFor(cut,account.Person).QuerySelector("button")!.Click();
+        var review=cut.FindComponent<FollowUpAccountReview>();
+        Assert.Single(review.FindAll(".review-footer-actions"));
+        SpaceHolderWorkspaceTests.SaveVisualArtifact("account-review-payment",review.Markup);
+        review.Find("tbody summary").Click();
+        review.Find(".btn-primary").Click();
+        Assert.Empty(cut.FindComponents<FollowUpAccountReview>());
+        var form=cut.FindComponent<PayBillModal>().Instance;
+        Assert.True(form.Show); Assert.Equal(account.StallId,form.StallId);
+        Assert.Equal(account.ContractId,form.ContractId); Assert.Equal(2026,form.PeriodYear); Assert.Equal(8,form.PeriodMonth);
+    }
+
+    private (IRenderedComponent<FollowUpPage> Cut, Mock<IReportsApiClient> Api) RenderQueue(FollowUpQueueDto? queue = null, IPaymentsApiClient? payments = null)
+    {
+        JSInterop.Mode=JSRuntimeMode.Loose;
         var reportsApi = new Mock<IReportsApiClient>();
         reportsApi.Setup(api => api.GetFollowUpQueueAsync(It.IsAny<int>(), It.IsAny<int>()))
             .ReturnsAsync(Result<FollowUpQueueDto>.Success(queue ?? SampleQueue()));
@@ -161,7 +186,8 @@ public sealed class FollowUpQueueCompositionTests : TestContext
 
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
         Services.AddSingleton(Mock.Of<IStallsApiClient>());
-        Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
+        Services.AddSingleton(payments ?? Mock.Of<IPaymentsApiClient>());
+        Services.AddSingleton(Mock.Of<IObligationsApiClient>());
         Services.AddSingleton(Mock.Of<IDailyCollectionApiClient>());
         Services.AddSingleton(Mock.Of<ITrmApiClient>());
         Services.AddSingleton(Mock.Of<ITpmApiClient>());

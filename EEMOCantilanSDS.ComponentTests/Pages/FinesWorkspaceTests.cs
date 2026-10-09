@@ -58,7 +58,7 @@ public sealed class FinesWorkspaceTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Equal("Fines", Assert.Single(cut.FindAll("h1")).TextContent.Trim());
+            Assert.Equal("Fines & Penalties", Assert.Single(cut.FindAll("h1")).TextContent.Trim());
             Assert.Empty(cut.FindAll("main"));
             Assert.Contains("No penalty has been approved yet", cut.Markup);
             Assert.Contains("No fines were collected", cut.Markup);

@@ -1,0 +1,199 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Client.Services
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@inject IObligationsApiClient Accounts
+@inject IPaymentsApiClient Payments
+@inject IDailyCollectionApiClient Daily
+@inject FacilityState Facilities
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="account-review" @ref="_root">
+<VendorDrawerShell Show="true" Title="@(Context.IsAccount ? "Review account" : "Review item")" Subtitle="@($"{Context.Name} · {SourceName} · {Context.Reference}")" OnClose="OnClose">
+    <Icon><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></svg></Icon>
+    <ChildContent>
+        @if (_loading)
+        { <div role="status"><Skeleton Height="160px" /><span class="v3-sr-only">Loading account position…</span></div> }
+        else if (_error is not null)
+        { <div class="v3-notice v3-notice-error" role="alert">@_error</div><button type="button" class="v3-btn" @onclick="Load">Try again</button> }
+        else
+        {
+            <p class="review-scope">Current read · @PhilippineTime.Today.ToString("MMM d, yyyy") · Follow-up snapshot @Context.SnapshotDate.ToString("MMM d, yyyy")</p>
+            @if (_hasLedger && (Owed.Any() || Context.FacilityItem?.ReasonKind != "contract"))
+            {
+                <dl class="review-summary">
+                    <div><dt>Rental / obligation outstanding</dt><dd>@Money(Outstanding)</dd></div>
+                    <div><dt>Periods with a balance</dt><dd>@Owed.Count()</dd></div>
+                    <div><dt>Earliest outstanding</dt><dd>@(Owed.FirstOrDefault()?.Label ?? "None")</dd></div>
+                    <div><dt>Collected · loaded periods</dt><dd>@Money(_periods.Sum(p => p.Collected))</dd></div>
+                </dl>
+                @if (_reconciliationWarning is not null)
+                { <p class="v3-notice v3-notice-error" role="alert">@_reconciliationWarning</p> }
+                <section aria-label="Outstanding billing periods">
+                    <h3>@(IsEvent ? "Event obligation" : IsNpm ? "NPM outstanding month position" : "Outstanding billing periods")</h3>
+                    @if (!Owed.Any()) { <p>No outstanding assessed periods were returned.</p> }
+                    @foreach (var year in Owed.GroupBy(p => p.Date.Year))
+                    {
+                        <details class="review-year" open="@(year.Key == Owed.First().Date.Year)">
+                            <summary>@year.Key <span>@year.Count() periods with a balance · @Money(year.Sum(p => p.Remaining))</span></summary>
+                            @PeriodTable(year)
+                        </details>
+                    }
+                    @if (_periods.Any(p => p.Remaining == 0))
+                    { <details class="review-year"><summary>Settled assessed periods</summary>@PeriodTable(_periods.Where(p => p.Remaining == 0))</details> }
+                </section>
+                <p class="review-scope">Detailed SRC allocations and correction chains are not available in this period read. Period collected totals are authoritative; receipt evidence below is not a per-receipt allocation total.</p>
+                @if (_periods.Any(p => p.Eligible) && IsEvent)
+                { <p class="review-scope">Collect this registered lot through Collector Mobile: Fiesta / Araw, Official Receipt. This Web review cannot post its payment.</p> }
+                @if (_periods.Any(p => p.Eligible) && Context.ObligationItem is not null && !IsEvent)
+                { <p class="review-scope">Collect this registered account through Collector Mobile → Monthly / registered account → Official Receipt. This Web review cannot post its payment.</p> }
+            }
+            else if (Context.IsAccount && Context.FacilityItem?.ReasonKind != "contract")
+            { <p>Detailed account periods are unavailable for this queue identity. Open the source account to review its authoritative position.</p> }
+
+            <details class="review-year" open="@(!_hasLedger || Context.FacilityItem?.ReasonKind == "contract")">
+                <summary>@(Context.FacilityItem?.ReasonKind == "contract" ? "Contract review" : "Contract & Account")</summary>
+                <dl class="review-facts">
+                    <div><dt>Registered occupant</dt><dd>@(_account?.ActualOccupant ?? Context.Name)</dd></div>
+                    <div><dt>Source</dt><dd>@(_account?.KindLabel ?? Context.FacilityItem?.Model ?? Context.ObligationItem?.Scope.DisplayName)</dd></div>
+                    <div><dt>Account / follow-up status</dt><dd>@(_account is null ? Context.FacilityItem?.Status ?? "Source account" : _account.ActiveTo is null ? "Active" : "Closed")</dd></div>
+                    @if (_account is not null)
+                    {
+                        @if (_account.Arrangement is { } basis) { <div><dt>Occupancy basis</dt><dd>@(basis == OccupancyArrangement.SignedContract ? "Signed lease contract" : "No contract (space only)")</dd></div> }
+                        <div><dt>Effective from</dt><dd>@_account.ActiveFrom.ToString("MMM d, yyyy")</dd></div>
+                        @if (_account.ActiveTo is { } end) { <div><dt>Closed on</dt><dd>@end.ToString("MMM d, yyyy")</dd></div> }
+                        @if (_account.EventDate is { } eventDate) { <div><dt>Event</dt><dd>@_account.Event · @eventDate.ToString("MMM d, yyyy")</dd></div> }
+                        @if (_account.ContractName is { Length: > 0 }) { <div><dt>Name on contract</dt><dd>@_account.ContractName</dd></div> }
+                        @if (_account.ContractReference is { Length: > 0 }) { <div><dt>Contract reference</dt><dd>@_account.ContractReference</dd></div> }
+                        @if (_account.ContractEffectiveDate is { } start) { <div><dt>Signed commencement</dt><dd>@start.ToString("MMM d, yyyy")</dd></div> }
+                        @if (_account.ContractYears is { } years) { <div><dt>Recorded duration</dt><dd>@years years</dd></div> }
+                    }
+                    @if (Context.FacilityItem is { } item) { <div><dt>Follow-up</dt><dd>@item.Reason · @item.Period · @item.Status</dd></div> }
+                </dl>
+            </details>
+            <section aria-label="Other assessed charges"><h3>Other assessed charges</h3><p>No independent fine-assessment register is available. Delinquency does not imply an assessed fine.</p></section>
+        }
+    </ChildContent>
+    <Footer>
+        <div class="review-footer-actions">
+        <button class="btn-outline" type="button" @onclick="OnClose">Close</button>
+        @if (!string.IsNullOrWhiteSpace(Context.Link)) { <a class="btn-outline" href="@Context.Link">@(Context.IsAccount ? "Open source account" : "Open source item")</a> }
+        @if (ActionLabel is { } action)
+        { <button type="button" class="btn-primary" disabled="@(_loading || _error is not null || _reconciliationWarning is not null || (action == "Record payment" && (!_hasLedger || !Owed.Any())))" @onclick="OnAction">@action</button> }
+        </div>
+    </Footer>
+</VendorDrawerShell>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public FollowUpReviewContext Context { get; set; } = null!;
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnAction { get; set; }
+    [Parameter] public string? ActionLabel { get; set; }
+    [Parameter] public EventCallback<DateOnly> OnPeriodSelected { get; set; }
+    private sealed record Period(DateOnly Date, string Label, decimal Assessed, decimal Collected, decimal Remaining,
+        bool Eligible, string? Receipt = null, DateTime? PaidAt = null);
+    private List<Period> _periods = [];
+    private ObligationAccountDto? _account;
+    private bool _loading = true, _hasLedger;
+    private string? _error, _reconciliationWarning;
+    private ElementReference _root;
+    private IJSObjectReference? _focus;
+    private string SourceName => Context.ObligationItem?.Scope.DisplayName ?? (Context.FacilityItem is { } i ? Facilities.NameOf(i.Facility) : "Account");
+    private bool IsEvent => Context.ObligationItem?.Scope.Kind == EEMOCantilanSDS.Application.Dtos.Reports.FollowUpScopeKind.EventLot;
+    private bool IsNpm => Context.FacilityItem?.Facility == FacilityCode.NPM;
+    private IEnumerable<Period> Owed => _periods.Where(p => p.Remaining > 0).OrderBy(p => p.Date);
+    private decimal Outstanding => _account?.OutstandingToDate ?? _periods.Sum(p => p.Remaining);
+    private static string Money(decimal value) => $"₱{value:N2}";
+    private static string Status(Period p) => p.Remaining == 0 ? "Paid" : p.Collected > 0 ? "Partial" : "Unpaid";
+    protected override Task OnInitializedAsync() => Load();
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try { _focus = await JS.InvokeAsync<IJSObjectReference>("import", "./js/account-review.js"); if (_focus is not null) await _focus.InvokeVoidAsync("bind", _root); }
+        catch (InvalidOperationException) { } // Prerender has no browser focus.
+    }
+    private async Task Load()
+    {
+        _loading = true; _error = null; _periods = []; _account = null; _hasLedger = false; _reconciliationWarning = null;
+        try
+        {
+            if (Context.ObligationItem is { } obligation)
+            {
+                var kind = obligation.Scope.OperationCode switch
+                {
+                    "KANMANGGAY_SPACE_RENTAL" => ObligationKind.KanmanggaySpaceRental,
+                    "VEGETABLE_FRUIT_SPACE_RENTAL" => ObligationKind.VegetableFruitSpaceRental,
+                    "FIESTA_ARAW_LOT_RENTAL" => ObligationKind.FiestaArawLotRental,
+                    _ => (ObligationKind?)null
+                };
+                if (kind is null) throw new InvalidOperationException("This source has no supported account-register adapter.");
+                var accounts = await Accounts.GetAccountsAsync(kind.Value);
+                if (accounts is not { IsSuccess: true, Value: not null }) throw new InvalidOperationException(accounts?.StatusCode is 401 or 403 ? "You are not authorized to review this account." : "The source account could not be loaded.");
+                _account = accounts.Value.SingleOrDefault(a => a.Id == obligation.AccountId && a.Kind == kind)
+                    ?? throw new InvalidOperationException("The account is unavailable in this source.");
+                var register = await Accounts.GetRegisterAsync(obligation.AccountId);
+                if (register is not { IsSuccess: true, Value: not null }) throw new InvalidOperationException(register?.StatusCode is 401 or 403 ? "You are not authorized to review these periods." : "Account periods could not be loaded.");
+                if (register.Value.Any(p => p.AccountId != obligation.AccountId || p.Kind != kind)) throw new InvalidOperationException("The period read returned a different source account.");
+                _periods = register.Value.Where(p => p.AssessedAmount > 0).Select(p => new Period(p.PeriodStart,
+                    IsEvent ? $"{p.Event} · {p.PeriodStart:MMM d, yyyy}" : p.PeriodStart.ToString("MMMM yyyy"),
+                    p.AssessedAmount, p.SettledAmount, p.OutstandingAmount, p.CanAddToDraft)).OrderBy(p => p.Date).ToList();
+                if (_periods.Sum(p => p.Remaining) != _account.OutstandingToDate)
+                    _reconciliationWarning = "Period balances do not reconcile with the account total. Reload before arranging payment.";
+                _hasLedger = true;
+            }
+            else if (Context.IsAccount && Context.FacilityItem is { StallId: { } id } item)
+            {
+                var result = await Payments.GetOutstandingMonthsAsync(id, item.ContractId, Context.PeriodYear, Context.PeriodMonth);
+                if (result is not { IsSuccess: true, Value: not null }) throw new InvalidOperationException(result?.StatusCode is 401 or 403 ? "You are not authorized to review these periods." : "Outstanding periods could not be loaded.");
+                foreach (var p in result.Value.Where(p => !p.IsExcused && p.TotalBill > 0))
+                {
+                    if (!DateOnly.TryParseExact(p.Period + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+                        throw new InvalidOperationException("A billing period could not be identified. Open the source account.");
+                    _periods.Add(new(date, date.ToString("MMMM yyyy"), p.TotalBill, p.AmountPaid, p.BalanceDue, true, p.ORNumber, p.PaidAt));
+                }
+                _periods = _periods.OrderBy(p => p.Date).ToList(); _hasLedger = true;
+            }
+        }
+        catch (Exception ex) { _error = ex is InvalidOperationException ? ex.Message : "Account review could not be loaded."; }
+        finally { _loading = false; }
+    }
+    private RenderFragment PeriodTable(IEnumerable<Period> periods) => @<div class="review-table-wrap">
+        <table class="v3-table review-table"><thead><tr><th>Billing period</th><th>Assessed</th><th>Collected</th><th>Remaining</th><th>Status</th></tr></thead><tbody>
+        @foreach (var p in periods)
+        {
+            <tr><td><details><summary @onclick="() => OnPeriodSelected.InvokeAsync(p.Date)">@p.Label</summary><div class="review-period-detail">
+                <p>Assessed @Money(p.Assessed) · allocated/settled @Money(p.Collected) · remaining @Money(p.Remaining)</p>
+                @if (p.Receipt is { Length: > 0 }) { <p>Recorded OR evidence: @p.Receipt @p.PaidAt?.ToString("MMM d, yyyy")</p> }
+                else { <p>No detailed receipt allocation was returned for this period.</p> }
+                @if (IsNpm) { <button class="v3-btn v3-btn-sm" type="button" @onclick="() => LoadDays(p)">Review eligible days</button>
+                    @if (_dayPeriod == p.Date) { @if (_dayError is not null) { <p role="alert">@_dayError</p> } else if (_days is null) { <p role="status">Loading eligible days…</p> } else { <ul>@foreach (var day in _days) { <li>@day.Date.ToString("MMM d, yyyy") · @Money(day.Fee) · Pending</li> }</ul><p>Eligible unpaid dates only; month-goal adjustments are handled by the existing Whole Payment workflow.</p> } } }
+                <p>@(p.Eligible ? Context.ObligationItem is not null ? "Eligible for registered-account collection on Mobile." : "Review settlement eligibility in the source payment form." : "Not eligible for a new settlement.")</p>
+            </div></details></td><td data-label="Assessed">@Money(p.Assessed)</td><td data-label="Collected">@Money(p.Collected)</td><td data-label="Remaining">@Money(p.Remaining)</td><td data-label="Status"><AccountStatusPill Status="@Status(p)" /></td></tr>
+        }
+        </tbody></table>
+    </div>;
+    private DateOnly? _dayPeriod;
+    private IReadOnlyList<EEMOCantilanSDS.Application.Dtos.DailyCollections.SettleableNpmDayDto>? _days;
+    private string? _dayError;
+    private async Task LoadDays(Period period)
+    {
+        _dayPeriod = period.Date; _days = null; _dayError = null;
+        try
+        {
+            var result = await Daily.GetSettleableNpmDaysAsync(Context.FacilityItem!.StallId!.Value, period.Date.Year, period.Date.Month, Context.FacilityItem.ContractId);
+            if (_dayPeriod != period.Date) return;
+            if (result is not { IsSuccess: true, Value: not null }) { _dayError = "Eligible dates could not be loaded."; return; }
+            _days = result.Value;
+        }
+        catch { if (_dayPeriod == period.Date) _dayError = "Eligible dates could not be loaded."; }
+    }
+    public async ValueTask DisposeAsync()
+    {
+        if (_focus is null) return;
+        try { await _focus.InvokeVoidAsync("release", _root); await _focus.DisposeAsync(); }
+        catch (JSDisconnectedException) { }
+    }
+}
