@@ -186,6 +186,8 @@ public sealed class RentalConsolidationTests : TestContext
         Assert.Empty(_stalls.Invocations); Assert.Empty(_vendors.Invocations);
         Assert.Equal(code == "Vegetable/Fruits" ? "VF" : code, cut.Find("#rental-workspace-picker strong").TextContent.Trim());
         Assert.Single(cut.FindAll(".toolbar-unified"));
+        Assert.Contains("toolbar-registry-order", cut.Find(".toolbar-unified").ClassList);
+        Assert.NotNull(cut.Find(".toolbar-registry-order .search-input"));
         Assert.Empty(cut.FindAll(".rental-picker"));
         SpaceHolderWorkspaceTests.SaveVisualArtifact(code == "FA" ? "fa-registry" : code == "KM" ? "km-registry" : "vf-registry", cut.Markup);
     }

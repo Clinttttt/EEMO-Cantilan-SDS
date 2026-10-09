@@ -5,7 +5,7 @@
      Layout: [Search] [Filters] [Middle] [Actions]
 ══════════════════════════════════════════════ -->
 
-<div class="toolbar-unified">
+<div class="toolbar-unified @(RegistryOrder ? "toolbar-registry-order" : "")">
     @BeforeSearch
     <!-- LEFT: Search Box -->
     @if (ShowSearch)
@@ -96,6 +96,8 @@
 
     [Parameter]
     public string SearchPlaceholder { get; set; } = "Search stall no. or occupant…";
+
+    [Parameter] public bool RegistryOrder { get; set; }
 
     [Parameter]
     public RenderFragment? MiddleContent { get; set; }

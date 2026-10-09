@@ -1,8 +1,8 @@
 .rental-registry-actions{display:inline-flex;gap:5px;justify-content:flex-end;align-items:center;white-space:nowrap;flex-wrap:nowrap}
-.rental-registry-actions .action-btn{display:inline-flex;align-items:center;justify-content:center;min-width:34px;min-height:34px;width:34px;height:34px;padding:6px;border:1px solid #d7e2ed;border-radius:8px;background:#fff;color:#536f90;cursor:pointer;transition:background .12s ease,border-color .12s ease}
-.rental-registry-actions .action-btn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.6}
+.rental-registry-actions .action-btn{display:inline-flex;align-items:center;justify-content:center;min-width:32px;min-height:32px;width:32px;height:32px;padding:5px;border:1px solid #d7e2ed;border-radius:8px;background:#fff;color:#536f90;cursor:pointer;transition:background .12s ease,border-color .12s ease}
+.rental-registry-actions .action-btn svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.6}
 .rental-registry-actions .action-btn:hover:not(:disabled){background:#ebf3fc;border-color:#acc4df;color:#1e5da9}
 .rental-registry-actions .action-btn.action-danger:hover:not(:disabled){color:#ad3d47;background:#fff1f1;border-color:#eec7ca}
 .rental-registry-actions .action-btn:focus-visible{outline:2px solid #2463b6;outline-offset:2px}
 .rental-registry-actions .action-btn:disabled{opacity:.38;cursor:not-allowed;background:#f5f7f9}
-@media(max-width:700px){.rental-registry-actions .action-btn{min-width:38px;min-height:38px;width:38px;height:38px}}
+@media(max-width:700px){.rental-registry-actions .action-btn{min-width:36px;min-height:36px;width:36px;height:36px}}

@@ -341,3 +341,37 @@
 @media (max-width: 768px) {
     .search-box { flex: 0 0 auto; min-height: 36px; }
 }
+
+/* Registry-only NPM toolbar rhythm: source -> independent lifecycle/payment filters -> generous search -> links/add.
+   Keep both KM/VF/FA filter axes, unlike NPM's single-status backend. Other toolbars are unaffected. */
+.toolbar-registry-order {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 8px 10px;
+}
+.toolbar-registry-order > .filter-tabs-inline {
+    order: 1;
+    flex: 0 0 auto;
+}
+.toolbar-registry-order > .search-box {
+    order: 2;
+    flex: 1 1 310px;
+    min-width: min(100%, 280px);
+    max-width: none;
+}
+.toolbar-registry-order > .toolbar-middle {
+    order: 3;
+    flex: 0 1 auto;
+    min-width: 0;
+    margin-left: auto;
+    justify-content: flex-end;
+}
+@media (max-width: 1024px) {
+    .toolbar-registry-order > .search-box { flex-basis: 100%; }
+    .toolbar-registry-order > .toolbar-middle { flex-basis: 100%; margin-left: 0; justify-content: flex-start; }
+}
+@media (max-width: 640px) {
+    .toolbar-registry-order > .search-box { min-width: 0; }
+    .toolbar-registry-order > .filter-tabs-inline { max-width: 100%; overflow-x: auto; }
+}
