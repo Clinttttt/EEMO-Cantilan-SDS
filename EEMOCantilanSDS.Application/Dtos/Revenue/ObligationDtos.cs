@@ -39,7 +39,12 @@ public sealed record ObligationAccountDto(
     decimal OutstandingToDate,
     OccupancyArrangement? Arrangement = null,
     string? ContractReference = null,
-    string? ActualOccupant = null);
+    string? ActualOccupant = null,
+    string? ContractName = null,
+    DateOnly? ContractEffectiveDate = null,
+    int? ContractYears = null,
+    decimal? AreaSqm = null,
+    string? AreaLocation = null);
 
 public sealed record CreateObligationAccountRequest(
     ObligationKind Kind,
@@ -52,7 +57,12 @@ public sealed record CreateObligationAccountRequest(
     decimal Amount,
     OccupancyArrangement? Arrangement = null,
     string? ContractReference = null,
-    string? ActualOccupant = null);
+    string? ActualOccupant = null,
+    string? ContractName = null,
+    DateOnly? ContractEffectiveDate = null,
+    int? ContractYears = null,
+    decimal? AreaSqm = null,
+    string? AreaLocation = null);
 
 public sealed record SetObligationRateRequest(DateOnly EffectiveFrom, decimal Amount);
 

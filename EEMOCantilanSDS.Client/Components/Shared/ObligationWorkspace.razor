@@ -105,6 +105,11 @@ else
                         <div><dt>Source account</dt><dd>@selectedAccount.Kind · @selectedAccount.Id</dd></div>
                         <div><dt>Effective date</dt><dd>@selectedAccount.ActiveFrom.ToString("MMM d, yyyy")</dd></div>
                         <div><dt>Occupancy basis</dt><dd>@(selectedAccount.Event is not null ? $"{selectedAccount.Event} · {selectedAccount.EventDate}" : SpaceAccountPresentation.Basis(selectedAccount))</dd></div>
+                        @if (!string.IsNullOrWhiteSpace(selectedAccount.ContractName)) { <div><dt>Name on signed contract</dt><dd>@selectedAccount.ContractName</dd></div> }
+                        @if (selectedAccount.ContractEffectiveDate is { } contractDate) { <div><dt>Contract effectivity</dt><dd>@contractDate.ToString("MMM d, yyyy")</dd></div> }
+                        @if (selectedAccount.ContractYears is { } contractYears) { <div><dt>Recorded contract duration</dt><dd>@contractYears years</dd></div> }
+                        @if (selectedAccount.AreaSqm is { } spaceArea) { <div><dt>Recorded area</dt><dd>@spaceArea.ToString("N2") sq.m</dd></div> }
+                        @if (!string.IsNullOrWhiteSpace(selectedAccount.AreaLocation)) { <div><dt>Area location / note</dt><dd>@selectedAccount.AreaLocation</dd></div> }
                         @if (SpaceAccountPresentation.Reference(selectedAccount) is { Length: > 0 } reference) { <div><dt>Contract reference</dt><dd>@reference</dd></div> }
                         <div><dt>Approved amount effective from</dt><dd>@selectedAccount.CurrentAmountEffectiveFrom?.ToString("MMM yyyy")</dd></div>
                         @if (selectedAccount.ActiveTo is { } closed) { <div><dt>Closed on</dt><dd>@closed.ToString("MMM d, yyyy")</dd></div> }
@@ -278,7 +283,7 @@ else
             {
                 @if (SupportsContractBasis)
                 {
-                    <RentalLesseeFields Form="RegistrationState" ContractNameSupported="false" OccupantId="obw-occupant"
+                    <RentalLesseeFields Form="RegistrationState" ContractNameSupported="true" OccupantId="obw-occupant"
                                         OccupantPlaceholder="Current space occupant" OnArrangement="SelectRentalBasis">
                         <ExtraFields>
                             @if (_signedContract)
@@ -326,10 +331,35 @@ else
                 {
                     <RentalContractFields>
                         <SourceField><div class="avm-group"><label class="avm-label">Operation <span class="avm-req">*</span></label><div class="avm-input avm-input-locked">@Name</div></div></SourceField>
-                        <NumberField><RentalUnitNumberField ServerAssigned="true" SignedContract="_signedContract" /></NumberField>
-                        <EffectivityField><RentalEffectivityField SignedContract="_signedContract" MonthPrecision="true" InputId="obw-start"
-                            Label="@(EffectiveMonthLabel ?? (_signedContract ? "Contract Effectivity (month)" : "Occupying Since (month)"))" Month="@_startMonth" MonthChanged="v => _startMonth = v" /></EffectivityField>
+                        <NumberField><RentalUnitNumberField ServerAssigned="true" SuggestedNumber="@NextSpaceNumber" SignedContract="_signedContract" /></NumberField>
+                        <EffectivityField>
+                            @if (_signedContract)
+                            {
+                                <RentalEffectivityField SignedContract="true" InputId="obw-contract-date" Label="Contract Effectivity Date" Date="@_contractDate" DateChanged="value => _contractDate = value" />
+                            }
+                            else
+                            {
+                                <RentalEffectivityField SignedContract="false" MonthPrecision="true" InputId="obw-start"
+                                    Label="Occupying Since (month)" Month="@_startMonth" MonthChanged="v => _startMonth = v" />
+                            }
+                        </EffectivityField>
+                        <TermField>
+                            @if (_signedContract && Kind == ObligationKind.KanmanggaySpaceRental)
+                            {
+                                <div class="avm-group">
+                                    <label class="avm-label" for="obw-contract-years">Contract Duration (No. of Years)</label>
+                                    <select id="obw-contract-years" class="avm-input" @bind="_contractYears"><option value="3">3 years</option></select>
+                                    <span class="avm-hint-muted">MEEDO standard. Recorded term does not automatically expire or renew the account.</span>
+                                </div>
+                            }
+                        </TermField>
                     </RentalContractFields>
+                    <AddNewSection Title="Space Information" Plain="true">
+                        <div class="avm-row-2"><div class="avm-group">
+                            <label class="avm-label" for="obw-area">Area (sq.m)</label>
+                            <input id="obw-area" type="number" class="avm-input" min="0" max="1000000" step="0.01" placeholder="Area if recorded" @bind="_areaSqm" />
+                        </div></div>
+                    </AddNewSection>
                 }
                 else
                 {
@@ -387,6 +417,12 @@ else
                 {
                     <AddNewSection Title="Rental Rates" Plain="true">
                         <RentalRateFields Form="RegistrationState" InputId="obw-amount" Minimum="0.01m" Step="0.01" Entered="() => StateHasChanged()" />
+                    </AddNewSection>
+                    <AddNewSection Title="Additional Information" Plain="true">
+                        <div class="avm-row-2"><div class="avm-group">
+                            <label class="avm-label" for="obw-area-note">Area Location / Note</label>
+                            <input id="obw-area-note" class="avm-input" type="text" maxlength="250" placeholder="e.g. Extension, Corner" @bind="_areaLocation" />
+                        </div></div>
                     </AddNewSection>
                     <AddNewSection Title="Applicable Charges" Plain="true">
                         <RentalRateFields Form="RegistrationState" ChargeCard="true" Minimum="0.01m" Step="0.01" SourceName="@Name"
@@ -544,6 +580,22 @@ else
     private bool _saving;
     private bool _signedContract = true;
     private string _contractRef = string.Empty;
+    private string _contractName = string.Empty;
+    private string _areaLocation = string.Empty;
+    private decimal? _areaSqm;
+    private int _contractYears = 3;
+    private DateTime? _contractDate = PhilippineTime.Now.Date;
+    private string? NextSpaceNumber
+    {
+        get
+        {
+            if (!ServerAssignedNumber || _loading || _error is not null) return null;
+            var max = _accounts.Where(x => x.Kind == Kind && x.Event is null)
+                .Select(x => long.TryParse(x.SubjectLabel, out var number) && number > 0 ? number : 0L)
+                .DefaultIfEmpty().Max();
+            return max < long.MaxValue ? (max + 1).ToString(CultureInfo.InvariantCulture) : null;
+        }
+    }
     private string? _formError;
     private string? _saved;
     private string _occupant = string.Empty;
@@ -572,8 +624,9 @@ else
         : a.CollectedToDate > 0m && a.OutstandingToDate > 0m ? "Partial" : "Unpaid";
     private IEnumerable<RentalTableRow<ObligationAccountDto>> RentalRows => VisibleAccounts.Select(a => new RentalTableRow<ObligationAccountDto>(a,
         a.SubjectLabel, SpaceAccountPresentation.Occupant(a), a.Kind == ObligationKind.FiestaArawLotRental ? "Event lot" :
+        !string.IsNullOrWhiteSpace(a.ContractName) ? a.ContractName :
         string.IsNullOrWhiteSpace(SpaceAccountPresentation.Reference(a)) ? SpaceAccountPresentation.Basis(a) : $"Contract ref: {a.ContractReference}",
-        a.ActiveFrom.ToString("MMM d, yyyy"), a.CurrentAmount, PaymentStatus(a), a.ActiveTo is null ? "Active" : "Closed",
+        (a.ContractEffectiveDate ?? a.ActiveFrom).ToString("MMM d, yyyy"), a.CurrentAmount, PaymentStatus(a), a.ActiveTo is null ? "Active" : "Closed",
         a.Event is not null ? LotLabel(a) : null));
     private void OpenAccountPosition(ObligationAccountDto account) { _detailsAccount = account; _detailsHistory = false; }
     private void OpenAccountHistory(ObligationAccountDto account) { _detailsAccount = account; _detailsHistory = true; }
@@ -584,7 +637,8 @@ else
         () => _occupant, v => _occupant = v,
         () => _signedContract ? OccupancyArrangement.SignedContract : OccupancyArrangement.SpaceOnly,
         v => _signedContract = v == OccupancyArrangement.SignedContract,
-        () => _amount ?? 0m, v => _amount = v);
+        () => _amount ?? 0m, v => _amount = v,
+        () => _contractName, v => _contractName = v);
     private void SelectRentalBasis(OccupancyArrangement arrangement) => _signedContract = arrangement == OccupancyArrangement.SignedContract;
 
     protected override void OnParametersSet()
@@ -657,7 +711,8 @@ else
     private async Task OpenForm()
     {
         _formError = null; _saved = null; _rateFor = null; _advanceRequest = null;
-        _occupant = _stallId = _subject = _contractRef = string.Empty;
+        _occupant = _stallId = _subject = _contractRef = _contractName = _areaLocation = string.Empty;
+        _areaSqm = null; _contractYears = 3; _contractDate = PhilippineTime.Now.Date;
         _signedContract = true; _lotEvent = LotRentalEvent.Fiesta;
         _amount = null;
         _opening = true;
@@ -737,6 +792,10 @@ else
         if (_amount is not > 0m) { _formError = "Enter the approved amount."; return; }
         DateOnly start;
         if (isLot) start = _eventDate;
+        else if (SupportsContractBasis && _signedContract && _contractDate is { } signedOn)
+            start = new DateOnly(signedOn.Year, signedOn.Month, 1);
+        else if (SupportsContractBasis && _signedContract)
+        { _formError = "Choose the contract effectivity date."; return; }
         else if (!TryMonthStart(_startMonth, out start)) { _formError = "Choose the month the account starts."; return; }
         Guid? stallId = null;
         var payorId = Guid.Empty;
@@ -755,7 +814,12 @@ else
             // Monthly space accounts record occupancy basis; space-only occupancy implies no contract.
             SupportsContractBasis ? (_signedContract ? OccupancyArrangement.SignedContract : OccupancyArrangement.SpaceOnly) : null,
             SupportsContractBasis && _signedContract && !string.IsNullOrWhiteSpace(_contractRef) ? _contractRef.Trim() : null,
-            Kind == ObligationKind.FishMeatVendorFee ? null : _occupant.Trim());
+            Kind == ObligationKind.FishMeatVendorFee ? null : _occupant.Trim(),
+            SupportsContractBasis && _signedContract ? _contractName.Trim() : null,
+            SupportsContractBasis && _signedContract && _contractDate is { } contractOn ? DateOnly.FromDateTime(contractOn) : null,
+            Kind == ObligationKind.KanmanggaySpaceRental && _signedContract ? _contractYears : null,
+            SupportsContractBasis ? _areaSqm : null,
+            SupportsContractBasis ? _areaLocation.Trim() : null);
         var today = PhilippineTime.Today;
         var futureMonth = isLot && new DateOnly(start.Year, start.Month, 1) > new DateOnly(today.Year, today.Month, 1);
         if ((futureMonth && !confirmed) || (confirmed && request != _advanceRequest))

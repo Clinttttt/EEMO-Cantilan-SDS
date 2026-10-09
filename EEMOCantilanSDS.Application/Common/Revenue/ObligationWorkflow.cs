@@ -61,7 +61,7 @@ public sealed class ObligationWorkflow(
                     account.SubjectLabel, account.Event, account.EventDate, account.ActiveFrom, account.ActiveTo,
                     current?.Amount, current?.EffectiveFrom,
                     accountQuotes.Sum(x => x.AssessedAmount), accountQuotes.Sum(x => x.SettledAmount),
-                    accountQuotes.Sum(x => x.OutstandingAmount), account.Arrangement, account.ContractReference, account.ActualOccupant);
+                    accountQuotes.Sum(x => x.OutstandingAmount), account.Arrangement, account.ContractReference, account.ActualOccupant, account.ContractName, account.ContractEffectiveDate, account.ContractYears, account.AreaSqm, account.AreaLocation);
             }).ToList();
             return Result<IReadOnlyList<ObligationAccountDto>>.Success(rows);
         }, ct);
@@ -165,6 +165,9 @@ public sealed class ObligationWorkflow(
                 account = ObligationAccount.Create(actor.TenantId, request.Kind, payorId, stallId, subject ?? string.Empty,
                     request.Event, request.EventDate, request.ActiveFrom, actor.Username, actualOccupant: request.ActualOccupant);
                 account.SetOccupancyBasis(request.Arrangement, request.ContractReference);
+                if (ObligationAccount.IsMonthlySpaceKind(request.Kind))
+                    account.SetLeaseDetails(request.ContractName, request.ContractEffectiveDate,
+                        request.ContractYears, request.AreaSqm, request.AreaLocation);
                 // Preserve the actual rate start. Kanmanggay's first period resolves at occupancy start;
                 // subsequent monthly periods use their first day. Contract metadata never prices the account.
                 rate = ObligationRate.Create(actor.TenantId, account.Id, account.ActiveFrom, request.Amount, actor.Username);

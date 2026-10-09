@@ -1,7 +1,10 @@
 <div class="avm-group">
     <label class="avm-label" for="@InputId">@(ServerAssigned || !SignedContract ? "Space No." : "Stall No.") @if (!ServerAssigned && SignedContract) { <span class="avm-req">*</span> }</label>
     @if (ServerAssigned)
-    { <div class="avm-input avm-input-locked">Assigned automatically on registration</div> }
+    {
+        <div class="avm-input avm-input-locked">@(string.IsNullOrWhiteSpace(SuggestedNumber) ? "Assigned automatically on registration" : SuggestedNumber)</div>
+        <span class="avm-hint-muted">@(string.IsNullOrWhiteSpace(SuggestedNumber) ? "Assigned by the server." : "Suggested next Space No. for this operation. The server confirms the final number.")</span>
+    }
     else if (SignedContract)
     {
         <input id="@InputId" class="avm-input @(string.IsNullOrEmpty(Error) ? "" : "form-input-error")" type="text" placeholder="e.g. 01, T4, B-02" value="@Value" @oninput="Input" />
@@ -13,6 +16,7 @@
 </div>
 @code {
     [Parameter] public bool ServerAssigned { get; set; }
+    [Parameter] public string? SuggestedNumber { get; set; }
     [Parameter] public bool SignedContract { get; set; }
     [Parameter] public bool Suggested { get; set; }
     [Parameter] public string Value { get; set; } = "";

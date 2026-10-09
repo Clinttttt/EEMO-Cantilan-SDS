@@ -35,6 +35,12 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
     /// <summary>Optional documented space occupancy basis; null preserves older unspecified evidence.</summary>
     public OccupancyArrangement? Arrangement { get; private set; }
     public string? ContractReference { get; private set; }
+    // Recorded source-native lease metadata; null means unknown, not an inferred legacy contract.
+    public string? ContractName { get; private set; }
+    public DateOnly? ContractEffectiveDate { get; private set; }
+    public int? ContractYears { get; private set; }
+    public decimal? AreaSqm { get; private set; }
+    public string? AreaLocation { get; private set; }
     public DateTime CreatedAtUtc { get; private set; }
     public string CreatedBy { get; private set; } = string.Empty;
 
@@ -114,6 +120,32 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
             throw new ArgumentException("Space-only occupancy has no contract reference.");
         Arrangement = arrangement;
         ContractReference = reference;
+    }
+
+    /// <summary>Stores source-native descriptive evidence; never changes assessment or account lifecycle.</summary>
+    public void SetLeaseDetails(string? contractName, DateOnly? contractDate, int? years, decimal? area, string? location)
+    {
+        if (!IsMonthlySpaceKind(Kind))
+            throw new ArgumentException("Lease details apply only to monthly space accounts.");
+        var name = string.IsNullOrWhiteSpace(contractName) ? null : contractName.Trim();
+        var note = string.IsNullOrWhiteSpace(location) ? null : location.Trim();
+        if (name?.Length > 200 || note?.Length > 250)
+            throw new ArgumentException("Lease name/location exceeds allowed length.");
+        if (area is < 0m or > 1000000m || area is { } sqm && decimal.Round(sqm, 2) != sqm)
+            throw new ArgumentException("Area must be a nonnegative number with up to two decimals.");
+        if (Arrangement != OccupancyArrangement.SignedContract && (name is not null || contractDate is not null || years is not null))
+            throw new ArgumentException("Signed contract evidence requires signed contract occupancy.");
+        if (years is not null && years is < 1 or > 50)
+            throw new ArgumentException("Contract duration must be between 1 and 50 years.");
+        if (Kind == ObligationKind.KanmanggaySpaceRental && Arrangement == OccupancyArrangement.SignedContract && years is not null && years != 3)
+            throw new ArgumentException("Kanmanggay's recorded signed contract duration must follow the MEEDO three-year standard.");
+        if (contractDate is { } date && (date.Year != ActiveFrom.Year || date.Month != ActiveFrom.Month))
+            throw new ArgumentException("Contract effective date and billing start must be within the same month.");
+        ContractName = name;
+        ContractEffectiveDate = contractDate;
+        ContractYears = years;
+        AreaSqm = area is 0m ? null : area;
+        AreaLocation = note;
     }
 
     /// <summary>

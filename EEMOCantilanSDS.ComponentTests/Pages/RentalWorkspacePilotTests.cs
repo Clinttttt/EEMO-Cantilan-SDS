@@ -123,13 +123,21 @@ public sealed class RentalWorkspacePilotTests : TestContext
         cut.FindAll("button").Single(x => x.TextContent.Trim() == "+ Add New").Click();
         var titles = cut.FindAll(".avm-section-label").Select(x => x.TextContent).ToArray();
         Assert.Equal(eventRental ? new[] { "Event & Occupant Information", "Lot & Event Details" }
-            : new[] { "Lessee Information", "Space & Contract Details", "Rental Rates", "Applicable Charges" }, titles);
+            : new[] { "Lessee Information", "Space & Contract Details", "Space Information", "Rental Rates", "Additional Information", "Applicable Charges" }, titles);
         Assert.Single(cut.FindAll("#obw-amount"));
-        Assert.DoesNotContain("Contract Duration", cut.Find("form").TextContent);
-        Assert.DoesNotContain("Annual", cut.Find("form").TextContent);
-        Assert.Empty(cut.FindAll("input[name='area']"));
+        if (eventRental)
+        {
+            Assert.DoesNotContain("Contract Duration", cut.Find("form").TextContent);
+            Assert.DoesNotContain("Whole Year", cut.Find("form").TextContent);
+        }
+        else
+        {
+            Assert.Contains("Contract Duration (No. of Years)", cut.Find("form").TextContent);
+            Assert.NotNull(cut.Find("#obw-area"));
+            Assert.NotNull(cut.Find("#obw-area-note"));
+        }
         Assert.Equal(eventRental, cut.FindAll("#obw-event-date").Any());
-        Assert.Equal(!eventRental, cut.FindAll("#obw-start").Any());
+        Assert.Equal(!eventRental, cut.FindAll("#obw-contract-date").Any());
         Assert.Equal(eventRental, cut.FindAll("#obw-subject").Any());
         cut.FindAll("button").Single(x => x.TextContent.Trim() == "Cancel").Click();
         _authorization.SetRoles("Admin");

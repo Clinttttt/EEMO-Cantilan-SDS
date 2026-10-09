@@ -41,7 +41,7 @@
                     @for (var i = 0; i < Rows.Count; i++)
                     {
                         var account = Rows[i];
-                        <tr><td>@(i + 1)</td><td>@SpaceAccountPresentation.Occupant(account)</td><td>@account.SubjectLabel</td><td>@SpaceAccountPresentation.Basis(account)</td><td>@(SpaceAccountPresentation.Reference(account) is { Length: > 0 } reference ? reference : "—")</td><td>@account.ActiveFrom.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td><td class="v3-num">@(account.CurrentAmount is { } amount ? "₱" + amount.ToString("N2", CultureInfo.InvariantCulture) : "—")</td><td>@(account.ActiveTo is null ? "Active" : $"Closed {account.ActiveTo:MMM d, yyyy}")</td></tr>
+                        <tr><td>@(i + 1)</td><td>@SpaceAccountPresentation.Occupant(account)</td><td>@account.SubjectLabel</td><td>@SpaceAccountPresentation.Basis(account)</td><td>@(SpaceAccountPresentation.Reference(account) is { Length: > 0 } reference ? reference : "—")</td><td>@((account.ContractEffectiveDate ?? account.ActiveFrom).ToString("MMM d, yyyy", CultureInfo.InvariantCulture))</td><td class="v3-num">@(account.CurrentAmount is { } amount ? "₱" + amount.ToString("N2", CultureInfo.InvariantCulture) : "—")</td><td>@(account.ActiveTo is null ? "Active" : $"Closed {account.ActiveTo:MMM d, yyyy}")</td></tr>
                     }
                     @if (Rows.Count == 0)
                     {
@@ -52,7 +52,7 @@
                 </tbody>
             </table>
         </div>
-        <p class="v3-report-note">Effectivity is the recorded occupancy start; it is not evidence of a signed contract for space-only occupancy. Approved amounts are the account register's current amounts. Closed accounts retain their history; an unavailable amount is shown as —. This is a current register, not a reconstructed historical roster.</p>
+        <p class="v3-report-note">Effectivity shows the recorded signed-contract date when available, otherwise the source occupancy start. Space-only occupancy does not imply a signed contract. Approved amounts are the account register's current amounts. Closed accounts retain their history; an unavailable amount is shown as —. This is a current register, not a reconstructed historical roster.</p>
     </article>
 </div>
 
@@ -84,7 +84,7 @@
     private async Task PrintAsync() { if (Ready) await JS.InvokeVoidAsync("stalltrackPrint.landscape"); }
     private string FileName => $"space-holders-{Source.Route.Split('/').Last()}-{_lifecycle.ToLowerInvariant()}-{_asOf:yyyy-MM-dd}";
     private static readonly IReadOnlyList<SheetColumn> Columns = [new("#", SheetValueKind.Number), new("Actual occupant", SheetValueKind.Text), new("Space No.", SheetValueKind.Text), new("Occupancy basis", SheetValueKind.Text), new("Contract reference", SheetValueKind.Text), new("Effectivity", SheetValueKind.Date), new("Approved monthly rental", SheetValueKind.Money), new("Status", SheetValueKind.Text)];
-    private IReadOnlyList<IReadOnlyList<object?>> ExportRows => Rows.Select((a, i) => (IReadOnlyList<object?>)new object?[] { i + 1, SpaceAccountPresentation.Occupant(a), a.SubjectLabel, SpaceAccountPresentation.Basis(a), SpaceAccountPresentation.Reference(a), a.ActiveFrom, a.CurrentAmount, a.ActiveTo is null ? "Active" : $"Closed {a.ActiveTo:MMM d, yyyy}" }).ToArray();
+    private IReadOnlyList<IReadOnlyList<object?>> ExportRows => Rows.Select((a, i) => (IReadOnlyList<object?>)new object?[] { i + 1, SpaceAccountPresentation.Occupant(a), a.SubjectLabel, SpaceAccountPresentation.Basis(a), SpaceAccountPresentation.Reference(a), a.ContractEffectiveDate ?? a.ActiveFrom, a.CurrentAmount, a.ActiveTo is null ? "Active" : $"Closed {a.ActiveTo:MMM d, yyyy}" }).ToArray();
     private string CsvHref => "data:text/csv;charset=utf-8," + Uri.EscapeDataString(string.Join("\r\n",
         new[] { Csv("SPACE HOLDER LIST", Source.Name), Csv("Office", Branding.OfficeName), Csv("Municipality", Branding.Municipality, Branding.Province), Csv("Current records as of", _asOf?.ToString("yyyy-MM-dd"), "Occupancy", _lifecycle), Csv("Search", _search), Csv(Columns.Select(c => c.Header).ToArray()) }
         .Concat(ExportRows.Select(row => Csv(row.Select(v => v switch { DateOnly date => date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), decimal amount => amount.ToString("0.00", CultureInfo.InvariantCulture), _ => Convert.ToString(v, CultureInfo.InvariantCulture) }).ToArray())))));

@@ -71,16 +71,18 @@ public sealed class RentalConsolidationTests : TestContext
         Assert.NotNull(original.FindComponent<RentalLesseeFields>()); Assert.NotNull(km.FindComponent<RentalLesseeFields>());
         Assert.NotNull(original.FindComponent<RentalContractFields>()); Assert.NotNull(km.FindComponent<RentalContractFields>());
         Assert.NotNull(original.FindComponent<RentalUnitNumberField>()); Assert.True(km.FindComponent<RentalUnitNumberField>().Instance.ServerAssigned);
-        Assert.NotNull(original.FindComponent<RentalEffectivityField>()); Assert.True(km.FindComponent<RentalEffectivityField>().Instance.MonthPrecision);
+        Assert.NotNull(original.FindComponent<RentalEffectivityField>()); Assert.False(km.FindComponent<RentalEffectivityField>().Instance.MonthPrecision);
         Assert.Equal(2, original.FindComponents<RentalRateFields>().Count); Assert.Equal(2, km.FindComponents<RentalRateFields>().Count);
         Assert.Single(original.FindAll("input[placeholder='As written on the signed contract']"));
-        Assert.Empty(km.FindAll("input[placeholder='As written on the signed contract']"));
-        Assert.Contains("Not recorded by this source", km.Markup);
+        Assert.Single(km.FindAll("input[placeholder='As written on the signed contract']"));
+        Assert.Contains("Contract Duration (No. of Years)", km.Markup);
+        Assert.Contains("Space Information", km.Markup);
+        Assert.Contains("Additional Information", km.Markup);
         Assert.Contains("Space No.", km.FindComponent<RentalContractFields>().Markup);
         Assert.Empty(km.FindComponent<RentalUnitNumberField>().FindAll("input"));
-        Assert.Empty(km.FindAll("input[type='date']"));
+        Assert.Single(km.FindAll("input[type='date']"));
         Assert.Equal(form.StallNo, original.FindComponent<RentalUnitNumberField>().Find("input").GetAttribute("value"));
-        Assert.Equal(PhilippineTime.Today.ToString("yyyy-MM"), km.Find("#obw-start").GetAttribute("value"));
+        Assert.Equal(PhilippineTime.Today.ToString("yyyy-MM-dd"), km.Find("#obw-contract-date").GetAttribute("value"));
         SpaceHolderWorkspaceTests.SaveVisualArtifact(facility.ToLowerInvariant() + "-shared-registration", original.Markup);
         SpaceHolderWorkspaceTests.SaveVisualArtifact("km-shared-registration", km.Markup);
     }
@@ -97,7 +99,8 @@ public sealed class RentalConsolidationTests : TestContext
         var cut = RenderComponent<Kanmanggay>(); Click(cut, "+ Add New");
         cut.Find("#obw-occupant").Input("Source occupant");
         cut.Find("input[placeholder='As written on the contract']").Change("LEASE-REF");
-        cut.Find("#obw-start").Change("2026-09");
+        cut.Find("#obw-contract-date").Change("2026-09-01");
+        cut.Find("input[placeholder='As written on the signed contract']").Input("Named contract lessee");
         cut.Find("#obw-amount").Change("900");
         Assert.Equal("900", cut.Find(".avm-spin-input").GetAttribute("value"));
         cut.Find("button[aria-label='Increase monthly rental']").Click();
@@ -108,6 +111,9 @@ public sealed class RentalConsolidationTests : TestContext
         cut.Find("form[aria-label='Open account']").Submit();
         Assert.NotNull(request); Assert.Equal(1100.50m, request!.Amount); Assert.Equal("LEASE-REF", request.ContractReference);
         Assert.Equal("Source occupant", request.ActualOccupant); Assert.Equal(new DateOnly(2026, 9, 1), request.ActiveFrom);
+        Assert.Equal("Named contract lessee", request.ContractName);
+        Assert.Equal(new DateOnly(2026, 9, 1), request.ContractEffectiveDate);
+        Assert.Equal(3, request.ContractYears);
         Assert.Equal("", request.SubjectLabel); Assert.Null(request.StallId); Assert.Equal(Guid.Empty, request.PayorId);
         Assert.Contains("007", cut.Find("tbody").TextContent);
         _accounts.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Once);
@@ -126,11 +132,11 @@ public sealed class RentalConsolidationTests : TestContext
         Assert.NotNull(cut.FindComponent<RentalSummaryStrip>());
         Assert.Equal(new[] { "₱", "↺", "→" }, cut.FindAll("tbody button").Select(x => x.TextContent));
         Click(cut, "₱");
-        Assert.Contains("This is not a receipt", cut.Find("[role='dialog']").TextContent);
+        Assert.Contains("not a receipt", cut.Find("[role='dialog']").TextContent);
         Assert.Contains("₱500.00", cut.Find("[role='dialog'] tbody").TextContent);
         _accounts.Verify(x => x.GetRegisterAsync(account.Id), Times.Once);
         Assert.Empty(_activity.Invocations); Assert.Empty(_payments.Invocations);
-        Click(cut, "Cancel"); Click(cut, "→");
+        Click(cut, "Close"); Click(cut, "→");
         Assert.EndsWith($"/operations/kanmanggay/manage-space-holders?account={account.Id}", Services.GetRequiredService<NavigationManager>().Uri);
         Assert.DoesNotContain(_accounts.Invocations, x => x.Method.Name == nameof(IObligationsApiClient.CreateAccountAsync));
     }
@@ -154,7 +160,7 @@ public sealed class RentalConsolidationTests : TestContext
         Assert.Contains("SRC-REPLACEMENT", cut.Find("[role='dialog']").TextContent);
         Assert.Contains("Authorized correction", cut.Find("[role='dialog']").TextContent);
         Assert.DoesNotContain("SRC-OTHER-ACCOUNT", cut.Find("[role='dialog']").TextContent);
-        Assert.Contains("partial history", cut.Find("[role='dialog']").TextContent);
+        Assert.Contains("activity feed was limited", cut.Find("[role='dialog']").TextContent);
         Assert.Empty(_payments.Invocations);
         var call = Assert.Single(_activity.Invocations); var from = (DateOnly)call.Arguments[0]; var to = (DateOnly)call.Arguments[1];
         Assert.InRange(to.DayNumber - from.DayNumber, 27, 30);

@@ -26,6 +26,60 @@ namespace EEMOCantilanSDS.IntegrationTests;
 public sealed class ObligationAccountTests(PostgresFixture db)
 {
     [SkippableFact]
+    public async Task Kanmanggay_LeaseMetadata_PersistsAcrossContexts_WithoutInventingLegacyTerms()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync();
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+        var signedDate = start.AddDays(4);
+        var request = new CreateObligationAccountRequest(
+            ObligationKind.KanmanggaySpaceRental, seed.PayorId, null, "",
+            null, null, start, 1200m, OccupancyArrangement.SignedContract, "KM-2026",
+            "Actual occupant", "Signed lessee", signedDate, 3, 4.80m, "Extension");
+        Guid firstId, secondId;
+        await using (var context = db.CreateContext(seed.TenantId))
+        {
+            var workflow = Setup(context, seed);
+            var first = await workflow.CreateAccountAsync(request);
+            Assert.True(first.IsSuccess, first.Error);
+            firstId = first.Value!.Id;
+            var legacy = await workflow.CreateAccountAsync(request with
+            {
+                ActualOccupant = "Historical occupant",
+                ContractName = null,
+                ContractEffectiveDate = null,
+                ContractYears = null,
+                AreaSqm = null,
+                AreaLocation = null,
+                ContractReference = null
+            });
+            Assert.True(legacy.IsSuccess, legacy.Error);
+            secondId = legacy.Value!.Id;
+        }
+        await using (var verify = db.CreateContext(seed.TenantId))
+        {
+            var workflow = Setup(verify, seed);
+            var loaded = await workflow.GetAccountsAsync(ObligationKind.KanmanggaySpaceRental);
+            Assert.True(loaded.IsSuccess, loaded.Error);
+            var signed = Assert.Single(loaded.Value!, a => a.Id == firstId);
+            Assert.Equal("Signed lessee", signed.ContractName);
+            Assert.Equal(signedDate, signed.ContractEffectiveDate);
+            Assert.Equal(3, signed.ContractYears);
+            Assert.Equal(4.80m, signed.AreaSqm);
+            Assert.Equal("Extension", signed.AreaLocation);
+            Assert.Equal(start, signed.ActiveFrom);
+            var legacy = Assert.Single(loaded.Value!, a => a.Id == secondId);
+            Assert.Null(legacy.ContractName);
+            Assert.Null(legacy.ContractEffectiveDate);
+            Assert.Null(legacy.ContractYears);
+            var quotes = await workflow.GetRegisterAsync(firstId);
+            Assert.True(quotes.IsSuccess, quotes.Error);
+            Assert.Equal(1200m, Assert.Single(quotes.Value!).AssessedAmount);
+        }
+    }
+
+    [SkippableFact]
     public async Task SpaceNumbers_AreAllocatedConcurrently_AndIndependentForEachEvent()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);

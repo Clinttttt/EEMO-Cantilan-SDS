@@ -14,10 +14,11 @@ public interface IRentalRegistrationState
 
 public sealed class ObligationRentalRegistrationState(Func<string> occupant, Action<string> setOccupant,
     Func<OccupancyArrangement> basis, Action<OccupancyArrangement> setBasis,
-    Func<decimal> amount, Action<decimal> setAmount) : IRentalRegistrationState
+    Func<decimal> amount, Action<decimal> setAmount,
+    Func<string> contractName, Action<string> setContractName) : IRentalRegistrationState
 {
     public string ActualOccupant { get => occupant(); set => setOccupant(value); }
-    public string ContractName { get => string.Empty; set => throw new NotSupportedException("Contract name is not stored by this source."); }
+    public string ContractName { get => contractName(); set => setContractName(value); }
     public OccupancyArrangement Arrangement { get => basis(); set => setBasis(value); }
     public bool HasSignedContract => Arrangement == OccupancyArrangement.SignedContract;
     public decimal MonthlyRate { get => amount(); set => setAmount(value); }

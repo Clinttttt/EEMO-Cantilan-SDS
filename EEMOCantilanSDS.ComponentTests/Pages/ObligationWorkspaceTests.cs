@@ -110,7 +110,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         var cut = RenderComponent<VegetableFruit>();
         cut.FindAll("#vf-monthly button").Single(x => x.TextContent.Trim() == "+ Add New").Click();
         Assert.Empty(cut.FindAll("#obw-subject"));
-        Assert.Contains("Effective month", cut.Find("[role='dialog']").TextContent);
+        Assert.Contains("Contract Effectivity Date", cut.Find("[role='dialog']").TextContent);
         cut.FindAll("[role='radio']").Single(x => x.TextContent.Contains("No contract")).Click();
         Assert.Empty(cut.FindAll("input[placeholder='As written on the contract']"));
         cut.Find("#obw-occupant").Input("Ana Reyes"); cut.Find("#obw-amount").Change("900");
@@ -304,7 +304,7 @@ public sealed class ObligationWorkspaceTests : TestContext
     }
 
     [Fact]
-    public void AddNew_IsGroupedIntoSections_WithAnOccupancyBasisChoice_AndNoFabricatedContractFields()
+    public void AddNew_IsGroupedIntoSections_WithPersistedContractEvidenceAndSpaceOnlyFallback()
     {
         Serve(ObligationKind.KanmanggaySpaceRental, Space());
 
@@ -316,10 +316,13 @@ public sealed class ObligationWorkspaceTests : TestContext
         {
             var drawer = Assert.Single(cut.FindAll("[role='dialog']"));
             var titles = drawer.QuerySelectorAll(".avm-section-label").Select(x => x.TextContent.Trim()).ToArray();
-            Assert.Equal(new[] { "Lessee Information", "Space & Contract Details", "Rental Rates", "Applicable Charges" }, titles);
+            Assert.Equal(new[] { "Lessee Information", "Space & Contract Details", "Space Information", "Rental Rates", "Additional Information", "Applicable Charges" }, titles);
             var basis = drawer.QuerySelectorAll("[role='radio']").Select(x => x.QuerySelector(".avm-choice-title")!.TextContent.Trim()).ToArray();
             Assert.Equal(new[] { "Signed lease contract", "No contract (space only)" }, basis);
-            Assert.Contains("Contract Effectivity (month)", drawer.TextContent);                         // a month, not a date
+            Assert.Contains("Contract Effectivity Date", drawer.TextContent);
+            Assert.Contains("Contract Duration (No. of Years)", drawer.TextContent);
+            Assert.NotNull(drawer.QuerySelector("#obw-contract-date"));
+            Assert.NotNull(drawer.QuerySelector("input[placeholder='As written on the signed contract']"));
             Assert.NotNull(drawer.QuerySelector("input[placeholder='As written on the contract']"));
             Assert.Contains(drawer.QuerySelectorAll(".avm-input-locked"), x => x.TextContent.Trim() == "Kanmanggay");   // the operation is context, not a choice
             Assert.NotNull(drawer.QuerySelector(".eemo-drawer-header-icon svg"));                        // the stallholder drawer's own header

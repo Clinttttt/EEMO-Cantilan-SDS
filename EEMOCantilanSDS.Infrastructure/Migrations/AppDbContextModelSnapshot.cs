@@ -2811,12 +2811,30 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("AreaLocation")
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)");
+
+                    b.Property<decimal?>("AreaSqm")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)");
+
                     b.Property<int?>("Arrangement")
                         .HasColumnType("integer");
+
+                    b.Property<DateOnly?>("ContractEffectiveDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ContractName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("ContractReference")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<int?>("ContractYears")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
