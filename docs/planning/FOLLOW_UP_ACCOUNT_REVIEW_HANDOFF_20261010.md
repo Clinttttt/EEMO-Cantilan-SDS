@@ -1,5 +1,7 @@
 # Follow-up Account Review — Phase 1 handoff
 
+Presentation follow-up: [compact review polish](FOLLOW_UP_REVIEW_PRESENTATION_POLISH_20261010.md) supersedes the modal copy and period-detail layout below. The source contracts, financial safeguards and remaining gates are unchanged.
+
 Checkout: `C:\dev\stalltrack\eemo`. Branch: `codex/vegetable-fruit-space-workspace`. Starting HEAD: `67a8ed7e`. Local implementation only; no integration, push, deployment, production changes or migration.
 
 ## Authority and evidence reviewed

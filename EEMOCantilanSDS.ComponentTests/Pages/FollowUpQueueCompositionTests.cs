@@ -157,7 +157,7 @@ public sealed class FollowUpQueueCompositionTests : TestContext
         var review=cut.FindComponent<FollowUpAccountReview>();
         Assert.Single(review.FindAll(".review-footer-actions"));
         SpaceHolderWorkspaceTests.SaveVisualArtifact("account-review-payment",review.Markup);
-        review.Find("tbody summary").Click();
+        review.Find(".review-period-toggle").Click();
         review.Find(".btn-primary").Click();
         Assert.Empty(cut.FindComponents<FollowUpAccountReview>());
         var form=cut.FindComponent<PayBillModal>().Instance;

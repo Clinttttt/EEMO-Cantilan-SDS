@@ -90,3 +90,11 @@ Monthly Income and remittance include **actual collected cash only**. Assessment
 Real PostgreSQL tests: tenant/role/source rejection; fixed/version/date/ceiling validation; replay/fingerprint mismatch; business duplicate rules; concurrent creation and settlement; permitted partial/full payment; overpayment; settled/reversed assessments; canonical/Legacy authority restrictions; OR/CT and context compatibility; correction chains; audit; historical unchanged records; closure/transfer policies. Reporting tests must prove unpaid assessments contribute no cash, Monthly Income or remittance, and no balance is counted twice.
 
 Phase 3 is **not authorized** by this proposal. Request explicit acceptance of the contract, office decisions and environment-specific migration plan before implementing persistence or settlement.
+
+## Account-review presentation follow-up
+
+The project owner reaffirmed the saved-before-payment direction in the account-review polish follow-up. Operations already provides Others → Arrears & Delinquency / Fines & Penalties after Slaughterhouse; this is navigation only, not a revenue reclassification.
+
+The review remains the staging surface for existing source-authorized actions. It now separates the period ledger, account information and Other assessed charges. Until an assessment read exists, that section states that saved fine assessments are not supported; it must not claim a verified zero or “no saved assessments” from an absent API. No Assess fine or Add follow-up note writer is introduced by presentation work.
+
+After financial-contract approval, Fines account selection should reuse verified source-native discovery for eligible Stall Rent, Space Rent and other expressly authorized registrations. Selecting a name alone cannot establish liability. The future Assessments view and account review must use the same assessment ID/read projection; Collected and Penalty setup retain their existing meaning. Follow-up notes require a separately verified non-financial audit contract. The office decisions, settlement-allocation contract and migration gates above remain open.

@@ -50,13 +50,17 @@ public sealed class FollowUpAccountReviewTests : TestContext
             Quote(account,new(2026,1,1),1500,500), Quote(account,new(2026,2,1),500,500));
         var cut = RenderComponent<FollowUpAccountReview>(p => p.Add(x=>x.Context,ContextFor(account)));
         Assert.Contains("₱3,000.00",cut.Find(".review-summary").TextContent);
-        Assert.Equal(3,cut.FindAll("section[aria-label='Outstanding billing periods'] > details").Count(d=>d.TextContent.Contains("periods with a balance")));
+        Assert.Equal(3,cut.FindAll("section[aria-label='Outstanding billing periods'] > details").Count(d=>d.TextContent.Contains("with balance")));
         Assert.DoesNotContain("2024",cut.Markup);
         Assert.Contains("June 2023",cut.Markup); Assert.Contains("July 2025",cut.Markup);
         Assert.Contains("Unpaid",cut.Markup); Assert.Contains("Partial",cut.Markup); Assert.Contains("Paid",cut.Markup);
         Assert.Contains("Settled assessed periods",cut.Markup);
         Assert.Contains("Closed",cut.Markup); Assert.Contains("Maria Contract",cut.Markup);
-        Assert.Contains("Detailed SRC allocations",cut.Markup);
+        Assert.Contains("Receipt allocations and correction history are unavailable here",cut.Markup);
+        Assert.Contains("Saved fine assessments are not yet supported",cut.Markup);
+        Assert.DoesNotContain("Current read",cut.Markup);
+        Assert.DoesNotContain("Account / follow-up status",cut.Markup);
+        Assert.Empty(cut.FindAll(".review-detail-row"));
         Assert.DoesNotContain("SRC-",cut.Markup);
         Assert.Empty(cut.FindAll("[role='alert']"));
         Assert.Empty(_payments.Invocations);
@@ -98,12 +102,21 @@ public sealed class FollowUpAccountReviewTests : TestContext
         _payments.Setup(x=>x.GetOutstandingMonthsAsync(id,term,null,null)).ReturnsAsync(Result<IReadOnlyList<PaymentHistoryDto>>.Success([new("2026-10",PaymentStatus.Partial,90,30,60,null,null)]));
         _daily.Setup(x=>x.GetSettleableNpmDaysAsync(id,2026,10,term)).ReturnsAsync(Result<IReadOnlyList<SettleableNpmDayDto>>.Success([new(new(2026,10,5),30),new(new(2026,10,7),30)]));
         var cut=RenderComponent<FollowUpAccountReview>(p=>p.Add(x=>x.Context,new(item,null,new(2026,10,10))));
+        cut.Find(".review-period-toggle").Click();
         cut.FindAll("button").Single(b=>b.TextContent=="Review eligible days").Click();
         Assert.Contains("Oct 5, 2026",cut.Markup); Assert.Contains("Oct 7, 2026",cut.Markup);
         Assert.DoesNotContain("Oct 6, 2026",cut.Markup);
-        Assert.Contains("month-goal adjustments",cut.Markup);
-        _daily.Verify(x=>x.GetSettleableNpmDaysAsync(id,2026,10,term),Times.Once);
+        Assert.Contains("Month-goal adjustments",cut.Markup);
+        Assert.Equal(2,cut.FindAll(".review-day-table tbody tr").Count);
+        Assert.Contains("Billing basis",cut.Markup);
+        Assert.Contains("Follow-up reason",cut.Markup);
+        Assert.Contains("Coverage",cut.Markup);
+        Assert.DoesNotContain("Account / follow-up status",cut.Markup);
+        Assert.DoesNotContain("Active with unpaid balances",cut.Markup);
         SpaceHolderWorkspaceTests.SaveVisualArtifact("account-review-npm",cut.Markup);
+        cut.FindAll("button").Single(b=>b.TextContent=="Review eligible days").Click();
+        Assert.Empty(cut.FindAll(".review-day-table"));
+        _daily.Verify(x=>x.GetSettleableNpmDaysAsync(id,2026,10,term),Times.Once);
     }
     [Theory]
     [InlineData("missingor")]
@@ -143,8 +156,11 @@ public sealed class FollowUpAccountReviewTests : TestContext
         DateOnly? selected = null; var closed = 0;
         var cut = RenderComponent<FollowUpAccountReview>(p => p.Add(x=>x.Context,ContextFor(account))
             .Add(x=>x.OnPeriodSelected, date=>selected=date).Add(x=>x.OnClose,()=>closed++));
-        cut.Find("tbody summary").Click();
+        cut.Find(".review-period-toggle").Click();
         Assert.Equal(new DateOnly(2023,6,1),selected);
+        Assert.Single(cut.FindAll(".review-detail-row"));
+        cut.Find(".review-period-toggle").Click();
+        Assert.Empty(cut.FindAll(".review-detail-row"));
         cut.Find("[role='dialog']").KeyDown("Escape"); Assert.Equal(1,closed);
         _accounts.Verify(x=>x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()),Times.Never);
     }

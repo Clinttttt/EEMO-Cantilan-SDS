@@ -12,18 +12,29 @@ p { font-size: .8125rem; line-height: 1.5; }
 .review-table { width: 100%; font-variant-numeric: tabular-nums; }
 .review-table th, .review-table td { padding: 9px; font-size: .75rem; text-align: right; white-space: nowrap; }
 .review-table th:first-child, .review-table td:first-child { text-align: left; white-space: normal; min-width: 110px; }
-.review-period-detail { max-width: 240px; font-weight: 400; }
+.review-period-toggle { border: 0; background: transparent; padding: 2px 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.review-period-toggle:focus-visible { outline: 2px solid var(--civic-panel); outline-offset: 3px; }
+.review-period-detail { font-weight: 400; text-align: left; white-space: normal; padding: 4px 8px; }
 .review-period-detail p { font-size: .75rem; }
+.review-detail-row { background: var(--bg-app, #f5f7fa); }
+.review-days { margin-top: 10px; max-height: 220px; overflow: auto; border: 1px solid var(--border); border-radius: 6px; }
+.review-day-table { width: 100%; border-collapse: collapse; }
+.review-day-table th, .review-day-table td { text-align: left; padding: 8px; }
+.review-day-table th { position: sticky; top: 0; background: var(--bg-app, #f5f7fa); }
+.review-days p { margin: 8px; }
+.review-charges { border-top: 1px solid var(--border); margin-top: 18px; }
+.review-charges h3 { margin-top: 14px; }
+.review-charges p { color: var(--text-secondary); }
 summary:focus-visible { outline: 2px solid var(--civic-panel); outline-offset: -2px; }
 .review-footer-actions { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 8px; width: 100%; min-width: 0; }
 @media(max-width: 768px) { .account-review ::deep .eemo-drawer { width: 100%; max-width: 100%; } }
 @media(max-width: 480px) {
-    .review-summary, .review-facts { grid-template-columns: minmax(0,1fr); }
-    .review-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-    .review-table tbody, .review-table tr { display: block; }
-    .review-table tr { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); border-top: 1px solid var(--border); }
-    .review-table td { display: block; text-align: left; white-space: normal; min-width: 0; border: 0; }
-    .review-table td:first-child { grid-column: 1 / -1; min-width: 0; }
-    .review-table td[data-label]::before { content: attr(data-label); display: block; font-size: .6875rem; color: var(--text-secondary); margin-bottom: 4px; }
+    .review-facts { grid-template-columns: minmax(0,1fr); }
+    .review-table > thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    .review-table > tbody { display: block; }
+    .review-table > tbody > tr { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); border-top: 1px solid var(--border); }
+    .review-table > tbody > tr > td { display: block; text-align: left; white-space: normal; min-width: 0; border: 0; }
+    .review-table > tbody > tr > td:first-child { grid-column: 1 / -1; min-width: 0; }
+    .review-table > tbody > tr > td[data-label]::before { content: attr(data-label); display: block; font-size: .6875rem; color: var(--text-secondary); margin-bottom: 4px; }
     .review-period-detail { max-width: none; }
 }

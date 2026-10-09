@@ -20,14 +20,14 @@
         { <div class="v3-notice v3-notice-error" role="alert">@_error</div><button type="button" class="v3-btn" @onclick="Load">Try again</button> }
         else
         {
-            <p class="review-scope">Current read · @PhilippineTime.Today.ToString("MMM d, yyyy") · Follow-up snapshot @Context.SnapshotDate.ToString("MMM d, yyyy")</p>
+            <p class="review-scope">As of @PhilippineTime.Today.ToString("MMM d, yyyy")@if (Context.SnapshotDate != PhilippineTime.Today) { <span> · Queue dated @Context.SnapshotDate.ToString("MMM d, yyyy")</span> }</p>
             @if (_hasLedger && (Owed.Any() || Context.FacilityItem?.ReasonKind != "contract"))
             {
                 <dl class="review-summary">
-                    <div><dt>Rental / obligation outstanding</dt><dd>@Money(Outstanding)</dd></div>
+                    <div><dt>Outstanding balance</dt><dd>@Money(Outstanding)</dd></div>
                     <div><dt>Periods with a balance</dt><dd>@Owed.Count()</dd></div>
-                    <div><dt>Earliest outstanding</dt><dd>@(Owed.FirstOrDefault()?.Label ?? "None")</dd></div>
-                    <div><dt>Collected · loaded periods</dt><dd>@Money(_periods.Sum(p => p.Collected))</dd></div>
+                    <div><dt>Earliest period with balance</dt><dd>@(Owed.FirstOrDefault()?.Label ?? "None")</dd></div>
+                    <div><dt>Collected in displayed periods</dt><dd>@Money(_periods.Sum(p => p.Collected))</dd></div>
                 </dl>
                 @if (_reconciliationWarning is not null)
                 { <p class="v3-notice v3-notice-error" role="alert">@_reconciliationWarning</p> }
@@ -37,28 +37,29 @@
                     @foreach (var year in Owed.GroupBy(p => p.Date.Year))
                     {
                         <details class="review-year" open="@(year.Key == Owed.First().Date.Year)">
-                            <summary>@year.Key <span>@year.Count() periods with a balance · @Money(year.Sum(p => p.Remaining))</span></summary>
+                            <summary>@year.Key <span>@year.Count() @(year.Count() == 1 ? "period" : "periods") with balance · @Money(year.Sum(p => p.Remaining))</span></summary>
                             @PeriodTable(year)
                         </details>
                     }
                     @if (_periods.Any(p => p.Remaining == 0))
                     { <details class="review-year"><summary>Settled assessed periods</summary>@PeriodTable(_periods.Where(p => p.Remaining == 0))</details> }
                 </section>
-                <p class="review-scope">Detailed SRC allocations and correction chains are not available in this period read. Period collected totals are authoritative; receipt evidence below is not a per-receipt allocation total.</p>
+                <p class="review-scope">Receipt allocations and correction history are unavailable here. Period totals are authoritative.</p>
                 @if (_periods.Any(p => p.Eligible) && IsEvent)
-                { <p class="review-scope">Collect this registered lot through Collector Mobile: Fiesta / Araw, Official Receipt. This Web review cannot post its payment.</p> }
+                { <p class="review-scope">Record payment on Collector Mobile · Fiesta / Araw · Official Receipt.</p> }
                 @if (_periods.Any(p => p.Eligible) && Context.ObligationItem is not null && !IsEvent)
-                { <p class="review-scope">Collect this registered account through Collector Mobile → Monthly / registered account → Official Receipt. This Web review cannot post its payment.</p> }
+                { <p class="review-scope">Record payment on Collector Mobile · Registered Monthly account · Official Receipt.</p> }
             }
             else if (Context.IsAccount && Context.FacilityItem?.ReasonKind != "contract")
             { <p>Detailed account periods are unavailable for this queue identity. Open the source account to review its authoritative position.</p> }
 
             <details class="review-year" open="@(!_hasLedger || Context.FacilityItem?.ReasonKind == "contract")">
-                <summary>@(Context.FacilityItem?.ReasonKind == "contract" ? "Contract review" : "Contract & Account")</summary>
+                <summary>@(Context.FacilityItem?.ReasonKind == "contract" ? "Contract review" : "Account information")</summary>
                 <dl class="review-facts">
                     <div><dt>Registered occupant</dt><dd>@(_account?.ActualOccupant ?? Context.Name)</dd></div>
-                    <div><dt>Source</dt><dd>@(_account?.KindLabel ?? Context.FacilityItem?.Model ?? Context.ObligationItem?.Scope.DisplayName)</dd></div>
-                    <div><dt>Account / follow-up status</dt><dd>@(_account is null ? Context.FacilityItem?.Status ?? "Source account" : _account.ActiveTo is null ? "Active" : "Closed")</dd></div>
+                    <div><dt>Source</dt><dd>@SourceName</dd></div>
+                    @if (Context.FacilityItem?.Model is { Length: > 0 } model) { <div><dt>Billing basis</dt><dd>@model</dd></div> }
+                    @if (_account is not null) { <div><dt>Account status</dt><dd>@(_account.ActiveTo is null ? "Active" : "Closed")</dd></div> }
                     @if (_account is not null)
                     {
                         @if (_account.Arrangement is { } basis) { <div><dt>Occupancy basis</dt><dd>@(basis == OccupancyArrangement.SignedContract ? "Signed lease contract" : "No contract (space only)")</dd></div> }
@@ -70,10 +71,13 @@
                         @if (_account.ContractEffectiveDate is { } start) { <div><dt>Signed commencement</dt><dd>@start.ToString("MMM d, yyyy")</dd></div> }
                         @if (_account.ContractYears is { } years) { <div><dt>Recorded duration</dt><dd>@years years</dd></div> }
                     }
-                    @if (Context.FacilityItem is { } item) { <div><dt>Follow-up</dt><dd>@item.Reason · @item.Period · @item.Status</dd></div> }
+                    @if (Context.FacilityItem is { } item) {
+                        <div><dt>Follow-up reason</dt><dd>@item.Reason</dd></div>
+                        <div><dt>Coverage</dt><dd>@item.Period</dd></div>
+                    }
                 </dl>
             </details>
-            <section aria-label="Other assessed charges"><h3>Other assessed charges</h3><p>No independent fine-assessment register is available. Delinquency does not imply an assessed fine.</p></section>
+            <section class="review-charges" aria-label="Other assessed charges"><h3>Other assessed charges</h3><p>Saved fine assessments are not yet supported. No fine balance is included above.</p></section>
         }
     </ChildContent>
     <Footer>
@@ -164,17 +168,42 @@
         <table class="v3-table review-table"><thead><tr><th>Billing period</th><th>Assessed</th><th>Collected</th><th>Remaining</th><th>Status</th></tr></thead><tbody>
         @foreach (var p in periods)
         {
-            <tr><td><details><summary @onclick="() => OnPeriodSelected.InvokeAsync(p.Date)">@p.Label</summary><div class="review-period-detail">
-                <p>Assessed @Money(p.Assessed) · allocated/settled @Money(p.Collected) · remaining @Money(p.Remaining)</p>
-                @if (p.Receipt is { Length: > 0 }) { <p>Recorded OR evidence: @p.Receipt @p.PaidAt?.ToString("MMM d, yyyy")</p> }
-                else { <p>No detailed receipt allocation was returned for this period.</p> }
-                @if (IsNpm) { <button class="v3-btn v3-btn-sm" type="button" @onclick="() => LoadDays(p)">Review eligible days</button>
-                    @if (_dayPeriod == p.Date) { @if (_dayError is not null) { <p role="alert">@_dayError</p> } else if (_days is null) { <p role="status">Loading eligible days…</p> } else { <ul>@foreach (var day in _days) { <li>@day.Date.ToString("MMM d, yyyy") · @Money(day.Fee) · Pending</li> }</ul><p>Eligible unpaid dates only; month-goal adjustments are handled by the existing Whole Payment workflow.</p> } } }
-                <p>@(p.Eligible ? Context.ObligationItem is not null ? "Eligible for registered-account collection on Mobile." : "Review settlement eligibility in the source payment form." : "Not eligible for a new settlement.")</p>
-            </div></details></td><td data-label="Assessed">@Money(p.Assessed)</td><td data-label="Collected">@Money(p.Collected)</td><td data-label="Remaining">@Money(p.Remaining)</td><td data-label="Status"><AccountStatusPill Status="@Status(p)" /></td></tr>
+            <tr><td><button type="button" class="review-period-toggle" aria-expanded="@(_expanded.Contains(p.Date) ? "true" : "false")" aria-label="@($"Review {p.Label}")" @onclick="() => TogglePeriod(p.Date)"><span aria-hidden="true">@(_expanded.Contains(p.Date) ? "▾" : "▸")</span> @p.Label</button></td><td data-label="Assessed">@Money(p.Assessed)</td><td data-label="Collected">@Money(p.Collected)</td><td data-label="Remaining">@Money(p.Remaining)</td><td data-label="Status"><AccountStatusPill Status="@Status(p)" /></td></tr>
+            @if (_expanded.Contains(p.Date))
+            {
+                <tr class="review-detail-row"><td colspan="5"><div class="review-period-detail">
+                    @if (p.Receipt is { Length: > 0 }) { <p>Recorded OR: @p.Receipt @p.PaidAt?.ToString("MMM d, yyyy")</p> }
+                    <p>@(p.Eligible ? Context.ObligationItem is not null ? "Payable through registered-account collection on Mobile." : "Payment eligibility is confirmed in the source payment form." : "Not eligible for a new settlement.")</p>
+                    @if (IsNpm) {
+                        <button class="v3-btn v3-btn-sm" type="button" aria-expanded="@(_dayPeriod == p.Date ? "true" : "false")" @onclick="() => ToggleDays(p)">Review eligible days</button>
+                        @if (_dayPeriod == p.Date) {
+                            <div class="review-days">
+                            @if (_dayError is not null) { <p role="alert">@_dayError</p> }
+                            else if (_days is null) { <p role="status">Loading eligible days…</p> }
+                            else {
+                                <table aria-label="Eligible unpaid dates" class="review-day-table"><thead><tr><th>Date</th><th>Amount</th><th>Status</th></tr></thead><tbody>@foreach (var day in _days) { <tr><td>@day.Date.ToString("MMM d, yyyy")</td><td>@Money(day.Fee)</td><td>Pending</td></tr> }</tbody></table>
+                                @if (_days.Count == 0) { <p>No eligible unpaid dates returned.</p> }
+                                <p class="review-scope">Unpaid dates only. Month-goal adjustments use Whole Payment.</p>
+                            }
+                            </div>
+                        }
+                    }
+                </div></td></tr>
+            }
         }
         </tbody></table>
     </div>;
+    private readonly HashSet<DateOnly> _expanded = [];
+    private async Task TogglePeriod(DateOnly date)
+    {
+        if (!_expanded.Add(date)) { _expanded.Remove(date); return; }
+        await OnPeriodSelected.InvokeAsync(date);
+    }
+    private Task ToggleDays(Period period)
+    {
+        if (_dayPeriod == period.Date) { _dayPeriod = null; return Task.CompletedTask; }
+        return LoadDays(period);
+    }
     private DateOnly? _dayPeriod;
     private IReadOnlyList<EEMOCantilanSDS.Application.Dtos.DailyCollections.SettleableNpmDayDto>? _days;
     private string? _dayError;
