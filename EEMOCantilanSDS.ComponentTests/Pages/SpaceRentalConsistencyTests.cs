@@ -121,12 +121,12 @@ public sealed class SpaceRentalConsistencyTests : TestContext
         var nav = Services.GetRequiredService<NavigationManager>();
         nav.NavigateTo("/vendors?facility=ncc");
         var cut = RenderComponent<Vendor>();
-        cut.WaitForAssertion(() => Assert.Equal("NCC", cut.Find("#rental-workspace-picker").GetAttribute("value")));
+        cut.WaitForAssertion(() => Assert.Equal("NCC", cut.Find(".fac-trigger-label").TextContent.Trim()));
         Assert.Equal("Manage Stall Holders", cut.Find(".topbar-title").TextContent);
         Assert.Equal("New Commercial Center", cut.Find("a[href='/facility/ncc']").TextContent);
         SpaceHolderWorkspaceTests.SaveVisualArtifact("ncc-management", cut.Markup);
         nav.NavigateTo("/vendors?facility=ice");
-        Assert.Equal("ICE", cut.Find("#rental-workspace-picker").GetAttribute("value"));
+        Assert.Equal("ICE", cut.Find(".fac-trigger-label").TextContent.Trim());
         Assert.Equal("Manage Space Holders", cut.Find(".topbar-title").TextContent);
     }
 }

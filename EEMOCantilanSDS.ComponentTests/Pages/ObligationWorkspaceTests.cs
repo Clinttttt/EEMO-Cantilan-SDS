@@ -191,8 +191,8 @@ public sealed class ObligationWorkspaceTests : TestContext
         }));
 
         var cut = RenderComponent<KanmanggayManageSpaceHolders>();
-        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "Periods"), Timeout);
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Periods").Click();
+        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "→"), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "→").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -251,7 +251,7 @@ public sealed class ObligationWorkspaceTests : TestContext
             Assert.DoesNotContain("Open account", labels);
             Assert.DoesNotContain("Change amount", labels);
             Assert.DoesNotContain("End", labels);
-            Assert.Contains("Periods", labels);
+            Assert.Contains("→", labels);
         }, Timeout);
     }
 

@@ -50,7 +50,7 @@ public sealed class VendorRegistryTerminologyTests : TestContext
         Assert.Contains("StallTrack — @ManagementTitle", markup);
         Assert.Contains("RentalRegistryHero", markup);
         Assert.Contains("Occupancy Registry", ReadWorkspaceFile("EEMOCantilanSDS.Client", "Components", "Shared", "RentalRegistryHero.razor"));
-        Assert.Contains("Registered units", markup);
+        Assert.Contains("Total spaces", markup);
         Assert.Contains("billable units", markup);
         Assert.Contains("Add Occupant &amp; @HolderUnit", source);
         Assert.Contains("Occupant &amp; contract", markup);

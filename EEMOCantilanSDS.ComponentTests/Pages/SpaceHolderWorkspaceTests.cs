@@ -105,7 +105,7 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         foreach (var row in cut.FindAll("tbody > tr").Where(x => x.QuerySelector(".obw-actions") is not null))
         {
             var closed = row.TextContent.Contains("Closed");
-            Assert.Equal(closed ? new[] { "Periods", "↺" } : new[] { "Periods", "↺", "Change amount", "Close account" }, row.QuerySelectorAll(".obw-actions button").Select(x => x.TextContent));
+            Assert.Equal(new[] { "₱", "↺", "→" }, row.QuerySelectorAll(".obw-actions button").Select(x => x.TextContent));
         }
         cut.Find(".search-input").Input("No match");
         Assert.Equal(before, cut.FindComponent<RentalRegistryHero>().Markup);
@@ -242,7 +242,7 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         var account = Account(); Serve(account);
         _api.Setup(x => x.CloseAccountAsync(account.Id, It.IsAny<CloseObligationAccountRequest>())).ReturnsAsync(Result<bool>.Success(true));
         var cut = RenderComponent<KanmanggayManageSpaceHolders>();
-        Click(cut, "Close account");
+        Click(cut, "→"); Click(cut, "Close account");
         _api.Verify(x => x.CloseAccountAsync(It.IsAny<Guid>(), It.IsAny<CloseObligationAccountRequest>()), Times.Never);
         Assert.Contains("Previously assessed periods and collections remain readable", cut.Find("[role='dialog']").TextContent);
         cut.Find("form[aria-label='Confirm account closure']").Submit();
@@ -274,7 +274,7 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         _api.Setup(x => x.SetRateAsync(account.Id, It.IsAny<SetObligationRateRequest>()))
             .Callback<Guid, SetObligationRateRequest>((_, request) => sent = request).ReturnsAsync(Result<bool>.Success(true));
         var cut = RenderComponent<KanmanggayManageSpaceHolders>();
-        Click(cut, "Periods");
+        Click(cut, "→");
         Assert.Contains("Periods offline", cut.Find("[role='alert']").TextContent);
         Assert.DoesNotContain("No period is billable", cut.Markup);
         Assert.NotNull(cut.Find("dl.obw-account-facts"));

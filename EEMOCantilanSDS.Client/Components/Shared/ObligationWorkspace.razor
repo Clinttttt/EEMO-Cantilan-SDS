@@ -33,7 +33,7 @@
 {
     @if (Management)
     {
-        <RentalRegistryHero Title="@($"Manage {SubjectNoun} Holders · {Name}")" Progress="CollectionRate">
+        <RentalRegistryHero Title="Spaces &amp; Occupants" Progress="CollectionRate">
             <Figures>
                 <V3HeroFigure Label="Registered units" Value="@(_loading || _error is not null ? "—" : _accounts.Count.ToString())" Note="@($"{_accounts.Count(a => a.ActiveTo is null)} active · {_accounts.Count(a => a.ActiveTo is not null)} closed")" />
                 <V3HeroFigure Label="Assessed" Value="@(_workspace is null ? "—" : Money(_workspace.Assessed))" Note="All accounts · to date" />
@@ -41,13 +41,14 @@
                 <V3HeroFigure Label="Remaining" Value="@(_workspace is null ? "—" : Money(_workspace.Outstanding))" Note="All accounts · to date" />
             </Figures>
         </RentalRegistryHero>
-        <RentalWorkspacePicker Selected="@(Kind == ObligationKind.FiestaArawLotRental ? "FA" : Kind == ObligationKind.KanmanggaySpaceRental ? "KM" : "Vegetable/Fruits")" />
+
     }
     <Toolbar SearchQuery="@_search"
              OnSearch="v => _search = v"
              ActiveFilter="@_filter"
              OnFilterChanged="v => _filter = v"
              Filters="@(Overview ? OverviewFilters : StatusFilters)"
+             BeforeSearch="@(Management ? RegistryPicker : null)"
              BeforeFilters="@(Management ? LifecycleFilters : ToolbarMode)"
              FilterLabel="@(Management ? "Payment status" : "Account position")"
              SearchPlaceholder="@($"Search {SubjectNoun.ToLowerInvariant()} no. or occupant…")"
@@ -114,6 +115,20 @@ else
                         <div><dt>Approved amount effective from</dt><dd>@selectedAccount.CurrentAmountEffectiveFrom?.ToString("MMM yyyy")</dd></div>
                         @if (selectedAccount.ActiveTo is { } closed) { <div><dt>Closed on</dt><dd>@closed.ToString("MMM d, yyyy")</dd></div> }
                     </dl>
+                    <AuthorizeView Roles="SuperAdmin">
+                        <Authorized>
+                            @if (!ReadOnlyHistory && selectedAccount.ActiveTo is null)
+                            {
+                                <div class="obw-actions" role="group" aria-label="Authorized account changes">
+                                    @if (selectedAccount.Kind != ObligationKind.FiestaArawLotRental)
+                                    {
+                                        <button type="button" class="v3-btn v3-btn-sm" @onclick="() => OpenRate(selectedAccount)">Change amount</button>
+                                    }
+                                    <button type="button" class="v3-btn v3-btn-sm" @onclick="() => CloseAsync(selectedAccount.Id)">Close account</button>
+                                </div>
+                            }
+                        </Authorized>
+                    </AuthorizeView>
                     @if (_registerError is not null) { <div role="alert">@_registerError <button type="button" class="btn-outline" @onclick="() => LoadRegisterAsync(selectedId)">Try again</button></div> }
                     else if (_registerLoading) { <Skeleton Height="100px" /> }
                     else { <div class="v3-table-wrap"><table class="v3-table obw-register" aria-label="@($"{selectedAccount.SubjectLabel} periods")"><thead><tr><th>Period</th><th>Assessed</th><th>Collected</th><th>Remaining</th></tr></thead><tbody>
@@ -524,6 +539,7 @@ else
     </div>;
     private double CollectionRate => _workspace is { Assessed: > 0m } w ? (double)Math.Min(100m, Math.Round(w.Collected / w.Assessed * 100m, 0)) : 0;
     private RenderFragment SpaceIcon => @<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></svg>;
+    private RenderFragment RegistryPicker => @<RentalWorkspacePicker Compact="true" Selected="@(Kind == ObligationKind.FiestaArawLotRental ? "FA" : Kind == ObligationKind.KanmanggaySpaceRental ? "KM" : "Vegetable/Fruits")" />;
     private RenderFragment ActionBarContent => @<text>
         @if (Workspace is { } workspace)
         {
@@ -608,15 +624,9 @@ else
     private decimal? _amount;
     private RenderFragment<ObligationAccountDto> RegistryAccountPosition => a => @<div class="obw-note">Assessed @Money(a.AssessedToDate)<br />Collected @Money(a.CollectedToDate)<br />Remaining @Money(a.OutstandingToDate)</div>;
     private RenderFragment<ObligationAccountDto> RegistryAccountActions => a => @<div class="obw-actions" role="group" aria-label="@($"Account actions for {a.SubjectLabel}")">
-        <button class="v3-btn v3-btn-sm" type="button" @onclick="() => ToggleRegisterAsync(a.Id)">Periods</button>
+        <button class="v3-btn v3-btn-sm" type="button" title="View payment position" aria-label="View payment position" @onclick="() => OpenAccountPosition(a)">₱</button>
         <button class="v3-btn v3-btn-sm" type="button" title="Payment history" aria-label="Payment history" @onclick="() => OpenAccountHistory(a)">↺</button>
-        <AuthorizeView Roles="SuperAdmin"><Authorized>
-            @if (!ReadOnlyHistory && a.ActiveTo is null)
-            {
-                @if (a.Kind != ObligationKind.FiestaArawLotRental) { <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenRate(a)">Change amount</button> }
-                <button class="v3-btn v3-btn-sm" type="button" @onclick="() => CloseAsync(a.Id)">Close account</button>
-            }
-        </Authorized></AuthorizeView>
+        <button class="v3-btn v3-btn-sm" type="button" title="Manage account details" aria-label="Manage account details" @onclick="() => ToggleRegisterAsync(a.Id)">→</button>
     </div>;
     private ObligationAccountDto? _detailsAccount;
     private bool _detailsHistory;

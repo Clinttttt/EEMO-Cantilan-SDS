@@ -4,16 +4,49 @@
 @inject FacilityState Facilities
 @inject IObligationsApiClient Operations
 @inject NavigationManager Navigation
-<div class="rental-picker">
-    <label for="rental-workspace-picker">Facility / Operation</label>
-    <select id="rental-workspace-picker" class="avm-input" value="@Selected" @onchange="Select">
-        @foreach (var facility in Facilities.Rental) { <option value="@facility">@Facilities.ShortNameOf(facility) · @Facilities.NameOf(facility)</option> }
-        @foreach (var operation in _operations) { <option value="@operation.Code">@operation.Code · @operation.Name</option> }
-    </select>
-</div>
+
+@if (Compact)
+{
+    <div class="rental-compact-picker">
+        <button id="rental-workspace-picker" type="button" class="rental-compact-trigger" aria-label="Select facility or operation"
+                aria-expanded="@(_open ? "true" : "false")" aria-controls="rental-compact-options" @onclick="() => _open = !_open">
+            <span class="rental-compact-caption"><strong>@CurrentShortCode</strong><small>@CurrentName</small></span>
+            <span class="rental-compact-chevron" aria-hidden="true">⌄</span>
+        </button>
+        @if (_open)
+        {
+            <div class="rental-compact-backdrop" @onclick="() => _open = false"></div>
+            <div id="rental-compact-options" class="rental-compact-options" role="group" aria-label="Facility or operation">
+                @foreach (var entry in Entries)
+                {
+                    <button type="button" class="rental-compact-option @(entry.Code == Selected ? "selected" : "")"
+                            aria-current="@(entry.Code == Selected ? "true" : "false")" @onclick="() => SelectCode(entry.Code)">
+                        @entry.Name
+                        @if (entry.Code == Selected) { <span aria-hidden="true">✓</span> }
+                    </button>
+                }
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="rental-picker">
+        <label for="rental-workspace-picker">Facility / Operation</label>
+        <select id="rental-workspace-picker" class="avm-input" value="@Selected" @onchange="Select">
+            @foreach (var entry in Entries) { <option value="@entry.Code">@entry.Code · @entry.Name</option> }
+        </select>
+    </div>
+}
 @code {
     [Parameter] public string Selected { get; set; } = "NPM";
+    [Parameter] public bool Compact { get; set; }
+    private bool _open;
     private List<(string Code, string Name)> _operations = [];
+    private IEnumerable<(string Code, string Name)> Entries =>
+        Facilities.Rental.Select(f => (f.ToString(), Facilities.NameOf(f))).Concat(_operations);
+    private string CurrentName => Entries.FirstOrDefault(x => x.Code == Selected).Name ?? Selected;
+    private string CurrentShortCode => Selected == "Vegetable/Fruits" ? "VF" : Selected;
     protected override async Task OnInitializedAsync()
     {
         await Facilities.EnsureLoadedAsync();
@@ -27,15 +60,18 @@
                 if (kind == ObligationKind.VegetableFruitSpaceRental) _operations.Add(("Vegetable/Fruits", "Vegetable / Fruits Monthly"));
             }
         }
-        catch { /* The current source-scoped page remains usable if operation discovery is unavailable. */ }
+        catch { /* The selected source remains usable when discovery fails. */ }
         if (!_operations.Any(x => x.Code == Selected) && Selected is "KM" or "FA" or "Vegetable/Fruits")
             _operations.Add((Selected, Selected == "KM" ? "Kanmanggay" : Selected == "FA" ? "Fiesta / Araw" : "Vegetable / Fruits Monthly"));
     }
-    private void Select(ChangeEventArgs e)
+    private void Select(ChangeEventArgs e) => SelectCode(e.Value?.ToString());
+    private void SelectCode(string? code)
     {
-        var code = e.Value?.ToString();
-        if (_operations.Any(x => x.Code == code)) Navigation.NavigateTo($"/vendors?workspace={Uri.EscapeDataString(code!)}", forceLoad: true);
+        _open = false;
+        if (string.IsNullOrWhiteSpace(code)) return;
+        if (_operations.Any(x => x.Code == code))
+            Navigation.NavigateTo($"/vendors?workspace={Uri.EscapeDataString(code)}");
         else if (Enum.TryParse<FacilityCode>(code, out var facility) && Facilities.Rental.Contains(facility))
-            Navigation.NavigateTo($"/vendors?facility={facility.ToString().ToLowerInvariant()}", forceLoad: true);
+            Navigation.NavigateTo($"/vendors?facility={facility.ToString().ToLowerInvariant()}");
     }
 }

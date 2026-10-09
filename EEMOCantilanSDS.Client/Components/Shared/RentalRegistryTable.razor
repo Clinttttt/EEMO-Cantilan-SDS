@@ -8,7 +8,7 @@ else
 {
 <div class="table-wrap" role="region" aria-label="Occupancy registry" tabindex="0">
     <table class="data-table registry-table">
-        <thead><tr><th>@Unit No.</th><th>Actual Occupant</th><th>Section / Context</th><th>@RateLabel</th><th>Contract / Effectivity</th><th>Payment</th><th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th>@Unit No.</th><th>Actual Occupant</th><th>Section / Area</th><th>@RateLabel</th><th>Contract</th><th>Payment</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>@foreach (var row in Rows)
         {
             <tr class="vendor-row @(row.LifecycleStatus == "Closed" ? "row-inactive" : "")" @onclick="() => OnInspect.InvokeAsync(row.Source)">

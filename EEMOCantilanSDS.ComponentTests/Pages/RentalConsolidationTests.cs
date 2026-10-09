@@ -184,7 +184,9 @@ public sealed class RentalConsolidationTests : TestContext
         Assert.Equal("Partial", cut.Find("td[data-label='Payment'] span").TextContent);
         Assert.DoesNotContain(cut.FindAll("button"), x => x.TextContent is "Change amount" or "Close account" or "Reopen account" or "Renew");
         Assert.Empty(_stalls.Invocations); Assert.Empty(_vendors.Invocations);
-        Assert.NotNull(cut.Find($"#rental-workspace-picker option[value='{code}']"));
+        Assert.Equal(code == "Vegetable/Fruits" ? "VF" : code, cut.Find("#rental-workspace-picker strong").TextContent.Trim());
+        Assert.Single(cut.FindAll(".toolbar-unified"));
+        Assert.Empty(cut.FindAll(".rental-picker"));
         SpaceHolderWorkspaceTests.SaveVisualArtifact(code == "FA" ? "fa-registry" : code == "KM" ? "km-registry" : "vf-registry", cut.Markup);
     }
 
@@ -199,7 +201,12 @@ public sealed class RentalConsolidationTests : TestContext
         Services.GetRequiredService<NavigationManager>().NavigateTo("/vendors?facility=ncc");
         var cut = RenderComponent<Vendor>();
         Assert.NotNull(cut.FindComponent<RentalRegistryHero>());
-        Assert.NotNull(cut.FindComponent<RentalWorkspacePicker>());
+        var bar = Assert.Single(cut.FindAll(".vs-toolbar-unified"));
+        Assert.NotNull(bar.QuerySelector(".facility-selector"));
+        Assert.NotNull(bar.QuerySelector(".filter-tabs-inline"));
+        Assert.NotNull(bar.QuerySelector(".search-box"));
+        Assert.NotNull(bar.QuerySelector(".vs-actions-compact"));
+        Assert.Empty(cut.FindAll(".rental-picker"));
         cut.WaitForElement(".registry-table");
         Assert.Contains("Facility occupant", cut.Find("tbody").TextContent);
         Assert.Equal(new[] { "View Details", "View Profile", "Edit", "Payment History", "Close Stall" }, cut.FindAll(".registry-actions button").Select(x => x.GetAttribute("title")));

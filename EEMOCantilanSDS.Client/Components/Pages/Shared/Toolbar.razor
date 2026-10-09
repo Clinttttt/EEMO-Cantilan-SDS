@@ -6,6 +6,7 @@
 ══════════════════════════════════════════════ -->
 
 <div class="toolbar-unified">
+    @BeforeSearch
     <!-- LEFT: Search Box -->
     @if (ShowSearch)
     {
@@ -99,6 +100,7 @@
     [Parameter]
     public RenderFragment? MiddleContent { get; set; }
 
+    [Parameter] public RenderFragment? BeforeSearch { get; set; }
     [Parameter] public RenderFragment? BeforeFilters { get; set; }
     [Parameter] public string FilterLabel { get; set; } = "Account filters";
 
