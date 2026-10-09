@@ -148,6 +148,26 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
         AreaLocation = note;
     }
 
+    /// <summary>Corrects source-native holder evidence. A financial period fixes the occupant and lease term;
+    /// moving occupancy to another person requires closure and a new accountable term instead.</summary>
+    public void CorrectHolderEvidence(string actualOccupant, OccupancyArrangement arrangement, string? reference,
+        string? contractName, DateOnly? contractDate, int? years, decimal? area, string? location,
+        bool hasAssessedPeriods)
+    {
+        if (!IsMonthlySpaceKind(Kind) || ActiveTo is not null)
+            throw new ArgumentException("Only active monthly space accounts may correct holder details.");
+        var holder = (actualOccupant ?? string.Empty).Trim();
+        if (holder.Length is 0 or > 200)
+            throw new ArgumentException("Enter an actual occupant up to 200 characters.");
+        if ((hasAssessedPeriods || PayorId is not null) && !string.Equals(holder, ActualOccupant, StringComparison.Ordinal))
+            throw new ArgumentException("This account has assessed history or a linked Payor. Close it and open a successor for a different occupant.");
+        if (hasAssessedPeriods && (arrangement != Arrangement || contractDate != ContractEffectiveDate || years != ContractYears))
+            throw new ArgumentException("Recorded lease basis, start and term are locked after assessment. Correct descriptive notes only.");
+        SetOccupancyBasis(arrangement, reference);
+        SetLeaseDetails(contractName, contractDate, years, area, location);
+        ActualOccupant = holder;
+    }
+
     /// <summary>
     /// The period starts an account may be billed for, up to and including the business date's month. A monthly account
     /// bills each calendar month it is active in; a lot rental has exactly one period, on its event date.

@@ -57,6 +57,12 @@ public sealed class ObligationsController(ISender sender, ObligationWorkflow wor
         [FromBody] CreateObligationAccountRequest request, CancellationToken ct) =>
         HandleResponse(await workflow.CreateAccountAsync(request, ct));
 
+    [HttpPost("accounts/{accountId:guid}/holder")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<bool>> CorrectHolderAsync(
+        Guid accountId, [FromBody] CorrectObligationHolderRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.CorrectHolderAsync(accountId, request, ct));
+
     [HttpPost("accounts/{accountId:guid}/rates")]
     [Authorize(Roles = "SuperAdmin")]
     public async Task<ActionResult<bool>> SetRateAsync(

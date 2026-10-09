@@ -269,6 +269,14 @@ else
 </div>
 }
 
+@if (_holderDetails is { } holder)
+{
+    <ObligationHolderDetails Account="holder" Operation="@Name"
+        CanEdit="@(_canEditHolder && !ReadOnlyHistory)"
+        OnClose="() => _holderDetails = null"
+        OnEdit="() => { _holderDetails = null; OpenHolderEditor(holder); }"
+        OnHistory="() => { _holderDetails = null; OpenAccountHistory(holder); }" />
+}
 @if (_detailsAccount is { } details)
 { <ObligationRentalDetails Account="details" History="_detailsHistory" OnClose="() => _detailsAccount = null" /> }
 
@@ -465,6 +473,89 @@ else
             </AddNewDrawer>
         }
 
+        @if (_editFor is { } editing && !ReadOnlyHistory)
+        {
+            <AddNewDrawer Show="true" Edit="true" Title="Edit Space Holder"
+                          Subtitle="@($"{Name} · Space {editing.SubjectLabel}")"
+                          FormId="obw-edit-holder-form" FormLabel="Edit Space Holder"
+                          SubmitText="Save changes" Saving="_saving" Error="@_formError"
+                          OnSubmit="SaveHolderAsync" OnCancel="CloseForm">
+                <RentalLesseeFields Form="RegistrationState" OccupantId="obw-occupant"
+                                    ContractNameSupported="true" OccupantPlaceholder="Current space occupant"
+                                    OnArrangement="SelectRentalBasis">
+                    <ExtraFields>
+                        @if (_signedContract)
+                        {
+                            <div class="avm-row-2"><div class="avm-group">
+                                <label class="avm-label">Contract reference</label>
+                                <input class="avm-input" type="text" maxlength="200" placeholder="As written on the contract" @bind="_contractRef" />
+                            </div></div>
+                        }
+                    </ExtraFields>
+                </RentalLesseeFields>
+                <RentalContractFields>
+                    <SourceField>
+                        <div class="avm-group">
+                            <label class="avm-label">Facility / Operation</label>
+                            <div class="avm-input avm-input-locked">@Name</div>
+                        </div>
+                    </SourceField>
+                    <NumberField>
+                        <div class="avm-group">
+                            <label class="avm-label">Space No.</label>
+                            <div class="avm-input avm-input-locked">@editing.SubjectLabel</div>
+                        </div>
+                    </NumberField>
+                    <EffectivityField>
+                        @if (_signedContract)
+                        {
+                            <RentalEffectivityField SignedContract="true" InputId="obw-contract-date" Label="Contract Effectivity Date"
+                                                    Date="_contractDate" DateChanged="v => _contractDate = v" />
+                        }
+                        else
+                        {
+                            <div class="avm-group">
+                                <label class="avm-label">Occupying Since</label>
+                                <div class="avm-input avm-input-locked">@editing.ActiveFrom.ToString("MMM d, yyyy")</div>
+                            </div>
+                        }
+                    </EffectivityField>
+                    <TermField>
+                        @if (_signedContract && Kind == ObligationKind.KanmanggaySpaceRental)
+                        {
+                            <div class="avm-group">
+                                <label class="avm-label" for="obw-contract-years">Contract Duration (No. of Years)</label>
+                                <select id="obw-contract-years" class="avm-input" @bind="_contractYears">
+                                    <option value="0">Not recorded</option>
+                                    <option value="3">3 years</option>
+                                </select>
+                            </div>
+                        }
+                    </TermField>
+                </RentalContractFields>
+                <AddNewSection Title="Space Information" Plain="true">
+                    <div class="avm-row-2"><div class="avm-group">
+                        <label class="avm-label" for="obw-area">Area (sq.m)</label>
+                        <input id="obw-area" class="avm-input" type="number" min="0" max="1000000" step="0.01" @bind="_areaSqm" />
+                    </div></div>
+                </AddNewSection>
+                <AddNewSection Title="Additional Information" Plain="true">
+                    <div class="avm-row-2"><div class="avm-group">
+                        <label class="avm-label" for="obw-area-note">Area Location / Note</label>
+                        <input id="obw-area-note" class="avm-input" type="text" maxlength="250" @bind="_areaLocation" />
+                    </div></div>
+                </AddNewSection>
+                <div class="v3-notice">
+                    Recorded rent: @Money(editing.CurrentAmount ?? 0m) / month. Changes to the approved amount have a separate
+                    effective-dated approval. If prior months were assessed, the occupant, occupancy basis and lease term
+                    cannot be replaced here: close the term and begin a new approved occupancy instead.
+                </div>
+                <div class="obw-actions">
+                    <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenRate(editing)">Change approved amount</button>
+                </div>
+            </AddNewDrawer>
+        }
+
         <AddNewDrawer Show="@(!_opening && _rateFor is not null && !ReadOnlyHistory)" Edit="true" Title="Change approved amount" Subtitle="@_rateFor?.SubjectLabel"
                       FormId="obw-rate-form" FormLabel="Change approved amount" SubmitText="Save amount" Saving="_saving" Error="@_formError"
                       OnSubmit="SaveRateAsync" OnCancel="CloseForm">
@@ -490,7 +581,7 @@ else
     <AddNewDrawer Show="true" Edit="true" Title="Close space account" Subtitle="@SpaceAccountPresentation.Occupant(closing)"
                   FormId="obw-close-form" FormLabel="Confirm account closure" SubmitText="Confirm closure" Saving="_saving" Error="@_formError"
                   OnSubmit="ConfirmCloseAsync" OnCancel="CancelClose">
-        <p class="v3-notice">Close @closing.SubjectLabel as of @PhilippineTime.Today.ToString("MMM d, yyyy")? Previously assessed periods and collections remain readable. Future assessments stop according to the account's closure date.</p>
+        <p class="v3-notice">Mark Space @closing.SubjectLabel (@SpaceAccountPresentation.Occupant(closing)) as Closed on @PhilippineTime.Today.ToString("MMM d, yyyy")? It will no longer appear in active collection lists. Previously assessed periods and collections remain readable. Their balances remain intact, and future assessments stop at the closure date. This is not contract renewal or reopening.</p>
     </AddNewDrawer>
 }
 </Authorized></AuthorizeView>
@@ -594,6 +685,7 @@ else
     private bool _opening;
     private CreateObligationAccountRequest? _advanceRequest;
     private ObligationAccountDto? _rateFor;
+    private ObligationAccountDto? _editFor;
     private bool _saving;
     private bool _signedContract = true;
     private string _contractRef = string.Empty;
@@ -627,13 +719,13 @@ else
         <Authorized>
             <RentalRegistryActionButtons Subject="@SpaceAccountPresentation.Occupant(a)" IsActive="@(a.ActiveTo is null)"
                 CanEdit="@(a.ActiveTo is null && a.Kind != ObligationKind.FiestaArawLotRental && !ReadOnlyHistory)"
-                EditTitle="Change approved amount"
+                EditTitle="Edit Space Holder"
                 EditUnavailableReason="Editing is unavailable: closed account or unsupported event-amount revision."
                 CanToggle="@(a.ActiveTo is null && !ReadOnlyHistory)"
                 ToggleTitle="@(a.ActiveTo is null ? "Close Account" : "Reopen unavailable: requires an approved successor-account workflow.")"
-                OnInspect="() => OpenAccountPosition(a)"
+                OnInspect="() => OpenHolderDetails(a, true)"
                 OnProfile="() => OpenAccountProfile(a)"
-                OnEdit="() => OpenRate(a)"
+                OnEdit="() => OpenHolderEditor(a)"
                 OnHistory="() => OpenAccountHistory(a)"
                 OnToggle="() => CloseAsync(a.Id)" />
         </Authorized>
@@ -642,12 +734,16 @@ else
                 CanEdit="false" CanToggle="false"
                 EditUnavailableReason="Only an authorized Head can change an approved amount."
                 ToggleTitle="Only an authorized Head may close accounts. Reopening is unavailable."
-                OnInspect="() => OpenAccountPosition(a)"
+                OnInspect="() => OpenHolderDetails(a, false)"
                 OnProfile="() => OpenAccountProfile(a)"
                 OnHistory="() => OpenAccountHistory(a)" />
         </NotAuthorized>
     </AuthorizeView>;
     private ObligationAccountDto? _detailsAccount;
+    private ObligationAccountDto? _holderDetails;
+    private bool _canEditHolder;
+    private void OpenHolderDetails(ObligationAccountDto account, bool canEdit)
+    { _detailsAccount = null; _holderDetails = account; _canEditHolder = canEdit; }
     private bool _detailsHistory;
     private static string PaymentStatus(ObligationAccountDto a) => a.AssessedToDate > 0m && a.OutstandingToDate == 0m ? "Paid"
         : a.CollectedToDate > 0m && a.OutstandingToDate > 0m ? "Partial" : "Unpaid";
@@ -747,7 +843,7 @@ else
 
     private async Task OpenForm()
     {
-        _formError = null; _saved = null; _rateFor = null; _advanceRequest = null;
+        _formError = null; _saved = null; _rateFor = null; _editFor = null; _advanceRequest = null;
         _occupant = _stallId = _subject = _contractRef = _contractName = _areaLocation = string.Empty;
         _areaSqm = null; _contractYears = 3; _contractDate = PhilippineTime.Now.Date;
         _signedContract = true; _lotEvent = LotRentalEvent.Fiesta;
@@ -766,14 +862,30 @@ else
         }
     }
 
+    private void OpenHolderEditor(ObligationAccountDto account)
+    {
+        if (!SupportsContractBasis || account.ActiveTo is not null) return;
+        _formError = null; _saved = null; _opening = false; _rateFor = null;
+        _editFor = account;
+        _occupant = SpaceAccountPresentation.Occupant(account);
+        _signedContract = account.Arrangement == OccupancyArrangement.SignedContract;
+        _contractRef = account.ContractReference ?? string.Empty;
+        _contractName = account.ContractName ?? string.Empty;
+        _contractDate = account.ContractEffectiveDate?.ToDateTime(TimeOnly.MinValue);
+        _contractYears = account.ContractYears ?? 0;
+        _areaSqm = account.AreaSqm;
+        _areaLocation = account.AreaLocation ?? string.Empty;
+    }
+
     private void OpenRate(ObligationAccountDto account)
     {
         _formError = null; _saved = null; _opening = false; _advanceRequest = null;
         _rateFor = account;
+        _editFor = null;
         _amount = account.CurrentAmount;
     }
 
-    private void CloseForm() { if (_saving) return; _opening = false; _rateFor = null; _formError = null; _advanceRequest = null; }
+    private void CloseForm() { if (_saving) return; _opening = false; _rateFor = null; _editFor = null; _formError = null; _advanceRequest = null; }
     private void ReviewAdvance() { if (!_saving) _advanceRequest = null; }
     private string AdvanceEventName => EventChoices.FirstOrDefault(x => x.Value == ((int)_advanceRequest!.Event!.Value).ToString())?.Title ?? _advanceRequest!.Event.ToString()!;
 
@@ -879,6 +991,29 @@ else
         }
         catch (Exception ex) { _formError = ex.Message; }
         finally { _saving = false; _advanceRequest = null; }
+    }
+
+    private async Task SaveHolderAsync()
+    {
+        if (_saving || _editFor is not { } account) return;
+        _formError = null;
+        _saving = true;
+        try
+        {
+            var request = new CorrectObligationHolderRequest(_occupant,
+                _signedContract ? OccupancyArrangement.SignedContract : OccupancyArrangement.SpaceOnly,
+                _signedContract ? _contractRef : null, _signedContract ? _contractName : null,
+                _signedContract && _contractDate is { } contractDate ? DateOnly.FromDateTime(contractDate) : null,
+                _signedContract && _contractYears > 0 ? _contractYears : null,
+                _areaSqm, _areaLocation);
+            var result = await ObligationsApi.CorrectHolderAsync(account.Id, request);
+            if (!result.IsSuccess) { _formError = result.Error ?? "Holder details could not be saved."; return; }
+            _editFor = null;
+            _saved = "Space-holder evidence updated with an audit entry. Existing collections and assessments were not changed.";
+            await LoadAsync();
+        }
+        catch { _formError = "Holder details could not be saved."; }
+        finally { _saving = false; }
     }
 
     private async Task SaveRateAsync()

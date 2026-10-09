@@ -205,7 +205,7 @@ public sealed class RentalConsolidationTests : TestContext
         var buttons = cut.FindAll(".registry-actions button");
         Assert.Equal(5, buttons.Count);
         Assert.Equal(new[] { "View Details", "View Profile",
-            kind == ObligationKind.FiestaArawLotRental ? "Editing is unavailable: closed account or unsupported event-amount revision." : "Change approved amount",
+            kind == ObligationKind.FiestaArawLotRental ? "Editing is unavailable: closed account or unsupported event-amount revision." : "Edit Space Holder",
             "Payment History", "Close Account" }, buttons.Select(b => b.GetAttribute("title")));
         Assert.Single(cut.FindComponents<RentalRegistryActionButtons>());
         Assert.Equal("Partial", cut.Find("td[data-label='Payment']").TextContent.Trim());
@@ -214,8 +214,18 @@ public sealed class RentalConsolidationTests : TestContext
         Assert.Empty(_payments.Invocations);
 
         cut.Find("button[title='View Details']").Click();
-        Assert.Contains("not a receipt", cut.Find("[role='dialog']").TextContent);
+        var detailsText = cut.Find("[role='dialog']").TextContent;
+        Assert.Contains(kind == ObligationKind.FiestaArawLotRental ? "Lot Holder & Event" : "Occupant & Contract", detailsText);
+        Assert.Contains(kind == ObligationKind.FiestaArawLotRental ? "Lot & Account Details" : "Space & Rental Details", detailsText);
+        Assert.Contains("Source occupant", detailsText);
+        if (kind == ObligationKind.FiestaArawLotRental)
+        {
+            Assert.DoesNotContain("Contract effective date", detailsText);
+            Assert.DoesNotContain("Area (sq.m)", detailsText);
+        }
         Assert.Contains("Partial", cut.Find("td[data-label='Payment']").TextContent);
+        cut.FindAll(".ohd-footer button").Single(b => b.TextContent == "Payment History").Click();
+        Assert.Contains("Payment History", cut.Find("[role='dialog']").TextContent);
         cut.Find(".rph-footer button").Click();
 
         cut.Find("button[title='Close Account']").Click();
@@ -254,10 +264,41 @@ public sealed class RentalConsolidationTests : TestContext
         var account = Account(kind); Serve(account);
         Services.GetRequiredService<NavigationManager>().NavigateTo($"/vendors?workspace={Uri.EscapeDataString(code)}");
         var cut = RenderComponent<Vendor>();
-        cut.Find("button[title='Change approved amount']").Click();
-        Assert.Contains("Effective from (month)", cut.Find("[role='dialog']").TextContent);
+        cut.Find("button[title='Edit Space Holder']").Click();
+        Assert.Contains("Lessee Information", cut.Find("[role='dialog']").TextContent);
+        Assert.Contains("Space No.", cut.Find("[role='dialog']").TextContent);
+        Assert.Contains("007", cut.Find("[role='dialog']").TextContent);
+        Assert.Contains("Change approved amount", cut.Find("[role='dialog']").TextContent);
+        _accounts.Verify(x => x.CorrectHolderAsync(It.IsAny<Guid>(), It.IsAny<CorrectObligationHolderRequest>()), Times.Never);
         _accounts.Verify(x => x.SetRateAsync(It.IsAny<Guid>(), It.IsAny<SetObligationRateRequest>()), Times.Never);
         _accounts.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Never);
+    }
+
+    [Fact]
+    public void SpaceEditorSubmitsAuditedSourceHolderEvidence_WithoutPostingMoney()
+    {
+        var account = Account(); Serve(account);
+        CorrectObligationHolderRequest? sent = null;
+        _accounts.Setup(x => x.CorrectHolderAsync(account.Id, It.IsAny<CorrectObligationHolderRequest>()))
+            .Callback<Guid, CorrectObligationHolderRequest>((_, request) => sent = request)
+            .ReturnsAsync(Result<bool>.Failure("Review contract evidence"));
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/vendors?workspace=KM");
+        var cut = RenderComponent<Vendor>();
+        cut.Find("button[title='Edit Space Holder']").Click();
+        cut.Find("#obw-occupant").Input("Corrected source occupant");
+        cut.Find("input[placeholder='As written on the signed contract']").Input("Corrected signed lessee");
+        cut.Find("input[placeholder='As written on the contract']").Change("LEASE-REF-2");
+        cut.Find("#obw-area-note").Change("Corner A");
+        cut.Find("form[aria-label='Edit Space Holder']").Submit();
+        cut.WaitForAssertion(() => Assert.NotNull(sent));
+        Assert.Equal("Corrected source occupant", sent!.ActualOccupant);
+        Assert.Equal("Corrected signed lessee", sent.ContractName);
+        Assert.Equal("LEASE-REF-2", sent.ContractReference);
+        Assert.Equal("Corner A", sent.AreaLocation);
+        Assert.Contains("Review contract evidence", cut.Find("[role='dialog']").TextContent);
+        _accounts.Verify(x => x.SetRateAsync(It.IsAny<Guid>(), It.IsAny<SetObligationRateRequest>()), Times.Never);
+        _accounts.Verify(x => x.CloseAccountAsync(It.IsAny<Guid>(), It.IsAny<CloseObligationAccountRequest>()), Times.Never);
+        Assert.Empty(_payments.Invocations);
     }
 
     [Theory]

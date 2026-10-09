@@ -5,6 +5,8 @@ using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
+using EEMOCantilanSDS.Domain.Entities.Audit;
+using System.Text.Json;
 using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
@@ -315,6 +317,38 @@ public sealed class ObligationWorkflow(
         }
         return plan;
     }
+
+    /// <summary>Audited correction of monthly space-holder evidence; never reprices or changes an assessed period.</summary>
+    public Task<Result<bool>> CorrectHolderAsync(Guid accountId, CorrectObligationHolderRequest request, CancellationToken ct = default) =>
+        Run<bool>(async actor =>
+        {
+            if (actor.Role != "SuperAdmin") return Result<bool>.Forbidden();
+            var account = await db.ObligationAccounts.SingleOrDefaultAsync(x =>
+                x.MunicipalityId == actor.TenantId && x.Id == accountId, ct);
+            if (account is null) return Result<bool>.NotFound();
+            if (!ObligationAccount.IsMonthlySpaceKind(account.Kind))
+                return Result<bool>.Failure("Event lots cannot use the monthly space lease editor.", ResultStatus.Conflict);
+            var hasHistory = await db.ObligationPeriods.AsNoTracking().AnyAsync(x =>
+                x.MunicipalityId == actor.TenantId && x.ObligationAccountId == accountId, ct);
+            var before = new { account.ActualOccupant, account.Arrangement, account.ContractReference,
+                account.ContractName, account.ContractEffectiveDate, account.ContractYears,
+                account.AreaSqm, account.AreaLocation };
+            var previous = JsonSerializer.Serialize(before);
+            try { account.CorrectHolderEvidence(request.ActualOccupant, request.Arrangement, request.ContractReference,
+                request.ContractName, request.ContractEffectiveDate, request.ContractYears,
+                request.AreaSqm, request.AreaLocation, hasHistory); }
+            catch (ArgumentException ex) { return Result<bool>.Failure(ex.Message, ResultStatus.Conflict); }
+            var revised = JsonSerializer.Serialize(new { account.ActualOccupant, account.Arrangement, account.ContractReference,
+                account.ContractName, account.ContractEffectiveDate, account.ContractYears,
+                account.AreaSqm, account.AreaLocation });
+            if (previous == revised) return Result<bool>.Success(true);
+            db.AuditLogs.Add(AuditLog.Create(actor.UserId.ToString("N"), actor.Username, actor.Role,
+                "CorrectSpaceHolderEvidence", nameof(ObligationAccount), account.Id,
+                oldValues: previous, newValues: revised, municipalityId: actor.TenantId,
+                notes: "Source-native metadata correction; no existing obligation period or collection was changed."));
+            await db.SaveChangesAsync(ct);
+            return Result<bool>.Success(true);
+        }, ct);
 
     /// <summary>Appends an approved amount. It is never retroactive: it must begin after every period already assessed.</summary>
     public Task<Result<bool>> SetRateAsync(Guid accountId, SetObligationRateRequest request, CancellationToken ct = default) =>

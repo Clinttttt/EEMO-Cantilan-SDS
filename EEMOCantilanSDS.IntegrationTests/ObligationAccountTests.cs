@@ -80,6 +80,53 @@ public sealed class ObligationAccountTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task MonthlySpaceHolderCorrection_IsAuditedAndNeverRepricesAnAccount()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync();
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+        Guid accountId;
+        await using (var context = db.CreateContext(seed.TenantId))
+        {
+            var workflow = Setup(context, seed);
+            var created = await workflow.CreateAccountAsync(new CreateObligationAccountRequest(
+                ObligationKind.KanmanggaySpaceRental, seed.PayorId, null, "", null, null, start, 1200m,
+                OccupancyArrangement.SignedContract, "KM-ORIGINAL", "Pedro Vendor", "Named lessee",
+                start.AddDays(4), 3, 5.50m, "Original corner"));
+            Assert.True(created.IsSuccess, created.Error);
+            accountId = created.Value!.Id;
+
+            var corrected = await workflow.CorrectHolderAsync(accountId, new CorrectObligationHolderRequest(
+                "Pedro Vendor", OccupancyArrangement.SignedContract, "KM-CORRECTED", "Named lessee",
+                start.AddDays(4), 3, 6.75m, "Revised corner"));
+            Assert.True(corrected.IsSuccess, corrected.Error);
+
+            var replacementPerson = await workflow.CorrectHolderAsync(accountId, new CorrectObligationHolderRequest(
+                "Different tenant", OccupancyArrangement.SignedContract, "KM-CORRECTED", "Named lessee",
+                start.AddDays(4), 3, 6.75m, "Revised corner"));
+            Assert.Equal(ResultStatus.Conflict, replacementPerson.Status);
+        }
+
+        await using var verify = db.CreateContext(seed.TenantId);
+        var saved = await verify.ObligationAccounts.SingleAsync(x => x.Id == accountId);
+        Assert.Equal("Pedro Vendor", saved.ActualOccupant);
+        Assert.Equal("KM-CORRECTED", saved.ContractReference);
+        Assert.Equal(6.75m, saved.AreaSqm);
+        Assert.Equal("Revised corner", saved.AreaLocation);
+        Assert.Equal(3, saved.ContractYears);
+        var log = Assert.Single(await verify.AuditLogs.Where(x => x.EntityId == accountId
+            && x.Action == "CorrectSpaceHolderEvidence").ToListAsync());
+        Assert.Equal(seed.TenantId, log.MunicipalityId);
+        Assert.Contains("KM-ORIGINAL", log.OldValues);
+        Assert.Contains("KM-CORRECTED", log.NewValues);
+        Assert.Equal(1200m, Assert.Single(await verify.ObligationRates
+            .Where(x => x.ObligationAccountId == accountId).ToListAsync()).Amount);
+        Assert.Empty(await verify.ObligationPeriods.Where(x => x.ObligationAccountId == accountId).ToListAsync());
+        Assert.Empty(await verify.Collections.ToListAsync());
+    }
+
+    [SkippableFact]
     public async Task SpaceNumbers_AreAllocatedConcurrently_AndIndependentForEachEvent()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
