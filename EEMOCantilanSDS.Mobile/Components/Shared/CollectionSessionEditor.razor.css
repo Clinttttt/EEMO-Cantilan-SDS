@@ -132,3 +132,6 @@ button:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2p
 .collection-option .option-text { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
 .collection-option .option-text strong { font-size: 15px; font-weight: 600; color: var(--mobile-navy); }
 .collection-option .option-text small { margin-top: 2px; font-size: 12px; color: var(--mobile-text-secondary); }
+/* Transitions select a different source, never add unrelated charges to the vendor basket. */
+.collection-source-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.collection-source-actions button { min-height: 44px; white-space: normal; text-align: left; }

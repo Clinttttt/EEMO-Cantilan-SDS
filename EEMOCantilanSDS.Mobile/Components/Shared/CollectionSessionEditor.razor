@@ -112,6 +112,18 @@ else
     </section>
     }
     @* The empty space under the finder: today's own collections, until a source is chosen or the finder's list needs the room. *@
+    @if (OnlyOperation == CollectorOperationCodes.FishMeatVendorFee && Correction is null)
+    {
+        <section class="collection-entry" aria-label="Other collection sources">
+            <h2>Other collections this visit</h2>
+            <p>Electricity and NPM rent require their own stall account. Record them separately.</p>
+            <div class="collection-source-actions">
+                <button class="collection-small" type="button" disabled="@(_items.Count > 0 || _busy || _picker)" @onclick='() => Navigation.NavigateTo("/ecf")'>Choose electricity / ECF account</button>
+                <button class="collection-small" type="button" disabled="@(_items.Count > 0 || _busy || _picker)" @onclick='() => Navigation.NavigateTo("/market")'>Choose NPM stall</button>
+            </div>
+            @if (_items.Count > 0) { <p>Record or remove current items before switching sources.</p> }
+        </section>
+    }
     @if (_source is null && !_direct && Correction is null && OnlyOperation is null && !_suggestOpen) { <RecentCollections /> }
     @if (_source is not null || _direct)
     {
@@ -120,6 +132,12 @@ else
             @if (_items.Count == 0)
             {
                 <p>@(NothingDue ? "No linked collection is due for this source." : "No items added.")</p>
+                @if (NothingDue && OnlyOperation == CollectorOperationCodes.VegetableFruitSpaceRental)
+                {
+                    <p role="status">No collectible Monthly periods are available. Ask the office to check the account and OR collection setup.</p>
+                    @foreach (var unavailable in _discovery!.Operations.Where(x => Allows(x.OperationCode) && !x.CanAdd && !string.IsNullOrWhiteSpace(x.Reason)))
+                    { <p>@unavailable.Reason</p> }
+                }
                 @if (NothingDue && DirectAllowed)
                 {
                     <button class="collection-small" type="button" @onclick="() => StartDirectAsync(_source!.DisplayName)">Continue as direct collection</button>
@@ -360,13 +378,14 @@ else
 
     // What kind of finder this page is: a registered vendor only, an occupant only, or any source.
     private bool VendorOnly => OnlyOperation is CollectorOperationCodes.WeightAndMeasure;
-    private bool DirectAllowed => !VendorOnly && OnlyOperation != CollectorOperationCodes.Wcf;
+    private bool DirectAllowed => !VendorOnly && OnlyOperation is not (CollectorOperationCodes.Wcf or CollectorOperationCodes.VegetableFruitSpaceRental);
     private string SourceHeading => OnlyOperation == CollectorOperationCodes.Terminal ? "Income From Terminal" : "Source";
-    private string SearchLabel => VendorOnly ? "Search registered vendor" : OnlyOperation == CollectorOperationCodes.FishMeatVendorFee ? "Search vendor or payer" : "Search payer or vendor";
+    private string SearchLabel => OnlyOperation == CollectorOperationCodes.VegetableFruitSpaceRental ? "Search registered space holder" : VendorOnly ? "Search registered vendor" : OnlyOperation == CollectorOperationCodes.FishMeatVendorFee ? "Search vendor or payer" : "Search payer or vendor";
     private IReadOnlyList<CollectionSourceSearchResult> VisibleSources => _found.Where(x => OnlyOperation switch
     {
         CollectorOperationCodes.WeightAndMeasure or CollectorOperationCodes.FishMeatVendorFee => x.Identity.Kind == SourceIdentityKind.FishMeatVendorRegistration,
         "ECF" => x.Identity.Kind == SourceIdentityKind.Occupancy,
+        CollectorOperationCodes.VegetableFruitSpaceRental => x.Identity.Kind == SourceIdentityKind.SpaceAccount && x.OperationCode == CollectorOperationCodes.VegetableFruitSpaceRental,
         _ => true
     }).ToList();
     private string SourceName => _source?.DisplayName ?? (_direct && !string.IsNullOrWhiteSpace(_snapshot) ? _snapshot.Trim() : "");

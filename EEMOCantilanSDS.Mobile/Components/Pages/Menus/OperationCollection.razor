@@ -17,7 +17,7 @@
    Vegetable / Fruit). The collector records transaction facts only: the amount rule, classification and instrument
    policy come from the server's approved setup. No physical serial is chosen or typed: the collection is durably queued
    BEFORE it is reported as captured, and the server returns its StallTrack Reference Code (SRC) when it syncs. *@
-<div class="page-shell">
+<div class="page-shell @(IsVegetableFruit ? "op-space" : "")">
     <div class="header">
         <div class="header-eyebrow">Operation</div>
         <div class="header-row">
@@ -33,6 +33,21 @@
     </div>
 
     <div class="content">
+        @if (IsVegetableFruit)
+        {
+            <div class="op-space-modes" role="group" aria-label="Collection mode">
+                <button type="button" class="@(_monthly ? "selected" : "")" aria-pressed="@_monthly.ToString().ToLowerInvariant()" disabled="@_saving" @onclick="() => { _monthly = true; _monthlyVisited = true; }">Monthly</button>
+                <button type="button" class="@(!_monthly ? "selected" : "")" aria-pressed="@(!_monthly ? "true" : "false")" disabled="@_saving" @onclick="() => _monthly = false">Daily</button>
+            </div>
+            @if (_monthlyVisited)
+            {
+                <div hidden="@(!_monthly)" class="op-monthly" aria-label="Monthly space collection">
+                    <p class="op-instruction">Select a registered Monthly space holder. The account supplies the periods and outstanding amount; collection uses OR.</p>
+                    <CollectionSessionEditor BusinessDate="@Today" OnlyOperation="@Code" />
+                </div>
+            }
+        }
+        <div hidden="@(IsVegetableFruit && _monthly)">
         @if (_loading)
         {
             <LoadingState Text="Loading operation…" />
@@ -44,10 +59,6 @@
         }
         else
         {
-            @if (Code == global::EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.VegetableFruitSpaceRental)
-            {
-                <div class="menu-state-card">Daily collections use CT. For Monthly rental, <a href="/collections/new">open New Collection</a> and select the registered space holder.</div>
-            }
             @if (_variants.Count > 1)
             {
                 <div class="op-modes" role="radiogroup" aria-label="Collection mode">
@@ -86,7 +97,7 @@
                     <dl class="op-facts-grid">
                         <div><dt>Business date</dt><dd>@Today.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</dd></div>
                         <div><dt>Instrument</dt><dd>@InstrumentLabel(terms.Instrument)</dd></div>
-                        @if (_mode is { } activeMode)
+                        @if (!IsVegetableFruit && _mode is { } activeMode)
                         {
                             <div><dt>Mode</dt><dd>@ModeLabel(activeMode)</dd></div>
                         }
@@ -226,12 +237,15 @@
                 </ul>
             }
         }
+        </div>
     </div>
     <BottomNav ActiveTab="menu" />
 </div>
 
 @code {
     [Parameter] public string Code { get; set; } = string.Empty;
+    private bool IsVegetableFruit => Code == global::EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.VegetableFruitSpaceRental;
+    private bool _monthly, _monthlyVisited;
 
     private sealed record ModeOption(GovernedServiceMode? Mode, GovernedServiceTermsDto? Terms,
         string Note)
@@ -267,7 +281,7 @@
     }
 
     private string Title => _entry?.Name ?? "Operation";
-    private string Subtitle => _entry is { ModeAware: true } ? "choose monthly rental or daily transaction" : "Field collection";
+    private string Subtitle => IsVegetableFruit ? (_monthly ? "Registered Monthly space holders" : "Daily transaction") : "Field collection";
     private DateOnly Today => Session.Menu?.Today ?? DateOnly.FromDateTime(DateTime.Now);
     private ModeOption? Variant => _variants.FirstOrDefault(v => v.Mode == _mode);
 

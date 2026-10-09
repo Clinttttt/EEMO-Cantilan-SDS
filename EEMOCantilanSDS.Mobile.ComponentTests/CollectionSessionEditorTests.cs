@@ -104,6 +104,50 @@ public sealed class CollectionSessionEditorTests : TestContext
     // The dedicated Fish / Meat page: the collection family, so a registered vendor is offered what the server confirms (Vendor Fee and Weight & Measure).
     private IRenderedComponent<CollectionSessionEditor> OpenFishMeatPage() => Open(CollectorOperationCodes.FishMeatVendorFee, [CollectorOperationCodes.WeightAndMeasure]);
 
+    [Fact]
+    public void VendorRouteKeepsItsTwoItemsAndSeparateSourceTransitions()
+    {
+        Services.AddSingleton(new MobileSessionService());
+        Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().NavigateTo("/vendor-fee");
+        var view = RenderComponent<EEMOCantilanSDS.Mobile.Components.Pages.Menus.NewCollection>();
+        var editor = view.FindComponent<CollectionSessionEditor>();
+        Assert.Equal(CollectorOperationCodes.FishMeatVendorFee, editor.Instance.OnlyOperation);
+        Assert.Equal(new[] { CollectorOperationCodes.WeightAndMeasure }, editor.Instance.AlsoOperations);
+        Assert.Equal(2, view.FindAll(".collection-source-actions button").Count);
+        VegetableFruitModeTests.SaveVisual("mobile-fish-visit", view.Markup);
+    }
+
+    [Theory]
+    [InlineData("Choose electricity / ECF account", "/ecf")]
+    [InlineData("Choose NPM stall", "/market")]
+    public void VendorVisitTransitionsRequireExplicitSelectionOfAnotherSource(string label, string route)
+    {
+        var view = OpenFishMeatPage();
+        Assert.Contains("Record them separately", view.Find("[aria-label='Other collection sources']").TextContent);
+        Click(view, label);
+        Assert.EndsWith(route, Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().Uri);
+        Assert.Empty(_queue);
+        _api.Verify(x => x.GetSourceCollectionDiscoveryAsync(It.IsAny<CollectionSourceIdentity?>()), Times.Never);
+    }
+
+    [Fact]
+    public void VendorVisitCannotDiscardUnrecordedItemsBySwitchingToElectricityOrRent()
+    {
+        ServeFishVendor();
+        var view = OpenFishMeatPage();
+        view.Find("input[type=search]").Focus();
+        ClickSource(view, "Pantom Dant");
+        Click(view, "+ Add item");
+        view.FindAll(".collection-option").Single(x => x.TextContent.Contains("Fish / Meat Vendor Fee")).Click();
+        view.Find("[role=dialog] input[type=number]").Input("50");
+        Click(view, "Add item");
+        Assert.All(view.FindAll(".collection-source-actions button"), button => Assert.True(button.HasAttribute("disabled")));
+        Assert.Contains("Record or remove current items", view.Markup);
+        Assert.Single(view.FindAll(".item-row"));
+        Assert.Empty(_queue);
+        _api.Verify(x => x.GetSourceCollectionDiscoveryAsync(Occupancy), Times.Never);
+    }
+
     private static readonly Guid DailyStall = Guid.NewGuid();
     private void ServeNpmOccupancy() => _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(Occupancy)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(new(null, Today,
         [new(CollectionSessionItemKind.NpmDaily, "NPM_DAILY", "Daily stall payment", true, true, null, null, false, [], true,
