@@ -3,6 +3,7 @@
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Application.Dtos.Stalls
 @using EEMOCantilanSDS.Application.Dtos.Payments
+@using EEMOCantilanSDS.Client.Services
 @inject IStallsApiClient StallsApi
 @inject IPaymentsApiClient PaymentsApi
 @inject IFacilitiesApiClient FacilitiesApi
@@ -33,11 +34,19 @@
 </header>
 
 <div class="content-area">
+            @if (Workspace is { } workspace)
+            {
+                <RentalWorkspaceHero Workspace="workspace" Icon="@FacilityIcon" Stats="@HeroStats"
+                                     Scope="@PhilippineTime.Today.ToString("MMMM yyyy")" ProgressPercentage="@CollectionRate" />
+            }
+            else
+            {
             <FacilityHero Code="FacilityCodeEnum"
                           Icon="@FacilityIcon"
                           Stats="@HeroStats"
                           ShowProgress="true"
                           ProgressPercentage="@CollectionRate" />
+            }
 
             <Toolbar SearchQuery="@SearchQuery"
                      OnSearch="OnSearchInput"
@@ -128,6 +137,7 @@
 
 @code {
     [Parameter] public FacilityCode FacilityCodeEnum { get; set; }
+    [Parameter] public RentalWorkspaceDefinition? Workspace { get; set; }
     [Parameter] public string FacilityName { get; set; } = string.Empty;
     [Parameter] public string FacilityShortCode { get; set; } = string.Empty;
     [Parameter] public string FacilityDescription { get; set; } = string.Empty;
@@ -145,6 +155,12 @@
     [Parameter] public Func<TStall, string> ContractNameSelector { get; set; } = null!;
     [Parameter] public Action<TStall, string> ORNumberSetter { get; set; } = null!;
     [Parameter] public string? ReportsUrl { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (Workspace is not null && Workspace.Source != new FacilityRentalSource(FacilityCodeEnum))
+            throw new InvalidOperationException("The rental presentation does not match this facility source.");
+    }
 
     private string SearchQuery = string.Empty;
     private string ActiveStatus = "All";
@@ -363,7 +379,12 @@
         }
     }
 
-    private RenderFragment ActionBarContent => @<ActionBar Facility="@FacilityShortCode.ToLower()" />;
+    private RenderFragment ActionBarContent => @<text>
+        @if (Workspace is { } workspace)
+        { <RentalWorkspaceNavigation Workspace="workspace" ShowReports="false" /> }
+        else
+        { <ActionBar Facility="@FacilityShortCode.ToLower()" /> }
+    </text>;
 
     private async Task OnSearchInput(string value) => SearchQuery = value;
     private async Task OnFilterChange(string filter) => ActiveStatus = filter;
