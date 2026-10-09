@@ -1,0 +1,150 @@
+.avm-rental-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.avm-rental-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* The tile is a neutral surface, so the facility's own mark (drawn in navy) reads correctly inside it and the
+   two paths — a facility with artwork, and the plain glyph for one without — share the same ink. */
+.avm-rental-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: var(--bg-icon);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+    .avm-rental-icon ::deep svg {
+        width: 17px;
+        height: 17px;
+        stroke: var(--navy);
+        fill: none;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.avm-rental-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+}
+
+.avm-rental-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* ── ± Spinner ──────────────────────────────────────────────── */
+.avm-spinner {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    overflow: hidden;
+    background: var(--bg-card);
+}
+
+.avm-spin-btn {
+    width: 34px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    border: none;
+    color: var(--text-muted);
+    font-size: 18px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.12s, color 0.12s;
+}
+
+    .avm-spin-btn:hover {
+        background: var(--bg-icon);
+        color: var(--navy);
+    }
+
+.avm-spin-left {
+    border-right: 1px solid var(--border);
+}
+
+.avm-spin-right {
+    border-left: 1px solid var(--border);
+}
+
+.avm-spin-inner {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 0 10px;
+    height: 38px;
+}
+
+.avm-spin-currency {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.avm-spin-input {
+    width: 68px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--navy);
+    font-family: monospace;
+    border: none;
+    outline: none;
+    background: transparent;
+    text-align: center;
+}
+
+.avm-spin-freq {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+/* ── Whole-year hint strip ──────────────────────────────────── */
+.avm-yearly-hint {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 14px;
+    background: var(--bg);
+    border-radius: 8px;
+    /* A hairline all round rather than a coloured spine down one side. */
+    border: 1px solid var(--border);
+    margin-bottom: 12px;
+}
+
+.avm-yearly-label {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.avm-yearly-value {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    font-family: monospace;
+}
+@media (max-width: 480px) { .avm-rental-card { flex-wrap: wrap; } }

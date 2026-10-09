@@ -1,0 +1,37 @@
+@typeparam TItem
+@using EEMOCantilanSDS.Client.Services
+@if (Loading)
+{ <div role="status" aria-label="Loading occupancy registry"><Skeleton Height="160px" /></div> }
+else if (Failed)
+{ <div class="v3-empty">The account register is unavailable.</div> }
+else
+{
+<div class="table-wrap" role="region" aria-label="Occupancy registry" tabindex="0">
+    <table class="data-table registry-table">
+        <thead><tr><th>@Unit No.</th><th>Actual Occupant</th><th>Section / Context</th><th>@RateLabel</th><th>Contract / Effectivity</th><th>Payment</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>@foreach (var row in Rows)
+        {
+            <tr class="vendor-row @(row.LifecycleStatus == "Closed" ? "row-inactive" : "")" @onclick="() => OnInspect.InvokeAsync(row.Source)">
+                <td data-label="@(Unit + " No.")">@row.Number</td><td data-label="Actual Occupant">@row.Occupant</td>
+                <td data-label="Section / Context">@row.Context</td><td data-label="@RateLabel">₱@row.Amount?.ToString("N2")</td>
+                <td data-label="Contract / Effectivity">@row.Contract <span class="registry-date">@row.StartDate</span></td>
+                <td data-label="Payment"><AccountStatusPill Status="@row.PaymentStatus" />@if (Position is not null) { @Position(row.Source) }</td>
+                <td data-label="Status"><AccountStatusPill Status="@row.LifecycleStatus" /></td>
+                <td class="registry-actions" data-label="Actions" @onclick:stopPropagation="true">@Actions(row.Source)</td>
+            </tr>
+        }
+        @if (!Rows.Any()) { <tr><td colspan="8" class="v3-empty">No registrations match this search and filter.</td></tr> }
+        </tbody>
+    </table>
+</div>
+}
+@code {
+    [Parameter] public bool Loading { get; set; }
+    [Parameter] public bool Failed { get; set; }
+    [Parameter] public IEnumerable<RentalTableRow<TItem>> Rows { get; set; } = [];
+    [Parameter] public string Unit { get; set; } = "Stall";
+    [Parameter] public string RateLabel { get; set; } = "Monthly Rate";
+    [Parameter, EditorRequired] public RenderFragment<TItem> Actions { get; set; } = null!;
+    [Parameter] public RenderFragment<TItem>? Position { get; set; }
+    [Parameter] public EventCallback<TItem> OnInspect { get; set; }
+}

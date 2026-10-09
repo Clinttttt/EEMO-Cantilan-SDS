@@ -1,0 +1,58 @@
+@using EEMOCantilanSDS.Client.Services
+@using EEMOCantilanSDS.Domain.Enums
+
+<div class="avm-section">
+    <div class="avm-section-label">@SectionTitle</div>
+    <div class="avm-group">
+        <label class="avm-label">Basis of Occupancy <span class="avm-req">*</span></label>
+        <div class="avm-choice" role="radiogroup" aria-label="Basis of occupancy" style="--avm-choice-count: @Options.Count()">
+            @foreach (var option in Options)
+            {
+                <button type="button" class="avm-choice-item @(Form.Arrangement == option.Value ? "is-selected" : "")"
+                        role="radio" aria-checked="@(Form.Arrangement == option.Value ? "true" : "false")"
+                        @onclick="() => OnArrangement.InvokeAsync(option.Value)">
+                    <span class="avm-choice-title">@option.Title</span><span class="avm-choice-note">@option.Note</span>
+                </button>
+            }
+        </div>
+    </div>
+    <div class="avm-row-2">
+        <div class="avm-group">
+            <label class="avm-label" for="@OccupantId">@OccupantLabel <span class="avm-req">*</span></label>
+            <input id="@OccupantId" aria-label="Actual occupant" class="avm-input @(Error("ActualOccupant") != "" ? "form-input-error" : "")"
+                   type="text" placeholder="@OccupantPlaceholder" @bind="Form.ActualOccupant" @bind:event="oninput" />
+            @if (Error("ActualOccupant") != "") { <span class="form-error">@Error("ActualOccupant")</span> }
+        </div>
+        <div class="avm-group">
+            <label class="avm-label">Name on Contract (Per Signed Contract)</label>
+            @if (Form.HasSignedContract && ContractNameSupported)
+            {
+                <input class="avm-input @(Error("NameOnContract") != "" ? "form-input-error" : "")" type="text"
+                       placeholder="As written on the signed contract" @bind="Form.ContractName" @bind:event="oninput" />
+                @if (Error("NameOnContract") != "") { <span class="form-error">@Error("NameOnContract")</span> }
+            }
+            else
+            {
+                <div class="avm-input avm-input-locked">@(Form.HasSignedContract ? "Not recorded by this source" : NoContractText)</div>
+                @if (!Form.HasSignedContract) { <span class="avm-hint">Printed in this column on the official list.</span> }
+            }
+        </div>
+    </div>
+    @ExtraFields
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IRentalRegistrationState Form { get; set; } = null!;
+    [Parameter] public string SectionTitle { get; set; } = "Lessee Information";
+    [Parameter] public string OccupantLabel { get; set; } = "Actual Occupant (Lessee)";
+    [Parameter] public string OccupantPlaceholder { get; set; } = "Current stall occupant";
+    [Parameter] public string? OccupantId { get; set; }
+    [Parameter] public bool ContractNameSupported { get; set; } = true;
+    [Parameter] public string NoContractText { get; set; } = "No contract (space only)";
+    [Parameter] public Func<string, string> Error { get; set; } = _ => "";
+    [Parameter] public RenderFragment? ExtraFields { get; set; }
+    [Parameter] public EventCallback<OccupancyArrangement> OnArrangement { get; set; }
+    [Parameter] public IEnumerable<(OccupancyArrangement Value, string Title, string Note)> Options { get; set; } = [
+        (OccupancyArrangement.SignedContract, "Signed lease contract", "With effectivity date, term and area"),
+        (OccupancyArrangement.SpaceOnly, "No contract (space only)", "Rent charged, no contract on file")];
+}

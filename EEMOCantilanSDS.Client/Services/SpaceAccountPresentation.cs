@@ -8,6 +8,7 @@ public sealed record SpaceAccountPresentation(ObligationKind Kind, string Name, 
 {
     public static readonly SpaceAccountPresentation Kanmanggay = new(ObligationKind.KanmanggaySpaceRental, "Kanmanggay", "/operations/kanmanggay");
     public static readonly SpaceAccountPresentation VegetableFruit = new(ObligationKind.VegetableFruitSpaceRental, "Vegetable / Fruits", "/operations/vegetable-fruit");
+    public static readonly SpaceAccountPresentation FiestaAraw = new(ObligationKind.FiestaArawLotRental, "Fiesta / Araw", "/operations/fiesta-araw");
     public string RosterHref => Route + "/space-holders";
     public string ManagementHref => Route + "/manage-space-holders";
     public string ImportHref => Route + "/import";

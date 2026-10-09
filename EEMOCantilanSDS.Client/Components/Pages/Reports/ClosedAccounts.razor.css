@@ -78,7 +78,8 @@
 
 /* Frame table — invisible on screen; its thead/tfoot repeat a blank spacer on every printed
    page so continued pages get consistent top/bottom whitespace (matches the report page). */
-.ca-frame { width: 100%; border-collapse: collapse; }
+.ca-frame { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.ca-source-note { font-size: 11.5px; line-height: 1.5; color: var(--text-secondary); margin: 0 0 12px; }
 .ca-frame > thead > tr > td, .ca-frame > tfoot > tr > td, .ca-frame > tbody > tr > td { padding: 0; border: none; }
 .ca-frame-space { height: 0; }
 .ca-rpt-head { text-align: center; margin-bottom: 20px; }
@@ -155,7 +156,9 @@
     .ca-year-head { font-size: 11px; }
     .ca-year-label { font-size: 12px; }
     .ca-table { display: table !important; width: 100%; overflow: visible !important; white-space: normal !important; font-size: 11px; }
-    .ca-table th, .ca-table td { border-left: 1px solid #d8dee5; border-right: 1px solid #d8dee5; padding: 4px 5px; word-break: break-word; vertical-align: top; }
+    .ca-table th, .ca-table td { border-left: 1px solid #d8dee5; border-right: 1px solid #d8dee5; padding: 4px 5px; overflow-wrap: anywhere; vertical-align: top; }
+    .ca-table thead { display: table-header-group; }
+    .ca-table tbody tr { break-inside: avoid; }
     .ca-table thead th { border-top: 1px solid #d8dee5; border-bottom: 1px solid #d8dee5; background: #f4f7fa; }
     .ca-table tr.ca-grp-start td { border-top: 1px solid #d8dee5; }
     .ca-table tfoot td { border-top: 1px solid #d8dee5; border-bottom: 1px solid #d8dee5; }

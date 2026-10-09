@@ -1,0 +1,19 @@
+<div class="rental-summary">
+    <div><div class="rental-summary-title">@Title</div><div class="rental-summary-description">@Description</div></div>
+    <div class="rental-summary-metrics">
+        <div title="@StatusScope"><strong>@(Available ? Paid.ToString() : "—")</strong><span>Paid</span></div>
+        <div title="@StatusScope"><strong>@(Available ? Unpaid.ToString() : "—")</strong><span>Unpaid</span></div>
+        <div title="@StatusScope"><strong>@(Available ? Partial.ToString() : "—")</strong><span>Partial</span></div>
+        <div><strong>@Collected</strong><span>Collected</span></div>
+    </div>
+</div>
+@code {
+    [Parameter] public bool Available { get; set; } = true;
+    [Parameter] public string StatusScope { get; set; } = "Current reporting period";
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string Description { get; set; } = "";
+    [Parameter] public int Paid { get; set; }
+    [Parameter] public int Unpaid { get; set; }
+    [Parameter] public int Partial { get; set; }
+    [Parameter] public string Collected { get; set; } = "—";
+}

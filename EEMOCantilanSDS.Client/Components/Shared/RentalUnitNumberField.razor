@@ -1,0 +1,23 @@
+<div class="avm-group">
+    <label class="avm-label" for="@InputId">@(ServerAssigned || !SignedContract ? "Space No." : "Stall No.") @if (!ServerAssigned && SignedContract) { <span class="avm-req">*</span> }</label>
+    @if (ServerAssigned)
+    { <div class="avm-input avm-input-locked">Assigned automatically on registration</div> }
+    else if (SignedContract)
+    {
+        <input id="@InputId" class="avm-input @(string.IsNullOrEmpty(Error) ? "" : "form-input-error")" type="text" placeholder="e.g. 01, T4, B-02" value="@Value" @oninput="Input" />
+        @if (!string.IsNullOrEmpty(Error)) { <span class="form-error">@Error</span> }
+        else if (Suggested) { <span class="avm-hint-muted">Auto-suggested next Stall No.</span> }
+    }
+    else
+    { <div class="avm-readonly">—</div><span class="avm-hint-muted">No stall number is issued for these.</span> }
+</div>
+@code {
+    [Parameter] public bool ServerAssigned { get; set; }
+    [Parameter] public bool SignedContract { get; set; }
+    [Parameter] public bool Suggested { get; set; }
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public string? InputId { get; set; }
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    private Task Input(ChangeEventArgs e) => ValueChanged.InvokeAsync(e.Value?.ToString() ?? "");
+}

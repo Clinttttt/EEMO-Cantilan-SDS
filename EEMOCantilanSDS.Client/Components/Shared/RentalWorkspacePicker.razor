@@ -1,0 +1,41 @@
+@using EEMOCantilanSDS.Client.Services
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Domain.Enums
+@inject FacilityState Facilities
+@inject IObligationsApiClient Operations
+@inject NavigationManager Navigation
+<div class="rental-picker">
+    <label for="rental-workspace-picker">Facility / Operation</label>
+    <select id="rental-workspace-picker" class="avm-input" value="@Selected" @onchange="Select">
+        @foreach (var facility in Facilities.Rental) { <option value="@facility">@Facilities.ShortNameOf(facility) · @Facilities.NameOf(facility)</option> }
+        @foreach (var operation in _operations) { <option value="@operation.Code">@operation.Code · @operation.Name</option> }
+    </select>
+</div>
+@code {
+    [Parameter] public string Selected { get; set; } = "NPM";
+    private List<(string Code, string Name)> _operations = [];
+    protected override async Task OnInitializedAsync()
+    {
+        await Facilities.EnsureLoadedAsync();
+        try
+        {
+            var result = await Operations.GetSpaceOperationsAsync();
+            foreach (var kind in (result?.Value ?? []).Select(x => x.Kind).Distinct())
+            {
+                if (kind == ObligationKind.KanmanggaySpaceRental) _operations.Add(("KM", "Kanmanggay"));
+                if (kind == ObligationKind.FiestaArawLotRental) _operations.Add(("FA", "Fiesta / Araw"));
+                if (kind == ObligationKind.VegetableFruitSpaceRental) _operations.Add(("Vegetable/Fruits", "Vegetable / Fruits Monthly"));
+            }
+        }
+        catch { /* The current source-scoped page remains usable if operation discovery is unavailable. */ }
+        if (!_operations.Any(x => x.Code == Selected) && Selected is "KM" or "FA" or "Vegetable/Fruits")
+            _operations.Add((Selected, Selected == "KM" ? "Kanmanggay" : Selected == "FA" ? "Fiesta / Araw" : "Vegetable / Fruits Monthly"));
+    }
+    private void Select(ChangeEventArgs e)
+    {
+        var code = e.Value?.ToString();
+        if (_operations.Any(x => x.Code == code)) Navigation.NavigateTo($"/vendors?workspace={Uri.EscapeDataString(code!)}", forceLoad: true);
+        else if (Enum.TryParse<FacilityCode>(code, out var facility) && Facilities.Rental.Contains(facility))
+            Navigation.NavigateTo($"/vendors?facility={facility.ToString().ToLowerInvariant()}", forceLoad: true);
+    }
+}

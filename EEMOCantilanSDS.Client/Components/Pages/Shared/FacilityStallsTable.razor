@@ -17,6 +17,7 @@
 ══════════════════════════════════════════════════════════════════════ *@
 
 @typeparam TStall
+@using EEMOCantilanSDS.Client.Services
 
 @inject NavigationManager Navigation
 
@@ -182,26 +183,9 @@
         }
         else if (ColumnSet == "MonthlyTable")
         {
-            <div class="table-wrap"><table class="data-table">
-                <thead><tr><th>@HolderUnit No.</th><th>Occupant / Payor</th><th>Contract</th><th>Start date</th><th class="monthly-money">Monthly amount</th><th>Status</th><th>Actions</th></tr></thead>
-                <tbody>@foreach (var s in FilteredStalls)
-                {
-                    var active = GetPropertyValue<bool?>(s, "IsActive") ?? true;
-                    var status = !active ? "Closed" : GetIsPaid(s) ? "Paid" : GetIsPartial(s) ? "Partial" : "Unpaid";
-                    <tr class="data-row">
-                        <td>@GetStallNoForDisplay(s)</td><td>@GetActualOccupant(s)</td>
-                        <td>@(string.IsNullOrWhiteSpace(GetContractName(s)) ? "No contract" : GetContractName(s))</td>
-                        <td>@GetContractDate(s)</td><td class="monthly-money">₱@GetMonthlyRate(s).ToString("N2")</td>
-                        <td><span class="monthly-status">@status</span></td>
-                        <td><div class="action-btns">
-                            <button type="button" class="action-btn" title="View / Record Payment" @onclick="() => OnPaymentClick.InvokeAsync(s)">₱</button>
-                            <button type="button" class="action-btn" title="Payment History" @onclick="() => OnHistoryClick.InvokeAsync(s)">↺</button>
-                            @if (OnUtilityClick.HasDelegate && HasUtility(s)) { <button type="button" class="action-btn" title="Utilities" @onclick="() => OnUtilityClick.InvokeAsync(s)">⌁</button> }
-                            <button type="button" class="action-btn" title="View Profile" @onclick="() => NavigateToProfile(s)">→</button>
-                        </div></td>
-                    </tr>
-                }</tbody>
-            </table></div>
+            <RegisteredRentalTable TItem="TStall" Rows="MonthlyRows" Unit="@HolderUnit" OwnPanel="false"
+                                   OnPayment="OnPaymentClick" OnHistory="OnHistoryClick" OnProfile="NavigateToProfile"
+                                   ExtraActions="MonthlyExtraActions" />
         }
         else if (ColumnSet == "MonthlyCard")
         {
@@ -494,4 +478,12 @@
         var key = stallId != Guid.Empty ? stallId.ToString() : GetStallNo(stall);
         Navigation.NavigateTo($"/profile/{facilityId}/{key}");
     }
+
+    private IEnumerable<RentalTableRow<TStall>> MonthlyRows => FilteredStalls.Select(s => new RentalTableRow<TStall>(s,
+        GetStallNoForDisplay(s), GetActualOccupant(s), string.IsNullOrWhiteSpace(GetContractName(s)) ? "No contract" : GetContractName(s),
+        GetContractDate(s), GetMonthlyRate(s), GetIsPaid(s) ? "Paid" : GetIsPartial(s) ? "Partial" : "Unpaid",
+        (GetPropertyValue<bool?>(s, "IsActive") ?? true) ? "Active" : "Closed"));
+    private RenderFragment<TStall>? MonthlyExtraActions => OnUtilityClick.HasDelegate ? s => @<text>
+        @if (HasUtility(s)) { <button type="button" class="action-btn" title="Utilities" @onclick="() => OnUtilityClick.InvokeAsync(s)">⌁</button> }
+    </text> : null;
 }

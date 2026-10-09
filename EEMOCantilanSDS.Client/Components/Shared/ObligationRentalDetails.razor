@@ -1,0 +1,82 @@
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Services
+@using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Collections
+@inject IObligationsApiClient AccountsApi
+@inject ICollectionActivityApiClient ActivityApi
+
+<AddNewDrawer Show="true" Title="@(History ? "Payment History" : "Account periods")" Subtitle="@($"{SpaceAccountPresentation.Occupant(Account)} · {Account.SubjectLabel}")"
+              FormLabel="Rental account details" FormId="rental-read-details" SubmitText="Close" OnSubmit="OnClose" OnCancel="OnClose">
+    <dl class="rental-facts">
+        <div><dt>Account</dt><dd>@Account.Id</dd></div>
+        <div><dt>Effective from</dt><dd>@Account.ActiveFrom.ToString("MMM d, yyyy")</dd></div>
+        <div><dt>Approved amount</dt><dd>₱@Account.CurrentAmount?.ToString("N2")</dd></div>
+        @if (Account.Kind == ObligationKind.FiestaArawLotRental)
+        { <div><dt>Event</dt><dd>@Account.Event · @Account.EventDate?.ToString("MMM d, yyyy")</dd></div> }
+        else
+        { <div><dt>Occupancy basis</dt><dd>@SpaceAccountPresentation.Basis(Account)</dd></div> }
+        @if (SpaceAccountPresentation.Reference(Account) is { Length: > 0 } reference)
+        { <div><dt>Contract reference</dt><dd>@reference</dd></div> }
+    </dl>
+    @if (_error is not null) { <p role="alert" class="v3-notice v3-notice-error">@_error</p><button type="button" class="btn-outline" @onclick="Load">Try again</button> }
+    else if (_loading) { <Skeleton Height="120px" /> }
+    else if (History)
+    {
+        <label class="avm-label" for="rental-history-month">Collection month</label>
+        <input id="rental-history-month" type="month" class="avm-input" value="@_historyMonth" @onchange="ChangeMonth" />
+        <p class="avm-hint-muted">Canonical collections referencing a recorded account period. Line amounts can cover multiple allocations; they are not account settlement totals. The existing feed exposes only a line's first source allocation.</p>
+        @if (_truncated) { <p role="status" class="v3-notice">The activity feed is limited. This is a partial history; use Collection Activity for further periods.</p> }
+        <div class="v3-table-wrap"><table class="v3-table"><thead><tr><th>Date / SRC</th><th>Referenced period</th><th>Collection line amount</th><th>Correction</th><th>Status</th></tr></thead>
+            <tbody>@foreach (var entry in _history)
+            {
+                <tr><td>@entry.Event.BusinessDate.ToString("MMM d, yyyy")<span class="v3-block">@entry.Event.ReferenceCode</span><span class="v3-block">@entry.Event.DocumentNumber</span></td>
+                    <td>@_periods.First(p => p.PeriodId == entry.Line.SourceId).PeriodStart.ToString("MMM yyyy")</td><td>₱@entry.Line.Amount.ToString("N2")</td>
+                    <td>@foreach (var correction in entry.Event.Corrections) { <span class="v3-block">@correction.CorrectionType · @correction.EffectiveDate · @correction.Reason</span> }
+                        @foreach (var replacement in entry.Event.ReplacementReferenceCodes) { <span class="v3-block">Replacement: @replacement</span> }</td><td>@entry.Event.Disposition</td></tr>
+            }
+            @if (_history.Count == 0) { <tr><td colspan="5">No recorded collections for this account in the returned activity.</td></tr> }
+            </tbody></table></div>
+    }
+    else
+    {
+        <p class="avm-hint-muted">Authoritative period position. This is not a receipt and does not record payment.</p>
+        <div class="v3-table-wrap"><table class="v3-table"><thead><tr><th>Period</th><th>Assessed</th><th>Settled</th><th>Remaining</th></tr></thead><tbody>
+            @foreach (var period in _periods) { <tr><td>@period.PeriodStart.ToString("MMM yyyy")</td><td>₱@period.AssessedAmount.ToString("N2")</td><td>₱@period.SettledAmount.ToString("N2")</td><td>₱@period.OutstandingAmount.ToString("N2")</td></tr> }
+            @if (_periods.Count == 0) { <tr><td colspan="4">No assessed periods.</td></tr> }
+        </tbody></table></div>
+    }
+</AddNewDrawer>
+@code {
+    [Parameter, EditorRequired] public ObligationAccountDto Account { get; set; } = null!;
+    [Parameter] public bool History { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    private IReadOnlyList<ObligationQuoteDto> _periods = [];
+    private List<(CollectionActivityEventDto Event, CollectionActivityLineDto Line)> _history = [];
+    private bool _loading = true, _truncated;
+    private string? _error;
+    private string _historyMonth = PhilippineTime.Today.ToString("yyyy-MM");
+    private async Task ChangeMonth(ChangeEventArgs e) { _historyMonth = e.Value?.ToString() ?? _historyMonth; await Load(); }
+    protected override Task OnInitializedAsync() => Load();
+    private async Task Load()
+    {
+        _loading = true; _error = null;
+        try
+        {
+            var register = await AccountsApi.GetRegisterAsync(Account.Id);
+            if (!register.IsSuccess) { _error = register.Error ?? "Periods are unavailable."; return; }
+            _periods = (register.Value ?? []).Where(p => p.AccountId == Account.Id && p.Kind == Account.Kind).ToArray();
+            if (!History) return;
+            if (!DateOnly.TryParse(_historyMonth + "-01", out var month)) { _error = "Choose a valid collection month."; return; }
+            var activity = await ActivityApi.GetAsync(month, month.AddMonths(1).AddDays(-1), null, null, null, 500, null);
+            if (!activity.IsSuccess || activity.Value is null) { _error = activity.Error ?? "Collection history is unavailable."; return; }
+            var ids = _periods.Where(x => x.PeriodId.HasValue).Select(x => x.PeriodId!.Value).ToHashSet();
+            _history = activity.Value.Events.Where(e => e.Authority == "Canonical").SelectMany(e => e.Lines.Where(l =>
+                l.SourceKind == nameof(CollectionSourceKind.ObligationPeriod) && l.SourceId is { } id && ids.Contains(id)).Select(l => (e, l))).ToList();
+            _truncated = activity.Value.Truncated;
+        }
+        catch { _error = "Account details could not be loaded."; }
+        finally { _loading = false; }
+    }
+}
