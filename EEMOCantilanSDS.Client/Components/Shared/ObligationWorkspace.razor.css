@@ -171,3 +171,13 @@
 .obw-option { display: block; width: 100%; min-height: 44px; padding: 8px 14px; border: 0; background: transparent; color: var(--navy); font: inherit; font-size: .9375rem; font-weight: 600; text-align: left; cursor: pointer; }
 .obw-option:hover { background: var(--surface-muted); }
 .obw-option:focus-visible { outline: 2px solid var(--civic-panel); outline-offset: -2px; }
+
+.obw-advanced-filters { position: relative; flex: 0 0 auto; }
+.obw-advanced-filters summary { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); cursor: pointer; list-style: none; }
+.obw-advanced-filters summary::-webkit-details-marker { display: none; }
+.obw-advanced-filters summary svg { width: 16px; height: 16px; }
+.obw-advanced-filters summary:hover { background: var(--surface-muted); }
+.obw-advanced-filters summary:focus-visible { outline: 2px solid var(--civic-panel); outline-offset: 2px; }
+.obw-advanced-filters label { position: absolute; right: 0; top: 38px; z-index: 30; display: grid; gap: 8px; width: 180px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: 0 4px 16px #102b4c1a; font-size: .8125rem; }
+.obw-advanced-filters select { width: 100%; min-height: 36px; font: inherit; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); }
+@media (max-width: 768px) { .obw-advanced-filters label { left: 0; right: auto; } }

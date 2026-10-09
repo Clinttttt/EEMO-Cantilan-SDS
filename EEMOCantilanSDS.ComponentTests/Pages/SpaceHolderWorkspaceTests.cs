@@ -232,7 +232,7 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         Assert.Contains("1 spaces", cut.Find(".vs-count-label").TextContent);
         Assert.DoesNotContain("Space Account Management", cut.Markup);
         Assert.DoesNotContain("Financial totals:", cut.Markup);
-        Assert.NotNull(cut.Find(".v3-panel-header [aria-label='Account lifecycle']"));
+        Assert.NotNull(cut.Find(".obw-advanced-filters [aria-label='Account lifecycle']"));
         cut.FindAll(".filter-tab").Single(b => b.TextContent == "Unpaid").Click();
         Assert.DoesNotContain("Closed paid", cut.Find("tbody").TextContent);
         Assert.Contains("₱1,800.00", cut.FindComponent<RentalRegistryHero>().Markup);

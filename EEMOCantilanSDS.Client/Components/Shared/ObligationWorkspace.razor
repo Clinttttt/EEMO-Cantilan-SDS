@@ -50,6 +50,12 @@
                                ActiveFilter="@RegistryFilter" OnFilterChanged="SetRegistryFilter"
                                SearchPlaceholder="@($"Search {SubjectNoun.ToLowerInvariant()} no. or occupant…")"
                                CountLabel="@(_loading || _error is not null ? "—" : $"{VisibleAccounts.Count()} {SubjectNoun.ToLowerInvariant()}s")">
+            <SecondaryAction>
+                <details class="obw-advanced-filters">
+                    <summary aria-label="Advanced account filters" title="Advanced account filters"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 7h16M4 17h16" /><circle cx="9" cy="7" r="2" /><circle cx="15" cy="17" r="2" /></svg></summary>
+                    <label>Account lifecycle <select aria-label="Account lifecycle" value="@_lifecycle" @onchange="SetLifecycle"><option selected="@(_lifecycle == "All")">All</option><option selected="@(_lifecycle == "Active")">Active</option><option selected="@(_lifecycle == "Closed")">Closed</option></select></label>
+                </details>
+            </SecondaryAction>
             <PrimaryAction><AuthorizeView Roles="SuperAdmin"><Authorized>
                 <button class="btn-primary" type="button" @onclick="OpenForm"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>Add Occupant &amp; @SubjectNoun</button>
             </Authorized></AuthorizeView></PrimaryAction>
@@ -85,20 +91,14 @@
 else
 {
 <div class="obw-layout">
-    <section class="v3-panel" aria-labelledby="@_accountsTitleId" aria-busy="@(_loading ? "true" : "false")">
+    <section class="v3-panel" aria-label="@(Management ? "Registered accounts" : null)" aria-labelledby="@(Management ? null : _accountsTitleId)" aria-busy="@(_loading ? "true" : "false")">
+        @if (!Management)
+        {
         <header class="v3-panel-header">
             <h2 id="@_accountsTitleId">@(ReadOnlyHistory ? "Historical accounts" : Management ? Name : Workspace?.TableTitle ?? (Overview ? "Space Rentals" : $"{Name} accounts"))</h2>
             @if (SpaceExperience && !_loading && _error is null)
             {
-                @if (Management)
-                {
-                    <div class="obw-actions-bar">
-                        <label>Lifecycle <select aria-label="Account lifecycle" value="@_lifecycle" @onchange="SetLifecycle"><option selected="@(_lifecycle == "All")">All</option><option selected="@(_lifecycle == "Active")">Active</option><option selected="@(_lifecycle == "Closed")">Closed</option></select></label>
-                        @if (Presentation is { } p && Kind != ObligationKind.FiestaArawLotRental) { <a href="@p.RosterHref">Space Holder List</a> }
-                        <a href="@ReportsHref">Reports</a>
-                    </div>
-                }
-                else { <span class="obw-note">@VisibleAccounts.Count() of @_accounts.Count @SubjectNoun.ToLowerInvariant()s shown</span> }
+                <span class="obw-note">@VisibleAccounts.Count() of @_accounts.Count @SubjectNoun.ToLowerInvariant()s shown</span>
             }
             <AuthorizeView Roles="SuperAdmin">
                 <Authorized>
@@ -109,6 +109,7 @@ else
                 </Authorized>
             </AuthorizeView>
         </header>
+        }
 
         @if (!string.IsNullOrWhiteSpace(_error))
         {
@@ -394,9 +395,9 @@ else
                             @if (_signedContract && Kind == ObligationKind.KanmanggaySpaceRental)
                             {
                                 <div class="avm-group">
-                                    <label class="avm-label" for="obw-contract-years">Contract Duration (No. of Years)</label>
-                                    <select id="obw-contract-years" class="avm-input" @bind="_contractYears"><option value="3">3 years</option></select>
-                                    <span class="avm-hint-muted">MEEDO standard. Recorded term does not automatically expire or renew the account.</span>
+                                    <label class="avm-label">Contract Duration (No. of Years)</label>
+                                    <FhSelect Block="true" Caption="" AriaLabel="Contract Duration (No. of Years)" Value="@_contractYears.ToString()"
+                                              Options="KmContractYearOptions" ValueChanged="value => _contractYears = 3" />
                                 </div>
                             }
                         </TermField>
@@ -463,7 +464,7 @@ else
                 @if (SupportsContractBasis)
                 {
                     <AddNewSection Title="Rental Rates" Plain="true">
-                        <RentalRateFields Form="RegistrationState" InputId="obw-amount" Minimum="0.01m" Step="0.01" Entered="() => StateHasChanged()" />
+                        <RentalRateFields Form="RegistrationState" InputId="obw-amount" Label="Approved Monthly Rental (₱)" Minimum="0.01m" Step="0.01" Entered="() => StateHasChanged()" />
                     </AddNewSection>
                     <AddNewSection Title="Additional Information" Plain="true">
                         <div class="avm-row-2"><div class="avm-group">
@@ -647,6 +648,7 @@ else
     private static readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid" };
     private static readonly List<string> OverviewFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
     private string RegistryCode => Kind == ObligationKind.FiestaArawLotRental ? "FA" : Kind == ObligationKind.KanmanggaySpaceRental ? "KM" : "Vegetable/Fruits";
+    private static readonly IReadOnlyList<(string Value, string Label)> KmContractYearOptions = [("3", "3 years")];
     private bool _closedShortcut;
     private bool _advancedLifecycle;
     private string RegistryFilter => _closedShortcut ? "Closed" : _filter;

@@ -4,7 +4,7 @@
 {
     <div class="avm-row-2">
         <div class="avm-group">
-            <label class="avm-label" for="@InputId">Monthly Rental / Rate (₱) <span class="avm-req">*</span></label>
+            <label class="avm-label" for="@InputId">@Label <span class="avm-req">*</span></label>
             <input id="@InputId" class="avm-input" type="number" min="@Minimum" step="@Step" placeholder="e.g. 900"
                    @bind="Form.MonthlyRate" @bind:after="NotifyEntered" />
             <div class="avm-hint-muted">Whole Year: ₱@((Form.MonthlyRate * 12m).ToString("N0"))</div>
@@ -38,6 +38,7 @@ else
     [Parameter, EditorRequired] public IRentalRegistrationState Form { get; set; } = null!;
     [Parameter] public bool ChargeCard { get; set; }
     [Parameter] public string? InputId { get; set; }
+    [Parameter] public string Label { get; set; } = "Monthly Rental / Rate (₱)";
     [Parameter] public decimal Minimum { get; set; }
     [Parameter] public string? Step { get; set; }
     [Parameter] public string SourceName { get; set; } = "";

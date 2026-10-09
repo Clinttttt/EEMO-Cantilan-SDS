@@ -64,7 +64,7 @@ else
                     </Figures>
                 </RentalRegistryHero>
 
-                <RentalRegistryToolbar Selected="@ActiveFacility" Choices="RegistryChoices" OnSelected="SelectFacility"
+                <RentalRegistryToolbar Selected="@ActiveFacility" Choices="RegistryChoices" OnSelected="NavigateFacility"
                                        SearchQuery="@SearchQuery" OnSearch="v => SearchQuery = v"
                                        ActiveFilter="@ActiveStatus" OnFilterChanged="v => ActiveStatus = v"
                                        SearchPlaceholder="Search stall no. or name…"
@@ -766,7 +766,7 @@ else
     {
         if (Facility == _appliedFacility) return;
         _appliedFacility = Facility;
-        if (FacilityCatalog.TryResolveSlug(Facility, out var code)
+        if (FacilityCatalog.TryResolveSlug(string.IsNullOrWhiteSpace(Facility) ? "npm" : Facility, out var code)
             && FacilityTabs.Any(tab => tab.Code == code.ToString()))
             SelectFacility(code.ToString());
     }
@@ -1016,6 +1016,17 @@ else
             .FirstOrDefault();
 
   
+
+    void NavigateFacility(string code)
+    {
+        if (code is "KM" or "FA" or "Vegetable/Fruits")
+            Nav.NavigateTo($"/vendors?workspace={Uri.EscapeDataString(code)}");
+        else if (FacilityTabs.Any(tab => tab.Code == code))
+        {
+            SelectFacility(code);
+            Nav.NavigateTo($"/vendors?facility={code.ToLowerInvariant()}");
+        }
+    }
 
     void SelectFacility(string code)
     {

@@ -2,8 +2,8 @@
     <label class="avm-label" for="@InputId">@(ServerAssigned || !SignedContract ? "Space No." : "Stall No.") @if (!ServerAssigned && SignedContract) { <span class="avm-req">*</span> }</label>
     @if (ServerAssigned)
     {
-        <div class="avm-input avm-input-locked">@(string.IsNullOrWhiteSpace(SuggestedNumber) ? "Assigned automatically on registration" : SuggestedNumber)</div>
-        <span class="avm-hint-muted">@(string.IsNullOrWhiteSpace(SuggestedNumber) ? "Assigned by the server." : "Suggested next Space No. for this operation. The server confirms the final number.")</span>
+        <div class="avm-input avm-input-locked">@(string.IsNullOrWhiteSpace(SuggestedNumber) ? "Assigned upon registration" : SuggestedNumber)</div>
+        @if (!string.IsNullOrWhiteSpace(SuggestedNumber)) { <span class="avm-hint-muted">Auto-suggested next Space No.</span> }
     }
     else if (SignedContract)
     {

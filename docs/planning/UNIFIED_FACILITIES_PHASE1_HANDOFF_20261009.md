@@ -1,5 +1,7 @@
 # Unified Facilities Workspace V3 — Phase 1 pilot
 
+Historical checkpoint: later October 9 lease-evidence and action-content commits supersede missing KM metadata limitations below. The [verified registry checkpoint](OCCUPANCY_REGISTRY_PARITY_HANDOFF_20261009.md) supersedes references to Toolbar/RentalWorkspacePicker with the actual extracted RentalRegistryToolbar and records the local migration/test evidence. The project owner accepted that toolbar on October 10; the final polish checkpoint retains it. Renewal/reopening and complete allocation-history proposals remain pending, and no production release is implied.
+
 ## Current checkpoint: actual component consolidation, 2026-10-09
 
 This follow-up starts at `5ae3483b` on `codex/vegetable-fruit-space-workspace`, in the same physical checkout. Implementation commit: `8bd944c8` (`refactor(web): consolidate rental registration tables and source registries`); tests and this handoff are a separate verification commit. The original Phase 1 checkpoint below is historical. Its visual primitives were insufficient: KM still independently rendered registration, overview and management tables. The current patch extracts the actual ICE/NCC field and table implementations and makes both source families consume them. No domain migration, source cutover, integration or production release is included.

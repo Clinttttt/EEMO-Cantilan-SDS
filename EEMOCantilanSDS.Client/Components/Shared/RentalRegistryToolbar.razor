@@ -42,7 +42,7 @@
         <input type="text" class="search-input" aria-label="@SearchPlaceholder" placeholder="@SearchPlaceholder" value="@SearchQuery" @oninput="e => OnSearch.InvokeAsync(e.Value?.ToString() ?? string.Empty)" />
         @if (!string.IsNullOrEmpty(SearchQuery)) { <button type="button" class="search-clear" aria-label="Clear search" @onclick="() => OnSearch.InvokeAsync(string.Empty)">×</button> }
     </div>
-    <div class="vs-actions-compact"><span class="vs-count-label">@CountLabel</span>@PrimaryAction</div>
+    <div class="vs-actions-compact"><span class="vs-count-label">@CountLabel</span>@SecondaryAction@PrimaryAction</div>
 </div>
 
 @code {
@@ -57,6 +57,7 @@
     [Parameter] public EventCallback<string> OnFilterChanged { get; set; }
     [Parameter] public string CountLabel { get; set; } = string.Empty;
     [Parameter] public RenderFragment? PrimaryAction { get; set; }
+    [Parameter] public RenderFragment? SecondaryAction { get; set; }
     private static readonly string[] Filters = ["All", "Paid", "Partial", "Unpaid", "Closed"];
     private bool _open;
     private readonly List<Choice> _discovered = [];

@@ -64,7 +64,7 @@ public sealed class RentalConsolidationTests : TestContext
     [InlineData("NCC")]
     public void FacilityAndKmUseTheActualSameFormSections(string facility)
     {
-        var form = new AddVendorModal.VendorModalForm { FacilityCode = facility, StallNo = "017", ActualOccupant = "Facility occupant", ContractName = "Signed name", MonthlyRate = 900m };
+        var form = new AddVendorModal.VendorModalForm { FacilityCode = facility, StallNo = "017", ActualOccupant = "Facility occupant", ContractName = "Signed name", ContractYears = 3, MonthlyRate = 900m };
         var original = RenderComponent<AddVendorModal>(p => p.Add(x => x.Show, true).Add(x => x.Form, form).Add(x => x.FacilityLocked, true)
             .Add(x => x.FacilityOptions, [new() { Code = facility, Name = facility }]));
         var km = RenderComponent<Kanmanggay>(); Click(km, "+ Add New");
@@ -76,15 +76,43 @@ public sealed class RentalConsolidationTests : TestContext
         Assert.Single(original.FindAll("input[placeholder='As written on the signed contract']"));
         Assert.Single(km.FindAll("input[placeholder='As written on the signed contract']"));
         Assert.Contains("Contract Duration (No. of Years)", km.Markup);
+        Assert.Contains("Approved Monthly Rental", km.Markup);
         Assert.Contains("Space Information", km.Markup);
         Assert.Contains("Additional Information", km.Markup);
         Assert.Contains("Space No.", km.FindComponent<RentalContractFields>().Markup);
         Assert.Empty(km.FindComponent<RentalUnitNumberField>().FindAll("input"));
+        var duration = km.FindComponents<FhSelect>().Single(x => x.Instance.AriaLabel == "Contract Duration (No. of Years)");
+        Assert.True(duration.Instance.Block);
+        Assert.Equal("3", duration.Instance.Value);
+        Assert.Equal(new[] { ("3", "3 years") }, duration.Instance.Options);
+        Assert.NotEmpty(original.FindComponents<FhSelect>());
+        Assert.Empty(km.FindAll("#obw-contract-years"));
         Assert.Single(km.FindAll("input[type='date']"));
         Assert.Equal(form.StallNo, original.FindComponent<RentalUnitNumberField>().Find("input").GetAttribute("value"));
         Assert.Equal(PhilippineTime.Today.ToString("yyyy-MM-dd"), km.Find("#obw-contract-date").GetAttribute("value"));
         SpaceHolderWorkspaceTests.SaveVisualArtifact(facility.ToLowerInvariant() + "-shared-registration", original.Markup);
         SpaceHolderWorkspaceTests.SaveVisualArtifact("km-shared-registration", km.Markup);
+        duration.Find("button").Click();
+        Assert.Equal("3 years", Assert.Single(duration.FindAll("[role='option']")).TextContent.Trim());
+        SpaceHolderWorkspaceTests.SaveVisualArtifact("km-duration-open", km.Markup);
+        duration.Find("[role='option']").Click();
+        Assert.Equal("3", duration.Instance.Value);
+        Assert.DoesNotContain("Recorded term does not automatically", km.Markup);
+        var iceDuration = original.FindComponents<FhSelect>().Single(x => x.Instance.Options.Any(o => o.Value == "custom"));
+        iceDuration.Find("button").Click();
+        SpaceHolderWorkspaceTests.SaveVisualArtifact(facility.ToLowerInvariant() + "-duration-open", original.Markup);
+    }
+
+    [Theory]
+    [InlineData("4", "Auto-suggested next Space No.")]
+    [InlineData(null, "Assigned upon registration")]
+    public void ServerNumberPreviewIsConciseAndNeverEditable(string? preview, string text)
+    {
+        var cut = RenderComponent<RentalUnitNumberField>(p => p.Add(x => x.ServerAssigned, true).Add(x => x.SuggestedNumber, preview));
+        Assert.Contains(text, cut.Markup);
+        Assert.Empty(cut.FindAll("input"));
+        Assert.DoesNotContain("The server confirms", cut.Markup);
+        SpaceHolderWorkspaceTests.SaveVisualArtifact(preview is null ? "number-preview-empty" : "number-preview", cut.Markup);
     }
 
     [Fact]
@@ -188,6 +216,8 @@ public sealed class RentalConsolidationTests : TestContext
         Assert.Single(cut.FindAll(".vs-toolbar-unified"));
         Assert.Single(cut.FindComponents<RentalRegistryToolbar>());
         Assert.NotNull(cut.Find(".vs-toolbar-unified .search-input"));
+        Assert.Empty(cut.FindAll(".obw-layout > section > .v3-panel-header"));
+        Assert.Empty(cut.FindAll(".obw-layout .obw-actions-bar"));
         Assert.Empty(cut.FindAll(".rental-picker"));
         SpaceHolderWorkspaceTests.SaveVisualArtifact(code == "FA" ? "fa-registry" : code == "KM" ? "km-registry" : "vf-registry", cut.Markup);
     }
@@ -351,6 +381,13 @@ public sealed class RentalConsolidationTests : TestContext
         Assert.Empty(cut.FindAll(".rental-picker"));
         cut.WaitForElement(".registry-table");
         Assert.Contains("Facility occupant", cut.Find("tbody").TextContent);
+        cut.FindComponent<RentalRegistryToolbar>().InvokeAsync(() =>
+            cut.FindComponent<RentalRegistryToolbar>().Instance.OnSelected.InvokeAsync("ICE"));
+        Assert.EndsWith("/vendors?facility=ice", Services.GetRequiredService<NavigationManager>().Uri);
+        Assert.Equal("ICE", cut.FindComponent<RentalRegistryToolbar>().Instance.Selected);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/vendors?facility=npm");
+        Assert.Equal("NPM", cut.FindComponent<RentalRegistryToolbar>().Instance.Selected);
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/vendors?facility={slug}");
         Assert.Equal(new[] { "View Details", "View Profile", "Edit", "Payment History", "Close Stall" }, cut.FindAll(".registry-actions button").Select(x => x.GetAttribute("title")));
         SpaceHolderWorkspaceTests.SaveVisualArtifact(slug + "-registry", cut.Markup);
         cut.Find("button[title='View Details']").Click();
@@ -370,7 +407,9 @@ public sealed class RentalConsolidationTests : TestContext
             bar.QuerySelectorAll(".filter-tab").Select(x => x.TextContent.Trim()));
         Assert.DoesNotContain("Space Holder List", bar.TextContent);
         Assert.DoesNotContain("Reports", bar.TextContent);
-        Assert.DoesNotContain("Account lifecycle", bar.TextContent);
+        Assert.Single(bar.QuerySelectorAll("details:not([open])"));
+        Assert.Empty(cut.FindAll(".obw-layout > section > .v3-panel-header"));
+        Assert.Empty(cut.FindAll(".obw-layout .obw-actions-bar"));
         Assert.Contains("Add Occupant", bar.TextContent);
         Assert.Single(cut.FindComponents<RentalRegistryToolbar>());
         cut.Find("#rental-workspace-picker").Click();
@@ -401,7 +440,7 @@ public sealed class RentalConsolidationTests : TestContext
         Assert.Contains("B", cut.Find("tbody").TextContent);
         Assert.DoesNotContain("A", cut.Find("tbody").TextContent);
         Assert.Equal("1 spaces", cut.Find(".vs-count-label").TextContent.Trim());
-        Assert.EndsWith("/operations/kanmanggay/space-holders", cut.Find(".v3-panel-header a").GetAttribute("href"));
+        Assert.Empty(cut.FindAll(".obw-layout > section > .v3-panel-header"));
     }
 
     public sealed class FacilityFixture
