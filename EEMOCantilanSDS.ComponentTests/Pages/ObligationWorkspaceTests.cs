@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Common;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Client.Components.Pages.Menus;
+using EEMOCantilanSDS.Client.Components.Shared;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -173,8 +174,9 @@ public sealed class ObligationWorkspaceTests : TestContext
             Assert.Contains("Ana Reyes", row.TextContent);
             Assert.Contains("Space K-4", row.TextContent);
             Assert.Contains("₱1,200.00", row.TextContent);
-            Assert.Contains("₱400.00", row.TextContent);
-            Assert.Contains("₱800.00", row.TextContent);
+            Assert.Contains("Partial", row.TextContent);
+            Assert.Contains("₱400.00", cut.FindComponent<RentalRegistryHero>().Markup);
+            Assert.Contains("₱800.00", cut.FindComponent<RentalRegistryHero>().Markup);
             Assert.DoesNotContain(cut.FindAll("a"), a => a.GetAttribute("href")?.StartsWith("/collections/current") == true);
         }, Timeout);
     }
@@ -191,8 +193,8 @@ public sealed class ObligationWorkspaceTests : TestContext
         }));
 
         var cut = RenderComponent<KanmanggayManageSpaceHolders>();
-        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "→"), Timeout);
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "→").Click();
+        cut.WaitForAssertion(() => cut.Find(".registry-table tbody tr"), Timeout);
+        cut.Find(".registry-table tbody tr").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -251,7 +253,8 @@ public sealed class ObligationWorkspaceTests : TestContext
             Assert.DoesNotContain("Open account", labels);
             Assert.DoesNotContain("Change amount", labels);
             Assert.DoesNotContain("End", labels);
-            Assert.Contains("→", labels);
+            Assert.Equal(5, cut.FindAll(".registry-actions button").Count);
+            Assert.All(cut.FindAll(".registry-actions button[disabled]"), b => Assert.True(b.HasAttribute("disabled")));
         }, Timeout);
     }
 

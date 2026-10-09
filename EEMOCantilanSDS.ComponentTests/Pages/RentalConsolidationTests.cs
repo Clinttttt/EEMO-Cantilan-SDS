@@ -190,6 +190,98 @@ public sealed class RentalConsolidationTests : TestContext
         SpaceHolderWorkspaceTests.SaveVisualArtifact(code == "FA" ? "fa-registry" : code == "KM" ? "km-registry" : "vf-registry", cut.Markup);
     }
 
+    [Theory]
+    [InlineData("KM", ObligationKind.KanmanggaySpaceRental)]
+    [InlineData("Vegetable/Fruits", ObligationKind.VegetableFruitSpaceRental)]
+    [InlineData("FA", ObligationKind.FiestaArawLotRental)]
+    public void SpaceRegistryReusesAllFiveFacilityActionIconsAndOwnAccountHandlers(string code, ObligationKind kind)
+    {
+        var account = Account(kind); Serve(account);
+        _accounts.Setup(x => x.GetRegisterAsync(account.Id))
+            .ReturnsAsync(Result<IReadOnlyList<ObligationQuoteDto>>.Success([]));
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/vendors?workspace={Uri.EscapeDataString(code)}");
+        var cut = RenderComponent<Vendor>();
+
+        var buttons = cut.FindAll(".registry-actions button");
+        Assert.Equal(5, buttons.Count);
+        Assert.Equal(new[] { "View Details", "View Profile",
+            kind == ObligationKind.FiestaArawLotRental ? "Editing is unavailable: closed account or unsupported event-amount revision." : "Change approved amount",
+            "Payment History", "Close Account" }, buttons.Select(b => b.GetAttribute("title")));
+        Assert.Single(cut.FindComponents<RentalRegistryActionButtons>());
+        Assert.Equal("Partial", cut.Find("td[data-label='Payment']").TextContent.Trim());
+        Assert.Equal(kind == ObligationKind.FiestaArawLotRental, buttons[2].HasAttribute("disabled"));
+        Assert.Empty(_stalls.Invocations);
+        Assert.Empty(_payments.Invocations);
+
+        cut.Find("button[title='View Details']").Click();
+        Assert.Contains("not a receipt", cut.Find("[role='dialog']").TextContent);
+        Assert.Contains("Partial", cut.Find("td[data-label='Payment']").TextContent);
+        cut.Find(".rph-footer button").Click();
+
+        cut.Find("button[title='Close Account']").Click();
+        Assert.Contains("Confirm account closure", cut.Markup);
+        _accounts.Verify(x => x.CloseAccountAsync(It.IsAny<Guid>(), It.IsAny<CloseObligationAccountRequest>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("KM", ObligationKind.KanmanggaySpaceRental, "/operations/kanmanggay/manage-space-holders")]
+    [InlineData("Vegetable/Fruits", ObligationKind.VegetableFruitSpaceRental, "/operations/vegetable-fruit/manage-space-holders")]
+    [InlineData("FA", ObligationKind.FiestaArawLotRental, "/vendors?workspace=FA")]
+    public void SpaceActionProfileAndHistoryRemainTypedToTheSelectedAccount(string code, ObligationKind kind, string route)
+    {
+        var account = Account(kind); Serve(account);
+        _accounts.Setup(x => x.GetRegisterAsync(account.Id))
+            .ReturnsAsync(Result<IReadOnlyList<ObligationQuoteDto>>.Success([]));
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/vendors?workspace={Uri.EscapeDataString(code)}");
+        var cut = RenderComponent<Vendor>();
+
+        cut.Find("button[title='Payment History']").Click();
+        Assert.NotNull(cut.Find("[role='dialog'][aria-label='Payment history']"));
+        cut.Find(".rph-footer button").Click();
+        cut.Find("button[title='View Profile']").Click();
+        var uri = Services.GetRequiredService<NavigationManager>().Uri;
+        Assert.Contains(route, Uri.UnescapeDataString(uri));
+        Assert.Contains($"account={account.Id}", uri);
+        Assert.Empty(_stalls.Invocations);
+        Assert.Empty(_payments.Invocations);
+    }
+
+    [Theory]
+    [InlineData("KM", ObligationKind.KanmanggaySpaceRental)]
+    [InlineData("Vegetable/Fruits", ObligationKind.VegetableFruitSpaceRental)]
+    public void SpaceEditActionOpensExistingApprovedRateDrawerWithoutWriting(string code, ObligationKind kind)
+    {
+        var account = Account(kind); Serve(account);
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/vendors?workspace={Uri.EscapeDataString(code)}");
+        var cut = RenderComponent<Vendor>();
+        cut.Find("button[title='Change approved amount']").Click();
+        Assert.Contains("Effective from (month)", cut.Find("[role='dialog']").TextContent);
+        _accounts.Verify(x => x.SetRateAsync(It.IsAny<Guid>(), It.IsAny<SetObligationRateRequest>()), Times.Never);
+        _accounts.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("KM", ObligationKind.KanmanggaySpaceRental)]
+    [InlineData("Vegetable/Fruits", ObligationKind.VegetableFruitSpaceRental)]
+    [InlineData("FA", ObligationKind.FiestaArawLotRental)]
+    public void ClosedSpaceAccountShowsFiveIconsButCannotReopenOrEdit(string code, ObligationKind kind)
+    {
+        var account = Account(kind, closed: true); Serve(account);
+        _accounts.Setup(x => x.GetRegisterAsync(account.Id))
+            .ReturnsAsync(Result<IReadOnlyList<ObligationQuoteDto>>.Success([]));
+        Services.GetRequiredService<NavigationManager>().NavigateTo(
+            $"/vendors?workspace={Uri.EscapeDataString(code)}&account={account.Id}");
+        var cut = RenderComponent<Vendor>();
+        var buttons = cut.FindAll(".registry-actions button");
+        Assert.Equal(5, buttons.Count);
+        Assert.True(buttons[2].HasAttribute("disabled"));
+        Assert.True(buttons[4].HasAttribute("disabled"));
+        Assert.Contains("Reopen unavailable", buttons[4].GetAttribute("title"));
+        Assert.Empty(_stalls.Invocations);
+        Assert.Empty(_payments.Invocations);
+        _accounts.Verify(x => x.CloseAccountAsync(It.IsAny<Guid>(), It.IsAny<CloseObligationAccountRequest>()), Times.Never);
+    }
+
     [Fact]
     public void FacilityRegistryConsumesTheSameRegistryTable()
     {
@@ -200,6 +292,7 @@ public sealed class RentalConsolidationTests : TestContext
         _payments.Setup(x => x.GetPaymentHistoryAsync(vendor.StallId)).ReturnsAsync(Result<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Payments.PaymentHistoryDto>>.Success([]));
         Services.GetRequiredService<NavigationManager>().NavigateTo("/vendors?facility=ncc");
         var cut = RenderComponent<Vendor>();
+        cut.WaitForElement(".vs-toolbar-unified");
         Assert.NotNull(cut.FindComponent<RentalRegistryHero>());
         var bar = Assert.Single(cut.FindAll(".vs-toolbar-unified"));
         Assert.NotNull(bar.QuerySelector(".facility-selector"));

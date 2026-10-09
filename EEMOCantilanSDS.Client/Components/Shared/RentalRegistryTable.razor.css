@@ -1,6 +1,9 @@
 .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
 .registry-date { display: block; font-size: 11px; color: var(--text-secondary); margin-top: 4px; }
-.registry-actions { white-space: nowrap; }
+.registry-table { min-width: 1120px; }
+.registry-actions { white-space: nowrap; min-width: 220px; text-align: right; }
+.registry-table th:last-child { min-width: 220px; text-align: right; }
+@media (max-width: 1100px) { .registry-table { min-width: 0; } .registry-actions { min-width: 0; } }
 @media (max-width: 1100px) {
     table, tbody { display: block; width: 100%; }
     thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }

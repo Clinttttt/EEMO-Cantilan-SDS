@@ -2,6 +2,7 @@
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Domain.Enums
 @using Microsoft.AspNetCore.Components.Authorization
 @using EEMOCantilanSDS.Client.Services
@@ -97,7 +98,7 @@ else
         @if (Management)
         {
             <RentalRegistryTable TItem="ObligationAccountDto" Rows="RentalRows" Unit="@SubjectNoun" RateLabel="@(Kind == ObligationKind.FiestaArawLotRental ? "Approved event amount" : "Monthly Rate")"
-                                 Loading="_loading" Failed="@(_error is not null)" OnInspect="a => ToggleRegisterAsync(a.Id)" Actions="RegistryAccountActions" Position="RegistryAccountPosition" />
+                                 Loading="_loading" Failed="@(_error is not null)" OnInspect="a => ToggleRegisterAsync(a.Id)" Actions="RegistryAccountActions" />
             @if (_selected is { } selectedId && _accounts.FirstOrDefault(a => a.Id == selectedId) is { } selectedAccount)
             {
                 <section class="v3-panel obw-profile" aria-label="Account profile">
@@ -622,22 +623,48 @@ else
     private string _startMonth = PhilippineTime.Today.ToString("yyyy-MM", CultureInfo.InvariantCulture);
     private string _rateMonth = PhilippineTime.Today.AddMonths(1).ToString("yyyy-MM", CultureInfo.InvariantCulture);
     private decimal? _amount;
-    private RenderFragment<ObligationAccountDto> RegistryAccountPosition => a => @<div class="obw-note">Assessed @Money(a.AssessedToDate)<br />Collected @Money(a.CollectedToDate)<br />Remaining @Money(a.OutstandingToDate)</div>;
-    private RenderFragment<ObligationAccountDto> RegistryAccountActions => a => @<div class="obw-actions" role="group" aria-label="@($"Account actions for {a.SubjectLabel}")">
-        <button class="v3-btn v3-btn-sm" type="button" title="View payment position" aria-label="View payment position" @onclick="() => OpenAccountPosition(a)">₱</button>
-        <button class="v3-btn v3-btn-sm" type="button" title="Payment history" aria-label="Payment history" @onclick="() => OpenAccountHistory(a)">↺</button>
-        <button class="v3-btn v3-btn-sm" type="button" title="Manage account details" aria-label="Manage account details" @onclick="() => ToggleRegisterAsync(a.Id)">→</button>
-    </div>;
+    private RenderFragment<ObligationAccountDto> RegistryAccountActions => a => @<AuthorizeView Roles="SuperAdmin">
+        <Authorized>
+            <RentalRegistryActionButtons Subject="@SpaceAccountPresentation.Occupant(a)" IsActive="@(a.ActiveTo is null)"
+                CanEdit="@(a.ActiveTo is null && a.Kind != ObligationKind.FiestaArawLotRental && !ReadOnlyHistory)"
+                EditTitle="Change approved amount"
+                EditUnavailableReason="Editing is unavailable: closed account or unsupported event-amount revision."
+                CanToggle="@(a.ActiveTo is null && !ReadOnlyHistory)"
+                ToggleTitle="@(a.ActiveTo is null ? "Close Account" : "Reopen unavailable: requires an approved successor-account workflow.")"
+                OnInspect="() => OpenAccountPosition(a)"
+                OnProfile="() => OpenAccountProfile(a)"
+                OnEdit="() => OpenRate(a)"
+                OnHistory="() => OpenAccountHistory(a)"
+                OnToggle="() => CloseAsync(a.Id)" />
+        </Authorized>
+        <NotAuthorized>
+            <RentalRegistryActionButtons Subject="@SpaceAccountPresentation.Occupant(a)" IsActive="@(a.ActiveTo is null)"
+                CanEdit="false" CanToggle="false"
+                EditUnavailableReason="Only an authorized Head can change an approved amount."
+                ToggleTitle="Only an authorized Head may close accounts. Reopening is unavailable."
+                OnInspect="() => OpenAccountPosition(a)"
+                OnProfile="() => OpenAccountProfile(a)"
+                OnHistory="() => OpenAccountHistory(a)" />
+        </NotAuthorized>
+    </AuthorizeView>;
     private ObligationAccountDto? _detailsAccount;
     private bool _detailsHistory;
     private static string PaymentStatus(ObligationAccountDto a) => a.AssessedToDate > 0m && a.OutstandingToDate == 0m ? "Paid"
         : a.CollectedToDate > 0m && a.OutstandingToDate > 0m ? "Partial" : "Unpaid";
+    private static string RegistryContract(ObligationAccountDto account)
+    {
+        if (account.Event is not null) return "Event lot";
+        if (account.ContractYears is { } years && account.ContractEffectiveDate is { } signedDate)
+            return $"{years} years · expires {DomainRules.TermLastDay(signedDate, years):MMM yyyy}";
+        return account.Arrangement == OccupancyArrangement.SignedContract
+            ? account.ContractName is { Length: > 0 } ? account.ContractName : "Signed lease · term not recorded"
+            : SpaceAccountPresentation.Basis(account);
+    }
     private IEnumerable<RentalTableRow<ObligationAccountDto>> RentalRows => VisibleAccounts.Select(a => new RentalTableRow<ObligationAccountDto>(a,
-        a.SubjectLabel, SpaceAccountPresentation.Occupant(a), a.Kind == ObligationKind.FiestaArawLotRental ? "Event lot" :
-        !string.IsNullOrWhiteSpace(a.ContractName) ? a.ContractName :
-        string.IsNullOrWhiteSpace(SpaceAccountPresentation.Reference(a)) ? SpaceAccountPresentation.Basis(a) : $"Contract ref: {a.ContractReference}",
-        (a.ContractEffectiveDate ?? a.ActiveFrom).ToString("MMM d, yyyy"), a.CurrentAmount, PaymentStatus(a), a.ActiveTo is null ? "Active" : "Closed",
-        a.Event is not null ? LotLabel(a) : null));
+        a.SubjectLabel, SpaceAccountPresentation.Occupant(a), RegistryContract(a),
+        (a.ContractEffectiveDate ?? a.ActiveFrom).ToString("MMM d, yyyy"), a.CurrentAmount, PaymentStatus(a),
+        a.ActiveTo is null ? "Active" : "Closed",
+        a.Event is not null ? LotLabel(a) : !string.IsNullOrWhiteSpace(a.AreaLocation) ? a.AreaLocation : Name));
     private void OpenAccountPosition(ObligationAccountDto account) { _detailsAccount = account; _detailsHistory = false; }
     private void OpenAccountHistory(ObligationAccountDto account) { _detailsAccount = account; _detailsHistory = true; }
     private void OpenAccountProfile(ObligationAccountDto account) => Navigation.NavigateTo(

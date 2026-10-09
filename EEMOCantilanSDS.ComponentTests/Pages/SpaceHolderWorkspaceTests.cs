@@ -100,12 +100,12 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         Assert.Equal(new[] { "All", "Active", "Closed" }, group.QuerySelectorAll("button").Select(x => x.TextContent));
         group.QuerySelectorAll("button").Single(x => x.TextContent == lifecycle).Click();
         cut.FindAll("[aria-label='Payment status'] .filter-tab").Single(x => x.TextContent == payment).Click();
-        Assert.Equal(count, cut.FindAll("tbody > tr .obw-actions").Count);
+        Assert.Equal(count, cut.FindAll("tbody > tr .rental-registry-actions").Count);
         Assert.Equal(before, cut.FindComponent<RentalRegistryHero>().Markup);
-        foreach (var row in cut.FindAll("tbody > tr").Where(x => x.QuerySelector(".obw-actions") is not null))
+        foreach (var row in cut.FindAll("tbody > tr").Where(x => x.QuerySelector(".rental-registry-actions") is not null))
         {
             var closed = row.TextContent.Contains("Closed");
-            Assert.Equal(new[] { "₱", "↺", "→" }, row.QuerySelectorAll(".obw-actions button").Select(x => x.TextContent));
+            Assert.Equal(new[] { "View Details", "View Profile", "Payment History" }, row.QuerySelectorAll(".rental-registry-actions button").Where(x => !x.HasAttribute("disabled") && x.GetAttribute("title") is "View Details" or "View Profile" or "Payment History").Select(x => x.GetAttribute("title")));
         }
         cut.Find(".search-input").Input("No match");
         Assert.Equal(before, cut.FindComponent<RentalRegistryHero>().Markup);
@@ -242,7 +242,7 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         var account = Account(); Serve(account);
         _api.Setup(x => x.CloseAccountAsync(account.Id, It.IsAny<CloseObligationAccountRequest>())).ReturnsAsync(Result<bool>.Success(true));
         var cut = RenderComponent<KanmanggayManageSpaceHolders>();
-        Click(cut, "→"); Click(cut, "Close account");
+        cut.Find(".registry-table tbody tr").Click(); Click(cut, "Close account");
         _api.Verify(x => x.CloseAccountAsync(It.IsAny<Guid>(), It.IsAny<CloseObligationAccountRequest>()), Times.Never);
         Assert.Contains("Previously assessed periods and collections remain readable", cut.Find("[role='dialog']").TextContent);
         cut.Find("form[aria-label='Confirm account closure']").Submit();
@@ -274,7 +274,7 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         _api.Setup(x => x.SetRateAsync(account.Id, It.IsAny<SetObligationRateRequest>()))
             .Callback<Guid, SetObligationRateRequest>((_, request) => sent = request).ReturnsAsync(Result<bool>.Success(true));
         var cut = RenderComponent<KanmanggayManageSpaceHolders>();
-        Click(cut, "→");
+        cut.Find(".registry-table tbody tr").Click();
         Assert.Contains("Periods offline", cut.Find("[role='alert']").TextContent);
         Assert.DoesNotContain("No period is billable", cut.Markup);
         Assert.NotNull(cut.Find("dl.obw-account-facts"));
