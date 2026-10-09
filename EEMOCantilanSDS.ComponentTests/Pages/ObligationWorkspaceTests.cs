@@ -35,6 +35,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         Services.AddSingleton(Mock.Of<IFacilitiesApiClient>());
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.FacilityState>();
         Services.AddSingleton(_api.Object);
+        Services.AddSingleton(Mock.Of<ICollectionActivityApiClient>());
         Services.AddSingleton(_collections.Object);
         Services.AddSingleton(_governed.Object);
         Services.AddSingleton(Mock.Of<IBusinessPayorsApiClient>());
@@ -67,7 +68,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() => Assert.Contains("Ana Reyes", cut.Find("#vf-monthly").TextContent), Timeout);
         Assert.True(cut.Find("#vf-daily").HasAttribute("hidden"));
         Assert.Empty(cut.FindAll("#vf-monthly a[href$='/import']"));
-        Assert.Equal("Space Rentals", cut.Find("#vf-monthly .v3-panel-header h2").TextContent);
+        Assert.Equal("Space Rentals", cut.Find("#vf-monthly .rental-summary-title").TextContent);
         Assert.Empty(cut.FindAll("#vf-monthly tbody a"));
         Assert.NotNull(cut.Find("#vf-monthly a[href='/operations/vegetable-fruit/space-holders']"));
         Assert.NotNull(cut.Find("#vf-monthly a[href='/operations/vegetable-fruit/manage-space-holders']"));
@@ -154,7 +155,7 @@ public sealed class ObligationWorkspaceTests : TestContext
             Assert.Equal(title, Assert.Single(cut.FindAll("h1")).TextContent.Trim());
             Assert.Empty(cut.FindAll("main"));
             Assert.DoesNotContain("aren't recorded in StallTrack yet", cut.Markup);
-            Assert.Contains("found.", cut.Markup);
+            Assert.Contains("found", cut.Markup);
             Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Contains("Record") || b.TextContent.Contains("Collect"));
         }, Timeout);
     }
@@ -164,11 +165,11 @@ public sealed class ObligationWorkspaceTests : TestContext
     {
         Serve(ObligationKind.KanmanggaySpaceRental, Space());
 
-        var cut = RenderComponent<Kanmanggay>();
+        var cut = RenderComponent<KanmanggayManageSpaceHolders>();
 
         cut.WaitForAssertion(() =>
         {
-            var row = Assert.Single(cut.FindAll("[aria-label='Kanmanggay accounts'] tbody tr"));
+            var row = Assert.Single(cut.FindAll(".registry-table tbody tr"));
             Assert.Contains("Ana Reyes", row.TextContent);
             Assert.Contains("Space K-4", row.TextContent);
             Assert.Contains("₱1,200.00", row.TextContent);
@@ -265,7 +266,7 @@ public sealed class ObligationWorkspaceTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            var row = Assert.Single(cut.FindAll("[aria-label='Fiesta / Araw accounts'] tbody tr"));
+            var row = Assert.Single(cut.FindAll("[aria-label='Registered rentals'] tbody tr"));
             Assert.Contains("Fiesta · Aug 15, 2026", row.TextContent);
             Assert.Contains("₱2,500.00", row.TextContent);
             Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Trim() == "Change amount");
@@ -281,14 +282,14 @@ public sealed class ObligationWorkspaceTests : TestContext
         var cut = RenderComponent<Kanmanggay>();
         cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New"), Timeout);
         Assert.Empty(cut.FindAll("[role='dialog']"));
-        Assert.Single(cut.FindAll("[aria-label='Kanmanggay accounts'] tbody tr"));
+        Assert.Single(cut.FindAll("[aria-label='Registered rentals'] tbody tr"));
 
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New").Click();
 
         cut.WaitForAssertion(() =>
         {
             var drawer = Assert.Single(cut.FindAll("[role='dialog']"));
-            Assert.Contains("Open Kanmanggay account", drawer.TextContent);
+            Assert.Contains("Add New Space Holder", drawer.TextContent);
             Assert.NotNull(drawer.QuerySelector("form[aria-label='Open account']"));
             Assert.Contains("Open account", drawer.QuerySelector("footer")!.TextContent);
             Assert.DoesNotContain("obw-layout", drawer.ParentElement!.ClassName ?? "");      // not squeezed into the account list's own grid
@@ -298,7 +299,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.Empty(cut.FindAll("[role='dialog']"));
-            Assert.Single(cut.FindAll("[aria-label='Kanmanggay accounts'] tbody tr"));
+            Assert.Single(cut.FindAll("[aria-label='Registered rentals'] tbody tr"));
         }, Timeout);
     }
 
@@ -315,12 +316,12 @@ public sealed class ObligationWorkspaceTests : TestContext
         {
             var drawer = Assert.Single(cut.FindAll("[role='dialog']"));
             var titles = drawer.QuerySelectorAll(".avm-section-label").Select(x => x.TextContent.Trim()).ToArray();
-            Assert.Equal(new[] { "Lessee Information", "Space & Contract Details", "Rental Rates" }, titles);
+            Assert.Equal(new[] { "Lessee Information", "Space & Contract Details", "Rental Rates", "Applicable Charges" }, titles);
             var basis = drawer.QuerySelectorAll("[role='radio']").Select(x => x.QuerySelector(".avm-choice-title")!.TextContent.Trim()).ToArray();
             Assert.Equal(new[] { "Signed lease contract", "No contract (space only)" }, basis);
             Assert.Contains("Contract Effectivity (month)", drawer.TextContent);                         // a month, not a date
             Assert.NotNull(drawer.QuerySelector("input[placeholder='As written on the contract']"));
-            Assert.Equal("Kanmanggay", drawer.QuerySelector(".avm-input-locked")!.TextContent.Trim());   // the operation is context, not a choice
+            Assert.Contains(drawer.QuerySelectorAll(".avm-input-locked"), x => x.TextContent.Trim() == "Kanmanggay");   // the operation is context, not a choice
             Assert.NotNull(drawer.QuerySelector(".eemo-drawer-header-icon svg"));                        // the stallholder drawer's own header
         }, Timeout);
 
@@ -377,9 +378,9 @@ public sealed class ObligationWorkspaceTests : TestContext
         _api.Setup(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>())).ReturnsAsync(Result<ObligationAccountDto>.Success(added));
 
         var cut = RenderComponent<Kanmanggay>();
-        cut.WaitForAssertion(() => Assert.Single(cut.FindAll("[aria-label='Kanmanggay accounts'] tbody tr")), Timeout);
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll("[aria-label='Registered rentals'] tbody tr")), Timeout);
         cut.FindAll(".filter-tab").Single(t => t.TextContent.Trim() == "Paid").Click();            // hides the (partly paid) existing holder
-        cut.WaitForAssertion(() => Assert.DoesNotContain("Space K-4", cut.Find("[aria-label='Kanmanggay accounts'] tbody").TextContent), Timeout);
+        cut.WaitForAssertion(() => Assert.DoesNotContain("Space K-4", cut.FindComponent<EEMOCantilanSDS.Client.Components.Shared.RegisteredRentalTable<ObligationAccountDto>>().Markup), Timeout);
 
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New").Click();
         cut.Find("#obw-occupant").Input("Ana Reyes");
@@ -388,7 +389,7 @@ public sealed class ObligationWorkspaceTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            var rows = cut.FindAll("[aria-label='Kanmanggay accounts'] tbody tr").Select(r => r.TextContent).ToArray();
+            var rows = cut.FindAll("[aria-label='Registered rentals'] tbody tr").Select(r => r.TextContent).ToArray();
             Assert.Contains(rows, r => r.Contains("Space K-9"));
             Assert.Contains(rows, r => r.Contains("Space K-4"));
             Assert.Equal("All", cut.Find(".filter-tab.active").TextContent.Trim());

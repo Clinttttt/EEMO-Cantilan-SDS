@@ -56,7 +56,7 @@ public sealed class RentalWorkspacePilotTests : TestContext
             Assert.False(workspace.Sections.HasFlag(RentalSection.MonthlyRate));
             Assert.False(workspace.Sections.HasFlag(RentalSection.ContractEvidence));
             Assert.Null(workspace.RosterRoute);
-            Assert.Null(workspace.ManagementRoute);
+            Assert.Equal("/vendors?workspace=FA", workspace.ManagementRoute);
             Assert.Equal(RentalContractPolicy.EventOnly, workspace.ContractPolicy);
         }
         if (key == RentalWorkspaceKey.Kanmanggay)
@@ -81,7 +81,7 @@ public sealed class RentalWorkspacePilotTests : TestContext
     [Theory]
     [InlineData(RentalWorkspaceKey.Ice, 3)]
     [InlineData(RentalWorkspaceKey.Kanmanggay, 3)]
-    [InlineData(RentalWorkspaceKey.FiestaAraw, 1)]
+    [InlineData(RentalWorkspaceKey.FiestaAraw, 2)]
     public void NavigationOnlyOffersExistingRoutesAndNeverInventsAdministrativeActions(RentalWorkspaceKey key, int links)
     {
         var workspace = RentalWorkspaceCatalog.Get(key);
@@ -105,16 +105,16 @@ public sealed class RentalWorkspacePilotTests : TestContext
             new(2026, 10, 1), null, 900m, new(2026, 10, 1), 1800m, 400m, 1400m, ActualOccupant: "Source holder");
         _obligations.Setup(x => x.GetWorkspaceAsync(kind)).ReturnsAsync(Result<ObligationWorkspaceDto>.Success(new([account], 1800m, 400m, 1400m)));
         var cut = Render(builder => { builder.OpenComponent(0, eventRental ? typeof(FiestaAraw) : typeof(Kanmanggay)); builder.CloseComponent(); });
-        Assert.Equal(workspace.TableTitle, cut.Find(".v3-panel-header h2").TextContent);
+        Assert.Equal(workspace.TableTitle, cut.Find(".rental-summary-title").TextContent);
         Assert.Equal($"OPERATION · {workspace.DisplayCode}", cut.Find(".facility-hero-eyebrow").TextContent);
         Assert.Equal("All accounts · to date", cut.Find(".facility-hero-scope").TextContent);
-        Assert.Contains(eventRental ? "lots shown" : "spaces shown", cut.Markup);
+        Assert.Contains(eventRental ? "Registered lots" : "Registered spaces", cut.Markup);
         Assert.Contains("Source holder", cut.Find("tbody").TextContent);
         if (eventRental)
         {
             Assert.Contains("Araw", cut.Find("tbody").TextContent);
-            Assert.Contains("obw-management-table", cut.Find("table").ClassList);
-            Assert.NotNull(cut.Find("td[data-label='Approved amount']"));
+            Assert.NotNull(cut.FindComponent<RegisteredRentalTable<ObligationAccountDto>>());
+            Assert.NotNull(cut.Find("td[data-label='Approved event amount']"));
         }
         SpaceHolderWorkspaceTests.SaveVisualArtifact(eventRental ? "fiesta-araw-overview" : "kanmanggay-pilot", cut.Markup);
         var hero = cut.Find(".facility-hero").TextContent;
@@ -123,7 +123,7 @@ public sealed class RentalWorkspacePilotTests : TestContext
         cut.FindAll("button").Single(x => x.TextContent.Trim() == "+ Add New").Click();
         var titles = cut.FindAll(".avm-section-label").Select(x => x.TextContent).ToArray();
         Assert.Equal(eventRental ? new[] { "Event & Occupant Information", "Lot & Event Details" }
-            : new[] { "Lessee Information", "Space & Contract Details", "Rental Rates" }, titles);
+            : new[] { "Lessee Information", "Space & Contract Details", "Rental Rates", "Applicable Charges" }, titles);
         Assert.Single(cut.FindAll("#obw-amount"));
         Assert.DoesNotContain("Contract Duration", cut.Find("form").TextContent);
         Assert.DoesNotContain("Annual", cut.Find("form").TextContent);

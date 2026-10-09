@@ -23,6 +23,7 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
     public SpaceHolderWorkspaceTests()
     {
         Services.AddSingleton(_api.Object);
+        Services.AddSingleton(Mock.Of<ICollectionActivityApiClient>());
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
         Services.AddSingleton(Mock.Of<IStallsApiClient>());
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
@@ -94,20 +95,20 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
     {
         Serve(Account("Active unpaid"), Account("Active partial", collected: 400m), Account("Closed paid", true, 900m), Account("Closed unpaid", true));
         var cut = RenderComponent<KanmanggayManageSpaceHolders>();
-        var before = cut.Find("tfoot").TextContent;
+        var before = cut.FindComponent<RentalRegistryHero>().Markup;
         var group = cut.Find("[aria-label='Account lifecycle']");
         Assert.Equal(new[] { "All", "Active", "Closed" }, group.QuerySelectorAll("button").Select(x => x.TextContent));
         group.QuerySelectorAll("button").Single(x => x.TextContent == lifecycle).Click();
         cut.FindAll("[aria-label='Payment status'] .filter-tab").Single(x => x.TextContent == payment).Click();
         Assert.Equal(count, cut.FindAll("tbody > tr .obw-actions").Count);
-        Assert.Equal(before, cut.Find("tfoot").TextContent);
+        Assert.Equal(before, cut.FindComponent<RentalRegistryHero>().Markup);
         foreach (var row in cut.FindAll("tbody > tr").Where(x => x.QuerySelector(".obw-actions") is not null))
         {
             var closed = row.TextContent.Contains("Closed");
-            Assert.Equal(closed ? new[] { "Periods" } : new[] { "Periods", "Change amount", "Close account" }, row.QuerySelectorAll(".obw-actions button").Select(x => x.TextContent));
+            Assert.Equal(closed ? new[] { "Periods", "↺" } : new[] { "Periods", "↺", "Change amount", "Close account" }, row.QuerySelectorAll(".obw-actions button").Select(x => x.TextContent));
         }
         cut.Find(".search-input").Input("No match");
-        Assert.Equal(before, cut.Find("tfoot").TextContent);
+        Assert.Equal(before, cut.FindComponent<RentalRegistryHero>().Markup);
     }
 
     [Theory]
@@ -131,11 +132,12 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         Assert.NotNull(cut.Find("a[href='/operations/kanmanggay/report']"));
         Assert.Contains(cut.FindAll("button"), b => b.TextContent == "+ Add New");
         Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent is "Periods" or "Change amount" or "Close account");
-        Assert.Equal("Space Rentals", cut.Find(".v3-panel-header h2").TextContent);
+        Assert.Equal("Space Rentals", cut.Find(".rental-summary-title").TextContent);
         Assert.Empty(cut.FindAll("tbody a"));
-        Assert.DoesNotContain(cut.FindAll("thead th"), th => th.TextContent is "Account" or "Actions");
+        Assert.Contains(cut.FindAll("thead th"), th => th.TextContent == "Actions");
+        Assert.Equal(new[] { "₱", "↺", "→" }, cut.FindAll("tbody .action-btn").Select(x => x.TextContent));
         Assert.DoesNotContain(cut.FindAll("button, a"), b => b.TextContent.Trim() == "Open account");
-        Assert.Contains("Effective date", cut.Find("thead").TextContent);
+        Assert.Contains("Start date", cut.Find("thead").TextContent);
         SaveVisualArtifact("kanmanggay-overview", cut.Markup);
     }
 
@@ -152,7 +154,7 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         Assert.Contains("Closed holder", cut.Find("tbody").TextContent);
         Assert.DoesNotContain("Paid holder", cut.Find("tbody").TextContent);
         cut.Find(".search-input").Input("absent");
-        Assert.Contains("No spaces found", cut.Find("tbody").TextContent);
+        Assert.Contains("No spaces found", cut.Find(".empty-state").TextContent);
         Assert.Equal(hero, cut.FindComponent<FacilityHero>().Markup);
     }
 
@@ -224,15 +226,15 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         cut.FindAll(".filter-tab").Single(b => b.TextContent == "Paid").Click();
         Assert.Contains("Closed paid", cut.Find("tbody").TextContent);
         Assert.DoesNotContain("Active unpaid", cut.Find("tbody").TextContent);
-        Assert.Contains("₱1,800.00", cut.Find("tfoot").TextContent);
-        Assert.Contains("including closed accounts", cut.Find("tfoot [title]").GetAttribute("title"));
+        Assert.Contains("₱1,800.00", cut.FindComponent<RentalRegistryHero>().Markup);
+        Assert.Contains("All accounts · to date", cut.FindComponent<RentalRegistryHero>().Markup);
         Assert.Contains("1 of 2 spaces shown", cut.Find(".v3-panel-header").TextContent);
         Assert.DoesNotContain("Space Account Management", cut.Markup);
         Assert.DoesNotContain("Financial totals:", cut.Markup);
         Assert.NotNull(cut.Find(".toolbar-unified [aria-label='Account lifecycle']"));
         cut.FindAll(".filter-tab").Single(b => b.TextContent == "Unpaid").Click();
         Assert.DoesNotContain("Closed paid", cut.Find("tbody").TextContent);
-        Assert.Contains("₱1,800.00", cut.Find("tfoot").TextContent);
+        Assert.Contains("₱1,800.00", cut.FindComponent<RentalRegistryHero>().Markup);
     }
     [Fact]
     public void ClosureRequiresConfirmationAndPreservesTheExistingCommand()
@@ -311,6 +313,8 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         string FileUrl(string path) => new Uri(path).AbsoluteUri;
         var styles = new[] { Path.Combine(client, "wwwroot", "css", "site.min.css"), Path.Combine(client, "wwwroot", "app.css"), Path.Combine(client, "wwwroot", "css", "payor.css"), Path.Combine(client, "obj", "Release", "net10.0", "scopedcss", "bundle", "EEMOCantilanSDS.Client.styles.css"), Path.Combine(client, "wwwroot", "css", "print.css") };
         var links = string.Join("", styles.Select(path => $"<link rel='stylesheet' href='{FileUrl(path)}'>"));
+        // Root-relative static images must resolve to the same checked-out assets in file:// fixtures.
+        markup = System.Text.RegularExpressions.Regex.Replace(markup, "src=\"/([^\"]+)\"", m => $"src=\"{FileUrl(Path.Combine(client, "wwwroot", m.Groups[1].Value.Replace('/', Path.DirectorySeparatorChar)))}\"");
         File.WriteAllText(Path.Combine(output, name + ".html"), $"<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><base href='{FileUrl(Path.Combine(client, "wwwroot"))}/'>{links}<script src='{FileUrl(Path.Combine(client, "wwwroot", "js", "print.js"))}'></script></head><body><div class='admin-layout'><main class='admin-main'>{markup}</main></div></body></html>");
     }
 }

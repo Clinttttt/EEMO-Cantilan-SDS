@@ -26,6 +26,7 @@ public sealed class SpaceRentalConsistencyTests : TestContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.AddTestAuthorization().SetAuthorized("Head").SetRoles("SuperAdmin");
         Services.AddSingleton(_stalls.Object);
+        Services.AddSingleton(Mock.Of<IObligationsApiClient>());
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         var facilities = new Mock<IFacilitiesApiClient>();
@@ -96,7 +97,8 @@ public sealed class SpaceRentalConsistencyTests : TestContext
             .ReturnsAsync(Result<CursorPagedResult<StallDto>>.Success(new() { Items = [stall] }));
         var cut = RenderComponent<NCC>();
         cut.WaitForAssertion(() => Assert.Contains("Actual NCC holder", cut.Markup));
-        Assert.Equal("Stall Rent", cut.Find(".tcc-section-label").TextContent);
+        Assert.Equal("Stall Rent", cut.Find(".rental-summary-title").TextContent);
+        SpaceHolderWorkspaceTests.SaveVisualArtifact("ncc-overview", cut.Markup);
         Assert.Contains("Total Stalls", cut.Markup);
         Assert.Equal("Search stall no. or occupant…", cut.Find(".search-input").GetAttribute("placeholder"));
         Assert.Equal("Stall Holder List", cut.Find("a[href='/list-stall-holders?facility=ncc']").TextContent.Trim());
@@ -119,12 +121,12 @@ public sealed class SpaceRentalConsistencyTests : TestContext
         var nav = Services.GetRequiredService<NavigationManager>();
         nav.NavigateTo("/vendors?facility=ncc");
         var cut = RenderComponent<Vendor>();
-        cut.WaitForAssertion(() => Assert.Equal("NCC", cut.Find(".fac-trigger-label").TextContent));
+        cut.WaitForAssertion(() => Assert.Equal("NCC", cut.Find("#rental-workspace-picker").GetAttribute("value")));
         Assert.Equal("Manage Stall Holders", cut.Find(".topbar-title").TextContent);
         Assert.Equal("New Commercial Center", cut.Find("a[href='/facility/ncc']").TextContent);
         SpaceHolderWorkspaceTests.SaveVisualArtifact("ncc-management", cut.Markup);
         nav.NavigateTo("/vendors?facility=ice");
-        Assert.Equal("ICE", cut.Find(".fac-trigger-label").TextContent);
+        Assert.Equal("ICE", cut.Find("#rental-workspace-picker").GetAttribute("value"));
         Assert.Equal("Manage Space Holders", cut.Find(".topbar-title").TextContent);
     }
 }
