@@ -5,6 +5,13 @@
    presentation only — every figure is still the page's own.
 ═══════════════════════════════════════════════════ */
 
+.facility-hero-scope {
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.85);
+}
+
 .facility-hero {
     position: relative;
     display: flex;

@@ -1,0 +1,20 @@
+@using EEMOCantilanSDS.Client.Services
+@inject FacilityState Facilities
+
+<div class="rental-navigation" role="group" aria-label="@($"{Workspace.DisplayName(Facilities)} workspace actions")">
+    @if (Workspace.RosterRoute is { } roster)
+    { <a class="btn-outline" href="@roster">@Workspace.Unit(Facilities) Holder List</a> }
+    @if (ShowManagement && Workspace.ManagementRoute is { } management)
+    { <a class="btn-outline" href="@management">Manage @Workspace.Unit(Facilities) Holders</a> }
+    @if (ShowReports)
+    { <a class="btn-outline" href="@Workspace.ReportsRoute">Reports</a> }
+    @ChildContent
+</div>
+
+@code {
+    [Parameter, EditorRequired] public RentalWorkspaceDefinition Workspace { get; set; } = null!;
+    [Parameter] public bool ShowManagement { get; set; } = true;
+    [Parameter] public bool ShowReports { get; set; } = true;
+    // Source owners retain authorization and their original registration handlers.
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

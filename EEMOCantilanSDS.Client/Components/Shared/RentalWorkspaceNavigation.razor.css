@@ -1,0 +1,18 @@
+.rental-navigation {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.rental-navigation > a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+}
+
+.rental-navigation > a:focus-visible {
+    outline: 2px solid var(--civic-blue, #2563eb);
+    outline-offset: 2px;
+}

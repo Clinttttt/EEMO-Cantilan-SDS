@@ -24,6 +24,8 @@
             <div class="facility-hero-eyebrow">@EffectiveEyebrow</div>
             <h1 class="facility-hero-title">@EffectiveTitle</h1>
             <div class="facility-hero-sub">@(string.IsNullOrWhiteSpace(Subtitle) ? $"Municipality of {Branding.Municipality}, {Branding.Province}" : Subtitle)</div>
+            @if (!string.IsNullOrWhiteSpace(Scope))
+            { <div class="facility-hero-scope">@Scope</div> }
         </div>
     </div>
 
@@ -81,6 +83,8 @@
 
     [Parameter]
     public string? Subtitle { get; set; }
+
+    [Parameter] public string? Scope { get; set; }
 
     [Parameter]
     public List<HeroStat> Stats { get; set; } = new();
