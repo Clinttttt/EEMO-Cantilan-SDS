@@ -185,9 +185,9 @@ public sealed class RentalConsolidationTests : TestContext
         Assert.DoesNotContain(cut.FindAll("button"), x => x.TextContent is "Change amount" or "Close account" or "Reopen account" or "Renew");
         Assert.Empty(_stalls.Invocations); Assert.Empty(_vendors.Invocations);
         Assert.Equal(code == "Vegetable/Fruits" ? "VF" : code, cut.Find("#rental-workspace-picker strong").TextContent.Trim());
-        Assert.Single(cut.FindAll(".toolbar-unified"));
-        Assert.Contains("toolbar-registry-order", cut.Find(".toolbar-unified").ClassList);
-        Assert.NotNull(cut.Find(".toolbar-registry-order .search-input"));
+        Assert.Single(cut.FindAll(".vs-toolbar-unified"));
+        Assert.Single(cut.FindComponents<RentalRegistryToolbar>());
+        Assert.NotNull(cut.Find(".vs-toolbar-unified .search-input"));
         Assert.Empty(cut.FindAll(".rental-picker"));
         SpaceHolderWorkspaceTests.SaveVisualArtifact(code == "FA" ? "fa-registry" : code == "KM" ? "km-registry" : "vf-registry", cut.Markup);
     }
@@ -325,19 +325,25 @@ public sealed class RentalConsolidationTests : TestContext
         _accounts.Verify(x => x.CloseAccountAsync(It.IsAny<Guid>(), It.IsAny<CloseObligationAccountRequest>()), Times.Never);
     }
 
-    [Fact]
-    public void FacilityRegistryConsumesTheSameRegistryTable()
+    [Theory]
+    [InlineData(FacilityCode.NPM, "npm")]
+    [InlineData(FacilityCode.NCC, "ncc")]
+    [InlineData(FacilityCode.TCC, "tcc")]
+    [InlineData(FacilityCode.ICE, "ice")]
+    [InlineData(FacilityCode.BBQ, "bbq")]
+    public void FacilityRegistryConsumesTheSameRegistryTable(FacilityCode facility, string slug)
     {
-        var vendor = new VendorListItemDto(Guid.NewGuid(), "11", "Facility occupant", "Signed lessee", null, FacilityCode.NCC,
+        var vendor = new VendorListItemDto(Guid.NewGuid(), "11", "Facility occupant", "Signed lessee", null, facility,
             "New Commercial Center", null, "Corner", null, null, 900m, StallStatus.Active,
             PaymentStatus.Partial, new(2026, 1, 1), 3, 12.5, "Corner");
         _vendors.Setup(x => x.GetVendorRegistryAsync(It.IsAny<int>(), It.IsAny<int>())).ReturnsAsync(Result<VendorRegistryDto>.Success(new(1, 1, 0, 0, 0, 0, 0, 0m, 0m, [vendor])));
         _payments.Setup(x => x.GetPaymentHistoryAsync(vendor.StallId)).ReturnsAsync(Result<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Payments.PaymentHistoryDto>>.Success([]));
-        Services.GetRequiredService<NavigationManager>().NavigateTo("/vendors?facility=ncc");
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/vendors?facility={slug}");
         var cut = RenderComponent<Vendor>();
         cut.WaitForElement(".vs-toolbar-unified");
         Assert.NotNull(cut.FindComponent<RentalRegistryHero>());
         var bar = Assert.Single(cut.FindAll(".vs-toolbar-unified"));
+        Assert.Single(cut.FindComponents<RentalRegistryToolbar>());
         Assert.NotNull(bar.QuerySelector(".facility-selector"));
         Assert.NotNull(bar.QuerySelector(".filter-tabs-inline"));
         Assert.NotNull(bar.QuerySelector(".search-box"));
@@ -346,8 +352,56 @@ public sealed class RentalConsolidationTests : TestContext
         cut.WaitForElement(".registry-table");
         Assert.Contains("Facility occupant", cut.Find("tbody").TextContent);
         Assert.Equal(new[] { "View Details", "View Profile", "Edit", "Payment History", "Close Stall" }, cut.FindAll(".registry-actions button").Select(x => x.GetAttribute("title")));
+        SpaceHolderWorkspaceTests.SaveVisualArtifact(slug + "-registry", cut.Markup);
         cut.Find("button[title='View Details']").Click();
         Assert.Contains("Facility occupant", cut.Find("[role='dialog']").TextContent);
+    }
+
+    [Fact]
+    public void KmRegistryUsesTheOriginalFacilityToolbarStructure()
+    {
+        Serve(Account());
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/vendors?workspace=KM");
+        var cut = RenderComponent<Vendor>();
+        var bar = Assert.Single(cut.FindAll(".vs-toolbar-unified"));
+        Assert.Equal(new[] { "facility-selector", "filter-tabs-inline", "search-box", "vs-actions-compact" },
+            bar.Children.Select(x => x.ClassList.First()));
+        Assert.Equal(new[] { "All", "Paid", "Partial", "Unpaid", "Closed" },
+            bar.QuerySelectorAll(".filter-tab").Select(x => x.TextContent.Trim()));
+        Assert.DoesNotContain("Space Holder List", bar.TextContent);
+        Assert.DoesNotContain("Reports", bar.TextContent);
+        Assert.DoesNotContain("Account lifecycle", bar.TextContent);
+        Assert.Contains("Add Occupant", bar.TextContent);
+        Assert.Single(cut.FindComponents<RentalRegistryToolbar>());
+        cut.Find("#rental-workspace-picker").Click();
+        Assert.Equal("true", cut.Find("#rental-workspace-picker").GetAttribute("aria-expanded"));
+        cut.Find(".facility-selector").KeyDown("Escape");
+        Assert.Empty(cut.FindAll(".fac-dropdown"));
+        cut.Find(".filter-tab.active").Click();
+        cut.Find(".search-input").Input("No match");
+        cut.Find("button[aria-label='Clear search']").Click();
+        Assert.Equal(string.Empty, cut.Find(".search-input").GetAttribute("value"));
+    }
+
+    [Fact]
+    public void PrimaryStatusReturnsToActiveAccountsWhileAdvancedLifecycleRetainsClosedPaid()
+    {
+        var active = Account() with { SubjectLabel = "A", OutstandingToDate = 0m };
+        var closed = Account(closed: true) with { SubjectLabel = "B", OutstandingToDate = 0m };
+        Serve(active, closed);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/vendors?workspace=KM");
+        var cut = RenderComponent<Vendor>();
+        Click(cut, "Closed");
+        Assert.Contains("B", cut.Find("tbody").TextContent);
+        Click(cut, "Paid");
+        Assert.Contains("A", cut.Find("tbody").TextContent);
+        Assert.DoesNotContain("B", cut.Find("tbody").TextContent);
+        cut.Find("[aria-label='Account lifecycle']").Change("Closed");
+        Click(cut, "Paid");
+        Assert.Contains("B", cut.Find("tbody").TextContent);
+        Assert.DoesNotContain("A", cut.Find("tbody").TextContent);
+        Assert.Equal("1 spaces", cut.Find(".vs-count-label").TextContent.Trim());
+        Assert.EndsWith("/operations/kanmanggay/space-holders", cut.Find(".v3-panel-header a").GetAttribute("href"));
     }
 
     public sealed class FacilityFixture

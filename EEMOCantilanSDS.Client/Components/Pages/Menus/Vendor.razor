@@ -64,72 +64,18 @@ else
                     </Figures>
                 </RentalRegistryHero>
 
-                <!-- Toolbar (Single Row) -->
-                <div class="vs-toolbar-unified">
-                    <!-- Left: Facility Selector -->
-                    <div class="facility-selector" id="facilitySelectorWrapper">
-                        <div class="fac-trigger @(FacDropdownOpen ? "open" : "")" @onclick="ToggleFacDropdown">
-                            <div class="fac-trigger-body">
-                                <span class="fac-trigger-label">@ActiveFacilityTab.ShortName</span>
-                                <span class="fac-trigger-sub">@ActiveFacilityTab.Name</span>
-                            </div>
-                            @if (ActiveFacilityTab.UnpaidCount > 0)
-                            {
-                                <span class="fac-trigger-badge">@ActiveFacilityTab.UnpaidCount unpaid</span>
-                            }
-                            <svg class="fac-trigger-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
-                        </div>
-
-                        @if (FacDropdownOpen)
-                        {
-                            <div class="fac-backdrop" @onclick="CloseFacDropdown"></div>
-                            <div class="fac-dropdown">
-                                <div class="fac-dd-header">Facility</div>
-                                @foreach (var f in FacilityTabs)
-                                {
-                                    <div class="fac-dd-item @(ActiveFacility == f.Code ? "active" : "")" @onclick="() => SelectFacility(f.Code)">
-                                        <div class="fac-dd-body"><span class="fac-dd-name">@f.Name</span></div>
-                                        @if (f.UnpaidCount > 0)
-                                        {
-                                            <span class="fac-dd-badge">@f.UnpaidCount</span>
-                                        }
-                                        @if (ActiveFacility == f.Code)
-                                        {
-                                            <svg class="fac-dd-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                                        }
-                                    </div>
-                                }
-                            </div>
-                        }
-                    </div>
-
-                    <!-- Center: Filter Tabs -->
-                    <div class="filter-tabs-inline">
-                        @foreach (var f in StatusFilters)
-                        {
-                            <div class="filter-tab @(ActiveStatus == f ? "active" : "")" @onclick="() => ActiveStatus = f">@f</div>
-                        }
-                    </div>
-
-                    <!-- Center-Right: Search -->
-                    <div class="search-box">
-                        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                        <input type="text" placeholder="Search stall no. or nameΓÇª" @bind="SearchQuery" @bind:event="oninput" />
-                        @if (!string.IsNullOrEmpty(SearchQuery))
-                        {
-                            <span class="search-clear" @onclick="() => SearchQuery = string.Empty">├ù</span>
-                        }
-                    </div>
-
-                    <!-- Right: Add Vendor + Count -->
-                    <div class="vs-actions-compact">
-                        <span class="vs-count-label">@FilteredVendors.Count() @(HolderUnit.ToLowerInvariant())s</span>
-                        <button class="btn-primary" @onclick="OpenCreate">
+                <RentalRegistryToolbar Selected="@ActiveFacility" Choices="RegistryChoices" OnSelected="SelectFacility"
+                                       SearchQuery="@SearchQuery" OnSearch="v => SearchQuery = v"
+                                       ActiveFilter="@ActiveStatus" OnFilterChanged="v => ActiveStatus = v"
+                                       SearchPlaceholder="Search stall no. or name…"
+                                       CountLabel="@($"{FilteredVendors.Count()} {HolderUnit.ToLowerInvariant()}s")">
+                    <PrimaryAction>
+                        <button class="btn-primary" type="button" @onclick="OpenCreate">
                             <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                             Add Occupant &amp; @HolderUnit
                         </button>
-                    </div>
-                </div>
+                    </PrimaryAction>
+                </RentalRegistryToolbar>
 
                 <!-- Vendors Table — "This Month" column removed -->
                 <div class="panel">
@@ -777,9 +723,6 @@ else
     }
 
     // -- Data loading state --------------------------------------------------------
-    bool FacDropdownOpen = false;
-    void ToggleFacDropdown() => FacDropdownOpen = !FacDropdownOpen;
-    void CloseFacDropdown() => FacDropdownOpen = false;
 
     /// <summary>
     /// True when this fee list carries the per-kilo section fee. Two lists reach here: the form's, which uses the
@@ -829,7 +772,8 @@ else
     }
     string ActiveStatus = "All";
 
-    readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
+    private IEnumerable<RentalRegistryToolbar.Choice> RegistryChoices => FacilityTabs.Select(f =>
+        new RentalRegistryToolbar.Choice(f.Code, f.ShortName, f.Name, f.UnpaidCount));
 
     FacilityTab ActiveFacilityTab => FacilityTabs.FirstOrDefault(f => f.Code == ActiveFacility)
         ?? AllFacilityTabs.First(f => f.Code == ActiveFacility);
@@ -1081,7 +1025,6 @@ else
             return;
         }
         ActiveFacility = code;
-        FacDropdownOpen = false;
     }
 
     void OpenEdit(VendorEntry v)

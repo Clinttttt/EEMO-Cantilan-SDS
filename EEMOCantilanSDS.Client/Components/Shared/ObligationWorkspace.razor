@@ -44,16 +44,29 @@
         </RentalRegistryHero>
 
     }
-    <Toolbar SearchQuery="@_search" RegistryOrder="@Management"
+    @if (Management)
+    {
+        <RentalRegistryToolbar Selected="@RegistryCode" SearchQuery="@_search" OnSearch="v => _search = v"
+                               ActiveFilter="@RegistryFilter" OnFilterChanged="SetRegistryFilter"
+                               SearchPlaceholder="@($"Search {SubjectNoun.ToLowerInvariant()} no. or occupant…")"
+                               CountLabel="@(_loading || _error is not null ? "—" : $"{VisibleAccounts.Count()} {SubjectNoun.ToLowerInvariant()}s")">
+            <PrimaryAction><AuthorizeView Roles="SuperAdmin"><Authorized>
+                <button class="btn-primary" type="button" @onclick="OpenForm"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>Add Occupant &amp; @SubjectNoun</button>
+            </Authorized></AuthorizeView></PrimaryAction>
+        </RentalRegistryToolbar>
+    }
+    else
+    {
+    <Toolbar SearchQuery="@_search"
              OnSearch="v => _search = v"
              ActiveFilter="@_filter"
              OnFilterChanged="v => _filter = v"
              Filters="@(Overview ? OverviewFilters : StatusFilters)"
-             BeforeSearch="@(Management ? RegistryPicker : null)"
-             BeforeFilters="@(Management ? LifecycleFilters : ToolbarMode)"
+             BeforeFilters="@ToolbarMode"
              FilterLabel="@(Management ? "Payment status" : "Account position")"
              SearchPlaceholder="@($"Search {SubjectNoun.ToLowerInvariant()} no. or occupant…")"
              MiddleContent="@ActionBarContent" />
+    }
 }
 @if (!Management && (Overview || Workspace?.Source is EventLotRentalSource))
 {
@@ -76,7 +89,17 @@ else
         <header class="v3-panel-header">
             <h2 id="@_accountsTitleId">@(ReadOnlyHistory ? "Historical accounts" : Management ? Name : Workspace?.TableTitle ?? (Overview ? "Space Rentals" : $"{Name} accounts"))</h2>
             @if (SpaceExperience && !_loading && _error is null)
-            { <span class="obw-note">@VisibleAccounts.Count() of @_accounts.Count @SubjectNoun.ToLowerInvariant()s shown</span> }
+            {
+                @if (Management)
+                {
+                    <div class="obw-actions-bar">
+                        <label>Lifecycle <select aria-label="Account lifecycle" value="@_lifecycle" @onchange="SetLifecycle"><option selected="@(_lifecycle == "All")">All</option><option selected="@(_lifecycle == "Active")">Active</option><option selected="@(_lifecycle == "Closed")">Closed</option></select></label>
+                        @if (Presentation is { } p && Kind != ObligationKind.FiestaArawLotRental) { <a href="@p.RosterHref">Space Holder List</a> }
+                        <a href="@ReportsHref">Reports</a>
+                    </div>
+                }
+                else { <span class="obw-note">@VisibleAccounts.Count() of @_accounts.Count @SubjectNoun.ToLowerInvariant()s shown</span> }
+            }
             <AuthorizeView Roles="SuperAdmin">
                 <Authorized>
                     @if (!_opening && !SpaceExperience && !ReadOnlyHistory)
@@ -623,15 +646,22 @@ else
     private string _lifecycle = "Active";
     private static readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid" };
     private static readonly List<string> OverviewFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
-    private RenderFragment LifecycleFilters => @<div role="group" aria-label="Account lifecycle" class="obw-lifecycle">
-        @foreach (var lifecycle in new[] { "All", "Active", "Closed" })
+    private string RegistryCode => Kind == ObligationKind.FiestaArawLotRental ? "FA" : Kind == ObligationKind.KanmanggaySpaceRental ? "KM" : "Vegetable/Fruits";
+    private bool _closedShortcut;
+    private bool _advancedLifecycle;
+    private string RegistryFilter => _closedShortcut ? "Closed" : _filter;
+    private void SetLifecycle(ChangeEventArgs e) { _lifecycle = e.Value?.ToString() ?? "Active"; _closedShortcut = false; _advancedLifecycle = true; }
+    private void SetRegistryFilter(string filter)
+    {
+        if (filter == "Closed") { _lifecycle = "Closed"; _filter = "All"; _closedShortcut = true; _advancedLifecycle = false; }
+        else
         {
-            <button class="v3-btn v3-btn-sm" type="button" aria-pressed="@(_lifecycle == lifecycle ? "true" : "false")" @onclick="() => _lifecycle = lifecycle">@lifecycle</button>
+            if (!_advancedLifecycle) _lifecycle = "Active";
+            _filter = filter; _closedShortcut = false;
         }
-    </div>;
+    }
     private double CollectionRate => _workspace is { Assessed: > 0m } w ? (double)Math.Min(100m, Math.Round(w.Collected / w.Assessed * 100m, 0)) : 0;
     private RenderFragment SpaceIcon => @<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></svg>;
-    private RenderFragment RegistryPicker => @<RentalWorkspacePicker Compact="true" Selected="@(Kind == ObligationKind.FiestaArawLotRental ? "FA" : Kind == ObligationKind.KanmanggaySpaceRental ? "KM" : "Vegetable/Fruits")" />;
     private RenderFragment ActionBarContent => @<text>
         @if (Workspace is { } workspace)
         {

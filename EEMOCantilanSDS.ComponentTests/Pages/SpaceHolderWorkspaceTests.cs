@@ -59,7 +59,7 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         Services.AddSingleton(Mock.Of<IEcfCollectionsApiClient>());
         var cut = Render(builder => { builder.OpenComponent(0, page); builder.CloseComponent(); });
         Assert.DoesNotContain(cut.FindAll("button, a"), x => x.TextContent.Trim() == "Import list");
-        Click(cut, "+ Add New");
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New" || b.TextContent.Contains("Add Occupant")).Click();
         Assert.Equal(new[] { "Import list", "Cancel", "Open account" }, cut.FindAll("footer button").Select(x => x.TextContent.Trim()));
         Assert.NotNull(cut.Find("#obw-occupant"));
         SaveVisualArtifact(operation + "-registration", cut.Markup);
@@ -97,8 +97,8 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         var cut = RenderComponent<KanmanggayManageSpaceHolders>();
         var before = cut.FindComponent<RentalRegistryHero>().Markup;
         var group = cut.Find("[aria-label='Account lifecycle']");
-        Assert.Equal(new[] { "All", "Active", "Closed" }, group.QuerySelectorAll("button").Select(x => x.TextContent));
-        group.QuerySelectorAll("button").Single(x => x.TextContent == lifecycle).Click();
+        Assert.Equal(new[] { "All", "Active", "Closed" }, group.QuerySelectorAll("option").Select(x => x.TextContent));
+        group.Change(lifecycle);
         cut.FindAll("[aria-label='Payment status'] .filter-tab").Single(x => x.TextContent == payment).Click();
         Assert.Equal(count, cut.FindAll("tbody > tr .rental-registry-actions").Count);
         Assert.Equal(before, cut.FindComponent<RentalRegistryHero>().Markup);
@@ -223,15 +223,16 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         Assert.Contains("Active unpaid", cut.Find("tbody").TextContent);
         SaveVisualArtifact("kanmanggay-management", cut.Markup);
         Click(cut, "Closed");
+        cut.Find("[aria-label='Account lifecycle']").Change("Closed");
         cut.FindAll(".filter-tab").Single(b => b.TextContent == "Paid").Click();
         Assert.Contains("Closed paid", cut.Find("tbody").TextContent);
         Assert.DoesNotContain("Active unpaid", cut.Find("tbody").TextContent);
         Assert.Contains("₱1,800.00", cut.FindComponent<RentalRegistryHero>().Markup);
         Assert.Contains("All accounts · to date", cut.FindComponent<RentalRegistryHero>().Markup);
-        Assert.Contains("1 of 2 spaces shown", cut.Find(".v3-panel-header").TextContent);
+        Assert.Contains("1 spaces", cut.Find(".vs-count-label").TextContent);
         Assert.DoesNotContain("Space Account Management", cut.Markup);
         Assert.DoesNotContain("Financial totals:", cut.Markup);
-        Assert.NotNull(cut.Find(".toolbar-unified [aria-label='Account lifecycle']"));
+        Assert.NotNull(cut.Find(".v3-panel-header [aria-label='Account lifecycle']"));
         cut.FindAll(".filter-tab").Single(b => b.TextContent == "Unpaid").Click();
         Assert.DoesNotContain("Closed paid", cut.Find("tbody").TextContent);
         Assert.Contains("₱1,800.00", cut.FindComponent<RentalRegistryHero>().Markup);
