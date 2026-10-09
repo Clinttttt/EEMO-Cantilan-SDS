@@ -315,7 +315,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         {
             var drawer = Assert.Single(cut.FindAll("[role='dialog']"));
             var titles = drawer.QuerySelectorAll(".avm-section-label").Select(x => x.TextContent.Trim()).ToArray();
-            Assert.Equal(new[] { "Occupant Information", "Space & Contract Details" }, titles);
+            Assert.Equal(new[] { "Lessee Information", "Space & Contract Details", "Rental Rates" }, titles);
             var basis = drawer.QuerySelectorAll("[role='radio']").Select(x => x.QuerySelector(".avm-choice-title")!.TextContent.Trim()).ToArray();
             Assert.Equal(new[] { "Signed lease contract", "No contract (space only)" }, basis);
             Assert.Contains("Contract Effectivity (month)", drawer.TextContent);                         // a month, not a date

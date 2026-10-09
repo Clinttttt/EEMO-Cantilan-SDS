@@ -62,6 +62,32 @@ public sealed class SpaceRentalConsistencyTests : TestContext
     }
 
     [Fact]
+    public void IcePilotKeepsItsSourceTableNavigationAndRegistration()
+    {
+        var stall = new StallDto(Guid.NewGuid(), "ICE-7", StallStatus.Active, "Actual ICE holder", "Signed lessee",
+            12.5, new DateTime(2026, 1, 1), 1200m, null, null, null, null, null, null, 3);
+        _stalls.Setup(x => x.GetStallsByFacilityPaginatedAsync(FacilityCode.ICE, null, null, 100))
+            .ReturnsAsync(Result<CursorPagedResult<StallDto>>.Success(new() { Items = [stall] }));
+        var cut = RenderComponent<ICEPLANT>();
+        cut.WaitForAssertion(() => Assert.Contains("Actual ICE holder", cut.Markup));
+        Assert.NotNull(cut.Find("a[href='/list-stall-holders?facility=ice']"));
+        Assert.NotNull(cut.Find("a[href='/vendors?facility=ice']"));
+        Assert.Contains("Total Spaces", cut.Markup);
+        SpaceHolderWorkspaceTests.SaveVisualArtifact("ice-overview", cut.Markup);
+        var hero = cut.Find(".facility-hero").TextContent;
+        cut.Find(".search-input").Input("absent");
+        Assert.DoesNotContain("Actual ICE holder", cut.Markup);
+        Assert.Equal(hero, cut.Find(".facility-hero").TextContent);
+        cut.Find(".search-input").Input("ICE-7");
+        Assert.Contains("Actual ICE holder", cut.Find("tbody").TextContent);
+        cut.FindAll("button").Single(x => x.TextContent.Contains("Add New")).Click();
+        Assert.Contains("Contract Duration", cut.Markup);
+        Assert.Contains("Area", cut.Markup);
+        SpaceHolderWorkspaceTests.SaveVisualArtifact("ice-pilot-registration", cut.Markup);
+        _stalls.Verify(x => x.GetStallsByFacilityPaginatedAsync(FacilityCode.ICE, null, null, 100), Times.Once);
+    }
+
+    [Fact]
     public void NccOverviewUsesStallRentAndKeepsItsExistingContractData()
     {
         var stall = new StallDto(Guid.NewGuid(), "N-7", StallStatus.Active, "Actual NCC holder", "Signed lessee",
