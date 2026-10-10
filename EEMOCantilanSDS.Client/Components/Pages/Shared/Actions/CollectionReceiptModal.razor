@@ -56,6 +56,7 @@
             </div>
 
             <div class="receipt-close-row">
+                @EvidenceActions
                 <button class="btn-receipt-close" @onclick="() => OnClose.InvokeAsync()">Close</button>
             </div>
         </div>
@@ -64,6 +65,7 @@
 
 @code {
     [Parameter] public bool Show { get; set; }
+    [Parameter] public RenderFragment? EvidenceActions { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public string FacilityName { get; set; } = string.Empty;
     [Parameter] public string PeriodLabel { get; set; } = string.Empty;

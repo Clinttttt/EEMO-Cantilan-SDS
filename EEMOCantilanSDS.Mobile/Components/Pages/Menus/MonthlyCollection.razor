@@ -252,8 +252,9 @@
 
             @if (SelectedStatus != PaymentStatus.Unpaid && SelectedStall is { RentCanonical: false })
             {
-                <div class="or-number-wrap">
-                    <div class="form-label">Official receipt no. <span>optional</span></div>
+                <details class="or-number-wrap">
+                    <summary>Receipt details (optional entry)</summary>
+                    <div class="form-label">Official receipt no.</div>
                     <input class="form-input mono-input"
                            type="text"
                            inputmode="numeric"
@@ -262,7 +263,7 @@
                            @bind="ORNumber"
                            @bind:event="oninput" />
                     <div class="form-hint">Use the pre-numbered OR from the issued receipt.</div>
-                </div>
+                </details>
             }
             else if (SelectedStatus != PaymentStatus.Unpaid && SelectedStall is { RentCanonical: true })
             {

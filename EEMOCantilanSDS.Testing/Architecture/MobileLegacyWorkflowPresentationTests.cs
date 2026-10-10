@@ -12,6 +12,17 @@ public class MobileLegacyWorkflowPresentationTests
     private static string Page(string name) => File.ReadAllText(Path.Combine(PagesDirectory(), name));
 
     [Fact]
+    public void Optional_monthly_receipt_evidence_is_secondary_while_canonical_branch_has_no_entry()
+    {
+        var text=Page("MonthlyCollection.razor");
+        Assert.Contains("<summary>Receipt details (optional entry)</summary>",text);
+        var canonical=text.Split("else if (SelectedStatus != PaymentStatus.Unpaid && SelectedStall is { RentCanonical: true })")[1].Split("<!--")[0];
+        Assert.DoesNotContain("@bind=\"ORNumber\"",canonical);
+        Assert.Contains("SRC assigned after recording",canonical);
+        Assert.Contains("The online payment is already received; this only records the OR.",text);
+    }
+
+    [Fact]
     public void The_market_page_shows_no_meter_or_consumption_wording_for_utilities()
     {
         var market = Page("Market.razor");

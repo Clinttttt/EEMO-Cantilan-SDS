@@ -193,7 +193,6 @@
                                      OnPaymentClick="OpenPayment"
                                      OnHistoryClick="OpenHistory"
                                      OnTodayStatusClick="ToggleAbsentToday"
-                                     OnAddOrClick="OpenAddOr"
                                      OnUtilityClick="OpenUtility"
                                      OnEditClick="OpenEdit" />
             }
@@ -215,7 +214,6 @@
                                          OnPaymentClick="OpenPayment"
                                          OnHistoryClick="OpenHistory"
                                          OnTodayStatusClick="ToggleAbsentToday"
-                                         OnAddOrClick="OpenAddOr"
                                          OnUtilityClick="OpenUtility"
                                          OnEditClick="OpenEdit" />
                 }
@@ -237,7 +235,6 @@
                                                  OnPaymentClick="OpenPayment"
                                                  OnHistoryClick="OpenHistory"
                                                  OnTodayStatusClick="ToggleAbsentToday"
-                                                 OnAddOrClick="OpenAddOr"
                                                  OnUtilityClick="OpenUtility"
                                                  OnEditClick="OpenEdit" />
                         </div>
@@ -276,7 +273,14 @@
                         TotalLabel="Total Collected"
                         TotalValue="@($"₱{(PaymentStall?.PartialAmount ?? 0m):N2}")"
                         NoteText="This acknowledges receipt of the daily stall fees collected for the period stated above. Keep for your records."
-                        OnClose="ClosePayment" />
+                        OnClose="ClosePayment">
+    <EvidenceActions>
+        @if (PaymentStall is { LastPaidDate: not null } paid && string.IsNullOrWhiteSpace(paid.ORNumber))
+        {
+            <button class="btn-ghost" type="button" @onclick="() => { ClosePayment(); OpenAddOr(paid); }">Record receipt evidence</button>
+        }
+    </EvidenceActions>
+</CollectionReceiptModal>
 
 
 <!-- ══════════════════════════════════════════════
