@@ -135,6 +135,11 @@
                 <div class="facility-grid">
                     @foreach (var fac in Facilities)
                     {
+                        @if (fac.Code == FacilityCode.TRM)
+                        {
+                            <TerminalOverviewCard Year="_now.Year" Month="_now.Month" />
+                            continue;
+                        }
                         <div class="facility-card @(fac.UnpaidCount > 0 ? "has-alert" : "")">
                             <div class="facility-card-header">
                                 <div class="facility-card-icon">
