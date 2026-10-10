@@ -11,10 +11,48 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddUniqueConstraint(
-                name: "AK_Contracts_MunicipalityId_Id",
-                table: "Contracts",
-                columns: new[] { "MunicipalityId", "Id" });
+            // Some upgrade databases already carry this tenant key. Validate its exact shape instead
+            // of dropping it, swallowing duplicate-object errors, or marking this migration applied.
+            migrationBuilder.Sql("""
+                DO $migration$
+                DECLARE
+                    contract_table regclass := '"Contracts"'::regclass;
+                    expected_columns smallint[];
+                    existing_index oid;
+                BEGIN
+                    SELECT array_agg(a.attnum ORDER BY n.ordinality)
+                    INTO expected_columns
+                    FROM unnest(ARRAY['MunicipalityId', 'Id']) WITH ORDINALITY n(name, ordinality)
+                    JOIN pg_attribute a ON a.attrelid = contract_table AND a.attname = n.name AND NOT a.attisdropped;
+
+                    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = contract_table AND conname = 'AK_Contracts_MunicipalityId_Id') THEN
+                        IF NOT EXISTS (SELECT 1 FROM pg_constraint
+                            WHERE conrelid = contract_table AND conname = 'AK_Contracts_MunicipalityId_Id'
+                              AND contype = 'u' AND conkey = expected_columns AND NOT condeferrable AND convalidated) THEN
+                            RAISE EXCEPTION 'Existing AK_Contracts_MunicipalityId_Id is incompatible; expected a non-deferrable unique key on Contracts (MunicipalityId, Id).';
+                        END IF;
+                    ELSE
+                        SELECT c.oid INTO existing_index FROM pg_class c
+                        WHERE c.relname = 'AK_Contracts_MunicipalityId_Id'
+                          AND c.relnamespace = (SELECT relnamespace FROM pg_class WHERE oid = contract_table);
+                        IF existing_index IS NOT NULL THEN
+                            IF NOT EXISTS (SELECT 1 FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
+                                JOIN pg_am am ON am.oid = c.relam
+                                WHERE i.indexrelid = existing_index AND i.indrelid = contract_table
+                                  AND i.indisunique AND i.indisvalid AND i.indisready AND am.amname = 'btree'
+                                  AND i.indpred IS NULL AND i.indexprs IS NULL AND i.indnatts = 2 AND i.indnkeyatts = 2
+                                  AND i.indkey::text = array_to_string(expected_columns, ' ')
+                                  AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conindid = existing_index)) THEN
+                                RAISE EXCEPTION 'Existing AK_Contracts_MunicipalityId_Id is incompatible; expected an unowned unique index on Contracts (MunicipalityId, Id).';
+                            END IF;
+                            ALTER TABLE "Contracts" ADD CONSTRAINT "AK_Contracts_MunicipalityId_Id"
+                                UNIQUE USING INDEX "AK_Contracts_MunicipalityId_Id";
+                        ELSE
+                            ALTER TABLE "Contracts" ADD CONSTRAINT "AK_Contracts_MunicipalityId_Id" UNIQUE ("MunicipalityId", "Id");
+                        END IF;
+                    END IF;
+                END $migration$;
+                """);
 
             migrationBuilder.CreateTable(
                 name: "FineAssessmentPolicies",
@@ -194,9 +232,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Migrations
             migrationBuilder.DropTable(
                 name: "FineAssessmentPolicies");
 
-            migrationBuilder.DropUniqueConstraint(
-                name: "AK_Contracts_MunicipalityId_Id",
-                table: "Contracts");
+            // Retain this shared tenant key: it may predate Fine Assessments and support other foreign keys.
         }
     }
 }
