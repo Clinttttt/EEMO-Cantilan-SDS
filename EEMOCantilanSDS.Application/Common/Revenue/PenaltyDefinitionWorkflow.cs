@@ -83,15 +83,28 @@ public sealed class PenaltyDefinitionWorkflow(
                     && line.SourceKind == CollectionSourceKind.PenaltyDefinition
                 orderby collection.BusinessDate descending, collection.RecordedAtUtc descending
                 select new { collection.Id, collection.BusinessDate, collection.RecordedAtUtc, collection.PayerName, collection.ReferenceCode,
-                    version.Code, version.DisplayName, line.CalculationSnapshot, line.Amount }).ToListAsync(ct);
-            var ids = rows.Select(x => x.Id).ToArray();
-            var corrections = await db.CollectionCorrections.AsNoTracking().Where(x =>
-                x.MunicipalityId == actor.TenantId && ids.Contains(x.OriginalCollectionId))
-                .Select(x => new { x.OriginalCollectionId, x.FinancialEffectAmount }).ToListAsync(ct);
+                    version.Code, version.DisplayName, line.CalculationSnapshot, line.Amount, LineId = line.Id }).ToListAsync(ct);
+            var assessedRows = await (
+                from collection in db.Collections.AsNoTracking()
+                join line in db.CollectionLines.AsNoTracking() on collection.Id equals line.CollectionId
+                join assessment in db.FineAssessments.AsNoTracking()
+                    on new {line.MunicipalityId, Id = line.SourceId} equals new {assessment.MunicipalityId, Id = (Guid?)assessment.Id}
+                where collection.MunicipalityId == actor.TenantId && collection.BusinessDate >= @from && collection.BusinessDate <= to
+                    && line.SourceKind == CollectionSourceKind.FineAssessment
+                select new {collection.Id, collection.BusinessDate, collection.RecordedAtUtc, collection.PayerName, collection.ReferenceCode,
+                    Code = assessment.PenaltyCode, DisplayName = assessment.PenaltyName, line.CalculationSnapshot, line.Amount, LineId = line.Id}).ToListAsync(ct);
+            rows.AddRange(assessedRows);
+            rows = rows.OrderByDescending(r => r.BusinessDate).ThenByDescending(r => r.RecordedAtUtc).ToList();
+            var ids = rows.Select(x => x.LineId).ToArray();
+            var corrections = await db.CollectionCorrectionLines.AsNoTracking().Where(x =>
+                x.MunicipalityId == actor.TenantId && ids.Contains(x.OriginalCollectionLineId))
+                .Select(x => new { OriginalLineId = x.OriginalCollectionLineId, x.FinancialEffectAmount }).ToListAsync(ct);
             var register = rows.Select(x => new PenaltyRegisterRowDto(x.Id, x.BusinessDate, x.RecordedAtUtc, x.PayerName,
                 ReadOrigin(x.CalculationSnapshot), x.Code, x.DisplayName,
                 x.ReferenceCode, x.Amount,
-                corrections.Any(c => c.OriginalCollectionId == x.Id && c.FinancialEffectAmount < 0m) ? "Reversed" : "Posted")).ToList();
+                x.Amount + corrections.Where(c => c.OriginalLineId == x.LineId).Sum(c => c.FinancialEffectAmount) == 0m ? "Reversed" :
+                    corrections.Any(c => c.OriginalLineId == x.LineId) ? "Corrected" : "Posted",
+                x.Amount + corrections.Where(c => c.OriginalLineId == x.LineId).Sum(c => c.FinancialEffectAmount))).ToList();
             return Result<IReadOnlyList<PenaltyRegisterRowDto>>.Success(register);
         }, ct);
 

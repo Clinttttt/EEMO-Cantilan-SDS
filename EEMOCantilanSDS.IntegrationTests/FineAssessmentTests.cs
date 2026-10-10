@@ -14,14 +14,14 @@ using Microsoft.EntityFrameworkCore;
 namespace EEMOCantilanSDS.IntegrationTests;
 
 [Collection(PostgresCollection.Name)]
-public sealed class FineAssessmentTests(PostgresFixture database)
+public sealed partial class FineAssessmentTests(PostgresFixture database)
 {
     private static readonly DateOnly Today = new(2026, 10, 10);
     private sealed class Actor(Guid tenant, string role = "SuperAdmin", Guid? id = null) : ICurrentUserService
     {
         public bool IsAuthenticated => true;
         public Guid? UserId { get; } = id ?? Guid.NewGuid(); public Guid? MunicipalityId => tenant;
-        public string? Username => "fine-test-head"; public string? Role => role; public Guid? CollectorId => null;
+        public string? Username => "fine-test-head"; public string? Role => role; public Guid? CollectorId => role == "Collector" ? UserId : null;
         public string? MunicipalityCode => "TEST"; public AdminUserDto? GetCurrentUser() => null;
     }
     private sealed class Tenant(Guid id) : ICurrentMunicipalityAccessor { public Guid MunicipalityId => id; public void Set(Guid value) { } }

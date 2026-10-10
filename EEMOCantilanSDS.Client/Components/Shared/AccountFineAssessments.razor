@@ -5,7 +5,9 @@
     else if (_error is not null) { <p role="alert">@_error</p> }
     else if (_rows.Count == 0) { <p>No saved fine assessments for this account.</p> }
     else { <div class="v3-table-wrap" tabindex="0"><table class="v3-table"><thead><tr><th>Fine</th><th>Assessed on</th><th>Assessed</th><th>Settled</th><th>Remaining</th><th>Status</th></tr></thead><tbody>
-        @foreach (var r in _rows) { <tr><td>@r.Penalty</td><td>@r.AssessmentDate.ToString("MMM d, yyyy")</td><td class="v3-num">₱@r.Assessed.ToString("N2")</td><td class="v3-num">₱@r.Settled.ToString("N2")</td><td class="v3-num">₱@r.Remaining.ToString("N2")</td><td>@r.Status</td></tr> }
+        @foreach (var r in _rows) { <tr><td>@r.Penalty
+            @if(r.Remaining>0) { <a class="v3-btn v3-btn-sm" href="@($"/operations/fines?fineAssessmentId={r.Id}")">Record payment</a> }
+            </td><td>@r.AssessmentDate.ToString("MMM d, yyyy")</td><td class="v3-num">₱@r.Assessed.ToString("N2")</td><td class="v3-num">₱@r.Settled.ToString("N2")</td><td class="v3-num">₱@r.Remaining.ToString("N2")</td><td>@r.Status</td></tr> }
     </tbody></table></div> }
     @if (_eligible) { <AuthorizeView Roles="SuperAdmin"><Authorized><a class="v3-btn v3-btn-sm" href="@AssessRoute">Assess fine</a></Authorized></AuthorizeView> }
 </div>

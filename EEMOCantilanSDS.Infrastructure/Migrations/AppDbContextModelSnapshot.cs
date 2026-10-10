@@ -2013,6 +2013,9 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.Property<Guid>("CollectionLineId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("FineAssessmentId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("MunicipalityId")
                         .HasColumnType("uuid");
 
@@ -2032,13 +2035,17 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
 
                     b.HasIndex("MunicipalityId", "CollectionLineId");
 
+                    b.HasIndex("MunicipalityId", "FineAssessmentId");
+
                     b.HasIndex("MunicipalityId", "SourceKind", "SourceId", "SourcePart");
 
                     b.ToTable("CollectionAllocations", null, t =>
                         {
                             t.HasCheckConstraint("CK_CollectionAllocations_Amount_Positive", "\"Amount\" > 0");
 
-                            t.HasCheckConstraint("CK_CollectionAllocations_SourceShape", "((\"SourceKind\" = 3 AND \"SourcePart\" IN (1, 2)) OR (\"SourceKind\" = 2 AND \"SourcePart\" IN (3, 4, 5)) OR (\"SourceKind\" IN (1, 4, 5, 6, 7, 10) AND \"SourcePart\" IS NULL))");
+                            t.HasCheckConstraint("CK_CollectionAllocations_FineIdentity", "(\"SourceKind\" = 15 AND \"FineAssessmentId\" IS NOT NULL AND \"FineAssessmentId\" = \"SourceId\") OR (\"SourceKind\" <> 15 AND \"FineAssessmentId\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_CollectionAllocations_SourceShape", "((\"SourceKind\" = 3 AND \"SourcePart\" IN (1, 2)) OR (\"SourceKind\" = 2 AND \"SourcePart\" IN (3, 4, 5)) OR (\"SourceKind\" IN (1, 4, 5, 6, 7, 10, 15) AND \"SourcePart\" IS NULL))");
                         });
                 });
 
@@ -2214,7 +2221,7 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("CK_CollectionLines_Amount_Positive", "\"Amount\" > 0");
 
-                            t.HasCheckConstraint("CK_CollectionLines_SourceShape", "((\"SourceKind\" IS NULL AND \"SourceId\" IS NULL AND \"SourcePart\" IS NULL) OR (\"SourceKind\" = 3 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (1, 2)) OR (\"SourceKind\" = 2 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (3, 4, 5)) OR (\"SourceKind\" IN (1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14) AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IS NULL))");
+                            t.HasCheckConstraint("CK_CollectionLines_SourceShape", "((\"SourceKind\" IS NULL AND \"SourceId\" IS NULL AND \"SourcePart\" IS NULL) OR (\"SourceKind\" = 3 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (1, 2)) OR (\"SourceKind\" = 2 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (3, 4, 5)) OR (\"SourceKind\" IN (1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15) AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IS NULL))");
                         });
                 });
 
@@ -3793,7 +3800,7 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("CK_WebCollectionDraftAllocations_Amount_Positive", "\"Amount\" > 0");
 
-                            t.HasCheckConstraint("CK_WebCollectionDraftAllocations_SourceShape", "((\"SourceKind\" = 3 AND \"SourcePart\" IN (1, 2)) OR (\"SourceKind\" = 2 AND \"SourcePart\" IN (3, 4, 5)) OR (\"SourceKind\" IN (1, 4, 5, 6, 7, 10) AND \"SourcePart\" IS NULL))");
+                            t.HasCheckConstraint("CK_WebCollectionDraftAllocations_SourceShape", "((\"SourceKind\" = 3 AND \"SourcePart\" IN (1, 2)) OR (\"SourceKind\" = 2 AND \"SourcePart\" IN (3, 4, 5)) OR (\"SourceKind\" IN (1, 4, 5, 6, 7, 10, 15) AND \"SourcePart\" IS NULL))");
                         });
                 });
 
@@ -3875,7 +3882,7 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("CK_WebCollectionDraftLines_Amount_Positive", "\"Amount\" > 0");
 
-                            t.HasCheckConstraint("CK_WebCollectionDraftLines_SourceShape", "((\"SourceKind\" IS NULL AND \"SourceId\" IS NULL AND \"SourcePart\" IS NULL) OR (\"SourceKind\" = 3 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (1, 2)) OR (\"SourceKind\" = 2 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (3, 4, 5)) OR (\"SourceKind\" IN (1, 4, 5, 6, 7, 9, 10) AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IS NULL))");
+                            t.HasCheckConstraint("CK_WebCollectionDraftLines_SourceShape", "((\"SourceKind\" IS NULL AND \"SourceId\" IS NULL AND \"SourcePart\" IS NULL) OR (\"SourceKind\" = 3 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (1, 2)) OR (\"SourceKind\" = 2 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (3, 4, 5)) OR (\"SourceKind\" IN (1, 4, 5, 6, 7, 9, 10, 15) AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IS NULL))");
                         });
                 });
 
@@ -5210,6 +5217,12 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .HasPrincipalKey("MunicipalityId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.FineAssessment", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "FineAssessmentId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.CollectionCorrection", b =>

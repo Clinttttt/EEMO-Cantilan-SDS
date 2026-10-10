@@ -65,7 +65,7 @@ public sealed class MobileCollectionCorrectionWorkflow(IAppDbContext db, ICollec
         if (locks.Corrected.Contains(c.Id)) return "AlreadyCorrected";
         if (c.Lines.Any(x => locks.TaboClasses.Contains(x.RevenueClassificationId))) return "SourceCorrectionUnavailable";
         if (c.Lines.Count == 0 || c.Lines.Any(l => l.SourceKind is CollectionSourceKind.OnlinePaymentTransaction or CollectionSourceKind.TrmTrip
-            or CollectionSourceKind.TpmAttendance or CollectionSourceKind.PenaltyDefinition)) return "SourceCorrectionUnavailable";
+            or CollectionSourceKind.TpmAttendance or CollectionSourceKind.PenaltyDefinition or CollectionSourceKind.FineAssessment)) return "SourceCorrectionUnavailable";
         if (c.Lines.Any(l => l.SourceKind is null && (l.Allocations.Count == 0 || l.Allocations.Any(a => a.SourceKind is not
             (CollectionSourceKind.DailyCollection or CollectionSourceKind.PaymentRecord or CollectionSourceKind.UtilityBill or CollectionSourceKind.ObligationPeriod))))
             && !locks.Native.Contains(c.Id))

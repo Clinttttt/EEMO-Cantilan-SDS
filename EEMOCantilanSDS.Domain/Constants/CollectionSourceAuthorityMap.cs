@@ -35,7 +35,7 @@ public static class CollectionSourceAuthorityMap
 
         CollectionSourceKind.GovernedService or CollectionSourceKind.PenaltyDefinition
             or CollectionSourceKind.ObligationPeriod or CollectionSourceKind.NpmWeighing or CollectionSourceKind.FishMeatVendorFee
-            or CollectionSourceKind.FishMeatVendorRegistration or CollectionSourceKind.TerminalSection
+            or CollectionSourceKind.FishMeatVendorRegistration or CollectionSourceKind.TerminalSection or CollectionSourceKind.FineAssessment
             => SourceReportingAuthority.CanonicalAlways,
 
         CollectionSourceKind.SlaughterTransaction

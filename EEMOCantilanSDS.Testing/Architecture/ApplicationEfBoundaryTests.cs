@@ -201,6 +201,9 @@ public class ApplicationEfBoundaryTests
         // source/definition validation and one atomic assessment + audit insert, including PostgreSQL replay conflicts.
         // It intentionally does not call any cash writer or create rental periods; queries use IAppDbContext filters.
         "FineAssessmentWorkflow.cs",
+        // Fine settlement extends the existing Composer and reads attributable canonical allocations; no additional cash writer.
+        "FineAssessmentCollectionSource.cs",
+        "CollectionComposerWorkflow.Fines.cs",
         "ObligationWorkflow.cs",
         "VehicleClassWorkflow.cs",
         "RemittanceWorkflow.cs",

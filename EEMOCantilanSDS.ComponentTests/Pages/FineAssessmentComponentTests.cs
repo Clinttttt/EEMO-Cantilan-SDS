@@ -11,7 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Moq;
 
 namespace EEMOCantilanSDS.ComponentTests.Pages;
-public sealed class FineAssessmentComponentTests : TestContext
+public sealed partial class FineAssessmentComponentTests : TestContext
 {
     private readonly Mock<IPenaltiesApiClient> _api=new();
     private readonly FineAccountRef _account=new(FineAccountKind.Kanmanggay,Guid.NewGuid());
@@ -37,7 +37,7 @@ public sealed class FineAssessmentComponentTests : TestContext
         _api.Setup(x=>x.GetAssessmentsAsync(null,null,It.IsAny<string?>())).ReturnsAsync(Result<IReadOnlyList<FineAssessmentDto>>.Success([Row()]));
         var cut=RenderComponent<FineAssessmentsRegister>();
         cut.WaitForAssertion(()=>Assert.Contains("Recorded incident",cut.Markup));
-        Assert.Contains("Outstanding",cut.Markup); Assert.Contains("Assessment settlement is not enabled",cut.Markup);
+        Assert.Contains("Outstanding",cut.Markup); Assert.Contains("Record payment",cut.Markup);
         Assert.Equal(8,cut.FindAll("th").Count); Assert.Contains("View details",cut.Markup);
         ExportFixture("fine-assessments",cut.Markup);
     }

@@ -177,13 +177,13 @@ public sealed class FineAssessmentWorkflow(IAppDbContext db, ICurrentUserService
         if (prior is null) return null;
         if (prior.RequestFingerprint != fingerprint) return Result<FineAssessmentDto>.Failure("IDEMPOTENCY_CONFLICT: The operation identity is already bound to different assessment details.", ResultStatus.Conflict);
         var policy = await db.FineAssessmentPolicies.AsNoTracking().SingleAsync(x => x.MunicipalityId == Tenant && x.Id == prior.PolicyId, ct);
-        return Result<FineAssessmentDto>.Success(ToDto(prior, policy.GoverningReference));
+        var settled = (await new FineAssessmentCollectionSource(db).SettledAsync(Tenant, [prior.Id], ct)).GetValueOrDefault(prior.Id);
+        return Result<FineAssessmentDto>.Success(ToDto(prior, policy.GoverningReference, settled: settled));
     }
-    // There is deliberately no FineAssessment CollectionSourceKind/settlement adapter yet. No cash can attach to these IDs.
-    private static FineAssessmentDto ToDto(FineAssessment a, string reference, string? warning = null) => new(a.Id,
+    private static FineAssessmentDto ToDto(FineAssessment a, string reference, string? warning = null, decimal settled = 0m) => new(a.Id,
         new(a.AccountKind, a.ContractId ?? a.ObligationAccountId!.Value), a.Occupant, a.UnitReference, a.SourceName,
-        a.PenaltyName, a.Description, a.ViolationDate, a.BusinessDate, a.IncidentReference, a.AssessedAmount, 0m,
-        a.AssessedAmount, "Outstanding", a.Version, reference, a.RecordedAtUtc, warning);
+        a.PenaltyName, a.Description, a.ViolationDate, a.BusinessDate, a.IncidentReference, a.AssessedAmount, settled,
+        a.AssessedAmount - settled, settled == a.AssessedAmount ? "Settled" : settled > 0 ? "Partial" : "Outstanding", a.Version, reference, a.RecordedAtUtc, warning);
     public async Task<Result<IReadOnlyList<FineAssessmentDto>>> ReadAsync(FineAccountKind? kind = null, Guid? accountId = null,
         string? search = null, CancellationToken ct = default)
     {
@@ -195,7 +195,11 @@ public sealed class FineAssessmentWorkflow(IAppDbContext db, ICurrentUserService
         var rows = await (from a in query join p in db.FineAssessmentPolicies.AsNoTracking() on new { a.MunicipalityId, Id = a.PolicyId }
             equals new { p.MunicipalityId, p.Id } orderby a.BusinessDate descending, a.Id select new { Assessment = a, p.GoverningReference }).Take(201).ToListAsync(ct);
         if (rows.Count > 200) return Result<IReadOnlyList<FineAssessmentDto>>.Failure("More than 200 assessments match. Narrow the search; totals have not been truncated.", ResultStatus.Invalid);
-        return Result<IReadOnlyList<FineAssessmentDto>>.Success(rows.Select(x => ToDto(x.Assessment, x.GoverningReference)).ToList());
+        var settled = await new FineAssessmentCollectionSource(db).SettledAsync(Tenant, rows.Select(x => x.Assessment.Id).ToArray(), ct);
+        if (rows.Any(x => settled.GetValueOrDefault(x.Assessment.Id) < 0m || settled.GetValueOrDefault(x.Assessment.Id) > x.Assessment.AssessedAmount))
+            return Result<IReadOnlyList<FineAssessmentDto>>.Failure("Fine settlement evidence does not reconcile.", ResultStatus.Conflict);
+        return Result<IReadOnlyList<FineAssessmentDto>>.Success(rows.Select(x => ToDto(x.Assessment, x.GoverningReference,
+            settled: settled.GetValueOrDefault(x.Assessment.Id))).ToList());
     }
     public async Task<Result<FineAccountOption>> AccountAsync(FineAccountRef account, CancellationToken ct = default)
     {

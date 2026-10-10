@@ -27,7 +27,7 @@
             <div class="add-new-footer-leading">@LeadingFooterActions</div>
         }
         <button type="button" class="btn-ghost" disabled="@Saving" @onclick="OnCancel">@CancelText</button>
-        <button type="submit" class="btn-primary" form="@FormId" disabled="@Saving">@SubmitText</button>
+        <button type="submit" class="btn-primary" form="@FormId" disabled="@(Saving || SubmitDisabled)">@SubmitText</button>
     </Footer>
 </VendorDrawerShell>
 
@@ -45,6 +45,7 @@
     [Parameter] public string SubmitText { get; set; } = "Save";
     [Parameter] public string CancelText { get; set; } = "Cancel";
     [Parameter] public bool Saving { get; set; }
+    [Parameter] public bool SubmitDisabled { get; set; }
     [Parameter] public string? Error { get; set; }
     [Parameter] public EventCallback OnSubmit { get; set; }
     [Parameter] public EventCallback OnCancel { get; set; }

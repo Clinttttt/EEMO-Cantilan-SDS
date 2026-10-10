@@ -24,7 +24,7 @@
         </Actions>
     </WorkspaceHeader>
 
-    <FineAssessmentsRegister InitialAccount="RequestedAccount" />
+    <FineAssessmentsRegister InitialAccount="RequestedAccount" PaymentAssessmentId="PaymentAssessmentId" />
 
     <section class="v3-panel" aria-labelledby="fn-defs-title" aria-busy="@(_loadingDefinitions ? "true" : "false")">
         <header class="v3-panel-header">
@@ -192,7 +192,7 @@
                     <tfoot>
                         <tr>
                             <td colspan="6"><strong>Total for @PeriodLabel</strong></td>
-                            <td class="v3-num v3-strong">₱@_register.Where(x => x.Status == "Posted").Sum(x => x.Amount).ToString("N2")</td>
+                            <td class="v3-num v3-strong">₱@_register.Sum(x => x.EffectiveAmount ?? (x.Status == "Posted" ? x.Amount : 0m)).ToString("N2")</td>
                         </tr>
                     </tfoot>
                 }
@@ -207,6 +207,7 @@
 @code {
     [SupplyParameterFromQuery(Name = "accountKind")] public string? AccountKindQuery { get; set; }
     [SupplyParameterFromQuery(Name = "accountId")] public Guid? AccountIdQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "fineAssessmentId")] public Guid? PaymentAssessmentId { get; set; }
     private FineAccountRef? RequestedAccount => AccountIdQuery is { } id &&
         Enum.TryParse<EEMOCantilanSDS.Domain.Entities.Revenue.FineAccountKind>(AccountKindQuery, out var kind) && Enum.IsDefined(kind) ? new(kind,id) : null;
     private List<PenaltyDefinitionDto> _definitions = [];

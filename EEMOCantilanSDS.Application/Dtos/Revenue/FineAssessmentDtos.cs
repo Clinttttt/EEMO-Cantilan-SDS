@@ -15,3 +15,10 @@ public sealed record FineAssessmentDto(Guid Id, FineAccountRef Account, string O
     DateTime RecordedAtUtc, string? DuplicateWarning);
 public sealed record FineAssessmentEventDto(Guid Id, string Kind, decimal Previous, decimal Resulting, Guid ActorId,
     DateTime RecordedAtUtc, string Evidence);
+public sealed record FineSettlementQuoteDto(Guid AssessmentId, FineAccountRef Account, string Occupant, string Source, string Unit,
+    decimal Assessed, decimal Settled, decimal Remaining, string Status, long Version, string QuoteToken,
+    RevenueInstrumentType Instrument, bool CanSettle, string? IneligibleReason);
+public sealed record AddFineAssessmentDraftRequest(Guid AssessmentId, string QuoteToken, decimal Amount, long? ExpectedRevision = null);
+
+public sealed record FineSettlementHistoryDto(Guid CollectionId, string Src, DateOnly BusinessDate,
+    decimal AllocatedAmount, decimal EffectiveAmount);

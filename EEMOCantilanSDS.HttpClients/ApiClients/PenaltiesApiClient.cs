@@ -8,6 +8,13 @@ namespace EEMOCantilanSDS.HttpClients.ApiClients;
 
 public sealed class PenaltiesApiClient(HttpClient http) : HandleResponse(http), IPenaltiesApiClient
 {
+    public Task<Result<FineSettlementQuoteDto>> QuoteFineAsync(Guid id) => GetAsync<FineSettlementQuoteDto>($"api/fine-settlements/{id}/quote");
+    public Task<Result<IReadOnlyList<FineSettlementHistoryDto>>> GetFineSettlementHistoryAsync(Guid id) => GetAsync<IReadOnlyList<FineSettlementHistoryDto>>($"api/fine-settlements/{id}/history");
+    public Task<Result<EcfCollectionDraftDto>> GetCurrentFineDraftAsync(Guid id) => GetAsync<EcfCollectionDraftDto>($"api/fine-settlements/{id}/current-draft");
+    public Task<Result<EcfCollectionDraftDto>> AddFineDraftAsync(AddFineAssessmentDraftRequest request) => PostAsync<AddFineAssessmentDraftRequest,EcfCollectionDraftDto>("api/fine-settlements/drafts",request);
+    public Task<Result<EcfCollectionDraftDto>> ReviewFineDraftAsync(Guid id, EcfDraftRevisionRequest request) => PostAsync<EcfDraftRevisionRequest,EcfCollectionDraftDto>($"api/fine-settlements/drafts/{id}/review",request);
+    public Task<Result<EcfCollectionDraftDto>> DiscardFineDraftAsync(Guid id, EcfDraftRevisionRequest request) => PostAsync<EcfDraftRevisionRequest,EcfCollectionDraftDto>($"api/fine-settlements/drafts/{id}/discard",request);
+    public Task<Result<EcfPostOutcomeDto>> PostFineDraftAsync(Guid id, PostEcfCollectionDraftRequest request) => PostAsync<PostEcfCollectionDraftRequest,EcfPostOutcomeDto>($"api/fine-settlements/drafts/{id}/post",request);
     public Task<Result<IReadOnlyList<FineAssessmentDto>>> GetAssessmentsAsync(FineAccountKind? kind = null, Guid? accountId = null, string? search = null) =>
         GetAsync<IReadOnlyList<FineAssessmentDto>>($"api/fine-assessments?kind={kind}&accountId={accountId}&search={Uri.EscapeDataString(search ?? "")}");
     public Task<Result<IReadOnlyList<FineAccountOption>>> SearchFineAccountsAsync(string search) =>

@@ -60,6 +60,12 @@ public sealed class FineAssessment : BaseEntity, IMunicipalityOwned
     public DateTime RecordedAtUtc { get; private set; }
     public long Version { get; private set; } = 1;
     private FineAssessment() { }
+    /// <summary>Serializes canonical settlement claims; this is a concurrency token, not an amount-paid counter.</summary>
+    public void ClaimSettlement(long expectedVersion)
+    {
+        if (Version != expectedVersion) throw new InvalidOperationException("The fine assessment changed. Obtain a new quote.");
+        Version = checked(Version + 1);
+    }
     public static FineAssessment Create(Guid tenant, FineAccountKind kind, Guid accountId, FineAssessmentPolicy policy,
         PenaltyDefinition penalty, string occupant, string unit, string source, DateOnly violation, DateOnly businessDate,
         string? incident, string description, decimal amount, Guid operationId, string fingerprint, Guid actor,

@@ -17,4 +17,11 @@ public interface IPenaltiesApiClient
     Task<Result<FinePolicyDto>> RecordFinePolicyAsync(FinePolicyRequest request);
     Task<Result<FineAssessmentDto>> CreateAssessmentAsync(CreateFineAssessmentRequest request);
     Task<Result<IReadOnlyList<FineAssessmentEventDto>>> GetAssessmentHistoryAsync(Guid id);
+    Task<Result<FineSettlementQuoteDto>> QuoteFineAsync(Guid id);
+    Task<Result<IReadOnlyList<FineSettlementHistoryDto>>> GetFineSettlementHistoryAsync(Guid id);
+    Task<Result<EcfCollectionDraftDto>> GetCurrentFineDraftAsync(Guid assessmentId);
+    Task<Result<EcfCollectionDraftDto>> AddFineDraftAsync(AddFineAssessmentDraftRequest request);
+    Task<Result<EcfCollectionDraftDto>> ReviewFineDraftAsync(Guid id, EcfDraftRevisionRequest request);
+    Task<Result<EcfCollectionDraftDto>> DiscardFineDraftAsync(Guid id, EcfDraftRevisionRequest request);
+    Task<Result<EcfPostOutcomeDto>> PostFineDraftAsync(Guid id, PostEcfCollectionDraftRequest request);
 }

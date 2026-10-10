@@ -15,7 +15,9 @@ public sealed class CollectionAllocationConfiguration : IEntityTypeConfiguration
                 "CK_CollectionAllocations_SourceShape",
                 "((\"SourceKind\" = 3 AND \"SourcePart\" IN (1, 2)) OR " +
                 "(\"SourceKind\" = 2 AND \"SourcePart\" IN (3, 4, 5)) OR " +
-                "(\"SourceKind\" IN (1, 4, 5, 6, 7, 10) AND \"SourcePart\" IS NULL))");
+                "(\"SourceKind\" IN (1, 4, 5, 6, 7, 10, 15) AND \"SourcePart\" IS NULL))");
+            table.HasCheckConstraint("CK_CollectionAllocations_FineIdentity",
+                "(\"SourceKind\" = 15 AND \"FineAssessmentId\" IS NOT NULL AND \"FineAssessmentId\" = \"SourceId\") OR (\"SourceKind\" <> 15 AND \"FineAssessmentId\" IS NULL)");
         });
 
         builder.HasKey(x => x.Id);
@@ -24,6 +26,8 @@ public sealed class CollectionAllocationConfiguration : IEntityTypeConfiguration
         builder.Property(x => x.CollectionLineId).IsRequired();
         builder.Property(x => x.SourceKind).HasConversion<int>().IsRequired();
         builder.Property(x => x.SourceId).IsRequired();
+        builder.HasOne<FineAssessment>().WithMany().HasForeignKey(x => new { x.MunicipalityId, x.FineAssessmentId })
+            .HasPrincipalKey(x => new { x.MunicipalityId, x.Id }).OnDelete(DeleteBehavior.Restrict);
         builder.Property(x => x.SourcePart).HasConversion<int?>();
         builder.Property(x => x.Amount).HasPrecision(18, 2).IsRequired();
         builder.Property(x => x.SourceSnapshot).HasColumnType("text");
