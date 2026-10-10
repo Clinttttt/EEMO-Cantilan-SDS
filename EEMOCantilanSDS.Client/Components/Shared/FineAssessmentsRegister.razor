@@ -3,7 +3,11 @@
 <section class="v3-panel" aria-label="Fine assessments" aria-busy="@(_loading ? "true" : "false")">
     <header class="v3-panel-header"><h2>Assessments</h2><AuthorizeView Roles="SuperAdmin"><Authorized>
         <button class="v3-btn v3-btn-primary" type="button" @onclick="() => _adding = true">Assess fine</button>
+        <button class="v3-btn" type="button" @onclick="BeginPayment">Record fine payment</button>
     </Authorized></AuthorizeView></header>
+    @if (_choosingPayment) { <div class="v3-toolbar" role="status"><span>Select an outstanding fine below, or assess a new fine before recording payment.</span>
+        <AuthorizeView Roles="SuperAdmin"><Authorized><button class="v3-btn" type="button" @onclick="BeginAssessAndCollect">Assess then collect</button></Authorized></AuthorizeView>
+        <button class="v3-btn" type="button" @onclick="() => _choosingPayment=false">Cancel</button></div> }
     <div class="v3-toolbar"><label class="v3-field" style="flex: 1 1 260px; max-width: 420px"><span>Search</span><input @bind="_search" placeholder="Occupant, unit or description" /></label>
         <button class="v3-btn" type="button" @onclick="Load">Search</button>
         <label class="v3-field"><span>Status</span><select @bind="_status"><option>All</option><option>Outstanding</option><option>Settled</option></select></label>
@@ -22,7 +26,7 @@
     </tbody></table></div>
     <p class="v3-panel-note">Saved assessments are amounts owed. Collected amounts come from canonical payment allocations.</p>
 </section>
-@if (_adding) { <AuthorizeView Roles="SuperAdmin"><Authorized><FineAssessmentDrawer Account="InitialAccount" OnClose="() => _adding = false" OnSaved="Saved" /></Authorized></AuthorizeView> }
+@if (_adding) { <AuthorizeView Roles="SuperAdmin"><Authorized><FineAssessmentDrawer Account="InitialAccount" OnClose="CancelAssessment" OnCreated="Created" /></Authorized></AuthorizeView> }
 @if (_payment is { } payment) { <FinePaymentDrawer AssessmentId="payment" OnClose="() => _payment=null" OnPaid="Load" /> }
 @if (_selected is { } selected)
 {
@@ -47,6 +51,16 @@
     [Parameter] public FineAccountRef? InitialAccount { get; set; }
     [Parameter] public Guid? PaymentAssessmentId { get; set; }
     private Guid? _payment,_openedPayment;
+    private bool _choosingPayment, _collectAfterSave;
+    private void BeginPayment() { _choosingPayment=true; _status="Outstanding"; }
+    private void BeginAssessAndCollect() { _collectAfterSave=true; _adding=true; }
+    private void CancelAssessment() { _adding=false; _collectAfterSave=false; }
+    private async Task Created(FineAssessmentDto assessment) {
+        _adding=false;
+        if (_collectAfterSave) { _payment=assessment.Id; _choosingPayment=false; }
+        _collectAfterSave=false;
+        await Load();
+    }
     private FineAccountRef? _openedAccount;
     protected override void OnParametersSet() { if (InitialAccount is not null && InitialAccount != _openedAccount) { _openedAccount = InitialAccount; _adding = true; }
         if(PaymentAssessmentId is not null && PaymentAssessmentId!=_openedPayment) {_openedPayment=PaymentAssessmentId;_payment=PaymentAssessmentId;_adding=false;} }
@@ -58,7 +72,6 @@
     private async Task Load() { _loading = true; _error = null; _rows = [];
         try { var result = await Api.GetAssessmentsAsync(search: _search); if (result is { IsSuccess: true, Value: not null }) _rows = result.Value.ToList(); else _error = result?.Error ?? "Assessments could not be loaded."; }
         catch { _error = "Assessments are unavailable."; } finally { _loading = false; } }
-    private async Task Saved() { _adding = false; await Load(); }
     private async Task Details(FineAssessmentDto row) { _selected = row; _history = []; _historyError = null; _cash=[]; _cashError=null;
         try { var result = await Api.GetAssessmentHistoryAsync(row.Id); if (result is { IsSuccess: true, Value: not null }) _history = result.Value.ToList(); else _historyError = "Assessment history is unavailable."; }
         catch { _historyError = "Assessment history is unavailable."; }

@@ -1,15 +1,32 @@
 @using EEMOCantilanSDS.Application.Dtos.Revenue
 @inject IPenaltiesApiClient Api
-<div>
+<div class="account-fines">
     @if (_loading) { <p role="status">Loading fine assessments…</p> }
     else if (_error is not null) { <p role="alert">@_error</p> }
     else if (_rows.Count == 0) { <p>No saved fine assessments for this account.</p> }
-    else { <div class="v3-table-wrap" tabindex="0"><table class="v3-table"><thead><tr><th>Fine</th><th>Assessed on</th><th>Assessed</th><th>Settled</th><th>Remaining</th><th>Status</th></tr></thead><tbody>
-        @foreach (var r in _rows) { <tr><td>@r.Penalty
-            @if(r.RelatedPeriod is { } period) { <span class="v3-block">@period.Label</span> }
-            @if(r.Remaining>0) { <a class="v3-btn v3-btn-sm" href="@($"/operations/fines?fineAssessmentId={r.Id}")">Record payment</a> }
-            </td><td>@r.AssessmentDate.ToString("MMM d, yyyy")</td><td class="v3-num">₱@r.Assessed.ToString("N2")</td><td class="v3-num">₱@r.Settled.ToString("N2")</td><td class="v3-num">₱@r.Remaining.ToString("N2")</td><td>@r.Status</td></tr> }
-    </tbody></table></div> }
+    else { <ul class="fine-list">
+        @foreach (var r in _rows) { <li class="fine-row" @key="r.Id">
+            <div class="fine-heading"><strong>@r.Penalty</strong><span>@r.Status</span></div>
+            <p class="fine-meta">Assessed @r.AssessmentDate.ToString("MMM d, yyyy")@if(r.RelatedPeriod is { } period) { <span> · @period.Label</span> }</p>
+            <dl class="fine-amounts"><div><dt>Assessed</dt><dd>₱@r.Assessed.ToString("N2")</dd></div><div><dt>Collected</dt><dd>₱@r.Settled.ToString("N2")</dd></div><div><dt>Remaining</dt><dd><strong>₱@r.Remaining.ToString("N2")</strong></dd></div></dl>
+            <div class="fine-actions">
+                <button type="button" class="v3-btn v3-btn-sm" aria-expanded="@(_details == r.Id ? "true" : "false")" @onclick="() => Details(r.Id)">@(_details == r.Id ? "Hide details" : "View details")</button>
+                @if (_payable.Contains(r.Id)) {
+                    @if (OnPay.HasDelegate) { <button type="button" class="v3-btn v3-btn-sm" @onclick="() => OnPay.InvokeAsync(r.Id)">Record payment</button> }
+                    else { <a class="v3-btn v3-btn-sm" href="@($"/operations/fines?fineAssessmentId={r.Id}")">Record payment</a> }
+                }
+                else if(r.Remaining > 0) { <span class="fine-meta">@_paymentInfo.GetValueOrDefault(r.Id)</span> }
+            </div>
+            @if (_details == r.Id) { <div class="fine-details">
+                <dl><dt>Reason</dt><dd>@r.Description</dd><dt>Violation date</dt><dd>@r.ViolationDate.ToString("MMM d, yyyy")</dd><dt>Incident reference</dt><dd>@(r.IncidentReference ?? "Not supplied")</dd><dt>Governing reference</dt><dd>@r.GoverningReference</dd></dl>
+                <h4>Payment history</h4>
+                @if (_historyLoading) { <p role="status">Loading payment history…</p> }
+                else if (_historyError is not null) { <p role="alert">@_historyError</p> }
+                else if (_history.Count == 0) { <p>No recorded payments against this assessment.</p> }
+                else { <ul class="fine-history">@foreach (var cash in _history) { <li>@cash.BusinessDate.ToString("MMM d, yyyy") · @cash.Src<br />Allocated ₱@cash.AllocatedAmount.ToString("N2") · Effective ₱@cash.EffectiveAmount.ToString("N2")</li> }</ul> }
+            </div> }
+        </li> }
+    </ul> }
     @if (_eligible && _error is null) { <AuthorizeView Roles="SuperAdmin"><Authorized>
         @if (OnAssess.HasDelegate) { <button class="v3-btn v3-btn-sm" type="button" @onclick="OnAssess">Assess fine</button> }
         else { <a class="v3-btn v3-btn-sm" href="@AssessRoute">Assess fine</a> }
@@ -19,23 +36,51 @@
 @code {
     [Parameter, EditorRequired] public FineAccountRef Account { get; set; } = null!;
     [Parameter] public EventCallback OnAssess { get; set; }
+    [Parameter] public EventCallback<Guid> OnPay { get; set; }
     [Parameter] public int RefreshVersion { get; set; }
     private FineAccountRef? _loadedAccount;
     private int _loadedVersion = -1;
+    private int _loadGeneration;
     private string? _eligibilityInfo;
+    private readonly HashSet<Guid> _payable = [];
+    private readonly Dictionary<Guid,string> _paymentInfo = [];
+    private Guid? _details;
+    private bool _historyLoading;
+    private string? _historyError;
+    private IReadOnlyList<FineSettlementHistoryDto> _history = [];
+    private async Task Details(Guid id) {
+        if (_details == id) { _details=null; return; }
+        _details=id; _history=[]; _historyError=null; _historyLoading=true;
+        try { var result=await Api.GetFineSettlementHistoryAsync(id);
+            if (_details != id) return;
+            if(result is {IsSuccess:true,Value:not null}) _history=result.Value;
+            else _historyError="Payment history is unavailable.";
+        } catch { if (_details == id) _historyError="Payment history is unavailable."; }
+        finally { if (_details == id) _historyLoading=false; }
+    }
     private List<FineAssessmentDto> _rows = []; private bool _loading = true, _eligible; private string? _error;
     private string AssessRoute => $"/operations/fines?accountKind={Account.Kind}&accountId={Account.AccountId}";
     protected override async Task OnParametersSetAsync() {
         if (_loadedAccount == Account && _loadedVersion == RefreshVersion) return;
+        var generation=++_loadGeneration;
         _loadedAccount=Account; _loadedVersion=RefreshVersion; _eligibilityInfo=null;
-        _loading=true; _error=null; _rows=[]; _eligible=false;
+        _loading=true; _error=null; _rows=[]; _eligible=false; _payable.Clear(); _paymentInfo.Clear(); _details=null;
         try {
             var result=await Api.GetAssessmentsAsync(Account.Kind,Account.AccountId);
+            if(generation!=_loadGeneration) return;
             if(result is {IsSuccess:true,Value:not null}) {
                 if (result.Value.Any(r=>r.Account != Account)) _error="Fine assessments returned a different account. Reload before review.";
                 else _rows=result.Value.ToList();
             } else _error="Fine assessments are unavailable. No fine balance is included in rental totals.";
+            foreach(var row in _rows.Where(r=>r.Remaining>0)) {
+                try { var quote=await Api.QuoteFineAsync(row.Id);
+                    if(generation!=_loadGeneration) return;
+                    if(quote is {IsSuccess:true,Value:{CanSettle:true}} && quote.Value.AssessmentId==row.Id && quote.Value.Account==Account) _payable.Add(row.Id);
+                    else _paymentInfo[row.Id]=quote is {IsSuccess:true,Value:not null} ? quote.Value.IneligibleReason ?? "Payment is unavailable." : "Payment eligibility is unavailable.";
+                } catch { _paymentInfo[row.Id]="Payment eligibility is unavailable."; }
+            }
             var account=await Api.GetFineAccountAsync(Account); var policies=await Api.GetFinePoliciesAsync(); var definitions=await Api.GetDefinitionsAsync();
+            if(generation!=_loadGeneration) return;
             if(account is {IsSuccess:true,Value:not null} && policies is {IsSuccess:true,Value:not null} && definitions is {IsSuccess:true,Value:not null})
             {
                 if(account.Value.Account != Account) { _rows=[]; _error="The liable registration could not be verified. Reload the source account."; return; }
@@ -44,7 +89,7 @@
                 if(!_eligible) _eligibilityInfo="No approved fine policy is configured for this source.";
             }
             else _eligibilityInfo="Fine assessment eligibility is unavailable. Reload the source account.";
-        } catch { _error="Fine assessments are unavailable. No fine balance is included in rental totals."; }
-        finally {_loading=false;}
+        } catch { if(generation==_loadGeneration) _error="Fine assessments are unavailable. No fine balance is included in rental totals."; }
+        finally {if(generation==_loadGeneration) _loading=false;}
     }
 }

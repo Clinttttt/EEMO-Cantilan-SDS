@@ -12,7 +12,7 @@
 @implements IAsyncDisposable
 
 <div class="account-review" @ref="_root">
-<VendorDrawerShell Show="@(!_assessingFine)" KeepMounted="true" Title="@(Context.IsAccount ? "Review account" : "Review item")" Subtitle="@($"{ReviewOccupant} · {SourceName} · {Context.Reference}")" OnClose="OnClose">
+<VendorDrawerShell Show="@(!_assessingFine && _payingFine is null)" KeepMounted="true" Title="@(Context.IsAccount ? "Review account" : "Review item")" Subtitle="@($"{ReviewOccupant} · {SourceName} · {Context.Reference}")" OnClose="OnClose">
     <Icon><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></svg></Icon>
     <ChildContent>
         @if (_loading)
@@ -78,7 +78,7 @@
                     }
                 </dl>
             </details>
-            @if (FineAccount is { } fineAccount) { <section class="review-charges" aria-label="Other assessed charges"><h3>Other assessed charges</h3><AccountFineAssessments Account="fineAccount" OnAssess="OpenFine" RefreshVersion="_fineRefreshVersion" /></section> }
+            @if (FineAccount is { } fineAccount) { <section class="review-charges" aria-label="Other assessed charges"><h3>Other assessed charges</h3><AccountFineAssessments Account="fineAccount" OnAssess="OpenFine" OnPay="OpenFinePayment" RefreshVersion="_fineRefreshVersion" /></section> }
             else { <section class="review-charges" aria-label="Other assessed charges"><h3>Other assessed charges</h3><p>@(_fineAccountError ?? "A verified liable registration is required to read fine assessments.")</p>
                 @if(Context.FacilityItem?.StallId is not null) {
                     <button type="button" class="v3-btn v3-btn-sm" disabled="@_selectingSource" @onclick="LoadSourceAccounts">Select verified source account</button>
@@ -103,6 +103,7 @@
 {
     <FineAssessmentDrawer Account="assessingAccount" ManageFocus="false" OnClose="ReturnToReview" OnSaved="FineSaved" />
 }
+@if (_payingFine is { } payingFine) { <FinePaymentDrawer AssessmentId="payingFine" ManageFocus="false" OnClose="ReturnFromPayment" OnPaid="FinePaid" /> }
 </div>
 
 @code {
@@ -118,6 +119,10 @@
     private bool _loading = true, _hasLedger;
     private bool _assessingFine, _head, _focusNeedsBind=true;
     private int _fineRefreshVersion;
+    private Guid? _payingFine;
+    private void OpenFinePayment(Guid id) { _payingFine=id; _focusNeedsBind=true; }
+    private void ReturnFromPayment() { _payingFine=null; _focusNeedsBind=true; }
+    private void FinePaid() { _fineRefreshVersion++; }
     private FineAccountRef? _facilityFineAccount;
     private string? _verifiedOccupant;
     private string ReviewOccupant => _account?.ActualOccupant ?? _verifiedOccupant ?? Context.Name;

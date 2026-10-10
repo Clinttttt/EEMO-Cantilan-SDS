@@ -150,4 +150,27 @@ public sealed partial class FollowUpAccountReviewTests
         _fineApi.Verify(x=>x.CreateAssessmentAsync(It.IsAny<CreateFineAssessmentRequest>()),Times.Never);
         _payments.Verify(x=>x.GetOutstandingMonthsAsync(source.Context.FacilityItem!.StallId!.Value,null,null,null),Times.Once);
     }
+    [Fact]
+    public async Task FinePaymentReturnRefreshesOnlyChargesAndPreservesRentalDisclosure()
+    {
+        var source=FacilityFine();
+        var id=Guid.NewGuid();
+        var row=new FineAssessmentDto(id,source.Account,"Liable occupant","3","NPM","Approved incident","Recorded event",ReviewDate,ReviewDate,"CASE-PAY",120,0,120,"Outstanding",1,"AUTHORITY",DateTime.UtcNow,null);
+        _fineApi.Setup(x=>x.GetAssessmentsAsync(source.Account.Kind,source.Account.AccountId,null)).ReturnsAsync(Result<IReadOnlyList<FineAssessmentDto>>.Success([row]));
+        _fineApi.Setup(x=>x.QuoteFineAsync(id)).ReturnsAsync(Result<FineSettlementQuoteDto>.Success(new(id,source.Account,row.Occupant,row.Source,row.Unit,120,0,120,"Outstanding",1,"token",RevenueInstrumentType.OfficialReceipt,true,null)));
+        var cut=RenderComponent<FollowUpAccountReview>(p=>p.Add(x=>x.Context,source.Context));
+        cut.WaitForAssertion(()=>Assert.Contains("Record payment",cut.Find(".review-charges").TextContent));
+        var before=cut.Find(".review-summary").TextContent;
+        cut.Find(".review-period-toggle").Click();
+        cut.Find(".review-charges").QuerySelectorAll("button").Single(x=>x.TextContent=="Record payment").Click();
+        Assert.Single(cut.FindAll("[role=dialog]"));
+        var payment=cut.FindComponent<FinePaymentDrawer>(); Assert.Equal(id,payment.Instance.AssessmentId);
+        await cut.InvokeAsync(()=>payment.Instance.OnPaid.InvokeAsync());
+        await cut.InvokeAsync(()=>payment.Instance.OnClose.InvokeAsync());
+        cut.WaitForAssertion(()=>Assert.Empty(cut.FindComponents<FinePaymentDrawer>()));
+        Assert.Equal(before,cut.Find(".review-summary").TextContent); Assert.Single(cut.FindAll(".review-detail-row"));
+        _fineApi.Verify(x=>x.GetAssessmentsAsync(source.Account.Kind,source.Account.AccountId,null),Times.Exactly(2));
+        _payments.Verify(x=>x.GetOutstandingMonthsAsync(source.Context.FacilityItem!.StallId!.Value,null,null,null),Times.Once);
+        _fineApi.Verify(x=>x.CreateAssessmentAsync(It.IsAny<CreateFineAssessmentRequest>()),Times.Never);
+    }
 }

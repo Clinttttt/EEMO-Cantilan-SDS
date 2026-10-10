@@ -1,5 +1,8 @@
 @using EEMOCantilanSDS.Application.Dtos.Revenue
 @inject IPenaltiesApiClient Api
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+<div @ref="_root">
 <AddNewDrawer Show="true" Title="Record fine payment" Subtitle="Official Receipt · Full remaining fine balance"
     FormId="fine-payment" FormLabel="Record fine payment" Saving="_saving" Error="@_error" OnCancel="Close"
     SubmitText="@(_outcome is not null ? "Payment recorded" : _reviewed ? "Record payment" : "Review payment")"
@@ -29,7 +32,19 @@
         }
     </LeadingFooterActions>
 </AddNewDrawer>
+</div>
 @code {
+    [Parameter] public bool ManageFocus { get; set; } = true;
+    private ElementReference _root;
+    private IJSObjectReference? _focus;
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (!firstRender || !ManageFocus) return;
+        try { _focus=await JS.InvokeAsync<IJSObjectReference>("import","./js/account-review.js"); if(_focus is not null) await _focus.InvokeVoidAsync("bind",_root); } catch(InvalidOperationException) { }
+    }
+    public async ValueTask DisposeAsync() {
+        if(_focus is null) return;
+        try { await _focus.InvokeVoidAsync("release",_root); await _focus.DisposeAsync(); } catch(JSDisconnectedException) { }
+    }
     [Parameter] public Guid AssessmentId { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback OnPaid { get; set; }
