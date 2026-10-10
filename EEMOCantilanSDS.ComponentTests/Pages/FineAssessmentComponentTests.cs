@@ -22,6 +22,7 @@ public sealed partial class FineAssessmentComponentTests : TestContext
         this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin"); JSInterop.Mode=JSRuntimeMode.Loose;
         _api.Setup(x=>x.GetFinePoliciesAsync()).ReturnsAsync(Result<IReadOnlyList<FinePolicyDto>>.Success([]));
         _api.Setup(x=>x.GetDefinitionsAsync()).ReturnsAsync(Result<IReadOnlyList<PenaltyDefinitionDto>>.Success([]));
+        _api.Setup(x=>x.GetFinePeriodsAsync(It.IsAny<FineAccountRef>(),It.IsAny<int?>())).ReturnsAsync(Result<IReadOnlyList<FinePeriodOption>>.Success([]));
         _api.Setup(x=>x.GetFineAccountAsync(It.IsAny<FineAccountRef>())).ReturnsAsync(Result<FineAccountOption>.Success(new(_account,"Liable holder","Space 4","Kanmanggay",false)));
         _api.Setup(x=>x.GetAssessmentsAsync(It.IsAny<FineAccountKind?>(),It.IsAny<Guid?>(),It.IsAny<string?>())).ReturnsAsync(Result<IReadOnlyList<FineAssessmentDto>>.Success([]));
     }
@@ -29,7 +30,7 @@ public sealed partial class FineAssessmentComponentTests : TestContext
         "Recorded incident",new(2026,9,1),new(2026,10,10),"CASE-1",120m,0m,120m,"Outstanding",1,"AUTHORITY-1",DateTime.UtcNow,null);
     private FinePolicyDto Policy() {
         var definition=new PenaltyDefinitionDto(Guid.NewGuid(),"APPROVED","Approved violation",null,GovernedServiceBasis.DirectApprovedAmount,null,200m,true,new(2026,1,1));
-        var policy=new FinePolicyDto(Guid.NewGuid(),new(definition.VersionId,FineAccountKind.Kanmanggay,null,"AUTHORITY-1",FinePenaltyDateBasis.AssessmentDate,false,false));
+        var policy=new FinePolicyDto(Guid.NewGuid(),new(definition.VersionId,FineAccountKind.Kanmanggay,null,"AUTHORITY-1",FinePenaltyDateBasis.AssessmentDate,false,false),definition);
         _api.Setup(x=>x.GetDefinitionsAsync()).ReturnsAsync(Result<IReadOnlyList<PenaltyDefinitionDto>>.Success([definition]));
         _api.Setup(x=>x.GetFinePoliciesAsync()).ReturnsAsync(Result<IReadOnlyList<FinePolicyDto>>.Success([policy])); return policy;
     }
@@ -89,7 +90,7 @@ public sealed partial class FineAssessmentComponentTests : TestContext
     [Fact] public void MissingPolicyCannotSubmitFakeFine() {
         var cut=RenderComponent<FineAssessmentDrawer>(p=>p.Add(x=>x.Account,_account));
         cut.WaitForAssertion(()=>Assert.Contains("Liable holder",cut.Markup)); cut.Find("form").Submit();
-        Assert.Contains("Select the account and approved policy",cut.Markup); _api.Verify(x=>x.CreateAssessmentAsync(It.IsAny<CreateFineAssessmentRequest>()),Times.Never);
+        Assert.Contains("Select an applicable approved fine category",cut.Markup); _api.Verify(x=>x.CreateAssessmentAsync(It.IsAny<CreateFineAssessmentRequest>()),Times.Never);
     }
     private static void ExportFixture(string name,string markup) {
         var directory=Environment.GetEnvironmentVariable("STALLTRACK_FINE_FIXTURE_DIR");

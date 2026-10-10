@@ -28,6 +28,7 @@ public sealed class FineAssessmentConfiguration : IEntityTypeConfiguration<FineA
         b.ToTable("FineAssessments", t => {
             t.HasCheckConstraint("CK_FineAssessment_Amount", "\"AssessedAmount\" > 0");
             t.HasCheckConstraint("CK_FineAssessment_Dates", "\"ViolationDate\" <= \"BusinessDate\"");
+            t.HasCheckConstraint("CK_FineAssessment_RelatedPeriod", "(\"RelatedPeriodKind\" IS NULL AND \"RelatedPeriodStart\" IS NULL AND \"RelatedPeriodEnd\" IS NULL AND \"RelatedObligationPeriodId\" IS NULL AND \"RelatedPeriodLabel\" IS NULL) OR (\"RelatedPeriodKind\" IS NOT NULL AND \"RelatedPeriodKind\" IN (1,2,3) AND \"RelatedPeriodStart\" IS NOT NULL AND \"RelatedPeriodEnd\" IS NOT NULL AND \"RelatedPeriodEnd\" >= \"RelatedPeriodStart\" AND \"RelatedPeriodLabel\" IS NOT NULL AND ((\"RelatedPeriodKind\" = 1 AND EXTRACT(DAY FROM \"RelatedPeriodStart\") = 1 AND \"RelatedPeriodEnd\" = (\"RelatedPeriodStart\" + INTERVAL '1 month - 1 day')::date) OR (\"RelatedPeriodKind\" IN (2,3) AND \"RelatedPeriodStart\" = \"RelatedPeriodEnd\")) AND ((\"RelatedPeriodKind\" = 3 AND \"RelatedObligationPeriodId\" IS NOT NULL AND \"ObligationAccountId\" IS NOT NULL) OR (\"RelatedPeriodKind\" IN (1,2) AND \"RelatedObligationPeriodId\" IS NULL AND \"ContractId\" IS NOT NULL)))");
             t.HasCheckConstraint("CK_FineAssessment_Source", "(\"AccountKind\" = 1 AND \"ContractId\" IS NOT NULL AND \"ObligationAccountId\" IS NULL) OR (\"AccountKind\" IN (2,3,4) AND \"ContractId\" IS NULL AND \"ObligationAccountId\" IS NOT NULL)");
         });
         b.HasKey(x => x.Id); b.HasAlternateKey(x => new { x.MunicipalityId, x.Id });
@@ -40,6 +41,9 @@ public sealed class FineAssessmentConfiguration : IEntityTypeConfiguration<FineA
         b.Property(x => x.PenaltyCode).HasMaxLength(40).IsRequired();
         b.Property(x => x.PenaltyName).HasMaxLength(120).IsRequired();
         b.Property(x => x.Description).HasMaxLength(1000).IsRequired();
+        b.Property(x => x.RelatedPeriodLabel).HasMaxLength(160);
+        b.HasOne<ObligationPeriod>().WithMany().HasForeignKey(x => new { x.MunicipalityId, x.RelatedObligationPeriodId })
+            .HasPrincipalKey(x => new { x.MunicipalityId, x.Id }).OnDelete(DeleteBehavior.Restrict);
         b.Property(x => x.IncidentReference).HasMaxLength(200);
         b.HasIndex(x => new { x.MunicipalityId, x.ClientOperationId }).IsUnique();
         b.HasIndex(x => new { x.MunicipalityId, x.ContractId, x.ObligationAccountId, x.PenaltyCode, x.IncidentReference })

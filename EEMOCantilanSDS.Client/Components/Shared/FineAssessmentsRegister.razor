@@ -9,11 +9,11 @@
         <label class="v3-field"><span>Status</span><select @bind="_status"><option>All</option><option>Outstanding</option><option>Settled</option></select></label>
     </div>
     @if (_error is not null) { <p class="v3-notice v3-notice-error" role="alert">@_error <button type="button" class="v3-btn" @onclick="Load">Retry</button></p> }
-    <div class="v3-table-wrap" tabindex="0"><table class="v3-table"><thead><tr><th>Payor / account</th><th>Fine</th><th>Violation / assessment</th><th class="v3-num">Assessed</th><th class="v3-num">Settled</th><th class="v3-num">Remaining</th><th>Status</th><th>Details</th></tr></thead><tbody>
+    <div class="v3-table-wrap" tabindex="0"><table class="v3-table"><thead><tr><th>Payor / account</th><th>Fine</th><th>Related period</th><th class="v3-num">Assessed</th><th class="v3-num">Collected</th><th class="v3-num">Remaining</th><th>Status</th><th>Actions</th></tr></thead><tbody>
         @foreach (var row in _rows.Where(r => _status == "All" || (_status == "Outstanding" ? r.Remaining > 0m : r.Status == _status)))
         {
             <tr><td><strong>@row.Occupant</strong><span class="v3-block">@row.Source · @row.Unit</span></td><td>@row.Penalty<span class="v3-block">@row.Description</span></td>
-                <td>@row.ViolationDate.ToString("MMM d, yyyy")<span class="v3-block">Assessed @row.AssessmentDate.ToString("MMM d, yyyy")</span></td>
+                <td>@(row.RelatedPeriod?.Label ?? "—")</td>
                 <td class="v3-num">₱@row.Assessed.ToString("N2")</td><td class="v3-num">₱@row.Settled.ToString("N2")</td><td class="v3-num">₱@row.Remaining.ToString("N2")</td><td>@row.Status</td>
                 <td><button type="button" class="v3-btn v3-btn-sm" @onclick="() => Details(row)">View details</button>
                     @if(row.Remaining>0) { <button type="button" class="v3-btn v3-btn-sm" @onclick="() => _payment=row.Id">Record payment</button> }</td></tr>
@@ -28,6 +28,8 @@
 {
     <VendorDrawerShell Show="true" Title="Fine assessment" Subtitle="@($"{selected.Occupant} · {selected.Source} · {selected.Unit}")" OnClose="() => _selected = null">
         <ChildContent><dl><dt>Fine</dt><dd>@selected.Penalty</dd><dt>Reason</dt><dd>@selected.Description</dd><dt>Incident reference</dt><dd>@(selected.IncidentReference ?? "Not supplied")</dd>
+            <dt>Violation date</dt><dd>@selected.ViolationDate.ToString("MMM d, yyyy")</dd><dt>Assessed on</dt><dd>@selected.AssessmentDate.ToString("MMM d, yyyy")</dd>
+            <dt>Related period</dt><dd>@(selected.RelatedPeriod?.Label ?? "Not related to a billing period")</dd>
             <dt>Governing reference</dt><dd>@selected.GoverningReference</dd><dt>Outstanding</dt><dd>₱@selected.Remaining.ToString("N2")</dd></dl>
             <h3>Assessment history</h3>@if (_historyError is not null) { <p role="alert">@_historyError</p> }
             @foreach (var e in _history) { <p>@e.Kind · @e.RecordedAtUtc.ToString("u") · ₱@e.Previous.ToString("N2") → ₱@e.Resulting.ToString("N2")</p> }

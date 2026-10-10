@@ -8,6 +8,21 @@ namespace EEMOCantilanSDS.IntegrationTests;
 
 public sealed partial class FineAssessmentTests
 {
+    [SkippableFact]
+    public async Task LapsedUnreplacedOccupancyRemainsAnExactFineAccountWithoutExtendingRent()
+    {
+        var seed=await SeedAsync(FineAccountKind.FacilityContract,facilityCode:FacilityCode.NPM);
+        await using var db=database.CreateContext(seed.TenantId);
+        var contract=await db.Contracts.SingleAsync(x=>x.Id==seed.Account.AccountId);
+        Assert.True(contract.ExpiryDate < Today);
+        var expiry=contract.ExpiryDate;
+        var result=await Workflow(db,seed).ResolveFacilityAccountAsync(contract.StallId,FacilityCode.NPM,Today);
+        Assert.True(result.IsSuccess,result.Error);
+        Assert.Equal(contract.Id,result.Value!.Account.AccountId);
+        Assert.True(result.Value.Closed);
+        Assert.Equal(expiry,(await db.Contracts.SingleAsync(x=>x.Id==contract.Id)).ExpiryDate);
+        Assert.Empty(await db.Collections.ToListAsync());
+    }
     [SkippableTheory]
     [InlineData(FacilityCode.NPM)] [InlineData(FacilityCode.NCC)] [InlineData(FacilityCode.TCC)]
     [InlineData(FacilityCode.BBQ)] [InlineData(FacilityCode.ICE)]
@@ -76,7 +91,7 @@ public sealed partial class FineAssessmentTests
         await using var db=database.CreateContext(seed.TenantId);
         var old=await db.Contracts.SingleAsync(x=>x.Id==seed.Account.AccountId);
         var workflow=Workflow(db,seed);
-        Assert.Equal(409,(await workflow.ResolveFacilityAccountAsync(old.StallId,FacilityCode.NPM,Today)).StatusCode);
+        Assert.True((await workflow.ResolveFacilityAccountAsync(old.StallId,FacilityCode.NPM,Today)).IsSuccess);
         Assert.False((await workflow.ResolveFacilityAccountAsync(old.StallId,FacilityCode.NPM,Today.AddDays(1),old.Id)).IsSuccess);
         Assert.False((await workflow.ResolveFacilityAccountAsync(old.StallId,FacilityCode.NPM,default,old.Id)).IsSuccess);
         Assert.False((await workflow.ResolveFacilityAccountAsync(old.StallId,FacilityCode.NPM,Today,Guid.NewGuid())).IsSuccess);

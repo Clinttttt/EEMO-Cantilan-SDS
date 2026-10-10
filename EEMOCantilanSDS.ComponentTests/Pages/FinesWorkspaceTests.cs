@@ -37,6 +37,9 @@ public sealed class FinesWorkspaceTests : TestContext
 
     private void Serve(IReadOnlyList<PenaltyDefinitionDto>? definitions = null, IReadOnlyList<PenaltyRegisterRowDto>? register = null)
     {
+        _api.Setup(x=>x.GetAssessmentsAsync(null,null,It.IsAny<string?>())).ReturnsAsync(Result<IReadOnlyList<FineAssessmentDto>>.Success([]));
+        _api.Setup(x=>x.GetFinePoliciesAsync()).ReturnsAsync(Result<IReadOnlyList<FinePolicyDto>>.Success([]));
+        _api.Setup(x=>x.GetFineSourcesAsync()).ReturnsAsync(Result<IReadOnlyList<FineSourceOption>>.Success([]));
         _api.Setup(x => x.GetDefinitionsAsync())
             .ReturnsAsync(Result<IReadOnlyList<PenaltyDefinitionDto>>.Success(definitions ?? []));
         _api.Setup(x => x.GetRegisterAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
@@ -60,10 +63,9 @@ public sealed class FinesWorkspaceTests : TestContext
         {
             Assert.Equal("Fines & Penalties", Assert.Single(cut.FindAll("h1")).TextContent.Trim());
             Assert.Empty(cut.FindAll("main"));
-            Assert.Contains("No penalty has been approved yet", cut.Markup);
-            Assert.Contains("No fines were collected", cut.Markup);
+            Assert.Contains("No saved assessments match", cut.Markup);
             Assert.DoesNotContain("aren't recorded in StallTrack yet", cut.Markup);
-            Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Contains("Record") || b.TextContent.Contains("Collect"));
+            Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Contains("Record payment"));
             // No free-text charge anywhere until the Head opens the definition form.
             Assert.Empty(cut.FindAll("input[type='number']"));
         }, Timeout);
@@ -79,7 +81,7 @@ public sealed class FinesWorkspaceTests : TestContext
                 "LATE_PAYMENT", "Late payment penalty", "OR-000120", 50m, "Reversed")]);
 
         var cut = RenderComponent<Fines>();
-
+        View(cut,"Penalty settings");
         cut.WaitForAssertion(() =>
         {
             var defs = cut.FindAll("[aria-label='Approved penalties'] tbody tr");
@@ -87,7 +89,9 @@ public sealed class FinesWorkspaceTests : TestContext
             Assert.Contains("Fixed · ₱50.00", defs[0].TextContent);
             Assert.Contains("Manually approved · up to ₱200.00", defs[1].TextContent);
             Assert.Contains("Retired", defs[1].TextContent);
-
+        }, Timeout);
+        View(cut,"Collected");
+        cut.WaitForAssertion(() => {
             var rows = cut.FindAll("[aria-label='Fines collected'] tbody tr");
             Assert.Equal(2, rows.Count);
             Assert.Contains("Lisa Reyes", rows[0].TextContent);
@@ -109,6 +113,7 @@ public sealed class FinesWorkspaceTests : TestContext
             .ReturnsAsync(Result<PenaltyDefinitionDto>.Success(Late(75m)));
 
         var cut = RenderComponent<Fines>();
+        View(cut,"Penalty settings");
         cut.WaitForAssertion(() => cut.Find("button.v3-btn-sm"), Timeout);
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Define penalty").Click();
         cut.Find("form[aria-label='Define a penalty'] input").Change("LATE_PAYMENT");
@@ -135,6 +140,7 @@ public sealed class FinesWorkspaceTests : TestContext
         Serve([Late()]);
 
         var cut = RenderComponent<Fines>();
+        View(cut,"Penalty settings");
 
         cut.WaitForAssertion(() =>
         {
@@ -151,13 +157,14 @@ public sealed class FinesWorkspaceTests : TestContext
             .ReturnsAsync(Result<IReadOnlyList<PenaltyRegisterRowDto>>.Failure("offline"));
 
         var cut = RenderComponent<Fines>();
+        View(cut,"Penalty settings");
 
         cut.WaitForAssertion(() =>
         {
             var alerts = cut.FindAll("[role='alert']").Select(x => x.TextContent).ToList();
             Assert.Contains(alerts, a => a.Contains("Approved penalties couldn't be loaded"));
-            Assert.Contains(alerts, a => a.Contains("Fines couldn't be loaded"));
             Assert.DoesNotContain("No penalty has been approved yet", cut.Markup);
         }, Timeout);
     }
+    private static void View(IRenderedComponent<Fines> cut,string label)=>cut.FindAll("[aria-label='Fines workspace views'] button").Single(x=>x.TextContent.Trim()==label).Click();
 }

@@ -1,0 +1,16 @@
+.fine-assessment ::deep .fine-search { display:flex; gap:8px; align-items:end; }
+.fine-assessment ::deep .fine-search .v3-field { flex:1; min-width:0; }
+.fine-assessment ::deep .fine-results { display:grid; gap:4px; margin-top:12px; }
+.fine-assessment ::deep .fine-result { display:grid; text-align:left; gap:3px; padding:10px 12px; background:var(--surface); border:1px solid var(--border); border-radius:6px; color:var(--text); }
+.fine-assessment ::deep .fine-result:hover { background:var(--accent-soft); }
+.fine-assessment ::deep .fine-result:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.fine-assessment ::deep .fine-result span,.fine-assessment ::deep .fine-result small { color:var(--text-secondary); }
+.fine-assessment ::deep .fine-selected { display:grid; gap:4px; margin-bottom:14px; }
+.fine-assessment ::deep .fine-facts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin:0; }
+.fine-assessment ::deep .fine-facts dt { color:var(--text-secondary); font-size:.8rem; margin-bottom:4px; }
+.fine-assessment ::deep .fine-facts dd { margin:0; overflow-wrap:anywhere; }
+.fine-assessment ::deep .fine-wide { grid-column:1/-1; }
+.fine-assessment ::deep .fine-amount-rule { align-self:end; font-size:.8rem; color:var(--text-secondary); }
+.fine-assessment ::deep .fine-check { display:flex; gap:8px; align-items:flex-start; font-size:.85rem; margin-top:14px; }
+.fine-assessment ::deep .fine-check input { width:16px; height:16px; flex:none; margin-top:2px; }
+@media(max-width:600px) { .fine-assessment ::deep .fine-facts,.fine-assessment ::deep .vds .avm-row-2 { grid-template-columns:1fr; } .fine-assessment ::deep .fine-search { flex-wrap:wrap; } }

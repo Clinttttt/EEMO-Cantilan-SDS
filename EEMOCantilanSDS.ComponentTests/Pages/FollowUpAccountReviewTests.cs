@@ -28,6 +28,7 @@ public sealed partial class FollowUpAccountReviewTests : TestContext
             .ReturnsAsync(Result<IReadOnlyList<FineAssessmentDto>>.Success([]));
         fineApi.Setup(x => x.GetFinePoliciesAsync()).ReturnsAsync(Result<IReadOnlyList<FinePolicyDto>>.Success([]));
         fineApi.Setup(x => x.GetDefinitionsAsync()).ReturnsAsync(Result<IReadOnlyList<PenaltyDefinitionDto>>.Success([]));
+        fineApi.Setup(x=>x.GetFinePeriodsAsync(It.IsAny<FineAccountRef>(),It.IsAny<int?>())).ReturnsAsync(Result<IReadOnlyList<FinePeriodOption>>.Success([]));
         fineApi.Setup(x => x.GetFineAccountAsync(It.IsAny<FineAccountRef>())).ReturnsAsync(Result<FineAccountOption>.NotFound());
         fineApi.Setup(x => x.ResolveFacilityFineAccountAsync(It.IsAny<Guid>(), It.IsAny<FacilityCode>(), It.IsAny<DateOnly>(), It.IsAny<Guid?>())).ReturnsAsync(Result<FineAccountOption>.NotFound());
         Services.AddSingleton(fineApi.Object);

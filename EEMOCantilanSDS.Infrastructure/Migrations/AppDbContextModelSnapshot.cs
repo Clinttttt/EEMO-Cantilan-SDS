@@ -2548,6 +2548,22 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.Property<DateTime>("RecordedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("RelatedObligationPeriodId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly?>("RelatedPeriodEnd")
+                        .HasColumnType("date");
+
+                    b.Property<int?>("RelatedPeriodKind")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RelatedPeriodLabel")
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<DateOnly?>("RelatedPeriodStart")
+                        .HasColumnType("date");
+
                     b.Property<string>("RequestFingerprint")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -2581,6 +2597,8 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
 
                     b.HasIndex("MunicipalityId", "PenaltyVersionId");
 
+                    b.HasIndex("MunicipalityId", "RelatedObligationPeriodId");
+
                     b.HasIndex("MunicipalityId", "PolicyId", "PenaltyVersionId", "AccountKind");
 
                     b.HasIndex("MunicipalityId", "ContractId", "ObligationAccountId", "PenaltyCode", "IncidentReference")
@@ -2594,6 +2612,8 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                             t.HasCheckConstraint("CK_FineAssessment_Amount", "\"AssessedAmount\" > 0");
 
                             t.HasCheckConstraint("CK_FineAssessment_Dates", "\"ViolationDate\" <= \"BusinessDate\"");
+
+                            t.HasCheckConstraint("CK_FineAssessment_RelatedPeriod", "(\"RelatedPeriodKind\" IS NULL AND \"RelatedPeriodStart\" IS NULL AND \"RelatedPeriodEnd\" IS NULL AND \"RelatedObligationPeriodId\" IS NULL AND \"RelatedPeriodLabel\" IS NULL) OR (\"RelatedPeriodKind\" IS NOT NULL AND \"RelatedPeriodKind\" IN (1,2,3) AND \"RelatedPeriodStart\" IS NOT NULL AND \"RelatedPeriodEnd\" IS NOT NULL AND \"RelatedPeriodEnd\" >= \"RelatedPeriodStart\" AND \"RelatedPeriodLabel\" IS NOT NULL AND ((\"RelatedPeriodKind\" = 1 AND EXTRACT(DAY FROM \"RelatedPeriodStart\") = 1 AND \"RelatedPeriodEnd\" = (\"RelatedPeriodStart\" + INTERVAL '1 month - 1 day')::date) OR (\"RelatedPeriodKind\" IN (2,3) AND \"RelatedPeriodStart\" = \"RelatedPeriodEnd\")) AND ((\"RelatedPeriodKind\" = 3 AND \"RelatedObligationPeriodId\" IS NOT NULL AND \"ObligationAccountId\" IS NOT NULL) OR (\"RelatedPeriodKind\" IN (1,2) AND \"RelatedObligationPeriodId\" IS NULL AND \"ContractId\" IS NOT NULL)))");
 
                             t.HasCheckConstraint("CK_FineAssessment_Source", "(\"AccountKind\" = 1 AND \"ContractId\" IS NOT NULL AND \"ObligationAccountId\" IS NULL) OR (\"AccountKind\" IN (2,3,4) AND \"ContractId\" IS NULL AND \"ObligationAccountId\" IS NOT NULL)");
                         });
@@ -3230,8 +3250,6 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .HasDefaultValue(1L);
 
                     b.HasKey("Id");
-
-                    b.HasAlternateKey("MunicipalityId", "Id");
 
                     b.HasIndex("MunicipalityId", "ObligationRateId");
 
@@ -5456,6 +5474,12 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .HasPrincipalKey("MunicipalityId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.ObligationPeriod", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "RelatedObligationPeriodId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.FineAssessmentPolicy", null)
                         .WithMany()

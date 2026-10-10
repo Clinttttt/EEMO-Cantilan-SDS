@@ -20,6 +20,13 @@ public sealed class FineAssessmentsController(ISender sender, FineAssessmentWork
         => HandleResponse(await workflow.ResolveFacilityAccountAsync(stallId, facility, snapshotDate, contractId, ct));
     [HttpGet("policies")] public async Task<ActionResult<IReadOnlyList<FinePolicyDto>>> Policies(CancellationToken ct)
         => HandleResponse(await workflow.PoliciesAsync(ct));
+    [HttpGet("sources")] public async Task<ActionResult<IReadOnlyList<FineSourceOption>>> Sources(CancellationToken ct)
+        => HandleResponse(await workflow.SourcesAsync(ct));
+    [HttpGet("facility-accounts")] public async Task<ActionResult<IReadOnlyList<FineAccountOption>>> FacilityAccounts(Guid stallId,
+        EEMOCantilanSDS.Domain.Enums.FacilityCode facility, CancellationToken ct)
+        => HandleResponse(await workflow.FacilityAccountsAsync(stallId,facility,ct));
+    [HttpGet("accounts/{kind}/{id:guid}/periods")] public async Task<ActionResult<IReadOnlyList<FinePeriodOption>>> Periods(FineAccountKind kind, Guid id, int? year, CancellationToken ct)
+        => HandleResponse(await workflow.PeriodsAsync(new(kind,id),year,ct));
     [HttpPost("policies"), Authorize(Roles = "SuperAdmin")]
     public async Task<ActionResult<FinePolicyDto>> Policy(FinePolicyRequest request, CancellationToken ct)
         => HandleResponse(await workflow.RecordPolicyAsync(request, ct));

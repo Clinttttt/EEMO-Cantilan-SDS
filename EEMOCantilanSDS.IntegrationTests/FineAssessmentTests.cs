@@ -28,7 +28,8 @@ public sealed partial class FineAssessmentTests(PostgresFixture database)
     private sealed class Clock : IClock { public DateOnly PhilippineToday => Today; public DateTime UtcNow => new(2026,10,10,2,0,0,DateTimeKind.Utc); public DateTime PhilippineNow => new(2026,10,10,10,0,0); }
     private sealed record Seed(Guid TenantId, FineAccountRef Account, Guid Policy, Guid ActorId);
     private FineAssessmentWorkflow Workflow(AppDbContext context, Seed seed, string role = "SuperAdmin") =>
-        new(context,new Actor(seed.TenantId,role,seed.ActorId),new Tenant(seed.TenantId),new Clock());
+        new(context,new Actor(seed.TenantId,role,seed.ActorId),new Tenant(seed.TenantId),new Clock(),
+            new EEMOCantilanSDS.Infrastructure.Repositories.PaymentRepository(context,new EEMOCantilanSDS.Infrastructure.Fees.FeeRateResolver(context),new Clock()));
     private async Task<Seed> SeedAsync(FineAccountKind kind = FineAccountKind.Kanmanggay, bool closed = false,
         decimal? ceiling = 500m, bool uncapped = false, GovernedServiceBasis basis = GovernedServiceBasis.DirectApprovedAmount,
         FacilityCode facilityCode = FacilityCode.ICE)

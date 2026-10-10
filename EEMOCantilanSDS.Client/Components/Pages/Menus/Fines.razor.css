@@ -5,6 +5,8 @@
     flex-direction: column;
     gap: 20px;
 }
+.fn-subtitle { margin: -8px 0 0; color: var(--text-secondary); font-size: .875rem; }
+.fn-page .filter-tabs { align-self: flex-start; max-width: 100%; flex-wrap: wrap; }
 
 .fn-notice {
     margin: 12px 20px 0;

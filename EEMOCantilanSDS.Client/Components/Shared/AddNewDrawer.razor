@@ -26,7 +26,7 @@
         {
             <div class="add-new-footer-leading">@LeadingFooterActions</div>
         }
-        <button type="button" class="btn-ghost" disabled="@Saving" @onclick="OnCancel">@CancelText</button>
+        <button type="button" class="btn-ghost" disabled="@Saving" @onclick="FooterCancel">@CancelText</button>
         <button type="submit" class="btn-primary" form="@FormId" disabled="@(Saving || SubmitDisabled)">@SubmitText</button>
     </Footer>
 </VendorDrawerShell>
@@ -49,6 +49,8 @@
     [Parameter] public string? Error { get; set; }
     [Parameter] public EventCallback OnSubmit { get; set; }
     [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public EventCallback OnFooterCancel { get; set; }
+    private Task FooterCancel() => OnFooterCancel.HasDelegate ? OnFooterCancel.InvokeAsync() : OnCancel.InvokeAsync();
     [Parameter] public RenderFragment? ChildContent { get; set; }
     /// <summary>Optional navigation actions before Cancel/Submit; callers retain permission and saving guards.</summary>
     [Parameter] public RenderFragment? LeadingFooterActions { get; set; }

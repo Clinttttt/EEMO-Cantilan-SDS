@@ -72,7 +72,7 @@ public sealed partial class FollowUpAccountReviewTests
     {
         var source=FacilityFine();
         var cut=RenderComponent<FollowUpAccountReview>(p=>p.Add(x=>x.Context,source.Context));
-        Assert.Contains("No approved penalty policy applies to this account",cut.Markup);
+        Assert.Contains("No approved fine policy is configured for this source",cut.Markup);
         Assert.DoesNotContain("Liable occupancy could not be verified",cut.Markup);
         Assert.DoesNotContain(cut.FindAll("button"),x=>x.TextContent=="Assess fine");
     }
@@ -84,6 +84,26 @@ public sealed partial class FollowUpAccountReviewTests
         var cut=RenderComponent<FollowUpAccountReview>(p=>p.Add(x=>x.Context,source.Context));
         Assert.Contains("Reload the queue or open the source account",cut.Markup);
         Assert.Empty(cut.FindComponents<AccountFineAssessments>()); Assert.Empty(cut.FindComponents<FineAssessmentDrawer>());
+    }
+    [Fact]
+    public void ExplicitSourceRecoveryVerifiesChosenContractAndPreservesRentalTarget()
+    {
+        var source=FacilityFine();FinePolicy(FacilityCode.NPM);
+        var stall=source.Context.FacilityItem!.StallId!.Value;
+        var option=new FineAccountOption(source.Account,"Original liable occupant","3","New Public Market",true,FacilityCode.NPM,"Fish Area",new(2023,6,7),new(2026,6,6),"Lapsed");
+        _fineApi.Setup(x=>x.ResolveFacilityFineAccountAsync(stall,FacilityCode.NPM,ReviewDate,null)).ReturnsAsync(Result<FineAccountOption>.Failure("Ambiguous",ResultStatus.Conflict));
+        _fineApi.Setup(x=>x.GetFacilityFineAccountsAsync(stall,FacilityCode.NPM)).ReturnsAsync(Result<IReadOnlyList<FineAccountOption>>.Success([option]));
+        _fineApi.Setup(x=>x.ResolveFacilityFineAccountAsync(stall,FacilityCode.NPM,ReviewDate,source.Account.AccountId)).ReturnsAsync(Result<FineAccountOption>.Success(option));
+        var cut=RenderComponent<FollowUpAccountReview>(p=>p.Add(x=>x.Context,source.Context));
+        var summary=cut.Find(".review-summary").TextContent;
+        cut.FindAll("button").Single(x=>x.TextContent=="Select verified source account").Click();
+        Assert.Empty(cut.FindComponents<AccountFineAssessments>());
+        cut.FindAll("button").Single(x=>x.TextContent.Contains("Original liable occupant")).Click();
+        Assert.Equal(source.Account,cut.FindComponent<AccountFineAssessments>().Instance.Account);
+        Assert.Equal(summary,cut.Find(".review-summary").TextContent);
+        _payments.Verify(x=>x.GetOutstandingMonthsAsync(stall,null,null,null),Times.Once);
+        Assert.Null(source.Context.FacilityItem.ContractId);
+        _fineApi.Verify(x=>x.CreateAssessmentAsync(It.IsAny<CreateFineAssessmentRequest>()),Times.Never);
     }
     [Fact]
     public void UnverifiedOrWrongFacilityCannotReadOrAssessFineButRentalStillLoads()
@@ -109,7 +129,7 @@ public sealed partial class FollowUpAccountReviewTests
         cut.FindAll("button").Single(x=>x.TextContent=="Assess fine").Click();
         Assert.Single(cut.FindAll("[role=dialog]")); Assert.Equal(source.Account,cut.FindComponent<FineAssessmentDrawer>().Instance.Account);
         SpaceHolderWorkspaceTests.SaveVisualArtifact("account-review-assess-fine",cut.Markup);
-        cut.Find("select").Change(policy.Id.ToString()); cut.Find("textarea").Change("Recorded event"); cut.Find("input[type=number]").Change("120");
+        cut.Find("select").Change(policy.Id.ToString()); cut.Find("textarea").Change("Recorded event"); cut.Find("input[aria-label='Fine amount']").Change("120");
         cut.Find("form").Submit(); SpaceHolderWorkspaceTests.SaveVisualArtifact("account-review-confirm-fine",cut.Markup); cut.Find("form").Submit();
         cut.WaitForAssertion(()=>Assert.Empty(cut.FindComponents<FineAssessmentDrawer>()));
         Assert.Single(cut.FindAll("[role=dialog]")); Assert.Equal(before,cut.Find(".review-summary").TextContent);

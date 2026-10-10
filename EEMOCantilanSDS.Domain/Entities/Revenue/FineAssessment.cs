@@ -5,6 +5,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Revenue;
 
 public enum FineAccountKind { FacilityContract = 1, Kanmanggay = 2, VegetableFruitMonthly = 3, FiestaAraw = 4 }
 public enum FinePenaltyDateBasis { AssessmentDate = 1, ViolationDate = 2 }
+public enum FineAffectedPeriodKind { FacilityMonth = 1, NpmDay = 2, ObligationPeriod = 3 }
 
 /// <summary>Explicit governing evidence for one definition version/source combination; never seeded by inference.</summary>
 public sealed class FineAssessmentPolicy : BaseEntity, IMunicipalityOwned
@@ -34,7 +35,7 @@ public sealed class FineAssessmentPolicy : BaseEntity, IMunicipalityOwned
     }
 }
 
-/// <summary>Non-cash liability. Immutable original principal/evidence; no settlement writer in this increment.</summary>
+/// <summary>Non-cash liability. Immutable original principal/evidence; cash settlement is tracked through canonical allocations.</summary>
 public sealed class FineAssessment : BaseEntity, IMunicipalityOwned
 {
     public Guid MunicipalityId { get; private set; }
@@ -49,6 +50,11 @@ public sealed class FineAssessment : BaseEntity, IMunicipalityOwned
     public string UnitReference { get; private set; } = "";
     public string SourceName { get; private set; } = "";
     public string AuthoritySnapshot { get; private set; } = "";
+    public FineAffectedPeriodKind? RelatedPeriodKind { get; private set; }
+    public DateOnly? RelatedPeriodStart { get; private set; }
+    public DateOnly? RelatedPeriodEnd { get; private set; }
+    public Guid? RelatedObligationPeriodId { get; private set; }
+    public string? RelatedPeriodLabel { get; private set; }
     public DateOnly ViolationDate { get; private set; }
     public DateOnly BusinessDate { get; private set; }
     public string? IncidentReference { get; private set; }
@@ -69,7 +75,8 @@ public sealed class FineAssessment : BaseEntity, IMunicipalityOwned
     public static FineAssessment Create(Guid tenant, FineAccountKind kind, Guid accountId, FineAssessmentPolicy policy,
         PenaltyDefinition penalty, string occupant, string unit, string source, DateOnly violation, DateOnly businessDate,
         string? incident, string description, decimal amount, Guid operationId, string fingerprint, Guid actor,
-        DateTime now, string authoritySnapshot)
+        DateTime now, string authoritySnapshot, FineAffectedPeriodKind? periodKind = null, DateOnly? periodStart = null,
+        DateOnly? periodEnd = null, Guid? obligationPeriodId = null, string? periodLabel = null)
     {
         if (tenant == Guid.Empty || actor == Guid.Empty || accountId == Guid.Empty || operationId == Guid.Empty)
             throw new ArgumentException("Tenant, account, actor and operation identity are required.");
@@ -79,6 +86,11 @@ public sealed class FineAssessment : BaseEntity, IMunicipalityOwned
         if (penalty.Basis == GovernedServiceBasis.DirectApprovedAmount && penalty.MaximumAmount is null && !policy.AllowsUncappedAmount)
             throw new ArgumentException("Uncapped amounts require explicit governing authorization.");
         if (violation > businessDate || now.Kind != DateTimeKind.Utc) throw new ArgumentException("Invalid violation date or timestamp.");
+        if (periodKind is not null && (!Enum.IsDefined(periodKind.Value) || periodStart is null || periodEnd is null || periodEnd < periodStart ||
+            (periodKind == FineAffectedPeriodKind.ObligationPeriod) != obligationPeriodId.HasValue))
+            throw new ArgumentException("Invalid related source period.");
+        if (periodKind is null && (periodStart is not null || periodEnd is not null || obligationPeriodId is not null || periodLabel is not null))
+            throw new ArgumentException("Related period evidence requires a typed period.");
         var normalizedIncident = string.IsNullOrWhiteSpace(incident) ? null : Required(incident, 200, "Incident reference").ToUpperInvariant();
         return new() { Id = Guid.NewGuid(), MunicipalityId = tenant, AccountKind = kind,
             ContractId = kind == FineAccountKind.FacilityContract ? accountId : null,
@@ -88,7 +100,9 @@ public sealed class FineAssessment : BaseEntity, IMunicipalityOwned
             SourceName = Required(source, 120, "Source"), AuthoritySnapshot = Required(authoritySnapshot, 16384, "Authority evidence"),
             ViolationDate = violation, BusinessDate = businessDate, IncidentReference = normalizedIncident,
             Description = Required(description, 1000, "Description"), AssessedAmount = amount, ClientOperationId = operationId,
-            RequestFingerprint = Required(fingerprint, 64, "Fingerprint"), ActorId = actor, RecordedAtUtc = now };
+            RequestFingerprint = Required(fingerprint, 64, "Fingerprint"), ActorId = actor, RecordedAtUtc = now,
+            RelatedPeriodKind = periodKind, RelatedPeriodStart = periodStart, RelatedPeriodEnd = periodEnd,
+            RelatedObligationPeriodId = obligationPeriodId, RelatedPeriodLabel = periodKind is null ? null : Required(periodLabel, 160, "Related period") };
     }
     internal static string Required(string? value, int limit, string field) => !string.IsNullOrWhiteSpace(value) && value.Trim().Length <= limit
         ? value.Trim() : throw new ArgumentException($"{field} is required and must not exceed {limit} characters.");

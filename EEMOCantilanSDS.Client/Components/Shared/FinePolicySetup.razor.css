@@ -1,0 +1,7 @@
+.fine-policy ::deep .policy-check { display:flex; align-items:flex-start; gap:8px; margin-top:12px; font-size:.85rem; }
+.fine-policy ::deep .policy-check input { width:16px; height:16px; flex:none; margin-top:2px; }
+.fine-policy ::deep .policy-summary { display:grid; grid-template-columns:minmax(120px,1fr) 2fr; gap:10px 16px; margin:0 0 16px; }
+.fine-policy ::deep .policy-summary dt { color:var(--text-secondary); }
+.fine-policy ::deep .policy-summary dd { margin:0; overflow-wrap:anywhere; }
+.fine-policy ::deep details { margin-top:12px; }
+@media(max-width:600px) { .fine-policy ::deep .vds .avm-row-2 { grid-template-columns:1fr; } .fine-policy ::deep .policy-summary { grid-template-columns:1fr; gap:4px; } .fine-policy ::deep .policy-summary dd { margin-bottom:10px; } }

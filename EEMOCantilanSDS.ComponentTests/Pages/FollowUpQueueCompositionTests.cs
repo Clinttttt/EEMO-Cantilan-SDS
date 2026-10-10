@@ -154,6 +154,7 @@ public sealed class FollowUpQueueCompositionTests : TestContext
         var (cut,_)=RenderQueue(queue,payments.Object);
         cut.WaitForAssertion(()=>Assert.NotNull(RowFor(cut,account.Person)),RenderTimeout);
         RowFor(cut,account.Person).QuerySelector("button")!.Click();
+        cut.WaitForAssertion(()=>Assert.Single(cut.FindComponents<FollowUpAccountReview>()),RenderTimeout);
         var review=cut.FindComponent<FollowUpAccountReview>();
         Assert.Single(review.FindAll(".review-footer-actions"));
         SpaceHolderWorkspaceTests.SaveVisualArtifact("account-review-payment",review.Markup);

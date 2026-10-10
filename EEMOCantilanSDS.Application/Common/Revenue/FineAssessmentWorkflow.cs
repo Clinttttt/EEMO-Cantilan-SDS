@@ -10,12 +10,14 @@ using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using EEMOCantilanSDS.Application.Queries.DailyCollections.GetSettleableNpmDays;
+using EEMOCantilanSDS.Domain.Entities.Facilities;
 
 namespace EEMOCantilanSDS.Application.Common.Revenue;
 
 /// <summary>Assessment-only workflow. Never calls Composer, creates rental periods or posts cash.</summary>
 public sealed class FineAssessmentWorkflow(IAppDbContext db, ICurrentUserService user,
-    ICurrentMunicipalityAccessor municipality, IClock clock)
+    ICurrentMunicipalityAccessor municipality, IClock clock, IStallLedgerQueries? ledger = null, MediatR.ISender? sourceReads = null)
 {
     private Guid Tenant => municipality.MunicipalityId;
     private Result<T>? Guard<T>(bool head = false)
@@ -82,11 +84,16 @@ public sealed class FineAssessmentWorkflow(IAppDbContext db, ICurrentUserService
             if (stall.Status == StallStatus.Closed)
                 return Result<FineAccountOption>.Failure("This stall has no current occupancy. Open its historical source account.", ResultStatus.Conflict);
             // Do not let the domain's ordered window clipping silently choose among competing live records.
-            var live = stall.Contracts.Where(x => x.MunicipalityId == Tenant && x.IsActive &&
-                x.EffectivityDate <= clock.PhilippineToday && (x.EndedOn ?? x.ExpiryDate) >= clock.PhilippineToday).ToArray();
+            var registrations = stall.Contracts.Where(x => x.MunicipalityId == Tenant && x.IsActive && x.EndedOn is null &&
+                x.EffectivityDate <= clock.PhilippineToday).ToArray();
+            var live = registrations.Where(x=>x.ExpiryDate>=clock.PhilippineToday).ToArray();
+            if(live.Length==0) live=registrations;
             if (live.Length != 1) return Result<FineAccountOption>.Failure("Current occupancy is missing or ambiguous. Reload the queue or open the source account.", ResultStatus.Conflict);
             var window = stall.Occupancies(clock.PhilippineToday).SingleOrDefault(x => x.Contract.Id == live[0].Id);
-            if (window is null || !window.IsCurrent || !window.Overlaps(snapshotDate, snapshotDate))
+            // Expiry ends billing, not the original registration's identity. Only an unreplaced, unterminated
+            // registration can bridge a lapsed queue row; no term, rate or occupancy is extended here.
+            if (window is null || snapshotDate < window.Start || stall.Contracts.Any(x => x.Id != live[0].Id &&
+                x.EffectivityDate >= live[0].EffectivityDate && x.EffectivityDate <= clock.PhilippineToday))
                 return Result<FineAccountOption>.Failure("The occupancy changed since this queue. Reload before assessing a fine.", ResultStatus.Conflict);
             exactId = live[0].Id;
         }
@@ -111,7 +118,9 @@ public sealed class FineAssessmentWorkflow(IAppDbContext db, ICurrentUserService
                 stall.Facility.Code is not (FacilityCode.NPM or FacilityCode.NCC or FacilityCode.TCC or FacilityCode.BBQ or FacilityCode.ICE)) return null;
             var occupancy = stall.Occupancies(clock.PhilippineToday).SingleOrDefault(x => x.Contract.Id == contract.Id);
             if (occupancy is null) return null;
-            return new(new(account, contract.ActualOccupant, stall.StallNo, stall.Facility.Name, !occupancy.IsCurrent, stall.Facility.Code),
+            return new(new(account, contract.ActualOccupant, stall.StallNo, stall.Facility.Name, !occupancy.IsCurrent, stall.Facility.Code,
+                stall.CustomSectionName ?? (stall.Section switch { MarketSection.FishSection=>stall.Facility.FishSectionLabel ?? "Fish Area", MarketSection.MeatSection=>stall.Facility.MeatSectionLabel ?? "Meat Area", MarketSection.VegetableArea=>stall.Facility.VegetableSectionLabel ?? "Vegetable Area", _=>null }), occupancy.Start, occupancy.End,
+                contract.EndedOn is not null || !contract.IsActive || stall.Status == StallStatus.Closed ? "Closed" : contract.ExpiryDate < clock.PhilippineToday ? "Lapsed" : "Active"),
                 stall.Facility.Code, occupancy.Start, occupancy.End);
         }
         var kind = ObligationKindOf(account.Kind);
@@ -127,7 +136,6 @@ public sealed class FineAssessmentWorkflow(IAppDbContext db, ICurrentUserService
         if (Guard<IReadOnlyList<FineAccountOption>>() is { } denied) return denied;
         var text = (query ?? "").Trim();
         if (text.Length is < 2 or > 100) return Result<IReadOnlyList<FineAccountOption>>.Success([]);
-        var policies = await db.FineAssessmentPolicies.AsNoTracking().Where(x => x.MunicipalityId == Tenant).ToListAsync(ct);
         var result = new List<FineAccountOption>();
         var contractIds = await db.Contracts.AsNoTracking().Where(x => x.MunicipalityId == Tenant &&
             (x.ActualOccupant.Contains(text) || x.Stall!.StallNo.Contains(text))).OrderBy(x => x.ActualOccupant).ThenBy(x => x.Id)
@@ -142,8 +150,7 @@ public sealed class FineAssessmentWorkflow(IAppDbContext db, ICurrentUserService
         foreach (var account in refs)
         {
             var facts = await ResolveAsync(account, ct);
-            if (facts is not null && policies.Any(p => p.AccountKind == account.Kind && p.Facility == facts.Facility &&
-                (!facts.Option.Closed || p.AllowsClosedAccount))) result.Add(facts.Option);
+            if (facts is not null) result.Add(facts.Option);
         }
         return Result<IReadOnlyList<FineAccountOption>>.Success(result);
     }
@@ -157,13 +164,24 @@ public sealed class FineAssessmentWorkflow(IAppDbContext db, ICurrentUserService
         if (r.Amount <= 0m || r.Amount > Collection.MaximumMoneyAmount || decimal.Round(r.Amount, 2, MidpointRounding.ToZero) != r.Amount)
             return Result<FineAssessmentDto>.Failure("Enter a positive amount with centavo precision.", ResultStatus.Invalid);
         var incident = string.IsNullOrWhiteSpace(r.IncidentReference) ? null : r.IncidentReference.Trim().ToUpperInvariant();
-        var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new {
+        var originalIntent = JsonSerializer.Serialize(new {
             Tenant, Actor = user.UserId, r.Account, r.PolicyId, r.ViolationDate, Incident = incident,
-            Description = r.Description?.Trim(), Amount = r.Amount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) }))));
+            Description = r.Description?.Trim(), Amount = r.Amount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) });
+        // Keep pre-extension replay fingerprints valid when no related period was supplied.
+        var intent = r.RelatedPeriod is null ? originalIntent : JsonSerializer.Serialize(new { OriginalIntent = originalIntent, r.RelatedPeriod });
+        var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(intent)));
         var prior = await ReplayAsync(r.ClientOperationId, fingerprint, ct);
         if (prior is not null) return prior;
         var facts = await ResolveAsync(r.Account, ct);
         if (facts is null) return Result<FineAssessmentDto>.NotFound();
+        FinePeriodOption? related = null;
+        if (r.RelatedPeriod is { } requestedPeriod)
+        {
+            var options = await PeriodsAsync(r.Account, requestedPeriod.Start.Year, ct);
+            if (!options.IsSuccess || options.Value is null) return Result<FineAssessmentDto>.Failure("Related billing periods could not be verified.", ResultStatus.Invalid);
+            related = options.Value.SingleOrDefault(x => x.Reference == requestedPeriod);
+            if (related is null) return Result<FineAssessmentDto>.Failure("The related period does not belong to this liable source account.", ResultStatus.Invalid);
+        }
         if (r.ViolationDate < facts.Start || r.ViolationDate > facts.End)
             return Result<FineAssessmentDto>.Failure("The violation date does not belong to this liable registration. Select the historical occupant's actual account.", ResultStatus.Invalid);
         var policy = await db.FineAssessmentPolicies.AsNoTracking().SingleOrDefaultAsync(x => x.MunicipalityId == Tenant && x.Id == r.PolicyId, ct);
@@ -181,17 +199,23 @@ public sealed class FineAssessmentWorkflow(IAppDbContext db, ICurrentUserService
             x.PenaltyCode == penalty.Code && (incident != null ? x.IncidentReference == incident :
                 x.ViolationDate == r.ViolationDate && x.Description == (r.Description ?? "").Trim()), ct);
         if (possible && (incident != null || !r.ConfirmPossibleDuplicate))
+        {
+            // Another identical request may have committed between the initial replay read and duplicate read.
+            var concurrentReplay=await ReplayAsync(r.ClientOperationId,fingerprint,ct);
+            if(concurrentReplay is not null) return concurrentReplay;
             return Result<FineAssessmentDto>.Failure(incident != null ? "This incident reference is already assessed for this account and penalty." :
                 "POSSIBLE_DUPLICATE: A similar incident is already assessed. Review it before confirming a distinct incident.", ResultStatus.Conflict);
+        }
         try
         {
             var evidence = JsonSerializer.Serialize(new { policy.Id, policy.GoverningReference, policy.DateBasis,
                 policy.AllowsUncappedAmount, policy.AllowsClosedAccount, penalty.Basis, penalty.FixedAmount, penalty.MaximumAmount,
                 penalty.EffectiveDate, VersionDate = versionDate, LiableAccount = r.Account, OccupancyStart = facts.Start,
-                OccupancyEnd = facts.End, Role = user.Role, Actor = user.UserId });
+                OccupancyEnd = facts.End, Role = user.Role, Actor = user.UserId, RelatedPeriod = related });
             var a = FineAssessment.Create(Tenant, r.Account.Kind, r.Account.AccountId, policy, penalty,
                 facts.Option.Occupant, facts.Option.Unit, facts.Option.Source, r.ViolationDate, clock.PhilippineToday,
-                incident, r.Description ?? "", r.Amount, r.ClientOperationId, fingerprint, user.UserId!.Value, clock.UtcNow, evidence);
+                incident, r.Description ?? "", r.Amount, r.ClientOperationId, fingerprint, user.UserId!.Value, clock.UtcNow, evidence,
+                related?.Reference.Kind, related?.Reference.Start, related?.Reference.End, related?.Reference.ObligationPeriodId, related?.Label);
             db.FineAssessments.Add(a); db.FineAssessmentEvents.Add(FineAssessmentEvent.Created(a));
             await db.SaveChangesAsync(ct);
             return Result<FineAssessmentDto>.Success(ToDto(a, policy.GoverningReference, incident is null ? "No case reference: real-world duplicate prevention is limited." : null));
@@ -216,7 +240,8 @@ public sealed class FineAssessmentWorkflow(IAppDbContext db, ICurrentUserService
     private static FineAssessmentDto ToDto(FineAssessment a, string reference, string? warning = null, decimal settled = 0m) => new(a.Id,
         new(a.AccountKind, a.ContractId ?? a.ObligationAccountId!.Value), a.Occupant, a.UnitReference, a.SourceName,
         a.PenaltyName, a.Description, a.ViolationDate, a.BusinessDate, a.IncidentReference, a.AssessedAmount, settled,
-        a.AssessedAmount - settled, settled == a.AssessedAmount ? "Settled" : settled > 0 ? "Partial" : "Outstanding", a.Version, reference, a.RecordedAtUtc, warning);
+        a.AssessedAmount - settled, settled == a.AssessedAmount ? "Settled" : settled > 0 ? "Partial" : "Outstanding", a.Version, reference, a.RecordedAtUtc, warning,
+        a.RelatedPeriodKind is { } kind ? new(new(kind,a.RelatedPeriodStart!.Value,a.RelatedPeriodEnd!.Value,a.RelatedObligationPeriodId),a.RelatedPeriodLabel!) : null);
     public async Task<Result<IReadOnlyList<FineAssessmentDto>>> ReadAsync(FineAccountKind? kind = null, Guid? accountId = null,
         string? search = null, CancellationToken ct = default)
     {
@@ -240,6 +265,83 @@ public sealed class FineAssessmentWorkflow(IAppDbContext db, ICurrentUserService
         var facts = await ResolveAsync(account, ct);
         return facts is null ? Result<FineAccountOption>.NotFound() : Result<FineAccountOption>.Success(facts.Option);
     }
+    public async Task<Result<IReadOnlyList<FineSourceOption>>> SourcesAsync(CancellationToken ct = default)
+    {
+        if(Guard<IReadOnlyList<FineSourceOption>>() is { } denied) return denied;
+        var facilities=await db.Facilities.AsNoTracking().Where(x=>x.MunicipalityId==Tenant &&
+            (x.Code==FacilityCode.NPM||x.Code==FacilityCode.NCC||x.Code==FacilityCode.TCC||x.Code==FacilityCode.BBQ||x.Code==FacilityCode.ICE))
+            .OrderBy(x=>x.Code).Select(x=>new FineSourceOption(x.Name,FineAccountKind.FacilityContract,x.Code)).ToListAsync(ct);
+        facilities.Add(new(ObligationCollectionSource.KindLabel(ObligationKind.KanmanggaySpaceRental),FineAccountKind.Kanmanggay,null));
+        facilities.Add(new(ObligationCollectionSource.KindLabel(ObligationKind.VegetableFruitSpaceRental),FineAccountKind.VegetableFruitMonthly,null));
+        return Result<IReadOnlyList<FineSourceOption>>.Success(facilities);
+    }
+    public async Task<Result<IReadOnlyList<FineAccountOption>>> FacilityAccountsAsync(Guid stallId, FacilityCode facility, CancellationToken ct = default)
+    {
+        if (Guard<IReadOnlyList<FineAccountOption>>() is { } denied) return denied;
+        var ids = await db.Contracts.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.StallId == stallId &&
+            x.Stall!.Facility!.Code == facility).OrderBy(x => x.EffectivityDate).Select(x => x.Id).ToListAsync(ct);
+        var options = new List<FineAccountOption>();
+        foreach (var id in ids)
+            if (await ResolveAsync(new(FineAccountKind.FacilityContract,id),ct) is { } facts) options.Add(facts.Option);
+        return Result<IReadOnlyList<FineAccountOption>>.Success(options);
+    }
+
+    /// <summary>References existing source projections only. Never generates an obligation or calculates a rate.</summary>
+    public async Task<Result<IReadOnlyList<FinePeriodOption>>> PeriodsAsync(FineAccountRef account, int? year = null, CancellationToken ct = default)
+    {
+        if (Guard<IReadOnlyList<FinePeriodOption>>() is { } denied) return denied;
+        if (year is < 1900 or > 9998) return Result<IReadOnlyList<FinePeriodOption>>.Failure("Select a valid period year.",ResultStatus.Invalid);
+        var facts = await ResolveAsync(account,ct);
+        if (facts is null) return Result<IReadOnlyList<FinePeriodOption>>.NotFound();
+        if (account.Kind != FineAccountKind.FacilityContract)
+        {
+            var periods = await db.ObligationPeriods.AsNoTracking().Where(x => x.MunicipalityId == Tenant &&
+                x.ObligationAccountId == account.AccountId && x.PeriodStart <= clock.PhilippineToday &&
+                (!year.HasValue || x.PeriodStart.Year == year)).OrderBy(x => x.PeriodStart).ToListAsync(ct);
+            return Result<IReadOnlyList<FinePeriodOption>>.Success(periods.Select(x => new FinePeriodOption(
+                new(FineAffectedPeriodKind.ObligationPeriod,x.PeriodStart,x.PeriodStart,x.Id),
+                account.Kind == FineAccountKind.FiestaAraw ? $"Event · {x.PeriodStart:MMM d, yyyy}" : x.PeriodStart.ToString("MMMM yyyy"))).ToList());
+        }
+        var contract = await db.Contracts.AsNoTracking().SingleAsync(x => x.MunicipalityId == Tenant && x.Id == account.AccountId,ct);
+        var stall = await db.Stalls.AsNoTracking().Include(x => x.Contracts).SingleAsync(x => x.MunicipalityId == Tenant && x.Id == contract.StallId,ct);
+        var windows = stall.Occupancies(clock.PhilippineToday);
+        var own = windows.Single(x => x.Contract.Id == contract.Id);
+        var result = new List<FinePeriodOption>();
+        if (facts.Facility == FacilityCode.NPM)
+        {
+            var selectedYear = year ?? clock.PhilippineToday.Year;
+            var from = new DateOnly(selectedYear,1,1); var to = new DateOnly(selectedYear,12,31);
+            var days = await db.DailyCollections.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.StallId == stall.Id &&
+                !x.IsAbsent && x.IsPaid && x.CollectionDate >= from && x.CollectionDate <= to &&
+                x.CollectionDate >= own.Start && x.CollectionDate <= own.BillableEnd).Select(x => x.CollectionDate).ToListAsync(ct);
+            if (sourceReads is not null)
+                for (var month=1;month<=12;month++)
+                {
+                    var start=new DateOnly(selectedYear,month,1);
+                    if (start > clock.PhilippineToday || !own.Overlaps(start,start.AddMonths(1).AddDays(-1))) continue;
+                    var read=await sourceReads.Send(new GetSettleableNpmDaysQuery(stall.Id,selectedYear,month,contract.Id),ct);
+                    if (!read.IsSuccess || read.Value is null) return Result<IReadOnlyList<FinePeriodOption>>.Failure("Eligible day evidence is unavailable.",ResultStatus.Conflict);
+                    days.AddRange(read.Value.Select(x=>x.Date));
+                }
+            result.AddRange(days.Where(x=>x<=clock.PhilippineToday && x>=own.Start && x<=own.BillableEnd).Distinct().Order()
+                .Select(x=>new FinePeriodOption(new(FineAffectedPeriodKind.NpmDay,x,x),$"Daily charge · {x:MMM d, yyyy}")));
+        }
+        else
+        {
+            if (ledger is null) return Result<IReadOnlyList<FinePeriodOption>>.Failure("Source period projection is unavailable.",ResultStatus.Conflict);
+            var outstanding = await ledger.GetOutstandingMonthsAsync(stall.Id,contract.Id,null,ct);
+            var paid = await db.PaymentRecords.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.StallId == stall.Id)
+                .Select(x => new { x.BillingYear,x.BillingMonth }).ToListAsync(ct);
+            var dates=outstanding.Where(x=>x.TotalBill>0 && !x.IsExcused).Select(x=>DateOnly.ParseExact(x.Period+"-01","yyyy-MM-dd"))
+                .Concat(paid.Select(x=>new DateOnly(x.BillingYear,x.BillingMonth,1))).Distinct().Order();
+            foreach(var start in dates)
+                if ((!year.HasValue || start.Year==year) && start<=clock.PhilippineToday && start<=own.BillableEnd &&
+                    StallOccupancy.AnsweringForMonth(windows,start.Year,start.Month)?.Contract.Id==contract.Id)
+                    result.Add(new(new(FineAffectedPeriodKind.FacilityMonth,start,start.AddMonths(1).AddDays(-1)),start.ToString("MMMM yyyy")));
+        }
+        return Result<IReadOnlyList<FinePeriodOption>>.Success(result);
+    }
+
     public async Task<Result<IReadOnlyList<FineAssessmentEventDto>>> HistoryAsync(Guid id, CancellationToken ct = default)
     {
         if (Guard<IReadOnlyList<FineAssessmentEventDto>>() is { } denied) return denied;

@@ -21,6 +21,11 @@ public sealed class PenaltiesApiClient(HttpClient http) : HandleResponse(http), 
         GetAsync<IReadOnlyList<FineAccountOption>>($"api/fine-assessments/accounts?search={Uri.EscapeDataString(search)}");
     public Task<Result<FineAccountOption>> GetFineAccountAsync(FineAccountRef account) =>
         GetAsync<FineAccountOption>($"api/fine-assessments/accounts/{account.Kind}/{account.AccountId}");
+    public Task<Result<IReadOnlyList<FineAccountOption>>> GetFacilityFineAccountsAsync(Guid stallId, EEMOCantilanSDS.Domain.Enums.FacilityCode facility) =>
+        GetAsync<IReadOnlyList<FineAccountOption>>($"api/fine-assessments/facility-accounts?stallId={stallId}&facility={facility}");
+    public Task<Result<IReadOnlyList<FinePeriodOption>>> GetFinePeriodsAsync(FineAccountRef account, int? year = null) =>
+        GetAsync<IReadOnlyList<FinePeriodOption>>($"api/fine-assessments/accounts/{account.Kind}/{account.AccountId}/periods?year={year}");
+    public Task<Result<IReadOnlyList<FineSourceOption>>> GetFineSourcesAsync() => GetAsync<IReadOnlyList<FineSourceOption>>("api/fine-assessments/sources");
     public Task<Result<FineAccountOption>> ResolveFacilityFineAccountAsync(Guid stallId, EEMOCantilanSDS.Domain.Enums.FacilityCode facility, DateOnly snapshotDate, Guid? contractId = null) =>
         GetAsync<FineAccountOption>($"api/fine-assessments/facility-account?stallId={stallId}&facility={facility}&snapshotDate={snapshotDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}&contractId={contractId}");
     public Task<Result<IReadOnlyList<FinePolicyDto>>> GetFinePoliciesAsync() => GetAsync<IReadOnlyList<FinePolicyDto>>("api/fine-assessments/policies");

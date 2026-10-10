@@ -6,6 +6,7 @@
     else if (_rows.Count == 0) { <p>No saved fine assessments for this account.</p> }
     else { <div class="v3-table-wrap" tabindex="0"><table class="v3-table"><thead><tr><th>Fine</th><th>Assessed on</th><th>Assessed</th><th>Settled</th><th>Remaining</th><th>Status</th></tr></thead><tbody>
         @foreach (var r in _rows) { <tr><td>@r.Penalty
+            @if(r.RelatedPeriod is { } period) { <span class="v3-block">@period.Label</span> }
             @if(r.Remaining>0) { <a class="v3-btn v3-btn-sm" href="@($"/operations/fines?fineAssessmentId={r.Id}")">Record payment</a> }
             </td><td>@r.AssessmentDate.ToString("MMM d, yyyy")</td><td class="v3-num">₱@r.Assessed.ToString("N2")</td><td class="v3-num">₱@r.Settled.ToString("N2")</td><td class="v3-num">₱@r.Remaining.ToString("N2")</td><td>@r.Status</td></tr> }
     </tbody></table></div> }
@@ -40,7 +41,7 @@
                 if(account.Value.Account != Account) { _rows=[]; _error="The liable registration could not be verified. Reload the source account."; return; }
                 _eligible=policies.Value.Any(p=>p.Evidence.AccountKind==Account.Kind && p.Evidence.Facility==account.Value.Facility &&
                     (!account.Value.Closed||p.Evidence.AllowsClosedAccount) && definitions.Value.Any(d=>d.VersionId==p.Evidence.PenaltyVersionId && d.IsActive));
-                if(!_eligible) _eligibilityInfo="No approved penalty policy applies to this account.";
+                if(!_eligible) _eligibilityInfo="No approved fine policy is configured for this source.";
             }
             else _eligibilityInfo="Fine assessment eligibility is unavailable. Reload the source account.";
         } catch { _error="Fine assessments are unavailable. No fine balance is included in rental totals."; }

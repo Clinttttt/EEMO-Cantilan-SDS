@@ -79,7 +79,15 @@
                 </dl>
             </details>
             @if (FineAccount is { } fineAccount) { <section class="review-charges" aria-label="Other assessed charges"><h3>Other assessed charges</h3><AccountFineAssessments Account="fineAccount" OnAssess="OpenFine" RefreshVersion="_fineRefreshVersion" /></section> }
-            else { <section class="review-charges" aria-label="Other assessed charges"><h3>Other assessed charges</h3><p>@(_fineAccountError ?? "A verified liable registration is required to read fine assessments.")</p></section> }
+            else { <section class="review-charges" aria-label="Other assessed charges"><h3>Other assessed charges</h3><p>@(_fineAccountError ?? "A verified liable registration is required to read fine assessments.")</p>
+                @if(Context.FacilityItem?.StallId is not null) {
+                    <button type="button" class="v3-btn v3-btn-sm" disabled="@_selectingSource" @onclick="LoadSourceAccounts">Select verified source account</button>
+                    @if(_sourceAccounts is not null) { <div aria-label="Source contracts">
+                        @foreach(var source in _sourceAccounts) { <button type="button" class="v3-btn v3-btn-sm" @onclick="()=>SelectSource(source)">@source.Occupant · @source.Area · @source.Unit · @source.StartsOn?.ToString("MMM d, yyyy") – @source.EndsOn?.ToString("MMM d, yyyy") · @source.Lifecycle</button> }
+                        @if(_sourceAccounts.Count==0) { <p>No source contracts are available.</p> }
+                    </div> }
+                }
+            </section> }
         }
     </ChildContent>
     <Footer>
@@ -93,7 +101,7 @@
 </VendorDrawerShell>
 @if (_assessingFine && FineAccount is { } assessingAccount)
 {
-    <FineAssessmentDrawer Account="assessingAccount" OnClose="ReturnToReview" OnSaved="FineSaved" />
+    <FineAssessmentDrawer Account="assessingAccount" ManageFocus="false" OnClose="ReturnToReview" OnSaved="FineSaved" />
 }
 </div>
 
@@ -114,6 +122,8 @@
     private string? _verifiedOccupant;
     private string ReviewOccupant => _account?.ActualOccupant ?? _verifiedOccupant ?? Context.Name;
     private string? _fineAccountError;
+    private IReadOnlyList<FineAccountOption>? _sourceAccounts;
+    private bool _selectingSource;
     [CascadingParameter] private Task<AuthenticationState>? Authentication { get; set; }
     private string? _error, _reconciliationWarning;
     private ElementReference _root;
@@ -155,6 +165,23 @@
             }
             catch { _fineAccountError="Fine account verification is unavailable. Reload the queue or open the source account."; }
         }
+    }
+    private async Task LoadSourceAccounts()
+    {
+        if(Context.FacilityItem is not {StallId:{ } stallId} item) return;
+        _selectingSource=true;
+        try { var result=await Fines.GetFacilityFineAccountsAsync(stallId,item.Facility);
+            if(result is {IsSuccess:true,Value:not null} && result.Value.All(x=>x.Facility==item.Facility && x.Account.Kind==EEMOCantilanSDS.Domain.Entities.Revenue.FineAccountKind.FacilityContract)) _sourceAccounts=result.Value;
+            else _fineAccountError="Source contracts could not be loaded. Open the source account.";
+        } catch { _fineAccountError="Source contracts are unavailable. Open the source account."; } finally {_selectingSource=false;}
+    }
+    private async Task SelectSource(FineAccountOption source)
+    {
+        if(Context.FacilityItem is not {StallId:{ } stallId} item || _sourceAccounts?.Contains(source)!=true) return;
+        var result=await Fines.ResolveFacilityFineAccountAsync(stallId,item.Facility,Context.SnapshotDate,source.Account.AccountId);
+        if(result is {IsSuccess:true,Value:not null} && result.Value.Account==source.Account && result.Value.Facility==item.Facility)
+        { _facilityFineAccount=source.Account;_verifiedOccupant=result.Value.Occupant;_fineAccountError=null;_sourceAccounts=null; }
+        else _fineAccountError="This source contract could not be verified. Reload the source account.";
     }
     private async Task Load()
     {
