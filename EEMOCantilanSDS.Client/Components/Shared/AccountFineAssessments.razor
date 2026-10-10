@@ -9,13 +9,24 @@
             @if(r.Remaining>0) { <a class="v3-btn v3-btn-sm" href="@($"/operations/fines?fineAssessmentId={r.Id}")">Record payment</a> }
             </td><td>@r.AssessmentDate.ToString("MMM d, yyyy")</td><td class="v3-num">₱@r.Assessed.ToString("N2")</td><td class="v3-num">₱@r.Settled.ToString("N2")</td><td class="v3-num">₱@r.Remaining.ToString("N2")</td><td>@r.Status</td></tr> }
     </tbody></table></div> }
-    @if (_eligible) { <AuthorizeView Roles="SuperAdmin"><Authorized><a class="v3-btn v3-btn-sm" href="@AssessRoute">Assess fine</a></Authorized></AuthorizeView> }
+    @if (_eligible && _error is null) { <AuthorizeView Roles="SuperAdmin"><Authorized>
+        @if (OnAssess.HasDelegate) { <button class="v3-btn v3-btn-sm" type="button" @onclick="OnAssess">Assess fine</button> }
+        else { <a class="v3-btn v3-btn-sm" href="@AssessRoute">Assess fine</a> }
+    </Authorized></AuthorizeView> }
+    else if (!_loading && _error is null && _eligibilityInfo is not null) { <p>@_eligibilityInfo</p> }
 </div>
 @code {
     [Parameter, EditorRequired] public FineAccountRef Account { get; set; } = null!;
+    [Parameter] public EventCallback OnAssess { get; set; }
+    [Parameter] public int RefreshVersion { get; set; }
+    private FineAccountRef? _loadedAccount;
+    private int _loadedVersion = -1;
+    private string? _eligibilityInfo;
     private List<FineAssessmentDto> _rows = []; private bool _loading = true, _eligible; private string? _error;
     private string AssessRoute => $"/operations/fines?accountKind={Account.Kind}&accountId={Account.AccountId}";
     protected override async Task OnParametersSetAsync() {
+        if (_loadedAccount == Account && _loadedVersion == RefreshVersion) return;
+        _loadedAccount=Account; _loadedVersion=RefreshVersion; _eligibilityInfo=null;
         _loading=true; _error=null; _rows=[]; _eligible=false;
         try {
             var result=await Api.GetAssessmentsAsync(Account.Kind,Account.AccountId);
@@ -25,8 +36,13 @@
             } else _error="Fine assessments are unavailable. No fine balance is included in rental totals.";
             var account=await Api.GetFineAccountAsync(Account); var policies=await Api.GetFinePoliciesAsync(); var definitions=await Api.GetDefinitionsAsync();
             if(account is {IsSuccess:true,Value:not null} && policies is {IsSuccess:true,Value:not null} && definitions is {IsSuccess:true,Value:not null})
+            {
+                if(account.Value.Account != Account) { _rows=[]; _error="The liable registration could not be verified. Reload the source account."; return; }
                 _eligible=policies.Value.Any(p=>p.Evidence.AccountKind==Account.Kind && p.Evidence.Facility==account.Value.Facility &&
                     (!account.Value.Closed||p.Evidence.AllowsClosedAccount) && definitions.Value.Any(d=>d.VersionId==p.Evidence.PenaltyVersionId && d.IsActive));
+                if(!_eligible) _eligibilityInfo="No approved penalty policy applies to this account.";
+            }
+            else _eligibilityInfo="Fine assessment eligibility is unavailable. Reload the source account.";
         } catch { _error="Fine assessments are unavailable. No fine balance is included in rental totals."; }
         finally {_loading=false;}
     }

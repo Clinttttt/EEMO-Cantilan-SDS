@@ -188,6 +188,7 @@ public sealed class FollowUpQueueCompositionTests : TestContext
         Services.AddSingleton(Mock.Of<IStallsApiClient>());
         Services.AddSingleton(payments ?? Mock.Of<IPaymentsApiClient>());
         Services.AddSingleton(Mock.Of<IObligationsApiClient>());
+        Services.AddSingleton(Mock.Of<IPenaltiesApiClient>());
         Services.AddSingleton(Mock.Of<IDailyCollectionApiClient>());
         Services.AddSingleton(Mock.Of<ITrmApiClient>());
         Services.AddSingleton(Mock.Of<ITpmApiClient>());

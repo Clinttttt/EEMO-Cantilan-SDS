@@ -60,6 +60,39 @@ public sealed class FineAssessmentWorkflow(IAppDbContext db, ICurrentUserService
     }
 
     private sealed record AccountFacts(FineAccountOption Option, FacilityCode? Facility, DateOnly Start, DateOnly End);
+    /// <summary>Read-only identity bridge. Null contract means current occupancy, never a guessed past-term owner.</summary>
+    public async Task<Result<FineAccountOption>> ResolveFacilityAccountAsync(Guid stallId, FacilityCode facility,
+        DateOnly snapshotDate, Guid? contractId = null, CancellationToken ct = default)
+    {
+        if (Guard<FineAccountOption>() is { } denied) return denied;
+        if (stallId == Guid.Empty || snapshotDate == default || snapshotDate > clock.PhilippineToday ||
+            facility is not (FacilityCode.NPM or FacilityCode.NCC or FacilityCode.TCC or FacilityCode.BBQ or FacilityCode.ICE))
+            return Result<FineAccountOption>.Failure("Invalid facility account context.", ResultStatus.Invalid);
+        var stall = await db.Stalls.AsNoTracking().Include(x => x.Facility).Include(x => x.Contracts)
+            .SingleOrDefaultAsync(x => x.MunicipalityId == Tenant && x.Id == stallId, ct);
+        if (stall?.Facility is null || stall.Facility.Code != facility) return Result<FineAccountOption>.NotFound();
+        Guid exactId;
+        if (contractId is { } explicitId)
+        {
+            if (!stall.Contracts.Any(x => x.MunicipalityId == Tenant && x.Id == explicitId)) return Result<FineAccountOption>.NotFound();
+            exactId = explicitId;
+        }
+        else
+        {
+            if (stall.Status == StallStatus.Closed)
+                return Result<FineAccountOption>.Failure("This stall has no current occupancy. Open its historical source account.", ResultStatus.Conflict);
+            // Do not let the domain's ordered window clipping silently choose among competing live records.
+            var live = stall.Contracts.Where(x => x.MunicipalityId == Tenant && x.IsActive &&
+                x.EffectivityDate <= clock.PhilippineToday && (x.EndedOn ?? x.ExpiryDate) >= clock.PhilippineToday).ToArray();
+            if (live.Length != 1) return Result<FineAccountOption>.Failure("Current occupancy is missing or ambiguous. Reload the queue or open the source account.", ResultStatus.Conflict);
+            var window = stall.Occupancies(clock.PhilippineToday).SingleOrDefault(x => x.Contract.Id == live[0].Id);
+            if (window is null || !window.IsCurrent || !window.Overlaps(snapshotDate, snapshotDate))
+                return Result<FineAccountOption>.Failure("The occupancy changed since this queue. Reload before assessing a fine.", ResultStatus.Conflict);
+            exactId = live[0].Id;
+        }
+        var facts = await ResolveAsync(new(FineAccountKind.FacilityContract, exactId), ct);
+        return facts is null ? Result<FineAccountOption>.NotFound() : Result<FineAccountOption>.Success(facts.Option);
+    }
     private static ObligationKind? ObligationKindOf(FineAccountKind k) => k switch {
         FineAccountKind.Kanmanggay => ObligationKind.KanmanggaySpaceRental,
         FineAccountKind.VegetableFruitMonthly => ObligationKind.VegetableFruitSpaceRental,

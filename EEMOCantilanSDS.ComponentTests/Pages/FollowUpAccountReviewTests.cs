@@ -14,20 +14,22 @@ using Moq;
 
 namespace EEMOCantilanSDS.ComponentTests.Pages;
 
-public sealed class FollowUpAccountReviewTests : TestContext
+public sealed partial class FollowUpAccountReviewTests : TestContext
 {
     private readonly Mock<IObligationsApiClient> _accounts = new();
     private readonly Mock<IPaymentsApiClient> _payments = new();
     private readonly Mock<IDailyCollectionApiClient> _daily = new();
+    private readonly Mock<IPenaltiesApiClient> _fineApi = new();
     public FollowUpAccountReviewTests()
     {
         Services.AddSingleton(_accounts.Object); Services.AddSingleton(_payments.Object); Services.AddSingleton(_daily.Object);
-        var fineApi = new Mock<IPenaltiesApiClient>();
+        var fineApi = _fineApi;
         fineApi.Setup(x => x.GetAssessmentsAsync(It.IsAny<EEMOCantilanSDS.Domain.Entities.Revenue.FineAccountKind?>(), It.IsAny<Guid?>(), It.IsAny<string?>()))
             .ReturnsAsync(Result<IReadOnlyList<FineAssessmentDto>>.Success([]));
         fineApi.Setup(x => x.GetFinePoliciesAsync()).ReturnsAsync(Result<IReadOnlyList<FinePolicyDto>>.Success([]));
         fineApi.Setup(x => x.GetDefinitionsAsync()).ReturnsAsync(Result<IReadOnlyList<PenaltyDefinitionDto>>.Success([]));
         fineApi.Setup(x => x.GetFineAccountAsync(It.IsAny<FineAccountRef>())).ReturnsAsync(Result<FineAccountOption>.NotFound());
+        fineApi.Setup(x => x.ResolveFacilityFineAccountAsync(It.IsAny<Guid>(), It.IsAny<FacilityCode>(), It.IsAny<DateOnly>(), It.IsAny<Guid?>())).ReturnsAsync(Result<FineAccountOption>.NotFound());
         Services.AddSingleton(fineApi.Object);
         this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
         Services.AddSingleton(Mock.Of<IFacilitiesApiClient>()); Services.AddSingleton<FacilityState>();
@@ -50,6 +52,19 @@ public sealed class FollowUpAccountReviewTests : TestContext
     {
         _accounts.Setup(x => x.GetAccountsAsync(account.Kind)).ReturnsAsync(Result<IReadOnlyList<ObligationAccountDto>>.Success([account]));
         _accounts.Setup(x => x.GetRegisterAsync(account.Id)).ReturnsAsync(Result<IReadOnlyList<ObligationQuoteDto>>.Success(periods));
+    }
+    [Fact]
+    public void CurrentQueueAccountWithNullContractCanReadVerifiedFineAccountWithoutRetargetingRental()
+    {
+        var stall = Guid.NewGuid();
+        var item = new FollowUpItemDto(1,"High","Delinquent","delinquent",FacilityCode.NPM,"Daily","Current occupant","3",60,false,"September 2026","Unpaid","View","/profile/npm/3",stall);
+        _payments.Setup(x=>x.GetOutstandingMonthsAsync(stall,null,null,null)).ReturnsAsync(Result<IReadOnlyList<PaymentHistoryDto>>.Success([new("2026-09",PaymentStatus.Unpaid,60,0,60,null,null)]));
+        var fineAccount = new FineAccountRef(EEMOCantilanSDS.Domain.Entities.Revenue.FineAccountKind.FacilityContract,Guid.NewGuid());
+        _fineApi.Setup(x=>x.ResolveFacilityFineAccountAsync(stall,FacilityCode.NPM,new(2026,10,10),null)).ReturnsAsync(Result<FineAccountOption>.Success(new(fineAccount,"Current occupant","3","New Public Market",false,FacilityCode.NPM)));
+        var cut = RenderComponent<FollowUpAccountReview>(p=>p.Add(x=>x.Context,new(item,null,new(2026,10,10))));
+        Assert.Single(cut.FindComponents<AccountFineAssessments>());
+        Assert.Equal(fineAccount,cut.FindComponent<AccountFineAssessments>().Instance.Account);
+        _payments.Verify(x=>x.GetOutstandingMonthsAsync(stall,null,null,null),Times.Once);
     }
     [Fact]
     public void ActualPeriodsAcrossYearsReconcileAndNeverGenerateMissingYearsOrReceipts()

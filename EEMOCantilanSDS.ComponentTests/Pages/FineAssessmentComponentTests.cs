@@ -66,7 +66,7 @@ public sealed partial class FineAssessmentComponentTests : TestContext
     }
     [Fact] public void HeadAssessLinkNeedsSourcePolicy() {
         var cut=RenderComponent<AccountFineAssessments>(p=>p.Add(x=>x.Account,_account)); Assert.Empty(cut.FindAll("a"));
-        Policy(); cut.SetParametersAndRender(p=>p.Add(x=>x.Account,_account));
+        Policy(); cut.SetParametersAndRender(p=>p.Add(x=>x.Account,_account).Add(x=>x.RefreshVersion,1));
         cut.WaitForAssertion(()=>Assert.Contains($"accountId={_account.AccountId}",cut.Markup));
     }
     [Fact] public void DrawerShowsAmountConstraintsAndSavesOnlyAfterReview() {

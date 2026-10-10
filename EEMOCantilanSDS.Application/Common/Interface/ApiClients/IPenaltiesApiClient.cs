@@ -13,6 +13,7 @@ public interface IPenaltiesApiClient
     Task<Result<IReadOnlyList<FineAssessmentDto>>> GetAssessmentsAsync(FineAccountKind? kind = null, Guid? accountId = null, string? search = null);
     Task<Result<IReadOnlyList<FineAccountOption>>> SearchFineAccountsAsync(string search);
     Task<Result<FineAccountOption>> GetFineAccountAsync(FineAccountRef account);
+    Task<Result<FineAccountOption>> ResolveFacilityFineAccountAsync(Guid stallId, EEMOCantilanSDS.Domain.Enums.FacilityCode facility, DateOnly snapshotDate, Guid? contractId = null);
     Task<Result<IReadOnlyList<FinePolicyDto>>> GetFinePoliciesAsync();
     Task<Result<FinePolicyDto>> RecordFinePolicyAsync(FinePolicyRequest request);
     Task<Result<FineAssessmentDto>> CreateAssessmentAsync(CreateFineAssessmentRequest request);
