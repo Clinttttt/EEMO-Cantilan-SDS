@@ -24,9 +24,11 @@
         </Actions>
     </WorkspaceHeader>
 
+    <FineAssessmentsRegister InitialAccount="RequestedAccount" />
+
     <section class="v3-panel" aria-labelledby="fn-defs-title" aria-busy="@(_loadingDefinitions ? "true" : "false")">
         <header class="v3-panel-header">
-            <h2 id="fn-defs-title">Approved penalties</h2>
+            <h2 id="fn-defs-title">Penalty setup</h2>
             <AuthorizeView Roles="SuperAdmin">
                 <Authorized>
                     @if (!_editing)
@@ -130,6 +132,7 @@
         {
             <p class="v3-notice fn-notice" role="status">@_saved</p>
         }
+        <FinePolicySetup Definitions="_definitions" />
     </section>
 
     <section class="v3-panel" aria-labelledby="fn-register-title" aria-busy="@(_loadingRegister ? "true" : "false")">
@@ -196,13 +199,16 @@
             </table>
         </div>
         <p class="v3-panel-note">
-            A fine is collected on an Official Receipt, beside the rent or ECF
-            item it relates to. This register reads the posted lines (see <a href="/collections/activity">Collection Activity</a>); it records nothing.
+            This register shows actual posted fine collections (see <a href="/collections/activity">Collection Activity</a>). Unpaid assessments are separate; no money is recorded here.
         </p>
     </section>
 </div>
 
 @code {
+    [SupplyParameterFromQuery(Name = "accountKind")] public string? AccountKindQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "accountId")] public Guid? AccountIdQuery { get; set; }
+    private FineAccountRef? RequestedAccount => AccountIdQuery is { } id &&
+        Enum.TryParse<EEMOCantilanSDS.Domain.Entities.Revenue.FineAccountKind>(AccountKindQuery, out var kind) && Enum.IsDefined(kind) ? new(kind,id) : null;
     private List<PenaltyDefinitionDto> _definitions = [];
     private string? _definitionsError;
     private bool _loadingDefinitions = true;

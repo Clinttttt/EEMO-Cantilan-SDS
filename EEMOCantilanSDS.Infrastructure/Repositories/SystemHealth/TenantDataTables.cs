@@ -25,6 +25,7 @@ public static class TenantDataTables
     public static readonly IReadOnlySet<string> Restorable = new HashSet<string>(StringComparer.Ordinal)
     {
         "MobileCollectionSessions", "FishMeatVendorRegistrations",
+        "FineAssessmentPolicies", "FineAssessments", "FineAssessmentEvents", // source-owned non-cash liability and its immutable governing/audit evidence
         "OfficialReportRevisions", // approved targets and report deltas are the tenant's revision-safe official statement evidence
         "Facilities", "FacilityRates", "FacilitySectionRates", "FacilitySectionUtilities", "FacilitySectionClosures", "OrSeriesConfigs", "RevenueClassifications", "RevenueClassificationPolicies", "Collections", "CollectionLines", "Payors", "CollectionAllocations", "WebCollectionDrafts", "WebCollectionDraftLines", "WebCollectionDraftAllocations", "PostingOperations", "CollectionSettlementCutovers", "AccountableFormBooks", "AccountableDocuments", "AccountableFormAssignments", "CollectionCorrections", "CollectionCorrectionLines", "CollectionCorrectionAllocations", "Stalls", "Contracts", "PaymentRecords",
         "DailyCollections", "UtilityBills", "StallMonthlyExceptions", "NpmMarketClosures",

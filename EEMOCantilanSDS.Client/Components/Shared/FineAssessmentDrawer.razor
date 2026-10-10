@@ -1,0 +1,112 @@
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@using EEMOCantilanSDS.Domain.Enums
+@inject IPenaltiesApiClient Api
+
+<AddNewDrawer Show="true" Title="Assess fine" Subtitle="Save an outstanding charge. No payment is recorded."
+    FormId="assess-fine" FormLabel="Assess fine" Saving="_saving" Error="@_error" OnCancel="Cancel"
+    SubmitText="@(_review ? "Confirm assessment" : "Review assessment")" OnSubmit="Submit">
+    <ChildContent>
+        @if (_loading) { <p role="status">Loading approved assessment policies…</p> }
+        else if (_review && _selected is not null && SelectedPolicy is not null)
+        {
+            <AddNewSection Plain="true" Title="Review">
+                <dl><dt>Liable occupant</dt><dd>@_selected.Occupant</dd><dt>Account</dt><dd>@_selected.Source · @_selected.Unit</dd>
+                    <dt>Penalty</dt><dd>@SelectedPenalty?.DisplayName</dd><dt>Assessment amount</dt><dd>₱@_amount.ToString("N2")</dd>
+                    <dt>Violation date</dt><dd>@_violation.ToString("MMM d, yyyy")</dd><dt>Incident reference</dt><dd>@(_incident.Length == 0 ? "Not supplied" : _incident)</dd>
+                    <dt>Reason</dt><dd>@_reason</dd><dt>Governing reference</dt><dd>@SelectedPolicy.Evidence.GoverningReference</dd></dl>
+                @if (_duplicate) { <label class="v3-field"><input type="checkbox" @bind="_confirmDuplicate" /> I reviewed the existing assessment; this is a different incident.</label> }
+                <button class="v3-btn" type="button" disabled="@_saving" @onclick="() => _review = false">Review details</button>
+            </AddNewSection>
+        }
+        else
+        {
+            <AddNewSection Plain="true" Title="Account Information">
+                @if (Account is null)
+                {
+                    <label class="v3-field"><span>Search registered accounts</span><input @bind="_search" placeholder="Occupant or unit number" maxlength="100" /></label>
+                    <button class="v3-btn" type="button" @onclick="Search" disabled="@_searching">Search</button>
+                    @foreach (var option in _options) { <button class="v3-btn" type="button" @onclick="() => Select(option)">@option.Occupant · @option.Source · @option.Unit @(option.Closed ? "(closed)" : "")</button> }
+                }
+                @if (_selected is not null) { <p><strong>@_selected.Occupant</strong><br />@_selected.Source · @_selected.Unit</p> }
+            </AddNewSection>
+            <AddNewSection Plain="true" Title="Fine Details">
+                <label class="v3-field"><span>Approved penalty category</span><select required @bind="_policyId">
+                    <option value="@Guid.Empty">Select approved policy</option>
+                    @foreach (var policy in EligiblePolicies) { <option value="@policy.Id">@PenaltyName(policy) · @policy.Evidence.GoverningReference</option> }
+                </select></label>
+                @if (!EligiblePolicies.Any()) { <p>No governing penalty policy is available for this account.</p> }
+                <div class="v3-form-grid">
+                    <label class="v3-field"><span>Violation date</span><input type="date" required @bind="_violation" /></label>
+                    <label class="v3-field"><span>Incident / case reference</span><input maxlength="200" @bind="_incident" /></label>
+                </div>
+                <label class="v3-field"><span>Reason / description</span><textarea class="avm-input" rows="3" required maxlength="1000" @bind="_reason"></textarea></label>
+                <label class="v3-field"><span>Assessment amount (₱)</span><input type="number" required min="0.01" step="0.01" @bind="_amount" /></label>
+                @if (SelectedPenalty is { } penalty)
+                {
+                    <p>@(penalty.Basis == GovernedServiceBasis.FixedAmount ? $"Fixed approved amount: ₱{penalty.FixedAmount:N2}" : penalty.MaximumAmount is { } ceiling ? $"Direct approved amount · Maximum ₱{ceiling:N2}" : "Direct amount · Explicit uncapped authority required")</p>
+                    <p>Version basis: @(SelectedPolicy?.Evidence.DateBasis == FinePenaltyDateBasis.ViolationDate ? "Violation date" : "Assessment date")</p>
+                }
+                <p class="v3-panel-note">Without a dependable case reference, duplicate checks are warnings, not proof of a distinct incident.</p>
+            </AddNewSection>
+        }
+    </ChildContent>
+</AddNewDrawer>
+
+@code {
+    [Parameter] public FineAccountRef? Account { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+    private List<FineAccountOption> _options = [];
+    private List<FinePolicyDto> _policies = [];
+    private List<PenaltyDefinitionDto> _definitions = [];
+    private FineAccountOption? _selected;
+    private string _search = "", _incident = "", _reason = "";
+    private Guid _policyId, _operation;
+    private DateOnly _violation = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today;
+    private decimal _amount;
+    private bool _loading = true, _searching, _saving, _review, _duplicate, _confirmDuplicate;
+    private string? _error;
+    private IEnumerable<FinePolicyDto> EligiblePolicies => _policies.Where(p => _selected is not null &&
+        p.Evidence.AccountKind == _selected.Account.Kind && p.Evidence.Facility == _selected.Facility &&
+        (!_selected.Closed || p.Evidence.AllowsClosedAccount) && _definitions.Any(d => d.VersionId == p.Evidence.PenaltyVersionId && d.IsActive));
+    private FinePolicyDto? SelectedPolicy => EligiblePolicies.SingleOrDefault(p => p.Id == _policyId);
+    private PenaltyDefinitionDto? SelectedPenalty => _definitions.SingleOrDefault(d => d.VersionId == SelectedPolicy?.Evidence.PenaltyVersionId);
+    private string PenaltyName(FinePolicyDto policy) => _definitions.SingleOrDefault(d => d.VersionId == policy.Evidence.PenaltyVersionId)?.DisplayName ?? "Unavailable version";
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var policies = await Api.GetFinePoliciesAsync(); var definitions = await Api.GetDefinitionsAsync();
+            if (policies is not { IsSuccess: true, Value: not null } || definitions is not { IsSuccess: true, Value: not null }) { _error = "Assessment policies could not be loaded."; return; }
+            _policies = policies.Value.ToList(); _definitions = definitions.Value.Concat(_policies.Where(p=>p.Definition is not null).Select(p=>p.Definition!)).DistinctBy(d=>d.VersionId).ToList();
+            if (Account is not null) { var result = await Api.GetFineAccountAsync(Account); if (result is { IsSuccess: true, Value: not null }) _selected = result.Value; else _error = "The liable source account is unavailable."; }
+        }
+        catch { _error = "Assessment policies are unavailable. Retry from the account."; }
+        finally { _loading = false; }
+    }
+    private async Task Search()
+    {
+        _searching = true; _error = null;
+        try { var result = await Api.SearchFineAccountsAsync(_search); if (result is { IsSuccess: true, Value: not null }) _options = result.Value.ToList(); else _error = "Eligible account search failed."; }
+        catch { _error = "Eligible account search is unavailable."; } finally { _searching = false; }
+    }
+    private void Select(FineAccountOption option) { _selected = option; _policyId = Guid.Empty; _error = null; }
+    private Task Cancel() => _saving ? Task.CompletedTask : OnClose.InvokeAsync();
+    private async Task Submit()
+    {
+        if (_saving || _loading) return;
+        if (_selected is null || SelectedPolicy is null || string.IsNullOrWhiteSpace(_reason) || _amount <= 0) { _error = "Select the account and approved policy, then enter incident details and a positive amount."; return; }
+        if (!_review) { _review = true; _operation = Guid.NewGuid(); _error = null; _duplicate = false; _confirmDuplicate = false; return; }
+        if (_duplicate && !_confirmDuplicate) { _error = "Review the possible duplicate before confirming."; return; }
+        _saving = true; _error = null;
+        try
+        {
+            var result = await Api.CreateAssessmentAsync(new(_operation, _selected.Account, _policyId, _violation, _incident, _reason, _amount, _confirmDuplicate));
+            if (result is { IsSuccess: true }) await OnSaved.InvokeAsync();
+            else { _error = result?.Error ?? "The assessment could not be saved."; _duplicate = _error.Contains("POSSIBLE_DUPLICATE", StringComparison.Ordinal); }
+        }
+        catch { _error = "The result is unavailable. Retry unchanged details to recover the same assessment."; }
+        finally { _saving = false; }
+    }
+}

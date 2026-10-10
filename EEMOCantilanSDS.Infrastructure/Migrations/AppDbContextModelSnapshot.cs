@@ -2473,6 +2473,219 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.FineAssessment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AccountKind")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("AssessedAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("AuthoritySnapshot")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly>("BusinessDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("ClientOperationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ContractId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("IncidentReference")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("MunicipalityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ObligationAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Occupant")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("PenaltyCode")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("PenaltyName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<Guid>("PenaltyVersionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PolicyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("RecordedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("SourceName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("UnitReference")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.Property<DateOnly>("ViolationDate")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MunicipalityId", "BusinessDate");
+
+                    b.HasIndex("MunicipalityId", "ClientOperationId")
+                        .IsUnique();
+
+                    b.HasIndex("MunicipalityId", "ObligationAccountId");
+
+                    b.HasIndex("MunicipalityId", "PenaltyVersionId");
+
+                    b.HasIndex("MunicipalityId", "PolicyId", "PenaltyVersionId", "AccountKind");
+
+                    b.HasIndex("MunicipalityId", "ContractId", "ObligationAccountId", "PenaltyCode", "IncidentReference")
+                        .IsUnique()
+                        .HasFilter("\"IncidentReference\" IS NOT NULL");
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("MunicipalityId", "ContractId", "ObligationAccountId", "PenaltyCode", "IncidentReference"), false);
+
+                    b.ToTable("FineAssessments", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_FineAssessment_Amount", "\"AssessedAmount\" > 0");
+
+                            t.HasCheckConstraint("CK_FineAssessment_Dates", "\"ViolationDate\" <= \"BusinessDate\"");
+
+                            t.HasCheckConstraint("CK_FineAssessment_Source", "(\"AccountKind\" = 1 AND \"ContractId\" IS NOT NULL AND \"ObligationAccountId\" IS NULL) OR (\"AccountKind\" IN (2,3,4) AND \"ContractId\" IS NULL AND \"ObligationAccountId\" IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.FineAssessmentEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AssessmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EventKind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("Evidence")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("MunicipalityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("PreviousAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime>("RecordedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("ResultingAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MunicipalityId", "AssessmentId");
+
+                    b.ToTable("FineAssessmentEvents", (string)null);
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.FineAssessmentPolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AccountKind")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("AllowsClosedAccount")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("AllowsUncappedAmount")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("DateBasis")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("Facility")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("GoverningReference")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("MunicipalityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PenaltyVersionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("RecordedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("MunicipalityId", "Id");
+
+                    b.HasIndex("MunicipalityId", "PenaltyVersionId");
+
+                    b.ToTable("FineAssessmentPolicies", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_FinePolicy_DateBasis", "\"DateBasis\" IN (1,2)");
+
+                            t.HasCheckConstraint("CK_FinePolicy_Source", "(\"AccountKind\" = 1 AND \"Facility\" IS NOT NULL) OR (\"AccountKind\" IN (2,3,4) AND \"Facility\" IS NULL)");
+                        });
+                });
+
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.FishMeatVendorRegistration", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3159,8 +3372,6 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
-
-                    b.HasAlternateKey("MunicipalityId", "Id");
 
                     b.HasIndex("MunicipalityId", "Code", "EffectiveDate");
 
@@ -5118,6 +5329,61 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.HasOne("EEMOCantilanSDS.Domain.Entities.Tenancy.Municipality", null)
                         .WithMany()
                         .HasForeignKey("MunicipalityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.FineAssessment", b =>
+                {
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Tenancy.Municipality", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Facilities.Contract", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "ContractId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.ObligationAccount", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "ObligationAccountId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.PenaltyDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "PenaltyVersionId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.FineAssessmentPolicy", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "PolicyId", "PenaltyVersionId", "AccountKind")
+                        .HasPrincipalKey("MunicipalityId", "Id", "PenaltyVersionId", "AccountKind")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.FineAssessmentEvent", b =>
+                {
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.FineAssessment", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "AssessmentId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.FineAssessmentPolicy", b =>
+                {
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.PenaltyDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "PenaltyVersionId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

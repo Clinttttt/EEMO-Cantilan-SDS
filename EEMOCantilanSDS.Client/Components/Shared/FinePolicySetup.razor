@@ -1,0 +1,40 @@
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@using EEMOCantilanSDS.Domain.Enums
+@inject IPenaltiesApiClient Api
+<AuthorizeView Roles="SuperAdmin"><Authorized>
+    <div aria-label="Assessment governing evidence">
+        <header class="v3-panel-header"><h3>Assessment eligibility</h3><button type="button" class="v3-btn" @onclick="() => _open = true">Configure governing evidence</button></header>
+        <p class="v3-panel-note">Definition setup alone does not enable assessments. Record the actual governing source, amount and date authority.</p>
+    </div>
+    @if (_open)
+    {
+        <AddNewDrawer Show="true" Title="Assessment governing evidence" FormId="fine-policy" Saving="_saving" Error="@_error" OnCancel="Cancel" OnSubmit="Save" SubmitText="Record evidence">
+            <ChildContent><AddNewSection Title="Approved authority">
+                <label class="v3-field"><span>Approved definition</span><select required @bind="_definition"><option value="@Guid.Empty">Select definition</option>@foreach(var d in Definitions.Where(d=>d.IsActive)) { <option value="@d.VersionId">@d.DisplayName</option> }</select></label>
+                <label class="v3-field"><span>Source family</span><select @bind="_kind">@foreach(var k in Enum.GetValues<FineAccountKind>()) { <option value="@k">@k</option> }</select></label>
+                @if (_kind == FineAccountKind.FacilityContract) { <label class="v3-field"><span>Facility</span><select @bind="_facility">@foreach(var f in new[] { FacilityCode.NPM, FacilityCode.NCC, FacilityCode.TCC, FacilityCode.BBQ, FacilityCode.ICE }) { <option value="@f">@f</option> }</select></label> }
+                <label class="v3-field"><span>Governing authorization reference</span><input required maxlength="200" @bind="_reference" placeholder="Actual approved schedule / ordinance / office authority" /></label>
+                <label class="v3-field"><span>Penalty version applies on</span><select @bind="_basis"><option value="@FinePenaltyDateBasis.AssessmentDate">Assessment business date</option><option value="@FinePenaltyDateBasis.ViolationDate">Actual violation date</option></select></label>
+                <label class="v3-field"><input type="checkbox" @bind="_uncapped" /> The reference expressly authorizes uncapped direct amounts</label>
+                <label class="v3-field"><input type="checkbox" @bind="_closed" /> The reference permits assessment against the liable closed account</label>
+                <label class="v3-field"><input type="checkbox" required @bind="_confirmed" /> I verified this source, date basis and amount authority in the governing evidence.</label>
+            </AddNewSection></ChildContent>
+        </AddNewDrawer>
+    }
+</Authorized></AuthorizeView>
+@code {
+    [Parameter] public IReadOnlyList<PenaltyDefinitionDto> Definitions { get; set; } = [];
+    private bool _open, _saving, _uncapped, _closed, _confirmed; private string? _error;
+    private Guid _definition; private string _reference = ""; private FineAccountKind _kind = FineAccountKind.FacilityContract;
+    private FacilityCode _facility = FacilityCode.NPM; private FinePenaltyDateBasis _basis = FinePenaltyDateBasis.AssessmentDate;
+    private void Cancel() { if (!_saving) _open = false; }
+    private async Task Save() {
+        if (_saving) return;
+        if (!_confirmed) { _error = "Confirm the actual governing evidence before enabling this combination."; return; }
+        _saving = true; _error = null;
+        try { var result = await Api.RecordFinePolicyAsync(new(_definition,_kind,_kind == FineAccountKind.FacilityContract ? _facility : null,_reference,_basis,_uncapped,_closed));
+            if (result is { IsSuccess:true }) _open=false; else _error=result?.Error ?? "Governing evidence could not be recorded."; }
+        catch { _error="Governing evidence is unavailable."; } finally { _saving=false; }
+    }
+}

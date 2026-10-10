@@ -77,7 +77,8 @@
                     }
                 </dl>
             </details>
-            <section class="review-charges" aria-label="Other assessed charges"><h3>Other assessed charges</h3><p>Saved fine assessments are not yet supported. No fine balance is included above.</p></section>
+            @if (FineAccount is { } fineAccount) { <section class="review-charges" aria-label="Other assessed charges"><h3>Other assessed charges</h3><AccountFineAssessments Account="fineAccount" /></section> }
+            else { <section class="review-charges" aria-label="Other assessed charges"><h3>Other assessed charges</h3><p>A verified liable registration is required to read fine assessments.</p></section> }
         }
     </ChildContent>
     <Footer>
@@ -108,6 +109,11 @@
     private string SourceName => Context.ObligationItem?.Scope.DisplayName ?? (Context.FacilityItem is { } i ? Facilities.NameOf(i.Facility) : "Account");
     private bool IsEvent => Context.ObligationItem?.Scope.Kind == EEMOCantilanSDS.Application.Dtos.Reports.FollowUpScopeKind.EventLot;
     private bool IsNpm => Context.FacilityItem?.Facility == FacilityCode.NPM;
+    private FineAccountRef? FineAccount => _account is { } a ? new(a.Kind switch {
+        ObligationKind.KanmanggaySpaceRental => EEMOCantilanSDS.Domain.Entities.Revenue.FineAccountKind.Kanmanggay,
+        ObligationKind.VegetableFruitSpaceRental => EEMOCantilanSDS.Domain.Entities.Revenue.FineAccountKind.VegetableFruitMonthly,
+        _ => EEMOCantilanSDS.Domain.Entities.Revenue.FineAccountKind.FiestaAraw }, a.Id) :
+        Context.FacilityItem?.ContractId is { } contractId ? new(EEMOCantilanSDS.Domain.Entities.Revenue.FineAccountKind.FacilityContract,contractId) : null;
     private IEnumerable<Period> Owed => _periods.Where(p => p.Remaining > 0).OrderBy(p => p.Date);
     private decimal Outstanding => _account?.OutstandingToDate ?? _periods.Sum(p => p.Remaining);
     private static string Money(decimal value) => $"₱{value:N2}";

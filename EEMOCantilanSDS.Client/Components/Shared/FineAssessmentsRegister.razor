@@ -1,0 +1,51 @@
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@inject IPenaltiesApiClient Api
+<section class="v3-panel" aria-label="Fine assessments" aria-busy="@(_loading ? "true" : "false")">
+    <header class="v3-panel-header"><h2>Assessments</h2><AuthorizeView Roles="SuperAdmin"><Authorized>
+        <button class="v3-btn v3-btn-primary" type="button" @onclick="() => _adding = true">Assess fine</button>
+    </Authorized></AuthorizeView></header>
+    <div class="v3-toolbar"><label class="v3-field" style="flex: 1 1 260px; max-width: 420px"><span>Search</span><input @bind="_search" placeholder="Occupant, unit or description" /></label>
+        <button class="v3-btn" type="button" @onclick="Load">Search</button>
+        <label class="v3-field"><span>Status</span><select @bind="_status"><option>All</option><option>Outstanding</option></select></label>
+    </div>
+    @if (_error is not null) { <p class="v3-notice v3-notice-error" role="alert">@_error <button type="button" class="v3-btn" @onclick="Load">Retry</button></p> }
+    <div class="v3-table-wrap" tabindex="0"><table class="v3-table"><thead><tr><th>Payor / account</th><th>Fine</th><th>Violation / assessment</th><th class="v3-num">Assessed</th><th class="v3-num">Settled</th><th class="v3-num">Remaining</th><th>Status</th><th>Details</th></tr></thead><tbody>
+        @foreach (var row in _rows.Where(r => _status == "All" || r.Status == _status))
+        {
+            <tr><td><strong>@row.Occupant</strong><span class="v3-block">@row.Source · @row.Unit</span></td><td>@row.Penalty<span class="v3-block">@row.Description</span></td>
+                <td>@row.ViolationDate.ToString("MMM d, yyyy")<span class="v3-block">Assessed @row.AssessmentDate.ToString("MMM d, yyyy")</span></td>
+                <td class="v3-num">₱@row.Assessed.ToString("N2")</td><td class="v3-num">₱@row.Settled.ToString("N2")</td><td class="v3-num">₱@row.Remaining.ToString("N2")</td><td>@row.Status</td>
+                <td><button type="button" class="v3-btn v3-btn-sm" @onclick="() => Details(row)">View details</button></td></tr>
+        }
+        @if (_rows.Count == 0) { <tr><td colspan="8" class="v3-empty">@(_loading ? "Loading assessments…" : _error is not null ? "Assessments unavailable." : "No saved assessments match.")</td></tr> }
+    </tbody></table></div>
+    <p class="v3-panel-note">Saved assessments are amounts owed. Assessment settlement is not enabled.</p>
+</section>
+@if (_adding) { <AuthorizeView Roles="SuperAdmin"><Authorized><FineAssessmentDrawer Account="InitialAccount" OnClose="() => _adding = false" OnSaved="Saved" /></Authorized></AuthorizeView> }
+@if (_selected is { } selected)
+{
+    <VendorDrawerShell Show="true" Title="Fine assessment" Subtitle="@($"{selected.Occupant} · {selected.Source} · {selected.Unit}")" OnClose="() => _selected = null">
+        <ChildContent><dl><dt>Fine</dt><dd>@selected.Penalty</dd><dt>Reason</dt><dd>@selected.Description</dd><dt>Incident reference</dt><dd>@(selected.IncidentReference ?? "Not supplied")</dd>
+            <dt>Governing reference</dt><dd>@selected.GoverningReference</dd><dt>Outstanding</dt><dd>₱@selected.Remaining.ToString("N2")</dd></dl>
+            <h3>Assessment history</h3>@if (_historyError is not null) { <p role="alert">@_historyError</p> }
+            @foreach (var e in _history) { <p>@e.Kind · @e.RecordedAtUtc.ToString("u") · ₱@e.Previous.ToString("N2") → ₱@e.Resulting.ToString("N2")</p> }
+            <p>Payment and obligation-adjustment commands are not enabled.</p></ChildContent>
+        <Footer><button class="btn-ghost" type="button" @onclick="() => _selected = null">Close</button></Footer>
+    </VendorDrawerShell>
+}
+@code {
+    [Parameter] public FineAccountRef? InitialAccount { get; set; }
+    private FineAccountRef? _openedAccount;
+    protected override void OnParametersSet() { if (InitialAccount is not null && InitialAccount != _openedAccount) { _openedAccount = InitialAccount; _adding = true; } }
+    private List<FineAssessmentDto> _rows = []; private List<FineAssessmentEventDto> _history = [];
+    private FineAssessmentDto? _selected; private string? _error, _historyError;
+    private string _search = "", _status = "All"; private bool _loading = true, _adding;
+    protected override Task OnInitializedAsync() => Load();
+    private async Task Load() { _loading = true; _error = null; _rows = [];
+        try { var result = await Api.GetAssessmentsAsync(search: _search); if (result is { IsSuccess: true, Value: not null }) _rows = result.Value.ToList(); else _error = result?.Error ?? "Assessments could not be loaded."; }
+        catch { _error = "Assessments are unavailable."; } finally { _loading = false; } }
+    private async Task Saved() { _adding = false; await Load(); }
+    private async Task Details(FineAssessmentDto row) { _selected = row; _history = []; _historyError = null;
+        try { var result = await Api.GetAssessmentHistoryAsync(row.Id); if (result is { IsSuccess: true, Value: not null }) _history = result.Value.ToList(); else _historyError = "Assessment history is unavailable."; }
+        catch { _historyError = "Assessment history is unavailable."; } }
+}

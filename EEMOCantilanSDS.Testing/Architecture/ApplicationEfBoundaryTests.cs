@@ -197,6 +197,10 @@ public class ApplicationEfBoundaryTests
         // Approved penalty definitions (append-only versions) and the read-only register of posted fines. It posts nothing:
         // a fine is collected only through the Composer, which revalidates the definition version at review and post.
         "PenaltyDefinitionWorkflow.cs",
+        // Like the existing penalty/obligation workflows, this assessment-only feature owns the tenant-scoped
+        // source/definition validation and one atomic assessment + audit insert, including PostgreSQL replay conflicts.
+        // It intentionally does not call any cash writer or create rental periods; queries use IAppDbContext filters.
+        "FineAssessmentWorkflow.cs",
         "ObligationWorkflow.cs",
         "VehicleClassWorkflow.cs",
         "RemittanceWorkflow.cs",

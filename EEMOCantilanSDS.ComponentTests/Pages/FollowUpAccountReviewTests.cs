@@ -1,4 +1,5 @@
 using Bunit;
+using Bunit.TestDoubles;
 using EEMOCantilanSDS.Application.Common;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.DailyCollections;
@@ -21,6 +22,14 @@ public sealed class FollowUpAccountReviewTests : TestContext
     public FollowUpAccountReviewTests()
     {
         Services.AddSingleton(_accounts.Object); Services.AddSingleton(_payments.Object); Services.AddSingleton(_daily.Object);
+        var fineApi = new Mock<IPenaltiesApiClient>();
+        fineApi.Setup(x => x.GetAssessmentsAsync(It.IsAny<EEMOCantilanSDS.Domain.Entities.Revenue.FineAccountKind?>(), It.IsAny<Guid?>(), It.IsAny<string?>()))
+            .ReturnsAsync(Result<IReadOnlyList<FineAssessmentDto>>.Success([]));
+        fineApi.Setup(x => x.GetFinePoliciesAsync()).ReturnsAsync(Result<IReadOnlyList<FinePolicyDto>>.Success([]));
+        fineApi.Setup(x => x.GetDefinitionsAsync()).ReturnsAsync(Result<IReadOnlyList<PenaltyDefinitionDto>>.Success([]));
+        fineApi.Setup(x => x.GetFineAccountAsync(It.IsAny<FineAccountRef>())).ReturnsAsync(Result<FineAccountOption>.NotFound());
+        Services.AddSingleton(fineApi.Object);
+        this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
         Services.AddSingleton(Mock.Of<IFacilitiesApiClient>()); Services.AddSingleton<FacilityState>();
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>()); Services.AddSingleton<BrandingState>();
         Services.AddSingleton(Mock.Of<IStallsApiClient>()); Services.AddSingleton(Mock.Of<ISetupApiClient>());
@@ -57,7 +66,7 @@ public sealed class FollowUpAccountReviewTests : TestContext
         Assert.Contains("Settled assessed periods",cut.Markup);
         Assert.Contains("Closed",cut.Markup); Assert.Contains("Maria Contract",cut.Markup);
         Assert.Contains("Receipt allocations and correction history are unavailable here",cut.Markup);
-        Assert.Contains("Saved fine assessments are not yet supported",cut.Markup);
+        Assert.Contains("No saved fine assessments",cut.Markup);
         Assert.DoesNotContain("Current read",cut.Markup);
         Assert.DoesNotContain("Account / follow-up status",cut.Markup);
         Assert.Empty(cut.FindAll(".review-detail-row"));

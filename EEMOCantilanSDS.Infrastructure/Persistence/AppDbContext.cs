@@ -168,6 +168,9 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         public DbSet<GovernedServiceSetting> GovernedServiceSettings { get; set; }
         public DbSet<OfficialReportRevision> OfficialReportRevisions { get; set; }
         public DbSet<PenaltyDefinition> PenaltyDefinitions { get; set; }
+        public DbSet<FineAssessment> FineAssessments { get; set; }
+        public DbSet<FineAssessmentPolicy> FineAssessmentPolicies { get; set; }
+        public DbSet<FineAssessmentEvent> FineAssessmentEvents { get; set; }
         public DbSet<ObligationAccount> ObligationAccounts { get; set; }
         public DbSet<ObligationRate> ObligationRates { get; set; }
         public DbSet<ObligationPeriod> ObligationPeriods { get; set; }

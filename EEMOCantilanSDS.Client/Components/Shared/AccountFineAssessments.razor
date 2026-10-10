@@ -1,0 +1,31 @@
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@inject IPenaltiesApiClient Api
+<div>
+    @if (_loading) { <p role="status">Loading fine assessments…</p> }
+    else if (_error is not null) { <p role="alert">@_error</p> }
+    else if (_rows.Count == 0) { <p>No saved fine assessments for this account.</p> }
+    else { <div class="v3-table-wrap" tabindex="0"><table class="v3-table"><thead><tr><th>Fine</th><th>Assessed on</th><th>Assessed</th><th>Settled</th><th>Remaining</th><th>Status</th></tr></thead><tbody>
+        @foreach (var r in _rows) { <tr><td>@r.Penalty</td><td>@r.AssessmentDate.ToString("MMM d, yyyy")</td><td class="v3-num">₱@r.Assessed.ToString("N2")</td><td class="v3-num">₱@r.Settled.ToString("N2")</td><td class="v3-num">₱@r.Remaining.ToString("N2")</td><td>@r.Status</td></tr> }
+    </tbody></table></div> }
+    @if (_eligible) { <AuthorizeView Roles="SuperAdmin"><Authorized><a class="v3-btn v3-btn-sm" href="@AssessRoute">Assess fine</a></Authorized></AuthorizeView> }
+</div>
+@code {
+    [Parameter, EditorRequired] public FineAccountRef Account { get; set; } = null!;
+    private List<FineAssessmentDto> _rows = []; private bool _loading = true, _eligible; private string? _error;
+    private string AssessRoute => $"/operations/fines?accountKind={Account.Kind}&accountId={Account.AccountId}";
+    protected override async Task OnParametersSetAsync() {
+        _loading=true; _error=null; _rows=[]; _eligible=false;
+        try {
+            var result=await Api.GetAssessmentsAsync(Account.Kind,Account.AccountId);
+            if(result is {IsSuccess:true,Value:not null}) {
+                if (result.Value.Any(r=>r.Account != Account)) _error="Fine assessments returned a different account. Reload before review.";
+                else _rows=result.Value.ToList();
+            } else _error="Fine assessments are unavailable. No fine balance is included in rental totals.";
+            var account=await Api.GetFineAccountAsync(Account); var policies=await Api.GetFinePoliciesAsync(); var definitions=await Api.GetDefinitionsAsync();
+            if(account is {IsSuccess:true,Value:not null} && policies is {IsSuccess:true,Value:not null} && definitions is {IsSuccess:true,Value:not null})
+                _eligible=policies.Value.Any(p=>p.Evidence.AccountKind==Account.Kind && p.Evidence.Facility==account.Value.Facility &&
+                    (!account.Value.Closed||p.Evidence.AllowsClosedAccount) && definitions.Value.Any(d=>d.VersionId==p.Evidence.PenaltyVersionId && d.IsActive));
+        } catch { _error="Fine assessments are unavailable. No fine balance is included in rental totals."; }
+        finally {_loading=false;}
+    }
+}
