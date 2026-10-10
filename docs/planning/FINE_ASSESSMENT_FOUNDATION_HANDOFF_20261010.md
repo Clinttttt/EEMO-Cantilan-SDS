@@ -1,5 +1,7 @@
 # Fine Assessment foundation — October 10, 2026
 
+Later local settlement development is recorded in [Fine Assessment canonical settlement](FINE_ASSESSMENT_SETTLEMENT_HANDOFF_20261010.md). Settlement limitations below describe this foundation checkpoint; activation and adjustment/cash-correction gates remain applicable.
+
 Checkout: `C:\dev\stalltrack\eemo`; branch `codex/vegetable-fruit-space-workspace`; starting HEAD `06b13179`.
 
 Implementation and tests: `51d1493c` — `feat(finance): add governed fine assessment foundation and account reads`. This handoff and the focused authority/supersession notes are committed separately. Settlement is **not implemented**.
