@@ -2,6 +2,8 @@
 
 Status: **proposal only; persistence and settlement are not approved or implemented**.
 
+Historical proposal status above is superseded for the assessment-only software increment by the owner's October 10 product decisions and [foundation handoff](FINE_ASSESSMENT_FOUNDATION_HANDOFF_20261010.md). Governing legal evidence remains distinct; settlement and refund/adjustment commands are not activated by that increment. The proposal below is retained as design history, not the current implementation checklist.
+
 Governance-finalization checkpoint: 2026-10-10, checkout `C:\dev\stalltrack\eemo`, branch `codex/vegetable-fruit-space-workspace`, starting HEAD `c288ed14`. The project owner has visually accepted the Account Review presentation. Freeze that design; this review changes documentation only. The three concurrently modified coordination/release documents are excluded.
 Received product direction: project-owner prompt, 2026-10-10. Fine assessments should be capable of being saved independently before receipt of payment and displayed as outstanding account-linked charges. Posting collected revenue remains a separate authorized Collection operation.
 
