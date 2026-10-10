@@ -4,40 +4,51 @@
 
 @if (Show)
 {
-<VendorDrawerShell Show="@(Show && !_registering)" Title="From NPM occupants" Subtitle="@($"Verify registration for tax year {TaxYear}")" OnClose="Close">
+<VendorDrawerShell Show="@(Show && !_registering)" Title="From NPM occupants" Subtitle="@($"Verify vendor registration · Tax year {TaxYear}")" OnClose="Close">
     <Icon><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-2 2M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l2-2" /></svg></Icon>
     <ChildContent>
         @if (_loading) { <p role="status">Loading NPM occupancies…</p> }
         else if (_selected is null)
         {
             <input class="avm-input" aria-label="Search NPM occupants" placeholder="Search occupant or stall…" @bind="_search" @bind:event="oninput" />
-            <div class="npm-link-options">
+            <div class="npm-link-options npm-link-filters">
                 <label><input type="checkbox" @bind="_historical" @bind:after="Load" /> Include historical occupancies</label>
                 <label><input type="checkbox" @bind="_exceptions" @bind:after="Load" /> Include other areas for manual review</label>
             </div>
             @foreach (var row in VisibleRows)
             {
                 <button type="button" class="npm-link-candidate" @onclick="() => Select(row)">
-                    <strong>@row.Occupant</strong><span>@row.Area · Stall @row.StallNo · @(row.Active ? "Active" : "Historical")</span>
-                    <small>Contract @row.ContractId · @row.EffectiveFrom.ToString("MMM d, yyyy")</small>
-                    <span>@(row.Links.Any(x => x.CorrectedAtUtc == null) ? "Verified registration link" : "Needs office verification")</span>
+                    <span class="npm-link-identity"><strong>@row.Occupant</strong><span>@row.Area · Stall @row.StallNo</span>
+                    <small>@(row.Active ? "Active occupancy" : "Historical occupancy") · @(row.Links.Any(x => x.CorrectedAtUtc == null) ? "Verified registration linked" : "Needs verification")</small></span>
+                    <span class="npm-link-chevron" aria-hidden="true">→</span>
                 </button>
             }
             @if (VisibleRows.Count == 0 && _error is null) { <p>No occupancies match this view.</p> }
         }
         else
         {
-            <button class="btn-ghost" type="button" disabled="@_saving" @onclick="() => _selected = null">← NPM occupants</button>
-            <h3>@_selected.Occupant</h3>
-            <p>@_selected.Area · Stall @_selected.StallNo · @(_selected.Active ? "Active occupancy" : "Historical occupancy")</p>
-            <small>Contract @_selected.ContractId</small>
+            <section class="npm-link-summary" aria-label="Occupant information">
+                <h3>@_selected.Occupant</h3>
+                <p>New Public Market · @_selected.Area · Stall @_selected.StallNo</p>
+                <dl class="npm-link-facts"><div><dt>Status</dt><dd>@(_selected.Active ? "Active occupancy" : "Historical occupancy")</dd></div><div><dt>Tax year</dt><dd>@TaxYear</dd></div></dl>
+                <details class="npm-link-evidence"><summary>Source details</summary>
+                    <dl class="npm-link-facts"><div><dt>Contract reference</dt><dd>@_selected.ContractId</dd></div><div><dt>Effective from</dt><dd>@_selected.EffectiveFrom.ToString("MMM d, yyyy")</dd></div></dl>
+                </details>
+            </section>
+            <section class="npm-link-section" aria-label="Registration status">
+            <h3>Registration status</h3>
+            @if (!HasVerifiedLink)
+            {
+                <p>@(_selected.PossibleMatches.Count > 0 ? "Possible existing registrations require review." : "No verified registration link for this tax year.")</p>
+            }
             @foreach (var link in _selected.Links)
             {
                 <div class="npm-link-record">
                     <strong>@VendorName(link.VendorRegistrationId)</strong>
-                    <span>@(link.CorrectedAtUtc.HasValue ? "Corrected link" : "Verified link") · @link.ConfirmedBy · @link.ConfirmedAtUtc.ToString("MMM d, yyyy")</span>
-                    @if (link.CorrectedAtUtc is { } corrected) { <small>@link.CorrectionReason · @link.CorrectedBy · @corrected.ToString("MMM d, yyyy")</small> }
+                    <span>@(link.CorrectedAtUtc.HasValue ? "Corrected link" : "Verified registration linked")</span>
                     <a href="@DetailsUrl(link.VendorRegistrationId)">View registration</a>
+                    <details class="npm-link-evidence"><summary>Verification history</summary><p>@link.ConfirmedBy · @link.ConfirmedAtUtc.ToString("MMM d, yyyy") · @link.ConfirmationNote</p>
+                    @if (link.CorrectedAtUtc is { } corrected) { <p>@link.CorrectionReason · @link.CorrectedBy · @corrected.ToString("MMM d, yyyy")</p> }</details>
                     @if (!link.CorrectedAtUtc.HasValue && _head)
                     {
                         <button type="button" class="btn-ghost" disabled="@_saving" @onclick="() => _correcting = link.Id">Correct link</button>
@@ -46,46 +57,86 @@
             }
             @if (_correcting.HasValue)
             {
-                <label class="avm-label" for="npm-correction">Correction reason</label>
+                <div class="avm-group"><label class="avm-label" for="npm-correction">Correction reason</label>
                 <input id="npm-correction" class="avm-input" maxlength="500" @bind="_correctionReason" />
-                <button type="button" class="btn-primary" disabled="@(_saving || string.IsNullOrWhiteSpace(_correctionReason))" @onclick="Correct">Confirm correction</button>
+                </div>
             }
             @if (_selected.PossibleMatches.Count > 0)
             {
-                <div class="npm-link-record"><strong>Possible name matches — verify manually</strong>
-                    @foreach (var match in _selected.PossibleMatches) { <a href="@DetailsUrl(match.Id)">@match.DisplayName · @match.VendorType · @match.BusinessName</a> }
-                </div>
+                <details class="npm-link-evidence"><summary>Possible name matches — verify manually</summary>
+                    @foreach (var match in _selected.PossibleMatches) { <p><a href="@DetailsUrl(match.Id)">@match.DisplayName · @match.VendorType · @match.BusinessName</a></p> }
+                </details>
             }
-            @if (_head)
+            </section>
+            @if (_head && !_correcting.HasValue)
             {
-                <label class="avm-label" for="npm-vendor">Existing registration</label>
+                <section class="npm-link-section" aria-label="Registration action">
+                @if (HasVerifiedLink) { <p class="npm-link-muted">Use the linked registration above. Review another registration only for a verified separate business or type.</p> }
+                <h3>Choose what to do</h3>
+                <ChoiceCards Label="Registration action" Items="ReviewChoices" Value="@(_path?.ToString() ?? "")" ValueChanged="ChoosePath" />
+                @if (_path == ReviewPath.Link)
+                {
+                <div class="avm-group"><label class="avm-label" for="npm-vendor">Existing vendor registration</label>
                 <input class="avm-input" aria-label="Search existing registrations" placeholder="Search vendor or business…" @bind="_vendorSearch" @bind:event="oninput" />
-                <select id="npm-vendor" class="avm-input" @bind="_vendorId"><option value="">Select a verified registration</option>
+                <select id="npm-vendor" class="avm-input" @bind="_vendorId"><option value="">Choose a registration</option>
                     @foreach (var v in FilteredVendors) { <option value="@v.Id">@v.DisplayName · @v.VendorType · @v.BusinessName</option> }
-                </select>
-                <label class="avm-label" for="npm-confirmation">Office confirmation / evidence</label>
-                <input id="npm-confirmation" class="avm-input" maxlength="500" @bind="_note" />
+                </select></div>
+                @if (SelectedVendor is { } vendor)
+                {
+                    <div class="npm-link-confirmation"><strong>@vendor.DisplayName</strong><span>@vendor.VendorType · @(vendor.BusinessName ?? "No business name recorded") · Tax year @vendor.TaxYear</span><span>Link to NPM · @_selected.Area · Stall @_selected.StallNo</span></div>
+                }
+                }
+                @if (_path.HasValue)
+                {
+                <div class="avm-group"><label class="avm-label" for="npm-confirmation">Verification note</label>
+                <input id="npm-confirmation" class="avm-input" maxlength="500" placeholder="e.g. Office reference and identity checked" @bind="_note" /></div>
                 <div class="npm-link-options">
-                    <label><input type="checkbox" @bind="_exceptionConfirmed" /> Confirm historical occupancy or area/type exception, if applicable</label>
-                    <label><input type="checkbox" @bind="_duplicatesReviewed" /> Existing registrations reviewed; any new registration is a distinct verified business/type</label>
+                    @if (RequiresException) { <label><input type="checkbox" @bind="_exceptionConfirmed" /> Exception confirmed<span>Verify this historical occupancy or area/type exception.</span></label> }
+                    @if (_path == ReviewPath.New && RequiresDuplicateReview) { <label><input type="checkbox" @bind="_duplicatesReviewed" /> Existing records reviewed<span>A separate legitimate business or vendor type is confirmed.</span></label> }
                 </div>
-                <button type="button" class="btn-primary" disabled="@(_saving || !Guid.TryParse(_vendorId, out _) || string.IsNullOrWhiteSpace(_note))" @onclick="Link">Link existing registration</button>
-                <button type="button" class="btn-outline" disabled="@(_saving || string.IsNullOrWhiteSpace(_note) || (_selected.Links.Any(x => x.CorrectedAtUtc == null) || _selected.PossibleMatches.Count > 0) && !_duplicatesReviewed)" @onclick="NewRegistration">Register distinct new vendor</button>
+                }
+                </section>
             }
         }
         @if (_error is not null) { <div class="avm-error" role="alert">@_error @if (_selected is null) { <button class="btn-ghost" type="button" disabled="@_loading" @onclick="Load">Retry</button> }</div> }
     </ChildContent>
-    <Footer><button class="btn-ghost" type="button" disabled="@_saving" @onclick="Close">Close</button></Footer>
+    <Footer>
+        @if (_selected is null) { <button class="btn-ghost" type="button" disabled="@_saving" @onclick="Close">Close</button> }
+        else
+        {
+            <button class="btn-ghost" type="button" disabled="@_saving" @onclick="Back">Back</button>
+            @if (_head && _correcting.HasValue) { <button type="button" class="btn-primary" disabled="@(_saving || string.IsNullOrWhiteSpace(_correctionReason))" @onclick="Correct">Confirm correction</button> }
+            else if (_head && _path == ReviewPath.Link) { <button type="button" class="btn-primary" disabled="@(!CanContinue || SelectedVendor is null)" @onclick="Link">Confirm link</button> }
+            else if (_head && _path == ReviewPath.New) { <button type="button" class="btn-primary" disabled="@(!CanContinue || RequiresDuplicateReview && !_duplicatesReviewed)" @onclick="NewRegistration">Register new vendor</button> }
+        }
+    </Footer>
 </VendorDrawerShell>
+@if (_registering)
+{
 <VendorRegistrationDrawer Show="@(Show && _registering)" Model="_form" Title="Register Fish/Meat vendor" Subtitle="@($"Tax year {TaxYear} · verified NPM occupancy")"
                           FormId="npm-vendor-register" Saving="_saving" Error="@_error" OnSubmit="Register" OnCancel="BackToReview">
     <SourceContext>
-        @if (_selected is not null) { <div class="npm-link-record"><strong>NPM occupancy</strong><span>@_selected.Occupant · @_selected.Area · Stall @_selected.StallNo</span><small>Contract @_selected.ContractId</small><span>@_note</span></div> }
+        @if (_selected is not null)
+        {
+            <div class="npm-link-record"><strong>NPM occupancy</strong><span>@_selected.Area · Stall @_selected.StallNo · Tax year @TaxYear</span><details class="npm-link-evidence"><summary>Source details</summary><p>Contract @_selected.ContractId</p><p>@_note</p></details></div>
+            @if (!_selected.Active || _selected.SuggestedType != _form.Type) { <div class="npm-link-options"><label><input type="checkbox" @bind="_exceptionConfirmed" /> Exception confirmed<span>Verify this historical occupancy or area/type exception.</span></label></div> }
+        }
     </SourceContext>
 </VendorRegistrationDrawer>
 }
+}
 
 @code {
+    private enum ReviewPath { Link, New }
+    private static readonly IReadOnlyList<ChoiceCards.Choice> ReviewChoices = [new("Link", "Link existing registration"), new("New", "Register new vendor")];
+    private ReviewPath? _path;
+    private bool HasVerifiedLink => _selected?.Links.Any(x => x.CorrectedAtUtc == null) == true;
+    private bool RequiresDuplicateReview => HasVerifiedLink || _selected?.PossibleMatches.Count > 0;
+    private FishMeatVendorRegistrationDto? SelectedVendor => Guid.TryParse(_vendorId, out var id) ? _vendors.FirstOrDefault(x => x.Id == id) : null;
+    private bool RequiresException => _selected is { } source && (!source.Active || !source.SuggestedType.HasValue || _path == ReviewPath.Link && SelectedVendor is { } vendor && source.SuggestedType != vendor.VendorType);
+    private bool CanContinue => !_saving && !string.IsNullOrWhiteSpace(_note) && (!RequiresException || _exceptionConfirmed);
+    private void ChoosePath(string value) { _path = value == "Link" ? ReviewPath.Link : ReviewPath.New; _exceptionConfirmed = false; _duplicatesReviewed = false; _error = null; }
+    private void Back() { if (_saving) return; if (_correcting.HasValue) _correcting = null; else if (_path.HasValue) _path = null; else _selected = null; _error = null; }
     [Parameter] public bool Show { get; set; }
     [Parameter] public int TaxYear { get; set; }
     [Parameter] public Guid? InitialContractId { get; set; }
@@ -135,7 +186,7 @@
     }
     private void Select(NpmVendorCandidate row)
     {
-        _selected = row; _vendorId = ""; _vendorSearch = ""; _note = ""; _error = null; _correcting = null;
+        _selected = row; _path = null; _vendorId = ""; _vendorSearch = ""; _note = ""; _error = null; _correcting = null;
         _exceptionConfirmed = false; _duplicatesReviewed = false; _submittedIntent = null; _operation = Guid.NewGuid();
     }
     private ConfirmNpmVendorAssociationRequest Request() => new(_operation, _selected!.ContractId, _selected.StallId, _selected.SourceVersion, _note.Trim(), _exceptionConfirmed, _duplicatesReviewed);
@@ -183,7 +234,7 @@
     private async Task RefreshSelected()
     {
         var id = _selected!.ContractId; await Load(); _selected = _rows.SingleOrDefault(x => x.ContractId == id);
-        _correcting = null; _submittedIntent = null; _operation = Guid.NewGuid(); await OnSaved.InvokeAsync();
+        _correcting = null; _path = null; _submittedIntent = null; _operation = Guid.NewGuid(); await OnSaved.InvokeAsync();
     }
     private static string Problem(string? code) => code switch
     {

@@ -1,6 +1,28 @@
-.npm-link-options { display: grid; gap: 10px; margin: 16px 0; font-size: 13px; }
-.npm-link-candidate { display: grid; gap: 5px; width: 100%; text-align: left; padding: 14px; margin: 8px 0; border: 1px solid #dce3ed; border-radius: 8px; background: white; color: #26364d; cursor: pointer; }
-.npm-link-candidate:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
-.npm-link-candidate span, .npm-link-candidate small { font-size: 12px; overflow-wrap: anywhere; }
-.npm-link-record { display: grid; gap: 6px; padding: 12px 0; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; overflow-wrap: anywhere; }
-.npm-link-record a { color: #245ca4; }
+.npm-link-options { display: grid; gap: 10px; margin: 14px 0; font-size: .8125rem; }
+.npm-link-options label { display: grid; grid-template-columns: auto minmax(0,1fr); align-items: center; column-gap: 8px; }
+.npm-link-options label span { grid-column: 2; color: var(--text-secondary); font-size: .75rem; margin-top: 3px; }
+.npm-link-filters { padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+.npm-link-candidate { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; padding: 12px; margin: 8px 0; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); color: var(--text); cursor: pointer; font: inherit; }
+.npm-link-candidate:hover { border-color: var(--accent); background: var(--bg); }
+.npm-link-candidate:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.npm-link-identity { display: grid; gap: 4px; min-width: 0; }
+.npm-link-identity strong { font-size: .875rem; overflow-wrap: anywhere; }
+.npm-link-identity span, .npm-link-identity small { font-size: .75rem; color: var(--text-secondary); overflow-wrap: anywhere; }
+.npm-link-chevron { color: var(--accent); flex-shrink: 0; }
+.npm-link-summary h3 { margin: 0 0 6px; font-size: 1rem; overflow-wrap: anywhere; }
+.npm-link-summary p, .npm-link-section p { font-size: .8125rem; line-height: 1.5; margin: 6px 0 12px; color: var(--text-secondary); }
+.npm-link-facts { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin: 12px 0; font-size: .8125rem; }
+.npm-link-facts dt { font-size: .75rem; color: var(--text-secondary); }
+.npm-link-facts dd { margin: 4px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+.npm-link-evidence { font-size: .75rem; margin: 10px 0; color: var(--text-secondary); overflow-wrap: anywhere; }
+.npm-link-evidence summary { cursor: pointer; padding: 3px 0; }
+.npm-link-section { border-top: 1px solid var(--border); margin-top: 16px; padding-top: 14px; }
+.npm-link-section h3 { font-size: .9375rem; margin: 0 0 10px; }
+.npm-link-section .avm-group { margin-top: 14px; min-width: 0; }
+.npm-link-record, .npm-link-confirmation { display: grid; gap: 6px; padding: 10px 0; font-size: .8125rem; overflow-wrap: anywhere; }
+.npm-link-record + .npm-link-record { border-top: 1px solid var(--border); }
+.npm-link-record a, .npm-link-evidence a { color: var(--accent); }
+.npm-link-record button { justify-self: start; }
+.npm-link-confirmation { border-left: 3px solid var(--accent); padding-left: 12px; margin-top: 14px; }
+.npm-link-confirmation span { color: var(--text-secondary); font-size: .75rem; }
+@media (max-width: 480px) { .npm-link-facts { grid-template-columns: minmax(0,1fr); } }
