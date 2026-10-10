@@ -9,7 +9,8 @@ public sealed record CollectionSourceSearchResult(CollectionSourceIdentity Ident
     string OperationCode, int? TaxYear = null, FishMeatVendorType? VendorType = null);
 public enum CollectionFamily { Market = 1, Rent = 2, Space = 3, Terminal = 4, Slaughterhouse = 5 }
 public sealed record RegisterFishMeatVendorRequest(Guid ClientOperationId, int TaxYear, FishMeatVendorType VendorType,
-    VendorRegistrationKind RegistrationKind, string DisplayName, string? BusinessName = null, string? Address = null, string? Reference = null);
+    VendorRegistrationKind RegistrationKind, string DisplayName, string? BusinessName = null, string? Address = null, string? Reference = null,
+    ConfirmNpmVendorAssociationRequest? NpmAssociation = null);
 public sealed record FishMeatVendorRegistrationDto(Guid Id, int TaxYear, FishMeatVendorType VendorType,
     VendorRegistrationKind RegistrationKind, string DisplayName, string? BusinessName, string? Address, string? Reference);
 public sealed record SourceNativeChargeIntent(string OperationCode, Guid? VendorRegistrationId = null,

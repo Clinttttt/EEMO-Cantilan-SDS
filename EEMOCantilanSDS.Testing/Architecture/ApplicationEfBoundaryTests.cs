@@ -164,6 +164,9 @@ public class ApplicationEfBoundaryTests
         // Registry lifecycle commands share the existing source workflow/Serializable boundary; management totals
         // delegate to its canonical correction-aware activity reader instead of defining a second money query.
         "OfficeCollectionWorkflow.Management.cs",
+        // Optional IA-068 registration evidence uses the existing registry's transaction/context boundary to
+        // atomically confirm an NPM contract and annual vendor registration. It adds no collection writer.
+        "OfficeCollectionWorkflow.NpmAssociations.cs",
 
         // The shared Composer posting transaction revalidates every participating source and atomically writes
         // the draft, Collection/lines/allocations, compatibility projections, accountable document, and durable

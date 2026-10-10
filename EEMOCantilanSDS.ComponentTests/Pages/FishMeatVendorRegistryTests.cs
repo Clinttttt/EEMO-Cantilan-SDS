@@ -57,7 +57,7 @@ public sealed class FishMeatVendorRegistryTests : TestContext
             Assert.Contains(rows, r => r.Contains("Lisa Ilogans") && r.Contains("Ilogans Fish Stall") && r.Contains("Fish") && r.Contains("New") && r.Contains("Purok 3") && r.Contains("₱186.00"));
             Assert.Contains(rows, r => r.Contains("Pantom Dant") && r.Contains("Meat") && r.Contains("Renew") && r.Contains("₱0.00"));
             Assert.Contains("num", cut.FindAll("tbody tr")[0].QuerySelectorAll("td").Last().ClassName);                              // right-aligned money
-            foreach (var word in new[] { "NPM", "Payor", "Stall rent", "Collections this month", "Walk-up" })
+            foreach (var word in new[] { "Payor", "Stall rent", "Collections this month", "Walk-up" })
                 Assert.DoesNotContain(word, cut.Markup);
         }, Timeout);
         _office.Verify(x => x.ActivityAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<string?>()), Times.Never);       // no second activity read
@@ -90,7 +90,7 @@ public sealed class FishMeatVendorRegistryTests : TestContext
         Assert.Equal(["2|Registered", "1|Fish", "1|Meat"], figures);
         Assert.Single(cut.FindAll(".toolbar-unified"));
         Assert.Equal(["All", "Fish", "Meat"], cut.FindAll(".filter-tab").Select(t => t.TextContent.Trim()).ToArray());
-        Assert.Equal(["Collection Activity", "Reports", "Import list", "Register vendor"], cut.FindAll(".fmv-actions-bar a, .fmv-actions-bar button").Select(a => a.TextContent.Trim()).ToArray());
+        Assert.Equal(["Collection Activity", "Reports", "From NPM occupants", "Import list", "Register vendor"], cut.FindAll(".fmv-actions-bar a, .fmv-actions-bar button").Select(a => a.TextContent.Trim()).ToArray());
         Assert.Equal("/operations/fish-meat-vendor-fees/import", cut.FindAll(".fmv-actions-bar a").Single(a => a.TextContent.Trim() == "Import list").GetAttribute("href"));
     }
 

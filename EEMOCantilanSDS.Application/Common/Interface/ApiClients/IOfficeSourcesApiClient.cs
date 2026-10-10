@@ -4,6 +4,10 @@ using EEMOCantilanSDS.Domain.Common;
 namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 public interface IOfficeSourcesApiClient
 {
+    Task<Result<NpmVendorCandidates>> NpmVendorCandidatesAsync(int taxYear, bool historical = false, bool exceptions = false);
+    Task<Result<IReadOnlyList<NpmVendorAssociationDto>>> NpmVendorLinksAsync(Guid vendorId);
+    Task<Result<NpmVendorAssociationDto>> LinkNpmVendorAsync(Guid vendorId, ConfirmNpmVendorAssociationRequest request);
+    Task<Result<NpmVendorAssociationDto>> CorrectNpmVendorLinkAsync(Guid id, CorrectNpmVendorAssociationRequest request);
     Task<Result<IReadOnlyList<FishMeatVendorRegistrationDto>>> RegistrationsAsync(int year);
     Task<Result<FishMeatVendorRegistrationDto>> RegisterAsync(RegisterFishMeatVendorRequest request);
     Task<Result<VendorRegistryImportPreview>> PreviewImportAsync(VendorRegistryImportRequest request);

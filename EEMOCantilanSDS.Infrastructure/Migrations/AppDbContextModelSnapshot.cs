@@ -2693,6 +2693,90 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.FishMeatNpmAssociation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClientOperationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ConfirmationNote")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("ConfirmedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ConfirmedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("ContractId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CorrectedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CorrectedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("CorrectionOperationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CorrectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("MunicipalityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("OccupantSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("SourceVersion")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("StallId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("VendorRegistrationId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MunicipalityId", "ClientOperationId")
+                        .IsUnique();
+
+                    b.HasIndex("MunicipalityId", "CorrectionOperationId")
+                        .IsUnique()
+                        .HasFilter("\"CorrectionOperationId\" IS NOT NULL");
+
+                    b.HasIndex("MunicipalityId", "ContractId", "StallId");
+
+                    b.HasIndex("MunicipalityId", "VendorRegistrationId", "ContractId")
+                        .IsUnique()
+                        .HasFilter("\"CorrectedAtUtc\" IS NULL");
+
+                    b.ToTable("FishMeatNpmAssociations", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_NpmAssociation_Correction", "(\"CorrectedAtUtc\" IS NULL AND \"CorrectionOperationId\" IS NULL AND \"CorrectedBy\" IS NULL AND \"CorrectionReason\" IS NULL) OR (\"CorrectedAtUtc\" IS NOT NULL AND \"CorrectionOperationId\" IS NOT NULL AND \"CorrectedBy\" IS NOT NULL AND \"CorrectionReason\" IS NOT NULL)");
+                        });
+                });
+
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.FishMeatVendorRegistration", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5397,6 +5481,23 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("MunicipalityId", "PenaltyVersionId")
                         .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.FishMeatNpmAssociation", b =>
+                {
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.FishMeatVendorRegistration", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "VendorRegistrationId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Facilities.Contract", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "ContractId", "StallId")
+                        .HasPrincipalKey("MunicipalityId", "Id", "StallId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

@@ -1,0 +1,200 @@
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@inject IOfficeSourcesApiClient Api
+
+@if (Show)
+{
+<VendorDrawerShell Show="@(Show && !_registering)" Title="From NPM occupants" Subtitle="@($"Verify registration for tax year {TaxYear}")" OnClose="Close">
+    <Icon><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-2 2M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l2-2" /></svg></Icon>
+    <ChildContent>
+        @if (_loading) { <p role="status">Loading NPM occupancies…</p> }
+        else if (_selected is null)
+        {
+            <input class="avm-input" aria-label="Search NPM occupants" placeholder="Search occupant or stall…" @bind="_search" @bind:event="oninput" />
+            <div class="npm-link-options">
+                <label><input type="checkbox" @bind="_historical" @bind:after="Load" /> Include historical occupancies</label>
+                <label><input type="checkbox" @bind="_exceptions" @bind:after="Load" /> Include other areas for manual review</label>
+            </div>
+            @foreach (var row in VisibleRows)
+            {
+                <button type="button" class="npm-link-candidate" @onclick="() => Select(row)">
+                    <strong>@row.Occupant</strong><span>@row.Area · Stall @row.StallNo · @(row.Active ? "Active" : "Historical")</span>
+                    <small>Contract @row.ContractId · @row.EffectiveFrom.ToString("MMM d, yyyy")</small>
+                    <span>@(row.Links.Any(x => x.CorrectedAtUtc == null) ? "Verified registration link" : "Needs office verification")</span>
+                </button>
+            }
+            @if (VisibleRows.Count == 0 && _error is null) { <p>No occupancies match this view.</p> }
+        }
+        else
+        {
+            <button class="btn-ghost" type="button" disabled="@_saving" @onclick="() => _selected = null">← NPM occupants</button>
+            <h3>@_selected.Occupant</h3>
+            <p>@_selected.Area · Stall @_selected.StallNo · @(_selected.Active ? "Active occupancy" : "Historical occupancy")</p>
+            <small>Contract @_selected.ContractId</small>
+            @foreach (var link in _selected.Links)
+            {
+                <div class="npm-link-record">
+                    <strong>@VendorName(link.VendorRegistrationId)</strong>
+                    <span>@(link.CorrectedAtUtc.HasValue ? "Corrected link" : "Verified link") · @link.ConfirmedBy · @link.ConfirmedAtUtc.ToString("MMM d, yyyy")</span>
+                    @if (link.CorrectedAtUtc is { } corrected) { <small>@link.CorrectionReason · @link.CorrectedBy · @corrected.ToString("MMM d, yyyy")</small> }
+                    <a href="@DetailsUrl(link.VendorRegistrationId)">View registration</a>
+                    @if (!link.CorrectedAtUtc.HasValue && _head)
+                    {
+                        <button type="button" class="btn-ghost" disabled="@_saving" @onclick="() => _correcting = link.Id">Correct link</button>
+                    }
+                </div>
+            }
+            @if (_correcting.HasValue)
+            {
+                <label class="avm-label" for="npm-correction">Correction reason</label>
+                <input id="npm-correction" class="avm-input" maxlength="500" @bind="_correctionReason" />
+                <button type="button" class="btn-primary" disabled="@(_saving || string.IsNullOrWhiteSpace(_correctionReason))" @onclick="Correct">Confirm correction</button>
+            }
+            @if (_selected.PossibleMatches.Count > 0)
+            {
+                <div class="npm-link-record"><strong>Possible name matches — verify manually</strong>
+                    @foreach (var match in _selected.PossibleMatches) { <a href="@DetailsUrl(match.Id)">@match.DisplayName · @match.VendorType · @match.BusinessName</a> }
+                </div>
+            }
+            @if (_head)
+            {
+                <label class="avm-label" for="npm-vendor">Existing registration</label>
+                <input class="avm-input" aria-label="Search existing registrations" placeholder="Search vendor or business…" @bind="_vendorSearch" @bind:event="oninput" />
+                <select id="npm-vendor" class="avm-input" @bind="_vendorId"><option value="">Select a verified registration</option>
+                    @foreach (var v in FilteredVendors) { <option value="@v.Id">@v.DisplayName · @v.VendorType · @v.BusinessName</option> }
+                </select>
+                <label class="avm-label" for="npm-confirmation">Office confirmation / evidence</label>
+                <input id="npm-confirmation" class="avm-input" maxlength="500" @bind="_note" />
+                <div class="npm-link-options">
+                    <label><input type="checkbox" @bind="_exceptionConfirmed" /> Confirm historical occupancy or area/type exception, if applicable</label>
+                    <label><input type="checkbox" @bind="_duplicatesReviewed" /> Existing registrations reviewed; any new registration is a distinct verified business/type</label>
+                </div>
+                <button type="button" class="btn-primary" disabled="@(_saving || !Guid.TryParse(_vendorId, out _) || string.IsNullOrWhiteSpace(_note))" @onclick="Link">Link existing registration</button>
+                <button type="button" class="btn-outline" disabled="@(_saving || string.IsNullOrWhiteSpace(_note) || (_selected.Links.Any(x => x.CorrectedAtUtc == null) || _selected.PossibleMatches.Count > 0) && !_duplicatesReviewed)" @onclick="NewRegistration">Register distinct new vendor</button>
+            }
+        }
+        @if (_error is not null) { <div class="avm-error" role="alert">@_error @if (_selected is null) { <button class="btn-ghost" type="button" disabled="@_loading" @onclick="Load">Retry</button> }</div> }
+    </ChildContent>
+    <Footer><button class="btn-ghost" type="button" disabled="@_saving" @onclick="Close">Close</button></Footer>
+</VendorDrawerShell>
+<VendorRegistrationDrawer Show="@(Show && _registering)" Model="_form" Title="Register Fish/Meat vendor" Subtitle="@($"Tax year {TaxYear} · verified NPM occupancy")"
+                          FormId="npm-vendor-register" Saving="_saving" Error="@_error" OnSubmit="Register" OnCancel="BackToReview">
+    <SourceContext>
+        @if (_selected is not null) { <div class="npm-link-record"><strong>NPM occupancy</strong><span>@_selected.Occupant · @_selected.Area · Stall @_selected.StallNo</span><small>Contract @_selected.ContractId</small><span>@_note</span></div> }
+    </SourceContext>
+</VendorRegistrationDrawer>
+}
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public int TaxYear { get; set; }
+    [Parameter] public Guid? InitialContractId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+    [CascadingParameter] private Task<AuthenticationState>? Authentication { get; set; }
+    private bool _head, _wasShown, _loading, _saving, _registering, _historical, _exceptions, _exceptionConfirmed, _duplicatesReviewed;
+    private string _search = "", _vendorSearch = "", _vendorId = "", _note = "", _correctionReason = "";
+    private string? _error, _submittedIntent;
+    private Guid _operation = Guid.NewGuid();
+    private Guid? _correcting;
+    private IReadOnlyList<NpmVendorCandidate> _rows = [];
+    private IReadOnlyList<FishMeatVendorRegistrationDto> _vendors = [];
+    private NpmVendorCandidate? _selected;
+    private VendorRegistrationForm _form = new();
+    private IReadOnlyList<NpmVendorCandidate> VisibleRows => _rows.Where(x => string.IsNullOrWhiteSpace(_search) || $"{x.Occupant} {x.StallNo} {x.Area}".Contains(_search, StringComparison.OrdinalIgnoreCase)).ToArray();
+    private IEnumerable<FishMeatVendorRegistrationDto> FilteredVendors => _vendors.Where(x => $"{x.DisplayName} {x.BusinessName}".Contains(_vendorSearch, StringComparison.OrdinalIgnoreCase));
+    private string VendorName(Guid id) => _vendors.FirstOrDefault(x => x.Id == id)?.DisplayName ?? "Recorded vendor registration";
+    private string DetailsUrl(Guid id) => $"/operations/fish-meat-vendor-fees/manage?taxYear={TaxYear}&registrationId={id}";
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Show && !_wasShown)
+        {
+            _head = Authentication is not null && (await Authentication).User.IsInRole("SuperAdmin");
+            _selected = null; _registering = false; _historical = InitialContractId.HasValue; _exceptions = InitialContractId.HasValue;
+            await Load();
+            if (InitialContractId is { } id)
+            {
+                var row = _rows.SingleOrDefault(x => x.ContractId == id);
+                if (row is null) _error = "This NPM occupancy is unavailable."; else Select(row);
+            }
+        }
+        _wasShown = Show;
+    }
+    private async Task Load()
+    {
+        _loading = true; _error = null;
+        try
+        {
+            var candidates = await Api.NpmVendorCandidatesAsync(TaxYear, _historical, _exceptions);
+            var vendors = await Api.RegistrationsAsync(TaxYear);
+            if (!candidates.IsSuccess || !vendors.IsSuccess) { _rows = []; _error = "NPM registration evidence could not be loaded."; return; }
+            _rows = candidates.Value!.Rows; _vendors = vendors.Value!;
+        }
+        catch { _error = "NPM registration evidence could not be loaded."; }
+        finally { _loading = false; }
+    }
+    private void Select(NpmVendorCandidate row)
+    {
+        _selected = row; _vendorId = ""; _vendorSearch = ""; _note = ""; _error = null; _correcting = null;
+        _exceptionConfirmed = false; _duplicatesReviewed = false; _submittedIntent = null; _operation = Guid.NewGuid();
+    }
+    private ConfirmNpmVendorAssociationRequest Request() => new(_operation, _selected!.ContractId, _selected.StallId, _selected.SourceVersion, _note.Trim(), _exceptionConfirmed, _duplicatesReviewed);
+    private void PrepareIntent(string intent)
+    {
+        if (_submittedIntent is not null && _submittedIntent != intent) _operation = Guid.NewGuid();
+        _submittedIntent = intent;
+    }
+    private async Task Link()
+    {
+        if (_saving || !_head || !Guid.TryParse(_vendorId, out var id)) return;
+        PrepareIntent($"link|{id}|{_selected?.SourceVersion}|{_note}|{_exceptionConfirmed}|{_duplicatesReviewed}");
+        _saving = true; _error = null;
+        try { var result = await Api.LinkNpmVendorAsync(id, Request()); if (!result.IsSuccess) _error = Problem(result.Error); else await RefreshSelected(); }
+        catch { _error = "The link could not be saved. Retry keeps the same request identity."; }
+        finally { _saving = false; }
+    }
+    private void NewRegistration()
+    {
+        _form = new() { Name = _selected!.Occupant, Type = _selected.SuggestedType ?? FishMeatVendorType.Fish, Kind = VendorRegistrationKind.New, TaxYear = TaxYear };
+        _registering = true; _error = null;
+    }
+    private async Task Register()
+    {
+        if (_saving || !_head) return;
+        PrepareIntent($"register|{_form.Fingerprint}|{_selected?.SourceVersion}|{_note}|{_exceptionConfirmed}|{_duplicatesReviewed}");
+        _saving = true; _error = null;
+        try
+        {
+            var result = await Api.RegisterAsync(new(_operation, TaxYear, _form.Type, _form.Kind, _form.Name.Trim(),
+                VendorRegistrationForm.Blank(_form.Business), VendorRegistrationForm.Blank(_form.Address), null, Request()));
+            if (!result.IsSuccess) _error = Problem(result.Error); else { _registering = false; await RefreshSelected(); }
+        }
+        catch { _error = "The registration could not be saved. Retry keeps the same request identity."; }
+        finally { _saving = false; }
+    }
+    private async Task Correct()
+    {
+        if (_saving || !_head || _correcting is not { } id) return;
+        PrepareIntent($"correct|{id}|{_correctionReason}"); _saving = true; _error = null;
+        try { var result = await Api.CorrectNpmVendorLinkAsync(id, new(_operation, _correctionReason.Trim())); if (!result.IsSuccess) _error = Problem(result.Error); else await RefreshSelected(); }
+        catch { _error = "The correction could not be saved."; }
+        finally { _saving = false; }
+    }
+    private async Task RefreshSelected()
+    {
+        var id = _selected!.ContractId; await Load(); _selected = _rows.SingleOrDefault(x => x.ContractId == id);
+        _correcting = null; _submittedIntent = null; _operation = Guid.NewGuid(); await OnSaved.InvokeAsync();
+    }
+    private static string Problem(string? code) => code switch
+    {
+        "RequiresDuplicateReview" => "Review existing registrations before confirming a distinct new registration.",
+        "RequiresExceptionConfirmation" => "Confirm the historical occupancy or area/type exception before saving.",
+        "NpmOccupancyChanged" => "The NPM occupancy changed. Close and reopen this review.",
+        "NpmRegistrationAlreadyLinked" or "AssociationAlreadyExists" => "A verified link already exists. Open the existing registration.",
+        "RegistrationIntentConflict" => "This request was already saved with different details. Reopen the review.",
+        "RegistryConcurrencyConflict" => "Another request was saved concurrently. Retry or reopen the review.",
+        _ => "The request could not be saved. Verify the source account and confirmation evidence."
+    };
+    private async Task Close() { if (!_saving) await OnClose.InvokeAsync(); }
+    private void BackToReview() { if (!_saving) { _registering = false; _error = null; } }
+}

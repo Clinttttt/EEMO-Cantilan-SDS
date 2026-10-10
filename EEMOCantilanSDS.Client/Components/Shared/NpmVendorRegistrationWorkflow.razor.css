@@ -1,0 +1,6 @@
+.npm-link-options { display: grid; gap: 10px; margin: 16px 0; font-size: 13px; }
+.npm-link-candidate { display: grid; gap: 5px; width: 100%; text-align: left; padding: 14px; margin: 8px 0; border: 1px solid #dce3ed; border-radius: 8px; background: white; color: #26364d; cursor: pointer; }
+.npm-link-candidate:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.npm-link-candidate span, .npm-link-candidate small { font-size: 12px; overflow-wrap: anywhere; }
+.npm-link-record { display: grid; gap: 6px; padding: 12px 0; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; overflow-wrap: anywhere; }
+.npm-link-record a { color: #245ca4; }
