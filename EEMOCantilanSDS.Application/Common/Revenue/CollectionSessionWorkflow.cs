@@ -39,6 +39,12 @@ public sealed class CollectionSessionWorkflow(ICollectionSessionStore store, ICo
     public async Task<Result<IReadOnlyList<CollectionSourceSearchResult>>> SearchSourcesAsync(string? search, CancellationToken ct = default) =>
         !await AuthorizedAsync(ct) ? Result<IReadOnlyList<CollectionSourceSearchResult>>.Forbidden() :
         Result<IReadOnlyList<CollectionSourceSearchResult>>.Success(await sources.SearchSourcesAsync(search, ct));
+    public async Task<Result<CollectionSourcePage>> BrowseSourcesAsync(string? category, string? search, int skip, int take, CancellationToken ct = default)
+    {
+        if (!await AuthorizedAsync(ct)) return Result<CollectionSourcePage>.Forbidden();
+        if (skip < 0 || take < 1 || take > CollectionSourceCategories.MaxPage || skip > 5000) return Result<CollectionSourcePage>.Failure("InvalidPage", ResultStatus.Invalid);
+        return Result<CollectionSourcePage>.Success(await sources.BrowseSourcesAsync(category, search, skip, take, ct));
+    }
     public async Task<Result<CollectionSessionDiscovery>> DiscoverNativeAsync(CollectionSourceIdentity? identity, CancellationToken ct = default)
     {
         if (!await AuthorizedAsync(ct)) return Result<CollectionSessionDiscovery>.Forbidden();

@@ -14,6 +14,9 @@ public sealed class CollectionSessionController(ISender sender, CollectionSessio
     [HttpGet("sources")]
     public async Task<ActionResult<IReadOnlyList<CollectionSourceSearchResult>>> Sources(string? search, CancellationToken ct) =>
         HandleResponse(await workflow.SearchSourcesAsync(search, ct));
+    [HttpGet("sources/browse")]
+    public async Task<ActionResult<CollectionSourcePage>> BrowseSources(string? category, string? search, int skip = 0, int take = 25, CancellationToken ct = default) =>
+        HandleResponse(await workflow.BrowseSourcesAsync(category, search, skip, take, ct));
     [HttpPost("source-eligible")]
     public async Task<ActionResult<CollectionSessionDiscovery>> SourceEligible(CollectionSourceIdentity? identity, CancellationToken ct) =>
         HandleResponse(await workflow.DiscoverNativeAsync(identity, ct));

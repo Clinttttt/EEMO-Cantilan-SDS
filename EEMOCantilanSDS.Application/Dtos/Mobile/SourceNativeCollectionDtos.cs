@@ -27,3 +27,22 @@ public sealed record SourceNativeActivityDto(Guid CollectionId, string SRC, Date
     string OperationCode, TerminalSection? Section, Guid? VendorRegistrationId, string? PayerSnapshot,
     Guid? CollectorId, string? CollectorName, decimal Amount, decimal NetAmount, string State,
     int? CashTicketCount, Guid? VehicleClassId, Guid? RateId, decimal? Rate, decimal? Kilograms, string? VehicleClassName = null);
+
+/// <summary>A way to browse the registered sources this collector is assigned to. Offered only where a real source reader exists.</summary>
+public sealed record CollectionSourceCategoryDto(string Key, string Label);
+
+/// <summary>
+/// One bounded page of registered sources. <paramref name="Total"/> counts the sources matching the filter; the
+/// <paramref name="Categories"/> are the browsing groups this collector's assignments actually support.
+/// </summary>
+public sealed record CollectionSourcePage(IReadOnlyList<CollectionSourceSearchResult> Items, int Total, IReadOnlyList<CollectionSourceCategoryDto> Categories)
+{
+    public bool HasMore(int skip) => skip + Items.Count < Total;
+}
+
+/// <summary>The browsing groups. Keys are the API's, never shown to the collector.</summary>
+public static class CollectionSourceCategories
+{
+    public const string FishMeat = "fishmeat", Npm = "npm", Rentals = "rentals", Spaces = "spaces";
+    public const int MaxPage = 50;
+}

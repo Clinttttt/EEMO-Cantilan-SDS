@@ -28,6 +28,7 @@ public sealed class CachingMobileApiClient(
     IConnectivityMonitor connectivity,
     TimeSpan? readBudget = null) : IMobileApiClient
 {
+    public Task<Result<CollectionSourcePage>> BrowseCollectionSourcesAsync(string? category, string? search, int skip, int take) => inner.BrowseCollectionSourcesAsync(category, search, skip, take);
     public Task<Result<IReadOnlyList<CollectionSourceSearchResult>>> SearchCollectionSourcesAsync(string? search) => inner.SearchCollectionSourcesAsync(search);
     public Task<Result<CollectionSessionDiscovery>> GetSourceCollectionDiscoveryAsync(CollectionSourceIdentity? identity) => inner.GetSourceCollectionDiscoveryAsync(identity);
     public Task<Result<SourceNativeChargeQuote>> QuoteOfficeCollectionAsync(SourceNativeCollectionRequest request) => inner.QuoteOfficeCollectionAsync(request);

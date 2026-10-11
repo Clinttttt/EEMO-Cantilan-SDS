@@ -12,6 +12,7 @@ namespace EEMOCantilanSDS.HttpClients.ApiClients;
 
 public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApiClient
 {
+    public Task<Result<CollectionSourcePage>> BrowseCollectionSourcesAsync(string? category, string? search, int skip, int take) => GetAsync<CollectionSourcePage>($"api/mobile/collection-session/sources/browse?category={Uri.EscapeDataString(category ?? "")}&search={Uri.EscapeDataString(search ?? "")}&skip={skip}&take={take}");
     public Task<Result<IReadOnlyList<CollectionSourceSearchResult>>> SearchCollectionSourcesAsync(string? search) => GetAsync<IReadOnlyList<CollectionSourceSearchResult>>($"api/mobile/collection-session/sources?search={Uri.EscapeDataString(search ?? "")}");
     public Task<Result<CollectionSessionDiscovery>> GetSourceCollectionDiscoveryAsync(CollectionSourceIdentity? identity) => PostAsync<CollectionSourceIdentity?, CollectionSessionDiscovery>("api/mobile/collection-session/source-eligible", identity);
     public Task<Result<SourceNativeChargeQuote>> QuoteOfficeCollectionAsync(SourceNativeCollectionRequest request) => PostAsync<SourceNativeCollectionRequest, SourceNativeChargeQuote>("api/office-sources/quote", request);
