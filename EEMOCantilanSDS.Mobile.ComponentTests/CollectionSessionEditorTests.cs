@@ -655,6 +655,28 @@ public sealed class CollectionSessionEditorTests : TestContext
     }
 
     [Fact]
+    public void A_vendors_confirmed_npm_link_opens_that_stall_as_its_own_collection_and_never_adds_its_charges_here()
+    {
+        ServeFishVendor();
+        var linked = new CollectionSourceSearchResult(Occupancy, "Ana Reyes", "New Public Market · Stall 1", "FACILITY_NPM");
+        var served = _api.Object.GetSourceCollectionDiscoveryAsync(FishVendor).GetAwaiter().GetResult().Value!;
+        _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(FishVendor)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(served with { LinkedSources = [linked] }));
+        ServeNpmOccupancy();
+        var view = PickSource("Pantom Dant");
+
+        Assert.Contains("Linked NPM stall", view.Markup);
+        Assert.Contains("Collected as a separate payment", view.Markup);
+        Assert.DoesNotContain("Daily stall payment", view.Markup);                  // no NPM charge is added to the vendor's own session
+
+        view.Find(".linked-sources button").Click();
+
+        view.WaitForAssertion(() => Assert.Equal("Ana Reyes", view.Find(".payer-selected strong").TextContent.Trim()), TimeSpan.FromSeconds(3));
+        _api.Verify(x => x.GetSourceCollectionDiscoveryAsync(Occupancy), Times.AtLeastOnce);
+        Assert.Empty(view.FindAll(".linked-sources"));                              // the stall's own session has no link back
+        Assert.Empty(_queue);                                                       // navigation recorded nothing
+    }
+
+    [Fact]
     public void An_npm_part_payment_takes_an_amount_up_to_the_servers_maximum_and_goes_in_as_a_part_payment_item()
     {
         _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(Occupancy)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(new(null, Today,

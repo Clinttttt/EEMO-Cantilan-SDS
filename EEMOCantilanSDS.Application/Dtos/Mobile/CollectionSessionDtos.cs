@@ -79,7 +79,8 @@ public sealed record CollectionSessionDiscovery(Guid? PayorId, DateOnly Business
     IReadOnlyList<WeighingSourceDto>? WeighingSources = null, IReadOnlyList<WeighingRateDto>? WeighingRates = null,
     IReadOnlyList<SessionSlaughterOption>? SlaughterOptions = null, string? PayorDisplayName = null,
     IReadOnlyList<DirectVendorFeeSource>? VendorFeeSources = null, IReadOnlyList<WeighingSourceDto>? NpmSources = null,
-    IReadOnlyList<SessionNpmWholeSource>? NpmWholeSources = null, CollectionSourceIdentity? SourceIdentity = null);
+    IReadOnlyList<SessionNpmWholeSource>? NpmWholeSources = null, CollectionSourceIdentity? SourceIdentity = null,
+    IReadOnlyList<CollectionSourceSearchResult>? LinkedSources = null);
 public sealed record CollectionSessionServiceTerms(GovernedServiceMode? Mode, GovernedServiceTermsDto Terms);
 
 // Display/selection facts only. A choice is not a reviewed quote and grants no posting authority.

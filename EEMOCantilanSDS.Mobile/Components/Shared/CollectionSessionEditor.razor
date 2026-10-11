@@ -138,6 +138,19 @@ else
                     @foreach (var unavailable in _discovery!.Operations.Where(x => Allows(x.OperationCode) && !x.CanAdd && !string.IsNullOrWhiteSpace(x.Reason)))
                     { <p>@unavailable.Reason</p> }
                 }
+                @* An office-confirmed link only opens that stall as its own, separate collection: nothing is shared or merged with this source. *@
+                @if (_discovery?.LinkedSources is { Count: > 0 } linkedSources && Correction is null)
+                {
+                    <div class="linked-sources" role="group" aria-label="Linked NPM stall">
+                        <span class="linked-label">Linked NPM stall</span>
+                        @foreach (var link in linkedSources)
+                        {
+                            <button class="collection-option payer-option" type="button" disabled="@_busy" @onclick="() => SelectBrowsedAsync(link)">
+                                <span class="payer-option-text"><strong>@link.DisplayName</strong><small>@link.Context</small></span><span aria-hidden="true">›</span></button>
+                        }
+                        <small class="linked-note">Collected as a separate payment from this vendor's fees.</small>
+                    </div>
+                }
                 @if (NothingDue && DirectAllowed)
                 {
                     <button class="collection-small" type="button" @onclick="() => StartDirectAsync(_source!.DisplayName)">Continue as direct collection</button>
