@@ -68,6 +68,7 @@ public class DailyCollectionsController(ISender sender) : ApiBaseController(send
         return HandleResponse(result);
     }
 
+// What an amount received would settle for a month: whole payable days, oldest first. Records nothing.    [HttpGet("stall/{stallId}/amount-quote")]    [Authorize(Roles = "SuperAdmin,Admin")]    public async Task<ActionResult<Application.Dtos.DailyCollections.NpmAmountQuoteDto>> QuoteAmount(        Guid stallId, [FromQuery] int year, [FromQuery] int month, [FromQuery] decimal amount)    {        var result = await Sender.Send(new Application.Queries.DailyCollections.QuoteNpmAmount.QuoteNpmAmountQuery(stallId, year, month, amount));        return HandleResponse(result);    }
     [HttpGet("stall/{stallId}/month")]
     public async Task<ActionResult<DailyCollectionMonthDto>> GetDailyCollectionMonth(Guid stallId, [FromQuery] int year, [FromQuery] int month)
     {

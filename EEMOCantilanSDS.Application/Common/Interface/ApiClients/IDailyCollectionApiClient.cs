@@ -21,4 +21,8 @@ public interface IDailyCollectionApiClient
     /// re-let; omitted for the current occupancy.
     /// </summary>
     Task<Result<IReadOnlyList<SettleableNpmDayDto>>> GetSettleableNpmDaysAsync(Guid stallId, int year, int month, Guid? contractId = null);
+
+    /// <summary>Previews an amount received against a stall's payable days of a month. Records nothing.</summary>
+    Task<Result<NpmAmountQuoteDto>> QuoteNpmAmountAsync(Guid stallId, int year, int month, decimal amount) =>
+        Task.FromResult(Result<NpmAmountQuoteDto>.Failure("The amount preview is unavailable."));
 }

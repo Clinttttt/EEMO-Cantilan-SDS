@@ -38,4 +38,7 @@ public class DailyCollectionApiClient(HttpClient http) : HandleResponse(http), I
 
         return await GetAsync<IReadOnlyList<SettleableNpmDayDto>>(query);
     }
+
+    public async Task<Result<NpmAmountQuoteDto>> QuoteNpmAmountAsync(Guid stallId, int year, int month, decimal amount) =>
+        await GetAsync<NpmAmountQuoteDto>($"api/DailyCollections/stall/{stallId}/amount-quote?year={year}&month={month}&amount={amount.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
 }
