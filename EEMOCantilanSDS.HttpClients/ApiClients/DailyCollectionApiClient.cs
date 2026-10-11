@@ -41,4 +41,10 @@ public class DailyCollectionApiClient(HttpClient http) : HandleResponse(http), I
 
     public async Task<Result<NpmAmountQuoteDto>> QuoteNpmAmountAsync(Guid stallId, int year, int month, decimal amount) =>
         await GetAsync<NpmAmountQuoteDto>($"api/DailyCollections/stall/{stallId}/amount-quote?year={year}&month={month}&amount={amount.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+
+    public async Task<Result<NpmPartPaymentQuoteDto>> QuoteNpmPartPaymentAsync(Guid stallId, int year, int month, decimal amount) =>
+        await GetAsync<NpmPartPaymentQuoteDto>($"api/npm-daily/stall/{stallId}/part-payment-quote?year={year}&month={month}&amount={amount.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+
+    public async Task<Result<NpmPartPaymentOutcomeDto>> RecordNpmPartPaymentAsync(NpmPartPaymentRequest request) =>
+        await PostAsync<NpmPartPaymentRequest, NpmPartPaymentOutcomeDto>("api/npm-daily/part-payment", request);
 }

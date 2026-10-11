@@ -224,10 +224,28 @@
                                 <span>Amount received</span>
                                 <input type="text" inputmode="decimal" autocomplete="off" class="ce-amount-input" value="@_amountText" @oninput="OnAmountInput" aria-describedby="ce-amount-result" />
                             </label>
-                            <button type="button" class="ce-amount-btn" disabled="@(_quote is not { Outcome: "Exact" } || _recording)" @onclick="RecordAmount">Record payment</button>
+                            <button type="button" class="ce-amount-btn" disabled="@(!CanRecordAmount || _recording)" @onclick="RecordAmount">Record payment</button>
                         </div>
-                        <div id="ce-amount-result" class="ce-amount-result @(_quote is { Outcome: "Exact" } ? "ce-amount-ok" : "")" role="status" aria-live="polite">
+                        <div id="ce-amount-result" class="ce-amount-result @(CanRecordAmount ? "ce-amount-ok" : "")" role="status" aria-live="polite">
                             @if (_amountError is not null) { <span>@_amountError</span> }
+                            else if (_part is { } p)
+                            {
+                                @if (p.Outcome == "Applied")
+                                {
+                                    <span>@Money(p.Amount) is received for @PeriodLabel and applied oldest day first. @Money(p.RemainingAfter) of the month's installments remain payable.</span>
+                                    <table class="ce-part-table" aria-label="Allocation preview">
+                                        <thead><tr><th scope="col">Day</th><th scope="col" class="ce-num">Applied</th><th scope="col" class="ce-num">Still owed</th><th scope="col">Status</th></tr></thead>
+                                        <tbody>
+                                            @foreach (var line in p.Lines)
+                                            {
+                                                <tr><td>@line.Day.ToString("MMM d")</td><td class="ce-num">@Money(line.Applied)</td><td class="ce-num">@Money(line.Remaining)</td><td>@line.Status</td></tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                }
+                                else { <span>@(p.Message ?? "This amount cannot be applied.")</span> }
+                                @if (p.Adjustment > 0m) { <span class="ce-amount-hint"> The month-end adjustment of @Money(p.Adjustment) is not an installment: it is collected separately as the month's final payment.</span> }
+                            }
                             else if (_quote is { } q)
                             {
                                 @switch (q.Outcome)
@@ -795,11 +813,14 @@
     private string? _amountError;
     private bool _recording;
     private int _quoteSeq;
+    private NpmPartPaymentQuoteDto? _part;
+    private Guid _partOperation = Guid.NewGuid();
+    private bool CanRecordAmount => _part is { Outcome: "Applied" } || _quote is { Outcome: "Exact" };
 
     private async Task OnAmountInput(ChangeEventArgs e)
     {
         _amountText = e.Value?.ToString() ?? "";
-        _quote = null; _amountError = null;
+        _quote = null; _part = null; _amountError = null;
         if (SelectedStall is null || string.IsNullOrWhiteSpace(_amountText)) return;
         if (!decimal.TryParse(_amountText.Replace("₱", "").Replace(",", "").Trim(), System.Globalization.NumberStyles.Number,
                 System.Globalization.CultureInfo.InvariantCulture, out var amount) || amount <= 0m || amount != decimal.Round(amount, 2))
@@ -808,14 +829,30 @@
             return;
         }
         var seq = ++_quoteSeq;
+        // Part payments first: when the office has them on, the server previews the amount as full or part installments.
+        // Otherwise (not enabled, or the date is not under canonical authority) only whole days can be recorded, as before.
+        var partRes = await DailyApi.QuoteNpmPartPaymentAsync(SelectedStall.Id, _year, _month, amount);
+        if (seq != _quoteSeq) return;
+        if (partRes?.IsSuccess == true && partRes.Value is { } partQuote) { _part = partQuote; _partOperation = Guid.NewGuid(); return; }
         var res = await DailyApi.QuoteNpmAmountAsync(SelectedStall.Id, _year, _month, amount);
         if (seq != _quoteSeq) return;   // a newer keystroke is already being answered
-        if (res.IsSuccess) _quote = res.Value; else _amountError = res.Error ?? "The amount could not be checked.";
+        if (res?.IsSuccess == true) _quote = res.Value; else _amountError = res?.Error ?? "The amount could not be checked.";
     }
 
     private async Task RecordAmount()
     {
-        if (_recording || SelectedStall is null || _quote is not { Outcome: "Exact" } q) return;
+        if (_recording || SelectedStall is null) return;
+        if (_part is { Outcome: "Applied" } part)
+        {
+            _recording = true; _amountError = null;
+            var recorded = await DailyApi.RecordNpmPartPaymentAsync(new NpmPartPaymentRequest(_partOperation, part.StallId, part.Year, part.Month, part.BusinessDate, part.Amount, part.QuoteToken));
+            _recording = false;
+            if (recorded?.IsSuccess != true) { _amountError = recorded?.Error ?? "The payment could not be recorded."; return; }
+            _amountText = ""; _part = null; _partOperation = Guid.NewGuid();
+            await LoadPeriod();
+            return;
+        }
+        if (_quote is not { Outcome: "Exact" } q) return;
         _recording = true; _amountError = null;
         var res = await DailyApi.SettleNpmDaysAsync(new SettleNpmDaysCommand(SelectedStall.Id, q.ExactDates, null));
         _recording = false;

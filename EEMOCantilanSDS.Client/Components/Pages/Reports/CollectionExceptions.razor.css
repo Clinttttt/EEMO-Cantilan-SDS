@@ -389,3 +389,8 @@
 .ce-amount-result { font-size: 13px; color: var(--text-subtle); min-height: 20px; }
 .ce-amount-ok { color: var(--green); }
 .ce-amount-hint { color: var(--text-muted); }
+
+.ce-part-table { margin: 8px 0 0; border-collapse: collapse; font-size: 13px; color: var(--navy); font-variant-numeric: tabular-nums; }
+.ce-part-table th, .ce-part-table td { padding: 4px 16px 4px 0; text-align: left; border-bottom: 1px solid var(--border); }
+.ce-part-table th { font-weight: 600; color: var(--text-subtle); }
+.ce-part-table .ce-num { text-align: right; }
