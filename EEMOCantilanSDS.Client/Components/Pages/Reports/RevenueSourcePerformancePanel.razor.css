@@ -191,3 +191,34 @@
     align-items: flex-end;
     gap: 3px;
 }
+
+/* Hosted by the Dashboard: the title, the host's shortcuts and view switch, and the source selector share one compact header row
+   (wrapping onto a second row only when the content width runs out), never a separate strip above the panel. */
+.rsp-head-hosted,
+.rsp-skeleton-head {
+    flex-wrap: wrap;
+    row-gap: 10px;
+}
+
+.rsp-head-actions {
+    display: flex;
+    flex: 1 1 auto;
+    justify-content: flex-end;
+    min-width: 0;
+}
+
+.rsp-head-hosted .rsp-filter,
+.rsp-skeleton-head .rsp-filter {
+    margin-left: 0;
+}
+
+.rsp-head-hosted .rsp-head-copy { flex: 0 0 auto; }
+
+.rsp-head-hosted .rsp-head-actions { justify-content: flex-start; }
+.rsp-head-hosted .rsp-filter { margin-left: auto; }
+
+@media (max-width: 768px) {
+    /* Title on its own line (it may wrap), then the toolbar across the width, then the source selector. */
+    .rsp-head-hosted .rsp-head-copy, .rsp-head-hosted .rsp-head-actions { flex: 1 1 100%; }
+    .rsp-head-hosted .rsp-filter { margin-left: 0; flex: 1 1 100%; justify-content: flex-start; }
+}

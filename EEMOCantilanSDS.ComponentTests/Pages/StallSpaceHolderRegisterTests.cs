@@ -87,6 +87,20 @@ public sealed class StallSpaceHolderRegisterTests : TestContext
         Space(ObligationKind.KanmanggaySpaceRental, "5", "Kanmanggay Seller", OccupancyArrangement.SignedContract, 800m, reference: "KM-5", contractName: "Kanmanggay Seller"),
     ];
 
+    private static void ChooseSource(IRenderedComponent<StallHolderList> cut, string label)
+    {
+        cut.Find(".sh-bar .fh-dd-trigger").Click();
+        cut.FindAll(".fh-dd-item").Single(i => i.TextContent.Trim() == label).Click();
+    }
+
+    private static string[] SourceChoices(IRenderedComponent<StallHolderList> cut)
+    {
+        cut.Find(".sh-bar .fh-dd-trigger").Click();
+        var items = cut.FindAll(".fh-dd-item").Select(i => i.TextContent.Trim()).ToArray();
+        cut.Find(".sh-bar .fh-dd-trigger").Click();
+        return items;
+    }
+
     private static void Choose(IRenderedComponent<StallHolderList> cut, string label) =>
         cut.FindAll("button.sh-chip").First(b => b.TextContent.Trim() == label).Click();
 
@@ -143,7 +157,7 @@ public sealed class StallSpaceHolderRegisterTests : TestContext
         Assert.Contains("Veg Seller", cut.Markup);
         Assert.Contains("Kanmanggay Seller", cut.Markup);
 
-        Choose(cut, "Kanmanggay");
+        ChooseSource(cut, "Kanmanggay");
         Assert.DoesNotContain("Veg Seller", cut.Markup);
         Assert.Contains("Kanmanggay Seller", cut.Markup);
         Assert.Equal("KANMANGGAY", cut.Find(".sh-doc-scope").TextContent);
@@ -280,5 +294,76 @@ public sealed class StallSpaceHolderRegisterTests : TestContext
         Assert.Contains("Stall Tenant", cut.Markup);
         Assert.Contains("Veg Seller", cut.Markup);
         Assert.DoesNotContain("Kanmanggay Seller", cut.Markup);
+    }
+
+    [Fact]
+    public void Filtering_is_one_control_band_with_no_second_row_of_source_chips()
+    {
+        var cut = Render(Both);
+        cut.WaitForAssertion(() => Assert.Contains("Kanmanggay Seller", cut.Markup));
+
+        var bar = cut.Find(".sh-bar");
+        Assert.Equal(["All holders", "Stall rentals", "Space rentals"], bar.QuerySelectorAll(".sh-chip").Select(c => c.TextContent.Trim()).ToArray());
+        Assert.NotNull(bar.QuerySelector(".fh-dd"));
+        Assert.NotNull(bar.QuerySelector("input[type=search]"));
+        Assert.Empty(cut.FindAll(".sh-controls-scope"));
+    }
+
+    [Fact]
+    public void The_source_choices_follow_the_kind_of_holder()
+    {
+        var cut = Render(Both);
+        cut.WaitForAssertion(() => Assert.Contains("Kanmanggay Seller", cut.Markup));
+
+        Assert.Equal(["All sources", "New Commercial Center", "Vegetable / Fruits", "Kanmanggay", "Fiesta / Araw"], SourceChoices(cut));
+
+        Choose(cut, "Stall rentals");
+        Assert.Equal(["All facilities", "New Commercial Center"], SourceChoices(cut));
+
+        Choose(cut, "Space rentals");
+        Assert.Equal(["All spaces", "Vegetable / Fruits", "Kanmanggay", "Fiesta / Araw"], SourceChoices(cut));
+    }
+
+    [Fact]
+    public void A_space_source_chosen_under_all_holders_shows_only_that_source()
+    {
+        var cut = Render(Both);
+        cut.WaitForAssertion(() => Assert.Contains("Kanmanggay Seller", cut.Markup));
+
+        ChooseSource(cut, "Kanmanggay");
+
+        Assert.Contains("Kanmanggay Seller", cut.Markup);
+        Assert.DoesNotContain("Stall Tenant", cut.Markup);
+        Assert.DoesNotContain("Veg Seller", cut.Markup);
+        Assert.Equal("KANMANGGAY", cut.Find(".sh-doc-scope").TextContent);
+        Assert.Contains("spaceholders_kanmanggay", cut.Find("a[download]").GetAttribute("download"));
+    }
+
+    [Fact]
+    public void Print_Excel_CSV_and_Save_as_PDF_are_one_joined_group_that_never_wraps_a_label()
+    {
+        var cut = Render(Both);
+        cut.WaitForAssertion(() => Assert.Contains("Kanmanggay Seller", cut.Markup));
+
+        var group = cut.Find(".sh-export");
+        Assert.Equal("group", group.GetAttribute("role"));
+        Assert.Equal(["Print", "Excel", "CSV", "Save as PDF"], group.QuerySelectorAll(".sh-split-part").Select(p => p.TextContent.Trim()).ToArray());
+        Assert.Equal(1, group.QuerySelectorAll("a[download]").Length);
+        var css = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "EEMOCantilanSDS.Client", "Components", "Pages", "Reports", "StallHolderList.razor.css"));
+        Assert.Contains("white-space: nowrap", css[css.IndexOf(".sh-export .sh-print-btn", StringComparison.Ordinal)..]);
+        Assert.Equal(css.Count(c => c == '{'), css.Count(c => c == '}'));
+    }
+
+    [Fact]
+    public void The_summary_grid_fits_the_cards_it_has_and_the_skeleton_matches()
+    {
+        var cut = Render(Both);
+        cut.WaitForAssertion(() => Assert.Contains("Kanmanggay Seller", cut.Markup));
+
+        Assert.Equal(3, cut.FindAll(".sh-summary .sh-sum-card").Count);   // Active Stalls, Active Spaces, Sources — no placeholder
+        var css = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "EEMOCantilanSDS.Client", "Components", "Pages", "Reports", "StallHolderList.razor.css"));
+        Assert.Contains(".sh-summary { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }", css);
+        var razor = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "EEMOCantilanSDS.Client", "Components", "Pages", "Reports", "StallHolderList.razor"));
+        Assert.Contains("for (var i = 0; i < 3; i++)", razor);
     }
 }

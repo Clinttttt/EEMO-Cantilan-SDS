@@ -51,14 +51,14 @@ public class StallHolderListPrintSheetTests
     /// observed from markup.</para>
     /// </remarks>
     [Fact]
-    public void TheExportsAreOneControlButTwoSeparateActions()
+    public void TheExportsAreOneJoinedControlOfFourSeparateActions()
     {
         var razor = ClientFile("Components", "Pages", "Reports", "StallHolderList.razor");
         var css = ClientFile("Components", "Pages", "Reports", "StallHolderList.razor.css");
 
         // One group holding both halves.
-        Assert.Contains("class=\"sh-split\"", razor);
-        Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(razor, @"sh-split-part").Count);
+        Assert.Contains("class=\"sh-split sh-export\"", razor);
+        Assert.Equal(4, System.Text.RegularExpressions.Regex.Matches(razor, @"sh-split-part").Count);   // Print, Excel, CSV, Save as PDF
 
         // Still two actions: a button that exports the workbook, and a link that downloads the CSV.
         Assert.Matches(@"<button[^>]*sh-split-part[^>]*@onclick=""DownloadExcel""", razor);

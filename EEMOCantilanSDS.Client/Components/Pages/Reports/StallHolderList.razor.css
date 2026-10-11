@@ -534,3 +534,37 @@
 .sh-controls-scope { margin-bottom: 8px; }
 .sh-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .sh-asof-note { margin: 0 0 12px; font-size: 12.5px; color: var(--text-subtle); text-align: center; }
+
+/* ── One control band: kind + source on the left, search + joined export + year on the right ── */
+.sh-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 14px;
+    margin-bottom: 18px;
+}
+
+.sh-bar-filters, .sh-bar-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; min-width: 0; }
+.sh-bar-tools { flex: 1 1 auto; justify-content: flex-end; }
+.sh-bar .sh-search { flex: 1 1 200px; max-width: 280px; }
+
+/* The four actions are one joined group. Labels never wrap; if the band runs out of room the whole group moves down as one. */
+.sh-export { flex: 0 0 auto; max-width: 100%; }
+.sh-export .sh-print-btn { padding: 0 14px; height: 38px; white-space: nowrap; border-radius: 0; }
+.sh-export .sh-print-btn:first-child { border-top-left-radius: 9px; border-bottom-left-radius: 9px; }
+.sh-export .sh-print-btn:last-child { border-top-right-radius: 9px; border-bottom-right-radius: 9px; }
+.sh-print-btn:focus-visible, .sh-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; position: relative; z-index: 2; }
+
+/* The summary fits the cards it actually has: three cards share the width, four stay four, and narrow screens collapse naturally. */
+.sh-summary { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+
+@media (max-width: 900px) {
+    .sh-bar, .sh-bar-tools { justify-content: flex-start; }
+    .sh-bar .sh-search { max-width: none; flex-basis: 100%; }
+    .sh-export { overflow-x: auto; }
+}
+
+@media print {
+    .sh-bar { display: none !important; }
+}

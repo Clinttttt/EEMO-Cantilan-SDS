@@ -51,7 +51,9 @@
 .ca-why { margin: -14px 0 22px; font-size: 12px; color: var(--text-secondary); }
 .ca-why summary { cursor: pointer; color: var(--accent); font-weight: 600; width: fit-content; }
 .ca-why summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
-.ca-why p { margin: 8px 0 0; line-height: 1.5; max-width: 80ch; }
+.ca-why { width: 100%; }
+.ca-why[open] { padding: 10px 14px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-card); }
+.ca-why p { margin: 8px 0 0; line-height: 1.55; max-width: none; }
 
 /* Bulk "Renew all" button — green (renew) accent; sits in the year-group header beside the
    "N accounts · ₱X uncollected" stats. Compact so it reads as a group action, not a page action. */
@@ -305,8 +307,9 @@
 }
 
 .ca-fac-head {
+    flex-wrap: wrap;
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     gap: 12px;
     padding: 6px 10px;
@@ -403,3 +406,30 @@
     cursor: pointer;
 }
 
+
+/* ── Filter cluster: period, status, source and section as one aligned group at one height ── */
+.ca-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+/* The shared year picker is a little shorter than the compact selectors beside it; match them here only. */
+.ca-filter ::deep .rpt-period-trigger {
+    height: 42px;
+    min-height: 42px;
+    box-sizing: border-box;
+    padding: 0 12px 0 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.ca-filter ::deep .rpt-period-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.ca-fac-right { display: inline-flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ca-fac-head .ca-renew-all-btn { min-height: 34px; }
+
+@media (max-width: 600px) {
+    /* Search gets its own full-width line; the joined export stays whole beneath it. */
+    .ca-actions { flex-wrap: wrap; }
+    .ca-actions .ca-search { flex: 1 1 100%; }
+}

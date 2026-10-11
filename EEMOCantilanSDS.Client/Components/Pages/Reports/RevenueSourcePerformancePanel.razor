@@ -16,11 +16,15 @@
     {
         <h2 id="rsp-title" class="v3-sr-only">Revenue source performance — @PeriodLabel</h2>
         <p class="v3-sr-only" role="status">Loading revenue source performance…</p>
-        <div class="rsp-head rsp-skeleton-head" aria-hidden="true">
-            <div class="rsp-head-copy rsp-skeleton-copy">
+        <div class="rsp-head rsp-skeleton-head" aria-hidden="@(HeaderActions is null ? "true" : null)">
+            <div class="rsp-head-copy rsp-skeleton-copy" aria-hidden="true">
                 <Skeleton Width="300px" Height="17px" Radius="5px" />
-                <Skeleton Width="420px" Height="12px" Radius="5px" />
+                @if (HeaderActions is null) { <Skeleton Width="420px" Height="12px" Radius="5px" /> }
             </div>
+            @if (HeaderActions is not null)
+            {
+                <div class="rsp-head-actions no-print">@HeaderActions</div>
+            }
             <div class="rsp-filter rsp-filter-skeleton">
                 <Skeleton Width="200px" Height="42px" Radius="10px" />
             </div>
@@ -28,11 +32,15 @@
     }
     else
     {
-        <div class="rsp-head">
-            <div class="rsp-head-copy @(Embedded ? "v3-sr-only" : "")">
+        <div class="rsp-head @(HeaderActions is not null ? "rsp-head-hosted" : "")">
+            <div class="rsp-head-copy @(Embedded && HeaderActions is null ? "v3-sr-only" : "")">
                 <h2 id="rsp-title" class="rsp-title">Revenue source performance — @PeriodLabel</h2>
-                <div class="rsp-sub">Official collections and operating activity by revenue source for the selected period.</div>
+                <div class="rsp-sub @(HeaderActions is not null ? "v3-sr-only" : "")">Official collections and operating activity by revenue source for the selected period.</div>
             </div>
+            @if (HeaderActions is not null)
+            {
+                <div class="rsp-head-actions no-print">@HeaderActions</div>
+            }
             <div class="rsp-filter no-print">
                 <FhSelect Caption="Sources" Value="@_group" Options="@GroupOptions" ValueChanged="@(v => _group = v)" RightAlign="true" />
             </div>
@@ -185,6 +193,12 @@
 
     /// <summary>The host already titles this table (the Dashboard's section header): keep the heading for screen readers and show only the filter.</summary>
     [Parameter] public bool Embedded { get; set; }
+
+    /// <summary>
+    /// The host's own report shortcuts and view switch, shown inside this panel's header beside the source selector (the Dashboard).
+    /// Absent in Financial Reports, whose header is unchanged.
+    /// </summary>
+    [Parameter] public RenderFragment? HeaderActions { get; set; }
 
     /// <summary>The facility register's rows for the same period: the only place balances and coverage are measured.</summary>
     [Parameter] public IReadOnlyList<FinancialFacilityRowDto>? Facilities { get; set; }

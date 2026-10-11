@@ -47,79 +47,51 @@
 
 <div class="content-area">
 
-    <!-- Holder kind -->
-    <div class="sh-controls sh-controls-scope no-print">
-        <div class="sh-filter" role="group" aria-label="Kind of holder">
-            <button class="sh-chip @(_scope == HolderScope.All ? "sh-chip-active" : "")" type="button" aria-pressed="@(_scope == HolderScope.All ? "true" : "false")" @onclick="@(() => SelectScope(HolderScope.All))">All holders</button>
-            <button class="sh-chip @(_scope == HolderScope.Stall ? "sh-chip-active" : "")" type="button" aria-pressed="@(_scope == HolderScope.Stall ? "true" : "false")" @onclick="@(() => SelectScope(HolderScope.Stall))">Stall rentals</button>
-            <button class="sh-chip @(_scope == HolderScope.Space ? "sh-chip-active" : "")" type="button" aria-pressed="@(_scope == HolderScope.Space ? "true" : "false")" @onclick="@(() => SelectScope(HolderScope.Space))">Space rentals</button>
+    @* ONE coordinated control band. Holder kind and source on the left; search, the joined export actions and the year on the
+       right. The source selector follows the kind: stall facilities, space sources, or both. *@
+    <div class="sh-bar no-print">
+        <div class="sh-bar-filters">
+            <div class="sh-filter" role="group" aria-label="Kind of holder">
+                <button class="sh-chip @(_scope == HolderScope.All ? "sh-chip-active" : "")" type="button" aria-pressed="@(_scope == HolderScope.All ? "true" : "false")" @onclick="@(() => SelectScope(HolderScope.All))">All holders</button>
+                <button class="sh-chip @(_scope == HolderScope.Stall ? "sh-chip-active" : "")" type="button" aria-pressed="@(_scope == HolderScope.Stall ? "true" : "false")" @onclick="@(() => SelectScope(HolderScope.Stall))">Stall rentals</button>
+                <button class="sh-chip @(_scope == HolderScope.Space ? "sh-chip-active" : "")" type="button" aria-pressed="@(_scope == HolderScope.Space ? "true" : "false")" @onclick="@(() => SelectScope(HolderScope.Space))">Space rentals</button>
+            </div>
+            <FhSelect Caption="Source" Value="@SourceValue" Options="@SourceOptions" ValueChanged="@SelectSource" />
         </div>
-    </div>
-
-    <!-- Source filter + search + print -->
-    <div class="sh-controls no-print">
-        @if (_scope == HolderScope.Space)
-        {
-            <div class="sh-filter" role="group" aria-label="Space rental source">
-                <button class="sh-chip @(_spaceSource is null ? "sh-chip-active" : "")" type="button" aria-pressed="@(_spaceSource is null ? "true" : "false")" @onclick="@(() => SelectSpaceSource(null))">All spaces</button>
-                @foreach (var source in SpaceSources)
-                {
-                    var kind = source.Kind;
-                    <button class="sh-chip @(_spaceSource == kind ? "sh-chip-active" : "")" type="button" aria-pressed="@(_spaceSource == kind ? "true" : "false")" @onclick="@(() => SelectSpaceSource(kind))">@source.Name</button>
-                }
-            </div>
-        }
-        else
-        {
-            <div class="sh-filter" role="group" aria-label="Stall facility">
-                <button class="sh-chip @(_facility is null ? "sh-chip-active" : "")" type="button" aria-pressed="@(_facility is null ? "true" : "false")" @onclick="@(() => SelectFacility(null))">@(_scope == HolderScope.All ? "All sources" : "All Facilities")</button>
-                @foreach (var fc in StallFacilities)
-                {
-                    <button class="sh-chip @(_facility == fc ? "sh-chip-active" : "")" type="button" aria-pressed="@(_facility == fc ? "true" : "false")" title="@FacilityCatalog.NameOf(fc)" @onclick="@(() => SelectFacility(fc))">@FacilityCatalog.ShortNameOf(fc)</button>
-                }
-            </div>
-        }
-        <div class="sh-actions">
+        <div class="sh-bar-tools">
             <div class="sh-search">
-                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                <input type="search" placeholder="Search occupant, contract, or stall / space no.…" value="@_search" @oninput="OnSearchInput" aria-label="Search stall and space holders" />
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input type="search" placeholder="Search occupant, contract, stall / space…" value="@_search" @oninput="OnSearchInput" aria-label="Search stall and space holders" />
                 @if (HasSearch)
                 {
                     <button class="sh-search-clear" type="button" @onclick="ClearSearch" aria-label="Clear search">&times;</button>
                 }
             </div>
-            @* Same export trio as the facility roster and the Export Data page. *@
-            <button class="sh-print-btn" type="button" disabled="@_loading" @onclick="Print"
-                    title="Opens the print dialog — the sheet prints landscape so every column fits.">
-                <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
-                Print
-            </button>
-            @* Excel and CSV both, deliberately. The spreadsheet is what the office reads - it carries its own column widths, so
-               nothing opens as ######## - and the CSV stays for anything that consumes the file as data.
-
-               Presented as ONE control with two halves, at the office's request: it is the same list either way, so two separate
-               buttons overstated the choice. Each half is still its own action - Excel is a button, CSV a download link - so
-               nothing about how they behave has changed. *@
-            <div class="sh-split" role="group" aria-label="Download the stall and space holder register">
+            @* Print, Excel, CSV and Save as PDF are one joined control: four ways to take the same register, each its own action. *@
+            <div class="sh-split sh-export" role="group" aria-label="Print or download the stall and space holder register">
+                <button class="sh-print-btn sh-split-part" type="button" disabled="@_loading" @onclick="Print"
+                        title="Opens the print dialog — the sheet prints landscape so every column fits.">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+                    Print
+                </button>
                 <button class="sh-print-btn sh-split-part" type="button" disabled="@_loading" @onclick="DownloadExcel"
                         title="Downloads an Excel workbook with the columns already sized.">
-                    <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                     Excel
                 </button>
                 <a class="sh-print-btn sh-split-part" download="@CsvFileName" href="@CsvHref"
                    title="Downloads the same list as a plain CSV data file.">
                     CSV
                 </a>
+                <button class="sh-print-btn sh-print-btn-primary sh-split-part" type="button" disabled="@_loading" @onclick="Print"
+                        title="Opens the print dialog — choose &quot;Save as PDF&quot; as the destination.">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                    Save as PDF
+                </button>
             </div>
-            <button class="sh-print-btn sh-print-btn-primary" type="button" disabled="@_loading" @onclick="Print"
-                    title="Opens the print dialog — choose &quot;Save as PDF&quot; as the destination.">
-                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
-                Save as PDF
-            </button>
 
             @* The year the roster is stated AS OF, so the office can answer who held the stalls in an earlier year. The same
-               control the report pages use, in year mode - a roster is always as of some year, so there is no "all years".
-               The current year means today, which is why this changes nothing until it is stepped back. *@
+               control the report pages use, in year mode - a roster is always as of some year, so there is no "all years". *@
             <div class="sh-year-nav">
                 <ReportPeriodNav Year="_year" Month="1" Yearly="true" Label="@YearLabel"
                                  OnPrev="PrevYear" OnNext="NextYear"
@@ -150,7 +122,7 @@
     {
         <div class="sh-loading no-print" aria-busy="true" aria-label="Loading stall and space holder register">
             <div class="sh-summary">
-                @for (var i = 0; i < 4; i++)
+                @for (var i = 0; i < 3; i++)
                 {
                     <div class="sh-sum-card">
                         <Skeleton Width="58%" Height="21px" Radius="7px" Class="sh-sk-center" />
@@ -233,7 +205,7 @@
                     <div class="sh-sum-lbl">Active Spaces</div>
                 </div>
             }
-            @if (NeedsSpaces && spaceGroups.Any(g => IsEvent(g.Source.Kind)))
+            @if (NeedsSpaces && spaceGroups.Any(g => IsEvent(g.Source.Kind) && g.Rows.Count > 0))
             {
                 <div class="sh-sum-card">
                     <div class="sh-sum-val">@spaceGroups.Where(g => IsEvent(g.Source.Kind)).Sum(g => g.Rows.Count)</div>
@@ -383,8 +355,35 @@
     [PersistentState(AllowUpdates = true)]
     public List<ObligationAccountDto>? CachedSpaceHolders { get; set; }
 
-    private bool NeedsStalls => _scope != HolderScope.Space;
-    private bool NeedsSpaces => _scope == HolderScope.Space || (_scope == HolderScope.All && _facility is null);
+    // A space source chosen while viewing every holder narrows the register to that source, exactly as the Space rentals kind does.
+    private HolderScope ViewScope => _scope == HolderScope.All && _spaceSource is not null ? HolderScope.Space : _scope;
+    private bool NeedsStalls => ViewScope != HolderScope.Space;
+    private bool NeedsSpaces => ViewScope == HolderScope.Space || (ViewScope == HolderScope.All && _facility is null);
+
+    // The one Source selector: stall facilities and/or space sources, following the kind of holder being viewed.
+    private string SourceValue => _spaceSource is { } kind ? $"S:{(int)kind}" : _facility is { } code ? $"F:{code}" : "";
+
+    private IReadOnlyList<(string Value, string Label)> SourceOptions
+    {
+        get
+        {
+            var options = new List<(string, string)> { ("", _scope == HolderScope.Space ? "All spaces" : _scope == HolderScope.Stall ? "All facilities" : "All sources") };
+            if (_scope != HolderScope.Space)
+                options.AddRange(StallFacilities.Select(code => ($"F:{code}", FacilityCatalog.NameOf(code))));
+            if (_scope != HolderScope.Stall)
+                options.AddRange(SpaceSources.Select(source => ($"S:{(int)source.Kind}", source.Name)));
+            return options;
+        }
+    }
+
+    private void SelectSource(string value)
+    {
+        _section = null;
+        _facility = null;
+        _spaceSource = null;
+        if (value.StartsWith("F:", StringComparison.Ordinal) && Enum.TryParse<FacilityCode>(value[2..], out var code)) _facility = code;
+        else if (value.StartsWith("S:", StringComparison.Ordinal) && int.TryParse(value[2..], out var kind)) _spaceSource = (ObligationKind)kind;
+    }
 
     // The year the roster is stated AS OF. Defaults to the current year, where it means today — so the register the office
     // opens every day is what it has always been, and only stepping back changes the question being asked.
@@ -640,7 +639,7 @@
     }
 
     /// <summary>The scope line under the document title, so a printed sheet says which register it is.</summary>
-    private string ScopeLabel => _scope switch
+    private string ScopeLabel => ViewScope switch
     {
         HolderScope.Space => (_spaceSource is { } kind ? SpaceSources.Single(s => s.Kind == kind).Name : "ALL SPACE RENTALS").ToUpper(),
         HolderScope.Stall => _facility is null ? "ALL STALL RENTALS" : FacilityCatalog.NameOf(_facility.Value).ToUpper(),
@@ -663,7 +662,7 @@
 
     // The as-of year is in the filename when there is one, so a historical export cannot be mistaken on disk for the
     // current register. A stall-only export keeps the name it always had; the other scopes say what they hold.
-    private string CsvFileName => _scope switch
+    private string CsvFileName => ViewScope switch
     {
         HolderScope.Space => $"spaceholders_{(_spaceSource is { } kind ? SpaceSources.Single(s => s.Kind == kind).Route.Split('/').Last() : "all")}_{PhilippineTime.Now:yyyy-MM-dd}.csv",
         _ => $"{(_scope == HolderScope.All ? "stall-space-holders" : "stallholders")}_{(_facility?.ToString().ToLower() ?? "all")}{(IsSectionFiltered ? "_" + _section!.Replace(' ', '-').ToLower() : "")}{(AsOfYear is { } y ? $"_as-of-{y}" : "")}_{PhilippineTime.Now:yyyy-MM-dd}.csv",
@@ -804,7 +803,7 @@
     /// <summary>The tab's name: the scope on screen, so a file opened months later says what it is.</summary>
     private string SheetTabName()
     {
-        var scope = _scope switch
+        var scope = ViewScope switch
         {
             HolderScope.Space => _spaceSource is { } kind ? SpaceSources.Single(s => s.Kind == kind).Name : "Space rentals",
             _ => _facility is null ? (_scope == HolderScope.All ? "All holders" : "All Facilities") : FacilityCatalog.ShortNameOf(_facility.Value),

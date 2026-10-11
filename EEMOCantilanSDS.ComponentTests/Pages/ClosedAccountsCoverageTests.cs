@@ -20,6 +20,8 @@ using ClosedAccounts = EEMOCantilanSDS.Client.Components.Pages.Reports.ClosedAcc
 public sealed class ClosedAccountsCoverageTests : TestContext
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
+    private readonly List<Guid> Renewed = new();
+    private readonly HashSet<Guid> _failRenewals = new();
 
     private static ClosedStallAccountDto Stall(InactiveAccountState state, string occupant, string stallNo, decimal uncollected = 0m, bool reLet = false,
         FacilityCode facility = FacilityCode.NPM, string facilityName = "New Public Market") => new(
@@ -39,6 +41,12 @@ public sealed class ClosedAccountsCoverageTests : TestContext
     {
         var stallsApi = new Mock<IStallsApiClient>();
         stallsApi.Setup(a => a.GetClosedStallAccountsAsync()).ReturnsAsync(Result<IReadOnlyList<ClosedStallAccountDto>>.Success(stalls.ToList()));
+        stallsApi.Setup(a => a.RenewStallContractAsync(It.IsAny<Guid>(), It.IsAny<EEMOCantilanSDS.Application.Requests.Stalls.RenewStallContractRequest>()))
+            .ReturnsAsync((Guid id, EEMOCantilanSDS.Application.Requests.Stalls.RenewStallContractRequest _) =>
+            {
+                Renewed.Add(id);
+                return _failRenewals.Contains(id) ? Result<bool>.Failure("Refused") : Result<bool>.Success(true);
+            });
         var obligations = new Mock<IObligationsApiClient>();
         obligations.Setup(x => x.GetWorkspaceAsync(It.IsAny<ObligationKind>())).ReturnsAsync((ObligationKind kind) =>
             Result<ObligationWorkspaceDto>.Success(new(spaces.Where(s => s.Kind == kind).ToList(), 0m, 0m, 0m)));
@@ -77,7 +85,7 @@ public sealed class ClosedAccountsCoverageTests : TestContext
     {
         var cut = RenderRegister([Stall(InactiveAccountState.Closed, "Maria Santos", "5")]);
 
-        Assert.Equal(["Status", "Source"], cut.FindAll(".fh-dd-cap").Select(c => c.TextContent.Trim()).ToArray());
+        Assert.Equal(["Status", "Source"], cut.FindAll(".ca-filters .fh-dd-cap").Select(c => c.TextContent.Trim()).ToArray());
         Assert.Empty(cut.FindAll(".ca-chip"));
         var export = cut.Find(".ca-export");
         Assert.Equal(["Print", "CSV", "Excel"], export.QuerySelectorAll(".ca-export-btn").Select(b => b.TextContent.Trim()).ToArray());
@@ -143,20 +151,87 @@ public sealed class ClosedAccountsCoverageTests : TestContext
         }
     }
 
+
+    private static ClosedStallAccountDto In(string name, FacilityCode code, InactiveAccountState state, string holder, string no, bool reLet = false) =>
+        Stall(state, holder, no, reLet: reLet, facility: code, facilityName: name);
+
+    private static AngleSharp.Dom.IElement FacilityGroup(IRenderedComponent<ClosedAccounts> cut, string name) =>
+        cut.FindAll(".ca-fac-group").Single(g => g.QuerySelector(".ca-fac-title")!.TextContent.Trim() == name);
+
     [Fact]
-    public void RenewAllCoversOnlyIndependentlyEligibleStallAccounts()
+    public void RenewEligibleIsOfferedPerFacility_NeverAsOneButtonForTheWholeYear()
     {
         var cut = RenderRegister(
-            [Stall(InactiveAccountState.Expired, "Eligible Holder", "1"),
-             Stall(InactiveAccountState.Expired, "Re-let Holder", "2", reLet: true),
-             Stall(InactiveAccountState.Closed, "Closed Holder", "3")],
+            [In("Iceplant", FacilityCode.ICE, InactiveAccountState.Expired, "Ice A", "1"),
+             In("Iceplant", FacilityCode.ICE, InactiveAccountState.Expired, "Ice B", "2"),
+             In("New Public Market", FacilityCode.NPM, InactiveAccountState.Expired, "Npm A", "5"),
+             In("New Public Market", FacilityCode.NPM, InactiveAccountState.Closed, "Npm Closed", "6"),
+             In("New Public Market", FacilityCode.NPM, InactiveAccountState.Lapsed, "Npm Relet", "7", reLet: true),
+             In("New Public Market", FacilityCode.NPM, InactiveAccountState.Renewed, "Npm Renewed", "8")],
             Space(ObligationKind.KanmanggaySpaceRental, "Lito Ramos", "KM-2"));
 
-        var buttons = cut.FindAll(".ca-renew-all-btn");
-
-        Assert.Single(buttons);
-        Assert.Contains("Renew all (1)", buttons[0].TextContent);
+        Assert.Empty(cut.FindAll(".ca-year-head .ca-renew-all-btn"));                         // not at the year level
+        Assert.Equal("Renew eligible (2)", FacilityGroup(cut, "Iceplant").QuerySelector(".ca-renew-all-btn")!.TextContent.Trim());
+        // Closed, re-let and already-renewed accounts are not eligible; only the one Expired NPM account is.
+        Assert.Equal("Renew eligible (1)", FacilityGroup(cut, "New Public Market").QuerySelector(".ca-renew-all-btn")!.TextContent.Trim());
+        // Source-owned space accounts never get a bulk renewal.
         Assert.Empty(cut.Find(".ca-obligation-source").QuerySelectorAll(".ca-renew-all-btn"));
+    }
+
+    [Fact]
+    public void RenewingOneFacilityTouchesOnlyItsOwnEligibleAccounts_AndTheDialogNamesIt()
+    {
+        var ice1 = In("Iceplant", FacilityCode.ICE, InactiveAccountState.Expired, "Ice A", "1");
+        var ice2 = In("Iceplant", FacilityCode.ICE, InactiveAccountState.Expired, "Ice B", "2");
+        var npm = In("New Public Market", FacilityCode.NPM, InactiveAccountState.Expired, "Npm A", "5");
+        var cut = RenderRegister([ice1, ice2, npm]);
+
+        FacilityGroup(cut, "Iceplant").QuerySelector(".ca-renew-all-btn")!.Click();
+
+        Assert.Equal("Renew eligible accounts — Iceplant", cut.Find(".eemo-modal-title").TextContent.Trim());
+        Assert.Contains("2 eligible accounts", cut.Find(".confirm-text").TextContent);
+        Assert.DoesNotContain("Npm A", cut.Find(".eemo-modal").TextContent);
+        cut.Find(".eemo-modal-footer .btn-primary").Click();
+
+        cut.WaitForAssertion(() => Assert.Equal(2, Renewed.Count), Timeout);
+        Assert.Equal([ice1.StallId, ice2.StallId], Renewed.OrderBy(id => id == ice1.StallId ? 0 : 1).ToArray());
+        Assert.DoesNotContain(npm.StallId, Renewed);
+    }
+
+    [Fact]
+    public void AFilterNarrowsTheFacilityTargets_AndAPartialFailureRetriesOnlyTheFailedAccountsOfThatFacility()
+    {
+        var ice1 = In("Iceplant", FacilityCode.ICE, InactiveAccountState.Expired, "Ice A", "1");
+        var ice2 = In("Iceplant", FacilityCode.ICE, InactiveAccountState.Expired, "Ice B", "2");
+        var npm = In("New Public Market", FacilityCode.NPM, InactiveAccountState.Expired, "Npm A", "5");
+        _failRenewals.Add(ice2.StallId);
+        var cut = RenderRegister([ice1, ice2, npm]);
+
+        FacilityGroup(cut, "Iceplant").QuerySelector(".ca-renew-all-btn")!.Click();
+        cut.Find(".eemo-modal-footer .btn-primary").Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("1 renewed, 1 failed", cut.Find(".ca-form-err").TextContent), Timeout);
+        Assert.Equal(2, Renewed.Count);
+        Assert.DoesNotContain(npm.StallId, Renewed);
+        // The retry covers only what is still eligible in Iceplant. The mocked register is unchanged, so both rows are still
+        // listed — but only the failed account was carried into the retry set.
+        Assert.Contains("1 eligible account", cut.Find(".confirm-text").TextContent);
+    }
+
+    [Fact]
+    public void ThePeriodStatusAndSourceControlsShareOneClusterAtOneHeight_AndTheBalanceNoteSpansTheSection()
+    {
+        var cut = RenderRegister([Stall(InactiveAccountState.Closed, "Maria Santos", "5")]);
+
+        var cluster = cut.Find(".ca-controls .ca-filters");
+        Assert.NotNull(cluster.QuerySelector(".rpt-period-trigger"));
+        Assert.Equal(2, cluster.QuerySelectorAll(".fh-dd").Length);
+        Assert.Contains("Whole Time", cluster.TextContent);
+        Assert.Empty(cut.FindAll(".ca-filter-cap"));
+        var css = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "EEMOCantilanSDS.Client", "Components", "Pages", "Reports", "ClosedAccounts.razor.css"));
+        Assert.Matches(@"\.ca-filter ::deep \.rpt-period-trigger\s*\{[^}]*height:\s*42px", css);
+        Assert.Matches(@"\.ca-why p\s*\{[^}]*max-width:\s*none", css);
+        Assert.Equal(css.Count(c => c == '{'), css.Count(c => c == '}'));
     }
 
     [Fact]

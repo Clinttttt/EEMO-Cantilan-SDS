@@ -105,7 +105,7 @@ public sealed class DashboardOverviewViewsTests : TestContext
     }
 
     private static void Switch(IRenderedComponent<Menu> cut, string label) =>
-        cut.FindAll(".dashboard-view-switch button").Single(b => b.TextContent.Trim() == label).Click();
+        cut.FindAll(".dash-view:not([hidden]) .dashboard-view-switch button").Single(b => b.TextContent.Trim() == label).Click();
 
     [Fact]
     public void TheSwitchDefaultsToOperations_AndTheRevenueTableIsNotMountedUntilChosen()
@@ -114,10 +114,10 @@ public sealed class DashboardOverviewViewsTests : TestContext
 
         var cut = RenderLoaded();
 
-        var buttons = cut.FindAll(".dashboard-view-switch button");
+        var buttons = cut.FindAll(".dash-view:not([hidden]) .dashboard-view-switch button");
         Assert.Equal(["Operations", "Revenue sources"], buttons.Select(b => b.TextContent.Trim()).ToArray());
         Assert.Equal("true", buttons[0].GetAttribute("aria-pressed")); Assert.Equal("false", buttons[1].GetAttribute("aria-pressed"));
-        Assert.Contains("Operations overview", cut.Find("#dash-view-heading").TextContent);
+        Assert.Equal("Facility operations", cut.Find("#dash-ops-heading").TextContent.Trim()); Assert.DoesNotContain("Operations overview", cut.Markup);
         Assert.Empty(cut.FindComponents<RevenueSourcePerformancePanel>());
         Assert.Empty(cut.FindAll("#dash-view-revenue"));
     }
@@ -131,16 +131,16 @@ public sealed class DashboardOverviewViewsTests : TestContext
         Switch(cut, "Revenue sources");
         cut.WaitForAssertion(() => Assert.Single(cut.FindAll("table.rsp-table")), Timeout);
         Assert.Single(cut.FindComponents<RevenueSourcePerformancePanel>());
-        Assert.Contains("Revenue source performance", cut.Find("#dash-view-heading").TextContent);
+        Assert.DoesNotContain("v3-sr-only", cut.Find(".rsp-head-copy").ClassName);   // the title is visible, in the panel header
         Assert.Contains("Revenue source performance", cut.Find("#rsp-title").TextContent);   // the table's own heading stays for screen readers
         Assert.Null(cut.Find("#dash-view-revenue").GetAttribute("hidden")); Assert.NotNull(cut.Find("#dash-view-operations").GetAttribute("hidden"));
         // Annual target stays read-only on Overview; the editor belongs to Reports.
         Assert.Empty(cut.FindAll(".rsp-target-btn"));
 
         Switch(cut, "Operations");
-        Assert.Contains("Operations overview", cut.Find("#dash-view-heading").TextContent);
+        Assert.Equal("Facility operations", cut.Find("#dash-ops-heading").TextContent.Trim()); Assert.DoesNotContain("Operations overview", cut.Markup);
         Assert.Null(cut.Find("#dash-view-operations").GetAttribute("hidden")); Assert.NotNull(cut.Find("#dash-view-revenue").GetAttribute("hidden"));
-        Assert.Equal("true", cut.FindAll(".dashboard-view-switch button")[0].GetAttribute("aria-pressed"));
+        Assert.Equal("true", cut.FindAll(".dash-view:not([hidden]) .dashboard-view-switch button")[0].GetAttribute("aria-pressed"));
         Assert.Single(cut.FindComponents<RevenueSourcePerformancePanel>());   // hidden, never remounted
 
         for (var i = 0; i < 3; i++) { Switch(cut, "Revenue sources"); Switch(cut, "Operations"); }
@@ -281,7 +281,7 @@ public sealed class DashboardOverviewViewsTests : TestContext
         SetRendererInfo(new RendererInfo("Static", isInteractive: false));
 
         var cut = RenderComponent<Menu>();
-        cut.WaitForAssertion(() => Assert.Contains("Operations overview", cut.Markup), Timeout);
+        cut.WaitForAssertion(() => Assert.Contains("Facility operations", cut.Markup), Timeout);
 
         _official.Verify(x => x.GetSourcePerformanceAsync(It.IsAny<int>(), It.IsAny<int?>()), Times.Never);
         Assert.NotEmpty(cut.FindAll("[aria-label='Loading other operations']"));
@@ -340,5 +340,60 @@ public sealed class DashboardOverviewViewsTests : TestContext
         Assert.Matches(@"prefers-reduced-motion:\s*reduce\)\s*\{[^@]*\.dash-view\s*\{\s*animation:\s*none", css);
         Assert.Contains(".dash-view[hidden] { display: none; }", css);
         Assert.Equal(css.Count(c => c == '{'), css.Count(c => c == '}'));
+    }
+
+    [Fact]
+    public void OperationsShowsOneCompactHeader_WithAllFiveShortcutsAndTheSwitch_AndNoStandaloneTitleRow()
+    {
+        Dashboard(); ServeSource(FullCatalog());
+
+        var cut = RenderLoaded();
+
+        var head = cut.Find("#dash-view-operations .dash-ops-head");
+        Assert.Equal("Facility operations", head.QuerySelector("h3")!.TextContent.Trim());
+        Assert.Equal(["/reports/month-end", "/reports/collections", "/reports/follow-up", "/stall-holders", "/reports/closed-accounts"],
+            head.QuerySelectorAll("a.dashboard-report-tab").Select(a => a.GetAttribute("href")!).ToArray());
+        Assert.Equal(2, head.QuerySelectorAll(".dashboard-view-switch button").Length);
+        Assert.Empty(cut.FindAll(".section-header"));
+        Assert.DoesNotContain("October 2026", cut.Find("#dash-view-operations").TextContent.Replace(" ", " "));
+    }
+
+    [Fact]
+    public void RevenueSourcesPutsTheTitleShortcutsSwitchAndSourceFilterInTheOnePanelHeader()
+    {
+        Dashboard(); ServeSource(FullCatalog());
+        var cut = RenderLoaded();
+
+        Switch(cut, "Revenue sources");
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll("table.rsp-table")), Timeout);
+
+        var head = cut.Find("#dash-view-revenue .rsp-head");
+        Assert.Contains("Revenue source performance —", head.QuerySelector(".rsp-title")!.TextContent);
+        var links = head.QuerySelectorAll(".rsp-head-actions a").ToDictionary(a => a.TextContent.Trim(), a => a.GetAttribute("href"));
+        Assert.Equal("/reports/month-end", links["Monthly Collection Report"]);
+        Assert.Equal("/reports/collections", links["Collection Manager"]);
+        // The remaining reports stay reachable under one disclosure; none is dropped.
+        Assert.Equal("/reports/follow-up", links["Follow-up Queue"]);
+        Assert.Equal("/stall-holders", links["Holder Register"]);
+        Assert.Equal("/reports/closed-accounts", links["Closed Accounts"]);
+        Assert.NotNull(head.QuerySelector(".rsp-head-actions details.dashboard-more summary"));
+        Assert.Equal(2, head.QuerySelectorAll(".dashboard-view-switch button").Length);
+        Assert.NotNull(head.QuerySelector(".rsp-filter"));
+        // Exactly one switch is visible: the Operations copy is hidden with its view.
+        Assert.Single(cut.FindAll(".dash-view:not([hidden]) .dashboard-view-switch"));
+    }
+
+    [Fact]
+    public void TheSharedPanelKeepsItsOwnHeadingAndHasNoHostActionsOutsideTheDashboard()
+    {
+        _official.Setup(x => x.GetSourcePerformanceAsync(It.IsAny<int>(), It.IsAny<int?>()))
+            .ReturnsAsync(Result<RevenueSourcePerformanceDto>.Success(Source(FullCatalog())));
+
+        var cut = RenderComponent<RevenueSourcePerformancePanel>(p => p.Add(x => x.Year, Source(FullCatalog()).Year).Add(x => x.Month, Source(FullCatalog()).Month));
+
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll("table.rsp-table")), Timeout);
+        Assert.Empty(cut.FindAll(".rsp-head-actions"));
+        Assert.Contains("Official collections and operating activity", cut.Find(".rsp-sub").TextContent);
+        Assert.DoesNotContain("v3-sr-only", cut.Find(".rsp-head-copy").ClassName);
     }
 }

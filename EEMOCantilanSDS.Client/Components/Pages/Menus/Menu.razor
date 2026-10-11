@@ -58,29 +58,16 @@
                 </Figures>
             </V3Hero>
 
-            <!-- One managerial region, two views: operational monitoring, or the official revenue source performance -->
-            <div class="section-header">
-                <div class="section-title-block">
-                    <div class="section-heading" id="dash-view-heading">@(_view == ViewRevenue ? "Revenue source performance" : "Operations overview") — @_now.ToString("MMMM yyyy")</div>
-                </div>
-                <div class="section-header-actions">
-                    <div class="dashboard-report-tabs" role="group" aria-label="Dashboard report actions">
-                        <a href="/reports/month-end" class="dashboard-report-tab">Monthly Collection Report</a>
-                        <a href="/reports/collections" class="dashboard-report-tab">Collection Manager</a>
-                        <a href="/reports/follow-up" class="dashboard-report-tab">Follow-up Queue</a>
-                        <a href="/stall-holders" class="dashboard-report-tab">Holder Register</a>
-                        <a href="/reports/closed-accounts" class="dashboard-report-tab">Closed Accounts</a>
-                    </div>
-                    <div class="dashboard-view-switch" role="group" aria-label="Dashboard view">
-                        <button type="button" class="dashboard-view-tab @(_view == ViewOperations ? "active" : "")" aria-pressed="@(_view == ViewOperations ? "true" : "false")" aria-controls="dash-view-operations" @onclick="() => SelectView(ViewOperations)">Operations</button>
-                        <button type="button" class="dashboard-view-tab @(_view == ViewRevenue ? "active" : "")" aria-pressed="@(_view == ViewRevenue ? "true" : "false")" aria-controls="dash-view-revenue" @onclick="() => SelectView(ViewRevenue)">Revenue sources</button>
-                    </div>
-                </div>
-            </div>
 
             @* Both views stay mounted once opened and the inactive one is only hidden, so switching never re-reads the
                Terminal activity or the official source projection and the Revenue source filter keeps its state. *@
-            <div id="dash-view-operations" class="dash-view" hidden="@(_view != ViewOperations)" aria-labelledby="dash-view-heading">
+            <div id="dash-view-operations" class="dash-view" hidden="@(_view != ViewOperations)" aria-labelledby="dash-ops-heading">
+                @* One compact management header: the section's own title on the left, the report shortcuts and the view switch on
+                   the right. The period is already stated by the hero and topbar, so it is not repeated here. *@
+                <div class="dash-ops-head">
+                    <h3 class="dash-subhead" id="dash-ops-heading">Facility operations</h3>
+                    @Toolbar("ops", compact: false)
+                </div>
                 @if (_loading)
                 {
                     <div class="facility-grid">
@@ -109,7 +96,6 @@
                 }
                 else
                 {
-                    <h3 class="dash-subhead">Facility operations</h3>
                     <div class="facility-grid">
                         @foreach (var fac in Facilities)
                         {
@@ -246,18 +232,24 @@
 
             @if (_revenueMounted)
             {
-                <div id="dash-view-revenue" class="dash-view" hidden="@(_view != ViewRevenue)" aria-labelledby="dash-view-heading">
+                <div id="dash-view-revenue" class="dash-view" hidden="@(_view != ViewRevenue)" aria-labelledby="@(_sourceLoading ? "dash-rev-heading" : "rsp-title")">
                     @* The one Revenue source performance table — the same component Financial Reports uses, read-only for targets here.
                        Interactive only, so prerendering never reads it; the Dashboard's single read is handed in so it is not repeated. *@
                     @if (RendererInfo.IsInteractive)
                     {
                         @if (_sourceLoading)
                         {
+                            @* The same header the panel will show, so the shortcuts and view switch never disappear while the read finishes. *@
+                            <div class="dash-rev-head">
+                                <h2 class="dash-rev-title" id="dash-rev-heading">Revenue source performance — @_now.ToString("MMMM yyyy")</h2>
+                                @Toolbar("rev", compact: true)
+                            </div>
                             <p class="dash-note" role="status">Loading revenue source performance…</p>
                         }
                         else
                         {
-                            <RevenueSourcePerformancePanel Year="_now.Year" Month="_now.Month" OverviewMode="true" Embedded="true" Preloaded="_source" />
+                            <RevenueSourcePerformancePanel Year="_now.Year" Month="_now.Month" OverviewMode="true" Embedded="true" Preloaded="_source"
+                                                           HeaderActions="@Toolbar("rev", compact: true)" />
                         }
                     }
                 </div>
@@ -434,6 +426,7 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender && RendererInfo.IsInteractive) await LoadSourcesAsync();
+        await RestoreSwitchFocusAsync();
     }
 
     private async Task LoadSourcesAsync()
@@ -452,9 +445,64 @@
 
     private void SelectView(string view)
     {
+        if (view == _view) return;
         _view = view;
         if (view == ViewRevenue) _revenueMounted = true;
+        _restoreSwitchFocus = true;
     }
+
+    // The switch exists once in each view, so choosing the other view moves it. Keyboard focus follows to the same control in the
+    // view that is now showing, rather than being dropped with the one that was hidden.
+    private bool _restoreSwitchFocus;
+    private ElementReference _opsToOps, _opsToRev, _revToOps, _revToRev;
+
+    private async Task RestoreSwitchFocusAsync()
+    {
+        if (!_restoreSwitchFocus) return;
+        _restoreSwitchFocus = false;
+var button = _view == ViewRevenue ? _revToRev : _opsToOps;        try { await button.FocusAsync(); } catch (InvalidOperationException) { /* the control is not mounted yet */ }
+    }
+
+    // The report shortcuts and the Operations | Revenue sources switch, in the section header of whichever view is showing. On
+    // the Revenue view the width is shared with the title and source selector, so the less-used reports sit under "More".
+    private RenderFragment Toolbar(string host, bool compact) => __builder =>
+    {
+        <div class="dash-toolbar @(compact ? "dash-toolbar-compact" : "")">
+            <div class="dashboard-report-tabs" role="group" aria-label="Dashboard report actions">
+                <a href="/reports/month-end" class="dashboard-report-tab">Monthly Collection Report</a>
+                <a href="/reports/collections" class="dashboard-report-tab">Collection Manager</a>
+                @if (compact)
+                {
+                    <details class="dashboard-more">
+                        <summary class="dashboard-report-tab">More reports</summary>
+                        <div class="dashboard-more-menu">
+                            <a href="/reports/follow-up" class="dashboard-more-link">Follow-up Queue</a>
+                            <a href="/stall-holders" class="dashboard-more-link">Holder Register</a>
+                            <a href="/reports/closed-accounts" class="dashboard-more-link">Closed Accounts</a>
+                        </div>
+                    </details>
+                }
+                else
+                {
+                    <a href="/reports/follow-up" class="dashboard-report-tab">Follow-up Queue</a>
+                    <a href="/stall-holders" class="dashboard-report-tab">Holder Register</a>
+                    <a href="/reports/closed-accounts" class="dashboard-report-tab">Closed Accounts</a>
+                }
+            </div>
+            <div class="dashboard-view-switch" role="group" aria-label="Dashboard view">
+                @if (host == "ops")
+                {
+                    <button type="button" @ref="_opsToOps" class="dashboard-view-tab @(_view == ViewOperations ? "active" : "")" aria-pressed="@(_view == ViewOperations ? "true" : "false")" aria-controls="dash-view-operations" @onclick="() => SelectView(ViewOperations)">Operations</button>
+                    <button type="button" @ref="_opsToRev" class="dashboard-view-tab @(_view == ViewRevenue ? "active" : "")" aria-pressed="@(_view == ViewRevenue ? "true" : "false")" aria-controls="dash-view-revenue" @onclick="() => SelectView(ViewRevenue)">Revenue sources</button>
+                }
+                else
+                {
+                    <button type="button" @ref="_revToOps" class="dashboard-view-tab @(_view == ViewOperations ? "active" : "")" aria-pressed="@(_view == ViewOperations ? "true" : "false")" aria-controls="dash-view-operations" @onclick="() => SelectView(ViewOperations)">Operations</button>
+                    <button type="button" @ref="_revToRev" class="dashboard-view-tab @(_view == ViewRevenue ? "active" : "")" aria-pressed="@(_view == ViewRevenue ? "true" : "false")" aria-controls="dash-view-revenue" @onclick="() => SelectView(ViewRevenue)">Revenue sources</button>
+                }
+            </div>
+        </div>
+    };
 
     private async Task PaintLoadingStateAsync()
     {

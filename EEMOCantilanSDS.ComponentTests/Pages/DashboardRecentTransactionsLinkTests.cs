@@ -67,8 +67,8 @@ public sealed class DashboardRecentTransactionsLinkTests : TestContext
 
         var cut = RenderComponent<Menu>();
         // Operations is the default view; the official source table is one switch away, in the same section.
-        cut.WaitForAssertion(() => Assert.Contains("Operations overview", cut.Markup));
-        cut.FindAll(".dashboard-view-switch button").Single(b => b.TextContent.Trim() == "Revenue sources").Click();
+        cut.WaitForAssertion(() => Assert.Contains("Facility operations", cut.Markup));
+        cut.FindAll(".dash-view:not([hidden]) .dashboard-view-switch button").Single(b => b.TextContent.Trim() == "Revenue sources").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -84,7 +84,7 @@ public sealed class DashboardRecentTransactionsLinkTests : TestContext
             Assert.Empty(cut.FindAll("tr.rsp-detail"));
             // The old facility-only title is gone; the facility cards are a labelled secondary snapshot.
             Assert.DoesNotContain("Revenue by Facility", cut.Markup);
-            Assert.Contains("Revenue source performance", cut.Find("#dash-view-heading").TextContent);
+            Assert.Contains("Revenue source performance", cut.Find("#rsp-title").TextContent);
             Assert.Contains("Outstanding", cut.Markup);
         });
     }

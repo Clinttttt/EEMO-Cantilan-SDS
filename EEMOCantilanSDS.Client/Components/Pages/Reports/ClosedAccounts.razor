@@ -45,23 +45,21 @@
 
     <!-- Controls: year + state + facility + search + print -->
     <div class="ca-controls no-print">
-        <div class="ca-filter" role="group" aria-label="Year">
-            <span class="ca-filter-cap">Year</span>
-            <ReportPeriodNav YearFilterMode="true" SelectedYear="_year" FilterYears="Years" AlignRight="false"
-                             Label="@(_year?.ToString() ?? "Whole Time")"
-                             OnSelectYear="OnPickYear" />
+        @* One cluster of filters — period, status, source and (when the facility has sections) section — so they read as one
+           control group at the same height. *@
+        <div class="ca-filters" role="group" aria-label="Filters">
+            <div class="ca-filter" role="group" aria-label="Year">
+                <ReportPeriodNav YearFilterMode="true" SelectedYear="_year" FilterYears="Years" AlignRight="false"
+                                 Label="@(_year?.ToString() ?? "Whole Time")"
+                                 OnSelectYear="OnPickYear" />
+            </div>
+            <FhSelect Caption="Status" Value="@StatusValue" Options="@StatusOptions" ValueChanged="@SelectStatus" />
+            <FhSelect Caption="Source" Value="@(_facility ?? "")" Options="@SourceOptions" ValueChanged="@(v => SelectFacility(v.Length == 0 ? null : v))" />
+            @if (SelectableSections.Count > 0)
+            {
+                <FhSelect Caption="Section" Value="@(_section ?? "")" Options="@SectionOptions" ValueChanged="@(v => SelectSection(v.Length == 0 ? null : v))" />
+            }
         </div>
-
-        @* One compact selector per question, so the toolbar holds the same number of controls whatever sources the office runs. *@
-        <FhSelect Caption="Status" Value="@StatusValue" Options="@StatusOptions" ValueChanged="@SelectStatus" />
-        <FhSelect Caption="Source" Value="@(_facility ?? "")" Options="@SourceOptions" ValueChanged="@(v => SelectFacility(v.Length == 0 ? null : v))" />
-        @* Sections of the selected facility, from its own accounts — same affordance as the stallholder list.
-           Shown whenever the facility has sections at all, so a market always states how its register is
-           divided even when every inactive account happens to sit in one section. *@
-        @if (SelectableSections.Count > 0)
-        {
-            <FhSelect Caption="Section" Value="@(_section ?? "")" Options="@SectionOptions" ValueChanged="@(v => SelectSection(v.Length == 0 ? null : v))" />
-        }
 
         <div class="ca-actions">
             <div class="ca-search">
@@ -228,38 +226,37 @@
                 var yr = grp.ToList();
                 var facGroups = yr.GroupBy(r => r.FacilityName, StringComparer.OrdinalIgnoreCase)
                                   .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase).ToList();
-                var singleFacility = facGroups.Count == 1;
-                // Bulk renew covers accounts whose stall is actually free. A past occupancy on a stall that has
-                // since been re-let is history — renewing it would displace the sitting lessee.
-                var expiredInGroup = yr.Where(r => r.State != InactiveAccountState.Closed && !r.StallReLet).ToList();
                 <div class="ca-year">
                     <div class="ca-year-head">
-                        <span class="ca-year-label">@grp.Key@(singleFacility ? " · " + facGroups[0].Key : "")</span>
+                        <span class="ca-year-label">@grp.Key</span>
                         <div class="ca-year-right">
                             <span class="ca-year-stats"><strong>@yr.Count</strong> account@(yr.Count != 1 ? "s" : "")</span>
-                            @if (expiredInGroup.Count > 0)
-                            {
-                                <button class="ca-renew-all-btn no-print" type="button"
-                                        @onclick="() => OpenRenewAll(expiredInGroup)"
-                                        title="Start a new contract term for every expired account in this group">
-                                    <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
-                                    Renew all (@expiredInGroup.Count)
-                                </button>
-                            }
                         </div>
                     </div>
 
                     @foreach (var facGrp in facGroups)
                     {
                         var facRows = facGrp.OrderByDescending(r => EndOf(r)).ToList();
+                        // Bulk renewal is decided one facility at a time, from THIS facility's rows in THIS year group — never
+                        // from the year as a whole — and by the same test the row's own Renew action uses.
+                        var renewable = facRows.Where(IsBulkRenewable).DistinctBy(r => r.StallId).ToList();
                         <div class="ca-fac-group">
-                            @if (!singleFacility)
-                            {
-                                <div class="ca-fac-head">
-                                    <span class="ca-fac-title">@facGrp.Key</span>
+                            <div class="ca-fac-head">
+                                <span class="ca-fac-title">@facGrp.Key</span>
+                                <div class="ca-fac-right">
                                     <span class="ca-fac-stats"><strong>@facRows.Count</strong> account@(facRows.Count != 1 ? "s" : "")</span>
+                                    @if (renewable.Count > 0)
+                                    {
+                                        <button class="ca-renew-all-btn no-print" type="button"
+                                                @onclick="() => OpenRenewAll(facGrp.Key, renewable)"
+                                                aria-label="@($"Renew eligible accounts — {facGrp.Key} ({renewable.Count})")"
+                                                title="@($"Start a new contract term for the {renewable.Count} eligible account{(renewable.Count != 1 ? "s" : "")} in {facGrp.Key} only")">
+                                            <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
+                                            Renew eligible (@renewable.Count)
+                                        </button>
+                                    }
                                 </div>
-                            }
+                            </div>
 
                             <table class="ca-table">
                                 <thead>
@@ -683,10 +680,10 @@
 {
     <div class="eemo-modal-overlay" @onclick="CloseModals">
         <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
-            <div class="eemo-modal-header"><div class="eemo-modal-title">Renew all expired accounts</div></div>
+            <div class="eemo-modal-header"><div class="eemo-modal-title">Renew eligible accounts — @_renewAllFacility</div></div>
             <div class="eemo-modal-body">
                 <p class="confirm-text">
-                    Start a new contract term for <strong>@_renewAllTargets.Count expired account@(_renewAllTargets.Count != 1 ? "s" : "")</strong>@(_facility is null ? "" : " in this facility") — beginning
+                    Start a new contract term for <strong>@_renewAllTargets.Count eligible account@(_renewAllTargets.Count != 1 ? "s" : "")</strong> in <strong>@_renewAllFacility</strong> only — beginning
                     <strong>@_renewAllEffectivity.ToString("MMM d, yyyy")</strong> for <strong>@_renewAllDuration year(s)</strong>.
                     Each keeps its own occupant and contract name. The lapsed period is not back-billed.
                 </p>
@@ -951,6 +948,7 @@
     private DateOnly _renewAllEffectivity;
     private int _renewAllDuration = 3;
     private List<ClosedStallAccountDto> _renewAllTargets = new();
+    private string _renewAllFacility = "";
     private string? _renewAllProgress;
 
     protected override async Task OnInitializedAsync()
@@ -1187,9 +1185,16 @@
             _renewName = null;
     }
 
-    private void OpenRenewAll(IReadOnlyList<ClosedStallAccountDto> expired)
+    // The accounts a bulk renewal may cover are exactly those whose own row offers Renew: not ended by a closure, not already on a
+    // fresh term, and not a past occupancy of a stall somebody else now holds. The server still decides each one.
+    private static bool IsBulkRenewable(ClosedStallAccountDto r) =>
+        r.State != InactiveAccountState.Closed && r.State != InactiveAccountState.Renewed && !r.StallReLet;
+
+    private void OpenRenewAll(string facility, IReadOnlyList<ClosedStallAccountDto> eligible)
     {
-        _renewAllTargets = expired.ToList();
+        _renewAllFacility = facility;
+        _renewAllTargets = eligible.Where(r => string.Equals(r.FacilityName, facility, StringComparison.OrdinalIgnoreCase))
+            .Where(IsBulkRenewable).DistinctBy(r => r.StallId).ToList();
         _renewAllEffectivity = PhilippineTime.Today;   // fresh start today; the lapsed gap is never back-billed
         _renewAllDuration = 3;
         _renewAllProgress = null;
@@ -1206,6 +1211,7 @@
         _actionError = null;
         var ok = 0;
         var failed = 0;
+        var failedIds = new HashSet<Guid>();
         // Each account keeps its own occupant + contract name; only the (common) start date + term are applied.
         foreach (var r in _renewAllTargets)
         {
@@ -1215,9 +1221,9 @@
             {
                 var req = new RenewStallContractRequest(_renewAllEffectivity, _renewAllDuration, r.Occupant, r.ContractName);
                 var res = await StallsApi.RenewStallContractAsync(r.StallId, req);
-                if (res.IsSuccess) ok++; else failed++;
+                if (res.IsSuccess) ok++; else { failed++; failedIds.Add(r.StallId); }
             }
-            catch { failed++; }
+            catch { failed++; failedIds.Add(r.StallId); }
         }
         _busy = false;
 
@@ -1229,10 +1235,14 @@
         else
         {
             _actionError = $"{ok} renewed, {failed} failed. Please retry the remaining accounts.";
-            var targetIds = _renewAllTargets.Select(t => t.StallId).ToHashSet();
+            var targetIds = failedIds;   // only what actually failed — never an account that was renewed
             await Load();   // refresh so the successfully-renewed rows drop off the list
+            // Only what failed AND is still eligible, and only from this facility: a renewed account is no longer renewable, and
+            // nothing from another facility can enter the retry.
             _renewAllTargets = _accounts
-                .Where(r => r.State != InactiveAccountState.Closed && targetIds.Contains(r.StallId))
+                .Where(r => IsBulkRenewable(r) && targetIds.Contains(r.StallId)
+                    && string.Equals(r.FacilityName, _renewAllFacility, StringComparison.OrdinalIgnoreCase))
+                .DistinctBy(r => r.StallId)
                 .ToList();
             _renewAllProgress = null;
         }
