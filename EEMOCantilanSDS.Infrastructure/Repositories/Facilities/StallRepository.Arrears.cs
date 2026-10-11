@@ -123,7 +123,13 @@ public partial class StallRepository
                 amountThisMonth = Math.Min(listed, monthPayable.Amount);
             }
 
-            if (pastMonths.Count == 0 && daysThisMonth.Count == 0)
+            // The rest of any day a part payment has started: still owed, and counted so the balance reads true.
+            var partPaidBalance = sitting is null ? 0m : stall.DailyCollections
+                .Where(d => d.IsPartlyPaid && d.CollectionDate >= lookbackStart && d.CollectionDate <= effectiveEnd
+                    && StallOccupancy.AnsweringForMonth(occupancies, d.CollectionDate.Year, d.CollectionDate.Month)?.Contract.Id == sitting.Contract.Id)
+                .Sum(d => d.RemainingBaseFee);
+
+            if (pastMonths.Count == 0 && daysThisMonth.Count == 0 && partPaidBalance == 0m)
                 continue;
 
             // The lessee this row is for: the occupancy answering for the round's own month, by the same rule that decided which
@@ -140,7 +146,8 @@ public partial class StallRepository
                 NpmDailyFee.ForStall(stall, rateSnapshot, effectiveEnd),
                 pastMonths,
                 daysThisMonth,
-                amountThisMonth));
+                amountThisMonth,
+                partPaidBalance));
         }
 
         return new MobileNpmArrearsDto(

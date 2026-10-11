@@ -81,18 +81,18 @@ public partial class FacilityReportsRepository
                 .Where(dc => stallIds.Contains(dc.StallId)
                     && dc.CollectionDate >= startDate
                     && dc.CollectionDate <= endDate
-                    && dc.IsPaid
+                    && (dc.IsPaid || dc.CanonicalSettledAmount > 0m)
                     && !stallsWithMonthlyPayments.Contains(dc.StallId))
                 .ToListAsync(ct);
 
             var dailyRevenue = dailyCollections.Sum(dc => stallsById.TryGetValue(dc.StallId, out var stall)
                 && IsUnderContractOn(stall, dc.CollectionDate)
-                    ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m) + dc.MeatFeeAmount
+                    ? (dc.IsPaid ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m) + dc.MeatFeeAmount : dc.CanonicalSettledAmount)
                     : 0m);
 
             var dailyFeeRevenue = dailyCollections.Sum(dc => stallsById.TryGetValue(dc.StallId, out var stall)
                 && IsStallCollectableOn(stall, dc.CollectionDate)
-                    ? dc.DailyFee
+                    ? dc.CollectedFee
                     : 0m);
 
             var monthlyDailyFeeRevenue = allPaymentRecords.Sum(pr => stallsById.TryGetValue(pr.StallId, out var stall)
@@ -351,7 +351,7 @@ public partial class FacilityReportsRepository
                 .Where(dc => stallIds.Contains(dc.StallId)
                     && dc.CollectionDate >= startDate
                     && dc.CollectionDate <= endDate
-                    && dc.IsPaid
+                    && (dc.IsPaid || dc.CanonicalSettledAmount > 0m)
                    
                     && !stallsWithMonthlyPayments.Contains(dc.StallId))
                 .ToListAsync(ct);
@@ -362,8 +362,9 @@ public partial class FacilityReportsRepository
                 .GroupBy(dc => dc.StallId)
                 .ToDictionary(
                     g => g.Key,
-                    g => g.Sum(dc => dc.DailyFee
-                        + (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m)));
+                    g => g.Sum(dc => dc.IsPaid
+                        ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m)
+                        : dc.CanonicalSettledAmount));
         }
         else
         {
@@ -427,7 +428,7 @@ public partial class FacilityReportsRepository
                 .AsNoTracking()
                 .Where(dc => activeStalls.Contains(dc.StallId) 
                     
-                    && dc.IsPaid
+                    && (dc.IsPaid || dc.CanonicalSettledAmount > 0m)
                     && dc.CollectionDate >= startDate 
                     && dc.CollectionDate <= endDate)
                 .GroupBy(dc => dc.StallId)

@@ -68,14 +68,14 @@ public partial class CollectorRepository
         // separate amount resolved at the tenant's rate.
         var dailyStats = await _context.DailyCollections
             .Where(d => d.CollectorId != null && collectorIds.Contains(d.CollectorId.Value)
-                        && d.IsPaid
+                        && (d.IsPaid || d.CanonicalSettledAmount > 0m)
                         && (d.UpdatedAt ?? d.CreatedAt) >= monthStartUtc
                         && (d.UpdatedAt ?? d.CreatedAt) < monthEndUtc)
             .GroupBy(d => d.CollectorId!.Value)
             .Select(g => new
             {
                 CollectorId = g.Key,
-                Total = g.Sum(d => d.DailyFee + (d.FishFeeAmountFrozen ?? 0m) + d.MeatFeeAmount),
+                Total = g.Sum(d => d.IsPaid ? d.DailyFee + (d.FishFeeAmountFrozen ?? 0m) + d.MeatFeeAmount : d.CanonicalSettledAmount),
                 Count = g.Count()
             })
             .ToDictionaryAsync(x => x.CollectorId, cancellationToken);
@@ -237,10 +237,10 @@ public partial class CollectorRepository
         // excludes. All three now match the report exactly.
         var collectedThisMonth = await _context.DailyCollections
             .Where(d => d.CollectorId == collector.Id
-                        && d.IsPaid
+                        && (d.IsPaid || d.CanonicalSettledAmount > 0m)
                         && (d.UpdatedAt ?? d.CreatedAt) >= mStartUtc
                         && (d.UpdatedAt ?? d.CreatedAt) < mEndUtc)
-            .SumAsync(d => d.DailyFee + (d.FishFeeAmountFrozen ?? 0m) + d.MeatFeeAmount, cancellationToken) +
+            .SumAsync(d => d.IsPaid ? d.DailyFee + (d.FishFeeAmountFrozen ?? 0m) + d.MeatFeeAmount : d.CanonicalSettledAmount, cancellationToken) +
             await _context.PaymentRecords
             .Where(p => p.CollectorId == collector.Id
                         && p.Status != PaymentStatus.Unpaid
@@ -274,7 +274,7 @@ public partial class CollectorRepository
                             && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) < mEndUtc, cancellationToken) +
             await _context.DailyCollections
             .CountAsync(d => d.CollectorId == collector.Id
-                            && d.IsPaid
+                            && (d.IsPaid || d.CanonicalSettledAmount > 0m)
                             && (d.UpdatedAt ?? d.CreatedAt) >= mStartUtc
                             && (d.UpdatedAt ?? d.CreatedAt) < mEndUtc, cancellationToken) +
             await _context.SlaughterTransactions
@@ -303,7 +303,7 @@ public partial class CollectorRepository
         // NPM collectors record daily collections (not monthly PaymentRecords), so these must be
         // merged in or the Recent Transactions list would be empty for them.
         var recentDaily = await _context.DailyCollections
-            .Where(d => d.CollectorId == collector.Id && d.IsPaid)
+            .Where(d => d.CollectorId == collector.Id && (d.IsPaid || d.CanonicalSettledAmount > 0m))
             .OrderByDescending(d => d.UpdatedAt ?? d.CreatedAt)
             .Take(10)
             .Select(d => new RecentTransactionDto(
@@ -311,8 +311,8 @@ public partial class CollectorRepository
                 d.Stall!.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault() ?? "—",
                 d.Stall.Facility!.Code,
                 "Daily Fee",
-                d.DailyFee + (d.FishFeeAmountFrozen ?? 0m) + d.MeatFeeAmount,
-                "Paid",
+                d.IsPaid ? d.DailyFee + (d.FishFeeAmountFrozen ?? 0m) + d.MeatFeeAmount : d.CanonicalSettledAmount,
+                d.IsPaid ? "Paid" : "Partial",
                 d.UpdatedAt ?? d.CreatedAt))
             .ToListAsync(cancellationToken);
 

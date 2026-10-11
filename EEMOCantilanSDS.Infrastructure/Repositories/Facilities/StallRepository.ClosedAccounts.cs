@@ -90,8 +90,8 @@ public partial class StallRepository
         var payments = await _context.PaymentRecords.AsNoTracking()
             .Where(p => stallIds.Contains(p.StallId)).ToListAsync(ct);
         var paidDailies = await _context.DailyCollections.AsNoTracking()
-            .Where(d => stallIds.Contains(d.StallId) && d.IsPaid)
-            .Select(d => new { d.StallId, d.CollectionDate, d.DailyFee, d.FishKilos, d.MeatFeeAmount }).ToListAsync(ct);
+            .Where(d => stallIds.Contains(d.StallId) && (d.IsPaid || d.CanonicalSettledAmount > 0m))
+            .Select(d => new { d.StallId, d.CollectionDate, DailyFee = d.IsPaid ? d.DailyFee : d.CanonicalSettledAmount, FishKilos = d.IsPaid ? d.FishKilos : null, MeatFeeAmount = d.IsPaid ? d.MeatFeeAmount : 0m }).ToListAsync(ct);
         var absentDailies = await _context.DailyCollections.AsNoTracking()
             .Where(d => stallIds.Contains(d.StallId) && d.IsAbsent)
             .Select(d => new { d.StallId, d.CollectionDate }).ToListAsync(ct);

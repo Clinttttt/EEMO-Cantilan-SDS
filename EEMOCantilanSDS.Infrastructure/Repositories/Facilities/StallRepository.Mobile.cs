@@ -99,7 +99,9 @@ public partial class StallRepository
                 && d.CollectionDate >= monthStart && d.CollectionDate <= effectiveEnd);
             var daysMissed = Math.Max(0, collectableDays - daysCollected - absentDays);
             var monthCollectedAmount = paidCollections.Sum(d =>
-                d.DailyFee + (d.FishKilos.GetValueOrDefault() * npmFishRate) + d.MeatFeeAmount);
+                d.DailyFee + (d.FishKilos.GetValueOrDefault() * npmFishRate) + d.MeatFeeAmount)
+                // money received on days that are only part paid belongs to the month too
+                + s.DailyCollections.Where(d => d.IsPartlyPaid && d.CollectionDate >= monthStart && d.CollectionDate <= effectiveEnd).Sum(d => d.CanonicalSettledAmount);
 
             return new MobileNpmStallCollectionDto(
                 s.Id,

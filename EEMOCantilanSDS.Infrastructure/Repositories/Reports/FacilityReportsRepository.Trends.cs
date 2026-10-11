@@ -89,14 +89,14 @@ public partial class FacilityReportsRepository
                     .AsNoTracking()
                     .Where(dc => npmStallIds.Contains(dc.StallId)
                         && dc.CollectionDate == date
-                        && dc.IsPaid
+                        && (dc.IsPaid || dc.CanonicalSettledAmount > 0m)
                        
                         && !stallsWithMonthlyPayments.Contains(dc.StallId))
                     .ToListAsync(ct);
 
                 var dailyRevenue = dailyCollections.Sum(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
                     && IsUnderContractOn(stall, dc.CollectionDate)
-                        ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m) + dc.MeatFeeAmount
+                        ? (dc.IsPaid ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m) + dc.MeatFeeAmount : dc.CanonicalSettledAmount)
                         : 0m);
 
                 // The fish-kilo (₱1/kg) portion only, so the trend bar can split rent vs fish.
@@ -173,14 +173,14 @@ public partial class FacilityReportsRepository
                     .Where(dc => npmStallIds.Contains(dc.StallId)
                         && dc.CollectionDate >= monthStart
                         && dc.CollectionDate <= monthEnd
-                        && dc.IsPaid
+                        && (dc.IsPaid || dc.CanonicalSettledAmount > 0m)
                        
                         && !stallsWithMonthlyPayments.Contains(dc.StallId))
                     .ToListAsync(ct);
 
                 var dailyRevenue = dailyCollections.Sum(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
                     && IsUnderContractOn(stall, dc.CollectionDate)
-                        ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m) + dc.MeatFeeAmount
+                        ? (dc.IsPaid ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m) + dc.MeatFeeAmount : dc.CanonicalSettledAmount)
                         : 0m);
 
                 // The fish-kilo (₱1/kg) portion only, so the trend bar can split rent vs fish.
@@ -270,14 +270,14 @@ public partial class FacilityReportsRepository
                     .Where(dc => npmStallIds.Contains(dc.StallId)
                         && dc.CollectionDate >= yearStart
                         && dc.CollectionDate <= yearEnd
-                        && dc.IsPaid
+                        && (dc.IsPaid || dc.CanonicalSettledAmount > 0m)
                        
                         && !stallsWithMonthlyPayments.Contains(dc.StallId))
                     .ToListAsync(ct);
 
                 var dailyRevenue = dailyCollections.Sum(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
                     && IsUnderContractOn(stall, dc.CollectionDate)
-                        ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m) + dc.MeatFeeAmount
+                        ? (dc.IsPaid ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m) + dc.MeatFeeAmount : dc.CanonicalSettledAmount)
                         : 0m);
 
                 // The fish-kilo (₱1/kg) portion only, so the trend bar can split rent vs fish.

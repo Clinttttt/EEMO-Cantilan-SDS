@@ -45,6 +45,7 @@ public class NpmOperatingScheduleRepository(AppDbContext context) : INpmOperatin
             dailies.TryGetValue(stall.Id, out var daily);
             if (daily is { IsPaid: true }) { paid++; continue; }
             if (daily is { IsAbsent: true }) continue;
+            if (daily is { IsPartlyPaid: true }) { unpaid++; unpaidAmount += daily.RemainingBaseFee; continue; }   // part received: only the rest is still owed
             unpaid++;
             unpaidAmount += NpmDailyFee.ForStallOrNull(stall, snapshot, date) ?? 0m;
         }

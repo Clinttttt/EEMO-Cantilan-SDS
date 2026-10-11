@@ -430,7 +430,7 @@ public partial class FacilityReportsRepository
                 .AsNoTracking()
                 .Where(dc => activeStalls.Contains(dc.StallId) 
                     
-                    && dc.IsPaid
+                    && (dc.IsPaid || dc.CanonicalSettledAmount > 0m)
                     && dc.CollectionDate >= startDate 
                     && dc.CollectionDate <= endDate)
                 .GroupBy(dc => dc.StallId)

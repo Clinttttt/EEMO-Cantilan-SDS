@@ -59,6 +59,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public DateOnly? MeatFeeRateEffectiveDate { get; private set; }
         /// <summary>Frozen NPM Meat weighing charge; persisted so report queries use the exact recorded amount.</summary>
         public decimal MeatFeeAmount { get; private set; }
+        /// <summary>The stall-fee money this row stands for: the whole installment once paid, otherwise what part payments have received.</summary>
+        public decimal CollectedFee => IsPaid ? DailyFee : CanonicalSettledAmount;
         public decimal TotalCollected => IsPaid
                                           ? DailyFee + (FishFeeAmount ?? 0) + MeatFeeAmount
                                           : 0;

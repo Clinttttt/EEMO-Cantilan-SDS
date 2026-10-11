@@ -200,7 +200,7 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
 
     private async Task<List<TransactionFeedDto>> DailyCollectionRowsAsync(FeedWindow? win, int limit, IReadOnlyDictionary<Guid, string> collectors, CancellationToken ct)
     {
-        var q = context.DailyCollections.AsNoTracking().Where(d => d.IsPaid);
+        var q = context.DailyCollections.AsNoTracking().Where(d => d.IsPaid || d.CanonicalSettledAmount > 0m);
         if (win is { } w)
         {
             // "Recorded collections" for a date = collections RECORDED (paid) that day, regardless of which
@@ -223,9 +223,10 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
                 Occupant = d.Stall.Contracts
                     .OrderByDescending(c => c.IsActive).ThenByDescending(c => c.EffectivityDate)
                     .Select(c => c.ActualOccupant).FirstOrDefault(),
-                d.DailyFee,
-                d.FishKilos,
-                d.MeatFeeAmount,
+                DailyFee = d.IsPaid ? d.DailyFee : d.CanonicalSettledAmount,   // a part-paid day shows what was actually received
+                FishKilos = d.IsPaid ? d.FishKilos : null,
+                MeatFeeAmount = d.IsPaid ? d.MeatFeeAmount : 0m,
+                Partial = !d.IsPaid,
                 d.ORNumber,
                 d.CollectorId,
                 d.CreatedBy,
@@ -271,7 +272,7 @@ public class TransactionFeedRepository(AppDbContext context, IFeeRateResolver fe
 
                 return new TransactionFeedDto(
                     first.Id, first.Code, first.FacilityName, recordedAt, true,
-                    party, reference, "Daily Fee", amount, first.ORNumber, "Paid",
+                    party, reference, "Daily Fee", amount, first.ORNumber, g.Any(x => x.Partial) ? "Partial" : "Paid",
                     Recorder(first.CollectorId, first.CreatedBy, collectors),
                     first.StallId);
             })

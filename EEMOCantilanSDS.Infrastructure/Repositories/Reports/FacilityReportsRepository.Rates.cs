@@ -66,7 +66,7 @@ public partial class FacilityReportsRepository
                 .AsNoTracking()
                 .Where(dc => npmStallIds.Contains(dc.StallId)
                    
-                    && dc.IsPaid
+                    && (dc.IsPaid || dc.CanonicalSettledAmount > 0m)
                     && dc.CollectionDate >= startDate
                     && dc.CollectionDate <= endDate
                     && !stallsWithMonthlyPayments.Contains(dc.StallId))
@@ -74,7 +74,7 @@ public partial class FacilityReportsRepository
 
             var dailyFeeRevenue = dailyCollections.Sum(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
                 && IsStallCollectableOn(stall, dc.CollectionDate)
-                    ? dc.DailyFee
+                    ? dc.CollectedFee
                     : 0m);
 
             if (expectedDailyFees == 0)
@@ -203,15 +203,16 @@ public partial class FacilityReportsRepository
                 .AsNoTracking()
                 .Where(dc => occupiedStalls.Select(s => s.Id).Contains(dc.StallId)
                    
-                    && dc.IsPaid
+                    && (dc.IsPaid || dc.CanonicalSettledAmount > 0m)
                     && dc.CollectionDate >= startDate
                     && dc.CollectionDate <= endDate)
                 .GroupBy(dc => dc.StallId)
                 .Select(g => new
                 {
                     StallId = g.Key,
-                    TotalCollected = g.Sum(dc => dc.DailyFee
-                        + (dc.FishKilos.HasValue ? dc.FishKilos.Value * npmFish : 0m))
+                    TotalCollected = g.Sum(dc => dc.IsPaid
+                        ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * npmFish : 0m)
+                        : dc.CanonicalSettledAmount)
                 })
                 .ToDictionaryAsync(x => x.StallId, x => x.TotalCollected, ct)
             : new Dictionary<Guid, decimal>();

@@ -70,6 +70,10 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
 
             builder.Ignore(x => x.FishFeeAmount);
             builder.Ignore(x => x.TotalCollected);
+            builder.Ignore(x => x.CollectedFee);
+            builder.Ignore(x => x.BaseFee);
+            builder.Ignore(x => x.IsPartlyPaid);
+            builder.Ignore(x => x.RemainingBaseFee);
 
             builder.HasIndex(x => new { x.StallId, x.CollectionDate }).IsUnique();
 
