@@ -847,6 +847,12 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.Property<Guid?>("CanonicalCollectionId")
                         .HasColumnType("uuid");
 
+                    b.Property<decimal>("CanonicalSettledAmount")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasDefaultValue(0m);
+
                     b.Property<Guid?>("ClientOperationId")
                         .HasColumnType("uuid");
 

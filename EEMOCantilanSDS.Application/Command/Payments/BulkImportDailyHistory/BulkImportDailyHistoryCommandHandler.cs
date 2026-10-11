@@ -224,8 +224,8 @@ public class BulkImportDailyHistoryCommandHandler(
                 if (!occupancies.Any(o => o.Start <= date && date <= o.BillableEnd))
                     return $"{date:yyyy-MM-dd} is outside the term";
 
-                if (onRecord.TryGetValue(date, out var already) && (already.IsPaid || already.IsAbsent))
-                    return $"{date:yyyy-MM-dd} is already {(already.IsAbsent ? "excused" : "collected")}";
+                if (onRecord.TryGetValue(date, out var already) && (already.IsPaid || already.IsAbsent || already.IsPartlyPaid))
+                    return $"{date:yyyy-MM-dd} is already {(already.IsAbsent ? "excused" : already.IsPartlyPaid ? "part paid" : "collected")}";
 
                 // The day's own receipt where the sheet gives one, the month's otherwise. A day with neither is refused
                 // rather than written: a collection with no OR is reported as missing a receipt by every arrears list

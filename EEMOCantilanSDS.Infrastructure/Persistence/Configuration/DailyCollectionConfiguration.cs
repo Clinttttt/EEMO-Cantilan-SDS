@@ -65,6 +65,8 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
                 .IsRequired();
             builder.Property(x => x.CanonicalCollectionId);
             builder.Property(x => x.CanonicalAdjustmentCollectionId);
+            // Additive: money that canonical part payments have applied to the day (net of voids). Existing rows read 0.
+            builder.Property(x => x.CanonicalSettledAmount).HasPrecision(18, 2).HasDefaultValue(0m);
 
             builder.Ignore(x => x.FishFeeAmount);
             builder.Ignore(x => x.TotalCollected);

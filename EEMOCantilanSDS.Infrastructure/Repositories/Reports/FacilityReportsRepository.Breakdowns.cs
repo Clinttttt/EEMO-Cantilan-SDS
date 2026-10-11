@@ -54,7 +54,7 @@ public partial class FacilityReportsRepository
             .Where(dc => npmStallIds.Contains(dc.StallId)
                 && dc.CollectionDate >= startDate
                 && dc.CollectionDate <= endDate
-                && (dc.IsPaid || (dc.SettlementAuthorityState == SettlementAuthority.Canonical && (dc.FishKilos > 0m || dc.MeatFeeAmount > 0m))))
+                && (dc.IsPaid || dc.CanonicalSettledAmount > 0m || (dc.SettlementAuthorityState == SettlementAuthority.Canonical && (dc.FishKilos > 0m || dc.MeatFeeAmount > 0m))))
             .ToListAsync(ct);
 
         // Rent and Fish remain deduplicated against monthly stall payments. Meat weighing is an independent
@@ -73,7 +73,7 @@ public partial class FacilityReportsRepository
                 && IsUnderContractOn(stall, dc.CollectionDate))
             .ToList();
 
-        var dailyFeeFromCollections = collectableDailyCollections.Where(dc => dc.IsPaid).Sum(dc => dc.DailyFee);
+        var dailyFeeFromCollections = collectableDailyCollections.Where(dc => dc.IsPaid || dc.CanonicalSettledAmount > 0m).Sum(dc => dc.IsPaid ? dc.DailyFee : dc.CanonicalSettledAmount);
         var fishFeeFromCollections = collectableDailyCollections.Sum(dc => dc.FishKilos.HasValue
             ? dc.FishKilos.Value * _npmFishRate
             : 0m);

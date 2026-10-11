@@ -359,14 +359,14 @@ public partial class FacilityReportsRepository
             .Where(dc => npmStallIds.Contains(dc.StallId)
                 && dc.CollectionDate >= startDate
                 && dc.CollectionDate <= endDate
-                && dc.IsPaid
+                && (dc.IsPaid || dc.CanonicalSettledAmount > 0m)
                
                 && !stallsWithMonthlyPayments.Contains(dc.StallId))
             .ToListAsync(ct);
 
         var dailyRevenue = dailyCollections.Sum(dc => npmStallsById.TryGetValue(dc.StallId, out var stall)
             && IsUnderContractOn(stall, dc.CollectionDate)
-                ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m) + dc.MeatFeeAmount
+                ? (dc.IsPaid ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m) + dc.MeatFeeAmount : dc.CanonicalSettledAmount)
                 : 0m);
 
         return dailyRevenue + monthlyRevenue;

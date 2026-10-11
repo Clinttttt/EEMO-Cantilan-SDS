@@ -147,7 +147,7 @@ public class SettleNpmMonthCommandHandler(
                 continue;                                               // facility-wide closure — nothing owed
 
             existing.TryGetValue(day, out var dc);
-            if (dc is not null && (dc.IsPaid || dc.IsAbsent))
+            if (dc is not null && (dc.IsPaid || dc.IsAbsent || dc.IsPartlyPaid))   // a part-paid day is completed by paying the remainder
                 continue;                                               // already collected or excused
 
             var fee = NpmDailyFee.ForStall(stall, snapshot, day);

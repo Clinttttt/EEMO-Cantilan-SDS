@@ -124,6 +124,8 @@ public class RecordDailyCollectionCommandHandler(
         {
             if (existing.CanonicalAdjustmentCollectionId is not null)
                 return Result<bool>.Failure("This installment carries a posted month-end adjustment. Correct the collection before editing it.", ResultStatus.Conflict);
+            if (existing.IsPartlyPaid)
+                return Result<bool>.Failure("This day is part paid. Complete it by paying the remaining amount, or correct the part payment first.", ResultStatus.Conflict);
             if (isCollectorRequest &&
                 existing.CollectorId is { } recordedCollectorId &&
                 collectorId is { } actingCollectorId &&

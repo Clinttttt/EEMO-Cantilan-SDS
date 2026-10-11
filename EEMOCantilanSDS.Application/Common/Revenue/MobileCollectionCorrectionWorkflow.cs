@@ -70,6 +70,8 @@ public sealed class MobileCollectionCorrectionWorkflow(IAppDbContext db, ICollec
             (CollectionSourceKind.DailyCollection or CollectionSourceKind.PaymentRecord or CollectionSourceKind.UtilityBill or CollectionSourceKind.ObligationPeriod))))
             && !locks.Native.Contains(c.Id))
             return "SourceCorrectionUnavailable";
+        // A part payment applied only part of a day: re-posting it as a whole-day replacement would misstate what was received, so the office corrects it (void), not the device.
+        if (c.Lines.Any(l => l.Allocations.Any(a => a.SourceSnapshot != null && a.SourceSnapshot.Contains("\"partPayment\":true")))) return "SourceCorrectionUnavailable";
         if (locks.Dependent.Contains(c.Id)) return "LaterSettlementExists";
         if (!locks.Posted.Contains(c.Id)) return "SourceCorrectionUnavailable";
         return null;

@@ -33,5 +33,8 @@ public sealed record DailyCollectionDayDto(
     decimal AmountCollected = 0m,
     decimal? MeatKilos = null,
     decimal? MeatFeeRatePerKilo = null,
-    decimal MeatFeeAmount = 0m
+    decimal MeatFeeAmount = 0m,
+    /// <summary>The part of the installment that canonical part payments have received while the day is still unpaid; zero otherwise.</summary>
+    decimal PartSettled = 0m,
+    bool IsPartial = false
 );

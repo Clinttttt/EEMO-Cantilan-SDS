@@ -83,6 +83,10 @@ internal sealed class StubMonthSettlement(decimal cap) : EEMOCantilanSDS.Applica
         CancellationToken ct, decimal? maxAmount = null)
         => throw new NotSupportedException("This double answers only the payable questions.");
 
+    public Task<EEMOCantilanSDS.Application.Common.Payments.NpmPartPaymentPlan> PlanPartPaymentAsync(
+        EEMOCantilanSDS.Domain.Entities.Facilities.Stall stall, int year, int month, decimal amount, CancellationToken ct)
+        => throw new NotSupportedException("This double answers only the payable questions.");
+
     public Task<EEMOCantilanSDS.Application.Common.Payments.NpmFishDayQuote> QuoteFishDayAsync(
         EEMOCantilanSDS.Domain.Entities.Facilities.Stall stall, DateOnly day, decimal declaredKilos, CancellationToken ct)
         => throw new NotSupportedException("This double answers only the payable questions.");
