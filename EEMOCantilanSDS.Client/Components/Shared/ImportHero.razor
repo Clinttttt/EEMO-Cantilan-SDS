@@ -1,5 +1,5 @@
 @* The bulk-import hero: eyebrow, title, one line, and the three steps. Taken from the stallholder import so every import opens the same way. *@
-<div class="imp-hero">
+<div class="imp-hero @(Blue ? "imp-hero-blue" : "")">
     <div class="imp-hero-left">
         <div class="imp-hero-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -30,6 +30,9 @@
 
     /// <summary>The current step, 1 to 3.</summary>
     [Parameter] public int Step { get; set; } = 1;
+
+    /// <summary>The civic-blue treatment used by the newer Operations heroes. Off by default, so other imports keep their light hero.</summary>
+    [Parameter] public bool Blue { get; set; }
 
     private string StepClass(int step) => step < Step ? "done" : step == Step ? "active" : string.Empty;
 }

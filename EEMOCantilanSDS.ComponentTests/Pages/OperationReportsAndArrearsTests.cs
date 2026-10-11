@@ -144,6 +144,28 @@ public sealed class OperationReportsAndArrearsTests : TestContext
         }, Timeout);
     }
 
+
+    [Fact]
+    public void TheArrearsHero_StatesPositionApartFromRecoveredCash_AndNamesTheTwoScopesWhenTheirCountsDiffer()
+    {
+        ArrearsData();
+
+        var cut = RenderComponent<Arrears>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("Arrears & Delinquency", cut.Find("h1.v3h-title").TextContent.Trim());
+            var figures = cut.Find("dl[aria-label='Delinquency position']").TextContent;
+            Assert.Contains("₱12,345.00", figures);
+            Assert.Contains("not collected cash", figures);          // outstanding is never presented as revenue
+            Assert.Contains("cash received", figures);               // recovered is the only cash figure
+            Assert.Equal("Follow-up accounts", cut.Find("#arr-register-title").TextContent.Trim());
+            // 7 in the financial report's position, 1 in the follow-up queue: stated, never forced to agree.
+            Assert.Contains("Position: 7 delinquent rental accounts", cut.Find(".arr-scope-note").TextContent);
+            Assert.Contains("Register: 1 accounts in the follow-up queue", cut.Find(".arr-scope-note").TextContent);
+            Assert.NotNull(cut.Find("details.arr-note-disclosure summary"));
+        }, Timeout);
+    }
     [Fact]
     public void TheArrearsReport_StatesNoFixedInstrument()
     {

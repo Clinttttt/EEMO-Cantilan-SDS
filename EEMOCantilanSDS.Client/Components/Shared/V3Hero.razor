@@ -26,7 +26,7 @@
     </div>
     @if (Figures is not null)
     {
-        <dl class="v3h-figures">@Figures</dl>
+        <dl class="v3h-figures" aria-label="@FiguresLabel">@Figures</dl>
     }
     @if (Actions is not null)
     {
@@ -53,6 +53,9 @@
 
     /// <summary>The workspace's key figures, as <see cref="V3HeroFigure"/> children.</summary>
     [Parameter] public RenderFragment? Figures { get; set; }
+
+    /// <summary>Accessible name for the figures group (e.g. "Water account position"); omitted when null.</summary>
+    [Parameter] public string? FiguresLabel { get; set; }
 
     [Parameter] public RenderFragment? Actions { get; set; }
 

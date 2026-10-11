@@ -12,7 +12,7 @@
    page's. Every row is checked here and then by the server's typed preview. A row's holder is its own typed occupant, never a master record, made
    from a compact action in its status cell; nothing is linked or created from a name. Occupancy basis is stated per row, never assumed. *@
 <div class="shi">
-    <ImportHero Eyebrow="@($"{Name} · Bulk Import")" Title="@($"Import {Name} {Holders}")" Step="Step" />
+    <ImportHero Eyebrow="@($"{Name} · Bulk Import")" Title="@($"Import {Name} {Holders}")" Step="Step" Blue="BlueHero" />
 
     @if (_result is not null)
     {
@@ -50,7 +50,7 @@
     }
     else
     {
-        <ImportReviewBar Count="Rows.Count" Subtitle="@($"{(string.IsNullOrEmpty(_fileName) ? "Entered here" : _fileName)} · {Name}")">
+        <ImportReviewBar Count="Rows.Count" Title="rows to review" Detail="@($"{ReadyCount} ready · {InvalidCount} invalid")" Subtitle="@($"{(string.IsNullOrEmpty(_fileName) ? "Entered here" : _fileName)} · {Name}")">
             <ImportButton Kind="ghost" Class="imp-add-row" OnClick="AddRow">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                 Add row
@@ -93,6 +93,9 @@
     /// <summary>Historical registers may retain their documented numbers; ordinary imports use server allocation.</summary>
     [Parameter] public bool AllowImportedNumbers { get; set; } = true;
     [Parameter] public string EffectiveMonthLabel { get; set; } = "Contract Effectivity (month)";
+
+    /// <summary>The civic-blue hero of the newer Operations pages instead of the light import hero.</summary>
+    [Parameter] public bool BlueHero { get; set; }
 
     private bool IsEvent => Kind == ObligationKind.FiestaArawLotRental;
     private string Holders => IsEvent ? "Lot Holders" : "Space Holders";

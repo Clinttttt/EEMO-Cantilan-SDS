@@ -8,7 +8,10 @@
    component calculates and records nothing, and a statement is evidence for the payor, never a receipt. *@
 <section class="us" aria-labelledby="@_titleId">
     <div class="us-screen no-print">
-        <SummaryStrip Label="@($"{UtilityCode} statements")" Items="Summary" />
+        @if (ShowSummary)
+        {
+            <SummaryStrip Label="@($"{UtilityCode} statements")" Items="Summary" />
+        }
 
         <div class="v3-panel">
             <header class="v3-panel-header">
@@ -16,6 +19,7 @@
                 <span class="v3-panel-meta">@Visible.Count of @Groups.Count · @PeriodLabel</span>
             </header>
             <div class="v3-toolbar" aria-label="Statement filters">
+                @Toolbar
                 <label class="v3-search">
                     <span class="v3-sr-only">Search statements</span>
                     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
@@ -131,6 +135,12 @@
     [Parameter, EditorRequired] public string InstrumentName { get; set; } = string.Empty;
     [Parameter, EditorRequired] public string PeriodLabel { get; set; } = string.Empty;
     [Parameter, EditorRequired] public IReadOnlyList<StatementLine> Lines { get; set; } = [];
+
+    /// <summary>False when the host already states these figures (e.g. in its own hero). The printed statements are unaffected.</summary>
+    [Parameter] public bool ShowSummary { get; set; } = true;
+
+    /// <summary>Extra screen-only controls placed at the start of the statement filter bar (e.g. the host's period picker).</summary>
+    [Parameter] public RenderFragment? Toolbar { get; set; }
 
     /// <summary>One billing month of one space, exactly as the obligation read states it.</summary>
     public sealed record StatementLine(
