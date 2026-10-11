@@ -21,10 +21,10 @@
         </Actions>
     </WorkspaceHeader>
 
-    <p class="fn-subtitle">Manage assessed and collected fines</p>
+    <p class="fn-subtitle">Assessments and collections</p>
     <div class="filter-tabs" role="group" aria-label="Fines workspace views">
+        <button type="button" class="filter-tab @(_view == "collected" ? "active" : "")" aria-pressed="@(_view == "collected" ? "true" : "false")" @onclick='() => _view="collected"'>Collections</button>
         <button type="button" class="filter-tab @(_view == "assessments" ? "active" : "")" aria-pressed="@(_view == "assessments" ? "true" : "false")" @onclick='() => _view="assessments"'>Assessments</button>
-        <button type="button" class="filter-tab @(_view == "collected" ? "active" : "")" aria-pressed="@(_view == "collected" ? "true" : "false")" @onclick='() => _view="collected"'>Collected</button>
         <button type="button" class="filter-tab @(_view == "settings" ? "active" : "")" aria-pressed="@(_view == "settings" ? "true" : "false")" @onclick='() => _view="settings"'>Penalty settings</button>
     </div>
     @if (_view == "assessments") {
@@ -145,13 +145,17 @@
     @if (_view == "collected") {
     <section class="v3-panel" aria-labelledby="fn-register-title" aria-busy="@(_loadingRegister ? "true" : "false")">
         <header class="v3-panel-header">
-            <h2 id="fn-register-title">Fines collected</h2>
+            <h2 id="fn-register-title">Collections</h2>
+            <AuthorizeView Roles="SuperAdmin"><Authorized><button class="v3-btn v3-btn-primary" type="button" @onclick="() => _direct=true">Record fine collection</button></Authorized></AuthorizeView>
             <label class="fn-period">
                 <span>Month</span>
                 <input class="v3-input" type="month" aria-label="Collection month" value="@_monthInput" @onchange="ChangeMonthAsync" />
             </label>
         </header>
 
+        <div class="v3-toolbar fn-search"><label class="v3-field"><span class="v3-sr-only">Search collections</span><input @bind="_collectionSearch" @bind:event="oninput" placeholder="Search fine, source or SRC" /></label>
+            <label class="v3-field"><span class="v3-sr-only">Collection status</span><select @bind="_collectionStatus"><option>All</option><option>Posted</option><option>Corrected</option><option>Reversed</option></select></label>
+        </div>
         @if (_registerError is not null)
         {
             <p class="v3-notice v3-notice-error fn-notice" role="alert">@_registerError</p>
@@ -162,35 +166,31 @@
                 <caption class="v3-sr-only">Fines collected in @PeriodLabel</caption>
                 <thead>
                     <tr>
-                        <th scope="col">Date</th>
-                        <th scope="col">Payor</th>
-                        <th scope="col">Origin</th>
-                        <th scope="col">Penalty</th>
-                        <th scope="col">SRC</th>
+                        <th scope="col">Date / SRC</th>
+                        <th scope="col">Fine / source</th>
                         <th scope="col">Status</th>
                         <th scope="col" class="v3-num">Amount</th>
+                        <th scope="col">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var row in _register)
+                    @foreach (var row in VisibleCollections)
                     {
                         <tr>
-                            <td>@row.BusinessDate.ToString("MMM d, yyyy")</td>
-                            <td>@(string.IsNullOrWhiteSpace(row.PayerName) ? "—" : row.PayerName)</td>
-                            <td>@(string.IsNullOrWhiteSpace(row.Origin) ? "—" : row.Origin)</td>
-                            <td>@row.PenaltyName</td>
-                            <td class="v3-strong">@row.ReferenceCode</td>
+                            <td>@row.BusinessDate.ToString("MMM d, yyyy")<span class="v3-block v3-strong">@row.ReferenceCode</span></td>
+                            <td><strong>@row.PenaltyName</strong><span class="v3-block">@row.Origin</span>@if(!string.IsNullOrWhiteSpace(row.PayerName)) { <span class="v3-block">@row.PayerName</span> }</td>
                             <td>@row.Status</td>
                             <td class="v3-num v3-strong">₱@(row.EffectiveAmount ?? (row.Status == "Posted" ? row.Amount : 0m)).ToString("N2")</td>
+                            <td><a class="v3-btn v3-btn-sm" href="/collections/activity">View activity</a></td>
                         </tr>
                     }
-                    @if (_register.Count == 0)
+                    @if (!VisibleCollections.Any())
                     {
                         <tr>
-                            <td class="v3-empty" colspan="7">
+                            <td class="v3-empty" colspan="5">
                                 @if (_loadingRegister) { <span role="status">Loading fines…</span> }
                                 else if (_registerError is not null) { <span>Fines are unavailable.</span> }
-                                else { <span>No fines were collected in @PeriodLabel.</span> }
+                                else { <span>No collections match this view.</span> }
                             </td>
                         </tr>
                     }
@@ -199,24 +199,24 @@
                 {
                     <tfoot>
                         <tr>
-                            <td colspan="6"><strong>Total for @PeriodLabel</strong></td>
-                            <td class="v3-num v3-strong">₱@_register.Sum(x => x.EffectiveAmount ?? (x.Status == "Posted" ? x.Amount : 0m)).ToString("N2")</td>
+                            <td colspan="3"><strong>Shown collections</strong></td>
+                            <td class="v3-num v3-strong">₱@VisibleCollections.Sum(x => x.EffectiveAmount ?? (x.Status == "Posted" ? x.Amount : 0m)).ToString("N2")</td>
+                            <td></td>
                         </tr>
                     </tfoot>
                 }
             </table>
         </div>
-        <p class="v3-panel-note">
-            This register shows actual posted fine collections (see <a href="/collections/activity">Collection Activity</a>). Unpaid assessments are separate; no money is recorded here.
-        </p>
     </section>
     }
 </div>
+@if(_direct) { <DirectFineCollectionDrawer OnClose="() => _direct=false" OnCollected="LoadRegisterAsync" /> }
 
 @code {
     [SupplyParameterFromQuery(Name = "view")] public string? ViewQuery { get; set; }
-    private string _view = "assessments";
-    protected override void OnParametersSet() { _view = RequestedAccount is not null || PaymentAssessmentId is not null ? "assessments" : ViewQuery is "collected" or "settings" ? ViewQuery : "assessments"; }
+    private string _view = "collected";
+    private bool _direct;
+    protected override void OnParametersSet() { _view = RequestedAccount is not null || PaymentAssessmentId is not null ? "assessments" : ViewQuery is "assessments" or "settings" ? ViewQuery : "collected"; }
     [SupplyParameterFromQuery(Name = "accountKind")] public string? AccountKindQuery { get; set; }
     [SupplyParameterFromQuery(Name = "accountId")] public Guid? AccountIdQuery { get; set; }
     [SupplyParameterFromQuery(Name = "fineAssessmentId")] public Guid? PaymentAssessmentId { get; set; }
@@ -227,6 +227,9 @@
     private bool _loadingDefinitions = true;
 
     private List<PenaltyRegisterRowDto> _register = [];
+    private string _collectionSearch="", _collectionStatus="All";
+    private IEnumerable<PenaltyRegisterRowDto> VisibleCollections => _register.Where(r => (_collectionStatus=="All" || r.Status==_collectionStatus)
+        && string.Join(" ",r.PenaltyName,r.PayerName,r.Origin,r.ReferenceCode).Contains(_collectionSearch.Trim(),StringComparison.OrdinalIgnoreCase));
     private string? _registerError;
     private bool _loadingRegister = true;
     private DateOnly _month = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);

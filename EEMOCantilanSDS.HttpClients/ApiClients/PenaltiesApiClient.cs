@@ -8,6 +8,9 @@ namespace EEMOCantilanSDS.HttpClients.ApiClients;
 
 public sealed class PenaltiesApiClient(HttpClient http) : HandleResponse(http), IPenaltiesApiClient
 {
+    public Task<Result<DirectFineOptionsDto>> GetDirectFineOptionsAsync() => GetAsync<DirectFineOptionsDto>("api/direct-fines/options");
+    public Task<Result<DirectFineQuoteDto>> QuoteDirectFineAsync(DirectFineCollectionRequest request) => PostAsync<DirectFineCollectionRequest,DirectFineQuoteDto>("api/direct-fines/quote", request);
+    public Task<Result<GovernedServiceOutcomeDto>> PostDirectFineAsync(DirectFineCollectionRequest request) => PostAsync<DirectFineCollectionRequest,GovernedServiceOutcomeDto>("api/direct-fines/post", request);
     public Task<Result<FineSettlementQuoteDto>> QuoteFineAsync(Guid id) => GetAsync<FineSettlementQuoteDto>($"api/fine-settlements/{id}/quote");
     public Task<Result<IReadOnlyList<FineSettlementHistoryDto>>> GetFineSettlementHistoryAsync(Guid id) => GetAsync<IReadOnlyList<FineSettlementHistoryDto>>($"api/fine-settlements/{id}/history");
     public Task<Result<EcfCollectionDraftDto>> GetCurrentFineDraftAsync(Guid id) => GetAsync<EcfCollectionDraftDto>($"api/fine-settlements/{id}/current-draft");

@@ -13,8 +13,8 @@ namespace EEMOCantilanSDS.Application.Common.Revenue;
 
 /// <summary>
 /// Approved penalty definitions and the register of posted fines (IA-049). The Head defines penalties; Head and Admin
-/// read them and the register. A fine is collected only by adding a definition to an Official Receipt draft in the
-/// Composer, never by typing a free-text charge, and the register is a read of the canonical posted lines.
+/// read them and the register. Definition-based Composer charges, saved-assessment settlement and separately
+/// governed direct fine cash retain distinct source identities; the register reads only canonical posted fine lines.
 /// </summary>
 public sealed class PenaltyDefinitionWorkflow(
     IAppDbContext db,
@@ -94,6 +94,18 @@ public sealed class PenaltyDefinitionWorkflow(
                 select new {collection.Id, collection.BusinessDate, collection.RecordedAtUtc, collection.PayerName, collection.ReferenceCode,
                     Code = assessment.PenaltyCode, DisplayName = assessment.PenaltyName, line.CalculationSnapshot, line.Amount, LineId = line.Id}).ToListAsync(ct);
             rows.AddRange(assessedRows);
+            var directRows = await (
+                from collection in db.Collections.AsNoTracking()
+                join line in db.CollectionLines.AsNoTracking() on collection.Id equals line.CollectionId
+                join authority in db.DirectFineAuthorities.AsNoTracking()
+                    on new { line.MunicipalityId, Id = line.SourceId } equals new { authority.MunicipalityId, Id = (Guid?)authority.Id }
+                join version in db.PenaltyDefinitions.AsNoTracking()
+                    on new { authority.MunicipalityId, Id = authority.PenaltyVersionId } equals new { version.MunicipalityId, version.Id }
+                where collection.MunicipalityId == actor.TenantId && collection.BusinessDate >= @from && collection.BusinessDate <= to
+                    && line.SourceKind == CollectionSourceKind.DirectFineCollection
+                select new { collection.Id, collection.BusinessDate, collection.RecordedAtUtc, collection.PayerName, collection.ReferenceCode,
+                    version.Code, version.DisplayName, line.CalculationSnapshot, line.Amount, LineId = line.Id }).ToListAsync(ct);
+            rows.AddRange(directRows);
             rows = rows.OrderByDescending(r => r.BusinessDate).ThenByDescending(r => r.RecordedAtUtc).ToList();
             var ids = rows.Select(x => x.LineId).ToArray();
             var corrections = await db.CollectionCorrectionLines.AsNoTracking().Where(x =>

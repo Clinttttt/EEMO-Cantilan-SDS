@@ -23,5 +23,7 @@ public enum CollectionSourceKind
     FishMeatVendorRegistration = 13,
     TerminalSection = 14,
     /// <summary>Settlement of an existing governed fine assessment, never a penalty-definition version.</summary>
-    FineAssessment = 15
+    FineAssessment = 15,
+    /// <summary>Immediate fine cash under reviewed no-registration authority. SourceId is DirectFineAuthority.Id; no receivable.</summary>
+    DirectFineCollection = 16
 }

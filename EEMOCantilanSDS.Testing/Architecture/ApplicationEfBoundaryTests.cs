@@ -197,9 +197,10 @@ public class ApplicationEfBoundaryTests
         // Governed configurable services (IA-044): tenant-bound setup versions and the one focused Mobile writer, which
         // posts only through CanonicalCollectionPostingCoordinator and revalidates authorization, policy and custody.
         "GovernedServiceWorkflow.cs",
-        // Approved penalty definitions (append-only versions) and the read-only register of posted fines. It posts nothing:
-        // a fine is collected only through the Composer, which revalidates the definition version at review and post.
+        // Approved penalty definitions (append-only versions) and the read-only register of posted fines. It posts nothing.
         "PenaltyDefinitionWorkflow.cs",
+        // Direct fines validate reviewed tenant authority and atomically delegate cash to the same canonical coordinator.
+        "DirectFineCollectionWorkflow.cs",
         // Like the existing penalty/obligation workflows, this assessment-only feature owns the tenant-scoped
         // source/definition validation and one atomic assessment + audit insert, including PostgreSQL replay conflicts.
         // It intentionally does not call any cash writer or create rental periods; queries use IAppDbContext filters.

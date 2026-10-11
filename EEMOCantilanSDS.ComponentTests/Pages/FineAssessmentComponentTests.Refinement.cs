@@ -97,9 +97,11 @@ public sealed partial class FineAssessmentComponentTests
     {
         _api.Setup(x=>x.GetRegisterAsync(It.IsAny<DateOnly>(),It.IsAny<DateOnly>())).ReturnsAsync(Result<IReadOnlyList<PenaltyRegisterRowDto>>.Success([]));
         _api.Setup(x=>x.GetFineSourcesAsync()).ReturnsAsync(Result<IReadOnlyList<FineSourceOption>>.Success([]));
-        var cut=RenderComponent<Fines>();Assert.Single(cut.FindComponents<FineAssessmentsRegister>());Assert.DoesNotContain("id=\"fn-defs-title\"",cut.Markup);
+        var cut=RenderComponent<Fines>();Assert.Empty(cut.FindComponents<FineAssessmentsRegister>());Assert.Contains("Record fine collection",cut.Markup);Assert.DoesNotContain("id=\"fn-defs-title\"",cut.Markup);
+        ExportFixture("fine-workspace-collected",cut.Markup);
+        cut.FindAll("[aria-label='Fines workspace views'] button").Single(x=>x.TextContent=="Assessments").Click();Assert.Single(cut.FindComponents<FineAssessmentsRegister>());
         ExportFixture("fine-workspace-assessments",cut.Markup);
-        cut.FindAll("[aria-label='Fines workspace views'] button").Single(x=>x.TextContent=="Collected").Click();Assert.Empty(cut.FindComponents<FineAssessmentsRegister>());Assert.Contains("Fines collected",cut.Markup);
+        cut.FindAll("[aria-label='Fines workspace views'] button").Single(x=>x.TextContent=="Collections").Click();Assert.Empty(cut.FindComponents<FineAssessmentsRegister>());Assert.Contains("Collections",cut.Markup);
         ExportFixture("fine-workspace-collected",cut.Markup);
         cut.FindAll("[aria-label='Fines workspace views'] button").Single(x=>x.TextContent=="Penalty settings").Click();Assert.Single(cut.FindComponents<FinePolicySetup>());Assert.DoesNotContain("id=\"fn-register-title\"",cut.Markup);
         ExportFixture("fine-workspace-settings",cut.Markup);

@@ -216,6 +216,7 @@ public sealed class CollectionsReportWorkflow(
             CollectionSourceKind.FishMeatVendorFee => "Fish / Meat Vendor Fee",
             CollectionSourceKind.GovernedService => GovernedServiceCatalog.Find(services.GetValueOrDefault(id))?.Name ?? "Operation",
             CollectionSourceKind.PenaltyDefinition => $"Penalty · {penalties.GetValueOrDefault(id, "approved penalty")}",
+            CollectionSourceKind.DirectFineCollection => "Direct fine collection",
             CollectionSourceKind.ObligationPeriod when periods.TryGetValue(id, out var p) =>
                 $"{ObligationCollectionSource.KindLabel(p.Kind)} · {p.SubjectLabel} {p.PeriodStart.ToString("MMM yyyy", CultureInfo.InvariantCulture)}",
             CollectionSourceKind.PaymentRecord when records.TryGetValue(id, out var r) =>

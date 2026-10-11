@@ -2191,6 +2191,11 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.Property<Guid>("CollectionId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("DirectFineAuthorityId")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("uuid")
+                        .HasComputedColumnSql("CASE WHEN \"SourceKind\" = 16 THEN \"SourceId\" ELSE NULL END", true);
+
                     b.Property<Guid>("MunicipalityId")
                         .HasColumnType("uuid");
 
@@ -2213,6 +2218,8 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
 
                     b.HasIndex("MunicipalityId", "CollectionId");
 
+                    b.HasIndex("MunicipalityId", "DirectFineAuthorityId");
+
                     b.HasIndex("MunicipalityId", "RevenueClassificationId", "RevenueClassificationPolicyId");
 
                     b.HasIndex("MunicipalityId", "SourceKind", "SourceId", "SourcePart");
@@ -2221,7 +2228,7 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("CK_CollectionLines_Amount_Positive", "\"Amount\" > 0");
 
-                            t.HasCheckConstraint("CK_CollectionLines_SourceShape", "((\"SourceKind\" IS NULL AND \"SourceId\" IS NULL AND \"SourcePart\" IS NULL) OR (\"SourceKind\" = 3 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (1, 2)) OR (\"SourceKind\" = 2 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (3, 4, 5)) OR (\"SourceKind\" IN (1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15) AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IS NULL))");
+                            t.HasCheckConstraint("CK_CollectionLines_SourceShape", "((\"SourceKind\" IS NULL AND \"SourceId\" IS NULL AND \"SourcePart\" IS NULL) OR (\"SourceKind\" = 3 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (1, 2)) OR (\"SourceKind\" = 2 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (3, 4, 5)) OR (\"SourceKind\" IN (1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16) AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IS NULL))");
                         });
                 });
 
@@ -2477,6 +2484,62 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.ToTable("CollectorOperationActivations", null, t =>
                         {
                             t.HasCheckConstraint("CK_CollectorOperationActivations_OperationCode", "\"OperationCode\" ~ '^[A-Z0-9_]{1,64}$'");
+                        });
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.DirectFineAuthority", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("AllowsUncappedAmount")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ApprovalReference")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("EffectiveTo")
+                        .HasColumnType("date");
+
+                    b.Property<string>("GoverningReference")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("MunicipalityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PenaltyVersionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("RequiresPayerParticulars")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("RequiresReason")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("RequiresSupportingReference")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("VerifiedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("VerifiedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MunicipalityId", "PenaltyVersionId");
+
+                    b.ToTable("DirectFineAuthorities", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_DirectFineAuthority_Dates", "\"EffectiveTo\" IS NULL OR \"EffectiveTo\" >= \"EffectiveFrom\"");
                         });
                 });
 
@@ -5398,6 +5461,12 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.DirectFineAuthority", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "DirectFineAuthorityId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.RevenueClassification", null)
                         .WithMany()
                         .HasForeignKey("MunicipalityId", "RevenueClassificationId")
@@ -5444,6 +5513,22 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.HasOne("EEMOCantilanSDS.Domain.Entities.Tenancy.Municipality", null)
                         .WithMany()
                         .HasForeignKey("MunicipalityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.DirectFineAuthority", b =>
+                {
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Tenancy.Municipality", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.PenaltyDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "PenaltyVersionId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

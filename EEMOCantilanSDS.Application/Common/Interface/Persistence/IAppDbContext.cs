@@ -85,6 +85,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<GovernedService> GovernedServices { get; }
         DbSet<GovernedServiceSetting> GovernedServiceSettings { get; }
         DbSet<PenaltyDefinition> PenaltyDefinitions { get; }
+        DbSet<DirectFineAuthority> DirectFineAuthorities { get; }
         DbSet<FineAssessment> FineAssessments { get; }
         DbSet<FineAssessmentPolicy> FineAssessmentPolicies { get; }
         DbSet<FineAssessmentEvent> FineAssessmentEvents { get; }

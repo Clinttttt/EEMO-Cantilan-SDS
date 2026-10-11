@@ -55,8 +55,7 @@ public sealed partial class FineAssessmentComponentTests
         _api.Setup(x=>x.CreateAssessmentAsync(It.IsAny<CreateFineAssessmentRequest>())).ReturnsAsync(Result<FineAssessmentDto>.Success(row));
         _api.Setup(x=>x.QuoteFineAsync(row.Id)).ReturnsAsync(Result<FineSettlementQuoteDto>.Failure("Unavailable"));
         var cut=RenderComponent<FineAssessmentsRegister>();
-        cut.FindAll("button").Single(x=>x.TextContent=="Record fine payment").Click();
-        cut.FindAll("button").Single(x=>x.TextContent=="Assess then collect").Click();
+        cut.FindAll("button").Single(x=>x.TextContent=="Assess fine").Click();
         var drawer=cut.FindComponent<FineAssessmentDrawer>();
         _api.Setup(x=>x.SearchFineAccountsAsync(It.IsAny<string>())).ReturnsAsync(Result<IReadOnlyList<FineAccountOption>>.Success([new(_account,"Liable holder","Space 4","Kanmanggay",false)]));
         drawer.Find("input").Change("Liable");
@@ -65,6 +64,7 @@ public sealed partial class FineAssessmentComponentTests
         drawer.Find(".fine-result").Click();
         drawer.Find("select").Change(policy.Id.ToString()); drawer.Find("textarea").Change("Actual incident"); drawer.Find("input[type='number']").Change("120");
         drawer.Find("form").Submit(); drawer.Find("form").Submit();
+        cut.FindAll("button").Single(x=>x.TextContent=="Record payment now").Click();
         cut.WaitForAssertion(()=>Assert.Single(cut.FindComponents<FinePaymentDrawer>()));
         Assert.Empty(cut.FindComponents<FineAssessmentDrawer>());
         var payment=cut.FindComponent<FinePaymentDrawer>(); Assert.Equal(row.Id,payment.Instance.AssessmentId);

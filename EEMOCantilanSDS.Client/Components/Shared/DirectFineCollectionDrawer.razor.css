@@ -1,0 +1,10 @@
+.df-fields { display: grid; gap: 14px; grid-column: 1 / -1; }
+.df-fields input, .df-fields select, .df-fields textarea { width: 100%; box-sizing: border-box; min-width: 0; }
+.df-note { margin: 0; color: var(--text-secondary); font-size: .8125rem; line-height: 1.5; }
+.df-review { display: grid; grid-column: 1 / -1; grid-template-columns: 140px minmax(0,1fr); gap: 10px 16px; margin: 0 0 16px; }
+.df-review dt { color: var(--text-secondary); font-size: .8125rem; }
+.df-review dd { margin: 0; overflow-wrap: anywhere; }
+.df-amount { font-weight: 700; font-variant-numeric: tabular-nums; }
+.df-check { display: flex; grid-column: 1 / -1; align-items: center; gap: 8px; margin-bottom: 16px; }
+.df-check input { width: 16px; height: 16px; flex: 0 0 16px; }
+@media (max-width: 480px) { .df-review { grid-template-columns: minmax(0,1fr); gap: 4px; } .df-review dd { margin-bottom: 8px; } }

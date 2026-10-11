@@ -63,10 +63,20 @@ public sealed class FinesWorkspaceTests : TestContext
         {
             Assert.Equal("Fines & Penalties", Assert.Single(cut.FindAll("h1")).TextContent.Trim());
             Assert.Empty(cut.FindAll("main"));
-            Assert.Contains("No saved assessments match", cut.Markup);
+            // Collections is the default view; nothing is collected until the Head opens the explicit drawer.
+            Assert.Contains("No collections match this view", cut.Markup);
+            Assert.Empty(cut.FindComponents<EEMOCantilanSDS.Client.Components.Shared.DirectFineCollectionDrawer>());
             Assert.DoesNotContain("aren't recorded in StallTrack yet", cut.Markup);
             Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Contains("Record payment"));
-            // No free-text charge anywhere until the Head opens the definition form.
+            // No free-text charge anywhere until the Head opens the definition form or the collection drawer.
+            Assert.Empty(cut.FindAll("input[type='number']"));
+        }, Timeout);
+
+        View(cut, "Assessments");
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("No saved assessments match", cut.Markup);
+            Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Contains("Record payment"));
             Assert.Empty(cut.FindAll("input[type='number']"));
         }, Timeout);
     }
@@ -90,7 +100,7 @@ public sealed class FinesWorkspaceTests : TestContext
             Assert.Contains("Manually approved · up to ₱200.00", defs[1].TextContent);
             Assert.Contains("Retired", defs[1].TextContent);
         }, Timeout);
-        View(cut,"Collected");
+        View(cut,"Collections");
         cut.WaitForAssertion(() => {
             var rows = cut.FindAll("[aria-label='Fines collected'] tbody tr");
             Assert.Equal(2, rows.Count);

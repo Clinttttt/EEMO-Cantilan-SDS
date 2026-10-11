@@ -3,11 +3,10 @@
 <section class="v3-panel" aria-label="Fine assessments" aria-busy="@(_loading ? "true" : "false")">
     <header class="v3-panel-header"><h2>Assessments</h2><AuthorizeView Roles="SuperAdmin"><Authorized>
         <button class="v3-btn v3-btn-primary" type="button" @onclick="() => _adding = true">Assess fine</button>
-        <button class="v3-btn" type="button" @onclick="BeginPayment">Record fine payment</button>
     </Authorized></AuthorizeView></header>
-    @if (_choosingPayment) { <div class="v3-toolbar" role="status"><span>Select an outstanding fine below, or assess a new fine before recording payment.</span>
-        <AuthorizeView Roles="SuperAdmin"><Authorized><button class="v3-btn" type="button" @onclick="BeginAssessAndCollect">Assess then collect</button></Authorized></AuthorizeView>
-        <button class="v3-btn" type="button" @onclick="() => _choosingPayment=false">Cancel</button></div> }
+    @if(_saved is { } saved) { <div class="v3-toolbar" role="status"><span>Assessment saved · ₱@saved.Remaining.ToString("N2") outstanding</span>
+        <button class="v3-btn v3-btn-sm" type="button" @onclick="() => { _payment=saved.Id; _saved=null; }">Record payment now</button>
+    </div> }
     <div class="v3-toolbar"><label class="v3-field" style="flex: 1 1 260px; max-width: 420px"><span>Search</span><input @bind="_search" placeholder="Occupant, unit or description" /></label>
         <button class="v3-btn" type="button" @onclick="Load">Search</button>
         <label class="v3-field"><span>Status</span><select @bind="_status"><option>All</option><option>Outstanding</option><option>Settled</option></select></label>
@@ -51,14 +50,10 @@
     [Parameter] public FineAccountRef? InitialAccount { get; set; }
     [Parameter] public Guid? PaymentAssessmentId { get; set; }
     private Guid? _payment,_openedPayment;
-    private bool _choosingPayment, _collectAfterSave;
-    private void BeginPayment() { _choosingPayment=true; _status="Outstanding"; }
-    private void BeginAssessAndCollect() { _collectAfterSave=true; _adding=true; }
-    private void CancelAssessment() { _adding=false; _collectAfterSave=false; }
+    private void CancelAssessment() { _adding=false; }
     private async Task Created(FineAssessmentDto assessment) {
         _adding=false;
-        if (_collectAfterSave) { _payment=assessment.Id; _choosingPayment=false; }
-        _collectAfterSave=false;
+        _saved=assessment;
         await Load();
     }
     private FineAccountRef? _openedAccount;
@@ -67,6 +62,7 @@
     private List<FineAssessmentDto> _rows = []; private List<FineAssessmentEventDto> _history = [];
     private List<FineSettlementHistoryDto> _cash=[]; private string? _cashError;
     private FineAssessmentDto? _selected; private string? _error, _historyError;
+    private FineAssessmentDto? _saved;
     private string _search = "", _status = "All"; private bool _loading = true, _adding;
     protected override Task OnInitializedAsync() => Load();
     private async Task Load() { _loading = true; _error = null; _rows = [];

@@ -3,10 +3,16 @@
 .fn-page {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 12px;
 }
 .fn-subtitle { margin: -8px 0 0; color: var(--text-secondary); font-size: .875rem; }
 .fn-page .filter-tabs { align-self: flex-start; max-width: 100%; flex-wrap: wrap; }
+.fn-search { gap: 10px; }
+.fn-search .v3-field:first-child { flex: 1 1 240px; max-width: 420px; }
+.fn-search .v3-field { min-width: 0; }
+.fn-search input, .fn-search select { width: 100%; }
+.fn-page .v3-panel-header { flex-wrap: wrap; gap: 12px; }
+@media (max-width: 480px) { .fn-period { width: 100%; } .fn-search { align-items: stretch; } }
 
 .fn-notice {
     margin: 12px 20px 0;

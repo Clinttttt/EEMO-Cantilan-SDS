@@ -7,6 +7,9 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 /// <summary>Office view of approved penalty definitions and the register of posted fines (IA-049).</summary>
 public interface IPenaltiesApiClient
 {
+    Task<Result<DirectFineOptionsDto>> GetDirectFineOptionsAsync();
+    Task<Result<DirectFineQuoteDto>> QuoteDirectFineAsync(DirectFineCollectionRequest request);
+    Task<Result<GovernedServiceOutcomeDto>> PostDirectFineAsync(DirectFineCollectionRequest request);
     Task<Result<IReadOnlyList<PenaltyDefinitionDto>>> GetDefinitionsAsync();
     Task<Result<PenaltyDefinitionDto>> DefineAsync(DefinePenaltyRequest request);
     Task<Result<IReadOnlyList<PenaltyRegisterRowDto>>> GetRegisterAsync(DateOnly from, DateOnly to);
