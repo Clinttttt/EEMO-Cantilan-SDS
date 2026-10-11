@@ -13,8 +13,8 @@ namespace EEMOCantilanSDS.Application.Common.Revenue;
 
 /// <summary>
 /// Approved penalty definitions and the register of posted fines (IA-049). The Head defines penalties; Head and Admin
-/// read them and the register. A fine is collected only by adding a definition to an Official Receipt draft in the
-/// Composer, never by typing a free-text charge, and the register is a read of the canonical posted lines.
+/// read them and the register. Definition-based Composer charges, saved-assessment settlement and separately
+/// governed direct fine cash retain distinct source identities; the register reads only canonical posted fine lines.
 /// </summary>
 public sealed class PenaltyDefinitionWorkflow(
     IAppDbContext db,
@@ -69,8 +69,29 @@ public sealed class PenaltyDefinitionWorkflow(
     /// <summary>Posted fines in a period: what the canonical Collections recorded, with the OR each rode on.</summary>
     public Task<Result<IReadOnlyList<PenaltyRegisterRowDto>>> GetRegisterAsync(
         DateOnly from, DateOnly to, CancellationToken ct = default) =>
-        Run<IReadOnlyList<PenaltyRegisterRowDto>>(async actor =>
+        Run<IReadOnlyList<PenaltyRegisterRowDto>>(actor => LoadRegisterAsync(actor.TenantId, from, to, ct), ct);
+
+    /// <summary>
+    /// Headline figures for the Fines workspace, derived from the same register rows the list shows (so they cannot
+    /// disagree) plus the correction-aware unpaid balance of saved assessments.
+    /// </summary>
+    public Task<Result<PenaltyWorkspaceSummaryDto>> GetSummaryAsync(DateOnly from, DateOnly to, CancellationToken ct = default) =>
+        Run<PenaltyWorkspaceSummaryDto>(async actor =>
         {
+            var register = await LoadRegisterAsync(actor.TenantId, from, to, ct);
+            if (!register.IsSuccess) return Result<PenaltyWorkspaceSummaryDto>.Failure(register.Error!, register.Status);
+            var rows = register.Value!;
+            var assessed = await db.FineAssessments.AsNoTracking().Where(x => x.MunicipalityId == actor.TenantId)
+                .Select(x => new { x.Id, x.AssessedAmount }).ToListAsync(ct);
+            var settled = await new FineAssessmentCollectionSource(db).SettledAsync(actor.TenantId, assessed.Select(x => x.Id).ToArray(), ct);
+            var unpaid = assessed.Select(x => x.AssessedAmount - settled.GetValueOrDefault(x.Id)).Where(x => x > 0m).ToList();
+            return Result<PenaltyWorkspaceSummaryDto>.Success(new(from, to, rows.Sum(x => x.EffectiveAmount ?? 0m),
+                rows.Where(x => x.Kind == PenaltyRegisterKinds.Direct).Sum(x => x.EffectiveAmount ?? 0m), unpaid.Sum(), unpaid.Count));
+        }, ct);
+
+    private async Task<Result<IReadOnlyList<PenaltyRegisterRowDto>>> LoadRegisterAsync(
+        Guid tenantId, DateOnly from, DateOnly to, CancellationToken ct)
+    {
             if (from > to || to.DayNumber - from.DayNumber > 366)
                 return Result<IReadOnlyList<PenaltyRegisterRowDto>>.Failure("Choose a valid period of no more than 367 days.", ResultStatus.Invalid);
             var rows = await (
@@ -78,22 +99,65 @@ public sealed class PenaltyDefinitionWorkflow(
                 join line in db.CollectionLines.AsNoTracking() on collection.Id equals line.CollectionId
                 join version in db.PenaltyDefinitions.AsNoTracking()
                     on new { line.MunicipalityId, Id = line.SourceId } equals new { version.MunicipalityId, Id = (Guid?)version.Id }
-                where collection.MunicipalityId == actor.TenantId
+                where collection.MunicipalityId == tenantId
                     && collection.BusinessDate >= @from && collection.BusinessDate <= to
                     && line.SourceKind == CollectionSourceKind.PenaltyDefinition
                 orderby collection.BusinessDate descending, collection.RecordedAtUtc descending
                 select new { collection.Id, collection.BusinessDate, collection.RecordedAtUtc, collection.PayerName, collection.ReferenceCode,
-                    version.Code, version.DisplayName, line.CalculationSnapshot, line.Amount }).ToListAsync(ct);
-            var ids = rows.Select(x => x.Id).ToArray();
-            var corrections = await db.CollectionCorrections.AsNoTracking().Where(x =>
-                x.MunicipalityId == actor.TenantId && ids.Contains(x.OriginalCollectionId))
-                .Select(x => new { x.OriginalCollectionId, x.FinancialEffectAmount }).ToListAsync(ct);
+                    version.Code, version.DisplayName, line.CalculationSnapshot, line.Amount, LineId = line.Id,
+                    Kind = PenaltyRegisterKinds.Definition, Account = (string?)null, Unit = (string?)null, Facility = (string?)null, Described = (string?)null }).ToListAsync(ct);
+            var assessedRows = await (
+                from collection in db.Collections.AsNoTracking()
+                join line in db.CollectionLines.AsNoTracking() on collection.Id equals line.CollectionId
+                join assessment in db.FineAssessments.AsNoTracking()
+                    on new {line.MunicipalityId, Id = line.SourceId} equals new {assessment.MunicipalityId, Id = (Guid?)assessment.Id}
+                where collection.MunicipalityId == tenantId && collection.BusinessDate >= @from && collection.BusinessDate <= to
+                    && line.SourceKind == CollectionSourceKind.FineAssessment
+                select new {collection.Id, collection.BusinessDate, collection.RecordedAtUtc, collection.PayerName, collection.ReferenceCode,
+                    Code = assessment.PenaltyCode, DisplayName = assessment.PenaltyName, line.CalculationSnapshot, line.Amount, LineId = line.Id,
+                    Kind = PenaltyRegisterKinds.Assessed, Account = (string?)assessment.Occupant, Unit = (string?)assessment.UnitReference,
+                    Facility = (string?)assessment.SourceName, Described = (string?)assessment.Description}).ToListAsync(ct);
+            rows.AddRange(assessedRows);
+            var directRows = await (
+                from collection in db.Collections.AsNoTracking()
+                join line in db.CollectionLines.AsNoTracking() on collection.Id equals line.CollectionId
+                join authority in db.DirectFineAuthorities.AsNoTracking()
+                    on new { line.MunicipalityId, Id = line.SourceId } equals new { authority.MunicipalityId, Id = (Guid?)authority.Id }
+                join version in db.PenaltyDefinitions.AsNoTracking()
+                    on new { authority.MunicipalityId, Id = authority.PenaltyVersionId } equals new { version.MunicipalityId, version.Id }
+                where collection.MunicipalityId == tenantId && collection.BusinessDate >= @from && collection.BusinessDate <= to
+                    && line.SourceKind == CollectionSourceKind.DirectFineCollection
+                select new { collection.Id, collection.BusinessDate, collection.RecordedAtUtc, collection.PayerName, collection.ReferenceCode,
+                    version.Code, version.DisplayName, line.CalculationSnapshot, line.Amount, LineId = line.Id,
+                    Kind = PenaltyRegisterKinds.Direct, Account = (string?)null, Unit = (string?)null, Facility = (string?)null, Described = (string?)null }).ToListAsync(ct);
+            rows.AddRange(directRows);
+            rows = rows.OrderByDescending(r => r.BusinessDate).ThenByDescending(r => r.RecordedAtUtc).ToList();
+            var ids = rows.Select(x => x.LineId).ToArray();
+            var corrections = await db.CollectionCorrectionLines.AsNoTracking().Where(x =>
+                x.MunicipalityId == tenantId && ids.Contains(x.OriginalCollectionLineId))
+                .Select(x => new { OriginalLineId = x.OriginalCollectionLineId, x.FinancialEffectAmount }).ToListAsync(ct);
             var register = rows.Select(x => new PenaltyRegisterRowDto(x.Id, x.BusinessDate, x.RecordedAtUtc, x.PayerName,
                 ReadOrigin(x.CalculationSnapshot), x.Code, x.DisplayName,
                 x.ReferenceCode, x.Amount,
-                corrections.Any(c => c.OriginalCollectionId == x.Id && c.FinancialEffectAmount < 0m) ? "Reversed" : "Posted")).ToList();
+                x.Amount + corrections.Where(c => c.OriginalLineId == x.LineId).Sum(c => c.FinancialEffectAmount) == 0m ? "Reversed" :
+                    corrections.Any(c => c.OriginalLineId == x.LineId) ? "Corrected" : "Posted",
+                x.Amount + corrections.Where(c => c.OriginalLineId == x.LineId).Sum(c => c.FinancialEffectAmount),
+                x.Kind, x.Account is null ? null : string.IsNullOrWhiteSpace(x.Unit) ? x.Account : $"{x.Account} · {x.Unit}", x.Facility,
+                x.Described ?? ReadText(x.CalculationSnapshot, "Reason"))).ToList();
             return Result<IReadOnlyList<PenaltyRegisterRowDto>>.Success(register);
-        }, ct);
+    }
+
+    private static string? ReadText(string? snapshotJson, string property)
+    {
+        if (string.IsNullOrWhiteSpace(snapshotJson)) return null;
+        try
+        {
+            using var document = JsonDocument.Parse(snapshotJson);
+            return document.RootElement.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String
+                && !string.IsNullOrWhiteSpace(value.GetString()) ? value.GetString() : null;
+        }
+        catch (JsonException) { return null; }
+    }
 
     /// <summary>The optional descriptive origin (for example a stall and month) recorded on the line; it prices nothing.</summary>
     public static string? ReadOrigin(string? snapshotJson)

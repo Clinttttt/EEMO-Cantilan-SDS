@@ -191,3 +191,70 @@
     align-items: flex-end;
     gap: 3px;
 }
+
+/* Hosted by the Dashboard: the title, the host's shortcuts and view switch, and the source selector share one compact header row
+   (wrapping onto a second row only when the content width runs out), never a separate strip above the panel. */
+.rsp-head-hosted,
+.rsp-skeleton-head {
+    flex-wrap: wrap;
+    row-gap: 10px;
+}
+
+.rsp-head-actions {
+    display: flex;
+    flex: 1 1 auto;
+    justify-content: flex-end;
+    min-width: 0;
+}
+
+.rsp-head-hosted .rsp-filter,
+.rsp-skeleton-head .rsp-filter {
+    margin-left: 0;
+}
+
+.rsp-head-hosted .rsp-head-copy { flex: 0 0 auto; }
+
+.rsp-head-hosted .rsp-head-actions { justify-content: flex-start; }
+.rsp-head-hosted .rsp-filter { margin-left: auto; }
+
+@media (max-width: 768px) {
+    /* Title on its own line (it may wrap), then the toolbar across the width, then the source selector. */
+    .rsp-head-hosted .rsp-head-copy, .rsp-head-hosted .rsp-head-actions { flex: 1 1 100%; }
+    .rsp-head-hosted .rsp-filter { margin-left: 0; flex: 1 1 100%; justify-content: flex-start; }
+}
+
+/* Dashboard-hosted header: title left, controls right, one row where the content width allows. */
+@media (min-width: 769px) {
+    .rsp-head-hosted { column-gap: 12px; padding: 12px 16px; align-items: center; }
+    .rsp-head-hosted .rsp-title { font-size: 1.0625rem; line-height: 1.25; white-space: nowrap; }
+    .rsp-head-hosted .rsp-head-copy { flex: 0 0 auto; }
+    .rsp-head-hosted .rsp-head-actions { flex: 1 1 auto; justify-content: flex-end; margin-left: auto; }
+    .rsp-head-hosted .rsp-filter { flex: 0 0 auto; min-width: 0; margin-left: 0; }
+}
+
+/* Title takes the free space (pushing the controls to the right on one row); wrapped controls start at the left edge of their row. */
+@media (min-width: 769px) {
+    .rsp-head-hosted .rsp-head-copy { margin-right: auto; }
+    .rsp-head-hosted .rsp-head-actions { flex: 0 1 auto; margin-left: 0; justify-content: flex-start; }
+}
+
+@media (min-width: 769px) and (max-width: 1559px) {
+    .rsp-head-hosted { column-gap: 10px; padding-left: 14px; padding-right: 14px; }
+}
+
+/* The controls travel as one group: the source selector never drops to a row of its own away from the shortcuts.
+   Outside the Dashboard the wrapper is transparent, so the Reports header lays out exactly as before. */
+.rsp-head-controls { display: contents; }
+
+@media (min-width: 769px) {
+    .rsp-head-hosted .rsp-head-controls { display: flex; flex: 0 1 auto; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 8px 10px; min-width: 0; }
+    .rsp-head-hosted .rsp-head-controls .rsp-head-actions { flex: 0 0 auto; margin: 0; }
+}
+
+@media (min-width: 1100px) {
+    .rsp-head-hosted .rsp-head-controls { flex-wrap: nowrap; }
+}
+
+@media (max-width: 768px) {
+    .rsp-head-hosted .rsp-head-controls { display: flex; flex: 1 1 100%; flex-direction: column; align-items: stretch; gap: 8px; }
+}

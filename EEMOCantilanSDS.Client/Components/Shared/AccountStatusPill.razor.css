@@ -1,0 +1,3 @@
+.status-pill { padding: 3px 8px; font-size: 11px; line-height: 1.4; }
+.pill-unpaid { background: var(--red-bg); color: var(--red); }
+.pill-inactive { background: var(--surface-muted); color: var(--text-secondary); }

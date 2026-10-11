@@ -393,6 +393,18 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
                 collection.PayerName, version.Code, version.DisplayName, line.CalculationSnapshot, line.Amount
             })
             .ToListAsync(ct);
+        var fineSettlements = await (
+            from collection in context.Collections.AsNoTracking()
+            join line in context.CollectionLines.AsNoTracking() on collection.Id equals line.CollectionId
+            join assessment in context.FineAssessments.AsNoTracking()
+                on new {line.MunicipalityId, Id = line.SourceId} equals new {assessment.MunicipalityId, Id = (Guid?)assessment.Id}
+            join policy in context.RevenueClassificationPolicies.AsNoTracking() on line.RevenueClassificationPolicyId equals policy.Id
+            where collection.CollectorId == collectorId && collection.BusinessDate >= businessDateFrom && collection.BusinessDate <= businessDateTo
+                && line.SourceKind == CollectionSourceKind.FineAssessment
+            select new {DocumentNumber = collection.ReferenceCode, InstrumentType = (RevenueInstrumentType?)policy.PermittedInstrumentType,
+                collection.RecordedAtUtc, collection.BusinessDate, collection.PayerName, Code = assessment.PenaltyCode,
+                DisplayName = assessment.PenaltyName, line.CalculationSnapshot, line.Amount}).ToListAsync(ct);
+        penalties.AddRange(fineSettlements);
         // Source-native office collections have no legacy twin or invented facility/occupancy.
         var native = await (
             from collection in context.Collections.AsNoTracking()

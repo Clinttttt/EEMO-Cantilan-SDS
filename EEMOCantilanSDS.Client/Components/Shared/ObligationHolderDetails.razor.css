@@ -1,0 +1,18 @@
+.holder-details{width:min(840px,calc(100vw - 32px));max-height:calc(100dvh - 40px);display:flex;flex-direction:column;background:var(--surface,#fff);border-radius:12px;overflow:hidden;box-shadow:0 18px 50px #142b4b35;color:var(--navy,#142c47)}
+.ohd-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:24px 28px 18px;border-bottom:1px solid var(--border,#d9e2ed)}
+.ohd-header h2{margin:0;font-size:22px;line-height:1.25}
+.ohd-sub{display:flex;align-items:center;flex-wrap:wrap;gap:10px;color:var(--text-secondary,#586b81);font-size:13px;margin-top:7px}
+.ohd-close{border:1px solid var(--border,#d9e2ed);border-radius:7px;background:transparent;color:var(--text-secondary,#586b81);font-size:24px;line-height:1;width:34px;height:34px;cursor:pointer}
+.ohd-body{padding:20px 28px 22px;overflow-y:auto;min-height:0}
+.ohd-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.ohd-stats>div{padding:14px;border:1px solid var(--border,#d9e2ed);border-radius:8px;background:var(--surface-muted,#f5f7fa);min-width:0}
+.ohd-stats small{display:block;font-size:11px;color:var(--text-secondary,#586b81);margin-bottom:7px}
+.ohd-stats strong{font-size:16px;letter-spacing:-.02em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.ohd-section{padding-top:23px;margin-top:20px;border-top:1px solid var(--border,#d9e2ed)}
+.ohd-section h3{text-transform:uppercase;letter-spacing:.10em;font-size:12px;color:var(--text-secondary,#586b81);margin:0 0 15px}
+.ohd-section dl{margin:0;display:grid;grid-template-columns:1fr 1fr;gap:14px 20px}
+.ohd-section dl>div{min-width:0}.ohd-section dt{font-size:12px;color:var(--text-secondary,#586b81);margin-bottom:4px}
+.ohd-section dd{font-size:14px;font-weight:600;margin:0;overflow-wrap:anywhere}
+.ohd-note{font-size:12px;line-height:1.5;color:var(--text-secondary,#586b81);padding-top:12px}
+.ohd-footer{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;padding:14px 28px;border-top:1px solid var(--border,#d9e2ed);background:var(--surface,#fff)}
+@media(max-width:620px){.holder-details{width:calc(100vw - 20px);max-height:calc(100dvh - 20px)}.ohd-header,.ohd-body,.ohd-footer{padding-left:16px;padding-right:16px}.ohd-stats{grid-template-columns:1fr 1fr}.ohd-section dl{grid-template-columns:1fr}.ohd-footer>*{flex:1 1 auto}}

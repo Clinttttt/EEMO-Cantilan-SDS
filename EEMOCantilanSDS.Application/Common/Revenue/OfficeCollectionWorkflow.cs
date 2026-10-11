@@ -37,11 +37,14 @@ public sealed partial class OfficeCollectionWorkflow(IAppDbContext db, ICurrentU
     public async Task<Result<FishMeatVendorRegistrationDto>> RegisterAsync(RegisterFishMeatVendorRequest request, CancellationToken ct = default)
     {
         if (!TenantValid || !user.IsAuthenticated || user.Role != "SuperAdmin") return Result<FishMeatVendorRegistrationDto>.Forbidden();
+        if (request.NpmAssociation is not null) return await RegisterFromNpmAsync(request, ct);
         FishMeatVendorRegistration candidate;
         try { candidate = FishMeatVendorRegistration.Register(Tenant, request.ClientOperationId, request.TaxYear, request.VendorType,
             request.RegistrationKind, request.DisplayName, request.BusinessName, request.Address, request.Reference, user.Username ?? "Head"); }
         catch (ArgumentException e) { return Result<FishMeatVendorRegistrationDto>.Failure(e.Message, ResultStatus.Invalid); }
         var prior = await db.FishMeatVendorRegistrations.AsNoTracking().SingleOrDefaultAsync(x => x.MunicipalityId == Tenant && x.ClientOperationId == request.ClientOperationId, ct);
+        if (prior is not null && await db.FishMeatNpmAssociations.AnyAsync(x => x.MunicipalityId == Tenant && x.ClientOperationId == request.ClientOperationId, ct))
+            return Result<FishMeatVendorRegistrationDto>.Failure("RegistrationIntentConflict", ResultStatus.Conflict);
         if (prior is not null) return ToDto(prior) == ToDto(candidate) with { Id = prior.Id }
             ? Result<FishMeatVendorRegistrationDto>.Success(ToDto(prior))
             : Result<FishMeatVendorRegistrationDto>.Failure("RegistrationIntentConflict", ResultStatus.Conflict);

@@ -90,8 +90,8 @@ public partial class StallRepository
         var payments = await _context.PaymentRecords.AsNoTracking()
             .Where(p => stallIds.Contains(p.StallId)).ToListAsync(ct);
         var paidDailies = await _context.DailyCollections.AsNoTracking()
-            .Where(d => stallIds.Contains(d.StallId) && d.IsPaid)
-            .Select(d => new { d.StallId, d.CollectionDate, d.DailyFee, d.FishKilos, d.MeatFeeAmount }).ToListAsync(ct);
+            .Where(d => stallIds.Contains(d.StallId) && (d.IsPaid || d.CanonicalSettledAmount > 0m))
+            .Select(d => new { d.StallId, d.CollectionDate, DailyFee = d.IsPaid ? d.DailyFee : d.CanonicalSettledAmount, FishKilos = d.IsPaid ? d.FishKilos : null, MeatFeeAmount = d.IsPaid ? d.MeatFeeAmount : 0m }).ToListAsync(ct);
         var absentDailies = await _context.DailyCollections.AsNoTracking()
             .Where(d => stallIds.Contains(d.StallId) && d.IsAbsent)
             .Select(d => new { d.StallId, d.CollectionDate }).ToListAsync(ct);
@@ -107,8 +107,7 @@ public partial class StallRepository
         // Days the market itself was shut. Nothing is owed for them, so charging them here would state a debt the
         // office cannot collect — and the Record-payment dialog, which has always excluded them, would then offer a
         // smaller total than this register. One closure list serves every stall: a closure is facility-wide.
-        var closureDates = (await _context.NpmMarketClosures.AsNoTracking()
-            .Select(c => c.ClosureDate).ToListAsync(ct)).ToHashSet();
+        var closureDates = await _context.EffectiveNpmClosedDatesThroughAsync(today, ct);
 
         var paidByStall = paidDailies.GroupBy(d => d.StallId).ToDictionary(g => g.Key, g => g.ToList());
         var absentByStall = absentDailies.GroupBy(d => d.StallId).ToDictionary(g => g.Key, g => g.Select(x => x.CollectionDate).ToHashSet());

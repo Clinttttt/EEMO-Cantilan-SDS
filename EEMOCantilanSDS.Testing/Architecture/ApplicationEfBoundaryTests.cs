@@ -164,6 +164,9 @@ public class ApplicationEfBoundaryTests
         // Registry lifecycle commands share the existing source workflow/Serializable boundary; management totals
         // delegate to its canonical correction-aware activity reader instead of defining a second money query.
         "OfficeCollectionWorkflow.Management.cs",
+        // Optional IA-068 registration evidence uses the existing registry's transaction/context boundary to
+        // atomically confirm an NPM contract and annual vendor registration. It adds no collection writer.
+        "OfficeCollectionWorkflow.NpmAssociations.cs",
 
         // The shared Composer posting transaction revalidates every participating source and atomically writes
         // the draft, Collection/lines/allocations, compatibility projections, accountable document, and durable
@@ -194,9 +197,17 @@ public class ApplicationEfBoundaryTests
         // Governed configurable services (IA-044): tenant-bound setup versions and the one focused Mobile writer, which
         // posts only through CanonicalCollectionPostingCoordinator and revalidates authorization, policy and custody.
         "GovernedServiceWorkflow.cs",
-        // Approved penalty definitions (append-only versions) and the read-only register of posted fines. It posts nothing:
-        // a fine is collected only through the Composer, which revalidates the definition version at review and post.
+        // Approved penalty definitions (append-only versions) and the read-only register of posted fines. It posts nothing.
         "PenaltyDefinitionWorkflow.cs",
+        // Direct fines validate reviewed tenant authority and atomically delegate cash to the same canonical coordinator.
+        "DirectFineCollectionWorkflow.cs",
+        // Like the existing penalty/obligation workflows, this assessment-only feature owns the tenant-scoped
+        // source/definition validation and one atomic assessment + audit insert, including PostgreSQL replay conflicts.
+        // It intentionally does not call any cash writer or create rental periods; queries use IAppDbContext filters.
+        "FineAssessmentWorkflow.cs",
+        // Fine settlement extends the existing Composer and reads attributable canonical allocations; no additional cash writer.
+        "FineAssessmentCollectionSource.cs",
+        "CollectionComposerWorkflow.Fines.cs",
         "ObligationWorkflow.cs",
         "VehicleClassWorkflow.cs",
         "RemittanceWorkflow.cs",

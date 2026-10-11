@@ -59,7 +59,7 @@ else if (_queued)
 }
 else
 {
-    @if (OnlyOperation != CollectorOperationCodes.Terminal)
+    @if (OnlyOperation != CollectorOperationCodes.Terminal && !BrowserMode)
     {
     <section class="collection-entry collection-payer">
         <h2>@(SourceHeading)</h2>
@@ -112,7 +112,19 @@ else
     </section>
     }
     @* The empty space under the finder: today's own collections, until a source is chosen or the finder's list needs the room. *@
-    @if (_source is null && !_direct && Correction is null && OnlyOperation is null && !_suggestOpen) { <RecentCollections /> }
+    @if (OnlyOperation == CollectorOperationCodes.FishMeatVendorFee && Correction is null)
+    {
+        <section class="collection-entry" aria-label="Other collection sources">
+            <h2>Other collections this visit</h2>
+            <p>Electricity and NPM rent require their own stall account. Record them separately.</p>
+            <div class="collection-source-actions">
+                <button class="collection-small" type="button" disabled="@(_items.Count > 0 || _busy || _picker)" @onclick='() => Navigation.NavigateTo("/ecf")'>Choose electricity / ECF account</button>
+                <button class="collection-small" type="button" disabled="@(_items.Count > 0 || _busy || _picker)" @onclick='() => Navigation.NavigateTo("/market")'>Choose NPM stall</button>
+            </div>
+            @if (_items.Count > 0) { <p>Record or remove current items before switching sources.</p> }
+        </section>
+    }
+@* The landing: the registered sources assigned to this collector, by type. Today's collections and their corrections live in Records. *@    @if (BrowserMode)    {        <SourceBrowser OnSelect="SelectBrowsedAsync" DirectAllowed="DirectAllowed" OnDirect="StartDirectAsync" />        <div class="collection-source-actions landing-actions">            @if (DirectAllowed) { <button class="collection-small" type="button" @onclick="() => StartDirectAsync(string.Empty)">Direct collection</button> }            <button class="collection-small" type="button" @onclick='() => Navigation.NavigateTo("/records")'>Records</button>        </div>    }
     @if (_source is not null || _direct)
     {
         <section class="collection-entry">
@@ -120,6 +132,25 @@ else
             @if (_items.Count == 0)
             {
                 <p>@(NothingDue ? "No linked collection is due for this source." : "No items added.")</p>
+                @if (NothingDue && OnlyOperation == CollectorOperationCodes.VegetableFruitSpaceRental)
+                {
+                    <p role="status">No collectible Monthly periods are available. Ask the office to check the account and OR collection setup.</p>
+                    @foreach (var unavailable in _discovery!.Operations.Where(x => Allows(x.OperationCode) && !x.CanAdd && !string.IsNullOrWhiteSpace(x.Reason)))
+                    { <p>@unavailable.Reason</p> }
+                }
+                @* An office-confirmed link only opens that stall as its own, separate collection: nothing is shared or merged with this source. *@
+                @if (_discovery?.LinkedSources is { Count: > 0 } linkedSources && Correction is null)
+                {
+                    <div class="linked-sources" role="group" aria-label="Linked NPM stall">
+                        <span class="linked-label">Linked NPM stall</span>
+                        @foreach (var link in linkedSources)
+                        {
+                            <button class="collection-option payer-option" type="button" disabled="@_busy" @onclick="() => SelectBrowsedAsync(link)">
+                                <span class="payer-option-text"><strong>@link.DisplayName</strong><small>@link.Context</small></span><span aria-hidden="true">›</span></button>
+                        }
+                        <small class="linked-note">Collected as a separate payment from this vendor's fees.</small>
+                    </div>
+                }
                 @if (NothingDue && DirectAllowed)
                 {
                     <button class="collection-small" type="button" @onclick="() => StartDirectAsync(_source!.DisplayName)">Continue as direct collection</button>
@@ -165,9 +196,17 @@ else
                 <CorrectionReason Value="_reason" ValueChanged="ReasonChanged" />
             </section>
         }
-        <div class="collection-actions">
-            <button class="collection-secondary" type="button" disabled="@(_busy || _items.Count == 0)" @onclick="ReviewAsync">Review collection</button>
-            <button class="collection-primary" type="button" disabled="@(_busy || _quote?.CanRecord != true || Sync.HasStorageFault || (Correction is not null && !Sync.IsOnline))" @onclick="RecordAsync">@(Correction is null ? "Record collection" : "Save changes")</button>
+        @* One primary action that follows the state: review the items first, then confirm. Changing an item discards the reviewed quote, so the
+           action returns to Review and nothing is ever confirmed against a stale quote. *@
+        <div class="collection-actions collection-actions-one">
+            @if (_quote is null)
+            {
+                <button class="collection-primary" type="button" disabled="@(_busy || _items.Count == 0)" @onclick="ReviewAsync">Review collection</button>
+            }
+            else
+            {
+                <button class="collection-primary" type="button" disabled="@(_busy || _quote.CanRecord != true || Sync.HasStorageFault || (Correction is not null && !Sync.IsOnline))" @onclick="RecordAsync">@(Correction is null ? "Record collection" : "Save changes")</button>
+            }
         </div>
         @if (OnlyOperation == CollectorOperationCodes.Terminal) { <RecentCollections OnlyOperation="@CollectorOperationCodes.Terminal" Heading="Today's Terminal collections" /> }
     }
@@ -180,7 +219,7 @@ else
         <section class="sheet sheet-flex" role="dialog" aria-modal="true" aria-label="Add item" @onclick:stopPropagation="true">
             <div class="sheet-handle"></div>
             <header class="sheet-head">
-                <h2 class="sheet-title">Add item</h2>
+                <h2 class="sheet-title">Select charges</h2>
                 <div class="sheet-context">@(_operation is null ? SourceName : _operation.DisplayName + (SourceName is { Length: > 0 } ? " · " + SourceName : ""))</div>
             </header>
             <div class="sheet-body">
@@ -267,6 +306,7 @@ else
                         <div class="sheet-note">Approved amount confirmed on review</div>
                     }
                     @if (_choice.Kind == CollectionSessionItemKind.NpmWholePayment) { <div class="sheet-note">Remaining monthly rent is confirmed on review</div> }
+                    @if (_choice.Kind == CollectionSessionItemKind.NpmPartPayment) { <div class="sheet-note">Applied to the oldest unpaid day first. The server shows how it is applied on review@(_choice.MaximumAmount is { } most ? $" · up to {Money(most)} is payable now" : "").</div> }
                     @if (TakesTypedAmount)
                     {
                         <label class="form-field"><span class="form-label">Amount received</span><input class="form-input" type="number" inputmode="decimal" min="0.01" step="0.01" max="@(_choice.MaximumAmount?.ToString(CultureInfo.InvariantCulture))" @bind="_amount" @bind:event="oninput" /></label>
@@ -360,13 +400,15 @@ else
 
     // What kind of finder this page is: a registered vendor only, an occupant only, or any source.
     private bool VendorOnly => OnlyOperation is CollectorOperationCodes.WeightAndMeasure;
-    private bool DirectAllowed => !VendorOnly && OnlyOperation != CollectorOperationCodes.Wcf;
+    private bool BrowserMode => _source is null && !_direct && Correction is null && OnlyOperation is null;
+    private bool DirectAllowed => !VendorOnly && OnlyOperation is not (CollectorOperationCodes.Wcf or CollectorOperationCodes.VegetableFruitSpaceRental);
     private string SourceHeading => OnlyOperation == CollectorOperationCodes.Terminal ? "Income From Terminal" : "Source";
-    private string SearchLabel => VendorOnly ? "Search registered vendor" : OnlyOperation == CollectorOperationCodes.FishMeatVendorFee ? "Search vendor or payer" : "Search payer or vendor";
+    private string SearchLabel => OnlyOperation == CollectorOperationCodes.VegetableFruitSpaceRental ? "Search registered space holder" : VendorOnly ? "Search registered vendor" : OnlyOperation == CollectorOperationCodes.FishMeatVendorFee ? "Search vendor or payer" : "Search payer or vendor";
     private IReadOnlyList<CollectionSourceSearchResult> VisibleSources => _found.Where(x => OnlyOperation switch
     {
         CollectorOperationCodes.WeightAndMeasure or CollectorOperationCodes.FishMeatVendorFee => x.Identity.Kind == SourceIdentityKind.FishMeatVendorRegistration,
         "ECF" => x.Identity.Kind == SourceIdentityKind.Occupancy,
+        CollectorOperationCodes.VegetableFruitSpaceRental => x.Identity.Kind == SourceIdentityKind.SpaceAccount && x.OperationCode == CollectorOperationCodes.VegetableFruitSpaceRental,
         _ => true
     }).ToList();
     private string SourceName => _source?.DisplayName ?? (_direct && !string.IsNullOrWhiteSpace(_snapshot) ? _snapshot.Trim() : "");
@@ -403,6 +445,7 @@ else
     {
         "NPM_DAILY" when row.Choices is [{ ServerAmount: { } amount }] => Money(amount) + " · Today",
         "NPM_WHOLE_PAYMENT" when row.Choices is [{ ServerAmount: { } amount }] => Money(amount) + " remaining",
+        "NPM_PART_PAYMENT" when row.Choices is [{ MaximumAmount: { } most }] => "Any amount up to " + Money(most),
         _ => null
     };
 
@@ -424,6 +467,7 @@ else
     private bool CanAddItem => _choice is { } c && (IsWeighing ? _quantity > 0 && _serverAmount is > 0m
         : c.Kind == CollectionSessionItemKind.Slaughter ? _heads > 0 && (_source is not null || !string.IsNullOrWhiteSpace(_snapshot) || !string.IsNullOrWhiteSpace(_owner))
         : c.Kind == CollectionSessionItemKind.NpmWholePayment ? true
+        : c.Kind == CollectionSessionItemKind.NpmPartPayment ? _amount > 0m && (c.MaximumAmount is not { } cap || _amount <= cap)
         : (c.AmountRule == CollectionSessionAmountRule.FixedAmount ? c.ServerAmount ?? 0m : _amount) > 0m)
         && (!NeedsPayerName || !string.IsNullOrWhiteSpace(_snapshot));
 
@@ -571,6 +615,14 @@ else
         finally { _searching = false; StateHasChanged(); }
     }
 
+    // A source chosen from the browser goes straight to what the server says it can be collected for: the Add item sheet opens on the eligible
+    // charges instead of leaving the collector at an empty items list. Nothing is opened when the server offers nothing.
+    private async Task SelectBrowsedAsync(CollectionSourceSearchResult found)
+    {
+        await SelectSourceAsync(found);
+        if (_items.Count == 0 && _discovery is not null && Offered.Count > 0) await OpenPickerAsync();
+    }
+
     private async Task SelectSourceAsync(CollectionSourceSearchResult found)
     {
         _source = found; _found = []; _suggestOpen = false; _searched = false; _quote = null; _direct = false;
@@ -656,7 +708,7 @@ else
         if (!CanAddItem || _choice is not { } c) return;
         var id = Guid.NewGuid(); var identity = c.Identity;
         SessionWaterIntent? water = null; SessionElectricityIntent? electricity = null; SessionObligationIntent? obligation = null;
-        SessionGovernedIntent? service = null; SessionSlaughterIntent? slaughter = null; SessionNpmWholeIntent? npmWhole = null; SessionNpmDailyIntent? npmDaily = null;
+        SessionGovernedIntent? service = null; SessionSlaughterIntent? slaughter = null; SessionNpmWholeIntent? npmWhole = null; SessionNpmDailyIntent? npmDaily = null; SessionNpmPartIntent? npmPart = null;
         SourceNativeChargeIntent? native = null; SessionMonthlyRentIntent? rent = null;
         var year = identity.Year ?? identity.PeriodStart?.Year ?? BusinessDate.Year;
         var month = identity.Month ?? identity.PeriodStart?.Month ?? BusinessDate.Month;
@@ -667,6 +719,7 @@ else
             case CollectionSessionItemKind.Obligation: obligation = new(identity.AccountId!.Value, year, month); break;
             case CollectionSessionItemKind.NpmWholePayment: npmWhole = new(identity.StallId!.Value, year, month); break;
             case CollectionSessionItemKind.NpmDaily: npmDaily = new(identity.StallId!.Value); break;
+            case CollectionSessionItemKind.NpmPartPayment: npmPart = new(identity.StallId!.Value, year, month); break;
             case CollectionSessionItemKind.MonthlyRent: rent = new(identity.StallId!.Value, year, month, identity.SourceVersion); break;
             case CollectionSessionItemKind.GovernedService: service = new(c.OperationCode, identity.Mode, identity.FeeOptionId, identity.VehicleClassCode); break;
             case CollectionSessionItemKind.Slaughter:
@@ -678,7 +731,7 @@ else
         var amount = c.Kind is CollectionSessionItemKind.Slaughter or CollectionSessionItemKind.NpmWholePayment ? 0m
             : IsWeighing ? _serverAmount ?? 0m
             : c.AmountRule == CollectionSessionAmountRule.FixedAmount ? c.ServerAmount ?? 0m : _amount;
-        var added = new CollectionSessionItemIntent(id, c.Kind, amount, water, service, obligation, electricity, null, slaughter, null, npmWhole, native, rent, npmDaily);
+        var added = new CollectionSessionItemIntent(id, c.Kind, amount, water, service, obligation, electricity, null, slaughter, null, npmWhole, native, rent, npmDaily, npmPart);
         var at = _editingId is { } editing ? _items.FindIndex(x => x.ClientItemId == editing) : -1;
         if (at >= 0) { _items[at] = added; _shown.Remove(_editingId!.Value); _drafts.Remove(_editingId.Value); }
         else _items.Add(added);

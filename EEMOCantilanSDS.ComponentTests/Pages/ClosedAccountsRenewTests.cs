@@ -62,6 +62,9 @@ public class ClosedAccountsRenewTests : TestContext
 
         JSInterop.Mode = JSRuntimeMode.Loose;   // the page prints and scrolls via JS
         Services.AddSingleton(stalls.Object);
+        var obligations = new Mock<IObligationsApiClient>();
+        obligations.Setup(x => x.GetWorkspaceAsync(It.IsAny<ObligationKind>())).ReturnsAsync(Result<EEMOCantilanSDS.Application.Dtos.Revenue.ObligationWorkspaceDto>.Success(new([], 0m, 0m, 0m)));
+        Services.AddSingleton(obligations.Object);
         // Injected into every component by _Imports.razor, plus the page's own facility catalogue.
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
@@ -86,6 +89,9 @@ public class ClosedAccountsRenewTests : TestContext
 
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddSingleton(stalls.Object);
+        var obligations = new Mock<IObligationsApiClient>();
+        obligations.Setup(x => x.GetWorkspaceAsync(It.IsAny<ObligationKind>())).ReturnsAsync(Result<EEMOCantilanSDS.Application.Dtos.Revenue.ObligationWorkspaceDto>.Success(new([], 0m, 0m, 0m)));
+        Services.AddSingleton(obligations.Object);
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());

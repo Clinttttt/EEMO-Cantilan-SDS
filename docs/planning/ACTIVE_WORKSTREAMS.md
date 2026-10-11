@@ -1,5 +1,7 @@
 # StallTrack — Active Workstreams and Checkout Model
 
+Latest sequential space-holder checkpoint: [final workspace handoff](SPACE_HOLDER_WORKSPACE_HANDOFF_20261008.md). Local feature commits are allowed by the current task; integration still requires visual acceptance. No additional checkout is authorized for this follow-up.
+
 **Status:** Current coordination guidance as of 2026-10-08; older linked-worktree map retained below as archive
 **Primary working checkout:** `C:\dev\stalltrack\eemo`
 **Current local integration branch / application checkpoint:** `integration/report-governance-ui` at `08232726` (documentation checkpoint follows; inspect Git for exact HEAD)

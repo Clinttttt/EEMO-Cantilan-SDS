@@ -6,6 +6,10 @@
 @using EEMOCantilanSDS.Application.Requests.Stalls
 @using EEMOCantilanSDS.Application.Command.Stalls.AssignPastOccupantStall
 @inject IStallsApiClient StallsApi
+@inject IObligationsApiClient ObligationsApi
+@using EEMOCantilanSDS.Client.Services
+@using EEMOCantilanSDS.Client.Exports
+@using System.Globalization
 @inject IJSRuntime JS
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
@@ -13,7 +17,8 @@
    Closed / Inactive Accounts — transparency register of CLOSED (frozen) and EXPIRED
    (contract lapsed) stall accounts with lifetime collected + uncollected-at-end.
    Read-only printable sheet; on-screen it also offers Reopen (closed) / Renew (expired).
-   Scope: stall facilities only (NPM/TCC/NCC/BBQ/ICE). Data: GET /api/stalls/closed-accounts.
+   Facility history: GET /api/stalls/closed-accounts. Source-owned KM/VF/FA closures use the obligation workspaces;
+   their still-live balances are separate from the stall-only receivable figures.
    ─────────────────────────────────────────────────────────────────────────────── *@
 
 <PageTitle>StallTrack — Closed Accounts</PageTitle>
@@ -22,7 +27,7 @@
     <div class="topbar-left">
         <div class="topbar-title">Closed Accounts</div>
         <div class="topbar-breadcrumb">
-            <a href="/menu" class="breadcrumb-link">@Branding.OfficeAcronym Admin</a>
+            <a href="/menu" class="breadcrumb-link">Dashboard</a>
             <span class="breadcrumb-sep">/</span>
             <span class="breadcrumb-active">Closed Accounts</span>
         </div>
@@ -40,43 +45,21 @@
 
     <!-- Controls: year + state + facility + search + print -->
     <div class="ca-controls no-print">
-        <div class="ca-filter" role="group" aria-label="Year">
-            <span class="ca-filter-cap">Year</span>
-            <ReportPeriodNav YearFilterMode="true" SelectedYear="_year" FilterYears="Years" AlignRight="false"
-                             Label="@(_year?.ToString() ?? "Whole Time")"
-                             OnSelectYear="OnPickYear" />
-        </div>
-
-        <div class="ca-filter" role="group" aria-label="Status">
-            <button class="ca-chip @(_state is null ? "ca-chip-active" : "")" type="button" @onclick="() => { _state = null; _endedOnly = false; }">All Status</button>
-            <button class="ca-chip @(_state == InactiveAccountState.Closed ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Closed">Closed</button>
-            <button class="ca-chip @(_state == InactiveAccountState.Renewed ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Renewed">Renewed</button>
-            <button class="ca-chip @(_state == InactiveAccountState.Superseded ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Superseded">Handed over</button>
-            <button class="ca-chip @(_state == InactiveAccountState.Lapsed ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Lapsed">Lapsed</button>
-        </div>
-
-        <div class="ca-filter" role="group" aria-label="Facility">
-            <button class="ca-chip @(_facility is null ? "ca-chip-active" : "")" type="button" @onclick="() => SelectFacility(null)">All Facilities</button>
-            @foreach (var fc in Facilities)
+        @* One cluster of filters — period, status, source and (when the facility has sections) section — so they read as one
+           control group at the same height. *@
+        <div class="ca-filters" role="group" aria-label="Filters">
+            <div class="ca-filter" role="group" aria-label="Year">
+                <ReportPeriodNav YearFilterMode="true" SelectedYear="_year" FilterYears="Years" AlignRight="false"
+                                 Label="@(_year?.ToString() ?? "Whole Time")"
+                                 OnSelectYear="OnPickYear" />
+            </div>
+            <FhSelect Caption="Status" Value="@StatusValue" Options="@StatusOptions" ValueChanged="@SelectStatus" />
+            <FhSelect Caption="Source" Value="@(_facility ?? "")" Options="@SourceOptions" ValueChanged="@(v => SelectFacility(v.Length == 0 ? null : v))" />
+            @if (SelectableSections.Count > 0)
             {
-                <button class="ca-chip @(_facility == fc ? "ca-chip-active" : "")" type="button" @onclick="() => SelectFacility(fc)">@(System.Enum.TryParse<FacilityCode>(fc, out var _cc) ? FacilityCatalog.ShortNameOf(_cc) : fc)</button>
+                <FhSelect Caption="Section" Value="@(_section ?? "")" Options="@SectionOptions" ValueChanged="@(v => SelectSection(v.Length == 0 ? null : v))" />
             }
         </div>
-
-        @* Sections of the selected facility, from its own accounts — same affordance as the stallholder list.
-           Shown whenever the facility has sections at all, so a market always states how its register is
-           divided even when every inactive account happens to sit in one section. *@
-        @if (SelectableSections.Count > 0)
-        {
-            <div class="ca-filter" role="group" aria-label="Section">
-                <button class="ca-chip @(_section is null ? "ca-chip-active" : "")" type="button" @onclick="() => SelectSection(null)">All Sections</button>
-                @foreach (var section in SelectableSections)
-                {
-                    var name = section;
-                    <button class="ca-chip @(string.Equals(_section, name, StringComparison.OrdinalIgnoreCase) ? "ca-chip-active" : "")" type="button" @onclick="() => SelectSection(name)">@name</button>
-                }
-            </div>
-        }
 
         <div class="ca-actions">
             <div class="ca-search">
@@ -87,10 +70,24 @@
                     <button class="ca-search-clear" type="button" @onclick="@(() => _search = "")" aria-label="Clear search">&times;</button>
                 }
             </div>
-            <button class="ca-print-btn" type="button" @onclick="Print">
-                <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
-                Print
-            </button>
+            @* Print, CSV and Excel are one control: three ways to take the same filtered register, each usable alone. *@
+            <div class="ca-export" role="group" aria-label="Print or export the register">
+                <button class="ca-export-btn" type="button" @onclick="Print">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+                    Print
+                </button>
+                @if (!_loading && _error is null && _obligationErrors.Count == 0)
+                {
+                    <a class="ca-export-btn" href="@ExportCsvHref" download="inactive-rental-accounts.csv">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                        CSV
+                    </a>
+                    <button class="ca-export-btn" type="button" @onclick="ExportExcel">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18" /><path d="M3 15h18" /><path d="M9 3v18" /></svg>
+                        Excel
+                    </button>
+                }
+            </div>
         </div>
     </div>
 
@@ -145,7 +142,7 @@
         <!-- Summary KPI cards — top of page (screen only) -->
         <div class="ca-summary no-print">
             <div class="ca-sum-card">
-                <div class="ca-sum-val">@rows.Count</div>
+                <div class="ca-sum-val">@(rows.Count + FilteredObligations().Count)</div>
                 <div class="ca-sum-lbl">Inactive Accounts</div>
             </div>
             @*  The two kinds of money must never be added into one figure, and each must carry its own count or
@@ -165,7 +162,8 @@
             </div>
             <div class="ca-sum-card">
                 <div class="ca-sum-val">@Money(rows.Sum(r => r.LifetimeCollected))</div>
-                <div class="ca-sum-lbl">Lifetime Collected</div>
+                <div class="ca-sum-lbl">Stall lifetime collected</div>
+                <div class="ca-sum-sub">Facility stall accounts only</div>
             </div>
         </div>
 
@@ -179,7 +177,7 @@
                 <div class="ca-gov">Republic of the Philippines</div>
                 <div class="ca-org">@Branding.OfficeName</div>
                 <div class="ca-muni">Municipality of @Branding.Municipality, @Branding.Province</div>
-                <div class="ca-doc">Register of Inactive Stall Accounts</div>
+                <div class="ca-doc">Register of Inactive Rental Accounts</div>
                 <div class="ca-doc-scope">@(_year?.ToString() ?? "Whole Time")@(_state is null ? "" : " · " + _state)@(_facility is null ? "" : " · " + _facility)</div>
                 @if (_section is not null)
                 {
@@ -189,13 +187,21 @@
                 <div class="ca-doc-period">As of @PhilippineTime.Today.ToString("MMMM d, yyyy")</div>
             </header>
 
+            @* The qualifier a filed copy needs, in one line; the reasoning is a disclosure on screen rather than a paragraph
+               repeated above every table. *@
             <div class="ca-note">
-                Retained for transparency and audit. A balance here is <strong>stated by this register alone</strong>
-                when the account has ended — closed, handed to another lessee, or the earlier term of a lessee who
-                renewed. A <strong>lapsed</strong> term is different: the tenant is still in place and the office
-                keeps collecting, so that balance also appears in the delinquency and follow-up lists, and the two
-                figures above are deliberately never added. Renewing writes nothing off.
+                A balance on an ended account is <strong>stated by this register alone</strong>. A <strong>lapsed</strong> term is still
+                collected and also appears in follow-up, so the two are never added.
             </div>
+            <details class="ca-why no-print">
+                <summary>How these balances are counted</summary>
+                <p>
+                    Retained for transparency and audit. An account has <strong>ended</strong> when it was closed, handed to another lessee, or
+                    is the earlier term of a lessee who renewed; its balance is stated here and nowhere else. A <strong>lapsed</strong> term is
+                    different: the tenant is still in place and the office keeps collecting, so that balance also appears in the delinquency and
+                    follow-up lists. Renewing writes nothing off.
+                </p>
+            </details>
 
             @if (_endedOnly)
             {
@@ -210,7 +216,7 @@
             {
                 <div class="ca-state">@_error</div>
             }
-            else if (rows.Count == 0)
+            else if (rows.Count == 0 && FilteredObligations().Count == 0 && _obligationErrors.Count == 0)
             {
                 <div class="ca-state">No inactive accounts match the current filter@(HasSearch ? " and search" : "").</div>
             }
@@ -220,46 +226,37 @@
                 var yr = grp.ToList();
                 var facGroups = yr.GroupBy(r => r.FacilityName, StringComparer.OrdinalIgnoreCase)
                                   .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase).ToList();
-                var singleFacility = facGroups.Count == 1;
-                // Bulk renew covers accounts whose stall is actually free. A past occupancy on a stall that has
-                // since been re-let is history — renewing it would displace the sitting lessee.
-                var expiredInGroup = yr.Where(r => r.State != InactiveAccountState.Closed && !r.StallReLet).ToList();
                 <div class="ca-year">
                     <div class="ca-year-head">
-                        <span class="ca-year-label">@grp.Key@(singleFacility ? " · " + facGroups[0].Key : "")</span>
+                        <span class="ca-year-label">@grp.Key</span>
                         <div class="ca-year-right">
-                            <span class="ca-year-stats">
-                                <strong>@yr.Count</strong> account@(yr.Count != 1 ? "s" : "") ·
-                                <strong>@Money(EndedUncollected(yr))</strong> on @CountLabel(EndedRows(yr).Count) stated here only ·
-                                <strong>@Money(LapsedUncollected(yr))</strong> on @CountLabel(LapsedRows(yr).Count) also in follow-up
-                            </span>
-                            @if (expiredInGroup.Count > 0)
-                            {
-                                <button class="ca-renew-all-btn no-print" type="button"
-                                        @onclick="() => OpenRenewAll(expiredInGroup)"
-                                        title="Start a new contract term for every expired account in this group">
-                                    <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
-                                    Renew all (@expiredInGroup.Count)
-                                </button>
-                            }
+                            <span class="ca-year-stats"><strong>@yr.Count</strong> account@(yr.Count != 1 ? "s" : "")</span>
                         </div>
                     </div>
 
                     @foreach (var facGrp in facGroups)
                     {
                         var facRows = facGrp.OrderByDescending(r => EndOf(r)).ToList();
+                        // Bulk renewal is decided one facility at a time, from THIS facility's rows in THIS year group — never
+                        // from the year as a whole — and by the same test the row's own Renew action uses.
+                        var renewable = facRows.Where(IsBulkRenewable).DistinctBy(r => r.StallId).ToList();
                         <div class="ca-fac-group">
-                            @if (!singleFacility)
-                            {
-                                <div class="ca-fac-head">
-                                    <span class="ca-fac-title">@facGrp.Key</span>
-                                    <span class="ca-fac-stats">
-                                        <strong>@facRows.Count</strong> account@(facRows.Count != 1 ? "s" : "") ·
-                                        <strong>@Money(EndedUncollected(facRows))</strong> on @CountLabel(EndedRows(facRows).Count) stated here only ·
-                                        <strong>@Money(LapsedUncollected(facRows))</strong> on @CountLabel(LapsedRows(facRows).Count) also in follow-up
-                                    </span>
+                            <div class="ca-fac-head">
+                                <span class="ca-fac-title">@facGrp.Key</span>
+                                <div class="ca-fac-right">
+                                    <span class="ca-fac-stats"><strong>@facRows.Count</strong> account@(facRows.Count != 1 ? "s" : "")</span>
+                                    @if (renewable.Count > 0)
+                                    {
+                                        <button class="ca-renew-all-btn no-print" type="button"
+                                                @onclick="() => OpenRenewAll(facGrp.Key, renewable)"
+                                                aria-label="@($"Renew eligible accounts — {facGrp.Key} ({renewable.Count})")"
+                                                title="@($"Start a new contract term for the {renewable.Count} eligible account{(renewable.Count != 1 ? "s" : "")} in {facGrp.Key} only")">
+                                            <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
+                                            Renew eligible (@renewable.Count)
+                                        </button>
+                                    }
                                 </div>
-                            }
+                            </div>
 
                             <table class="ca-table">
                                 <thead>
@@ -409,6 +406,34 @@
                 </div>
             }
 
+            @foreach (var error in _obligationErrors)
+            {
+                <div class="ca-state" role="alert">@error <button class="no-print" type="button" @onclick="ReloadObligations">Retry rental sources</button></div>
+            }
+            @foreach (var source in FilteredObligations().GroupBy(x => x.Code))
+            {
+                var spaceRows = source.OrderByDescending(x => x.Account.ActiveTo).ToList();
+                <div class="ca-year ca-obligation-source">
+                    <div class="ca-year-head">
+                        <span class="ca-year-label">@source.First().Source.Name</span>
+                        <span class="ca-year-stats"><strong>@spaceRows.Count</strong> account@(spaceRows.Count != 1 ? "s" : "")</span>
+                    </div>
+                    @* Source-owned accounts keep their balances in their own workspaces, so these are never added to the stall figures
+                       above, and no contract expiry is inferred for them. *@
+                    <p class="ca-source-note">Balances stay in the account workspace and are not part of the totals above.</p>
+                    <table class="ca-table">
+                        <thead><tr><th>Space / Unit</th><th>Holder</th><th>@(source.Key == "FA" ? "Event" : "Recorded basis")</th><th class="ca-c">Start → Closure</th><th class="ca-c">Status</th><th class="ca-r">Assessed</th><th class="ca-r">Collected</th><th class="ca-r">Remaining</th>
+                            <th class="ca-act no-print" title="Renewing, reopening or reassigning a source-owned space is not available in this register; open the account workspace.">Action</th></tr></thead>
+                        <tbody>@foreach (var item in spaceRows)
+                        {
+                            var a = item.Account;
+                            <tr data-account="@a.Id"><td class="ca-fw">@item.Unit @a.SubjectLabel</td><td>@SpaceAccountPresentation.Occupant(a)</td><td class="ca-muted">@(item.Code == "FA" ? $"{a.Event} · {a.EventDate:MMM d, yyyy}" : SpaceAccountPresentation.Basis(a))</td><td class="ca-c ca-period">@a.ActiveFrom.ToString("MMM d, yyyy") <span>→</span> @a.ActiveTo?.ToString("MMM d, yyyy")</td><td class="ca-c ca-status-text">@(item.Code == "FA" ? "Closed event lot" : "Closed")</td><td class="ca-r">@Money(a.AssessedToDate)</td><td class="ca-r">@Money(a.CollectedToDate)</td>
+                                <td class="ca-r">@if (a.OutstandingToDate > 0) { <span class="ca-amt-due">@Money(a.OutstandingToDate)</span> } else { <span class="ca-amt-clear">@Money(0)</span> }</td>
+                                <td class="ca-act no-print"><div class="ca-act-icons"><a class="ca-row-icon ca-row-view" href="@item.ProfileHref" aria-label="View account" title="Open the account workspace">@IconView</a></div></td></tr>
+                        }</tbody>
+                    </table>
+                </div>
+            }
             <div class="ca-rpt-foot">
                 <SignatureStrip ShowDatePrepared="true" />
             </div>
@@ -655,10 +680,10 @@
 {
     <div class="eemo-modal-overlay" @onclick="CloseModals">
         <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
-            <div class="eemo-modal-header"><div class="eemo-modal-title">Renew all expired accounts</div></div>
+            <div class="eemo-modal-header"><div class="eemo-modal-title">Renew eligible accounts — @_renewAllFacility</div></div>
             <div class="eemo-modal-body">
                 <p class="confirm-text">
-                    Start a new contract term for <strong>@_renewAllTargets.Count expired account@(_renewAllTargets.Count != 1 ? "s" : "")</strong>@(_facility is null ? "" : " in this facility") — beginning
+                    Start a new contract term for <strong>@_renewAllTargets.Count eligible account@(_renewAllTargets.Count != 1 ? "s" : "")</strong> in <strong>@_renewAllFacility</strong> only — beginning
                     <strong>@_renewAllEffectivity.ToString("MMM d, yyyy")</strong> for <strong>@_renewAllDuration year(s)</strong>.
                     Each keeps its own occupant and contract name. The lapsed period is not back-billed.
                 </p>
@@ -722,6 +747,54 @@
 }
 
 @code {
+
+    private static readonly IReadOnlyList<SheetColumn> ExportColumns = [new("Source", SheetValueKind.Text), new("Unit", SheetValueKind.Text), new("Account identity", SheetValueKind.Text), new("Holder", SheetValueKind.Text), new("Start", SheetValueKind.Date), new("End", SheetValueKind.Date), new("Status", SheetValueKind.Text), new("Assessed", SheetValueKind.Money), new("Collected", SheetValueKind.Money), new("Remaining", SheetValueKind.Money), new("Balance scope", SheetValueKind.Text)];
+    private IReadOnlyList<IReadOnlyList<object?>> ExportRows => Filtered().Select(a => (IReadOnlyList<object?>)new object?[] {
+        SourceName(a.FacilityCode.ToString()), $"{FacilityCatalog.HolderUnitFor(a.FacilityCode.ToString())} {SpaceNumber.Display(a.StallNo)}", $"Stall {a.StallId}; contract {a.ContractId}", a.Occupant, a.EffectivityDate, EndOf(a), StateLabel(a.State), null, a.LifetimeCollected, a.Uncollected,
+        a.State == InactiveAccountState.Lapsed ? "Also in live follow-up" : "Stated here only" })
+        .Concat(FilteredObligations().Select(x => (IReadOnlyList<object?>)new object?[] { x.Source.Name, $"{x.Unit} {x.Account.SubjectLabel}", x.Account.Id.ToString(), SpaceAccountPresentation.Occupant(x.Account), x.Account.ActiveFrom, x.Account.ActiveTo, x.Code == "FA" ? "Closed event lot" : "Closed", x.Account.AssessedToDate, x.Account.CollectedToDate, x.Account.OutstandingToDate, "Already in source account workspace" })).ToArray();
+    private string ExportCsvHref => "data:text/csv;charset=utf-8," + Uri.EscapeDataString(string.Join("\r\n", new[] {
+        ExportCsv("Register of Inactive Rental Accounts", Branding.OfficeName, Branding.Municipality, Branding.Province),
+        ExportCsv("As of", PhilippineTime.Today.ToString("yyyy-MM-dd"), "Year", _year?.ToString() ?? "All", "Source", _facility ?? "All", "Status", _state?.ToString() ?? "All", "Search", _search),
+        ExportCsv(ExportColumns.Select(x => x.Header).ToArray()) }
+        .Concat(ExportRows.Select(r => ExportCsv(r.Select(x => x switch { DateOnly d => d.ToString("yyyy-MM-dd"), decimal m => m.ToString("0.00", CultureInfo.InvariantCulture), _ => Convert.ToString(x, CultureInfo.InvariantCulture) }).ToArray())))));
+    private static string ExportCsv(params string?[] cells) => string.Join(',', cells.Select(x => CsvCell.Escape(x ?? "")));
+    private async Task ExportExcel()
+    {
+        if (_loading || _error is not null || _obligationErrors.Count > 0) return;
+        var bytes = SpreadsheetBuilder.Build("Inactive Rental Accounts", ExportColumns, ExportRows);
+        await JS.InvokeVoidAsync("downloadFileFromBytes", "inactive-rental-accounts.xlsx", Convert.ToBase64String(bytes), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    }
+
+    private readonly List<ClosedObligationRentalRow> _obligationRows = [];
+    private readonly List<string> _obligationErrors = [];
+    private async Task ReloadObligations()
+    {
+        _obligationRows.Clear();
+        _obligationErrors.Clear();
+        // Each read retains its tenant-scoped authoritative identity. No common receivable is calculated.
+        foreach (var entry in new[] { ("KM", "Space", SpaceAccountPresentation.Kanmanggay), ("Vegetable/Fruits", "Space", SpaceAccountPresentation.VegetableFruit), ("FA", "Lot", SpaceAccountPresentation.FiestaAraw) })
+        {
+            try
+            {
+                var result = await ObligationsApi.GetWorkspaceAsync(entry.Item3.Kind);
+                if (result?.IsSuccess == true && result.Value is not null)
+                    _obligationRows.AddRange(result.Value.Accounts.Where(a => a.Kind == entry.Item3.Kind && a.ActiveTo.HasValue).Select(a => new ClosedObligationRentalRow(entry.Item1, entry.Item2, entry.Item3, a)));
+                else _obligationErrors.Add($"{entry.Item1}: {result?.Error ?? "Account register could not be loaded."}");
+            }
+            catch { _obligationErrors.Add($"{entry.Item1}: Account register could not be loaded."); }
+        }
+        UpdateYears();
+    }
+    private void UpdateYears() => Years = _accounts.Select(a => EndOf(a).Year).Concat(_obligationRows.Select(x => x.Account.ActiveTo!.Value.Year)).Distinct().OrderByDescending(x => x).ToArray();
+    private IReadOnlyList<ClosedObligationRentalRow> FilteredObligations() => _obligationRows.Where(x =>
+        !_endedOnly && _section is null && (_state is null || _state == InactiveAccountState.Closed)
+        && (_facility is null || x.Code == _facility)
+        && (_year is null || x.Account.ActiveTo!.Value.Year == _year)
+        && (!HasSearch || SpaceAccountPresentation.Occupant(x.Account).Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase)
+            || x.Account.SubjectLabel.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase)
+            || (x.Account.ContractReference?.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase) ?? false)))
+        .OrderByDescending(x => x.Account.ActiveTo).ToList();
     // ── Data ──
     private List<ClosedStallAccountDto> _accounts = new();
 
@@ -816,7 +889,36 @@
     };    private void OnSearch(ChangeEventArgs e) => _search = e.Value?.ToString() ?? "";
     private async Task Print() => await JS.InvokeVoidAsync("print");
 
-    private IEnumerable<string> Facilities => FacilityCatalog.Rental.Select(c => c.ToString());
+    private IEnumerable<string> Facilities => FacilityCatalog.Rental.Select(c => c.ToString()).Concat(_obligationRows.Select(x => x.Code)).Distinct();
+
+    // ── Toolbar selectors ──
+    private string StatusValue => _state?.ToString() ?? "";
+
+    private static readonly IReadOnlyList<(string Value, string Label)> StatusOptions =
+    [
+        ("", "All statuses"),
+        (nameof(InactiveAccountState.Closed), "Closed"),
+        (nameof(InactiveAccountState.Renewed), "Renewed"),
+        (nameof(InactiveAccountState.Superseded), "Handed over"),
+        (nameof(InactiveAccountState.Lapsed), "Lapsed"),
+    ];
+
+    private void SelectStatus(string value)
+    {
+        if (value.Length == 0) { _state = null; _endedOnly = false; }
+        else if (Enum.TryParse<InactiveAccountState>(value, out var state)) _state = state;
+    }
+
+    /// <summary>The sources that can hold an inactive account: rental facilities and the source-owned space accounts, by their own names.</summary>
+    private IReadOnlyList<(string Value, string Label)> SourceOptions =>
+        new[] { ("", "All sources") }.Concat(Facilities.Select(code => (code, SourceName(code)))).ToList();
+
+    private IReadOnlyList<(string Value, string Label)> SectionOptions =>
+        new[] { ("", "All sections") }.Concat(SelectableSections.Select(s => (s, s))).ToList();
+
+    private string SourceName(string code) =>
+        Enum.TryParse<FacilityCode>(code, out var facility) ? FacilityCatalog.NameOf(facility)
+        : _obligationRows.FirstOrDefault(x => x.Code == code)?.Source.Name ?? code;
     private int[] Years = Array.Empty<int>();
 
     private void OnPickYear(int? year) => _year = year;
@@ -846,11 +948,13 @@
     private DateOnly _renewAllEffectivity;
     private int _renewAllDuration = 3;
     private List<ClosedStallAccountDto> _renewAllTargets = new();
+    private string _renewAllFacility = "";
     private string? _renewAllProgress;
 
     protected override async Task OnInitializedAsync()
     {
         await FacilityCatalog.EnsureLoadedAsync();
+        await ReloadObligations();
 
         _endedOnly = string.Equals(StatusFromQuery, "ended", StringComparison.OrdinalIgnoreCase);
 
@@ -887,7 +991,7 @@
     private void ApplyClosedAccounts(IReadOnlyList<ClosedStallAccountDto> accounts)
     {
         _accounts = accounts as List<ClosedStallAccountDto> ?? accounts.ToList();
-        Years = _accounts.Select(a => EndOf(a).Year).Distinct().OrderByDescending(y => y).ToArray();
+        UpdateYears();
     }
 
     private async Task PaintLoadingStateAsync()
@@ -1081,9 +1185,16 @@
             _renewName = null;
     }
 
-    private void OpenRenewAll(IReadOnlyList<ClosedStallAccountDto> expired)
+    // The accounts a bulk renewal may cover are exactly those whose own row offers Renew: not ended by a closure, not already on a
+    // fresh term, and not a past occupancy of a stall somebody else now holds. The server still decides each one.
+    private static bool IsBulkRenewable(ClosedStallAccountDto r) =>
+        r.State != InactiveAccountState.Closed && r.State != InactiveAccountState.Renewed && !r.StallReLet;
+
+    private void OpenRenewAll(string facility, IReadOnlyList<ClosedStallAccountDto> eligible)
     {
-        _renewAllTargets = expired.ToList();
+        _renewAllFacility = facility;
+        _renewAllTargets = eligible.Where(r => string.Equals(r.FacilityName, facility, StringComparison.OrdinalIgnoreCase))
+            .Where(IsBulkRenewable).DistinctBy(r => r.StallId).ToList();
         _renewAllEffectivity = PhilippineTime.Today;   // fresh start today; the lapsed gap is never back-billed
         _renewAllDuration = 3;
         _renewAllProgress = null;
@@ -1100,6 +1211,7 @@
         _actionError = null;
         var ok = 0;
         var failed = 0;
+        var failedIds = new HashSet<Guid>();
         // Each account keeps its own occupant + contract name; only the (common) start date + term are applied.
         foreach (var r in _renewAllTargets)
         {
@@ -1109,9 +1221,9 @@
             {
                 var req = new RenewStallContractRequest(_renewAllEffectivity, _renewAllDuration, r.Occupant, r.ContractName);
                 var res = await StallsApi.RenewStallContractAsync(r.StallId, req);
-                if (res.IsSuccess) ok++; else failed++;
+                if (res.IsSuccess) ok++; else { failed++; failedIds.Add(r.StallId); }
             }
-            catch { failed++; }
+            catch { failed++; failedIds.Add(r.StallId); }
         }
         _busy = false;
 
@@ -1123,10 +1235,14 @@
         else
         {
             _actionError = $"{ok} renewed, {failed} failed. Please retry the remaining accounts.";
-            var targetIds = _renewAllTargets.Select(t => t.StallId).ToHashSet();
+            var targetIds = failedIds;   // only what actually failed — never an account that was renewed
             await Load();   // refresh so the successfully-renewed rows drop off the list
+            // Only what failed AND is still eligible, and only from this facility: a renewed account is no longer renewable, and
+            // nothing from another facility can enter the retry.
             _renewAllTargets = _accounts
-                .Where(r => r.State != InactiveAccountState.Closed && targetIds.Contains(r.StallId))
+                .Where(r => IsBulkRenewable(r) && targetIds.Contains(r.StallId)
+                    && string.Equals(r.FacilityName, _renewAllFacility, StringComparison.OrdinalIgnoreCase))
+                .DistinctBy(r => r.StallId)
                 .ToList();
             _renewAllProgress = null;
         }

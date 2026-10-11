@@ -28,6 +28,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
     public class AppDbContext : DbContext, IAppDbContext
     {
         public DbSet<FishMeatVendorRegistration> FishMeatVendorRegistrations => Set<FishMeatVendorRegistration>();
+        public DbSet<FishMeatNpmAssociation> FishMeatNpmAssociations => Set<FishMeatNpmAssociation>();
         private readonly ICurrentMunicipalityAccessor? _municipality;
 
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
@@ -138,6 +139,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         public DbSet<UtilityBill> UtilityBills { get; set; }
         public DbSet<StallMonthlyException> StallMonthlyExceptions { get; set; }
         public DbSet<NpmMarketClosure> NpmMarketClosures { get; set; }
+        public DbSet<NpmOperatingSchedule> NpmOperatingSchedules { get; set; }
         public DbSet<OnlinePaymentTransaction> OnlinePaymentTransactions { get; set; }
 
         public DbSet<SlaughterTransaction> SlaughterTransactions { get; set; }
@@ -168,6 +170,10 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         public DbSet<GovernedServiceSetting> GovernedServiceSettings { get; set; }
         public DbSet<OfficialReportRevision> OfficialReportRevisions { get; set; }
         public DbSet<PenaltyDefinition> PenaltyDefinitions { get; set; }
+        public DbSet<DirectFineAuthority> DirectFineAuthorities { get; set; }
+        public DbSet<FineAssessment> FineAssessments { get; set; }
+        public DbSet<FineAssessmentPolicy> FineAssessmentPolicies { get; set; }
+        public DbSet<FineAssessmentEvent> FineAssessmentEvents { get; set; }
         public DbSet<ObligationAccount> ObligationAccounts { get; set; }
         public DbSet<ObligationRate> ObligationRates { get; set; }
         public DbSet<ObligationPeriod> ObligationPeriods { get; set; }

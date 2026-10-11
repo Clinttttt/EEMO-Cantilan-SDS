@@ -78,4 +78,11 @@ public interface INpmMonthSettlementService
     /// </summary>
     Task<DailyCollection?> SettleFishDayAsync(
         Stall stall, DateOnly day, decimal declaredKilos, string recordedBy, CancellationToken ct);
+
+    /// <summary>
+    /// Plans a payment received for the month by AMOUNT: applied oldest-first to the installments payable today (a part-paid day owes only
+    /// what is left), within the month ceiling, as full or partial installments. More than the month owes is refused, never kept as an
+    /// advance. No mutation.
+    /// </summary>
+    Task<NpmPartPaymentPlan> PlanPartPaymentAsync(Stall stall, int year, int month, decimal amount, CancellationToken ct);
 }

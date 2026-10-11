@@ -30,6 +30,7 @@ public sealed class OperationReportsAndArrearsTests : TestContext
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
         Services.AddSingleton(Mock.Of<IStallsApiClient>());
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
+        Services.AddSingleton(Mock.Of<IDailyCollectionApiClient>());
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton(Mock.Of<IFacilitiesApiClient>());
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
@@ -86,9 +87,10 @@ public sealed class OperationReportsAndArrearsTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var facts = cut.Find(".lh-meta").TextContent;
-            Assert.Contains("Official Receipt for a whole payment", facts);
-            Assert.Contains("Cash Ticket for a daily transaction", facts);
-            Assert.Contains("Mode", cut.Find("section[aria-labelledby='vfr-register'] thead").TextContent);
+            Assert.Contains("Official Receipt for Monthly accounts", facts);
+            Assert.Contains("Cash Ticket for daily transactions", facts);
+            Assert.Contains("Obligation position", cut.Find("section[aria-labelledby='vfr-position']").TextContent);
+            Assert.Equal("/operations/vegetable-fruit/daily-report", cut.Find("a[href$='/daily-report']").GetAttribute("href"));
         }, Timeout);
     }
 
@@ -135,13 +137,35 @@ public sealed class OperationReportsAndArrearsTests : TestContext
             Assert.Contains("₱12,345.00", markup);            // the server's own delinquency total, not a client sum
             Assert.Contains("Rosa Magbanua", markup);
             Assert.DoesNotContain("Current Only", markup);     // current-period balances are not arrears
-            Assert.Contains("/profile/ncc/3", markup);         // opens the existing account
+            Assert.Contains("Review account", markup);
             var actions = string.Join(" | ", cut.FindAll("button, a").Select(e => e.TextContent));
             foreach (var action in new[] { "Write off", "Forgive", "Adjust" })
                 Assert.DoesNotContain(action, actions, StringComparison.OrdinalIgnoreCase);
         }, Timeout);
     }
 
+
+    [Fact]
+    public void TheArrearsHero_StatesPositionApartFromRecoveredCash_AndNamesTheTwoScopesWhenTheirCountsDiffer()
+    {
+        ArrearsData();
+
+        var cut = RenderComponent<Arrears>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("Arrears & Delinquency", cut.Find("h1.v3h-title").TextContent.Trim());
+            var figures = cut.Find("dl[aria-label='Delinquency position']").TextContent;
+            Assert.Contains("₱12,345.00", figures);
+            Assert.Contains("not collected cash", figures);          // outstanding is never presented as revenue
+            Assert.Contains("cash received", figures);               // recovered is the only cash figure
+            Assert.Equal("Follow-up accounts", cut.Find("#arr-register-title").TextContent.Trim());
+            // 7 in the financial report's position, 1 in the follow-up queue: stated, never forced to agree.
+            Assert.Contains("Position: 7 delinquent rental accounts", cut.Find(".arr-scope-note").TextContent);
+            Assert.Contains("Register: 1 accounts in the follow-up queue", cut.Find(".arr-scope-note").TextContent);
+            Assert.NotNull(cut.Find("details.arr-note-disclosure summary"));
+        }, Timeout);
+    }
     [Fact]
     public void TheArrearsReport_StatesNoFixedInstrument()
     {
@@ -158,6 +182,18 @@ public sealed class OperationReportsAndArrearsTests : TestContext
             Assert.DoesNotContain("Cash Ticket", facts);
             Assert.Contains("Rosa Magbanua", cut.Find("section[aria-labelledby='arrr-register']").TextContent);
         }, Timeout);
+    }
+    [Fact]
+    public void UnresolvedArrearsQualificationDoesNotRenderAFabricatedEmptyRegister()
+    {
+        ArrearsData(); var cut=RenderComponent<Arrears>();
+        cut.WaitForAssertion(()=>Assert.Contains("Rosa Magbanua",cut.Markup),Timeout);
+        cut.Find("select").Change("arrears");
+        Assert.Contains("no verified recovery register",cut.Markup);
+        Assert.Empty(cut.FindAll("table"));
+        Assert.DoesNotContain("0 of",cut.Markup);
+        Assert.Contains("/reports/closed-accounts",cut.Markup);
+        SpaceHolderWorkspaceTests.SaveVisualArtifact("arrears-qualification-unavailable",cut.Markup);
     }
 
     [Fact]

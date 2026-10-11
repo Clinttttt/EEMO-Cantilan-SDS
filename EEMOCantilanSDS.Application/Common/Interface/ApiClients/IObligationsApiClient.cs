@@ -21,6 +21,8 @@ public interface IObligationsApiClient
     Task<Result<IReadOnlyList<ObligationQuoteDto>>> GetRegisterAsync(Guid accountId);
     Task<Result<IReadOnlyList<VendorFeeStallDto>>> GetVendorStallsAsync();
     Task<Result<ObligationAccountDto>> CreateAccountAsync(CreateObligationAccountRequest request);
+    Task<Result<bool>> CorrectHolderAsync(Guid accountId, CorrectObligationHolderRequest request) =>
+        Task.FromResult(Result<bool>.Failure("Space-holder editing unavailable."));
     Task<Result<bool>> SetRateAsync(Guid accountId, SetObligationRateRequest request);
     Task<Result<bool>> CloseAccountAsync(Guid accountId, CloseObligationAccountRequest request);
 }

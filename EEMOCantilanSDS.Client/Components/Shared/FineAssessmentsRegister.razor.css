@@ -1,0 +1,102 @@
+/* Fine assessments register: a case register of outstanding and settled fines, and its detail drawer. */
+
+.far-meta { margin-right: auto; }
+
+.far-search { flex: 1 1 260px; max-width: 440px; min-width: 0; }
+.far-search input { width: 100%; }
+.far-search-btn { align-self: flex-end; }
+
+/* Saved-assessment confirmation: a calm inline strip, not a banner. */
+.far-saved {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--accent-soft);
+    color: var(--navy);
+    font-size: 0.8125rem;
+}
+
+/* ── Register ── */
+.far-table th { padding-top: 11px; padding-bottom: 11px; }
+.far-table td { padding-top: 14px; padding-bottom: 14px; }
+.far-table tbody tr:hover td { background: var(--accent-soft); }
+.far-table tbody tr:hover .v3-empty { background: var(--surface); }
+.far-table td > strong { display: block; color: var(--navy); font-weight: 600; }
+.far-secondary { color: var(--text-secondary); }
+.far-reason {
+    max-width: 36ch;
+    margin-top: 4px;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.far-remaining { color: var(--text-tertiary); }
+.far-remaining.far-open { color: var(--navy); font-size: 0.9375rem; font-weight: 700; }
+.far-table .v3-empty { padding: 36px 20px; }
+.far-table .v3-empty-block svg { width: 32px; height: 32px; }
+
+/* Row actions stay together at the right edge. */
+.far-row-actions { width: 1%; white-space: nowrap; }
+.far-actions { display: inline-flex; gap: 6px; }
+.far-pay { border-color: var(--accent); color: var(--accent); }
+.far-pay:hover { background: var(--accent); color: var(--surface); }
+
+/* ── Case detail drawer ── */
+.far-case {
+    margin-bottom: 18px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-muted);
+}
+.far-case-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.far-case-name { color: var(--navy); font-size: 1rem; font-weight: 700; }
+.far-amounts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1px;
+    margin: 14px 0 0;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--border);
+}
+.far-amounts > div { padding: 10px 12px; background: var(--surface); }
+.far-amounts dt { color: var(--text-tertiary); font-size: 0.6875rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.far-amounts dd { margin: 4px 0 0; color: var(--navy); font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.far-amounts .far-due { background: var(--accent-soft); }
+.far-amounts .far-due dd { color: var(--accent); }
+
+.far-section { margin-bottom: 20px; }
+.far-section h3 {
+    margin: 0 0 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-tertiary);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+.far-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; margin: 0; }
+.far-facts dt { margin-bottom: 2px; color: var(--text-tertiary); font-size: 0.75rem; font-weight: 500; }
+.far-facts dd { margin: 0; color: var(--text); font-size: 0.875rem; overflow-wrap: anywhere; }
+.far-wide { grid-column: 1 / -1; }
+.far-mini th:first-child, .far-mini td:first-child { padding-left: 0; }
+.far-mini th:last-child, .far-mini td:last-child { padding-right: 0; }
+.far-src { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; letter-spacing: .02em; }
+.far-note { margin: 0 0 12px; color: var(--text-secondary); font-size: 0.8125rem; line-height: 1.45; }
+
+@media (max-width: 600px) {
+    .far-search { max-width: none; }
+    .far-facts { grid-template-columns: 1fr; }
+    .far-amounts { grid-template-columns: 1fr; }
+}

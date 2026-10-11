@@ -1,0 +1,13 @@
+<span class="status-pill @Tone">@Status</span>
+
+@code {
+    [Parameter, EditorRequired] public string Status { get; set; } = "";
+    private string Tone => Status switch
+    {
+        "Active" => "pill-active",
+        "Paid" => "pill-paid",
+        "Partial" => "pill-partial",
+        "Unpaid" => "pill-unpaid",
+        _ => "pill-inactive"
+    };
+}

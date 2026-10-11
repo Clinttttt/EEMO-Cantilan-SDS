@@ -40,6 +40,10 @@
         </header>
 
         <div class="content-area">
+            @if (!IsLoading && StallGuid != Guid.Empty && FacilitySlug == "npm")
+            {
+                <NpmOccupancyVendorContext StallId="StallGuid" />
+            }
 
             @if (IsLoading)
             {

@@ -32,6 +32,7 @@ public static class TenantBackupTableNames
         ["UtilityBills"] = "Utility bills",
         ["StallMonthlyExceptions"] = "Stall monthly exceptions",
         ["NpmMarketClosures"] = "Market closures",
+        ["NpmOperatingSchedules"] = "Market operating schedule",
         ["OnlinePaymentTransactions"] = "Online payments",
         ["SlaughterTransactions"] = "Slaughterhouse transactions",
         ["SlaughterAnimalRates"] = "Slaughterhouse rates",

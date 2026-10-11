@@ -1,33 +1,39 @@
 @page "/stall-holders"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Dtos.StallHolders
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Services
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Client.Exports
 @inject IStallsApiClient StallsApi
 @inject IJSRuntime JS
+@inject IObligationsApiClient ObligationsApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 @* ───────────────────────────────────────────────────────────────────────────────
-   All-facilities Stall Holder List. Only the rental/stall facilities have stall
-   holders — NPM, TCC, NCC, BBQ, ICE. SLH (per-head), TRM (per-trip) and TPM (weekly
-   market) are NOT stall-based and are intentionally excluded.
+   All-facilities Stall & Space Holder Register. Two kinds of holder, each owned by its own source:
 
-   Per-facility shape differs: NPM is grouped by market section; NCC carries an
-   Area Location column; the rest are a flat list. Data reuses the existing
-   GetStallHoldersListAsync (one call per stall facility); facility filter + search
-   are client-side over the loaded data.
+   - STALL rentals: the rental/stall facilities — NPM, TCC, NCC, BBQ, ICE. SLH (per-head), TRM (per-trip) and TPM (weekly
+     market) are NOT stall-based and are intentionally excluded. Per-facility shape differs: NPM is grouped by market
+     section; NCC carries an Area Location column; the rest are a flat list. Data reuses GetStallHoldersListAsync (one call
+     per stall facility).
+   - SPACE rentals: the recurring monthly space rentals (Vegetable / Fruits, Kanmanggay), read from their own obligation
+     accounts. Fiesta / Araw is event-based — a lot is let for an event, not held — so it is deliberately not a holder here.
+
+   Facility/source filter, scope and search are client-side over the loaded data. Rates are never summed across sources: a
+   daily stall fee, a monthly stall rent and a monthly space rent are different things, so each source states its own total.
    ─────────────────────────────────────────────────────────────────────────────── *@
 
-<PageTitle>StallTrack — Stall Holder List</PageTitle>
+<PageTitle>StallTrack — Stall &amp; Space Holder Register</PageTitle>
 
 <header class="topbar no-print">
     <div class="topbar-left">
-        <div class="topbar-title">Stall Holder List</div>
+        <div class="topbar-title">Stall &amp; Space Holder Register</div>
         <div class="topbar-breadcrumb">
             <a href="/menu" class="breadcrumb-link">@Branding.OfficeAcronym Admin</a>
             <span class="breadcrumb-sep">/</span>
-            <span class="breadcrumb-active">Stall Holder List</span>
+            <span class="breadcrumb-active">Stall &amp; Space Holder Register</span>
         </div>
     </div>
     <div class="topbar-right">
@@ -41,56 +47,51 @@
 
 <div class="content-area">
 
-    <!-- Facility filter + search + print -->
-    <div class="sh-controls no-print">
-        <div class="sh-filter">
-            <button class="sh-chip @(_facility is null ? "sh-chip-active" : "")" type="button" @onclick="@(() => SelectFacility(null))">All Facilities</button>
-            @foreach (var fc in StallFacilities)
-            {
-                <button class="sh-chip @(_facility == fc ? "sh-chip-active" : "")" type="button" title="@FacilityCatalog.NameOf(fc)" @onclick="@(() => SelectFacility(fc))">@FacilityCatalog.ShortNameOf(fc)</button>
-            }
+    @* ONE coordinated control band. Holder kind and source on the left; search, the joined export actions and the year on the
+       right. The source selector follows the kind: stall facilities, space sources, or both. *@
+    <div class="sh-bar no-print">
+        <div class="sh-bar-filters">
+            <div class="sh-filter" role="group" aria-label="Kind of holder">
+                <button class="sh-chip @(_scope == HolderScope.All ? "sh-chip-active" : "")" type="button" aria-pressed="@(_scope == HolderScope.All ? "true" : "false")" @onclick="@(() => SelectScope(HolderScope.All))">All holders</button>
+                <button class="sh-chip @(_scope == HolderScope.Stall ? "sh-chip-active" : "")" type="button" aria-pressed="@(_scope == HolderScope.Stall ? "true" : "false")" @onclick="@(() => SelectScope(HolderScope.Stall))">Stall rentals</button>
+                <button class="sh-chip @(_scope == HolderScope.Space ? "sh-chip-active" : "")" type="button" aria-pressed="@(_scope == HolderScope.Space ? "true" : "false")" @onclick="@(() => SelectScope(HolderScope.Space))">Space rentals</button>
+            </div>
+            <FhSelect Caption="Source" Value="@SourceValue" Options="@SourceOptions" ValueChanged="@SelectSource" />
         </div>
-        <div class="sh-actions">
+        <div class="sh-bar-tools">
             <div class="sh-search">
-                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                <input type="search" placeholder="Search occupant, contract, or stall no.…" value="@_search" @oninput="OnSearchInput" aria-label="Search stall holders" />
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input type="search" placeholder="Search occupant, contract, stall / space…" value="@_search" @oninput="OnSearchInput" aria-label="Search stall and space holders" />
                 @if (HasSearch)
                 {
                     <button class="sh-search-clear" type="button" @onclick="ClearSearch" aria-label="Clear search">&times;</button>
                 }
             </div>
-            @* Same export trio as the facility roster and the Export Data page. *@
-            <button class="sh-print-btn" type="button" disabled="@_loading" @onclick="Print"
-                    title="Opens the print dialog — the sheet prints landscape so every column fits.">
-                <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
-                Print
-            </button>
-            @* Excel and CSV both, deliberately. The spreadsheet is what the office reads - it carries its own column widths, so
-               nothing opens as ######## - and the CSV stays for anything that consumes the file as data.
-
-               Presented as ONE control with two halves, at the office's request: it is the same list either way, so two separate
-               buttons overstated the choice. Each half is still its own action - Excel is a button, CSV a download link - so
-               nothing about how they behave has changed. *@
-            <div class="sh-split" role="group" aria-label="Download the stall holder list">
+            @* Print, Excel, CSV and Save as PDF are one joined control: four ways to take the same register, each its own action. *@
+            <div class="sh-split sh-export" role="group" aria-label="Print or download the stall and space holder register">
+                <button class="sh-print-btn sh-split-part" type="button" disabled="@_loading" @onclick="Print"
+                        title="Opens the print dialog — the sheet prints landscape so every column fits.">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+                    Print
+                </button>
                 <button class="sh-print-btn sh-split-part" type="button" disabled="@_loading" @onclick="DownloadExcel"
                         title="Downloads an Excel workbook with the columns already sized.">
-                    <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                     Excel
                 </button>
                 <a class="sh-print-btn sh-split-part" download="@CsvFileName" href="@CsvHref"
                    title="Downloads the same list as a plain CSV data file.">
                     CSV
                 </a>
+                <button class="sh-print-btn sh-print-btn-primary sh-split-part" type="button" disabled="@_loading" @onclick="Print"
+                        title="Opens the print dialog — choose &quot;Save as PDF&quot; as the destination.">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                    Save as PDF
+                </button>
             </div>
-            <button class="sh-print-btn sh-print-btn-primary" type="button" disabled="@_loading" @onclick="Print"
-                    title="Opens the print dialog — choose &quot;Save as PDF&quot; as the destination.">
-                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
-                Save as PDF
-            </button>
 
             @* The year the roster is stated AS OF, so the office can answer who held the stalls in an earlier year. The same
-               control the report pages use, in year mode - a roster is always as of some year, so there is no "all years".
-               The current year means today, which is why this changes nothing until it is stepped back. *@
+               control the report pages use, in year mode - a roster is always as of some year, so there is no "all years". *@
             <div class="sh-year-nav">
                 <ReportPeriodNav Year="_year" Month="1" Yearly="true" Label="@YearLabel"
                                  OnPrev="PrevYear" OnNext="NextYear"
@@ -101,7 +102,7 @@
 
     @* Sections of the selected facility, straight from its data: a facility with a single section shows no
        rail, and each LGU's own section labels appear without being named here. *@
-    @if (SelectableSections.Count > 1)
+    @if (_scope != HolderScope.Space && SelectableSections.Count > 1)
     {
         <div class="sh-controls sh-controls-sub no-print">
             <div class="sh-filter">
@@ -119,9 +120,9 @@
 
     @if (_loading)
     {
-        <div class="sh-loading no-print" aria-busy="true" aria-label="Loading stall holder list">
+        <div class="sh-loading no-print" aria-busy="true" aria-label="Loading stall and space holder register">
             <div class="sh-summary">
-                @for (var i = 0; i < 4; i++)
+                @for (var i = 0; i < 3; i++)
                 {
                     <div class="sh-sum-card">
                         <Skeleton Width="58%" Height="21px" Radius="7px" Class="sh-sk-center" />
@@ -163,43 +164,57 @@
             </section>
         </div>
     }
-    else if (_data.Count == 0)
+    else if (NeedsStalls && _data.Count == 0)
     {
-        <div class="sh-state sh-state-error">
-            Unable to load the stall holder list.
+        <div class="sh-state sh-state-error" role="alert">
+            Unable to load the stall holder register.
             <button class="sh-retry" type="button" @onclick="Load">Try again</button>
         </div>
     }
     else
     {
-        var visible = VisibleFacilities();
+        var visible = NeedsStalls ? VisibleFacilities() : [];
         var allRows = visible.SelectMany(RowsFor).ToList();
         var activeRows = allRows.Where(r => !r.IsClosed).ToList();
+        var spaceGroups = NeedsSpaces ? VisibleSpaceGroups() : [];
+        var spaceRows = spaceGroups.SelectMany(g => g.Rows).ToList();
+        var anyRows = allRows.Count > 0 || spaceRows.Count > 0;
 
-        <!-- Quick-glance totals (screen only — excluded from print / PDF) -->
-        <div class="sh-summary no-print">
-            <div class="sh-sum-card">
-                <div class="sh-sum-val">@activeRows.Count</div>
-                <div class="sh-sum-lbl">Active Stalls</div>
+        if (NeedsSpaces && _spaceError is not null)
+        {
+            <div class="sh-state sh-state-error no-print" role="alert">
+                @_spaceError
+                <button class="sh-retry" type="button" @onclick="LoadSpaces">Try again</button>
             </div>
-            @if (OnlyPureDaysNpm)
-            {
-                <div class="sh-sum-card"><div class="sh-sum-val">Calendar-day</div><div class="sh-sum-lbl">Billing Basis</div></div>
-            }
-            else
+        }
+
+        <!-- Quick-glance counts (screen only — excluded from print / PDF). Counts only: a daily stall fee, a monthly stall rent
+             and a monthly space rent are different things, so no rate is summed across sources — each source states its own. -->
+        <div class="sh-summary no-print">
+            @if (NeedsStalls)
             {
                 <div class="sh-sum-card">
-                    <div class="sh-sum-val">@Money(activeRows.Sum(r => r.MonthlyRentalRate))</div>
-                    <div class="sh-sum-lbl">Total Monthly Rate</div>
+                    <div class="sh-sum-val">@activeRows.Count</div>
+                    <div class="sh-sum-lbl">Active Stalls</div>
                 </div>
+            }
+            @if (NeedsSpaces && AsOfYear is null)
+            {
                 <div class="sh-sum-card">
-                    <div class="sh-sum-val">@Money(activeRows.Sum(r => r.MonthlyRentalRate * 12))</div>
-                    <div class="sh-sum-lbl">Total Whole-Year Rental</div>
+                    <div class="sh-sum-val">@spaceGroups.Where(g => !IsEvent(g.Source.Kind)).Sum(g => g.Rows.Count)</div>
+                    <div class="sh-sum-lbl">Active Spaces</div>
+                </div>
+            }
+            @if (NeedsSpaces && spaceGroups.Any(g => IsEvent(g.Source.Kind) && g.Rows.Count > 0))
+            {
+                <div class="sh-sum-card">
+                    <div class="sh-sum-val">@spaceGroups.Where(g => IsEvent(g.Source.Kind)).Sum(g => g.Rows.Count)</div>
+                    <div class="sh-sum-lbl">Event Lots · @_year</div>
                 </div>
             }
             <div class="sh-sum-card">
-                <div class="sh-sum-val">@visible.Count(f => RowsFor(f).Any())</div>
-                <div class="sh-sum-lbl">Facilities</div>
+                <div class="sh-sum-val">@(visible.Count(f => RowsFor(f).Any()) + spaceGroups.Count(g => g.Rows.Count > 0))</div>
+                <div class="sh-sum-lbl">Sources</div>
             </div>
         </div>
 
@@ -211,8 +226,8 @@
                 <div class="sh-muni">Municipality of @Branding.Municipality, @Branding.Province</div>
                 @* Stacked like the per-facility roster: the document is named, then its scope on its own line,
                    instead of both crammed into one sentence. *@
-                <div class="sh-doc">List of Stallholders</div>
-                <div class="sh-doc-scope">@(_facility is null ? "ALL FACILITIES" : FacilityCatalog.NameOf(_facility.Value).ToUpper())</div>
+                <div class="sh-doc">Stall &amp; Space Holder Register</div>
+                <div class="sh-doc-scope">@ScopeLabel</div>
                 @if (AsOfYear is { } statedYear)
                 {
                     @* A historical roster says so ON THE SHEET, not merely in the toolbar that produced it. A printed page
@@ -227,9 +242,16 @@
                 }
             </header>
 
-            @if (allRows.Count == 0)
+            @if (!anyRows)
             {
-                <div class="sh-state">No stall holders match your current filter@(HasSearch ? " and search" : "").</div>
+                <div class="sh-state">No stall or space holders match your current filter@(HasSearch ? " and search" : "").</div>
+            }
+
+            @if (NeedsSpaces && AsOfYear is not null)
+            {
+                @* The space accounts keep their current amounts and contract particulars, not a year-end snapshot, so they are
+                   left out of an earlier year rather than stated as if they were reconstructed. *@
+                <p class="sh-asof-note">Monthly space rentals are a current register and are not shown for an earlier year. Event lots are listed by the year of their event.</p>
             }
 
             @foreach (var fc in visible)
@@ -270,6 +292,35 @@
                 </div>
             }
 
+            @foreach (var group in spaceGroups)
+            {
+                if (group.Rows.Count == 0) continue;
+                var isEvent = IsEvent(group.Source.Kind);
+                var groupMonthly = group.Rows.Sum(a => a.CurrentAmount ?? 0m);
+
+                <div class="sh-facility">
+                    <div class="sh-fac-head">
+                        <div class="sh-fac-title">
+                            <span class="sh-fac-name">@group.Source.Name</span>
+                            <span class="sh-tag">@(isEvent ? "Event lots" : "Space rental")</span>
+                        </div>
+                        <div class="sh-fac-stats">
+                            @if (isEvent)
+                            {
+                                @* An event fee is not a rent: lots are counted, and no monthly or annual figure is worked out from them. *@
+                                <span><strong>@group.Rows.Count</strong> lot@(group.Rows.Count != 1 ? "s" : "") in @_year</span>
+                            }
+                            else
+                            {
+                                <span><strong>@group.Rows.Count</strong> active</span>
+                                <span><strong>@Money(groupMonthly)</strong> monthly</span>
+                            }
+                        </div>
+                    </div>
+                    @if (isEvent) { @EventTable(group.Rows) } else { @SpaceTable(group.Rows) }
+                </div>
+            }
+
             <div class="sh-rpt-foot no-print">
                 <SignatureStrip ShowDatePrepared="true" />
             </div>
@@ -280,11 +331,59 @@
 @code {
     private IReadOnlyList<FacilityCode> StallFacilities => FacilityCatalog.Rental;
 
+    private enum HolderScope { All, Stall, Space }
+
     private readonly Dictionary<FacilityCode, StallHoldersListDto> _data = new();
     private bool _loading = true;
+    private HolderScope _scope = HolderScope.All;
     private FacilityCode? _facility;   // null = all
     private string? _section;          // null = every section of the selected facility
     private string _search = "";
+
+    // The space sources, each read from its own obligation account register: the recurring monthly space rentals, and the
+    // event-based Fiesta / Araw lots.
+    private static readonly IReadOnlyList<SpaceAccountPresentation> SpaceSources =
+        [SpaceAccountPresentation.VegetableFruit, SpaceAccountPresentation.Kanmanggay, SpaceAccountPresentation.FiestaAraw];
+
+    // Fiesta / Araw lots are let for an event, not held month to month: they are listed as event lots with their event and date,
+    // never given a monthly rate, a term or a contract the source does not hold.
+    private static bool IsEvent(ObligationKind kind) => kind == ObligationKind.FiestaArawLotRental;
+    private ObligationKind? _spaceSource;   // null = every space source
+    private readonly Dictionary<ObligationKind, IReadOnlyList<ObligationAccountDto>> _spaces = new();
+    private string? _spaceError;
+
+    [PersistentState(AllowUpdates = true)]
+    public List<ObligationAccountDto>? CachedSpaceHolders { get; set; }
+
+    // A space source chosen while viewing every holder narrows the register to that source, exactly as the Space rentals kind does.
+    private HolderScope ViewScope => _scope == HolderScope.All && _spaceSource is not null ? HolderScope.Space : _scope;
+    private bool NeedsStalls => ViewScope != HolderScope.Space;
+    private bool NeedsSpaces => ViewScope == HolderScope.Space || (ViewScope == HolderScope.All && _facility is null);
+
+    // The one Source selector: stall facilities and/or space sources, following the kind of holder being viewed.
+    private string SourceValue => _spaceSource is { } kind ? $"S:{(int)kind}" : _facility is { } code ? $"F:{code}" : "";
+
+    private IReadOnlyList<(string Value, string Label)> SourceOptions
+    {
+        get
+        {
+            var options = new List<(string, string)> { ("", _scope == HolderScope.Space ? "All spaces" : _scope == HolderScope.Stall ? "All facilities" : "All sources") };
+            if (_scope != HolderScope.Space)
+                options.AddRange(StallFacilities.Select(code => ($"F:{code}", FacilityCatalog.NameOf(code))));
+            if (_scope != HolderScope.Stall)
+                options.AddRange(SpaceSources.Select(source => ($"S:{(int)source.Kind}", source.Name)));
+            return options;
+        }
+    }
+
+    private void SelectSource(string value)
+    {
+        _section = null;
+        _facility = null;
+        _spaceSource = null;
+        if (value.StartsWith("F:", StringComparison.Ordinal) && Enum.TryParse<FacilityCode>(value[2..], out var code)) _facility = code;
+        else if (value.StartsWith("S:", StringComparison.Ordinal) && int.TryParse(value[2..], out var kind)) _spaceSource = (ObligationKind)kind;
+    }
 
     // The year the roster is stated AS OF. Defaults to the current year, where it means today — so the register the office
     // opens every day is what it has always been, and only stepping back changes the question being asked.
@@ -307,6 +406,17 @@
         _facility = code;
         _section = null;
     }
+
+    // A scope is a different question, so the facility and section filters of the other scope do not carry over.
+    private void SelectScope(HolderScope scope)
+    {
+        _scope = scope;
+        _facility = null;
+        _section = null;
+        _spaceSource = null;
+    }
+
+    private void SelectSpaceSource(ObligationKind? kind) => _spaceSource = kind;
 
     private void SelectSection(string? section) => _section = section;
     private void OnSearchInput(ChangeEventArgs e) => _search = e.Value?.ToString() ?? "";
@@ -341,14 +451,70 @@
     {
         await FacilityCatalog.EnsureLoadedAsync();
 
+        // The space accounts are a second, independent source, read alongside the stalls rather than after them. A cached copy
+        // answers a reopen without another call, exactly as the stall cache does.
+        Task spaces = Task.CompletedTask;
+        if (CachedSpaceHolders is not null) ApplySpaces(CachedSpaceHolders);
+        else spaces = LoadSpaces();
+
         if (CachedStallHolders is not null)
         {
             ApplyStallHolders(CachedStallHolders);
             _loading = false;
+            await spaces;
             return;
         }
 
         await Load();
+        await spaces;
+    }
+
+    private async Task LoadSpaces()
+    {
+        _spaceError = null;
+        List<ObligationAccountDto>? loaded = null;
+
+        // Cold-start resilience, as for the stalls: tolerate the brief window before the circuit attaches the JWT.
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var tasks = SpaceSources.ToDictionary(s => s.Kind, s => ObligationsApi.GetAccountsAsync(s.Kind));
+            await Task.WhenAll(tasks.Values);
+
+            var accounts = new List<ObligationAccountDto>();
+            var authPending = false;
+            var failed = new List<string>();
+            foreach (var source in SpaceSources)
+            {
+                var result = await tasks[source.Kind];
+                if (result.IsSuccess && result.Value is not null) accounts.AddRange(result.Value);
+                else if (result.Status is ResultStatus.Unauthorized or ResultStatus.Forbidden) authPending = true;
+                else failed.Add(source.Name);
+            }
+
+            if (!authPending)
+            {
+                loaded = accounts;
+                if (failed.Count > 0)
+                    _spaceError = $"The {string.Join(" and ", failed)} space holders could not be loaded.";
+                break;
+            }
+            await Task.Delay(400);
+        }
+
+        if (loaded is null) _spaceError = "The space holders could not be loaded.";
+        else
+        {
+            ApplySpaces(loaded);
+            // Only a complete read is cached, so a partial failure is retried rather than reopened as the full register.
+            CachedSpaceHolders = _spaceError is null ? loaded : null;
+        }
+    }
+
+    private void ApplySpaces(IEnumerable<ObligationAccountDto> accounts)
+    {
+        _spaces.Clear();
+        foreach (var group in accounts.GroupBy(a => a.Kind))
+            _spaces[group.Key] = group.ToList();
     }
 
     private async Task Load()
@@ -435,6 +601,51 @@
     private IEnumerable<StallHolderRowDto> RowsFor(FacilityCode code) =>
         SectionsFor(code).SelectMany(s => s.Rows).Where(MatchSearch);
 
+    private sealed record SpaceGroup(SpaceAccountPresentation Source, IReadOnlyList<ObligationAccountDto> Rows);
+
+    /// <summary>
+    /// The space sources on screen, each with its current holders after the source filter and search. Active accounts only,
+    /// like the stall register: a closed account keeps its history elsewhere. Empty for an earlier year, because the space
+    /// accounts hold current amounts and contract particulars, not a year-end snapshot.
+    /// </summary>
+    private IReadOnlyList<SpaceGroup> VisibleSpaceGroups() =>
+        SpaceSources
+            .Where(s => _spaceSource is null || _spaceSource == s.Kind)
+            // Monthly space rentals are a current register, so an earlier year leaves them out; event lots belong to the year
+            // of their own event date, so they answer for any year.
+            .Where(s => IsEvent(s.Kind) || AsOfYear is null)
+            .Select(s => new SpaceGroup(s, _spaces.TryGetValue(s.Kind, out var accounts)
+                ? accounts.Where(a => (IsEvent(s.Kind) ? EventYear(a) == _year : a.ActiveTo is null) && MatchSpaceSearch(a))
+                    .OrderBy(a => IsEvent(s.Kind) ? (a.EventDate ?? a.ActiveFrom).DayNumber : 0)
+                    .ThenBy(a => int.TryParse(a.SubjectLabel, out var number) ? number : int.MaxValue)
+                    .ThenBy(a => a.SubjectLabel, StringComparer.OrdinalIgnoreCase)
+                    .ToList()
+                : []))
+            .ToList();
+
+    /// <summary>The year an event lot belongs to: the year of its event, from the source's own record.</summary>
+    private static int EventYear(ObligationAccountDto a) => (a.EventDate ?? a.ActiveFrom).Year;
+
+    private static string EventName(ObligationAccountDto a) => a.Event?.ToString() ?? "Event";
+
+    private static string LotStatus(ObligationAccountDto a) => a.ActiveTo is null ? "Active" : $"Closed {a.ActiveTo:MMM d, yyyy}";
+
+    private bool MatchSpaceSearch(ObligationAccountDto a)
+    {
+        if (!HasSearch) return true;
+        var q = _search.Trim();
+        return Contains(SpaceAccountPresentation.Occupant(a), q) || Contains(a.ContractName, q)
+            || Contains(a.SubjectLabel, q) || Contains(SpaceAccountPresentation.Reference(a), q);
+    }
+
+    /// <summary>The scope line under the document title, so a printed sheet says which register it is.</summary>
+    private string ScopeLabel => ViewScope switch
+    {
+        HolderScope.Space => (_spaceSource is { } kind ? SpaceSources.Single(s => s.Kind == kind).Name : "ALL SPACE RENTALS").ToUpper(),
+        HolderScope.Stall => _facility is null ? "ALL STALL RENTALS" : FacilityCatalog.NameOf(_facility.Value).ToUpper(),
+        _ => _facility is null ? "ALL STALL AND SPACE HOLDERS" : FacilityCatalog.NameOf(_facility.Value).ToUpper(),
+    };
+
     private bool MatchSearch(StallHolderRowDto r)
     {
         if (!HasSearch) return true;
@@ -450,93 +661,165 @@
     private async Task Print() => await JS.InvokeVoidAsync("stalltrackPrint.landscape");
 
     // The as-of year is in the filename when there is one, so a historical export cannot be mistaken on disk for the
-    // current register. Today's export keeps the name it always had.
-    private string CsvFileName =>
-        $"stallholders_{(_facility?.ToString().ToLower() ?? "all")}{(IsSectionFiltered ? "_" + _section!.Replace(' ', '-').ToLower() : "")}{(AsOfYear is { } y ? $"_as-of-{y}" : "")}_{PhilippineTime.Now:yyyy-MM-dd}.csv";
+    // current register. A stall-only export keeps the name it always had; the other scopes say what they hold.
+    private string CsvFileName => ViewScope switch
+    {
+        HolderScope.Space => $"spaceholders_{(_spaceSource is { } kind ? SpaceSources.Single(s => s.Kind == kind).Route.Split('/').Last() : "all")}_{PhilippineTime.Now:yyyy-MM-dd}.csv",
+        _ => $"{(_scope == HolderScope.All ? "stall-space-holders" : "stallholders")}_{(_facility?.ToString().ToLower() ?? "all")}{(IsSectionFiltered ? "_" + _section!.Replace(' ', '-').ToLower() : "")}{(AsOfYear is { } y ? $"_as-of-{y}" : "")}_{PhilippineTime.Now:yyyy-MM-dd}.csv",
+    };
 
     private string ExcelFileName => Path.ChangeExtension(CsvFileName, ".xlsx");
 
-    /// <summary>The columns of the export, in the order the printed form states them.</summary>
-    private bool IncludesPureDays => VisibleFacilities().Any(IsPureDays);
-
-    private IReadOnlyList<SheetColumn> ExportColumns
-    {
-        get
-        {
-            var columns = new List<SheetColumn>
-            {
-                new("Facility", SheetValueKind.Text),
-                new("Section", SheetValueKind.Text),
-                new("Name of Lessee (Actual Occupant)", SheetValueKind.Text),
-                new("Name on Signed Contract", SheetValueKind.Text),
-                new("Stall/Space No.", SheetValueKind.Text),
-                new("Effectivity", SheetValueKind.Date),
-                new("No. of Years", SheetValueKind.Number),
-                new("Area (sq.m)", SheetValueKind.Number),
-            };
-
-            if (IncludesPureDays)
-            {
-                columns.Add(new("Billing Basis", SheetValueKind.Text));
-                columns.Add(new("Daily Rate", SheetValueKind.Money));
-            }
-
-            columns.Add(new("Monthly Rental", SheetValueKind.Money));
-            columns.Add(new("Actual Monthly Rental", SheetValueKind.Money));
-            columns.Add(new("Whole Year Rental", SheetValueKind.Money));
-            return columns;
-        }
-    }
+    // One table for every kind of holder, grouped by Source. Stall and space rows share the columns that mean the same thing
+    // for both; the rate columns are each the source's own figure and are never added together, and a figure the source does
+    // not state (a whole year of a space rental) is left empty rather than worked out.
+    private static readonly IReadOnlyList<SheetColumn> ExportColumns =
+    [
+        new("Source", SheetValueKind.Text),
+        new("Holding", SheetValueKind.Text),
+        new("Section", SheetValueKind.Text),
+        new("Name of Lessee (Actual Occupant)", SheetValueKind.Text),
+        new("Name on Signed Contract", SheetValueKind.Text),
+        new("Stall/Space No.", SheetValueKind.Text),
+        new("Contract Reference", SheetValueKind.Text),
+        new("Effectivity", SheetValueKind.Date),
+        new("No. of Years", SheetValueKind.Number),
+        new("Area (sq.m)", SheetValueKind.Number),
+        new("Billing Basis", SheetValueKind.Text),
+        new("Daily Rate", SheetValueKind.Money),
+        new("Monthly Rental", SheetValueKind.Money),
+        new("Actual Monthly Rental", SheetValueKind.Money),
+        new("Whole Year Rental", SheetValueKind.Money),
+        new("Status", SheetValueKind.Text),
+        new("Event", SheetValueKind.Text),
+        new("Event Date", SheetValueKind.Date),
+        new("Event Amount", SheetValueKind.Money),
+        new("Location / Note", SheetValueKind.Text),
+    ];
 
     /// <summary>
-    /// Builds the spreadsheet and hands it to the browser.
+    /// What is on the sheet, row for row, so the printed register, the spreadsheet and the CSV reconcile exactly: the same
+    /// scope, source filter, section filter and search decide all three.
     /// </summary>
-    /// <remarks>
-    /// Built on the click rather than exposed as a property like the CSV: a workbook is assembled bytes-and-all, and doing that
-    /// on every render of the page would be work nobody asked for.
-    ///
-    /// <para>Values are given as they ARE — a date as a date, pesos as a decimal — not preformatted into text. The sheet then
-    /// sorts and filters properly, which the CSV never did, and each is shown in the reader's own locale.</para>
-    /// </remarks>
-    private async Task DownloadExcel()
+    private List<IReadOnlyList<object?>> ExportLines()
     {
-        var rows = new List<IReadOnlyList<object?>>();
+        var lines = new List<IReadOnlyList<object?>>();
 
-        foreach (var code in VisibleFacilities())
+        if (NeedsStalls)
         {
-            foreach (var section in SectionsFor(code))
+            foreach (var code in VisibleFacilities())
             {
-                foreach (var r in section.Rows.Where(MatchSearch))
+                foreach (var section in SectionsFor(code))
                 {
-                    var values = new List<object?>
+                    foreach (var r in section.Rows.Where(MatchSearch))
                     {
-                        FacilityCatalog.NameOf(code),
-                        SectionDisplay(section.SectionName),
-                        r.ActualOccupant,
-                        // A row without a signed contract carries the office's own wording and no contract particulars, so
-                        // the export reconciles line for line with the printed sheet.
-                        r.HasSignedContract ? r.NameOnContract ?? string.Empty : NoContractLabel(r),
-                        r.HasSignedContract ? r.StallNo : null,
-                        r.HasSignedContract && r.EffectivityDate != default ? r.EffectivityDate : null,
-                        r.HasSignedContract ? r.DurationYears : null,
-                        r.HasSignedContract && r.AreaSqm is > 0 ? r.AreaSqm!.Value : null,
-                    };
-
-                    if (IncludesPureDays)
-                    {
-                        values.Add(IsPureDays(code) ? "Calendar-day" : "Fixed monthly rent");
-                        values.Add(IsPureDays(code) ? r.DailyRate : null);
+                        var pureDays = IsPureDays(code);
+                        lines.Add(new object?[]
+                        {
+                            FacilityCatalog.NameOf(code),
+                            "Stall rental",
+                            SectionDisplay(section.SectionName),
+                            r.ActualOccupant,
+                            // A row without a signed contract carries the office's own wording and no contract particulars, so
+                            // the export reconciles line for line with the printed sheet.
+                            r.HasSignedContract ? r.NameOnContract ?? string.Empty : NoContractLabel(r),
+                            r.HasSignedContract ? r.StallNo : null,
+                            null,
+                            r.HasSignedContract && r.EffectivityDate != default ? r.EffectivityDate : null,
+                            r.HasSignedContract ? r.DurationYears : null,
+                            r.HasSignedContract && r.AreaSqm is > 0 ? r.AreaSqm!.Value : null,
+                            pureDays ? "Calendar-day" : "Fixed monthly rent",
+                            pureDays ? r.DailyRate : null,
+                            pureDays || !r.HasSignedContract ? null : r.MonthlyRentalRate,
+                            pureDays ? null : r.ActualMonthlyRental,
+                            pureDays ? null : r.WholeYearRental,
+                            r.IsClosed ? "Closed" : "Active",
+                            null, null, null, null,
+                        });
                     }
-
-                    values.Add(IsPureDays(code) || !r.HasSignedContract ? null : r.MonthlyRentalRate);
-                    values.Add(IsPureDays(code) ? null : r.ActualMonthlyRental);
-                    values.Add(IsPureDays(code) ? null : r.WholeYearRental);
-                    rows.Add(values);
                 }
             }
         }
 
-        var bytes = SpreadsheetBuilder.Build(SheetTabName(), ExportColumns, rows);
+        if (NeedsSpaces)
+        {
+            foreach (var group in VisibleSpaceGroups())
+            {
+                foreach (var a in group.Rows)
+                {
+                    var signed = a.Arrangement == OccupancyArrangement.SignedContract;
+                    if (IsEvent(group.Source.Kind))
+                    {
+                        // An event lot: the event, its date and its approved amount. No monthly, whole-year, term or area figure is
+                        // stated, because the source holds none.
+                        lines.Add(new object?[]
+                        {
+                            group.Source.Name,
+                            "Event lot",
+                            null,
+                            SpaceAccountPresentation.Occupant(a),
+                            signed ? (string.IsNullOrWhiteSpace(a.ContractName) ? string.Empty : a.ContractName) : SpaceAccountPresentation.Basis(a),
+                            a.SubjectLabel,
+                            signed ? SpaceAccountPresentation.Reference(a) : null,
+                            null, null, null,
+                            "Event-based",
+                            null, null, null, null,
+                            LotStatus(a),
+                            EventName(a),
+                            a.EventDate ?? a.ActiveFrom,
+                            a.CurrentAmount,
+                            string.IsNullOrWhiteSpace(a.AreaLocation) ? null : a.AreaLocation,
+                        });
+                        continue;
+                    }
+
+                    lines.Add(new object?[]
+                    {
+                        group.Source.Name,
+                        "Space rental",
+                        null,
+                        SpaceAccountPresentation.Occupant(a),
+                        signed ? (string.IsNullOrWhiteSpace(a.ContractName) ? string.Empty : a.ContractName) : SpaceAccountPresentation.Basis(a),
+                        a.SubjectLabel,
+                        signed ? SpaceAccountPresentation.Reference(a) : null,
+                        signed ? a.ContractEffectiveDate ?? a.ActiveFrom : null,
+                        signed ? a.ContractYears : null,
+                        signed && a.AreaSqm is > 0 ? a.AreaSqm : null,
+                        "Monthly space rental",
+                        null,
+                        a.CurrentAmount,
+                        a.CurrentAmount,
+                        null,
+                        "Active",
+                        null, null, null, null,
+                    });
+                }
+            }
+        }
+
+        return lines;
+    }
+
+    /// <summary>The tab's name: the scope on screen, so a file opened months later says what it is.</summary>
+    private string SheetTabName()
+    {
+        var scope = ViewScope switch
+        {
+            HolderScope.Space => _spaceSource is { } kind ? SpaceSources.Single(s => s.Kind == kind).Name : "Space rentals",
+            _ => _facility is null ? (_scope == HolderScope.All ? "All holders" : "All Facilities") : FacilityCatalog.ShortNameOf(_facility.Value),
+        };
+        return AsOfYear is { } y ? $"{scope} {y}" : scope;
+    }
+
+    /// <summary>
+    /// Builds the spreadsheet and hands it to the browser. Built on the click rather than exposed as a property like the CSV: a
+    /// workbook is assembled bytes-and-all, and doing that on every render of the page would be work nobody asked for.
+    /// Values are given as they ARE — a date as a date, pesos as a decimal — not preformatted into text, so the sheet sorts and
+    /// filters properly and each is shown in the reader's own locale.
+    /// </summary>
+    private async Task DownloadExcel()
+    {
+        var bytes = SpreadsheetBuilder.Build(SheetTabName(), ExportColumns, ExportLines());
 
         await JS.InvokeVoidAsync(
             "downloadFileFromBytes",
@@ -545,56 +828,24 @@
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     }
 
-    /// <summary>The tab's name: the scope on screen, so a file opened months later says what it is.</summary>
-    private string SheetTabName()
-    {
-        var scope = _facility is null ? "All Facilities" : FacilityCatalog.ShortNameOf(_facility.Value);
-        return AsOfYear is { } y ? $"{scope} {y}" : scope;
-    }
-
-    /// <summary>
-    /// The roster as CSV, in the printed form's column order, honouring the current facility filter, section
-    /// filter and search. Same shape as the per-facility roster's export so the two files can be compared.
-    /// </summary>
+    /// <summary>The same lines as CSV, honouring the scope, source filter, section filter and search.</summary>
     private string CsvHref
     {
         get
         {
             var sb = new System.Text.StringBuilder();
-            sb.AppendLine(IncludesPureDays
-                ? "Facility,Section,Name of Lessee (Actual Occupant),Name on Signed Contract,Stall/Space No.,Effectivity,No. of Years,Area (sq.m),Billing Basis,Daily Rate,Monthly Rental,Actual Monthly Rental,Whole Year Rental"
-                : "Facility,Section,Name of Lessee (Actual Occupant),Name on Signed Contract,Stall/Space No.,Effectivity,No. of Years,Area (sq.m),Monthly Rental,Actual Monthly Rental,Whole Year Rental");
+            sb.AppendLine(string.Join(',', ExportColumns.Select(c => Csv(c.Header))));
 
-            foreach (var code in VisibleFacilities())
+            foreach (var line in ExportLines())
             {
-                foreach (var section in SectionsFor(code))
+                sb.AppendLine(string.Join(',', line.Select(value => Csv(value switch
                 {
-                    foreach (var r in section.Rows.Where(MatchSearch))
-                    {
-                        var values = new List<string>
-                        {
-                            Csv(FacilityCatalog.NameOf(code)),
-                            Csv(SectionDisplay(section.SectionName)),
-                            Csv(r.ActualOccupant),
-                            // A row without a signed contract carries the office's own wording and no contract
-                            // particulars, so the export reconciles line for line with the printed sheet.
-                            Csv(r.HasSignedContract ? r.NameOnContract ?? string.Empty : NoContractLabel(r)),
-                            Csv(r.HasSignedContract ? r.StallNo : string.Empty),
-                            Csv(r.HasSignedContract && r.EffectivityDate != default ? r.EffectivityDate.ToString("M/d/yyyy") : ""),
-                            Csv(r.HasSignedContract ? r.DurationYears.ToString() : string.Empty),
-                            Csv(r.HasSignedContract && r.AreaSqm is > 0 ? r.AreaSqm!.Value.ToString("0.##") : ""),
-                        };
-                        if (IncludesPureDays)
-                        {
-                            values.Add(Csv(IsPureDays(code) ? "Calendar-day" : "Fixed monthly rent"));
-                            values.Add(Csv(IsPureDays(code) ? r.DailyRate.ToString("0.00") : string.Empty));
-                        }
-                        values.Add(Csv(IsPureDays(code) || !r.HasSignedContract ? string.Empty : r.MonthlyRentalRate.ToString("0.00")));
-                        values.Add(Csv(IsPureDays(code) ? string.Empty : r.ActualMonthlyRental.ToString("0.00")));
-                        values.Add(Csv(IsPureDays(code) ? string.Empty : r.WholeYearRental.ToString("0.00")));
-                        sb.AppendLine(string.Join(',', values));
-                    }
-                }
+                    null => string.Empty,
+                    DateOnly date => date.ToString("M/d/yyyy"),
+                    decimal amount => amount.ToString("0.00"),
+                    double number => number.ToString("0.##"),
+                    _ => Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
+                }))));
             }
 
             return "data:text/csv;charset=utf-8," + Uri.EscapeDataString(sb.ToString());
@@ -757,6 +1008,107 @@
                     }
                 </tr>
             </tfoot>
+        </table>
+        </div>
+    };
+
+    // A recurring space rental: the space is the unit, held with or without a signed lease. The account register states the
+    // approved monthly amount; a whole-year figure is not stated by the source, so none is worked out here.
+    private RenderFragment SpaceTable(IReadOnlyList<ObligationAccountDto> rows) => __builder =>
+    {
+        <div class="sh-table-wrap">
+        <table class="sh-table">
+            <thead>
+                <tr class="sh-gap-row" aria-hidden="true"><td colspan="99"></td></tr>
+                <tr>
+                    <th class="sh-c">#</th>
+                    <th>Name of Lessee<br /><span class="sh-th-sub">(Actual Occupants)</span></th>
+                    <th class="sh-c">Space No.</th>
+                    <th>Name of Lessee per<br />Signed Contract</th>
+                    <th class="sh-c">Contract<br />Reference</th>
+                    <th class="sh-c">Effectivity of<br />Lessee Contract</th>
+                    <th class="sh-c">No. of<br />Years</th>
+                    <th class="sh-c">Area</th>
+                    <th class="sh-r">Approved Monthly<br />Rental</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{ var n = 1; }
+                @foreach (var a in rows)
+                {
+                    var signed = a.Arrangement == OccupancyArrangement.SignedContract;
+                    <tr>
+                        <td class="sh-c">@n</td>
+                        <td>@SpaceAccountPresentation.Occupant(a)</td>
+                        <td class="sh-c">@SpaceNumber.Display(a.SubjectLabel)</td>
+                        @if (!signed)
+                        {
+                            @* The office's own wording where a signed contract would be named, with its particulars left blank. *@
+                            <td class="sh-nc" colspan="5">@SpaceAccountPresentation.Basis(a)</td>
+                        }
+                        else
+                        {
+                            <td>@(string.IsNullOrWhiteSpace(a.ContractName) ? "—" : a.ContractName)</td>
+                            <td class="sh-c">@(SpaceAccountPresentation.Reference(a) is { Length: > 0 } reference ? reference : "—")</td>
+                            <td class="sh-c">@((a.ContractEffectiveDate ?? a.ActiveFrom).ToString("M/d/yyyy"))</td>
+                            <td class="sh-c">@(a.ContractYears is > 0 ? a.ContractYears + " yr" + (a.ContractYears != 1 ? "s" : "") : "—")</td>
+                            <td class="sh-c">@(a.AreaSqm is > 0 ? $"{a.AreaSqm} sq.m." : "—")</td>
+                        }
+                        <td class="sh-r">@(a.CurrentAmount is { } amount ? Money(amount) : "—")</td>
+                    </tr>
+                    n++;
+                }
+            </tbody>
+            <tfoot>
+                <tr class="sh-tfoot-row">
+                    <td colspan="8" class="sh-tfoot-label">Total</td>
+                    <td class="sh-r sh-tfoot-val">@Money(rows.Sum(a => a.CurrentAmount ?? 0m))</td>
+                </tr>
+            </tfoot>
+        </table>
+        </div>
+    };
+
+    // An event lot (Fiesta / Araw): the lot is let for one event on one date, so the table states the event, its date and the
+    // approved event amount — no term, no monthly rate and no whole-year figure, because the source holds none. A signed contract
+    // is named only where the source genuinely records one.
+    private RenderFragment EventTable(IReadOnlyList<ObligationAccountDto> rows) => __builder =>
+    {
+        <div class="sh-table-wrap">
+        <table class="sh-table">
+            <thead>
+                <tr class="sh-gap-row" aria-hidden="true"><td colspan="99"></td></tr>
+                <tr>
+                    <th class="sh-c">#</th>
+                    <th>Name of Lessee<br /><span class="sh-th-sub">(Actual Occupants)</span></th>
+                    <th class="sh-c">Lot</th>
+                    <th class="sh-c">Event</th>
+                    <th class="sh-c">Event<br />Date</th>
+                    <th>Location /<br />Note</th>
+                    <th>Contract</th>
+                    <th class="sh-r">Approved Event<br />Amount</th>
+                    <th class="sh-c">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{ var n = 1; }
+                @foreach (var a in rows)
+                {
+                    var signed = a.Arrangement == OccupancyArrangement.SignedContract;
+                    <tr class="@(a.ActiveTo is not null ? "sh-row-closed" : "")">
+                        <td class="sh-c">@n</td>
+                        <td>@SpaceAccountPresentation.Occupant(a)</td>
+                        <td class="sh-c">@a.SubjectLabel</td>
+                        <td class="sh-c">@EventName(a)</td>
+                        <td class="sh-c">@((a.EventDate ?? a.ActiveFrom).ToString("M/d/yyyy"))</td>
+                        <td>@(string.IsNullOrWhiteSpace(a.AreaLocation) ? "—" : a.AreaLocation)</td>
+                        <td>@(signed ? (SpaceAccountPresentation.Reference(a) is { Length: > 0 } reference ? reference : (string.IsNullOrWhiteSpace(a.ContractName) ? "Signed contract" : a.ContractName)) : SpaceAccountPresentation.Basis(a))</td>
+                        <td class="sh-r">@(a.CurrentAmount is { } amount ? Money(amount) : "—")</td>
+                        <td class="sh-c">@LotStatus(a)</td>
+                    </tr>
+                    n++;
+                }
+            </tbody>
         </table>
         </div>
     };

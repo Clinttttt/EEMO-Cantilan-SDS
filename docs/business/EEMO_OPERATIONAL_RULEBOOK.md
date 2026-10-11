@@ -301,6 +301,7 @@ Confirmed:
 - Area/square-meter details may be captured as supporting detail where useful.
 - Kanmanggay belongs conceptually under Space Rental.
 - Fines may arise in rental/market contexts and should appear as explicit OR line items.
+- **2026-10-10 product approval — assessment before payment:** Head/SuperAdmin may save a governed fine against the verified liable rental registration without a second software approval stage. Saving liability creates no Collection/SRC or cash revenue. Actual penalty/source eligibility, manual amount authority and historical violation-date basis require recorded governing evidence; software approval is not independent ordinance verification. See the [assessment-only foundation and deferred settlement/correction boundaries](../planning/FINE_ASSESSMENT_FOUNDATION_HANDOFF_20261010.md). Delinquency never creates an automatic fine.
 
 Additional confirmed rules:
 
@@ -477,6 +478,8 @@ See [2026-09-27 EEMO Head final clarifications](../evidence/2026-09-27_eemo_head
 - the collector must not arbitrarily choose OR or CT outside that business context.
 
 This closes the former IA-046 decision gate and supersedes the IA-047 presentation-only regular/fixed-versus-transient/temporary inference.
+
+The 2026-10-08 workspace ruling preserves these instruments while giving Monthly its own registered space account/period. Daily remains a CT transaction without account registration. The Head approves the Monthly rental and effective month; numbering belongs to the server. Both modes remain one official Vegetable / Fruits revenue line. See [the transition checkpoint](../planning/VEGETABLE_FRUIT_WORKSPACE_20261008.md) for implementation and historical-writer compatibility.
 
 See [2026-09-27 EEMO Head final clarifications](../evidence/2026-09-27_eemo_head_final_clarifications.md).
 

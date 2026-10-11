@@ -1,0 +1,95 @@
+@using EEMOCantilanSDS.Client.Services
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Domain.Enums
+@inject FacilityState Facilities
+@inject IObligationsApiClient Operations
+@inject NavigationManager Navigation
+
+@* Extracted from the established /vendors registry; source callers retain filter and registration authority. *@
+<div class="vs-toolbar-unified">
+    <div class="facility-selector" id="facilitySelectorWrapper" @onkeydown="CloseOnEscape">
+        <button type="button" id="rental-workspace-picker" class="fac-trigger @(_open ? "open" : "")"
+                aria-label="Select facility or operation" aria-expanded="@(_open ? "true" : "false")" aria-controls="registry-facilities"
+                @onclick="() => _open = !_open">
+            <span class="fac-trigger-body"><strong class="fac-trigger-label">@Current.ShortName</strong><span class="fac-trigger-sub">@Current.Name</span></span>
+            @if (Current.UnpaidCount > 0) { <span class="fac-trigger-badge">@Current.UnpaidCount unpaid</span> }
+            <svg class="fac-trigger-chevron" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
+        </button>
+        @if (_open)
+        {
+            <div class="fac-backdrop" @onclick="() => _open = false"></div>
+            <div id="registry-facilities" class="fac-dropdown" role="group" aria-label="Facility or operation">
+                <div class="fac-dd-header">Facility</div>
+                @foreach (var entry in Entries)
+                {
+                    <button type="button" class="fac-dd-item @(Selected == entry.Code ? "active" : "")" aria-current="@(Selected == entry.Code ? "true" : "false")" @onclick="() => Select(entry.Code)">
+                        <span class="fac-dd-body"><span class="fac-dd-name">@entry.Name</span></span>
+                        @if (entry.UnpaidCount > 0) { <span class="fac-dd-badge">@entry.UnpaidCount</span> }
+                        @if (Selected == entry.Code) { <svg class="fac-dd-check" viewBox="0 0 24 24" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg> }
+                    </button>
+                }
+            </div>
+        }
+    </div>
+    <div class="filter-tabs-inline" role="group" aria-label="Payment status">
+        @foreach (var filter in Filters)
+        {
+            <button type="button" class="filter-tab @(ActiveFilter == filter ? "active" : "")" aria-pressed="@(ActiveFilter == filter ? "true" : "false")" @onclick="() => OnFilterChanged.InvokeAsync(filter)">@filter</button>
+        }
+    </div>
+    <div class="search-box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+        <input type="text" class="search-input" aria-label="@SearchPlaceholder" placeholder="@SearchPlaceholder" value="@SearchQuery" @oninput="e => OnSearch.InvokeAsync(e.Value?.ToString() ?? string.Empty)" />
+        @if (!string.IsNullOrEmpty(SearchQuery)) { <button type="button" class="search-clear" aria-label="Clear search" @onclick="() => OnSearch.InvokeAsync(string.Empty)">×</button> }
+    </div>
+    <div class="vs-actions-compact"><span class="vs-count-label">@CountLabel</span>@SecondaryAction@PrimaryAction</div>
+</div>
+
+@code {
+    public sealed record Choice(string Code, string ShortName, string Name, int UnpaidCount = 0);
+    [Parameter] public IEnumerable<Choice>? Choices { get; set; }
+    [Parameter] public string Selected { get; set; } = "NPM";
+    [Parameter] public EventCallback<string> OnSelected { get; set; }
+    [Parameter] public string SearchQuery { get; set; } = string.Empty;
+    [Parameter] public string SearchPlaceholder { get; set; } = "Search stall no. or name…";
+    [Parameter] public EventCallback<string> OnSearch { get; set; }
+    [Parameter] public string ActiveFilter { get; set; } = "All";
+    [Parameter] public EventCallback<string> OnFilterChanged { get; set; }
+    [Parameter] public string CountLabel { get; set; } = string.Empty;
+    [Parameter] public RenderFragment? PrimaryAction { get; set; }
+    [Parameter] public RenderFragment? SecondaryAction { get; set; }
+    private static readonly string[] Filters = ["All", "Paid", "Partial", "Unpaid", "Closed"];
+    private bool _open;
+    private readonly List<Choice> _discovered = [];
+    private IEnumerable<Choice> Entries => Choices ?? _discovered;
+    private Choice Current => Entries.FirstOrDefault(x => x.Code == Selected) ?? new(Selected, Selected == "Vegetable/Fruits" ? "VF" : Selected, Selected);
+    protected override async Task OnInitializedAsync()
+    {
+        if (Choices is not null) return;
+        await Facilities.EnsureLoadedAsync();
+        _discovered.AddRange(Facilities.Rental.Select(f => new Choice(f.ToString(), Facilities.ShortNameOf(f), Facilities.NameOf(f))));
+        try
+        {
+            var result = await Operations.GetSpaceOperationsAsync();
+            foreach (var kind in (result?.Value ?? []).Select(x => x.Kind).Distinct())
+            {
+                if (kind == ObligationKind.KanmanggaySpaceRental) _discovered.Add(new("KM", "KM", "Kanmanggay"));
+                if (kind == ObligationKind.FiestaArawLotRental) _discovered.Add(new("FA", "FA", "Fiesta / Araw"));
+                if (kind == ObligationKind.VegetableFruitSpaceRental) _discovered.Add(new("Vegetable/Fruits", "VF", "Vegetable / Fruits Monthly"));
+            }
+        }
+        catch { /* Source loading reports its own error; failed discovery never switches account authority. */ }
+        if (!_discovered.Any(x => x.Code == Selected) && Selected is "KM" or "FA" or "Vegetable/Fruits")
+            _discovered.Add(new(Selected, Selected == "Vegetable/Fruits" ? "VF" : Selected, Selected == "KM" ? "Kanmanggay" : Selected == "FA" ? "Fiesta / Araw" : "Vegetable / Fruits Monthly"));
+    }
+    private void CloseOnEscape(KeyboardEventArgs e) { if (e.Key == "Escape") _open = false; }
+    private async Task Select(string code)
+    {
+        _open = false;
+        if (!Entries.Any(x => x.Code == code)) return;
+        if (OnSelected.HasDelegate) { await OnSelected.InvokeAsync(code); return; }
+        if (code is "KM" or "FA" or "Vegetable/Fruits") Navigation.NavigateTo($"/vendors?workspace={Uri.EscapeDataString(code)}");
+        else if (Enum.TryParse<FacilityCode>(code, out var facility) && Facilities.Rental.Contains(facility))
+            Navigation.NavigateTo($"/vendors?facility={facility.ToString().ToLowerInvariant()}");
+    }
+}

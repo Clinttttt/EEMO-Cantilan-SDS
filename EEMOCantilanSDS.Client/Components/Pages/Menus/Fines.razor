@@ -10,23 +10,38 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @inject IPenaltiesApiClient PenaltiesApi
 
-<PageTitle>StallTrack — Fines</PageTitle>
+<PageTitle>StallTrack — Fines &amp; Penalties</PageTitle>
 
-@* Fines / Penalties is one Monthly Income line with its own classification, always on an Official Receipt (IA-049). A
-   fine is collected only from an approved definition, added to an OR in Current Collection beside the rent or ECF item it
-   relates to; the register below is a read of the canonical posted lines. Nothing on this page records money. The layout
-   owns the <main> landmark. *@
+@* Assessments and cash are separate; existing definition and eligibility workflows retain their own identities. *@
 <div class="v3-page fn-page">
-    <WorkspaceHeader Parent="Operations" Title="Fines">
-        <Meta><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
-        <Actions>
-            <a class="v3-btn" href="/collections/activity">Collection Activity</a>
-        </Actions>
-    </WorkspaceHeader>
+    <V3Hero Compact="true" Eyebrow="Operations" Title="Fines & Penalties">
+        <Icon><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16l3-2 3 2 3-2 3 2V8z" /><path d="M14 2v6h6" /><path d="M9 13h6" /><path d="M9 9h2" /></svg></Icon>
+        <Meta><span>Fine assessments and revenue collections</span><span class="fn-or"><InstrumentChip Instrument="OR" ShowName="true" /></span></Meta>
+        <Figures>
+            <V3HeroFigure Label="@($"Collected · {PeriodLabel}")" Value="@HeroMoney(_summary?.Collected)" Note="@(_summaryError ? "Unavailable right now" : "Fine cash, net of corrections")" />
+            <V3HeroFigure Label="Direct fine collections" Value="@HeroMoney(_summary?.DirectCollected)" Note="@(_summaryError ? "Unavailable right now" : "No registered account · same period")" />
+            <V3HeroFigure Label="Outstanding assessments" Value="@HeroMoney(_summary?.OutstandingAssessed)" Note="@(_summary is null ? (_summaryError ? "Unavailable right now" : "Loading…") : $"{_summary.OutstandingAssessments} unpaid · not yet collected")" />
+        </Figures>
+        <Actions><a href="/collections/activity">Collection Activity</a></Actions>
+    </V3Hero>
 
+    @* Stays pinned while a long register scrolls so sections can be switched without returning to the top. *@
+    <div class="fn-nav">
+        <div class="fn-tabs" role="group" aria-label="Fines workspace views">
+            <button type="button" class="fn-tab @(_view == "collected" ? "active" : "")" aria-pressed="@(_view == "collected" ? "true" : "false")" @onclick='() => SelectView("collected")'>Collections</button>
+            <button type="button" class="fn-tab @(_view == "assessments" ? "active" : "")" aria-pressed="@(_view == "assessments" ? "true" : "false")" @onclick='() => SelectView("assessments")'>Assessments</button>
+            <button type="button" class="fn-tab @(_view == "settings" ? "active" : "")" aria-pressed="@(_view == "settings" ? "true" : "false")" @onclick='() => SelectView("settings")'>Penalty settings</button>
+        </div>
+    </div>
+    @if (_view == "assessments") {
+        <FineAssessmentsRegister InitialAccount="RequestedAccount" PaymentAssessmentId="PaymentAssessmentId" StartAssessing="_openAssess" OnChanged="LoadSummaryAsync" />
+    }
+
+    @if (_view == "settings") {
     <section class="v3-panel" aria-labelledby="fn-defs-title" aria-busy="@(_loadingDefinitions ? "true" : "false")">
         <header class="v3-panel-header">
-            <h2 id="fn-defs-title">Approved penalties</h2>
+            <h2 id="fn-defs-title">Penalty categories</h2>
+            <span class="v3-panel-meta fn-meta">@_definitions.Count approved · governs both assessed and direct fines</span>
             <AuthorizeView Roles="SuperAdmin">
                 <Authorized>
                     @if (!_editing)
@@ -46,7 +61,7 @@
         }
 
         <div class="v3-table-wrap" role="region" aria-label="Approved penalties" tabindex="0">
-            <table class="v3-table">
+            <table class="v3-table fn-table">
                 <caption class="v3-sr-only">Approved penalty definitions in force today</caption>
                 <thead>
                     <tr>
@@ -62,10 +77,10 @@
                     {
                         <tr>
                             <td><span class="v3-strong">@d.DisplayName</span><span class="v3-block">@d.Code</span></td>
-                            <td>@(d.AppliesTo ?? "—")</td>
-                            <td>@Rule(d)</td>
-                            <td>@(d.IsActive ? "Active" : "Retired")</td>
-                            <td>@d.EffectiveDate.ToString("MMM d, yyyy")</td>
+                            <td class="fn-secondary">@(d.AppliesTo ?? "—")</td>
+                            <td class="fn-rule">@Rule(d)</td>
+                            <td><span class="status-pill @(d.IsActive ? "pill-active" : "pill-inactive")">@(d.IsActive ? "Active" : "Retired")</span></td>
+                            <td class="fn-nowrap">@d.EffectiveDate.ToString("MMM d, yyyy")</td>
                         </tr>
                     }
                     @if (_definitions.Count == 0)
@@ -74,7 +89,7 @@
                             <td class="v3-empty" colspan="5">
                                 @if (_loadingDefinitions) { <span role="status">Loading penalties…</span> }
                                 else if (_definitionsError is not null) { <span>Penalties are unavailable.</span> }
-                                else { <span>No penalty has been approved yet. Fines cannot be collected until the Head defines one.</span> }
+                                else { <span class="v3-empty-block">@EmptyIcon<span>No penalty has been approved yet. Fines cannot be collected until the Head defines one.</span></span> }
                             </td>
                         </tr>
                     }
@@ -130,56 +145,84 @@
         {
             <p class="v3-notice fn-notice" role="status">@_saved</p>
         }
+        <FinePolicySetup Definitions="_definitions" />
     </section>
+    }
 
+    @if (_view == "collected") {
     <section class="v3-panel" aria-labelledby="fn-register-title" aria-busy="@(_loadingRegister ? "true" : "false")">
         <header class="v3-panel-header">
-            <h2 id="fn-register-title">Fines collected</h2>
+            <h2 id="fn-register-title">Collections</h2>
+            <span class="v3-panel-meta fn-meta">@PeriodLabel · @VisibleCollections.Count() of @_register.Count shown</span>
             <label class="fn-period">
                 <span>Month</span>
                 <input class="v3-input" type="month" aria-label="Collection month" value="@_monthInput" @onchange="ChangeMonthAsync" />
             </label>
+            <AuthorizeView Roles="SuperAdmin"><Authorized>
+                <span class="fn-header-actions">
+                    <button class="v3-btn" type="button" @onclick="BeginAssessment">Assess fine</button>
+                    <button class="v3-btn v3-btn-primary" type="button" @onclick="() => _direct=true">Record direct fine</button>
+                </span>
+            </Authorized></AuthorizeView>
         </header>
 
+        <div class="v3-toolbar fn-search"><label class="v3-field"><span class="v3-sr-only">Search collections</span><input @bind="_collectionSearch" @bind:event="oninput" placeholder="Search payer, account, fine or SRC" /></label>
+            <label class="v3-field"><span class="v3-sr-only">Fine type</span><select @bind="_collectionKind"><option value="All">All fine types</option><option value="@PenaltyRegisterKinds.Direct">Direct fine</option><option value="@PenaltyRegisterKinds.Assessed">Assessed fine payment</option><option value="@PenaltyRegisterKinds.Definition">Fine on receipt</option></select></label>
+            <label class="v3-field"><span class="v3-sr-only">Collection status</span><select @bind="_collectionStatus"><option value="All">All statuses</option><option>Posted</option><option>Corrected</option><option>Reversed</option></select></label>
+        </div>
         @if (_registerError is not null)
         {
             <p class="v3-notice v3-notice-error fn-notice" role="alert">@_registerError</p>
         }
 
         <div class="v3-table-wrap" role="region" aria-label="Fines collected" tabindex="0">
-            <table class="v3-table">
+            <table class="v3-table fn-table fn-collections">
                 <caption class="v3-sr-only">Fines collected in @PeriodLabel</caption>
                 <thead>
                     <tr>
-                        <th scope="col">Date</th>
-                        <th scope="col">Payor</th>
-                        <th scope="col">Origin</th>
-                        <th scope="col">Penalty</th>
-                        <th scope="col">SRC</th>
+                        <th scope="col">Date / SRC</th>
+                        <th scope="col">Fine</th>
+                        <th scope="col">Payer / source</th>
                         <th scope="col">Status</th>
                         <th scope="col" class="v3-num">Amount</th>
+                        <th scope="col"><span class="v3-sr-only">Actions</span></th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var row in _register)
+                    @foreach (var row in VisibleCollections)
                     {
                         <tr>
-                            <td>@row.BusinessDate.ToString("MMM d, yyyy")</td>
-                            <td>@(string.IsNullOrWhiteSpace(row.PayerName) ? "—" : row.PayerName)</td>
-                            <td>@(string.IsNullOrWhiteSpace(row.Origin) ? "—" : row.Origin)</td>
-                            <td>@row.PenaltyName</td>
-                            <td class="v3-strong">@row.ReferenceCode</td>
-                            <td>@row.Status</td>
-                            <td class="v3-num v3-strong">₱@row.Amount.ToString("N2")</td>
+                            <td class="fn-nowrap"><span class="fn-date">@row.BusinessDate.ToString("MMM d, yyyy")</span><span class="v3-block fn-src">@row.ReferenceCode</span></td>
+                            <td><strong>@row.PenaltyName</strong><span class="fn-kind fn-kind-@row.Kind.ToLowerInvariant()">@KindLabel(row.Kind)</span>@if(!string.IsNullOrWhiteSpace(row.Reason)) { <span class="v3-block fn-reason" title="@row.Reason">@row.Reason</span> }</td>
+                            <td>
+                                @if (row.Kind == PenaltyRegisterKinds.Assessed)
+                                {
+                                    <strong>@(row.Account ?? row.PayerName ?? "Assessed account")</strong>
+                                    @if (!string.IsNullOrWhiteSpace(row.Facility)) { <span class="v3-block">@row.Facility</span> }
+                                }
+                                else if (row.Kind == PenaltyRegisterKinds.Direct)
+                                {
+                                    @if (!string.IsNullOrWhiteSpace(row.PayerName)) { <strong>@row.PayerName</strong> }
+                                    <span class="v3-block">Direct fine collection</span>
+                                }
+                                else
+                                {
+                                    <strong>@(row.PayerName ?? "—")</strong>
+                                    @if (!string.IsNullOrWhiteSpace(row.Origin)) { <span class="v3-block">@row.Origin</span> }
+                                }
+                            </td>
+                            <td><span class="status-pill @CollectionPill(row.Status)">@row.Status</span></td>
+                            <td class="v3-num fn-amount @(row.Status == "Reversed" ? "fn-amount-void" : "")">@Money(row.EffectiveAmount ?? (row.Status == "Posted" ? row.Amount : 0m))@if (row.Status != "Posted" && row.Amount != (row.EffectiveAmount ?? 0m)) { <span class="v3-block">of @Money(row.Amount) posted</span> }</td>
+                            <td class="fn-row-actions"><a class="v3-btn v3-btn-sm" href="/collections/activity" aria-label="@($"View {row.ReferenceCode} in Collection Activity")">@ListIcon<span>Activity</span></a></td>
                         </tr>
                     }
-                    @if (_register.Count == 0)
+                    @if (!VisibleCollections.Any())
                     {
                         <tr>
-                            <td class="v3-empty" colspan="7">
+                            <td class="v3-empty" colspan="6">
                                 @if (_loadingRegister) { <span role="status">Loading fines…</span> }
                                 else if (_registerError is not null) { <span>Fines are unavailable.</span> }
-                                else { <span>No fines were collected in @PeriodLabel.</span> }
+                                else { <span class="v3-empty-block">@EmptyIcon<span>No collections match this view.</span></span> }
                             </td>
                         </tr>
                     }
@@ -188,26 +231,54 @@
                 {
                     <tfoot>
                         <tr>
-                            <td colspan="6"><strong>Total for @PeriodLabel</strong></td>
-                            <td class="v3-num v3-strong">₱@_register.Where(x => x.Status == "Posted").Sum(x => x.Amount).ToString("N2")</td>
+                            <td colspan="4"><strong>Shown collections</strong></td>
+                            <td class="v3-num v3-strong">@Money(VisibleCollections.Sum(x => x.EffectiveAmount ?? (x.Status == "Posted" ? x.Amount : 0m)))</td>
+                            <td></td>
                         </tr>
                     </tfoot>
                 }
             </table>
         </div>
-        <p class="v3-panel-note">
-            A fine is collected on an Official Receipt, beside the rent or ECF
-            item it relates to. This register reads the posted lines (see <a href="/collections/activity">Collection Activity</a>); it records nothing.
-        </p>
     </section>
+    }
 </div>
+@if(_direct) { <DirectFineCollectionDrawer OnClose="() => _direct=false" OnCollected="RefreshCollectionsAsync" /> }
 
 @code {
+    [SupplyParameterFromQuery(Name = "view")] public string? ViewQuery { get; set; }
+    private string _view = "collected";
+    private bool _direct;
+    protected override void OnParametersSet() { _view = RequestedAccount is not null || PaymentAssessmentId is not null ? "assessments" : ViewQuery is "assessments" or "settings" ? ViewQuery : "collected"; }
+    [SupplyParameterFromQuery(Name = "accountKind")] public string? AccountKindQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "accountId")] public Guid? AccountIdQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "fineAssessmentId")] public Guid? PaymentAssessmentId { get; set; }
+    private FineAccountRef? RequestedAccount => AccountIdQuery is { } id &&
+        Enum.TryParse<EEMOCantilanSDS.Domain.Entities.Revenue.FineAccountKind>(AccountKindQuery, out var kind) && Enum.IsDefined(kind) ? new(kind,id) : null;
     private List<PenaltyDefinitionDto> _definitions = [];
     private string? _definitionsError;
     private bool _loadingDefinitions = true;
 
     private List<PenaltyRegisterRowDto> _register = [];
+    private string _collectionSearch="", _collectionStatus="All", _collectionKind="All";
+    private IEnumerable<PenaltyRegisterRowDto> VisibleCollections => _register.Where(r => (_collectionStatus=="All" || r.Status==_collectionStatus)
+        && (_collectionKind=="All" || r.Kind==_collectionKind)
+        && string.Join(" ",r.PenaltyName,r.PayerName,r.Origin,r.ReferenceCode,r.Account,r.Facility,r.Reason).Contains(_collectionSearch.Trim(),StringComparison.OrdinalIgnoreCase));
+    private PenaltyWorkspaceSummaryDto? _summary;
+    private bool _summaryError;
+    private bool _openAssess;
+    private static string Money(decimal amount) => $"₱{amount.ToString("N2", System.Globalization.CultureInfo.InvariantCulture)}";
+    private static string HeroMoney(decimal? amount) => amount is { } value ? Money(value) : "—";
+    private static string KindLabel(string kind) => kind switch
+    {
+        PenaltyRegisterKinds.Direct => "Direct fine",
+        PenaltyRegisterKinds.Assessed => "Assessed fine payment",
+        _ => "Fine on receipt"
+    };
+    private static string CollectionPill(string status) => status switch { "Posted" => "pill-active", "Corrected" => "pill-partial", _ => "pill-danger" };
+    private static RenderFragment EmptyIcon => @<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>;
+    private static RenderFragment ListIcon => @<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13" /><path d="M8 12h13" /><path d="M8 18h13" /><path d="M3 6h.01" /><path d="M3 12h.01" /><path d="M3 18h.01" /></svg>;
+    private void SelectView(string view) { _openAssess = false; _view = view; }
+    private void BeginAssessment() { _openAssess = true; _view = "assessments"; }
     private string? _registerError;
     private bool _loadingRegister = true;
     private DateOnly _month = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
@@ -231,6 +302,27 @@
     {
         await LoadDefinitionsAsync();
         await LoadRegisterAsync();
+        await LoadSummaryAsync();
+    }
+
+    private async Task RefreshCollectionsAsync()
+    {
+        await LoadRegisterAsync();
+        await LoadSummaryAsync();
+    }
+
+    // Headline figures are server-authoritative; a failed read says so rather than showing a fabricated zero.
+    private async Task LoadSummaryAsync()
+    {
+        _summaryError = false;
+        try
+        {
+            var result = await PenaltiesApi.GetSummaryAsync(_month, _month.AddMonths(1).AddDays(-1));
+            if (result is { IsSuccess: true, Value: not null }) _summary = result.Value;
+            else { _summary = null; _summaryError = true; }
+        }
+        catch { _summary = null; _summaryError = true; }
+        StateHasChanged();
     }
 
     private async Task LoadDefinitionsAsync()
@@ -268,6 +360,7 @@
             _month = parsed;
             _monthInput = parsed.ToString("yyyy-MM");
             await LoadRegisterAsync();
+            await LoadSummaryAsync();
         }
     }
 

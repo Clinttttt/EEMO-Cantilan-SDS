@@ -1,0 +1,50 @@
+@typeparam TItem
+@using EEMOCantilanSDS.Client.Services
+
+<div class="@(OwnPanel ? "panel" : "")">
+    @if (Loading)
+    { <div role="status" aria-label="Loading registered units"><Skeleton Height="160px" /></div> }
+    else if (Failed)
+    { <div class="empty-state">Registered units are unavailable.</div> }
+    else if (!Rows.Any())
+    { <div class="empty-state"><div class="empty-title">No @Unit.ToLowerInvariant()s found</div><div class="empty-sub">Try adjusting the filters or search.</div></div> }
+    else
+    {
+        <div class="table-wrap" tabindex="0" role="region" aria-label="Registered rentals">
+            <table class="data-table">
+                <thead><tr><th>@Unit No.</th><th>Occupant / Payor</th><th>Contract</th><th>Start date</th><th class="monthly-money">@AmountLabel</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody>@foreach (var row in Rows)
+                {
+                    <tr class="data-row">
+                        <td data-label="@(Unit + " No.")">@row.Number @if (row.Context is not null) { <small>@row.Context</small> }</td>
+                        <td data-label="Occupant / Payor">@row.Occupant</td>
+                        <td data-label="Contract">@row.Contract</td>
+                        <td data-label="Start date">@row.StartDate</td>
+                        <td data-label="@AmountLabel" class="monthly-money">@(row.Amount is { } amount ? $"₱{amount:N2}" : "—")</td>
+                        <td data-label="Status"><AccountStatusPill Status="@(row.LifecycleStatus == "Closed" ? "Closed" : row.PaymentStatus)" /></td>
+                        <td class="rental-actions-cell"><div class="action-btns" role="group" aria-label="@($"Actions for {row.Number}")">
+                            <button type="button" class="action-btn" title="@PaymentTitle" @onclick="() => OnPayment.InvokeAsync(row.Source)">₱</button>
+                            <button type="button" class="action-btn" title="Payment History" @onclick="() => OnHistory.InvokeAsync(row.Source)">↺</button>
+                            @if (ExtraActions is not null) { @ExtraActions(row.Source) }
+                            <button type="button" class="action-btn" title="View Profile" @onclick="() => OnProfile.InvokeAsync(row.Source)">→</button>
+                        </div></td>
+                    </tr>
+                }</tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public bool OwnPanel { get; set; } = true;
+    [Parameter, EditorRequired] public IEnumerable<RentalTableRow<TItem>> Rows { get; set; } = [];
+    [Parameter] public string Unit { get; set; } = "Space";
+    [Parameter] public string AmountLabel { get; set; } = "Monthly amount";
+    [Parameter] public string PaymentTitle { get; set; } = "View / Record Payment";
+    [Parameter] public bool Loading { get; set; }
+    [Parameter] public bool Failed { get; set; }
+    [Parameter] public EventCallback<TItem> OnPayment { get; set; }
+    [Parameter] public EventCallback<TItem> OnHistory { get; set; }
+    [Parameter] public EventCallback<TItem> OnProfile { get; set; }
+    [Parameter] public RenderFragment<TItem>? ExtraActions { get; set; }
+}

@@ -16,6 +16,7 @@
     </Icon>
     <ChildContent>
         <form class="vendor-registration-form" id="@FormId" aria-label="@FormLabel" @onsubmit="OnSubmit" @onsubmit:preventDefault="true">
+            @SourceContext
                 <div class="avm-group">
                     <label class="avm-label" for="@($"{FormId}-name")">Vendor name <span class="avm-req">*</span></label>
                     <input id="@($"{FormId}-name")" class="avm-input" type="text" maxlength="200" autocomplete="off" @bind="Model.Name" @bind:event="oninput" />
@@ -69,6 +70,7 @@
     private static readonly IReadOnlyList<ChoiceCards.Choice> KindChoices = [new("1", "New"), new("2", "Renew")];
 
     [Parameter] public bool Show { get; set; }
+    [Parameter] public RenderFragment? SourceContext { get; set; }
     [Parameter, EditorRequired] public VendorRegistrationForm Model { get; set; } = new();
     [Parameter] public string FormId { get; set; } = "fmv-register-form";
     [Parameter] public string FormLabel { get; set; } = "Register vendor";

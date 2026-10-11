@@ -15,6 +15,8 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.Property(x => x.ClosureDate).IsRequired();
             builder.Property(x => x.Reason).IsRequired().HasConversion<int>();
             builder.Property(x => x.Remarks).HasMaxLength(300);
+            // A row that OPENS a day the weekly schedule would close. Existing rows are closures, so the default is false.
+            builder.Property(x => x.IsOpenOverride).IsRequired().HasDefaultValue(false);
 
             // One active closure per date (the market is facility-wide). Filtered on IsDeleted as a
             // safe backstop so a cleared row could never block re-closing the same date.

@@ -16,7 +16,7 @@ public sealed class CollectionLineConfiguration : IEntityTypeConfiguration<Colle
                 "((\"SourceKind\" IS NULL AND \"SourceId\" IS NULL AND \"SourcePart\" IS NULL) " +
                 "OR (\"SourceKind\" = 3 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (1, 2)) " +
                 "OR (\"SourceKind\" = 2 AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IN (3, 4, 5)) " +
-                "OR (\"SourceKind\" IN (1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14) AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IS NULL))");
+                "OR (\"SourceKind\" IN (1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16) AND \"SourceId\" IS NOT NULL AND \"SourcePart\" IS NULL))");
         });
 
         builder.HasKey(x => x.Id);
@@ -30,6 +30,10 @@ public sealed class CollectionLineConfiguration : IEntityTypeConfiguration<Colle
         builder.Property(x => x.SourceId);
         builder.Property(x => x.SourcePart).HasConversion<int?>();
         builder.Property(x => x.CalculationSnapshot).HasColumnType("text");
+        // A conditional generated FK enforces tenant-bound direct authority without changing existing polymorphic sources.
+        builder.Property<Guid?>("DirectFineAuthorityId").HasComputedColumnSql("CASE WHEN \"SourceKind\" = 16 THEN \"SourceId\" ELSE NULL END", stored: true);
+        builder.HasOne<DirectFineAuthority>().WithMany().HasForeignKey("MunicipalityId", "DirectFineAuthorityId")
+            .HasPrincipalKey(x => new { x.MunicipalityId, x.Id }).OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(x => new { x.MunicipalityId, x.CollectionId });
         builder.HasIndex(x => new

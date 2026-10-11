@@ -78,7 +78,7 @@ public sealed class NpmDailyBatchWorkflow(IAppDbContext db, ICollectionSessionSt
             var charge = row?.DailyFee ?? NpmDailyFee.ForStallOrNull(stall, snapshot, intent.BusinessDate) ?? 0m;
             var payable = owner is not null && (await months.GetPayableDaysAsync(stall, intent.BusinessDate.Year, intent.BusinessDate.Month, ct)).Contains(intent.BusinessDate);
             // A paid day is done even before cutover; a legacy refusal must not hide that fact from readiness.
-            var reason = row?.IsPaid == true ? "AlreadyCollected" : !canonical ? "SourceStillLegacy" : instrument is null ? "PolicyNotEffective" : owner is null ? "InvalidSource"
+            var reason = row?.IsPaid == true ? "AlreadyCollected" : row?.IsPartlyPaid == true ? "PartPaid" : !canonical ? "SourceStillLegacy" : instrument is null ? "PolicyNotEffective" : owner is null ? "InvalidSource"
                 : !payable ? "AlreadySettledOrUnavailable" : charge <= 0m ? "RateNotEffective" : null;
             sources.Add(new(stall.Id, owner?.Id ?? Guid.Empty, stall.StallNo, owner?.ActualOccupant ?? "", charge, reason is null, reason));
             if (reason is not null) problems.Add(new(item.ClientItemId, reason, "Review this stall before collecting."));

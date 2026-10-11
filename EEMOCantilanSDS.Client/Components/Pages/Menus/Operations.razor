@@ -9,7 +9,7 @@
 <div class="ops-page">
     <header class="ops-header">
         <h1 class="ops-title">Operations</h1>
-        <p class="ops-subtitle">Grouped as in the Monthly Income report</p>
+        <p class="ops-subtitle">Revenue operations and account follow-up</p>
     </header>
 
     @if (_loading)
@@ -60,7 +60,7 @@
                 Rent Income — Stall Rental
                 @if (!_loading && !_loadFailed)
                 {
-                    <span class="ops-group-count">@LineCount(RentIncomeFacilities.Count() + 1)</span>
+                    <span class="ops-group-count">@LineCount(RentIncomeFacilities.Count())</span>
                 }
             </h2>
             <ul class="ops-rows" aria-label="Configured rent-income facilities">
@@ -86,10 +86,6 @@
                               $"{facility.Name} ({facility.Code})", NoLinks, NoWorkspace)
                     </li>
                 }
-                <li class="ops-item">
-                    @* A management view over existing receivables; recovery takes the instrument of the source it settles. *@
-                    @Line("Arrears", null, NoReceipt, "/operations/arrears", null, ArrearsLinks, NoWorkspace)
-                </li>
             </ul>
         </section>
 
@@ -139,11 +135,19 @@
             </section>
         }
 
+        <section class="ops-group" aria-labelledby="follow-up-operations-title">
+            <h2 id="follow-up-operations-title" class="ops-group-title">Others <span class="ops-group-count">2 lines</span></h2>
+            <ul class="ops-rows">
+                <li class="ops-item">@Line("Arrears & Delinquency", null, NoReceipt, "/operations/arrears", null, ArrearsLinks, NoWorkspace)</li>
+                <li class="ops-item">@Line("Fines & Penalties", null, OfficialReceipt, "/operations/fines", null, NoLinks, NoWorkspace)</li>
+            </ul>
+        </section>
+
         @* Office-defined facilities that are not an official Monthly Income line. *@
         @if (OtherEconomicEnterpriseWorkspaces.Any())
         {
             <section class="ops-group" aria-labelledby="other-operations-title">
-                <h2 id="other-operations-title" class="ops-group-title">Other operations</h2>
+                <h2 id="other-operations-title" class="ops-group-title">Configured enterprises</h2>
                 <ul class="ops-rows" aria-label="Other configured economic-enterprise workspaces">
                     @foreach (var facility in OtherEconomicEnterpriseWorkspaces)
                     {
@@ -200,7 +204,6 @@
             Links: [new("Report", "/operations/kanmanggay/report")]),
         new("Fiesta | Araw", OfficialReceipt, Route: "/operations/fiesta-araw",
             Links: [new("Report", "/operations/fiesta-araw/report")]),
-        new("Fines", OfficialReceipt, Route: "/operations/fines"),
     ];
 
     private IReadOnlyList<FacilitySidebarSummaryDto> _facilities = Array.Empty<FacilitySidebarSummaryDto>();

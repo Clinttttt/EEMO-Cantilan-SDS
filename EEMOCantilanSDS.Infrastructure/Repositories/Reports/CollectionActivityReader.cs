@@ -423,6 +423,8 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
                     (year, month, description) = (bill.BillingYear, bill.BillingMonth, $"Stall {bill.StallNo}");
                 else if (kind == CollectionSourceKind.DailyCollection && sourceId is { } dayId && days.TryGetValue(dayId, out var day))
                     (year, month, description) = (day.CollectionDate.Year, day.CollectionDate.Month, $"Stall {day.StallNo}");
+                else if (kind == CollectionSourceKind.DirectFineCollection)
+                    description = "Direct fine collection";
                 return new CollectionActivityLineDto(code, policyNames.GetValueOrDefault(l.RevenueClassificationPolicyId, code),
                     l.Amount, kind?.ToString(), l.SourcePart?.ToString(), sourceId, year, month, description);
             }).ToList();

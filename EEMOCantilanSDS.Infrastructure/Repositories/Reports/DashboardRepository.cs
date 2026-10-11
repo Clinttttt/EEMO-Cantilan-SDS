@@ -170,7 +170,7 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
         // a CLOSED payor still shows their name. Fetch enough rows to cover a full month per transaction.
         var dailyRaw = await context.DailyCollections
             .AsNoTracking()
-            .Where(d => d.IsPaid)
+            .Where(d => d.IsPaid || d.CanonicalSettledAmount > 0m)
             .OrderByDescending(d => d.UpdatedAt ?? d.CreatedAt)
             .Take(recentTake * 32)
             .Select(d => new
@@ -181,9 +181,9 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
                     .OrderByDescending(c => c.IsActive).ThenByDescending(c => c.EffectivityDate)
                     .Select(c => c.ActualOccupant).FirstOrDefault(),
                 Code = d.Stall.Facility!.Code,
-                d.DailyFee,
-                d.FishKilos,
-                d.MeatFeeAmount,
+                DailyFee = d.IsPaid ? d.DailyFee : d.CanonicalSettledAmount,   // a part-paid day contributes what was actually received
+                FishKilos = d.IsPaid ? d.FishKilos : null,
+                MeatFeeAmount = d.IsPaid ? d.MeatFeeAmount : 0m,
                 d.CollectorId,
                 d.CreatedBy,
                 At = d.UpdatedAt ?? d.CreatedAt

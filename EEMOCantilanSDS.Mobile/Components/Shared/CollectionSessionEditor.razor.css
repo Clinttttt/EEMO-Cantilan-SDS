@@ -132,3 +132,17 @@ button:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2p
 .collection-option .option-text { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
 .collection-option .option-text strong { font-size: 15px; font-weight: 600; color: var(--mobile-navy); }
 .collection-option .option-text small { margin-top: 2px; font-size: 12px; color: var(--mobile-text-secondary); }
+/* Transitions select a different source, never add unrelated charges to the vendor basket. */
+.collection-source-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.collection-source-actions button { min-height: 44px; white-space: normal; text-align: left; }
+
+/* Landing actions under the registered-source list: Direct collection and Records side by side, equal width. */
+.landing-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+.landing-actions:has(> :only-child) { grid-template-columns: 1fr; }
+
+.collection-actions-one { grid-template-columns: 1fr; }
+
+/* An office-confirmed linked stall: navigation to its own collection, set apart from this source's charges. */
+.linked-sources { display: grid; gap: 6px; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--border, #dbe3ee); }
+.linked-label { font-size: 12px; font-weight: 600; color: var(--text-subtle, #5b6b82); text-transform: none; }
+.linked-note { color: var(--text-subtle, #5b6b82); }

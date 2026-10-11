@@ -1,0 +1,15 @@
+@using EEMOCantilanSDS.Client.Services
+
+<PageTitle>StallTrack — @Source.Name — Manage @Unit Holders</PageTitle>
+<OperationTopbar Title="Spaces &amp; Occupants" Crumb="Occupancy Registry" ParentHref="@Source.Route" ParentTitle="@Source.Name" />
+<div class="content-area">
+    <ObligationWorkspace Kind="Source.Kind" Name="@Source.Name" SubjectNoun="@Unit" SpaceExperience="true" Management="true"
+                         Workspace="@(Source.Kind == EEMOCantilanSDS.Domain.Enums.ObligationKind.KanmanggaySpaceRental ? RentalWorkspaceCatalog.Kanmanggay : Source.Kind == EEMOCantilanSDS.Domain.Enums.ObligationKind.FiestaArawLotRental ? RentalWorkspaceCatalog.FiestaAraw : null)"
+                         Presentation="Source" AccountId="AccountId" ServerAssignedNumber="@(Source.Kind != EEMOCantilanSDS.Domain.Enums.ObligationKind.FiestaArawLotRental)" ReportsHref="@Source.ReportsHref" ImportHref="@Source.ImportHref" />
+</div>
+
+@code {
+    [Parameter, EditorRequired] public SpaceAccountPresentation Source { get; set; } = null!;
+    [Parameter] public Guid? AccountId { get; set; }
+    private string Unit => Source.Kind == EEMOCantilanSDS.Domain.Enums.ObligationKind.FiestaArawLotRental ? "Lot" : "Space";
+}

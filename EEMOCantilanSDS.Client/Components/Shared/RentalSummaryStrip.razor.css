@@ -1,0 +1,8 @@
+.rental-summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 20px; margin-bottom: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.rental-summary-title { font-size: 14px; font-weight: 600; }
+.rental-summary-description { margin-top: 5px; color: var(--text-secondary); font-size: 12px; }
+.rental-summary-metrics { display: flex; gap: 26px; }
+.rental-summary-metrics > div { text-align: center; font-variant-numeric: tabular-nums; }
+.rental-summary-metrics strong { display: block; font-size: 18px; }
+.rental-summary-metrics span { display: block; margin-top: 4px; color: var(--text-secondary); font-size: 11px; }
+@media (max-width: 720px) { .rental-summary { flex-wrap: wrap; } .rental-summary-metrics { width: 100%; justify-content: space-between; gap: 12px; } }

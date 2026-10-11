@@ -1,0 +1,8 @@
+@page "/collections/fine-payment/{AssessmentId:guid}"
+@attribute [Authorize(Roles = "SuperAdmin,Admin,Collector")]
+@inject NavigationManager Navigation
+<FinePaymentDrawer AssessmentId="AssessmentId" OnClose="Close" />
+@code {
+    [Parameter] public Guid AssessmentId { get; set; }
+    private void Close() => Navigation.NavigateTo("/");
+}

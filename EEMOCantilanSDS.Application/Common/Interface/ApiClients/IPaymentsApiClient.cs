@@ -55,4 +55,14 @@ public interface IPaymentsApiClient
     Task<Result<IReadOnlyList<int>>> GetMarketClosuresAsync(int year, int month);
     Task<Result<bool>> SetMarketClosureAsync(SetNpmMarketClosureCommand command);
     Task<Result<bool>> ClearMarketClosureAsync(ClearNpmMarketClosureCommand command);
+
+    // The effective operating calendar: the weekly schedule plus the Head's explicit closures and openings (one answer for every view).
+    Task<Result<EEMOCantilanSDS.Application.Dtos.Payments.NpmOperatingCalendarDto>> GetNpmOperatingCalendarAsync(int year, int month) =>
+        Task.FromResult(Result<EEMOCantilanSDS.Application.Dtos.Payments.NpmOperatingCalendarDto>.Failure("The operating calendar is unavailable."));
+    Task<Result<EEMOCantilanSDS.Application.Dtos.Payments.NpmDayImpactDto>> GetNpmDayImpactAsync(DateOnly date) =>
+        Task.FromResult(Result<EEMOCantilanSDS.Application.Dtos.Payments.NpmDayImpactDto>.Failure("The day impact is unavailable."));
+    Task<Result<bool>> SetNpmOperatingScheduleAsync(EEMOCantilanSDS.Application.Command.Payments.SetNpmOperatingSchedule.SetNpmOperatingScheduleCommand command) =>
+        Task.FromResult(Result<bool>.Failure("The operating schedule is unavailable."));
+    Task<Result<bool>> RestoreNpmOperatingDayAsync(EEMOCantilanSDS.Application.Command.Payments.RestoreNpmOperatingDay.RestoreNpmOperatingDayCommand command) =>
+        Task.FromResult(Result<bool>.Failure("The operating day cannot be restored."));
 }

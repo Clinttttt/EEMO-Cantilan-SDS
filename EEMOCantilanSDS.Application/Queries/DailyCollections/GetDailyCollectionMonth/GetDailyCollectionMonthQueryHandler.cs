@@ -97,7 +97,9 @@ public class GetDailyCollectionMonthQueryHandler(
                     : 0m,
                 MeatKilos: collection.MeatKilos,
                 MeatFeeRatePerKilo: collection.MeatFeeRatePerKilo,
-                MeatFeeAmount: collection.IsPaid ? collection.MeatFeeAmount : 0m
+                MeatFeeAmount: collection.IsPaid ? collection.MeatFeeAmount : 0m,
+                PartSettled: collection.IsPartlyPaid ? collection.CanonicalSettledAmount : 0m,
+                IsPartial: collection.IsPartlyPaid
             );
 
             if (collection.IsPaid && day >= contractStartDay)
@@ -145,7 +147,8 @@ public class GetDailyCollectionMonthQueryHandler(
         }
 
         var daysMissed    = Math.Max(0, validDays - daysCollectedPast - daysAbsentPast - daysClosedPast);
-        var totalDailyFee = daysCollected * npmDaily;
+        // Money received on days that are only part paid belongs to the month too: it was collected, though the day is not yet complete.
+        var totalDailyFee = daysCollected * npmDaily + collections.Where(c => c.IsPartlyPaid && c.CollectionDate.Day >= contractStartDay).Sum(c => c.CanonicalSettledAmount);
         var totalFishFee  = totalFishKilos * fishRate;
         var grandTotal    = totalDailyFee + totalFishFee + totalMeatFee;
         // Fully settled when every collectable day from contract start is collected, excused, or closed.

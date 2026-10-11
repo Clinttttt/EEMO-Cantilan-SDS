@@ -13,34 +13,38 @@
    same server obligation read as the ECF workspace; nothing here is calculated, recorded or collected. The layout
    owns the <main> landmark. *@
 <div class="v3-page">
+    @* The hero is screen-only (no-print): the printed statements carry the government letterhead, never this band. *@
     <div class="no-print">
-        <WorkspaceHeader Parent="Electricity Consumption Fees" ParentHref="/operations/ecf" Title="ECF Statements" Code="ECF">
-            <Meta><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
-            <Actions>
-                <label class="v3-period">
-                    <span>Billing month</span>
-                    <input class="v3-input" type="month" aria-label="Billing month" value="@_monthInput" @onchange="ChangeMonthAsync" />
-                </label>
-                <a class="v3-btn" href="/operations/ecf">ECF workspace</a>
-            </Actions>
-        </WorkspaceHeader>
+        <V3Hero Compact="true" Eyebrow="Operations · ECF" Title="ECF Statements" FiguresLabel="ECF statement totals">
+            <Meta><span>@PeriodLabel</span><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
+            <Figures>
+                <V3HeroFigure Label="Statements" Value="@(Ready ? _lines.Select(l => (l.StallId, l.Payor)).Distinct().Count().ToString() : "—")" />
+                <V3HeroFigure Label="Assessed" Value="@(Ready ? Money(_lines.Sum(l => l.Assessed)) : "—")" />
+                <V3HeroFigure Label="Paid" Value="@(Ready ? Money(_lines.Sum(l => l.Settled)) : "—")" />
+                <V3HeroFigure Label="Balance" Value="@(Ready ? Money(_lines.Sum(l => l.Outstanding)) : "—")" />
+            </Figures>
+            <Actions><a href="/operations/ecf">ECF workspace</a></Actions>
+        </V3Hero>
     </div>
 
     @if (!string.IsNullOrWhiteSpace(_error))
     {
         <div class="no-print" role="alert">
-            <p class="v3-notice v3-notice-error">@_error</p>
-            <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadAsync">Try again</button>
+            <p class="v3-notice v3-notice-error v3-notice-row"><span>@_error</span> <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadAsync">Try again</button></p>
+            <div class="v3-toolbar">@MonthPicker</div>
         </div>
     }
     else if (_loading)
     {
-        <p role="status" class="no-print">Loading statements…</p>
+        <div class="no-print">
+            <div class="v3-toolbar">@MonthPicker</div>
+            <p role="status">Loading statements…</p>
+        </div>
     }
     else
     {
         <UtilityStatements UtilityCode="ECF" UtilityName="Electricity Consumption Fee (ECF)" InstrumentName="Official Receipt"
-                           PeriodLabel="@PeriodLabel" Lines="@_lines" />
+                           PeriodLabel="@PeriodLabel" Lines="@_lines" ShowSummary="false" Toolbar="MonthPicker" />
     }
 </div>
 
@@ -52,6 +56,16 @@
     private string? _error;
 
     private string PeriodLabel => _period.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+    private bool Ready => !_loading && _error is null;
+    private static string Money(decimal amount) => $"₱{amount.ToString("N2", CultureInfo.InvariantCulture)}";
+
+    private RenderFragment MonthPicker => __builder =>
+    {
+        <label class="v3-period">
+            <span>Billing month</span>
+            <input class="v3-input" type="month" aria-label="Billing month" value="@_monthInput" @onchange="ChangeMonthAsync" />
+        </label>
+    };
 
     protected override Task OnInitializedAsync() => LoadAsync();
 

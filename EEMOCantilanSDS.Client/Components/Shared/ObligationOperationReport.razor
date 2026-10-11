@@ -53,7 +53,7 @@
         <ReportLetterhead Title="@($"{Name} Status Report")" Period="@($"Fiscal year {_year} · as of {PhilippineTime.Today:MMMM d, yyyy}")">
             <Facts>
                 <div><dt>Classification</dt><dd>@Classification</dd></div>
-                <div><dt>Instrument</dt><dd>Official Receipt</dd></div>
+                <div><dt>Instrument</dt><dd>@InstrumentFact</dd></div>
             </Facts>
         </ReportLetterhead>
         <h2 id="@($"{IdPrefix}-title")" class="v3-sr-only">@Name report</h2>
@@ -153,6 +153,7 @@
     /// <summary>Event lot rental states the event and its approved amount rather than a monthly obligation.</summary>
     [Parameter] public bool ShowEvent { get; set; }
     [Parameter] public bool HistoricalPosition { get; set; }
+    [Parameter] public string InstrumentFact { get; set; } = "Official Receipt";
 
     [Parameter] public string? Basis { get; set; }
 

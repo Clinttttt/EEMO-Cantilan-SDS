@@ -22,4 +22,22 @@ public sealed record AddPenaltyDraftLineRequest(
 /// <summary>One posted fine, as recorded in the canonical Collection.</summary>
 public sealed record PenaltyRegisterRowDto(
     Guid CollectionId, DateOnly BusinessDate, DateTime RecordedAtUtc, string? PayerName, string? Origin,
-    string PenaltyCode, string PenaltyName, string ReferenceCode, decimal Amount, string Status);
+    string PenaltyCode, string PenaltyName, string ReferenceCode, decimal Amount, string Status,
+    decimal? EffectiveAmount = null, string Kind = PenaltyRegisterKinds.Definition, string? Account = null,
+    string? Facility = null, string? Reason = null);
+
+/// <summary>Which canonical fine source posted a register row; the three never share an identity.</summary>
+public static class PenaltyRegisterKinds
+{
+    public const string Definition = "Definition";
+    public const string Assessed = "Assessed";
+    public const string Direct = "Direct";
+}
+
+/// <summary>
+/// Server-authoritative headline figures for the Fines workspace. Collected and direct cash are effective (correction-aware)
+/// fine-classified line amounts for the period; outstanding is the unpaid balance of saved assessments as of today and is
+/// never counted as collected.
+/// </summary>
+public sealed record PenaltyWorkspaceSummaryDto(DateOnly From, DateOnly To, decimal Collected, decimal DirectCollected,
+    decimal OutstandingAssessed, int OutstandingAssessments);

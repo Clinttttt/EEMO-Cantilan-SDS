@@ -35,6 +35,12 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
     /// <summary>Optional documented space occupancy basis; null preserves older unspecified evidence.</summary>
     public OccupancyArrangement? Arrangement { get; private set; }
     public string? ContractReference { get; private set; }
+    // Recorded source-native lease metadata; null means unknown, not an inferred legacy contract.
+    public string? ContractName { get; private set; }
+    public DateOnly? ContractEffectiveDate { get; private set; }
+    public int? ContractYears { get; private set; }
+    public decimal? AreaSqm { get; private set; }
+    public string? AreaLocation { get; private set; }
     public DateTime CreatedAtUtc { get; private set; }
     public string CreatedBy { get; private set; } = string.Empty;
 
@@ -51,7 +57,7 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
     {
         var holder = string.IsNullOrWhiteSpace(actualOccupant) ? null : actualOccupant.Trim();
         if (municipalityId == Guid.Empty || holder?.Length > 200 || payorId == Guid.Empty &&
-            (holder is null || kind is not (ObligationKind.KanmanggaySpaceRental or ObligationKind.FiestaArawLotRental)))
+            (holder is null || !IsSpaceKind(kind)))
             throw new ArgumentException("A tenant and an explicit source holder are required.");
         if (!Enum.IsDefined(kind))
             throw new ArgumentOutOfRangeException(nameof(kind));
@@ -104,7 +110,7 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
     {
         var reference = string.IsNullOrWhiteSpace(contractReference) ? null : contractReference.Trim();
         if (arrangement is null && reference is null) return;
-        if (Kind is not (ObligationKind.KanmanggaySpaceRental or ObligationKind.FiestaArawLotRental))
+        if (!IsSpaceKind(Kind))
             throw new ArgumentException("Occupancy basis is only supported for space and event lot accounts.");
         if (arrangement is not (OccupancyArrangement.SignedContract or OccupancyArrangement.SpaceOnly))
             throw new ArgumentException("Choose signed contract or space only.");
@@ -114,6 +120,52 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
             throw new ArgumentException("Space-only occupancy has no contract reference.");
         Arrangement = arrangement;
         ContractReference = reference;
+    }
+
+    /// <summary>Stores source-native descriptive evidence; never changes assessment or account lifecycle.</summary>
+    public void SetLeaseDetails(string? contractName, DateOnly? contractDate, int? years, decimal? area, string? location)
+    {
+        if (!IsMonthlySpaceKind(Kind))
+            throw new ArgumentException("Lease details apply only to monthly space accounts.");
+        var name = string.IsNullOrWhiteSpace(contractName) ? null : contractName.Trim();
+        var note = string.IsNullOrWhiteSpace(location) ? null : location.Trim();
+        if (name?.Length > 200 || note?.Length > 250)
+            throw new ArgumentException("Lease name/location exceeds allowed length.");
+        if (area is < 0m or > 1000000m || area is { } sqm && decimal.Round(sqm, 2) != sqm)
+            throw new ArgumentException("Area must be a nonnegative number with up to two decimals.");
+        if (Arrangement != OccupancyArrangement.SignedContract && (name is not null || contractDate is not null || years is not null))
+            throw new ArgumentException("Signed contract evidence requires signed contract occupancy.");
+        if (years is not null && years is < 1 or > 50)
+            throw new ArgumentException("Contract duration must be between 1 and 50 years.");
+        if (Kind == ObligationKind.KanmanggaySpaceRental && Arrangement == OccupancyArrangement.SignedContract && years is not null && years != 3)
+            throw new ArgumentException("Kanmanggay's recorded signed contract duration must follow the MEEDO three-year standard.");
+        if (contractDate is { } date && (date.Year != ActiveFrom.Year || date.Month != ActiveFrom.Month))
+            throw new ArgumentException("Contract effective date and billing start must be within the same month.");
+        ContractName = name;
+        ContractEffectiveDate = contractDate;
+        ContractYears = years;
+        AreaSqm = area is 0m ? null : area;
+        AreaLocation = note;
+    }
+
+    /// <summary>Corrects source-native holder evidence. A financial period fixes the occupant and lease term;
+    /// moving occupancy to another person requires closure and a new accountable term instead.</summary>
+    public void CorrectHolderEvidence(string actualOccupant, OccupancyArrangement arrangement, string? reference,
+        string? contractName, DateOnly? contractDate, int? years, decimal? area, string? location,
+        bool hasAssessedPeriods)
+    {
+        if (!IsMonthlySpaceKind(Kind) || ActiveTo is not null)
+            throw new ArgumentException("Only active monthly space accounts may correct holder details.");
+        var holder = (actualOccupant ?? string.Empty).Trim();
+        if (holder.Length is 0 or > 200)
+            throw new ArgumentException("Enter an actual occupant up to 200 characters.");
+        if ((hasAssessedPeriods || PayorId is not null) && !string.Equals(holder, ActualOccupant, StringComparison.Ordinal))
+            throw new ArgumentException("This account has assessed history or a linked Payor. Close it and open a successor for a different occupant.");
+        if (hasAssessedPeriods && (arrangement != Arrangement || contractDate != ContractEffectiveDate || years != ContractYears))
+            throw new ArgumentException("Recorded lease basis, start and term are locked after assessment. Correct descriptive notes only.");
+        SetOccupancyBasis(arrangement, reference);
+        SetLeaseDetails(contractName, contractDate, years, area, location);
+        ActualOccupant = holder;
     }
 
     /// <summary>
@@ -136,7 +188,7 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
     }
 
     /// <summary>The first monthly liability uses the approved rate at actual occupancy start, never a backdated rate.</summary>
-    public DateOnly RateAsOf(DateOnly periodStart) => Kind == ObligationKind.KanmanggaySpaceRental && periodStart.Year == ActiveFrom.Year &&
+    public DateOnly RateAsOf(DateOnly periodStart) => IsMonthlySpaceKind(Kind) && periodStart.Year == ActiveFrom.Year &&
         periodStart.Month == ActiveFrom.Month && periodStart < ActiveFrom ? ActiveFrom : periodStart;
 
     public static string ClassificationCodeFor(ObligationKind kind) => kind switch
@@ -144,8 +196,13 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
         ObligationKind.FishMeatVendorFee => RevenueClassificationCodes.FishMeatVendorFee,
         ObligationKind.KanmanggaySpaceRental => RevenueClassificationCodes.KanmanggaySpaceRental,
         ObligationKind.FiestaArawLotRental => RevenueClassificationCodes.FiestaArawLotRental,
+        ObligationKind.VegetableFruitSpaceRental => RevenueClassificationCodes.VegetableFruitSpaceRental,
         _ => throw new ArgumentOutOfRangeException(nameof(kind))
     };
+
+    public static bool IsMonthlySpaceKind(ObligationKind kind) => kind is ObligationKind.KanmanggaySpaceRental or ObligationKind.VegetableFruitSpaceRental;
+    public static bool IsSpaceKind(ObligationKind kind) => IsMonthlySpaceKind(kind) || kind == ObligationKind.FiestaArawLotRental;
+    public static string? OperationCodeFor(ObligationKind kind) => IsSpaceKind(kind) ? ClassificationCodeFor(kind) : null;
 }
 
 /// <summary>

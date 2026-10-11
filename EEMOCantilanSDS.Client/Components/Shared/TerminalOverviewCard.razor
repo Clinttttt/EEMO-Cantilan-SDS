@@ -1,0 +1,31 @@
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Constants
+@inject IOfficeSourcesApiClient Api
+@* Income From Terminal (IFT) — a presentation acronym only; the persisted FacilityCode.TRM, trip history, routes and the
+   source-native activity read are unchanged. Same pale civic-blue card family as the facility cards, but its own two figures. *@
+<div class="terminal-card" aria-label="Income From Terminal" aria-busy="@(_loading ? "true" : "false")">
+    <header><div class="tc-icon"><FacilityMark Code="FacilityCode.TRM" Ink="FacilityMarkInk.Navy" Size="20" /></div><div class="tc-meta"><small>IFT</small><strong>Income From Terminal</strong><span>Terminal collections</span></div></header>
+    @if (_loading) { <div role="status"><Skeleton Height="54px" /><span class="v3-sr-only">Loading Terminal collections…</span></div> }
+    else if (_error is not null) { <p role="alert">@_error <button type="button" class="v3-btn v3-btn-sm" @onclick="Load">Retry</button></p> }
+    else { <dl><div><dd>₱@_rows.Sum(x=>x.NetAmount).ToString("N0")</dd><dt>Collected @PeriodLabel</dt></div><div><dd>@_rows.Count(x=>x.BusinessDate==PhilippineTime.Today && x.NetAmount>0).ToString("N0")</dd><dt>Collections today</dt></div></dl> }
+    <a href="/operations/terminal">Open Income From Terminal <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 6 15 12 9 18" /></svg></a>
+</div>
+@code {
+    [Parameter] public int Year { get; set; }
+    [Parameter] public int Month { get; set; }
+    private int _year, _month;
+    private bool _loading=true;
+    private string? _error;
+    private IReadOnlyList<SourceNativeActivityDto> _rows=[];
+    private string PeriodLabel => Year==PhilippineTime.Today.Year && Month==PhilippineTime.Today.Month ? "this month" : new DateOnly(Year,Month,1).ToString("MMM yyyy");
+    protected override async Task OnParametersSetAsync() { if(_year==Year && _month==Month) return; _year=Year;_month=Month;await Load(); }
+    private async Task Load() {
+        _loading=true; _error=null; _rows=[];
+        var from=new DateOnly(Year,Month,1); var to=from.AddMonths(1).AddDays(-1);
+        try { var result=await Api.ActivityAsync(from,to,CollectorOperationCodes.Terminal);
+            if(result is {IsSuccess:true,Value:not null} && result.Value.All(x=>x.OperationCode==CollectorOperationCodes.Terminal && x.BusinessDate>=from && x.BusinessDate<=to)) _rows=result.Value;
+            else _error="Terminal collections are unavailable.";
+        } catch { _error="Terminal collections are unavailable."; } finally { _loading=false; }
+    }
+}

@@ -1,52 +1,163 @@
-/* Fines — V3. Panels, tables and forms come from the v3- layer in app.css. */
+/* Fines — V3. Panels, tables and forms come from the v3- layer in app.css; this file adds the workspace's own register polish. */
 
 .fn-page {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 12px;
 }
 
-.fn-notice {
-    margin: 12px 20px 0;
-}
+/* ── Hero ─────────────────────────────────────────────────────────────────────
+   The shared hero carries its own bottom margin; the page gap already spaces it from the tabs. */
+.fn-page ::deep .v3h { margin-bottom: 0; }
+.fn-page ::deep .v3h-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
 
-.fn-period {
-    display: inline-flex;
-    align-items: center;
+/* The Official Receipt marker sits on the blue band as a light pill so it reads as an official context indicator. */
+.fn-or { display: inline-flex; }
+.fn-or ::deep .ic {
     gap: 8px;
+    padding: 3px 12px 3px 4px;
+    border-radius: 999px;
+    background: #ffffff;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.55);
+}
+.fn-or ::deep .ic-code {
+    height: 20px;
+    border-color: var(--gold);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--gold) 22%, #ffffff);
+    color: var(--navy);
+    font-weight: 700;
+}
+.fn-or ::deep .ic-name { color: var(--navy); font-size: 0.8125rem; font-weight: 600; }
+
+/* ── Section tabs: pinned under the viewport top while a long register scrolls ── */
+.fn-nav {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    margin-top: 4px;
+    background: var(--canvas);
+    border-bottom: 1px solid var(--border);
+}
+.fn-tabs { display: flex; gap: 4px; max-width: 100%; overflow-x: auto; }
+.fn-tab {
+    min-height: 44px;
+    padding: 0 16px;
+    margin-bottom: -1px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color .15s ease, border-color .15s ease;
+}
+.fn-tab:hover { color: var(--accent); }
+.fn-tab.active { border-bottom-color: var(--accent); color: var(--navy); }
+.fn-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
+
+/* ── Panel header and toolbar ── */
+.fn-page .v3-panel-header { flex-wrap: wrap; gap: 10px 16px; }
+.fn-meta { margin-right: auto; }
+.fn-header-actions { display: inline-flex; gap: 8px; }
+.fn-search { gap: 10px; }
+.fn-search .v3-field:first-child { flex: 1 1 260px; max-width: 440px; }
+.fn-search .v3-field { min-width: 0; }
+.fn-search input, .fn-search select { width: 100%; }
+
+.fn-period { display: inline-flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 0.8125rem; font-weight: 500; }
+.fn-notice { margin: 12px 20px 0; }
+
+/* ── Registers ── */
+.fn-table th { padding-top: 11px; padding-bottom: 11px; }
+.fn-table td { padding-top: 14px; padding-bottom: 14px; vertical-align: top; }
+.fn-table tbody tr:hover td { background: var(--accent-soft); }
+.fn-table tbody tr:hover .v3-empty { background: var(--surface); }
+.fn-table td > strong { display: block; color: var(--navy); font-weight: 600; }
+.fn-nowrap { white-space: nowrap; }
+.fn-secondary { color: var(--text-secondary); }
+.fn-date { color: var(--text); font-weight: 600; }
+.fn-src { color: var(--text-secondary); font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 0.75rem; letter-spacing: .02em; }
+.fn-rule { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--navy); }
+
+/* Fine source: a small label, one per row, so direct cash and assessed settlements read apart at a glance. */
+.fn-kind {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 1px 8px;
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    background: var(--surface-muted);
+    color: var(--text-secondary);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: .03em;
+}
+.fn-kind-direct { border-color: color-mix(in srgb, var(--gold) 60%, var(--border)); background: color-mix(in srgb, var(--gold) 12%, var(--surface)); color: #7a5c10; }
+.fn-kind-assessed { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); background: var(--accent-soft); color: var(--accent); }
+
+.fn-reason {
+    max-width: 38ch;
+    margin-top: 6px;
     color: var(--text-secondary);
     font-size: 0.8125rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
+.fn-amount { color: var(--navy); font-size: 0.9375rem; font-weight: 700; }
+.fn-amount-void { color: var(--text-tertiary); }
+.fn-amount .v3-block { font-size: 0.6875rem; font-weight: 500; }
+
+/* Row actions stay together at the right edge, quiet until hovered. */
+.fn-row-actions { width: 1%; white-space: nowrap; }
+.fn-row-actions .v3-btn { gap: 6px; }
+
+.fn-table tfoot td {
+    padding-top: 12px;
+    padding-bottom: 12px;
+    border-top: 1px solid var(--border-strong);
+    background: var(--surface-muted);
+}
+.fn-table tfoot .v3-num { font-size: 0.9375rem; font-weight: 700; color: var(--navy); }
+
+.fn-table .v3-empty { padding: 36px 20px; }
+.fn-table .v3-empty-block svg { width: 32px; height: 32px; }
+
+/* ── Penalty definition form ── */
 .fn-form {
     display: flex;
     flex-direction: column;
     gap: 12px;
     padding: 16px 20px 20px;
     border-top: 1px solid var(--border);
+    background: var(--surface-muted);
+}
+.fn-check { display: flex; align-items: center; gap: 8px; font-size: 0.8125rem; }
+.fn-note { margin: 0; color: var(--text-secondary); font-size: 0.8125rem; line-height: 1.45; }
+.fn-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+.v3-panel-note a { color: var(--accent); font-weight: 600; }
+
+@media (max-width: 768px) {
+    .fn-tab { flex: 1 1 auto; padding: 0 10px; }
+    .fn-nav { margin-top: 0; }
 }
 
-.fn-check {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.8125rem;
+@media (max-width: 480px) {
+    .fn-period { width: 100%; }
+    .fn-search { align-items: stretch; }
+    .fn-header-actions { width: 100%; }
+    .fn-header-actions .v3-btn { flex: 1 1 0; }
+    .fn-tab { font-size: 0.8125rem; }
 }
 
-.fn-note {
-    margin: 0;
-    color: var(--text-secondary);
-    font-size: 0.8125rem;
-    line-height: 1.45;
-}
-
-.fn-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-}
-
-.v3-panel-note a {
-    color: var(--accent);
-    font-weight: 600;
+@media (prefers-reduced-motion: reduce) {
+    .fn-tab { transition: none; }
 }

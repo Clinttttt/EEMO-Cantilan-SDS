@@ -1,0 +1,158 @@
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@using EEMOCantilanSDS.Domain.Enums
+@inject IPenaltiesApiClient Api
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="fine-assessment" @ref="_root">
+<AddNewDrawer Show="true" Title="Assess fine" Subtitle="Record an authorized outstanding fine." FormId="assess-fine" FormLabel="Assess fine" Saving="_saving" Error="@_error" OnCancel="Cancel" OnFooterCancel="BackOrCancel" CancelText="@(_review ? "Back" : "Cancel")" SubmitText="@(_review ? "Confirm assessment" : "Review assessment")" OnSubmit="Submit">
+    <ChildContent>
+        @if (_loading) { <p role="status">Loading fine categories…</p> }
+        else if (_review && _selected is not null && SelectedPolicy is not null)
+        {
+            @Steps
+            <AddNewSection Plain="true" Title="Liable account">
+                @AccountCard(_selected)
+            </AddNewSection>
+            <AddNewSection Plain="true" Title="Assessment summary">
+                <dl class="fine-facts">
+                    <div><dt>Fine category</dt><dd>@SelectedPenalty?.DisplayName</dd></div><div><dt>Violation date</dt><dd>@_violation.ToString("MMM d, yyyy")</dd></div>
+                    <div class="fine-wide"><dt>Related period</dt><dd>@(SelectedPeriod?.Label ?? "Not related to a billing period")</dd></div>
+                    <div class="fine-wide"><dt>Reason</dt><dd>@_reason</dd></div>
+                    @if (_incident.Length>0) { <div class="fine-wide"><dt>Incident reference</dt><dd>@_incident</dd></div> }
+                    <div class="fine-wide"><dt>Governing reference</dt><dd>@SelectedPolicy.Evidence.GoverningReference</dd></div>
+                </dl>
+                <div class="fine-total"><span>Fine amount</span><strong>@Money(_amount)</strong><small>Recorded as an outstanding obligation. No money is collected by saving.</small></div>
+                @if (_duplicate) { <label class="fine-check"><input type="checkbox" @bind="_confirmDuplicate" /> Existing assessment reviewed; this is a separate incident.</label> }
+            </AddNewSection>
+        }
+        else
+        {
+            @Steps
+            <AddNewSection Plain="true" Title="Liable account">
+                @if (_selected is null && Account is null)
+                {
+                    <div class="fine-search"><label class="v3-field"><span>Search registered accounts</span><input @bind="_search" placeholder="Occupant or unit number" maxlength="100" /></label><button class="v3-btn" type="button" @onclick="Search" disabled="@_searching">Search</button></div>
+                    @if (_searching) { <p class="fine-hint" role="status">Searching accounts…</p> }
+                    <div class="fine-results" aria-label="Registered accounts">@foreach (var option in _options) { <button class="fine-result" type="button" @onclick="() => Select(option)"><span class="fine-result-head"><strong>@option.Occupant</strong><span class="status-pill @AccountPill(option)">@AccountStatus(option)</span></span><span>@AccountLabel(option)</span><small>@TermLabel(option)</small></button> }</div>
+                    @if (_searched && !_searching && _options.Count==0) { <p class="fine-hint">No registered accounts match.</p> }
+                    @if (!_searched) { <p class="fine-hint">Search by occupant name or unit number, then choose the exact registered account the fine is imposed on.</p> }
+                }
+                @if (_selected is not null)
+                {
+                    @AccountCard(_selected)
+                    @if (Account is null) { <button class="v3-btn v3-btn-sm fine-change" type="button" @onclick="ChangeAccount">Change account</button> }
+                }
+            </AddNewSection>
+            <AddNewSection Plain="true" Title="Fine details">
+                @if (_selected is null) { <p class="fine-hint">Select an account to view applicable fines.</p> }
+                else if (!EligiblePolicies.Any()) { <div class="fine-empty"><p>No approved fine policy is configured for this source.</p><span>A fine can only be assessed under an approved category and governing authority.</span><AuthorizeView Roles="SuperAdmin"><Authorized><a class="v3-btn v3-btn-sm" href="/operations/fines?view=settings">Configure penalty settings</a></Authorized></AuthorizeView></div> }
+                else
+                {
+                    <div class="avm-row-2">
+                        <label class="v3-field"><span>Fine category</span><select required value="@_policyId" @onchange="PolicyChanged"><option value="@Guid.Empty">Select fine category</option>@foreach(var p in EligiblePolicies) { <option value="@p.Id">@PenaltyName(p)</option> }</select></label>
+                        <label class="v3-field"><span>Violation date</span><input type="date" required @bind="_violation" /></label>
+                        <label class="v3-field fine-wide"><span>Related billing period (optional)</span><select aria-label="Related billing period" @bind="_periodIndex"><option value="-1">Not related to a billing period</option>@for(var i=0;i<_periods.Count;i++) { <option value="@i">@_periods[i].Label</option> }</select></label>
+                        @if (_selected.Facility==FacilityCode.NPM) { <label class="v3-field"><span>Daily charge year</span><input type="number" min="1900" max="9998" @bind="_periodYear" @bind:after="LoadPeriods" /></label> }
+                        @if (_periodLoading) { <p class="fine-wide" role="status">Loading source periods…</p> }
+                        @if (_periodError is not null) { <p class="fine-wide" role="status">@_periodError <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadPeriods">Retry</button></p> }
+                        <label class="v3-field"><span>Fine amount (₱)</span><input aria-label="Fine amount" type="number" required min="0.01" step="0.01" readonly="@(SelectedPenalty?.Basis==GovernedServiceBasis.FixedAmount)" @bind="_amount" /></label>
+                        @if (SelectedPenalty is { } penalty) { <p class="fine-amount-rule">@(penalty.Basis==GovernedServiceBasis.FixedAmount ? $"Fixed approved amount: ₱{penalty.FixedAmount:N2}" : penalty.MaximumAmount is { } ceiling ? $"Maximum ₱{ceiling:N2}" : "Head-entered amount · authorized without a ceiling")</p> }
+                        <label class="v3-field fine-wide"><span>Reason / description</span><textarea class="avm-input" rows="3" required maxlength="1000" @bind="_reason"></textarea></label>
+                        <label class="v3-field fine-wide"><span>Incident / reference (optional)</span><input maxlength="200" @bind="_incident" placeholder="Recorded case or notice reference" /></label>
+                    </div>
+                }
+            </AddNewSection>
+        }
+    </ChildContent>
+</AddNewDrawer>
+</div>
+
+@code {
+    [Parameter] public FineAccountRef? Account { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+    [Parameter] public EventCallback<FineAssessmentDto> OnCreated { get; set; }
+    [Parameter] public bool ManageFocus { get; set; } = true;
+    private ElementReference _root;
+    private IJSObjectReference? _focus;
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if(!firstRender || !ManageFocus) return;
+        try { _focus=await JS.InvokeAsync<IJSObjectReference>("import","./js/account-review.js");if(_focus is not null) await _focus.InvokeVoidAsync("bind",_root); }catch(InvalidOperationException) { }
+    }
+    public async ValueTask DisposeAsync() { if(_focus is null) return;try {await _focus.InvokeVoidAsync("release",_root);await _focus.DisposeAsync();}catch(JSDisconnectedException) { } }
+    private List<FineAccountOption> _options=[]; private List<FinePolicyDto> _policies=[]; private List<PenaltyDefinitionDto> _definitions=[]; private List<FinePeriodOption> _periods=[];
+    private FineAccountOption? _selected;
+    private string _search="",_incident="",_reason=""; private Guid _policyId,_operation;
+    private DateOnly _violation=EEMOCantilanSDS.Domain.Common.PhilippineTime.Today;
+    private int _periodIndex=-1,_periodYear=EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year; private decimal _amount;
+    private bool _loading=true,_searching,_searched,_saving,_review,_duplicate,_confirmDuplicate,_periodLoading; private string? _error,_periodError;
+    private FinePeriodOption? SelectedPeriod => _periodIndex>=0 && _periodIndex<_periods.Count ? _periods[_periodIndex] : null;
+    private IEnumerable<FinePolicyDto> EligiblePolicies => _policies.Where(p=>_selected is not null && p.Evidence.AccountKind==_selected.Account.Kind && p.Evidence.Facility==_selected.Facility && (!_selected.Closed||p.Evidence.AllowsClosedAccount) && _definitions.Any(d=>d.VersionId==p.Evidence.PenaltyVersionId&&d.IsActive));
+    private FinePolicyDto? SelectedPolicy => EligiblePolicies.SingleOrDefault(p=>p.Id==_policyId);
+    private PenaltyDefinitionDto? SelectedPenalty => _definitions.SingleOrDefault(d=>d.VersionId==SelectedPolicy?.Evidence.PenaltyVersionId);
+    private string PenaltyName(FinePolicyDto p)=>_definitions.SingleOrDefault(d=>d.VersionId==p.Evidence.PenaltyVersionId)?.DisplayName ?? "Unavailable category";
+    private static string AccountLabel(FineAccountOption a)=>string.Join(" · ",new[]{a.Source,a.Area,a.Unit}.Where(x=>!string.IsNullOrWhiteSpace(x)));
+    private static string Money(decimal amount)=>$"₱{amount.ToString("N2",System.Globalization.CultureInfo.InvariantCulture)}";
+    private static string AccountStatus(FineAccountOption a)=>a.Lifecycle ?? (a.Closed ? "Closed" : "Active");
+    private static string AccountPill(FineAccountOption a)=>a.Closed ? "pill-inactive" : "pill-active";
+    private static string KindLabel(FineAccountKind kind)=>System.Text.RegularExpressions.Regex.Replace(kind.ToString(),"(?<=[a-z])(?=[A-Z])"," ");
+    private int CurrentStep => _review ? 3 : _selected is null ? 1 : 2;
+    private static readonly (int Number,string Label)[] StepLabels=[(1,"Account"),(2,"Fine details"),(3,"Review")];
+    private RenderFragment Steps => @<ol class="fine-steps" aria-label="Assessment steps">
+        @foreach (var step in StepLabels) { <li class="@(step.Number==CurrentStep ? "current" : step.Number<CurrentStep ? "done" : "")" aria-current="@(step.Number==CurrentStep ? "true" : "false")"><span class="fine-step-n" aria-hidden="true">@step.Number</span>@step.Label</li> }
+    </ol>;
+    private RenderFragment AccountCard(FineAccountOption a) => @<div class="fine-account">
+        <div class="fine-account-head"><div><strong class="fine-account-name">@a.Occupant</strong><span class="fine-account-sub">@AccountLabel(a)</span></div><span class="status-pill @AccountPill(a)">@AccountStatus(a)</span></div>
+        <dl class="fine-account-facts">
+            <div><dt>Facility / source</dt><dd>@a.Source</dd></div>
+            <div><dt>Stall / unit</dt><dd>@a.Unit</dd></div>
+            @if (!string.IsNullOrWhiteSpace(a.Area)) { <div><dt>Area / section</dt><dd>@a.Area</dd></div> }
+            <div><dt>Recorded term</dt><dd>@TermLabel(a)</dd></div>
+            <div><dt>Account type</dt><dd>@KindLabel(a.Account.Kind)</dd></div>
+        </dl>
+    </div>;
+    private void ChangeAccount() { _selected=null; _policyId=Guid.Empty; _periods=[]; _periodIndex=-1; _amount=0; _error=null; _review=false; }
+    private static string TermLabel(FineAccountOption a)=>a.StartsOn is { } start ? $"{start:MMM d, yyyy} – {a.EndsOn:MMM d, yyyy}" : "Registered account";
+    protected override async Task OnInitializedAsync()
+    {
+        try {
+            var policies=await Api.GetFinePoliciesAsync(); var definitions=await Api.GetDefinitionsAsync();
+            if(policies is not {IsSuccess:true,Value:not null} || definitions is not {IsSuccess:true,Value:not null}) { _error="Fine categories could not be loaded. Retry from the account."; return; }
+            _policies=policies.Value.ToList(); _definitions=definitions.Value.Concat(_policies.Where(p=>p.Definition is not null).Select(p=>p.Definition!)).DistinctBy(d=>d.VersionId).ToList();
+            if(Account is not null) { var result=await Api.GetFineAccountAsync(Account); if(result is {IsSuccess:true,Value:not null} && result.Value.Account==Account) await Select(result.Value); else _error="The liable source account is unavailable."; }
+        } catch { _error="Fine categories are unavailable. Retry from the account."; } finally { _loading=false; }
+    }
+    private async Task Search() { _searching=true;_searched=true;_error=null;
+        try { var result=await Api.SearchFineAccountsAsync(_search); if(result is {IsSuccess:true,Value:not null}) _options=result.Value.ToList(); else _error="Registered account search failed."; }
+        catch { _error="Registered account search is unavailable."; } finally { _searching=false; } }
+    private async Task Select(FineAccountOption option) { _selected=option;_policyId=Guid.Empty;_error=null;_amount=0; await LoadPeriods(); }
+    private int _periodRequest;
+    private async Task LoadPeriods() { var request=++_periodRequest;_periodLoading=true;_periodIndex=-1;_periods=[];_periodError=null;var account=_selected?.Account;
+        if(account is null) { _periodLoading=false;return; }
+        try { var result=await Api.GetFinePeriodsAsync(account,_selected?.Facility==FacilityCode.NPM ? _periodYear : null);
+            if(_selected?.Account!=account || request!=_periodRequest) return;
+            if(result is {IsSuccess:true,Value:not null}) _periods=result.Value.ToList(); else _periodError="Related period evidence is unavailable. Leave unselected or retry."; }
+        catch { if(request==_periodRequest) _periodError="Related period evidence is unavailable. Leave unselected or retry."; } finally { if(request==_periodRequest) _periodLoading=false; } }
+    private void PolicyChanged(ChangeEventArgs args) { _policyId=Guid.TryParse(args.Value?.ToString(),out var id)?id:Guid.Empty; if(SelectedPenalty?.Basis==GovernedServiceBasis.FixedAmount) _amount=SelectedPenalty.FixedAmount??0; }
+    private Task Cancel()=>_saving?Task.CompletedTask:OnClose.InvokeAsync();
+    private Task BackOrCancel() { if(_saving) return Task.CompletedTask;if(_review) {_review=false;return Task.CompletedTask;}return Cancel(); }
+    private async Task Submit()
+    {
+        if(_saving||_loading) return;
+        if(_selected is null) { _error="Select a verified account first.";return; }
+        if(SelectedPolicy is null) { _error="Select an applicable approved fine category.";return; }
+        if(string.IsNullOrWhiteSpace(_reason)) { _error="Enter the incident description.";return; }
+        if(_amount<=0 || decimal.Round(_amount,2)!=_amount) { _error="Enter a positive fine amount in centavos.";return; }
+        if(SelectedPenalty?.FixedAmount is { } fixedAmount && SelectedPenalty.Basis==GovernedServiceBasis.FixedAmount && _amount!=fixedAmount) { _error="Use the approved fixed amount.";return; }
+        if(SelectedPenalty?.MaximumAmount is { } maximum && _amount>maximum) { _error=$"The approved maximum is ₱{maximum:N2}.";return; }
+        if(_violation>EEMOCantilanSDS.Domain.Common.PhilippineTime.Today) { _error="Violation date cannot be in the future.";return; }
+        if(!_review) { _review=true;_operation=Guid.NewGuid();_error=null;_duplicate=false;_confirmDuplicate=false;return; }
+        if(_duplicate&&!_confirmDuplicate) { _error="Review the possible duplicate before confirming.";return; }
+        _saving=true;_error=null;
+        try { var result=await Api.CreateAssessmentAsync(new(_operation,_selected.Account,_policyId,_violation,_incident,_reason,_amount,_confirmDuplicate,SelectedPeriod?.Reference));
+            if(result is {IsSuccess:true,Value:not null}) { await OnCreated.InvokeAsync(result.Value); await OnSaved.InvokeAsync(); } else { _error=result?.Error??"The assessment could not be saved.";_duplicate=_error.Contains("POSSIBLE_DUPLICATE",StringComparison.Ordinal); } }
+        catch { _error="Result unavailable. Retry unchanged details to recover this assessment."; } finally { _saving=false; }
+    }
+}

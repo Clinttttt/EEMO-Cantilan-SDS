@@ -53,6 +53,24 @@ public class AddVendorModalSpaceNumberingTests : TestContext
         FeeTypes = new List<string>()
     };
 
+    [Theory]
+    [InlineData("NCC")]
+    [InlineData("TCC")]
+    [InlineData("NPM")]
+    [InlineData("ICE")]
+    [InlineData("BBQ")]
+    public void ExistingFacilityImportStaysInRegistrationFooter(string facility)
+    {
+        var form = CommercialSpace();
+        form.FacilityCode = facility;
+        var cut = RenderForm(form);
+        var import = cut.FindAll("footer button").Single(x => x.TextContent.Trim() == "Import list");
+        Assert.Equal("button", import.GetAttribute("type"));
+        SpaceHolderWorkspaceTests.SaveVisualArtifact(facility.ToLowerInvariant() + "-registration", cut.Markup);
+        import.Click();
+        Assert.EndsWith("/import/" + facility.ToLowerInvariant(), Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().Uri);
+    }
+
     [Fact]
     public void ASignedContract_IsAskedForAStallNumber()
     {

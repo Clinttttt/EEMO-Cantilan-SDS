@@ -70,9 +70,9 @@ public partial class PaymentRepository
         var rateSnapshot = await _feeRateResolver.GetSnapshotAsync(ct);
         var dailies = await _context.DailyCollections
             .AsNoTracking()
-            .Where(dc => dc.StallId == stallId && dc.IsPaid
+            .Where(dc => dc.StallId == stallId && (dc.IsPaid || dc.CanonicalSettledAmount > 0m)
                 && dc.CollectionDate >= windowStart && dc.CollectionDate <= windowEnd)
-            .Select(dc => new { dc.CollectionDate, dc.DailyFee, dc.CollectorId, dc.ORNumber })
+            .Select(dc => new { dc.CollectionDate, DailyFee = dc.IsPaid ? dc.DailyFee : dc.CanonicalSettledAmount, dc.CollectorId, dc.ORNumber })
             .ToListAsync(ct);
 
         // Excused/absent dates — these days are not owed, so they reduce each month's ₱30/day bill
@@ -87,11 +87,7 @@ public partial class PaymentRepository
 
         // NPM market closures (facility-wide) also excuse the day — fold them in so a closed day is
         // never billed/Unpaid in the history (mirrors the ledger summary + Financial Reports).
-        var historyClosedDates = await _context.NpmMarketClosures
-            .AsNoTracking()
-            .Where(c => c.ClosureDate >= windowStart && c.ClosureDate <= windowEnd)
-            .Select(c => c.ClosureDate)
-            .ToListAsync(ct);
+        var historyClosedDates = await _context.EffectiveNpmClosedDatesAsync(windowStart, windowEnd, ct);
         absentDates.UnionWith(historyClosedDates);
 
         var collectorIds = dailies.Where(d => d.CollectorId.HasValue).Select(d => d.CollectorId!.Value)
@@ -233,9 +229,9 @@ public partial class PaymentRepository
         var dailies = isNpm
             ? await _context.DailyCollections
                 .AsNoTracking()
-                .Where(dc => dc.StallId == stallId && dc.IsPaid
+                .Where(dc => dc.StallId == stallId && (dc.IsPaid || dc.CanonicalSettledAmount > 0m)
                     && dc.CollectionDate >= windowStart && dc.CollectionDate <= windowEnd)
-                .Select(dc => new { dc.CollectionDate, dc.DailyFee })
+                .Select(dc => new { dc.CollectionDate, DailyFee = dc.IsPaid ? dc.DailyFee : dc.CanonicalSettledAmount })
                 .ToListAsync(ct)
             : new();
 
@@ -252,12 +248,7 @@ public partial class PaymentRepository
 
         // NPM market closures (facility-wide) also excuse the day — union them with per-stall absences.
         var marketClosedDates = isNpm
-            ? (await _context.NpmMarketClosures
-                .AsNoTracking()
-                .Where(c => c.ClosureDate >= windowStart && c.ClosureDate <= windowEnd)
-                .Select(c => c.ClosureDate)
-                .ToListAsync(ct))
-                .ToHashSet()
+            ? await _context.EffectiveNpmClosedDatesAsync(windowStart, windowEnd, ct)
             : new HashSet<DateOnly>();
         var excusedDates = new HashSet<DateOnly>(absentDates);
         excusedDates.UnionWith(marketClosedDates);
@@ -406,15 +397,13 @@ public partial class PaymentRepository
         if (stall.Facility?.Code == FacilityCode.NPM)
         {
             var dailies = await _context.DailyCollections.AsNoTracking()
-                .Where(dc => dc.StallId == stallId && dc.IsPaid && dc.CollectionDate >= rangeStart && dc.CollectionDate <= rangeEnd)
-                .Select(dc => new { dc.CollectionDate, dc.DailyFee })
+                .Where(dc => dc.StallId == stallId && (dc.IsPaid || dc.CanonicalSettledAmount > 0m) && dc.CollectionDate >= rangeStart && dc.CollectionDate <= rangeEnd)
+                .Select(dc => new { dc.CollectionDate, DailyFee = dc.IsPaid ? dc.DailyFee : dc.CanonicalSettledAmount })
                 .ToListAsync(ct);
             var excused = (await _context.DailyCollections.AsNoTracking()
                 .Where(dc => dc.StallId == stallId && dc.IsAbsent && dc.CollectionDate >= rangeStart && dc.CollectionDate <= rangeEnd)
                 .Select(dc => dc.CollectionDate).ToListAsync(ct)).ToHashSet();
-            var closed = await _context.NpmMarketClosures.AsNoTracking()
-                .Where(c => c.ClosureDate >= rangeStart && c.ClosureDate <= rangeEnd)
-                .Select(c => c.ClosureDate).ToListAsync(ct);
+            var closed = await _context.EffectiveNpmClosedDatesAsync(rangeStart, rangeEnd, ct);
             excused.UnionWith(closed);
 
             for (var m = startMonth; m <= endMonth; m = m.AddMonths(1))
@@ -536,7 +525,7 @@ public partial class PaymentRepository
                 .Resolve(FeeRateKey.NpmFishPerKilo, _clock.PhilippineToday);
             // NPM: one row per recorded daily collection (paid or absent), newest first; cursor = date.
             var q = _context.DailyCollections.AsNoTracking()
-                .Where(d => d.StallId == stallId && (d.IsPaid || d.IsAbsent));
+                .Where(d => d.StallId == stallId && (d.IsPaid || d.IsAbsent || d.CanonicalSettledAmount > 0m));
             if (cursor.HasValue)
             {
                 var cursorDate = DateOnly.FromDateTime(cursor.Value);
@@ -556,8 +545,8 @@ public partial class PaymentRepository
                     d.CollectionDate.ToDateTime(TimeOnly.MinValue),
                     // The lessee answerable for that business day — a day inside a former occupancy belongs to them.
                     occupants.OnDate(stallId, d.CollectionDate) ?? payorName,
-                    d.IsPaid ? "Paid" : "Absent",
-                    d.IsPaid ? d.DailyFee + (d.FishKilos.HasValue ? d.FishKilos.Value * npmFish : 0m) + d.MeatFeeAmount : 0m,
+                    d.IsPaid ? "Paid" : d.IsAbsent ? "Absent" : "Partial",
+                    d.IsPaid ? d.DailyFee + (d.FishKilos.HasValue ? d.FishKilos.Value * npmFish : 0m) + d.MeatFeeAmount : d.IsAbsent ? 0m : d.CanonicalSettledAmount,
                     d.ORNumber,
                     d.CollectorId is Guid cid && names.TryGetValue(cid, out var nm) ? nm : null,
                     // Recorder: the field collector when set, else the admin/Head resolved from the actor.

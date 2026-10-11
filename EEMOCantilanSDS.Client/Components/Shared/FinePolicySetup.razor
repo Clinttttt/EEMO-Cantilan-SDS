@@ -1,0 +1,68 @@
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@using EEMOCantilanSDS.Domain.Enums
+@inject IPenaltiesApiClient Api
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+<div class="fine-policy" aria-label="Where fines apply" @ref="_root">
+    <header class="v3-panel-header"><h3>Where fines apply</h3><AuthorizeView Roles="SuperAdmin"><Authorized><button type="button" class="v3-btn v3-btn-sm" @onclick="Open">Set source applicability</button></Authorized></AuthorizeView></header>
+    @if (_readError is not null) { <p role="alert">@_readError <button type="button" class="v3-btn v3-btn-sm" @onclick="Load">Retry</button></p> }
+    <div class="v3-table-wrap"><table class="v3-table"><thead><tr><th>Penalty category</th><th>Source</th><th>Amount rule</th><th>Approved authority</th><th>Version basis</th></tr></thead><tbody>
+        @foreach(var policy in _policies) { <tr><td>@policy.Definition?.DisplayName</td><td>@SourceLabel(policy.Evidence)</td><td>@AmountRule(policy.Definition)</td><td>@policy.Evidence.GoverningReference</td><td>@(policy.Evidence.DateBasis==FinePenaltyDateBasis.ViolationDate ? "Violation date" : "Assessment date")</td></tr> }
+        @if (_policies.Count==0) { <tr><td colspan="5" class="v3-empty">@(_loading ? "Loading source applicability…" : _readError is not null ? "Source applicability unavailable." : "No approved fine policies are configured.")</td></tr> }
+    </tbody></table></div>
+    @if (_open) { <AuthorizeView Roles="SuperAdmin"><Authorized>
+        <AddNewDrawer Show="true" Title="Where fines apply" Subtitle="Verify the approved category and source authority." FormId="fine-policy" FormLabel="Source applicability" Saving="_saving" Error="@_error" OnCancel="Cancel" OnFooterCancel="BackOrCancel" CancelText="@(_review ? "Back" : "Cancel")" OnSubmit="Save" SubmitText="@(_review ? "Confirm applicability" : "Review applicability")">
+            <ChildContent>
+                @if(_review) { <AddNewSection Plain="true" Title="Review"><dl class="policy-summary"><dt>Penalty category</dt><dd>@SelectedDefinition?.DisplayName</dd><dt>Source operation</dt><dd>@Sources[_source].Label</dd><dt>Amount rule</dt><dd>@AmountRule(SelectedDefinition)</dd><dt>Governing reference</dt><dd>@_reference</dd><dt>Version basis</dt><dd>@(_basis==FinePenaltyDateBasis.ViolationDate ? "Violation date" : "Assessment date")</dd><dt>Additional authority</dt><dd>@(_closed ? "Closed-account assessment authorized" : "Active accounts only")@(_uncapped && NeedsUncapped ? " · Uncapped amounts authorized" : "")</dd></dl>
+                    <label class="policy-check"><input type="checkbox" @bind="_confirmed" /> Governing evidence verified</label>
+                </AddNewSection> }
+                else { <AddNewSection Title="Source applicability">
+                    <label class="v3-field"><span>Approved category</span><select required @bind="_definition"><option value="@Guid.Empty">Select penalty category</option>@foreach(var d in Definitions.Where(d=>d.IsActive)) { <option value="@d.VersionId">@d.DisplayName</option> }</select></label>
+                    <label class="v3-field"><span>Source operation</span><select @bind="_source">@for(var i=0;i<Sources.Length;i++) { <option value="@i">@Sources[i].Label</option> }</select></label>
+                    <label class="v3-field"><span>Governing reference</span><input required maxlength="200" @bind="_reference" placeholder="Approved ordinance, schedule or authority" /></label>
+                    <label class="v3-field"><span>Penalty version applies on</span><select @bind="_basis"><option value="@FinePenaltyDateBasis.AssessmentDate">Assessment date</option><option value="@FinePenaltyDateBasis.ViolationDate">Violation date</option></select></label>
+                </AddNewSection>
+                <AddNewSection Plain="true" Title="Amount rules"><p>@AmountRule(SelectedDefinition)</p><details><summary>Additional authority</summary>
+                    @if(NeedsUncapped) { <label class="policy-check"><input type="checkbox" @bind="_uncapped" /> Uncapped amount authorization</label> }
+                    <label class="policy-check"><input type="checkbox" @bind="_closed" /> Closed-account assessment authorization</label>
+                </details></AddNewSection> }
+            </ChildContent>
+        </AddNewDrawer>
+    </Authorized></AuthorizeView> }
+</div>
+@code {
+    [Parameter] public IReadOnlyList<PenaltyDefinitionDto> Definitions { get; set; }=[];
+    [Parameter] public EventCallback OnSaved { get; set; }
+    private FineSourceOption[] Sources=[];
+    private ElementReference _root; private IJSObjectReference? _focus; private bool _focusBound;
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if(_open==_focusBound) return;
+        try { _focus ??= await JS.InvokeAsync<IJSObjectReference>("import","./js/account-review.js");if(_focus is not null) {await _focus.InvokeVoidAsync(_open ? "bind" : "release",_root);_focusBound=_open;} }catch(InvalidOperationException) { }
+    }
+    public async ValueTask DisposeAsync() {if(_focus is null) return;try {await _focus.InvokeVoidAsync("release",_root);await _focus.DisposeAsync();}catch(JSDisconnectedException) { } }
+    private List<FinePolicyDto> _policies=[]; private bool _loading=true,_open,_review,_saving,_uncapped,_closed,_confirmed;
+    private string? _error,_readError; private Guid _definition; private int _source; private string _reference=""; private FinePenaltyDateBasis _basis=FinePenaltyDateBasis.AssessmentDate;
+    private PenaltyDefinitionDto? SelectedDefinition=>Definitions.SingleOrDefault(x=>x.VersionId==_definition);
+    private bool NeedsUncapped=>SelectedDefinition is {Basis:GovernedServiceBasis.DirectApprovedAmount,MaximumAmount:null};
+    private static string AmountRule(PenaltyDefinitionDto? d)=>d is null ? "Select an approved category." : d.Basis==GovernedServiceBasis.FixedAmount ? $"Fixed · ₱{d.FixedAmount:N2}" : d.MaximumAmount is { } max ? $"Head-entered · up to ₱{max:N2}" : "Head-entered · uncapped authority required";
+    private string SourceLabel(FinePolicyRequest p)=>Sources.FirstOrDefault(s=>s.Kind==p.AccountKind&&s.Facility==p.Facility)?.Label ?? "Historical source policy";
+    protected override Task OnInitializedAsync()=>Load();
+    private async Task Load() { _loading=true;_readError=null; try { var result=await Api.GetFinePoliciesAsync();var sources=await Api.GetFineSourcesAsync();
+        if(result is {IsSuccess:true,Value:not null}) _policies=result.Value.ToList();else _readError="Source applicability could not be loaded.";
+        if(sources is {IsSuccess:true,Value:not null}) Sources=sources.Value.ToArray();else _readError="Source operations could not be loaded. Retry before configuring.";
+    }catch {_readError="Source applicability is unavailable.";}finally {_loading=false;} }
+    private void Open() { _open=true;_review=false;_confirmed=false;_error=null; }
+    private void Cancel() { if(!_saving) _open=false; }
+    private void BackOrCancel() {if(_saving) return;if(_review) _review=false;else Cancel();}
+    private async Task Save() {
+        if(_saving) return;
+        if(SelectedDefinition is null || string.IsNullOrWhiteSpace(_reference) || _source<0 || _source>=Sources.Length) {_error="Select a category, verified source and its actual governing reference.";return;}
+        if(!_review) {_review=true;_error=null;return;}
+        if(!_confirmed) {_error="Verify governing evidence before confirming.";return;}
+        _saving=true;_error=null;
+        try { var source=Sources[_source];var result=await Api.RecordFinePolicyAsync(new(_definition,source.Kind,source.Facility,_reference,_basis,NeedsUncapped&&_uncapped,_closed));
+            if(result is {IsSuccess:true}) {_open=false;await Load();await OnSaved.InvokeAsync();}else _error=result?.Error??"Source applicability could not be saved.";
+        }catch {_error="Source applicability is unavailable.";}finally {_saving=false;}
+    }
+}

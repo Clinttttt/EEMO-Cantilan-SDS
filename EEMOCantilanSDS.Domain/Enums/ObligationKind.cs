@@ -14,7 +14,10 @@ public enum ObligationKind
     KanmanggaySpaceRental = 2,
 
     /// <summary>Fiesta / Araw lot rental: one approved amount for an event lot. Event dates are not billing dates.</summary>
-    FiestaArawLotRental = 3
+    FiestaArawLotRental = 3,
+
+    /// <summary>Temporary Vegetable / Fruits monthly space account; distinct from NPM and Kanmanggay.</summary>
+    VegetableFruitSpaceRental = 4
 }
 
 /// <summary>The event an event-lot rental belongs to.</summary>

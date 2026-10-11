@@ -466,7 +466,7 @@ public partial class CollectorRepository
                 var paidCollections = stallsWithMonthlyPayments.Contains(s.Id)
                     ? new List<DailyCollection>()
                     : s.DailyCollections
-                        .Where(d => d.IsPaid && d.CollectionDate >= fromDate && d.CollectionDate <= collectionEnd)
+                        .Where(d => (d.IsPaid || d.CanonicalSettledAmount > 0m) && d.CollectionDate >= fromDate && d.CollectionDate <= collectionEnd)
                         .ToList();
 
                 // Obligation + collected are assessed over the FULL month — matching the web reports
@@ -483,7 +483,7 @@ public partial class CollectorRepository
                 var monthlyRentalPaid = stallPayments.Sum(p => RecognizedNpmDailyFeeRevenue(p, monthStart, collectionEnd, s));
                 // What was actually received, read from the rows themselves — never recomputed as a count × today's
                 // rate, which would lose a month-end adjustment and restate days stamped at a superseded rate.
-                var rentalPaid = monthlyRentalPaid + paidCollections.Sum(d => d.DailyFee);
+                var rentalPaid = monthlyRentalPaid + paidCollections.Sum(d => d.CollectedFee);
                 // The rent for the days EARNED, from the same ledger the office's screen reads — a month held in full
                 // owes the month's rent whatever the calendar gave it. The daily fee is the installment this is
                 // collected in, not the measure of it.
@@ -949,8 +949,8 @@ public partial class CollectorRepository
                 ? p.BaseRentalAmount + (p.ElecAmount ?? 0) + (p.WaterAmount ?? 0) + ((p.FishKilos ?? 0) * npmFish)
                 : p.Status == PaymentStatus.Partial ? p.PartialAmount : 0m, cancellationToken);
         var dailyTotal = await _context.DailyCollections
-            .Where(d => d.CollectorId == collectorId && d.IsPaid)
-            .SumAsync(d => d.DailyFee + ((d.FishKilos ?? 0) * npmFish) + d.MeatFeeAmount, cancellationToken);
+            .Where(d => d.CollectorId == collectorId && (d.IsPaid || d.CanonicalSettledAmount > 0m))
+            .SumAsync(d => d.IsPaid ? d.DailyFee + ((d.FishKilos ?? 0) * npmFish) + d.MeatFeeAmount : d.CanonicalSettledAmount, cancellationToken);
         var slaughterTotal = await _context.SlaughterTransactions
             .Where(s => s.CollectorId == collectorId)
             .SumAsync(s => s.RatePerHead * s.NumberOfHeads, cancellationToken);
@@ -964,7 +964,7 @@ public partial class CollectorRepository
 
         // ── Distinct active days (PH business dates) the collector recorded a collection ──
         var dates = new HashSet<DateOnly>();
-        foreach (var d in await _context.DailyCollections.Where(x => x.CollectorId == collectorId && x.IsPaid)
+        foreach (var d in await _context.DailyCollections.Where(x => x.CollectorId == collectorId && (x.IsPaid || x.CanonicalSettledAmount > 0m))
                      .Select(x => x.CollectionDate).Distinct().ToListAsync(cancellationToken))
             dates.Add(d);
         foreach (var d in await _context.SlaughterTransactions.Where(x => x.CollectorId == collectorId)

@@ -52,8 +52,7 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
         modeAware ? [GovernedServiceBasis.DirectApprovedAmount] : [GovernedServiceBasis.FixedAmount, GovernedServiceBasis.DirectApprovedAmount],
         state, basis, fixedAmount, ceiling, mobile, basis is null ? null : new DateOnly(2026, 9, 1),
         modeAware
-            ? [new(GovernedServiceMode.WholePayment, RevenueInstrumentType.OfficialReceipt, "whole"),
-               new(GovernedServiceMode.DailyTransaction, RevenueInstrumentType.CashTicket, "daily")]
+            ? [new(GovernedServiceMode.DailyTransaction, RevenueInstrumentType.CashTicket, "daily")]
             : [new(null, instrument, "policy")],
         issues);
 
@@ -112,7 +111,6 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
     [InlineData(typeof(MarketFees), "/operations/market-fees", "Market Fees")]
     [InlineData(typeof(LandingBerthing), "/operations/landing-berthing", "Landing / Berthing")]
     [InlineData(typeof(TransferLargeCattle), "/operations/transfer-large-cattle", "Transfer Large Cattle")]
-    [InlineData(typeof(VegetableFruit), "/operations/vegetable-fruit", "Vegetable / Fruits")]
     public void Workspace_IsOfficeOnly_ShowsSetupAndCollections_AndRecordsNothing(Type page, string route, string title)
     {
         Assert.Equal(route, Assert.Single(page.GetCustomAttributes(typeof(RouteAttribute), true).Cast<RouteAttribute>()).Template);
@@ -177,19 +175,18 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
     }
 
     [Fact]
-    public void Vegetable_ShowsTheInstrumentPolicyResolvedByEachMode_AndRowsShowTheirSrcAndMode()
+    public void Vegetable_DailySetupShowsCt_AndHistoricalWholeRowsRemainReadable()
     {
         Serve(All(GovernedServiceSetupState.Active),
             [Row(300m, "SRC-2026-000005", GovernedServiceMode.WholePayment, RevenueInstrumentType.OfficialReceipt),
              Row(20m, "SRC-2026-000006", GovernedServiceMode.DailyTransaction)]);
 
-        var cut = RenderComponent<VegetableFruit>();
+        var cut = RenderComponent<VegetableFruitDailySetup>();
 
         cut.WaitForAssertion(() =>
         {
             var setup = cut.Find("aside").TextContent;
-            Assert.Contains("Monthly rental", setup);
-            Assert.Contains("Official Receipt", setup);
+            Assert.DoesNotContain("Monthly rental", setup);
             Assert.Contains("Daily transaction", setup);
             Assert.Contains("Cash Ticket", setup);
             var rows = cut.FindAll("tbody tr");
@@ -426,14 +423,14 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
             .Callback<string, ConfigureGovernedServiceRequest>((_, r) => sent = r)
             .ReturnsAsync(Result<GovernedServiceDefinitionDto>.Success(disabled with { State = GovernedServiceSetupState.Active }));
 
-        var cut = RenderComponent<VegetableFruit>();
+        var cut = RenderComponent<VegetableFruitDailySetup>();
 
         cut.WaitForAssertion(() =>
         {
             var setup = cut.Find("aside").TextContent;
             Assert.Contains("Allowed, but new transactions are not enabled", setup);   // never a bare "Enabled" next to Disabled
             Assert.DoesNotContain("Whole payment", cut.Markup);
-            Assert.Contains("Monthly rental", cut.Markup);
+            Assert.Contains("Daily transaction", cut.Markup);
         }, Timeout);
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Enable new transactions").Click();
 

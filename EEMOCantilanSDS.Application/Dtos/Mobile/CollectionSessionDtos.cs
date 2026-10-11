@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 namespace EEMOCantilanSDS.Application.Dtos.Mobile;
 
 // A checkout is orchestration, never an operation or revenue classification.
-public enum CollectionSessionItemKind { Water = 1, GovernedService = 2, Obligation = 3, Electricity = 4, Weighing = 5, Slaughter = 6, VendorFee = 7, NpmWholePayment = 8, SourceNative = 9, MonthlyRent = 10, NpmDaily = 11 }
+public enum CollectionSessionItemKind { Water = 1, GovernedService = 2, Obligation = 3, Electricity = 4, Weighing = 5, Slaughter = 6, VendorFee = 7, NpmWholePayment = 8, SourceNative = 9, MonthlyRent = 10, NpmDaily = 11, NpmPartPayment = 12 }
 public enum CollectionSessionStatus { NeedsReview = 1, Recorded = 2 }
 public sealed record SessionWaterIntent(Guid StallId, int Year, int Month, Guid? UtilityBillId = null, long SourceVersion = 0);
 public sealed record SessionGovernedIntent(string OperationCode, GovernedServiceMode? Mode = null,
@@ -22,6 +22,8 @@ public sealed record SessionSlaughterIntent(AnimalType Animal, int Heads, string
 public sealed record SessionVendorFeeIntent(Guid StallId);
 public sealed record SessionNpmWholeIntent(Guid StallId, int Year, int Month);
 public sealed record SessionNpmDailyIntent(Guid StallId);
+// An NPM payment of an AMOUNT against this month's installments: the amount is the item's ConfirmedAmount, the server plans how it is applied.
+public sealed record SessionNpmPartIntent(Guid StallId, int Year, int Month);
 public sealed record SessionMonthlyRentIntent(Guid StallId, int Year, int Month, long SourceVersion);
 public sealed record SessionSlaughterOption(AnimalType Animal, string Name, string? CustomAnimalName,
     RevenueInstrumentType? Instrument = null);
@@ -37,7 +39,8 @@ public sealed record CollectionSessionItemIntent(Guid ClientItemId, CollectionSe
     SessionSlaughterIntent? Slaughter = null, SessionVendorFeeIntent? VendorFee = null, SessionNpmWholeIntent? NpmWhole = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SourceNativeChargeIntent? Native = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SessionMonthlyRentIntent? Rent = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SessionNpmDailyIntent? NpmDaily = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SessionNpmDailyIntent? NpmDaily = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SessionNpmPartIntent? NpmPart = null);
 public sealed record CollectionSessionIntent(Guid ClientCollectionSessionId, DateOnly BusinessDate, Guid? PayorId,
     IReadOnlyList<CollectionSessionItemIntent> Items,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CollectionSourceIdentity? SourceIdentity = null,
@@ -76,7 +79,8 @@ public sealed record CollectionSessionDiscovery(Guid? PayorId, DateOnly Business
     IReadOnlyList<WeighingSourceDto>? WeighingSources = null, IReadOnlyList<WeighingRateDto>? WeighingRates = null,
     IReadOnlyList<SessionSlaughterOption>? SlaughterOptions = null, string? PayorDisplayName = null,
     IReadOnlyList<DirectVendorFeeSource>? VendorFeeSources = null, IReadOnlyList<WeighingSourceDto>? NpmSources = null,
-    IReadOnlyList<SessionNpmWholeSource>? NpmWholeSources = null, CollectionSourceIdentity? SourceIdentity = null);
+    IReadOnlyList<SessionNpmWholeSource>? NpmWholeSources = null, CollectionSourceIdentity? SourceIdentity = null,
+    IReadOnlyList<CollectionSourceSearchResult>? LinkedSources = null);
 public sealed record CollectionSessionServiceTerms(GovernedServiceMode? Mode, GovernedServiceTermsDto Terms);
 
 // Display/selection facts only. A choice is not a reviewed quote and grants no posting authority.

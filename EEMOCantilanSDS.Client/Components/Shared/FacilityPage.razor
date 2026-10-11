@@ -3,41 +3,29 @@
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Application.Dtos.Stalls
 @using EEMOCantilanSDS.Application.Dtos.Payments
+@using EEMOCantilanSDS.Client.Services
 @inject IStallsApiClient StallsApi
 @inject IPaymentsApiClient PaymentsApi
 @inject IFacilitiesApiClient FacilitiesApi
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Client.Services.FacilityState Facilities
 
-<header class="topbar">
-    <div class="topbar-left flex gap-2">
-        <a href="/menu" class="tcc-back-btn">
-            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
-        </a>
-        <div>
-            <div class="topbar-title">@Facilities.NameOf(FacilityCodeEnum)</div>
-            <div class="topbar-breadcrumb">
-                <a href="/menu" class="breadcrumb-link">Dashboard</a>
-                <span class="breadcrumb-sep">/</span>
-                <span class="breadcrumb-active">@Facilities.ShortNameOf(FacilityCodeEnum) — @PhilippineTime.Now.ToString("MMMM yyyy")</span>
-            </div>
-        </div>
-    </div>
-    <div class="topbar-right">
-        <div class="topbar-date">
-            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-            @PhilippineTime.Now.ToString("MMMM d, yyyy")
-        </div>
-        <AccountChip />
-    </div>
-</header>
+<OperationTopbar Title="@Facilities.NameOf(FacilityCodeEnum)" Crumb="@Facilities.ShortNameOf(FacilityCodeEnum)" />
 
 <div class="content-area">
+            @if (Workspace is { } workspace)
+            {
+                <RentalWorkspaceHero Workspace="workspace" Icon="@FacilityIcon" Stats="@HeroStats"
+                                     Scope="@PhilippineTime.Today.ToString("MMMM yyyy")" ProgressPercentage="@CollectionRate" />
+            }
+            else
+            {
             <FacilityHero Code="FacilityCodeEnum"
                           Icon="@FacilityIcon"
                           Stats="@HeroStats"
                           ShowProgress="true"
                           ProgressPercentage="@CollectionRate" />
+            }
 
             <Toolbar SearchQuery="@SearchQuery"
                      OnSearch="OnSearchInput"
@@ -50,30 +38,9 @@
                      Actions="@ToolbarActions">
             </Toolbar>
 
-            <div class="tcc-section-info">
-                <div class="tcc-section-info-left">
-                    <div class="tcc-section-label">All @(SpaceWord)s</div>
-                    <div class="tcc-section-desc">@FacilityDescription</div>
-                </div>
-                <div class="tcc-section-mini-stats">
-                    <div class="tcc-mini-stat">
-                        <div class="tcc-mini-val">@PaidCount</div>
-                        <div class="tcc-mini-key">Paid</div>
-                    </div>
-                    <div class="tcc-mini-stat unpaid-stat">
-                        <div class="tcc-mini-val">@UnpaidCount</div>
-                        <div class="tcc-mini-key">Unpaid</div>
-                    </div>
-                    <div class="tcc-mini-stat partial-stat">
-                        <div class="tcc-mini-val">@PartialCount</div>
-                        <div class="tcc-mini-key">Partial</div>
-                    </div>
-                    <div class="tcc-mini-stat">
-                        <div class="tcc-mini-val">@(_summary is null ? "—" : $"₱{_summary.TotalRevenue:N0}")</div>
-                        <div class="tcc-mini-key">Collected</div>
-                    </div>
-                </div>
-            </div>
+            <RentalSummaryStrip Title="@(FacilityCodeEnum == FacilityCode.NCC ? "Stall Rent" : $"All {SpaceWord}s")"
+                                Description="@FacilityDescription" Paid="PaidCount" Unpaid="UnpaidCount" Partial="PartialCount"
+                                Collected="@(_summary is null ? "—" : $"₱{_summary.TotalRevenue:N0}")" />
 
             <FacilityStallsTable TStall="TStall"
                                  Facility="@FacilityShortCode"
@@ -128,6 +95,7 @@
 
 @code {
     [Parameter] public FacilityCode FacilityCodeEnum { get; set; }
+    [Parameter] public RentalWorkspaceDefinition? Workspace { get; set; }
     [Parameter] public string FacilityName { get; set; } = string.Empty;
     [Parameter] public string FacilityShortCode { get; set; } = string.Empty;
     [Parameter] public string FacilityDescription { get; set; } = string.Empty;
@@ -145,6 +113,12 @@
     [Parameter] public Func<TStall, string> ContractNameSelector { get; set; } = null!;
     [Parameter] public Action<TStall, string> ORNumberSetter { get; set; } = null!;
     [Parameter] public string? ReportsUrl { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (Workspace is not null && Workspace.Source != new FacilityRentalSource(FacilityCodeEnum))
+            throw new InvalidOperationException("The rental presentation does not match this facility source.");
+    }
 
     private string SearchQuery = string.Empty;
     private string ActiveStatus = "All";
@@ -363,7 +337,12 @@
         }
     }
 
-    private RenderFragment ActionBarContent => @<ActionBar Facility="@FacilityShortCode.ToLower()" />;
+    private RenderFragment ActionBarContent => @<text>
+        @if (Workspace is { } workspace)
+        { <RentalWorkspaceNavigation Workspace="workspace" ShowReports="false" /> }
+        else
+        { <ActionBar Facility="@FacilityShortCode.ToLower()" /> }
+    </text>;
 
     private async Task OnSearchInput(string value) => SearchQuery = value;
     private async Task OnFilterChange(string filter) => ActiveStatus = filter;
@@ -582,12 +561,7 @@
     }
 
     /// <summary>
-    /// What this facility calls its units. A commercial centre lets spaces, a market lets stalls; the offer should
-    /// read in the office's own words rather than calling everything a stall.
+    /// Shared facility vocabulary for headings, search, counters and registration actions.
     /// </summary>
-    private string SpaceWord => FacilityCodeEnum switch
-    {
-        FacilityCode.NPM => "Stall",
-        _ => "Space",
-    };
+    private string SpaceWord => EEMOCantilanSDS.Client.Services.FacilityState.HolderUnitOf(FacilityCodeEnum);
 }

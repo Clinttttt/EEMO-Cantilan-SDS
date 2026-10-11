@@ -34,7 +34,7 @@ public sealed class NpmDailyCanonicalPoster(
 
     /// <summary>One day row and the stall-fee money just charged to it (its fee, or a month-end adjustment added to it).</summary>
     public sealed record Charge(DailyCollection Day, decimal Amount, bool AdjustmentOnly = false,
-        DateTime? OriginalUpdatedAt = null, string? OriginalUpdatedBy = null);
+        DateTime? OriginalUpdatedAt = null, string? OriginalUpdatedBy = null, bool PartPayment = false);
 
     public sealed record Outcome(Guid CollectionId, string ReferenceCode, decimal Amount, bool Existing);
 
@@ -139,7 +139,8 @@ public sealed class NpmDailyCanonicalPoster(
             {
                 schemaVersion = 1, stallId = stall.Id, stallNo = stall.StallNo, section = stall.Section?.ToString(),
                 day = x.Day.CollectionDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
-                dailyFee = x.Day.DailyFee, monthEndAdjustment = x.Day.MonthEndAdjustment, charged = x.Amount
+                dailyFee = x.Day.DailyFee, monthEndAdjustment = x.Day.MonthEndAdjustment, charged = x.Amount,
+                partPayment = x.PartPayment ? true : (bool?)null, settledBefore = x.PartPayment ? x.Day.CanonicalSettledAmount : (decimal?)null
             }, JsonOptions))).ToList();
         var lineSnapshot = JsonSerializer.Serialize(new
         {
@@ -159,17 +160,24 @@ public sealed class NpmDailyCanonicalPoster(
                 {
                     foreach (var charge in charges)
                     {
-                        if (charge.AdjustmentOnly)
+                        if (charge.PartPayment)
+                            charge.Day.ApplyCanonicalPartial(collectionId, charge.Amount, currentUser.CollectorId, actorName);
+                        else if (charge.AdjustmentOnly)
                             charge.Day.ApplyCanonicalAdjustment(collectionId, charge.OriginalUpdatedAt, charge.OriginalUpdatedBy);
                         else if (charge.Day.CanonicalCollectionId is null) charge.Day.ApplyCanonicalPayment(collectionId);
                     }
                 },
                 ct: ct);
         }
-        catch (DbUpdateException)
+        catch (Exception ex) when (ex is DbUpdateException or System.Data.Common.DbException
+            or InvalidOperationException { InnerException: DbUpdateException or System.Data.Common.DbException })
         {
             // Two requests for the same stall/day, or a retried id that won the race: nothing of this attempt was saved.
             db.ChangeTracker.Clear();
+            // Inside a serializable transaction a lost race aborts the whole transaction, so nothing more may be read in it: the caller
+            // retries, and a retried id resolves to the winner at the top of its own request.
+            if (db.HasActiveTransaction)
+                return Result<Outcome>.Failure("RECONCILIATION_REQUIRED: Another payment for this stall was recorded at the same time. Review the refreshed balance.", ResultStatus.Conflict);
             if (await FindPriorAsync(clientOperationId, normalizedIntent, ct) is { } prior) return prior;
             return Result<Outcome>.Failure("This stall day was collected by another request. Refresh before trying again.", ResultStatus.Conflict);
         }
@@ -210,7 +218,10 @@ public sealed class NpmDailyCanonicalPoster(
 
         var dayIds = allocations.Select(a => a.SourceId).Distinct().ToList();
         var days = await db.DailyCollections.Where(x => x.MunicipalityId == tenantId && dayIds.Contains(x.Id)).ToListAsync(ct);
-        if (days.Any(d => d.CanonicalCollectionId == collection.Id && d.CanonicalAdjustmentCollectionId is not null))
+        // A day that part payments built up takes back exactly what THIS Collection applied; the other payments stay in force.
+        var partPaid = days.Where(d => d.CanonicalSettledAmount > 0m).ToDictionary(d => d.Id);
+        if (allocations.Any(a => partPaid.TryGetValue(a.SourceId, out var d) && d.CanonicalAdjustmentCollectionId is { } adjustment && adjustment != collection.Id)
+            || days.Any(d => d.CanonicalSettledAmount == 0m && d.CanonicalCollectionId == collection.Id && d.CanonicalAdjustmentCollectionId is not null))
             return Result<Outcome>.Failure("Void the separately recorded month-end adjustment before its original installment.", ResultStatus.Conflict);
         var actor = currentUser.Username ?? "office";
         var lines = collection.Lines.Select(l => new CollectionCorrectionLineDraft(l.Id, -l.Amount,
@@ -219,7 +230,20 @@ public sealed class NpmDailyCanonicalPoster(
             PhilippineTime.Today, DateTime.UtcNow, -collection.TotalAmount, reason.Trim(),
             (currentUser.UserId ?? Guid.Empty).ToString("N"), actor, lines));
         // Only a day this Collection still pays is projected unpaid; a day since paid again by another Collection is left alone.
-        foreach (var day in days.Where(d => d.CanonicalCollectionId == collection.Id))
+        foreach (var allocation in allocations.Where(a => partPaid.TryGetValue(a.SourceId, out var d) && d.CanonicalAdjustmentCollectionId != collection.Id))
+        {
+            var day = partPaid[allocation.SourceId];
+            // The latest other Collection still in force that paid part of this day, so the day keeps pointing at real money.
+            var remaining = await (from a in db.CollectionAllocations
+                                   join l in db.CollectionLines on a.CollectionLineId equals l.Id
+                                   join c in db.Collections on l.CollectionId equals c.Id
+                                   where a.MunicipalityId == tenantId && a.SourceKind == CollectionSourceKind.DailyCollection && a.SourceId == day.Id
+                                       && c.Id != collection.Id && !db.CollectionCorrections.Any(x => x.OriginalCollectionId == c.Id)
+                                   orderby c.RecordedAtUtc descending
+                                   select (Guid?)c.Id).FirstOrDefaultAsync(ct);
+            day.ReverseCanonicalPartial(allocation.Amount, remaining, actor);
+        }
+        foreach (var day in days.Where(d => d.CanonicalSettledAmount == 0m && !partPaid.ContainsKey(d.Id) && d.CanonicalCollectionId == collection.Id))
             day.ApplyCanonicalVoid(actor);
         foreach (var day in days.Where(d => d.CanonicalAdjustmentCollectionId == collection.Id))
             day.ApplyCanonicalAdjustmentVoid();

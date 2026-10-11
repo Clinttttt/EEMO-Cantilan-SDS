@@ -38,6 +38,7 @@ public class TenantUsageRepository(AppDbContext context) : ITenantUsageRepositor
         ["UtilityBills"] = "Utility bills",
         ["StallMonthlyExceptions"] = "Monthly exceptions",
         ["NpmMarketClosures"] = "Market closures",
+        ["NpmOperatingSchedules"] = "Market operating schedule",
         ["OnlinePaymentTransactions"] = "Online payments",
         ["SlaughterTransactions"] = "Slaughter transactions",
         ["SlaughterAnimalRates"] = "Slaughter rates",

@@ -1,0 +1,36 @@
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@inject IOfficeSourcesApiClient Api
+@if (_source is not null)
+{
+    <div class="npm-occupancy-context">
+        <strong>Fish/Meat registration</strong>
+        @foreach (var link in _source.Links.Where(x => x.CorrectedAtUtc == null))
+        {
+            <a href="@($"/operations/fish-meat-vendor-fees/manage?taxYear={TaxYear}&registrationId={link.VendorRegistrationId}")">View verified Fish/Meat registration</a>
+        }
+        <AuthorizeView Roles="SuperAdmin"><Authorized>
+            <a class="v3-btn v3-btn-sm" href="@($"/operations/fish-meat-vendor-fees?taxYear={TaxYear}&npmContractId={_source.ContractId}")">@(_source.Links.Any(x => x.CorrectedAtUtc == null) ? "Review Fish/Meat registration" : "Register as Fish/Meat vendor")</a>
+        </Authorized></AuthorizeView>
+    </div>
+}
+@code {
+    [Parameter] public Guid StallId { get; set; }
+    [Parameter] public int TaxYear { get; set; } = PhilippineTime.Today.Year;
+    private Guid _loaded;
+    private NpmVendorCandidate? _source;
+    protected override async Task OnParametersSetAsync()
+    {
+        if (StallId == Guid.Empty || _loaded == StallId) return;
+        _loaded = StallId; _source = null;
+        try
+        {
+            var result = await Api.NpmVendorCandidatesAsync(TaxYear, false, true);
+            if (result?.IsSuccess == true)
+            {
+                var rows = result.Value!.Rows.Where(x => x.StallId == StallId && x.Active).ToArray();
+                if (rows.Length == 1) _source = rows[0]; // Ambiguous recorded occupancies must be reviewed in the source drawer.
+            }
+        }
+        catch { /* Optional entry point; original profile remains usable. */ }
+    }
+}

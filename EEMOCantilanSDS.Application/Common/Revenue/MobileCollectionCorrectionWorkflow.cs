@@ -65,11 +65,13 @@ public sealed class MobileCollectionCorrectionWorkflow(IAppDbContext db, ICollec
         if (locks.Corrected.Contains(c.Id)) return "AlreadyCorrected";
         if (c.Lines.Any(x => locks.TaboClasses.Contains(x.RevenueClassificationId))) return "SourceCorrectionUnavailable";
         if (c.Lines.Count == 0 || c.Lines.Any(l => l.SourceKind is CollectionSourceKind.OnlinePaymentTransaction or CollectionSourceKind.TrmTrip
-            or CollectionSourceKind.TpmAttendance or CollectionSourceKind.PenaltyDefinition)) return "SourceCorrectionUnavailable";
+            or CollectionSourceKind.TpmAttendance or CollectionSourceKind.PenaltyDefinition or CollectionSourceKind.FineAssessment)) return "SourceCorrectionUnavailable";
         if (c.Lines.Any(l => l.SourceKind is null && (l.Allocations.Count == 0 || l.Allocations.Any(a => a.SourceKind is not
             (CollectionSourceKind.DailyCollection or CollectionSourceKind.PaymentRecord or CollectionSourceKind.UtilityBill or CollectionSourceKind.ObligationPeriod))))
             && !locks.Native.Contains(c.Id))
             return "SourceCorrectionUnavailable";
+        // A part payment applied only part of a day: re-posting it as a whole-day replacement would misstate what was received, so the office corrects it (void), not the device.
+        if (c.Lines.Any(l => l.Allocations.Any(a => a.SourceSnapshot != null && a.SourceSnapshot.Contains("\"partPayment\":true")))) return "SourceCorrectionUnavailable";
         if (locks.Dependent.Contains(c.Id)) return "LaterSettlementExists";
         if (!locks.Posted.Contains(c.Id)) return "SourceCorrectionUnavailable";
         return null;
@@ -184,9 +186,9 @@ public sealed class MobileCollectionCorrectionWorkflow(IAppDbContext db, ICollec
                 kind = CollectionSessionItemKind.MonthlyRent; code = "FACILITY_" + stalls[stallId.Value].Facility!.Code;
             }
             else if (periods.TryGetValue(id.Value, out var period) && accounts.TryGetValue(period.ObligationAccountId, out var account)
-                && account.Kind is ObligationKind.KanmanggaySpaceRental or ObligationKind.FiestaArawLotRental)
+                && ObligationAccount.IsSpaceKind(account.Kind))
             {
-                code = account.Kind == ObligationKind.KanmanggaySpaceRental ? CollectorOperationCodes.KanmanggaySpaceRental : CollectorOperationCodes.FiestaArawLotRental;
+                code = ObligationAccount.OperationCodeFor(account.Kind)!;
                 result[c.Id] = new(new(SourceIdentityKind.SpaceAccount, account.Id), CollectionSessionItemKind.Obligation, code,
                     new(AccountId: account.Id, Year: period.PeriodStart.Year, Month: period.PeriodStart.Month, PeriodStart: period.PeriodStart));
                 continue;

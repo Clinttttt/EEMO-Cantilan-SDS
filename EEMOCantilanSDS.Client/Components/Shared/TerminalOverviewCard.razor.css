@@ -1,0 +1,60 @@
+/* Income From Terminal (IFT): the facility-card family on the Dashboard — pale civic-blue surface, white figure tiles, civic-blue
+   action — with the Terminal's own two figures. Tokens match Menu.razor.css's facility card so the two read as one set. */
+.terminal-card {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+    padding: 18px;
+    border: 1px solid var(--border-blue-subtle);
+    border-radius: 10px;
+    background: var(--surface-blue-subtle);
+}
+.terminal-card:hover { border-color: var(--accent); box-shadow: var(--elevation-1); }
+
+header { display: flex; align-items: center; gap: 12px; }
+.tc-meta { min-width: 0; }
+.tc-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--border-blue-subtle);
+    border-radius: 10px;
+    background: var(--surface);
+}
+.tc-meta small, .tc-meta strong, .tc-meta span { display: block; }
+.tc-meta small { color: var(--text-muted); font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
+.tc-meta strong { color: var(--navy); font-size: 13px; font-weight: 600; line-height: 1.2; }
+.tc-meta span { margin-top: 4px; color: var(--text-secondary); font-size: 12px; }
+
+dl { display: flex; gap: 6px; margin: 0; }
+dl > div { flex: 1 1 0; min-width: 0; padding: 10px 8px; border: 1px solid var(--border-blue-subtle); border-radius: 8px; background: var(--surface); text-align: center; }
+dd { margin: 0; color: var(--navy); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+dt { margin-top: 2px; color: var(--text-tertiary); font-size: 11px; font-weight: 500; }
+
+a {
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 9px;
+    border: 1px solid var(--border-blue-subtle);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--accent-hover);
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background .15s, border-color .15s;
+}
+a:hover { border-color: var(--accent); background: var(--accent-soft); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+a svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+p { margin: 0; font-size: 12px; }
+
+@media (prefers-reduced-motion: reduce) { a { transition: none; } }

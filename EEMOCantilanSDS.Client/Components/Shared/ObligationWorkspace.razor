@@ -2,31 +2,104 @@
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Domain.Enums
 @using Microsoft.AspNetCore.Components.Authorization
+@using EEMOCantilanSDS.Client.Services
 @inject IObligationsApiClient ObligationsApi
+@inject NavigationManager Navigation
 
 @* The body of a specialized obligation line (IA-050): Fish/Meat Vendor Fee, Kanmanggay space rental, Fiesta/Araw lot
    rental. The Head opens an account and approves its amount; the register shows what was assessed, collected and is
    still owed. Money is never recorded here: it is collected on an Official Receipt in Current Collection, and the
    balance is only what canonical allocations say. *@
-@if (SpaceExperience)
+@if (SpaceExperience && !Management)
 {
+    <div role="region" aria-label="@($"{Name} totals: all registered accounts, including closed accounts, to date")">
+    @if (Workspace is { } workspace)
+    {
+        <RentalWorkspaceHero Workspace="workspace" Stats="SpaceStats" Scope="All accounts · to date"
+                             Icon="SpaceIcon" ProgressPercentage="CollectionRate" />
+    }
+    else
+    {
     <FacilityHero Title="@Name" Eyebrow="@(Kind == ObligationKind.FiestaArawLotRental ? "OPERATION · EVENT LOT RENTAL" : "OPERATION · SPACE RENTAL")" Stats="SpaceStats" ShowProgress="true" ProgressPercentage="@CollectionRate">
         <Icon><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></svg></Icon>
     </FacilityHero>
+    }
+    </div>
+    @AfterHero
+}
+@if (SpaceExperience)
+{
+    @if (Management)
+    {
+        <RentalRegistryHero Title="Spaces &amp; Occupants" Progress="CollectionRate">
+            <Figures>
+                <V3HeroFigure Label="Registered units" Value="@(_loading || _error is not null ? "—" : _accounts.Count.ToString())" Note="@($"{_accounts.Count(a => a.ActiveTo is null)} active · {_accounts.Count(a => a.ActiveTo is not null)} closed")" />
+                <V3HeroFigure Label="Assessed" Value="@(_workspace is null ? "—" : Money(_workspace.Assessed))" Note="All accounts · to date" />
+                <V3HeroFigure Label="Collected" Value="@(_workspace is null ? "—" : Money(_workspace.Collected))" Note="All accounts · to date" />
+                <V3HeroFigure Label="Remaining" Value="@(_workspace is null ? "—" : Money(_workspace.Outstanding))" Note="All accounts · to date" />
+            </Figures>
+        </RentalRegistryHero>
+
+    }
+    @if (Management)
+    {
+        <RentalRegistryToolbar Selected="@RegistryCode" SearchQuery="@_search" OnSearch="v => _search = v"
+                               ActiveFilter="@RegistryFilter" OnFilterChanged="SetRegistryFilter"
+                               SearchPlaceholder="@($"Search {SubjectNoun.ToLowerInvariant()} no. or occupant…")"
+                               CountLabel="@(_loading || _error is not null ? "—" : $"{VisibleAccounts.Count()} {SubjectNoun.ToLowerInvariant()}s")">
+            <SecondaryAction>
+                <details class="obw-advanced-filters">
+                    <summary aria-label="Advanced account filters" title="Advanced account filters"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 7h16M4 17h16" /><circle cx="9" cy="7" r="2" /><circle cx="15" cy="17" r="2" /></svg></summary>
+                    <label>Account lifecycle <select aria-label="Account lifecycle" value="@_lifecycle" @onchange="SetLifecycle"><option selected="@(_lifecycle == "All")">All</option><option selected="@(_lifecycle == "Active")">Active</option><option selected="@(_lifecycle == "Closed")">Closed</option></select></label>
+                </details>
+            </SecondaryAction>
+            <PrimaryAction><AuthorizeView Roles="SuperAdmin"><Authorized>
+                <button class="btn-primary" type="button" @onclick="OpenForm"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>Add Occupant &amp; @SubjectNoun</button>
+            </Authorized></AuthorizeView></PrimaryAction>
+        </RentalRegistryToolbar>
+    }
+    else
+    {
     <Toolbar SearchQuery="@_search"
              OnSearch="v => _search = v"
              ActiveFilter="@_filter"
              OnFilterChanged="v => _filter = v"
-             Filters="@StatusFilters"
+             Filters="@(Overview ? OverviewFilters : StatusFilters)"
+             BeforeFilters="@ToolbarMode"
+             FilterLabel="@(Management ? "Payment status" : "Account position")"
              SearchPlaceholder="@($"Search {SubjectNoun.ToLowerInvariant()} no. or occupant…")"
              MiddleContent="@ActionBarContent" />
+    }
 }
+@if (!Management && (Overview || Workspace?.Source is EventLotRentalSource))
+{
+    <RentalSummaryStrip Title="@(Workspace?.TableTitle ?? "Space Rentals")" Description="@(Kind == ObligationKind.FiestaArawLotRental ? "Event lot rental · account-to-date position" : "Approved monthly rental · account-to-date position")"
+                        Available="@(!_loading && _error is null)" StatusScope="Active registrations · account-to-date position"
+                        Paid="@_accounts.Count(a => a.ActiveTo is null && PaymentStatus(a) == "Paid")"
+                        Unpaid="@_accounts.Count(a => a.ActiveTo is null && PaymentStatus(a) == "Unpaid")"
+                        Partial="@_accounts.Count(a => a.ActiveTo is null && PaymentStatus(a) == "Partial")"
+                        Collected="@(_workspace is null ? "—" : Money(_workspace.Collected))" />
+    @if (_error is not null) { <div role="alert" class="v3-notice v3-notice-error">@_error <button type="button" class="btn-outline" @onclick="LoadAsync">Try again</button></div> }
+    <RegisteredRentalTable TItem="ObligationAccountDto" Rows="RentalRows" Unit="@SubjectNoun"
+                           AmountLabel="@(Kind == ObligationKind.FiestaArawLotRental ? "Approved event amount" : "Monthly amount")"
+                           Loading="_loading" Failed="@(_error is not null)" PaymentTitle="View account periods"
+                           OnPayment="OpenAccountPosition" OnHistory="OpenAccountHistory" OnProfile="OpenAccountProfile" />
+}
+else
+{
 <div class="obw-layout">
-    <section class="v3-panel" aria-labelledby="@_accountsTitleId" aria-busy="@(_loading ? "true" : "false")">
+    <section class="v3-panel" aria-label="@(Management ? "Registered accounts" : null)" aria-labelledby="@(Management ? null : _accountsTitleId)" aria-busy="@(_loading ? "true" : "false")">
+        @if (!Management)
+        {
         <header class="v3-panel-header">
-            <h2 id="@_accountsTitleId">@(ReadOnlyHistory ? "Historical accounts" : SpaceExperience ? (_holders ? "Space Holders" : $"All {SubjectNoun}s") : $"{Name} accounts")</h2>
+            <h2 id="@_accountsTitleId">@(ReadOnlyHistory ? "Historical accounts" : Management ? Name : Workspace?.TableTitle ?? (Overview ? "Space Rentals" : $"{Name} accounts"))</h2>
+            @if (SpaceExperience && !_loading && _error is null)
+            {
+                <span class="obw-note">@VisibleAccounts.Count() of @_accounts.Count @SubjectNoun.ToLowerInvariant()s shown</span>
+            }
             <AuthorizeView Roles="SuperAdmin">
                 <Authorized>
                     @if (!_opening && !SpaceExperience && !ReadOnlyHistory)
@@ -36,6 +109,7 @@
                 </Authorized>
             </AuthorizeView>
         </header>
+        }
 
         @if (!string.IsNullOrWhiteSpace(_error))
         {
@@ -45,14 +119,60 @@
             </div>
         }
 
+        @if (Management)
+        {
+            <RentalRegistryTable TItem="ObligationAccountDto" Rows="RentalRows" Unit="@SubjectNoun" RateLabel="@(Kind == ObligationKind.FiestaArawLotRental ? "Approved event amount" : "Monthly Rate")"
+                                 Loading="_loading" Failed="@(_error is not null)" OnInspect="a => ToggleRegisterAsync(a.Id)" Actions="RegistryAccountActions" />
+            @if (_selected is { } selectedId && _accounts.FirstOrDefault(a => a.Id == selectedId) is { } selectedAccount)
+            {
+                <section class="v3-panel obw-profile" aria-label="Account profile">
+                    <header class="v3-panel-header"><h2>@SpaceAccountPresentation.Occupant(selectedAccount) · @selectedAccount.SubjectLabel</h2></header>
+                    <dl class="obw-account-facts">
+                        <div><dt>Source account</dt><dd>@selectedAccount.Kind · @selectedAccount.Id</dd></div>
+                        <div><dt>Effective date</dt><dd>@selectedAccount.ActiveFrom.ToString("MMM d, yyyy")</dd></div>
+                        <div><dt>Occupancy basis</dt><dd>@(selectedAccount.Event is not null ? $"{selectedAccount.Event} · {selectedAccount.EventDate}" : SpaceAccountPresentation.Basis(selectedAccount))</dd></div>
+                        @if (!string.IsNullOrWhiteSpace(selectedAccount.ContractName)) { <div><dt>Name on signed contract</dt><dd>@selectedAccount.ContractName</dd></div> }
+                        @if (selectedAccount.ContractEffectiveDate is { } contractDate) { <div><dt>Contract effectivity</dt><dd>@contractDate.ToString("MMM d, yyyy")</dd></div> }
+                        @if (selectedAccount.ContractYears is { } contractYears) { <div><dt>Recorded contract duration</dt><dd>@contractYears years</dd></div> }
+                        @if (selectedAccount.AreaSqm is { } spaceArea) { <div><dt>Recorded area</dt><dd>@spaceArea.ToString("N2") sq.m</dd></div> }
+                        @if (!string.IsNullOrWhiteSpace(selectedAccount.AreaLocation)) { <div><dt>Area location / note</dt><dd>@selectedAccount.AreaLocation</dd></div> }
+                        @if (SpaceAccountPresentation.Reference(selectedAccount) is { Length: > 0 } reference) { <div><dt>Contract reference</dt><dd>@reference</dd></div> }
+                        <div><dt>Approved amount effective from</dt><dd>@selectedAccount.CurrentAmountEffectiveFrom?.ToString("MMM yyyy")</dd></div>
+                        @if (selectedAccount.ActiveTo is { } closed) { <div><dt>Closed on</dt><dd>@closed.ToString("MMM d, yyyy")</dd></div> }
+                    </dl>
+                    <AuthorizeView Roles="SuperAdmin">
+                        <Authorized>
+                            @if (!ReadOnlyHistory && selectedAccount.ActiveTo is null)
+                            {
+                                <div class="obw-actions" role="group" aria-label="Authorized account changes">
+                                    @if (selectedAccount.Kind != ObligationKind.FiestaArawLotRental)
+                                    {
+                                        <button type="button" class="v3-btn v3-btn-sm" @onclick="() => OpenRate(selectedAccount)">Change amount</button>
+                                    }
+                                    <button type="button" class="v3-btn v3-btn-sm" @onclick="() => CloseAsync(selectedAccount.Id)">Close account</button>
+                                </div>
+                            }
+                        </Authorized>
+                    </AuthorizeView>
+                    @if (_registerError is not null) { <div role="alert">@_registerError <button type="button" class="btn-outline" @onclick="() => LoadRegisterAsync(selectedId)">Try again</button></div> }
+                    else if (_registerLoading) { <Skeleton Height="100px" /> }
+                    else { <div class="v3-table-wrap"><table class="v3-table obw-register" aria-label="@($"{selectedAccount.SubjectLabel} periods")"><thead><tr><th>Period</th><th>Assessed</th><th>Collected</th><th>Remaining</th></tr></thead><tbody>
+                        @foreach (var p in _register) { <tr><td>@PeriodLabel(selectedAccount, p)</td><td>@Money(p.AssessedAmount)</td><td>@Money(p.SettledAmount)</td><td>@Money(p.OutstandingAmount)</td></tr> }
+                        @if (_register.Count == 0) { <tr><td colspan="4">No period is billable yet.</td></tr> }
+                    </tbody></table></div> }
+                </section>
+            }
+        }
+        else
+        {
         <div class="v3-table-wrap" role="region" aria-label="@($"{Name} accounts")" tabindex="0">
-            <table class="v3-table">
+            <table class="v3-table @(Management || Workspace?.Source is EventLotRentalSource ? "obw-management-table" : "")">
                 <caption class="v3-sr-only">@Name accounts with approved amount, assessed, collected and remaining</caption>
                 <thead>
                     <tr>
-                        <th scope="col">@(Kind == ObligationKind.FiestaArawLotRental ? "Lot holder" : "Occupant")</th>
                         <th scope="col">@SubjectNoun</th>
-                        @if (SpaceExperience && _holders) { <th scope="col">Start date</th><th scope="col">Status</th> }
+                        <th scope="col">@(Kind == ObligationKind.FiestaArawLotRental ? "Lot holder" : "Occupant")</th>
+                        @if (SpaceExperience) { <th scope="col">Start date</th><th scope="col">Status</th> }
                         <th scope="col" class="v3-num">@AmountHeading</th>
                         <th scope="col" class="v3-num">Assessed</th>
                         <th scope="col" class="v3-num">Collected</th>
@@ -64,20 +184,20 @@
                     @foreach (var account in VisibleAccounts)
                     {
                         <tr>
-                            <td class="v3-strong">@(account.PayerName ?? "—")</td>
-                            <td>@account.SubjectLabel@if (account.Kind == ObligationKind.FiestaArawLotRental && account.Event is { } lotEvent)
+                            <td data-label="@SubjectNoun">@account.SubjectLabel@if (account.Kind == ObligationKind.FiestaArawLotRental && account.Event is { } lotEvent)
                             {<span class="v3-block">@LotLabel(account)</span>}
                             else if (account.ActiveTo is { } ended) {<span class="v3-block">Ended @ended.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</span>}</td>
-                            @if (SpaceExperience && _holders)
+                            <td class="v3-strong" data-label="Occupant">@SpaceAccountPresentation.Occupant(account)</td>
+                            @if (SpaceExperience)
                             {
-                                <td>@account.ActiveFrom.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
-                                <td><span class="obw-status">@(account.ActiveTo is not null ? "Closed" : "Active")</span></td>
+                                <td data-label="Start date">@account.ActiveFrom.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
+                                <td data-label="Status"><AccountStatusPill Status="@(account.ActiveTo is not null ? "Closed" : "Active")" /></td>
                             }
-                            <td class="v3-num">@(account.CurrentAmount is { } amount ? Money(amount) : "—")</td>
-                            <td class="v3-num">@Money(account.AssessedToDate)</td>
-                            <td class="v3-num">@Money(account.CollectedToDate)</td>
-                            <td class="v3-num v3-strong">@Money(account.OutstandingToDate)</td>
-                            <td class="obw-actions">
+                            <td class="v3-num" data-label="@AmountHeading">@(account.CurrentAmount is { } amount ? Money(amount) : "—")</td>
+                            <td class="v3-num" data-label="Assessed">@Money(account.AssessedToDate)</td>
+                            <td class="v3-num" data-label="Collected">@Money(account.CollectedToDate)</td>
+                            <td class="v3-num v3-strong" data-label="Remaining">@Money(account.OutstandingToDate)</td>
+                            <td class="obw-actions-cell"><div class="obw-actions" role="group" aria-label="@($"Account actions for {account.SubjectLabel}")">
                                 <button class="v3-btn v3-btn-sm" type="button" aria-expanded="@(_selected == account.Id ? "true" : "false")"
                                         @onclick="() => ToggleRegisterAsync(account.Id)">Periods</button>
                                 <AuthorizeView Roles="SuperAdmin">
@@ -92,12 +212,26 @@
                                         }
                                     </Authorized>
                                 </AuthorizeView>
-                            </td>
+                            </div></td>
                         </tr>
                         @if (_selected == account.Id)
                         {
                             <tr class="obw-register-row">
-                                <td colspan="@(_holders ? 9 : 7)">
+                                <td colspan="@(SpaceExperience ? 9 : 7)">
+                                    @if (SupportsContractBasis)
+                                    {
+                                        <dl class="obw-account-facts">
+                                            <div><dt>Occupancy basis</dt><dd>@SpaceAccountPresentation.Basis(account)</dd></div>
+                                            @if (!string.IsNullOrWhiteSpace(SpaceAccountPresentation.Reference(account)))
+                                            { <div><dt>Contract reference</dt><dd>@account.ContractReference</dd></div> }
+                                            <div><dt>Approved amount effective from</dt><dd>@(account.CurrentAmountEffectiveFrom?.ToString("MMM yyyy") ?? "Not recorded")</dd></div>
+                                            @if (account.ActiveTo is { } closed) { <div><dt>Closed on</dt><dd>@closed.ToString("MMM d, yyyy")</dd></div> }
+                                        </dl>
+                                    }
+                                    @if (_registerError is not null)
+                                    {
+                                        <div role="alert" class="v3-notice v3-notice-error">@_registerError <button class="v3-btn v3-btn-sm" type="button" @onclick="() => LoadRegisterAsync(account.Id)">Try again</button></div>
+                                    }
                                     <table class="v3-table obw-register" aria-label="@($"{account.SubjectLabel} periods")">
                                         <thead>
                                             <tr>
@@ -119,7 +253,7 @@
                                             }
                                             @if (_register.Count == 0)
                                             {
-                                                <tr><td class="v3-empty" colspan="4">@(_registerLoading ? "Loading periods…" : "No period is billable yet.")</td></tr>
+                                                <tr><td class="v3-empty" colspan="4">@(_registerLoading ? "Loading periods…" : _registerError is not null ? "Periods are unavailable." : "No period is billable yet.")</td></tr>
                                             }
                                         </tbody>
                                     </table>
@@ -130,9 +264,10 @@
                     @if (!VisibleAccounts.Any())
                     {
                         <tr>
-                            <td class="v3-empty" colspan="@(_holders ? 9 : 7)">
-                                @if (_loading) { <span role="status">Loading accounts…</span> }
+                            <td class="v3-empty" colspan="@(SpaceExperience ? 9 : 7)">
+                                @if (_loading) { <span role="status">Loading accounts…</span><Skeleton Height="24px" /> }
                                 else if (_error is not null) { <span>Accounts are unavailable.</span> }
+                                else if (SpaceExperience && _accounts.Count > 0) { <span>@(!string.IsNullOrWhiteSpace(_search) ? "No accounts match this search." : _lifecycle == "All" ? "No accounts match the selected payment position." : _lifecycle == "Closed" ? "No closed accounts match the selected payment position." : "No active registrations match the selected payment position.")</span> }
                                 else { <span>No @(SubjectNoun == "Lot" ? "lots" : "spaces") found.</span> }
                             </td>
                         </tr>
@@ -142,25 +277,38 @@
                 {
                     <tfoot>
                         <tr>
-                            <td colspan="@(_holders ? 5 : 3)"><strong>Total</strong></td>
-                            <td class="v3-num v3-strong">@Money(_workspace?.Assessed ?? _accounts.Sum(x => x.AssessedToDate))</td>
-                            <td class="v3-num v3-strong">@Money(_workspace?.Collected ?? _accounts.Sum(x => x.CollectedToDate))</td>
-                            <td class="v3-num v3-strong">@Money(_workspace?.Outstanding ?? _accounts.Sum(x => x.OutstandingToDate))</td>
+                            <td colspan="@(SpaceExperience ? 5 : 3)"><strong>Total</strong> <span class="obw-note" title="All registered accounts, including closed accounts. Search and filters do not change totals.">All accounts · to date</span></td>
+                            <td class="v3-num v3-strong" data-label="Assessed">@Money(_workspace?.Assessed ?? _accounts.Sum(x => x.AssessedToDate))</td>
+                            <td class="v3-num v3-strong" data-label="Collected">@Money(_workspace?.Collected ?? _accounts.Sum(x => x.CollectedToDate))</td>
+                            <td class="v3-num v3-strong" data-label="Remaining">@Money(_workspace?.Outstanding ?? _accounts.Sum(x => x.OutstandingToDate))</td>
                             <td></td>
                         </tr>
                     </tfoot>
                 }
             </table>
         </div>
+        }
     </section>
 
 </div>
+}
+
+@if (_holderDetails is { } holder)
+{
+    <ObligationHolderDetails Account="holder" Operation="@Name"
+        CanEdit="@(_canEditHolder && !ReadOnlyHistory)"
+        OnClose="() => _holderDetails = null"
+        OnEdit="() => { _holderDetails = null; OpenHolderEditor(holder); }"
+        OnHistory="() => { _holderDetails = null; OpenAccountHistory(holder); }" />
+}
+@if (_detailsAccount is { } details)
+{ <ObligationRentalDetails Account="details" History="_detailsHistory" OnClose="() => _detailsAccount = null" /> }
 
 <AuthorizeView Roles="SuperAdmin">
     <Authorized>
-        <AddNewDrawer Show="@(_opening && !ReadOnlyHistory)" Title="@($"Open {Name} account")" Subtitle="@OpenSubtitle"
+        <AddNewDrawer Show="@(_opening && _advanceRequest is null && !ReadOnlyHistory)" Title="@(SupportsContractBasis ? "Add New Space Holder" : $"Open {Name} account")" Subtitle="@OpenSubtitle"
                       FormId="obw-open-form" FormLabel="Open account" SubmitText="Open account" Saving="_saving" Error="@_formError"
-                      OnSubmit="CreateAsync" OnCancel="CloseForm">
+                      OnSubmit="CreateAsync" OnCancel="CloseForm" LeadingFooterActions="@ImportAction">
             @if (Kind == ObligationKind.FishMeatVendorFee)
             {
                 <AddNewSection Title="NPM Fish / Meat stall" Plain="true">
@@ -181,7 +329,24 @@
             }
             else
             {
-                <AddNewSection Title="@(Kind == ObligationKind.FiestaArawLotRental ? "Event & Occupant Information" : "Occupant Information")" Plain="true">
+                @if (SupportsContractBasis)
+                {
+                    <RentalLesseeFields Form="RegistrationState" ContractNameSupported="true" OccupantId="obw-occupant"
+                                        OccupantPlaceholder="Current space occupant" OnArrangement="SelectRentalBasis">
+                        <ExtraFields>
+                            @if (_signedContract)
+                            {
+                                <div class="avm-row-2"><div class="avm-group">
+                                    <label class="avm-label">Contract reference</label>
+                                    <input class="avm-input" type="text" maxlength="200" placeholder="As written on the contract" @bind="_contractRef" />
+                                </div></div>
+                            }
+                        </ExtraFields>
+                    </RentalLesseeFields>
+                }
+                else
+                {
+                <AddNewSection Title="@(Kind == ObligationKind.FiestaArawLotRental ? "Event & Occupant Information" : Workspace is not null ? "Lessee Information" : "Occupant Information")" Plain="true">
                     <div class="avm-group">
                         <label class="avm-label">@(Kind == ObligationKind.FiestaArawLotRental ? "Event" : "Basis of Occupancy") <span class="avm-req">*</span></label>
                         @if (Kind == ObligationKind.FiestaArawLotRental)
@@ -193,40 +358,79 @@
                             <ChoiceCards Label="Basis of occupancy" Items="BasisChoices" Value="@(_signedContract ? "signed" : "space")" ValueChanged="PickBasis" />
                         }
                     </div>
-                    <div class="avm-row-2">
+                    <div class="@(SupportsContractBasis && _signedContract ? "avm-row-2" : "avm-group")">
                         @* The holder is the source's own occupant: typed once on the account, never a master record or a name match. *@
                         <div class="avm-group">
                             <label class="avm-label" for="obw-occupant">@(Kind == ObligationKind.FiestaArawLotRental ? "Lot holder" : "Actual occupant") <span class="avm-req">*</span></label>
                             <input id="obw-occupant" class="avm-input" type="text" maxlength="200" autocomplete="off" aria-label="Actual occupant" @bind="_occupant" @bind:event="oninput" />
                         </div>
-                        @if (Kind == ObligationKind.KanmanggaySpaceRental)
+                        @if (SupportsContractBasis && _signedContract)
                         {
                             <div class="avm-group">
                                 <label class="avm-label">Contract reference</label>
-                                @if (_signedContract)
-                                {
-                                    <input class="avm-input" type="text" maxlength="200" placeholder="As written on the contract" @bind="_contractRef" />
-                                }
-                                else
-                                {
-                                    <div class="avm-input avm-input-locked">No contract (space only)</div>
-                                }
+                                <input class="avm-input" type="text" maxlength="200" placeholder="As written on the contract" @bind="_contractRef" />
                             </div>
                         }
                     </div>
                 </AddNewSection>
+                }
 
+                @if (SupportsContractBasis)
+                {
+                    <RentalContractFields>
+                        <SourceField><div class="avm-group"><label class="avm-label">Operation <span class="avm-req">*</span></label><div class="avm-input avm-input-locked">@Name</div></div></SourceField>
+                        <NumberField><RentalUnitNumberField ServerAssigned="true" SuggestedNumber="@NextSpaceNumber" SignedContract="_signedContract" /></NumberField>
+                        <EffectivityField>
+                            @if (_signedContract)
+                            {
+                                <RentalEffectivityField SignedContract="true" InputId="obw-contract-date" Label="Contract Effectivity Date" Date="@_contractDate" DateChanged="value => _contractDate = value" />
+                            }
+                            else
+                            {
+                                <RentalEffectivityField SignedContract="false" MonthPrecision="true" InputId="obw-start"
+                                    Label="Occupying Since (month)" Month="@_startMonth" MonthChanged="v => _startMonth = v" />
+                            }
+                        </EffectivityField>
+                        <TermField>
+                            @if (_signedContract && Kind == ObligationKind.KanmanggaySpaceRental)
+                            {
+                                <div class="avm-group">
+                                    <label class="avm-label">Contract Duration (No. of Years)</label>
+                                    <FhSelect Block="true" Caption="" AriaLabel="Contract Duration (No. of Years)" Value="@_contractYears.ToString()"
+                                              Options="KmContractYearOptions" ValueChanged="value => _contractYears = 3" />
+                                </div>
+                            }
+                        </TermField>
+                    </RentalContractFields>
+                    <AddNewSection Title="Space Information" Plain="true">
+                        <div class="avm-row-2"><div class="avm-group">
+                            <label class="avm-label" for="obw-area">Area (sq.m)</label>
+                            <input id="obw-area" type="number" class="avm-input" min="0" max="1000000" step="0.01" placeholder="Area if recorded" @bind="_areaSqm" />
+                        </div></div>
+                    </AddNewSection>
+                }
+                else
+                {
                 <AddNewSection Title="@(Kind == ObligationKind.FiestaArawLotRental ? "Lot & Event Details" : "Space & Contract Details")" Plain="true">
                     <div class="avm-row-2">
                         <div class="avm-group">
                             <label class="avm-label">Operation</label>
                             <div class="avm-input avm-input-locked">@(Kind == ObligationKind.FiestaArawLotRental ? EventChoices.FirstOrDefault(x => x.Value == ((int)_lotEvent).ToString())?.Title ?? Name : Name)</div>
                         </div>
+                        @if (!ServerAssignedNumber)
+                        {
                         <div class="avm-group">
-                            @* Left blank, the number is assigned by the server within this operation; it is never worked out here. *@
                             <label class="avm-label" for="obw-subject">@(SubjectNoun == "Lot" ? "Lot No." : "Space No.")</label>
                             <input id="obw-subject" class="avm-input" type="text" maxlength="120" placeholder="Assigned automatically" @bind="_subject" />
                         </div>
+                        }
+                        else if (Workspace is not null)
+                        {
+                            <div class="avm-group">
+                                <label class="avm-label">Space No.</label>
+                                <div class="avm-input avm-input-locked">Assigned by the server on registration</div>
+                            </div>
+                        }
                     </div>
                     <div class="avm-row-2">
                         @if (Kind == ObligationKind.FiestaArawLotRental)
@@ -243,18 +447,138 @@
                         else
                         {
                             <div class="avm-group">
-                                <label class="avm-label" for="obw-start">@(_signedContract ? "Contract Effectivity (month)" : "Occupying Since (month)") <span class="avm-req">*</span></label>
+                                <label class="avm-label" for="obw-start">@(EffectiveMonthLabel ?? (_signedContract ? "Contract Effectivity (month)" : "Occupying Since (month)")) <span class="avm-req">*</span></label>
                                 <input id="obw-start" class="avm-input" type="month" required aria-label="Start month" value="@_startMonth" @onchange="e => _startMonth = e.Value?.ToString() ?? string.Empty" />
                             </div>
+                            @if (!SupportsContractBasis)
+                            {
                             <div class="avm-group">
                                 <label class="avm-label" for="obw-amount">Approved monthly rental (₱) <span class="avm-req">*</span></label>
                                 <input id="obw-amount" class="avm-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
                             </div>
+                            }
                         }
                     </div>
                 </AddNewSection>
+                }
+                @if (SupportsContractBasis)
+                {
+                    <AddNewSection Title="Rental Rates" Plain="true">
+                        <RentalRateFields Form="RegistrationState" InputId="obw-amount" Label="Approved Monthly Rental (₱)" Minimum="0.01m" Step="0.01" Entered="() => StateHasChanged()" />
+                    </AddNewSection>
+                    <AddNewSection Title="Additional Information" Plain="true">
+                        <div class="avm-row-2"><div class="avm-group">
+                            <label class="avm-label" for="obw-area-note">Area Location / Note</label>
+                            <input id="obw-area-note" class="avm-input" type="text" maxlength="250" placeholder="e.g. Extension, Corner" @bind="_areaLocation" />
+                        </div></div>
+                    </AddNewSection>
+                    <AddNewSection Title="Applicable Charges" Plain="true">
+                        <RentalRateFields Form="RegistrationState" ChargeCard="true" Minimum="0.01m" Step="0.01" SourceName="@Name"
+                                          Entered="() => StateHasChanged()" Changed="() => StateHasChanged()">
+                            <Icon>@SpaceIcon</Icon>
+                        </RentalRateFields>
+                    </AddNewSection>
+                }
             }
         </AddNewDrawer>
+
+        @if (_advanceRequest is { } advance)
+        {
+            <AddNewDrawer Show="true" Title="Register lot holder in advance?"
+                          Subtitle="The selected event is scheduled for a future month. Confirm the details before opening this account."
+                          FormId="obw-advance-form" FormLabel="Confirm advance registration" SubmitText="Confirm registration" CancelText="Review details"
+                          Saving="_saving" OnSubmit="ConfirmAdvanceAsync" OnCancel="ReviewAdvance">
+                <dl class="obw-account-facts">
+                    <div><dt>Event</dt><dd>@AdvanceEventName</dd></div>
+                    <div><dt>Lot holder</dt><dd>@advance.ActualOccupant</dd></div>
+                    <div><dt>Event date</dt><dd>@advance.EventDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</dd></div>
+                    <div><dt>Approved amount</dt><dd>@Money(advance.Amount)</dd></div>
+                </dl>
+            </AddNewDrawer>
+        }
+
+        @if (_editFor is { } editing && !ReadOnlyHistory)
+        {
+            <AddNewDrawer Show="true" Edit="true" Title="Edit Space Holder"
+                          Subtitle="@($"{Name} · Space {editing.SubjectLabel}")"
+                          FormId="obw-edit-holder-form" FormLabel="Edit Space Holder"
+                          SubmitText="Save changes" Saving="_saving" Error="@_formError"
+                          OnSubmit="SaveHolderAsync" OnCancel="CloseForm">
+                <RentalLesseeFields Form="RegistrationState" OccupantId="obw-occupant"
+                                    ContractNameSupported="true" OccupantPlaceholder="Current space occupant"
+                                    OnArrangement="SelectRentalBasis">
+                    <ExtraFields>
+                        @if (_signedContract)
+                        {
+                            <div class="avm-row-2"><div class="avm-group">
+                                <label class="avm-label">Contract reference</label>
+                                <input class="avm-input" type="text" maxlength="200" placeholder="As written on the contract" @bind="_contractRef" />
+                            </div></div>
+                        }
+                    </ExtraFields>
+                </RentalLesseeFields>
+                <RentalContractFields>
+                    <SourceField>
+                        <div class="avm-group">
+                            <label class="avm-label">Facility / Operation</label>
+                            <div class="avm-input avm-input-locked">@Name</div>
+                        </div>
+                    </SourceField>
+                    <NumberField>
+                        <div class="avm-group">
+                            <label class="avm-label">Space No.</label>
+                            <div class="avm-input avm-input-locked">@editing.SubjectLabel</div>
+                        </div>
+                    </NumberField>
+                    <EffectivityField>
+                        @if (_signedContract)
+                        {
+                            <RentalEffectivityField SignedContract="true" InputId="obw-contract-date" Label="Contract Effectivity Date"
+                                                    Date="_contractDate" DateChanged="v => _contractDate = v" />
+                        }
+                        else
+                        {
+                            <div class="avm-group">
+                                <label class="avm-label">Occupying Since</label>
+                                <div class="avm-input avm-input-locked">@editing.ActiveFrom.ToString("MMM d, yyyy")</div>
+                            </div>
+                        }
+                    </EffectivityField>
+                    <TermField>
+                        @if (_signedContract && Kind == ObligationKind.KanmanggaySpaceRental)
+                        {
+                            <div class="avm-group">
+                                <label class="avm-label" for="obw-contract-years">Contract Duration (No. of Years)</label>
+                                <select id="obw-contract-years" class="avm-input" @bind="_contractYears">
+                                    <option value="0">Not recorded</option>
+                                    <option value="3">3 years</option>
+                                </select>
+                            </div>
+                        }
+                    </TermField>
+                </RentalContractFields>
+                <AddNewSection Title="Space Information" Plain="true">
+                    <div class="avm-row-2"><div class="avm-group">
+                        <label class="avm-label" for="obw-area">Area (sq.m)</label>
+                        <input id="obw-area" class="avm-input" type="number" min="0" max="1000000" step="0.01" @bind="_areaSqm" />
+                    </div></div>
+                </AddNewSection>
+                <AddNewSection Title="Additional Information" Plain="true">
+                    <div class="avm-row-2"><div class="avm-group">
+                        <label class="avm-label" for="obw-area-note">Area Location / Note</label>
+                        <input id="obw-area-note" class="avm-input" type="text" maxlength="250" @bind="_areaLocation" />
+                    </div></div>
+                </AddNewSection>
+                <div class="v3-notice">
+                    Recorded rent: @Money(editing.CurrentAmount ?? 0m) / month. Changes to the approved amount have a separate
+                    effective-dated approval. If prior months were assessed, the occupant, occupancy basis and lease term
+                    cannot be replaced here: close the term and begin a new approved occupancy instead.
+                </div>
+                <div class="obw-actions">
+                    <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenRate(editing)">Change approved amount</button>
+                </div>
+            </AddNewDrawer>
+        }
 
         <AddNewDrawer Show="@(!_opening && _rateFor is not null && !ReadOnlyHistory)" Edit="true" Title="Change approved amount" Subtitle="@_rateFor?.SubjectLabel"
                       FormId="obw-rate-form" FormLabel="Change approved amount" SubmitText="Save amount" Saving="_saving" Error="@_formError"
@@ -275,9 +599,20 @@
     </Authorized>
 </AuthorizeView>
 
+<AuthorizeView Roles="SuperAdmin"><Authorized>
+@if (_closeFor is { } closing)
+{
+    <AddNewDrawer Show="true" Edit="true" Title="Close space account" Subtitle="@SpaceAccountPresentation.Occupant(closing)"
+                  FormId="obw-close-form" FormLabel="Confirm account closure" SubmitText="Confirm closure" Saving="_saving" Error="@_formError"
+                  OnSubmit="ConfirmCloseAsync" OnCancel="CancelClose">
+        <p class="v3-notice">Mark Space @closing.SubjectLabel (@SpaceAccountPresentation.Occupant(closing)) as Closed on @PhilippineTime.Today.ToString("MMM d, yyyy")? It will no longer appear in active collection lists. Previously assessed periods and collections remain readable. Their balances remain intact, and future assessments stop at the closure date. This is not contract renewal or reopening.</p>
+    </AddNewDrawer>
+}
+</Authorized></AuthorizeView>
+
 @if (!string.IsNullOrWhiteSpace(_saved))
 {
-    <p class="v3-notice" role="status">@_saved</p>
+    <p class="v3-notice obw-success" role="status" aria-live="polite">@_saved</p>
 }
 
 @code {
@@ -291,6 +626,17 @@
     /// <summary>What an account is for: Stall, Space or Lot.</summary>
     [Parameter, EditorRequired] public string SubjectNoun { get; set; } = string.Empty;
     [Parameter] public bool SpaceExperience { get; set; }
+    [Parameter] public bool Overview { get; set; }
+    [Parameter] public bool Management { get; set; }
+    [Parameter] public Guid? AccountId { get; set; }
+    [Parameter] public SpaceAccountPresentation? Presentation { get; set; }
+    [Parameter] public RentalWorkspaceDefinition? Workspace { get; set; }
+    [Parameter] public bool ServerAssignedNumber { get; set; }
+    [Parameter] public string? EffectiveMonthLabel { get; set; }
+    [Parameter] public string? AccountCountLabel { get; set; }
+    [Parameter] public RenderFragment? AfterHero { get; set; }
+    [Parameter] public RenderFragment? ToolbarMode { get; set; }
+    private bool SupportsContractBasis => EEMOCantilanSDS.Domain.Entities.Revenue.ObligationAccount.IsMonthlySpaceKind(Kind);
     [Parameter] public bool ReadOnlyHistory { get; set; }
     [Parameter] public string? ReportsHref { get; set; }
 
@@ -298,24 +644,54 @@
     [Parameter] public string? ImportHref { get; set; }
     private ObligationWorkspaceDto? _workspace;
     private string _search = string.Empty, _filter = "All";
-    private bool _holders;
-    private static readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
+    private string _lifecycle = "Active";
+    private static readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid" };
+    private static readonly List<string> OverviewFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
+    private string RegistryCode => Kind == ObligationKind.FiestaArawLotRental ? "FA" : Kind == ObligationKind.KanmanggaySpaceRental ? "KM" : "Vegetable/Fruits";
+    private static readonly IReadOnlyList<(string Value, string Label)> KmContractYearOptions = [("3", "3 years")];
+    private bool _closedShortcut;
+    private bool _advancedLifecycle;
+    private string RegistryFilter => _closedShortcut ? "Closed" : _filter;
+    private void SetLifecycle(ChangeEventArgs e) { _lifecycle = e.Value?.ToString() ?? "Active"; _closedShortcut = false; _advancedLifecycle = true; }
+    private void SetRegistryFilter(string filter)
+    {
+        if (filter == "Closed") { _lifecycle = "Closed"; _filter = "All"; _closedShortcut = true; _advancedLifecycle = false; }
+        else
+        {
+            if (!_advancedLifecycle) _lifecycle = "Active";
+            _filter = filter; _closedShortcut = false;
+        }
+    }
     private double CollectionRate => _workspace is { Assessed: > 0m } w ? (double)Math.Min(100m, Math.Round(w.Collected / w.Assessed * 100m, 0)) : 0;
-    private RenderFragment ActionBarContent => @<div class="obw-actions-bar">
-        <button class="btn-outline" type="button" @onclick="() => _holders = true">@(SubjectNoun == "Lot" ? "Lot / Space Holder List" : "Space Holder List")</button>
-        <button class="btn-outline" type="button" @onclick="() => _holders = false">Manage Space Holders</button>
+    private RenderFragment SpaceIcon => @<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></svg>;
+    private RenderFragment ActionBarContent => @<text>
+        @if (Workspace is { } workspace)
+        {
+            <RentalWorkspaceNavigation Workspace="workspace" ShowManagement="@(!Management)">@RegistrationAction</RentalWorkspaceNavigation>
+        }
+        else
+        { @LegacyActionBar }
+    </text>;
+    private RenderFragment RegistrationAction => @<AuthorizeView Roles="SuperAdmin"><Authorized>
+        <button class="btn-primary" type="button" @onclick="OpenForm">+ Add New</button>
+    </Authorized></AuthorizeView>;
+    private RenderFragment LegacyActionBar => @<div class="obw-actions-bar">
+        @if (Presentation is { } presentation)
+        {
+            <a class="btn-outline" href="@presentation.RosterHref">Space Holder List</a>
+            @if (!Management) { <a class="btn-outline" href="@presentation.ManagementHref">Manage Space Holders</a> }
+        }
         <a class="btn-outline" href="@ReportsHref">Reports</a>
-        <AuthorizeView Roles="SuperAdmin"><Authorized>
-            @if (!string.IsNullOrWhiteSpace(ImportHref)) { <a class="btn-outline" href="@ImportHref">Import list</a> }
-            <button class="btn-primary" type="button" @onclick="OpenForm">+ Add New</button>
-        </Authorized></AuthorizeView>
+        @RegistrationAction
     </div>;
+    private RenderFragment? ImportAction => string.IsNullOrWhiteSpace(ImportHref) ? null : @<button type="button" class="btn-ghost" disabled="@_saving" @onclick="OpenImport">Import list</button>;
+    private void OpenImport() { if (!_saving && !string.IsNullOrWhiteSpace(ImportHref)) Navigation.NavigateTo(ImportHref); }
     private List<FacilityHero.HeroStat> SpaceStats => [
         new() { Label = "Collected", Value = _workspace is null ? "—" : Money(_workspace.Collected) },
         new() { Label = "Remaining", Value = _workspace is null ? "—" : Money(_workspace.Outstanding) },
-        new() { Label = $"Total {SubjectNoun.ToLowerInvariant()}s", Value = _accounts.Count.ToString(CultureInfo.InvariantCulture) }];
+        new() { Label = AccountCountLabel ?? $"Registered {SubjectNoun.ToLowerInvariant()}s", Value = _loading || _error is not null ? "—" : _accounts.Count.ToString(CultureInfo.InvariantCulture) }];
     private IEnumerable<ObligationAccountDto> VisibleAccounts => _accounts.Where(a =>
-        (!SpaceExperience || (_filter == "Closed" ? a.ActiveTo is not null : a.ActiveTo is null))
+        (!SpaceExperience || (!Overview && _lifecycle == "All") || ((Overview ? _filter == "Closed" : _lifecycle == "Closed") ? a.ActiveTo is not null : a.ActiveTo is null))
         && (!SpaceExperience || _filter switch
         {
             "Paid" => a.AssessedToDate > 0m && a.OutstandingToDate == 0m,
@@ -324,7 +700,7 @@
             _ => true
         })
         && (string.IsNullOrWhiteSpace(_search) || a.SubjectLabel.Contains(_search, StringComparison.OrdinalIgnoreCase)
-            || (a.PayerName?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false)));
+            || SpaceAccountPresentation.Occupant(a).Contains(_search, StringComparison.OrdinalIgnoreCase)));
 
     private string AmountHeading => Kind == ObligationKind.FiestaArawLotRental ? "Approved amount" : "Approved monthly";
 
@@ -333,14 +709,34 @@
     private List<VendorFeeStallDto> _stalls = [];
     private bool _loading = true;
     private bool _registerLoading;
+    private int _registerRequest;
+    private string? _registerError;
     private string? _error;
     private Guid? _selected;
 
     private bool _opening;
+    private CreateObligationAccountRequest? _advanceRequest;
     private ObligationAccountDto? _rateFor;
+    private ObligationAccountDto? _editFor;
     private bool _saving;
     private bool _signedContract = true;
     private string _contractRef = string.Empty;
+    private string _contractName = string.Empty;
+    private string _areaLocation = string.Empty;
+    private decimal? _areaSqm;
+    private int _contractYears = 3;
+    private DateTime? _contractDate = PhilippineTime.Now.Date;
+    private string? NextSpaceNumber
+    {
+        get
+        {
+            if (!ServerAssignedNumber || _loading || _error is not null) return null;
+            var max = _accounts.Where(x => x.Kind == Kind && x.Event is null)
+                .Select(x => long.TryParse(x.SubjectLabel, out var number) && number > 0 ? number : 0L)
+                .DefaultIfEmpty().Max();
+            return max < long.MaxValue ? (max + 1).ToString(CultureInfo.InvariantCulture) : null;
+        }
+    }
     private string? _formError;
     private string? _saved;
     private string _occupant = string.Empty;
@@ -351,25 +747,102 @@
     private string _startMonth = PhilippineTime.Today.ToString("yyyy-MM", CultureInfo.InvariantCulture);
     private string _rateMonth = PhilippineTime.Today.AddMonths(1).ToString("yyyy-MM", CultureInfo.InvariantCulture);
     private decimal? _amount;
+    private RenderFragment<ObligationAccountDto> RegistryAccountActions => a => @<AuthorizeView Roles="SuperAdmin">
+        <Authorized>
+            <RentalRegistryActionButtons Subject="@SpaceAccountPresentation.Occupant(a)" IsActive="@(a.ActiveTo is null)"
+                CanEdit="@(a.ActiveTo is null && a.Kind != ObligationKind.FiestaArawLotRental && !ReadOnlyHistory)"
+                EditTitle="Edit Space Holder"
+                EditUnavailableReason="Editing is unavailable: closed account or unsupported event-amount revision."
+                CanToggle="@(a.ActiveTo is null && !ReadOnlyHistory)"
+                ToggleTitle="@(a.ActiveTo is null ? "Close Account" : "Reopen unavailable: requires an approved successor-account workflow.")"
+                OnInspect="() => OpenHolderDetails(a, true)"
+                OnProfile="() => OpenAccountProfile(a)"
+                OnEdit="() => OpenHolderEditor(a)"
+                OnHistory="() => OpenAccountHistory(a)"
+                OnToggle="() => CloseAsync(a.Id)" />
+        </Authorized>
+        <NotAuthorized>
+            <RentalRegistryActionButtons Subject="@SpaceAccountPresentation.Occupant(a)" IsActive="@(a.ActiveTo is null)"
+                CanEdit="false" CanToggle="false"
+                EditUnavailableReason="Only an authorized Head can change an approved amount."
+                ToggleTitle="Only an authorized Head may close accounts. Reopening is unavailable."
+                OnInspect="() => OpenHolderDetails(a, false)"
+                OnProfile="() => OpenAccountProfile(a)"
+                OnHistory="() => OpenAccountHistory(a)" />
+        </NotAuthorized>
+    </AuthorizeView>;
+    private ObligationAccountDto? _detailsAccount;
+    private ObligationAccountDto? _holderDetails;
+    private bool _canEditHolder;
+    private void OpenHolderDetails(ObligationAccountDto account, bool canEdit)
+    { _detailsAccount = null; _holderDetails = account; _canEditHolder = canEdit; }
+    private bool _detailsHistory;
+    private static string PaymentStatus(ObligationAccountDto a) => a.AssessedToDate > 0m && a.OutstandingToDate == 0m ? "Paid"
+        : a.CollectedToDate > 0m && a.OutstandingToDate > 0m ? "Partial" : "Unpaid";
+    private static string RegistryContract(ObligationAccountDto account)
+    {
+        if (account.Event is not null) return "Event lot";
+        if (account.ContractYears is { } years && account.ContractEffectiveDate is { } signedDate)
+            return $"{years} years · expires {DomainRules.TermLastDay(signedDate, years):MMM yyyy}";
+        return account.Arrangement == OccupancyArrangement.SignedContract
+            ? account.ContractName is { Length: > 0 } ? account.ContractName : "Signed lease · term not recorded"
+            : SpaceAccountPresentation.Basis(account);
+    }
+    private IEnumerable<RentalTableRow<ObligationAccountDto>> RentalRows => VisibleAccounts.Select(a => new RentalTableRow<ObligationAccountDto>(a,
+        a.SubjectLabel, SpaceAccountPresentation.Occupant(a), RegistryContract(a),
+        (a.ContractEffectiveDate ?? a.ActiveFrom).ToString("MMM d, yyyy"), a.CurrentAmount, PaymentStatus(a),
+        a.ActiveTo is null ? "Active" : "Closed",
+        a.Event is not null ? LotLabel(a) : !string.IsNullOrWhiteSpace(a.AreaLocation) ? a.AreaLocation : Name));
+    private void OpenAccountPosition(ObligationAccountDto account) { _detailsAccount = account; _detailsHistory = false; }
+    private void OpenAccountHistory(ObligationAccountDto account) { _detailsAccount = account; _detailsHistory = true; }
+    private void OpenAccountProfile(ObligationAccountDto account) => Navigation.NavigateTo(
+        account.Kind == ObligationKind.FiestaArawLotRental ? $"/vendors?workspace=FA&account={account.Id}" : $"{Presentation?.ManagementHref ?? "/operations/kanmanggay/manage-space-holders"}?account={account.Id}");
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    private IRentalRegistrationState RegistrationState => new ObligationRentalRegistrationState(
+        () => _occupant, v => _occupant = v,
+        () => _signedContract ? OccupancyArrangement.SignedContract : OccupancyArrangement.SpaceOnly,
+        v => _signedContract = v == OccupancyArrangement.SignedContract,
+        () => _amount ?? 0m, v => _amount = v,
+        () => _contractName, v => _contractName = v);
+    private void SelectRentalBasis(OccupancyArrangement arrangement) => _signedContract = arrangement == OccupancyArrangement.SignedContract;
+
+    protected override void OnParametersSet()
+    {
+        // Fail closed on a miswired presentation adapter; never map one source into another.
+        if (Workspace is { Source: MonthlySpaceRentalSource monthly } && monthly.Kind != Kind
+            || Workspace is { Source: EventLotRentalSource eventLot } && eventLot.Kind != Kind
+            || Workspace?.Source is FacilityRentalSource)
+            throw new InvalidOperationException("The rental presentation does not match this obligation source.");
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        if (Management && AccountId is { } id && _accounts.FirstOrDefault(a => a.Id == id) is { } selected)
+        {
+            _lifecycle = selected.ActiveTo is null ? "Active" : "Closed";
+            await ToggleRegisterAsync(id);
+        }
+    }
 
     private async Task LoadAsync()
     {
         _loading = true;
         _error = null;
+        _workspace = null;
+        _accounts = [];
         try
         {
             if (SpaceExperience)
             {
                 var workspace = await ObligationsApi.GetWorkspaceAsync(Kind);
                 _workspace = workspace.IsSuccess ? workspace.Value : null;
-                _accounts = _workspace?.Accounts.ToList() ?? [];
+                _accounts = _workspace?.Accounts.Where(a => a.Kind == Kind).ToList() ?? [];
                 if (!workspace.IsSuccess) _error = workspace.Error ?? $"{Name} accounts couldn't be loaded.";
                 return;
             }
             var result = await ObligationsApi.GetAccountsAsync(Kind);
-            if (result.IsSuccess) _accounts = result.Value?.ToList() ?? [];
+            if (result.IsSuccess) _accounts = result.Value?.Where(a => a.Kind == Kind).ToList() ?? [];
             else { _accounts = []; _error = $"{Name} accounts couldn't be loaded."; }
         }
         catch { _accounts = []; _error = $"{Name} accounts couldn't be loaded."; }
@@ -380,21 +853,31 @@
     {
         if (_selected == accountId) { _selected = null; return; }
         _selected = accountId;
+        await LoadRegisterAsync(accountId);
+    }
+
+    private async Task LoadRegisterAsync(Guid accountId)
+    {
+        var request = ++_registerRequest;
         _register = [];
+        _registerError = null;
         _registerLoading = true;
         try
         {
             var result = await ObligationsApi.GetRegisterAsync(accountId);
+            if (request != _registerRequest || _selected != accountId) return;
             _register = result.IsSuccess ? result.Value?.ToList() ?? [] : [];
+            if (!result.IsSuccess) _registerError = result.Error ?? "Periods could not be loaded.";
         }
-        catch { _register = []; }
-        finally { _registerLoading = false; }
+        catch { if (request == _registerRequest && _selected == accountId) { _register = []; _registerError = "Periods could not be loaded."; } }
+        finally { if (request == _registerRequest) _registerLoading = false; }
     }
 
     private async Task OpenForm()
     {
-        _formError = null; _saved = null; _rateFor = null;
-        _occupant = _stallId = _subject = _contractRef = string.Empty;
+        _formError = null; _saved = null; _rateFor = null; _editFor = null; _advanceRequest = null;
+        _occupant = _stallId = _subject = _contractRef = _contractName = _areaLocation = string.Empty;
+        _areaSqm = null; _contractYears = 3; _contractDate = PhilippineTime.Now.Date;
         _signedContract = true; _lotEvent = LotRentalEvent.Fiesta;
         _amount = null;
         _opening = true;
@@ -411,18 +894,36 @@
         }
     }
 
+    private void OpenHolderEditor(ObligationAccountDto account)
+    {
+        if (!SupportsContractBasis || account.ActiveTo is not null) return;
+        _formError = null; _saved = null; _opening = false; _rateFor = null;
+        _editFor = account;
+        _occupant = SpaceAccountPresentation.Occupant(account);
+        _signedContract = account.Arrangement == OccupancyArrangement.SignedContract;
+        _contractRef = account.ContractReference ?? string.Empty;
+        _contractName = account.ContractName ?? string.Empty;
+        _contractDate = account.ContractEffectiveDate?.ToDateTime(TimeOnly.MinValue);
+        _contractYears = account.ContractYears ?? 0;
+        _areaSqm = account.AreaSqm;
+        _areaLocation = account.AreaLocation ?? string.Empty;
+    }
+
     private void OpenRate(ObligationAccountDto account)
     {
-        _formError = null; _saved = null; _opening = false;
+        _formError = null; _saved = null; _opening = false; _advanceRequest = null;
         _rateFor = account;
+        _editFor = null;
         _amount = account.CurrentAmount;
     }
 
-    private void CloseForm() { _opening = false; _rateFor = null; _formError = null; }
+    private void CloseForm() { if (_saving) return; _opening = false; _rateFor = null; _editFor = null; _formError = null; _advanceRequest = null; }
+    private void ReviewAdvance() { if (!_saving) _advanceRequest = null; }
+    private string AdvanceEventName => EventChoices.FirstOrDefault(x => x.Value == ((int)_advanceRequest!.Event!.Value).ToString())?.Title ?? _advanceRequest!.Event.ToString()!;
 
     private string OpenSubtitle => Kind == ObligationKind.FiestaArawLotRental
         ? "A lot for an event, with the approved amount."
-        : Kind == ObligationKind.FishMeatVendorFee ? "A vendor stall with its approved monthly amount." : "A space with its approved monthly amount.";
+        : Kind == ObligationKind.FishMeatVendorFee ? "A vendor stall with its approved monthly amount." : $"Register a new {Name} space holder in the system.";
 
     private static readonly IReadOnlyList<ChoiceCards.Choice> BasisChoices =
     [
@@ -461,14 +962,21 @@
         return DateOnly.TryParseExact(value + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out month);
     }
 
-    private async Task CreateAsync()
+    private Task CreateAsync() => SubmitAccountAsync(false);
+    private Task ConfirmAdvanceAsync() => SubmitAccountAsync(true);
+
+    private async Task SubmitAccountAsync(bool confirmed)
     {
-        if (_saving) return;
+        if (_saving || !_opening || ReadOnlyHistory || (confirmed && _advanceRequest is null)) return;
         _formError = null;
         var isLot = Kind == ObligationKind.FiestaArawLotRental;
         if (_amount is not > 0m) { _formError = "Enter the approved amount."; return; }
         DateOnly start;
         if (isLot) start = _eventDate;
+        else if (SupportsContractBasis && _signedContract && _contractDate is { } signedOn)
+            start = new DateOnly(signedOn.Year, signedOn.Month, 1);
+        else if (SupportsContractBasis && _signedContract)
+        { _formError = "Choose the contract effectivity date."; return; }
         else if (!TryMonthStart(_startMonth, out start)) { _formError = "Choose the month the account starts."; return; }
         Guid? stallId = null;
         var payorId = Guid.Empty;
@@ -479,27 +987,64 @@
         }
         else if (_occupant.Trim().Length < 2) { _formError = Kind == ObligationKind.FiestaArawLotRental ? "Enter the lot holder." : "Enter the actual occupant."; return; }
 
+        var subject = Kind == ObligationKind.FishMeatVendorFee
+            ? _stalls.FirstOrDefault(x => x.StallId == stallId)?.StallNo ?? string.Empty
+            : ServerAssignedNumber ? string.Empty : _subject.Trim();
+        var request = new CreateObligationAccountRequest(
+            Kind, payorId, stallId, subject, isLot ? _lotEvent : null, isLot ? _eventDate : null, start, _amount!.Value,
+            // Monthly space accounts record occupancy basis; space-only occupancy implies no contract.
+            SupportsContractBasis ? (_signedContract ? OccupancyArrangement.SignedContract : OccupancyArrangement.SpaceOnly) : null,
+            SupportsContractBasis && _signedContract && !string.IsNullOrWhiteSpace(_contractRef) ? _contractRef.Trim() : null,
+            Kind == ObligationKind.FishMeatVendorFee ? null : _occupant.Trim(),
+            SupportsContractBasis && _signedContract ? _contractName.Trim() : null,
+            SupportsContractBasis && _signedContract && _contractDate is { } contractOn ? DateOnly.FromDateTime(contractOn) : null,
+            Kind == ObligationKind.KanmanggaySpaceRental && _signedContract ? _contractYears : null,
+            SupportsContractBasis ? _areaSqm : null,
+            SupportsContractBasis ? _areaLocation.Trim() : null);
+        var today = PhilippineTime.Today;
+        var futureMonth = isLot && new DateOnly(start.Year, start.Month, 1) > new DateOnly(today.Year, today.Month, 1);
+        if ((futureMonth && !confirmed) || (confirmed && request != _advanceRequest))
+        {
+            _advanceRequest = request;
+            return;
+        }
         _saving = true;
         try
         {
-            var subject = Kind == ObligationKind.FishMeatVendorFee
-                ? _stalls.FirstOrDefault(x => x.StallId == stallId)?.StallNo ?? string.Empty
-                : _subject.Trim();
-            var result = await ObligationsApi.CreateAccountAsync(new CreateObligationAccountRequest(
-                Kind, payorId, stallId, subject, isLot ? _lotEvent : null, isLot ? _eventDate : null, start, _amount!.Value,
-                // Occupancy basis is recorded for Kanmanggay only; no contract is implied for a space-only occupancy.
-                Kind == ObligationKind.KanmanggaySpaceRental ? (_signedContract ? OccupancyArrangement.SignedContract : OccupancyArrangement.SpaceOnly) : null,
-                Kind == ObligationKind.KanmanggaySpaceRental && _signedContract && !string.IsNullOrWhiteSpace(_contractRef) ? _contractRef.Trim() : null,
-                Kind == ObligationKind.FishMeatVendorFee ? null : _occupant.Trim()));
+            var result = await ObligationsApi.CreateAccountAsync(request);
             if (!result.IsSuccess) { _formError = result.Error ?? "The account could not be opened."; return; }
             _opening = false;
-            _saved = $"{Name} account opened.";
+            _saved = isLot ? "Lot account opened successfully." : $"{Name} account opened.";
             // A holder that was just added must be visible: a Paid / Partial filter or a search left on the list would hide it.
             _filter = "All";
+            _lifecycle = "Active";
             _search = string.Empty;
             await LoadAsync();
         }
         catch (Exception ex) { _formError = ex.Message; }
+        finally { _saving = false; _advanceRequest = null; }
+    }
+
+    private async Task SaveHolderAsync()
+    {
+        if (_saving || _editFor is not { } account) return;
+        _formError = null;
+        _saving = true;
+        try
+        {
+            var request = new CorrectObligationHolderRequest(_occupant,
+                _signedContract ? OccupancyArrangement.SignedContract : OccupancyArrangement.SpaceOnly,
+                _signedContract ? _contractRef : null, _signedContract ? _contractName : null,
+                _signedContract && _contractDate is { } contractDate ? DateOnly.FromDateTime(contractDate) : null,
+                _signedContract && _contractYears > 0 ? _contractYears : null,
+                _areaSqm, _areaLocation);
+            var result = await ObligationsApi.CorrectHolderAsync(account.Id, request);
+            if (!result.IsSuccess) { _formError = result.Error ?? "Holder details could not be saved."; return; }
+            _editFor = null;
+            _saved = "Space-holder evidence updated with an audit entry. Existing collections and assessments were not changed.";
+            await LoadAsync();
+        }
+        catch { _formError = "Holder details could not be saved."; }
         finally { _saving = false; }
     }
 
@@ -517,18 +1062,36 @@
             _rateFor = null;
             _saved = "Approved amount saved. It applies from its effective month.";
             await LoadAsync();
+            if (_selected is { } selected) await LoadRegisterAsync(selected);
         }
         catch (Exception ex) { _formError = ex.Message; }
         finally { _saving = false; }
     }
 
-    private async Task CloseAsync(Guid accountId)
+    private ObligationAccountDto? _closeFor;
+    private Task CloseAsync(Guid accountId)
     {
+        _closeFor = _accounts.FirstOrDefault(a => a.Id == accountId);
+        _formError = null;
+        return Task.CompletedTask;
+    }
+    private void CancelClose() { _closeFor = null; _formError = null; }
+    private async Task ConfirmCloseAsync()
+    {
+        if (_saving || _closeFor is null) return;
+        _saving = true;
         _saved = null;
-        var result = await ObligationsApi.CloseAccountAsync(accountId, new CloseObligationAccountRequest(PhilippineTime.Today));
-        if (!result.IsSuccess) { _error = result.Error ?? "The account could not be ended."; return; }
-        _saved = "Account ended. Its assessed periods and collections are unchanged.";
-        await LoadAsync();
+        try
+        {
+            var result = await ObligationsApi.CloseAccountAsync(_closeFor.Id, new CloseObligationAccountRequest(PhilippineTime.Today));
+            if (!result.IsSuccess) { _formError = result.Error ?? "The account could not be ended."; return; }
+            _closeFor = null;
+            _selected = null;
+            _saved = "Account ended. Its assessed periods and collections are unchanged.";
+            await LoadAsync();
+        }
+        catch { _formError = "The account could not be ended."; }
+        finally { _saving = false; }
     }
 
     private static string Money(decimal amount) => $"₱{amount:N2}";

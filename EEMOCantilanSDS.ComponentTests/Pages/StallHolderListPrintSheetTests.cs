@@ -31,6 +31,14 @@ public class StallHolderListPrintSheetTests
         return css[at..];
     }
 
+    [Fact]
+    public void FacilityRosterDoesNotCarryItsScreenHeightOntoLandscapePaper()
+    {
+        var css = ClientFile("Components", "Pages", "Shared", "SH", "StallHoldersList.razor.css");
+        var print = css[css.IndexOf("@media print", StringComparison.Ordinal)..];
+        Assert.Matches(@"\.lsh-doc-panel\s*\{[^}]*min-height:\s*0\s*!important", print);
+    }
+
     /// <summary>
     /// The two downloads are ONE control with two working halves.
     /// </summary>
@@ -43,14 +51,14 @@ public class StallHolderListPrintSheetTests
     /// observed from markup.</para>
     /// </remarks>
     [Fact]
-    public void TheExportsAreOneControlButTwoSeparateActions()
+    public void TheExportsAreOneJoinedControlOfFourSeparateActions()
     {
         var razor = ClientFile("Components", "Pages", "Reports", "StallHolderList.razor");
         var css = ClientFile("Components", "Pages", "Reports", "StallHolderList.razor.css");
 
         // One group holding both halves.
-        Assert.Contains("class=\"sh-split\"", razor);
-        Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(razor, @"sh-split-part").Count);
+        Assert.Contains("class=\"sh-split sh-export\"", razor);
+        Assert.Equal(4, System.Text.RegularExpressions.Regex.Matches(razor, @"sh-split-part").Count);   // Print, Excel, CSV, Save as PDF
 
         // Still two actions: a button that exports the workbook, and a link that downloads the CSV.
         Assert.Matches(@"<button[^>]*sh-split-part[^>]*@onclick=""DownloadExcel""", razor);
@@ -186,18 +194,21 @@ public class StallHolderListPrintSheetTests
 
         Assert.Contains("Billing Basis", allFacilities);
         Assert.Contains("Daily Rate", allFacilities);
-        Assert.Contains("IsPureDays(code) ? null : r.WholeYearRental", allFacilities);
+        Assert.Contains("pureDays ? null : r.WholeYearRental", allFacilities);
         Assert.Contains("IsPureDays ? \"\" : s.IsActive ? s.WholeYearRental", facilityRoster);
         Assert.Contains("Calendar-day", facilityRoster);
         Assert.Contains("Fixed Annual Rental", facilityRoster);
     }
 
     [Fact]
-    public void RentGoalOnlyExportsKeepTheirExistingColumnSchema()
+    public void TheRegisterExportKeepsTheStallRateColumnsAndAddsTheSourceGrouping()
     {
         var allFacilities = ClientFile("Components", "Pages", "Reports", "StallHolderList.razor");
 
-        Assert.Contains("IncludesPureDays\n                ?", allFacilities.Replace("\r\n", "\n"));
-        Assert.Contains("Monthly Rental,Actual Monthly Rental,Whole Year Rental", allFacilities);
+        // The stall rate columns survive in the same order, now inside one grouped table that also carries the space rentals.
+        Assert.Contains("new(\"Monthly Rental\", SheetValueKind.Money),\n        new(\"Actual Monthly Rental\", SheetValueKind.Money),\n        new(\"Whole Year Rental\", SheetValueKind.Money),",
+            allFacilities.Replace("\r\n", "\n"));
+        Assert.Contains("new(\"Source\", SheetValueKind.Text)", allFacilities);
+        Assert.Contains("new(\"Holding\", SheetValueKind.Text)", allFacilities);
     }
 }

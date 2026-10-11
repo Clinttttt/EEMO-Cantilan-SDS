@@ -11,15 +11,27 @@
 @inject IPaymentsApiClient PaymentsApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @inject IDailyCollectionApiClient DailyCollectionApi
-<PageTitle>StallTrack — Spaces &amp; Occupants</PageTitle>
+@inject IObligationsApiClient ObligationsApi
+<PageTitle>StallTrack — @ManagementTitle</PageTitle>
+
+@if (!string.IsNullOrWhiteSpace(Workspace) && ObligationSource is null)
+{
+    <div class="content-area"><p class="v3-notice v3-notice-error" role="alert">This rental source is unavailable. <a href="/vendors">Choose a registered facility</a></p></div>
+}
+else if (ObligationSource is not null)
+{
+    <SpaceHolderManagement Source="ObligationSource" AccountId="Account" />
+}
+else
+{
 
 <header class="topbar">
             <div class="topbar-left">
-                <div class="topbar-title">Spaces &amp; Occupants</div>
+                <div class="topbar-title">@ManagementTitle</div>
                 <div class="topbar-breadcrumb">
-                    <span>@Branding.OfficeAcronym Admin</span>
+                    <a class="breadcrumb-link" href="@($"/facility/{ActiveFacility.ToLowerInvariant()}")">@ActiveFacilityTab.Name</a>
                     <span class="breadcrumb-sep">/</span>
-                    <span class="breadcrumb-active">Spaces &amp; Occupants</span>
+                    <span class="breadcrumb-active">@ManagementTitle</span>
                 </div>
             </div>
             <div class="topbar-right">
@@ -39,94 +51,31 @@
                     var allPaid = RegistryData?.PaidThisMonth ?? 0;
                     var overallRate = allActive > 0 ? (allPaid * 100.0 / allActive) : 0;
                 }
-                <V3Hero Eyebrow="Spaces &amp; Occupants" Title="Occupancy Registry"
-                        Subtitle="@($"Municipality of {Branding.Municipality}, {Branding.Province}")" Progress="overallRate">
-                    <Icon>
-                        <svg viewBox="0 0 24 24">
-                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                            <circle cx="9" cy="7" r="4" />
-                            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                        </svg>
-                    </Icon>
+                <RentalRegistryHero Title="Spaces &amp; Occupants" Progress="overallRate">
                     <Figures>
                         <V3HeroFigure Label="Total spaces" Value="@((RegistryData?.TotalVendors ?? 0).ToString())"
                                       Note="@($"{RegistryData?.ActiveVendors ?? 0} active · {RegistryData?.ClosedVendors ?? 0} closed")" />
                         <V3HeroFigure Label="Paid this month" Value="@((RegistryData?.PaidThisMonth ?? 0).ToString())"
-                                      Note="@($"of {RegistryData?.MonthlyBillableVendors ?? 0} billable spaces")" />
+                                      Note="@($"of {RegistryData?.MonthlyBillableVendors ?? 0} billable units · registered stall facilities")" />
                         <V3HeroFigure Label="Unpaid" Value="@((RegistryData?.UnpaidCount ?? 0).ToString())"
                                       Note="@($"₱{(RegistryData?.TotalOutstanding ?? 0):N0} outstanding{(RegistryData is { PartialCount: > 0 } ? $" · {RegistryData.PartialCount} partial" : "")}")" />
                         <V3HeroFigure Label="Monthly target" Value="@($"₱{(RegistryData?.MonthlyTarget ?? 0):N0}")"
-                                      Note="@($"{_now:MMMM yyyy} · monthly-rent facilities")" />
+                                      Note="@($"{_now:MMMM yyyy} · facility stall rents")" />
                     </Figures>
-                </V3Hero>
+                </RentalRegistryHero>
 
-                <!-- Toolbar (Single Row) -->
-                <div class="vs-toolbar-unified">
-                    <!-- Left: Facility Selector -->
-                    <div class="facility-selector" id="facilitySelectorWrapper">
-                        <div class="fac-trigger @(FacDropdownOpen ? "open" : "")" @onclick="ToggleFacDropdown">
-                            <div class="fac-trigger-body">
-                                <span class="fac-trigger-label">@ActiveFacilityTab.ShortName</span>
-                                <span class="fac-trigger-sub">@ActiveFacilityTab.Name</span>
-                            </div>
-                            @if (ActiveFacilityTab.UnpaidCount > 0)
-                            {
-                                <span class="fac-trigger-badge">@ActiveFacilityTab.UnpaidCount unpaid</span>
-                            }
-                            <svg class="fac-trigger-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
-                        </div>
-
-                        @if (FacDropdownOpen)
-                        {
-                            <div class="fac-backdrop" @onclick="CloseFacDropdown"></div>
-                            <div class="fac-dropdown">
-                                <div class="fac-dd-header">Facility</div>
-                                @foreach (var f in FacilityTabs)
-                                {
-                                    <div class="fac-dd-item @(ActiveFacility == f.Code ? "active" : "")" @onclick="() => SelectFacility(f.Code)">
-                                        <div class="fac-dd-body"><span class="fac-dd-name">@f.Name</span></div>
-                                        @if (f.UnpaidCount > 0)
-                                        {
-                                            <span class="fac-dd-badge">@f.UnpaidCount</span>
-                                        }
-                                        @if (ActiveFacility == f.Code)
-                                        {
-                                            <svg class="fac-dd-check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                                        }
-                                    </div>
-                                }
-                            </div>
-                        }
-                    </div>
-
-                    <!-- Center: Filter Tabs -->
-                    <div class="filter-tabs-inline">
-                        @foreach (var f in StatusFilters)
-                        {
-                            <div class="filter-tab @(ActiveStatus == f ? "active" : "")" @onclick="() => ActiveStatus = f">@f</div>
-                        }
-                    </div>
-
-                    <!-- Center-Right: Search -->
-                    <div class="search-box">
-                        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                        <input type="text" placeholder="Search stall no. or name…" @bind="SearchQuery" @bind:event="oninput" />
-                        @if (!string.IsNullOrEmpty(SearchQuery))
-                        {
-                            <span class="search-clear" @onclick="() => SearchQuery = string.Empty">×</span>
-                        }
-                    </div>
-
-                    <!-- Right: Add Vendor + Count -->
-                    <div class="vs-actions-compact">
-                        <span class="vs-count-label">@FilteredVendors.Count() stalls</span>
-                        <button class="btn-primary" @onclick="OpenCreate">
+                <RentalRegistryToolbar Selected="@ActiveFacility" Choices="RegistryChoices" OnSelected="NavigateFacility"
+                                       SearchQuery="@SearchQuery" OnSearch="v => SearchQuery = v"
+                                       ActiveFilter="@ActiveStatus" OnFilterChanged="v => ActiveStatus = v"
+                                       SearchPlaceholder="Search stall no. or name…"
+                                       CountLabel="@($"{FilteredVendors.Count()} {HolderUnit.ToLowerInvariant()}s")">
+                    <PrimaryAction>
+                        <button class="btn-primary" type="button" @onclick="OpenCreate">
                             <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                            Add Occupant &amp; Space
+                            Add Occupant &amp; @HolderUnit
                         </button>
-                    </div>
-                </div>
+                    </PrimaryAction>
+                </RentalRegistryToolbar>
 
                 <!-- Vendors Table — "This Month" column removed -->
                 <div class="panel">
@@ -185,134 +134,15 @@
                     {
                         <div class="empty-state">
                             <svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z" /></svg>
-                            <div class="empty-title">No matching spaces or occupants</div>
+                            <div class="empty-title">No matching @(HolderUnit.ToLowerInvariant())s or occupants</div>
                             <div class="empty-sub">Try adjusting the filters or search.</div>
                         </div>
                     }
                     else
                     {
-                        <div class="table-wrap">
-                            <table class="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>Stall No.</th>
-                                        <th>Actual Occupant</th>
-                                        <th>Section / Area</th>
-                                        <th>Monthly Rate</th>
-                                        <th>Contract</th>
-                                        <th>Payment</th>
-                                        <th>Status</th>
-                                        <th style="width: 280px; text-align: right;">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var v in FilteredVendors)
-                                    {
-                                        <tr class="@(!v.IsActive ? "row-inactive" : "") vendor-row" @onclick="() => OpenDetail(v)">
-                                            <td>
-                                                <div class="stall-num-cell">
-                                                    @* Blank for a space the office does not number, matching its own
-                                                       list. The vendor is identified by name on such a row. *@
-                                                    <span>@SpaceNumber.Display(v.StallNo)</span>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <div class="occupant-cell">
-                                      
-                                                    <div>
-                                                        <div>@v.ActualOccupant</div>
-                                                        @if (!string.IsNullOrEmpty(v.ContractName) && v.ContractName != "No contract" && v.ContractName != v.ActualOccupant)
-                                                        {
-                                                            <div class="occupant-contract">Contract: @v.ContractName</div>
-                                                        }
-                                                    </div>
-                                                </div>
-                                            </td>
-
-                                            <td><span>@v.Section</span></td>
-                                            <td>
-                                                @if (IsActiveNpmPureDays)
-                                                {
-                                                    <span>₱@((v.ResolvedDailyFee ?? ResolvedRateForSection(v.Section)).ToString("N0")) / day</span>
-                                                }
-                                                else
-                                                {
-                                                    <span>@v.MonthlyRate.ToString("N0")</span>
-                                                }
-                                            </td>
-                                            <td class="contract-cell">
-                                                @* A space held without a signed contract has no term to print: the record
-                                                   carries an open-ended length so it never falls due for renewal, and the
-                                                   official sheets read "No contract" for exactly these rows. *@
-                                                @if (!v.HasSignedContract || v.ContractYears == 0 || !v.ContractDate.HasValue)
-                                                {
-                                                    <span class="contract-none">@(v.Arrangement == Domain.Enums.OccupancyArrangement.Extension ? "No contract (extension)" : "No contract")</span>
-                                                }
-                                                else
-                                                {
-                                                    var expiry = DomainRules.TermLastDay(v.ContractDate.Value, v.ContractYears);
-                                                    var expired = expiry < _now;
-                                                    var soon = !expired && expiry <= _now.AddMonths(DomainRules.ExpiringSoonMonths);
-                                                    <div class="contract-term">@v.ContractYears yr@(v.ContractYears > 1 ? "s" : "")</div>
-                                                    <div class="contract-exp @(expired ? "exp-bad" : soon ? "exp-soon" : "exp-ok")">
-                                                        @(expired ? "expired " : "exp ")@expiry.ToString("MMM yyyy")
-                                                    </div>
-                                                }
-                                            </td>
-                                            <td @onclick:stopPropagation="true">
-                                                @if (v.FacilityCode == "NPM")
-                                                {
-                                                    <span class="status-pill pill-daily" title="Collected daily (₱@(_npmDailyRate.ToString("0"))/day)">Daily</span>
-                                                }
-                                                else
-                                                {
-                                                    <span class="status-pill @(v.IsPaidThisMonth ? "pill-paid" : v.IsPartialThisMonth ? "pill-partial" : "pill-unpaid")">
-                                                        @(v.IsPaidThisMonth ? "Paid" : v.IsPartialThisMonth ? "Partial" : "Unpaid")
-                                                    </span>
-                                                }
-                                            </td>
-                                            <td @onclick:stopPropagation="true">
-                                                <span class="status-pill @(v.IsActive ? "pill-active" : "pill-inactive")">
-                                                    @(v.IsActive ? "Active" : "Closed")
-                                                </span>
-                                            </td>
-                                            <td @onclick:stopPropagation="true" style="width: 280px;">
-                                                <div class="action-btns" style="justify-content: flex-end;">
-                                                    <button class="action-btn" title="View Details" @onclick="() => OpenDetail(v)">
-                                                        <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
-                                                    </button>
-                                                    <button class="action-btn" title="View Profile" @onclick="() => ViewProfile(v)">
-                                                        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-                                                    </button>
-                                                    <button class="action-btn" title="Edit" @onclick="() => OpenEdit(v)">
-                                                        <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-                                                    </button>
-                                                    <button class="action-btn" title="Payment History" @onclick="() => OpenHistory(v)">
-                                                        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
-                                                    </button>
-                                                    @* A stall whose section the office closed cannot be reopened here: the section
-                                                       reopen returns every stall its closure closed. Disabled AND explained, because
-                                                       a control that cannot act must look as though it cannot. Closing is unaffected. *@
-                                                    <button class="action-btn @(v.IsActive ? "action-danger" : "action-success")"
-                                                            disabled="@(!v.IsActive && v.SectionClosed)"
-                                                            title="@(v.IsActive ? "Close Stall" : v.SectionClosed ? $"{v.Section} is closed. Reopen the section to return this stall." : "Reopen Stall")"
-                                                            @onclick="() => ToggleVendor(v)">
-                                                        @if (v.IsActive)
-                                                        {
-                                                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
-                                                        }
-                                                        else
-                                                        {
-                                                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                                                        }
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
-                        </div>
+                        <RentalRegistryTable TItem="VendorEntry" Rows="RegistryRows" Unit="@HolderUnit"
+                                             RateLabel="@(IsActiveNpmPureDays ? "Daily Rate" : "Monthly Rate")"
+                                             OnInspect="OpenDetail" Actions="RegistryActions" />
                     }
                 </div>
 
@@ -472,7 +302,7 @@
                         @if (DetailVendor.FacilityCode != "NPM")
                         {
                             <li class="dv-fee">
-                                <span class="dv-fee-name">Monthly rental<span class="dv-fee-note">Space rental · Billed monthly</span></span>
+                                <span class="dv-fee-name">Monthly rental<span class="dv-fee-note">@FacilityCatalog.HolderUnitFor(DetailVendor.FacilityCode) rental · Billed monthly</span></span>
                                 <span class="dv-fee-amount">₱@DetailVendor.MonthlyRate.ToString("N0")<span class="dv-fee-unit">/mo</span></span>
                             </li>
                         }
@@ -580,7 +410,7 @@
                     History
                 </button>
                 <button type="button" class="btn-primary" @onclick="() => { ShowDetail = false; OpenEdit(DetailVendor); }">
-                    Edit Occupant &amp; Space
+                    Edit Occupant &amp; @FacilityCatalog.HolderUnitFor(DetailVendor.FacilityCode)
                 </button>
             </footer>
         </div>
@@ -654,8 +484,52 @@
 }
 
 
+}
+
 @code {
 
+    private RenderFragment RegistryToolbarActions => @<div class="vs-actions-compact">
+        <span class="vs-count-label">@FilteredVendors.Count() @HolderUnit.ToLowerInvariant()s</span>
+        <button class="btn-primary" type="button" @onclick="OpenCreate">Add Occupant &amp; @HolderUnit</button>
+    </div>;
+
+    [Parameter, SupplyParameterFromQuery(Name = "workspace")] public string? Workspace { get; set; }
+    [Parameter, SupplyParameterFromQuery(Name = "account")] public Guid? Account { get; set; }
+    private EEMOCantilanSDS.Client.Services.SpaceAccountPresentation? ObligationSource => Workspace?.ToUpperInvariant() switch
+    {
+        "KM" => EEMOCantilanSDS.Client.Services.SpaceAccountPresentation.Kanmanggay,
+        "FA" => EEMOCantilanSDS.Client.Services.SpaceAccountPresentation.FiestaAraw,
+        "VEGETABLE/FRUITS" => EEMOCantilanSDS.Client.Services.SpaceAccountPresentation.VegetableFruit,
+        _ => null
+    };
+
+    private IEnumerable<EEMOCantilanSDS.Client.Services.RentalTableRow<VendorEntry>> RegistryRows => FilteredVendors.Select(v => new EEMOCantilanSDS.Client.Services.RentalTableRow<VendorEntry>(v,
+        SpaceNumber.Display(v.StallNo), v.ActualOccupant, RegistryContract(v), v.ContractDate?.ToString("MMM d, yyyy") ?? "—",
+        IsActiveNpmPureDays ? v.ResolvedDailyFee ?? ResolvedRateForSection(v.Section) : v.MonthlyRate,
+        v.FacilityCode == "NPM" ? "Daily" : v.IsPaidThisMonth ? "Paid" : v.IsPartialThisMonth ? "Partial" : "Unpaid",
+        v.IsActive ? "Active" : "Closed", v.Section));
+
+    private string RegistryContract(VendorEntry v)
+    {
+        if (!v.HasSignedContract || v.ContractYears == 0 || !v.ContractDate.HasValue)
+            return v.Arrangement == Domain.Enums.OccupancyArrangement.Extension ? "No contract (extension)" : "No contract";
+        var expiry = DomainRules.TermLastDay(v.ContractDate.Value, v.ContractYears);
+        var expired = expiry < _now;
+        var soon = !expired && expiry <= _now.AddMonths(DomainRules.ExpiringSoonMonths);
+        var name = !string.IsNullOrEmpty(v.ContractName) && v.ContractName != v.ActualOccupant ? $"{v.ContractName} · " : "";
+        return $"{name}{v.ContractYears} years · {(expired ? "expired" : soon ? "expiring soon" : "expires")} {expiry:MMM yyyy}";
+    }
+
+    private RenderFragment<VendorEntry> RegistryActions => v => @<RentalRegistryActionButtons
+        Subject="@v.ActualOccupant"
+        IsActive="@v.IsActive"
+        CanToggle="@(v.IsActive || !v.SectionClosed)"
+        ToggleTitle="@(v.IsActive ? "Close Stall" : v.SectionClosed ? $"{v.Section} is closed. Reopen the section to return this stall." : "Reopen Stall")"
+        OnInspect="() => OpenDetail(v)"
+        OnProfile="() => ViewProfile(v)"
+        OnEdit="() => OpenEdit(v)"
+        OnHistory="() => OpenHistory(v)"
+        OnToggle="() => ToggleVendor(v)" />;
     // -- Data loading state --------------------------------------------------------
     bool isLoading = true;
     private readonly DateTime _now = EEMOCantilanSDS.Domain.Common.PhilippineTime.Now;
@@ -729,6 +603,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        if (!string.IsNullOrWhiteSpace(Workspace)) return;
         await FacilityCatalog.EnsureLoadedAsync();
         await LoadNpmRatesAsync();
         FacilityTabs = AllFacilityTabs
@@ -743,6 +618,21 @@
                 t.Name = FacilityCatalog.NameOf(fc);
                 t.ShortName = FacilityCatalog.ShortNameOf(fc);
             }
+        try
+        {
+            var operations = await ObligationsApi.GetSpaceOperationsAsync();
+            var enabled = (operations?.Value ?? []).Select(o => o.Kind).ToHashSet();
+            if (enabled.Contains(Domain.Enums.ObligationKind.KanmanggaySpaceRental))
+                FacilityTabs.Add(AllFacilityTabs.First(t => t.Code == "KM"));
+            if (enabled.Contains(Domain.Enums.ObligationKind.VegetableFruitSpaceRental))
+                FacilityTabs.Add(AllFacilityTabs.First(t => t.Code == "Vegetable/Fruits"));
+            if (enabled.Contains(Domain.Enums.ObligationKind.FiestaArawLotRental))
+                FacilityTabs.Add(AllFacilityTabs.First(t => t.Code == "FA"));
+        }
+        catch { /* Failed optional source discovery must not hide existing stall facilities. */ }
+        if (FacilityCatalog.TryResolveSlug(Facility, out var requestedFacility) &&
+            FacilityTabs.Any(t => t.Code == requestedFacility.ToString()))
+            ActiveFacility = requestedFacility.ToString();
         if (FacilityTabs.All(t => t.Code != ActiveFacility))
             ActiveFacility = FacilityTabs.FirstOrDefault()?.Code ?? ActiveFacility;
 
@@ -833,9 +723,6 @@
     }
 
     // -- Data loading state --------------------------------------------------------
-    bool FacDropdownOpen = false;
-    void ToggleFacDropdown() => FacDropdownOpen = !FacDropdownOpen;
-    void CloseFacDropdown() => FacDropdownOpen = false;
 
     /// <summary>
     /// True when this fee list carries the per-kilo section fee. Two lists reach here: the form's, which uses the
@@ -870,9 +757,23 @@
     // -- Filters ---------------------------------------------------------------
     string SearchQuery = string.Empty;
     string ActiveFacility = "NPM";
+    [Parameter, SupplyParameterFromQuery(Name = "facility")] public string? Facility { get; set; }
+    private string? _appliedFacility;
+    private string HolderUnit => FacilityCatalog.HolderUnitFor(ActiveFacility);
+    private string ManagementTitle => $"Manage {HolderUnit} Holders";
+
+    protected override void OnParametersSet()
+    {
+        if (Facility == _appliedFacility) return;
+        _appliedFacility = Facility;
+        if (FacilityCatalog.TryResolveSlug(string.IsNullOrWhiteSpace(Facility) ? "npm" : Facility, out var code)
+            && FacilityTabs.Any(tab => tab.Code == code.ToString()))
+            SelectFacility(code.ToString());
+    }
     string ActiveStatus = "All";
 
-    readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
+    private IEnumerable<RentalRegistryToolbar.Choice> RegistryChoices => FacilityTabs.Select(f =>
+        new RentalRegistryToolbar.Choice(f.Code, f.ShortName, f.Name, f.UnpaidCount));
 
     FacilityTab ActiveFacilityTab => FacilityTabs.FirstOrDefault(f => f.Code == ActiveFacility)
         ?? AllFacilityTabs.First(f => f.Code == ActiveFacility);
@@ -903,6 +804,9 @@
             IconSvg="""<svg viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>""" },
         new() { Code="ICE", Name="Iceplant",                 ShortName="Iceplant",        UnpaidCount=0,
             IconSvg="""<svg viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>""" },
+        new() { Code="KM", Name="Kanmanggay", ShortName="KM" },
+        new() { Code="Vegetable/Fruits", Name="Vegetable / Fruits Monthly", ShortName="VF" },
+        new() { Code="FA", Name="Fiesta / Araw", ShortName="FA" },
     };
 
     // -- Vendor Model ----------------------------------------------------------
@@ -1113,10 +1017,25 @@
 
   
 
+    void NavigateFacility(string code)
+    {
+        if (code is "KM" or "FA" or "Vegetable/Fruits")
+            Nav.NavigateTo($"/vendors?workspace={Uri.EscapeDataString(code)}");
+        else if (FacilityTabs.Any(tab => tab.Code == code))
+        {
+            SelectFacility(code);
+            Nav.NavigateTo($"/vendors?facility={code.ToLowerInvariant()}");
+        }
+    }
+
     void SelectFacility(string code)
     {
+        if (code is "KM" or "FA" or "Vegetable/Fruits")
+        {
+            Nav.NavigateTo($"/vendors?workspace={Uri.EscapeDataString(code)}");
+            return;
+        }
         ActiveFacility = code;
-        FacDropdownOpen = false;
     }
 
     void OpenEdit(VendorEntry v)

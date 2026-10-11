@@ -6,6 +6,7 @@
 @using EEMOCantilanSDS.Application.Dtos.Stalls
 @using EEMOCantilanSDS.Application.Dtos.DailyCollections
 @using EEMOCantilanSDS.Application.Dtos.Payments
+@using EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmDays
 @using EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection
 @using EEMOCantilanSDS.Application.Command.Payments.RecordPayment
 @using EEMOCantilanSDS.Application.Command.Payments.SetMonthlyException
@@ -33,7 +34,7 @@
     <div class="topbar-left">
         <div class="topbar-title">Collection Manager</div>
         <div class="topbar-breadcrumb">
-            <a href="/menu" class="breadcrumb-link">@Branding.OfficeAcronym Admin</a>
+            <a href="/menu" class="breadcrumb-link">Dashboard</a>
             <span class="breadcrumb-sep">/</span>
             <span class="breadcrumb-active">Collection Manager</span>
         </div>
@@ -45,9 +46,11 @@
 
 <div class="content-area">
 
-    <div class="ce-layout">
+    <div class="ce-layout @(_npmMode == "office" ? "ce-layout-wide" : "")">
 
-        <!-- ── Left: selection / filtering ── -->
+        <!-- ── Left: selection / filtering (payor work only; Office collections is not facility-bound) ── -->
+        @if (_npmMode != "office")
+        {
         <aside class="ce-side">
             @{ var stalls = VisibleStalls(); }
 
@@ -141,137 +144,27 @@
                 }
             </div>
         </aside>
+        }
 
         <!-- ── Right: calendar / detail ── -->
         <section class="ce-main">
 
-            @if (IsNpm)
+            <div class="ce-mode" role="group" aria-label="Collection Manager views">
+                <button class="ce-mode-btn @(_npmMode == "payor" ? "ce-mode-on" : "")" type="button" aria-pressed="@(_npmMode == "payor" ? "true" : "false")" @onclick='() => SetMode("payor")'>Payor collections</button>
+                @if (IsNpm)
+                {
+                    <button class="ce-mode-btn @(_npmMode == "calendar" ? "ce-mode-on" : "")" type="button" aria-pressed="@(_npmMode == "calendar" ? "true" : "false")" @onclick='() => SetMode("calendar")'>Operating calendar</button>
+                }
+                <button class="ce-mode-btn @(_npmMode == "office" ? "ce-mode-on" : "")" type="button" aria-pressed="@(_npmMode == "office" ? "true" : "false")" @onclick='() => SetMode("office")'>Office collections</button>
+            </div>
+
+            @if (_npmMode == "office")
             {
-                <div class="ce-mode" role="group" aria-label="View mode">
-                    <button class="ce-mode-btn @(_npmMode == "payor" ? "ce-mode-on" : "")" type="button" @onclick='() => SetMode("payor")'>Per-Payor</button>
-                    <button class="ce-mode-btn @(_npmMode == "market" ? "ce-mode-on" : "")" type="button" @onclick='() => SetMode("market")'>Market Days</button>
-                </div>
+                <OfficeCollectionsPanel />
             }
-
-            @if (IsNpm && _npmMode == "market")
+            else if (IsNpm && _npmMode == "calendar")
             {
-                <div class="ce-main-head">
-                    <div class="ce-main-id">
-                        <div class="ce-main-title">Market Closure</div>
-                        <div class="ce-main-sub"><span class="ce-tag">@FacilityCatalog.ShortNameOf(FacilityCode.NPM)</span> Close a day to excuse <strong>all</strong> payors at once</div>
-                    </div>
-                    <div class="ce-main-period">@PeriodLabel</div>
-                </div>
-
-                <div class="ce-stats">
-                    <div class="ce-stat">
-                        <div class="ce-stat-val ce-gold">@_marketClosedDays.Count</div>
-                        <div class="ce-stat-lbl">Closed Days</div>
-                    </div>
-                    <div class="ce-stat">
-                        <div class="ce-stat-val">@(DaysInMonth - _marketClosedDays.Count)</div>
-                        <div class="ce-stat-lbl">Open Days</div>
-                    </div>
-                </div>
-
-                @if (_marketLoading)
-                {
-                    <div class="ce-soon">Loading market closures for @PeriodLabel…</div>
-                }
-                else
-                {
-                    <div class="ce-cal-wrap">
-                        <div class="ce-cal">
-                            <div class="ce-cal-hdr">Sun</div>
-                            <div class="ce-cal-hdr">Mon</div>
-                            <div class="ce-cal-hdr">Tue</div>
-                            <div class="ce-cal-hdr">Wed</div>
-                            <div class="ce-cal-hdr">Thu</div>
-                            <div class="ce-cal-hdr">Fri</div>
-                            <div class="ce-cal-hdr">Sat</div>
-
-                            @for (var blank = 0; blank < CalendarOffset; blank++)
-                            {
-                                <div class="ce-cell ce-cell-empty"></div>
-                            }
-                            @for (var d = 1; d <= DaysInMonth; d++)
-                            {
-                                var day = d;
-                                var closed = _marketClosedDays.Contains(day);
-                                <button class="ce-cell @(closed ? "ce-excused" : "ce-mkt-open") @(IsToday(day) ? "ce-cell-today" : "") @(_marketDrawerOpen && _marketDay == day ? "ce-cell-sel" : "")"
-                                        type="button" @onclick="() => OpenMarketDay(day)">
-                                    <span class="ce-cell-num">@day</span>
-                                    <span class="ce-cell-tag">@(closed ? "Closed" : "Open")</span>
-                                </button>
-                            }
-                        </div>
-                    </div>
-
-                    <div class="ce-legend">
-                        <span><i class="ce-sw ce-sw-excused"></i>Closed — all payors excused</span>
-                        <span><i class="ce-sw ce-sw-open"></i>Open</span>
-                    </div>
-
-                    @if (_marketDrawerOpen)
-                    {
-                        var closed = _marketClosedDays.Contains(_marketDay);
-                        var past = new DateOnly(_year, _month, _marketDay) < PhilippineTime.Today;
-                        <div class="ce-drawer">
-                            <div class="ce-drawer-head">
-                                <div>
-                                    <div class="ce-drawer-title">@(new DateTime(_year, _month, _marketDay).ToString("MMMM d, yyyy"))</div>
-                                    <div class="ce-drawer-status">
-                                        Current status:
-                                        <span class="ce-pill ce-pill-@(closed ? "excused" : "future")">@(closed ? "Closed" : "Open")</span>
-                                    </div>
-                                </div>
-                                <button class="ce-x" type="button" @onclick="CloseMarketDrawer" aria-label="Close">
-                                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                                </button>
-                            </div>
-
-                            <div class="ce-drawer-body">
-                                <div class="ce-set-label">
-                                    @(closed
-                                        ? "The market is closed this day — every NPM payor is excused (₱0 owed)."
-                                        : "Closing the market excuses every NPM payor for this day (₱0 owed, not unpaid).")
-                                </div>
-
-                                @if (!string.IsNullOrEmpty(_marketError))
-                                {
-                                    <div class="ce-form-error">@_marketError</div>
-                                }
-
-                                <div class="ce-confirm">
-                                    @if (past)
-                                    {
-                                        <div class="ce-confirm-warn">
-                                            <svg viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-                                            This date has already passed — changing it affects historical collection figures. Please confirm.
-                                        </div>
-                                        <label class="ce-ack">
-                                            <input type="checkbox" @bind="_marketAck" />
-                                            <span>I confirm changing this past date.</span>
-                                        </label>
-                                    }
-                                    <div class="ce-confirm-row">
-                                        <span class="ce-confirm-q">
-                                            @(closed ? "Reopen the market this day?" : "Close the market this day?")
-                                        </span>
-                                        <div class="ce-confirm-actions">
-                                            <button class="ce-cbtn ce-cbtn-ghost" type="button" @onclick="CloseMarketDrawer" disabled="@_marketSaving">Cancel</button>
-                                            <button class="ce-cbtn ce-cbtn-primary" type="button"
-                                                    disabled="@((past && !_marketAck) || _marketSaving)"
-                                                    @onclick="() => ConfirmMarket(!closed)">
-                                                @(_marketSaving ? "Saving…" : closed ? "Reopen" : "Close market")
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    }
-                }
+                <NpmOperatingCalendar Year="_year" Month="_month" OnPrevious="PrevMonth" OnNext="NextMonth" OnChanged="OnCalendarChanged" />
             }
             else if (SelectedStall is null)
             {
@@ -309,11 +202,74 @@
                         <div class="ce-stat-val ce-gold">@StatExcused()</div>
                         <div class="ce-stat-lbl">@(IsNpm ? "Excused Days" : "Excused Months")</div>
                     </div>
+                    @if (IsNpm)
+                    {
+                        <div class="ce-stat">
+                            <div class="ce-stat-val ce-muted">@StatClosed()</div>
+                            <div class="ce-stat-lbl">Closed Days</div>
+                        </div>
+                    }
                     <div class="ce-stat ce-stat-accent">
                         <div class="ce-stat-val">@Money(StatExpected())</div>
                         <div class="ce-stat-lbl">Expected Bill (after excused)</div>
                     </div>
                 </div>
+
+                @if (IsNpm && !_periodLoading)
+                {
+                    <section class="ce-amount" aria-labelledby="ce-amount-title">
+                        <h3 id="ce-amount-title" class="ce-amount-title">Record payment by amount</h3>
+                        <div class="ce-amount-row">
+                            <label class="ce-amount-field">
+                                <span>Amount received</span>
+                                <input type="text" inputmode="decimal" autocomplete="off" class="ce-amount-input" value="@_amountText" @oninput="OnAmountInput" aria-describedby="ce-amount-result" />
+                            </label>
+                            <button type="button" class="ce-amount-btn" disabled="@(!CanRecordAmount || _recording)" @onclick="RecordAmount">Record payment</button>
+                        </div>
+                        <div id="ce-amount-result" class="ce-amount-result @(CanRecordAmount ? "ce-amount-ok" : "")" role="status" aria-live="polite">
+                            @if (_amountError is not null) { <span>@_amountError</span> }
+                            else if (_part is { } p)
+                            {
+                                @if (p.Outcome == "Applied")
+                                {
+                                    <span>@Money(p.Amount) is received for @PeriodLabel and applied oldest day first. @Money(p.RemainingAfter) of the month's installments remain payable.</span>
+                                    <table class="ce-part-table" aria-label="Allocation preview">
+                                        <thead><tr><th scope="col">Day</th><th scope="col" class="ce-num">Applied</th><th scope="col" class="ce-num">Still owed</th><th scope="col">Status</th></tr></thead>
+                                        <tbody>
+                                            @foreach (var line in p.Lines)
+                                            {
+                                                <tr><td>@line.Day.ToString("MMM d")</td><td class="ce-num">@Money(line.Applied)</td><td class="ce-num">@Money(line.Remaining)</td><td>@line.Status</td></tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                }
+                                else { <span>@(p.Message ?? "This amount cannot be applied.")</span> }
+                                @if (p.Adjustment > 0m) { <span class="ce-amount-hint"> The month-end adjustment of @Money(p.Adjustment) is not an installment: it is collected separately as the month's final payment.</span> }
+                            }
+                            else if (_quote is { } q)
+                            {
+                                @switch (q.Outcome)
+                                {
+                                    case "Exact":
+                                        <span>@Money(q.Amount) settles <strong>@q.ExactDates.Count day@(q.ExactDates.Count != 1 ? "s" : "")</strong>, oldest first (@q.ExactDates[0].ToString("MMM d") – @q.ExactDates[^1].ToString("MMM d")). Nothing else is recorded.</span>
+                                        break;
+                                    case "NothingPayable":
+                                        <span>No day is payable for @PeriodLabel, so no payment can be recorded against it.</span>
+                                        break;
+                                    case "ExceedsPayable":
+                                        <span>@Money(q.Amount) is more than the @Money(q.PayableTotal) payable for @PeriodLabel. Enter @Money(q.PayableTotal) to settle it. The extra @Money(q.Unallocated) is not recorded as a paid day or an advance.</span>
+                                        break;
+                                    default:
+                                        <span>@Money(q.Amount) is not a whole number of this stall's daily installments.
+                                            @if (q.NearestBelow is { } lo) { <text> Nearest: <strong>@Money(lo)</strong></text> }@if (q.NearestAbove is { } hi) { <text>@(q.NearestBelow is null ? " Nearest:" : " or") <strong>@Money(hi)</strong></text> }.
+                                            A partial day or an advance is not recorded here: it needs an approved ledger rule.</span>
+                                        break;
+                                }
+                            }
+                            else { <span class="ce-amount-hint">Enter the amount received. Only an amount that settles whole payable days can be recorded; it is applied oldest day first.</span> }
+                        </div>
+                    </section>
+                }
 
                 @if (_periodLoading)
                 {
@@ -376,6 +332,10 @@
                         }
                         <span><i class="ce-sw ce-sw-missed"></i>Unpaid</span>
                         <span><i class="ce-sw ce-sw-excused"></i>Excused</span>
+                        @if (IsNpm)
+                        {
+                            <span><i class="ce-sw ce-sw-closed"></i>Closed (market not open)</span>
+                        }
                         <span><i class="ce-sw ce-sw-future"></i>Upcoming</span>
                     </div>
                 }
@@ -581,11 +541,6 @@
     private readonly HashSet<int> _excusedMonths = new();                       // monthly: excused months in the year
     private readonly HashSet<int> _marketClosedDays = new();                    // NPM: facility-wide closed days in the month
     private bool _marketLoading;
-    private bool _marketDrawerOpen;
-    private int _marketDay;
-    private bool _marketSaving;
-    private bool _marketAck;
-    private string? _marketError;
 
     [PersistentState(AllowUpdates = true)]
     public CollectionExceptionsPayorState? CachedPayors { get; set; }
@@ -702,19 +657,24 @@
         _npmMode = "payor";
         _marketClosedDays.Clear();
         CloseDrawer();
-        CloseMarketDrawer();
         await LoadPayors();
     }
 
-    private async Task SetMode(string mode)
+    private void SetMode(string mode)
     {
         _npmMode = mode;
         CloseDrawer();
-        CloseMarketDrawer();
-        if (mode == "market") await LoadMarketClosures();
     }
 
-    // Facility-wide NPM market closures for the current month (drives Market Days + per-payor overlay).
+    // The operating calendar changed a day or the weekly schedule: the per-payor overlay must read the new effective answer.
+    private async Task OnCalendarChanged()
+    {
+        if (SelectedStall is not null) await LoadPeriod();
+        else await LoadMarketClosures();
+    }
+
+    // The effective NPM closed days for the current month (weekly schedule plus explicit closures, minus openings),
+    // overlaid on the per-payor calendar. The same answer settlement, the Mobile collector and the reports use.
     private async Task LoadMarketClosures()
     {
         if (!IsNpm) return;
@@ -726,30 +686,6 @@
         if (res.IsSuccess && res.Value is not null)
             foreach (var d in res.Value) _marketClosedDays.Add(d);
         _marketLoading = false;
-        StateHasChanged();
-    }
-
-    private void OpenMarketDay(int d) { _marketDay = d; _marketError = null; _marketAck = false; _marketDrawerOpen = true; }
-    private void CloseMarketDrawer() { _marketDrawerOpen = false; _marketAck = false; _marketError = null; _marketSaving = false; }
-
-    private async Task ConfirmMarket(bool close)
-    {
-        _marketSaving = true; _marketError = null; StateHasChanged();
-        var date = new DateOnly(_year, _month, _marketDay);
-        var res = close
-            ? await PaymentsApi.SetMarketClosureAsync(new SetNpmMarketClosureCommand(date))
-            : await PaymentsApi.ClearMarketClosureAsync(new ClearNpmMarketClosureCommand(date));
-        _marketSaving = false;
-        if (res.IsSuccess)
-        {
-            if (close) _marketClosedDays.Add(_marketDay); else _marketClosedDays.Remove(_marketDay);
-            CloseMarketDrawer();
-            if (SelectedStall is not null) await LoadPeriod();   // refresh the per-payor overlay
-        }
-        else
-        {
-            _marketError = res.Error ?? "Unable to save. Please try again.";
-        }
         StateHasChanged();
     }
 
@@ -803,9 +739,7 @@
         var d = new DateTime(_year, _month, 1).AddMonths(-1);
         _year = d.Year; _month = d.Month;
         CloseDrawer();
-        CloseMarketDrawer();
         if (SelectedStall is not null && (IsNpm || _year != oldYear)) await LoadPeriod();
-        else if (IsNpm && _npmMode == "market") await LoadMarketClosures();
     }
     private async Task NextMonth()
     {
@@ -813,9 +747,7 @@
         var d = new DateTime(_year, _month, 1).AddMonths(1);
         _year = d.Year; _month = d.Month;
         CloseDrawer();
-        CloseMarketDrawer();
         if (SelectedStall is not null && (IsNpm || _year != oldYear)) await LoadPeriod();
-        else if (IsNpm && _npmMode == "market") await LoadMarketClosures();
     }
 
     private void ToggleDd(string id) => _openDd = _openDd == id ? null : id;
@@ -829,14 +761,16 @@
     private string DayStatus(int d)
     {
         var date = new DateOnly(_year, _month, d);
-        if (_marketClosedDays.Contains(d)) return "excused";   // facility-wide closure excuses this payor
         if (SelectedStall?.ContractDate is { } cd && date < DateOnly.FromDateTime(cd)) return "na";   // before contract → out of scope
         var key = date.ToString("yyyy-MM-dd");
-        if (_npmMonth is not null && _npmMonth.Collections.TryGetValue(key, out var c))
-        {
-            if (c.IsAbsent) return "excused";
-            if (c.IsPaid) return "collected";
-        }
+        DailyCollectionDayDto? record = null;
+        _npmMonth?.Collections.TryGetValue(key, out record);
+        // Money actually collected stays Paid even when the day is later closed: a closure never unpays a posted collection.
+        if (record is { IsPaid: true }) return "collected";
+        // A day the market did not open is Closed for every payor — its own state, distinct from an individual excuse and
+        // never an unpaid day.
+        if (_marketClosedDays.Contains(d)) return "closed";
+        if (record is { IsAbsent: true }) return "excused";
         return date > PhilippineTime.Today ? "future" : "missed";
     }
 
@@ -863,13 +797,69 @@
 
     private static string StatusTag(string s) => s switch
     {
-        "collected" => "Paid", "missed" => "Unpaid", "excused" => "Excused", "partial" => "Partial", "future" => "Soon", "na" => "—", _ => ""
+        "collected" => "Paid", "missed" => "Unpaid", "excused" => "Excused", "closed" => "Closed", "partial" => "Partial", "future" => "Soon", "na" => "—", _ => ""
     };
 
     // ── Stats ──
     private int StatCollected() => IsNpm ? CountDays("collected") : CountMonths("collected");
     private int StatMissed() => IsNpm ? CountDays("missed") : CountMonths("missed");
     private int StatExcused() => IsNpm ? CountDays("excused") : CountMonths("excused");
+    private int StatClosed() => CountDays("closed");
+
+    // Recording by amount. The server previews what an amount settles; only an amount that is exactly a sum of whole payable
+    // days (oldest first) can be recorded, and it is recorded through the same SettleNpmDays path as ticking those days.
+    private string _amountText = "";
+    private NpmAmountQuoteDto? _quote;
+    private string? _amountError;
+    private bool _recording;
+    private int _quoteSeq;
+    private NpmPartPaymentQuoteDto? _part;
+    private Guid _partOperation = Guid.NewGuid();
+    private bool CanRecordAmount => _part is { Outcome: "Applied" } || _quote is { Outcome: "Exact" };
+
+    private async Task OnAmountInput(ChangeEventArgs e)
+    {
+        _amountText = e.Value?.ToString() ?? "";
+        _quote = null; _part = null; _amountError = null;
+        if (SelectedStall is null || string.IsNullOrWhiteSpace(_amountText)) return;
+        if (!decimal.TryParse(_amountText.Replace("₱", "").Replace(",", "").Trim(), System.Globalization.NumberStyles.Number,
+                System.Globalization.CultureInfo.InvariantCulture, out var amount) || amount <= 0m || amount != decimal.Round(amount, 2))
+        {
+            _amountError = "Enter an amount in pesos and centavos greater than zero.";
+            return;
+        }
+        var seq = ++_quoteSeq;
+        // Part payments first: when the office has them on, the server previews the amount as full or part installments.
+        // Otherwise (not enabled, or the date is not under canonical authority) only whole days can be recorded, as before.
+        var partRes = await DailyApi.QuoteNpmPartPaymentAsync(SelectedStall.Id, _year, _month, amount);
+        if (seq != _quoteSeq) return;
+        if (partRes?.IsSuccess == true && partRes.Value is { } partQuote) { _part = partQuote; _partOperation = Guid.NewGuid(); return; }
+        var res = await DailyApi.QuoteNpmAmountAsync(SelectedStall.Id, _year, _month, amount);
+        if (seq != _quoteSeq) return;   // a newer keystroke is already being answered
+        if (res?.IsSuccess == true) _quote = res.Value; else _amountError = res?.Error ?? "The amount could not be checked.";
+    }
+
+    private async Task RecordAmount()
+    {
+        if (_recording || SelectedStall is null) return;
+        if (_part is { Outcome: "Applied" } part)
+        {
+            _recording = true; _amountError = null;
+            var recorded = await DailyApi.RecordNpmPartPaymentAsync(new NpmPartPaymentRequest(_partOperation, part.StallId, part.Year, part.Month, part.BusinessDate, part.Amount, part.QuoteToken));
+            _recording = false;
+            if (recorded?.IsSuccess != true) { _amountError = recorded?.Error ?? "The payment could not be recorded."; return; }
+            _amountText = ""; _part = null; _partOperation = Guid.NewGuid();
+            await LoadPeriod();
+            return;
+        }
+        if (_quote is not { Outcome: "Exact" } q) return;
+        _recording = true; _amountError = null;
+        var res = await DailyApi.SettleNpmDaysAsync(new SettleNpmDaysCommand(SelectedStall.Id, q.ExactDates, null));
+        _recording = false;
+        if (!res.IsSuccess) { _amountError = res.Error ?? "The payment could not be recorded."; return; }
+        _amountText = ""; _quote = null;
+        await LoadPeriod();
+    }
     private int CountDays(string status) => Enumerable.Range(1, DaysInMonth).Count(d => DayStatus(d) == status);
     private int CountMonths(string status) => Enumerable.Range(1, 12).Count(m => MonthStatus(m) == status);
     private decimal StatExpected()

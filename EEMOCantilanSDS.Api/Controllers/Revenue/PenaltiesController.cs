@@ -29,4 +29,9 @@ public sealed class PenaltiesController(ISender sender, PenaltyDefinitionWorkflo
     public async Task<ActionResult<IReadOnlyList<PenaltyRegisterRowDto>>> RegisterAsync(
         [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken ct) =>
         HandleResponse(await workflow.GetRegisterAsync(from, to, ct));
+
+    [HttpGet("summary")]
+    public async Task<ActionResult<PenaltyWorkspaceSummaryDto>> SummaryAsync(
+        [FromQuery] DateOnly from, [FromQuery] DateOnly to, CancellationToken ct) =>
+        HandleResponse(await workflow.GetSummaryAsync(from, to, ct));
 }

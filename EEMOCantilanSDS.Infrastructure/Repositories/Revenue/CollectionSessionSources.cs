@@ -21,7 +21,7 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories.Revenue;
 /// <summary>Source dispatcher, not an amount engine. All writers use this SAME concrete context as the session transaction.</summary>
 public sealed partial class CollectionSessionSources(AppDbContext db, ICurrentUserService user,
     ICurrentMunicipalityAccessor municipality, IClock clock, ISender sender, ITpmMarketDayProvider marketDays,
-    NpmWholePaymentWorkflow? npmWhole = null, NpmDailyBatchWorkflow? npmDaily = null) : ICollectionSessionSources
+    NpmWholePaymentWorkflow? npmWhole = null, NpmDailyBatchWorkflow? npmDaily = null, NpmPartPaymentWorkflow? npmPart = null) : ICollectionSessionSources
 {
     private WcfCollectionWorkflow Water => new(db, user, municipality, clock);
     private GovernedServiceWorkflow Governed => new(db, user, municipality, clock);
@@ -232,7 +232,7 @@ public sealed partial class CollectionSessionSources(AppDbContext db, ICurrentUs
         CollectionSessionIntent session, CollectionSessionItemIntent item, CancellationToken ct)
     {
         (CollectionSessionItemQuote?, CollectionSessionProblem?) Fail(string code, string message) => (null, new(item.ClientItemId, code, message));
-        var count = (item.Water is null ? 0 : 1) + (item.Service is null ? 0 : 1) + (item.Obligation is null ? 0 : 1) + (item.Electricity is null ? 0 : 1) + (item.Weighing is null ? 0 : 1) + (item.Slaughter is null ? 0 : 1) + (item.VendorFee is null ? 0 : 1) + (item.NpmWhole is null ? 0 : 1) + (item.Native is null ? 0 : 1) + (item.Rent is null ? 0 : 1) + (item.NpmDaily is null ? 0 : 1);
+        var count = (item.Water is null ? 0 : 1) + (item.Service is null ? 0 : 1) + (item.Obligation is null ? 0 : 1) + (item.Electricity is null ? 0 : 1) + (item.Weighing is null ? 0 : 1) + (item.Slaughter is null ? 0 : 1) + (item.VendorFee is null ? 0 : 1) + (item.NpmWhole is null ? 0 : 1) + (item.Native is null ? 0 : 1) + (item.Rent is null ? 0 : 1) + (item.NpmDaily is null ? 0 : 1) + (item.NpmPart is null ? 0 : 1);
         if (count != 1 || (item.Kind is CollectionSessionItemKind.Weighing or CollectionSessionItemKind.Slaughter or CollectionSessionItemKind.NpmWholePayment ? item.ConfirmedAmount < 0m : item.ConfirmedAmount <= 0m) || item.ConfirmedAmount > EEMOCantilanSDS.Domain.Entities.Revenue.Collection.MaximumMoneyAmount
             || decimal.Round(item.ConfirmedAmount, 2) != item.ConfirmedAmount)
             return Fail("InvalidIntent", "Supply one source-specific intent and a positive amount with at most two decimals.");
@@ -240,6 +240,7 @@ public sealed partial class CollectionSessionSources(AppDbContext db, ICurrentUs
         if (session.SourceIdentity is not null && !await NativeItemMatchesAsync(session, item, ct)) return Fail("PayerMismatch", "This item belongs to a different Source Identity.");
         if (item.Rent is not null) return await QuoteNativeRentAsync(session, item, ct);
         if (item.NpmDaily is not null) return await QuoteNativeDailyAsync(session, item, ct);
+        if (item.NpmPart is not null) return await QuoteNpmPartAsync(session, item, ct);
         if (item.Kind is not (CollectionSessionItemKind.GovernedService or CollectionSessionItemKind.Slaughter) && !session.PayorId.HasValue && session.SourceIdentity is null)
             return Fail("RequiresPayor", "Select the authoritative linked payer before adding this source.");
         CollectionSessionItemQuote Q(string code, string name, string context, RevenueInstrumentType instrument, decimal amount, object version) =>
@@ -377,12 +378,7 @@ public sealed partial class CollectionSessionSources(AppDbContext db, ICurrentUs
             {
                 var account = await db.ObligationAccounts.AsNoTracking().SingleOrDefaultAsync(x => x.MunicipalityId == Tenant && x.Id == o.AccountId, ct);
                 if (account is null) return Fail("InvalidSource", "The selected account is not available.");
-                var operationCode = account.Kind switch
-                {
-                    ObligationKind.KanmanggaySpaceRental => CollectorOperationCodes.KanmanggaySpaceRental,
-                    ObligationKind.FiestaArawLotRental => CollectorOperationCodes.FiestaArawLotRental,
-                    _ => "FISH_MEAT_VENDOR_FEE"
-                };
+                var operationCode = ObligationAccount.OperationCodeFor(account.Kind) ?? "FISH_MEAT_VENDOR_FEE";
                 if (account.Kind == ObligationKind.FishMeatVendorFee && FishMeatVendorFeeRules.UsesDirectCollection(session.BusinessDate))
                     return Fail("SourceStillLegacy", "Monthly vendor-fee accounts are historical. Choose direct Vendor Fee.");
                 if (account.Kind == ObligationKind.FishMeatVendorFee ? !await NpmAssignedAsync(ct) :
@@ -427,6 +423,7 @@ public sealed partial class CollectionSessionSources(AppDbContext db, ICurrentUs
         if (item.Native is not null) return await PostNativeChargeAsync(session, item, operation, ct);
         if (item.Rent is not null) return await PostNativeRentAsync(session, item, operation, ct);
         if (item.NpmDaily is not null) return await PostNativeDailyAsync(session, item, operation, ct);
+        if (item.NpmPart is not null) return await PostNpmPartAsync(session, item, operation, ct);
         Guid id; string reference; decimal amount;
         switch (item.Kind)
         {

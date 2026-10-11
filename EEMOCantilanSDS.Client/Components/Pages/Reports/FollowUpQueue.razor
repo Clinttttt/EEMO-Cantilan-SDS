@@ -259,22 +259,7 @@
                                                         {
                                                             <button type="button" class="fq-hidebtn" title="Hide from this browser's live queue only; this is not recorded as follow-up history." @onclick="() => HideItem(it)">Hide locally</button>
                                                         }
-                                                        @if (it.Action == "Add OR")
-                                                        {
-                                                            <button type="button" class="fq-action fq-action-btn" @onclick="() => OpenAddOr(it)">@it.Action<span class="fq-action-arrow">→</span></button>
-                                                        }
-                                                        else if (CanRecordMonthlyPayment(it))
-                                                        {
-                                                            <button type="button" class="fq-action fq-action-btn" @onclick="() => OpenPayBill(it)">Record payment<span class="fq-action-arrow">→</span></button>
-                                                        }
-                                                        else if (it.Action == "Pay Bill" && it.StallId.HasValue)
-                                                        {
-                                                            <button type="button" class="fq-action fq-action-btn" @onclick="() => OpenUtilityBill(it)">@it.Action<span class="fq-action-arrow">→</span></button>
-                                                        }
-                                                        else
-                                                        {
-                                                            <a class="fq-action" href="@it.Link">@it.Action<span class="fq-action-arrow">→</span></a>
-                                                        }
+                                                        <button type="button" class="fq-action fq-action-btn" @onclick="() => Review(it)">@(ReviewContext(it).IsAccount ? "Review account" : "Review item")<span class="fq-action-arrow">→</span></button>
                                                     </div>
                                                 </td>
                                                 break;
@@ -319,7 +304,7 @@
                                     <td><div class="fq-period">@ObligationPeriod(ob)</div></td>
                                     <td><span class="fq-note">@(ob.Collected > 0m ? $"Partial · ₱{ob.Collected:N0} paid" : "Unpaid")</span></td>
                                     <td><span class="fq-amount">₱@ob.Outstanding.ToString("N0")</span></td>
-                                    <td><div class="fq-action-cell"><a class="fq-action" href="@ob.Link">View<span class="fq-action-arrow">→</span></a></div></td>
+                                    <td><div class="fq-action-cell"><button type="button" class="fq-action fq-action-btn" @onclick="() => _review = new(null, ob, AsOf)">Review account<span class="fq-action-arrow">→</span></button></div></td>
                                 </tr>
                             }
                         </tbody>
@@ -492,10 +477,30 @@
               StallNo="@PayStallNo"
               Occupant="@(_payItem?.Person ?? string.Empty)"
               ContractId="@(_payItem?.ContractId)"
+              PeriodYear="@_reviewPeriod?.Year" PeriodMonth="@_reviewPeriod?.Month"
               OnClose="ClosePayBill"
               OnChanged="OnPaidFromQueue" />
 
+@if (_review is not null)
+{
+    <FollowUpAccountReview @key="_review" Context="_review" OnClose="() => _review = null" OnAction="ContinueReview" ActionLabel="@ReviewActionLabel" OnPeriodSelected="date => _reviewPeriod = date" />
+}
+
 @code {
+    private EEMOCantilanSDS.Client.Services.FollowUpReviewContext? _review;
+    private EEMOCantilanSDS.Client.Services.FollowUpReviewContext? _returnReview;
+    private EEMOCantilanSDS.Client.Services.FollowUpReviewContext ReviewContext(FollowUpItemDto item) => new(item, null, AsOf, CanRecordMonthlyPayment(item));
+    private DateOnly? _reviewPeriod;
+    private void Review(FollowUpItemDto item) { _reviewPeriod = null; _returnReview = null; _review = ReviewContext(item); }
+    private string? ReviewActionLabel => _review?.FacilityItem is not { } item ? null : item.Action == "Add OR" ? "Review receipt evidence" : CanRecordMonthlyPayment(item) ? "Record payment" : item.Action == "Pay Bill" && item.StallId.HasValue ? "Review utility bill" : null;
+    private async Task ContinueReview()
+    {
+        var item = _review?.FacilityItem; _returnReview = _review; _review = null;
+        if (item is null) return;
+        if (item.Action == "Add OR") await OpenAddOr(item);
+        else if (CanRecordMonthlyPayment(item)) OpenPayBill(item);
+        else if (item.Action == "Pay Bill" && item.StallId.HasValue) OpenUtilityBill(item);
+    }
     private FollowUpQueueDto? _data;
     private bool _loading = true;
 
@@ -882,6 +887,7 @@
         _orRows = new();
         _orSavedAny = false;
         if (reload) await Load();   // receipted records drop off the queue → refresh counts
+        _review = _returnReview; _returnReview = null;
     }
 
     // ── Utility bill payment from Miscellaneous follow-up rows ──
@@ -896,6 +902,7 @@
     private Task CloseUtilityBill()
     {
         _utilityItem = null;
+        _review = _returnReview; _returnReview = null;
         return Task.CompletedTask;
     }
 
@@ -951,12 +958,13 @@
         _payItem = item;
     }
 
-    private void ClosePayBill() => _payItem = null;
+    private void ClosePayBill() { _payItem = null; _review = _returnReview; _returnReview = null; }
 
     private async Task OnPaidFromQueue()
     {
         _payItem = null;
         await Load();
+        _review = _returnReview; _returnReview = null;
     }
 
     private static bool CanRecordMonthlyPayment(FollowUpItemDto item) =>

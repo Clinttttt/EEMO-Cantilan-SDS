@@ -29,6 +29,9 @@ public sealed class ObligationsApiClient(HttpClient http) : HandleResponse(http)
     public Task<Result<ObligationAccountDto>> CreateAccountAsync(CreateObligationAccountRequest request) =>
         PostAsync<CreateObligationAccountRequest, ObligationAccountDto>("api/obligations/accounts", request);
 
+    public Task<Result<bool>> CorrectHolderAsync(Guid accountId, CorrectObligationHolderRequest request) =>
+        PostAsync<CorrectObligationHolderRequest, bool>($"api/obligations/accounts/{accountId}/holder", request);
+
     public Task<Result<bool>> SetRateAsync(Guid accountId, SetObligationRateRequest request) =>
         PostAsync<SetObligationRateRequest, bool>($"api/obligations/accounts/{accountId}/rates", request);
 

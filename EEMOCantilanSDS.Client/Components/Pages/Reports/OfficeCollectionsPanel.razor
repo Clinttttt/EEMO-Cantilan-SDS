@@ -1,0 +1,118 @@
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Domain.Constants
+@inject IOfficeSourcesApiClient OfficeApi
+
+<section class="oo" aria-labelledby="oo-title">
+    <header>
+        <h2 id="oo-title" class="oo-title">Office collections</h2>
+        <p class="oo-sub">
+            Check what is already recorded for a source and day, then continue in that source's own workspace.
+            Nothing is posted from this view.
+        </p>
+    </header>
+
+    <div class="oo-form">
+        <label class="oo-field">
+            <span>Source</span>
+            <select class="oo-input" @onchange="OnSourceChanged">
+                @foreach (var s in Sources)
+                {
+                    <option value="@s.Code" selected="@(s.Code == _code)">@s.Label</option>
+                }
+            </select>
+        </label>
+        <label class="oo-field">
+            <span>Business date</span>
+            <input type="date" class="oo-input" max="@Today.ToString("yyyy-MM-dd")" value="@_date.ToString("yyyy-MM-dd")" @onchange="OnDateChanged" />
+        </label>
+        <a class="oo-link" href="@Current.Route">Open @Current.Label workspace</a>
+    </div>
+
+    <p class="oo-warn" role="note">
+        A collector who worked offline may not have synced yet. If the day looks incomplete, wait for the Mobile app to sync
+        before entering anything here, so the same collection is not recorded twice.
+    </p>
+
+    @if (_loading)
+    {
+        <div class="oo-note" role="status">Checking recorded activity…</div>
+    }
+    else if (_error is not null)
+    {
+        <div class="oo-error" role="alert"><span>@_error</span><button type="button" class="oo-btn" @onclick="Load">Retry</button></div>
+    }
+    else if (_rows.Count == 0)
+    {
+        <div class="oo-note" role="status">No @Current.Label collection is recorded for @_date.ToString("MMMM d, yyyy").</div>
+    }
+    else
+    {
+        <div class="oo-scroll">
+            <table class="oo-table">
+                <caption class="oo-cap">@Current.Label · @_date.ToString("MMMM d, yyyy") · @_rows.Count recorded · @_rows.Sum(r => r.Amount).ToString("N2")</caption>
+                <thead>
+                    <tr><th scope="col">Reference</th><th scope="col">Collector</th><th scope="col">Payer</th><th scope="col" class="oo-num">Amount</th><th scope="col">State</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in _rows)
+                    {
+                        <tr>
+                            <td>@r.SRC</td>
+                            <td>@(r.CollectorName ?? "—")</td>
+                            <td>@(r.PayerSnapshot ?? "—")</td>
+                            <td class="oo-num">@r.Amount.ToString("N2")</td>
+                            <td>@r.State</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@code {
+    private sealed record Source(string Code, string Label, string Route);
+
+    private static readonly Source[] Sources =
+    [
+        new(CollectorOperationCodes.Terminal, "Terminal", "/operations/terminal"),
+        new(CollectorOperationCodes.MarketFees, "Market fees", "/operations/market-fees"),
+        new(CollectorOperationCodes.WeightAndMeasure, "Weights and measures", "/operations/weight-and-measure"),
+        new(CollectorOperationCodes.FishMeatVendorFee, "Fish and meat vendor fees", "/operations/fish-meat-vendor-fees"),
+        new(CollectorOperationCodes.LandingBerthing, "Landing and berthing", "/operations/landing-berthing"),
+        new(CollectorOperationCodes.TransferLargeCattle, "Transfer of large cattle", "/operations/transfer-large-cattle"),
+        new(CollectorOperationCodes.Transportation, "Transportation", "/operations/transportation"),
+    ];
+
+    private string _code = Sources[0].Code;
+    private DateOnly _date = PhilippineTime.Today;
+    private IReadOnlyList<SourceNativeActivityDto> _rows = [];
+    private bool _loading = true;
+    private string? _error;
+
+    private static DateOnly Today => PhilippineTime.Today;
+    private Source Current => Sources.First(s => s.Code == _code);
+
+    protected override Task OnInitializedAsync() => Load();
+
+    private async Task OnSourceChanged(ChangeEventArgs e)
+    {
+        _code = e.Value?.ToString() ?? Sources[0].Code;
+        await Load();
+    }
+
+    private async Task OnDateChanged(ChangeEventArgs e)
+    {
+        if (DateOnly.TryParse(e.Value?.ToString(), out var d)) { _date = d; await Load(); }
+    }
+
+    private async Task Load()
+    {
+        _loading = true; _error = null;
+        StateHasChanged();
+        var res = await OfficeApi.ActivityAsync(_date, _date, _code);
+        _loading = false;
+        if (res.IsSuccess) _rows = res.Value ?? [];
+        else { _rows = []; _error = res.Error ?? "Recorded activity could not be loaded."; }
+    }
+}

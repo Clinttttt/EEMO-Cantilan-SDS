@@ -17,7 +17,7 @@ namespace EEMOCantilanSDS.Application.Common.Payments;
 /// and not already Paid or Absent. Base ₱30 daily fee only (fish ₱/kg is weighed at the stall; utilities
 /// are billed separately) — matching the existing <c>SettleNpmMonth</c> behaviour exactly.
 /// </summary>
-public sealed class NpmMonthSettlementService(
+public sealed partial class NpmMonthSettlementService(
     IDailyCollectionRepository dailyCollectionRepository,
     INpmMarketClosureRepository marketClosureRepository,
     IFeeRateResolver feeRateResolver, IClock clock) : INpmMonthSettlementService
@@ -205,7 +205,7 @@ public sealed class NpmMonthSettlementService(
             return NpmFishDayQuote.NotPayable("The market was closed that day — nothing is owed.");
 
         var existing = await dailyCollectionRepository.GetByStallAndDateAsync(stall.Id, day, ct);
-        if (existing is not null && (existing.IsPaid || existing.IsAbsent))
+        if (existing is not null && (existing.IsPaid || existing.IsAbsent || existing.IsPartlyPaid))
             return NpmFishDayQuote.NotPayable("That day is already collected or excused.");
 
         // Tenant-aware: resolve BOTH the base fee and the fish ₱/kg from the current municipality's
@@ -231,7 +231,7 @@ public sealed class NpmMonthSettlementService(
             dc.MarkPaid(orNumber: string.Empty, collectorId: null, fishKilos: declaredKilos, updatedBy: recordedBy);
             await dailyCollectionRepository.AddAsync(dc, ct);
         }
-        else if (!dc.IsPaid && !dc.IsAbsent)
+        else if (!dc.IsPaid && !dc.IsAbsent && !dc.IsPartlyPaid)
         {
             dc.MarkPaid(orNumber: string.Empty, collectorId: null, fishKilos: declaredKilos, updatedBy: recordedBy);
         }
@@ -243,7 +243,7 @@ public sealed class NpmMonthSettlementService(
     // The day-set, and what the month still owes. Kept private so the quote and the settlement can never compute
     // them differently: one walk of the month answers both.
     private async Task<(List<(DateOnly Day, decimal Fee)> Days, decimal Remaining, decimal Adjustment, DailyCollection? LastCollected)> ResolveMonthAsync(
-        Stall stall, int year, int month, CancellationToken ct, bool wholeMonth = false, Action<NpmMonthPosition>? capturePosition = null)
+        Stall stall, int year, int month, CancellationToken ct, bool wholeMonth = false, Action<NpmMonthPosition>? capturePosition = null, Action<NpmPartPaidPosition>? capturePartial = null)
     {
         var daysInMonth = DateTime.DaysInMonth(year, month);
         var monthStart = new DateOnly(year, month, 1);
@@ -265,6 +265,7 @@ public sealed class NpmMonthSettlementService(
         var daysHeld = 0;
         var daysForgiven = 0;
         var collected = 0m;
+        var partDays = new List<(DateOnly Day, decimal Remaining, decimal Settled)>();
         DailyCollection? lastCollected = null;
 
         for (var day = monthStart; day <= monthEnd; day = day.AddDays(1))
@@ -285,6 +286,13 @@ public sealed class NpmMonthSettlementService(
             if (dc is not null && dc.IsAbsent)
             {
                 daysForgiven++;                                         // excused — the payor owes nothing for it
+                continue;
+            }
+
+            if (dc is not null && dc.IsPartlyPaid)
+            {
+                collected += dc.CanonicalSettledAmount;                 // the part already received reduces what is left to ask
+                partDays.Add((day, dc.RemainingBaseFee, dc.CanonicalSettledAmount));             // the rest is collected only by a part payment, never by a whole-day path
                 continue;
             }
 
@@ -320,9 +328,12 @@ public sealed class NpmMonthSettlementService(
         // A whole-month payment is the office accepting the month in full, so the month-end top-up is collectible with it.
         var dueDatePassed = today > monthEnd || wholeMonth;
         var installments = days.Sum(d => d.Fee);
-        var adjustment = snapshot.MonthRule.AdjustsShortMonthToRent && dueDatePassed && remaining > installments
-            ? remaining - installments
+        // What a part-paid day still owes is its own balance, not a shortfall of the calendar: it is never read as an adjustment.
+        var partLeftover = partDays.Sum(p => p.Remaining);
+        var adjustment = snapshot.MonthRule.AdjustsShortMonthToRent && dueDatePassed && remaining - partLeftover > installments
+            ? remaining - partLeftover - installments
             : 0m;
+        capturePartial?.Invoke(new NpmPartPaidPosition(partDays, partLeftover));
 
         return (days, remaining, adjustment, lastCollected);
     }

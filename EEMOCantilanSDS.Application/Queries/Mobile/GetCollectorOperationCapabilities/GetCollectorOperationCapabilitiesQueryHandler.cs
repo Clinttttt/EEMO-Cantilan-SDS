@@ -155,8 +155,18 @@ public sealed class GetCollectorOperationCapabilitiesQueryHandler(
         var classificationId = await db.RevenueClassifications.AsNoTracking()
             .Where(x => x.MunicipalityId == tenantId && x.SemanticCode == entry.ClassificationCode && x.IsActive)
             .Select(x => (Guid?)x.Id).SingleOrDefaultAsync(ct);
+        // Monthly space settlement is independent of the governed Daily amount rule.
+        if (entry.Code == CollectorOperationCodes.VegetableFruitSpaceRental && collectorActive && classificationId is { } monthlyId)
+        {
+            var monthlyInstrument = await db.RevenueClassificationPolicies.AsNoTracking().Where(x =>
+                x.MunicipalityId == tenantId && x.RevenueClassificationId == monthlyId &&
+                x.BusinessContext == RevenuePolicyContext.VegetableWholePayment && x.EffectiveDate <= today)
+                .OrderByDescending(x => x.EffectiveDate).Select(x => x.PermittedInstrumentType).FirstOrDefaultAsync(ct);
+            if (monthlyInstrument == RevenueInstrumentType.OfficialReceipt)
+                return new(entry.Code, name, true, CollectorOperationCapabilityStatus.Ready, true, []);
+        }
         var contexts = entry.ModeAware
-            ? new[] { RevenuePolicyContext.VegetableWholePayment, RevenuePolicyContext.VegetableDailyTransaction }
+            ? new[] { RevenuePolicyContext.VegetableDailyTransaction }
             : new[] { RevenuePolicyContext.Default };
         var instruments = new List<RevenueInstrumentType>();
         foreach (var context in contexts)

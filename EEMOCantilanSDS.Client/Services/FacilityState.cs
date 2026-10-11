@@ -20,6 +20,14 @@ namespace EEMOCantilanSDS.Client.Services;
 /// </summary>
 public class FacilityState(IFacilitiesApiClient api)
 {
+    // Presentation vocabulary only. ICE/custom retain their established Space wording.
+    public static string HolderUnitOf(FacilityCode code) => code is
+        FacilityCode.NPM or FacilityCode.NCC or FacilityCode.TCC or FacilityCode.BBQ ? "Stall" : "Space";
+
+    public string HolderUnitFor(string? slug) =>
+        string.IsNullOrWhiteSpace(slug) ? HolderUnitOf(FacilityCode.NPM) :
+        TryResolveSlug(slug, out var code) ? HolderUnitOf(code) : "Space";
+
     private static readonly FacilityCode[] AllCodes =
         { FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE, FacilityCode.SLH, FacilityCode.TRM, FacilityCode.TPM };
 

@@ -1,0 +1,79 @@
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Services
+@using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Domain.Constants
+<div class="eemo-modal-overlay" @onclick="() => OnClose.InvokeAsync()">
+    <div class="holder-details" role="dialog" aria-modal="true" aria-labelledby="ohd-title" @onclick:stopPropagation="true">
+        <header class="ohd-header">
+            <div>
+                <h2 id="ohd-title">@SpaceAccountPresentation.Occupant(Account)</h2>
+                <div class="ohd-sub">@Operation · @(Account.Kind == ObligationKind.FiestaArawLotRental ? "Lot" : "Space") @Account.SubjectLabel
+                    <AccountStatusPill Status="@(Account.ActiveTo is null ? "Active" : "Closed")" />
+                </div>
+            </div>
+            <button type="button" class="ohd-close" aria-label="Close" @onclick="() => OnClose.InvokeAsync()">×</button>
+        </header>
+        <div class="ohd-body">
+            <div class="ohd-stats">
+                <div><small>@(Account.Kind == ObligationKind.FiestaArawLotRental ? "Approved event amount" : "Approved monthly rental")</small><strong>@Money(Account.CurrentAmount)</strong></div>
+                <div><small>Assessed · to date</small><strong>@Money(Account.AssessedToDate)</strong></div>
+                <div><small>Collected · to date</small><strong>@Money(Account.CollectedToDate)</strong></div>
+                <div><small>Balance · to date</small><strong>@Money(Account.OutstandingToDate)</strong></div>
+            </div>
+
+            <section class="ohd-section">
+                <h3>@(Account.Kind == ObligationKind.FiestaArawLotRental ? "Lot Holder & Event" : "Occupant & Contract")</h3>
+                <dl>
+                    <div><dt>@(Account.Kind == ObligationKind.FiestaArawLotRental ? "Lot holder" : "Actual occupant (lessee)")</dt><dd>@SpaceAccountPresentation.Occupant(Account)</dd></div>
+                    @if (Account.Kind == ObligationKind.FiestaArawLotRental)
+                    {
+                        <div><dt>Event</dt><dd>@Account.Event</dd></div>
+                        <div><dt>Event date</dt><dd>@(Account.EventDate?.ToString("MMM d, yyyy") ?? "Not recorded")</dd></div>
+                    }
+                    else
+                    {
+                        <div><dt>Basis of occupancy</dt><dd>@SpaceAccountPresentation.Basis(Account)</dd></div>
+                        <div><dt>Name on contract</dt><dd>@(Account.ContractName ?? "Not recorded")</dd></div>
+                        <div><dt>Contract reference</dt><dd>@(Account.ContractReference ?? "Not recorded")</dd></div>
+                        <div><dt>Contract effective date</dt><dd>@(Account.ContractEffectiveDate?.ToString("MMM d, yyyy") ?? "Not recorded")</dd></div>
+                        <div><dt>Duration</dt><dd>@(Account.ContractYears is { } years ? $"{years} years" : "Not recorded")</dd></div>
+                        @if (Account.ContractEffectiveDate is { } start && Account.ContractYears is { } term)
+                        { <div><dt>Term expiration</dt><dd>@DomainRules.TermLastDay(start.ToDateTime(TimeOnly.MinValue), term).ToString("MMM d, yyyy")</dd></div> }
+                    }
+                </dl>
+            </section>
+
+            <section class="ohd-section">
+                <h3>@(Account.Kind == ObligationKind.FiestaArawLotRental ? "Lot & Account Details" : "Space & Rental Details")</h3>
+                <dl>
+                    <div><dt>Facility / Operation</dt><dd>@Operation</dd></div>
+                    <div><dt>@(Account.Kind == ObligationKind.FiestaArawLotRental ? "Lot No." : "Space No.")</dt><dd>@Account.SubjectLabel</dd></div>
+                    <div><dt>Active from</dt><dd>@Account.ActiveFrom.ToString("MMM d, yyyy")</dd></div>
+                    @if (Account.ActiveTo is { } ended) { <div><dt>Closed on</dt><dd>@ended.ToString("MMM d, yyyy")</dd></div> }
+                    @if (Account.Kind != ObligationKind.FiestaArawLotRental)
+                    {
+                        <div><dt>Area (sq.m)</dt><dd>@(Account.AreaSqm?.ToString("N2") ?? "Not recorded")</dd></div>
+                        <div><dt>Area location / note</dt><dd>@(Account.AreaLocation ?? "Not recorded")</dd></div>
+                        <div><dt>Current approved rate from</dt><dd>@(Account.CurrentAmountEffectiveFrom?.ToString("MMM yyyy") ?? "Not recorded")</dd></div>
+                    }
+                </dl>
+            </section>
+            <p class="ohd-note">This is the source's recorded occupancy and assessment position, not an Official Receipt. Posted collections remain in Collection Activity and Payment History.</p>
+        </div>
+        <footer class="ohd-footer">
+            <button type="button" class="btn-ghost" @onclick="() => OnClose.InvokeAsync()">Close</button>
+            <button type="button" class="btn-outline" @onclick="() => OnHistory.InvokeAsync()">Payment History</button>
+            @if (CanEdit && Account.ActiveTo is null && Account.Kind != ObligationKind.FiestaArawLotRental)
+            { <button type="button" class="btn-primary" @onclick="() => OnEdit.InvokeAsync()">Edit Occupant &amp; Space</button> }
+        </footer>
+    </div>
+</div>
+@code {
+    [Parameter, EditorRequired] public ObligationAccountDto Account { get; set; } = null!;
+    [Parameter] public string Operation { get; set; } = "Space Rental";
+    [Parameter] public bool CanEdit { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnEdit { get; set; }
+    [Parameter] public EventCallback OnHistory { get; set; }
+    private static string Money(decimal? value) => value is { } money ? $"₱{money:N2}" : "—";
+}

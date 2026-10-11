@@ -47,10 +47,12 @@ public sealed record MobileNpmStallArrearsDto(
     decimal DailyRate,
     IReadOnlyList<MobileNpmMonthArrearDto> PastMonths,
     IReadOnlyList<DateOnly> DaysOwedThisMonth,
-    decimal AmountThisMonth)
+    decimal AmountThisMonth,
+    /// <summary>What is still owed on days that part payments have started to settle. Collected by a part payment, not by the day buttons.</summary>
+    decimal PartPaidBalance = 0m)
 {
     /// <summary>Everything this payor is behind on, past months and the days gone by this month together.</summary>
-    public decimal TotalOutstanding => PastMonths.Sum(m => m.Amount) + AmountThisMonth;
+    public decimal TotalOutstanding => PastMonths.Sum(m => m.Amount) + AmountThisMonth + PartPaidBalance;
 }
 
 /// <summary>

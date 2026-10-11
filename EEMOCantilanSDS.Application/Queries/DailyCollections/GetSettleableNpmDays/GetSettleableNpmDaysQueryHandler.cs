@@ -67,7 +67,7 @@ public class GetSettleableNpmDaysQueryHandler(
             if (closedDates.Contains(day))
                 continue;                                                        // facility-wide closure — nothing owed
             existing.TryGetValue(day, out var dc);
-            if (dc is not null && (dc.IsPaid || dc.IsAbsent))
+            if (dc is not null && (dc.IsPaid || dc.IsAbsent || dc.IsPartlyPaid))
                 continue;                                                        // already collected or excused
 
             // The fee this stall is actually billed at: a custom section charges its own rate, every canonical

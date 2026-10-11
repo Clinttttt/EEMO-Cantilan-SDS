@@ -1,0 +1,109 @@
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Enums
+@using System.Text.Json
+@inject IPenaltiesApiClient Api
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+<div @ref="_root">
+<AddNewDrawer Show="true" Title="Record direct fine" Subtitle="Fines & Penalties · Official Receipt"
+    FormId="direct-fine-collection" FormLabel="Record direct fine" Saving="_busy" Error="@_error"
+    SubmitText="@(_quote is null ? "Review collection" : "Confirm collection")" CancelText="@(_outcome is null ? "Cancel" : "Close")"
+    SubmitDisabled="@(_loading || _recoveryBlocked || (_category is null && _quote is null) || _outcome is not null)" OnSubmit="Submit" OnCancel="Close">
+    @if (_loading) { <p role="status">Loading approved fine categories…</p> }
+    else if (_outcome is { } cash) {
+        <AddNewSection Title="Collection recorded">
+            <div class="df-success" role="status"><span>Official SRC reference</span><strong class="df-src">@cash.ReferenceCode</strong><span class="df-success-amount">₱@cash.Amount.ToString("N2") · @cash.BusinessDate.ToString("MMM d, yyyy") · Fines &amp; Penalties</span></div>
+            <a class="v3-btn" href="/collections/activity">View in Collection Activity</a>
+        </AddNewSection>
+    }
+    else if (_options is null) {
+        <button type="button" class="v3-btn" @onclick="Load">Try again</button>
+    }
+    else if (_quote is { } q) {
+        <AddNewSection Title="Collection review">
+            <div class="df-total"><span>Amount to collect</span><strong class="df-amount">₱@q.Intent.Amount.ToString("N2")</strong><small>Actual money received · no account or assessment is created</small></div>
+            <dl class="df-review"><dt>Revenue source</dt><dd>Fines &amp; Penalties</dd><dt>Fine category</dt><dd>@q.Category</dd>
+                <dt>Business date</dt><dd>@q.Intent.BusinessDate.ToString("MMM d, yyyy")</dd><dt>Instrument</dt><dd>Official Receipt</dd>
+                <dt>Approved authority</dt><dd>@q.GoverningReference</dd>
+                @if(q.Intent.Reason is not null) { <dt>Reason</dt><dd>@q.Intent.Reason</dd> }
+                @if(q.Intent.SupportingReference is not null) { <dt>Reference</dt><dd>@q.Intent.SupportingReference</dd> }
+                @if(q.Intent.PayerParticulars is not null) { <dt>Receipt particulars</dt><dd>@q.Intent.PayerParticulars</dd> }
+            </dl>
+            <label class="df-check"><input type="checkbox" @bind="_received" disabled="@_attempted" /> Money has been received</label>
+            @if(!_attempted) { <button type="button" class="v3-btn" @onclick="() => _quote=null">Back to details</button> }
+            else if(_error is not null) { <p class="df-note">Retry recovers this same collection. Do not enter it again.</p> }
+        </AddNewSection>
+    }
+    else if (_options.Categories.Count == 0) {
+        <p role="status">No approved direct-fine collection policy is configured.</p>
+        <p class="df-note">Office authority must confirm the category, amount rules and receipt particulars before collection is enabled.</p>
+    }
+    else {
+        <AddNewSection Title="Collection details">
+            <div class="df-fields">
+                <label class="v3-field"><span>Fine category</span><select value="@_category?.AuthorityId" @onchange="SelectCategory">
+                    @foreach(var c in _options.Categories) { <option value="@c.AuthorityId">@c.Name</option> }
+                </select></label>
+                <label class="v3-field"><span>Fine amount (₱)</span><input type="number" min="0.01" step="0.01" required @bind="_amount" readonly="@(_category?.Basis == GovernedServiceBasis.FixedAmount)" /></label>
+                <p class="df-note">@(_category?.Basis == GovernedServiceBasis.FixedAmount ? "Fixed approved amount" : _category?.MaximumAmount is { } max ? $"Authorized maximum: ₱{max:N2}" : "Head-entered amount under approved uncapped authority")</p>
+                <label class="v3-field"><span>Violation reason / description@(_category?.RequiresReason == true ? "" : " (optional)")</span><textarea maxlength="1000" required="@(_category?.RequiresReason == true)" @bind="_reason"></textarea></label>
+                <label class="v3-field"><span>Payer name / receipt particulars@(_category?.RequiresPayerParticulars == true ? "" : " (optional)")</span><input maxlength="200" required="@(_category?.RequiresPayerParticulars == true)" @bind="_payer" /></label>
+                <label class="v3-field"><span>Supporting reference@(_category?.RequiresSupportingReference == true ? "" : " (optional)")</span><input maxlength="200" required="@(_category?.RequiresSupportingReference == true)" @bind="_reference" /></label>
+            </div>
+        </AddNewSection>
+    }
+</AddNewDrawer>
+</div>
+@code {
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnCollected { get; set; }
+    private ElementReference _root; private IJSObjectReference? _focus, _recovery;
+    private DirectFineOptionsDto? _options; private DirectFineCategoryDto? _category;
+    private DirectFineQuoteDto? _quote; private GovernedServiceOutcomeDto? _outcome;
+    private decimal _amount; private string? _reason, _reference, _payer, _error;
+    private bool _loading=true, _busy, _received, _attempted, _recoveryBlocked; private readonly Guid _operation=Guid.NewGuid();
+    protected override Task OnInitializedAsync() => Load();
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if(firstRender) { _focus=await JS.InvokeAsync<IJSObjectReference>("import","./js/account-review.js");
+            if(_focus is not null) await _focus.InvokeVoidAsync("bind",_root);
+            _recovery=await JS.InvokeAsync<IJSObjectReference>("import","./js/direct-fine-intent.js");
+            if(_recovery is not null && _options?.RecoveryScope is {Length:>0} scope) {
+                var pending=await _recovery.InvokeAsync<string?>("read",scope);
+                if(pending is not null) {
+                    try { _quote=JsonSerializer.Deserialize<DirectFineQuoteDto>(pending); _received=_attempted=_quote is not null;
+                        _error="A previous collection needs confirmation. Retry to recover its result."; StateHasChanged(); }
+                    catch(JsonException) { _recoveryBlocked=true; _error="Saved collection recovery data is invalid. Ask the office to review Collection Activity before re-entry."; }
+                }
+            }
+        }
+    }
+    public async ValueTask DisposeAsync() { try { if(_focus is not null) { await _focus.InvokeVoidAsync("release",_root); await _focus.DisposeAsync(); } if(_recovery is not null) await _recovery.DisposeAsync(); } catch(JSDisconnectedException) { } }
+    private async Task Load() {
+        _loading=true; _error=null;
+        try { var r=await Api.GetDirectFineOptionsAsync(); if(r is {IsSuccess:true,Value:not null}) { _options=r.Value; _category=_options.Categories.FirstOrDefault(); _amount=_category?.FixedAmount ?? 0m; }
+            else _error=r?.Error ?? "Fine collection policies are unavailable."; }
+        catch { _error="Fine collection policies are unavailable."; } finally { _loading=false; }
+    }
+    private void SelectCategory(ChangeEventArgs e) { _category=_options?.Categories.SingleOrDefault(c=>c.AuthorityId.ToString()==e.Value?.ToString()); _amount=_category?.FixedAmount ?? 0m; }
+    private Task Close() => _busy ? Task.CompletedTask : OnClose.InvokeAsync();
+    private async Task Submit() {
+        if(_busy || _recoveryBlocked || (_category is null && _quote is null) || _options is null || _outcome is not null) return;
+        _busy=true; _error=null;
+        try {
+            if(_quote is null) {
+                var r=await Api.QuoteDirectFineAsync(new(_operation,_category!.AuthorityId,_options.BusinessDate,_amount,_reason,_reference,_payer));
+                if(r is {IsSuccess:true,Value:not null}) _quote=r.Value; else _error=r?.Error ?? "Collection cannot be reviewed.";
+            } else if(!_received) _error="Confirm that money has been received.";
+            else {
+                _attempted=true;
+                if(_recovery is not null && _options.RecoveryScope.Length>0)
+                    await _recovery.InvokeVoidAsync("save",_options.RecoveryScope,JsonSerializer.Serialize(_quote));
+                var r=await Api.PostDirectFineAsync(_quote.Intent);
+                if(r is {IsSuccess:true,Value:not null}) { _outcome=r.Value;
+                    if(_recovery is not null && _options.RecoveryScope.Length>0) { try { await _recovery.InvokeVoidAsync("clear",_options.RecoveryScope); } catch(JSException) { } }
+                    await OnCollected.InvokeAsync(); }
+                else _error=r?.Error ?? "The collection result is unavailable. Retry this same request.";
+            }
+        } catch { _error="The result is unavailable. Retry this same request."; } finally { _busy=false; }
+    }
+}

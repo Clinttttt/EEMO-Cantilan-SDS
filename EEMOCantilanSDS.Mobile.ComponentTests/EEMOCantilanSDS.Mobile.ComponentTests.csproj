@@ -16,6 +16,8 @@
     <ProjectReference Include="../EEMOCantilanSDS.Mobile.Core/EEMOCantilanSDS.Mobile.Core.csproj" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/CollectionSessionEditor.razor" Link="Components/Shared/CollectionSessionEditor.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Pages/Menus/Menu.razor" Link="Components/Pages/Menus/Menu.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Pages/Menus/OperationCollection.razor" Link="Components/Pages/Menus/OperationCollection.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Pages/Menus/NewCollection.razor" Link="Components/Pages/Menus/NewCollection.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/AppHeader.razor" Link="Components/Shared/AppHeader.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/MobileChoice.razor" Link="Components/Shared/MobileChoice.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Pages/Menus/NpmWholePayment.razor" Link="Components/Pages/Menus/NpmWholePayment.razor" />
@@ -26,6 +28,7 @@
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/LoadingState.razor" Link="Components/Shared/LoadingState.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/NpmCollectAll.razor" Link="Components/Shared/NpmCollectAll.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/RecentCollections.razor" Link="Components/Shared/RecentCollections.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/SourceBrowser.razor" Link="Components/Shared/SourceBrowser.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/CorrectionReason.razor" Link="Components/Shared/CorrectionReason.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/NpmWholeSummary.razor" Link="Components/Shared/NpmWholeSummary.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/RecordedNotice.razor" Link="Components/Shared/RecordedNotice.razor" />

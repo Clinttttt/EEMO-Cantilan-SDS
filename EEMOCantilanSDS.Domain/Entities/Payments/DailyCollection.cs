@@ -59,6 +59,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public DateOnly? MeatFeeRateEffectiveDate { get; private set; }
         /// <summary>Frozen NPM Meat weighing charge; persisted so report queries use the exact recorded amount.</summary>
         public decimal MeatFeeAmount { get; private set; }
+        /// <summary>The stall-fee money this row stands for: the whole installment once paid, otherwise what part payments have received.</summary>
+        public decimal CollectedFee => IsPaid ? DailyFee : CanonicalSettledAmount;
         public decimal TotalCollected => IsPaid
                                           ? DailyFee + (FishFeeAmount ?? 0) + MeatFeeAmount
                                           : 0;
@@ -84,6 +86,65 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
                 CreatedBy = createdBy
             };
         }
+        /// <summary>
+        /// Stall-fee money that canonical part payments have applied to this day, net of any voided one. It is a projection of
+        /// the Collections' own allocations (each part payment is its own Collection and allocation, none of them rewritten): the
+        /// row only remembers how far the day has been settled so every read can say how much is still owed. Zero for a day paid
+        /// whole by a legacy row or by one canonical Collection, which keep their original meaning.
+        /// </summary>
+        public decimal CanonicalSettledAmount { get; private set; }
+
+        /// <summary>The installment itself, without a month-end adjustment that a later Collection may have added to <see cref="DailyFee"/>.</summary>
+        public decimal BaseFee => DailyFee - (MonthEndAdjustment ?? 0m);
+
+        /// <summary>A day that part payments have started to settle but not completed: neither unpaid nor paid.</summary>
+        public bool IsPartlyPaid => !IsPaid && !IsAbsent && CanonicalSettledAmount > 0m;
+
+        /// <summary>What is still owed on the installment: nothing once paid, the whole fee when nothing has been applied.</summary>
+        public decimal RemainingBaseFee => IsPaid || IsAbsent ? 0m : Math.Max(0m, BaseFee - CanonicalSettledAmount);
+
+        /// <summary>
+        /// Applies one part payment (or the whole of what is still owed) to this day under a canonical Collection. The day becomes
+        /// paid only when the applied money reaches the installment; it never takes more than is owed, so an overpayment is a
+        /// refusal and never an advance.
+        /// </summary>
+        public void ApplyCanonicalPartial(Guid collectionId, decimal amount, Guid? collectorId, string updatedBy = "System")
+        {
+            if (collectionId == Guid.Empty) throw new ArgumentException("A posted Collection is required.", nameof(collectionId));
+            if (amount <= 0m || amount != decimal.Round(amount, 2))
+                throw new ArgumentOutOfRangeException(nameof(amount), "A part payment is a positive amount in pesos and centavos.");
+            if (IsAbsent || IsPaid) throw new InvalidOperationException("An excused or already paid day takes no further payment.");
+            if (SettlementAuthorityState == SettlementAuthority.Legacy && CanonicalSettledAmount == 0m && ORNumber is { Length: > 0 })
+                throw new InvalidOperationException("A legacy-receipted day cannot be settled by canonical part payments.");
+            if (CanonicalSettledAmount + amount > BaseFee)
+                throw new InvalidOperationException("The payment is more than this day still owes.");
+
+            SettlementAuthorityState = SettlementAuthority.Canonical;
+            CanonicalSettledAmount += amount;
+            CanonicalCollectionId = collectionId;
+            CollectorId ??= collectorId;
+            ORNumber = null;
+            if (CanonicalSettledAmount == BaseFee) IsPaid = true;
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
+
+        /// <summary>
+        /// Takes back the part of this day's settlement that a voided Collection had applied. The day owes that money again; any
+        /// other Collection that paid part of it is untouched, and <paramref name="remainingCollectionId"/> is the latest of those.
+        /// </summary>
+        public void ReverseCanonicalPartial(decimal amount, Guid? remainingCollectionId, string updatedBy = "System")
+        {
+            if (amount <= 0m || amount > CanonicalSettledAmount)
+                throw new InvalidOperationException("The correction is more than this day was settled by.");
+            CanonicalSettledAmount -= amount;
+            IsPaid = CanonicalSettledAmount >= BaseFee;
+            CanonicalCollectionId = CanonicalSettledAmount == 0m ? null : remainingCollectionId;
+            if (CanonicalSettledAmount == 0m && FishKilos is not > 0m && MeatFeeAmount == 0m) CollectorId = null;
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
+
         public void MarkPaid(
             string orNumber,
             Guid? collectorId,
@@ -95,6 +156,10 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             decimal? fishFeeRatePerKilo = null,
             DateOnly? fishFeeRateEffectiveDate = null)
         {
+            // A part-paid day is completed by a payment of what remains, never re-marked at its full fee: that would count the part
+            // already received twice.
+            if (IsPartlyPaid)
+                throw new InvalidOperationException("This day is part paid; complete it by paying the remaining amount.");
             // Recollecting voided canonical rent must not replace a separate weighing event.
             if (SettlementAuthorityState == SettlementAuthority.Canonical && !IsPaid
                 && (FishKilos is > 0m || MeatFeeAmount > 0m))
@@ -138,6 +203,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         }
         public void MarkUnpaid(string updatedBy = "System")
         {
+            if (CanonicalSettledAmount > 0m)
+                throw new InvalidOperationException("Money applied by canonical payments is taken back only by a correction of its Collection.");
             IsPaid = false;
             IsAbsent = false;
             ORNumber = null;
@@ -161,6 +228,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         /// </summary>
         public void MarkAbsent(string updatedBy = "System")
         {
+            if (CanonicalSettledAmount > 0m)
+                throw new InvalidOperationException("A day that canonical payments have settled in part or in full cannot be excused; correct its Collection first.");
             IsAbsent = true;
             IsPaid = false;
             ORNumber = null;

@@ -47,13 +47,14 @@ public sealed class VendorRegistryTerminologyTests : TestContext
         var markup = codeStart >= 0 ? source[..codeStart] : source;
         markup = Regex.Replace(markup, "<!--[\\s\\S]*?-->", string.Empty);
 
-        Assert.Contains("StallTrack — Spaces &amp; Occupants", markup);
-        Assert.Contains("Occupancy Registry", markup);
+        Assert.Contains("StallTrack — @ManagementTitle", markup);
+        Assert.Contains("RentalRegistryHero", markup);
+        Assert.Contains("Occupancy Registry", ReadWorkspaceFile("EEMOCantilanSDS.Client", "Components", "Shared", "RentalRegistryHero.razor"));
         Assert.Contains("Total spaces", markup);
-        Assert.Contains("billable spaces", markup);
-        Assert.Contains("Add Occupant &amp; Space", markup);
+        Assert.Contains("billable units", markup);
+        Assert.Contains("Add Occupant &amp; @HolderUnit", source);
         Assert.Contains("Occupant &amp; contract", markup);
-        Assert.Contains("Edit Occupant &amp; Space", markup);
+        Assert.Contains("Edit Occupant &amp; @FacilityCatalog.HolderUnitFor", markup);
         Assert.Contains("UseOccupantTerminology=\"true\"", markup);
 
         Assert.DoesNotContain("Vendors &amp; Stalls", markup);
@@ -63,12 +64,13 @@ public sealed class VendorRegistryTerminologyTests : TestContext
         Assert.DoesNotContain("Vendor Information", markup);
         Assert.DoesNotContain("Edit Vendor", markup);
 
-        Assert.Contains("@v.ActualOccupant", markup);
-        Assert.Contains("v.StallNo", markup);
-        Assert.Contains("@onclick=\"OpenCreate\"", markup);
-        Assert.Contains("OpenDetail(v)", markup);
-        Assert.Contains("OpenEdit(v)", markup);
-        Assert.Contains("ViewProfile(v)", markup);
+        Assert.Contains("v.ActualOccupant", source);
+        Assert.Contains("v.StallNo", source);
+        Assert.Contains("@onclick=\"OpenCreate\"", source);
+        Assert.Contains("OpenDetail(v)", source);
+        Assert.Contains("OpenEdit(v)", source);
+        Assert.Contains("ViewProfile(v)", source);
+        Assert.Contains("RentalRegistryTable", markup);
         Assert.Contains("OpenHistory(v)", source);
         Assert.Contains("SaveVendor", source);
         Assert.Contains("Nav.NavigateTo($\"/profile/{v.FacilityCode.ToLower()}/{v.StallGuid}\")", source);

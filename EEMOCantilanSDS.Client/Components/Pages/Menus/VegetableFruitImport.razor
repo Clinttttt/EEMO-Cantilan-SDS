@@ -1,0 +1,11 @@
+@page "/operations/vegetable-fruit/import"
+@attribute [Authorize(Roles = "SuperAdmin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Enums
+
+<PageTitle>StallTrack — Import Vegetable / Fruits Space Holders</PageTitle>
+<OperationTopbar Title="Vegetable / Fruits" Crumb="Import monthly space holders" />
+<div class="content-area">
+    <SpaceHolderImport Kind="ObligationKind.VegetableFruitSpaceRental" Name="Vegetable / Fruits" BackHref="/operations/vegetable-fruit" AllowImportedNumbers="false" EffectiveMonthLabel="Effective month" BlueHero="true" />
+</div>

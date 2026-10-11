@@ -1,0 +1,23 @@
+<div class="avm-group">
+    <label class="avm-label" for="@InputId">@(Label ?? (SignedContract ? "Contract Effectivity Date" : "Occupying Since")) <span class="avm-req">*</span></label>
+    @if (ReadOnly)
+    { <div class="avm-input avm-input-locked">@(Date?.ToString("MMMM d, yyyy") ?? "—")</div> }
+    else if (MonthPrecision)
+    { <input id="@InputId" class="avm-input" type="month" required aria-label="Start month" value="@Month" @onchange="e => MonthChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty)" /> }
+    else
+    { <input id="@InputId" class="avm-input" type="date" @bind="Date" @bind:after="NotifyDate" /> }
+    @if (!SignedContract)
+    { <span class="avm-hint">From this date rent is assessed. It is not printed as a contract effectivity.</span> }
+</div>
+@code {
+    [Parameter] public bool SignedContract { get; set; }
+    [Parameter] public bool ReadOnly { get; set; }
+    [Parameter] public bool MonthPrecision { get; set; }
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public string? InputId { get; set; }
+    [Parameter] public DateTime? Date { get; set; }
+    [Parameter] public string Month { get; set; } = "";
+    [Parameter] public EventCallback<DateTime?> DateChanged { get; set; }
+    [Parameter] public EventCallback<string> MonthChanged { get; set; }
+    private Task NotifyDate() => DateChanged.InvokeAsync(Date);
+}

@@ -17,6 +17,7 @@
 ══════════════════════════════════════════════════════════════════════ *@
 
 @typeparam TStall
+@using EEMOCantilanSDS.Client.Services
 
 @inject NavigationManager Navigation
 
@@ -126,7 +127,7 @@
                                 </span>
                             }
                             <div class="action-btns ops-actions">
-                                @if (IsAwaitingOr(s))
+                                @if (IsAwaitingOr(s) && OnAddOrClick.HasDelegate)
                                 {
                                     <button class="action-btn action-btn-or" title="Add OR number" @onclick="() => OnAddOrClick.InvokeAsync(s)">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="12" y1="18" x2="12" y2="12" /><line x1="9" y1="15" x2="15" y2="15" /></svg>
@@ -182,26 +183,9 @@
         }
         else if (ColumnSet == "MonthlyTable")
         {
-            <div class="table-wrap"><table class="data-table">
-                <thead><tr><th>Space No.</th><th>Occupant / Payor</th><th>Contract</th><th>Start date</th><th class="monthly-money">Monthly amount</th><th>Status</th><th>Actions</th></tr></thead>
-                <tbody>@foreach (var s in FilteredStalls)
-                {
-                    var active = GetPropertyValue<bool?>(s, "IsActive") ?? true;
-                    var status = !active ? "Closed" : GetIsPaid(s) ? "Paid" : GetIsPartial(s) ? "Partial" : "Unpaid";
-                    <tr class="data-row">
-                        <td>@GetStallNoForDisplay(s)</td><td>@GetActualOccupant(s)</td>
-                        <td>@(string.IsNullOrWhiteSpace(GetContractName(s)) ? "No contract" : GetContractName(s))</td>
-                        <td>@GetContractDate(s)</td><td class="monthly-money">₱@GetMonthlyRate(s).ToString("N2")</td>
-                        <td><span class="monthly-status">@status</span></td>
-                        <td><div class="action-btns">
-                            <button type="button" class="action-btn" title="View / Record Payment" @onclick="() => OnPaymentClick.InvokeAsync(s)">₱</button>
-                            <button type="button" class="action-btn" title="Payment History" @onclick="() => OnHistoryClick.InvokeAsync(s)">↺</button>
-                            @if (OnUtilityClick.HasDelegate && HasUtility(s)) { <button type="button" class="action-btn" title="Utilities" @onclick="() => OnUtilityClick.InvokeAsync(s)">⌁</button> }
-                            <button type="button" class="action-btn" title="View Profile" @onclick="() => NavigateToProfile(s)">→</button>
-                        </div></td>
-                    </tr>
-                }</tbody>
-            </table></div>
+            <RegisteredRentalTable TItem="TStall" Rows="MonthlyRows" Unit="@HolderUnit" OwnPanel="false"
+                                   OnPayment="OnPaymentClick" OnHistory="OnHistoryClick" OnProfile="NavigateToProfile"
+                                   ExtraActions="MonthlyExtraActions" />
         }
         else if (ColumnSet == "MonthlyCard")
         {
@@ -235,7 +219,7 @@
                                 </span>
                             }
                             <div class="action-btns ops-actions">
-                                @if (IsAwaitingOr(s))
+                                @if (IsAwaitingOr(s) && OnAddOrClick.HasDelegate)
                                 {
                                     <button class="action-btn action-btn-or" title="Add OR number" @onclick="() => OnAddOrClick.InvokeAsync(s)">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="12" y1="18" x2="12" y2="12" /><line x1="9" y1="15" x2="15" y2="15" /></svg>
@@ -351,6 +335,8 @@
 </div>
 
 @code {
+    private string HolderUnit => EEMOCantilanSDS.Client.Services.FacilityState.HolderUnitOf(
+        Enum.TryParse<EEMOCantilanSDS.Domain.Enums.FacilityCode>(Facility, true, out var code) ? code : default);
 
     [Parameter] public string Facility { get; set; } = string.Empty;
 
@@ -492,4 +478,12 @@
         var key = stallId != Guid.Empty ? stallId.ToString() : GetStallNo(stall);
         Navigation.NavigateTo($"/profile/{facilityId}/{key}");
     }
+
+    private IEnumerable<RentalTableRow<TStall>> MonthlyRows => FilteredStalls.Select(s => new RentalTableRow<TStall>(s,
+        GetStallNoForDisplay(s), GetActualOccupant(s), string.IsNullOrWhiteSpace(GetContractName(s)) ? "No contract" : GetContractName(s),
+        GetContractDate(s), GetMonthlyRate(s), GetIsPaid(s) ? "Paid" : GetIsPartial(s) ? "Partial" : "Unpaid",
+        (GetPropertyValue<bool?>(s, "IsActive") ?? true) ? "Active" : "Closed"));
+    private RenderFragment<TStall>? MonthlyExtraActions => OnUtilityClick.HasDelegate ? s => @<text>
+        @if (HasUtility(s)) { <button type="button" class="action-btn" title="Utilities" @onclick="() => OnUtilityClick.InvokeAsync(s)">⌁</button> }
+    </text> : null;
 }

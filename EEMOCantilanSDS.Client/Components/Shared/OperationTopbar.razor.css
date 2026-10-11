@@ -40,3 +40,14 @@
         transition: none;
     }
 }
+
+/* Only contextual subpages need a longer operation breadcrumb. Existing operation topbars keep their layout. */
+.operation-context .topbar-left { min-width: 0; flex: 1; }
+.operation-context .topbar-left > div { min-width: 0; }
+.operation-context .topbar-title,
+.operation-context .topbar-breadcrumb { overflow-wrap: anywhere; white-space: normal; }
+.operation-context .topbar-right { flex-shrink: 0; }
+@media (max-width: 600px) {
+    .operation-context .topbar-breadcrumb { flex-wrap: wrap; gap: 2px 4px; }
+    .operation-context .breadcrumb-link { white-space: nowrap; }
+}

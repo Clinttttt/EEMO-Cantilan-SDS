@@ -1,0 +1,168 @@
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Services
+@using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Collections
+@inject IObligationsApiClient AccountsApi
+@inject ICollectionActivityApiClient ActivityApi
+
+<div class="eemo-modal-overlay" @onclick="() => OnClose.InvokeAsync()">
+    <div class="rph-modal" role="dialog" aria-modal="true" aria-label="@(History ? "Payment history" : "Rental period record")" @onclick:stopPropagation="true">
+        <header class="rph-heading">
+            <div>
+                <div class="rph-kicker">@Account.KindLabel · @(Account.Kind == ObligationKind.FiestaArawLotRental ? "Lot" : "Space") @Account.SubjectLabel · @(History ? "Payment History" : "Rental Period Record")</div>
+                <div class="rph-name">@SpaceAccountPresentation.Occupant(Account)</div>
+                <div class="rph-sub">@(Account.ContractName is { Length: > 0 } ? $"Contract: {Account.ContractName}" : SpaceAccountPresentation.Basis(Account))</div>
+            </div>
+            <button type="button" class="rph-x" aria-label="Close" @onclick="() => OnClose.InvokeAsync()">×</button>
+        </header>
+
+        @if (Account.Kind != ObligationKind.FiestaArawLotRental)
+        {
+            <div class="rph-stats">
+                <div><strong>₱@Account.CurrentAmount?.ToString("N2")</strong><small>Approved monthly</small></div>
+                <div><strong>@FullyPaidCount / @VisiblePeriodCount</strong><small>Months paid</small></div>
+                <div><strong>@PartialCount</strong><small>Partial</small></div>
+                <div><strong>@UnpaidCount</strong><small>Unpaid</small></div>
+                <div><strong>₱@WindowCollected.ToString("N2")</strong><small>Settled</small></div>
+                <div><strong>₱@WindowBalance.ToString("N2")</strong><small>Balance due</small></div>
+            </div>
+        }
+        else
+        {
+            <div class="rph-stats rph-event">
+                <div><strong>@Account.Event</strong><small>Event</small></div>
+                <div><strong>@Account.EventDate?.ToString("MMM d, yyyy")</strong><small>Event date</small></div>
+                <div><strong>₱@Account.AssessedToDate.ToString("N2")</strong><small>Assessed</small></div>
+                <div><strong>₱@Account.CollectedToDate.ToString("N2")</strong><small>Settled</small></div>
+                <div><strong>₱@Account.OutstandingToDate.ToString("N2")</strong><small>Remaining</small></div>
+            </div>
+        }
+        <div class="rph-body">
+            @if (_error is not null)
+            {
+                <div role="alert" class="v3-notice v3-notice-error">@_error</div>
+                <button class="btn-outline" type="button" @onclick="Load">Try again</button>
+            }
+            else if (_loading)
+            { <Skeleton Height="220px" /> }
+            else
+            {
+                <div class="rph-title">@(Account.Kind == ObligationKind.FiestaArawLotRental ? "Event settlement" : "12-month rental position")</div>
+                <div class="rph-scroll" tabindex="0" role="region" aria-label="Rental period position">
+                    <table class="rph-table">
+                        <thead><tr><th>Period</th><th>Status</th><th>Assessed</th><th>Settled</th><th>Balance</th></tr></thead>
+                        <tbody>
+                            @foreach (var row in DisplayPeriods)
+                            {
+                                <tr>
+                                    <td>@row.Start.ToString("MMMM yyyy")</td>
+                                    <td><span class="rph-status @CssStatus(row)">@DisplayStatus(row)</span></td>
+                                    <td class="rph-money">@(row.Quote is { } q ? Money(q.AssessedAmount) : "—")</td>
+                                    <td class="rph-money">@(row.Quote is { } q2 ? Money(q2.SettledAmount) : "—")</td>
+                                    <td class="rph-money">@(row.Quote is { } q3 ? Money(q3.OutstandingAmount) : "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <p class="rph-hint">This is the source-authoritative period balance, not a receipt. Settlement comes only from posted canonical collections.</p>
+                @if (History)
+                {
+                    <div class="rph-history-heading">
+                        <strong>Recorded collection references</strong>
+                        <label for="rph-month">Collection month</label>
+                        <input id="rph-month" type="month" class="avm-input" value="@_historyMonth" @onchange="ChangeMonth" />
+                    </div>
+                    <p class="rph-hint">The existing activity feed shows the first source allocation for a line. Multi-account allocation details may be incomplete; line amounts are not account settlement totals.</p>
+                    @if (_truncated) { <p class="v3-notice" role="status">The activity feed was limited. Additional records may be available in Collection Activity.</p> }
+                    <div class="rph-scroll" role="region" aria-label="Canonical collection references" tabindex="0">
+                        <table class="rph-table">
+                            <thead><tr><th>Date / SRC</th><th>Referenced period</th><th>Line amount</th><th>Status / correction</th></tr></thead>
+                            <tbody>
+                                @foreach (var entry in _history)
+                                {
+                                    <tr>
+                                        <td>@entry.Event.BusinessDate.ToString("MMM d, yyyy")<span class="rph-line">@entry.Event.ReferenceCode</span></td>
+                                        <td>@_periods.First(p => p.PeriodId == entry.Line.SourceId).PeriodStart.ToString("MMM yyyy")</td>
+                                        <td class="rph-money">@Money(entry.Line.Amount)</td>
+                                        <td>@entry.Event.Disposition
+                                            @foreach (var correction in entry.Event.Corrections) { <span class="rph-line">@correction.CorrectionType · @correction.Reason</span> }
+                                            @foreach (var replacement in entry.Event.ReplacementReferenceCodes) { <span class="rph-line">Replacement: @replacement</span> }
+                                        </td>
+                                    </tr>
+                                }
+                                @if (_history.Count == 0) { <tr><td colspan="4">No collection references were returned for this account in the selected month.</td></tr> }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            }
+        </div>
+        <footer class="rph-footer"><span>Source account history · @Account.ActiveFrom.ToString("MMM yyyy") onward</span><button type="button" class="btn-outline" @onclick="() => OnClose.InvokeAsync()">Close</button></footer>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ObligationAccountDto Account { get; set; } = null!;
+    [Parameter] public bool History { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private record PeriodLine(DateOnly Start, ObligationQuoteDto? Quote);
+    private IReadOnlyList<ObligationQuoteDto> _periods = [];
+    private List<(CollectionActivityEventDto Event, CollectionActivityLineDto Line)> _history = [];
+    private bool _loading = true, _truncated;
+    private string? _error;
+    private string _historyMonth = PhilippineTime.Today.ToString("yyyy-MM");
+    private DateOnly CurrentMonth => new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
+    private IReadOnlyList<PeriodLine> DisplayPeriods
+    {
+        get
+        {
+            var keyed = _periods.ToLookup(p => p.PeriodStart);
+            if (Account.Kind == ObligationKind.FiestaArawLotRental)
+                return _periods.Select(p => new PeriodLine(p.PeriodStart, p)).ToArray();
+            return Enumerable.Range(0, 12).Select(i =>
+            {
+                var start = CurrentMonth.AddMonths(i - 11);
+                var active = new DateOnly(Account.ActiveFrom.Year, Account.ActiveFrom.Month, 1);
+                return new PeriodLine(start, start < active || Account.ActiveTo is { } closed && start > new DateOnly(closed.Year, closed.Month, 1) ? null : keyed[start].FirstOrDefault());
+            }).ToArray();
+        }
+    }
+    private IEnumerable<ObligationQuoteDto> WindowQuotes => DisplayPeriods.Where(p => p.Quote is not null).Select(p => p.Quote!);
+    private int VisiblePeriodCount => WindowQuotes.Count();
+    private int FullyPaidCount => WindowQuotes.Count(p => p.AssessedAmount > 0 && p.OutstandingAmount == 0);
+    private int PartialCount => WindowQuotes.Count(p => p.SettledAmount > 0 && p.OutstandingAmount > 0);
+    private int UnpaidCount => WindowQuotes.Count(p => p.AssessedAmount > 0 && p.SettledAmount == 0);
+    private decimal WindowCollected => WindowQuotes.Sum(p => p.SettledAmount);
+    private decimal WindowBalance => WindowQuotes.Sum(p => p.OutstandingAmount);
+    private static string Money(decimal amount) => $"₱{amount:N2}";
+    private static string DisplayStatus(PeriodLine p) => p.Quote is not { } q ? "N/A" :
+        q.AssessedAmount <= 0 ? "Not assessed" : q.OutstandingAmount == 0 ? "Paid" :
+        q.SettledAmount > 0 ? "Partial" : "Unpaid";
+    private static string CssStatus(PeriodLine p) => DisplayStatus(p).ToLowerInvariant().Replace(' ', '-');
+    private async Task ChangeMonth(ChangeEventArgs e) { _historyMonth = e.Value?.ToString() ?? _historyMonth; await Load(); }
+    protected override Task OnInitializedAsync() => Load();
+    private async Task Load()
+    {
+        _loading = true; _error = null; _history = []; _truncated = false;
+        try
+        {
+            var register = await AccountsApi.GetRegisterAsync(Account.Id);
+            if (!register.IsSuccess) { _error = register.Error ?? "Periods are unavailable."; return; }
+            _periods = (register.Value ?? []).Where(p => p.AccountId == Account.Id && p.Kind == Account.Kind).ToArray();
+            if (!History) return;
+            if (!DateOnly.TryParse(_historyMonth + "-01", out var month)) { _error = "Choose a valid collection month."; return; }
+            var activity = await ActivityApi.GetAsync(month, month.AddMonths(1).AddDays(-1), null, null, null, 500, null);
+            if (!activity.IsSuccess || activity.Value is null) { _error = activity.Error ?? "Collection history is unavailable."; return; }
+            var ids = _periods.Where(x => x.PeriodId.HasValue).Select(x => x.PeriodId!.Value).ToHashSet();
+            _history = activity.Value.Events.Where(e => e.Authority == "Canonical").SelectMany(e => e.Lines.Where(l =>
+                l.SourceKind == nameof(CollectionSourceKind.ObligationPeriod) && l.SourceId is { } id && ids.Contains(id)).Select(l => (e, l))).ToList();
+            _truncated = activity.Value.Truncated;
+        }
+        catch { _error = "Account details could not be loaded."; }
+        finally { _loading = false; }
+    }
+}

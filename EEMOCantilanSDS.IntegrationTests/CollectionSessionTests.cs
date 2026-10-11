@@ -1067,7 +1067,8 @@ public sealed partial class CollectionSessionTests(PostgresFixture database)
         Assert.Equal(new[] { 20m, 40m }, transportation.Choices!.Select(x => x.ServerAmount!.Value).OrderBy(x => x));
         var marketChoice = Assert.Single(available.Single(x => x.OperationCode == CollectorOperationCodes.MarketFees).Choices!);
         Assert.Equal(fee.Id, marketChoice.Identity.FeeOptionId); Assert.True(marketChoice.CanEnterAmount); Assert.Equal(50m, marketChoice.MaximumAmount);
-        Assert.Equal(2, available.Single(x => x.OperationCode == CollectorOperationCodes.VegetableFruitSpaceRental).EligibleChoiceCount);
+        var vegetableDaily = Assert.Single(available.Single(x => x.OperationCode == CollectorOperationCodes.VegetableFruitSpaceRental).Choices!);
+        Assert.Equal(GovernedServiceMode.DailyTransaction, vegetableDaily.Identity.Mode);
         var rent = available.Single(x => x.Kind == CollectionSessionItemKind.NpmWholePayment);
         Assert.True(rent.CanAutoSelect); Assert.NotNull(Assert.Single(rent.Choices!).Identity.OccupancyId);
         Assert.Equal(Today.Month, rent.Choices![0].Identity.Month); Assert.Equal(900m, rent.Choices[0].ServerAmount);

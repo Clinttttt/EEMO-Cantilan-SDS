@@ -33,6 +33,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<RevenueClassification> RevenueClassifications { get; }
         DbSet<OfficialReportRevision> OfficialReportRevisions { get; }
         DbSet<FishMeatVendorRegistration> FishMeatVendorRegistrations { get; }
+        DbSet<FishMeatNpmAssociation> FishMeatNpmAssociations { get; }
         DbSet<RevenueClassificationPolicy> RevenueClassificationPolicies { get; }
         DbSet<EEMOCantilanSDS.Domain.Entities.Revenue.Collection> Collections { get; }
         DbSet<EEMOCantilanSDS.Domain.Entities.Revenue.CollectionLine> CollectionLines { get; }
@@ -63,6 +64,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<UtilityBill> UtilityBills { get; }
         DbSet<StallMonthlyException> StallMonthlyExceptions { get; }
         DbSet<NpmMarketClosure> NpmMarketClosures { get; }
+        DbSet<NpmOperatingSchedule> NpmOperatingSchedules { get; }
         DbSet<OnlinePaymentTransaction> OnlinePaymentTransactions { get; }
         DbSet<SlaughterTransaction> SlaughterTransactions { get; }
         DbSet<SlaughterAnimalRate> SlaughterAnimalRates { get; }
@@ -84,6 +86,10 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<GovernedService> GovernedServices { get; }
         DbSet<GovernedServiceSetting> GovernedServiceSettings { get; }
         DbSet<PenaltyDefinition> PenaltyDefinitions { get; }
+        DbSet<DirectFineAuthority> DirectFineAuthorities { get; }
+        DbSet<FineAssessment> FineAssessments { get; }
+        DbSet<FineAssessmentPolicy> FineAssessmentPolicies { get; }
+        DbSet<FineAssessmentEvent> FineAssessmentEvents { get; }
         DbSet<ObligationAccount> ObligationAccounts { get; }
         DbSet<ObligationRate> ObligationRates { get; }
         DbSet<ObligationPeriod> ObligationPeriods { get; }

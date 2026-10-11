@@ -1,4 +1,38 @@
 /* Obligation workspace — V3. Panels, tables, fields and buttons come from the v3- layer in app.css. */
+.obw-lifecycle { display: inline-flex; gap: 0; flex-shrink: 0; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--surface-muted); }
+.obw-lifecycle .v3-btn { flex: 1; min-height: 34px; border: 0; border-radius: 0; }
+.obw-lifecycle .v3-btn + .v3-btn { border-left: 1px solid var(--border); }
+.obw-lifecycle .v3-btn:first-child { border-radius: 6px 0 0 6px; }
+.obw-lifecycle .v3-btn:last-child { border-radius: 0 6px 6px 0; }
+.obw-lifecycle button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.obw-account-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; max-width: 720px; margin: 12px 0 16px; }
+.obw-account-facts div { min-width: 0; }
+.obw-account-facts dt { color: var(--text-secondary); font-size: 12px; }
+.obw-account-facts dd { margin: 3px 0 0; color: var(--text); font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.obw-register { max-width: 900px; }
+@media (max-width: 768px) { .obw-account-facts { grid-template-columns: minmax(0, 1fr); } }
+
+/* Keep every balance and action visible when the sidebar leaves less room for the register. */
+@media (max-width: 1200px) {
+    .obw-management-table, .obw-management-table > tbody, .obw-management-table > tfoot { display: block; width: 100%; }
+    .obw-management-table > thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    .obw-management-table > tbody > tr:not(.obw-register-row) { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 10px 12px; border-bottom: 1px solid var(--border); }
+    .obw-management-table > tbody > tr > td { min-width: 0; padding: 8px; border: 0; text-align: left; overflow-wrap: anywhere; white-space: normal; }
+    .obw-management-table td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 4px; font-size: 11px; font-weight: 500; color: var(--text-secondary); }
+    .obw-management-table .obw-actions-cell { grid-column: 1 / -1; text-align: left; }
+    .obw-management-table .v3-empty { grid-column: 1 / -1; }
+    .obw-management-table .obw-register-row, .obw-management-table .obw-register-row > td { display: block; width: 100%; box-sizing: border-box; }
+    .obw-management-table > tfoot > tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 10px 12px; }
+    .obw-management-table > tfoot td { padding: 8px; text-align: left; white-space: normal; }
+    .obw-management-table > tfoot td:first-child { grid-column: 1 / -1; }
+    .obw-management-table > tfoot td:last-child { display: none; }
+}
+@media (max-width: 600px) {
+    .obw-management-table > tbody > tr:not(.obw-register-row) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .obw-management-table > tfoot > tr { grid-template-columns: minmax(0, 1fr); }
+    .obw-register th, .obw-register td { padding: 8px 6px; font-size: 11px; }
+    .obw-register th { white-space: normal; letter-spacing: 0; font-size: 10px; overflow-wrap: normal; }
+}
 
 .obw-layout {
     display: grid;
@@ -12,14 +46,24 @@
 }
 
 .obw-actions {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 6px;
+    display: inline-flex;
+    align-items: stretch;
+    gap: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: 7px;
 }
+.obw-actions-cell { text-align: right; }
+.obw-actions .v3-btn { border: 0; border-radius: 0; min-height: 34px; padding: 6px 9px; }
+.obw-actions .v3-btn + .v3-btn { border-left: 1px solid var(--border); }
+.obw-actions .v3-btn:first-child { border-radius: 6px 0 0 6px; }
+.obw-actions .v3-btn:last-child { border-radius: 0 6px 6px 0; }
+.obw-actions .v3-btn:only-child { border-radius: 6px; }
+.obw-actions .v3-btn:focus-visible, .obw-lifecycle .v3-btn:focus-visible { position: relative; z-index: 1; outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 600px) { .obw-actions { display: flex; } .obw-actions .v3-btn { flex: 1; min-width: 0; min-height: 38px; padding: 6px; white-space: normal; } }
+.obw-success { margin: 16px 0 0; background: var(--green-bg); color: var(--green); border-color: var(--green); }
 
 .obw-register-row > td {
-    padding: 0 0 12px 24px;
+    padding: 4px 20px 16px;
     background: var(--surface-muted);
 }
 
@@ -55,7 +99,6 @@
         grid-template-columns: minmax(0, 1fr);
     }
 }
-.obw-status { display: inline-flex; padding: 3px 8px; border: 1px solid var(--border); border-radius: 20px; font-size: 11px; color: var(--text-secondary); }
 
 
 /* Toolbar links: the same size and rhythm as the shared Toolbar's own actions, so this row matches TCC. */
@@ -106,7 +149,7 @@
 
 /* Five links and actions share the bar with the search and filters: tight enough for one row at laptop width, wrapping below it. */
 .obw-actions-bar {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     gap: 6px;
 }
 
@@ -128,3 +171,13 @@
 .obw-option { display: block; width: 100%; min-height: 44px; padding: 8px 14px; border: 0; background: transparent; color: var(--navy); font: inherit; font-size: .9375rem; font-weight: 600; text-align: left; cursor: pointer; }
 .obw-option:hover { background: var(--surface-muted); }
 .obw-option:focus-visible { outline: 2px solid var(--civic-panel); outline-offset: -2px; }
+
+.obw-advanced-filters { position: relative; flex: 0 0 auto; }
+.obw-advanced-filters summary { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; color: var(--text-secondary); cursor: pointer; list-style: none; }
+.obw-advanced-filters summary::-webkit-details-marker { display: none; }
+.obw-advanced-filters summary svg { width: 16px; height: 16px; }
+.obw-advanced-filters summary:hover { background: var(--surface-muted); }
+.obw-advanced-filters summary:focus-visible { outline: 2px solid var(--civic-panel); outline-offset: 2px; }
+.obw-advanced-filters label { position: absolute; right: 0; top: 38px; z-index: 30; display: grid; gap: 8px; width: 180px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: 0 4px 16px #102b4c1a; font-size: .8125rem; }
+.obw-advanced-filters select { width: 100%; min-height: 36px; font: inherit; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); }
+@media (max-width: 768px) { .obw-advanced-filters label { left: 0; right: auto; } }

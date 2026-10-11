@@ -1,14 +1,19 @@
 @* The page topbar every operation page carries: back to the dashboard, the operation's name and where it sits.
    Markup and classes are the ones the facility pages use, so an obligation operation reads like the rest. *@
-<header class="topbar">
+<header class="topbar @(ParentHref is not null ? "operation-context" : "")">
     <div class="topbar-left flex gap-2">
-        <a href="/menu" class="tcc-back-btn" aria-label="Back to dashboard">
+        <a href="@(ParentHref ?? "/menu")" class="tcc-back-btn" aria-label="@($"Back to {ParentTitle ?? "dashboard"}")">
             <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
         </a>
         <div>
             <div class="topbar-title">@Title</div>
             <div class="topbar-breadcrumb">
                 <a href="/menu" class="breadcrumb-link">Dashboard</a>
+                @if (ParentHref is not null)
+                {
+                    <span class="breadcrumb-sep">/</span>
+                    <a href="@ParentHref" class="breadcrumb-link">@ParentTitle</a>
+                }
                 <span class="breadcrumb-sep">/</span>
                 <span class="breadcrumb-active">@Crumb — @PhilippineTime.Now.ToString("MMMM yyyy")</span>
             </div>
@@ -26,4 +31,6 @@
 @code {
     [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
     [Parameter, EditorRequired] public string Crumb { get; set; } = string.Empty;
+    [Parameter] public string? ParentHref { get; set; }
+    [Parameter] public string? ParentTitle { get; set; }
 }

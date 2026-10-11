@@ -19,6 +19,8 @@ Business meaning is never decided here. Where a presentation choice touches clas
 
 ## 2. Design philosophy
 
+**Rental registration/import interaction (2026-10-09):** Where an operation already supports bulk registration import, keep `Import list` in the Add New drawer's leading footer area, with Cancel and the source-appropriate submit action on the right. Do not duplicate Import on overview/management toolbars. Preserve existing routes, preview/validation, permissions and source-specific forms. Import is navigation, never form submission, and is unavailable during save. The optional `AddNewDrawer.LeadingFooterActions` slot reuses `VendorDrawerShell`; callers without import keep their normal footer. This convention shares presentation, not contract or billing rules.
+
 StallTrack is a **modern municipal operating system**: calm, credible, structured, government-ready. It is not an admin template and not a marketing dashboard.
 
 The reference quality is the Philippine eGov Agent interface Clint supplied: light canvas, white work surfaces, a clean civic blue for interaction, quiet navigation with one clearly selected destination. **Do not clone it** — no logo, layout, copy or branding transfers. We take its calm and polish and combine it with:

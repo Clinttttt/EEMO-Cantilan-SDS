@@ -458,7 +458,7 @@ public sealed partial class CollectionComposerWorkflow(
             if (request.ExpectedRevision.HasValue)
                 throw Problem("The current draft no longer exists. Reload before adding this item.", ResultStatus.Conflict);
             draft = WebCollectionDraft.Create(actor.MunicipalityId, actor.UserId, businessDate,
-                facts.Quote.PayorId, facts.Quote.PayerName, RevenueInstrumentType.OfficialReceipt, null, actor.Username);
+                facts.Quote.PayorId == Guid.Empty ? null : facts.Quote.PayorId, facts.Quote.PayerName, RevenueInstrumentType.OfficialReceipt, null, actor.Username);
             db.WebCollectionDrafts.Add(draft);
         }
         else
@@ -639,7 +639,7 @@ public sealed partial class CollectionComposerWorkflow(
     }, ct);
 
     public Task<Result<EcfCollectionDraftDto>> ReviewAsync(
-        Guid draftId, EcfDraftRevisionRequest request, CancellationToken ct = default) => Run(async actor =>
+        Guid draftId, EcfDraftRevisionRequest request, CancellationToken ct = default) => RunFineDraftAsync(draftId, async actor =>
     {
         var draft = await FindOwnedDraftAsync(draftId, actor.MunicipalityId, actor.UserId, tracked: true, ct);
         if (draft is null) return Result<EcfCollectionDraftDto>.NotFound();
@@ -660,7 +660,7 @@ public sealed partial class CollectionComposerWorkflow(
     }, ct);
 
     public Task<Result<EcfCollectionDraftDto>> DiscardAsync(
-        Guid draftId, EcfDraftRevisionRequest request, CancellationToken ct = default) => Run(async actor =>
+        Guid draftId, EcfDraftRevisionRequest request, CancellationToken ct = default) => RunFineDraftAsync(draftId, async actor =>
     {
         var draft = await FindOwnedDraftAsync(draftId, actor.MunicipalityId, actor.UserId, tracked: true, ct);
         if (draft is null) return Result<EcfCollectionDraftDto>.NotFound();
@@ -718,7 +718,7 @@ public sealed partial class CollectionComposerWorkflow(
     }, ct);
 
     public Task<Result<EcfPostOutcomeDto>> PostAsync(
-        Guid draftId, PostEcfCollectionDraftRequest request, CancellationToken ct = default) => Run(async actor =>
+        Guid draftId, PostEcfCollectionDraftRequest request, CancellationToken ct = default) => RunFineDraftAsync(draftId, async actor =>
     {
         if (request.ClientOperationId == Guid.Empty)
             throw Problem("A valid ClientOperationId is required.", ResultStatus.Invalid);
@@ -811,6 +811,8 @@ public sealed partial class CollectionComposerWorkflow(
                             obligation.ApplyCanonicalSettlement();
                         else if (source.PaymentRecord is { } payment)
                             payment.ApplyCanonicalRentProjection(cumulative, now, actor.Username);
+                        else if (source.FineAssessment is { } fine)
+                            fine.ClaimSettlement(fine.Version);
                         else
                             throw Problem("A resolved source has no canonical projection adapter.", ResultStatus.Conflict);
                     });
@@ -820,7 +822,7 @@ public sealed partial class CollectionComposerWorkflow(
                 actor.MunicipalityId, request.ClientOperationId, IntentVersion, normalizedIntent,
                 WebOrigin, ActorIdentity(actor), actor.Username, actor.Role, draft.BusinessDate,
                 actor.Username, collectionLineDrafts, payorId: draft.PayorId,
-                payerName: draft.PayerNameSnapshot, sourceProjections: projections,
+                payerName: draft.PayerNameSnapshot, collectorId: actor.Role == "Collector" ? currentUser.CollectorId : null, sourceProjections: projections,
                 beforeCommit: (collectionId, _) => draft.MarkPosted(request.ExpectedRevision, collectionId, actor.Username),
                 ct: ct);
         }
@@ -836,6 +838,7 @@ public sealed partial class CollectionComposerWorkflow(
         }
         catch (DbUpdateException)
         {
+            db.ChangeTracker.Clear();
             var winner = await FindPostingOperationAsync(actor.MunicipalityId, request.ClientOperationId, ct);
             if (winner is not null)
                 return await ResolvePriorOperationAsync(winner, fingerprint, actor, ct);
@@ -935,6 +938,10 @@ public sealed partial class CollectionComposerWorkflow(
     {
         if (!TryGetActor(out var actor, out var authFailure))
             return authFailure == ResultStatus.Unauthorized ? Result<T>.Unauthorized() : Result<T>.Forbidden();
+        return await ExecuteAsActorAsync(actor, action);
+    }
+    private async Task<Result<T>> ExecuteAsActorAsync<T>(Actor actor, Func<Actor, Task<Result<T>>> action)
+    {
         try
         {
             return await action(actor);
@@ -945,10 +952,12 @@ public sealed partial class CollectionComposerWorkflow(
         }
         catch (DbUpdateConcurrencyException)
         {
+            db.ChangeTracker.Clear();
             return Result<T>.Failure("The draft, ECF source, or document changed concurrently. Reload before continuing.", ResultStatus.Conflict);
         }
         catch (DbUpdateException)
         {
+            db.ChangeTracker.Clear();
             return Result<T>.Failure("The ECF draft or document conflicts with another saved change.", ResultStatus.Conflict);
         }
     }
@@ -1295,7 +1304,17 @@ public sealed partial class CollectionComposerWorkflow(
                 }
                 else
                 {
-                    throw Problem("This collection draft contains a source not supported by the shared Composer.", ResultStatus.Conflict);
+                    if (allocation.SourceKind != CollectionSourceKind.FineAssessment || allocation.SourcePart is not null)
+                        throw Problem("This collection draft contains a source not supported by the shared Composer.", ResultStatus.Conflict);
+                    var facts = await FineFactsAsync(draft.MunicipalityId, allocation.SourceId, resolvedBusinessDate, tracked, ct);
+                    if (allocation.Amount != facts.Quote.Remaining || !facts.Quote.CanSettle)
+                        throw Problem("Fine payment must settle the full current remaining balance.", ResultStatus.Conflict);
+                    if (!allowSnapshotRefresh && allocation.SourceSnapshot != facts.Snapshot)
+                        throw Problem("The fine quote changed. Reload and review again.", ResultStatus.Conflict);
+                    await EnsureFineContextAsync(facts.Assessment, allocations.Where(a => a.Id != allocation.Id).ToList(), draft.MunicipalityId, ct);
+                    source = new(allocation, facts.Classification, facts.Policy, SettlementAuthority.Canonical,
+                        facts.Quote.Settled, facts.Quote.Remaining, null, facts.Assessment.Occupant, facts.Assessment.ContractId,
+                        facts.Snapshot, null, null, null, facts.Assessment);
                 }
 
                 if (source.Authority == SettlementAuthority.PendingCutover)
@@ -1337,6 +1356,13 @@ public sealed partial class CollectionComposerWorkflow(
 
         if (allSources.Count == 0)
             throw Problem("A collection draft must contain at least one explicitly allocated source.", ResultStatus.Invalid);
+        if (allSources.Any(s => s.FineAssessment is not null))
+        {
+            // Fine context was validated above against exact liable contract/account IDs, never a name or Business Payor link.
+            if (allSources.Any(s => s.PayerName != draft.PayerNameSnapshot))
+                throw Problem("The fine draft must preserve the original liable occupant evidence.", ResultStatus.Conflict);
+            return new ResolvedDraft(resolvedLines, allSources);
+        }
         var first = allSources[0];
         if (allSources.Any(x => x.PayorId != first.PayorId))
             throw Problem("The draft contains obligations belonging to different authoritative Payors.", ResultStatus.Conflict);
@@ -1434,7 +1460,8 @@ public sealed partial class CollectionComposerWorkflow(
         string SourceSnapshot,
         UtilityBill? UtilityBill,
         PaymentRecord? PaymentRecord,
-        ObligationPeriod? ObligationPeriod = null);
+        ObligationPeriod? ObligationPeriod = null,
+        FineAssessment? FineAssessment = null);
     private sealed record NormalizedComposerIntent(
         int SchemaVersion, Guid MunicipalityId, Guid DraftId, Guid OwnerUserId, DateOnly BusinessDate,
         Guid? PayorId, string? PayerName, RevenueInstrumentType? Instrument,

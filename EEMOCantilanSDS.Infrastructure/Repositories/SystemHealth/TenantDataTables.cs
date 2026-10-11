@@ -24,10 +24,12 @@ public static class TenantDataTables
     /// </summary>
     public static readonly IReadOnlySet<string> Restorable = new HashSet<string>(StringComparer.Ordinal)
     {
-        "MobileCollectionSessions", "FishMeatVendorRegistrations",
+        "MobileCollectionSessions", "FishMeatVendorRegistrations", "FishMeatNpmAssociations",
+        "FineAssessmentPolicies", "FineAssessments", "FineAssessmentEvents", // source-owned non-cash liability and its immutable governing/audit evidence
+        "DirectFineAuthorities", // reviewed no-registration fine authority; posted CollectionLines reference it, so a restore must carry it
         "OfficialReportRevisions", // approved targets and report deltas are the tenant's revision-safe official statement evidence
         "Facilities", "FacilityRates", "FacilitySectionRates", "FacilitySectionUtilities", "FacilitySectionClosures", "OrSeriesConfigs", "RevenueClassifications", "RevenueClassificationPolicies", "Collections", "CollectionLines", "Payors", "CollectionAllocations", "WebCollectionDrafts", "WebCollectionDraftLines", "WebCollectionDraftAllocations", "PostingOperations", "CollectionSettlementCutovers", "AccountableFormBooks", "AccountableDocuments", "AccountableFormAssignments", "CollectionCorrections", "CollectionCorrectionLines", "CollectionCorrectionAllocations", "Stalls", "Contracts", "PaymentRecords",
-        "DailyCollections", "UtilityBills", "StallMonthlyExceptions", "NpmMarketClosures",
+        "DailyCollections", "UtilityBills", "StallMonthlyExceptions", "NpmMarketClosures", "NpmOperatingSchedules",
         "OnlinePaymentTransactions", "SlaughterTransactions", "SlaughterAnimalRates", "SlaughterAnimalLabels", "TpmVendors",
         "TpmAttendances", "TrmTransporters", "TrmTrips", "PayorStallLinks", "CollectorFacilityAssignments",
         // The office's own record of which weekday it has held its weekly market on, and from when. Restorable

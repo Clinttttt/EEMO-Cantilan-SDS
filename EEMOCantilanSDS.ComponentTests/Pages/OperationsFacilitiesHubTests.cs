@@ -161,6 +161,24 @@ public sealed class OperationsFacilitiesHubTests : TestContext
             Assert.DoesNotContain(cut.FindAll("a"), link => link.GetAttribute("href") == "/facility/utf");
         }, Timeout);
     }
+    [Fact]
+    public void OthersNavigationSeparatesManagementFromOfficialRevenueGrouping()
+    {
+        Services.AddSingleton(FacilityApi([Summary(FacilityCode.NPM,"Market","NPM"),Summary(FacilityCode.Custom1,"Custom enterprise","CE")]).Object);
+        var cut=RenderComponent<Operations>();
+        cut.WaitForAssertion(()=>
+        {
+            var arrears=cut.Find("a[href='/operations/arrears']");
+            var fines=cut.Find("a[href='/operations/fines']");
+            Assert.Contains("Arrears & Delinquency",arrears.TextContent);
+            Assert.Contains("Fines & Penalties",fines.TextContent);
+            Assert.DoesNotContain("Official Receipt",arrears.TextContent);
+            Assert.Contains("Others",cut.Markup);
+            Assert.Contains("Configured enterprises",cut.Markup);
+            Assert.Contains("/operations/arrears/report",cut.Markup);
+            SpaceHolderWorkspaceTests.SaveVisualArtifact("operations-others",cut.Markup);
+        },Timeout);
+    }
 
     [Fact]
     public void EmptyConfiguredFacilityResponse_DoesNotInventAnActiveFacilityList()

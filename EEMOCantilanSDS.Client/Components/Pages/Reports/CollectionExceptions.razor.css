@@ -127,7 +127,7 @@
 .ce-tag { display: inline-block; background: var(--accent); color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .5px; padding: 2px 7px; border-radius: 5px; margin-right: 6px; }
 
 /* ── Stat strip ── */
-.ce-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 18px 0 20px; }
+.ce-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 18px 0 20px; }
 .ce-stat { border: 1px solid var(--border); border-radius: 11px; padding: 14px 16px; background: var(--bg); }
 .ce-stat-val { font-size: 22px; font-weight: 800; color: var(--navy); line-height: 1.1; }
 .ce-stat-lbl { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); margin-top: 5px; }
@@ -183,6 +183,11 @@
 .ce-excused .ce-cell-tag, .ce-excused .ce-month-tag { background: rgba(200,168,75,.22); color: #8a6a1f; }
 .ce-excused .ce-cell-num, .ce-excused .ce-month-name { color: #8a6a1f; }
 
+/* Closed — the market did not open: neutral tone with a diagonal hatch so it is never read as unpaid or as an excuse */
+.ce-closed.ce-cell { background: repeating-linear-gradient(135deg, var(--bg) 0 6px, var(--bg-icon) 6px 7px); border-color: var(--border); cursor: default; }
+.ce-closed .ce-cell-num { color: var(--text-subtle); }
+.ce-closed .ce-cell-tag { background: var(--bg-icon); color: var(--text-subtle); }
+
 /* Upcoming — muted, dashed */
 .ce-future.ce-cell, .ce-future.ce-month { background: var(--bg); border-style: dashed; }
 .ce-future .ce-cell-num, .ce-future .ce-month-name { color: var(--text-muted); }
@@ -206,6 +211,7 @@
 .ce-sw-collected { background: var(--bg-card); border: 1.5px solid var(--navy); }
 .ce-sw-missed { background: var(--red-bg); border-color: rgba(139,58,58,.5); }
 .ce-sw-excused { background: rgba(200,168,75,.3); border-color: rgba(200,168,75,.6); }
+.ce-sw-closed { background: repeating-linear-gradient(135deg, var(--bg) 0 3px, var(--bg-icon) 3px 4px); border-color: var(--text-muted); }
 /* The copper the calendar already uses for a part-settled month, so the legend and the cells agree. */
 .ce-sw-partial { background: rgba(184,115,51,.16); border-color: rgba(184,115,51,.5); }
 .ce-sw-future { background: rgba(168,184,200,.18); border-style: dashed; }
@@ -326,6 +332,9 @@
 .ce-mode-btn:last-child { border-right: none; }
 .ce-mode-btn:hover { background: var(--bg-icon); color: var(--navy); }
 .ce-mode-on, .ce-mode-on:hover { background: var(--accent); color: #fff; }
+.ce-mode-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ce-layout-wide { grid-template-columns: 1fr; height: auto; }
+.ce-muted { color: var(--text-subtle); }
 
 /* ── Market closure summary ── */
 .ce-mkt-summary { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--bg); border: 1px solid var(--border); border-left: 3px solid var(--gold); border-radius: 10px; padding: 12px 16px; margin-bottom: 18px; font-size: 13px; color: var(--navy); }
@@ -367,3 +376,21 @@
 .ce-fish-row { display: flex; align-items: center; gap: 8px; max-width: 280px; }
 .ce-fish-input { max-width: none; flex: 1; }
 .ce-fish-unit { font-size: 12px; font-weight: 800; color: var(--text-muted); }
+
+/* ── Record payment by amount ── */
+.ce-amount { margin: 0 0 16px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-card); display: flex; flex-direction: column; gap: 10px; }
+.ce-amount-title { margin: 0; font-size: 14px; font-weight: 700; color: var(--navy); }
+.ce-amount-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.ce-amount-field { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--text-subtle); }
+.ce-amount-input { min-height: 40px; width: 180px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font: inherit; font-size: 14px; color: var(--navy); font-variant-numeric: tabular-nums; }
+.ce-amount-input:focus-visible, .ce-amount-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ce-amount-btn { min-height: 40px; padding: 0 16px; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent); color: #fff; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.ce-amount-btn:disabled { opacity: .5; cursor: not-allowed; }
+.ce-amount-result { font-size: 13px; color: var(--text-subtle); min-height: 20px; }
+.ce-amount-ok { color: var(--green); }
+.ce-amount-hint { color: var(--text-muted); }
+
+.ce-part-table { margin: 8px 0 0; border-collapse: collapse; font-size: 13px; color: var(--navy); font-variant-numeric: tabular-nums; }
+.ce-part-table th, .ce-part-table td { padding: 4px 16px 4px 0; text-align: left; border-bottom: 1px solid var(--border); }
+.ce-part-table th { font-weight: 600; color: var(--text-subtle); }
+.ce-part-table .ce-num { text-align: right; }

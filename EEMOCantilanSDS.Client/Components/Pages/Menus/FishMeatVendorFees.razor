@@ -57,7 +57,7 @@
                         <th scope="col">Type</th>
                         <th scope="col">Registration</th>
                         <th scope="col">Address</th>
-                        <th scope="col" class="v3-num">Collected this month</th>
+                        <th scope="col" class="v3-num">@(_taxYear == PhilippineTime.Today.Year ? "Collected this month" : $"Collected in {_monthName}")</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -87,9 +87,14 @@
 
 <VendorRegistrationDrawer Show="_registering" Model="_form" Title="Register vendor" Subtitle="@($"Tax year {_taxYear}")" SubmitText="Register"
                           Saving="_saving" Error="@_formError" OnSubmit="RegisterAsync" OnCancel="CloseRegister" />
+<NpmVendorRegistrationWorkflow Show="_npmReview" TaxYear="_taxYear" InitialContractId="NpmContractId" OnClose="() => _npmReview = false" OnSaved="LoadAsync" />
 
 @code {
-    private readonly int _taxYear = PhilippineTime.Today.Year;
+    [SupplyParameterFromQuery(Name = "npmContractId")] public Guid? NpmContractId { get; set; }
+    [SupplyParameterFromQuery(Name = "taxYear")] public int? SelectedTaxYear { get; set; }
+    private int _taxYear = PhilippineTime.Today.Year;
+    private bool _npmReview;
+    private int? _npmUnresolved;
     private string _monthName = PhilippineTime.Today.ToString("MMMM", CultureInfo.InvariantCulture);
     private List<VendorRegistrationManagementRow> _rows = [];
     private bool _loading = true, _saving, _registering;
@@ -120,12 +125,19 @@
         <a class="btn-outline" href="/collections/activity">Collection Activity</a>
         <a class="btn-outline" href="/operations/fish-meat-vendor-fees/report">Reports</a>
         <AuthorizeView Roles="SuperAdmin"><Authorized>
+            <button class="btn-outline" type="button" title="Unresolved eligible occupancy reviews for the selected tax year" @onclick="() => _npmReview = true">From NPM occupants @(_npmUnresolved.HasValue ? $"({_npmUnresolved})" : "")</button>
             <a class="btn-outline" href="/operations/fish-meat-vendor-fees/import">Import list</a>
             <button class="btn-primary" type="button" @onclick="OpenRegister">Register vendor</button>
         </Authorized></AuthorizeView>
     </div>;
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override async Task OnParametersSetAsync()
+    {
+        _taxYear = SelectedTaxYear is >= 2000 and <= 2200 ? SelectedTaxYear.Value : PhilippineTime.Today.Year;
+        _monthName = $"{PhilippineTime.Today.ToString("MMMM", CultureInfo.InvariantCulture)} {_taxYear}";
+        await LoadAsync();
+        if (NpmContractId.HasValue) _npmReview = true;
+    }
 
     private async Task LoadAsync()
     {
@@ -140,6 +152,8 @@
         }
         catch { _rows = []; _error = "The vendor registry couldn't be loaded."; }
         finally { _loading = false; }
+        try { var candidates = await OfficeApi.NpmVendorCandidatesAsync(_taxYear); _npmUnresolved = candidates?.IsSuccess == true ? candidates.Value!.UnresolvedCount : null; }
+        catch { _npmUnresolved = null; }
     }
 
     private void OpenRegister()

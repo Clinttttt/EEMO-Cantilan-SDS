@@ -18,6 +18,25 @@ public sealed class NpmDailyCollectionsController(ISender sender, NpmDailyCanoni
     public sealed record VoidRequest(string Reason);
     public sealed record VoidOutcome(Guid CollectionId, string ReferenceCode);
 
+    
+
+    /// <summary>What an amount received would apply to for a month: full or part installments, oldest first. Records nothing.</summary>
+    [HttpGet("stall/{stallId:guid}/part-payment-quote")]
+    public async Task<ActionResult<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmPartPaymentQuoteDto>> QuotePartPaymentAsync(
+        Guid stallId, [FromQuery] int year, [FromQuery] int month, [FromQuery] decimal amount, [FromServices] NpmPartPaymentWorkflow workflow, CancellationToken ct) =>
+        HandleResponse(await workflow.QuoteAsync(stallId, year, month, amount, ct));
+
+    /// <summary>Records the reviewed amount as one canonical Collection. The same ClientOperationId is the same Collection; a changed month is a conflict.</summary>
+    [HttpPost("part-payment")]
+    public async Task<ActionResult<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmPartPaymentOutcomeDto>> RecordPartPaymentAsync(
+        [FromBody] EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmPartPaymentRequest request, [FromServices] NpmPartPaymentWorkflow workflow, CancellationToken ct)
+    {
+        var result = await workflow.PostAsync(request, ct);
+        return HandleResponse(result.IsSuccess
+            ? EEMOCantilanSDS.Application.Common.Result<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmPartPaymentOutcomeDto>.Success(new EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmPartPaymentOutcomeDto(result.Value!.CollectionId, result.Value.ReferenceCode, result.Value.Amount, result.Value.Existing))
+            : EEMOCantilanSDS.Application.Common.Result<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmPartPaymentOutcomeDto>.Failure(result.Error ?? "The payment could not be recorded.", result.Status));
+    }
+
     [HttpPost("collections/{collectionId:guid}/void")]
     public async Task<ActionResult<VoidOutcome>> VoidAsync(Guid collectionId, [FromBody] VoidRequest request, CancellationToken ct)
     {

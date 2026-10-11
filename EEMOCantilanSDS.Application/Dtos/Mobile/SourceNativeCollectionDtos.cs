@@ -9,7 +9,8 @@ public sealed record CollectionSourceSearchResult(CollectionSourceIdentity Ident
     string OperationCode, int? TaxYear = null, FishMeatVendorType? VendorType = null);
 public enum CollectionFamily { Market = 1, Rent = 2, Space = 3, Terminal = 4, Slaughterhouse = 5 }
 public sealed record RegisterFishMeatVendorRequest(Guid ClientOperationId, int TaxYear, FishMeatVendorType VendorType,
-    VendorRegistrationKind RegistrationKind, string DisplayName, string? BusinessName = null, string? Address = null, string? Reference = null);
+    VendorRegistrationKind RegistrationKind, string DisplayName, string? BusinessName = null, string? Address = null, string? Reference = null,
+    ConfirmNpmVendorAssociationRequest? NpmAssociation = null);
 public sealed record FishMeatVendorRegistrationDto(Guid Id, int TaxYear, FishMeatVendorType VendorType,
     VendorRegistrationKind RegistrationKind, string DisplayName, string? BusinessName, string? Address, string? Reference);
 public sealed record SourceNativeChargeIntent(string OperationCode, Guid? VendorRegistrationId = null,
@@ -26,3 +27,22 @@ public sealed record SourceNativeActivityDto(Guid CollectionId, string SRC, Date
     string OperationCode, TerminalSection? Section, Guid? VendorRegistrationId, string? PayerSnapshot,
     Guid? CollectorId, string? CollectorName, decimal Amount, decimal NetAmount, string State,
     int? CashTicketCount, Guid? VehicleClassId, Guid? RateId, decimal? Rate, decimal? Kilograms, string? VehicleClassName = null);
+
+/// <summary>A way to browse the registered sources this collector is assigned to. Offered only where a real source reader exists.</summary>
+public sealed record CollectionSourceCategoryDto(string Key, string Label);
+
+/// <summary>
+/// One bounded page of registered sources. <paramref name="Total"/> counts the sources matching the filter; the
+/// <paramref name="Categories"/> are the browsing groups this collector's assignments actually support.
+/// </summary>
+public sealed record CollectionSourcePage(IReadOnlyList<CollectionSourceSearchResult> Items, int Total, IReadOnlyList<CollectionSourceCategoryDto> Categories)
+{
+    public bool HasMore(int skip) => skip + Items.Count < Total;
+}
+
+/// <summary>The browsing groups. Keys are the API's, never shown to the collector.</summary>
+public static class CollectionSourceCategories
+{
+    public const string FishMeat = "fishmeat", Npm = "npm", Rentals = "rentals", Spaces = "spaces";
+    public const int MaxPage = 50;
+}

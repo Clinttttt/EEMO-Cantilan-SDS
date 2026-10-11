@@ -32,6 +32,7 @@ public sealed class ObligationCollectionSource(IAppDbContext db)
     {
         ObligationKind.FishMeatVendorFee => "Fish/Meat Vendor Fee",
         ObligationKind.KanmanggaySpaceRental => "Kanmanggay Space Rental",
+        ObligationKind.VegetableFruitSpaceRental => "Vegetable / Fruits Space Rental",
         ObligationKind.FiestaArawLotRental => "Fiesta/Araw Lot Rental",
         _ => kind.ToString()
     };
@@ -144,11 +145,12 @@ public sealed class ObligationCollectionSource(IAppDbContext db)
         Guid tenantId, ObligationKind kind, DateOnly businessDate, CancellationToken ct)
     {
         var code = ObligationAccount.ClassificationCodeFor(kind);
+        var context = kind == ObligationKind.VegetableFruitSpaceRental ? RevenuePolicyContext.VegetableWholePayment : RevenuePolicyContext.Default;
         var classification = await db.RevenueClassifications.AsNoTracking().SingleOrDefaultAsync(x =>
             x.MunicipalityId == tenantId && x.SemanticCode == code && x.IsActive, ct);
         var policy = classification is null ? null : await db.RevenueClassificationPolicies.AsNoTracking()
             .Where(x => x.MunicipalityId == tenantId && x.RevenueClassificationId == classification.Id
-                && x.BusinessContext == RevenuePolicyContext.Default && x.EffectiveDate <= businessDate)
+                && x.BusinessContext == context && x.EffectiveDate <= businessDate)
             .OrderByDescending(x => x.EffectiveDate).FirstOrDefaultAsync(ct);
         if (classification is null || policy?.PermittedInstrumentType != RevenueInstrumentType.OfficialReceipt)
             throw new InvalidOperationException($"{KindLabel(kind)} has no effective Official Receipt policy for this tenant.");

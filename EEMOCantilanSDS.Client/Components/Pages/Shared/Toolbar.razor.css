@@ -336,3 +336,8 @@
         padding: 6px 10px;
     }
 }
+
+/* In the stacked toolbar, a desktop flex basis would become a 150px search height. */
+@media (max-width: 768px) {
+    .search-box { flex: 0 0 auto; min-height: 36px; }
+}

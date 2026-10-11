@@ -1,0 +1,42 @@
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@inject IOfficeSourcesApiClient Api
+@if (_error)
+{
+    <p role="alert">NPM occupancy evidence could not be loaded.</p>
+}
+@foreach (var link in _links.Where(x => x.CorrectedAtUtc == null))
+{
+    var source = _sources.FirstOrDefault(x => x.ContractId == link.ContractId);
+    <div class="npm-linked-context">
+        <strong>NPM occupancy</strong>
+        <span>NPM · @(source?.Area ?? "Recorded area unavailable") · Stall @(source?.StallNo ?? "—") · @(source?.Active == true ? "Active" : "Historical / unavailable")</span>
+        <small>Recorded occupant: @link.OccupantSnapshot · Contract @link.ContractId</small>
+        @if (source?.Active == true) { <a href="@($"/profile/npm/{link.StallId}")">Open NPM Account</a> }
+        <a href="@($"/operations/fish-meat-vendor-fees?taxYear={TaxYear}&npmContractId={link.ContractId}")">Review verified occupancy link</a>
+    </div>
+}
+@code {
+    [Parameter] public Guid VendorId { get; set; }
+    [Parameter] public int TaxYear { get; set; }
+    private Guid _loaded;
+    private bool _error;
+    private IReadOnlyList<NpmVendorAssociationDto> _links = [];
+    private IReadOnlyList<NpmVendorCandidate> _sources = [];
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loaded == VendorId) return;
+        _loaded = VendorId; _links = []; _error = false;
+        try
+        {
+            var links = await Api.NpmVendorLinksAsync(VendorId);
+            if (links is null) return; // Existing clients may not yet expose this optional read.
+            if (!links.IsSuccess) { _error = true; return; }
+            _links = links.Value!;
+            if (_links.Count == 0) return;
+            var sources = await Api.NpmVendorCandidatesAsync(TaxYear, true, true);
+            if (!sources.IsSuccess) { _error = true; return; }
+            _sources = sources.Value!.Rows;
+        }
+        catch { _error = true; }
+    }
+}

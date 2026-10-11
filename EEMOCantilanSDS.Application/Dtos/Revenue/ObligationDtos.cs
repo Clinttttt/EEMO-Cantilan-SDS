@@ -39,7 +39,12 @@ public sealed record ObligationAccountDto(
     decimal OutstandingToDate,
     OccupancyArrangement? Arrangement = null,
     string? ContractReference = null,
-    string? ActualOccupant = null);
+    string? ActualOccupant = null,
+    string? ContractName = null,
+    DateOnly? ContractEffectiveDate = null,
+    int? ContractYears = null,
+    decimal? AreaSqm = null,
+    string? AreaLocation = null);
 
 public sealed record CreateObligationAccountRequest(
     ObligationKind Kind,
@@ -52,7 +57,17 @@ public sealed record CreateObligationAccountRequest(
     decimal Amount,
     OccupancyArrangement? Arrangement = null,
     string? ContractReference = null,
-    string? ActualOccupant = null);
+    string? ActualOccupant = null,
+    string? ContractName = null,
+    DateOnly? ContractEffectiveDate = null,
+    int? ContractYears = null,
+    decimal? AreaSqm = null,
+    string? AreaLocation = null);
+
+/// <summary>Head-authorized correction of recorded holder/lease evidence; it never changes existing financial periods.</summary>
+public sealed record CorrectObligationHolderRequest(string ActualOccupant, OccupancyArrangement Arrangement,
+    string? ContractReference, string? ContractName, DateOnly? ContractEffectiveDate,
+    int? ContractYears, decimal? AreaSqm, string? AreaLocation);
 
 public sealed record SetObligationRateRequest(DateOnly EffectiveFrom, decimal Amount);
 

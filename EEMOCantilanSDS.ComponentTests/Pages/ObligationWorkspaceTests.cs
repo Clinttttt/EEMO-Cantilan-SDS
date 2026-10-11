@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Common;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Client.Components.Pages.Menus;
+using EEMOCantilanSDS.Client.Components.Shared;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -23,6 +24,7 @@ public sealed class ObligationWorkspaceTests : TestContext
     private static readonly Guid PayorId = Guid.NewGuid();
     private readonly Mock<IObligationsApiClient> _api = new();
     private readonly Mock<IEcfCollectionsApiClient> _collections = new();
+    private readonly Mock<IGovernedServicesApiClient> _governed = new();
 
     public ObligationWorkspaceTests()
     {
@@ -34,7 +36,9 @@ public sealed class ObligationWorkspaceTests : TestContext
         Services.AddSingleton(Mock.Of<IFacilitiesApiClient>());
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.FacilityState>();
         Services.AddSingleton(_api.Object);
+        Services.AddSingleton(Mock.Of<ICollectionActivityApiClient>());
         Services.AddSingleton(_collections.Object);
+        Services.AddSingleton(_governed.Object);
         Services.AddSingleton(Mock.Of<IBusinessPayorsApiClient>());
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
@@ -51,6 +55,89 @@ public sealed class ObligationWorkspaceTests : TestContext
         Guid.NewGuid(), ObligationKind.KanmanggaySpaceRental, "Kanmanggay Space Rental", PayorId, "Ana Reyes", null, null,
         "Space K-4", null, null, new DateOnly(2026, 9, 1), null, amount, new DateOnly(2026, 9, 1),
         assessed, collected, assessed - collected);
+
+    [Fact]
+    public void VegetableFruit_ModesKeepState_AndDailyExcludesMonthlyReceipts()
+    {
+        var space = Space() with { Kind = ObligationKind.VegetableFruitSpaceRental, SubjectLabel = "1" };
+        Serve(ObligationKind.VegetableFruitSpaceRental, space);
+        _governed.Setup(x => x.GetActivityAsync("VEGETABLE_FRUIT_SPACE_RENTAL", It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(Result<IReadOnlyList<GovernedServiceActivityDto>>.Success([
+                new(Guid.NewGuid(), PhilippineTime.Today, DateTime.UtcNow, "SRC-DAILY", RevenueInstrumentType.CashTicket, GovernedServiceMode.DailyTransaction, "Daily holder", null, 50m, "Collector", "Posted", NetAmount: 40m),
+                new(Guid.NewGuid(), PhilippineTime.Today, DateTime.UtcNow, "SRC-OLD-WHOLE", RevenueInstrumentType.OfficialReceipt, GovernedServiceMode.WholePayment, "Historical holder", null, 900m, "Collector", "Posted")]));
+        var cut = RenderComponent<VegetableFruit>();
+        cut.WaitForAssertion(() => Assert.Contains("Ana Reyes", cut.Find("#vf-monthly").TextContent), Timeout);
+        Assert.True(cut.Find("#vf-daily").HasAttribute("hidden"));
+        Assert.Empty(cut.FindAll("#vf-monthly a[href$='/import']"));
+        Assert.Equal("Space Rentals", cut.Find("#vf-monthly .rental-summary-title").TextContent);
+        Assert.Empty(cut.FindAll("#vf-monthly tbody a"));
+        Assert.NotNull(cut.Find("#vf-monthly a[href='/operations/vegetable-fruit/space-holders']"));
+        Assert.NotNull(cut.Find("#vf-monthly a[href='/operations/vegetable-fruit/manage-space-holders']"));
+        SpaceHolderWorkspaceTests.SaveVisualArtifact("vegetable-fruit-overview", cut.Markup);
+        Assert.NotNull(cut.Find("#vf-monthly .toolbar-unified .vf-mode"));
+        cut.Find("#vf-monthly .search-input").Input("Ana");
+        cut.FindAll("#vf-monthly .filter-tab").Single(x => x.TextContent == "Partial").Click();
+        cut.FindAll("#vf-monthly .vf-mode button").Single(x => x.TextContent == "Daily").Click();
+        Assert.True(cut.Find("#vf-monthly").HasAttribute("hidden"));
+        var daily = cut.Find("#vf-daily");
+        Assert.DoesNotContain("Remaining", daily.TextContent);
+        Assert.DoesNotContain("Historical holder", daily.TextContent);
+        Assert.Contains("Daily holder", daily.TextContent);
+        Assert.Contains("₱40.00", daily.TextContent);
+        cut.Find("#vf-daily input[type='search']").Input("SRC-DAILY");
+        var month = PhilippineTime.Today.AddMonths(-1).ToString("yyyy-MM");
+        cut.Find("#vf-daily input[type='month']").Change(month);
+        Assert.NotNull(cut.Find("#vf-daily .vf-daily-toolbar .vf-mode"));
+        Assert.Single(cut.FindAll("#vf-daily .vf-mode [aria-pressed='true']"));
+        SpaceHolderWorkspaceTests.SaveVisualArtifact("vegetable-fruit-daily", cut.Markup);
+        var calls = _governed.Invocations.Count;
+        cut.FindAll("#vf-daily .vf-mode button").Single(x => x.TextContent == "Monthly").Click();
+        Assert.Equal("Ana", cut.Find("#vf-monthly .search-input").GetAttribute("value"));
+        Assert.Equal("Partial", cut.Find("#vf-monthly .filter-tab.active").TextContent);
+        Assert.Single(cut.FindAll("#vf-monthly .vf-mode [aria-pressed='true']"));
+        cut.FindAll("#vf-monthly .vf-mode button").Single(x => x.TextContent == "Daily").Click();
+        Assert.Equal("SRC-DAILY", cut.Find("#vf-daily input[type='search']").GetAttribute("value"));
+        Assert.Equal(month, cut.Find("#vf-daily input[type='month']").GetAttribute("value"));
+        Assert.Equal(calls, _governed.Invocations.Count);
+    }
+
+    [Fact]
+    public void VegetableFruit_AddNewUsesOwnKindAndServerNumber_WithConditionalContract()
+    {
+        Serve(ObligationKind.VegetableFruitSpaceRental);
+        CreateObligationAccountRequest? sent = null;
+        _api.Setup(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>())).Callback<CreateObligationAccountRequest>(x => sent = x)
+            .ReturnsAsync(Result<ObligationAccountDto>.Failure("stop"));
+        var cut = RenderComponent<VegetableFruit>();
+        cut.FindAll("#vf-monthly button").Single(x => x.TextContent.Trim() == "+ Add New").Click();
+        Assert.Empty(cut.FindAll("#obw-subject"));
+        Assert.Contains("Contract Effectivity Date", cut.Find("[role='dialog']").TextContent);
+        cut.FindAll("[role='radio']").Single(x => x.TextContent.Contains("No contract")).Click();
+        Assert.Empty(cut.FindAll("input[placeholder='As written on the contract']"));
+        cut.Find("#obw-occupant").Input("Ana Reyes"); cut.Find("#obw-amount").Change("900");
+        cut.Find("form[aria-label='Open account']").Submit();
+        cut.WaitForAssertion(() => {
+            Assert.NotNull(sent);
+            Assert.Equal((ObligationKind.VegetableFruitSpaceRental, Guid.Empty, "", OccupancyArrangement.SpaceOnly), (sent!.Kind, sent.PayorId, sent.SubjectLabel, sent.Arrangement));
+            Assert.Null(sent.ContractReference);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void VegetableFruit_ImportOmitsNumberColumn_AndSendsBlankForServerAllocation()
+    {
+        ImportSpaceHoldersRequest? previewed = null;
+        _api.Setup(x => x.PreviewSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>())).Callback<ImportSpaceHoldersRequest>(x => previewed = x)
+            .ReturnsAsync(Result<SpaceHolderImportPreview>.Failure("stop"));
+        var cut = RenderComponent<VegetableFruitImport>();
+        Assert.DoesNotContain(cut.FindAll(".imp-chip"), x => x.TextContent.Contains("Space No."));
+        cut.Find(".imp-use-sample").Click();
+        Assert.Empty(cut.FindAll("input[aria-label^='Space No.']"));
+        cut.WaitForAssertion(() => {
+            Assert.NotNull(previewed);
+            Assert.All(previewed!.Rows, x => { Assert.Equal("", x.Account.SubjectLabel); Assert.Equal(ObligationKind.VegetableFruitSpaceRental, x.Account.Kind); });
+        }, Timeout);
+    }
 
     [Theory]
     [InlineData(typeof(Kanmanggay), "/operations/kanmanggay", "Kanmanggay")]
@@ -69,7 +156,7 @@ public sealed class ObligationWorkspaceTests : TestContext
             Assert.Equal(title, Assert.Single(cut.FindAll("h1")).TextContent.Trim());
             Assert.Empty(cut.FindAll("main"));
             Assert.DoesNotContain("aren't recorded in StallTrack yet", cut.Markup);
-            Assert.Contains("found.", cut.Markup);
+            Assert.Contains("found", cut.Markup);
             Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Contains("Record") || b.TextContent.Contains("Collect"));
         }, Timeout);
     }
@@ -79,16 +166,17 @@ public sealed class ObligationWorkspaceTests : TestContext
     {
         Serve(ObligationKind.KanmanggaySpaceRental, Space());
 
-        var cut = RenderComponent<Kanmanggay>();
+        var cut = RenderComponent<KanmanggayManageSpaceHolders>();
 
         cut.WaitForAssertion(() =>
         {
-            var row = Assert.Single(cut.FindAll("[aria-label='Kanmanggay accounts'] tbody tr"));
+            var row = Assert.Single(cut.FindAll(".registry-table tbody tr"));
             Assert.Contains("Ana Reyes", row.TextContent);
             Assert.Contains("Space K-4", row.TextContent);
             Assert.Contains("₱1,200.00", row.TextContent);
-            Assert.Contains("₱400.00", row.TextContent);
-            Assert.Contains("₱800.00", row.TextContent);
+            Assert.Contains("Partial", row.TextContent);
+            Assert.Contains("₱400.00", cut.FindComponent<RentalRegistryHero>().Markup);
+            Assert.Contains("₱800.00", cut.FindComponent<RentalRegistryHero>().Markup);
             Assert.DoesNotContain(cut.FindAll("a"), a => a.GetAttribute("href")?.StartsWith("/collections/current") == true);
         }, Timeout);
     }
@@ -104,9 +192,9 @@ public sealed class ObligationWorkspaceTests : TestContext
                 "Space K-4", new DateOnly(2026, 9, 1), 1200m, 400m, 800m, PayorId, "Ana Reyes", Guid.NewGuid(), true)
         }));
 
-        var cut = RenderComponent<Kanmanggay>();
-        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "Periods"), Timeout);
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Periods").Click();
+        var cut = RenderComponent<KanmanggayManageSpaceHolders>();
+        cut.WaitForAssertion(() => cut.Find(".registry-table tbody tr"), Timeout);
+        cut.Find(".registry-table tbody tr").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -115,6 +203,7 @@ public sealed class ObligationWorkspaceTests : TestContext
             Assert.Contains("₱800.00", period.TextContent);
         }, Timeout);
         _api.Verify(x => x.GetRegisterAsync(account.Id), Times.Once);
+        SpaceHolderWorkspaceTests.SaveVisualArtifact("kanmanggay-management-periods", cut.Markup);
     }
 
     [Fact]
@@ -132,7 +221,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New"), Timeout);
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New").Click();
         cut.Find("#obw-occupant").Input("ana");
-        cut.Find("#obw-subject").Change("Space K-4");
+        Assert.Empty(cut.FindAll("#obw-subject"));
         cut.Find("input[placeholder='As written on the contract']").Change("LC-2026-014");
         cut.Find("#obw-amount").Change("1200");
         cut.Find("form[aria-label='Open account']").Submit();
@@ -140,7 +229,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.NotNull(sent);
-            Assert.Equal((ObligationKind.KanmanggaySpaceRental, Guid.Empty, "Space K-4", 1200m),
+            Assert.Equal((ObligationKind.KanmanggaySpaceRental, Guid.Empty, "", 1200m),
                 (sent!.Kind, sent.PayorId, sent.SubjectLabel, sent.Amount));
             Assert.Null(sent.StallId);
             Assert.Equal((OccupancyArrangement.SignedContract, "LC-2026-014"), (sent.Arrangement, sent.ContractReference));
@@ -155,7 +244,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         context.SetAuthorized("admin").SetRoles("Admin");
         Serve(ObligationKind.KanmanggaySpaceRental, Space());
 
-        var cut = RenderComponent<Kanmanggay>();
+        var cut = RenderComponent<KanmanggayManageSpaceHolders>();
 
         cut.WaitForAssertion(() =>
         {
@@ -164,7 +253,8 @@ public sealed class ObligationWorkspaceTests : TestContext
             Assert.DoesNotContain("Open account", labels);
             Assert.DoesNotContain("Change amount", labels);
             Assert.DoesNotContain("End", labels);
-            Assert.Contains("Periods", labels);
+            Assert.Equal(5, cut.FindAll(".registry-actions button").Count);
+            Assert.All(cut.FindAll(".registry-actions button[disabled]"), b => Assert.True(b.HasAttribute("disabled")));
         }, Timeout);
     }
 
@@ -179,7 +269,7 @@ public sealed class ObligationWorkspaceTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            var row = Assert.Single(cut.FindAll("[aria-label='Fiesta / Araw accounts'] tbody tr"));
+            var row = Assert.Single(cut.FindAll("[aria-label='Registered rentals'] tbody tr"));
             Assert.Contains("Fiesta · Aug 15, 2026", row.TextContent);
             Assert.Contains("₱2,500.00", row.TextContent);
             Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Trim() == "Change amount");
@@ -195,14 +285,14 @@ public sealed class ObligationWorkspaceTests : TestContext
         var cut = RenderComponent<Kanmanggay>();
         cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New"), Timeout);
         Assert.Empty(cut.FindAll("[role='dialog']"));
-        Assert.Equal(1, cut.FindAll("[aria-label='Kanmanggay accounts'] tbody tr").Count);
+        Assert.Single(cut.FindAll("[aria-label='Registered rentals'] tbody tr"));
 
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New").Click();
 
         cut.WaitForAssertion(() =>
         {
             var drawer = Assert.Single(cut.FindAll("[role='dialog']"));
-            Assert.Contains("Open Kanmanggay account", drawer.TextContent);
+            Assert.Contains("Add New Space Holder", drawer.TextContent);
             Assert.NotNull(drawer.QuerySelector("form[aria-label='Open account']"));
             Assert.Contains("Open account", drawer.QuerySelector("footer")!.TextContent);
             Assert.DoesNotContain("obw-layout", drawer.ParentElement!.ClassName ?? "");      // not squeezed into the account list's own grid
@@ -212,12 +302,12 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.Empty(cut.FindAll("[role='dialog']"));
-            Assert.Equal(1, cut.FindAll("[aria-label='Kanmanggay accounts'] tbody tr").Count);
+            Assert.Single(cut.FindAll("[aria-label='Registered rentals'] tbody tr"));
         }, Timeout);
     }
 
     [Fact]
-    public void AddNew_IsGroupedIntoSections_WithAnOccupancyBasisChoice_AndNoFabricatedContractFields()
+    public void AddNew_IsGroupedIntoSections_WithPersistedContractEvidenceAndSpaceOnlyFallback()
     {
         Serve(ObligationKind.KanmanggaySpaceRental, Space());
 
@@ -229,12 +319,15 @@ public sealed class ObligationWorkspaceTests : TestContext
         {
             var drawer = Assert.Single(cut.FindAll("[role='dialog']"));
             var titles = drawer.QuerySelectorAll(".avm-section-label").Select(x => x.TextContent.Trim()).ToArray();
-            Assert.Equal(new[] { "Occupant Information", "Space & Contract Details" }, titles);
+            Assert.Equal(new[] { "Lessee Information", "Space & Contract Details", "Space Information", "Rental Rates", "Additional Information", "Applicable Charges" }, titles);
             var basis = drawer.QuerySelectorAll("[role='radio']").Select(x => x.QuerySelector(".avm-choice-title")!.TextContent.Trim()).ToArray();
             Assert.Equal(new[] { "Signed lease contract", "No contract (space only)" }, basis);
-            Assert.Contains("Contract Effectivity (month)", drawer.TextContent);                         // a month, not a date
+            Assert.Contains("Contract Effectivity Date", drawer.TextContent);
+            Assert.Contains("Contract Duration (No. of Years)", drawer.TextContent);
+            Assert.NotNull(drawer.QuerySelector("#obw-contract-date"));
+            Assert.NotNull(drawer.QuerySelector("input[placeholder='As written on the signed contract']"));
             Assert.NotNull(drawer.QuerySelector("input[placeholder='As written on the contract']"));
-            Assert.Equal("Kanmanggay", drawer.QuerySelector(".avm-input-locked")!.TextContent.Trim());   // the operation is context, not a choice
+            Assert.Contains(drawer.QuerySelectorAll(".avm-input-locked"), x => x.TextContent.Trim() == "Kanmanggay");   // the operation is context, not a choice
             Assert.NotNull(drawer.QuerySelector(".eemo-drawer-header-icon svg"));                        // the stallholder drawer's own header
         }, Timeout);
 
@@ -266,14 +359,14 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() => cut.Find("#obw-occupant"), Timeout);
         cut.FindAll("[role='radio']").Single(b => b.TextContent.Contains("No contract")).Click();
         cut.Find("#obw-occupant").Input("Ana Reyes");
-        cut.Find("#obw-subject").Change("K-7");
+        Assert.Empty(cut.FindAll("#obw-subject"));
         cut.Find("#obw-amount").Change("900");
         cut.Find("form[aria-label='Open account']").Submit();
 
         cut.WaitForAssertion(() =>
         {
             Assert.NotNull(sent);
-            Assert.Equal((Guid.Empty, "K-7", 900m, OccupancyArrangement.SpaceOnly, (string?)null),
+            Assert.Equal((Guid.Empty, "", 900m, OccupancyArrangement.SpaceOnly, (string?)null),
                 (sent!.PayorId, sent.SubjectLabel, sent.Amount, sent.Arrangement, sent.ContractReference));
         }, Timeout);
     }
@@ -291,9 +384,9 @@ public sealed class ObligationWorkspaceTests : TestContext
         _api.Setup(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>())).ReturnsAsync(Result<ObligationAccountDto>.Success(added));
 
         var cut = RenderComponent<Kanmanggay>();
-        cut.WaitForAssertion(() => Assert.Single(cut.FindAll("[aria-label='Kanmanggay accounts'] tbody tr")), Timeout);
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll("[aria-label='Registered rentals'] tbody tr")), Timeout);
         cut.FindAll(".filter-tab").Single(t => t.TextContent.Trim() == "Paid").Click();            // hides the (partly paid) existing holder
-        cut.WaitForAssertion(() => Assert.DoesNotContain("Space K-4", cut.Find("[aria-label='Kanmanggay accounts'] tbody").TextContent), Timeout);
+        cut.WaitForAssertion(() => Assert.DoesNotContain("Space K-4", cut.FindComponent<EEMOCantilanSDS.Client.Components.Shared.RegisteredRentalTable<ObligationAccountDto>>().Markup), Timeout);
 
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New").Click();
         cut.Find("#obw-occupant").Input("Ana Reyes");
@@ -302,11 +395,137 @@ public sealed class ObligationWorkspaceTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            var rows = cut.FindAll("[aria-label='Kanmanggay accounts'] tbody tr").Select(r => r.TextContent).ToArray();
+            var rows = cut.FindAll("[aria-label='Registered rentals'] tbody tr").Select(r => r.TextContent).ToArray();
             Assert.Contains(rows, r => r.Contains("Space K-9"));
             Assert.Contains(rows, r => r.Contains("Space K-4"));
             Assert.Equal("All", cut.Find(".filter-tab.active").TextContent.Trim());
         }, Timeout);
+    }
+
+    [Fact]
+    public void FutureMonthLotRegistrationWaitsForExplicitConfirmation()
+    {
+        Serve(ObligationKind.FiestaArawLotRental);
+        var future = new DateOnly(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1).AddMonths(1);
+        var cut = RenderComponent<FiestaAraw>();
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New").Click();
+        cut.Find("#obw-occupant").Input("Advance holder");
+        cut.Find("#obw-event-date").Change(future.ToString("yyyy-MM-dd"));
+        cut.Find("#obw-amount").Change("2500");
+        cut.Find("form[aria-label='Open account']").Submit();
+        _api.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Never);
+        Assert.Contains("Register lot holder in advance?", cut.Find("[role='dialog']").TextContent);
+        SpaceHolderWorkspaceTests.SaveVisualArtifact("fiesta-araw-confirmation", cut.Markup);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    public void LotRegistrationInCurrentOrPastMonthDoesNotRequireConfirmation(int offset)
+    {
+        Serve(ObligationKind.FiestaArawLotRental);
+        _api.Setup(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>())).ReturnsAsync(Result<ObligationAccountDto>.Failure("Server validation"));
+        var cut = OpenLotForm();
+        cut.Find("#obw-event-date").Change(PhilippineTime.Today.AddMonths(offset).ToString("yyyy-MM-dd"));
+        cut.Find("form[aria-label='Open account']").Submit();
+        _api.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Once);
+        Assert.Contains("Server validation", cut.Find("[role='alert']").TextContent);
+        Assert.Empty(cut.FindAll("#obw-advance-form"));
+    }
+
+    [Theory]
+    [InlineData("holder")]
+    [InlineData("amount")]
+    [InlineData("date")]
+    [InlineData("event")]
+    public void ReviewingAdvanceRegistrationPreservesInputsAndConfirmsUpdatedValues(string field)
+    {
+        Serve(ObligationKind.FiestaArawLotRental);
+        CreateObligationAccountRequest? sent = null;
+        _api.Setup(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()))
+            .Callback<CreateObligationAccountRequest>(r => sent = r).ReturnsAsync(Result<ObligationAccountDto>.Failure("Duplicate event account"));
+        var cut = OpenLotForm();
+        var future = PhilippineTime.Today.AddMonths(1);
+        cut.Find("#obw-event-date").Change(future.ToString("yyyy-MM-dd"));
+        cut.Find("form[aria-label='Open account']").Submit();
+        cut.FindAll("button").Single(b => b.TextContent == "Review details").Click();
+        Assert.Equal("Advance holder", cut.Find("#obw-occupant").GetAttribute("value"));
+        Assert.Equal("2500", cut.Find("#obw-amount").GetAttribute("value"));
+        if (field == "holder") cut.Find("#obw-occupant").Input("Updated holder");
+        if (field == "amount") cut.Find("#obw-amount").Change("3000");
+        if (field == "date") cut.Find("#obw-event-date").Change(future.AddDays(1).ToString("yyyy-MM-dd"));
+        if (field == "event") cut.FindAll("[role='radio']").Single(b => b.TextContent.Contains("Araw")).Click();
+        cut.Find("form[aria-label='Open account']").Submit();
+        _api.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Never);
+        Assert.Contains(field == "holder" ? "Updated holder" : "Advance holder", cut.Find("#obw-advance-form").TextContent);
+        cut.Find("#obw-advance-form").Submit();
+        Assert.NotNull(sent);
+        Assert.Equal(field == "holder" ? "Updated holder" : "Advance holder", sent!.ActualOccupant);
+        Assert.Equal(field == "amount" ? 3000m : 2500m, sent.Amount);
+        Assert.Equal(field == "event" ? LotRentalEvent.Araw : LotRentalEvent.Fiesta, sent.Event);
+        Assert.Equal(field == "date" ? future.AddDays(1) : future, sent.EventDate);
+        Assert.Equal(sent.EventDate, sent.ActiveFrom);
+        Assert.Equal(Guid.Empty, sent.PayorId);
+        Assert.Contains("Duplicate event account", cut.Find("[role='alert']").TextContent);
+        Assert.Empty(_collections.Invocations);
+        Assert.Empty(Mock.Get(Services.GetRequiredService<IBusinessPayorsApiClient>()).Invocations);
+        cut.Find("form[aria-label='Open account']").Submit();
+        _api.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Once);
+        Assert.NotNull(cut.Find("#obw-advance-form"));
+    }
+
+    [Fact]
+    public async Task AdvanceConfirmationPreventsDuplicateSubmissionAndShowsSeparateSuccess()
+    {
+        Serve(ObligationKind.FiestaArawLotRental);
+        var pending = new TaskCompletionSource<Result<ObligationAccountDto>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _api.Setup(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>())).Returns(pending.Task);
+        var cut = OpenLotForm();
+        cut.Find("#obw-event-date").Change(PhilippineTime.Today.AddMonths(1).ToString("yyyy-MM-dd"));
+        cut.Find("form[aria-label='Open account']").Submit();
+        var submit = cut.Find("#obw-advance-form");
+        var first = submit.SubmitAsync();
+        await submit.SubmitAsync();
+        _api.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Once);
+        pending.SetResult(Result<ObligationAccountDto>.Success(Space() with { Kind = ObligationKind.FiestaArawLotRental }));
+        await first;
+        Assert.Empty(cut.FindAll("#obw-advance-form"));
+        _api.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Once);
+        var notice = cut.Find(".obw-success[role='status'][aria-live='polite']");
+        Assert.Equal("Lot account opened successfully.", notice.TextContent);
+        Assert.Null(notice.Closest(".v3-panel"));
+        Assert.Empty(_collections.Invocations);
+        SpaceHolderWorkspaceTests.SaveVisualArtifact("fiesta-araw-success", cut.Markup);
+    }
+
+    [Fact]
+    public void InvalidLotDetailsAndCanceledFormNeverSubmit()
+    {
+        Serve(ObligationKind.FiestaArawLotRental);
+        var cut = OpenLotForm();
+        cut.Find("#obw-event-date").Change(PhilippineTime.Today.AddMonths(1).ToString("yyyy-MM-dd"));
+        cut.Find("#obw-amount").Change("0");
+        cut.Find("form[aria-label='Open account']").Submit();
+        Assert.Contains("Enter the approved amount", cut.Find("[role='alert']").TextContent);
+        cut.Find("#obw-amount").Change("2500");
+        cut.Find("#obw-occupant").Input("");
+        cut.Find("form[aria-label='Open account']").Submit();
+        Assert.Contains("Enter the lot holder", cut.Find("[role='alert']").TextContent);
+        cut.Find("#obw-occupant").Input("Advance holder");
+        cut.Find("form[aria-label='Open account']").Submit();
+        cut.FindAll("button").Single(b => b.TextContent == "Review details").Click();
+        cut.FindAll("button").Single(b => b.TextContent == "Cancel").Click();
+        Assert.Empty(cut.FindAll("[role='dialog']"));
+        _api.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Never);
+    }
+
+    private IRenderedComponent<FiestaAraw> OpenLotForm()
+    {
+        var cut = RenderComponent<FiestaAraw>();
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New").Click();
+        cut.Find("#obw-occupant").Input("Advance holder");
+        cut.Find("#obw-amount").Change("2500");
+        return cut;
     }
 
     [Fact]
@@ -348,13 +567,41 @@ public sealed class ObligationWorkspaceTests : TestContext
     }
 
     [Fact]
-    public void ImportList_IsOfferedFromTheWorkspace_AsALinkToItsOwnPage()
+    public void ImportList_IsOfferedOnlyInsideRegistration_WithoutSubmitting()
     {
         Serve(ObligationKind.KanmanggaySpaceRental);
         var cut = RenderComponent<Kanmanggay>();
 
-        cut.WaitForAssertion(() =>
-            Assert.Equal("/operations/kanmanggay/import", cut.FindAll("a").Single(a => a.TextContent.Trim() == "Import list").GetAttribute("href")), Timeout);
+        Assert.DoesNotContain(cut.FindAll("button, a"), x => x.TextContent.Trim() == "Import list");
+        cut.FindAll("button").Single(x => x.TextContent.Trim() == "+ Add New").Click();
+        var import = cut.Find(".add-new-footer-leading button");
+        Assert.Equal("button", import.GetAttribute("type"));
+        import.Click();
+        Assert.EndsWith("/operations/kanmanggay/import", Services.GetRequiredService<NavigationManager>().Uri);
+        _api.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RegistrationSaveBlocksImportCancelAndDuplicateSubmission()
+    {
+        Serve(ObligationKind.KanmanggaySpaceRental);
+        var pending = new TaskCompletionSource<Result<ObligationAccountDto>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _api.Setup(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>())).Returns(pending.Task);
+        var cut = RenderComponent<Kanmanggay>();
+        cut.FindAll("button").Single(x => x.TextContent.Trim() == "+ Add New").Click();
+        cut.Find("#obw-occupant").Input("Holder");
+        cut.Find("#obw-amount").Change("1200");
+        var form = cut.Find("form[aria-label='Open account']");
+        var first = form.SubmitAsync();
+        await form.SubmitAsync();
+        Assert.All(cut.FindAll("footer button"), x => Assert.True(x.HasAttribute("disabled")));
+        var before = Services.GetRequiredService<NavigationManager>().Uri;
+        cut.Find(".add-new-footer-leading button").Click();
+        Assert.Equal(before, Services.GetRequiredService<NavigationManager>().Uri);
+        _api.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Once);
+        pending.SetResult(Result<ObligationAccountDto>.Success(Space()));
+        await first;
+        Assert.Empty(cut.FindAll("form[aria-label='Open account']"));
     }
 
     [Fact]

@@ -1,13 +1,23 @@
 # StallTrack Current Release State
 
+Latest space-holder test/render evidence: [final workspace handoff](SPACE_HOLDER_WORKSPACE_HANDOFF_20261008.md). Its final counts and actual fixture-PDF checks supersede the initial follow-up evidence below; logged-in visual acceptance and integration remain pending.
+
 **Status:** Production release verified; newer local integration checkpoint accepted for continued development
 **As of:** 2026-10-08
 **Production code basis:** `master` at `db75418b68aa221cc5cd30a3bfa2af9799c2a5c6` (2026-10-05 release)
 **Current local integration checkout:** `C:\dev\stalltrack\eemo`
-**Current local integration branch / application checkpoint:** `integration/report-governance-ui` at `08232726` (documentation checkpoint follows; inspect Git for exact HEAD)
+**Current local integration branch / application checkpoint:** `integration/report-governance-ui` at `4b4be8f8` (includes the accepted continuation-print polish; inspect Git for exact HEAD)
 **Collector APK in production:** `collector-1.1.12-14` (display version 1.1.12, version code 14)
 
 This is the single current implementation-status entry point. It deliberately separates **deployed production** from the **newer accepted local integration state**. Dated audits and handoffs remain evidence; they do not become production merely because their commits are integrated locally. Before changing code, confirm the current Git HEAD because the local integration checkpoint may advance.
+
+## 2026-10-08 Vegetable / Fruits follow-up — visual acceptance pending
+
+The same primary checkout contains feature branch `codex/vegetable-fruit-space-workspace`, starting from the clean integration HEAD `4b4be8f8`. Application commits `f21431aa` and `cfef4261` add distinct source-owned Vegetable/Fruits Monthly accounts with OR period settlement and a Monthly/Daily Web workspace. Daily remains governed CT; both modes retain the existing official classification. New anonymous Whole Payment posting is blocked while successful historical retries/history remain valid. Manual Vegetable/Fruits and Kanmanggay drawers omit Space No.; Vegetable/Fruits import also uses server numbering.
+
+Validation: Unit **2,525 passed / 0 failed / 0 skipped**; full PostgreSQL **369 passed / 0 failed / 7 snapshot-gated skipped**; Web **750 passed / 0 failed / 0 skipped**; Mobile **70 passed / 0 failed / 0 skipped**. API Release passed (**0 warnings / 0 errors**), Client Release passed (**70 warnings / 0 errors**), Mobile Windows Release passed (**16 warnings / 0 errors**). Whitespace and scoped/generated Client CSS brace checks passed. Local API, Client and Windows Mobile run from the primary checkout; the Mobile DLL is newer than `cfef4261`. Authenticated Monthly/Daily read APIs return 200. The additive migration only widens three account constraints and is verified in the localhost development database; production is unchanged.
+
+Browser automation cannot initialize because its sandbox helper fails. The user answered **“I’ll check next”** to the requested visual and save/numbering checkpoint. This feature is **not yet visually accepted or fast-forward integrated**. See [the workspace checkpoint](VEGETABLE_FRUIT_WORKSPACE_20261008.md) for source boundaries, compatibility and validation details. `CONTEXT.md` was reviewed; its source identity, snapshot and instrument definitions remain valid. `ACTIVE_WORKSTREAMS.md` remains historical coordination evidence.
 
 ## 2026-10-08 accepted local consolidation
 

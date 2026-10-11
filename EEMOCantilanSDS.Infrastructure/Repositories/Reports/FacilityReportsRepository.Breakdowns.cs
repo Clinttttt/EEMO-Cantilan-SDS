@@ -54,7 +54,7 @@ public partial class FacilityReportsRepository
             .Where(dc => npmStallIds.Contains(dc.StallId)
                 && dc.CollectionDate >= startDate
                 && dc.CollectionDate <= endDate
-                && (dc.IsPaid || (dc.SettlementAuthorityState == SettlementAuthority.Canonical && (dc.FishKilos > 0m || dc.MeatFeeAmount > 0m))))
+                && (dc.IsPaid || dc.CanonicalSettledAmount > 0m || (dc.SettlementAuthorityState == SettlementAuthority.Canonical && (dc.FishKilos > 0m || dc.MeatFeeAmount > 0m))))
             .ToListAsync(ct);
 
         // Rent and Fish remain deduplicated against monthly stall payments. Meat weighing is an independent
@@ -73,7 +73,7 @@ public partial class FacilityReportsRepository
                 && IsUnderContractOn(stall, dc.CollectionDate))
             .ToList();
 
-        var dailyFeeFromCollections = collectableDailyCollections.Where(dc => dc.IsPaid).Sum(dc => dc.DailyFee);
+        var dailyFeeFromCollections = collectableDailyCollections.Where(dc => dc.IsPaid || dc.CanonicalSettledAmount > 0m).Sum(dc => dc.IsPaid ? dc.DailyFee : dc.CanonicalSettledAmount);
         var fishFeeFromCollections = collectableDailyCollections.Sum(dc => dc.FishKilos.HasValue
             ? dc.FishKilos.Value * _npmFishRate
             : 0m);
@@ -134,12 +134,7 @@ public partial class FacilityReportsRepository
             .ToDictionary(g => g.Key, g => g.Select(x => x.CollectionDate).ToHashSet());
 
         // A market closure excuses EVERY payor for that date, so it is not a day the period expected either.
-        var closureDates = (await _context.NpmMarketClosures
-                .AsNoTracking()
-                .Where(c => c.ClosureDate >= startDate && c.ClosureDate <= endDate)
-                .Select(c => c.ClosureDate)
-                .ToListAsync(ct))
-            .ToHashSet();
+        var closureDates = await _context.EffectiveNpmClosedDatesAsync(startDate, endDate, ct);
 
         var expectedDayRecords = npmCollectableStalls.Sum(stall =>
         {
@@ -274,12 +269,7 @@ public partial class FacilityReportsRepository
             .ToDictionary(g => g.Key, g => g.Select(x => x.CollectionDate).ToHashSet());
 
         // Facility-wide market closures excuse EVERY payor that day — folded into AbsentOn below.
-        var marketClosedDates = (await _context.NpmMarketClosures
-                .AsNoTracking()
-                .Where(c => c.ClosureDate >= monthStart && c.ClosureDate <= monthEnd)
-                .Select(c => c.ClosureDate)
-                .ToListAsync(ct))
-            .ToHashSet();
+        var marketClosedDates = await _context.EffectiveNpmClosedDatesAsync(monthStart, monthEnd, ct);
 
         bool AbsentOn(Stall s, DateOnly d) =>
             marketClosedDates.Contains(d) || (absentDatesByStall.TryGetValue(s.Id, out var ds) && ds.Contains(d));
@@ -440,7 +430,7 @@ public partial class FacilityReportsRepository
                 .AsNoTracking()
                 .Where(dc => activeStalls.Contains(dc.StallId) 
                     
-                    && dc.IsPaid
+                    && (dc.IsPaid || dc.CanonicalSettledAmount > 0m)
                     && dc.CollectionDate >= startDate 
                     && dc.CollectionDate <= endDate)
                 .GroupBy(dc => dc.StallId)

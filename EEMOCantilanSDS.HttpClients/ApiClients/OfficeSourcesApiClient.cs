@@ -5,6 +5,14 @@ using EEMOCantilanSDS.Domain.Common;
 namespace EEMOCantilanSDS.HttpClients.ApiClients;
 public sealed class OfficeSourcesApiClient(HttpClient http) : HandleResponse(http), IOfficeSourcesApiClient
 {
+    public Task<Result<NpmVendorCandidates>> NpmVendorCandidatesAsync(int taxYear, bool historical = false, bool exceptions = false) =>
+        GetAsync<NpmVendorCandidates>($"api/office-sources/fish-meat/npm-candidates?taxYear={taxYear}&historical={historical}&exceptions={exceptions}");
+    public Task<Result<IReadOnlyList<NpmVendorAssociationDto>>> NpmVendorLinksAsync(Guid vendorId) =>
+        GetAsync<IReadOnlyList<NpmVendorAssociationDto>>($"api/office-sources/fish-meat/registrations/{vendorId}/npm-links");
+    public Task<Result<NpmVendorAssociationDto>> LinkNpmVendorAsync(Guid vendorId, ConfirmNpmVendorAssociationRequest request) =>
+        PostAsync<ConfirmNpmVendorAssociationRequest, NpmVendorAssociationDto>($"api/office-sources/fish-meat/registrations/{vendorId}/npm-links", request);
+    public Task<Result<NpmVendorAssociationDto>> CorrectNpmVendorLinkAsync(Guid id, CorrectNpmVendorAssociationRequest request) =>
+        PostAsync<CorrectNpmVendorAssociationRequest, NpmVendorAssociationDto>($"api/office-sources/fish-meat/npm-links/{id}/correct", request);
     public Task<Result<IReadOnlyList<FishMeatVendorRegistrationDto>>> RegistrationsAsync(int year) => GetAsync<IReadOnlyList<FishMeatVendorRegistrationDto>>($"api/office-sources/fish-meat/registrations?year={year}");
     public Task<Result<FishMeatVendorRegistrationDto>> RegisterAsync(RegisterFishMeatVendorRequest request) => PostAsync<RegisterFishMeatVendorRequest, FishMeatVendorRegistrationDto>("api/office-sources/fish-meat/registrations", request);
     public Task<Result<VendorRegistryImportPreview>> PreviewImportAsync(VendorRegistryImportRequest request) => PostAsync<VendorRegistryImportRequest, VendorRegistryImportPreview>("api/office-sources/fish-meat/import/preview", request);

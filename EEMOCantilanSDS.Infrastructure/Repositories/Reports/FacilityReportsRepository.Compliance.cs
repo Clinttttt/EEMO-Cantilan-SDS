@@ -91,10 +91,10 @@ public partial class FacilityReportsRepository
         var dailyRowsByStall = includeFish
             ? (await _context.DailyCollections
                 .AsNoTracking()
-                .Where(dc => stallIds.Contains(dc.StallId) && dc.IsPaid
+                .Where(dc => stallIds.Contains(dc.StallId) && (dc.IsPaid || dc.CanonicalSettledAmount > 0m)
                     && !stallsWithNpmPeriodPayments.Contains(dc.StallId)
                     && dc.CollectionDate >= complianceStart && dc.CollectionDate <= complianceEnd)
-                .Select(dc => new { dc.StallId, dc.CollectionDate, dc.DailyFee })
+                .Select(dc => new { dc.StallId, dc.CollectionDate, DailyFee = dc.IsPaid ? dc.DailyFee : dc.CanonicalSettledAmount })
                 .ToListAsync(ct))
                 .GroupBy(x => x.StallId)
                 .ToDictionary(
@@ -109,9 +109,9 @@ public partial class FacilityReportsRepository
         var dailyCollectedByStallMonth = includeFish
             ? (await _context.DailyCollections
                     .AsNoTracking()
-                    .Where(dc => stallIds.Contains(dc.StallId) && dc.IsPaid
+                    .Where(dc => stallIds.Contains(dc.StallId) && (dc.IsPaid || dc.CanonicalSettledAmount > 0m)
                         && dc.CollectionDate >= yearStart && dc.CollectionDate <= endDate)
-                    .Select(dc => new { dc.StallId, dc.CollectionDate, dc.DailyFee })
+                    .Select(dc => new { dc.StallId, dc.CollectionDate, DailyFee = dc.IsPaid ? dc.DailyFee : dc.CanonicalSettledAmount })
                     .ToListAsync(ct))
                 .GroupBy(x => x.StallId)
                 .ToDictionary(
@@ -151,12 +151,7 @@ public partial class FacilityReportsRepository
         // Facility-wide NPM market closures in the window excuse EVERY NPM payor for those dates — they
         // are merged into each stall's absent set so the day owes ₱0 and never counts as missed.
         var marketClosedDates = includeFish
-            ? (await _context.NpmMarketClosures
-                    .AsNoTracking()
-                    .Where(c => c.ClosureDate >= yearStart && c.ClosureDate <= endDate)
-                    .Select(c => c.ClosureDate)
-                    .ToListAsync(ct))
-                .ToHashSet()
+            ? await _context.EffectiveNpmClosedDatesAsync(yearStart, endDate, ct)
             : new HashSet<DateOnly>();
 
         // Admin-excused months for monthly facilities (TCC/NCC/BBQ/ICE) overlapping the period — these

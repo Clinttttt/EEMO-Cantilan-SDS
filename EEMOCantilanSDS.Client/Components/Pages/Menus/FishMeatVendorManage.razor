@@ -121,6 +121,7 @@
                 <dt>Status</dt><dd>@d.Status@(d.ClosedOn is { } closed ? $" on {closed.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}" : "")</dd>
                 @if (!string.IsNullOrWhiteSpace(d.CloseNote)) { <dt>Close note</dt><dd>@d.CloseNote</dd> }
             </dl>
+            <NpmVendorLinkedContext VendorId="vendor.Id" TaxYear="vendor.TaxYear" />
             <h3 class="fmm-facts-title">Collected in @MonthLabel</h3>
             <dl class="fmm-facts" aria-label="Monthly collections">
                 <dt>Vendor Fee</dt><dd class="v3-num">@Money(d.VendorFeeCollected)</dd>
@@ -199,7 +200,14 @@
         .Where(x => !HasSearch || new[] { x.Registration.DisplayName, x.Registration.BusinessName, x.Registration.Address }
             .Any(text => text?.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    [SupplyParameterFromQuery(Name = "taxYear")] public int? RequestedYear { get; set; }
+    [SupplyParameterFromQuery(Name = "registrationId")] public Guid? RequestedRegistration { get; set; }
+    protected override async Task OnParametersSetAsync()
+    {
+        _taxYear = RequestedYear is >= 2000 and <= 2200 ? RequestedYear.Value : _taxYear;
+        await LoadAsync();
+        if (RequestedRegistration is { } id) _detail = _rows.SingleOrDefault(x => x.Registration.Id == id);
+    }
 
     private async Task LoadAsync()
     {

@@ -1,0 +1,159 @@
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@inject IMobileApiClient Api
+@implements IDisposable
+
+@* The one way to find a registered source on New Collection: a search over the sources assigned to this collector, narrowed by type, in bounded
+   server-side pages. It lists WHO can be collected from — an occupancy, a space account, a registered vendor — each by its own exact identity, and says
+   nothing about balances or amounts: choosing a source hands it to the editor, where the server states what that source can be collected for.
+   Online only; offline it says so rather than showing stale rows. *@
+<section class="sb" aria-label="Registered sources">
+    <label class="sb-search">
+        <span class="sb-label">Find a registered source</span>
+        <span class="sb-field">
+            <input class="form-input" type="search" autocomplete="off" enterkeyhint="search" placeholder="Name, stall or space" aria-label="Search registered sources"
+                   value="@_search" @oninput="OnInput" @onkeydown="OnKeyAsync" />
+            @if (_search.Length > 0) { <button class="sb-clear" type="button" aria-label="Clear search" @onclick="ClearAsync">×</button> }
+        </span>
+    </label>
+
+    @if (_categories.Count > 1)
+    {
+        <div class="sb-filter" role="group" aria-label="Source type">
+            <button type="button" class="sb-chip @(_category == "" ? "on" : "")" aria-pressed="@(_category == "" ? "true" : "false")" @onclick='() => ChooseAsync("")'>All</button>
+            @foreach (var category in _categories)
+            {
+                var key = category.Key;
+                <button type="button" class="sb-chip @(_category == key ? "on" : "")" aria-pressed="@(_category == key ? "true" : "false")" @onclick="() => ChooseAsync(key)">@category.Label</button>
+            }
+        </div>
+    }
+
+    @if (_loading && _rows.Count == 0)
+    {
+        <p class="sb-note" role="status">@(_search.Length > 0 ? "Searching…" : "Loading registered sources…")</p>
+    }
+    else if (_failed && _rows.Count == 0)
+    {
+        <p class="sb-note" role="status">Connect to browse registered sources.</p>
+        <button type="button" class="sb-more" @onclick="() => LoadAsync(reset: true)">Try again</button>
+    }
+    else if (_rows.Count == 0)
+    {
+        <p class="sb-note" role="status">@(_search.Length > 0 ? $"No registered source matches “{_search}”." : $"No registered sources are assigned to you{(_category == "" ? "" : " in this group")}.")</p>
+    }
+    else
+    {
+        <div class="sb-list" role="list" aria-busy="@(_loading ? "true" : "false")">
+            @foreach (var source in _rows)
+            {
+                <button type="button" class="sb-row payer-option" role="listitem" @key="source.Identity" @onclick="() => OnSelect.InvokeAsync(source)">
+                    <span class="sb-text"><strong>@source.DisplayName</strong><small>@source.Context</small></span>
+                    <span class="sb-go" aria-hidden="true">›</span>
+                </button>
+            }
+        </div>
+        <p class="sb-count" role="status">@_rows.Count of @_total</p>
+        @if (!_exhausted && _skip < _total)
+        {
+            <button type="button" class="sb-more" disabled="@_loading" @onclick="() => LoadAsync(reset: false)">@(_loading ? "Loading…" : "Show more")</button>
+        }
+    }
+
+    @* A walk-up payer who is on no register: the typed name is receipt evidence only and creates no source. Offered only where direct collection is allowed. *@
+    @if (DirectAllowed && !_loading && !_failed && _rows.Count == 0 && _search.Trim().Length >= 2)
+    {
+        <button type="button" class="sb-row payer-option sb-direct" @onclick="() => OnDirect.InvokeAsync(_search.Trim())">
+            <span class="sb-text"><strong>Continue with payer name</strong><small>@_search.Trim()</small></span><span class="sb-go" aria-hidden="true">›</span>
+        </button>
+    }
+</section>
+
+@code {
+    private const int PageSize = 25;
+
+    /// <summary>The source the collector chose. The editor takes it from here exactly as it does a found source.</summary>
+    [Parameter, EditorRequired] public EventCallback<CollectionSourceSearchResult> OnSelect { get; set; }
+
+    /// <summary>Whether a typed name with no match may continue as a direct collection (the operations the server allows without a source).</summary>
+    [Parameter] public bool DirectAllowed { get; set; }
+
+    [Parameter] public EventCallback<string> OnDirect { get; set; }
+
+    private IReadOnlyList<CollectionSourceCategoryDto> _categories = [];
+    private readonly List<CollectionSourceSearchResult> _rows = [];
+    private string _category = "", _search = "";
+    private int _total, _skip;
+    private bool _loading, _failed, _exhausted;
+    private int _generation;
+    private CancellationTokenSource? _delay;
+
+    protected override Task OnInitializedAsync() => LoadAsync(reset: true);
+
+    private Task ChooseAsync(string category)
+    {
+        if (category == _category) return Task.CompletedTask;
+        _category = category;       // the query is kept: the collector narrows the same search by type
+        return LoadAsync(reset: true);
+    }
+
+    // Typing searches the server after a short pause; a newer keystroke, category or clear supersedes any answer still on its way.
+    private void OnInput(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? "";
+        _generation++;              // an answer to the previous text is stale from this keystroke on, not from when the pause ends
+        _loading = true;
+        _delay?.Cancel();
+        _delay = new CancellationTokenSource();
+        _ = DebouncedAsync(_delay.Token);
+    }
+
+    private async Task DebouncedAsync(CancellationToken token)
+    {
+        try { await Task.Delay(300, token); } catch (OperationCanceledException) { return; }
+        await InvokeAsync(() => LoadAsync(reset: true));
+    }
+
+    private async Task OnKeyAsync(KeyboardEventArgs args)
+    {
+        if (args.Key != "Enter") return;
+        _delay?.Cancel();
+        await LoadAsync(reset: true);
+    }
+
+    private Task ClearAsync()
+    {
+        _delay?.Cancel();
+        _search = "";
+        return LoadAsync(reset: true);
+    }
+
+    private async Task LoadAsync(bool reset)
+    {
+        var generation = ++_generation;
+        var term = _search.Trim();
+        _loading = true; _failed = false;
+        if (reset) { _rows.Clear(); _skip = 0; _exhausted = false; }
+        StateHasChanged();
+        try
+        {
+            var response = await Api.BrowseCollectionSourcesAsync(_category == "" ? null : _category, term.Length == 0 ? null : term, _skip, PageSize);
+            if (generation != _generation) return;      // a newer choice has superseded this answer
+            if (response is { IsSuccess: true, Value: { } page })
+            {
+                _categories = page.Categories;
+                _total = page.Total;
+                _skip += page.Items.Count;              // the server position, so a dropped repeat never shifts the next page
+                _exhausted = page.Items.Count == 0;     // an empty page ends paging even when filtered repeats leave the shown count under the total
+                // A page never repeats a row the collector already sees, whatever the server's ordering did in between.
+                var known = _rows.Select(x => x.Identity).ToHashSet();
+                _rows.AddRange(page.Items.Where(x => known.Add(x.Identity)));
+            }
+            else _failed = true;
+        }
+        catch { if (generation == _generation) _failed = true; }
+        finally { if (generation == _generation) { _loading = false; StateHasChanged(); } }
+    }
+
+    public void Dispose() => _delay?.Cancel();
+}

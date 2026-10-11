@@ -1,4 +1,5 @@
 ﻿using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Caching;
@@ -66,6 +67,7 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
             service.AddScoped<ICollectionSessionStore, Repositories.Revenue.CollectionSessionStore>();
             service.AddScoped<ICollectionSessionSources, Repositories.Revenue.CollectionSessionSources>();
+            service.AddScoped<IBackEntryReconciliationReader, Repositories.Revenue.BackEntryReconciliationReader>();
             service.AddScoped<IUnitOfWork, UnitOfWork>();
             // The NPM poster uses the same scoped context as the repositories and application workflows:
             // the day rows and canonical Collection commit together or not at all.
@@ -86,6 +88,16 @@ namespace EEMOCantilanSDS.Infrastructure
                 sp.GetRequiredService<Application.Common.Interface.Services.ICurrentUserService>(),
                 sp.GetRequiredService<Application.Common.Interface.Time.IClock>(),
                 sp.GetRequiredService<IEemoCacheInvalidator>(), sp.GetRequiredService<Application.Common.Tenancy.ITenantContext>()));
+            service.AddScoped(sp => new Application.Common.Revenue.NpmPartPaymentWorkflow(
+                sp.GetRequiredService<Application.Common.Interface.Persistence.IStallRepository>(),
+                sp.GetRequiredService<Application.Common.Interface.Persistence.ICollectorRepository>(),
+                sp.GetRequiredService<Application.Common.Interface.Persistence.IDailyCollectionRepository>(),
+                sp.GetRequiredService<Application.Common.Payments.INpmMonthSettlementService>(),
+                sp.GetRequiredService<Application.Common.Revenue.NpmDailyCanonicalPoster>(),
+                sp.GetRequiredService<Application.Common.Interface.Services.ICurrentUserService>(),
+                sp.GetRequiredService<Application.Common.Interface.Time.IClock>(),
+                sp.GetRequiredService<IEemoCacheInvalidator>(), sp.GetRequiredService<Application.Common.Tenancy.ITenantContext>(),
+                new Application.Common.Revenue.NpmPartPaymentOptions(configuration.GetValue<bool>("StallTrack:NpmPartPayments:Enabled"))));
             return service;
         }
 
@@ -173,6 +185,7 @@ namespace EEMOCantilanSDS.Infrastructure
 
             service.AddScoped<IStallMonthlyExceptionRepository, StallMonthlyExceptionRepository>();
             service.AddScoped<INpmMarketClosureRepository, NpmMarketClosureRepository>();
+            service.AddScoped<INpmOperatingScheduleRepository, NpmOperatingScheduleRepository>();
             service.AddScoped<IVendorRepository, VendorRepository>();
             service.AddScoped<ITpmRepository, TpmRepository>();
             service.AddScoped<ITrmRepository, TrmRepository>();

@@ -21,5 +21,9 @@ public enum CollectionSourceKind
     /// <summary>Additional direct vendor fee; source is the existing NPM stall/vendor, with no monthly allocation.</summary>
     FishMeatVendorFee = 12,
     FishMeatVendorRegistration = 13,
-    TerminalSection = 14
+    TerminalSection = 14,
+    /// <summary>Settlement of an existing governed fine assessment, never a penalty-definition version.</summary>
+    FineAssessment = 15,
+    /// <summary>Immediate fine cash under reviewed no-registration authority. SourceId is DirectFineAuthority.Id; no receivable.</summary>
+    DirectFineCollection = 16
 }
