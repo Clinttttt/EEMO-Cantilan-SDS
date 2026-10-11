@@ -111,7 +111,8 @@ jobs:
           # tell", which is treated as a schema change. Being wrong that way costs one dump; being wrong the
           # other way costs the database.
           BEFORE="${{ github.event.before }}"
-          MIGRATIONS_PATH="EEMOCantilanSDS.Infrastructure/Migrations"
+          # Every EF Core migration location is covered (the historical Migrations folder with the model snapshot AND
+          # Persistence/Migrations), plus any other migration-, designer- or snapshot-shaped path: see the script.
 
           if [ -z "${BEFORE:-}" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
             echo "Cannot determine what changed (manual run, or the previous commit is unavailable)."
@@ -120,7 +121,7 @@ jobs:
             exit 0
           fi
 
-          CHANGED=$(git diff --name-only "$BEFORE" "${GITHUB_SHA}" -- "$MIGRATIONS_PATH" || true)
+          CHANGED=$(bash .github/scripts/detect-schema-change.sh "$BEFORE" "${GITHUB_SHA}")
 
           if [ -n "$CHANGED" ]; then
             echo "Migration files in this deployment:"
