@@ -2,8 +2,11 @@
 @page "/overview"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Dtos.Dashboard
+@using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Client.Components.Pages.Reports
+@using EEMOCantilanSDS.Client.Services
 @inject IDashboardApiClient DashboardApi
+@inject IOfficialReportsApiClient OfficialReports
 <PageTitle>StallTrack — Dashboard</PageTitle>
 
 <header class="topbar">
@@ -46,63 +49,222 @@
                     </svg>
                 </Icon>
                 <Figures>
-                    <V3HeroFigure Label="Collected" Value="@($"₱{TotalCollected:N0}")" Note="@_now.ToString("MMMM yyyy")" />
-                    <V3HeroFigure Label="Outstanding" Value="@($"₱{TotalPending:N0}")" Note="@($"{UnpaidCount} accounts")" />
-                    <V3HeroFigure Label="Payments" Value="@PaidCount.ToString()" Note="@($"{ActiveFacilitiesCount} operation{(ActiveFacilitiesCount == 1 ? "" : "s")}")" />
-                    <V3HeroFigure Label="Collection rate" Value="@($"{CollectionRate}%")" Note="@($"{TotalCollectors} active collectors")" />
+                    @* Each figure states what it covers. Collected is the official total for every revenue source; the other three are
+                       measured only where the office holds an obligation or a payment record (stall facilities). *@
+                    <V3HeroFigure Label="Collected" Value="@OfficialCollectedValue" Note="@OfficialCollectedNote" />
+                    <V3HeroFigure Label="Outstanding rent" Value="@($"₱{TotalPending:N0}")" Note="@($"{UnpaidCount} stall account{(UnpaidCount == 1 ? "" : "s")} · facility rentals only")" />
+                    <V3HeroFigure Label="Facility payments" Value="@PaidCount.ToString()" Note="@($"{ActiveFacilitiesCount} facilit{(ActiveFacilitiesCount == 1 ? "y" : "ies")} · not every source")" />
+                    <V3HeroFigure Label="Facility collection rate" Value="@($"{CollectionRate}%")" Note="@($"stall rentals · {TotalCollectors} active collectors")" />
                 </Figures>
             </V3Hero>
 
-            @* The complete revenue universe, from the same server projection Financial Reports uses (one source list, not two).
-               Rendered once the page is interactive, so prerendering does not read it twice. *@
-            @if (RendererInfo.IsInteractive)
-            {
-                <RevenueSourcePerformancePanel Year="_now.Year" Month="_now.Month" OverviewMode="true" />
-            }
-
-            <!-- Operations overview -->
+            <!-- One managerial region, two views: operational monitoring, or the official revenue source performance -->
             <div class="section-header">
                 <div class="section-title-block">
-                    <div class="section-eyebrow">Operations</div>
-                    <div class="section-heading">Operations overview — @_now.ToString("MMMM yyyy")</div>
+                    <div class="section-heading" id="dash-view-heading">@(_view == ViewRevenue ? "Revenue source performance" : "Operations overview") — @_now.ToString("MMMM yyyy")</div>
                 </div>
                 <div class="section-header-actions">
                     <div class="dashboard-report-tabs" role="group" aria-label="Dashboard report actions">
                         <a href="/reports/month-end" class="dashboard-report-tab">Monthly Collection Report</a>
                         <a href="/reports/collections" class="dashboard-report-tab">Collection Manager</a>
                         <a href="/reports/follow-up" class="dashboard-report-tab">Follow-up Queue</a>
-                        <a href="/stall-holders" class="dashboard-report-tab">Holder List</a>
+                        <a href="/stall-holders" class="dashboard-report-tab">Holder Register</a>
                         <a href="/reports/closed-accounts" class="dashboard-report-tab">Closed Accounts</a>
+                    </div>
+                    <div class="dashboard-view-switch" role="group" aria-label="Dashboard view">
+                        <button type="button" class="dashboard-view-tab @(_view == ViewOperations ? "active" : "")" aria-pressed="@(_view == ViewOperations ? "true" : "false")" aria-controls="dash-view-operations" @onclick="() => SelectView(ViewOperations)">Operations</button>
+                        <button type="button" class="dashboard-view-tab @(_view == ViewRevenue ? "active" : "")" aria-pressed="@(_view == ViewRevenue ? "true" : "false")" aria-controls="dash-view-revenue" @onclick="() => SelectView(ViewRevenue)">Revenue sources</button>
                     </div>
                 </div>
             </div>
 
-            @if (_loading)
-            {
-                <div class="facility-grid">
-                    @for (var i = 0; i < 8; i++)
-                    {
-                        <div class="facility-card">
-                            <div class="sk-stack">
-                                <div class="sk-inline">
-                                    <Skeleton Width="42px" Height="42px" Radius="10px" />
-                                    <div class="sk-grow sk-stack-sm">
-                                        <Skeleton Width="48px" Height="11px" />
-                                        <Skeleton Width="75%" Height="14px" Radius="6px" />
+            @* Both views stay mounted once opened and the inactive one is only hidden, so switching never re-reads the
+               Terminal activity or the official source projection and the Revenue source filter keeps its state. *@
+            <div id="dash-view-operations" class="dash-view" hidden="@(_view != ViewOperations)" aria-labelledby="dash-view-heading">
+                @if (_loading)
+                {
+                    <div class="facility-grid">
+                        @for (var i = 0; i < 8; i++)
+                        {
+                            <div class="facility-card">
+                                <div class="sk-stack">
+                                    <div class="sk-inline">
+                                        <Skeleton Width="42px" Height="42px" Radius="10px" />
+                                        <div class="sk-grow sk-stack-sm">
+                                            <Skeleton Width="48px" Height="11px" />
+                                            <Skeleton Width="75%" Height="14px" Radius="6px" />
+                                        </div>
+                                    </div>
+                                    <div class="sk-grid-3">
+                                        <Skeleton Height="40px" Radius="8px" />
+                                        <Skeleton Height="40px" Radius="8px" />
+                                        <Skeleton Height="40px" Radius="8px" />
+                                    </div>
+                                    <Skeleton Height="8px" Radius="999px" />
+                                    <Skeleton Height="38px" Radius="10px" />
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <h3 class="dash-subhead">Facility operations</h3>
+                    <div class="facility-grid">
+                        @foreach (var fac in Facilities)
+                        {
+                            @if (fac.Code == FacilityCode.TRM)
+                            {
+                                <TerminalOverviewCard Year="_now.Year" Month="_now.Month" />
+                                continue;
+                            }
+                            <div class="facility-card @(fac.UnpaidCount > 0 ? "has-alert" : "")">
+                                <div class="facility-card-header">
+                                    <div class="facility-card-icon">
+                                        @* Navy ink here: this tile is light, unlike the sidebar's navy rail. *@
+                                        <FacilityMark Code="fac.Code" Ink="FacilityMarkInk.Navy" Size="20">
+                                            <Fallback>@((MarkupString)(Icons.GetValueOrDefault(fac.Code) ?? DefaultIcon))</Fallback>
+                                        </FacilityMark>
+                                    </div>
+                                    <div class="facility-card-meta">
+                                        <div class="facility-card-code">@fac.ShortName</div>
+                                        <div class="facility-card-name">@fac.Name</div>
+                                        <div class="fac-model-tag">@ModelLabel(fac.Code)</div>
                                     </div>
                                 </div>
-                                <div class="sk-grid-3">
-                                    <Skeleton Height="40px" Radius="8px" />
-                                    <Skeleton Height="40px" Radius="8px" />
-                                    <Skeleton Height="40px" Radius="8px" />
+
+                                <div class="facility-card-stats">
+                                    <div class="fac-stat">
+                                        <div class="fac-stat-val">₱@fac.Collected.ToString("N0")</div>
+                                        <div class="fac-stat-key">Collected</div>
+                                    </div>
+                                    <div class="fac-stat">
+                                        @if (fac.Code == FacilityCode.NPM)
+                                        {
+                                            <div class="fac-stat-val partial-val">@fac.PartialCount</div>
+                                            <div class="fac-stat-key">Partial</div>
+                                        }
+                                        else
+                                        {
+                                            <div class="fac-stat-val paid-val">@fac.PaidCount</div>
+                                            <div class="fac-stat-key">@CountLabel(fac.Code)</div>
+                                        }
+                                    </div>
+                                    <div class="fac-stat">
+                                        <div class="fac-stat-val">@fac.TotalVendors</div>
+                                        <div class="fac-stat-key">@VendorLabel(fac.Code)</div>
+                                    </div>
                                 </div>
-                                <Skeleton Height="8px" Radius="999px" />
-                                <Skeleton Height="38px" Radius="10px" />
+
+                                <div class="facility-progress-wrap">
+                                    <div class="facility-progress-bar">
+                                        <div class="facility-progress-fill" style="width:@fac.CollectionRate%"></div>
+                                    </div>
+                                    <span class="facility-progress-pct">@fac.CollectionRate%</span>
+                                </div>
+
+                                <a href="/facility/@EEMOCantilanSDS.Client.Services.FacilityState.SlugFor(fac.Code, fac.ShortName, Facilities.Select(x => (x.Code, (string?)x.ShortName)))" class="facility-card-btn">
+                                    @ActionLabel(fac.Code)
+                                    <svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18" /></svg>
+                                </a>
                             </div>
+                        }
+                    </div>
+
+                    @* Direct-collection and space operations have no facility register, so they come from the same official source
+                       projection Financial Reports uses. Each card shows only what that source genuinely has — an amount and, when
+                       the server supplies one, a transaction count — never an invented rate or balance. *@
+                    <h3 class="dash-subhead">Direct-collection and other operations</h3>
+                    @if (_sourceLoading)
+                    {
+                        <div class="facility-grid" role="status" aria-label="Loading other operations">
+                            @for (var i = 0; i < 4; i++)
+                            {
+                                <div class="facility-card">
+                                    <div class="sk-stack">
+                                        <div class="sk-inline">
+                                            <Skeleton Width="42px" Height="42px" Radius="10px" />
+                                            <div class="sk-grow sk-stack-sm">
+                                                <Skeleton Width="48px" Height="11px" />
+                                                <Skeleton Width="75%" Height="14px" Radius="6px" />
+                                            </div>
+                                        </div>
+                                        <Skeleton Height="40px" Radius="8px" />
+                                        <Skeleton Height="38px" Radius="10px" />
+                                    </div>
+                                </div>
+                            }
                         </div>
                     }
-                </div>
+                    else if (_source is null)
+                    {
+                        <div class="dash-note dash-note-error" role="alert">
+                            <span>Other operations could not be loaded, so no amount is shown for them.</span>
+                            <button type="button" class="dashboard-view-retry" @onclick="LoadSourcesAsync">Try again</button>
+                        </div>
+                    }
+                    else if (DirectCards.Count == 0)
+                    {
+                        <p class="dash-note" role="status">The official source projection returned no other operations for this period.</p>
+                    }
+                    else
+                    {
+                        <div class="facility-grid">
+                            @foreach (var (op, row) in DirectCards)
+                            {
+                                <div class="facility-card" data-source-key="@row.Key">
+                                    <div class="facility-card-header">
+                                        <div class="facility-card-icon">@((MarkupString)$"<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\">{op.IconMarkup}</svg>")</div>
+                                        <div class="facility-card-meta">
+                                            <div class="facility-card-code">@row.GroupLabel</div>
+                                            <div class="facility-card-name">@row.Label</div>
+                                            <div class="fac-model-tag">@(row.AwaitingPlacement ? "Needs official placement" : DashboardOperations.ModelLabel(row.Model))</div>
+                                        </div>
+                                    </div>
 
+                                    <div class="facility-card-stats">
+                                        <div class="fac-stat">
+                                            <div class="fac-stat-val">₱@row.Collected.ToString("N0")</div>
+                                            <div class="fac-stat-key">Collected</div>
+                                        </div>
+                                        <div class="fac-stat">
+                                            <div class="fac-stat-val" title="@(row.TransactionCount is null ? "A transaction count is not available for this source." : null)">@(row.TransactionCount?.ToString("N0") ?? "—")</div>
+                                            <div class="fac-stat-key">Transactions</div>
+                                        </div>
+                                    </div>
+
+                                    <a href="@op.Route" class="facility-card-btn">
+                                        @op.Action
+                                        <svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18" /></svg>
+                                    </a>
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+
+            @if (_revenueMounted)
+            {
+                <div id="dash-view-revenue" class="dash-view" hidden="@(_view != ViewRevenue)" aria-labelledby="dash-view-heading">
+                    @* The one Revenue source performance table — the same component Financial Reports uses, read-only for targets here.
+                       Interactive only, so prerendering never reads it; the Dashboard's single read is handed in so it is not repeated. *@
+                    @if (RendererInfo.IsInteractive)
+                    {
+                        @if (_sourceLoading)
+                        {
+                            <p class="dash-note" role="status">Loading revenue source performance…</p>
+                        }
+                        else
+                        {
+                            <RevenueSourcePerformancePanel Year="_now.Year" Month="_now.Month" OverviewMode="true" Embedded="true" Preloaded="_source" />
+                        }
+                    }
+                </div>
+            }
+
+            @if (_loading)
+            {
                 <div class="bottom-row">
                     <div class="panel">
                         <div class="panel-header">
@@ -132,67 +294,6 @@
             }
             else
             {
-                <div class="facility-grid">
-                    @foreach (var fac in Facilities)
-                    {
-                        @if (fac.Code == FacilityCode.TRM)
-                        {
-                            <TerminalOverviewCard Year="_now.Year" Month="_now.Month" />
-                            continue;
-                        }
-                        <div class="facility-card @(fac.UnpaidCount > 0 ? "has-alert" : "")">
-                            <div class="facility-card-header">
-                                <div class="facility-card-icon">
-                                    @* Navy ink here: this tile is light, unlike the sidebar's navy rail. *@
-                                    <FacilityMark Code="fac.Code" Ink="FacilityMarkInk.Navy" Size="20">
-                                        <Fallback>@((MarkupString)(Icons.GetValueOrDefault(fac.Code) ?? DefaultIcon))</Fallback>
-                                    </FacilityMark>
-                                </div>
-                                <div class="facility-card-meta">
-                                    <div class="facility-card-code">@fac.ShortName</div>
-                                    <div class="facility-card-name">@fac.Name</div>
-                                    <div class="fac-model-tag">@ModelLabel(fac.Code)</div>
-                                </div>
-                            </div>
-
-                            <div class="facility-card-stats">
-                                <div class="fac-stat">
-                                    <div class="fac-stat-val">₱@fac.Collected.ToString("N0")</div>
-                                    <div class="fac-stat-key">Collected</div>
-                                </div>
-                                <div class="fac-stat">
-                                    @if (fac.Code == FacilityCode.NPM)
-                                    {
-                                        <div class="fac-stat-val partial-val">@fac.PartialCount</div>
-                                        <div class="fac-stat-key">Partial</div>
-                                    }
-                                    else
-                                    {
-                                        <div class="fac-stat-val paid-val">@fac.PaidCount</div>
-                                        <div class="fac-stat-key">@CountLabel(fac.Code)</div>
-                                    }
-                                </div>
-                                <div class="fac-stat">
-                                    <div class="fac-stat-val">@fac.TotalVendors</div>
-                                    <div class="fac-stat-key">@VendorLabel(fac.Code)</div>
-                                </div>
-                            </div>
-
-                            <div class="facility-progress-wrap">
-                                <div class="facility-progress-bar">
-                                    <div class="facility-progress-fill" style="width:@fac.CollectionRate%"></div>
-                                </div>
-                                <span class="facility-progress-pct">@fac.CollectionRate%</span>
-                            </div>
-
-                            <a href="/facility/@EEMOCantilanSDS.Client.Services.FacilityState.SlugFor(fac.Code, fac.ShortName, Facilities.Select(x => (x.Code, (string?)x.ShortName)))" class="facility-card-btn">
-                                @ActionLabel(fac.Code)
-                                <svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18" /></svg>
-                            </a>
-                        </div>
-                    }
-                </div>
-
                 <!-- Bottom Row -->
                 <div class="bottom-row">
 
@@ -273,8 +374,18 @@
 
 
 @code {
+    private const string ViewOperations = "operations";
+    private const string ViewRevenue = "revenue";
+
     private bool _loading = true;
     private readonly DateTime _now = EEMOCantilanSDS.Domain.Common.PhilippineTime.Now;
+
+    // Which view the shared section shows. The Revenue view is mounted lazily on first selection and then kept, so the
+    // official projection is read once for the whole page (hero, cards and table) and the table keeps its filter.
+    private string _view = ViewOperations;
+    private bool _revenueMounted;
+    private RevenueSourcePerformanceDto? _source;
+    private bool _sourceLoading = true;
 
     [PersistentState(AllowUpdates = true)]
     public DashboardOverviewDto? DashboardData { get; set; }
@@ -318,13 +429,39 @@
         }
     }
 
+    // The official source projection is read once the page is interactive (never while prerendering, which runs
+    // OnInitializedAsync twice) and shared by the hero, the operation cards and the Revenue sources table.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && RendererInfo.IsInteractive) await LoadSourcesAsync();
+    }
+
+    private async Task LoadSourcesAsync()
+    {
+        _sourceLoading = true;
+        StateHasChanged();
+        try
+        {
+            var result = await OfficialReports.GetSourcePerformanceAsync(_now.Year, _now.Month);
+            _source = result is { IsSuccess: true, Value: not null } ? result.Value : null;
+        }
+        catch { _source = null; }
+        finally { _sourceLoading = false; }
+        StateHasChanged();
+    }
+
+    private void SelectView(string view)
+    {
+        _view = view;
+        if (view == ViewRevenue) _revenueMounted = true;
+    }
+
     private async Task PaintLoadingStateAsync()
     {
         await InvokeAsync(StateHasChanged);
         await Task.Yield();
     }
 
-    private decimal TotalCollected => DashboardData?.TotalCollected ?? 0;
     private decimal TotalPending => DashboardData?.TotalPending ?? 0;
     private int UnpaidCount => DashboardData?.UnpaidCount ?? 0;
     private int PaidCount => DashboardData?.PaidCount ?? 0;
@@ -334,6 +471,13 @@
     private IReadOnlyList<DashboardFacilityDto> Facilities => DashboardData?.Facilities ?? [];
     private IReadOnlyList<DashboardTransactionDto> RecentTransactions => DashboardData?.RecentTransactions ?? [];
     private IReadOnlyList<DashboardDelinquentDto> DelinquentVendors => DashboardData?.DelinquentVendors ?? [];
+    private IReadOnlyList<(DashboardOperations.Entry Entry, RevenueSourcePerformanceRowDto Row)> DirectCards => DashboardOperations.CardsFor(_source);
+
+    // Collected is the official all-source total (legacy before cutover plus canonical after it, once) — the same figure the Revenue
+    // sources table totals. A failed read is "unavailable", never a zero; the facility sum is no longer presented as the office total.
+    private string OfficialCollectedValue => _source is { } source ? $"₱{source.TotalCollected:N0}" : "—";
+    private string OfficialCollectedNote => _source is not null ? $"{_now:MMMM yyyy} · all revenue sources"
+        : _sourceLoading ? "Loading official total…" : "Official total unavailable";
 
     // ── Model-aware card presentation (derived from the facility code) ──
     private static string ModelLabel(FacilityCode c) => c switch

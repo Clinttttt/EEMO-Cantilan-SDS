@@ -29,7 +29,7 @@
     else
     {
         <div class="rsp-head">
-            <div class="rsp-head-copy">
+            <div class="rsp-head-copy @(Embedded ? "v3-sr-only" : "")">
                 <h2 id="rsp-title" class="rsp-title">Revenue source performance — @PeriodLabel</h2>
                 <div class="rsp-sub">Official collections and operating activity by revenue source for the selected period.</div>
             </div>
@@ -177,6 +177,15 @@
     /// <summary>Keeps Annual target read-only on Overview; Reports enables the existing authorized target editor.</summary>
     [Parameter] public bool OverviewMode { get; set; }
 
+    /// <summary>
+    /// The same official projection, already read by a host page for this period (the Dashboard reads it once for its hero,
+    /// its operation cards and this table). Used instead of a second request; a mismatched period is ignored.
+    /// </summary>
+    [Parameter] public RevenueSourcePerformanceDto? Preloaded { get; set; }
+
+    /// <summary>The host already titles this table (the Dashboard's section header): keep the heading for screen readers and show only the filter.</summary>
+    [Parameter] public bool Embedded { get; set; }
+
     /// <summary>The facility register's rows for the same period: the only place balances and coverage are measured.</summary>
     [Parameter] public IReadOnlyList<FinancialFacilityRowDto>? Facilities { get; set; }
 
@@ -234,8 +243,14 @@
         if (_loadedYear == Year && _loadedMonth == Month && (_data is not null || _error is not null)) return;
         _loadedYear = Year;
         _loadedMonth = Month;
-        _loading = true;
         _error = null;
+        if (Preloaded is { } shared && shared.Year == Year && shared.Month == Month)
+        {
+            _data = shared;
+            await OnCoverage.InvokeAsync(_data.TargetCoverage);
+            return;
+        }
+        _loading = true;
         try
         {
             var result = await Api.GetSourcePerformanceAsync(Year, Month);

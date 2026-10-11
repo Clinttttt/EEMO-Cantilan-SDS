@@ -569,3 +569,119 @@ a.dashboard-report-tab:hover {
 @media (max-width: 1100px) {
     .section-title-block .section-heading { white-space: normal; }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   ONE MANAGERIAL REGION, TWO VIEWS (Operations | Revenue sources)
+   A local view selector beside the report shortcuts — not navigation. Both views stay mounted; the inactive one is hidden.
+   ══════════════════════════════════════════════════════════════ */
+
+.dashboard-view-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    background: var(--surface);
+}
+
+.dashboard-view-tab {
+    min-height: 38px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color .15s ease, color .15s ease;
+}
+
+.dashboard-view-tab:hover { background: var(--accent-soft); color: var(--accent-hover); }
+.dashboard-view-tab.active { background: var(--accent); color: var(--surface); }
+.dashboard-view-tab:focus-visible,
+.dashboard-view-retry:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* The visible view fades in with a slight rise over a short, fixed time. Only opacity and a small transform move, so no height
+   is animated and the scroll position holds. */
+.dash-view { animation: dash-view-in 220ms ease-out; }
+.dash-view[hidden] { display: none; }
+
+@keyframes dash-view-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+}
+
+.dash-subhead {
+    margin: 0 0 10px;
+    color: var(--text-tertiary);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.dash-note {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    margin: 0 0 28px;
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.dash-note-error { border-color: color-mix(in srgb, var(--red) 30%, var(--border)); background: var(--red-bg); color: var(--red); }
+
+.dashboard-view-retry {
+    min-height: 34px;
+    padding: 0 14px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--navy);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.dashboard-view-retry:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+
+/* One toolbar: the report shortcuts, then the view switch straight after the last of them. The heading takes the first line when
+   the toolbar needs the width; the toolbar itself never wraps, so the switch stays beside Closed Accounts, and scrolls sideways
+   inside its own row rather than clipping or widening the page. */
+.section-header { flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+.section-header-actions { flex: 1 1 auto; flex-wrap: nowrap; justify-content: flex-end; align-items: center; gap: 10px; overflow-x: auto; scrollbar-width: thin; }
+.dashboard-report-tabs { flex-wrap: nowrap; flex-shrink: 0; }
+.dashboard-report-tab { flex-shrink: 0; }
+.dashboard-view-switch { flex-shrink: 0; height: 48px; box-sizing: border-box; }
+
+@media (max-width: 1280px) {
+    .section-header-actions { justify-content: flex-start; flex-basis: 100%; }
+}
+
+@media (max-width: 768px) {
+    /* The app shell stacks the header in a column; both rows take the full width so the heading wraps and the toolbar scrolls. */
+    .section-header { align-items: stretch; }
+    .section-title-block, .section-header-actions { width: 100%; min-width: 0; }
+    .section-title-block .section-heading { white-space: normal; }
+}
+
+@media (max-width: 600px) {
+    /* Shortcuts and switch share one scrolling row; labels keep their size. */
+    .dashboard-report-tab { flex: 0 0 auto; padding: 0 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dash-view { animation: none; }
+    .dashboard-view-tab { transition: none; }
+}

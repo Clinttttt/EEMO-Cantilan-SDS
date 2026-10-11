@@ -28,6 +28,9 @@ public sealed class TerminalOverviewCardTests : TestContext
         cut.WaitForAssertion(()=>Assert.Contains("₱70",cut.Markup));
         Assert.Equal(new[]{"₱70","1"},cut.FindAll("dd").Select(x=>x.TextContent));
         Assert.Equal("/operations/terminal",cut.Find("a").GetAttribute("href"));
+        // IFT is the visible acronym; the persisted FacilityCode.TRM and the Terminal route are unchanged.
+        Assert.Equal("IFT",cut.Find("small").TextContent); Assert.Equal("Income From Terminal",cut.Find("strong").TextContent);
+        Assert.DoesNotContain("TRM",cut.Markup);
         Assert.DoesNotContain("Trips",cut.Markup); Assert.DoesNotContain("Drivers",cut.Markup); Assert.DoesNotContain("%",cut.Markup);
         Export("terminal-overview",cut.Markup);
     }
