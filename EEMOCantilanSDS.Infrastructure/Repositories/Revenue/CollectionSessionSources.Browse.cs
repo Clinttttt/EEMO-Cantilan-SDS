@@ -43,29 +43,28 @@ public sealed partial class CollectionSessionSources
         var wanted = string.IsNullOrWhiteSpace(category) || category == "all" ? available : available.Where(c => c == category).ToList();
         if (wanted.Count == 0) return new CollectionSourcePage([], 0, categories);
 
-        // One category pages in the database. Several are merged by name, so each contributes its first (skip + take) rows.
-        var single = wanted.Count == 1;
-        var from = single ? skip : 0;
-        var count = single ? take : skip + take;
+        // "All" is the categories in their fixed order, each in its OWN stable order. Nothing is merged across categories by name, so no
+        // collation difference (punctuation, accents) can move a row across a page boundary: the skip is simply walked through the categories'
+        // totals, and each category is asked only for the part of the window that falls inside it.
         var rows = new List<CollectionSourceSearchResult>();
         var total = 0;
+        var skipLeft = skip;
+        var takeLeft = take;
         foreach (var key in wanted)
         {
             var (items, n) = key switch
             {
-                CollectionSourceCategories.FishMeat => await FishMeatPageAsync(term, from, count, today, ct),
-                CollectionSourceCategories.Npm => await OccupancyPageAsync(term, facilities.Where(f => f == FacilityCode.NPM).ToList(), from, count, today, ct),
-                CollectionSourceCategories.Rentals => await OccupancyPageAsync(term, facilities.Where(f => f != FacilityCode.NPM).ToList(), from, count, today, ct),
-                _ => await SpacePageAsync(term, spaceKinds, from, count, today, ct),
+                CollectionSourceCategories.FishMeat => await FishMeatPageAsync(term, skipLeft, takeLeft, today, ct),
+                CollectionSourceCategories.Npm => await OccupancyPageAsync(term, facilities.Where(f => f == FacilityCode.NPM).ToList(), skipLeft, takeLeft, today, ct),
+                CollectionSourceCategories.Rentals => await OccupancyPageAsync(term, facilities.Where(f => f != FacilityCode.NPM).ToList(), skipLeft, takeLeft, today, ct),
+                _ => await SpacePageAsync(term, spaceKinds, skipLeft, takeLeft, today, ct),
             };
             rows.AddRange(items);
             total += n;
+            skipLeft = Math.Max(0, skipLeft - n);
+            takeLeft -= items.Count;
         }
-
-        var page = single
-            ? rows.OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Identity.Kind).ThenBy(x => x.Identity.Id)
-            : rows.OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Identity.Kind).ThenBy(x => x.Identity.Id).Skip(skip).Take(take);
-        return new CollectionSourcePage(page.ToArray(), total, categories);
+        return new CollectionSourcePage(rows, total, categories);
     }
 
     private static List<ObligationKind> SpaceKindsFor(IReadOnlyCollection<string> assigned)
@@ -88,25 +87,39 @@ public sealed partial class CollectionSessionSources
             x.VendorType + " · " + x.TaxYear, CollectorOperationCodes.FishMeatVendorFee, x.TaxYear, x.VendorType)).ToArray(), total);
     }
 
-    // Occupancies of the assigned facilities: the lessee actually answering for the stall this month, by the stall's own rule.
+    // Occupancies of the assigned facilities: the lessee actually answering for the stall this month, by the stall's own rule. The page is cut
+    // AFTER that rule is applied, so the total and the paging describe exactly the rows a collector can be shown — a stall whose old contract
+    // matched but whose current occupant does not, or a vacant stall, is never counted. The candidate set is bounded by the assigned facilities.
     private async Task<(IReadOnlyList<CollectionSourceSearchResult>, int)> OccupancyPageAsync(
         string term, IReadOnlyCollection<FacilityCode> facilities, int skip, int take, DateOnly today, CancellationToken ct)
     {
         if (facilities.Count == 0) return ([], 0);
-        var query = db.Stalls.AsNoTracking().Where(x => x.MunicipalityId == Tenant && facilities.Contains(x.Facility!.Code)
-            && x.Contracts.Any(c => c.IsActive && c.ActualOccupant != null && (term == "" || c.ActualOccupant.ToLower().Contains(term))));
-        var total = await query.CountAsync(ct);
-        var stalls = await query.Include(x => x.Facility).Include(x => x.Contracts)
-            .OrderBy(x => x.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault()).ThenBy(x => x.StallNo).ThenBy(x => x.Id)
-            .Skip(skip).Take(take).ToListAsync(ct);
-        var results = new List<CollectionSourceSearchResult>();
-        foreach (var stall in stalls)
+        // The rule needs a stall's whole contract history, so stalls are read in fixed-size keyset chunks and only the small result rows are kept:
+        // memory is bounded by the matches, not by every stall graph, and the order of the chunks never affects the answer.
+        const int Chunk = 200;
+        var candidates = db.Stalls.AsNoTracking()
+            .Where(x => x.MunicipalityId == Tenant && facilities.Contains(x.Facility!.Code)
+                && (term == "" || x.StallNo.ToLower().Contains(term)
+                    || x.Contracts.Any(c => c.ActualOccupant != null && c.ActualOccupant.ToLower().Contains(term))));
+        var rows = new List<CollectionSourceSearchResult>();
+        var after = Guid.Empty;
+        while (true)
         {
-            var occupancy = stall.OccupancyAnsweringForMonth(today.Year, today.Month, today)?.Contract;
-            if (occupancy?.ActualOccupant is { } name && (term == "" || name.ToLowerInvariant().Contains(term)))
-                results.Add(new(new(SourceIdentityKind.Occupancy, occupancy.Id), name, $"{stall.Facility!.Name} · Stall {stall.StallNo}", "FACILITY_" + stall.Facility.Code));
+            var stalls = await candidates.Where(x => x.Id.CompareTo(after) > 0).OrderBy(x => x.Id).Take(Chunk)
+                .Include(x => x.Facility).Include(x => x.Contracts).ToListAsync(ct);
+            if (stalls.Count == 0) break;
+            foreach (var stall in stalls)
+            {
+                var occupancy = stall.OccupancyAnsweringForMonth(today.Year, today.Month, today)?.Contract;
+                if (occupancy?.ActualOccupant is { } name
+                    && (term == "" || name.ToLowerInvariant().Contains(term) || stall.StallNo.ToLowerInvariant().Contains(term)))
+                    rows.Add(new(new(SourceIdentityKind.Occupancy, occupancy.Id), name, $"{stall.Facility!.Name} · Stall {stall.StallNo}", "FACILITY_" + stall.Facility.Code));
+            }
+            after = stalls[^1].Id;
         }
-        return (results, total);
+        var ordered = rows.OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(x => x.Identity.Id).ToList();
+        return (ordered.Skip(skip).Take(take).ToArray(), ordered.Count);
     }
 
     // Source-owned space accounts that are open today, for the operations this collector is assigned to.

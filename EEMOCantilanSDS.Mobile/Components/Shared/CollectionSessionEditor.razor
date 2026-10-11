@@ -59,7 +59,7 @@ else if (_queued)
 }
 else
 {
-    @if (OnlyOperation != CollectorOperationCodes.Terminal)
+    @if (OnlyOperation != CollectorOperationCodes.Terminal && !BrowserMode)
     {
     <section class="collection-entry collection-payer">
         <h2>@(SourceHeading)</h2>
@@ -124,7 +124,7 @@ else
             @if (_items.Count > 0) { <p>Record or remove current items before switching sources.</p> }
         </section>
     }
-@* The landing: the registered sources assigned to this collector, by type. Today's collections and their corrections live in Records. *@    @if (BrowserMode && !_suggestOpen)    {        <SourceBrowser OnSelect="SelectBrowsedAsync" />        <div class="collection-source-actions landing-actions">            @if (DirectAllowed) { <button class="collection-small" type="button" @onclick="() => StartDirectAsync(string.Empty)">Direct collection</button> }            <button class="collection-small" type="button" @onclick='() => Navigation.NavigateTo("/records")'>Records</button>        </div>    }
+@* The landing: the registered sources assigned to this collector, by type. Today's collections and their corrections live in Records. *@    @if (BrowserMode)    {        <SourceBrowser OnSelect="SelectBrowsedAsync" DirectAllowed="DirectAllowed" OnDirect="StartDirectAsync" />        <div class="collection-source-actions landing-actions">            @if (DirectAllowed) { <button class="collection-small" type="button" @onclick="() => StartDirectAsync(string.Empty)">Direct collection</button> }            <button class="collection-small" type="button" @onclick='() => Navigation.NavigateTo("/records")'>Records</button>        </div>    }
     @if (_source is not null || _direct)
     {
         <section class="collection-entry">
@@ -183,9 +183,17 @@ else
                 <CorrectionReason Value="_reason" ValueChanged="ReasonChanged" />
             </section>
         }
-        <div class="collection-actions">
-            <button class="collection-secondary" type="button" disabled="@(_busy || _items.Count == 0)" @onclick="ReviewAsync">Review collection</button>
-            <button class="collection-primary" type="button" disabled="@(_busy || _quote?.CanRecord != true || Sync.HasStorageFault || (Correction is not null && !Sync.IsOnline))" @onclick="RecordAsync">@(Correction is null ? "Record collection" : "Save changes")</button>
+        @* One primary action that follows the state: review the items first, then confirm. Changing an item discards the reviewed quote, so the
+           action returns to Review and nothing is ever confirmed against a stale quote. *@
+        <div class="collection-actions collection-actions-one">
+            @if (_quote is null)
+            {
+                <button class="collection-primary" type="button" disabled="@(_busy || _items.Count == 0)" @onclick="ReviewAsync">Review collection</button>
+            }
+            else
+            {
+                <button class="collection-primary" type="button" disabled="@(_busy || _quote.CanRecord != true || Sync.HasStorageFault || (Correction is not null && !Sync.IsOnline))" @onclick="RecordAsync">@(Correction is null ? "Record collection" : "Save changes")</button>
+            }
         </div>
         @if (OnlyOperation == CollectorOperationCodes.Terminal) { <RecentCollections OnlyOperation="@CollectorOperationCodes.Terminal" Heading="Today's Terminal collections" /> }
     }
@@ -198,7 +206,7 @@ else
         <section class="sheet sheet-flex" role="dialog" aria-modal="true" aria-label="Add item" @onclick:stopPropagation="true">
             <div class="sheet-handle"></div>
             <header class="sheet-head">
-                <h2 class="sheet-title">Add item</h2>
+                <h2 class="sheet-title">Select charges</h2>
                 <div class="sheet-context">@(_operation is null ? SourceName : _operation.DisplayName + (SourceName is { Length: > 0 } ? " · " + SourceName : ""))</div>
             </header>
             <div class="sheet-body">

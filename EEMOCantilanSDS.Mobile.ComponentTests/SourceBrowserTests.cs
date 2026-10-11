@@ -106,6 +106,158 @@ public sealed class SourceBrowserTests : TestContext
         cut.WaitForAssertion(() => Assert.Contains("No registered sources are assigned to you", cut.Markup));
         Assert.Empty(cut.FindAll(".sb-chip"));
     }
+
+    private IRenderedComponent<SourceBrowser> Render(bool directAllowed = false, Action<string>? onDirect = null) => RenderComponent<SourceBrowser>(p => p
+        .Add(x => x.OnSelect, EventCallback.Factory.Create<CollectionSourceSearchResult>(this, _ => { }))
+        .Add(x => x.DirectAllowed, directAllowed)
+        .Add(x => x.OnDirect, EventCallback.Factory.Create<string>(this, s => onDirect?.Invoke(s))));
+
+    [Fact]
+    public void TypingSearchesTheServer_AfterAPause_AndKeepsTheChosenType()
+    {
+        Serve(null, [Row(Vendor, "Pantom Dant", "Meat · 2026"), Row(Stall, "Ana Reyes", "New Public Market · Stall 1")], 2);
+        _api.Setup(x => x.BrowseCollectionSourcesAsync("npm", "ana", 0, 25)).ReturnsAsync(Result<CollectionSourcePage>.Success(new([Row(Stall, "Ana Reyes", "New Public Market · Stall 1")], 1, Categories)));
+        var cut = Render();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll(".sb-row").Count));
+        cut.FindAll(".sb-chip").Single(c => c.TextContent.Trim() == "NPM").Click();
+
+        cut.Find("input[type=search]").Input("ana");
+
+        cut.WaitForAssertion(() => _api.Verify(x => x.BrowseCollectionSourcesAsync("npm", "ana", 0, 25), Times.Once), TimeSpan.FromSeconds(3));
+        cut.WaitForAssertion(() => Assert.Equal("Ana Reyes", cut.Find(".sb-row strong").TextContent.Trim()));
+        // Changing the type afterwards keeps the query instead of silently dropping it.
+        _api.Setup(x => x.BrowseCollectionSourcesAsync(null, "ana", 0, 25)).ReturnsAsync(Result<CollectionSourcePage>.Success(new([Row(Stall, "Ana Reyes", "New Public Market · Stall 1")], 1, Categories)));
+        cut.FindAll(".sb-chip").Single(c => c.TextContent.Trim() == "All").Click();
+        cut.WaitForAssertion(() => _api.Verify(x => x.BrowseCollectionSourcesAsync(null, "ana", 0, 25), Times.Once));
+        Assert.Equal("ana", cut.Find("input[type=search]").GetAttribute("value"));
+    }
+
+    [Fact]
+    public void RapidTypingAsksOnceForTheFinalTerm()
+    {
+        Serve(null, [Row(Vendor, "Pantom Dant", "Meat · 2026")], 1);
+        _api.Setup(x => x.BrowseCollectionSourcesAsync(null, "pantom", 0, 25)).ReturnsAsync(Result<CollectionSourcePage>.Success(new([Row(Vendor, "Pantom Dant", "Meat · 2026")], 1, Categories)));
+        var cut = Render();
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".sb-row")));
+
+        foreach (var typed in new[] { "p", "pa", "pan", "pant", "panto", "pantom" }) cut.Find("input[type=search]").Input(typed);
+
+        cut.WaitForAssertion(() => _api.Verify(x => x.BrowseCollectionSourcesAsync(null, "pantom", 0, 25), Times.Once), TimeSpan.FromSeconds(3));
+        foreach (var partial in new[] { "p", "pa", "pan", "pant", "panto" })
+            _api.Verify(x => x.BrowseCollectionSourcesAsync(null, partial, 0, 25), Times.Never);
+    }
+
+    [Fact]
+    public void ClearingTheSearchReturnsToTheFullList()
+    {
+        Serve(null, [Row(Vendor, "Pantom Dant", "Meat · 2026"), Row(Stall, "Ana Reyes", "New Public Market · Stall 1")], 2);
+        _api.Setup(x => x.BrowseCollectionSourcesAsync(null, "zzz", 0, 25)).ReturnsAsync(Result<CollectionSourcePage>.Success(new([], 0, Categories)));
+        var cut = Render();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll(".sb-row").Count));
+        cut.Find("input[type=search]").Input("zzz");
+        cut.WaitForAssertion(() => Assert.Contains("No registered source matches “zzz”", cut.Markup), TimeSpan.FromSeconds(3));
+
+        cut.Find(".sb-clear").Click();
+
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll(".sb-row").Count));
+        Assert.Equal("", cut.Find("input[type=search]").GetAttribute("value"));
+        Assert.Empty(cut.FindAll(".sb-clear"));
+    }
+
+    [Fact]
+    public void ASlowAnswerForAnEarlierChoiceNeverReplacesTheCurrentOne()
+    {
+        var slow = new TaskCompletionSource<Result<CollectionSourcePage>>();
+        _api.Setup(x => x.BrowseCollectionSourcesAsync(null, null, 0, 25)).ReturnsAsync(Result<CollectionSourcePage>.Success(new([Row(Vendor, "Pantom Dant", "Meat · 2026")], 2, Categories)));
+        _api.Setup(x => x.BrowseCollectionSourcesAsync("fishmeat", null, 0, 25)).Returns(slow.Task);
+        _api.Setup(x => x.BrowseCollectionSourcesAsync("npm", null, 0, 25)).ReturnsAsync(Result<CollectionSourcePage>.Success(new([Row(Stall, "Ana Reyes", "New Public Market · Stall 1")], 1, Categories)));
+        var cut = Render();
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".sb-row")));
+
+        cut.FindAll(".sb-chip").Single(c => c.TextContent.Trim() == "Fish / Meat").Click();   // still in flight
+        cut.FindAll(".sb-chip").Single(c => c.TextContent.Trim() == "NPM").Click();
+        cut.WaitForAssertion(() => Assert.Equal("Ana Reyes", cut.Find(".sb-row strong").TextContent.Trim()));
+        slow.SetResult(Result<CollectionSourcePage>.Success(new([Row(Vendor, "Pantom Dant", "Meat · 2026")], 1, Categories)));   // the earlier answer arrives late
+
+        cut.WaitForAssertion(() => Assert.Equal("Ana Reyes", cut.Find(".sb-row strong").TextContent.Trim()));
+        Assert.Single(cut.FindAll(".sb-row"));
+    }
+
+    [Fact]
+    public void NoMatchOffersContinuingWithAPayerNameOnlyWhereDirectCollectionIsAllowed()
+    {
+        Serve(null, [Row(Vendor, "Pantom Dant", "Meat · 2026")], 1);
+        _api.Setup(x => x.BrowseCollectionSourcesAsync(null, "Walk Up", 0, 25)).ReturnsAsync(Result<CollectionSourcePage>.Success(new([], 0, Categories)));
+        string? direct = null;
+        var allowed = Render(directAllowed: true, onDirect: s => direct = s);
+        allowed.WaitForAssertion(() => Assert.Single(allowed.FindAll(".sb-row")));
+        allowed.Find("input[type=search]").Input("Walk Up");
+
+        allowed.WaitForAssertion(() => Assert.Contains("Continue with payer name", allowed.Markup), TimeSpan.FromSeconds(3));
+        allowed.Find(".sb-direct").Click();
+        Assert.Equal("Walk Up", direct);
+    }
+
+    [Fact]
+    public void NoMatchOffersNoDirectContinuationWhereTheOperationNeedsARegisteredSource()
+    {
+        Serve(null, [Row(Vendor, "Pantom Dant", "Meat · 2026")], 1);
+        _api.Setup(x => x.BrowseCollectionSourcesAsync(null, "Walk Up", 0, 25)).ReturnsAsync(Result<CollectionSourcePage>.Success(new([], 0, Categories)));
+        var cut = Render(directAllowed: false);
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".sb-row")));
+
+        cut.Find("input[type=search]").Input("Walk Up");
+
+        cut.WaitForAssertion(() => Assert.Contains("No registered source matches", cut.Markup), TimeSpan.FromSeconds(3));
+        Assert.DoesNotContain("Continue with payer name", cut.Markup);
+    }
+
+    [Fact]
+    public void TheNextPageStartsAfterTheRowsTheServerActuallyReturned()
+    {
+        var first = Enumerable.Range(1, 25).Select(i => Row(new(SourceIdentityKind.Occupancy, new Guid(i, 0, 0, new byte[8])), $"Holder {i:00}", "NCC")).ToArray();
+        Serve(null, first, 40);
+        Serve(null, [Row(Stall, "Holder 26", "NCC")], 40, skip: 25);
+        var cut = Render();
+        cut.WaitForAssertion(() => Assert.Equal(25, cut.FindAll(".sb-row").Count));
+
+        cut.Find(".sb-more").Click();
+
+        cut.WaitForAssertion(() => _api.Verify(x => x.BrowseCollectionSourcesAsync(null, null, 25, 25), Times.Once));
+    }
+
+    [Fact]
+    public void AnAnswerForTheOldTextIsDiscardedAtTheKeystroke_NotWhenThePauseEnds()
+    {
+        var slow = new TaskCompletionSource<Result<CollectionSourcePage>>();
+        _api.Setup(x => x.BrowseCollectionSourcesAsync(null, null, 0, 25)).Returns(slow.Task);
+        _api.Setup(x => x.BrowseCollectionSourcesAsync(null, "ana", 0, 25)).ReturnsAsync(Result<CollectionSourcePage>.Success(new([Row(Stall, "Ana Reyes", "New Public Market · Stall 1")], 1, Categories)));
+        var cut = Render();
+
+        cut.Find("input[type=search]").Input("ana");                 // typed while the first list is still on its way
+        slow.SetResult(Result<CollectionSourcePage>.Success(new([Row(Vendor, "Pantom Dant", "Meat · 2026")], 1, Categories)));   // lands inside the pause
+
+        Assert.Empty(cut.FindAll(".sb-row"));                         // the stale list is never shown, not even briefly
+        Assert.DoesNotContain("Pantom Dant", cut.Markup);
+        cut.WaitForAssertion(() => Assert.Equal("Ana Reyes", cut.Find(".sb-row strong").TextContent.Trim()), TimeSpan.FromSeconds(3));
+    }
+
+    [Fact]
+    public void ShowMoreEnds_WhenTheServerRepeatsRowsAlreadyShown()
+    {
+        var first = Enumerable.Range(1, 25).Select(i => Row(new(SourceIdentityKind.Occupancy, new Guid(i, 0, 0, new byte[8])), $"Holder {i:00}", "NCC")).ToArray();
+        Serve(null, first, 30);
+        Serve(null, first.Take(5).ToArray(), 30, skip: 25);          // the boundary repeats rows the collector already sees
+        var cut = Render();
+        cut.WaitForAssertion(() => Assert.Equal(25, cut.FindAll(".sb-row").Count));
+
+        cut.Find(".sb-more").Click();
+
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".sb-more")));
+        Assert.Equal(25, cut.FindAll(".sb-row").Count);
+        _api.Verify(x => x.BrowseCollectionSourcesAsync(null, null, 25, 25), Times.Once);
+        _api.Verify(x => x.BrowseCollectionSourcesAsync(null, null, 30, 25), Times.Never);
+    }
 }
 
 /// <summary>On the New Collection landing the registered sources replace Recent Collections; corrections stay in Records.</summary>

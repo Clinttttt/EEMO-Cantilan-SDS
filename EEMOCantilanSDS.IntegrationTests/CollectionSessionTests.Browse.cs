@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Domain.Common;
@@ -76,5 +77,64 @@ public sealed partial class CollectionSessionTests
         Assert.Equal(ResultStatus.Invalid, (await flow.BrowseSourcesAsync(null, null, -1, 10)).Status);
         Assert.True((await flow.BrowseSourcesAsync(null, null, 0, CollectionSourceCategories.MaxPage)).IsSuccess);
         Assert.Empty(await db.Collections.ToListAsync());                // browsing records and changes nothing
+    }
+
+    [SkippableFact]
+    public async Task Browsing_counts_only_the_occupancy_answering_this_month_a_successor_replaces_a_former_lessee_and_an_ended_one_is_not_listed()
+    {
+        var Today = PhilippineTime.Today;
+        var w = await SeedAsync(linked: false); await using var db = database.CreateContext(w.TenantId);
+        var sources = new CollectionSessionSources(db, new Caller(w.CollectorId, w.TenantId), new Tenant(w.TenantId), new Clock(Today), null!, new NoMarketDays());
+        var before = await sources.BrowseSourcesAsync(null, "one payer", 0, 25, default);
+        var first = Assert.Single(before.Items);
+        Assert.Equal(before.Items.Count, before.Total);
+
+        // The lessee leaves before this month and a successor takes the stall: the former name no longer finds a source, the successor does.
+        var contract = await db.Contracts.SingleAsync();
+        contract.Terminate("test", new DateOnly(Today.Year, Today.Month, 1).AddDays(-1));
+        var successor = Contract.Create(contract.StallId, "Successor Lessee", "Successor Lessee", new DateOnly(Today.Year, Today.Month, 1), 3, 900m, createdBy: "test");
+        db.Add(successor); await db.SaveChangesAsync();
+
+        var former = await sources.BrowseSourcesAsync(null, "one payer", 0, 25, default);
+        Assert.Empty(former.Items); Assert.Equal(0, former.Total);                    // the total never counts a lessee who no longer answers
+        var now = await sources.BrowseSourcesAsync(null, "successor", 0, 25, default);
+        var row = Assert.Single(now.Items);
+        Assert.Equal(1, now.Total);
+        Assert.Equal(new CollectionSourceIdentity(SourceIdentityKind.Occupancy, successor.Id), row.Identity);
+        Assert.NotEqual(first.Identity, row.Identity);                                // a different occupancy is a different source
+    }
+
+    [SkippableFact]
+    public async Task Browsing_all_walks_each_category_in_its_own_order_with_no_gap_or_repeat_even_with_accents_and_punctuation()
+    {
+        var Today = PhilippineTime.Today;
+        var w = await SeedAsync(linked: false); await using var db = database.CreateContext(w.TenantId); await EnableOffice(db, w);
+        var office = Office(db, w, "SuperAdmin");
+        foreach (var name in new[] { "Álvaro Cruz", "-Dash Vendor", "O'Brien Fish", "alma reyes", "Zed Meat" })
+            Assert.True((await office.RegisterAsync(new(Guid.NewGuid(), Today.Year, FishMeatVendorType.Fish, VendorRegistrationKind.New, name))).IsSuccess);
+        var sources = new CollectionSessionSources(db, new Caller(w.CollectorId, w.TenantId), new Tenant(w.TenantId), new Clock(Today), null!, new NoMarketDays());
+
+        var whole = await sources.BrowseSourcesAsync(null, null, 0, CollectionSourceCategories.MaxPage, default);
+        var walked = new List<CollectionSourceSearchResult>();
+        for (var skip = 0; skip < whole.Total; skip += 2)
+            walked.AddRange((await sources.BrowseSourcesAsync(null, null, skip, 2, default)).Items);
+
+        Assert.Equal(whole.Total, walked.Count);                                       // pages of two cover the whole list exactly
+        Assert.Equal(walked.Count, walked.Select(x => x.Identity).Distinct().Count());   // and never repeat a source
+        Assert.Equal(whole.Items.Select(x => x.Identity), walked.Select(x => x.Identity));
+    }
+
+    [SkippableFact]
+    public async Task Browsing_finds_an_occupancy_by_its_stall_number_as_the_placeholder_promises()
+    {
+        var Today = PhilippineTime.Today;
+        var w = await SeedAsync(linked: false); await using var db = database.CreateContext(w.TenantId);
+        var sources = new CollectionSessionSources(db, new Caller(w.CollectorId, w.TenantId), new Tenant(w.TenantId), new Clock(Today), null!, new NoMarketDays());
+        var stallNo = (await db.Stalls.AsNoTracking().FirstAsync()).StallNo;
+
+        var found = await sources.BrowseSourcesAsync(null, stallNo, 0, 25, default);
+
+        Assert.Contains(found.Items, x => x.Identity.Kind == SourceIdentityKind.Occupancy && x.Context.EndsWith("Stall " + stallNo));
+        Assert.Equal(found.Items.Count, found.Total);
     }
 }

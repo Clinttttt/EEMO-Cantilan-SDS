@@ -44,6 +44,13 @@ public sealed class CollectionSessionEditorTests : TestContext
             new(FishVendor, "Pantom Dant", "Meat · 2026", CollectorOperationCodes.FishMeatVendorFee, 2026, FishMeatVendorType.Meat),
             new(Kanmanggay, "Juan Cruz", "Kanmanggay · Space 4", CollectorOperationCodes.KanmanggaySpaceRental),
             new(Occupancy, "Ana Reyes", "New Public Market · Stall 1", "FACILITY_NPM")]));
+        // The unified finder is the registered-source browser: it reads the same sources through the bounded browse contract, narrowed by the typed term.
+        _api.Setup(x => x.BrowseCollectionSourcesAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<int>())).ReturnsAsync((string? c, string? term, int skip, int take) =>
+        {
+            var all = _api.Object.SearchCollectionSourcesAsync(term).GetAwaiter().GetResult().Value ?? [];
+            var matched = all.Where(x => string.IsNullOrWhiteSpace(term) || x.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase) || x.Context.Contains(term, StringComparison.OrdinalIgnoreCase)).ToList();
+            return Result<CollectionSourcePage>.Success(new(matched.Skip(skip).Take(take).ToArray(), matched.Count, [new("npm", "NPM"), new("spaces", "Spaces")]));
+        });
         _api.Setup(x => x.GetOfficeActivityAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<string?>())).ReturnsAsync(Result<IReadOnlyList<SourceNativeActivityDto>>.Success([]));
         _api.Setup(x => x.QuoteCollectionSessionAsync(It.IsAny<CollectionSessionIntent>())).ReturnsAsync((CollectionSessionIntent i) =>
         {
@@ -215,7 +222,7 @@ public sealed class CollectionSessionEditorTests : TestContext
     private IRenderedComponent<CollectionSessionEditor> PickSource(string name, string? only = null)
     {
         var view = Open(only);
-        view.Find("input[type=search]").Focus();
+        if (view.FindAll(".sb").Count == 0) view.Find("input[type=search]").Focus();   // the unified browser lists its sources without a focus step
         view.WaitForAssertion(() => Assert.NotEmpty(view.FindAll(".payer-option")));
         ClickSource(view, name);
         view.WaitForAssertion(() => Assert.NotEmpty(view.FindAll(".payer-selected")));
@@ -239,12 +246,12 @@ public sealed class CollectionSessionEditorTests : TestContext
     }
 
     [Fact]
-    public void Focusing_the_empty_search_browses_sources_each_row_showing_its_name_and_typed_context_and_never_an_id()
+    public void The_landing_lists_sources_without_a_focus_step_each_row_showing_its_name_and_typed_context_and_never_an_id()
     {
         var view = Open();
-        Assert.Empty(view.FindAll(".payer-panel"));
 
-        view.Find("input[type=search]").Focus();
+
+
 
         view.WaitForAssertion(() =>
         {
@@ -255,7 +262,8 @@ public sealed class CollectionSessionEditorTests : TestContext
             Assert.DoesNotContain("FishMeatVendorRegistration", view.Markup);
             Assert.DoesNotContain(FishVendor.Id.ToString(), view.Markup);
         });
-        Assert.NotNull(view.Find(".payer-list"));                                       // bounded list that scrolls inside the panel
+        Assert.NotNull(view.Find(".sb-list"));                                          // bounded list; one search field, no second finder
+        Assert.Single(view.FindAll("input[type=search]"));
     }
 
     [Fact]
@@ -479,10 +487,32 @@ public sealed class CollectionSessionEditorTests : TestContext
 
         Click(view, "Remove");
         Assert.Empty(view.FindAll(".item-row"));
-        Assert.True(view.FindAll("button").Single(b => b.TextContent.Trim() == "Review collection").HasAttribute("disabled"));
-        Assert.True(view.FindAll("button").Single(b => b.TextContent.Trim() == "Record collection").HasAttribute("disabled"));
+        Assert.True(view.FindAll("button").Single(b => b.TextContent.Trim() == "Review collection").HasAttribute("disabled"));   // review needs an item
+        Assert.DoesNotContain(view.FindAll("button"), b => b.TextContent.Trim() == "Record collection");                          // nothing to confirm before a review
     }
 
+
+    [Fact]
+    public void One_primary_action_follows_the_state_review_then_record_and_any_change_returns_to_review()
+    {
+        var view = OpenTerminalSheet();
+        PickSection(view, "TRICYCAD");
+        view.Find("[role=dialog] input[type=number]").Input("3200"); Click(view, "Add item");
+
+        Assert.Equal(["Review collection"], view.FindAll(".collection-actions button").Select(b => b.TextContent.Trim()).ToArray());
+
+        Click(view, "Review collection");
+        view.WaitForAssertion(() => Assert.Equal(["Record collection"], view.FindAll(".collection-actions button").Select(b => b.TextContent.Trim()).ToArray()));
+        Assert.Contains("₱3,200.00", view.Find(".review-total").TextContent);
+
+        // Changing an item discards the reviewed quote: nothing can be recorded against it, so the action goes back to Review.
+        Click(view, "Edit");
+        view.WaitForAssertion(() => Assert.NotEmpty(view.FindAll("[role=dialog]")));
+        view.Find("[role=dialog] input[type=number]").Input("3300"); Click(view, "Add item");
+        Assert.Equal(["Review collection"], view.FindAll(".collection-actions button").Select(b => b.TextContent.Trim()).ToArray());
+        Assert.Empty(view.FindAll(".review-total"));
+        Assert.Empty(_queue);
+    }
     [Fact]
     public void Several_items_each_get_their_own_server_src_in_the_result()
     {

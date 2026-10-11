@@ -139,3 +139,5 @@ button:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2p
 /* Landing actions under the registered-source list: Direct collection and Records side by side, equal width. */
 .landing-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
 .landing-actions:has(> :only-child) { grid-template-columns: 1fr; }
+
+.collection-actions-one { grid-template-columns: 1fr; }

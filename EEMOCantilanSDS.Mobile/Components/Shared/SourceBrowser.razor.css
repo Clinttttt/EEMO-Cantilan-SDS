@@ -17,3 +17,13 @@
 .sb-more { display: block; width: 100%; min-height: 44px; margin-top: 6px; border: 1px solid var(--mobile-blue); border-radius: 12px; background: transparent; color: var(--mobile-blue); font-size: 14px; font-weight: 600; }
 .sb-more:disabled { border-color: var(--mobile-border); color: var(--mobile-text-secondary); }
 .sb-chip:focus-visible, .sb-row:focus-visible, .sb-more:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2px; }
+
+/* One search above the type filter: the same field language as the rest of New Collection. */
+.sb-search { display: block; margin-bottom: 10px; }
+.sb-label { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 600; color: var(--mobile-text-secondary); }
+.sb-field { position: relative; display: block; }
+.sb-field .form-input { width: 100%; min-height: 46px; padding: 10px 44px 10px 14px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); color: var(--mobile-text); font-size: 16px; }
+.sb-field .form-input:focus { border-color: var(--mobile-blue); box-shadow: inset 0 0 0 1px var(--mobile-blue); outline: none; }
+.sb-clear { position: absolute; top: 50%; right: 4px; transform: translateY(-50%); width: 40px; height: 40px; border: 0; background: transparent; color: var(--mobile-text-secondary); font-size: 22px; line-height: 1; }
+.sb-clear:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: -2px; border-radius: 10px; }
+.sb-direct { margin-top: 8px; border: 1px solid var(--mobile-border); border-radius: 12px; }
