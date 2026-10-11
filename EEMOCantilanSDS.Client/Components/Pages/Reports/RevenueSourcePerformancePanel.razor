@@ -37,12 +37,14 @@
                 <h2 id="rsp-title" class="rsp-title">Revenue source performance — @PeriodLabel</h2>
                 <div class="rsp-sub @(HeaderActions is not null ? "v3-sr-only" : "")">Official collections and operating activity by revenue source for the selected period.</div>
             </div>
-            @if (HeaderActions is not null)
-            {
-                <div class="rsp-head-actions no-print">@HeaderActions</div>
-            }
-            <div class="rsp-filter no-print">
-                <FhSelect Caption="Sources" Value="@_group" Options="@GroupOptions" ValueChanged="@(v => _group = v)" RightAlign="true" />
+            <div class="rsp-head-controls">
+                @if (HeaderActions is not null)
+                {
+                    <div class="rsp-head-actions no-print">@HeaderActions</div>
+                }
+                <div class="rsp-filter no-print">
+                    <FhSelect Caption="Sources" Value="@_group" Options="@GroupOptions" ValueChanged="@(v => _group = v)" RightAlign="true" />
+                </div>
             </div>
         </div>
     }

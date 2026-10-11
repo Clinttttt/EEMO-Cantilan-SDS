@@ -749,3 +749,31 @@ a.dashboard-report-tab:hover {
     .dash-view { animation: none; }
     .dashboard-view-tab { transition: none; }
 }
+
+/* ── Revenue header (compact toolbar): shortcuts, switch and source selector share the title's row at desktop widths ──
+   Every control is 42px tall, the same as the source selector beside it, with tight padding so the row fits the content width
+   left by the sidebar. Below that width the header wraps as a whole (see the panel's header), never clips or overlaps. */
+@media (min-width: 769px) {
+    .dash-toolbar-compact { flex-wrap: nowrap; gap: 8px; }
+    .dash-toolbar-compact .dashboard-report-tabs { flex-wrap: nowrap; gap: 2px; padding: 3px; height: 42px; box-sizing: border-box; border-radius: 10px; }
+    .dash-toolbar-compact .dashboard-report-tab { min-height: 34px; padding: 0 9px; gap: 4px; font-size: 12.5px; }
+    .dash-toolbar-compact .dashboard-more > summary::after { margin-left: 4px; }
+    .dash-toolbar-compact .dashboard-view-switch { height: 42px; padding: 3px; gap: 2px; }
+    .dash-toolbar-compact .dashboard-view-tab { min-height: 34px; padding: 0 11px; font-size: 12.5px; }
+}
+
+/* The full wording "More reports" appears when the row has room for it; the accessible name is always complete. */
+@media (min-width: 769px) and (max-width: 1559px) {
+    .dash-toolbar-compact .dashboard-more-sfx { display: none; }
+}
+
+@media (min-width: 769px) and (max-width: 1559px) {
+    .dash-toolbar-compact { gap: 6px; }
+    .dash-toolbar-compact .dashboard-report-tab { padding: 0 7px; font-size: 12px; }
+    .dash-toolbar-compact .dashboard-view-tab { padding: 0 8px; font-size: 12px; }
+}
+
+@media (min-width: 769px) and (max-width: 1559px) {
+    .dash-toolbar-compact .dashboard-report-tab { padding: 0 6px; }
+    .dash-toolbar-compact .dashboard-view-tab { padding: 0 7px; }
+}

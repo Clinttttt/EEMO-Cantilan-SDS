@@ -474,7 +474,7 @@ var button = _view == ViewRevenue ? _revToRev : _opsToOps;        try { await bu
                 @if (compact)
                 {
                     <details class="dashboard-more">
-                        <summary class="dashboard-report-tab">More reports</summary>
+                        <summary class="dashboard-report-tab" aria-label="More reports">More<span class="dashboard-more-sfx"> reports</span></summary>
                         <div class="dashboard-more-menu">
                             <a href="/reports/follow-up" class="dashboard-more-link">Follow-up Queue</a>
                             <a href="/stall-holders" class="dashboard-more-link">Holder Register</a>
