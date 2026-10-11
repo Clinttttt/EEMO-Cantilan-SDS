@@ -194,18 +194,21 @@ public class StallHolderListPrintSheetTests
 
         Assert.Contains("Billing Basis", allFacilities);
         Assert.Contains("Daily Rate", allFacilities);
-        Assert.Contains("IsPureDays(code) ? null : r.WholeYearRental", allFacilities);
+        Assert.Contains("pureDays ? null : r.WholeYearRental", allFacilities);
         Assert.Contains("IsPureDays ? \"\" : s.IsActive ? s.WholeYearRental", facilityRoster);
         Assert.Contains("Calendar-day", facilityRoster);
         Assert.Contains("Fixed Annual Rental", facilityRoster);
     }
 
     [Fact]
-    public void RentGoalOnlyExportsKeepTheirExistingColumnSchema()
+    public void TheRegisterExportKeepsTheStallRateColumnsAndAddsTheSourceGrouping()
     {
         var allFacilities = ClientFile("Components", "Pages", "Reports", "StallHolderList.razor");
 
-        Assert.Contains("IncludesPureDays\n                ?", allFacilities.Replace("\r\n", "\n"));
-        Assert.Contains("Monthly Rental,Actual Monthly Rental,Whole Year Rental", allFacilities);
+        // The stall rate columns survive in the same order, now inside one grouped table that also carries the space rentals.
+        Assert.Contains("new(\"Monthly Rental\", SheetValueKind.Money),\n        new(\"Actual Monthly Rental\", SheetValueKind.Money),\n        new(\"Whole Year Rental\", SheetValueKind.Money),",
+            allFacilities.Replace("\r\n", "\n"));
+        Assert.Contains("new(\"Source\", SheetValueKind.Text)", allFacilities);
+        Assert.Contains("new(\"Holding\", SheetValueKind.Text)", allFacilities);
     }
 }
