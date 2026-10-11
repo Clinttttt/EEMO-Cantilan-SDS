@@ -135,3 +135,7 @@ button:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2p
 /* Transitions select a different source, never add unrelated charges to the vendor basket. */
 .collection-source-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .collection-source-actions button { min-height: 44px; white-space: normal; text-align: left; }
+
+/* Landing actions under the registered-source list: Direct collection and Records side by side, equal width. */
+.landing-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+.landing-actions:has(> :only-child) { grid-template-columns: 1fr; }

@@ -124,7 +124,7 @@ else
             @if (_items.Count > 0) { <p>Record or remove current items before switching sources.</p> }
         </section>
     }
-    @if (_source is null && !_direct && Correction is null && OnlyOperation is null && !_suggestOpen) { <RecentCollections /> }
+@* The landing: the registered sources assigned to this collector, by type. Today's collections and their corrections live in Records. *@    @if (BrowserMode && !_suggestOpen)    {        <SourceBrowser OnSelect="SelectBrowsedAsync" />        <div class="collection-source-actions landing-actions">            @if (DirectAllowed) { <button class="collection-small" type="button" @onclick="() => StartDirectAsync(string.Empty)">Direct collection</button> }            <button class="collection-small" type="button" @onclick='() => Navigation.NavigateTo("/records")'>Records</button>        </div>    }
     @if (_source is not null || _direct)
     {
         <section class="collection-entry">
@@ -378,6 +378,7 @@ else
 
     // What kind of finder this page is: a registered vendor only, an occupant only, or any source.
     private bool VendorOnly => OnlyOperation is CollectorOperationCodes.WeightAndMeasure;
+    private bool BrowserMode => _source is null && !_direct && Correction is null && OnlyOperation is null;
     private bool DirectAllowed => !VendorOnly && OnlyOperation is not (CollectorOperationCodes.Wcf or CollectorOperationCodes.VegetableFruitSpaceRental);
     private string SourceHeading => OnlyOperation == CollectorOperationCodes.Terminal ? "Income From Terminal" : "Source";
     private string SearchLabel => OnlyOperation == CollectorOperationCodes.VegetableFruitSpaceRental ? "Search registered space holder" : VendorOnly ? "Search registered vendor" : OnlyOperation == CollectorOperationCodes.FishMeatVendorFee ? "Search vendor or payer" : "Search payer or vendor";
@@ -588,6 +589,14 @@ else
         }
         catch { if (announceFailure) _message = "Connect to search."; }
         finally { _searching = false; StateHasChanged(); }
+    }
+
+    // A source chosen from the browser goes straight to what the server says it can be collected for: the Add item sheet opens on the eligible
+    // charges instead of leaving the collector at an empty items list. Nothing is opened when the server offers nothing.
+    private async Task SelectBrowsedAsync(CollectionSourceSearchResult found)
+    {
+        await SelectSourceAsync(found);
+        if (_items.Count == 0 && _discovery is not null && Offered.Count > 0) await OpenPickerAsync();
     }
 
     private async Task SelectSourceAsync(CollectionSourceSearchResult found)

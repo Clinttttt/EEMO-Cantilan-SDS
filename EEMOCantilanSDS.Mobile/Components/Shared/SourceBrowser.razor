@@ -1,0 +1,97 @@
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@inject IMobileApiClient Api
+
+@* The registered sources assigned to this collector, in bounded pages, by category. It lists WHO can be collected from — an occupancy, a space
+   account, a registered vendor — each by its own exact identity, and says nothing about balances, amounts or what is due: choosing a source hands
+   it to the editor, where the server states what that source can be collected for. Online only; offline it says so rather than showing stale rows. *@
+<section class="sb" aria-label="Registered sources">
+    @if (_categories.Count > 1)
+    {
+        <div class="sb-filter" role="group" aria-label="Source type">
+            <button type="button" class="sb-chip @(_category == "" ? "on" : "")" aria-pressed="@(_category == "" ? "true" : "false")" @onclick='() => ChooseAsync("")'>All</button>
+            @foreach (var category in _categories)
+            {
+                var key = category.Key;
+                <button type="button" class="sb-chip @(_category == key ? "on" : "")" aria-pressed="@(_category == key ? "true" : "false")" @onclick="() => ChooseAsync(key)">@category.Label</button>
+            }
+        </div>
+    }
+
+    @if (_loading && _rows.Count == 0)
+    {
+        <p class="sb-note" role="status">Loading registered sources…</p>
+    }
+    else if (_failed && _rows.Count == 0)
+    {
+        <p class="sb-note" role="status">Connect to browse registered sources.</p>
+        <button type="button" class="sb-more" @onclick="() => LoadAsync(reset: true)">Try again</button>
+    }
+    else if (_rows.Count == 0)
+    {
+        <p class="sb-note" role="status">No registered sources are assigned to you@(_category == "" ? "" : " in this group").</p>
+    }
+    else
+    {
+        <div class="sb-list" role="list">
+            @foreach (var source in _rows)
+            {
+                <button type="button" class="sb-row" role="listitem" @key="source.Identity" @onclick="() => OnSelect.InvokeAsync(source)">
+                    <span class="sb-text"><strong>@source.DisplayName</strong><small>@source.Context</small></span>
+                    <span class="sb-go" aria-hidden="true">›</span>
+                </button>
+            }
+        </div>
+        <p class="sb-count" role="status">@_rows.Count of @_total</p>
+        @if (_rows.Count < _total)
+        {
+            <button type="button" class="sb-more" disabled="@_loading" @onclick="() => LoadAsync(reset: false)">@(_loading ? "Loading…" : "Show more")</button>
+        }
+    }
+</section>
+
+@code {
+    private const int PageSize = 25;
+
+    /// <summary>The source the collector chose. The editor takes it from here exactly as it does a found source.</summary>
+    [Parameter, EditorRequired] public EventCallback<CollectionSourceSearchResult> OnSelect { get; set; }
+
+    private IReadOnlyList<CollectionSourceCategoryDto> _categories = [];
+    private readonly List<CollectionSourceSearchResult> _rows = [];
+    private string _category = "";
+    private int _total;
+    private bool _loading, _failed;
+    private int _generation;
+
+    protected override Task OnInitializedAsync() => LoadAsync(reset: true);
+
+    private Task ChooseAsync(string category)
+    {
+        if (category == _category) return Task.CompletedTask;
+        _category = category;
+        return LoadAsync(reset: true);
+    }
+
+    private async Task LoadAsync(bool reset)
+    {
+        var generation = ++_generation;
+        _loading = true; _failed = false;
+        if (reset) _rows.Clear();
+        try
+        {
+            var response = await Api.BrowseCollectionSourcesAsync(_category == "" ? null : _category, null, reset ? 0 : _rows.Count, PageSize);
+            if (generation != _generation) return;      // a newer choice has superseded this answer
+            if (response is { IsSuccess: true, Value: { } page })
+            {
+                _categories = page.Categories;
+                _total = page.Total;
+                // A page never repeats a row the collector already sees, whatever the server's ordering did in between.
+                var known = _rows.Select(x => x.Identity).ToHashSet();
+                _rows.AddRange(page.Items.Where(x => known.Add(x.Identity)));
+            }
+            else _failed = true;
+        }
+        catch { if (generation == _generation) _failed = true; }
+        finally { if (generation == _generation) _loading = false; }
+    }
+}
