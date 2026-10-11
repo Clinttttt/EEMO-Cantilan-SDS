@@ -175,6 +175,8 @@ namespace EEMOCantilanSDS.Domain.Enums
         MaintenanceOrFumigation = 2,
         Weather = 3,
         ApprovedByEemo = 4,
+        /// <summary>The market's recurring weekly closure (for example Saturday and Sunday). Never stored on a closure row.</summary>
+        WeeklySchedule = 5,
         Other = 99,
     }
 }

@@ -75,4 +75,16 @@ public class PaymentsApiClient(HttpClient http) : HandleResponse(http), IPayment
 
     public async Task<Result<bool>> ClearMarketClosureAsync(ClearNpmMarketClosureCommand command) =>
         await PostAsync<ClearNpmMarketClosureCommand, bool>("api/Payments/market-closure/clear", command);
+
+    public async Task<Result<EEMOCantilanSDS.Application.Dtos.Payments.NpmOperatingCalendarDto>> GetNpmOperatingCalendarAsync(int year, int month) =>
+        await GetAsync<EEMOCantilanSDS.Application.Dtos.Payments.NpmOperatingCalendarDto>($"api/Payments/npm-operating-calendar?year={year}&month={month}");
+
+    public async Task<Result<EEMOCantilanSDS.Application.Dtos.Payments.NpmDayImpactDto>> GetNpmDayImpactAsync(DateOnly date) =>
+        await GetAsync<EEMOCantilanSDS.Application.Dtos.Payments.NpmDayImpactDto>($"api/Payments/npm-day-impact?date={date:yyyy-MM-dd}");
+
+    public async Task<Result<bool>> SetNpmOperatingScheduleAsync(EEMOCantilanSDS.Application.Command.Payments.SetNpmOperatingSchedule.SetNpmOperatingScheduleCommand command) =>
+        await PostAsync<EEMOCantilanSDS.Application.Command.Payments.SetNpmOperatingSchedule.SetNpmOperatingScheduleCommand, bool>("api/Payments/npm-operating-schedule", command);
+
+    public async Task<Result<bool>> RestoreNpmOperatingDayAsync(EEMOCantilanSDS.Application.Command.Payments.RestoreNpmOperatingDay.RestoreNpmOperatingDayCommand command) =>
+        await PostAsync<EEMOCantilanSDS.Application.Command.Payments.RestoreNpmOperatingDay.RestoreNpmOperatingDayCommand, bool>("api/Payments/market-closure/restore", command);
 }

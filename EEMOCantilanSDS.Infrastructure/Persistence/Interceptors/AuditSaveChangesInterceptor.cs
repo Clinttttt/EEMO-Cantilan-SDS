@@ -26,7 +26,7 @@ public class AuditSaveChangesInterceptor(ICurrentUserService currentUser) : Save
     [
         // Financial transactions
         typeof(PaymentRecord), typeof(DailyCollection), typeof(UtilityBill),
-        typeof(StallMonthlyException), typeof(NpmMarketClosure),
+        typeof(StallMonthlyException), typeof(NpmMarketClosure), typeof(NpmOperatingSchedule),
         typeof(TpmAttendance), typeof(TrmTrip), typeof(SlaughterTransaction),
         typeof(OnlinePaymentTransaction),
         typeof(Collection), typeof(CollectionLine), typeof(CollectionAllocation),

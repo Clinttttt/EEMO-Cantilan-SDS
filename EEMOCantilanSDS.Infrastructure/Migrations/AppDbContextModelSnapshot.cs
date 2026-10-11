@@ -992,6 +992,11 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
+                    b.Property<bool>("IsOpenOverride")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<Guid>("MunicipalityId")
                         .HasColumnType("uuid");
 
@@ -1016,6 +1021,62 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .HasFilter("\"IsDeleted\" = false");
 
                     b.ToTable("NpmMarketClosures", (string)null);
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Payments.NpmOperatingSchedule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ClosedWeekdays")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<Guid>("MunicipalityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Remarks")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MunicipalityId", "EffectiveFrom")
+                        .IsUnique();
+
+                    b.ToTable("NpmOperatingSchedules", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_NpmOperatingSchedules_Weekdays", "\"ClosedWeekdays\" >= 0 AND \"ClosedWeekdays\" <= 127");
+                        });
                 });
 
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Payments.OnlinePaymentTransaction", b =>

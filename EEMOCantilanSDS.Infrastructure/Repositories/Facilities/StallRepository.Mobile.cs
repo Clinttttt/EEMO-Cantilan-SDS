@@ -69,11 +69,7 @@ public partial class StallRepository
         // The month's market closures, read ONCE for the whole round. A closed day is owed by nobody, so it must not appear
         // in a payor's outstanding days - a collector sent to collect for a day the market did not open would be asking for
         // money the office cannot account for.
-        var closures = new HashSet<DateOnly>(await _context.NpmMarketClosures
-            .AsNoTracking()
-            .Where(c => c.ClosureDate >= monthStart && c.ClosureDate <= monthEnd)
-            .Select(c => c.ClosureDate)
-            .ToListAsync(ct));
+        var closures = await _context.EffectiveNpmClosedDatesAsync(monthStart, monthEnd, ct);
 
         var rows = stalls.Select(s =>
         {

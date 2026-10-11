@@ -139,6 +139,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         public DbSet<UtilityBill> UtilityBills { get; set; }
         public DbSet<StallMonthlyException> StallMonthlyExceptions { get; set; }
         public DbSet<NpmMarketClosure> NpmMarketClosures { get; set; }
+        public DbSet<NpmOperatingSchedule> NpmOperatingSchedules { get; set; }
         public DbSet<OnlinePaymentTransaction> OnlinePaymentTransactions { get; set; }
 
         public DbSet<SlaughterTransaction> SlaughterTransactions { get; set; }

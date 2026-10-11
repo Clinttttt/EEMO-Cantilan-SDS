@@ -87,11 +87,7 @@ public partial class PaymentRepository
 
         // NPM market closures (facility-wide) also excuse the day — fold them in so a closed day is
         // never billed/Unpaid in the history (mirrors the ledger summary + Financial Reports).
-        var historyClosedDates = await _context.NpmMarketClosures
-            .AsNoTracking()
-            .Where(c => c.ClosureDate >= windowStart && c.ClosureDate <= windowEnd)
-            .Select(c => c.ClosureDate)
-            .ToListAsync(ct);
+        var historyClosedDates = await _context.EffectiveNpmClosedDatesAsync(windowStart, windowEnd, ct);
         absentDates.UnionWith(historyClosedDates);
 
         var collectorIds = dailies.Where(d => d.CollectorId.HasValue).Select(d => d.CollectorId!.Value)
@@ -252,12 +248,7 @@ public partial class PaymentRepository
 
         // NPM market closures (facility-wide) also excuse the day — union them with per-stall absences.
         var marketClosedDates = isNpm
-            ? (await _context.NpmMarketClosures
-                .AsNoTracking()
-                .Where(c => c.ClosureDate >= windowStart && c.ClosureDate <= windowEnd)
-                .Select(c => c.ClosureDate)
-                .ToListAsync(ct))
-                .ToHashSet()
+            ? await _context.EffectiveNpmClosedDatesAsync(windowStart, windowEnd, ct)
             : new HashSet<DateOnly>();
         var excusedDates = new HashSet<DateOnly>(absentDates);
         excusedDates.UnionWith(marketClosedDates);
@@ -412,9 +403,7 @@ public partial class PaymentRepository
             var excused = (await _context.DailyCollections.AsNoTracking()
                 .Where(dc => dc.StallId == stallId && dc.IsAbsent && dc.CollectionDate >= rangeStart && dc.CollectionDate <= rangeEnd)
                 .Select(dc => dc.CollectionDate).ToListAsync(ct)).ToHashSet();
-            var closed = await _context.NpmMarketClosures.AsNoTracking()
-                .Where(c => c.ClosureDate >= rangeStart && c.ClosureDate <= rangeEnd)
-                .Select(c => c.ClosureDate).ToListAsync(ct);
+            var closed = await _context.EffectiveNpmClosedDatesAsync(rangeStart, rangeEnd, ct);
             excused.UnionWith(closed);
 
             for (var m = startMonth; m <= endMonth; m = m.AddMonths(1))

@@ -151,12 +151,7 @@ public partial class FacilityReportsRepository
         // Facility-wide NPM market closures in the window excuse EVERY NPM payor for those dates — they
         // are merged into each stall's absent set so the day owes ₱0 and never counts as missed.
         var marketClosedDates = includeFish
-            ? (await _context.NpmMarketClosures
-                    .AsNoTracking()
-                    .Where(c => c.ClosureDate >= yearStart && c.ClosureDate <= endDate)
-                    .Select(c => c.ClosureDate)
-                    .ToListAsync(ct))
-                .ToHashSet()
+            ? await _context.EffectiveNpmClosedDatesAsync(yearStart, endDate, ct)
             : new HashSet<DateOnly>();
 
         // Admin-excused months for monthly facilities (TCC/NCC/BBQ/ICE) overlapping the period — these

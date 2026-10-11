@@ -18,7 +18,24 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public MarketClosureReason Reason { get; private set; }
         public string? Remarks { get; private set; }
 
+        /// <summary>
+        /// True when this row OPENS a day the weekly schedule would otherwise close (for example a working Saturday). It excuses
+        /// nothing: the day is billable as any open day is. Deleting the row restores the schedule's answer.
+        /// </summary>
+        public bool IsOpenOverride { get; private set; }
+
         private NpmMarketClosure() { }
+
+        public static NpmMarketClosure CreateOpenOverride(DateOnly date, string? remarks, string createdBy) => new()
+        {
+            Id = Guid.NewGuid(),
+            ClosureDate = date,
+            Reason = MarketClosureReason.ApprovedByEemo,
+            Remarks = remarks,
+            IsOpenOverride = true,
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = createdBy
+        };
 
         public static NpmMarketClosure Create(
             DateOnly closureDate,
@@ -40,6 +57,17 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public void Update(MarketClosureReason reason, string? remarks, string updatedBy)
         {
             Reason = reason;
+            Remarks = remarks;
+            IsOpenOverride = false;
+            UpdatedAt = DateTime.UtcNow;
+            UpdatedBy = updatedBy;
+        }
+
+        /// <summary>Turns this date's row into an opening of a scheduled-closed day, in place (one row per date).</summary>
+        public void MakeOpenOverride(string? remarks, string updatedBy)
+        {
+            IsOpenOverride = true;
+            Reason = MarketClosureReason.ApprovedByEemo;
             Remarks = remarks;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;

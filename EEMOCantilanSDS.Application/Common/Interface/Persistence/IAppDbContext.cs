@@ -64,6 +64,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<UtilityBill> UtilityBills { get; }
         DbSet<StallMonthlyException> StallMonthlyExceptions { get; }
         DbSet<NpmMarketClosure> NpmMarketClosures { get; }
+        DbSet<NpmOperatingSchedule> NpmOperatingSchedules { get; }
         DbSet<OnlinePaymentTransaction> OnlinePaymentTransactions { get; }
         DbSet<SlaughterTransaction> SlaughterTransactions { get; }
         DbSet<SlaughterAnimalRate> SlaughterAnimalRates { get; }

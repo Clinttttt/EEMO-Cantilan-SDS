@@ -134,12 +134,7 @@ public partial class FacilityReportsRepository
             .ToDictionary(g => g.Key, g => g.Select(x => x.CollectionDate).ToHashSet());
 
         // A market closure excuses EVERY payor for that date, so it is not a day the period expected either.
-        var closureDates = (await _context.NpmMarketClosures
-                .AsNoTracking()
-                .Where(c => c.ClosureDate >= startDate && c.ClosureDate <= endDate)
-                .Select(c => c.ClosureDate)
-                .ToListAsync(ct))
-            .ToHashSet();
+        var closureDates = await _context.EffectiveNpmClosedDatesAsync(startDate, endDate, ct);
 
         var expectedDayRecords = npmCollectableStalls.Sum(stall =>
         {
@@ -274,12 +269,7 @@ public partial class FacilityReportsRepository
             .ToDictionary(g => g.Key, g => g.Select(x => x.CollectionDate).ToHashSet());
 
         // Facility-wide market closures excuse EVERY payor that day — folded into AbsentOn below.
-        var marketClosedDates = (await _context.NpmMarketClosures
-                .AsNoTracking()
-                .Where(c => c.ClosureDate >= monthStart && c.ClosureDate <= monthEnd)
-                .Select(c => c.ClosureDate)
-                .ToListAsync(ct))
-            .ToHashSet();
+        var marketClosedDates = await _context.EffectiveNpmClosedDatesAsync(monthStart, monthEnd, ct);
 
         bool AbsentOn(Stall s, DateOnly d) =>
             marketClosedDates.Contains(d) || (absentDatesByStall.TryGetValue(s.Id, out var ds) && ds.Contains(d));

@@ -203,6 +203,10 @@ public static class AuditDetailComposer
         ("Deleted", "NpmMarketClosure") => "Removed the market closure of",
         ("Updated", "NpmMarketClosure") => "Updated the market closure of",
 
+        ("Created", "NpmOperatingSchedule") => "Set the market's weekly operating schedule",
+        ("Updated", "NpmOperatingSchedule") => "Restated the market's weekly operating schedule",
+        ("Deleted", "NpmOperatingSchedule") => "Removed the market's weekly operating schedule",
+
         ("Created", "AdminUser") => "Created the staff account of",
         ("Updated", "AdminUser") => "Updated the staff account of",
         ("Deleted", "AdminUser") => "Removed the staff account of",

@@ -155,4 +155,38 @@ public class PaymentsController(ISender sender) : ApiBaseController(sender)
         var result = await Sender.Send(command);
         return HandleResponse(result);
     }
+
+    // Returns one day to the weekly schedule by removing the Head's explicit closure or opening. Past days are the Head's.
+    [HttpPost("market-closure/restore")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<bool>> RestoreMarketDay([FromBody] EEMOCantilanSDS.Application.Command.Payments.RestoreNpmOperatingDay.RestoreNpmOperatingDayCommand command)
+    {
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    [HttpGet("npm-operating-calendar")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<NpmOperatingCalendarDto>> GetNpmOperatingCalendar([FromQuery] int year, [FromQuery] int month)
+    {
+        var result = await Sender.Send(new EEMOCantilanSDS.Application.Queries.Payments.GetNpmOperatingCalendar.GetNpmOperatingCalendarQuery(year, month));
+        return HandleResponse(result);
+    }
+
+    [HttpGet("npm-day-impact")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<NpmDayImpactDto>> GetNpmDayImpact([FromQuery] DateOnly date)
+    {
+        var result = await Sender.Send(new EEMOCantilanSDS.Application.Queries.Payments.GetNpmOperatingCalendar.GetNpmDayImpactQuery(date));
+        return HandleResponse(result);
+    }
+
+    // The weekly operating pattern is the Head's alone: it changes what every NPM month owes from its effective date.
+    [HttpPost("npm-operating-schedule")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<bool>> SetNpmOperatingSchedule([FromBody] EEMOCantilanSDS.Application.Command.Payments.SetNpmOperatingSchedule.SetNpmOperatingScheduleCommand command)
+    {
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
 }

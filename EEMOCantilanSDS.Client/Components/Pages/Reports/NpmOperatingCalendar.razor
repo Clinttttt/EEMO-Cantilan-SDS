@@ -1,0 +1,317 @@
+@using EEMOCantilanSDS.Application.Command.Payments.RestoreNpmOperatingDay
+@using EEMOCantilanSDS.Application.Command.Payments.SetMarketClosure
+@using EEMOCantilanSDS.Application.Command.Payments.ClearMarketClosure
+@using EEMOCantilanSDS.Application.Command.Payments.SetNpmOperatingSchedule
+@using EEMOCantilanSDS.Application.Dtos.Payments
+@inject IPaymentsApiClient PaymentsApi
+
+<section class="oc" aria-labelledby="oc-title">
+    <header class="oc-head">
+        <div>
+            <h2 id="oc-title" class="oc-title">Operating calendar</h2>
+            <p class="oc-sub">The days the market opens. Closed days are not billed; money already collected stays collected.</p>
+        </div>
+        <div class="oc-nav">
+            <button type="button" class="oc-btn" aria-label="Previous month" @onclick="() => OnPrevious.InvokeAsync()">‹</button>
+            <span class="oc-month" aria-live="polite">@PeriodLabel</span>
+            <button type="button" class="oc-btn" aria-label="Next month" @onclick="() => OnNext.InvokeAsync()">›</button>
+        </div>
+    </header>
+
+    @if (_loading)
+    {
+        <div class="oc-note" role="status">Loading the calendar…</div>
+    }
+    else if (_error is not null)
+    {
+        <div class="oc-error" role="alert">
+            <span>@_error</span>
+            <button type="button" class="oc-btn" @onclick="Reload">Retry</button>
+        </div>
+    }
+    else if (_calendar is not null)
+    {
+        <p class="oc-summary">
+            <strong>@_calendar.OpenDays</strong> open · <strong>@_calendar.ClosedDays</strong> closed ·
+            @ScheduleLine
+        </p>
+
+        <div class="oc-grid" role="group" aria-label="Days of @PeriodLabel">
+            @foreach (var w in WeekdayHeaders)
+            {
+                <div class="oc-dow" aria-hidden="true">@w</div>
+            }
+            @for (var blank = 0; blank < Offset; blank++)
+            {
+                <div class="oc-cell oc-cell-empty" aria-hidden="true"></div>
+            }
+            @foreach (var d in _calendar.Days)
+            {
+                var day = d;
+                <button type="button"
+                        class="oc-cell oc-@StateClass(day.State) @(_selected?.Date == day.Date ? "oc-sel" : "")"
+                        aria-pressed="@(_selected?.Date == day.Date ? "true" : "false")"
+                        aria-label="@day.Date.ToString("MMMM d"), @StateLabel(day.State)"
+                        @onclick="() => Select(day)">
+                    <span class="oc-num">@day.Date.Day</span>
+                    <span class="oc-tag">@StateLabel(day.State)</span>
+                </button>
+            }
+        </div>
+
+        <ul class="oc-legend" aria-label="Legend">
+            <li><i class="oc-sw oc-sw-open"></i>Open</li>
+            <li><i class="oc-sw oc-sw-closedByWeeklySchedule"></i>Closed (weekly)</li>
+            <li><i class="oc-sw oc-sw-closedByOverride"></i>Closed (this day)</li>
+            <li><i class="oc-sw oc-sw-openedByOverride"></i>Opened (this day)</li>
+        </ul>
+
+        @if (_selected is { } sel)
+        {
+            <section class="oc-day" aria-labelledby="oc-day-title">
+                <h3 id="oc-day-title" class="oc-day-title">@sel.Date.ToString("dddd, MMMM d, yyyy") — @StateLabel(sel.State)</h3>
+                @if (!string.IsNullOrWhiteSpace(sel.Remarks))
+                {
+                    <p class="oc-note">@sel.Remarks</p>
+                }
+
+                @if (_impact is not null)
+                {
+                    <p class="oc-impact">
+                        @_impact.BillableAccounts billable accounts · @_impact.PaidAccounts already paid ·
+                        @_impact.UnpaidAccounts unpaid (@_impact.UnpaidAmount.ToString("N2"))
+                    </p>
+                }
+
+                @if (_impact is { IsPast: true } && !_isHead)
+                {
+                    <p class="oc-note" role="status">A day that has passed can only be changed by the Head.</p>
+                }
+                else
+                {
+                    @if (_impact is { IsPast: true })
+                    {
+                        <label class="oc-field">
+                            <span>Reason (required for a past day)</span>
+                            <input type="text" class="oc-input" @bind="_dayReason" @bind:event="oninput" maxlength="300" />
+                        </label>
+                    }
+                    <div class="oc-actions">
+                        @if (CanClose(sel))
+                        {
+                            <button type="button" class="oc-btn oc-btn-primary" disabled="@_saving" @onclick="CloseDay">Close this day</button>
+                        }
+                        @if (CanOpen(sel))
+                        {
+                            <button type="button" class="oc-btn oc-btn-primary" disabled="@_saving" @onclick="OpenDay">Open this day</button>
+                        }
+                        @if (sel.HasExplicitRow)
+                        {
+                            <button type="button" class="oc-btn" disabled="@_saving" @onclick="RestoreDay">Restore default</button>
+                        }
+                    </div>
+                }
+                @if (_dayError is not null)
+                {
+                    <div class="oc-error" role="alert">@_dayError</div>
+                }
+            </section>
+        }
+
+        <AuthorizeView Roles="SuperAdmin">
+            <section class="oc-sched" aria-labelledby="oc-sched-title">
+                <div class="oc-sched-head">
+                    <h3 id="oc-sched-title" class="oc-day-title">Weekly schedule</h3>
+                    <button type="button" class="oc-btn" aria-expanded="@(_editing ? "true" : "false")" @onclick="ToggleEditor">
+                        @(_editing ? "Cancel" : "Change weekly schedule")
+                    </button>
+                </div>
+
+                @if (_editing)
+                {
+                    <fieldset class="oc-fieldset">
+                        <legend>Closed weekdays</legend>
+                        @foreach (var wd in Weekdays)
+                        {
+                            var dow = wd;
+                            <label class="oc-check">
+                                <input type="checkbox" checked="@_closedPick.Contains(dow)" @onchange="e => TogglePick(dow, e.Value is true)" />
+                                @dow
+                            </label>
+                        }
+                        <button type="button" class="oc-btn" @onclick="PickWeekends">Weekends</button>
+                    </fieldset>
+                    <label class="oc-field">
+                        <span>Effective from (today or later)</span>
+                        <input type="date" class="oc-input" min="@Today.ToString("yyyy-MM-dd")" value="@_effective.ToString("yyyy-MM-dd")" @onchange="OnEffectiveChanged" />
+                    </label>
+                    <label class="oc-field">
+                        <span>Authority (memorandum or instruction)</span>
+                        <input type="text" class="oc-input" @bind="_scheduleRemarks" @bind:event="oninput" maxlength="300" />
+                    </label>
+                    <p class="oc-note">
+                        From this date, the selected weekdays are not billed. On the fixed-rent basis, each closed day is credited at one
+                        installment, so those months owe less than the full target. Earlier months do not change.
+                    </p>
+                    @if (_scheduleError is not null)
+                    {
+                        <div class="oc-error" role="alert">@_scheduleError</div>
+                    }
+                    <button type="button" class="oc-btn oc-btn-primary" disabled="@_saving" @onclick="SaveSchedule">Save weekly schedule</button>
+                }
+
+                @if (_calendar.Schedules.Count > 0)
+                {
+                    <ul class="oc-history" aria-label="Schedule versions">
+                        @foreach (var s in _calendar.Schedules.OrderByDescending(x => x.EffectiveFrom))
+                        {
+                            <li>
+                                <strong>@s.EffectiveFrom.ToString("MMM d, yyyy")</strong> —
+                                @(s.ClosedWeekdays.Count == 0 ? "open every day" : "closed " + string.Join(", ", s.ClosedWeekdays))
+                                @if (!string.IsNullOrWhiteSpace(s.Remarks)) { <span class="oc-muted"> · @s.Remarks</span> }
+                            </li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <p class="oc-note">No weekly schedule is set: the market is treated as open every day.</p>
+                }
+            </section>
+        </AuthorizeView>
+    }
+</section>
+
+@code {
+    [Parameter] public int Year { get; set; }
+    [Parameter] public int Month { get; set; }
+    [Parameter] public EventCallback OnPrevious { get; set; }
+    [Parameter] public EventCallback OnNext { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    private static readonly string[] WeekdayHeaders = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    private static readonly DayOfWeek[] Weekdays =
+        [DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday];
+
+    private NpmOperatingCalendarDto? _calendar;
+    private NpmOperatingDayDto? _selected;
+    private NpmDayImpactDto? _impact;
+    private bool _loading = true;
+    private bool _saving;
+    private bool _isHead;
+    private bool _editing;
+    private string? _error, _dayError, _scheduleError, _dayReason, _scheduleRemarks;
+    private (int Year, int Month) _loaded;
+    private readonly HashSet<DayOfWeek> _closedPick = [];
+    private DateOnly _effective;
+
+    private static DateOnly Today => PhilippineTime.Today;
+    private string PeriodLabel => new DateTime(Year, Month, 1).ToString("MMMM yyyy");
+    private int Offset => (int)new DateTime(Year, Month, 1).DayOfWeek;
+
+    private string ScheduleLine => _calendar?.InForce is { } s
+        ? (s.ClosedWeekdays.Count == 0 ? "Weekly schedule: open every day" : "Weekly schedule: closed " + string.Join(", ", s.ClosedWeekdays))
+        : "No weekly schedule set";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _effective = Today;
+        if (AuthState is not null)
+            _isHead = (await AuthState).User.IsInRole("SuperAdmin");
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loaded == (Year, Month) && _calendar is not null) return;
+        await Reload();
+    }
+
+    private async Task Reload()
+    {
+        _loading = true; _error = null; _selected = null; _impact = null; _dayError = null;
+        StateHasChanged();
+        var res = await PaymentsApi.GetNpmOperatingCalendarAsync(Year, Month);
+        _loading = false;
+        if (res.IsSuccess) { _calendar = res.Value; _loaded = (Year, Month); }
+        else { _calendar = null; _error = res.Error ?? "The operating calendar could not be loaded."; }
+    }
+
+    private async Task Select(NpmOperatingDayDto day)
+    {
+        _selected = day; _impact = null; _dayError = null; _dayReason = null;
+        var res = await PaymentsApi.GetNpmDayImpactAsync(day.Date);
+        if (res.IsSuccess && _selected?.Date == day.Date) _impact = res.Value;
+    }
+
+    private static bool IsClosed(NpmDayState s) => s is NpmDayState.ClosedByOverride or NpmDayState.ClosedByWeeklySchedule;
+    private static bool CanClose(NpmOperatingDayDto d) => !IsClosed(d.State);
+    private static bool CanOpen(NpmOperatingDayDto d) => IsClosed(d.State);
+
+    private bool ReasonMissing => _impact is { IsPast: true } && (_dayReason?.Trim().Length ?? 0) < 5;
+
+    private Task CloseDay() => Apply(d => PaymentsApi.SetMarketClosureAsync(new SetNpmMarketClosureCommand(d, MarketClosureReason.ApprovedByEemo, Remark())));
+    private Task OpenDay() => Apply(d => PaymentsApi.ClearMarketClosureAsync(new ClearNpmMarketClosureCommand(d, Remark())));
+    private Task RestoreDay() => Apply(d => PaymentsApi.RestoreNpmOperatingDayAsync(new RestoreNpmOperatingDayCommand(d, Remark())));
+    private string? Remark() => string.IsNullOrWhiteSpace(_dayReason) ? null : _dayReason.Trim();
+
+    private async Task Apply(Func<DateOnly, Task<Result<bool>>> act)
+    {
+        if (_selected is null) return;
+        if (ReasonMissing) { _dayError = "A past day needs a reason of at least 5 characters."; return; }
+        _saving = true; _dayError = null;
+        var date = _selected.Date;
+        var res = await act(date);
+        _saving = false;
+        if (!res.IsSuccess) { _dayError = res.Error ?? "Unable to save. Please try again."; return; }
+        await Reload();
+        await OnChanged.InvokeAsync();
+        var fresh = _calendar?.Days.FirstOrDefault(x => x.Date == date);
+        if (fresh is not null) await Select(fresh);
+    }
+
+    private void ToggleEditor()
+    {
+        _editing = !_editing; _scheduleError = null;
+        _closedPick.Clear();
+        if (_editing && _calendar?.InForce is { } s) foreach (var d in s.ClosedWeekdays) _closedPick.Add(d);
+        _effective = Today; _scheduleRemarks = null;
+    }
+    private void TogglePick(DayOfWeek d, bool on) { if (on) _closedPick.Add(d); else _closedPick.Remove(d); }
+    private void PickWeekends() { _closedPick.Clear(); _closedPick.Add(DayOfWeek.Saturday); _closedPick.Add(DayOfWeek.Sunday); }
+    private void OnEffectiveChanged(ChangeEventArgs e)
+    {
+        if (DateOnly.TryParse(e.Value?.ToString(), out var d)) _effective = d;
+    }
+
+    private async Task SaveSchedule()
+    {
+        _scheduleError = null;
+        if (_effective < Today) { _scheduleError = "The effective date cannot be in the past."; return; }
+        if (_closedPick.Count >= 7) { _scheduleError = "The market cannot be closed every day."; return; }
+        if (_closedPick.Count > 0 && (_scheduleRemarks?.Trim().Length ?? 0) < 3) { _scheduleError = "State the authority for the closed days."; return; }
+        _saving = true;
+        var res = await PaymentsApi.SetNpmOperatingScheduleAsync(new SetNpmOperatingScheduleCommand(_effective, _closedPick.OrderBy(x => x).ToList(), _scheduleRemarks?.Trim()));
+        _saving = false;
+        if (!res.IsSuccess) { _scheduleError = res.Error ?? "Unable to save the schedule."; return; }
+        _editing = false;
+        await Reload();
+        await OnChanged.InvokeAsync();
+    }
+
+    private static string StateClass(NpmDayState s) => s switch
+    {
+        NpmDayState.ClosedByWeeklySchedule => "closedByWeeklySchedule",
+        NpmDayState.ClosedByOverride => "closedByOverride",
+        NpmDayState.OpenedByOverride => "openedByOverride",
+        _ => "open"
+    };
+
+    private static string StateLabel(NpmDayState s) => s switch
+    {
+        NpmDayState.ClosedByWeeklySchedule => "Closed · weekly",
+        NpmDayState.ClosedByOverride => "Closed",
+        NpmDayState.OpenedByOverride => "Opened",
+        _ => "Open"
+    };
+}

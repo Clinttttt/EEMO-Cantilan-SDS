@@ -157,9 +157,7 @@ public partial class PaymentRepository(AppDbContext context, IFeeRateResolver fe
         var today = _clock.PhilippineToday;
 
         // A market-wide closure excuses every NPM payor without requiring per-stall DailyCollection rows.
-        if (await _context.NpmMarketClosures
-                .AsNoTracking()
-                .AnyAsync(c => c.ClosureDate == today, ct))
+        if ((await _context.EffectiveNpmClosedDatesAsync(today, today, ct)).Contains(today))
             return 0;
 
         var currentStalls = await _context.Stalls

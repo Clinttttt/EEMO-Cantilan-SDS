@@ -63,12 +63,7 @@ public partial class StallRepository
             .Where(s => s.Contracts.Any(c => c.OverlapsPeriod(lookbackStart, effectiveEnd)))
             .ToList();
 
-        var closures = (await _context.NpmMarketClosures
-            .AsNoTracking()
-            .Where(c => c.ClosureDate >= lookbackStart && c.ClosureDate <= monthEnd)
-            .Select(c => c.ClosureDate)
-            .ToListAsync(ct))
-            .ToHashSet();
+        var closures = await _context.EffectiveNpmClosedDatesAsync(lookbackStart, monthEnd, ct);
 
         var payors = new List<MobileNpmStallArrearsDto>();
         var today = _clock.PhilippineToday;

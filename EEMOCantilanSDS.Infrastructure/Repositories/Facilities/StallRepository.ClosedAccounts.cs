@@ -107,8 +107,7 @@ public partial class StallRepository
         // Days the market itself was shut. Nothing is owed for them, so charging them here would state a debt the
         // office cannot collect — and the Record-payment dialog, which has always excluded them, would then offer a
         // smaller total than this register. One closure list serves every stall: a closure is facility-wide.
-        var closureDates = (await _context.NpmMarketClosures.AsNoTracking()
-            .Select(c => c.ClosureDate).ToListAsync(ct)).ToHashSet();
+        var closureDates = await _context.EffectiveNpmClosedDatesThroughAsync(today, ct);
 
         var paidByStall = paidDailies.GroupBy(d => d.StallId).ToDictionary(g => g.Key, g => g.ToList());
         var absentByStall = absentDailies.GroupBy(d => d.StallId).ToDictionary(g => g.Key, g => g.Select(x => x.CollectionDate).ToHashSet());
