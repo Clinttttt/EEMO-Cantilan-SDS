@@ -128,7 +128,16 @@ public sealed partial class CollectionSessionSources
                 var d = CollectionSessionChoiceProjection.Apply(new(null, date, operations, water.Value,
                     electric.Value?.Where(x => x.StallId == stall.Id).ToArray(), NpmWholeSources: wholeSources));
                 rows.AddRange(d.Operations.Where(x => x.EligibleChoiceCount > 0));
+                // A payment of an amount against this month's installments, when the office has part payments on. The server states the most
+                // it can apply; what each amount does is planned and previewed by the server at review, never decided here.
+                if (npmPart is not null && stall.Facility!.Code == FacilityCode.NPM
+                    && await npmPart.QuoteAsync(stall.Id, date.Year, date.Month, 0.01m, ct, date) is { IsSuccess: true, Value: { Outcome: "Applied", Instrument: { } partInstrument } part })
+                    rows.Add(new(CollectionSessionItemKind.NpmPartPayment, "NPM_PART_PAYMENT", "Part payment", true, true, null, null, false, [], true,
+                        [new($"NpmPart|{stall.Id:N}|{date:yyyy-MM}", CollectionSessionItemKind.NpmPartPayment, "NPM_PART_PAYMENT", "Part payment",
+                            $"Stall {stall.StallNo} · {date:MMMM yyyy}", new(StallId: stall.Id, OccupancyId: owner.Id, Year: date.Year, Month: date.Month),
+                            partInstrument, CollectionSessionAmountRule.DirectAmount, MaximumAmount: part.Payable, RequiredInputs: ["AmountReceived"])], CollectionFamily.Rent));
                 if (MonthlyRentalFacilities.Codes.Contains(stall.Facility!.Code))
+
                 {
                     var periods = await db.PaymentRecords.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.StallId == stall.Id
                         && x.SettlementAuthorityState == SettlementAuthority.Canonical).OrderBy(x => x.BillingYear).ThenBy(x => x.BillingMonth)
@@ -181,13 +190,13 @@ public sealed partial class CollectionSessionSources
         if (item.Kind is CollectionSessionItemKind.GovernedService or CollectionSessionItemKind.Slaughter) return false; // Payer-optional services belong to a direct (source-less) session only.
         if (identity.Kind == SourceIdentityKind.SpaceAccount) return item.Obligation?.AccountId == identity.Id;
         if (identity.Kind != SourceIdentityKind.Occupancy) return false;
-        var stallId = item.Water?.StallId ?? item.NpmWhole?.StallId ?? item.NpmDaily?.StallId ?? item.Electricity?.StallId ?? item.Rent?.StallId;
+        var stallId = item.Water?.StallId ?? item.NpmWhole?.StallId ?? item.NpmDaily?.StallId ?? item.NpmPart?.StallId ?? item.Electricity?.StallId ?? item.Rent?.StallId;
         if (!stallId.HasValue && item.Electricity is { } e)
             stallId = await db.UtilityBills.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.Id == e.UtilityBillId).Select(x => (Guid?)x.StallId).SingleOrDefaultAsync(ct);
         if (!stallId.HasValue) return false;
         var stall = await db.Stalls.AsNoTracking().Include(x => x.Contracts).SingleOrDefaultAsync(x => x.MunicipalityId == Tenant && x.Id == stallId, ct);
-        var year = item.Water?.Year ?? item.NpmWhole?.Year ?? item.Electricity?.Year ?? item.Rent?.Year ?? session.BusinessDate.Year;
-        var month = item.Water?.Month ?? item.NpmWhole?.Month ?? item.Electricity?.Month ?? item.Rent?.Month ?? session.BusinessDate.Month;
+        var year = item.Water?.Year ?? item.NpmWhole?.Year ?? item.NpmPart?.Year ?? item.Electricity?.Year ?? item.Rent?.Year ?? session.BusinessDate.Year;
+        var month = item.Water?.Month ?? item.NpmWhole?.Month ?? item.NpmPart?.Month ?? item.Electricity?.Month ?? item.Rent?.Month ?? session.BusinessDate.Month;
         return year is >= 2000 and <= 2200 && month is >= 1 and <= 12 &&
             stall?.OccupancyAnsweringForMonth(year, month, session.BusinessDate)?.Contract?.Id == identity.Id;
     }

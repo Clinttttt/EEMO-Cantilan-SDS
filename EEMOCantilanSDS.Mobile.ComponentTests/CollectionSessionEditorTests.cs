@@ -655,6 +655,36 @@ public sealed class CollectionSessionEditorTests : TestContext
     }
 
     [Fact]
+    public void An_npm_part_payment_takes_an_amount_up_to_the_servers_maximum_and_goes_in_as_a_part_payment_item()
+    {
+        _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(Occupancy)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(new(null, Today,
+            [new(CollectionSessionItemKind.NpmPartPayment, "NPM_PART_PAYMENT", "Part payment", true, true, null, null, false, [], true,
+                [new("NpmPart|stall", CollectionSessionItemKind.NpmPartPayment, "NPM_PART_PAYMENT", "Part payment", "Stall 2 · October 2026",
+                    new(StallId: DailyStall, OccupancyId: Guid.NewGuid(), Year: 2026, Month: 10), RevenueInstrumentType.OfficialReceipt,
+                    CollectionSessionAmountRule.DirectAmount, MaximumAmount: 210m, RequiredInputs: ["AmountReceived"])], CollectionFamily.Rent)],
+            SourceIdentity: Occupancy)));
+        var view = PickSource("Ana Reyes");
+        Click(view, "+ Add item");
+        Assert.Contains("Any amount up to ₱210.00", view.Find("[role=dialog]").TextContent);     // the server's own ceiling, never one made up here
+        Click(view, "Part paymentAny amount up to ₱210.00 ›");
+
+        var amount = view.Find("[role=dialog] input[type=number]");
+        Assert.Equal("210", amount.GetAttribute("max"));
+        Assert.Contains("oldest unpaid day first", view.Find("[role=dialog]").TextContent);
+        amount.Input("300");                                                                       // more than the server will apply
+        Assert.True(view.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Add item").HasAttribute("disabled"));
+        amount.Input("20");
+        Click(view, "Add item"); Click(view, "Review collection"); Click(view, "Record collection");
+
+        view.WaitForAssertion(() => Assert.Single(_queue));
+        var item = Assert.Single(_queue[0].CollectionSession!.Intent.Items);
+        Assert.Equal((CollectionSessionItemKind.NpmPartPayment, 20m, DailyStall, 2026, 10),
+            (item.Kind, item.ConfirmedAmount, item.NpmPart!.StallId, item.NpmPart.Year, item.NpmPart.Month));
+        Assert.Null(item.NpmDaily); Assert.Null(item.NpmWhole);
+        Assert.Equal(Occupancy, _queue[0].CollectionSession!.Intent.SourceIdentity);
+    }
+
+    [Fact]
     public void The_daily_stall_payment_is_the_servers_charge_and_goes_in_as_a_daily_item_for_that_stall()
     {
         ServeNpmOccupancy();

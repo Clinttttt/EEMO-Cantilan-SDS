@@ -293,6 +293,7 @@ else
                         <div class="sheet-note">Approved amount confirmed on review</div>
                     }
                     @if (_choice.Kind == CollectionSessionItemKind.NpmWholePayment) { <div class="sheet-note">Remaining monthly rent is confirmed on review</div> }
+                    @if (_choice.Kind == CollectionSessionItemKind.NpmPartPayment) { <div class="sheet-note">Applied to the oldest unpaid day first. The server shows how it is applied on review@(_choice.MaximumAmount is { } most ? $" · up to {Money(most)} is payable now" : "").</div> }
                     @if (TakesTypedAmount)
                     {
                         <label class="form-field"><span class="form-label">Amount received</span><input class="form-input" type="number" inputmode="decimal" min="0.01" step="0.01" max="@(_choice.MaximumAmount?.ToString(CultureInfo.InvariantCulture))" @bind="_amount" @bind:event="oninput" /></label>
@@ -431,6 +432,7 @@ else
     {
         "NPM_DAILY" when row.Choices is [{ ServerAmount: { } amount }] => Money(amount) + " · Today",
         "NPM_WHOLE_PAYMENT" when row.Choices is [{ ServerAmount: { } amount }] => Money(amount) + " remaining",
+        "NPM_PART_PAYMENT" when row.Choices is [{ MaximumAmount: { } most }] => "Any amount up to " + Money(most),
         _ => null
     };
 
@@ -452,6 +454,7 @@ else
     private bool CanAddItem => _choice is { } c && (IsWeighing ? _quantity > 0 && _serverAmount is > 0m
         : c.Kind == CollectionSessionItemKind.Slaughter ? _heads > 0 && (_source is not null || !string.IsNullOrWhiteSpace(_snapshot) || !string.IsNullOrWhiteSpace(_owner))
         : c.Kind == CollectionSessionItemKind.NpmWholePayment ? true
+        : c.Kind == CollectionSessionItemKind.NpmPartPayment ? _amount > 0m && (c.MaximumAmount is not { } cap || _amount <= cap)
         : (c.AmountRule == CollectionSessionAmountRule.FixedAmount ? c.ServerAmount ?? 0m : _amount) > 0m)
         && (!NeedsPayerName || !string.IsNullOrWhiteSpace(_snapshot));
 
@@ -692,7 +695,7 @@ else
         if (!CanAddItem || _choice is not { } c) return;
         var id = Guid.NewGuid(); var identity = c.Identity;
         SessionWaterIntent? water = null; SessionElectricityIntent? electricity = null; SessionObligationIntent? obligation = null;
-        SessionGovernedIntent? service = null; SessionSlaughterIntent? slaughter = null; SessionNpmWholeIntent? npmWhole = null; SessionNpmDailyIntent? npmDaily = null;
+        SessionGovernedIntent? service = null; SessionSlaughterIntent? slaughter = null; SessionNpmWholeIntent? npmWhole = null; SessionNpmDailyIntent? npmDaily = null; SessionNpmPartIntent? npmPart = null;
         SourceNativeChargeIntent? native = null; SessionMonthlyRentIntent? rent = null;
         var year = identity.Year ?? identity.PeriodStart?.Year ?? BusinessDate.Year;
         var month = identity.Month ?? identity.PeriodStart?.Month ?? BusinessDate.Month;
@@ -703,6 +706,7 @@ else
             case CollectionSessionItemKind.Obligation: obligation = new(identity.AccountId!.Value, year, month); break;
             case CollectionSessionItemKind.NpmWholePayment: npmWhole = new(identity.StallId!.Value, year, month); break;
             case CollectionSessionItemKind.NpmDaily: npmDaily = new(identity.StallId!.Value); break;
+            case CollectionSessionItemKind.NpmPartPayment: npmPart = new(identity.StallId!.Value, year, month); break;
             case CollectionSessionItemKind.MonthlyRent: rent = new(identity.StallId!.Value, year, month, identity.SourceVersion); break;
             case CollectionSessionItemKind.GovernedService: service = new(c.OperationCode, identity.Mode, identity.FeeOptionId, identity.VehicleClassCode); break;
             case CollectionSessionItemKind.Slaughter:
@@ -714,7 +718,7 @@ else
         var amount = c.Kind is CollectionSessionItemKind.Slaughter or CollectionSessionItemKind.NpmWholePayment ? 0m
             : IsWeighing ? _serverAmount ?? 0m
             : c.AmountRule == CollectionSessionAmountRule.FixedAmount ? c.ServerAmount ?? 0m : _amount;
-        var added = new CollectionSessionItemIntent(id, c.Kind, amount, water, service, obligation, electricity, null, slaughter, null, npmWhole, native, rent, npmDaily);
+        var added = new CollectionSessionItemIntent(id, c.Kind, amount, water, service, obligation, electricity, null, slaughter, null, npmWhole, native, rent, npmDaily, npmPart);
         var at = _editingId is { } editing ? _items.FindIndex(x => x.ClientItemId == editing) : -1;
         if (at >= 0) { _items[at] = added; _shown.Remove(_editingId!.Value); _drafts.Remove(_editingId.Value); }
         else _items.Add(added);
