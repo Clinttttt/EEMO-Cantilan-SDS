@@ -1,4 +1,5 @@
 ﻿using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Caching;
@@ -66,6 +67,7 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
             service.AddScoped<ICollectionSessionStore, Repositories.Revenue.CollectionSessionStore>();
             service.AddScoped<ICollectionSessionSources, Repositories.Revenue.CollectionSessionSources>();
+            service.AddScoped<IBackEntryReconciliationReader, Repositories.Revenue.BackEntryReconciliationReader>();
             service.AddScoped<IUnitOfWork, UnitOfWork>();
             // The NPM poster uses the same scoped context as the repositories and application workflows:
             // the day rows and canonical Collection commit together or not at all.

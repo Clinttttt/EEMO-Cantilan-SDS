@@ -18,6 +18,10 @@ public sealed class OfficeSourcesController(ISender sender, OfficeCollectionWork
     public async Task<ActionResult<NpmVendorAssociationDto>> LinkNpm(Guid id, ConfirmNpmVendorAssociationRequest request, CancellationToken ct) => HandleResponse(await workflow.LinkNpmVendorAsync(id, request, ct));
     [HttpPost("fish-meat/npm-links/{id:guid}/correct"), Authorize(Roles = "SuperAdmin")]
     public async Task<ActionResult<NpmVendorAssociationDto>> CorrectNpmLink(Guid id, CorrectNpmVendorAssociationRequest request, CancellationToken ct) => HandleResponse(await workflow.CorrectNpmVendorLinkAsync(id, request, ct));
+    /// <summary>Read-only evidence of whether a collection the office is asked to enter is already on the server. Records nothing, and never authorises a back-entry on its own.</summary>
+    [HttpPost("back-entry/lookup"), Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<BackEntryLookupResult>> BackEntryLookup(BackEntryLookupRequest request, [FromServices] IBackEntryReconciliationReader reader, CancellationToken ct) =>
+        HandleResponse(await reader.LookupAsync(request, ct));
     [HttpGet("activity"), Authorize(Roles = "SuperAdmin,Admin,Collector")]
     public async Task<ActionResult<IReadOnlyList<SourceNativeActivityDto>>> Activity(DateOnly from, DateOnly to, string? operationCode, CancellationToken ct) =>
         HandleResponse(await workflow.ActivityAsync(from, to, operationCode, ct));
