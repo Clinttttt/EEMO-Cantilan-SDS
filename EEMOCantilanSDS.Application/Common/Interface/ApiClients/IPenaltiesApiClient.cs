@@ -13,6 +13,7 @@ public interface IPenaltiesApiClient
     Task<Result<IReadOnlyList<PenaltyDefinitionDto>>> GetDefinitionsAsync();
     Task<Result<PenaltyDefinitionDto>> DefineAsync(DefinePenaltyRequest request);
     Task<Result<IReadOnlyList<PenaltyRegisterRowDto>>> GetRegisterAsync(DateOnly from, DateOnly to);
+    Task<Result<PenaltyWorkspaceSummaryDto>> GetSummaryAsync(DateOnly from, DateOnly to);
     Task<Result<IReadOnlyList<FineAssessmentDto>>> GetAssessmentsAsync(FineAccountKind? kind = null, Guid? accountId = null, string? search = null);
     Task<Result<IReadOnlyList<FineAccountOption>>> SearchFineAccountsAsync(string search);
     Task<Result<FineAccountOption>> GetFineAccountAsync(FineAccountRef account);

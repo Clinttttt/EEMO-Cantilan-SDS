@@ -3152,6 +3152,17 @@ a.topbar-admin.account-chip {
     color: var(--text-secondary);
 }
 
+/* A reversed / voided record, and an open (not yet collected) obligation. Always paired with their text label. */
+.pill-danger {
+    background: var(--red-bg);
+    color: var(--red);
+}
+
+.pill-pending {
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
 .mono {
     color: var(--text-secondary);
     font-size: 12px;

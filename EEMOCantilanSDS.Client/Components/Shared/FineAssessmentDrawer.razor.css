@@ -1,16 +1,56 @@
+/* Assess fine: a stepped, structured assessment — account, fine details, review. */
+
+/* ── Steps ── */
+.fine-assessment ::deep .fine-steps { display:flex; gap:6px; margin:0 0 20px; padding:0; list-style:none; }
+.fine-assessment ::deep .fine-steps li { display:flex; flex:1 1 0; align-items:center; gap:8px; padding:8px 10px; border-bottom:2px solid var(--border); color:var(--text-tertiary); font-size:.8125rem; font-weight:600; }
+.fine-assessment ::deep .fine-step-n { display:inline-flex; width:20px; height:20px; align-items:center; justify-content:center; border:1px solid var(--border-strong); border-radius:50%; background:var(--surface); font-size:.6875rem; }
+.fine-assessment ::deep .fine-steps li.done { border-bottom-color:var(--accent); color:var(--text-secondary); }
+.fine-assessment ::deep .fine-steps li.done .fine-step-n { border-color:var(--accent); background:var(--accent-soft); color:var(--accent); }
+.fine-assessment ::deep .fine-steps li.current { border-bottom-color:var(--accent); color:var(--navy); }
+.fine-assessment ::deep .fine-steps li.current .fine-step-n { border-color:var(--accent); background:var(--accent); color:var(--surface); }
+
+/* ── Account search ── */
 .fine-assessment ::deep .fine-search { display:flex; gap:8px; align-items:end; }
 .fine-assessment ::deep .fine-search .v3-field { flex:1; min-width:0; }
-.fine-assessment ::deep .fine-results { display:grid; gap:4px; margin-top:12px; }
-.fine-assessment ::deep .fine-result { display:grid; text-align:left; gap:3px; padding:10px 12px; background:var(--surface); border:1px solid var(--border); border-radius:6px; color:var(--text); }
-.fine-assessment ::deep .fine-result:hover { background:var(--accent-soft); }
+.fine-assessment ::deep .fine-hint { margin:10px 0 0; color:var(--text-secondary); font-size:.8125rem; line-height:1.45; }
+.fine-assessment ::deep .fine-results { display:grid; gap:6px; margin-top:12px; }
+.fine-assessment ::deep .fine-result { display:grid; text-align:left; gap:3px; padding:11px 14px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); cursor:pointer; }
+.fine-assessment ::deep .fine-result:hover { border-color:var(--accent); background:var(--accent-soft); }
 .fine-assessment ::deep .fine-result:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.fine-assessment ::deep .fine-result-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.fine-assessment ::deep .fine-result strong { color:var(--navy); }
 .fine-assessment ::deep .fine-result span,.fine-assessment ::deep .fine-result small { color:var(--text-secondary); }
-.fine-assessment ::deep .fine-selected { display:grid; gap:4px; margin-bottom:14px; }
-.fine-assessment ::deep .fine-facts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin:0; }
-.fine-assessment ::deep .fine-facts dt { color:var(--text-secondary); font-size:.8rem; margin-bottom:4px; }
+.fine-assessment ::deep .fine-result small { font-size:.75rem; }
+
+/* ── Selected account ── */
+.fine-assessment ::deep .fine-account { border:1px solid var(--border); border-radius:10px; background:var(--surface-muted); overflow:hidden; }
+.fine-assessment ::deep .fine-account-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:14px 16px; border-bottom:1px solid var(--border); background:var(--surface); }
+.fine-assessment ::deep .fine-account-name { display:block; color:var(--navy); font-size:1rem; font-weight:700; }
+.fine-assessment ::deep .fine-account-sub { display:block; margin-top:2px; color:var(--text-secondary); font-size:.8125rem; }
+.fine-assessment ::deep .fine-account-facts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px 20px; margin:0; padding:14px 16px; }
+.fine-assessment ::deep .fine-account-facts dt { margin-bottom:2px; color:var(--text-tertiary); font-size:.75rem; font-weight:500; }
+.fine-assessment ::deep .fine-account-facts dd { margin:0; overflow-wrap:anywhere; font-size:.875rem; }
+.fine-assessment ::deep .fine-change { margin-top:10px; }
+
+/* ── Fine details ── */
+.fine-assessment ::deep .fine-empty { display:grid; gap:6px; justify-items:start; padding:16px; border:1px dashed var(--border-strong); border-radius:10px; background:var(--surface-muted); }
+.fine-assessment ::deep .fine-empty p { margin:0; color:var(--navy); font-weight:600; }
+.fine-assessment ::deep .fine-empty span { color:var(--text-secondary); font-size:.8125rem; line-height:1.45; }
+.fine-assessment ::deep .fine-empty a { margin-top:6px; }
+.fine-assessment ::deep .fine-facts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px 20px; margin:0; }
+.fine-assessment ::deep .fine-facts dt { color:var(--text-tertiary); font-size:.75rem; font-weight:500; margin-bottom:2px; }
 .fine-assessment ::deep .fine-facts dd { margin:0; overflow-wrap:anywhere; }
 .fine-assessment ::deep .fine-wide { grid-column:1/-1; }
-.fine-assessment ::deep .fine-amount-rule { align-self:end; font-size:.8rem; color:var(--text-secondary); }
+.fine-assessment ::deep .fine-amount-rule { align-self:end; margin:0; font-size:.8rem; color:var(--text-secondary); }
+.fine-assessment ::deep .fine-total { display:grid; gap:2px; margin-top:16px; padding:14px 16px; border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:8px; background:var(--accent-soft); }
+.fine-assessment ::deep .fine-total span { color:var(--text-secondary); font-size:.75rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; }
+.fine-assessment ::deep .fine-total strong { color:var(--navy); font-size:1.375rem; font-variant-numeric:tabular-nums; }
+.fine-assessment ::deep .fine-total small { color:var(--text-secondary); font-size:.8125rem; }
 .fine-assessment ::deep .fine-check { display:flex; gap:8px; align-items:flex-start; font-size:.85rem; margin-top:14px; }
 .fine-assessment ::deep .fine-check input { width:16px; height:16px; flex:none; margin-top:2px; }
-@media(max-width:600px) { .fine-assessment ::deep .fine-facts,.fine-assessment ::deep .vds .avm-row-2 { grid-template-columns:1fr; } .fine-assessment ::deep .fine-search { flex-wrap:wrap; } }
+
+@media(max-width:600px) {
+    .fine-assessment ::deep .fine-facts,.fine-assessment ::deep .fine-account-facts,.fine-assessment ::deep .vds .avm-row-2 { grid-template-columns:1fr; }
+    .fine-assessment ::deep .fine-search { flex-wrap:wrap; }
+    .fine-assessment ::deep .fine-steps li { padding:8px 4px; font-size:.75rem; }
+}

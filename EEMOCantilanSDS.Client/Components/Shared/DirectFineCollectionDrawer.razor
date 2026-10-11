@@ -5,15 +5,14 @@
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 <div @ref="_root">
-<AddNewDrawer Show="true" Title="Record fine collection" Subtitle="Fines & Penalties · Official Receipt"
-    FormId="direct-fine-collection" FormLabel="Record fine collection" Saving="_busy" Error="@_error"
+<AddNewDrawer Show="true" Title="Record direct fine" Subtitle="Fines & Penalties · Official Receipt"
+    FormId="direct-fine-collection" FormLabel="Record direct fine" Saving="_busy" Error="@_error"
     SubmitText="@(_quote is null ? "Review collection" : "Confirm collection")" CancelText="@(_outcome is null ? "Cancel" : "Close")"
     SubmitDisabled="@(_loading || _recoveryBlocked || (_category is null && _quote is null) || _outcome is not null)" OnSubmit="Submit" OnCancel="Close">
     @if (_loading) { <p role="status">Loading approved fine categories…</p> }
     else if (_outcome is { } cash) {
         <AddNewSection Title="Collection recorded">
-            <p role="status"><strong>₱@cash.Amount.ToString("N2")</strong> · @cash.ReferenceCode</p>
-            <p>@cash.BusinessDate.ToString("MMM d, yyyy") · Fines &amp; Penalties</p>
+            <div class="df-success" role="status"><span>Official SRC reference</span><strong class="df-src">@cash.ReferenceCode</strong><span class="df-success-amount">₱@cash.Amount.ToString("N2") · @cash.BusinessDate.ToString("MMM d, yyyy") · Fines &amp; Penalties</span></div>
             <a class="v3-btn" href="/collections/activity">View in Collection Activity</a>
         </AddNewSection>
     }
@@ -22,8 +21,8 @@
     }
     else if (_quote is { } q) {
         <AddNewSection Title="Collection review">
+            <div class="df-total"><span>Amount to collect</span><strong class="df-amount">₱@q.Intent.Amount.ToString("N2")</strong><small>Actual money received · no account or assessment is created</small></div>
             <dl class="df-review"><dt>Revenue source</dt><dd>Fines &amp; Penalties</dd><dt>Fine category</dt><dd>@q.Category</dd>
-                <dt>Amount to collect</dt><dd class="df-amount">₱@q.Intent.Amount.ToString("N2")</dd>
                 <dt>Business date</dt><dd>@q.Intent.BusinessDate.ToString("MMM d, yyyy")</dd><dt>Instrument</dt><dd>Official Receipt</dd>
                 <dt>Approved authority</dt><dd>@q.GoverningReference</dd>
                 @if(q.Intent.Reason is not null) { <dt>Reason</dt><dd>@q.Intent.Reason</dd> }
@@ -42,14 +41,14 @@
     else {
         <AddNewSection Title="Collection details">
             <div class="df-fields">
-                <label class="v3-field"><span>Fine amount (₱)</span><input type="number" min="0.01" step="0.01" required @bind="_amount" readonly="@(_category?.Basis == GovernedServiceBasis.FixedAmount)" /></label>
                 <label class="v3-field"><span>Fine category</span><select value="@_category?.AuthorityId" @onchange="SelectCategory">
                     @foreach(var c in _options.Categories) { <option value="@c.AuthorityId">@c.Name</option> }
                 </select></label>
+                <label class="v3-field"><span>Fine amount (₱)</span><input type="number" min="0.01" step="0.01" required @bind="_amount" readonly="@(_category?.Basis == GovernedServiceBasis.FixedAmount)" /></label>
                 <p class="df-note">@(_category?.Basis == GovernedServiceBasis.FixedAmount ? "Fixed approved amount" : _category?.MaximumAmount is { } max ? $"Authorized maximum: ₱{max:N2}" : "Head-entered amount under approved uncapped authority")</p>
-                <label class="v3-field"><span>Reason / description@(_category?.RequiresReason == true ? "" : " (optional)")</span><textarea maxlength="1000" required="@(_category?.RequiresReason == true)" @bind="_reason"></textarea></label>
-                @if(_category?.RequiresSupportingReference == true) { <label class="v3-field"><span>Supporting reference</span><input maxlength="200" required @bind="_reference" /></label> }
-                @if(_category?.RequiresPayerParticulars == true) { <label class="v3-field"><span>Payer / receipt particulars</span><input maxlength="200" required @bind="_payer" /></label> }
+                <label class="v3-field"><span>Violation reason / description@(_category?.RequiresReason == true ? "" : " (optional)")</span><textarea maxlength="1000" required="@(_category?.RequiresReason == true)" @bind="_reason"></textarea></label>
+                <label class="v3-field"><span>Payer name / receipt particulars@(_category?.RequiresPayerParticulars == true ? "" : " (optional)")</span><input maxlength="200" required="@(_category?.RequiresPayerParticulars == true)" @bind="_payer" /></label>
+                <label class="v3-field"><span>Supporting reference@(_category?.RequiresSupportingReference == true ? "" : " (optional)")</span><input maxlength="200" required="@(_category?.RequiresSupportingReference == true)" @bind="_reference" /></label>
             </div>
         </AddNewSection>
     }
@@ -85,7 +84,7 @@
             else _error=r?.Error ?? "Fine collection policies are unavailable."; }
         catch { _error="Fine collection policies are unavailable."; } finally { _loading=false; }
     }
-    private void SelectCategory(ChangeEventArgs e) { _category=_options?.Categories.SingleOrDefault(c=>c.AuthorityId.ToString()==e.Value?.ToString()); _amount=_category?.FixedAmount ?? 0m; _payer=_reference=null; }
+    private void SelectCategory(ChangeEventArgs e) { _category=_options?.Categories.SingleOrDefault(c=>c.AuthorityId.ToString()==e.Value?.ToString()); _amount=_category?.FixedAmount ?? 0m; }
     private Task Close() => _busy ? Task.CompletedTask : OnClose.InvokeAsync();
     private async Task Submit() {
         if(_busy || _recoveryBlocked || (_category is null && _quote is null) || _options is null || _outcome is not null) return;

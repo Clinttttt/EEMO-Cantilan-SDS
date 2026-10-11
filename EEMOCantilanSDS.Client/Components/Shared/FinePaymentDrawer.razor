@@ -11,20 +11,20 @@
         @if (_loading) { <p role="status">Loading fine quote…</p> }
         else if (_quote is { } quote) {
             <AddNewSection Plain="true" Title="Fine payment">
-                <p><strong>@quote.Occupant</strong><br />@quote.Source · @quote.Unit</p>
-                <dl><dt>Assessed</dt><dd>₱@quote.Assessed.ToString("N2")</dd><dt>Collected</dt><dd>₱@quote.Settled.ToString("N2")</dd>
-                    <dt>Remaining</dt><dd>₱@quote.Remaining.ToString("N2")</dd></dl>
-                @if (!quote.CanSettle) { <p>@quote.IneligibleReason</p> }
-                @if (_current is not null && _draft is null) { <p>This fine will join your compatible OR draft. Review every item before recording payment.</p> }
+                <div class="fp-account"><strong>@quote.Occupant</strong><span>@quote.Source · @quote.Unit</span></div>
+                <dl class="fp-amounts"><div><dt>Assessed</dt><dd>₱@quote.Assessed.ToString("N2")</dd></div><div><dt>Collected</dt><dd>₱@quote.Settled.ToString("N2")</dd></div>
+                    <div class="fp-due"><dt>Remaining</dt><dd>₱@quote.Remaining.ToString("N2")</dd></div></dl>
+                @if (!quote.CanSettle) { <p class="fp-note">@quote.IneligibleReason</p> }
+                @if (_current is not null && _draft is null) { <p class="fp-note">This fine will join your compatible OR draft. Review every item before recording payment.</p> }
                 @if ((_draft ?? _current) is { } displayed) {
                     <div class="v3-table-wrap"><table class="v3-table"><thead><tr><th>OR item</th><th class="v3-num">Amount</th></tr></thead><tbody>
                         @foreach(var line in displayed.Lines) { <tr><td>@line.ClassificationName</td><td class="v3-num">₱@line.Amount.ToString("N2")</td></tr> }
                     </tbody></table></div>
                 }
-                @if (_reviewed && _draft is not null) { <p>Confirm receipt of ₱@_draft.TotalAmount.ToString("N2"). The server will issue the SRC.</p> }
+                @if (_reviewed && _draft is not null) { <p class="fp-confirm">Confirm receipt of ₱@_draft.TotalAmount.ToString("N2"). The server will issue the SRC.</p> }
             </AddNewSection>
         }
-        @if (_outcome is { } outcome) { <p role="status">Payment recorded · @outcome.ReferenceCode · ₱@outcome.Amount.ToString("N2")</p> }
+        @if (_outcome is { } outcome) { <p class="fp-done" role="status">Payment recorded · @outcome.ReferenceCode · ₱@outcome.Amount.ToString("N2")</p> }
     </ChildContent>
     <LeadingFooterActions>
         @if(_outcome is null && _draft is not null && _draft.Lines.Count==1 && _draft.Lines[0].SourceKind==EEMOCantilanSDS.Domain.Enums.CollectionSourceKind.FineAssessment) {

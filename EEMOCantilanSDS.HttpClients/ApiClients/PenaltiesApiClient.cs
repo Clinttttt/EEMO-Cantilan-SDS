@@ -44,4 +44,8 @@ public sealed class PenaltiesApiClient(HttpClient http) : HandleResponse(http), 
     public Task<Result<IReadOnlyList<PenaltyRegisterRowDto>>> GetRegisterAsync(DateOnly from, DateOnly to) =>
         GetAsync<IReadOnlyList<PenaltyRegisterRowDto>>(
             $"api/penalties/register?from={from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}&to={to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}");
+
+    public Task<Result<PenaltyWorkspaceSummaryDto>> GetSummaryAsync(DateOnly from, DateOnly to) =>
+        GetAsync<PenaltyWorkspaceSummaryDto>(
+            $"api/penalties/summary?from={from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}&to={to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}");
 }

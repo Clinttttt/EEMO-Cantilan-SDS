@@ -1,48 +1,82 @@
 @using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Common
 @inject IPenaltiesApiClient Api
-<section class="v3-panel" aria-label="Fine assessments" aria-busy="@(_loading ? "true" : "false")">
-    <header class="v3-panel-header"><h2>Assessments</h2><AuthorizeView Roles="SuperAdmin"><Authorized>
+<section class="v3-panel far" aria-label="Fine assessments" aria-busy="@(_loading ? "true" : "false")">
+    <header class="v3-panel-header"><h2>Assessments</h2>
+        <span class="v3-panel-meta far-meta">@VisibleRows.Count() of @_rows.Count shown · fines imposed against registered accounts</span>
+        <AuthorizeView Roles="SuperAdmin"><Authorized>
         <button class="v3-btn v3-btn-primary" type="button" @onclick="() => _adding = true">Assess fine</button>
     </Authorized></AuthorizeView></header>
-    @if(_saved is { } saved) { <div class="v3-toolbar" role="status"><span>Assessment saved · ₱@saved.Remaining.ToString("N2") outstanding</span>
+    @if(_saved is { } saved) { <div class="far-saved" role="status"><span>Assessment saved · <strong>@Money(saved.Remaining)</strong> outstanding. Nothing has been collected yet.</span>
         <button class="v3-btn v3-btn-sm" type="button" @onclick="() => { _payment=saved.Id; _saved=null; }">Record payment now</button>
     </div> }
-    <div class="v3-toolbar"><label class="v3-field" style="flex: 1 1 260px; max-width: 420px"><span>Search</span><input @bind="_search" placeholder="Occupant, unit or description" /></label>
-        <button class="v3-btn" type="button" @onclick="Load">Search</button>
+    <div class="v3-toolbar"><label class="v3-field far-search"><span>Search</span><input @bind="_search" placeholder="Occupant, unit or description" /></label>
+        <button class="v3-btn far-search-btn" type="button" @onclick="Load">Search</button>
         <label class="v3-field"><span>Status</span><select @bind="_status"><option>All</option><option>Outstanding</option><option>Settled</option></select></label>
     </div>
     @if (_error is not null) { <p class="v3-notice v3-notice-error" role="alert">@_error <button type="button" class="v3-btn" @onclick="Load">Retry</button></p> }
-    <div class="v3-table-wrap" tabindex="0"><table class="v3-table"><thead><tr><th>Payor / account</th><th>Fine</th><th>Related period</th><th class="v3-num">Assessed</th><th class="v3-num">Collected</th><th class="v3-num">Remaining</th><th>Status</th><th>Actions</th></tr></thead><tbody>
-        @foreach (var row in _rows.Where(r => _status == "All" || (_status == "Outstanding" ? r.Remaining > 0m : r.Status == _status)))
+    <div class="v3-table-wrap" tabindex="0"><table class="v3-table far-table"><thead><tr><th>Payor / account</th><th>Fine</th><th>Related period</th><th class="v3-num">Assessed</th><th class="v3-num">Collected</th><th class="v3-num">Remaining</th><th>Status</th><th><span class="v3-sr-only">Actions</span></th></tr></thead><tbody>
+        @foreach (var row in VisibleRows)
         {
-            <tr><td><strong>@row.Occupant</strong><span class="v3-block">@row.Source · @row.Unit</span></td><td>@row.Penalty<span class="v3-block">@row.Description</span></td>
-                <td>@(row.RelatedPeriod?.Label ?? "—")</td>
-                <td class="v3-num">₱@row.Assessed.ToString("N2")</td><td class="v3-num">₱@row.Settled.ToString("N2")</td><td class="v3-num">₱@row.Remaining.ToString("N2")</td><td>@row.Status</td>
-                <td><button type="button" class="v3-btn v3-btn-sm" @onclick="() => Details(row)">View details</button>
-                    @if(row.Remaining>0) { <button type="button" class="v3-btn v3-btn-sm" @onclick="() => _payment=row.Id">Record payment</button> }</td></tr>
+            <tr><td><strong>@row.Occupant</strong><span class="v3-block">@row.Source · @row.Unit</span></td>
+                <td><strong>@row.Penalty</strong><span class="v3-block far-reason" title="@row.Description">@row.Description</span></td>
+                <td class="far-secondary">@(row.RelatedPeriod?.Label ?? "—")</td>
+                <td class="v3-num">@Money(row.Assessed)</td><td class="v3-num">@Money(row.Settled)</td>
+                <td class="v3-num far-remaining @(row.Remaining > 0m ? "far-open" : "")">@Money(row.Remaining)</td>
+                <td><span class="status-pill @StatusPill(row.Status)">@row.Status</span></td>
+                <td class="far-row-actions"><div class="far-actions">
+                    <button type="button" class="v3-btn v3-btn-sm" @onclick="() => Details(row)">@EyeIcon<span>View details</span></button>
+                    @if(row.Remaining>0) { <button type="button" class="v3-btn v3-btn-sm far-pay" @onclick="() => _payment=row.Id">@PayIcon<span>Record payment</span></button> }
+                </div></td></tr>
         }
-        @if (_rows.Count == 0) { <tr><td colspan="8" class="v3-empty">@(_loading ? "Loading assessments…" : _error is not null ? "Assessments unavailable." : "No saved assessments match.")</td></tr> }
+        @if (!VisibleRows.Any()) { <tr><td colspan="8" class="v3-empty">@if (_loading) { <span role="status">Loading assessments…</span> } else if (_error is not null) { <span>Assessments unavailable.</span> } else { <span class="v3-empty-block">@EmptyIcon<span>No saved assessments match.</span></span> }</td></tr> }
     </tbody></table></div>
     <p class="v3-panel-note">Saved assessments are amounts owed. Collected amounts come from canonical payment allocations.</p>
 </section>
 @if (_adding) { <AuthorizeView Roles="SuperAdmin"><Authorized><FineAssessmentDrawer Account="InitialAccount" OnClose="CancelAssessment" OnCreated="Created" /></Authorized></AuthorizeView> }
-@if (_payment is { } payment) { <FinePaymentDrawer AssessmentId="payment" OnClose="() => _payment=null" OnPaid="Load" /> }
+@if (_payment is { } payment) { <FinePaymentDrawer AssessmentId="payment" OnClose="() => _payment=null" OnPaid="Paid" /> }
 @if (_selected is { } selected)
 {
     <VendorDrawerShell Show="true" Title="Fine assessment" Subtitle="@($"{selected.Occupant} · {selected.Source} · {selected.Unit}")" OnClose="() => _selected = null">
-        <ChildContent><dl><dt>Fine</dt><dd>@selected.Penalty</dd><dt>Reason</dt><dd>@selected.Description</dd><dt>Incident reference</dt><dd>@(selected.IncidentReference ?? "Not supplied")</dd>
-            <dt>Violation date</dt><dd>@selected.ViolationDate.ToString("MMM d, yyyy")</dd><dt>Assessed on</dt><dd>@selected.AssessmentDate.ToString("MMM d, yyyy")</dd>
-            <dt>Related period</dt><dd>@(selected.RelatedPeriod?.Label ?? "Not related to a billing period")</dd>
-            <dt>Governing reference</dt><dd>@selected.GoverningReference</dd><dt>Outstanding</dt><dd>₱@selected.Remaining.ToString("N2")</dd></dl>
-            <h3>Assessment history</h3>@if (_historyError is not null) { <p role="alert">@_historyError</p> }
-            @foreach (var e in _history) { <p>@e.Kind · @e.RecordedAtUtc.ToString("u") · ₱@e.Previous.ToString("N2") → ₱@e.Resulting.ToString("N2")</p> }
-            <h3>Payment history</h3>
-            @if(_cashError is not null) { <p role="alert">@_cashError</p> }
-            else if(_cash.Count==0) { <p>No recorded payments against this assessment.</p> }
-            else { <div class="v3-table-wrap"><table class="v3-table"><thead><tr><th>Date / SRC</th><th class="v3-num">Allocated</th><th class="v3-num">Effective</th></tr></thead><tbody>
-                @foreach(var cash in _cash) { <tr><td>@cash.BusinessDate.ToString("MMM d, yyyy")<span class="v3-block">@cash.Src</span></td><td class="v3-num">₱@cash.AllocatedAmount.ToString("N2")</td><td class="v3-num">₱@cash.EffectiveAmount.ToString("N2")</td></tr> }
-            </tbody></table></div> }
-            <p>Original assessment evidence is preserved. Obligation adjustments remain unavailable.</p></ChildContent>
+        <Icon><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M9 13h6" /><path d="M9 17h6" /></svg></Icon>
+        <ChildContent>
+            <div class="far-case">
+                <div class="far-case-head">
+                    <div><strong class="far-case-name">@selected.Occupant</strong><span class="v3-block">@selected.Source · @selected.Unit</span></div>
+                    <span class="status-pill @StatusPill(selected.Status)">@selected.Status</span>
+                </div>
+                <dl class="far-amounts">
+                    <div><dt>Assessed</dt><dd>@Money(selected.Assessed)</dd></div>
+                    <div><dt>Collected</dt><dd>@Money(selected.Settled)</dd></div>
+                    <div class="@(selected.Remaining > 0m ? "far-due" : "")"><dt>Outstanding</dt><dd>@Money(selected.Remaining)</dd></div>
+                </dl>
+            </div>
+            <section class="far-section" aria-labelledby="far-details-title"><h3 id="far-details-title">Fine details</h3>
+                <dl class="far-facts">
+                    <div><dt>Fine</dt><dd>@selected.Penalty</dd></div>
+                    <div><dt>Violation date</dt><dd>@selected.ViolationDate.ToString("MMM d, yyyy")</dd></div>
+                    <div class="far-wide"><dt>Reason</dt><dd>@selected.Description</dd></div>
+                    <div><dt>Assessed on</dt><dd>@selected.AssessmentDate.ToString("MMM d, yyyy")</dd></div>
+                    <div><dt>Incident reference</dt><dd>@(selected.IncidentReference ?? "Not supplied")</dd></div>
+                    <div class="far-wide"><dt>Related period</dt><dd>@(selected.RelatedPeriod?.Label ?? "Not related to a billing period")</dd></div>
+                    <div class="far-wide"><dt>Governing reference</dt><dd>@selected.GoverningReference</dd></div>
+                </dl>
+            </section>
+            <section class="far-section" aria-labelledby="far-history-title"><h3 id="far-history-title">Assessment history</h3>
+                @if (_historyError is not null) { <p class="far-note" role="alert">@_historyError</p> }
+                else if (_history.Count == 0) { <p class="far-note">No assessment events recorded.</p> }
+                else { <div class="v3-table-wrap"><table class="v3-table far-mini"><thead><tr><th>Event</th><th>Recorded</th><th class="v3-num">Previous</th><th class="v3-num">Resulting</th></tr></thead><tbody>
+                    @foreach (var e in _history) { <tr><td>@e.Kind</td><td class="far-secondary">@PhilippineTime.ToPhilippineTime(e.RecordedAtUtc).ToString("MMM d, yyyy h:mm tt")</td><td class="v3-num">@Money(e.Previous)</td><td class="v3-num">@Money(e.Resulting)</td></tr> }
+                </tbody></table></div> }
+            </section>
+            <section class="far-section" aria-labelledby="far-payments-title"><h3 id="far-payments-title">Payment history</h3>
+                @if(_cashError is not null) { <p class="far-note" role="alert">@_cashError</p> }
+                else if(_cash.Count==0) { <p class="far-note">No recorded payments against this assessment.</p> }
+                else { <div class="v3-table-wrap"><table class="v3-table far-mini"><thead><tr><th>Date / SRC</th><th class="v3-num">Allocated</th><th class="v3-num">Effective</th></tr></thead><tbody>
+                    @foreach(var cash in _cash) { <tr><td>@cash.BusinessDate.ToString("MMM d, yyyy")<span class="v3-block far-src">@cash.Src</span></td><td class="v3-num">@Money(cash.AllocatedAmount)</td><td class="v3-num">@Money(cash.EffectiveAmount)</td></tr> }
+                </tbody></table></div> }
+            </section>
+            <p class="far-note">Original assessment evidence is preserved. Obligation adjustments remain unavailable.</p></ChildContent>
         <Footer><button class="btn-ghost" type="button" @onclick="() => _selected = null">Close</button></Footer>
     </VendorDrawerShell>
 }
@@ -50,20 +84,34 @@
     [Parameter] public FineAccountRef? InitialAccount { get; set; }
     [Parameter] public Guid? PaymentAssessmentId { get; set; }
     private Guid? _payment,_openedPayment;
+    /// <summary>Opens the assessment drawer once on arrival, for the Assess fine action offered from Collections.</summary>
+    [Parameter] public bool StartAssessing { get; set; }
+    /// <summary>Raised after an assessment is saved or a payment is posted so the workspace can refresh its headline figures.</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+    private bool _startedAssessing;
     private void CancelAssessment() { _adding=false; }
     private async Task Created(FineAssessmentDto assessment) {
         _adding=false;
         _saved=assessment;
         await Load();
+        await OnChanged.InvokeAsync();
     }
+    private async Task Paid() { await Load(); await OnChanged.InvokeAsync(); }
     private FineAccountRef? _openedAccount;
-    protected override void OnParametersSet() { if (InitialAccount is not null && InitialAccount != _openedAccount) { _openedAccount = InitialAccount; _adding = true; }
+    protected override void OnParametersSet() { if (StartAssessing && !_startedAssessing) { _startedAssessing = true; _adding = true; }
+        if (InitialAccount is not null && InitialAccount != _openedAccount) { _openedAccount = InitialAccount; _adding = true; }
         if(PaymentAssessmentId is not null && PaymentAssessmentId!=_openedPayment) {_openedPayment=PaymentAssessmentId;_payment=PaymentAssessmentId;_adding=false;} }
     private List<FineAssessmentDto> _rows = []; private List<FineAssessmentEventDto> _history = [];
     private List<FineSettlementHistoryDto> _cash=[]; private string? _cashError;
     private FineAssessmentDto? _selected; private string? _error, _historyError;
     private FineAssessmentDto? _saved;
     private string _search = "", _status = "All"; private bool _loading = true, _adding;
+    private IEnumerable<FineAssessmentDto> VisibleRows => _rows.Where(r => _status == "All" || (_status == "Outstanding" ? r.Remaining > 0m : r.Status == _status));
+    private static string Money(decimal amount) => $"₱{amount.ToString("N2", System.Globalization.CultureInfo.InvariantCulture)}";
+    private static string StatusPill(string status) => status switch { "Settled" => "pill-active", "Partial" => "pill-partial", _ => "pill-pending" };
+    private static RenderFragment EyeIcon => @<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>;
+    private static RenderFragment PayIcon => @<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6 12h.01" /><path d="M18 12h.01" /></svg>;
+    private static RenderFragment EmptyIcon => @<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>;
     protected override Task OnInitializedAsync() => Load();
     private async Task Load() { _loading = true; _error = null; _rows = [];
         try { var result = await Api.GetAssessmentsAsync(search: _search); if (result is { IsSuccess: true, Value: not null }) _rows = result.Value.ToList(); else _error = result?.Error ?? "Assessments could not be loaded."; }

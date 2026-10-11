@@ -97,7 +97,7 @@ public sealed partial class FineAssessmentComponentTests
     {
         _api.Setup(x=>x.GetRegisterAsync(It.IsAny<DateOnly>(),It.IsAny<DateOnly>())).ReturnsAsync(Result<IReadOnlyList<PenaltyRegisterRowDto>>.Success([]));
         _api.Setup(x=>x.GetFineSourcesAsync()).ReturnsAsync(Result<IReadOnlyList<FineSourceOption>>.Success([]));
-        var cut=RenderComponent<Fines>();Assert.Empty(cut.FindComponents<FineAssessmentsRegister>());Assert.Contains("Record fine collection",cut.Markup);Assert.DoesNotContain("id=\"fn-defs-title\"",cut.Markup);
+        var cut=RenderComponent<Fines>();Assert.Empty(cut.FindComponents<FineAssessmentsRegister>());Assert.Contains("Record direct fine",cut.Markup);Assert.DoesNotContain("id=\"fn-defs-title\"",cut.Markup);
         ExportFixture("fine-workspace-collected",cut.Markup);
         cut.FindAll("[aria-label='Fines workspace views'] button").Single(x=>x.TextContent=="Assessments").Click();Assert.Single(cut.FindComponents<FineAssessmentsRegister>());
         ExportFixture("fine-workspace-assessments",cut.Markup);

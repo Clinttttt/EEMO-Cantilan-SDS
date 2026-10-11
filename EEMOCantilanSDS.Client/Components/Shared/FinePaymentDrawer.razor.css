@@ -1,0 +1,17 @@
+/* Record fine payment: the liable account, the balance, then the OR draft and confirmation. */
+.fp-account { display: grid; gap: 2px; margin-bottom: 14px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); }
+.fp-account strong { color: var(--navy); font-size: 1rem; }
+.fp-account span { color: var(--text-secondary); font-size: .8125rem; }
+
+.fp-amounts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin: 0 0 14px; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; background: var(--border); }
+.fp-amounts > div { padding: 10px 12px; background: var(--surface); }
+.fp-amounts dt { color: var(--text-tertiary); font-size: .6875rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.fp-amounts dd { margin: 4px 0 0; color: var(--navy); font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fp-amounts .fp-due { background: var(--accent-soft); }
+.fp-amounts .fp-due dd { color: var(--accent); }
+
+.fp-note { margin: 0 0 12px; color: var(--text-secondary); font-size: .8125rem; line-height: 1.45; }
+.fp-confirm { margin: 12px 0 0; padding: 12px 14px; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 8px; background: var(--accent-soft); color: var(--navy); font-weight: 600; }
+.fp-done { margin: 0; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--green) 35%, var(--border)); border-radius: 10px; background: var(--green-bg); color: var(--green); font-weight: 700; }
+
+@media (max-width: 480px) { .fp-amounts { grid-template-columns: 1fr; } }

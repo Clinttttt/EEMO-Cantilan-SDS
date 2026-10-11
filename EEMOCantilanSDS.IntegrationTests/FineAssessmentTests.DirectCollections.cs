@@ -133,6 +133,40 @@ public sealed partial class FineAssessmentTests
         var position=await new RemittanceWorkflow(db,new Actor(s.TenantId,id:s.ActorId),new Tenant(s.TenantId)).GetPositionAsync(Today,Today);
         Assert.True(position.IsSuccess,position.Error); Assert.Equal(0m,position.Value!.Collected);
     }
+    [SkippableFact] public async Task WorkspaceSummaryKeepsDirectCashAssessmentsAndSettlementsDistinct()
+    {
+        var (s,fine)=await SettlementSeedAsync(); await using var db=database.CreateContext(s.TenantId);
+        var definition=PenaltyDefinition.Create(s.TenantId,"TEST_DIRECT_FINE",Today.AddYears(-1),"Test authorized fine",null,GovernedServiceBasis.DirectApprovedAmount,null,500m,true,"fixture");
+        var authority=DirectFineAuthority.Record(s.TenantId,definition.Id,"ISOLATED TEST governing authority","ISOLATED TEST approval: no registration required",Today.AddYears(-1),null,false,false,false,false,s.ActorId,new Clock().UtcNow);
+        db.PenaltyDefinitions.Add(definition); db.DirectFineAuthorities.Add(authority); await db.SaveChangesAsync();
+        var penalties=new PenaltyDefinitionWorkflow(db,new Actor(s.TenantId,id:s.ActorId),new Tenant(s.TenantId),new Clock());
+        async Task<PenaltyWorkspaceSummaryDto> Summary() { var r=await penalties.GetSummaryAsync(Today,Today); Assert.True(r.IsSuccess,r.Error); return r.Value!; }
+
+        // An unpaid assessment is a liability only: nothing collected.
+        var start=await Summary(); Assert.Equal((0m,0m,100m,1),(start.Collected,start.DirectCollected,start.OutstandingAssessed,start.OutstandingAssessments));
+
+        // Direct cash never pays the unrelated assessment and is the only thing counted as direct.
+        var direct=await Direct(db,s).PostAsync(DirectRequest(authority.Id) with {Reason="Obstructing the walkway"}); Assert.True(direct.IsSuccess,direct.Error);
+        var afterDirect=await Summary(); Assert.Equal((100m,100m,100m,1),(afterDirect.Collected,afterDirect.DirectCollected,afterDirect.OutstandingAssessed,afterDirect.OutstandingAssessments));
+
+        // Settling the assessment is collected cash but not direct cash, and clears the liability.
+        var composer=Composer(db,s); var draft=await FineDraftAsync(composer,fine);
+        Assert.True((await composer.PostAsync(draft.DraftId,new(draft.Revision,Guid.NewGuid()))).IsSuccess);
+        db.ChangeTracker.Clear();
+        var afterSettlement=await Summary(); Assert.Equal((200m,100m,0m,0),(afterSettlement.Collected,afterSettlement.DirectCollected,afterSettlement.OutstandingAssessed,afterSettlement.OutstandingAssessments));
+
+        var rows=(await penalties.GetRegisterAsync(Today,Today)).Value!;
+        var directRow=Assert.Single(rows,r=>r.Kind==PenaltyRegisterKinds.Direct);
+        Assert.Null(directRow.Account); Assert.Null(directRow.Facility); Assert.Equal("Obstructing the walkway",directRow.Reason); Assert.Equal("Direct fine collection",directRow.Origin);
+        var assessedRow=Assert.Single(rows,r=>r.Kind==PenaltyRegisterKinds.Assessed);
+        Assert.False(string.IsNullOrWhiteSpace(assessedRow.Account)); Assert.False(string.IsNullOrWhiteSpace(assessedRow.Facility)); Assert.False(string.IsNullOrWhiteSpace(assessedRow.Reason));
+
+        // A reversal removes only that direct cash from the headline figures.
+        var collection=await db.Collections.SingleAsync(c=>c.Id==direct.Value!.CollectionId); var line=await db.CollectionLines.SingleAsync(l=>l.CollectionId==collection.Id);
+        db.CollectionCorrections.Add(CollectionCorrection.Record(s.TenantId,collection.Id,null,null,null,CollectionCorrectionType.Reversal,Today,DateTime.UtcNow,-100m,"TEST correction evidence","head","Head",
+            [new CollectionCorrectionLineDraft(line.Id,-100m)])); await db.SaveChangesAsync();
+        var reversed=await Summary(); Assert.Equal((100m,0m,0m),(reversed.Collected,reversed.DirectCollected,reversed.OutstandingAssessed));
+    }
     [SkippableFact] public async Task DirectFineCashFailureRollsBackAndSameIntentCanRetry()
     {
         var (s,a)=await DirectSeed(); await using var db=database.CreateContext(s.TenantId); var w=Direct(db,s); var request=DirectRequest(a);
