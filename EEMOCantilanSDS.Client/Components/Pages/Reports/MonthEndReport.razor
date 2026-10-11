@@ -1,9 +1,12 @@
 ﻿@page "/reports/month-end"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@using EEMOCantilanSDS.Application.Common.Revenue
 @using EEMOCantilanSDS.Application.Dtos.Facilities
+@using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Domain.Common
 @inject IFacilitiesApiClient FacilitiesApi
+@inject IOfficialReportsApiClient OfficialApi
 @inject IJSRuntime JS
 @inject EEMOCantilanSDS.Client.Services.FacilityState Facilities
 
@@ -13,7 +16,7 @@
     <div class="topbar-left">
         <div class="topbar-title">Monthly Collection Report</div>
         <div class="topbar-breadcrumb">
-            <a href="/menu" class="breadcrumb-link">@Branding.OfficeAcronym Admin</a>
+            <a href="/menu" class="breadcrumb-link">Dashboard</a>
             <span class="breadcrumb-sep">/</span>
             <span class="breadcrumb-active">Monthly Collection Report</span>
         </div>
@@ -76,17 +79,16 @@
                 <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
             </button>
         </div>
+        @* One compact selector per question — which group of the office's revenue, then which source within it. Replaces a
+           row of one button per facility, which could not cover the sources that have no facility. *@
         <div class="me-filter">
-            <button class="me-chip @(_facility is null ? "me-chip-active" : "")" type="button" @onclick="@(() => SelectFacility(null))">All Facilities</button>
-            @foreach (var fc in Facilities.All)
-            {
-                <button class="me-chip @(_facility == fc ? "me-chip-active" : "")" type="button" title="@Facilities.NameOf(fc)" @onclick="@(() => SelectFacility(fc))">@Facilities.ShortNameOf(fc)</button>
-            }
+            <FhSelect Caption="Group" Value="@_group" Options="@GroupOptions" ValueChanged="@SelectGroup" />
+            <FhSelect Caption="Source" Value="@_source" Options="@SourceOptions" ValueChanged="@(v => _source = v)" />
         </div>
         <div class="me-actions">
             <div class="me-search">
                 <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                <input type="search" placeholder="Search payor, stall, or OR no.…" value="@_search" @oninput="OnSearchInput" aria-label="Search the report" />
+                <input type="search" placeholder="Search payor, stall, or OR no.…" value="@_search" @oninput="OnSearchInput" aria-label="Search account detail" />
                 @if (HasSearch)
                 {
                     <button class="me-search-clear" type="button" @onclick="ClearSearch" aria-label="Clear search">&times;</button>
@@ -153,29 +155,65 @@
     else
     {
         var visibleFacilities = VisibleFacilities().ToList();
-        var sumCollected = visibleFacilities.Sum(ShownCollected);
-        var sumOutstanding = visibleFacilities.Sum(ShownOutstanding);
-        var sumRate = RateOf(sumCollected, sumOutstanding);
+        var officialRows = OfficialRows;
+        var rentalDetail = visibleFacilities.Where(f => f.IsRental).ToList();
+        var detailCollected = visibleFacilities.Sum(ShownCollected);
+        var detailOutstanding = rentalDetail.Sum(ShownOutstanding);
         var (sumPaid, sumPartial, sumUnpaid) = ShownStatusCounts(visibleFacilities);
+        // A rate has a denominator only where something is billed: it is shown for a rental-only scope, never across sources.
+        var rentalOnly = rentalDetail.Count > 0 && rentalDetail.Count == visibleFacilities.Count && (HasSearch || _group == RevenueSourceCatalog.RentGroup || _source != MonthlyCollectionReport.All);
 
         <!-- Quick-glance totals (screen only; excluded from print / PDF) -->
         <div class="me-summary no-print">
-            <div class="me-sum-card">
-                <div class="me-sum-val">@Money(sumCollected)</div>
-                <div class="me-sum-lbl">@(_facility is null && !HasSearch ? "Total Collected" : "Collected")</div>
-            </div>
-            <div class="me-sum-card">
-                <div class="me-sum-val me-red">@Money(sumOutstanding)</div>
-                <div class="me-sum-lbl">@(_facility is null && !HasSearch ? "Total Outstanding" : "Outstanding")</div>
-            </div>
-            <div class="me-sum-card">
-                <div class="me-sum-val">@sumRate%</div>
-                <div class="me-sum-lbl">Collection Rate</div>
-            </div>
-            <div class="me-sum-card">
-                <div class="me-sum-val">@sumPaid / @sumPartial / @sumUnpaid</div>
-                <div class="me-sum-lbl">Paid / Partial / Unpaid</div>
-            </div>
+            @if (HasSearch)
+            {
+                <div class="me-sum-card">
+                    <div class="me-sum-val">@Money(detailCollected)</div>
+                    <div class="me-sum-lbl">Collected · matching accounts</div>
+                </div>
+            }
+            else if (Official is not null)
+            {
+                <div class="me-sum-card">
+                    <div class="me-sum-val">@Money(officialRows.Sum(r => r.Collected))</div>
+                    <div class="me-sum-lbl">@(_group == MonthlyCollectionReport.All && _source == MonthlyCollectionReport.All ? "Collected · all sources" : "Collected · selected scope")</div>
+                </div>
+            }
+            else
+            {
+                <div class="me-sum-card">
+                    <div class="me-sum-val">@Money(detailCollected)</div>
+                    <div class="me-sum-lbl">Collected · account detail only</div>
+                </div>
+            }
+            @if (rentalDetail.Count > 0)
+            {
+                <div class="me-sum-card">
+                    <div class="me-sum-val me-red">@Money(detailOutstanding)</div>
+                    <div class="me-sum-lbl">Outstanding rent</div>
+                </div>
+            }
+            @if (rentalOnly)
+            {
+                <div class="me-sum-card">
+                    <div class="me-sum-val">@RateOf(rentalDetail.Sum(ShownCollected), detailOutstanding)%</div>
+                    <div class="me-sum-lbl">Rental collection rate</div>
+                </div>
+            }
+            @if (rentalDetail.Count > 0)
+            {
+                <div class="me-sum-card">
+                    <div class="me-sum-val">@sumPaid / @sumPartial / @sumUnpaid</div>
+                    <div class="me-sum-lbl">Rental accounts paid / partial / unpaid</div>
+                </div>
+            }
+            @if (!HasSearch && Official is not null && officialRows.Count > 0 && officialRows.All(r => r.TransactionCount is not null))
+            {
+                <div class="me-sum-card">
+                    <div class="me-sum-val">@officialRows.Sum(r => r.TransactionCount!.Value).ToString("N0")</div>
+                    <div class="me-sum-lbl">Collection records</div>
+                </div>
+            }
         </div>
 
         <!-- Printable report -->
@@ -189,16 +227,93 @@
                 <div class="me-period-line">@PeriodLine</div>
             </header>
 
-            @if (_facility is not null || HasSearch)
+            @if (_group != MonthlyCollectionReport.All || _source != MonthlyCollectionReport.All || HasSearch)
             {
                 <div class="me-scope-row">
                     <span class="me-scope">@ScopeLabel</span>
                 </div>
             }
 
-            @if (visibleFacilities.Count == 0)
+            @* ── The official collections, by the office's revenue groups ──────────────────────────────────────────
+               Every figure here is the official source projection for the month — legacy before cutover plus canonical
+               after it, each collection once — so the total is the statement's total, not a sum of facility subtotals.
+               Hidden while searching, because a search is about accounts, which only the detail below holds. *@
+            @if (!HasSearch)
             {
-                <div class="me-state">No facilities match your current filter@(HasSearch ? " and search" : "").</div>
+                <div class="me-facility me-official">
+                    <div class="me-fac-head">
+                        <div class="me-fac-title"><span class="me-fac-name">Collections by revenue source</span></div>
+                        @if (Official is not null)
+                        {
+                            <div class="me-fac-stats"><span><strong>@Money(officialRows.Sum(r => r.Collected))</strong> collected</span></div>
+                        }
+                    </div>
+
+                    @if (Official is null)
+                    {
+                        <div class="me-fac-note" role="alert">
+                            The official collections could not be loaded, so no all-source total is shown. The account detail below is unaffected.
+                            <button class="me-retry no-print" type="button" @onclick="ReloadOfficial">Try again</button>
+                        </div>
+                    }
+                    else if (officialRows.Count == 0)
+                    {
+                        <div class="me-fac-note">No sources match your current filter.</div>
+                    }
+                    else
+                    {
+                        <div class="me-table-wrap"><table class="me-table me-src-table">
+                            <thead>
+                                <tr>
+                                    <th>Source</th>
+                                    <th>Basis</th>
+                                    <th>Receipt</th>
+                                    <th class="me-num">Records</th>
+                                    <th class="me-num">Collected</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var group in OfficialGroups(officialRows))
+                                {
+                                    <tr class="me-area-row"><td colspan="5">@MonthlyCollectionReport.GroupLabel(group.Key)</td></tr>
+                                    @foreach (var row in group)
+                                    {
+                                        <tr>
+                                            <td>@row.Label@if (row.AwaitingPlacement) { <span class="me-tag me-tag-warn">Needs official placement</span> }</td>
+                                            <td class="me-quiet">@BasisLabel(row)</td>
+                                            <td class="me-quiet">@(string.IsNullOrWhiteSpace(row.Instruments) ? "—" : row.Instruments)</td>
+                                            <td class="me-num">@(row.TransactionCount is { } count ? count.ToString("N0") : "—")</td>
+                                            <td class="me-num">@Money(row.Collected)</td>
+                                        </tr>
+                                    }
+                                    <tr class="me-area-sub">
+                                        <td colspan="4">@MonthlyCollectionReport.GroupLabel(group.Key) subtotal</td>
+                                        <td class="me-num">@Money(group.Sum(r => r.Collected))</td>
+                                    </tr>
+                                }
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="4"><strong>@(_group == MonthlyCollectionReport.All && _source == MonthlyCollectionReport.All ? "Total — all sources" : "Total — selected scope")</strong></td>
+                                    <td class="me-num"><strong>@Money(officialRows.Sum(r => r.Collected))</strong></td>
+                                </tr>
+                            </tfoot>
+                        </table></div>
+                    }
+                </div>
+            }
+
+            @if (visibleFacilities.Count > 0)
+            {
+                <div class="me-section-title">Account detail</div>
+            }
+            else if (HasSearch)
+            {
+                <div class="me-state">No account detail matches your search.</div>
+            }
+            else
+            {
+                <div class="me-fac-note">Account-level detail is not kept for this scope; the figures above are the official collection totals.</div>
             }
             @foreach (var f in visibleFacilities)
             {
@@ -213,7 +328,13 @@
                     <div class="me-fac-head">
                         <div class="me-fac-title">
                             <span class="me-fac-name">@f.Name</span>
-                            @if (!f.IsRental)
+                            @if (f.Code == FacilityCode.TRM)
+                            {
+                                @* The facility record is the legacy trip ledger. Terminal cash recorded since cutover is itemised in the
+                                   official source rows above, so this table is never read as the whole of Income From Terminal. *@
+                                <span class="me-tag">Legacy trip records</span>
+                            }
+                            else if (!f.IsRental)
                             {
                                 <span class="me-tag">Transaction-based</span>
                             }
@@ -223,8 +344,8 @@
                             @if (f.IsRental)
                             {
                                 <span class="me-red"><strong>@Money(outstandingShown)</strong> outstanding</span>
+                                <span><strong>@rateShown%</strong> rate</span>
                             }
-                            <span><strong>@rateShown%</strong> rate</span>
                         </div>
                     </div>
 
@@ -487,6 +608,56 @@
                 </div>
             }
 
+            @* ── Reconciliation: the account detail above against the official collections ─────────────────────────────
+               A difference is stated, never adjusted away: it means the facility aggregation and the statement read
+               different money (for example fees one classifies separately) and the office should look at it. *@
+            @if (!HasSearch && Official is not null && Report is not null)
+            {
+                var recon = MonthlyCollectionReport.Reconcile(Report, Official);
+                var reconRows = recon.Rows.Where(ReconInScope).ToList();
+                var allScope = _group == MonthlyCollectionReport.All && _source == MonthlyCollectionReport.All;
+                @if (reconRows.Count > 0)
+                {
+                    <div class="me-facility me-recon">
+                        <div class="me-fac-head">
+                            <div class="me-fac-title"><span class="me-fac-name">Reconciliation to the official collections</span></div>
+                            <div class="me-fac-stats">
+                                <span class="@(reconRows.All(r => r.Agrees) ? "" : "me-red")"><strong>@(reconRows.All(r => r.Agrees) ? "Agrees" : "Differences shown")</strong></span>
+                            </div>
+                        </div>
+                        <div class="me-table-wrap"><table class="me-table me-src-table">
+                            <thead>
+                                <tr>
+                                    <th>Source</th>
+                                    <th class="me-num">Account detail</th>
+                                    <th class="me-num">Official</th>
+                                    <th class="me-num">Difference</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var r in reconRows)
+                                {
+                                    <tr title="@r.Scope">
+                                        <td>@r.Label@if (!r.Agrees || r.Label.Contains("legacy")) { <span class="me-fine-line">@r.Scope</span> }</td>
+                                        <td class="me-num">@Money(r.Detail)</td>
+                                        <td class="me-num">@Money(r.Official)</td>
+                                        <td class="me-num @(r.Agrees ? "" : "me-red")">@(r.Agrees ? "—" : SignedMoney(r.Difference))</td>
+                                    </tr>
+                                }
+                            </tbody>
+                            @if (allScope)
+                            {
+                                <tfoot>
+                                    <tr><td colspan="3"><strong>Itemised by account detail</strong></td><td class="me-num"><strong>@Money(recon.OfficialWithDetail)</strong></td></tr>
+                                    <tr><td colspan="3"><strong>Stated by source total only</strong></td><td class="me-num"><strong>@Money(recon.WithoutDetail)</strong></td></tr>
+                                    <tr><td colspan="3"><strong>Official total collected</strong></td><td class="me-num"><strong>@Money(recon.OfficialTotal)</strong></td></tr>
+                                </tfoot>
+                            }
+                        </table></div>
+                    </div>
+                }
+            }
+
             <div class="me-rpt-foot">
                 <SignatureStrip ShowDatePrepared="true" />
             </div>
@@ -504,22 +675,90 @@
     [PersistentState(AllowUpdates = true)]
     public MonthEndPageState? CachedMonthEnd { get; set; }
 
-    // ── Facility filter + search (client-side view filtering; never alters the underlying figures) ──
-    private FacilityCode? _facility;     // null = all facilities
+    // The official collections for the same month: the single source of the report's money. Null when they could not be
+    // read, which is stated on the sheet; it is never shown as a zero.
+    public RevenueSourcePerformanceDto? Official { get; private set; }
+
+    // ── Group / source filter + search (client-side view filtering; never alters the underlying figures) ──
+    private string _group = MonthlyCollectionReport.All;     // an official revenue group, or all
+    private string _source = MonthlyCollectionReport.All;    // an official source within it, or all
     private string _search = "";
 
     private bool HasSearch => !string.IsNullOrWhiteSpace(_search);
 
-    private void SelectFacility(FacilityCode? code) => _facility = code;
     private void OnSearchInput(ChangeEventArgs e) => _search = e.Value?.ToString() ?? "";
     private void ClearSearch() => _search = "";
+
+    private void SelectGroup(string group)
+    {
+        _group = group;
+        // A source belongs to one group, so a source from another group cannot stay selected.
+        if (_source != MonthlyCollectionReport.All && !ScopedRows.Any(r => r.Key == _source)) _source = MonthlyCollectionReport.All;
+    }
+
+    private IReadOnlyList<(string Value, string Label)> GroupOptions =>
+        new[] { (MonthlyCollectionReport.All, "All sources") }.Concat(MonthlyCollectionReport.Groups.Select(g => (g.Key, g.Label))).ToList();
+
+    private IReadOnlyList<(string Value, string Label)> SourceOptions =>
+        new[] { (MonthlyCollectionReport.All, _group == MonthlyCollectionReport.All ? "All sources" : "All in group") }
+            .Concat(ScopedRows.Select(r => (r.Key, r.Label))).ToList();
+
+    // The listed official sources inside the chosen group (before the source selection narrows them further).
+    private IEnumerable<RevenueSourcePerformanceRowDto> ScopedRows => Official is null
+        ? Array.Empty<RevenueSourcePerformanceRowDto>()
+        : MonthlyCollectionReport.ListedRows(Official)
+            .Where(r => _group == MonthlyCollectionReport.All || MonthlyCollectionReport.DisplayGroup(r) == _group);
+
+    private IReadOnlyList<RevenueSourcePerformanceRowDto> OfficialRows =>
+        ScopedRows.Where(r => _source == MonthlyCollectionReport.All || r.Key == _source).ToList();
+
+    private static IEnumerable<IGrouping<string, RevenueSourcePerformanceRowDto>> OfficialGroups(IEnumerable<RevenueSourcePerformanceRowDto> rows)
+    {
+        var order = MonthlyCollectionReport.Groups.Select((g, i) => (g.Key, i)).ToDictionary(x => x.Key, x => x.i);
+        return rows.GroupBy(r => MonthlyCollectionReport.DisplayGroup(r)).OrderBy(g => order.GetValueOrDefault(g.Key, 99));
+    }
+
+    // How the source is paid, in the office's terms. A paid-on-service source has no billed amount, so nothing here
+    // implies one.
+    private static string BasisLabel(RevenueSourcePerformanceRowDto row) => row.Model switch
+    {
+        RevenueSourceModel.RecurringObligation => "Monthly obligation",
+        RevenueSourceModel.QuantityService => "Per quantity",
+        RevenueSourceModel.EventRental => "Per event",
+        RevenueSourceModel.Receivable => "Recovery",
+        _ => "Paid on service"
+    };
+
+    private bool ReconInScope(MonthlyReconciliationRowDto row) =>
+        (_group == MonthlyCollectionReport.All || row.GroupKey == _group)
+        && (_source == MonthlyCollectionReport.All || row.SourceKeys.Contains(_source));
+
+    private static string SignedMoney(decimal v) => (v > 0 ? "+" : v < 0 ? "−" : "") + "₱" + Math.Abs(v).ToString("N2");
+
+    private async Task ReloadOfficial()
+    {
+        await LoadOfficialAsync();
+        if (Report is not null) CachedMonthEnd = new MonthEndPageState(Year, Month, Report, Official);
+    }
+
+    private async Task LoadOfficialAsync()
+    {
+        try
+        {
+            var result = await OfficialApi.GetSourcePerformanceAsync(Year, Month);
+            Official = result is { IsSuccess: true, Value: not null } ? result.Value : null;
+        }
+        catch { Official = null; }
+    }
 
     private IEnumerable<MonthEndFacilityDto> VisibleFacilities()
     {
         if (Report is null) return Array.Empty<MonthEndFacilityDto>();
         var facilities = Report.Facilities.AsEnumerable();
-        if (_facility is not null)
-            facilities = facilities.Where(f => f.Code == _facility);
+        if (_group != MonthlyCollectionReport.All)
+            facilities = facilities.Where(f => MonthlyCollectionReport.GroupOf(f.Code) == _group);
+        if (_source != MonthlyCollectionReport.All)
+            facilities = facilities.Where(f => MonthlyCollectionReport.DetailBelongsTo(f.Code, _source));
         if (HasSearch)
             facilities = facilities.Where(f => VisiblePayors(f).Count > 0 || VisibleTxnPayors(f).Count > 0);
         return facilities;
@@ -579,9 +818,11 @@
     {
         get
         {
-            // The facility's own name, without its code. The code is an internal handle; on a filed sheet the name is
-            // what identifies the place, and "NPM — New Public Market" says it twice.
-            var scope = _facility is null ? "All facilities" : Facilities.NameOf(_facility.Value);
+            // The group and source in the office's own words; the sheet states what it covers so a filtered copy is never
+            // mistaken for the whole month.
+            var scope = _source != MonthlyCollectionReport.All
+                ? Official?.Rows.FirstOrDefault(r => r.Key == _source)?.Label ?? _source
+                : _group != MonthlyCollectionReport.All ? MonthlyCollectionReport.GroupLabel(_group) : "All sources";
             return HasSearch ? $"{scope} · matching “{_search.Trim()}”" : scope;
         }
     }
@@ -613,6 +854,7 @@
     {
         Loading = true;
         Report = null;
+        Official = null;
         await PaintLoadingStateAsync();
 
         // Cold-start resilience: tolerate the brief window before the circuit attaches the JWT.
@@ -623,7 +865,12 @@
             {
                 Report = result.Value;
                 if (Report is not null)
-                    CachedMonthEnd = new MonthEndPageState(Year, Month, Report);
+                {
+                    // The official collections for the same month, read with the account detail so the page, its cache and
+                    // its print always describe one period.
+                    await LoadOfficialAsync();
+                    CachedMonthEnd = new MonthEndPageState(Year, Month, Report, Official);
+                }
 
                 break;
             }
@@ -645,6 +892,7 @@
         }
 
         Report = state.Report;
+        Official = state.Official;
         Loading = false;
         return true;
     }
@@ -834,5 +1082,6 @@
     public sealed record MonthEndPageState(
         int Year,
         int Month,
-        MonthEndReportDto Report);
+        MonthEndReportDto Report,
+        RevenueSourcePerformanceDto? Official = null);
 }

@@ -59,6 +59,12 @@ public sealed class RentalConsolidationTests : TestContext
     }
     private static void Click(IRenderedFragment cut, string text) => cut.FindAll("button").Single(x => x.TextContent.Trim() == text).Click();
 
+    private static void ChooseOption(IRenderedFragment cut, string caption, string label)
+    {
+        cut.FindAll(".fh-dd").Single(d => d.QuerySelector(".fh-dd-cap")?.TextContent.Trim() == caption).QuerySelector(".fh-dd-trigger")!.Click();
+        cut.FindAll(".fh-dd-item").Single(i => i.TextContent.Trim() == label).Click();
+    }
+
     [Theory]
     [InlineData("ICE")]
     [InlineData("NCC")]
@@ -481,14 +487,15 @@ public sealed class RentalConsolidationTests : TestContext
         Assert.DoesNotContain(cut.FindAll(".ca-obligation-source button"), b => b.TextContent.Contains("Renew") || b.TextContent.Contains("Reopen"));
         Assert.Equal("₱0", cut.FindAll(".ca-sum-val")[1].TextContent);
         Assert.Equal("₱0", cut.FindAll(".ca-sum-val")[2].TextContent);
-        Assert.Contains("not included", cut.Find(".ca-obligation-source .ca-source-note").TextContent);
+        Assert.Contains("not part of the totals", cut.Find(".ca-obligation-source .ca-source-note").TextContent);
         var csv = Uri.UnescapeDataString(cut.Find("a[download$='.csv']").GetAttribute("href")!.Split(',', 2)[1]);
         Assert.Contains(km.Id.ToString(), csv); Assert.Contains(fa.Id.ToString(), csv); Assert.Contains("Already in source account workspace", csv);
         Assert.DoesNotContain(openEvent.Id.ToString(), csv);
         SpaceHolderWorkspaceTests.SaveVisualArtifact("closed-rental-register", cut.Markup);
-        Click(cut, "KM"); Assert.Single(cut.FindAll(".ca-obligation-source tr[data-account]"));
-        Click(cut, "Lapsed"); Assert.Empty(cut.FindAll(".ca-obligation-source tr[data-account]"));
-        Click(cut, "All Status"); Click(cut, "Print"); Assert.Single(JSInterop.Invocations["print"]);
+        // Source and Status are compact selectors now; the behavior they drive is unchanged.
+        ChooseOption(cut, "Source", "Kanmanggay"); Assert.Single(cut.FindAll(".ca-obligation-source tr[data-account]"));
+        ChooseOption(cut, "Status", "Lapsed"); Assert.Empty(cut.FindAll(".ca-obligation-source tr[data-account]"));
+        ChooseOption(cut, "Status", "All statuses"); Click(cut, "Print"); Assert.Single(JSInterop.Invocations["print"]);
         Assert.DoesNotContain(_accounts.Invocations, x => x.Method.Name == nameof(IObligationsApiClient.CloseAccountAsync));
     }
 

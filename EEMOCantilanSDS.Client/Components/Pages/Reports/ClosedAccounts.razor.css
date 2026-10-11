@@ -14,28 +14,9 @@
 
 /* Controls */
 .ca-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
-.ca-filter {
-    display: inline-flex; flex-wrap: wrap; gap: 5px; align-items: center;
-    background: linear-gradient(180deg, #f8fbfd 0%, var(--bg) 100%);
-    border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
-    border-radius: 9px; padding: 4px;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .86);
-}
-.ca-filter-cap { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); padding: 0 8px 0 6px; }
-.ca-chip {
-    min-height: 32px; padding: 6px 15px; border-radius: 6px;
-    border: 1px solid transparent; background: transparent;
-    font: inherit; font-size: 12.5px; font-weight: 650; letter-spacing: .2px; line-height: 1;
-    color: color-mix(in srgb, var(--text-muted) 88%, var(--navy));
-    cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
-    transition: background .15s, color .15s, border-color .15s, box-shadow .15s;
-}
-.ca-chip:hover { color: var(--navy); }
-.ca-chip-active, .ca-chip-active:hover {
-    background: var(--accent);
-    border-color: color-mix(in srgb, var(--navy) 76%, #fff); color: #fff;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 6px 13px rgba(9, 31, 52, .14);
-}
+/* Year, Status, Source and Section sit in one row as peers; the Year picker keeps its own wrapper. */
+.ca-filter { display: inline-flex; align-items: center; gap: 8px; }
+.ca-filter-cap { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); }
 
 .ca-actions { display: flex; align-items: center; gap: 10px; flex: 1 1 260px; min-width: 0; }
 .ca-search {
@@ -52,13 +33,25 @@
 .ca-search-clear { border: none; background: transparent; color: var(--text-muted); font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px; flex-shrink: 0; }
 .ca-search-clear:hover { color: var(--navy); }
 
-.ca-print-btn {
-    display: inline-flex; align-items: center; gap: 8px;
-    background: var(--accent); color: #fff; border: none; border-radius: 9px;
-    padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+/* Print | CSV | Excel — one joined control: same height, same outline, same icon treatment, each usable on its own. */
+.ca-export { display: inline-flex; flex: 0 0 auto; overflow: hidden; border: 1px solid var(--border-strong); border-radius: 9px; background: var(--surface, #fff); }
+.ca-export-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    min-height: 38px; padding: 0 14px; border: 0; border-left: 1px solid var(--border);
+    background: transparent; color: var(--navy); font: inherit; font-size: 13px; font-weight: 600;
+    text-decoration: none; white-space: nowrap; cursor: pointer;
+    transition: background-color .15s ease, color .15s ease;
 }
-.ca-print-btn:hover { background: var(--accent-hover); }
-.ca-print-btn svg { width: 16px; height: 16px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ca-export-btn:first-child { border-left: 0; }
+.ca-export-btn:hover { background: var(--accent-soft, #eaf1fb); color: var(--accent); }
+.ca-export-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+.ca-export-btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+
+/* The reasoning behind the two kinds of balance: a disclosure on screen, so it is not a paragraph above every table. */
+.ca-why { margin: -14px 0 22px; font-size: 12px; color: var(--text-secondary); }
+.ca-why summary { cursor: pointer; color: var(--accent); font-weight: 600; width: fit-content; }
+.ca-why summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.ca-why p { margin: 8px 0 0; line-height: 1.5; max-width: 80ch; }
 
 /* Bulk "Renew all" button — green (renew) accent; sits in the year-group header beside the
    "N accounts · ₱X uncollected" stats. Compact so it reads as a group action, not a page action. */

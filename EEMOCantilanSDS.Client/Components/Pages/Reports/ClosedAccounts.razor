@@ -27,7 +27,7 @@
     <div class="topbar-left">
         <div class="topbar-title">Closed Accounts</div>
         <div class="topbar-breadcrumb">
-            <a href="/menu" class="breadcrumb-link">@Branding.OfficeAcronym Admin</a>
+            <a href="/menu" class="breadcrumb-link">Dashboard</a>
             <span class="breadcrumb-sep">/</span>
             <span class="breadcrumb-active">Closed Accounts</span>
         </div>
@@ -52,35 +52,15 @@
                              OnSelectYear="OnPickYear" />
         </div>
 
-        <div class="ca-filter" role="group" aria-label="Status">
-            <button class="ca-chip @(_state is null ? "ca-chip-active" : "")" type="button" @onclick="() => { _state = null; _endedOnly = false; }">All Status</button>
-            <button class="ca-chip @(_state == InactiveAccountState.Closed ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Closed">Closed</button>
-            <button class="ca-chip @(_state == InactiveAccountState.Renewed ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Renewed">Renewed</button>
-            <button class="ca-chip @(_state == InactiveAccountState.Superseded ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Superseded">Handed over</button>
-            <button class="ca-chip @(_state == InactiveAccountState.Lapsed ? "ca-chip-active" : "")" type="button" @onclick="() => _state = InactiveAccountState.Lapsed">Lapsed</button>
-        </div>
-
-        <div class="ca-filter" role="group" aria-label="Facility">
-            <button class="ca-chip @(_facility is null ? "ca-chip-active" : "")" type="button" @onclick="() => SelectFacility(null)">All Facilities</button>
-            @foreach (var fc in Facilities)
-            {
-                <button class="ca-chip @(_facility == fc ? "ca-chip-active" : "")" type="button" @onclick="() => SelectFacility(fc)">@(System.Enum.TryParse<FacilityCode>(fc, out var _cc) ? FacilityCatalog.ShortNameOf(_cc) : fc)</button>
-            }
-        </div>
-
+        @* One compact selector per question, so the toolbar holds the same number of controls whatever sources the office runs. *@
+        <FhSelect Caption="Status" Value="@StatusValue" Options="@StatusOptions" ValueChanged="@SelectStatus" />
+        <FhSelect Caption="Source" Value="@(_facility ?? "")" Options="@SourceOptions" ValueChanged="@(v => SelectFacility(v.Length == 0 ? null : v))" />
         @* Sections of the selected facility, from its own accounts — same affordance as the stallholder list.
            Shown whenever the facility has sections at all, so a market always states how its register is
            divided even when every inactive account happens to sit in one section. *@
         @if (SelectableSections.Count > 0)
         {
-            <div class="ca-filter" role="group" aria-label="Section">
-                <button class="ca-chip @(_section is null ? "ca-chip-active" : "")" type="button" @onclick="() => SelectSection(null)">All Sections</button>
-                @foreach (var section in SelectableSections)
-                {
-                    var name = section;
-                    <button class="ca-chip @(string.Equals(_section, name, StringComparison.OrdinalIgnoreCase) ? "ca-chip-active" : "")" type="button" @onclick="() => SelectSection(name)">@name</button>
-                }
-            </div>
+            <FhSelect Caption="Section" Value="@(_section ?? "")" Options="@SectionOptions" ValueChanged="@(v => SelectSection(v.Length == 0 ? null : v))" />
         }
 
         <div class="ca-actions">
@@ -92,15 +72,24 @@
                     <button class="ca-search-clear" type="button" @onclick="@(() => _search = "")" aria-label="Clear search">&times;</button>
                 }
             </div>
-            <button class="ca-print-btn" type="button" @onclick="Print">
-                <svg viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
-                Print
-            </button>
-            @if (!_loading && _error is null && _obligationErrors.Count == 0)
-            {
-                <a class="ca-print-btn" href="@ExportCsvHref" download="inactive-rental-accounts.csv">CSV</a>
-                <button class="ca-print-btn" type="button" @onclick="ExportExcel">Excel</button>
-            }
+            @* Print, CSV and Excel are one control: three ways to take the same filtered register, each usable alone. *@
+            <div class="ca-export" role="group" aria-label="Print or export the register">
+                <button class="ca-export-btn" type="button" @onclick="Print">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+                    Print
+                </button>
+                @if (!_loading && _error is null && _obligationErrors.Count == 0)
+                {
+                    <a class="ca-export-btn" href="@ExportCsvHref" download="inactive-rental-accounts.csv">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                        CSV
+                    </a>
+                    <button class="ca-export-btn" type="button" @onclick="ExportExcel">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18" /><path d="M3 15h18" /><path d="M9 3v18" /></svg>
+                        Excel
+                    </button>
+                }
+            </div>
         </div>
     </div>
 
@@ -200,13 +189,21 @@
                 <div class="ca-doc-period">As of @PhilippineTime.Today.ToString("MMMM d, yyyy")</div>
             </header>
 
+            @* The qualifier a filed copy needs, in one line; the reasoning is a disclosure on screen rather than a paragraph
+               repeated above every table. *@
             <div class="ca-note">
-                Retained for transparency and audit. A balance here is <strong>stated by this register alone</strong>
-                when the account has ended — closed, handed to another lessee, or the earlier term of a lessee who
-                renewed. A <strong>lapsed</strong> term is different: the tenant is still in place and the office
-                keeps collecting, so that balance also appears in the delinquency and follow-up lists, and the two
-                figures above are deliberately never added. Renewing writes nothing off.
+                A balance on an ended account is <strong>stated by this register alone</strong>. A <strong>lapsed</strong> term is still
+                collected and also appears in follow-up, so the two are never added.
             </div>
+            <details class="ca-why no-print">
+                <summary>How these balances are counted</summary>
+                <p>
+                    Retained for transparency and audit. An account has <strong>ended</strong> when it was closed, handed to another lessee, or
+                    is the earlier term of a lessee who renewed; its balance is stated here and nowhere else. A <strong>lapsed</strong> term is
+                    different: the tenant is still in place and the office keeps collecting, so that balance also appears in the delinquency and
+                    follow-up lists. Renewing writes nothing off.
+                </p>
+            </details>
 
             @if (_endedOnly)
             {
@@ -239,11 +236,7 @@
                     <div class="ca-year-head">
                         <span class="ca-year-label">@grp.Key@(singleFacility ? " · " + facGroups[0].Key : "")</span>
                         <div class="ca-year-right">
-                            <span class="ca-year-stats">
-                                <strong>@yr.Count</strong> account@(yr.Count != 1 ? "s" : "") ·
-                                <strong>@Money(EndedUncollected(yr))</strong> on @CountLabel(EndedRows(yr).Count) stated here only ·
-                                <strong>@Money(LapsedUncollected(yr))</strong> on @CountLabel(LapsedRows(yr).Count) also in follow-up
-                            </span>
+                            <span class="ca-year-stats"><strong>@yr.Count</strong> account@(yr.Count != 1 ? "s" : "")</span>
                             @if (expiredInGroup.Count > 0)
                             {
                                 <button class="ca-renew-all-btn no-print" type="button"
@@ -264,11 +257,7 @@
                             {
                                 <div class="ca-fac-head">
                                     <span class="ca-fac-title">@facGrp.Key</span>
-                                    <span class="ca-fac-stats">
-                                        <strong>@facRows.Count</strong> account@(facRows.Count != 1 ? "s" : "") ·
-                                        <strong>@Money(EndedUncollected(facRows))</strong> on @CountLabel(EndedRows(facRows).Count) stated here only ·
-                                        <strong>@Money(LapsedUncollected(facRows))</strong> on @CountLabel(LapsedRows(facRows).Count) also in follow-up
-                                    </span>
+                                    <span class="ca-fac-stats"><strong>@facRows.Count</strong> account@(facRows.Count != 1 ? "s" : "")</span>
                                 </div>
                             }
 
@@ -426,15 +415,24 @@
             }
             @foreach (var source in FilteredObligations().GroupBy(x => x.Code))
             {
+                var spaceRows = source.OrderByDescending(x => x.Account.ActiveTo).ToList();
                 <div class="ca-year ca-obligation-source">
-                    <div class="ca-year-head"><span class="ca-year-label">@source.Key · @source.First().Source.Name</span></div>
-                    <p class="ca-source-note">These source-owned balances remain in the account workspaces. They are not included in “Stated here only” or lapsed stall totals. No contract expiry is inferred.</p>
+                    <div class="ca-year-head">
+                        <span class="ca-year-label">@source.First().Source.Name</span>
+                        <span class="ca-year-stats"><strong>@spaceRows.Count</strong> account@(spaceRows.Count != 1 ? "s" : "")</span>
+                    </div>
+                    @* Source-owned accounts keep their balances in their own workspaces, so these are never added to the stall figures
+                       above, and no contract expiry is inferred for them. *@
+                    <p class="ca-source-note">Balances stay in the account workspace and are not part of the totals above.</p>
                     <table class="ca-table">
-                        <thead><tr><th>Source / Unit</th><th>Holder</th><th>Recorded basis / Event</th><th>Start → Closure</th><th>Status</th><th class="ca-r">Assessed</th><th class="ca-r">Collected</th><th class="ca-r">Remaining</th><th class="no-print">Account</th></tr></thead>
-                        <tbody>@foreach (var item in source)
+                        <thead><tr><th>Space / Unit</th><th>Holder</th><th>@(source.Key == "FA" ? "Event" : "Recorded basis")</th><th class="ca-c">Start → Closure</th><th class="ca-c">Status</th><th class="ca-r">Assessed</th><th class="ca-r">Collected</th><th class="ca-r">Remaining</th>
+                            <th class="ca-act no-print" title="Renewing, reopening or reassigning a source-owned space is not available in this register; open the account workspace.">Action</th></tr></thead>
+                        <tbody>@foreach (var item in spaceRows)
                         {
                             var a = item.Account;
-                            <tr data-account="@a.Id"><td>@item.Code · @item.Unit @a.SubjectLabel</td><td>@SpaceAccountPresentation.Occupant(a)</td><td>@(item.Code == "FA" ? $"{a.Event} · {a.EventDate:MMM d, yyyy}" : SpaceAccountPresentation.Basis(a))</td><td>@a.ActiveFrom.ToString("MMM d, yyyy") → @a.ActiveTo?.ToString("MMM d, yyyy")</td><td>@(item.Code == "FA" ? "Closed event lot" : "Closed")</td><td class="ca-r">@Money(a.AssessedToDate)</td><td class="ca-r">@Money(a.CollectedToDate)</td><td class="ca-r">@Money(a.OutstandingToDate)</td><td class="no-print"><a href="@item.ProfileHref">View account</a></td></tr>
+                            <tr data-account="@a.Id"><td class="ca-fw">@item.Unit @a.SubjectLabel</td><td>@SpaceAccountPresentation.Occupant(a)</td><td class="ca-muted">@(item.Code == "FA" ? $"{a.Event} · {a.EventDate:MMM d, yyyy}" : SpaceAccountPresentation.Basis(a))</td><td class="ca-c ca-period">@a.ActiveFrom.ToString("MMM d, yyyy") <span>→</span> @a.ActiveTo?.ToString("MMM d, yyyy")</td><td class="ca-c ca-status-text">@(item.Code == "FA" ? "Closed event lot" : "Closed")</td><td class="ca-r">@Money(a.AssessedToDate)</td><td class="ca-r">@Money(a.CollectedToDate)</td>
+                                <td class="ca-r">@if (a.OutstandingToDate > 0) { <span class="ca-amt-due">@Money(a.OutstandingToDate)</span> } else { <span class="ca-amt-clear">@Money(0)</span> }</td>
+                                <td class="ca-act no-print"><div class="ca-act-icons"><a class="ca-row-icon ca-row-view" href="@item.ProfileHref" aria-label="View account" title="Open the account workspace">@IconView</a></div></td></tr>
                         }</tbody>
                     </table>
                 </div>
@@ -755,9 +753,9 @@
 
     private static readonly IReadOnlyList<SheetColumn> ExportColumns = [new("Source", SheetValueKind.Text), new("Unit", SheetValueKind.Text), new("Account identity", SheetValueKind.Text), new("Holder", SheetValueKind.Text), new("Start", SheetValueKind.Date), new("End", SheetValueKind.Date), new("Status", SheetValueKind.Text), new("Assessed", SheetValueKind.Money), new("Collected", SheetValueKind.Money), new("Remaining", SheetValueKind.Money), new("Balance scope", SheetValueKind.Text)];
     private IReadOnlyList<IReadOnlyList<object?>> ExportRows => Filtered().Select(a => (IReadOnlyList<object?>)new object?[] {
-        a.FacilityCode.ToString(), $"{FacilityCatalog.HolderUnitFor(a.FacilityCode.ToString())} {SpaceNumber.Display(a.StallNo)}", $"Stall {a.StallId}; contract {a.ContractId}", a.Occupant, a.EffectivityDate, EndOf(a), StateLabel(a.State), null, a.LifetimeCollected, a.Uncollected,
+        SourceName(a.FacilityCode.ToString()), $"{FacilityCatalog.HolderUnitFor(a.FacilityCode.ToString())} {SpaceNumber.Display(a.StallNo)}", $"Stall {a.StallId}; contract {a.ContractId}", a.Occupant, a.EffectivityDate, EndOf(a), StateLabel(a.State), null, a.LifetimeCollected, a.Uncollected,
         a.State == InactiveAccountState.Lapsed ? "Also in live follow-up" : "Stated here only" })
-        .Concat(FilteredObligations().Select(x => (IReadOnlyList<object?>)new object?[] { x.Code, $"{x.Unit} {x.Account.SubjectLabel}", x.Account.Id.ToString(), SpaceAccountPresentation.Occupant(x.Account), x.Account.ActiveFrom, x.Account.ActiveTo, x.Code == "FA" ? "Closed event lot" : "Closed", x.Account.AssessedToDate, x.Account.CollectedToDate, x.Account.OutstandingToDate, "Already in source account workspace" })).ToArray();
+        .Concat(FilteredObligations().Select(x => (IReadOnlyList<object?>)new object?[] { x.Source.Name, $"{x.Unit} {x.Account.SubjectLabel}", x.Account.Id.ToString(), SpaceAccountPresentation.Occupant(x.Account), x.Account.ActiveFrom, x.Account.ActiveTo, x.Code == "FA" ? "Closed event lot" : "Closed", x.Account.AssessedToDate, x.Account.CollectedToDate, x.Account.OutstandingToDate, "Already in source account workspace" })).ToArray();
     private string ExportCsvHref => "data:text/csv;charset=utf-8," + Uri.EscapeDataString(string.Join("\r\n", new[] {
         ExportCsv("Register of Inactive Rental Accounts", Branding.OfficeName, Branding.Municipality, Branding.Province),
         ExportCsv("As of", PhilippineTime.Today.ToString("yyyy-MM-dd"), "Year", _year?.ToString() ?? "All", "Source", _facility ?? "All", "Status", _state?.ToString() ?? "All", "Search", _search),
@@ -895,6 +893,35 @@
     private async Task Print() => await JS.InvokeVoidAsync("print");
 
     private IEnumerable<string> Facilities => FacilityCatalog.Rental.Select(c => c.ToString()).Concat(_obligationRows.Select(x => x.Code)).Distinct();
+
+    // ── Toolbar selectors ──
+    private string StatusValue => _state?.ToString() ?? "";
+
+    private static readonly IReadOnlyList<(string Value, string Label)> StatusOptions =
+    [
+        ("", "All statuses"),
+        (nameof(InactiveAccountState.Closed), "Closed"),
+        (nameof(InactiveAccountState.Renewed), "Renewed"),
+        (nameof(InactiveAccountState.Superseded), "Handed over"),
+        (nameof(InactiveAccountState.Lapsed), "Lapsed"),
+    ];
+
+    private void SelectStatus(string value)
+    {
+        if (value.Length == 0) { _state = null; _endedOnly = false; }
+        else if (Enum.TryParse<InactiveAccountState>(value, out var state)) _state = state;
+    }
+
+    /// <summary>The sources that can hold an inactive account: rental facilities and the source-owned space accounts, by their own names.</summary>
+    private IReadOnlyList<(string Value, string Label)> SourceOptions =>
+        new[] { ("", "All sources") }.Concat(Facilities.Select(code => (code, SourceName(code)))).ToList();
+
+    private IReadOnlyList<(string Value, string Label)> SectionOptions =>
+        new[] { ("", "All sections") }.Concat(SelectableSections.Select(s => (s, s))).ToList();
+
+    private string SourceName(string code) =>
+        Enum.TryParse<FacilityCode>(code, out var facility) ? FacilityCatalog.NameOf(facility)
+        : _obligationRows.FirstOrDefault(x => x.Code == code)?.Source.Name ?? code;
     private int[] Years = Array.Empty<int>();
 
     private void OnPickYear(int? year) => _year = year;

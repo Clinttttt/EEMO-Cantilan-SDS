@@ -67,6 +67,7 @@
     background: var(--accent); color: #fff; border: none; border-radius: 9px;
     padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
 }
+.me-print-btn { min-height: 38px; }
 .me-print-btn:hover { background: var(--accent-hover); }
 .me-print-btn:disabled { opacity: .5; cursor: default; }
 .me-print-btn svg { width: 16px; height: 16px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -88,28 +89,9 @@
 .me-search-clear { border: none; background: transparent; color: var(--text-muted); font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px; flex-shrink: 0; }
 .me-search-clear:hover { color: var(--navy); }
 
-/* Facility filter — segmented control, matching the report pages' Weekly/Monthly/Yearly toggle */
-.me-filter {
-    display: inline-flex; flex-wrap: wrap; gap: 5px; align-items: center;
-    background: linear-gradient(180deg, #f8fbfd 0%, var(--bg) 100%);
-    border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
-    border-radius: 9px; padding: 4px;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .86);
-}
-.me-chip {
-    min-height: 32px; padding: 6px 16px; border-radius: 6px;
-    border: 1px solid transparent; background: transparent;
-    font-size: 12.5px; font-weight: 650; letter-spacing: .2px; line-height: 1;
-    color: color-mix(in srgb, var(--text-muted) 88%, var(--navy));
-    cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
-    transition: background .15s, color .15s, border-color .15s, box-shadow .15s;
-}
-.me-chip:hover { color: var(--navy); }
-.me-chip-active, .me-chip-active:hover {
-    background: var(--accent);
-    border-color: color-mix(in srgb, var(--navy) 76%, #fff); color: #fff;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 6px 13px rgba(9, 31, 52, .14);
-}
+/* Group and source: two compact selectors. One question each — which part of the office's revenue, then which source —
+   instead of a chip per facility, which could not cover the sources that have none. */
+.me-filter { display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
 /* The period the sheet covers, and under it the scope when one is in force. Both are set as plain type: a tinted
    pill around a heading reads as a web badge, and this sheet is printed and filed.
@@ -137,7 +119,8 @@
 /* The period beneath the document's name, and on a month still running the day the figures stop at. */
 .me-period-line { margin-top: 2px; font-size: 12px; color: var(--text-subtle); }
 
-.me-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
+/* How many figures apply depends on the scope (a direct service has no outstanding or rate), so the cards share the row. */
+.me-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 18px; }
 .me-sum-card { border: 1px solid var(--border); border-radius: 12px; padding: 16px; text-align: center; background: var(--bg); }
 .me-sum-val { font-size: 20px; font-weight: 800; color: var(--navy); }
 .me-sum-lbl { font-size: 11px; color: var(--text-subtle); margin-top: 4px; text-transform: uppercase; letter-spacing: .4px; }
@@ -177,6 +160,23 @@
 .me-unpaid { color: var(--red); }
 
 .me-fac-note { font-size: 12.5px; color: var(--text-subtle); padding: 10px 12px; background: var(--bg); border-radius: 9px; }
+
+/* ── Official collections and their reconciliation ──
+   Plain type and rules, the same as the facility tables, so the filed sheet reads as one document. */
+.me-section-title {
+    margin: 24px 0 0;
+    font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-muted);
+}
+.me-src-table th:first-child, .me-src-table td:first-child { text-align: left; }
+.me-src-table th:nth-child(2), .me-src-table td:nth-child(2),
+.me-src-table th:nth-child(3), .me-src-table td:nth-child(3) { text-align: left; }
+.me-recon .me-src-table th:first-child, .me-recon .me-src-table td:first-child { text-align: left; }
+.me-quiet { color: var(--text-subtle); font-size: 12px; }
+.me-tag-warn { margin-left: 8px; color: var(--red); }
+.me-fine-print { margin-top: 10px; font-size: 11.5px; }
+.me-fine-line { display: block; margin-top: 2px; color: var(--text-subtle); font-size: 11.5px; font-weight: 400; }
+.me-official, .me-recon { border-top: none; }
+.me-official { padding-top: 14px; }
 
 /* The metered-utilities table: a button on screen, its own captioned block once opened, and on paper only what was
    opened. No tint here either; the caption and a rule separate it from the stall fees above. */
