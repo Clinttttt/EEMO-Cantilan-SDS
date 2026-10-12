@@ -16,7 +16,7 @@
     @* The hero is screen-only (no-print): the printed statements carry the government letterhead, never this band. *@
     <div class="no-print">
         <V3Hero Compact="true" Eyebrow="Operations · WCF" Title="Water Consumption Fees Statements" FiguresLabel="WCF statement totals">
-            <Meta><span>@PeriodLabel</span><InstrumentChip Instrument="CT" ShowName="true" /></Meta>
+            <Meta><span>@PeriodLabel ·</span> <InstrumentChip Instrument="CT" /> <span>Cash Ticket</span></Meta>
             <Figures>
                 <V3HeroFigure Label="Statements" Value="@(Ready ? _lines.Select(l => (l.StallId, l.Payor)).Distinct().Count().ToString() : "—")" />
                 <V3HeroFigure Label="Assessed" Value="@(Ready ? Money(_lines.Sum(l => l.Assessed)) : "—")" />

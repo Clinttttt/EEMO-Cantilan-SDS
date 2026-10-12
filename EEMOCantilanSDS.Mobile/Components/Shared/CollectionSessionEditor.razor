@@ -489,7 +489,8 @@ else
         : c.Kind == CollectionSessionItemKind.NpmWholePayment ? true
         : c.Kind == CollectionSessionItemKind.NpmPartPayment ? _amount > 0m && (c.MaximumAmount is not { } cap || _amount <= cap)
         : (c.AmountRule == CollectionSessionAmountRule.FixedAmount ? c.ServerAmount ?? 0m : _amount) > 0m)
-        && (!NeedsPayerName || !string.IsNullOrWhiteSpace(_snapshot));
+        && (!NeedsPayerName || !string.IsNullOrWhiteSpace(_snapshot))
+        && !(UtilityChoice is not null && _recent == RecentUtilityNotice.Check.Loading);   // never before the earlier-collections check has answered
 
     protected override async Task OnInitializedAsync()
     {

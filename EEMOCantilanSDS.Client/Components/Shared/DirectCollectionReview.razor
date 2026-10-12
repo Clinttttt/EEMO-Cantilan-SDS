@@ -100,7 +100,7 @@
                                         @if (!string.IsNullOrWhiteSpace(row.SourceContext)) { <span class="v3-block dcr-sub dcr-wrap">@row.SourceContext</span> }
                                         <span class="v3-block dcr-sub">@row.SourceState · @row.Mode</span>
                                     </td>
-                                    <td><span class="dcr-wrap">@row.Operation</span>@if (row.Utility is not null) { <span class="v3-block dcr-sub">@row.Utility</span> }</td>
+                                    <td><span class="dcr-wrap">@row.Operation</span>@if (row.Utility is not null && !string.Equals(row.Utility, row.Operation, StringComparison.OrdinalIgnoreCase)) { <span class="v3-block dcr-sub">@row.Utility</span> }</td>
                                     <td class="v3-num v3-strong">@Money(row.Amount)</td>
                                     <td>
                                         <span class="dcr-state dcr-state-@StateKey(row)">@row.ReviewState</span>

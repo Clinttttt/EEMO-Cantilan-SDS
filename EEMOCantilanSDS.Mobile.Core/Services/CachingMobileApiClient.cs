@@ -31,6 +31,8 @@ public sealed class CachingMobileApiClient(
     public Task<Result<CollectionSourcePage>> BrowseCollectionSourcesAsync(string? category, string? search, int skip, int take) => inner.BrowseCollectionSourcesAsync(category, search, skip, take);
     public Task<Result<IReadOnlyList<CollectionSourceSearchResult>>> SearchCollectionSourcesAsync(string? search) => inner.SearchCollectionSourcesAsync(search);
     public Task<Result<CollectionSessionDiscovery>> GetSourceCollectionDiscoveryAsync(CollectionSourceIdentity? identity) => inner.GetSourceCollectionDiscoveryAsync(identity);
+    // Live only, never cached: a stale device cache must never stand in as proof that no payment was already recorded.
+    public Task<Result<IReadOnlyList<RecentUtilityCollectionDto>>> GetRecentUtilityCollectionsAsync(Guid stallId, string utility, int year, int month) => inner.GetRecentUtilityCollectionsAsync(stallId, utility, year, month);
     public Task<Result<SourceNativeChargeQuote>> QuoteOfficeCollectionAsync(SourceNativeCollectionRequest request) => inner.QuoteOfficeCollectionAsync(request);
     public Task<Result<GovernedServiceOutcomeDto>> RecordOfficeCollectionAsync(SourceNativeCollectionRequest request) => InvalidatingAsync(() => inner.RecordOfficeCollectionAsync(request));
     public Task<Result<IReadOnlyList<NpmDailyBatchSource>>> GetNpmDailyBatchSourcesAsync() => inner.GetNpmDailyBatchSourcesAsync();

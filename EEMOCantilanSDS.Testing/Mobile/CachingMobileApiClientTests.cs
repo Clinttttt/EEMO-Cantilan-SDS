@@ -22,6 +22,25 @@ public class CachingMobileApiClientTests
         new(inner, cache, new FakeConnectivityMonitor(online));
 
     [Fact]
+    public async Task Recent_utility_collections_always_ask_the_server_and_are_never_read_from_or_written_to_the_cache()
+    {
+        var stall = Guid.NewGuid();
+        var inner = new Mock<IMobileApiClient>();
+        inner.Setup(x => x.GetRecentUtilityCollectionsAsync(stall, "ECF", 2026, 6))
+            .ReturnsAsync(Result<IReadOnlyList<RecentUtilityCollectionDto>>.Success([]));
+        var cache = new FakeOfflineReadCache();
+
+        // Online: asked live.
+        Assert.True((await Sut(inner.Object, cache, online: true).GetRecentUtilityCollectionsAsync(stall, "ECF", 2026, 6)).IsSuccess);
+        inner.Verify(x => x.GetRecentUtilityCollectionsAsync(stall, "ECF", 2026, 6), Times.Once);
+
+        // Offline: the server is still the only authority, so the answer is the inner client's (unavailable), never an old cached "nothing recorded".
+        inner.Setup(x => x.GetRecentUtilityCollectionsAsync(stall, "ECF", 2026, 6))
+            .ReturnsAsync(Result<IReadOnlyList<RecentUtilityCollectionDto>>.Failure("Offline"));
+        Assert.False((await Sut(inner.Object, cache, online: false).GetRecentUtilityCollectionsAsync(stall, "ECF", 2026, 6)).IsSuccess);
+    }
+
+    [Fact]
     public async Task Online_successful_read_is_returned_and_cached()
     {
         var inner = new Mock<IMobileApiClient>();

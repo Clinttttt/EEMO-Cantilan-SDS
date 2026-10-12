@@ -7,7 +7,11 @@
 @* What was already collected for this exact source and period, asked of the server every time a Collector is about to take another
    utility payment. It never answers from the device and never claims "nothing recorded" when the server could not be asked. The
    parent decides what to do with the answer (it asks for confirmation before a repeat payment); this component only shows it. *@
-@if (_state == Check.Unavailable)
+@if (_state == Check.Loading)
+{
+    <p class="recent-checking" role="status">Checking earlier collections…</p>
+}
+else if (_state == Check.Unavailable)
 {
     <StateNotice Tone="StateNotice.NoticeTone.Warning" Title="Recent collections not checked">
         Earlier payments for this source could not be checked. Look at today's records before recording another.
@@ -21,7 +25,7 @@ else if (_items.Count > 0)
             ? "A collection has already been recorded for this source and period."
             : "The only earlier collection for this source and period was reversed.")
         <ul class="recent-list" aria-label="Recent @UtilityLabel collections">
-            @foreach (var item in _items)
+            @foreach (var item in _items.Take(3))
             {
                 <li class="@(item.Disposition == "Reversed" ? "is-reversed" : "")">
                     <span class="recent-amount">@Money(item.Amount)</span>
@@ -31,6 +35,7 @@ else if (_items.Count > 0)
                 </li>
             }
         </ul>
+        @if (_items.Count > 3) { <p class="recent-more">and @(_items.Count - 3) earlier</p> }
     </StateNotice>
 }
 
@@ -69,7 +74,9 @@ else if (_items.Count > 0)
         _state = Check.Loading;
         try
         {
-            var result = await MobileApi.GetRecentUtilityCollectionsAsync(StallId, Utility, Year, Month);
+            // A connection that never answers is "not checked", not a reason to hold the Collector forever.
+            var request = MobileApi.GetRecentUtilityCollectionsAsync(StallId, Utility, Year, Month);
+            var result = await Task.WhenAny(request, Task.Delay(TimeSpan.FromSeconds(8))) == request ? await request : null;
             if (result is { IsSuccess: true, Value: { } list })
             {
                 _items = list.ToList();

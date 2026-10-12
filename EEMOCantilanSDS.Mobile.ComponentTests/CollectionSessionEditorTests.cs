@@ -1137,4 +1137,21 @@ public sealed class CollectionSessionEditorTests : TestContext
 
         Assert.DoesNotContain("Utilities", view.Find("[role=dialog]").TextContent);
     }
+
+    [Fact]
+    public void A_utility_item_cannot_be_added_until_the_earlier_collections_check_has_answered()
+    {
+        var gate = new TaskCompletionSource<Result<IReadOnlyList<RecentUtilityCollectionDto>>>();
+        _api.Setup(x => x.GetRecentUtilityCollectionsAsync(EcfStall, "ECF", Today.Year, Today.Month)).Returns(gate.Task);
+        var view = OpenEcfChoice();
+
+        view.WaitForAssertion(() => Assert.Contains("Checking earlier collections", view.Find("[role=dialog]").TextContent));
+        Assert.True(AddDisabled(view));                                                           // a tap now would bypass the duplicate-awareness
+        Assert.Empty(view.FindAll(".item-row"));
+
+        gate.SetResult(Result<IReadOnlyList<RecentUtilityCollectionDto>>.Success([]));
+        view.WaitForAssertion(() => Assert.False(AddDisabled(view)));
+        Click(view, "Add item");
+        Assert.Single(view.FindAll(".item-row"));
+    }
 }
