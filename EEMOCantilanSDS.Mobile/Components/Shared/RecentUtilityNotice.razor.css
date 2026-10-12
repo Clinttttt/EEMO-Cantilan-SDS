@@ -55,3 +55,14 @@
     font: inherit;
     font-weight: 600;
 }
+
+.recent-more {
+    margin: 6px 0 0;
+    font-size: 13px;
+}
+
+.recent-checking {
+    margin: 0 0 12px;
+    color: var(--mobile-text);
+    font-size: 13px;
+}

@@ -148,15 +148,6 @@
                 {
                     <RecentUtilityNotice StallId="source.StallId" Utility="WCF" Year="source.BillingYear" Month="source.BillingMonth" Resolved="OnRecentResolved" />
 
-                    @if (_confirmRepeat)
-                    {
-                        <StateNotice Tone="StateNotice.NoticeTone.Warning" Title="Record another payment?">
-                            A previous WCF collection exists for this source. Confirm that a separate payment was actually received.
-                        </StateNotice>
-                        <button class="btn-primary op-back" type="button" @onclick="ConfirmRepeatAsync">Continue</button>
-                        <button class="btn-cancel op-back op-back-secondary" type="button" @onclick="() => _confirmRepeat = false">Cancel</button>
-                    }
-
                     <section class="op-entry" aria-labelledby="wcf-amount-title">
                         <h2 id="wcf-amount-title" class="op-section-title">@(source.CanCollect ? "Prepared balance" : "Direct amount")</h2>
                         <label class="form-field">
@@ -172,15 +163,27 @@
                         </p>
                     </section>
 
-                    <div class="op-action">
-                        <button class="op-cta" type="button" disabled="@(!CanCapture)" @onclick="CaptureAsync">
-                            @(_saving ? "Saving…" : CanCapture ? $"Record {Money(_amount)}" : "Record collection")
-                        </button>
-                        @if (!CanCapture && !_saving && DisabledReason(source) is { } why)
-                        {
-                            <p class="op-action-why">@why</p>
-                        }
-                    </div>
+                    @* The repeat-payment question sits where the Collector just tapped, in place of the Record button. *@
+                    @if (_confirmRepeat)
+                    {
+                        <StateNotice Tone="StateNotice.NoticeTone.Warning" Title="Record another payment?">
+                            A previous WCF collection exists for this source. Confirm that a separate payment of @Money(_amount) was actually received.
+                        </StateNotice>
+                        <button class="btn-primary op-back" type="button" @onclick="ConfirmRepeatAsync">Continue</button>
+                        <button class="btn-cancel op-back op-back-secondary" type="button" @onclick="() => _confirmRepeat = false">Cancel</button>
+                    }
+                    else
+                    {
+                        <div class="op-action">
+                            <button class="op-cta" type="button" disabled="@(!CanCapture)" @onclick="CaptureAsync">
+                                @(_saving ? "Saving…" : CanCapture ? $"Record {Money(_amount)}" : "Record collection")
+                            </button>
+                            @if (!CanCapture && !_saving && DisabledReason(source) is { } why)
+                            {
+                                <p class="op-action-why">@why</p>
+                            }
+                        </div>
+                    }
                 }
             }
 
@@ -226,11 +229,13 @@
         && _amount > 0m
         && (!source.CanCollect || _amount <= source.OutstandingAmount)
         && decimal.Round(_amount, 2, MidpointRounding.ToZero) == _amount
+        && _recent != RecentUtilityNotice.Check.Loading          // never before the earlier-collections check has answered
         && !Sync.HasStorageFault
         && !_saving;
 
     private string? DisabledReason(WcfMobileSourceDto source) =>
-        _amount <= 0m ? "Enter the Water amount to continue."
+        _recent == RecentUtilityNotice.Check.Loading ? "Checking earlier collections…"
+        : _amount <= 0m ? "Enter the Water amount to continue."
         : source.CanCollect && _amount > source.OutstandingAmount ? $"The amount cannot exceed the outstanding {Money(source.OutstandingAmount)}."
         : decimal.Round(_amount, 2, MidpointRounding.ToZero) != _amount ? "Use at most two decimal places."
         : null;
