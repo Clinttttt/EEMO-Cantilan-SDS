@@ -30,6 +30,7 @@ public sealed class ObligationAccountConfiguration : IEntityTypeConfiguration<Ob
         builder.Property(x => x.ContractName).HasMaxLength(200);
         builder.Property(x => x.AreaLocation).HasMaxLength(250);
         builder.Property(x => x.AreaSqm).HasPrecision(12, 2);
+        builder.Property(x => x.ContractMonthlyRate).HasPrecision(12, 2);
         builder.Property(x => x.SubjectLabel).HasMaxLength(120).IsRequired();
         builder.Property(x => x.ActualOccupant).HasMaxLength(200);
         builder.Property(x => x.ActiveFrom).IsRequired();

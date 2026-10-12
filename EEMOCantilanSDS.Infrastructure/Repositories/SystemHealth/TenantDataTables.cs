@@ -24,7 +24,7 @@ public static class TenantDataTables
     /// </summary>
     public static readonly IReadOnlySet<string> Restorable = new HashSet<string>(StringComparer.Ordinal)
     {
-        "MobileCollectionSessions", "FishMeatVendorRegistrations", "FishMeatNpmAssociations", "DirectCollectionReviewEvents",
+        "MobileCollectionSessions", "FishMeatVendorRegistrations", "FishMeatNpmAssociations", "DirectCollectionReviewEvents", "SpaceHolderImportRuns",
         "FineAssessmentPolicies", "FineAssessments", "FineAssessmentEvents", // source-owned non-cash liability and its immutable governing/audit evidence
         "DirectFineAuthorities", // reviewed no-registration fine authority; posted CollectionLines reference it, so a restore must carry it
         "OfficialReportRevisions", // approved targets and report deltas are the tenant's revision-safe official statement evidence

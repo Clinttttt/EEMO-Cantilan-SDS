@@ -3325,6 +3325,10 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.Property<DateOnly?>("ContractEffectiveDate")
                         .HasColumnType("date");
 
+                    b.Property<decimal?>("ContractMonthlyRate")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)");
+
                     b.Property<string>("ContractName")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -3835,6 +3839,52 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.ToTable("RevenueClassificationPolicies", null, t =>
                         {
                             t.HasCheckConstraint("CK_RevenueClassificationPolicies_BusinessContext", "\"BusinessContext\" IN (0, 1, 2)");
+                        });
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.SpaceHolderImportRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ActorName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("ImportedCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("MunicipalityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("RowCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SkippedCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SkippedSummary")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MunicipalityId", "Kind", "OccurredAtUtc");
+
+                    b.ToTable("SpaceHolderImportRuns", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_SpaceHolderImportRun_Counts", "\"RowCount\" >= 1 AND \"ImportedCount\" >= 0 AND \"SkippedCount\" >= 0 AND \"ImportedCount\" + \"SkippedCount\" <= \"RowCount\"");
                         });
                 });
 
