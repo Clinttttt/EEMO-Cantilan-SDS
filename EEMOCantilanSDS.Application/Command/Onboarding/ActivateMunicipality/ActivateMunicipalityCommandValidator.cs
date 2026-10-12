@@ -41,6 +41,15 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                         .Select(g => $"{g.Key} ({string.Join(" and ", g.Select(f => f.Name))})"))
                     + ". A facility code identifies one facility of an LGU, so each needs its own.");
 
+            // A reserved custom slot is a Head-named MONTHLY-RENTAL facility and nothing else; Facility.Create would otherwise
+            // file whatever archetype it was handed under a code that promises rental behaviour.
+            RuleForEach(x => x.Facilities).ChildRules(f =>
+            {
+                f.RuleFor(x => x)
+                    .Must(fac => !FacilityCatalog.IsCustom(fac.Code) || fac.Archetype == BillingArchetype.MonthlyRental)
+                    .WithMessage(fac => $"{fac.Name} uses the reserved custom code {fac.Code}, which is only for monthly-rental facilities.");
+            });
+
             RuleForEach(x => x.Facilities).ChildRules(f =>
             {
                 f.RuleFor(x => x.Name).NotEmpty().WithMessage("Facility name is required.");
