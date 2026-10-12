@@ -1,0 +1,310 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Common
+@implements IDisposable
+@inject IDirectCollectionReviewApiClient ReviewApi
+
+@* Direct collections for the Head: the canonical Collections a Collector recorded without a prepared office amount, each with whether the
+   Head has looked at it. Reviewing adds an administrative note and nothing else - no Collection, no SRC, no amount changes, and a
+   posted collection stays counted as received whether or not it has been reviewed. A flagged collection is corrected through the
+   office's correction process, never by deleting cash evidence here. *@
+<button class="v3-btn dcr-trigger" type="button" aria-label="@TriggerLabel" title="Review direct collections" aria-haspopup="dialog" @onclick="OpenAsync">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8" /><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9" /></svg>
+    @if (_pending > 0) { <span class="dcr-badge" aria-hidden="true">@(_pending > 99 ? "99+" : _pending.ToString())</span> }
+</button>
+
+@if (_open)
+{
+    <div class="v3-modal-backdrop" role="presentation" @onclick="Close">
+        <section class="v3-modal dcr-modal" role="dialog" aria-modal="true" aria-labelledby="dcr-title" @onclick:stopPropagation="true">
+            <header class="v3-modal-header">
+                <h2 id="dcr-title">Review direct collections</h2>
+                <button class="v3-btn v3-btn-sm" type="button" aria-label="Close" @onclick="Close">Close</button>
+            </header>
+            <div class="v3-modal-body dcr-body">
+                <p class="dcr-lede">Collections a Collector recorded without a prepared amount. Reviewing is optional and never changes the money or the SRC.</p>
+
+                <div class="dcr-tabs" role="group" aria-label="Review state">
+                    @foreach (var (value, label) in States)
+                    {
+                        <button type="button" class="dcr-tab @(_state == value ? "is-active" : "")" aria-pressed="@(_state == value ? "true" : "false")"
+                                @onclick="() => SetStateAsync(value)">@label@(value == "Pending" && _page is not null ? $" ({_page.PendingCount})" : "")</button>
+                    }
+                </div>
+
+                <div class="dcr-filters" role="search" aria-label="Review filters">
+                    <input class="v3-input" type="date" aria-label="From date" title="From" value="@_from.ToString("yyyy-MM-dd")" @onchange="OnFromAsync" />
+                    <input class="v3-input" type="date" aria-label="To date" title="To" value="@_to.ToString("yyyy-MM-dd")" @onchange="OnToAsync" />
+                    <input class="v3-input dcr-grow" type="search" placeholder="Search SRC, payor or collector" aria-label="Search SRC, payor or collector" autocomplete="off"
+                           value="@_search" @oninput="OnSearchInput" />
+                    <input class="v3-input" type="text" placeholder="Operation" aria-label="Operation" autocomplete="off" value="@_operation" @onchange="OnOperationAsync" />
+                    <input class="v3-input" type="text" placeholder="Collector" aria-label="Collector" autocomplete="off" value="@_collector" @onchange="OnCollectorAsync" />
+                    <button class="v3-btn dcr-icon" type="button" aria-label="Refresh" title="Refresh" disabled="@_loading" @onclick="LoadAsync">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5" /></svg>
+                    </button>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(_message))
+                {
+                    <p class="v3-notice" role="status">@_message</p>
+                }
+                @if (_error is not null)
+                {
+                    <div class="v3-notice v3-notice-error v3-notice-row" role="alert">
+                        <span>@_error</span>
+                        <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadAsync">Try again</button>
+                    </div>
+                }
+
+                @if (_selected.Count > 0)
+                {
+                    <div class="dcr-bulk" role="status">
+                        <span>@_selected.Count selected</span>
+                        <button class="v3-btn v3-btn-primary v3-btn-sm" type="button" disabled="@_busy" @onclick="ConfirmSelectedAsync">Confirm selected</button>
+                        <button class="v3-btn v3-btn-sm" type="button" disabled="@_busy" @onclick="() => _selected.Clear()">Clear</button>
+                    </div>
+                }
+
+                <div class="v3-table-wrap" role="region" aria-label="Direct collections" tabindex="0" aria-busy="@(_loading ? "true" : "false")">
+                    <table class="v3-table dcr-table">
+                        <caption class="v3-sr-only">Direct collections awaiting or having had a review</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col"><span class="v3-sr-only">Select</span></th>
+                                <th scope="col">Recorded</th>
+                                <th scope="col">Payor / source</th>
+                                <th scope="col">Operation</th>
+                                <th scope="col" class="v3-num">Amount</th>
+                                <th scope="col">Review</th>
+                                <th scope="col"><span class="v3-sr-only">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in _page?.Rows ?? [])
+                            {
+                                <tr @key="row.CollectionId" class="@(row.PossibleDuplicate ? "has-attention" : "")">
+                                    <td>
+                                        @if (row.CanConfirm)
+                                        {
+                                            <input type="checkbox" aria-label="@($"Select {row.ReferenceCode}")" checked="@_selected.Contains(row.CollectionId)" @onchange="e => Toggle(row.CollectionId, e)" />
+                                        }
+                                    </td>
+                                    <td>
+                                        <span class="v3-strong">@row.ReferenceCode</span>
+                                        <span class="v3-block dcr-sub">@WhenText(row)</span>
+                                        <span class="v3-block dcr-sub">by @row.RecordedBy</span>
+                                    </td>
+                                    <td>
+                                        <span class="v3-strong dcr-wrap">@row.Payor</span>
+                                        @if (!string.IsNullOrWhiteSpace(row.SourceContext)) { <span class="v3-block dcr-sub dcr-wrap">@row.SourceContext</span> }
+                                        <span class="v3-block dcr-sub">@row.SourceState · @row.Mode</span>
+                                    </td>
+                                    <td><span class="dcr-wrap">@row.Operation</span>@if (row.Utility is not null) { <span class="v3-block dcr-sub">@row.Utility</span> }</td>
+                                    <td class="v3-num v3-strong">@Money(row.Amount)</td>
+                                    <td>
+                                        <span class="dcr-state dcr-state-@StateKey(row)">@row.ReviewState</span>
+                                        @if (row.Disposition != "Posted") { <span class="v3-block dcr-sub">@row.Disposition</span> }
+                                        @if (row.PossibleDuplicate) { <span class="v3-block dcr-attention">Possible duplicate</span> }
+                                        @if (!string.IsNullOrWhiteSpace(row.ReviewNote)) { <span class="v3-block dcr-sub dcr-wrap">@row.ReviewNote</span> }
+                                        @if (row.ReviewedBy is not null) { <span class="v3-block dcr-sub">@row.ReviewedBy</span> }
+                                    </td>
+                                    <td class="dcr-actions">
+                                        @if (_noteFor == row.CollectionId)
+                                        {
+                                            <label class="dcr-note">
+                                                <span class="v3-sr-only">What needs correcting</span>
+                                                <textarea class="v3-input" rows="2" maxlength="500" placeholder="What needs correcting?" @bind="_note" @bind:event="oninput"></textarea>
+                                            </label>
+                                            <div class="v3-btn-group">
+                                                <button class="v3-btn v3-btn-sm" type="button" disabled="@_busy" @onclick="() => _noteFor = null">Cancel</button>
+                                                <button class="v3-btn v3-btn-primary v3-btn-sm" type="button" disabled="@(_busy || string.IsNullOrWhiteSpace(_note))" @onclick='() => ReviewAsync(row, "NeedsCorrection", _note)'>Flag</button>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="v3-btn-group">
+                                                @if (row.CanConfirm || (row.ReviewState == "Needs correction" && row.Disposition != "Reversed") || (row.PossibleDuplicate && row.ReviewState == "Awaiting review"))
+                                                {
+                                                    <button class="v3-btn v3-btn-sm" type="button" disabled="@_busy" @onclick='() => ReviewAsync(row, "Confirmed", null)'
+                                                            aria-label="@($"Confirm {row.ReferenceCode}")">Confirm</button>
+                                                }
+                                                @if (row.ReviewState is "Awaiting review" or "Confirmed" && row.Disposition != "Reversed")
+                                                {
+                                                    <button class="v3-btn v3-btn-sm" type="button" disabled="@_busy" @onclick="() => StartFlag(row)"
+                                                            aria-label="@($"Flag {row.ReferenceCode} for correction")">Needs correction</button>
+                                                }
+                                                @if (row.ReviewState == "Needs correction")
+                                                {
+                                                    <button class="v3-btn v3-btn-sm" type="button" disabled="@_busy" @onclick='() => ReviewAsync(row, "Resolved", null)'
+                                                            aria-label="@($"Resolve {row.ReferenceCode}")">Resolve</button>
+                                                }
+                                                <a class="v3-btn v3-btn-sm" href="/collections/activity?src=@Uri.EscapeDataString(row.ReferenceCode)" aria-label="@($"View record {row.ReferenceCode}")">View</a>
+                                            </div>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                            @if (_page is { Rows.Count: 0 } && !_loading)
+                            {
+                                <tr><td class="v3-empty" colspan="7">@(_state == "Pending" ? "No direct collections are waiting for review in this period." : "No direct collections match.")</td></tr>
+                            }
+                            @if (_page is null && _loading)
+                            {
+                                <tr><td class="v3-empty" colspan="7"><span role="status">Loading…</span></td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @if (_page is { Total: > 0 } pg)
+                {
+                    <footer class="dcr-pager">
+                        <span>@(_skip + 1)–@(_skip + pg.Rows.Count) of @pg.Total</span>
+                        <div class="v3-btn-group" role="group" aria-label="Pages">
+                            <button class="v3-btn v3-btn-sm" type="button" disabled="@(_skip == 0 || _loading)" @onclick="PreviousAsync">Previous</button>
+                            <button class="v3-btn v3-btn-sm" type="button" disabled="@(_skip + pg.Rows.Count >= pg.Total || _loading)" @onclick="NextAsync">Next</button>
+                        </div>
+                    </footer>
+                }
+            </div>
+        </section>
+    </div>
+}
+
+@code {
+    private const int Take = 25;
+    private static readonly (string Value, string Label)[] States =
+    [
+        ("Pending", "Awaiting review"), ("NeedsCorrection", "Needs correction"), ("Reviewed", "Reviewed"), ("All", "All direct collections")
+    ];
+
+    private DirectCollectionReviewPageDto? _page;
+    private int _pending, _skip, _generation;
+    private bool _open, _loading, _busy, _countLoaded;
+    private string _state = "Pending", _search = "", _operation = "", _collector = "";
+    private DateOnly _from = PhilippineTime.Today.AddDays(-30), _to = PhilippineTime.Today;
+    private string? _error, _message, _note;
+    private Guid? _noteFor;
+    private readonly HashSet<Guid> _selected = [];
+    private CancellationTokenSource? _debounce;
+
+    private string TriggerLabel => _pending > 0 ? $"Review direct collections, {_pending} awaiting review" : "Review direct collections";
+
+    // The count loads after the first render so the host page's own lifecycle and prerender are untouched.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _countLoaded) return;
+        _countLoaded = true;
+        try
+        {
+            var result = await ReviewApi.GetAsync(new("Pending", _from, _to, null, null, null, 0, 1));
+            if (result is { IsSuccess: true, Value: { } page }) { _pending = page.PendingCount; StateHasChanged(); }
+        }
+        catch { /* the count is a convenience; the panel states its own errors */ }
+    }
+
+    private async Task OpenAsync() { _open = true; _message = null; await LoadAsync(); }
+    private void Close() { _open = false; _noteFor = null; _selected.Clear(); }
+
+    private async Task LoadAsync()
+    {
+        var generation = ++_generation;
+        _loading = true; _error = null;
+        try
+        {
+            var result = await ReviewApi.GetAsync(new(_state, _from, _to, _operation, _collector, _search, _skip, Take));
+            if (generation != _generation) return;
+            if (result is { IsSuccess: true, Value: { } page })
+            {
+                _page = page; _pending = page.PendingCount;
+                _selected.IntersectWith(page.Rows.Where(r => r.CanConfirm).Select(r => r.CollectionId));
+            }
+            else _error = result?.Error ?? "Unable to load the direct collections. Try again.";
+        }
+        catch { if (generation == _generation) _error = "Unable to load the direct collections. Try again."; }
+        finally { if (generation == _generation) _loading = false; }
+    }
+
+    private Task SetStateAsync(string state) { _state = state; _skip = 0; _selected.Clear(); return LoadAsync(); }
+    private Task OnFromAsync(ChangeEventArgs a) { if (DateOnly.TryParse(a.Value?.ToString(), CultureInfo.InvariantCulture, out var d)) { _from = d; _skip = 0; } return LoadAsync(); }
+    private Task OnToAsync(ChangeEventArgs a) { if (DateOnly.TryParse(a.Value?.ToString(), CultureInfo.InvariantCulture, out var d)) { _to = d; _skip = 0; } return LoadAsync(); }
+    private Task OnOperationAsync(ChangeEventArgs a) { _operation = a.Value?.ToString() ?? ""; _skip = 0; return LoadAsync(); }
+    private Task OnCollectorAsync(ChangeEventArgs a) { _collector = a.Value?.ToString() ?? ""; _skip = 0; return LoadAsync(); }
+    private Task PreviousAsync() { _skip = Math.Max(0, _skip - Take); return LoadAsync(); }
+    private Task NextAsync() { _skip += Take; return LoadAsync(); }
+
+    private void OnSearchInput(ChangeEventArgs a)
+    {
+        _search = a.Value?.ToString() ?? "";
+        _generation++;
+        _debounce?.Cancel();
+        _debounce = new CancellationTokenSource();
+        _ = DebouncedAsync(_debounce.Token);
+    }
+
+    private async Task DebouncedAsync(CancellationToken token)
+    {
+        try { await Task.Delay(300, token); } catch (OperationCanceledException) { return; }
+        _skip = 0;
+        await InvokeAsync(async () => { await LoadAsync(); StateHasChanged(); });
+    }
+
+    private void Toggle(Guid id, ChangeEventArgs e) { if (e.Value is true) _selected.Add(id); else _selected.Remove(id); }
+    private void StartFlag(DirectCollectionReviewRowDto row) { _noteFor = row.CollectionId; _note = ""; }
+
+    private async Task ReviewAsync(DirectCollectionReviewRowDto row, string outcome, string? note)
+    {
+        if (_busy) return;
+        _busy = true; _message = null; _error = null;
+        try
+        {
+            var result = await ReviewApi.ReviewAsync(new(Guid.NewGuid(), row.CollectionId, outcome, note));
+            if (result.IsSuccess)
+            {
+                _noteFor = null;
+                _message = outcome switch
+                {
+                    "Confirmed" => $"{row.ReferenceCode} confirmed. No collection was changed.",
+                    "NeedsCorrection" => $"{row.ReferenceCode} flagged for correction. The collection itself is unchanged.",
+                    _ => $"{row.ReferenceCode} resolved."
+                };
+            }
+            else _error = result.Error ?? "The review could not be saved.";
+        }
+        catch { _error = "The review could not be saved."; }
+        finally { _busy = false; }
+        await LoadAsync();
+    }
+
+    private async Task ConfirmSelectedAsync()
+    {
+        if (_busy || _selected.Count == 0) return;
+        _busy = true; _message = null; _error = null;
+        try
+        {
+            var result = await ReviewApi.ConfirmManyAsync(new(Guid.NewGuid(), _selected.ToList()));
+            if (result is { IsSuccess: true, Value: { } done })
+            {
+                _message = $"{done.Confirmed} confirmed" + (done.Skipped.Count > 0 ? $", {done.Skipped.Count} left for individual review." : ".") + " No collection was changed.";
+                _selected.Clear();
+            }
+            else _error = result?.Error ?? "The selected collections could not be confirmed.";
+        }
+        catch { _error = "The selected collections could not be confirmed."; }
+        finally { _busy = false; }
+        await LoadAsync();
+    }
+
+    private static string StateKey(DirectCollectionReviewRowDto row) => row.ReviewState switch
+    {
+        "Confirmed" => "confirmed", "Needs correction" => "flagged", "Resolved" => "resolved", _ => "awaiting"
+    };
+
+    private static string WhenText(DirectCollectionReviewRowDto row) =>
+        $"{row.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)} · {row.RecordedAtUtc.Add(PhilippineTime.Offset).ToString("h:mm tt", CultureInfo.InvariantCulture)}";
+
+    private static string Money(decimal amount) => $"₱{amount:N2}";
+
+    public void Dispose() => _debounce?.Cancel();
+}
