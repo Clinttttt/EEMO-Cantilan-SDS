@@ -42,7 +42,6 @@
             @if (_monthlyVisited)
             {
                 <div hidden="@(!_monthly)" class="op-monthly" aria-label="Monthly space collection">
-                    <p class="op-instruction">Select a registered Monthly space holder. The account supplies the periods and outstanding amount; collection uses OR.</p>
                     <CollectionSessionEditor BusinessDate="@Today" OnlyOperation="@Code" />
                 </div>
             }

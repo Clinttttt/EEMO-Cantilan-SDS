@@ -65,6 +65,20 @@ public sealed class VegetableFruitModeTests : TestContext
     }
 
     [Fact]
+    public void MonthlyHasNoExplanatoryParagraphUnderTheModeSelector_SoTheFinderStartsRightAfterIt()
+    {
+        var view = RenderComponent<OperationCollection>(p => p.Add(x => x.Code, Code));
+        view.FindAll(".op-space-modes button")[0].Click();
+
+        var monthly = view.Find(".op-monthly");
+        Assert.DoesNotContain("The account supplies the periods", view.Markup);
+        Assert.DoesNotContain("collection uses OR", view.Markup);
+        Assert.Empty(monthly.QuerySelectorAll("p.op-instruction"));
+        Assert.Empty(monthly.QuerySelectorAll(":scope > p"));                                       // no leading text block of any kind
+        Assert.True(view.Find(".op-space-modes").NextElementSibling!.ClassList.Contains("op-monthly"));   // the finder follows the selector directly
+    }
+
+    [Fact]
     public void DailyUnavailableDoesNotHideMonthlyAccountDiscovery()
     {
         _api.Setup(x => x.GetOperationCapabilitiesAsync()).ReturnsAsync(Result<CollectorOperationCapabilitiesDto>.Failure("offline"));
