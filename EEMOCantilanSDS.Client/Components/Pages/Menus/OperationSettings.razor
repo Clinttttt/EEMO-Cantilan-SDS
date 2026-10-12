@@ -89,6 +89,15 @@
                                         <input type="text" maxlength="@TenantOperationCatalog.MaxLabelLength" value="@draft.Name" placeholder="@item.DefaultLabel"
                                                @oninput="e => draft.Name = e.Value?.ToString() ?? string.Empty" />
                                     </label>
+                                    @if (!string.IsNullOrWhiteSpace(item.PolicyNotice))
+                                    {
+                                        <p class="os-policy" role="note"><strong>Policy confirmation required.</strong> @item.PolicyNotice</p>
+                                    }
+                                    @if (item.IsListed)
+                                    {
+                                        @* Facts only. Whether the operation can collect also depends on its source, rate and documents, which this page does not judge. *@
+                                        <p class="os-facts">@(item.AssignedCollectors == 0 ? "No Collector assigned" : item.AssignedCollectors == 1 ? "1 Collector assigned" : $"{item.AssignedCollectors} Collectors assigned")@(item.HasRecordedActivity ? " · Collections recorded" : " · No collections recorded yet")</p>
+                                    }
                                     @if (item.HasRecordedActivity)
                                     {
                                         <p class="os-hint">Collections are already recorded under this operation. Hiding it removes nothing from your records or reports.</p>

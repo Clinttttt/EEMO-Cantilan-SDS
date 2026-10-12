@@ -22,8 +22,17 @@ public static class TenantOperationSettingsStore
             .ToListAsync(ct);
 
         var withActivity = await OperationsWithRecordedActivityAsync(context, municipalityId, ct);
+        // A rule accepted for Cantilan's office is flagged for every OTHER municipality (the default municipality is Cantilan).
+        var isDefaultMunicipality = await context.Municipalities.AsNoTracking()
+            .Where(m => m.Id == municipalityId).Select(m => m.IsDefault).FirstOrDefaultAsync(ct);
         var byCode = rows.ToDictionary(r => r.OperationCode, StringComparer.Ordinal);
         var adopted = rows.Count > 0;
+        var assigned = (await context.CollectorOperationAssignments.AsNoTracking()
+                .Where(a => a.MunicipalityId == municipalityId)
+                .GroupBy(a => a.OperationCode)
+                .Select(g => new { Code = g.Key, Count = g.Count() })
+                .ToListAsync(ct))
+            .ToDictionary(x => x.Code, x => x.Count, StringComparer.Ordinal);
 
         var items = TenantOperationCatalog.All.Select(entry =>
         {
@@ -33,7 +42,9 @@ public static class TenantOperationSettingsStore
             var display = adopted ? label ?? entry.DefaultLabel : entry.LegacyDirectoryLabel;
             return new TenantOperationSettingDto(
                 entry.Code, entry.DefaultLabel, entry.GroupKey, label, display, listed, row?.Version ?? 0,
-                row?.Origin ?? (adopted ? "Head" : "Legacy"), withActivity.Contains(entry.ClassificationCode));
+                row?.Origin ?? (adopted ? "Head" : "Legacy"), withActivity.Contains(entry.ClassificationCode),
+                isDefaultMunicipality ? null : entry.PolicyNotice,
+                assigned.GetValueOrDefault(entry.Code));
         }).ToList();
 
         return new TenantOperationSettingsDto(adopted, items);

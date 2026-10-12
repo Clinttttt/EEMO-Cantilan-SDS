@@ -15,6 +15,8 @@ public sealed record TenantOperationSettingsDto(bool UsesConfiguration, IReadOnl
 /// <param name="DisplayName">What the directory prints: local name, else (adopted) the standard name, else (legacy) the established name.</param>
 /// <param name="IsListed">Presentation only - listing is not financial authorization.</param>
 /// <param name="Version">Concurrency token for edits; 0 when the municipality has no stored row yet.</param>
+/// <param name="PolicyNotice">Set for a municipality OTHER than the default (Cantilan) where the platform applies a rule accepted only for Cantilan's office; the Head must confirm it. Informational: it does not change what is enforced.</param>
+/// <param name="AssignedCollectors">How many Collectors the Head has assigned to the operation. A FACT, not a readiness verdict: an operation collected at the office needs none, and an assigned one may still lack its source, rate or documents.</param>
 /// <param name="HasRecordedActivity">Collections already recorded under the operation's classification. Hiding it never removes them.</param>
 public sealed record TenantOperationSettingDto(
     string OperationCode,
@@ -25,4 +27,6 @@ public sealed record TenantOperationSettingDto(
     bool IsListed,
     long Version,
     string Origin,
-    bool HasRecordedActivity);
+    bool HasRecordedActivity,
+    string? PolicyNotice = null,
+    int AssignedCollectors = 0);

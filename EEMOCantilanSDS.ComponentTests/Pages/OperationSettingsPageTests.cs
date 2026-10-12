@@ -119,6 +119,30 @@ public sealed class OperationSettingsPageTests : TestContext
     }
 
     [Fact]
+    public void AnOperationWithACantilanOnlyRule_AsksTheHeadToConfirmIt_AndNoOtherOperationDoes()
+    {
+        var model = Api(adopted: true).Object.GetAsync().Result.Value!;
+        var flagged = model with
+        {
+            Items = model.Items.Select(i => i.OperationCode == "KANMANGGAY_SPACE_RENTAL"
+                ? i with { PolicyNotice = "Signed space contracts are recorded under the three-year standard adopted by Cantilan's office (MEEDO)." }
+                : i).ToList(),
+        };
+        var api = new Mock<IOperationSettingsApiClient>();
+        api.Setup(c => c.GetAsync()).ReturnsAsync(Result<TenantOperationSettingsDto>.Success(flagged));
+        Services.AddSingleton(api.Object);
+
+        var cut = Cut();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(1, cut.FindAll(".os-policy").Count);
+            Assert.Contains("Policy confirmation required", cut.Find("li[data-operation=\"KANMANGGAY_SPACE_RENTAL\"] .os-policy").TextContent);
+            Assert.Contains("three-year", cut.Find(".os-policy").TextContent);
+        }, Timeout);
+    }
+
+    [Fact]
     public void WhenItCannotBeLoaded_ItSaysSo_AndOffersARetry()
     {
         var api = new Mock<IOperationSettingsApiClient>();

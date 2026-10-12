@@ -7,6 +7,7 @@ using EEMOCantilanSDS.Application.Queries.Settings.GetTenantOperationSettings;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
+using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
@@ -178,6 +179,25 @@ public sealed class TenantOperationSettingsTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task TheMeedoThreeYearContractRule_IsFlaggedForEveryMunicipalityExceptTheDefaultOne_AndNothingElseIsFlagged()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        var t = await SeedAsync(); // Cantilan (default) and Carrascal
+
+        var cantilan = await ReadAsync(t.Cantilan);
+        var carrascal = await ReadAsync(t.Carrascal);
+
+        // Cantilan's own accepted policy is not a warning to Cantilan.
+        Assert.All(cantilan.Items, i => Assert.Null(i.PolicyNotice));
+        // Another municipality is told, on exactly the operation the rule is attached to.
+        var flagged = carrascal.Items.Where(i => i.PolicyNotice is not null).Select(i => i.OperationCode).ToArray();
+        Assert.Equal(new[] { "KANMANGGAY_SPACE_RENTAL" }, flagged);
+        Assert.Contains("three-year", carrascal.Items.Single(i => i.OperationCode == "KANMANGGAY_SPACE_RENTAL").PolicyNotice);
+        // Flagging never changes what is listed or what an operation is called.
+        Assert.All(carrascal.Items, i => Assert.True(i.IsListed));
+    }
+
+    [SkippableFact]
     public async Task TheDatabase_RefusesTwoSettingsForOneOperationInOneMunicipality()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
@@ -197,5 +217,24 @@ public sealed class TenantOperationSettingsTests(PostgresFixture db)
         other.TenantOperationSettings.Add(TenantOperationSetting.Create("ECF", true, null, "Head", t.Cantilan, "test"));
         await other.SaveChangesAsync();
     }
-}
 
+    [SkippableFact]
+    public async Task EachOperationReportsHowManyCollectorsAreAssigned_AsAFactAndNothingMore()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        var t = await SeedAsync();
+        await using (var ctx = db.CreateContext(Guid.Empty))
+        {
+            var collector = CollectorUser.Create("Field Collector", "C-01", $"c{Guid.NewGuid():N}"[..12], null, null, new HashedPassword("h"), t.Carrascal);
+            ctx.CollectorUsers.Add(collector);
+            ctx.CollectorOperationAssignments.Add(CollectorOperationAssignment.Assign(t.Carrascal, collector.Id, CollectorOperationCodes.FiestaArawLotRental, "test"));
+            await ctx.SaveChangesAsync();
+        }
+
+        var settings = await ReadAsync(t.Carrascal);
+
+        Assert.Equal(1, settings.Items.Single(i => i.OperationCode == CollectorOperationCodes.FiestaArawLotRental).AssignedCollectors);
+        Assert.All(settings.Items.Where(i => i.OperationCode != CollectorOperationCodes.FiestaArawLotRental), i => Assert.Equal(0, i.AssignedCollectors));
+        Assert.Equal(0, (await ReadAsync(t.Cantilan)).Items.Sum(i => i.AssignedCollectors)); // another municipality never sees it
+    }
+}

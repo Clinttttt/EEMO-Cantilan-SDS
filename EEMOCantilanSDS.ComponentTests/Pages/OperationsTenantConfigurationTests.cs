@@ -177,6 +177,29 @@ public sealed class OperationsTenantConfigurationTests : TestContext
     }
 
     [Fact]
+    public void ARuleAcceptedOnlyForCantilan_IsMarkedOnItsDirectoryLine_ForAnotherMunicipality()
+    {
+        Services.AddSingleton(Facilities(FacilityCode.NPM).Object);
+        var model = SettingsApi(adopted: true, listed: ["KANMANGGAY_SPACE_RENTAL", "FIESTA_ARAW_LOT_RENTAL"]).Object.GetAsync().Result.Value!;
+        var withNotice = model with
+        {
+            Items = model.Items.Select(i => i.OperationCode == "KANMANGGAY_SPACE_RENTAL" ? i with { PolicyNotice = "confirm" } : i).ToList(),
+        };
+        var api = new Mock<IOperationSettingsApiClient>();
+        api.Setup(c => c.GetAsync()).ReturnsAsync(Result<TenantOperationSettingsDto>.Success(withNotice));
+        Services.AddSingleton(api.Object);
+
+        var cut = RenderComponent<Operations>();
+
+        cut.WaitForAssertion(() =>
+        {
+            var rows = cut.FindAll("li").Where(li => li.TextContent.Contains("Policy confirmation required")).ToList();
+            var row = Assert.Single(rows);
+            Assert.Contains("Municipal Space Rental", row.TextContent);
+        }, Timeout);
+    }
+
+    [Fact]
     public void ALocalName_ChangesTheLabelOnly_NotTheRouteOrTheReceiptInstrument()
     {
         Services.AddSingleton(Facilities(FacilityCode.NPM).Object);

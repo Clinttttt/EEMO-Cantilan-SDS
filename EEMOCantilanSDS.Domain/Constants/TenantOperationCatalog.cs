@@ -34,14 +34,29 @@ public static class TenantOperationCatalog
     /// <param name="GroupKey">The official Monthly Income group (see <c>OfficialMonthlyIncomeStructure</c>).</param>
     /// <param name="ClassificationCode">The revenue classification code activity is recorded under, for the "has recorded activity" check only.</param>
     /// <param name="LegacyDirectoryLabel">What the directory printed before tenant configuration existed.</param>
-    public sealed record Entry(string Code, string DefaultLabel, string GroupKey, string ClassificationCode, string LegacyDirectoryLabel);
+    /// <param name="PolicyNotice">
+    /// A rule the platform applies to this operation that was accepted for ONE municipality's office and is not yet configurable per
+    /// municipality. Shown, never enforced differently: it tells another municipality's Head to confirm the rule against its own
+    /// ordinance. Null when no such rule is known.
+    /// </param>
+    public sealed record Entry(
+        string Code, string DefaultLabel, string GroupKey, string ClassificationCode, string LegacyDirectoryLabel, string? PolicyNotice = null);
+
+    /// <summary>
+    /// Signed Kanmanggay space contracts must record a three-year duration (ObligationAccount.SetLeaseDetails): the MEEDO standard of
+    /// 2026-10-09 (docs/business/MEEDO_CONTRACT_CLARIFICATION_20261009.md). It is Cantilan's accepted office policy; for any other
+    /// municipality it is an imposed number until a per-municipality duration policy is approved and modelled.
+    /// </summary>
+    public const string SpaceContractDurationNotice =
+        "Signed space contracts are recorded under the three-year standard adopted by Cantilan's office (MEEDO). " +
+        "That duration rule is not yet configurable per municipality; confirm it matches your ordinance before registering signed contracts.";
 
     public static readonly IReadOnlyList<Entry> All =
     [
         new(CollectorOperationCodes.FishMeatVendorFee, "Fish / Meat Vendor Fee", MarketGroup, RevenueClassificationCodes.FishMeatVendorFee, "Fish | Meat Vendor Fees"),
         new(CollectorOperationCodes.WeightAndMeasure, "Weight & Measure", MarketGroup, RevenueClassificationCodes.WeightAndMeasure, "Weight & Measure | Registration"),
         new(CollectorOperationCodes.MarketFees, "Market Fees", MarketGroup, RevenueClassificationCodes.MarketFees, "Market Fees"),
-        new(CollectorOperationCodes.KanmanggaySpaceRental, "Municipal Space Rental", SpaceGroup, RevenueClassificationCodes.KanmanggaySpaceRental, "Kanmanggay"),
+        new(CollectorOperationCodes.KanmanggaySpaceRental, "Municipal Space Rental", SpaceGroup, RevenueClassificationCodes.KanmanggaySpaceRental, "Kanmanggay", SpaceContractDurationNotice),
         new(CollectorOperationCodes.FiestaArawLotRental, "Event / Temporary Lot Rental", SpaceGroup, RevenueClassificationCodes.FiestaArawLotRental, "Fiesta | Araw"),
         new(CollectorOperationCodes.VegetableFruitSpaceRental, "Vegetable / Fruit Space Rental", SpaceGroup, RevenueClassificationCodes.VegetableFruitSpaceRental, "Vegetable | Fruits"),
         new("ECF", "Electricity Consumption Fees", MarketGroup, RevenueClassificationCodes.Ecf, "Electricity Consumption Fees"),

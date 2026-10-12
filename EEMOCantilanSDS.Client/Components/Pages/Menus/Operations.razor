@@ -118,7 +118,8 @@
                 @foreach (var service in SpaceLines)
                 {
                     <li class="ops-item">
-                        @Line(ServiceLabel(service, null), null, service.Receipts, service.Route, null, service.Links ?? NoLinks, NoWorkspace)
+                        @Line(ServiceLabel(service, null), null, service.Receipts, service.Route, null, service.Links ?? NoLinks, NoWorkspace,
+                              SettingFor(service)?.PolicyNotice is null ? null : "Policy confirmation required")
                     </li>
                 }
             </ul>
