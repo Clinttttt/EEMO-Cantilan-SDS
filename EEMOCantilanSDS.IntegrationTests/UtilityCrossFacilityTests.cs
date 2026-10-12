@@ -336,7 +336,37 @@ public sealed class UtilityCrossFacilityTests(PostgresFixture db)
         Assert.Equal((500m, 21_000m), (after.WaterCharge, after.ElecCharge));
     }
 
+    private sealed class NoMarketDays : EEMOCantilanSDS.Application.Common.Interface.Services.ITpmMarketDayProvider
+    {
+        public Task<DayOfWeek> GetMarketDayAsync(DateOnly asOf, CancellationToken ct = default) => Task.FromResult(DayOfWeek.Friday);
+        public Task<IReadOnlyList<DateOnly>> GetMarketDatesAsync(int year, int month, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<DateOnly>>([]);
+    }
+
+    [SkippableFact]
+    public async Task MobileSourceDiscovery_OffersEcfAndWcfOnlyWhereTheSelectedSpaceHasThatVerifiedService()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync();
+        await using var ctx = db.CreateContext(w.TenantId);
+        Assert.True((await Office(ctx, w).EnableAsync()).IsSuccess);
+        var sources = new CollectionSessionSources(ctx, new Actor(w.TccCollector, w.TenantId, "Collector"), new FixedTenant(w.TenantId), new Clock(), null!, new NoMarketDays());
+        async Task<string[]> OffersAsync(Guid stall)
+        {
+            var contract = await ctx.Contracts.AsNoTracking().SingleAsync(c => c.StallId == stall);
+            var discovery = await sources.DiscoverNativeAsync(new(EEMOCantilanSDS.Application.Dtos.Mobile.SourceIdentityKind.Occupancy, contract.Id), Today, default);
+            return discovery.Operations.Where(o => o.EligibleChoiceCount > 0).Select(o => o.OperationCode).Order().ToArray();
+        }
+
+        Assert.Equal(["ECF", "WCF"], await OffersAsync(w.TccBoth));        // both services verified: two separate charges
+        Assert.Equal(["WCF"], await OffersAsync(w.TccWater));
+        Assert.Equal(["ECF"], await OffersAsync(w.TccElectric));
+        Assert.DoesNotContain("ECF", await OffersAsync(w.TccNone));        // an occupant with no verified service is offered nothing
+        Assert.DoesNotContain("WCF", await OffersAsync(w.TccNone));
+    }
+
     private sealed class NoCache : 
+
 EEMOCantilanSDS.Application.Common.Caching.IEemoCacheInvalidator
     {
         public Task InvalidateRegionAsync(string region, CancellationToken cancellationToken = default) => Task.CompletedTask;
