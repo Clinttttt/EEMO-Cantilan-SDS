@@ -38,7 +38,7 @@ public sealed class WcfCollectionWorkflow(
             return Result<IReadOnlyList<WcfObligationQuoteDto>>.Failure("A valid billing year and month are required.", ResultStatus.Invalid);
         var policy = await ResolvePolicyAsync(actor.TenantId, BusinessToday, ct);
         var bills = await UtilityBillQuery(actor.TenantId, tracked: false)
-            .Where(x => x.Stall!.Facility!.Code == FacilityCode.NPM
+            .Where(x => (x.Stall!.Facility!.Code == FacilityCode.NPM || (x.Stall.Fees & ApplicableFees.Water) != 0)
                 && (x.BillingYear < throughYear
                 || (x.BillingYear == throughYear && x.BillingMonth <= throughMonth)))
             .OrderBy(x => x.BillingYear).ThenBy(x => x.BillingMonth).ThenBy(x => x.Stall!.StallNo)
@@ -69,7 +69,7 @@ public sealed class WcfCollectionWorkflow(
         var stalls = await db.Stalls.AsNoTracking()
             .Include(x => x.Facility)
             .Include(x => x.Contracts).ThenInclude(x => x.Payor)
-            .Where(x => x.MunicipalityId == actor.TenantId && x.Facility!.Code == FacilityCode.NPM)
+            .Where(x => x.MunicipalityId == actor.TenantId && (x.Facility!.Code == FacilityCode.NPM || (x.Fees & ApplicableFees.Water) != 0))
             .OrderBy(x => x.StallNo)
             .ToListAsync(ct);
         var stallIds = stalls.Select(x => x.Id).ToArray();
@@ -122,9 +122,9 @@ public sealed class WcfCollectionWorkflow(
             .SingleOrDefaultAsync(x => x.MunicipalityId == actor.TenantId && x.Id == request.StallId, ct);
         if (stall is null)
             return Result<WcfSetupSourceDto>.NotFound();
-        // The current Water source is an NPM-bound UtilityBill: NPM is its context here, never a collector authorization.
-        if (stall.Facility?.Code != FacilityCode.NPM)
-            return Result<WcfSetupSourceDto>.Failure("The current Water source applies to New Public Market stalls only.", ResultStatus.Invalid);
+        // A Water source is a market space whose own Water service is verified (any facility), or an NPM stall as always.
+        if (!UtilityServiceEligibility.IsSource(stall, UtilityKind.Water))
+            return Result<WcfSetupSourceDto>.Failure("This space is not a verified Water service source.", ResultStatus.Invalid);
         var contract = stall.OccupancyAnsweringForMonth(request.BillingYear, request.BillingMonth, BusinessToday)?.Contract;
         if (contract is null)
             return Result<WcfSetupSourceDto>.Failure("No occupancy answers for this stall and month, so there is no payor to owe the Water amount.", ResultStatus.Invalid);
@@ -175,10 +175,14 @@ public sealed class WcfCollectionWorkflow(
 
         var active = await IsWcfActiveAsync(actor.TenantId, ct);
         var policy = await ResolvePolicyAsync(actor.TenantId, (businessDate ?? BusinessToday), ct);
+        // A collector sees the verified Water sources of the facilities they are assigned to; the office sees every facility.
+        var scope = await FacilityScopeAsync(actor, ct);
         var stalls = await db.Stalls.AsNoTracking()
             .Include(x => x.Facility)
             .Include(x => x.Contracts).ThenInclude(x => x.Payor)
-            .Where(x => x.MunicipalityId == actor.TenantId && x.Facility!.Code == FacilityCode.NPM
+            .Where(x => x.MunicipalityId == actor.TenantId
+                && (x.Facility!.Code == FacilityCode.NPM || (x.Fees & ApplicableFees.Water) != 0)
+                && (scope == null || scope.Contains(x.Facility.Code))
                 && (!selectedStallId.HasValue || x.Id == selectedStallId.Value)
                 && (!selectedPayorId.HasValue || x.Contracts.Any(c => c.PayorId == selectedPayorId.Value)))
             .OrderBy(x => x.StallNo)
@@ -268,8 +272,10 @@ public sealed class WcfCollectionWorkflow(
             .Include(x => x.Facility)
             .Include(x => x.Contracts).ThenInclude(x => x.Payor)
             .SingleOrDefaultAsync(x => x.MunicipalityId == actor.TenantId && x.Id == request.StallId, ct);
-        // The current Water source is an NPM-bound UtilityBill: NPM is source context here, not a collector authorization.
-        if (stall is null || stall.Facility?.Code != FacilityCode.NPM)
+        // A verified Water source of a facility the actor may collect for; NPM is one such facility, not the only one.
+        var directScope = await FacilityScopeAsync(actor, ct);
+        if (stall is null || stall.Facility is null || !UtilityServiceEligibility.IsSource(stall, UtilityKind.Water)
+            || directScope != null && !directScope.Contains(stall.Facility.Code))
             return (null, "SOURCE_NOT_FOUND", "The selected Water source is not available in this tenant.");
         if (stall.OccupancyAnsweringForMonth(request.BillingYear!.Value, request.BillingMonth!.Value, request.BusinessDate) is null)
             return (null, "SOURCE_NOT_ELIGIBLE", "No occupancy answers for the selected source in this period.");
@@ -630,6 +636,10 @@ public sealed class WcfCollectionWorkflow(
                 if (bill is null)
                     return await RecordTerminalAsync(actor, request, normalized, origin, mobile,
                         "SOURCE_NOT_FOUND", "The Water obligation is not available in this tenant.", ct);
+                var postScope = await FacilityScopeAsync(actor, ct);
+                if (bill.Stall?.Facility is null || postScope != null && !postScope.Contains(bill.Stall.Facility.Code))
+                    return await RecordTerminalAsync(actor, request, normalized, origin, mobile,
+                        "SOURCE_NOT_FOUND", "The Water obligation is not available to this collector.", ct);
             }
 
             // Prospective authority (WCF active): a Legacy Water part with no legacy settlement at all carries no legacy
@@ -812,8 +822,8 @@ public sealed class WcfCollectionWorkflow(
     {
         // A bill established in this unit of work is not stamped with its tenant until it is saved; its stall is.
         var billTenant = bill.MunicipalityId == Guid.Empty ? bill.Stall?.MunicipalityId : bill.MunicipalityId;
-        if (billTenant != tenantId || bill.Stall?.Facility?.Code != FacilityCode.NPM)
-            throw new WorkflowProblem("This Water source is not an accessible NPM UtilityBill part in this tenant.", ResultStatus.Conflict);
+        if (billTenant != tenantId || bill.Stall is null || !UtilityServiceEligibility.IsSource(bill.Stall, UtilityKind.Water))
+            throw new WorkflowProblem("This Water source is not an accessible Water service source in this tenant.", ResultStatus.Conflict);
         var settled = bill.WaterAmountPaid;
         if (bill.WaterSettlementAuthorityState == SettlementAuthority.Canonical)
         {
@@ -878,7 +888,25 @@ public sealed class WcfCollectionWorkflow(
         var collector = await db.CollectorUsers.AsNoTracking()
             .Include(x => x.FacilityAssignments)
             .SingleOrDefaultAsync(x => x.MunicipalityId == tenantId && x.Id == userId, ct);
-        return collector?.FacilityAssignments.Any(x => x.FacilityCode == FacilityCode.NPM) == true;
+        // Any facility assignment, or the WCF operation assignment itself, is authority to work this utility; which sources
+        // the collector may actually collect is decided per source by FacilityScopeAsync, never by NPM in particular.
+        return collector?.FacilityAssignments.Count > 0
+            || await CollectorHasOperationAssignmentAsync(tenantId, userId, CollectorOperationCodes.Wcf, ct);
+    }
+
+    /// <summary>
+    /// The facilities whose Water sources this actor may collect: null for the office (every facility), the collector's assigned
+    /// facilities otherwise. A collector with the WCF operation assignment and no facility assignment keeps the NPM scope they
+    /// have always had (IA-054: NPM was the context, the operation assignment the authority).
+    /// </summary>
+    private async Task<IReadOnlySet<FacilityCode>?> FacilityScopeAsync(Actor actor, CancellationToken ct)
+    {
+        if (actor.Role != "Collector") return null;
+        var assigned = await db.CollectorUsers.AsNoTracking().Where(x => x.MunicipalityId == actor.TenantId && x.Id == actor.UserId && x.IsActive)
+            .SelectMany(x => x.FacilityAssignments.Select(a => a.FacilityCode)).ToListAsync(ct);
+        var scope = assigned.ToHashSet();
+        scope.Add(FacilityCode.NPM);
+        return scope;
     }
 
     private Task<bool> CollectorHasOperationAssignmentAsync(

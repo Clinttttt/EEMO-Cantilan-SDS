@@ -24,9 +24,16 @@ public class RecordUtilityReadingCommandHandler(
         if (stall is null)
             return Result<UtilityBillDto>.NotFound();
 
-        // Meter-based utility billing is an NPM concept only.
-        if (stall.Facility?.Code != FacilityCode.NPM)
-            return Result<UtilityBillDto>.Failure("Utility billing applies to New Public Market stalls only.", ResultStatus.Invalid);
+        // A utility amount is set only for a verified service source: an NPM stall as always, or a space of any facility whose own
+        // service flag for that utility is on. Nothing is inferred from a name, an occupant or a vendor registration.
+        var wantsElectricity = request.ElecApprovedAmount.HasValue || request.ElecCurrentReading != request.ElecPreviousReading;
+        var wantsWater = request.WaterApprovedAmount.HasValue || request.WaterCurrentReading != request.WaterPreviousReading;
+        if (!UtilityServiceEligibility.IsSource(stall, UtilityKind.Electricity) && !UtilityServiceEligibility.IsSource(stall, UtilityKind.Water))
+            return Result<UtilityBillDto>.Failure("Utility amounts apply to spaces with a verified electricity or water service only.", ResultStatus.Invalid);
+        if (wantsElectricity && !UtilityServiceEligibility.IsSource(stall, UtilityKind.Electricity))
+            return Result<UtilityBillDto>.Failure("This space has no verified electricity service.", ResultStatus.Invalid);
+        if (wantsWater && !UtilityServiceEligibility.IsSource(stall, UtilityKind.Water))
+            return Result<UtilityBillDto>.Failure("This space has no verified water service.", ResultStatus.Invalid);
 
         var actor = currentUser.Username ?? "Admin";
 

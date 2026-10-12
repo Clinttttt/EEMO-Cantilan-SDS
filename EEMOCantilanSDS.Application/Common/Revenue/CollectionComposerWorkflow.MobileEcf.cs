@@ -23,13 +23,15 @@ public sealed partial class CollectionComposerWorkflow
         if (!currentUser.IsAuthenticated || currentUser.Role != "Collector" || currentUser.CollectorId is not { } collector)
             return Result<IReadOnlyList<EcfObligationQuoteDto>>.Forbidden();
         var tenant = municipality.MunicipalityId;
-        if (tenant == Guid.Empty || currentUser.MunicipalityId is { } claimed && claimed != tenant
-            || !await db.CollectorUsers.AsNoTracking().AnyAsync(x => x.MunicipalityId == tenant && x.Id == collector
-                && x.IsActive && x.FacilityAssignments.Any(a => a.FacilityCode == FacilityCode.NPM), ct))
-            return Result<IReadOnlyList<EcfObligationQuoteDto>>.Forbidden();
+        // The collector's authority is the facilities they are assigned to, never NPM in particular: a verified Electricity source of
+        // any assigned facility is theirs to collect, and one of a facility they are not assigned to is not.
+        var assigned = tenant == Guid.Empty || currentUser.MunicipalityId is { } claimed && claimed != tenant ? []
+            : await AssignedFacilitiesAsync(tenant, collector, ct);
+        if (assigned.Count == 0) return Result<IReadOnlyList<EcfObligationQuoteDto>>.Forbidden();
         var date = BusinessToday;
         var stalls = await db.Stalls.AsNoTracking().Include(x => x.Facility).Include(x => x.Contracts).ThenInclude(x => x.Payor)
-            .Where(x => x.MunicipalityId == tenant && x.Facility!.Code == FacilityCode.NPM
+            .Where(x => x.MunicipalityId == tenant && assigned.Contains(x.Facility!.Code)
+                && (x.Facility.Code == FacilityCode.NPM || (x.Fees & ApplicableFees.Electricity) != 0)
                 && (!payorId.HasValue || x.Contracts.Any(c => c.PayorId == payorId))).ToListAsync(ct);
         var ids = stalls.Select(x => x.Id).ToArray();
         var bills = await UtilityBillQuery(tenant, false).Where(x => ids.Contains(x.StallId)).ToListAsync(ct);
@@ -67,11 +69,12 @@ public sealed partial class CollectionComposerWorkflow
         var tenantId = municipality.MunicipalityId;
         if (tenantId == Guid.Empty || currentUser.MunicipalityId is { } claimed && claimed != tenantId)
             return Result<EcfObligationQuoteDto>.Forbidden();
-        if (!await db.CollectorUsers.AsNoTracking().AnyAsync(x => x.MunicipalityId == tenantId && x.Id == collectorId
-            && x.IsActive && x.FacilityAssignments.Any(a => a.FacilityCode == FacilityCode.NPM), ct))
-            return Result<EcfObligationQuoteDto>.Forbidden();
+        var assigned = await AssignedFacilitiesAsync(tenantId, collectorId, ct);
+        if (assigned.Count == 0) return Result<EcfObligationQuoteDto>.Forbidden();
         var bill = await UtilityBillQuery(tenantId, tracked: false).SingleOrDefaultAsync(x => x.Id == billId, ct);
         if (bill is null) return Result<EcfObligationQuoteDto>.NotFound();
+        // A bill of a facility the collector is not assigned to is not theirs, and is reported as absent rather than as a refusal.
+        if (bill.Stall?.Facility is not { } billFacility || !assigned.Contains(billFacility.Code)) return Result<EcfObligationQuoteDto>.NotFound();
         try
         {
             var policy = await ResolveEcfPolicyAsync(tenantId, date, ct);
@@ -90,8 +93,9 @@ public sealed partial class CollectionComposerWorkflow
             return Result<EcfPostOutcomeDto>.Forbidden();
         var collector = await db.CollectorUsers.AsNoTracking().Include(x => x.FacilityAssignments)
             .SingleOrDefaultAsync(x => x.MunicipalityId == tenantId && x.Id == collectorId && x.IsActive, ct);
-        if (collector is null || collector.FacilityAssignments.All(x => x.FacilityCode != FacilityCode.NPM))
+        if (collector is null || collector.FacilityAssignments.Count == 0)
             return Result<EcfPostOutcomeDto>.Forbidden();
+        var assignedFacilities = collector.FacilityAssignments.Select(x => x.FacilityCode).ToHashSet();
         if (request.ClientOperationId == Guid.Empty)
             return Result<EcfPostOutcomeDto>.Failure("A valid ClientOperationId is required.", ResultStatus.Invalid);
 
@@ -131,8 +135,10 @@ public sealed partial class CollectionComposerWorkflow
                 && request.BillingYear == request.BusinessDate.Year && request.BillingMonth == request.BusinessDate.Month)
             {
                 var stall = await db.Stalls.Include(x => x.Facility).Include(x => x.Contracts).ThenInclude(x => x.Payor)
-                    .SingleOrDefaultAsync(x => x.MunicipalityId == tenantId && x.Id == stallId && x.Facility!.Code == FacilityCode.NPM, ct);
-                if (stall?.OccupancyAnsweringForMonth(request.BillingYear.Value, request.BillingMonth.Value, request.BusinessDate) is null)
+                    .SingleOrDefaultAsync(x => x.MunicipalityId == tenantId && x.Id == stallId, ct);
+                if (stall is null || stall.Facility is null || !assignedFacilities.Contains(stall.Facility.Code)
+                    || !UtilityServiceEligibility.IsSource(stall, UtilityKind.Electricity)
+                    || stall.OccupancyAnsweringForMonth(request.BillingYear.Value, request.BillingMonth.Value, request.BusinessDate) is null)
                     return await Reject("SOURCE_NOT_FOUND", "This Electricity source is not available.");
                 if (await db.UtilityBills.AnyAsync(x => x.MunicipalityId == tenantId && x.StallId == stallId
                     && x.BillingYear == request.BillingYear && x.BillingMonth == request.BillingMonth, ct))
@@ -142,6 +148,10 @@ public sealed partial class CollectionComposerWorkflow
             }
             if (bill is null)
                 return await Reject("SOURCE_NOT_FOUND", "The ECF source is not available in this tenant.");
+            // The source must be one the collector is assigned to (its facility), and a verified Electricity source.
+            if (bill.Stall?.Facility is null || !assignedFacilities.Contains(bill.Stall.Facility.Code)
+                || !UtilityServiceEligibility.IsSource(bill.Stall, UtilityKind.Electricity))
+                return await Reject("SOURCE_NOT_FOUND", "The ECF source is not available to this collector.");
             if (bill.ElectricitySettlementAuthorityState == SettlementAuthority.PendingCutover)
                 return await Reject("SOURCE_NOT_CANONICAL",
                     "This ECF source is not yet under canonical settlement authority; it is collected on its existing legacy path until its controlled activation.");
@@ -203,6 +213,11 @@ public sealed partial class CollectionComposerWorkflow
                 "The ECF source or operation identity conflicts with another saved transaction; nothing was posted.", ct);
         }
     }
+
+    /// <summary>The facilities the active collector is assigned to: their facility scope for every utility source.</summary>
+    private async Task<IReadOnlyCollection<FacilityCode>> AssignedFacilitiesAsync(Guid tenantId, Guid collectorId, CancellationToken ct) =>
+        await db.CollectorUsers.AsNoTracking().Where(x => x.MunicipalityId == tenantId && x.Id == collectorId && x.IsActive)
+            .SelectMany(x => x.FacilityAssignments.Select(a => a.FacilityCode)).Distinct().ToListAsync(ct);
 
     private async Task<Result<EcfPostOutcomeDto>> ResolveMobileEcfPriorAsync(
         PostingOperation prior, string fingerprint, Actor actor, CancellationToken ct)
