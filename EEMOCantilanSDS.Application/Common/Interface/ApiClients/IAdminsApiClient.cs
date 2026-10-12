@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Command.Admins.CreateAdmin;
+using EEMOCantilanSDS.Application.Command.Admins.InviteAdmin;
 using EEMOCantilanSDS.Application.Command.Admins.UpdateAdmin;
 using EEMOCantilanSDS.Application.Dtos;
 using EEMOCantilanSDS.Domain.Common;
@@ -9,6 +10,11 @@ public interface IAdminsApiClient
 {
     Task<Result<IReadOnlyList<AdminListDto>>> GetAllAdminsAsync();
     Task<Result<AdminDto>> CreateAdminAsync(CreateAdminCommand command);
+
+    /// <summary>Invites an admin to set their own password through a one-time link (Head action). No password is issued.</summary>
+    Task<Result<AdminInvitationDto>> InviteAdminAsync(InviteAdminCommand command);
+    Task<Result<AdminInvitationDto>> ResendAdminInvitationAsync(Guid id);
+    Task<Result<bool>> RevokeAdminInvitationAsync(Guid id);
     Task<Result<bool>> UpdateAdminAsync(UpdateAdminCommand command);
     Task<Result<bool>> ToggleAdminStatusAsync(Guid id, bool isActive);
     Task<Result<bool>> ResetAdminPasswordAsync(Guid id, string newPassword, string confirmPassword);

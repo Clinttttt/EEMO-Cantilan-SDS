@@ -30,7 +30,8 @@ public class AdminRepository(AppDbContext context) : IAdminRepository
                 a.MustChangePassword,
                 a.LastLoginAt,
                 a.CreatedAt,
-                a.EmailVerified))
+                a.EmailVerified,
+                !a.IsActive && a.ActivationTokenHash != null))
             .ToListAsync(cancellationToken);
     }
 

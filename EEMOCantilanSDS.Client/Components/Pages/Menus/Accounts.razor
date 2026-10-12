@@ -1,6 +1,7 @@
 ﻿@page "/accounts"
 
 @using EEMOCantilanSDS.Application.Command.Admins.CreateAdmin
+@using EEMOCantilanSDS.Application.Command.Admins.InviteAdmin
 @using EEMOCantilanSDS.Application.Command.Admins.UpdateAdmin
 @using EEMOCantilanSDS.Application.Dtos
 @using EEMOCantilanSDS.Domain.Entities.Users
@@ -231,9 +232,16 @@
                                         <div class="acct-status-cell">
                                             <span class="acct-status @(a.IsActive ? "is-active" : "is-inactive")">
                                                 <span class="acct-status-dot"></span>
-                                                @(a.IsActive ? "Active" : "Inactive")
+                                                @(a.IsActive ? "Active" : a.InvitationPending ? "Invitation pending" : "Inactive")
                                             </span>
-                                            @if (!a.EmailVerified)
+                                            @if (a.InvitationPending)
+                                            {
+                                                <span class="acct-flag" title="Invited, not yet accepted. The one-time link has not been used.">
+                                                    <svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z" /><path d="m4 7 8 6 8-6" /></svg>
+                                                    Awaiting acceptance
+                                                </span>
+                                            }
+                                            @if (!a.EmailVerified && !a.InvitationPending)
                                             {
                                                 @* An unconfirmed address cannot receive password-reset links, so this
                                                    account can only be recovered by the Head. Surfaced so a typo or a
@@ -262,7 +270,18 @@
                                             <button class="action-btn" title="@(lockedTitle ?? "Reset Password")" disabled="@(!manageable)" @onclick="() => OpenResetPassword(a.Id, a.FullName, false)">
                                                 <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
                                             </button>
-                                            @if (!a.EmailVerified)
+                                            @if (a.InvitationPending)
+                                            {
+                                                <button class="action-btn" title="Send a new invitation link (the previous link stops working)"
+                                                        disabled="@(!manageable || _invitationBusy)" @onclick="() => ResendInvitation(a)">
+                                                    <svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z" /><path d="m4 7 8 6 8-6" /></svg>
+                                                </button>
+                                                <button class="action-btn action-danger" title="Withdraw this invitation and remove the pending account"
+                                                        disabled="@(!manageable || _invitationBusy)" @onclick="() => RevokeInvitation(a)">
+                                                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                                                </button>
+                                            }
+                                            @if (!a.EmailVerified && !a.InvitationPending)
                                             {
                                                 <button class="action-btn"
                                                         title="@(lockedTitle ?? "Send email confirmation link (lets this admin reset their own password)")"
@@ -483,7 +502,44 @@
             </div>
         </div>
 
-        @if (!IsEditingAdmin)
+        @if (!IsEditingAdmin && _invitationResult is not null)
+        {
+            <div class="form-group" role="status">
+                <label class="form-label">Invitation created for @_invitationResult.Admin.FullName</label>
+                <div class="field-hint">
+                    @(_invitationResult.EmailSent
+                        ? "An email with the one-time link was sent. It can be used once and expires " + _invitationResult.ExpiresAtUtc.ToString("MMM d, yyyy") + " (UTC)."
+                        : "The invitation email could not be sent. Give this link to the admin securely; it can be used once and expires " + _invitationResult.ExpiresAtUtc.ToString("MMM d, yyyy") + " (UTC).")
+                    The link is shown only now.
+                </div>
+                <div class="input-with-action">
+                    <input class="form-input" type="text" readonly value="@_invitationResult.ActivationUrl" aria-label="Invitation link" />
+                </div>
+            </div>
+        }
+        else if (!IsEditingAdmin)
+        {
+            <div class="form-group">
+                <label class="form-label">How should they get access? <span class="req">*</span></label>
+                <div class="role-select">
+                    <button type="button" class="role-opt @(AdminForm.Invite ? "active" : "")" @onclick="() => AdminForm.Invite = true">
+                        <svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z" /><path d="m4 7 8 6 8-6" /></svg>
+                        Send an invitation
+                    </button>
+                    <button type="button" class="role-opt @(!AdminForm.Invite ? "active" : "")" @onclick="() => AdminForm.Invite = false">
+                        <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+                        Set a temporary password
+                    </button>
+                </div>
+                <div class="field-hint">
+                    @(AdminForm.Invite
+                        ? "They choose their own username and password through a one-time link. No password is created or shared, and the account stays inactive until they accept."
+                        : "You give them a password, and they must change it at their first sign-in.")
+                </div>
+            </div>
+        }
+
+        @if (!IsEditingAdmin && _invitationResult is null && !AdminForm.Invite)
         {
             <div class="form-group">
                 <label class="form-label">Temporary Password <span class="req">*</span></label>
@@ -588,9 +644,9 @@
     </div>
 
     <div class="eemo-drawer-footer">
-        <button class="btn-ghost" @onclick="CloseAdminDrawer">Cancel</button>
-        <button class="btn-primary" @onclick="SaveAdmin" disabled="@IsSaving">
-            @(IsEditingAdmin ? "Save Changes" : "Create Account")
+        <button class="btn-ghost" @onclick="CloseAdminDrawer">@(_invitationResult is null ? "Cancel" : "Close")</button>
+        <button class="btn-primary" @onclick="SaveAdmin" disabled="@(IsSaving || _invitationResult is not null)">
+            @(IsEditingAdmin ? "Save Changes" : AdminForm.Invite ? "Send Invitation" : "Create Account")
         </button>
     </div>
 </div>
@@ -957,6 +1013,44 @@
         }
     }
 
+    private async Task ResendInvitation(AdminListDto a)
+    {
+        if (_invitationBusy) return;
+        _invitationBusy = true;
+        LoadError = null;
+        try
+        {
+            var result = await AdminsApi.ResendAdminInvitationAsync(a.Id);
+            if (result.IsSuccess && result.Value is not null)
+            {
+                _invitationResult = result.Value;
+                IsEditingAdmin = false;
+                AdminForm = new() { FullName = a.FullName, Username = a.Username, Email = a.Email, Role = a.Role };
+                AdminFormError = string.Empty;
+                ShowAdminDrawer = true;      // shows the new link once, in the same panel as a fresh invitation
+            }
+            else LoadError = result.Error ?? "We couldn't send a new invitation.";
+        }
+        catch { LoadError = "We couldn't send a new invitation. Please try again."; }
+        finally { _invitationBusy = false; await LoadAll(); }
+    }
+
+    private async Task RevokeInvitation(AdminListDto a)
+    {
+        if (_invitationBusy) return;
+        _invitationBusy = true;
+        LoadError = null;
+        string? failure = null;
+        try
+        {
+            var result = await AdminsApi.RevokeAdminInvitationAsync(a.Id);
+            if (result.IsSuccess) ShowVerificationNotice($"The invitation to {a.FullName} was withdrawn. Its link no longer works.");
+            else failure = result.Error ?? "We couldn't withdraw the invitation.";
+        }
+        catch { failure = "We couldn't withdraw the invitation. Please try again."; }
+        finally { _invitationBusy = false; await LoadAll(); LoadError = failure ?? LoadError; }
+    }
+
     private string? VerificationNotice;
     private CancellationTokenSource? _noticeCts;
 
@@ -1018,7 +1112,12 @@
         public string Email { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
         public AdminRole Role { get; set; } = AdminRole.Admin;
+        /// <summary>Invite (the owner sets their own password) rather than issuing a temporary one. The default.</summary>
+        public bool Invite { get; set; } = true;
     }
+
+    private AdminInvitationDto? _invitationResult;
+    private bool _invitationBusy;
 
     private bool ShowAdminDrawer;
     private bool IsEditingAdmin;
@@ -1034,6 +1133,7 @@
         EditingAdmin = null;
         AdminForm = new() { Password = GeneratePassword() };
         AdminFormError = string.Empty;
+        _invitationResult = null;
         ShowAdminDrawer = true;
     }
 
@@ -1064,7 +1164,7 @@
         if (string.IsNullOrWhiteSpace(AdminForm.FullName)) { AdminFormError = "Full name is required."; return; }
         if (string.IsNullOrWhiteSpace(AdminForm.Username)) { AdminFormError = "Username is required."; return; }
         if (string.IsNullOrWhiteSpace(AdminForm.Email)) { AdminFormError = "Email is required."; return; }
-        if (!IsEditingAdmin && AdminForm.Password.Length < 8) { AdminFormError = "Password must be at least 8 characters."; return; }
+        if (!IsEditingAdmin && !AdminForm.Invite && AdminForm.Password.Length < 8) { AdminFormError = "Password must be at least 8 characters."; return; }
 
         IsSaving = true;
         try
@@ -1077,6 +1177,19 @@
                 else AdminFormError = result.Status == ResultStatus.Conflict
                     ? "That username is already taken."
                     : (result.Error ?? "Failed to update administrator.");
+            }
+            else if (AdminForm.Invite)
+            {
+                var invite = await AdminsApi.InviteAdminAsync(new InviteAdminCommand(
+                    AdminForm.FullName.Trim(), AdminForm.Username.Trim(), AdminForm.Email.Trim(), AdminForm.Role));
+                if (invite.IsSuccess && invite.Value is not null)
+                {
+                    _invitationResult = invite.Value;   // the link is shown once, here, and never stored in readable form
+                    await LoadAll();
+                }
+                else AdminFormError = invite.Status == ResultStatus.Conflict
+                    ? "That username is already taken."
+                    : (invite.Error ?? "Failed to send the invitation.");
             }
             else
             {
