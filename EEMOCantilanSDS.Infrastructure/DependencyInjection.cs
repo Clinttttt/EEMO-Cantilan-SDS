@@ -68,6 +68,7 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<ICollectionSessionStore, Repositories.Revenue.CollectionSessionStore>();
             service.AddScoped<ICollectionSessionSources, Repositories.Revenue.CollectionSessionSources>();
             service.AddScoped<IBackEntryReconciliationReader, Repositories.Revenue.BackEntryReconciliationReader>();
+            service.AddScoped<IUtilityRegisterReader, Repositories.Revenue.UtilityRegisterReader>();
             service.AddScoped<IUnitOfWork, UnitOfWork>();
             // The NPM poster uses the same scoped context as the repositories and application workflows:
             // the day rows and canonical Collection commit together or not at all.

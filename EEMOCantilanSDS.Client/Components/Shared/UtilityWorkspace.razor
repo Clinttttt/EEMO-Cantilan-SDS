@@ -1,0 +1,550 @@
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@using System.Globalization
+@implements IDisposable
+@inject IUtilityRegisterApiClient RegisterApi
+
+@* The ECF / WCF workspace, one composition for both utilities: a compact header, the source register (server-filtered, counted and
+   paged), the selected source's detail and actions, then whatever the page adds (its notices and its collection activity). It
+   states the server's figures and computes none: an approved amount is an obligation, money collected is the canonical Collections'
+   alone, and a source collected directly never shows an invented balance. *@
+<div class="v3-page uw-page">
+    <V3Hero Eyebrow="@Eyebrow" Title="@Title" Compact="true">
+        <Meta><span class="uw-meta">@PeriodLabel · <InstrumentChip Instrument="@InstrumentCode" /> @InstrumentName</span></Meta>
+        <Figures>
+            <V3HeroFigure Label="Assessed" Value="@Figure(_page?.Totals.Assessed)" Note="@(_page is null ? null : "Approved amounts")" />
+            <V3HeroFigure Label="Net settled" Value="@Figure(_page?.Totals.Collected)" Note="@DirectNote" />
+            <V3HeroFigure Label="Outstanding" Value="@Figure(_page?.Totals.Outstanding)" Note="@(_page is null ? null : "Prepared balances")" />
+        </Figures>
+    </V3Hero>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <p class="v3-notice" role="status">@_message</p>
+    }
+    @Notices
+
+    <div class="uw-layout">
+        <section class="v3-panel uw-register" aria-labelledby="uw-register-title" aria-busy="@(_loading ? "true" : "false")">
+            <header class="v3-panel-header uw-register-head">
+                <h2 id="uw-register-title">@RegisterTitle</h2>
+                <span class="v3-panel-meta" role="status">@Summary</span>
+            </header>
+
+            <div class="v3-toolbar uw-toolbar no-print" aria-label="Source filters">
+                <label class="v3-period">
+                    <span>Billing month</span>
+                    <input class="v3-input" type="month" aria-label="Billing month" value="@_monthInput" @onchange="ChangeMonthAsync" />
+                </label>
+                <label class="v3-search">
+                    <span class="v3-sr-only">Search payer, stall or space</span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
+                    <input type="search" placeholder="Search payer, stall or space" aria-label="Search payer, stall or space" autocomplete="off"
+                           value="@_search" @oninput="OnSearchInput" />
+                </label>
+                <select class="v3-select" aria-label="Facility" @onchange="ChangeFacilityAsync">
+                    <option value="" selected="@(_facility == "")">All facilities</option>
+                    @foreach (var facility in _page?.Facilities ?? [])
+                    {
+                        <option value="@((int)facility.Code)" selected="@(_facility == ((int)facility.Code).ToString())">@facility.Name</option>
+                    }
+                </select>
+                <select class="v3-select" aria-label="Area" @onchange="ChangeSectionAsync">
+                    <option value="" selected="@(_section == "")">All areas</option>
+                    @foreach (var section in _page?.Sections ?? [])
+                    {
+                        <option value="@section" selected="@(_section == section)">@SectionLabel(section)</option>
+                    }
+                </select>
+                <select class="v3-select" aria-label="Status" @onchange="ChangeStatusAsync">
+                    @foreach (var (value, label) in Statuses)
+                    {
+                        <option value="@value" selected="@(_status == value)">@label</option>
+                    }
+                </select>
+                <div class="v3-btn-group" role="group" aria-label="Register actions">
+                    <button class="v3-btn" type="button" @onclick="RefreshAsync" disabled="@_loading">Refresh</button>
+                    <button class="v3-btn" type="button" @onclick="OpenBatch" disabled="@(_loading || _page is null)">Prepare multiple amounts</button>
+                </div>
+            </div>
+
+            @if (_error is not null)
+            {
+                <div class="v3-notice v3-notice-error v3-notice-row" role="alert">
+                    <span>@_error</span>
+                    <button class="v3-btn v3-btn-sm" type="button" @onclick="RefreshAsync">Try again</button>
+                </div>
+            }
+
+            <div class="v3-table-wrap" role="region" aria-label="@(Title) sources" tabindex="0">
+                <table class="v3-table uw-table">
+                    <caption class="v3-sr-only">@Title sources for @PeriodLabel</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Payor / source</th>
+                            <th scope="col" class="v3-num">Approved</th>
+                            <th scope="col" class="v3-num">Net settled</th>
+                            <th scope="col" class="v3-num">Outstanding</th>
+                            <th scope="col">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in _page?.Rows ?? [])
+                        {
+                            <tr class="uw-row @(IsSelected(row) ? "is-selected" : "")" @key="row.StallId" aria-selected="@(IsSelected(row) ? "true" : "false")">
+                                <td>
+                                    <button type="button" class="uw-row-btn" @onclick="() => Select(row)" aria-label="@($"Open {PayerOf(row)}, {ContextOf(row)}")">
+                                        <span class="v3-strong uw-payer">@PayerOf(row)</span>
+                                        <span class="v3-block uw-context">@ContextOf(row)</span>
+                                    </button>
+                                </td>
+                                <td class="v3-num">@(row.Approved is { } approved ? Money(approved) : "—")</td>
+                                <td class="v3-num">@Money(row.Collected)</td>
+                                <td class="v3-num v3-strong">@(row.Mode == "Prepared" ? Money(row.Outstanding) : "—")</td>
+                                <td><span class="uw-status uw-status-@row.Status.ToLowerInvariant()">@StatusLabel(row.Status)</span></td>
+                            </tr>
+                        }
+                        @if (_page is { Rows.Count: 0 } && !_loading)
+                        {
+                            <tr>
+                                <td class="v3-empty" colspan="5">
+                                    @if (Filtered)
+                                    {
+                                        <span>No source matches these filters.</span>
+                                        <button class="v3-btn v3-btn-sm" type="button" @onclick="ClearFiltersAsync">Clear filters</button>
+                                    }
+                                    else
+                                    {
+                                        <span>No verified @UtilityName source is registered for @PeriodLabel. A space appears here when its @UtilityName service is recorded on the space.</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        @if (_page is null && _loading)
+                        {
+                            <tr><td class="v3-empty" colspan="5"><span role="status">Loading sources…</span></td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (_page is { Total: > 0 } pg)
+            {
+                <footer class="uw-pager no-print">
+                    <span class="uw-pager-info">@(_skip + 1)–@(_skip + pg.Rows.Count) of @(pg.Total)</span>
+                    <label class="uw-pager-size">
+                        <span>Rows</span>
+                        <select class="v3-select" aria-label="Rows per page" @onchange="ChangePageSizeAsync">
+                            <option value="25" selected="@(_take == 25)">25</option>
+                            <option value="50" selected="@(_take == 50)">50</option>
+                        </select>
+                    </label>
+                    <div class="v3-btn-group" role="group" aria-label="Pages">
+                        <button class="v3-btn v3-btn-sm" type="button" disabled="@(_skip == 0 || _loading)" @onclick="PreviousAsync">Previous</button>
+                        <button class="v3-btn v3-btn-sm" type="button" disabled="@(_skip + pg.Rows.Count >= pg.Total || _loading)" @onclick="NextAsync">Next</button>
+                    </div>
+                </footer>
+            }
+        </section>
+
+        <aside class="v3-panel uw-detail" aria-labelledby="uw-detail-title">
+            @if (Selected is { } source)
+            {
+                <header class="v3-panel-header">
+                    <h2 id="uw-detail-title">@PayerOf(source)</h2>
+                    <span class="uw-status uw-status-@source.Status.ToLowerInvariant()">@StatusLabel(source.Status)</span>
+                </header>
+                <div class="v3-panel-body uw-detail-body">
+                    <p class="uw-detail-context">@ContextOf(source) · @PeriodLabel</p>
+                    <dl class="v3-facts uw-facts" aria-label="Source position">
+                        <div><dt>Amount method</dt><dd>@MethodOf(source)</dd></div>
+                        <div><dt>Approved</dt><dd>@(source.Approved is { } approved ? Money(approved) : "Not prepared")</dd></div>
+                        <div><dt>Net settled</dt><dd>@Money(source.Collected)</dd></div>
+                        @if (source.Mode == "Prepared")
+                        {
+                            <div><dt>Outstanding</dt><dd class="v3-strong">@Money(source.Outstanding)</dd></div>
+                        }
+                    </dl>
+
+                    <p class="uw-help">Net settled is what has been applied to this month's obligation, net of corrections. Each payment, with its own date, is in Collection activity.</p>
+                    @if (source.Mode == "Direct")
+                    {
+                        <p class="uw-note">This period is collected directly by the Collector. Each receipt is its own collection; no amount is prepared and no balance is owed.</p>
+                    }
+                    else if (source.Mode == "None")
+                    {
+                        <p class="uw-note">No amount is prepared. A Collector may record the amount actually received directly, or the office may prepare an approved amount first.</p>
+                    }
+
+                    @if (source.CanPrepare)
+                    {
+                        <section class="uw-prepare" aria-labelledby="uw-prepare-title">
+                            <h3 id="uw-prepare-title">@(source.Mode == "Prepared" ? "Revise approved amount" : "Prepare amount")</h3>
+                            @if (!_reviewing)
+                            {
+                                <label class="uw-field">
+                                    <span>Approved amount (₱)</span>
+                                    <input class="v3-input" type="text" inputmode="decimal" autocomplete="off" aria-describedby="uw-prepare-help"
+                                           value="@_amountText" @oninput="OnAmountInput" />
+                                </label>
+                                <p id="uw-prepare-help" class="uw-help">Records an obligation only. No collection or SRC is created.</p>
+                                @if (_amountError is not null) { <p class="uw-error" role="alert">@_amountError</p> }
+                                <button class="v3-btn v3-btn-primary" type="button" disabled="@(_amount is null || _busy)" @onclick="() => _reviewing = true">Review</button>
+                            }
+                            else
+                            {
+                                <p class="uw-review" role="status">Approve <strong>@Money(_amount!.Value)</strong> of @UtilityName for <strong>@PayerOf(source)</strong>, @PeriodLabel. Nothing is collected by this.</p>
+                                <div class="v3-btn-group">
+                                    <button class="v3-btn" type="button" disabled="@_busy" @onclick="() => _reviewing = false">Back</button>
+                                    <button class="v3-btn v3-btn-primary" type="button" disabled="@_busy" @onclick="SaveAmountAsync">Save approved amount</button>
+                                </div>
+                            }
+                        </section>
+                    }
+                    else if (source.PrepareLock is not null)
+                    {
+                        <p class="uw-note">@source.PrepareLock</p>
+                    }
+
+                    @SourceActions?.Invoke(source)
+                </div>
+            }
+            else
+            {
+                <header class="v3-panel-header"><h2 id="uw-detail-title">Source details</h2></header>
+                <div class="v3-panel-body"><p class="uw-note">Select a source to see its position, prepare its approved amount or record a payment.</p></div>
+            }
+        </aside>
+    </div>
+
+    @Activity
+
+    <nav class="uw-secondary no-print" aria-label="@Title pages">
+        <a class="v3-btn" href="@BasePath/statements">Statements</a>
+        <a class="v3-btn" href="@BasePath/report">Report</a>
+    </nav>
+</div>
+
+@if (_batchOpen)
+{
+    <div class="v3-modal-backdrop" role="presentation" @onclick="CloseBatch">
+        <section class="v3-modal uw-batch" role="dialog" aria-modal="true" aria-labelledby="uw-batch-title" @onclick:stopPropagation="true">
+            <header class="v3-modal-header">
+                <h2 id="uw-batch-title">Prepare multiple amounts</h2>
+                <button class="v3-btn v3-btn-sm" type="button" aria-label="Close" @onclick="CloseBatch">Close</button>
+            </header>
+            <div class="v3-modal-body">
+                @if (_batchResult is { } result)
+                {
+                    <p role="status" class="uw-review"><strong>@result.PreparedCount</strong> prepared@(result.RefusedCount > 0 ? $", {result.RefusedCount} not changed" : "") for @PeriodLabel.</p>
+                    <ul class="uw-batch-results">
+                        @foreach (var outcome in result.Outcomes)
+                        {
+                            <li class="@(outcome.Prepared ? "is-ok" : "is-refused")">
+                                <strong>@BatchLabel(outcome.StallId)</strong> — @(outcome.Prepared ? "Prepared" : outcome.Reason)
+                            </li>
+                        }
+                    </ul>
+                }
+                else if (_batchReviewing)
+                {
+                    <p class="uw-review">Review these approved amounts for @PeriodLabel. Each source keeps its own amount; nothing is divided between payors and nothing is collected.</p>
+                    <table class="v3-table">
+                        <thead><tr><th scope="col">Source</th><th scope="col" class="v3-num">Approved amount</th></tr></thead>
+                        <tbody>
+                            @foreach (var entry in BatchEntries)
+                            {
+                                <tr><td>@entry.Label</td><td class="v3-num">@Money(entry.Amount)</td></tr>
+                            }
+                        </tbody>
+                        <tfoot><tr><th scope="row">@BatchEntries.Count source@(BatchEntries.Count == 1 ? "" : "s")</th><td class="v3-num v3-strong">@Money(BatchEntries.Sum(x => x.Amount))</td></tr></tfoot>
+                    </table>
+                }
+                else
+                {
+                    <p class="uw-help">Enter an approved amount for each source to prepare, from the sources currently listed. Leave the others blank.</p>
+                    <div class="v3-table-wrap">
+                        <table class="v3-table">
+                            <thead><tr><th scope="col">Source</th><th scope="col">Status</th><th scope="col" class="v3-num">Approved amount (₱)</th></tr></thead>
+                            <tbody>
+                                @foreach (var row in PreparableRows)
+                                {
+                                    <tr @key="row.StallId">
+                                        <td><span class="v3-strong">@PayerOf(row)</span><span class="v3-block uw-context">@ContextOf(row)</span></td>
+                                        <td>@StatusLabel(row.Status)</td>
+                                        <td class="v3-num">
+                                            <input class="v3-input uw-batch-input" type="text" inputmode="decimal" autocomplete="off"
+                                                   aria-label="@($"Approved amount for {PayerOf(row)}, {ContextOf(row)}")"
+                                                   value="@BatchText(row.StallId)" @oninput="e => SetBatch(row.StallId, e.Value?.ToString())" />
+                                        </td>
+                                    </tr>
+                                }
+                                @if (!PreparableRows.Any())
+                                {
+                                    <tr><td class="v3-empty" colspan="3">No listed source can be prepared. Filter to sources without an amount, or change the page.</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    @if (_batchError is not null) { <p class="uw-error" role="alert">@_batchError</p> }
+                }
+            </div>
+            <footer class="v3-modal-footer">
+                @if (_batchResult is not null)
+                {
+                    <button class="v3-btn v3-btn-primary" type="button" @onclick="CloseBatch">Done</button>
+                }
+                else if (_batchReviewing)
+                {
+                    <button class="v3-btn" type="button" disabled="@_busy" @onclick="() => _batchReviewing = false">Back</button>
+                    <button class="v3-btn v3-btn-primary" type="button" disabled="@_busy" @onclick="SaveBatchAsync">Save approved amounts</button>
+                }
+                else
+                {
+                    <button class="v3-btn" type="button" @onclick="CloseBatch">Cancel</button>
+                    <button class="v3-btn v3-btn-primary" type="button" disabled="@(BatchEntries.Count == 0)" @onclick="ReviewBatch">Review</button>
+                }
+            </footer>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public UtilityKind Kind { get; set; }
+
+    /// <summary>Page-specific notices shown under the header (ECF unfinished collection, WCF Collector Mobile status).</summary>
+    [Parameter] public RenderFragment? Notices { get; set; }
+
+    /// <summary>Page-specific actions for the selected source (record a payment, review a legacy migration).</summary>
+    [Parameter] public RenderFragment<UtilityRegisterRowDto>? SourceActions { get; set; }
+
+    /// <summary>The page's own compact collection activity.</summary>
+    [Parameter] public RenderFragment? Activity { get; set; }
+
+    /// <summary>Raised after the register has loaded for a month, so the page can load that month's activity.</summary>
+    [Parameter] public EventCallback<(int Year, int Month)> OnPeriodLoaded { get; set; }
+
+    private UtilityRegisterPageDto? _page;
+    private int _year = PhilippineTime.Today.Year, _month = PhilippineTime.Today.Month;
+    private string _monthInput = PhilippineTime.Today.ToString("yyyy-MM");
+    private string _search = "", _facility = "", _section = "", _status = "All";
+    private int _skip, _take = 25;
+    private bool _loading, _busy;
+    private string? _error, _message;
+    private int _generation;
+    private CancellationTokenSource? _debounce;
+    private Guid? _selectedId;
+
+    // Preparing one amount
+    private string _amountText = "";
+    private decimal? _amount;
+    private string? _amountError;
+    private bool _reviewing;
+
+    // Preparing several
+    private bool _batchOpen, _batchReviewing;
+    private readonly Dictionary<Guid, string> _batchText = [];
+    private string? _batchError;
+    private UtilityPrepareResult? _batchResult;
+
+    private static readonly (string Value, string Label)[] Statuses =
+    [
+        ("All", "All statuses"), ("Unprepared", "Unprepared"), ("Unpaid", "Unpaid"), ("Partial", "Partial"),
+        ("Settled", "Settled"), ("Direct", "Direct collections"), ("NeedsReview", "Needs review")
+    ];
+
+    private bool IsEcf => Kind == UtilityKind.Electricity;
+    private string UtilityName => IsEcf ? "electricity" : "water";
+    private string Eyebrow => IsEcf ? "Operations · ECF" : "Operations · WCF";
+    private string Title => IsEcf ? "Electricity Consumption Fees" : "Water Consumption Fees";
+    private string RegisterTitle => IsEcf ? "Electricity sources" : "Water sources";
+    private string InstrumentCode => IsEcf ? "OR" : "CT";
+    private string InstrumentName => IsEcf ? "Official Receipt" : "Cash Ticket";
+    private string BasePath => IsEcf ? "/operations/ecf" : "/operations/water-consumption-fees";
+    private string PeriodLabel => new DateOnly(_year, _month, 1).ToString("MMMM yyyy");
+    private bool Filtered => _search.Length > 0 || _facility != "" || _section != "" || _status != "All";
+
+    private string Summary => _page is null ? (_loading ? "Loading…" : "") : $"{_page.Total} source{(_page.Total == 1 ? "" : "s")}";
+    private string? DirectNote => _page is { Totals.DirectCollected: > 0m } p ? $"{Money(p.Totals.DirectCollected)} of it direct" : _page is null ? null : "Applied to this month";
+    private UtilityRegisterRowDto? Selected => _page?.Rows.FirstOrDefault(r => r.StallId == _selectedId);
+    private bool IsSelected(UtilityRegisterRowDto row) => row.StallId == _selectedId;
+    private IEnumerable<UtilityRegisterRowDto> PreparableRows => (_page?.Rows ?? []).Where(r => r.CanPrepare);
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    /// <summary>Reloads the register for the current filters (used after a payment is recorded elsewhere on the page).</summary>
+    public Task RefreshAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var generation = ++_generation;
+        _loading = true; _error = null;
+        try
+        {
+            FacilityCode? facility = int.TryParse(_facility, out var code) && Enum.IsDefined((FacilityCode)code) ? (FacilityCode)code : null;
+            var result = await RegisterApi.GetRegisterAsync(new(Kind, _year, _month, facility, _section == "" ? null : _section,
+                _status == "All" ? null : _status, _search.Trim().Length == 0 ? null : _search.Trim(), _skip, _take));
+            if (generation != _generation) return;                  // a newer search or page has superseded this answer
+            if (result is { IsSuccess: true, Value: { } page })
+            {
+                _page = page;
+                if (_selectedId is { } id && page.Rows.All(r => r.StallId != id)) { _selectedId = null; ResetPrepare(); }
+            }
+            else _error = result?.Error ?? "Unable to load the sources. Try again.";
+        }
+        catch { if (generation == _generation) _error = "Unable to load the sources. Try again."; }
+        finally
+        {
+            if (generation == _generation) _loading = false;
+        }
+        if (generation == _generation && _error is null) await OnPeriodLoaded.InvokeAsync((_year, _month));
+    }
+
+    private async Task ChangeMonthAsync(ChangeEventArgs args)
+    {
+        if (!DateOnly.TryParseExact((args.Value?.ToString() ?? "") + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)) return;
+        (_year, _month, _monthInput, _skip) = (parsed.Year, parsed.Month, parsed.ToString("yyyy-MM"), 0);
+        _selectedId = null; ResetPrepare();
+        await LoadAsync();
+    }
+
+    // Typing searches the server after a short pause; a newer keystroke supersedes any answer still on its way.
+    private void OnSearchInput(ChangeEventArgs args)
+    {
+        _search = args.Value?.ToString() ?? "";
+        _generation++;
+        _debounce?.Cancel();
+        _debounce = new CancellationTokenSource();
+        _ = DebouncedAsync(_debounce.Token);
+    }
+
+    private async Task DebouncedAsync(CancellationToken token)
+    {
+        try { await Task.Delay(300, token); } catch (OperationCanceledException) { return; }
+        _skip = 0;
+        await InvokeAsync(async () => { await LoadAsync(); StateHasChanged(); });
+    }
+
+    private Task ChangeFacilityAsync(ChangeEventArgs a) { _facility = a.Value?.ToString() ?? ""; _section = ""; _skip = 0; return LoadAsync(); }
+    private Task ChangeSectionAsync(ChangeEventArgs a) { _section = a.Value?.ToString() ?? ""; _skip = 0; return LoadAsync(); }
+    private Task ChangeStatusAsync(ChangeEventArgs a) { _status = a.Value?.ToString() ?? "All"; _skip = 0; return LoadAsync(); }
+    private Task ChangePageSizeAsync(ChangeEventArgs a) { _take = a.Value?.ToString() == "50" ? 50 : 25; _skip = 0; return LoadAsync(); }
+    private Task PreviousAsync() { _skip = Math.Max(0, _skip - _take); return LoadAsync(); }
+    private Task NextAsync() { _skip += _take; return LoadAsync(); }
+    private Task ClearFiltersAsync() { (_search, _facility, _section, _status, _skip) = ("", "", "", "All", 0); return LoadAsync(); }
+
+    private void Select(UtilityRegisterRowDto row)
+    {
+        if (_selectedId == row.StallId) return;
+        _selectedId = row.StallId; ResetPrepare();
+        _amountText = row.Approved is { } approved ? approved.ToString("0.00", CultureInfo.InvariantCulture) : "";
+        _amount = row.Approved;
+    }
+
+    // ── Prepare one amount ───────────────────────────────────────────────────────────────────────
+    private void ResetPrepare() { _reviewing = false; _amountText = ""; _amount = null; _amountError = null; }
+
+    private void OnAmountInput(ChangeEventArgs args)
+    {
+        _amountText = args.Value?.ToString() ?? "";
+        (_amount, _amountError) = ParseAmount(_amountText);
+    }
+
+    private static (decimal? Amount, string? Error) ParseAmount(string text)
+    {
+        var cleaned = text.Replace("₱", "").Replace(",", "").Trim();
+        if (cleaned.Length == 0) return (null, null);
+        if (!decimal.TryParse(cleaned, NumberStyles.Number, CultureInfo.InvariantCulture, out var value) || value <= 0m
+            || value != decimal.Round(value, 2) || value > 1_000_000m)
+            return (null, "Enter a positive amount in pesos and centavos.");
+        return (value, null);
+    }
+
+    private async Task SaveAmountAsync()
+    {
+        if (Selected is not { } source || _amount is not { } amount || _busy) return;
+        _busy = true; _error = null;
+        try
+        {
+            var result = await RegisterApi.PrepareAsync(new(Kind, _year, _month, [new(source.StallId, amount, source.SourceVersion)]));
+            if (result is { IsSuccess: true, Value: { } value } && value.Outcomes.Count == 1)
+            {
+                var outcome = value.Outcomes[0];
+                if (outcome.Prepared) _message = $"{Money(amount)} approved for {PayerOf(source)}. No collection was recorded.";
+                else _error = outcome.Reason;
+            }
+            else _error = result?.Error ?? "The amount could not be prepared.";
+            _reviewing = false;
+        }
+        catch { _error = "The amount could not be prepared."; _reviewing = false; }
+        finally { _busy = false; }
+        await LoadAsync();
+    }
+
+    // ── Prepare several amounts ──────────────────────────────────────────────────────────────────
+    private sealed record BatchEntry(Guid StallId, string Label, decimal Amount, long Version);
+
+    private void OpenBatch() { _batchOpen = true; _batchReviewing = false; _batchResult = null; _batchError = null; _batchText.Clear(); }
+    private void CloseBatch() { _batchOpen = false; }
+    private string BatchText(Guid id) => _batchText.GetValueOrDefault(id, "");
+    private void SetBatch(Guid id, string? text) { _batchText[id] = text ?? ""; _batchError = null; }
+
+    private List<BatchEntry> BatchEntries => PreparableRows
+        .Select(r => (Row: r, Parsed: ParseAmount(BatchText(r.StallId))))
+        .Where(x => x.Parsed.Amount is not null)
+        .Select(x => new BatchEntry(x.Row.StallId, $"{PayerOf(x.Row)} · {ContextOf(x.Row)}", x.Parsed.Amount!.Value, x.Row.SourceVersion))
+        .ToList();
+
+    private string BatchLabel(Guid id) => _page?.Rows.Where(r => r.StallId == id).Select(r => $"{PayerOf(r)} · {ContextOf(r)}").FirstOrDefault() ?? "Source";
+
+    private void ReviewBatch()
+    {
+        var invalid = PreparableRows.Where(r => BatchText(r.StallId).Trim().Length > 0 && ParseAmount(BatchText(r.StallId)).Amount is null).ToList();
+        if (invalid.Count > 0) { _batchError = $"Check the amount for {PayerOf(invalid[0])}: enter a positive amount in pesos and centavos."; return; }
+        _batchReviewing = BatchEntries.Count > 0;
+    }
+
+    private async Task SaveBatchAsync()
+    {
+        if (_busy) return;
+        _busy = true;
+        try
+        {
+            var result = await RegisterApi.PrepareAsync(new(Kind, _year, _month, BatchEntries.Select(e => new UtilityPrepareItem(e.StallId, e.Amount, e.Version)).ToList()));
+            if (result is { IsSuccess: true, Value: { } value }) _batchResult = value;
+            else { _batchError = result?.Error ?? "The amounts could not be prepared."; _batchReviewing = false; }
+        }
+        catch { _batchError = "The amounts could not be prepared."; _batchReviewing = false; }
+        finally { _busy = false; }
+        await LoadAsync();
+    }
+
+    // ── Presentation ─────────────────────────────────────────────────────────────────────────────
+    private static string PayerOf(UtilityRegisterRowDto row) => string.IsNullOrWhiteSpace(row.Payer) ? "No occupant on record" : row.Payer;
+
+    private static string ContextOf(UtilityRegisterRowDto row) =>
+        string.Join(" · ", new[] { row.FacilityName, string.IsNullOrWhiteSpace(row.Section) ? null : SectionLabel(row.Section), $"Stall {row.StallNo.Replace("-", "-⁠")}" }.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+    private static string SectionLabel(string raw) => System.Text.RegularExpressions.Regex.Replace(raw, "(?<=[a-z])(?=[A-Z])", " ");
+
+    private static string MethodOf(UtilityRegisterRowDto row) => row.Mode switch
+    {
+        "Prepared" => "Prepared amount",
+        "Direct" => "Direct collection",
+        _ => "Not set"
+    };
+
+    private static string StatusLabel(string status) => status switch
+    {
+        "NeedsReview" => "Needs review",
+        "Direct" => "Direct collections",
+        _ => status
+    };
+
+    private static string Money(decimal amount) => $"₱{amount:N2}";
+    private static string Figure(decimal? amount) => amount is { } value ? Money(value) : "—";
+
+    public void Dispose() => _debounce?.Cancel();
+}

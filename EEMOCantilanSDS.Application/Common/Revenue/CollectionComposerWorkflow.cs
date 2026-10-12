@@ -1070,8 +1070,8 @@ public sealed partial class CollectionComposerWorkflow(
     {
         if ((bill.MunicipalityId == Guid.Empty ? bill.Stall?.MunicipalityId : bill.MunicipalityId) != tenantId || bill.Stall is null)
             throw Problem("The ECF source has no accessible stall context in this tenant.", ResultStatus.Conflict);
-        if (bill.Stall.Facility?.Code != FacilityCode.NPM)
-            throw Problem("This utility bill is not an NPM Electricity source.", ResultStatus.Conflict);
+        if (!UtilityServiceEligibility.IsSource(bill.Stall, UtilityKind.Electricity))
+            throw Problem("This utility bill is not an Electricity service source.", ResultStatus.Conflict);
 
         var settled = bill.ElecAmountPaid;
         if (bill.ElectricitySettlementAuthorityState == SettlementAuthority.Canonical)

@@ -1,0 +1,100 @@
+/* Utility workspace (ECF / WCF) — V3. Panels, tables, buttons, fields and notices come from the shared v3- layer; this file holds
+   only the workspace layout. Typography and colour use the app tokens; the register is a table, not a card mosaic. */
+
+.uw-meta { display: inline-flex; align-items: center; gap: 10px; }
+
+/* The register takes the width; the selected source's panel sits beside it and stacks beneath on a narrower screen. */
+.uw-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(19rem, 23rem);
+    align-items: start;
+    gap: 20px;
+}
+
+.uw-toolbar { flex-wrap: wrap; gap: 10px 12px; }
+.uw-toolbar .v3-select { min-width: 9rem; max-width: 14rem; }
+
+.uw-table td, .uw-table th { vertical-align: top; }
+.uw-row.is-selected { background: var(--surface-muted); box-shadow: inset 3px 0 0 var(--accent); }
+
+/* The first cell is the row's one keyboard target: a quiet button that reads as text. */
+.uw-row-btn {
+    display: block;
+    width: 100%;
+    padding: 2px 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.uw-row-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.uw-payer { overflow-wrap: anywhere; }
+.uw-context { color: var(--text-secondary); font-size: 0.8125rem; overflow-wrap: anywhere; }
+
+.uw-status {
+    display: inline-block;
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.uw-status-unpaid { color: var(--red, #b42318); border-color: currentColor; }
+.uw-status-partial { color: var(--gold, #8a5a00); border-color: currentColor; }
+.uw-status-settled, .uw-status-direct { color: var(--green, #17663a); border-color: currentColor; }
+.uw-status-needsreview { color: var(--navy); border-color: currentColor; border-style: dashed; }
+
+.uw-pager {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+}
+.uw-pager-size { display: inline-flex; align-items: center; gap: 8px; }
+
+/* Selected source */
+.uw-detail { position: sticky; top: 12px; }
+.uw-detail-body { display: grid; gap: 14px; }
+.uw-detail-context { margin: 0; color: var(--text-secondary); font-size: 0.8125rem; }
+.uw-facts dd { font-variant-numeric: tabular-nums; }
+.uw-note, .uw-help { margin: 0; color: var(--text-secondary); font-size: 0.8125rem; line-height: 1.45; }
+.uw-error { margin: 0; color: var(--red, #b42318); font-size: 0.8125rem; }
+.uw-review { margin: 0; line-height: 1.45; }
+
+.uw-prepare { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--border); }
+.uw-prepare h3 { margin: 0; font-size: 0.875rem; font-weight: 700; color: var(--navy); }
+.uw-field { display: grid; gap: 4px; font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); }
+.uw-field .v3-input { font-variant-numeric: tabular-nums; }
+
+.uw-secondary { display: flex; gap: 10px; justify-content: flex-end; }
+
+/* Prepare multiple amounts */
+.uw-batch { max-width: min(46rem, 94vw); }
+.uw-batch .v3-modal-header { justify-content: space-between; }
+.uw-batch-input { width: 8.5rem; text-align: right; font-variant-numeric: tabular-nums; }
+.uw-batch-results { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 0.875rem; }
+.uw-batch-results .is-refused { color: var(--red, #b42318); }
+
+@media (max-width: 1100px) {
+    .uw-layout { grid-template-columns: minmax(0, 1fr); }
+    .uw-detail { position: static; }
+}
+
+@media (max-width: 640px) {
+    .uw-toolbar .v3-select, .uw-toolbar .v3-period, .uw-toolbar .v3-search { flex: 1 1 100%; max-width: none; }
+    .uw-pager { justify-content: flex-start; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .uw-row, .uw-row-btn { transition: none; }
+}

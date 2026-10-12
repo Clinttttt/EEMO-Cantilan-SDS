@@ -27,13 +27,14 @@ namespace EEMOCantilanSDS.Testing.Application.Utilities
             public Stall Stall { get; }
             public Mock<IUtilityBillRepository> Bills { get; } = new();
             public Mock<IUnitOfWork> Uow { get; } = new();
+            public Mock<IEemoCacheInvalidator> Cache { get; } = new();
             public UtilityBill? Added { get; private set; }
             public RecordUtilityReadingCommandHandler Handler { get; }
 
-            public Fixture(UtilityBill? existing, FacilityCode facility = FacilityCode.NPM)
+            public Fixture(UtilityBill? existing, FacilityCode facility = FacilityCode.NPM, ApplicableFees fees = ApplicableFees.BaseRental)
             {
                 var f = Facility.Create(facility, "Market", "MKT");
-                Stall = Stall.Create(f.Id, "12", 900m, ApplicableFees.BaseRental, section: MarketSection.VegetableArea);
+                Stall = Stall.Create(f.Id, "12", 900m, fees, section: MarketSection.VegetableArea);
                 typeof(Stall).GetProperty(nameof(Stall.Facility))!.SetValue(Stall, f);
 
                 var stalls = new Mock<IStallRepository>();
@@ -49,7 +50,7 @@ namespace EEMOCantilanSDS.Testing.Application.Utilities
                 tenant.SetupGet(t => t.TenantCode).Returns("tenant-a");
 
                 Handler = new RecordUtilityReadingCommandHandler(
-                    Bills.Object, stalls.Object, user.Object, Uow.Object, new Mock<IEemoCacheInvalidator>().Object, tenant.Object);
+                    Bills.Object, stalls.Object, user.Object, Uow.Object, Cache.Object, tenant.Object);
             }
 
             public Task<Result<EEMOCantilanSDS.Application.Dtos.Utilities.UtilityBillDto>> Send(
@@ -250,6 +251,20 @@ namespace EEMOCantilanSDS.Testing.Application.Utilities
 
             Assert.Equal(ResultStatus.Invalid, result.Status);
             fx.NothingWritten();
+        }
+
+        [Theory]
+        [InlineData(FacilityCode.TCC)]
+        [InlineData(FacilityCode.NPM)]
+        public async Task AUtilityChange_InvalidatesTheViewsOfThatSpacesOwnFacility(FacilityCode facility)
+        {
+            var fx = new Fixture(existing: null, facility, ApplicableFees.BaseRental | ApplicableFees.Electricity);
+
+            var result = await fx.Send(0m, 0m, 0m, 0m, 0m, 0m, elecApproved: 650m);
+
+            Assert.True(result.IsSuccess);
+            fx.Cache.Verify(c => c.InvalidatePaymentAffectedViewsAsync("tenant-a", facility, 2026, 10, It.IsAny<CancellationToken>()), Times.Once);
+            fx.Cache.Verify(c => c.InvalidatePaymentAffectedViewsAsync(It.IsAny<string>(), It.Is<FacilityCode?>(x => x != facility), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
         }
     }
 }

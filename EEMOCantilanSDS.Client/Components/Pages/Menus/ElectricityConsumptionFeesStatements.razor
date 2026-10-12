@@ -20,7 +20,7 @@
             <Figures>
                 <V3HeroFigure Label="Statements" Value="@(Ready ? _lines.Select(l => (l.StallId, l.Payor)).Distinct().Count().ToString() : "—")" />
                 <V3HeroFigure Label="Assessed" Value="@(Ready ? Money(_lines.Sum(l => l.Assessed)) : "—")" />
-                <V3HeroFigure Label="Paid" Value="@(Ready ? Money(_lines.Sum(l => l.Settled)) : "—")" />
+                <V3HeroFigure Label="Net settled" Value="@(Ready ? Money(_lines.Sum(l => l.Settled)) : "—")" />
                 <V3HeroFigure Label="Balance" Value="@(Ready ? Money(_lines.Sum(l => l.Outstanding)) : "—")" />
             </Figures>
             <Actions><a href="/operations/ecf">ECF workspace</a></Actions>

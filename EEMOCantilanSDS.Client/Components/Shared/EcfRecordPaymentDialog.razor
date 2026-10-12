@@ -1,0 +1,243 @@
+@using EEMOCantilanSDS.Client.Services
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@using System.Globalization
+@using Microsoft.JSInterop
+@inject IEcfCollectionsApiClient EcfApi
+@inject IJSRuntime JS
+
+@* Records an ECF payment the office actually received, through the existing server draft: add the source with the amount, review that
+   exact revision, then record it under a stable operation id (so a retry is the same Collection). Never a typed receipt serial: the
+   server issues the SRC. The approved amount is never treated as money received; the amount typed here is. It can also resume an
+   unfinished server draft (refresh it for today, change its amount, review, record) or discard it. *@
+<div class="v3-modal-backdrop" role="presentation" @onclick="CloseAsync">
+    <section class="v3-modal erd" role="dialog" aria-modal="true" aria-labelledby="erd-title" @onclick:stopPropagation="true">
+        <header class="v3-modal-header">
+            <h2 id="erd-title">@(_result is not null ? "Collection recorded" : Draft is not null ? "Unfinished collection" : "Record electricity payment")</h2>
+            <button class="v3-btn v3-btn-sm" type="button" aria-label="Close" @onclick="CloseAsync">Close</button>
+        </header>
+        <div class="v3-modal-body erd-body">
+            @if (_result is { } done)
+            {
+                <dl class="v3-facts" aria-label="Recorded collection">
+                    <div><dt>Reference (SRC)</dt><dd class="v3-strong">@done.ReferenceCode</dd></div>
+                    <div><dt>Amount received</dt><dd class="v3-strong">@Money(done.Amount)</dd></div>
+                    <div><dt>Disposition</dt><dd>@done.CurrentDisposition</dd></div>
+                </dl>
+                <p class="erd-note">It appears in this month's collection activity. Each payment is its own collection.</p>
+            }
+            else
+            {
+                @if (Quote is { } quote && _draft is null)
+                {
+                    <dl class="v3-facts" aria-label="Source">
+                        <div><dt>Payer</dt><dd>@(quote.PayerNameSnapshot ?? "Payer snapshot unavailable")</dd></div>
+                        <div><dt>Source</dt><dd>@quote.FacilityName · Stall @quote.StallNo · @Period(quote)</dd></div>
+                        <div><dt>Approved</dt><dd>@Money(quote.AssessedAmount)</dd></div>
+                        <div><dt>Outstanding</dt><dd class="v3-strong">@Money(quote.OutstandingAmount)</dd></div>
+                    </dl>
+                }
+                @if (_draft is { } draft)
+                {
+                    <dl class="v3-facts" aria-label="Draft">
+                        <div><dt>Payer</dt><dd>@(draft.PayerNameSnapshot ?? "Not recorded")</dd></div>
+                        <div><dt>Collection date</dt><dd>@draft.BusinessDate.ToString("dd MMM yyyy")</dd></div>
+                        <div><dt>Items</dt><dd>@draft.Lines.Count · <strong>@Money(draft.TotalAmount)</strong></dd></div>
+                        <div><dt>Review</dt><dd>@(draft.IsReviewedForCurrentRevision ? "This revision was reviewed" : "Not reviewed yet")</dd></div>
+                    </dl>
+                    @if (draft.RequiresBusinessDateRefresh)
+                    {
+                        <div class="v3-notice v3-notice-error erd-refresh" role="alert">
+                            <span>This draft is from an earlier business date. Refresh it, then review the new revision.</span>
+                            <button class="v3-btn v3-btn-sm" type="button" disabled="@_busy" @onclick="RefreshForTodayAsync">Refresh for today</button>
+                        </div>
+                    }
+                    <ul class="erd-lines">
+                        @foreach (var line in draft.Lines)
+                        {
+                            <li>
+                                <span>@SourceNames.Name(line.ClassificationName)</span>
+                                <span class="erd-amount">@Money(line.Amount)</span>
+                                @foreach (var allocation in line.Allocations ?? [])
+                                {
+                                    <span class="v3-block erd-context">@allocation.SourceLabel</span>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+
+                @if (!_discarding && (_draft is null || _draft.Lines.Count == 1) && _draft?.RequiresBusinessDateRefresh != true)
+                {
+                    <label class="erd-field">
+                        <span>Amount received (₱)</span>
+                        <input class="v3-input" type="text" inputmode="decimal" autocomplete="off" aria-describedby="erd-help" value="@_amountText"
+                               disabled="@_busy" @oninput="OnAmountInput" />
+                    </label>
+                    <p id="erd-help" class="erd-note">@(MaxText). Enter what was actually received; the approved amount is not money received.</p>
+                }
+                @if (_error is not null) { <p class="erd-error" role="alert">@_error</p> }
+                @if (_discarding)
+                {
+                    <p class="erd-note" role="status">Discard this unfinished collection? No collection, SRC or document has been created, and nothing is recorded.</p>
+                }
+            }
+        </div>
+        <footer class="v3-modal-footer">
+            @if (_result is not null)
+            {
+                <button class="v3-btn v3-btn-primary" type="button" @onclick="CloseAsync">Done</button>
+            }
+            else if (_discarding)
+            {
+                <button class="v3-btn" type="button" disabled="@_busy" @onclick="() => _discarding = false">Keep it</button>
+                <button class="v3-btn v3-btn-primary" type="button" disabled="@_busy" @onclick="DiscardAsync">Discard collection</button>
+            }
+            else
+            {
+                @if (_draft is not null)
+                {
+                    <button class="v3-btn" type="button" disabled="@_busy" @onclick="() => _discarding = true">Discard</button>
+                }
+                @if (_draft is { IsReviewedForCurrentRevision: true, RequiresBusinessDateRefresh: false } && !_amountChanged)
+                {
+                    <button class="v3-btn v3-btn-primary" type="button" disabled="@_busy" @onclick="PostAsync">Record collection</button>
+                }
+                else if (_draft?.RequiresBusinessDateRefresh != true)
+                {
+                    <button class="v3-btn v3-btn-primary" type="button" disabled="@(_busy || _amount is null)" @onclick="ReviewAsync">Review collection</button>
+                }
+            }
+        </footer>
+    </section>
+</div>
+
+@code {
+    /// <summary>The prepared source to record against (a new collection). Ignored when resuming a draft.</summary>
+    [Parameter] public EcfObligationQuoteDto? Quote { get; set; }
+
+    /// <summary>An unfinished server draft to resume.</summary>
+    [Parameter] public EcfCollectionDraftDto? Draft { get; set; }
+
+    /// <summary>Raised on close; true when something changed (a draft was created, discarded or recorded).</summary>
+    [Parameter] public EventCallback<bool> OnClosed { get; set; }
+
+    /// <summary>Open straight at the discard confirmation (the Discard action of the unfinished-collection notice).</summary>
+    [Parameter] public bool StartDiscarding { get; set; }
+
+    private EcfCollectionDraftDto? _draft;
+    private EcfPostOutcomeDto? _result;
+    private string _amountText = "";
+    private decimal? _amount;
+    private bool _amountChanged, _busy, _discarding, _changed, _seeded;
+    private string? _error;
+
+    private string MaxText => _draft is null && Quote is { } quote ? $"Up to {Money(quote.OutstandingAmount)} is outstanding" : "The amount cannot exceed what is outstanding";
+
+    protected override void OnParametersSet()
+    {
+        if (_seeded) return;
+        _seeded = true;
+        _draft = Draft;
+        _discarding = StartDiscarding && Draft is not null;
+        var seed = _draft?.Lines.Count == 1 ? _draft.TotalAmount : Quote?.OutstandingAmount;
+        if (seed is { } value) { _amount = value; _amountText = value.ToString("0.00", CultureInfo.InvariantCulture); }
+    }
+
+    private void OnAmountInput(ChangeEventArgs args)
+    {
+        _amountText = args.Value?.ToString() ?? "";
+        var cleaned = _amountText.Replace("₱", "").Replace(",", "").Trim();
+        _amount = decimal.TryParse(cleaned, NumberStyles.Number, CultureInfo.InvariantCulture, out var value) && value > 0m && value == decimal.Round(value, 2) ? value : null;
+        _error = _amount is null && cleaned.Length > 0 ? "Enter a positive amount in pesos and centavos." : null;
+        _amountChanged = true;
+    }
+
+    private async Task ReviewAsync()
+    {
+        if (_amount is not { } amount || _busy) return;
+        _busy = true; _error = null;
+        try
+        {
+            if (_draft is null)
+            {
+                if (Quote is null) { _error = "No source is selected."; return; }
+                var added = await EcfApi.AddEcfLineAsync(new AddEcfDraftLineRequest(Quote.UtilityBillId, amount, null));
+                if (!Take(added, "The payment could not be started.")) return;
+                _changed = true;
+            }
+            else if (_amountChanged && _draft.Lines.Count == 1 && amount != _draft.TotalAmount)
+            {
+                var updated = await EcfApi.UpdateAllocationAsync(_draft.DraftId, new UpdateEcfDraftAllocationRequest(_draft.Revision, amount));
+                if (!Take(updated, "The amount could not be changed.")) return;
+            }
+            var reviewed = await EcfApi.ReviewAsync(_draft!.DraftId, new EcfDraftRevisionRequest(_draft.Revision));
+            if (Take(reviewed, "The collection could not be reviewed.")) _amountChanged = false;
+        }
+        catch { _error = "The collection could not be reviewed. Try again."; }
+        finally { _busy = false; }
+    }
+
+    private async Task RefreshForTodayAsync()
+    {
+        if (_draft is null || _busy) return;
+        _busy = true; _error = null;
+        try
+        {
+            var result = await EcfApi.ResumeDraftAsync(_draft.DraftId, new EcfDraftRevisionRequest(_draft.Revision));
+            if (Take(result, "The draft could not be refreshed.")) _amountChanged = false;
+        }
+        catch { _error = "The draft could not be refreshed. Try again."; }
+        finally { _busy = false; }
+    }
+
+    private async Task PostAsync()
+    {
+        if (_draft is null || _busy) return;
+        _busy = true; _error = null;
+        try
+        {
+            // One operation id per draft revision, kept for the browser session, so a retry after a lost response is the same Collection.
+            var key = $"stalltrack.ecf.post-operation.{_draft.DraftId:N}.{_draft.Revision}";
+            var stored = await JS.InvokeAsync<string?>("sessionStorage.getItem", key);
+            if (!Guid.TryParse(stored, out var operationId))
+            {
+                operationId = Guid.NewGuid();
+                await JS.InvokeVoidAsync("sessionStorage.setItem", key, operationId.ToString("D"));
+            }
+            var result = await EcfApi.PostAsync(_draft.DraftId, new PostEcfCollectionDraftRequest(_draft.Revision, operationId));
+            if (result is { IsSuccess: true, Value: { } outcome }) { _result = outcome; _changed = true; }
+            else _error = string.IsNullOrWhiteSpace(result?.Error) ? "The collection could not be recorded." : result.Error;
+        }
+        catch { _error = "The collection could not be recorded. Try again; a retry will not record it twice."; }
+        finally { _busy = false; }
+    }
+
+    private async Task DiscardAsync()
+    {
+        if (_draft is null || _busy) return;
+        _busy = true; _error = null;
+        try
+        {
+            var result = await EcfApi.DiscardAsync(_draft.DraftId, new EcfDraftRevisionRequest(_draft.Revision));
+            if (result.IsSuccess) { _changed = true; await OnClosed.InvokeAsync(true); }
+            else { _error = string.IsNullOrWhiteSpace(result.Error) ? "The draft could not be discarded." : result.Error; _discarding = false; }
+        }
+        catch { _error = "The draft could not be discarded."; _discarding = false; }
+        finally { _busy = false; }
+    }
+
+    private bool Take(Result<EcfCollectionDraftDto> result, string fallback)
+    {
+        if (result is { IsSuccess: true, Value: { } value }) { _draft = value; return true; }
+        _error = string.IsNullOrWhiteSpace(result?.Error) ? fallback : result.Error;
+        return false;
+    }
+
+    private Task CloseAsync() => OnClosed.InvokeAsync(_changed);
+
+    private static string Period(EcfObligationQuoteDto quote) => new DateTime(quote.BillingYear, quote.BillingMonth, 1).ToString("MMM yyyy");
+    private static string Money(decimal amount) => $"₱{amount:N2}";
+}

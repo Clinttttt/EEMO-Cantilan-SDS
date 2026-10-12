@@ -12,307 +12,246 @@
 
 <PageTitle>StallTrack — Water Consumption Fees</PageTitle>
 
-@* WCF on the Web is monitoring, source review and reporting. Field collection is recorded on Collector Mobile, and
-   The layout owns the <main> landmark. *@
-<div class="v3-page wcf-page">
-    <V3Hero Eyebrow="Operations · WCF" Title="Water Consumption Fees" Compact="true">
-        <Meta><span class="wcf-hero-meta">Through @ThroughPeriodLabel · <InstrumentChip Instrument="CT" /> Cash Ticket</span></Meta>
-        <Figures>
-            <V3HeroFigure Label="Assessed" Value="@Money(_quotes.Sum(x => x.AssessedAmount))" />
-            <V3HeroFigure Label="Previously settled" Value="@Money(_quotes.Sum(x => x.CumulativeSettledEvidence))" />
-            <V3HeroFigure Label="Outstanding" Value="@Money(_quotes.Sum(x => x.OutstandingAmount))" Note="@($"{_quotes.Count(x => x.OutstandingAmount > 0m)} open periods")" />
-        </Figures>
-    </V3Hero>
+@* The layout owns the <main> landmark. The register, the selected-source panel and amount preparation are the shared UtilityWorkspace.
+   WCF on the Web is preparation, source review and reporting: field collection (a Cash Ticket, one SRC per collection) is recorded by
+   Collectors on Mobile, and Web WCF recording stays retired until the owner decides otherwise. *@
+<UtilityWorkspace @ref="_workspace" Kind="UtilityKind.Water" OnPeriodLoaded="PeriodLoadedAsync">
+    <Notices>
+        @if (!string.IsNullOrWhiteSpace(_message))
+        {
+            <p class="v3-notice" role="status">@_message</p>
+        }
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <p class="v3-notice v3-notice-error" role="alert">@_error</p>
+        }
+        @if (_mobileError is not null)
+        {
+            <p class="v3-notice v3-notice-error" role="alert">@_mobileError</p>
+        }
 
-    @if (!string.IsNullOrWhiteSpace(_error))
-    {
-        <p class="v3-notice v3-notice-error" role="alert">@_error</p>
-    }
-    @if (_mobileError is not null)
-    {
-        <p class="v3-notice v3-notice-error" role="alert">@_mobileError</p>
-    }
-
-    @* Collector Mobile is mentioned only when something needs the office: it is ready to enable, or something blocks it. When it is active
-       there is nothing to say. Every fact is the server's; nothing here is attested or typed by the office. *@
-    @if (_mobile is { Active: false } mobile)
-    {
-        <section class="wcf-mobile @MobileClass" aria-label="Collector Mobile">
-            <div class="wcf-mobile-bar">
-                <span class="wcf-mobile-state"><span class="wcf-mobile-dot" aria-hidden="true"></span>Collector Mobile · @MobileStateLabel</span>
-                @if (mobile.ReadyToEnable)
+        @* Collector Mobile is mentioned only when something needs the office: it is ready to enable, or something blocks it. When it is
+           active there is nothing to say. Every fact is the server's; nothing here is attested or typed by the office. *@
+        @if (_mobile is { Active: false } mobile)
+        {
+            <section class="wcf-mobile @MobileClass" aria-label="Collector Mobile">
+                <div class="wcf-mobile-bar">
+                    <span class="wcf-mobile-state"><span class="wcf-mobile-dot" aria-hidden="true"></span>Collector Mobile · @MobileStateLabel</span>
+                    @if (mobile.ReadyToEnable)
+                    {
+                        <button class="v3-btn v3-btn-sm v3-btn-primary" type="button" @onclick="() => _confirming = true">Enable Mobile Collection</button>
+                    }
+                </div>
+                @if (mobile.Blockers.Count > 0)
                 {
-                    <button class="v3-btn v3-btn-sm v3-btn-primary" type="button" @onclick="() => _confirming = true">Enable Mobile Collection</button>
+                    <ul class="wcf-blockers" aria-label="Needs attention">
+                        @foreach (var blocker in mobile.Blockers)
+                        {
+                            <li>
+                                <span class="wcf-blocker-icon" aria-hidden="true">!</span>
+                                <span><strong>@blocker.Title</strong> — @blocker.Detail</span>
+                                @if (blocker.ActionHref is { } href)
+                                {
+                                    <a href="@href">@blocker.ActionLabel</a>
+                                }
+                            </li>
+                        }
+                    </ul>
                 }
-            </div>
-            @if (mobile.Blockers.Count > 0)
-            {
-                <ul class="wcf-blockers" aria-label="Needs attention">
-                    @foreach (var blocker in mobile.Blockers)
-                    {
-                        <li>
-                            <span class="wcf-blocker-icon" aria-hidden="true">!</span>
-                            <span><strong>@blocker.Title</strong> — @blocker.Detail</span>
-                            @if (blocker.ActionHref is { } href)
-                            {
-                                <a href="@href">@blocker.ActionLabel</a>
-                            }
-                        </li>
-                    }
-                </ul>
-            }
-        </section>
-    }
-
-    @if (_confirming)
-    {
-        <div class="v3-modal-backdrop" role="presentation" @onclick="() => _confirming = false">
-            <section class="v3-modal wcf-confirm" role="dialog" aria-modal="true" aria-labelledby="wcf-confirm-title" @onclick:stopPropagation="true">
-                <header class="v3-modal-header">
-                    <h2 id="wcf-confirm-title">Enable WCF Mobile collection?</h2>
-                </header>
-                <div class="v3-modal-body">
-                    <p>Collectors assigned to Water Consumption Fee will be able to record new WCF collections on Mobile. Each collection is given its own StallTrack reference code (SRC).</p>
-                    <dl class="wcf-confirm-facts">
-                        <div><dt>Amount method</dt><dd>Direct amount</dd></div>
-                        <div><dt>Historical Water records</dt><dd>Not changed</dd></div>
-                    </dl>
-                </div>
-                <footer class="v3-modal-footer">
-                    <button class="v3-btn" type="button" @onclick="() => _confirming = false">Cancel</button>
-                    <button class="v3-btn v3-btn-primary" type="button" disabled="@_enabling" @onclick="EnableAsync">Enable Mobile Collection</button>
-                </footer>
             </section>
-        </div>
-    }
-
-    <section class="v3-panel" aria-labelledby="wcf-obligations-title">
-        <header class="v3-panel-header wcf-panel-header">
-            <div class="wcf-panel-title">
-                <h2 id="wcf-obligations-title">Payer accounts</h2>
-            </div>
-            @* One aligned control group: the billing month, a search, and the WCF pages. *@
-            <div class="wcf-controls no-print" aria-label="Obligation filters and WCF actions">
-                <label class="wcf-period">
-                    <span>Through</span>
-                    <input class="v3-input" type="month" aria-label="Show obligations through billing month" value="@_monthInput" @onchange="ChangeMonthAsync" />
-                </label>
-                <label class="v3-search">
-                    <span class="v3-sr-only">Search WCF sources</span>
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
-                    <input type="search" placeholder="Search payer, stall or facility" aria-label="Search WCF sources" @bind="_searchText" @bind:event="oninput" />
-                </label>
-                <div class="v3-btn-group" role="group" aria-label="WCF actions">
-                    <button class="v3-btn" type="button" @onclick="LoadAsync" disabled="@_busy">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7" /><polyline points="20 4 20 11 13 11" /></svg>
-                        Refresh
-                    </button>
-                    <a class="v3-btn" href="/operations/water-consumption-fees/accounts">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" /><circle cx="10" cy="7" r="4" /><path d="M21 21v-2a4 4 0 0 0-3-3.9" /></svg>
-                        Accounts
-                    </a>
-                    <a class="v3-btn" href="/operations/water-consumption-fees/statements">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17" x2="13" y2="17" /></svg>
-                        Statements
-                    </a>
-                    <a class="v3-btn" href="/operations/water-consumption-fees/report">
-                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17" x2="13" y2="17" /></svg>
-                        Report
-                    </a>
-                </div>
-            </div>
-        </header>
-
-        <div class="v3-table-wrap" role="region" aria-label="WCF obligations" tabindex="0">
-            <table class="v3-table">
-                <caption class="v3-sr-only">Water obligations through @ThroughPeriodLabel</caption>
-                <thead>
-                    <tr>
-                        <th scope="col">Payer</th>
-                        <th scope="col">Period</th>
-                        <th scope="col" class="v3-num">Assessed</th>
-                        <th scope="col" class="v3-num">Previously settled</th>
-                        <th scope="col" class="v3-num">Outstanding</th>
-                        <th scope="col" class="wcf-status-col">Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var quote in FilteredQuotes)
-                    {
-                        <tr>
-                            <td>
-                                <span class="v3-strong">@(quote.PayerNameSnapshot ?? "Payer snapshot unavailable")</span>
-                                <span class="v3-block">@quote.FacilityName · Stall @quote.StallNo@(string.IsNullOrWhiteSpace(quote.Section) ? "" : $" · {quote.Section}")</span>
-                            </td>
-                            <td>@Period(quote.BillingYear, quote.BillingMonth)</td>
-                            <td class="v3-num">@Money(quote.AssessedAmount)</td>
-                            <td class="v3-num">@Money(quote.CumulativeSettledEvidence)</td>
-                            <td class="v3-num v3-strong">@Money(quote.OutstandingAmount)</td>
-                            <td class="wcf-status-col"><span class="v3-state">@CollectionState(quote)</span></td>
-                        </tr>
-                    }
-                    @if (!FilteredQuotes.Any())
-                    {
-                        <tr>
-                            <td class="v3-empty" colspan="6">
-                                @if (_busy && _quotes.Count == 0)
-                                {
-                                    <span role="status">Loading obligations…</span>
-                                }
-                                else if (_quotes.Count > 0)
-                                {
-                                    <span>No obligations match this search.</span>
-                                }
-                                else
-                                {
-                                    <span>No outstanding WCF obligations through @ThroughPeriodLabel.</span>
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </section>
-
-    <section class="v3-panel" aria-labelledby="wcf-activity-title">
-        <header class="v3-panel-header">
-            <h2 id="wcf-activity-title">Collection activity</h2>
-            <span class="v3-panel-meta">Posted collections · @ThroughPeriodLabel</span>
-        </header>
-        <div class="v3-table-wrap" role="region" aria-label="Posted WCF collections" tabindex="0">
-            <table class="v3-table">
-                <caption class="v3-sr-only">WCF Collections for @ThroughPeriodLabel</caption>
-                <thead><tr><th scope="col">Business date</th><th scope="col">Reference · payer</th><th scope="col">Status</th><th scope="col" class="v3-num">Total</th><th scope="col">Items</th></tr></thead>
-                <tbody>
-                    @foreach (var item in _activity)
-                    {
-                        <tr>
-                            <td>@item.BusinessDate.ToString("dd MMM yyyy")<span class="v3-block">Recorded @PhilippineTime.ToPhilippineTime(item.RecordedAtUtc).ToString("HH:mm") PHT</span></td>
-                            <td><span class="v3-strong">@item.ReferenceCode</span><span class="v3-block">@(item.PayerName ?? "No payer recorded")</span></td>
-                            <td>@item.Disposition</td>
-                            <td class="v3-num v3-strong">@Money(item.TotalAmount)</td>
-                            <td>
-                                <details class="v3-details wcf-item-details">
-                                    <summary>@item.ItemCount item@(item.ItemCount == 1 ? "" : "s")</summary>
-                                    @foreach (var line in item.Lines)
-                                    {
-                                        <dl class="wcf-facts">
-                                            <dt>Source</dt><dd>@SourceNames.For("WCF", line.ClassificationName)</dd>
-                                            <dt>Payer</dt><dd>@(item.PayerName ?? "Not recorded")</dd>
-                                            @if (StallOf(line) is { } stall)
-                                            {
-                                                <dt>Stall</dt><dd>@stall</dd>
-                                            }
-                                            <dt>Billing period</dt><dd>@(line.BillingYear is { } year && line.BillingMonth is { } month ? Period(year, month) : "Not recorded")</dd>
-                                            <dt>Approved amount</dt><dd>@Money(line.Amount)</dd>
-                                            <dt>Reference</dt><dd>@item.ReferenceCode</dd>
-                                            <dt>Status</dt><dd>@item.Disposition</dd>
-                                        </dl>
-                                    }
-                                </details>
-                            </td>
-                        </tr>
-                    }
-                    @if (_activity.Count == 0)
-                    {
-                        <tr><td class="v3-empty" colspan="5">No WCF collections were posted in @ThroughPeriodLabel.</td></tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </section>
-
-    @if (_exceptions.Count > 0)
-    {
-        <section class="v3-panel" aria-labelledby="wcf-reconciliation-title">
-            <header class="v3-panel-header">
-                <h2 id="wcf-reconciliation-title">Collections needing review</h2>
-                <span class="v3-panel-meta">@(_exceptions.Count == 0 ? "None recorded" : $"{_exceptions.Count} need office review")</span>
-            </header>
-            @if (_exceptions.Count > 0)
+        }
+    </Notices>
+    <SourceActions Context="source">
+        @if (source.Mode == "Direct")
+        {
+            <p class="wcf-note">Direct collections are recorded by Collectors on Mobile.</p>
+        }
+        else if (source.UtilityBillId is not null && source.Mode == "Prepared" && source.Outstanding > 0m)
+        {
+            @if (source.Authority == SettlementAuthority.PendingCutover || source.Authority == SettlementAuthority.Legacy && source.Collected > 0m)
             {
-                <p class="v3-panel-note">Earlier collector submissions that could not be accepted as collections. They stay out of the books until the office reviews them.</p>
+                <button class="v3-btn" type="button" disabled="@_busy" @onclick="() => OpenMigrationAsync(source)">Review authority</button>
             }
-            <div class="v3-table-wrap" role="region" aria-label="WCF reconciliation exceptions" tabindex="0">
+            else
+            {
+                <p class="wcf-note">Payments against this amount are recorded by Collectors on Mobile.</p>
+            }
+        }
+    </SourceActions>
+    <Activity>
+        <section class="v3-panel" aria-labelledby="wcf-activity-title">
+            <header class="v3-panel-header wcf-activity-header">
+                <h2 id="wcf-activity-title">Collection activity</h2>
+                <div class="wcf-activity-controls no-print">
+                    <span class="v3-panel-meta">@FilteredActivity.Count() of @_activity.Count in @_periodLabel · <a href="/collections/activity">All collections</a></span>
+                    <label class="v3-search">
+                        <span class="v3-sr-only">Search WCF collections</span>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
+                        <input type="search" placeholder="Search SRC or payer" aria-label="Search WCF collections" @bind="_activitySearch" @bind:event="oninput" />
+                    </label>
+                    <select class="v3-select" aria-label="Filter collections by status" @bind="_dispositionFilter">
+                        <option value="">All statuses</option>
+                        @foreach (var disposition in _activity.Select(x => x.Disposition).Distinct().OrderBy(x => x))
+                        {
+                            <option value="@disposition">@disposition</option>
+                        }
+                    </select>
+                </div>
+            </header>
+            <div class="v3-table-wrap" role="region" aria-label="Posted WCF collections" tabindex="0">
                 <table class="v3-table">
-                    <thead><tr><th scope="col">Recorded</th><th scope="col">Physical document</th><th scope="col">Operation</th><th scope="col">Reason</th><th scope="col">Evidence</th></tr></thead>
+                    <caption class="v3-sr-only">WCF collections for @_periodLabel</caption>
+                    <thead><tr><th scope="col">Business date</th><th scope="col">Reference · payer</th><th scope="col">Status</th><th scope="col" class="v3-num">Total</th><th scope="col">Items</th></tr></thead>
                     <tbody>
-                        @foreach (var exception in _exceptions)
+                        @foreach (var item in FilteredActivity)
                         {
                             <tr>
-                                <td>@PhilippineTime.ToPhilippineTime(exception.RecordedAtUtc).ToString("dd MMM yyyy HH:mm") PHT</td>
-                                <td class="v3-strong">@(exception.DocumentNumber ?? "—")</td>
-                                <td class="v3-muted">@ShortId(exception.ClientOperationId)</td>
-                                <td>@exception.OutcomeCode</td>
-                                <td>@exception.OutcomeDetails</td>
+                                <td>@item.BusinessDate.ToString("dd MMM yyyy")<span class="v3-block">Recorded @PhilippineTime.ToPhilippineTime(item.RecordedAtUtc).ToString("HH:mm") PHT</span></td>
+                                <td><a class="v3-strong" href="@($"/collections/activity?src={Uri.EscapeDataString(item.ReferenceCode)}")">@item.ReferenceCode</a><span class="v3-block">@(item.PayerName ?? "No payer recorded")</span></td>
+                                <td>@item.Disposition</td>
+                                <td class="v3-num v3-strong">@Money(item.TotalAmount)</td>
+                                <td>
+                                    <details class="v3-details wcf-item-details">
+                                        <summary>@item.ItemCount item@(item.ItemCount == 1 ? "" : "s")</summary>
+                                        @foreach (var line in item.Lines)
+                                        {
+                                            <dl class="wcf-facts">
+                                                <dt>Source</dt><dd>@SourceNames.For("WCF", line.ClassificationName)</dd>
+                                                <dt>Payer</dt><dd>@(item.PayerName ?? "Not recorded")</dd>
+                                                @if (StallOf(line) is { } stall)
+                                                {
+                                                    <dt>Stall</dt><dd>@stall</dd>
+                                                }
+                                                <dt>Billing period</dt><dd>@(line.BillingYear is { } year && line.BillingMonth is { } month ? Period(year, month) : "Not recorded")</dd>
+                                                <dt>Amount</dt><dd>@Money(line.Amount)</dd>
+                                                <dt>Reference</dt><dd>@item.ReferenceCode</dd>
+                                                <dt>Status</dt><dd>@item.Disposition</dd>
+                                            </dl>
+                                        }
+                                    </details>
+                                </td>
                             </tr>
                         }
-                        @if (_exceptions.Count == 0)
+                        @if (!FilteredActivity.Any())
                         {
-                            <tr><td class="v3-empty" colspan="5">No collections need review.</td></tr>
+                            <tr><td class="v3-empty" colspan="5">@(_activityError ?? (_activity.Count > 0 ? "No collections match this search." : $"No WCF collections were recorded in {_periodLabel}."))</td></tr>
                         }
                     </tbody>
                 </table>
             </div>
         </section>
-    }
-</div>
+
+        @if (_exceptions.Count > 0)
+        {
+            <section class="v3-panel" aria-labelledby="wcf-reconciliation-title">
+                <header class="v3-panel-header">
+                    <h2 id="wcf-reconciliation-title">Collections needing review</h2>
+                    <span class="v3-panel-meta">@_exceptions.Count need office review</span>
+                </header>
+                <p class="v3-panel-note">Earlier collector submissions that could not be accepted as collections. They stay out of the books until the office reviews them.</p>
+                <div class="v3-table-wrap" role="region" aria-label="WCF reconciliation exceptions" tabindex="0">
+                    <table class="v3-table">
+                        <thead><tr><th scope="col">Recorded</th><th scope="col">Physical document</th><th scope="col">Operation</th><th scope="col">Reason</th><th scope="col">Evidence</th></tr></thead>
+                        <tbody>
+                            @foreach (var exception in _exceptions)
+                            {
+                                <tr>
+                                    <td>@PhilippineTime.ToPhilippineTime(exception.RecordedAtUtc).ToString("dd MMM yyyy HH:mm") PHT</td>
+                                    <td class="v3-strong">@(exception.DocumentNumber ?? "—")</td>
+                                    <td class="v3-muted">@ShortId(exception.ClientOperationId)</td>
+                                    <td>@exception.OutcomeCode</td>
+                                    <td>@exception.OutcomeDetails</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        }
+    </Activity>
+</UtilityWorkspace>
+
+@if (_confirming)
+{
+    <div class="v3-modal-backdrop" role="presentation" @onclick="() => _confirming = false">
+        <section class="v3-modal wcf-confirm" role="dialog" aria-modal="true" aria-labelledby="wcf-confirm-title" @onclick:stopPropagation="true">
+            <header class="v3-modal-header">
+                <h2 id="wcf-confirm-title">Enable WCF Mobile collection?</h2>
+            </header>
+            <div class="v3-modal-body">
+                <p>Collectors assigned to Water Consumption Fees will be able to record new WCF collections on Mobile. Each collection is given its own StallTrack reference code (SRC).</p>
+                <dl class="wcf-confirm-facts">
+                    <div><dt>Amount method</dt><dd>Direct amount</dd></div>
+                    <div><dt>Historical Water records</dt><dd>Not changed</dd></div>
+                </dl>
+            </div>
+            <footer class="v3-modal-footer">
+                <button class="v3-btn" type="button" @onclick="() => _confirming = false">Cancel</button>
+                <button class="v3-btn v3-btn-primary" type="button" disabled="@_enabling" @onclick="EnableAsync">Enable Mobile Collection</button>
+            </footer>
+        </section>
+    </div>
+}
+@if (_migrating is not null)
+{
+    <WcfLegacyMigrationDialog Source="_migrating" Period="@_periodLabel" OnClose="() => _migrating = null" OnActivated="MigratedAsync" />
+}
 
 @code {
-    private DateOnly _through = PhilippineTime.Today;
-    private string _monthInput = PhilippineTime.Today.ToString("yyyy-MM");
-    private string _searchText = string.Empty;
-    private List<WcfObligationQuoteDto> _quotes = [];
+    private UtilityWorkspace? _workspace;
+    private int _year = PhilippineTime.Today.Year, _month = PhilippineTime.Today.Month;
+    private string _periodLabel = PhilippineTime.Today.ToString("MMMM yyyy");
     private List<WcfCollectionActivityDto> _activity = [];
     private List<WcfReconciliationExceptionDto> _exceptions = [];
+    private string _activitySearch = "", _dispositionFilter = "";
+    private string? _error, _message, _activityError;
     private bool _busy;
-    private string? _error;
+    private WcfSetupSourceDto? _migrating;
 
-    private string ThroughPeriodLabel => _through.ToString("MMMM yyyy");
+    private IEnumerable<WcfCollectionActivityDto> FilteredActivity => _activity.Where(x =>
+        (_dispositionFilter.Length == 0 || x.Disposition == _dispositionFilter)
+        && (string.IsNullOrWhiteSpace(_activitySearch)
+            || x.ReferenceCode.Contains(_activitySearch.Trim(), StringComparison.OrdinalIgnoreCase)
+            || (x.PayerName?.Contains(_activitySearch.Trim(), StringComparison.OrdinalIgnoreCase) ?? false)));
 
-    private IEnumerable<WcfObligationQuoteDto> FilteredQuotes => _quotes.Where(x =>
-        string.IsNullOrWhiteSpace(_searchText)
-        || (x.PayerNameSnapshot?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false)
-        || x.StallNo.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
-        || x.FacilityName.Contains(_searchText, StringComparison.OrdinalIgnoreCase)
-        || x.Section.Contains(_searchText, StringComparison.OrdinalIgnoreCase));
-
-    protected override Task OnInitializedAsync() => LoadAsync();
-
-    private async Task ChangeMonthAsync(ChangeEventArgs args)
+    // The register loads the month; this page then reads that month's activity, the reconciliation exceptions and the Mobile status.
+    private async Task PeriodLoadedAsync((int Year, int Month) period)
     {
-        var value = args.Value?.ToString();
-        if (DateOnly.TryParseExact(value + "-01", "yyyy-MM-dd", out var parsed))
-        {
-            _through = parsed;
-            _monthInput = parsed.ToString("yyyy-MM");
-            await LoadAsync();
-        }
-    }
-
-    // Book custody and collector lists moved to Accountable Forms with the forms that used them; this page now reads
-    // only what it displays.
-    private async Task LoadAsync()
-    {
-        _busy = true;
-        _error = null;
+        (_year, _month) = period;
+        _periodLabel = new DateOnly(period.Year, period.Month, 1).ToString("MMMM yyyy");
         try
         {
-            var obligations = await WcfApi.GetObligationsAsync(_through.Year, _through.Month);
-            if (!obligations.IsSuccess) _error = obligations.Error ?? "Unable to load WCF source facts.";
-            else _quotes = obligations.Value?.ToList() ?? [];
-            var from = new DateOnly(_through.Year, _through.Month, 1);
+            var from = new DateOnly(period.Year, period.Month, 1);
             var activity = await WcfApi.GetActivityAsync(from, from.AddMonths(1).AddDays(-1));
-            if (!activity.IsSuccess) _error ??= activity.Error ?? "Unable to load WCF Collection Activity.";
-            else _activity = activity.Value?.ToList() ?? [];
+            _activityError = activity.IsSuccess ? null : "Collection activity could not be loaded.";
+            _activity = activity.IsSuccess ? activity.Value?.ToList() ?? [] : [];
             var exceptions = await WcfApi.GetReconciliationExceptionsAsync();
-            if (!exceptions.IsSuccess) _error ??= exceptions.Error ?? "Unable to load WCF reconciliation exceptions.";
-            else _exceptions = exceptions.Value?.ToList() ?? [];
+            _exceptions = exceptions.IsSuccess ? exceptions.Value?.ToList() ?? [] : [];
         }
-        catch (Exception ex) { _error = ex.Message; }
-        finally { _busy = false; }
+        catch { _activityError = "Collection activity could not be loaded."; }
         await LoadMobileStatusAsync();
+    }
+
+    // The legacy migration dialog works on the setup-source row of the same bill.
+    private async Task OpenMigrationAsync(UtilityRegisterRowDto row)
+    {
+        _busy = true; _error = null; _message = null;
+        try
+        {
+            var result = await WcfApi.GetSetupSourcesAsync(_year, _month);
+            var source = result is { IsSuccess: true, Value: { } list } ? list.FirstOrDefault(x => x.UtilityBillId == row.UtilityBillId) : null;
+            if (source is null) _error = "The source could not be opened for review.";
+            else _migrating = source;
+        }
+        catch { _error = "The source could not be opened for review."; }
+        finally { _busy = false; }
+    }
+
+    private async Task MigratedAsync(string stallNo)
+    {
+        _migrating = null;
+        _message = $"Stall {stallNo} is active for canonical collection.";
+        if (_workspace is not null) await _workspace.RefreshAsync();
     }
 
     // The stall number recorded in the collection's stored source evidence, for display only. The evidence itself (and its
@@ -400,16 +339,6 @@
         }
         finally { _enabling = false; }
     }
-
-    /// <summary>Read-only state of one obligation; collection itself happens on Collector Mobile.</summary>
-    private static string CollectionState(WcfObligationQuoteDto quote) => quote switch
-    {
-        { SettlementAuthority: SettlementAuthority.Legacy } when quote.OutstandingAmount > 0m => "Not open for collection",
-        { SettlementAuthority: SettlementAuthority.PendingCutover } => "Reconciliation in progress",
-        { OutstandingAmount: <= 0m } => "Settled",
-        { CanCollectCanonical: true } => "Open for field collection",
-        _ => "Not open for collection",
-    };
 
     private static string Period(int year, int month) => new DateTime(year, month, 1).ToString("MMM yyyy");
     private static string Money(decimal amount) => $"₱{amount:N2}";

@@ -1,5 +1,14 @@
 .op-back {
     margin-top: 12px;
+    width: 100%;
+    min-height: 44px;
+}
+
+/* The quieter of two actions (Back to menu beside Try again): readable navy text, never the muted grey of the shared cancel style. */
+.op-back-secondary {
+    background: var(--mobile-surface);
+    color: var(--mobile-navy);
+    border: 1.5px solid var(--mobile-border);
 }
 
 /* Same segmented treatment as NPM Daily / Whole, independent of governed-service variants. */
