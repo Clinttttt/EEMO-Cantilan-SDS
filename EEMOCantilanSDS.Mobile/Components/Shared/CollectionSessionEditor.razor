@@ -233,7 +233,17 @@ else
                         <button class="collection-option" type="button" @onclick="() => Choose(row.OperationCode!)"><span class="option-text"><strong>@OperationLabel(row)</strong>@if (OperationDetail(row) is { } detail) { <small>@detail</small> }</span> <span aria-hidden="true">›</span></button>
                     }
                 }
-                @if (!PickerSections.Any()) { <div class="sheet-note">Nothing available for this source.</div> }
+                @if (LinkedUtilities.Count > 0)
+                {
+                    @* A registered vendor linked by the office to an NPM stall: that stall's utilities, each a separate payment under the stall (never a shared checkout). *@
+                    <div class="sheet-group">Utilities</div>
+                    @foreach (var offer in LinkedUtilities)
+                    {
+                        <button class="collection-option" type="button" disabled="@(_busy || _items.Count > 0)" @onclick="() => OpenLinkedUtilityAsync(offer.Link, offer.Code)"><span class="option-text"><strong>@offer.Name</strong><small>@offer.Link.Context · separate payment</small></span> <span aria-hidden="true">›</span></button>
+                    }
+                    @if (_items.Count > 0) { <div class="sheet-note">Record or remove the current items before collecting a utility.</div> }
+                }
+                @if (!PickerSections.Any() && LinkedUtilities.Count == 0) { <div class="sheet-note">Nothing available for this source.</div> }
             }
             else
             {
@@ -627,6 +637,20 @@ else
 
     // A source chosen from the browser goes straight to what the server says it can be collected for: the Add item sheet opens on the eligible
     // charges instead of leaving the collector at an empty items list. Nothing is opened when the server offers nothing.
+    // The utilities a vendor's office-linked NPM stall offers this collector, by the stall's own identity. Choosing one opens the stall as its own source
+    // and its own checkout: the instrument, amount and eligibility are the stall's, exactly as if the stall had been picked directly.
+    private sealed record LinkedUtility(CollectionSourceSearchResult Link, string Code, string Name);
+    private IReadOnlyList<LinkedUtility> LinkedUtilities => Correction is not null ? [] : (_discovery?.LinkedSources ?? [])
+        .SelectMany(l => (l.Utilities ?? []).Select(code => new LinkedUtility(l, code, code == "ECF" ? "Electricity Consumption Fees" : "Water Consumption Fees"))).ToList();
+
+    private async Task OpenLinkedUtilityAsync(CollectionSourceSearchResult link, string code)
+    {
+        if (_items.Count > 0 || _busy) return;
+        ClosePicker();
+        await SelectBrowsedAsync(link);
+        if (_picker && Offered.Any(x => x.OperationCode == code)) Choose(code);
+    }
+
     private async Task SelectBrowsedAsync(CollectionSourceSearchResult found)
     {
         await SelectSourceAsync(found);
@@ -660,7 +684,7 @@ else
         // A dedicated page with a single thing on offer goes straight to it; one with several (Fish / Meat: Vendor Fee and Weight & Measure) lists them.
         if (OnlyOperation is not null && Offered is [{ } only]) Choose(only.OperationCode);
         // Never open a sheet with nothing to choose: say why, in the page, where the collector is looking.
-        if (_operation is null && !PickerSections.Any())
+        if (_operation is null && !PickerSections.Any() && LinkedUtilities.Count == 0)
         {
             _message ??= "Nothing available for this source.";
             return;

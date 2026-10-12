@@ -27,8 +27,12 @@ public sealed partial class CollectionSessionSources
                 .SingleOrDefaultAsync(x => x.MunicipalityId == Tenant && x.Id == association.StallId && x.Facility!.Code == FacilityCode.NPM, ct);
             var answering = stall?.OccupancyAnsweringForMonth(date.Year, date.Month, date)?.Contract;
             if (stall is null || answering is null || answering.Id != association.ContractId) continue;   // the stall has since passed to another occupancy
+            // The stall's own discovery decides which utilities it offers this collector today, so what a vendor's picker advertises is
+            // exactly what the stall's picker will then offer. Nothing is inferred from the vendor, and no utility is invented for it.
+            var stallOffers = await DiscoverNativeAsync(new(SourceIdentityKind.Occupancy, answering.Id), date, ct);
+            var utilities = stallOffers.Operations.Where(x => x.OperationCode is "ECF" or "WCF").Select(x => x.OperationCode).Distinct().Order().ToArray();
             linked.Add(new(new(SourceIdentityKind.Occupancy, answering.Id), answering.ActualOccupant ?? association.OccupantSnapshot,
-                $"{stall.Facility!.Name} · Stall {stall.StallNo}", "FACILITY_" + stall.Facility.Code));
+                $"{stall.Facility!.Name} · Stall {stall.StallNo}", "FACILITY_" + stall.Facility.Code, Utilities: utilities.Length == 0 ? null : utilities));
         }
         return linked;
     }

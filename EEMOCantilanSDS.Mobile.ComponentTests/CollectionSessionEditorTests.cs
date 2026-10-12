@@ -1096,4 +1096,45 @@ public sealed class CollectionSessionEditorTests : TestContext
         Assert.Single(view.FindAll(".item-row"));
         Assert.Contains("already in this collection", view.Markup);
     }
+
+    [Fact]
+    public void A_vendors_linked_stall_utilities_are_listed_under_Utilities_and_open_the_stall_as_its_own_source()
+    {
+        ServeFishVendor();
+        var linked = new CollectionSourceSearchResult(Occupancy, "Ana Reyes", "New Public Market · Stall 1", "FACILITY_NPM", Utilities: ["ECF"]);
+        var served = _api.Object.GetSourceCollectionDiscoveryAsync(FishVendor).GetAwaiter().GetResult().Value!;
+        _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(FishVendor)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(served with { LinkedSources = [linked] }));
+        ServeEcfSource();
+        ServeRecent();
+        var view = PickSource("Pantom Dant");
+
+        Click(view, "+ Add item");
+        var sheet = view.Find("[role=dialog]");
+        Assert.Contains("Income from Market", sheet.TextContent);                         // the vendor's own two fees stay where they were
+        Assert.Contains("Fish / Meat Vendor Fee", sheet.TextContent);
+        Assert.Contains("Utilities", sheet.TextContent);
+        Assert.Contains("Electricity Consumption Fees", sheet.TextContent);
+        Assert.DoesNotContain("Water Consumption Fees", sheet.TextContent);              // only what the stall really offers
+        Assert.Contains("separate payment", sheet.TextContent);
+
+        sheet.QuerySelectorAll(".collection-option").Single(b => b.TextContent.Contains("Electricity Consumption Fees")).Click();
+
+        view.WaitForAssertion(() =>
+        {
+            Assert.Equal("Ana Reyes", view.Find(".payer-selected strong").TextContent.Trim());           // the stall is now the source, by its own identity
+            Assert.Contains("Electricity", view.Find("[role=dialog]").TextContent);
+        }, TimeSpan.FromSeconds(3));
+        Assert.Empty(_queue);                                                                              // choosing a utility recorded nothing
+    }
+
+    [Fact]
+    public void A_vendor_without_a_linked_stall_utility_shows_no_Utilities_group()
+    {
+        ServeFishVendor();
+        var view = PickSource("Pantom Dant");
+
+        Click(view, "+ Add item");
+
+        Assert.DoesNotContain("Utilities", view.Find("[role=dialog]").TextContent);
+    }
 }

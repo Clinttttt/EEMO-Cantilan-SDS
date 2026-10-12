@@ -52,7 +52,7 @@ public sealed partial class CollectionSessionSources
         if (assigned.Contains(CollectorOperationCodes.FishMeatVendorFee) || assigned.Contains(CollectorOperationCodes.WeightAndMeasure))
             results.AddRange(await db.FishMeatVendorRegistrations.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.TaxYear == today.Year && x.Status == VendorRegistrationStatus.Active && x.DisplayName.ToLower().Contains(term))
                 .OrderBy(x => x.DisplayName).ThenBy(x => x.Id).Take(50).Select(x => new CollectionSourceSearchResult(new(SourceIdentityKind.FishMeatVendorRegistration, x.Id),
-                    x.DisplayName, x.VendorType.ToString() + " · " + x.TaxYear, CollectorOperationCodes.FishMeatVendorFee, x.TaxYear, x.VendorType)).ToListAsync(ct));
+                    x.DisplayName, x.VendorType.ToString() + " · " + x.TaxYear, CollectorOperationCodes.FishMeatVendorFee, x.TaxYear, x.VendorType, null)).ToListAsync(ct));
         return results.OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Identity.Kind).ThenBy(x => x.Identity.Id).Take(50).ToArray();
     }
     public async Task<CollectionSessionDiscovery> DiscoverNativeAsync(CollectionSourceIdentity? identity, DateOnly date, CancellationToken ct)
