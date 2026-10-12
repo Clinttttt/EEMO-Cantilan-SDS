@@ -81,6 +81,49 @@ public sealed class UtilityStatementsTests : TestContext
         }, Timeout);
     }
 
+    [Fact]
+    public void Ecf_AnOfficeThatHasNotFinishedSetup_SeesSetupRequiredWithTheServersReason_NotAGenericLoadFailure()
+    {
+        var api = new Mock<IEcfCollectionsApiClient>();
+        api.Setup(x => x.GetObligationsAsync(It.IsAny<int>(), It.IsAny<int>())).ReturnsAsync(
+            Result<IReadOnlyList<EcfObligationQuoteDto>>.Failure("ECF has no active revenue classification for this tenant.", 409));
+        Services.AddSingleton(api.Object);
+
+        var cut = RenderComponent<ElectricityConsumptionFeesStatements>();
+
+        cut.WaitForAssertion(() =>
+        {
+            var notice = cut.Find("[role=alert]");
+            Assert.Contains("Setup required", notice.TextContent);
+            Assert.Contains("ECF has no active revenue classification for this tenant.", notice.TextContent);
+            Assert.Equal("/settings/revenue", notice.QuerySelector("a")!.GetAttribute("href"));
+            Assert.DoesNotContain("be loaded", cut.Markup);
+            Assert.Empty(cut.FindAll("button:contains(\"Try again\")"));
+        }, Timeout);
+    }
+
+    [Fact]
+    public void Wcf_AnOfficeThatHasNotFinishedSetup_SeesSetupRequired_AndATemporaryFailureStillOffersRetry()
+    {
+        var api = new Mock<IWcfCollectionsApiClient>();
+        api.SetupSequence(x => x.GetObligationsAsync(It.IsAny<int>(), It.IsAny<int>()))
+            .ReturnsAsync(Result<IReadOnlyList<WcfObligationQuoteDto>>.Failure("WCF has no active revenue classification for this tenant.", 409))
+            .ReturnsAsync(Result<IReadOnlyList<WcfObligationQuoteDto>>.Failure("down", 503));
+        Services.AddSingleton(api.Object);
+
+        var cut = RenderComponent<WaterConsumptionFeesStatements>();
+        cut.WaitForAssertion(() => Assert.Contains("Setup required", cut.Find("[role=alert]").TextContent), Timeout);
+        Assert.Empty(cut.FindAll("[role=alert] button"));
+
+        // A month change reloads; a 503 is a temporary failure, not setup: generic wording with an explicit retry.
+        cut.Find("input[type=month], input[type=date]").Change("2026-09");
+        cut.WaitForAssertion(() =>
+        {
+            Assert.DoesNotContain("Setup required", cut.Find("[role=alert]").TextContent);
+            Assert.Single(cut.FindAll("[role=alert] button"));
+        }, Timeout);
+    }
+
     private static EcfObligationQuoteDto Quote(string payor, decimal assessed, decimal settled, decimal outstanding) => new(
         Guid.NewGuid(), Guid.NewGuid(), CollectionSourceKind.UtilityBill, CollectionSourcePart.Electricity, 1, Stall, "A-1", "NPM", "Dry Goods",
         2026, 10, 0m, 0m, 0m, 0m, assessed, settled, outstanding, SettlementAuthority.Legacy, null, payor,

@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Common.Interface.Security;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using System;
 using System.Linq;
 using System.Security.Cryptography;
@@ -167,6 +168,16 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                     var selected = d?.Selected == true;
                     context.TenantOperationSettings.Add(TenantOperationSetting.Create(
                         entry.Code, selected, selected ? d!.LocalDisplayName : null, "Onboarding", municipality.Id, "Activation"));
+
+                    // ECF and WCF cannot be collected until the office has a revenue classification AND an approved accountable
+                    // instrument for them, and an office has neither at activation (the platform seeds classifications for no
+                    // tenant but the one whose rulings they are). For an operation the LGU SELECTED, create the classification
+                    // itself and nothing else: no policy version, so no instrument is chosen for the office, nothing is
+                    // authorized, and the utility workflows keep refusing until the Head approves an instrument in Revenue Setup.
+                    // It exists so Revenue Setup lists the source (with its Setup-required state) instead of the Head having to
+                    // know and type an internal code. An unselected operation gets nothing.
+                    if (selected && entry.Code is "ECF" or "WCF")
+                        context.RevenueClassifications.Add(RevenueClassification.Create(entry.ClassificationCode, municipality.Id, "Activation"));
                 }
             }
 

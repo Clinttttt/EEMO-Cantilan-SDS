@@ -350,4 +350,105 @@ public sealed class OnboardingActivationTests(PostgresFixture db)
         Assert.Equal("Activation", request.Stage); // still retryable
         Assert.Equal(0, email.Sent); // nobody was told a portal is live
     }
+
+    // ---- ECF / WCF setup for a newly activated office --------------------------------------------------------------------
+
+    private sealed class HeadActor(Guid tenantId) : ICurrentUserService
+    {
+        public bool IsAuthenticated => true;
+        public EEMOCantilanSDS.Application.Queries.Auth.GetCurrentUser.AdminUserDto? GetCurrentUser() => null;
+        public Guid? UserId => Guid.NewGuid();
+        public string? Username => "madrid.head";
+        public string? Role => "SuperAdmin";
+        public Guid? CollectorId => null;
+        public string? MunicipalityCode => "madrid";
+        public Guid? MunicipalityId => tenantId;
+    }
+
+    private sealed class FixedTenant(Guid id) : EEMOCantilanSDS.Application.Common.Tenancy.ICurrentMunicipalityAccessor
+    {
+        public Guid MunicipalityId => id;
+        public void Set(Guid municipalityId) { }
+    }
+
+    private static readonly ActivationFacility[] OneMarket = [Fac(FacilityCode.NPM, "Madrid Pamilihan", BillingArchetype.DailyStall)];
+    private static readonly ActivationRate[] OneRate = [new(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 35m)];
+
+    private async Task<string[]> ClassificationsOfAsync(Guid tenant)
+    {
+        await using var verify = db.CreateContext(Guid.Empty);
+        return await verify.RevenueClassifications.IgnoreQueryFilters().Where(c => c.MunicipalityId == tenant)
+            .OrderBy(c => c.SemanticCode).Select(c => c.SemanticCode).ToArrayAsync();
+    }
+
+    private async Task<EEMOCantilanSDS.Application.Common.Result<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Revenue.EcfObligationQuoteDto>>> EcfObligationsAsync(Guid tenant)
+    {
+        await using var context = db.CreateContext(tenant);
+        return await new EEMOCantilanSDS.Application.Common.Revenue.EcfCollectionWorkflow(context, new HeadActor(tenant), new FixedTenant(tenant))
+            .GetObligationsAsync(PhilippineTime.Today.Year, PhilippineTime.Today.Month);
+    }
+
+    [SkippableFact]
+    public async Task SelectedEcfAndWcf_GetADormantClassification_NoPolicy_NoInstrument_AndNothingIsAuthorized()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        var w = await SeedAsync();
+        var result = await ActivateAsync(w, Command(w, OneMarket, OneRate,
+            [new ActivationOperation("ECF", true), new ActivationOperation("WCF", true), new ActivationOperation("LANDING_BERTHING", true)]));
+        Assert.True(result.IsSuccess, result.Error);
+
+        // Only the two utilities that need one - not Landing/Berthing, which was selected too, and nothing else.
+        Assert.Equal(["ECF", "WCF"], await ClassificationsOfAsync(w.TargetId));
+        await using (var verify = db.CreateContext(Guid.Empty))
+        {
+            Assert.Equal(0, await verify.RevenueClassificationPolicies.IgnoreQueryFilters().CountAsync(p => p.MunicipalityId == w.TargetId));
+            Assert.Equal(0, await verify.UtilityBills.IgnoreQueryFilters().CountAsync(b => b.MunicipalityId == w.TargetId));
+            Assert.Equal(0, await verify.Collections.IgnoreQueryFilters().CountAsync(c => c.MunicipalityId == w.TargetId));
+        }
+
+        // The classification alone authorizes nothing: the utility still refuses, and says what is missing.
+        var refused = await EcfObligationsAsync(w.TargetId);
+        Assert.False(refused.IsSuccess);
+        Assert.Equal(EEMOCantilanSDS.Application.Common.ResultStatus.Conflict, refused.Status);
+        Assert.Contains("does not approve Official Receipt", refused.Error);
+    }
+
+    [SkippableFact]
+    public async Task TheHeadFinishesEcfSetupInRevenueSetup_ThenTheUtilityWorks_AndStillInventsNothing()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        var w = await SeedAsync();
+        Assert.True((await ActivateAsync(w, Command(w, OneMarket, OneRate, [new ActivationOperation("ECF", true)]))).IsSuccess);
+        Guid classificationId;
+        await using (var read = db.CreateContext(Guid.Empty))
+            classificationId = (await read.RevenueClassifications.IgnoreQueryFilters().SingleAsync(c => c.MunicipalityId == w.TargetId)).Id;
+
+        await using (var context = db.CreateContext(w.TargetId))
+        {
+            var appended = await new EEMOCantilanSDS.Application.Command.Revenue.AppendRevenueClassificationPolicy.AppendRevenueClassificationPolicyCommandHandler(context, new HeadActor(w.TargetId))
+                .Handle(new(classificationId, PhilippineTime.Today, "Electricity Consumption Fees", null, RevenueInstrumentType.OfficialReceipt), CancellationToken.None);
+            Assert.True(appended.IsSuccess, appended.Error);
+        }
+
+        var obligations = await EcfObligationsAsync(w.TargetId);
+        Assert.True(obligations.IsSuccess, obligations.Error);
+        Assert.Empty(obligations.Value!); // no source is registered, so no obligation exists: nothing is invented
+    }
+
+    [SkippableFact]
+    public async Task UnselectedOrUndeclaredUtilities_GetNoClassification_AndExistingOfficesAreUntouched()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        var w = await SeedAsync();
+        Assert.True((await ActivateAsync(w, Command(w, OneMarket, OneRate, [new ActivationOperation("ECF", false), new ActivationOperation("WCF", true)]))).IsSuccess);
+        Assert.Equal(["WCF"], await ClassificationsOfAsync(w.TargetId));
+        var unselected = await EcfObligationsAsync(w.TargetId);
+        Assert.False(unselected.IsSuccess);
+        Assert.Contains("no active revenue classification", unselected.Error);
+        Assert.Empty(await ClassificationsOfAsync(w.ReferenceTenantId)); // another office being activated gives an existing office nothing
+
+        var older = await SeedAsync();
+        Assert.True((await ActivateAsync(older, Command(older, OneMarket, OneRate, operations: null))).IsSuccess); // an older onboarding that declared nothing
+        Assert.Empty(await ClassificationsOfAsync(older.TargetId));
+    }
 }

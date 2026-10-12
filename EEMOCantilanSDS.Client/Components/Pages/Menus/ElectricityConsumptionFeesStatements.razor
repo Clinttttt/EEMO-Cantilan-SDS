@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
 @using System.Globalization
+@using EEMOCantilanSDS.Application.Common
 @using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Common
@@ -30,7 +31,14 @@
     @if (!string.IsNullOrWhiteSpace(_error))
     {
         <div class="no-print" role="alert">
-            <p class="v3-notice v3-notice-error v3-notice-row"><span>@_error</span> <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadAsync">Try again</button></p>
+            @if (_setupRequired)
+            {
+                <p class="v3-notice v3-notice-row"><span><strong>Setup required.</strong> @_error</span> <a class="v3-btn v3-btn-sm" href="/settings/revenue">Open Revenue Setup</a></p>
+            }
+            else
+            {
+                <p class="v3-notice v3-notice-error v3-notice-row"><span>@_error</span> <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadAsync">Try again</button></p>
+            }
             <div class="v3-toolbar">@MonthPicker</div>
         </div>
     }
@@ -54,6 +62,7 @@
     private List<UtilityStatements.StatementLine> _lines = [];
     private bool _loading = true;
     private string? _error;
+    private bool _setupRequired;
 
     private string PeriodLabel => _period.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
     private bool Ready => !_loading && _error is null;
@@ -80,10 +89,19 @@
     {
         _loading = true;
         _error = null;
+        _setupRequired = false;
         try
         {
             var result = await Api.GetObligationsAsync(_period.Year, _period.Month);
-            if (!result.IsSuccess) { _lines = []; _error = "The statements couldn't be loaded."; return; }
+            if (!result.IsSuccess)
+            {
+                _lines = [];
+                // The server refuses with a Conflict only when the office has not finished this utility's setup (its revenue
+                // classification or approved instrument); say that, in the server's words, instead of a generic load failure.
+                _setupRequired = result.Status == ResultStatus.Conflict && !string.IsNullOrWhiteSpace(result.Error);
+                _error = _setupRequired ? result.Error : "The statements couldn't be loaded.";
+                return;
+            }
             _lines = (result.Value ?? []).Select(q => new UtilityStatements.StatementLine(
                 q.StallId, q.StallNo, q.Section, q.PayerNameSnapshot ?? "Payer snapshot unavailable",
                 q.BillingYear, q.BillingMonth, q.AssessedAmount, q.CumulativeSettledEvidence, q.OutstandingAmount, q.FacilityName)).ToList();
