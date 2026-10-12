@@ -54,9 +54,15 @@ public sealed class GetCollectorOperationCapabilitiesQueryHandler(
                 .ToListAsync(ct))
             .ToHashSet(StringComparer.Ordinal);
 
+        // The municipality's own name for each operation, where it has set one. The Collector app prints the name it is sent, so an
+        // installed app shows it with no update; every code, status and reason below is unchanged. An office that has not adopted
+        // tenant configuration gets the standard names exactly as before.
+        var tenantNames = await Common.Onboarding.TenantOperationSettingsStore.DisplayNamesAsync(db, tenantId, ct);
+
         var operations = new List<CollectorOperationCapabilityDto>();
-        foreach (var (code, name) in CollectorOperationAssignmentWorkflow.Catalog)
+        foreach (var (code, standardName) in CollectorOperationAssignmentWorkflow.Catalog)
         {
+            var name = tenantNames.TryGetValue(code, out var tenantName) ? tenantName : standardName;
             if (!assigned.Contains(code))
             {
                 operations.Add(new(code, name, false, CollectorOperationCapabilityStatus.NotAssigned, false, []));

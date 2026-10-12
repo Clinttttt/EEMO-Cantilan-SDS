@@ -7,6 +7,8 @@
 @using EEMOCantilanSDS.Client.Services
 @inject IDashboardApiClient DashboardApi
 @inject IOfficialReportsApiClient OfficialReports
+@inject IServiceProvider Services
+@implements IDisposable
 <PageTitle>StallTrack — Dashboard</PageTitle>
 
 <header class="topbar">
@@ -203,7 +205,7 @@
                                         <div class="facility-card-icon">@((MarkupString)$"<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\">{op.IconMarkup}</svg>")</div>
                                         <div class="facility-card-meta">
                                             <div class="facility-card-code">@row.GroupLabel</div>
-                                            <div class="facility-card-name">@row.Label</div>
+                                            <div class="facility-card-name">@CardName(row)</div>
                                             <div class="fac-model-tag">@(row.AwaitingPlacement ? "Needs official placement" : DashboardOperations.ModelLabel(row.Model))</div>
                                         </div>
                                     </div>
@@ -220,7 +222,7 @@
                                     </div>
 
                                     <a href="@op.Route" class="facility-card-btn">
-                                        @op.Action
+                                        @ActionLabel(op, row)
                                         <svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18" /></svg>
                                     </a>
                                 </div>
@@ -382,8 +384,26 @@
     [PersistentState(AllowUpdates = true)]
     public DashboardOverviewDto? DashboardData { get; set; }
 
+    private OperationNameService? _names;
+
+    private void OnNamesChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        if (_names is not null) _names.Changed -= OnNamesChanged;
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        // The office's own operation names and listing, loaded beside - never before - the dashboard's own data. Resolved
+        // optionally and not awaited, so the cached-dashboard early return below and every API call keep their order and count.
+        _names = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<OperationNameService>(Services);
+        if (_names is not null)
+        {
+            _names.Changed += OnNamesChanged;
+            _ = _names.EnsureLoadedAsync();
+        }
+
         _loading = true;
 
         if (DashboardData is not null)
@@ -519,7 +539,24 @@ var button = _view == ViewRevenue ? _revToRev : _opsToOps;        try { await bu
     private IReadOnlyList<DashboardFacilityDto> Facilities => DashboardData?.Facilities ?? [];
     private IReadOnlyList<DashboardTransactionDto> RecentTransactions => DashboardData?.RecentTransactions ?? [];
     private IReadOnlyList<DashboardDelinquentDto> DelinquentVendors => DashboardData?.DelinquentVendors ?? [];
-    private IReadOnlyList<(DashboardOperations.Entry Entry, RevenueSourcePerformanceRowDto Row)> DirectCards => DashboardOperations.CardsFor(_source);
+    /// <summary>
+    /// The operation cards this office lists. An office that chose its operations sees only those (a source with recorded money is
+    /// always kept, so a hidden operation never hides activity); an office that never adopted configuration sees every card, as before.
+    /// </summary>
+    private IReadOnlyList<(DashboardOperations.Entry Entry, RevenueSourcePerformanceRowDto Row)> DirectCards =>
+        DashboardOperations.CardsFor(_source).Where(card => _names?.IsListed(card.Row.Key, HasActivity(card.Row)) ?? true).ToList();
+
+    private static bool HasActivity(RevenueSourcePerformanceRowDto row) =>
+        row.Collected != 0m || row.LegacyCollected != 0m || row.CanonicalCollected != 0m || row.AdjustmentAmount != 0m
+        || (row.TransactionCount ?? 0) > 0 || (row.DocumentCount ?? 0) > 0;
+
+    /// <summary>"Open Kanmanggay" becomes "Open Municipal Plaza Rental" for an office that named it so; every other action is unchanged.</summary>
+    private string ActionLabel(DashboardOperations.Entry op, RevenueSourcePerformanceRowDto row) =>
+        _names is { Adopted: true } && EEMOCantilanSDS.Domain.Constants.TenantOperationCatalog.FindBySourceKey(row.Key) is not null
+            ? $"Open {CardName(row)}"
+            : op.Action;
+
+    private string CardName(RevenueSourcePerformanceRowDto row) => _names?.NameForSource(row.Key, null, row.Label) ?? row.Label;
 
     // Collected is the official all-source total (legacy before cutover plus canonical after it, once) — the same figure the Revenue
     // sources table totals. A failed read is "unavailable", never a zero; the facility sum is no longer presented as the office total.

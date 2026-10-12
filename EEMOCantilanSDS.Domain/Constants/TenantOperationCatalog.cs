@@ -55,6 +55,15 @@ public static class TenantOperationCatalog
 
     public static bool IsKnown(string? code) => Find(code) is not null;
 
+    /// <summary>
+    /// The entry a revenue SOURCE key belongs to: the operation code itself, or the classification code activity is recorded under
+    /// (e.g. <c>TRANSPORTATION_PARKING</c> for the <c>TRANSPORTATION</c> operation). Null for anything this catalog does not cover
+    /// (facility rent, Tabo, Slaughterhouse, Fines, Arrears), which keeps its own name.
+    /// </summary>
+    public static Entry? FindBySourceKey(string? key) =>
+        string.IsNullOrWhiteSpace(key) ? null
+        : All.FirstOrDefault(e => string.Equals(e.Code, key, StringComparison.Ordinal) || string.Equals(e.ClassificationCode, key, StringComparison.Ordinal));
+
     /// <summary>Trims a label and treats blank as "no label", so the neutral name is used.</summary>
     public static string? NormalizeLabel(string? label)
     {

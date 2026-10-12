@@ -40,6 +40,26 @@ public static class TenantOperationSettingsStore
     }
 
     /// <summary>
+    /// The names a municipality has chosen for operations, by stable code - ONLY for a municipality that has adopted configuration and
+    /// only where it differs from nothing (an operation with no row is simply absent). A municipality that has not adopted gets an empty
+    /// map, so every caller keeps its established wording. Presentation only: never used to decide authority, classification or instrument.
+    /// </summary>
+    public static async Task<IReadOnlyDictionary<string, string>> DisplayNamesAsync(IAppDbContext context, Guid municipalityId, CancellationToken ct)
+    {
+        var rows = await context.TenantOperationSettings.AsNoTracking()
+            .Where(s => s.MunicipalityId == municipalityId)
+            .Select(s => new { s.OperationCode, s.LocalDisplayName })
+            .ToListAsync(ct);
+        if (rows.Count == 0) return new Dictionary<string, string>(StringComparer.Ordinal);
+
+        var byCode = rows.ToDictionary(r => r.OperationCode, r => r.LocalDisplayName, StringComparer.Ordinal);
+        var names = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var entry in TenantOperationCatalog.All)
+            names[entry.Code] = byCode.TryGetValue(entry.Code, out var label) && !string.IsNullOrWhiteSpace(label) ? label : entry.DefaultLabel;
+        return names;
+    }
+
+    /// <summary>
     /// Records the legacy state as explicit rows - every operation listed, under the wording it already has - so a municipality
     /// can then edit one of them without the others disappearing. Called only from an authorised edit, never on read.
     /// </summary>

@@ -47,8 +47,10 @@ public sealed class CollectorOperationAssignmentWorkflow(
             .Select(x => x.OperationCode)
             .ToListAsync(ct);
         var assignedCodes = assigned.ToHashSet(StringComparer.Ordinal);
+        // The office's own operation names where it has set them (presentation only; the assignment is by stable code).
+        var tenantNames = await Onboarding.TenantOperationSettingsStore.DisplayNamesAsync(db, tenantId, ct);
         IReadOnlyList<CollectorOperationAssignmentDto> result = Catalog
-            .Select(x => new CollectorOperationAssignmentDto(x.Code, x.Name, assignedCodes.Contains(x.Code)))
+            .Select(x => new CollectorOperationAssignmentDto(x.Code, tenantNames.TryGetValue(x.Code, out var shown) ? shown : x.Name, assignedCodes.Contains(x.Code)))
             .ToArray();
         return Result<IReadOnlyList<CollectorOperationAssignmentDto>>.Success(result);
     }

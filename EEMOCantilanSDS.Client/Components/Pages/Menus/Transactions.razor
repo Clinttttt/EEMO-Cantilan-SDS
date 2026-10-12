@@ -6,9 +6,11 @@
 @using EEMOCantilanSDS.Client.Components.Shared
 @inject ICollectionActivityApiClient ActivityApi
 @inject IJSRuntime JS
+@inject IServiceProvider Services
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 <PageTitle>StallTrack — Collection Activity</PageTitle>
+<OperationNameWatcher OnChanged="@(() => StateHasChanged())" />
 
 <header class="topbar">
     <div class="topbar-left">
@@ -256,7 +258,7 @@
                                 {
                                     <tr class="txn-subrow">
                                         <td></td>
-                                        <td colspan="2"><div class="txn-subref">@SourceNames.For(line.ClassificationCode, line.ClassificationName)</div></td>
+                                        <td colspan="2"><div class="txn-subref">@SourceName(line.ClassificationCode, line.ClassificationName)</div></td>
                                         <td>
                                             <div class="txn-subref">@LineDetail(line)</div>
                                         </td>
@@ -384,13 +386,18 @@
     private string ScopeLabel => _source != AllSources ? _source
         : _scope == "all" ? "All sources" : Scopes.First(s => s.Key == _scope).Label;
 
+    /// <summary>The name this office uses for a source (its own operation name where it has set one); the established name otherwise.</summary>
+    private string SourceName(string? code, string? name) =>
+        Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<OperationNameService>(Services)?.NameForSource(code, name)
+        ?? SourceNames.For(code, name);
+
     private string SourceLabel(CollectionActivityEventDto e)
     {
         var code = PrimaryCode(e);
         // Rent is read by facility: "Permanent Stall Rent" alone would merge every facility's stalls into one source.
         if (code == "PERMANENT_STALL_RENT" && e.Facility is { } fac)
             return $"{FacilityCatalog.ShortNameOf(fac)} rent";
-        return e.Lines.Count == 0 ? "Collection" : SourceNames.For(code, e.Lines[0].ClassificationName);
+        return e.Lines.Count == 0 ? "Collection" : SourceName(code, e.Lines[0].ClassificationName);
     }
 
     private static string Detail(CollectionActivityEventDto e) =>

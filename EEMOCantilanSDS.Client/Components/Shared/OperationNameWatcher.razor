@@ -1,0 +1,26 @@
+@implements IDisposable
+@inject IServiceProvider Services
+@* Renders nothing. Place it in a page that prints operation names through OperationNameService: it makes sure the municipality's
+   configuration is loaded (without waiting on it) and asks the page to redraw once it arrives or after the Head changes a name. It
+   gives a page that already has its own lifecycle a way to follow the names without touching that lifecycle. *@
+@code {
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private EEMOCantilanSDS.Client.Services.OperationNameService? _names;
+
+    protected override void OnInitialized()
+    {
+        _names = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
+            .GetService<EEMOCantilanSDS.Client.Services.OperationNameService>(Services);
+        if (_names is null) return;
+        _names.Changed += OnNamesChanged;
+        _ = _names.EnsureLoadedAsync();
+    }
+
+    private void OnNamesChanged() => _ = InvokeAsync(() => OnChanged.InvokeAsync());
+
+    public void Dispose()
+    {
+        if (_names is not null) _names.Changed -= OnNamesChanged;
+    }
+}

@@ -6,6 +6,7 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @inject IGovernedServicesApiClient GovernedApi
 @inject IJSRuntime JS
+@inject IServiceProvider Services
 @implements IAsyncDisposable
 
 @* The body of a governed configurable service (IA-044): its approved setup, and what has actually been collected.
@@ -26,9 +27,9 @@
             <p class="v3-notice v3-notice-error gsw-notice" role="alert">@_activityError</p>
         }
 
-        <div class="v3-table-wrap gsw-scroll @(VisibleCollectionRows > 0 ? "gsw-measured-scroll" : null)" @ref="_history" role="region" aria-label="@($"{Name} collections")" tabindex="0">
+        <div class="v3-table-wrap gsw-scroll @(VisibleCollectionRows > 0 ? "gsw-measured-scroll" : null)" @ref="_history" role="region" aria-label="@($"{ShownName} collections")" tabindex="0">
             <table class="v3-table">
-                <caption class="v3-sr-only">@Name collections for @PeriodLabel</caption>
+                <caption class="v3-sr-only">@ShownName collections for @PeriodLabel</caption>
                 <thead>
                     <tr>
                         <th scope="col">Date</th>
@@ -59,9 +60,9 @@
                                 else if (_activityError is not null) { <span>Collections are unavailable.</span> }
                                 else if (_definition is { State: not GovernedServiceSetupState.Active })
                                 {
-                                    <span>Nothing has been collected: @Name is not active yet.</span>
+                                    <span>Nothing has been collected: @ShownName is not active yet.</span>
                                 }
-                                else { <span>No @Name collections were recorded in @PeriodLabel.</span> }
+                                else { <span>No @ShownName collections were recorded in @PeriodLabel.</span> }
                             </td>
                         </tr>
                     }
@@ -257,6 +258,7 @@
 
     public async ValueTask DisposeAsync()
     {
+        if (_names is not null) _names.Changed -= OnNamesChanged;
         if (_historyModule is null) return;
         try
         {
@@ -290,8 +292,22 @@
     private bool _mobile = true;
     private bool _quick;
 
+    private EEMOCantilanSDS.Client.Services.OperationNameService? _names;
+
+    /// <summary>The municipality's own name for this operation, else the page's established <see cref="Name"/>. Presentation only.</summary>
+    private string ShownName => _names?.NameFor(OperationCode, Name) ?? Name;
+
+    private void OnNamesChanged() => _ = InvokeAsync(StateHasChanged);
+
     protected override async Task OnInitializedAsync()
     {
+        _names = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<EEMOCantilanSDS.Client.Services.OperationNameService>(Services);
+        if (_names is not null)
+        {
+            _names.Changed += OnNamesChanged;
+            _ = _names.EnsureLoadedAsync(); // not awaited: it never delays the workspace's own loads
+        }
+
         await LoadDefinitionAsync();
         await LoadActivityAsync();
     }

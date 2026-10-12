@@ -2,6 +2,15 @@
    copying their own dark banners. Identity on the left (icon tile, eyebrow, h1 title, one short line), the workspace's
    few key figures on the right, optional actions and an optional progress rule. Solid colour, no gradient or glow.
    Presentation only: every figure is passed in by the page, which keeps its own data and lifecycle. *@
+@implements IDisposable
+@using EEMOCantilanSDS.Client.Services
+@using Microsoft.Extensions.DependencyInjection
+@inject IServiceProvider Services
+
+@if (OperationCode is not null)
+{
+    <PageTitle>StallTrack — @ShownTitle</PageTitle>
+}
 <header class="v3h @(Compact ? "v3h-compact" : "")">
     <div class="v3h-identity">
         @if (Icon is not null)
@@ -13,7 +22,7 @@
             {
                 <div class="v3h-eyebrow">@Eyebrow</div>
             }
-            <h1 class="v3h-title">@Title</h1>
+            <h1 class="v3h-title">@ShownTitle</h1>
             @if (Meta is not null)
             {
                 <div class="v3h-sub">@Meta</div>
@@ -64,4 +73,29 @@
 
     /// <summary>A shorter band for report and secondary workspaces.</summary>
     [Parameter] public bool Compact { get; set; }
+
+    /// <summary>
+    /// The stable operation code this workspace is for. When given, the title is the municipality's own name for the operation
+    /// (falling back to <see cref="Title"/>). Presentation only; resolved optionally so a hero rendered without the service is unchanged.
+    /// </summary>
+    [Parameter] public string? OperationCode { get; set; }
+
+    private OperationNameService? _names;
+    private string ShownTitle => _names is not null && OperationCode is not null ? _names.NameFor(OperationCode, Title) : Title;
+
+    protected override void OnInitialized()
+    {
+        if (OperationCode is null) return;
+        _names = Services.GetService<OperationNameService>();
+        if (_names is null) return;
+        _names.Changed += OnNamesChanged;
+        _ = _names.EnsureLoadedAsync(); // not awaited: the page's own loading is never delayed by a presentation name
+    }
+
+    private void OnNamesChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        if (_names is not null) _names.Changed -= OnNamesChanged;
+    }
 }

@@ -10,6 +10,7 @@
 @using EEMOCantilanSDS.Domain.Constants
 @inject IOperationSettingsApiClient OperationSettingsApi
 @inject BrandingState BrandingStore
+@inject IServiceProvider Services
 
 <PageTitle>StallTrack — Operation settings</PageTitle>
 
@@ -198,6 +199,9 @@
                 ResetDrafts();
                 _failed = false;
                 _message = "Saved.";
+                // Headers, dashboard cards and activity lists already on screen elsewhere in this session follow the new name.
+                var names = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<EEMOCantilanSDS.Client.Services.OperationNameService>(Services);
+                if (names is not null) await names.InvalidateAsync();
             }
             else
             {
