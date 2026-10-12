@@ -365,9 +365,7 @@ public sealed class UtilityCrossFacilityTests(PostgresFixture db)
         Assert.DoesNotContain("WCF", await OffersAsync(w.TccNone));
     }
 
-    private sealed class NoCache : 
-
-EEMOCantilanSDS.Application.Common.Caching.IEemoCacheInvalidator
+    private sealed class NoCache : EEMOCantilanSDS.Application.Common.Caching.IEemoCacheInvalidator
     {
         public Task InvalidateRegionAsync(string region, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task InvalidatePeriodAsync(string tenantCode, int year, int month, CancellationToken cancellationToken = default) => Task.CompletedTask;
