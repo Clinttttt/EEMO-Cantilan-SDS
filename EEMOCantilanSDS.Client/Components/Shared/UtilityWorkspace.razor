@@ -525,7 +525,7 @@
     private static string PayerOf(UtilityRegisterRowDto row) => string.IsNullOrWhiteSpace(row.Payer) ? "No occupant on record" : row.Payer;
 
     private static string ContextOf(UtilityRegisterRowDto row) =>
-        string.Join(" · ", new[] { row.FacilityName, string.IsNullOrWhiteSpace(row.Section) ? null : SectionLabel(row.Section), $"Stall {row.StallNo}" }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        string.Join(" · ", new[] { row.FacilityName, string.IsNullOrWhiteSpace(row.Section) ? null : SectionLabel(row.Section), $"Stall {row.StallNo.Replace("-", "-⁠")}" }.Where(x => !string.IsNullOrWhiteSpace(x)));
 
     private static string SectionLabel(string raw) => System.Text.RegularExpressions.Regex.Replace(raw, "(?<=[a-z])(?=[A-Z])", " ");
 
