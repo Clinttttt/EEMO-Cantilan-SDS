@@ -190,7 +190,7 @@ integration tests were not re-run beyond the new file).
 
 ## Known limitations
 
-1. Local display names are captured and reviewed but **not yet shown** in the Head Portal (BACKEND GAP above).
+1. ~~Local display names are not shown in the Head Portal.~~ **Closed by V3** (`ONBOARDING_V3_TENANT_OPERATIONS_HANDOFF.md`): names are stored per tenant and shown in the Operations directory.
 2. No post-activation readiness summary.
 3. The operation catalog exists in three places (server, landing, admin) with a "keep in step" comment; there is no shared lib
    in this repo yet. A server-side catalog endpoint would remove the duplication.
