@@ -13,11 +13,8 @@ public class UtilityDirectApprovedPresentationTests
 {
     private static readonly string[] UtilityPages =
     [
-        Path.Combine("Menus", "ElectricityConsumptionFees.razor"),
-        Path.Combine("Menus", "ElectricityConsumptionFeesAccounts.razor"),
+        Path.Combine("..", "Shared", "UtilityWorkspace.razor"),
         Path.Combine("Menus", "ElectricityConsumptionFeesReport.razor"),
-        Path.Combine("Menus", "WaterConsumptionFees.razor"),
-        Path.Combine("Menus", "WaterConsumptionFeesAccounts.razor"),
         Path.Combine("Menus", "WaterConsumptionFeesReport.razor"),
     ];
 
