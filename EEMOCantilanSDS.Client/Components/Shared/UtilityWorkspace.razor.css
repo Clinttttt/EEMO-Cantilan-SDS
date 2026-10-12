@@ -11,10 +11,48 @@
     gap: 20px;
 }
 
-.uw-toolbar { flex-wrap: wrap; gap: 10px 12px; }
-.uw-toolbar .v3-select { min-width: 9rem; max-width: 14rem; }
+/* One row on a desktop: month, a search that takes the slack, facility, then three icon controls. */
+.uw-toolbar { flex-wrap: nowrap; align-items: center; gap: 8px; }
+.uw-toolbar .v3-search { flex: 1 1 12rem; min-width: 8rem; }
+.uw-toolbar .uw-month { flex: 0 0 auto; width: 9.5rem; }
+.uw-toolbar .uw-facility { flex: 0 1 11rem; min-width: 7rem; max-width: 12rem; }
+
+.uw-icon-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 40px;
+    min-height: 40px;
+    padding: 0;
+    cursor: pointer;
+    list-style: none;
+}
+.uw-icon-btn::-webkit-details-marker { display: none; }
+.uw-icon-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.uw-icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.uw-filter-dot { position: absolute; top: 7px; right: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+
+.uw-filters { position: relative; flex: 0 0 auto; }
+.uw-filter-pop {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 20;
+    display: grid;
+    gap: 12px;
+    width: 16rem;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface, #fff);
+    box-shadow: 0 8px 24px rgba(16, 24, 40, 0.14);
+}
 
 .uw-table td, .uw-table th { vertical-align: top; }
+.uw-row { cursor: pointer; }
+.uw-row:hover { background: var(--surface-muted); }
 .uw-row.is-selected { background: var(--surface-muted); box-shadow: inset 3px 0 0 var(--accent); }
 
 /* The first cell is the row's one keyboard target: a quiet button that reads as text. */
@@ -90,8 +128,14 @@
     .uw-detail { position: static; }
 }
 
+@media (max-width: 760px) {
+    .uw-toolbar { flex-wrap: wrap; }
+    .uw-toolbar .v3-search { flex: 1 1 100%; order: -1; }
+    .uw-toolbar .uw-month, .uw-toolbar .uw-facility { flex: 1 1 8rem; max-width: none; width: auto; }
+    .uw-filter-pop { right: auto; left: 0; }
+}
+
 @media (max-width: 640px) {
-    .uw-toolbar .v3-select, .uw-toolbar .v3-period, .uw-toolbar .v3-search { flex: 1 1 100%; max-width: none; }
     .uw-pager { justify-content: flex-start; }
 }
 

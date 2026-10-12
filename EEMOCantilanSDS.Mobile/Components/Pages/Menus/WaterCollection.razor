@@ -146,6 +146,17 @@
                 }
                 else
                 {
+                    <RecentUtilityNotice StallId="source.StallId" Utility="WCF" Year="source.BillingYear" Month="source.BillingMonth" Resolved="OnRecentResolved" />
+
+                    @if (_confirmRepeat)
+                    {
+                        <StateNotice Tone="StateNotice.NoticeTone.Warning" Title="Record another payment?">
+                            A previous WCF collection exists for this source. Confirm that a separate payment was actually received.
+                        </StateNotice>
+                        <button class="btn-primary op-back" type="button" @onclick="ConfirmRepeatAsync">Continue</button>
+                        <button class="btn-cancel op-back op-back-secondary" type="button" @onclick="() => _confirmRepeat = false">Cancel</button>
+                    }
+
                     <section class="op-entry" aria-labelledby="wcf-amount-title">
                         <h2 id="wcf-amount-title" class="op-section-title">@(source.CanCollect ? "Prepared balance" : "Direct amount")</h2>
                         <label class="form-field">
@@ -311,9 +322,23 @@
         finally { _loading = false; }
     }
 
+    // A recorded collection for this source and period is shown first; taking another is a separate payment the Collector confirms
+    // happened, never a silent second tap. A reversed one does not count, and an unverifiable answer never blocks (the server still decides).
+    private RecentUtilityNotice.Check _recent = RecentUtilityNotice.Check.Loading;
+    private bool _confirmRepeat, _repeatConfirmed;
+
+    private void OnRecentResolved(RecentUtilityNotice.Check state) { _recent = state; StateHasChanged(); }
+
+    private async Task ConfirmRepeatAsync()
+    {
+        _repeatConfirmed = true; _confirmRepeat = false;
+        await CaptureAsync();
+    }
+
     private void Select(WcfMobileSourceDto source)
     {
         _selectedStall = source.StallId;
+        _recent = RecentUtilityNotice.Check.Loading; _confirmRepeat = false; _repeatConfirmed = false;
         _message = null;
         // A prepared amount offers its outstanding balance; a direct entry starts empty — the collector states the amount.
         _amount = source.CanCollect ? source.OutstandingAmount : 0m;
@@ -335,6 +360,8 @@
                 : "Refresh the Water source, then enter a valid amount.";
             return;
         }
+
+        if (_recent == RecentUtilityNotice.Check.Prior && !_repeatConfirmed) { _confirmRepeat = true; return; }
 
         _saving = true;
         _message = null;

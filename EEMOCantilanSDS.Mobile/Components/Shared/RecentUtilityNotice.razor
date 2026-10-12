@@ -1,0 +1,93 @@
+@using System.Globalization
+@using global::EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using global::EEMOCantilanSDS.Application.Dtos.Revenue
+@using global::EEMOCantilanSDS.Domain.Common
+@inject IMobileApiClient MobileApi
+
+@* What was already collected for this exact source and period, asked of the server every time a Collector is about to take another
+   utility payment. It never answers from the device and never claims "nothing recorded" when the server could not be asked. The
+   parent decides what to do with the answer (it asks for confirmation before a repeat payment); this component only shows it. *@
+@if (_state == Check.Unavailable)
+{
+    <StateNotice Tone="StateNotice.NoticeTone.Warning" Title="Recent collections not checked">
+        Earlier payments for this source could not be checked. Look at today's records before recording another.
+        <button class="recent-retry" type="button" @onclick="LoadAsync">Check again</button>
+    </StateNotice>
+}
+else if (_items.Count > 0)
+{
+    <StateNotice Tone="@(HasPosted ? StateNotice.NoticeTone.Warning : StateNotice.NoticeTone.Info)" Title="@(HasPosted ? "Already collected this period" : "Earlier collection reversed")">
+        @(HasPosted
+            ? "A collection has already been recorded for this source and period."
+            : "The only earlier collection for this source and period was reversed.")
+        <ul class="recent-list" aria-label="Recent @UtilityLabel collections">
+            @foreach (var item in _items)
+            {
+                <li class="@(item.Disposition == "Reversed" ? "is-reversed" : "")">
+                    <span class="recent-amount">@Money(item.Amount)</span>
+                    <span class="recent-when">@When(item.RecordedAtUtc)</span>
+                    <span class="recent-src">@item.ReferenceCode</span>
+                    @if (item.Disposition == "Reversed") { <span class="recent-tag">Reversed</span> }
+                </li>
+            }
+        </ul>
+    </StateNotice>
+}
+
+@code {
+    public enum Check { Loading, None, Prior, Unavailable }
+
+    /// <summary>The source's stall identity — never a name.</summary>
+    [Parameter, EditorRequired] public Guid StallId { get; set; }
+
+    /// <summary>"ECF" or "WCF".</summary>
+    [Parameter, EditorRequired] public string Utility { get; set; } = "";
+
+    [Parameter, EditorRequired] public int Year { get; set; }
+    [Parameter, EditorRequired] public int Month { get; set; }
+
+    /// <summary>Raised with the answer: <see cref="Check.Prior"/> only when a still-valid (not reversed) collection exists.</summary>
+    [Parameter] public EventCallback<Check> Resolved { get; set; }
+
+    private List<RecentUtilityCollectionDto> _items = [];
+    private Check _state = Check.Loading;
+    private (Guid Stall, string Utility, int Year, int Month) _loaded;
+
+    private bool HasPosted => _items.Any(x => x.Disposition != "Reversed");
+    private string UtilityLabel => string.Equals(Utility, "WCF", StringComparison.OrdinalIgnoreCase) ? "water" : "electricity";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var key = (StallId, Utility, Year, Month);
+        if (key == _loaded) return;
+        _loaded = key;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _state = Check.Loading;
+        try
+        {
+            var result = await MobileApi.GetRecentUtilityCollectionsAsync(StallId, Utility, Year, Month);
+            if (result is { IsSuccess: true, Value: { } list })
+            {
+                _items = list.ToList();
+                _state = HasPosted ? Check.Prior : Check.None;
+            }
+            else { _items = []; _state = Check.Unavailable; }
+        }
+        catch { _items = []; _state = Check.Unavailable; }
+        await Resolved.InvokeAsync(_state);
+    }
+
+    private static string When(DateTime utc)
+    {
+        var local = utc.Add(PhilippineTime.Offset);
+        var days = PhilippineTime.Today.DayNumber - DateOnly.FromDateTime(local).DayNumber;
+        var day = days == 0 ? "Today" : days == 1 ? "Yesterday" : local.ToString("MMM d", CultureInfo.InvariantCulture);
+        return $"{day}, {local.ToString("h:mm tt", CultureInfo.InvariantCulture)}";
+    }
+
+    private static string Money(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
+}

@@ -15,7 +15,7 @@
 <div class="v3-page">
     @* The hero is screen-only (no-print): the printed statements carry the government letterhead, never this band. *@
     <div class="no-print">
-        <V3Hero Compact="true" Eyebrow="Operations · ECF" Title="ECF Statements" FiguresLabel="ECF statement totals">
+        <V3Hero Compact="true" Eyebrow="Operations · ECF" Title="Electricity Consumption Fees Statements" FiguresLabel="ECF statement totals">
             <Meta><span>@PeriodLabel</span><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
             <Figures>
                 <V3HeroFigure Label="Statements" Value="@(Ready ? _lines.Select(l => (l.StallId, l.Payor)).Distinct().Count().ToString() : "—")" />
@@ -43,7 +43,7 @@
     }
     else
     {
-        <UtilityStatements UtilityCode="ECF" UtilityName="Electricity Consumption Fee (ECF)" InstrumentName="Official Receipt"
+        <UtilityStatements UtilityCode="ECF" UtilityName="Electricity Consumption Fees" InstrumentName="Official Receipt"
                            PeriodLabel="@PeriodLabel" Lines="@_lines" ShowSummary="false" Toolbar="MonthPicker" />
     }
 </div>
@@ -61,10 +61,7 @@
 
     private RenderFragment MonthPicker => __builder =>
     {
-        <label class="v3-period">
-            <span>Billing month</span>
-            <input class="v3-input" type="month" aria-label="Billing month" value="@_monthInput" @onchange="ChangeMonthAsync" />
-        </label>
+        <input class="v3-input" type="month" aria-label="Billing month" title="Billing month" value="@_monthInput" @onchange="ChangeMonthAsync" />
     };
 
     protected override Task OnInitializedAsync() => LoadAsync();
@@ -89,7 +86,7 @@
             if (!result.IsSuccess) { _lines = []; _error = "The statements couldn't be loaded."; return; }
             _lines = (result.Value ?? []).Select(q => new UtilityStatements.StatementLine(
                 q.StallId, q.StallNo, q.Section, q.PayerNameSnapshot ?? "Payer snapshot unavailable",
-                q.BillingYear, q.BillingMonth, q.AssessedAmount, q.CumulativeSettledEvidence, q.OutstandingAmount)).ToList();
+                q.BillingYear, q.BillingMonth, q.AssessedAmount, q.CumulativeSettledEvidence, q.OutstandingAmount, q.FacilityName)).ToList();
         }
         catch { _lines = []; _error = "The statements couldn't be loaded."; }
         finally { _loading = false; }

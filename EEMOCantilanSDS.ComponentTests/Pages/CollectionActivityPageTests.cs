@@ -19,6 +19,7 @@ namespace EEMOCantilanSDS.ComponentTests.Pages;
 public sealed class CollectionActivityPageTests : TestContext
 {
     private readonly Mock<ICollectionActivityApiClient> _activity = new();
+    private readonly Mock<EEMOCantilanSDS.Application.Common.Interface.ApiClients.IDirectCollectionReviewApiClient> _review = new();
 
     private static CollectionActivityEventDto Event(string key, string authority, string code, string name, decimal amount,
         FacilityCode? facility = null, RevenueInstrumentType? instrument = null, string? document = null,
@@ -44,6 +45,9 @@ public sealed class CollectionActivityPageTests : TestContext
                 Array.Empty<FacilitySidebarSummaryDto>()));
 
         Services.AddSingleton(_activity.Object);
+        _review.Setup(x => x.GetAsync(It.IsAny<EEMOCantilanSDS.Application.Dtos.Revenue.DirectCollectionReviewRequest>()))
+            .ReturnsAsync(Result<EEMOCantilanSDS.Application.Dtos.Revenue.DirectCollectionReviewPageDto>.Success(new([], 0, 2)));
+        Services.AddSingleton(_review.Object);
         Services.AddSingleton(new FacilityState(facilities.Object));
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
@@ -87,8 +91,12 @@ public sealed class CollectionActivityPageTests : TestContext
         Assert.NotNull(row.QuerySelector(".txn-search"));                                           // search, in the same row rather than on a line of its own
         Assert.NotNull(row.QuerySelector(".txn-nav .txn-daynav"));
         Assert.NotNull(row.QuerySelector(".txn-nav .txn-refresh"));
-        Assert.Equal(new[] { "txn-segment", "txn-source", "txn-nav", "txn-search" },
+        Assert.Equal(new[] { "txn-segment", "txn-source", "txn-nav", "txn-search-row" },
             row.Children.Select(child => child.ClassName));
+        // The compact review control sits immediately after the search, in the same row, as an icon with an accessible name.
+        var searchRow = row.QuerySelector(".txn-search-row")!;
+        Assert.Equal(new[] { "txn-search", "v3-btn dcr-trigger" }, searchRow.Children.Select(c => c.ClassName));
+        Assert.StartsWith("Review direct collections", searchRow.QuerySelector(".dcr-trigger")!.GetAttribute("aria-label"));
         Assert.NotNull(page.Find(".txn-nav .txn-daynav"));
         Assert.NotNull(page.Find(".txn-search .txn-search-icon"));
         Assert.Equal("Search SRC or payer", page.Find("input.txn-search-input").GetAttribute("placeholder"));

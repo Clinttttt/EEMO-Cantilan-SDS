@@ -983,4 +983,158 @@ public sealed class CollectionSessionEditorTests : TestContext
         Assert.Contains("₱47.50", daily);
         Assert.DoesNotContain("₱30", daily);
     }
+
+    // ── Recent utility collections before another payment ──
+
+    private static readonly Guid EcfStall = Guid.NewGuid();
+    private static readonly Guid EcfBill = Guid.NewGuid();
+
+    private void ServeEcfSource() => _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(Occupancy)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(new(null, Today,
+        [Op(CollectionSessionItemKind.Electricity, "ECF", "Electricity", CollectionFamily.Market,
+            new CollectionSessionSourceChoice("ECF|stall", CollectionSessionItemKind.Electricity, "ECF", "Electricity", "New Public Market · Stall 1",
+                new(StallId: EcfStall, UtilityBillId: EcfBill, OccupancyId: Occupancy.Id, Year: Today.Year, Month: Today.Month),
+                RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.DirectAmount, RequiredInputs: ["AmountReceived"]))],
+        SourceIdentity: Occupancy)));
+
+    private void ServeRecent(params RecentUtilityCollectionDto[] items) => _api
+        .Setup(x => x.GetRecentUtilityCollectionsAsync(EcfStall, "ECF", Today.Year, Today.Month))
+        .ReturnsAsync(Result<IReadOnlyList<RecentUtilityCollectionDto>>.Success(items));
+
+    private static RecentUtilityCollectionDto Recent(decimal amount, string src, string disposition = "Posted") =>
+        new(Guid.NewGuid(), src, amount, Today, DateTime.UtcNow.AddMinutes(-20), disposition, "Collector One");
+
+    private IRenderedComponent<CollectionSessionEditor> OpenEcfChoice(string amount = "100")
+    {
+        ServeEcfSource();
+        var view = PickSource("Ana Reyes");
+        Click(view, "+ Add item");
+        view.Find("[role=dialog]").QuerySelectorAll(".collection-option").Single(b => b.TextContent.Contains("Electricity")).Click();
+        view.Find("[role=dialog] input[type=number]").Input(amount);
+        return view;
+    }
+
+    [Fact]
+    public void A_prior_ECF_collection_is_shown_with_its_SRC_and_another_payment_needs_an_explicit_confirmation()
+    {
+        ServeRecent(Recent(656m, "SRC-2026-000016"));
+        var view = OpenEcfChoice();
+
+        view.WaitForAssertion(() =>
+        {
+            var sheet = view.Find("[role=dialog]");
+            Assert.Contains("Already collected this period", sheet.TextContent);
+            Assert.Contains("A collection has already been recorded for this source and period.", sheet.TextContent);
+            Assert.Contains("₱656.00", sheet.TextContent);
+            Assert.Contains("SRC-2026-000016", sheet.TextContent);
+        });
+
+        Click(view, "Add item");                                          // first tap asks; it never silently adds
+        Assert.Contains("Record another payment?", view.Find("[role=dialog]").TextContent);
+        Assert.Empty(view.FindAll(".item-row"));
+
+        Click(view, "Continue");                                          // the Collector confirms a separate payment was received
+        Assert.Single(view.FindAll(".item-row"));
+    }
+
+    [Fact]
+    public void Cancelling_the_repeat_confirmation_adds_nothing()
+    {
+        ServeRecent(Recent(656m, "SRC-2026-000016"));
+        var view = OpenEcfChoice();
+        view.WaitForAssertion(() => Assert.Contains("SRC-2026-000016", view.Find("[role=dialog]").TextContent));
+
+        Click(view, "Add item");
+        Click(view, "Cancel");
+
+        Assert.Empty(view.FindAll(".item-row"));
+        Assert.DoesNotContain("Record another payment?", view.Find("[role=dialog]").TextContent);
+    }
+
+    [Fact]
+    public void A_reversed_collection_is_not_shown_as_valid_and_does_not_ask_for_confirmation()
+    {
+        ServeRecent(Recent(656m, "SRC-2026-000016", "Reversed"));
+        var view = OpenEcfChoice();
+
+        view.WaitForAssertion(() =>
+        {
+            var sheet = view.Find("[role=dialog]");
+            Assert.Contains("Earlier collection reversed", sheet.TextContent);
+            Assert.Contains("Reversed", sheet.QuerySelector(".recent-tag")!.TextContent);
+            Assert.DoesNotContain("Already collected this period", sheet.TextContent);
+        });
+        Click(view, "Add item");
+        Assert.Single(view.FindAll(".item-row"));                         // nothing to confirm: no valid collection exists
+    }
+
+    [Fact]
+    public void An_unverifiable_history_says_so_never_claims_nothing_was_recorded_and_does_not_block_the_server_decided_post()
+    {
+        _api.Setup(x => x.GetRecentUtilityCollectionsAsync(EcfStall, "ECF", Today.Year, Today.Month))
+            .ReturnsAsync(Result<IReadOnlyList<RecentUtilityCollectionDto>>.Failure("Offline"));
+        var view = OpenEcfChoice();
+
+        view.WaitForAssertion(() => Assert.Contains("Recent collections not checked", view.Find("[role=dialog]").TextContent));
+        Assert.DoesNotContain("No collection", view.Find("[role=dialog]").TextContent);
+        Click(view, "Add item");
+        Assert.Single(view.FindAll(".item-row"));
+    }
+
+    [Fact]
+    public void The_same_ECF_source_cannot_be_added_twice_to_one_unsent_collection()
+    {
+        ServeRecent();
+        var view = OpenEcfChoice();
+        Click(view, "Add item");
+        Assert.Single(view.FindAll(".item-row"));
+
+        Click(view, "+ Add item");
+        view.Find("[role=dialog]").QuerySelectorAll(".collection-option").Single(b => b.TextContent.Contains("Electricity")).Click();
+        view.Find("[role=dialog] input[type=number]").Input("50");
+        Click(view, "Add item");
+
+        Assert.Single(view.FindAll(".item-row"));
+        Assert.Contains("already in this collection", view.Markup);
+    }
+
+    [Fact]
+    public void A_vendors_linked_stall_utilities_are_listed_under_Utilities_and_open_the_stall_as_its_own_source()
+    {
+        ServeFishVendor();
+        var linked = new CollectionSourceSearchResult(Occupancy, "Ana Reyes", "New Public Market · Stall 1", "FACILITY_NPM", Utilities: ["ECF"]);
+        var served = _api.Object.GetSourceCollectionDiscoveryAsync(FishVendor).GetAwaiter().GetResult().Value!;
+        _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(FishVendor)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(served with { LinkedSources = [linked] }));
+        ServeEcfSource();
+        ServeRecent();
+        var view = PickSource("Pantom Dant");
+
+        Click(view, "+ Add item");
+        var sheet = view.Find("[role=dialog]");
+        Assert.Contains("Income from Market", sheet.TextContent);                         // the vendor's own two fees stay where they were
+        Assert.Contains("Fish / Meat Vendor Fee", sheet.TextContent);
+        Assert.Contains("Utilities", sheet.TextContent);
+        Assert.Contains("Electricity Consumption Fees", sheet.TextContent);
+        Assert.DoesNotContain("Water Consumption Fees", sheet.TextContent);              // only what the stall really offers
+        Assert.Contains("separate payment", sheet.TextContent);
+
+        sheet.QuerySelectorAll(".collection-option").Single(b => b.TextContent.Contains("Electricity Consumption Fees")).Click();
+
+        view.WaitForAssertion(() =>
+        {
+            Assert.Equal("Ana Reyes", view.Find(".payer-selected strong").TextContent.Trim());           // the stall is now the source, by its own identity
+            Assert.Contains("Electricity", view.Find("[role=dialog]").TextContent);
+        }, TimeSpan.FromSeconds(3));
+        Assert.Empty(_queue);                                                                              // choosing a utility recorded nothing
+    }
+
+    [Fact]
+    public void A_vendor_without_a_linked_stall_utility_shows_no_Utilities_group()
+    {
+        ServeFishVendor();
+        var view = PickSource("Pantom Dant");
+
+        Click(view, "+ Add item");
+
+        Assert.DoesNotContain("Utilities", view.Find("[role=dialog]").TextContent);
+    }
 }

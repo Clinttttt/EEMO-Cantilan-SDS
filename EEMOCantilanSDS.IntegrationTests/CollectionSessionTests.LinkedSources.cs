@@ -1,8 +1,10 @@
+using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
+using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Repositories.Revenue;
 using Microsoft.EntityFrameworkCore;
@@ -63,5 +65,31 @@ public sealed partial class CollectionSessionTests
         Assert.True((await head.CorrectNpmVendorLinkAsync(link.Id, new(Guid.NewGuid(), "Office verified incorrect association"))).IsSuccess);
 
         Assert.Null((await flow.DiscoverNativeAsync(new(SourceIdentityKind.FishMeatVendorRegistration, vendor.Id))).Value!.LinkedSources);
+    }
+
+    [SkippableFact]
+    public async Task A_linked_stall_advertises_only_the_utilities_it_really_offers_this_collector()
+    {
+        var w = await SeedAsync(section: MarketSection.FishSection); await using var db = database.CreateContext(w.TenantId); await EnableOffice(db, w);
+        var head = Office(db, w, "SuperAdmin"); var year = PhilippineTime.Today.Year;
+        var source = Assert.Single((await head.NpmVendorCandidatesAsync(year)).Value!.Rows);
+        var op = Guid.NewGuid();
+        var vendor = (await head.RegisterAsync(new(op, year, FishMeatVendorType.Fish, VendorRegistrationKind.New, "Utility Vendor", NpmAssociation: Confirmation(source, op)))).Value!;
+        var flow = NativeWorkflow(db, w, new CollectionSessionSources(db, new Caller(w.CollectorId, w.TenantId), new Tenant(w.TenantId), new Clock(PhilippineTime.Today), null!, new NoMarketDays()));
+
+        // The vendor is linked and the collector can collect ECF at that stall but has no Water authority yet: exactly what the stall offers, nothing invented.
+        Assert.Equal(new[] { "ECF" }, Assert.Single((await flow.DiscoverNativeAsync(new(SourceIdentityKind.FishMeatVendorRegistration, vendor.Id))).Value!.LinkedSources!).Utilities);
+
+        db.Add(CollectorOperationAssignment.Assign(w.TenantId, w.CollectorId, CollectorOperationCodes.Wcf, "head"));
+        await db.SaveChangesAsync();
+        Assert.True((await new WcfMobileCollectionWorkflow(db, new Caller(Guid.NewGuid(), w.TenantId, "Admin"), new Tenant(w.TenantId), new Clock(PhilippineTime.Today)).EnableAsync()).IsSuccess);
+
+        var linked = Assert.Single((await flow.DiscoverNativeAsync(new(SourceIdentityKind.FishMeatVendorRegistration, vendor.Id))).Value!.LinkedSources!);
+        Assert.Equal(new[] { "ECF", "WCF" }, linked.Utilities);               // Water appears only once it is assigned and enabled
+        Assert.Equal(new CollectionSourceIdentity(SourceIdentityKind.Occupancy, source.ContractId), linked.Identity);   // the exact occupancy, never a name
+
+        // And the vendor's own session still carries only its own fees.
+        var vendorOps = (await flow.DiscoverNativeAsync(new(SourceIdentityKind.FishMeatVendorRegistration, vendor.Id))).Value!.Operations;
+        Assert.All(vendorOps, x => Assert.Contains(x.OperationCode, new[] { CollectorOperationCodes.FishMeatVendorFee, CollectorOperationCodes.WeightAndMeasure }));
     }
 }

@@ -70,13 +70,30 @@
     text-align: right;
 }
 
-.us-note {
-    margin: 6mm 0 10mm;
-    font-size: 0.8125rem;
-}
 
 @media print {
     .us-sheets {
         display: block;
     }
+}
+
+/* The signatories sit in one compact row, two to a line at most, kept together and clear of the table above. */
+.us-sign {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-around;
+    gap: 8mm 12mm;
+    margin-top: 12mm;
+    break-inside: avoid;
+}
+
+.us-sign ::deep .sig-slot {
+    flex: 1 1 40%;
+    max-width: 48%;
+    min-width: 0;
+}
+
+.us-sign ::deep .sig-name,
+.us-sign ::deep .sig-title {
+    overflow-wrap: anywhere;
 }

@@ -34,9 +34,9 @@
                     <thead>
                         <tr>
                             <th scope="col">Payor</th>
-                            <th scope="col">Space</th>
+                            <th scope="col">Facility / source</th>
                             <th scope="col" class="v3-num">Assessed</th>
-                            <th scope="col" class="v3-num">Paid</th>
+                            <th scope="col" class="v3-num">Net settled</th>
                             <th scope="col" class="v3-num">Balance</th>
                             <th scope="col"><span class="v3-sr-only">Actions</span></th>
                         </tr>
@@ -83,22 +83,22 @@
         @foreach (var group in ToPrint)
         {
             <article class="us-sheet" @key="group.Key">
-                <ReportLetterhead Title="@($"Statement of Account — {UtilityName}")" Period="@PeriodLabel">
+                <ReportLetterhead Title="Statement of Account" Period="@($"{UtilityName} · {PeriodLabel}")">
                     <Facts>
                         <div><dt>Payor</dt><dd>@group.Payor</dd></div>
-                        <div><dt>Space</dt><dd>@group.Space</dd></div>
+                        <div><dt>Facility / source</dt><dd>@group.Space</dd></div>
+                        <div><dt>Instrument</dt><dd>@InstrumentName</dd></div>
                     </Facts>
                 </ReportLetterhead>
                 <table class="us-table">
                     <thead>
-                        <tr><th scope="col">Billing month</th><th scope="col">Instrument</th><th scope="col" class="us-num">Assessed</th><th scope="col" class="us-num">Paid</th><th scope="col" class="us-num">Balance</th></tr>
+                        <tr><th scope="col">Billing period</th><th scope="col" class="us-num">Assessed</th><th scope="col" class="us-num">Net settled</th><th scope="col" class="us-num">Balance</th></tr>
                     </thead>
                     <tbody>
                         @foreach (var line in group.Lines)
                         {
                             <tr>
                                 <td>@(new DateOnly(line.Year, line.Month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture))</td>
-                                <td>@InstrumentName</td>
                                 <td class="us-num">@Money(line.Assessed)</td>
                                 <td class="us-num">@Money(line.Settled)</td>
                                 <td class="us-num">@Money(line.Outstanding)</td>
@@ -106,13 +106,10 @@
                         }
                     </tbody>
                     <tfoot>
-                        <tr><th scope="row" colspan="2">Total</th><td class="us-num">@Money(group.Assessed)</td><td class="us-num">@Money(group.Settled)</td><td class="us-num"><strong>@Money(group.Outstanding)</strong></td></tr>
+                        <tr><th scope="row">Total</th><td class="us-num">@Money(group.Assessed)</td><td class="us-num">@Money(group.Settled)</td><td class="us-num"><strong>@Money(group.Outstanding)</strong></td></tr>
                     </tfoot>
                 </table>
-                <p class="us-note">@(group.Outstanding <= 0m
-                    ? "Settled in full. This statement is issued for the payor's record."
-                    : $"Please settle at the {Branding.OfficeAcronym} Office. Present this statement when paying.")</p>
-                <SignatureStrip />
+                <footer class="us-sign"><SignatureStrip /></footer>
             </article>
         }
     </div>
@@ -145,7 +142,7 @@
     /// <summary>One billing month of one space, exactly as the obligation read states it.</summary>
     public sealed record StatementLine(
         Guid StallId, string StallNo, string Section, string Payor, int Year, int Month,
-        decimal Assessed, decimal Settled, decimal Outstanding);
+        decimal Assessed, decimal Settled, decimal Outstanding, string FacilityName = "");
 
     private sealed record Group(string Key, string Payor, string Space, string Section, IReadOnlyList<StatementLine> Lines)
     {
@@ -157,7 +154,7 @@
     private List<Group> Groups => Lines
         .GroupBy(x => (x.StallId, x.Payor))
         .Select(g => new Group($"{g.Key.StallId}|{g.Key.Payor}", g.Key.Payor,
-            $"{g.First().StallNo}{(string.IsNullOrWhiteSpace(g.First().Section) ? "" : $" · {g.First().Section}")}",
+            string.Join(" · ", new[] { g.First().FacilityName, $"Stall {g.First().StallNo}", g.First().Section }.Where(x => !string.IsNullOrWhiteSpace(x))),
             g.First().Section, g.OrderBy(x => x.Year).ThenBy(x => x.Month).ToList()))
         .OrderBy(g => g.Payor, StringComparer.OrdinalIgnoreCase).ThenBy(g => g.Space, StringComparer.OrdinalIgnoreCase)
         .ToList();
@@ -174,7 +171,7 @@
     [
         new("Period", PeriodLabel),
         new("Assessed", Money(Lines.Sum(x => x.Assessed))),
-        new("Paid", Money(Lines.Sum(x => x.Settled))),
+        new("Net settled", Money(Lines.Sum(x => x.Settled))),
         new("Balance", Money(Lines.Sum(x => x.Outstanding)), Emphasis: true),
     ];
 

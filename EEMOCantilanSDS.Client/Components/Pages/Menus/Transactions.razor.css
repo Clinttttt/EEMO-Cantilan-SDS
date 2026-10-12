@@ -598,3 +598,16 @@
     .txn-datebox { flex: 1; }
     .txn-search { flex-basis: 100%; }
 }
+
+/* The search takes the row's width; the compact direct-collection review control sits right after it. */
+.txn-search-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 260px;
+    min-width: 200px;
+}
+
+.txn-search-row .txn-search {
+    flex: 1 1 auto;
+}

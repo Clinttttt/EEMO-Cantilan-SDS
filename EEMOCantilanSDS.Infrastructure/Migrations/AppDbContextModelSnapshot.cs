@@ -2554,6 +2554,52 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.DirectCollectionReviewEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ActorName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("ClientOperationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CollectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("MunicipalityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Outcome")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MunicipalityId", "ClientOperationId")
+                        .IsUnique();
+
+                    b.HasIndex("MunicipalityId", "CollectionId", "OccurredAtUtc");
+
+                    b.ToTable("DirectCollectionReviewEvents", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_DirectCollectionReview_Note", "(\"Outcome\" <> 2) OR (\"Note\" IS NOT NULL AND length(btrim(\"Note\")) > 0)");
+                        });
+                });
+
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.DirectFineAuthority", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5646,6 +5692,16 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.HasOne("EEMOCantilanSDS.Domain.Entities.Tenancy.Municipality", null)
                         .WithMany()
                         .HasForeignKey("MunicipalityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.DirectCollectionReviewEvent", b =>
+                {
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.Collection", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "CollectionId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

@@ -57,7 +57,7 @@ public sealed class OperationsWorkspaceHeroTests : TestContext
 
         cut.WaitForAssertion(() => Assert.Contains("couldn't be loaded", cut.Find("[role=alert]").TextContent), Timeout);
         Assert.NotNull(cut.Find("input[type=month]"));              // the office can still choose another month
-        Assert.Equal("ECF Statements", cut.Find("h1.v3h-title").TextContent.Trim());
+        Assert.Equal("Electricity Consumption Fees Statements", cut.Find("h1.v3h-title").TextContent.Trim());
         Assert.NotNull(cut.Find("h1.v3h-title").Closest(".no-print"));
     }
 

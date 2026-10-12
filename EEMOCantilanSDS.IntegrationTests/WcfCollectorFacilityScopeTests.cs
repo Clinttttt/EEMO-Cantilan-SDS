@@ -192,4 +192,41 @@ public sealed class WcfCollectorFacilityScopeTests(PostgresFixture db)
             new(1, Guid.NewGuid(), Today, npmBill.Id, 10m, npmBill.WaterSourceVersion, BillingYear: Today.Year, BillingMonth: Today.Month));
         Assert.Equal(before, await ctx.Collections.CountAsync());
     }
+
+    private static CollectionComposerWorkflow Composer(AppDbContext ctx, World w, Guid userId) =>
+        new(ctx, new Actor(userId, w.TenantId, "Collector"), new FixedTenant(w.TenantId), new Clock());
+
+    [SkippableFact]
+    public async Task RecentUtilityCollections_ShowThePostedPaymentWithItsSrc_ForThatSourceOnly_AndRespectScopeAndTenant()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync();
+        var other = await SeedAsync();
+        await using var ctx = db.CreateContext(w.TenantId);
+        await EnableAsync(ctx, w);
+
+        // Nothing yet: the collector is told there is no prior payment (an empty answer, never an invented one).
+        Assert.Empty((await Composer(ctx, w, w.OpBoth).GetMobileRecentUtilityCollectionsAsync(w.TccStall, UtilityKind.Water, Today.Year, Today.Month)).Value!);
+
+        var posted = await Wcf(ctx, w, w.OpBoth).PostMobileAsync(Direct(w.TccStall, 10m));
+        Assert.True(posted.IsSuccess);
+        await Wcf(ctx, w, w.OpBoth).PostMobileAsync(Direct(w.NpmStall, 77m));                 // another source, not this one
+
+        var recent = (await Composer(ctx, w, w.OpBoth).GetMobileRecentUtilityCollectionsAsync(w.TccStall, UtilityKind.Water, Today.Year, Today.Month)).Value!;
+        var only = Assert.Single(recent);
+        Assert.Equal((10m, "Posted"), (only.Amount, only.Disposition));
+        Assert.StartsWith("SRC-", only.ReferenceCode);
+        Assert.Equal(posted.Value!.CollectionId, only.CollectionId);
+        // The same stall and period under the other utility, and another period, have no payment.
+        Assert.Empty((await Composer(ctx, w, w.OpBoth).GetMobileRecentUtilityCollectionsAsync(w.TccStall, UtilityKind.Electricity, Today.Year, Today.Month)).Value!);
+        Assert.Empty((await Composer(ctx, w, w.OpBoth).GetMobileRecentUtilityCollectionsAsync(w.TccStall, UtilityKind.Water, Today.Year - 1, Today.Month)).Value!);
+
+        // A collector of NPM only cannot see TCC's history (reported as absent), and another tenant's stall is absent too.
+        Assert.False((await Composer(ctx, w, w.OpNpm).GetMobileRecentUtilityCollectionsAsync(w.TccStall, UtilityKind.Water, Today.Year, Today.Month)).IsSuccess);
+        Assert.False((await Composer(ctx, w, w.OpBoth).GetMobileRecentUtilityCollectionsAsync(other.TccStall, UtilityKind.Water, Today.Year, Today.Month)).IsSuccess);
+        // The Head is not a Collector: the Mobile read is refused.
+        Assert.False((await new CollectionComposerWorkflow(ctx, new Actor(w.Head, w.TenantId, "Admin"), new FixedTenant(w.TenantId), new Clock())
+            .GetMobileRecentUtilityCollectionsAsync(w.TccStall, UtilityKind.Water, Today.Year, Today.Month)).IsSuccess);
+    }
 }

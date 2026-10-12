@@ -51,7 +51,11 @@ public sealed class UtilityStatementsTests : TestContext
             Assert.Contains("₱500.00", row.TextContent);
             Assert.Equal("Statements", cut.Find("h2").TextContent.Trim());
             var sheet = cut.Find("article.us-sheet");
-            Assert.Contains("Statement of Account — Electricity Consumption Fee (ECF)", sheet.TextContent);
+            Assert.Contains("Statement of Account", sheet.TextContent);
+            Assert.Contains("Electricity Consumption Fees", sheet.TextContent);
+            Assert.DoesNotContain("Please settle", sheet.TextContent);                   // a statement states the account, it does not instruct the payor
+            Assert.DoesNotContain("Present this statement", sheet.TextContent);
+            Assert.Contains("Net settled", sheet.TextContent);
             Assert.Contains("Official Receipt", sheet.TextContent);
             Assert.DoesNotContain("utilities", cut.Markup.ToLowerInvariant().Replace("utility", ""));
         }, Timeout);
