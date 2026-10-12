@@ -64,3 +64,24 @@ Rebuilt `net10.0-windows10.0.19041.0` Debug, launched the fresh exe against the 
 ### Still gated (pending financial-policy / source-model decisions)
 
 Web WCF posting (needs a confirmed collected-by/recorded-by policy); utility eligibility for independent vendor registrations, Fiesta/Araw lots and any source with no authoritative service record; Web ECF direct posting.
+
+## UI quality and consistency pass (commits `5ec76d40`, `cf31d751`)
+
+**Defects found (rendered, not just read):**
+1. Mobile WCF/operation status messages used `menu-state-card`, a class with no style definition, so text inherited a near-white colour on a light background (reproduced in the running Windows app by injecting the old class beside the new notice).
+2. Every temporary and permanent failure looked the same; permanent office blockers gave no clear instruction and temporary ones had no Try again.
+3. WCF source rows showed only "Stall N", so equal stall numbers at different facilities were indistinguishable (`WcfMobileSourceDto` had no facility).
+4. Title "Water Consumption Fee" and a fixed "Direct amount" subtitle that was wrong for prepared sources; redundant "Direct amount / COLLECTION AMOUNT" heading and label.
+5. Head Portal: stall numbers wrapped at the hyphen ("V-" / "01") in narrow cells; the WCF enable dialog said "Water Consumption Fee".
+
+**Fixes:** shared Mobile `StateNotice` (info / warning / danger tones from the existing `--mobile-*` tokens); Try again only for temporary failures (eligibility unverified, sources not loaded, collections not loaded) with Back to menu always present; office-side blockers (not assigned, not enabled, no policy, inactive) name the office action and offer no retry; additive `FacilityName`/`Facility` on `WcfMobileSourceDto`, shown on the list, selected panel and search; "Water Consumption Fees" with "Month · Prepared or direct amounts"; the form heading follows the source (Prepared balance / Direct amount); word-joiner after the stall-number hyphen on the Head register. No financial rule, flag, OR/CT, SRC, mode-freeze, scope or offline fail-closed behaviour changed.
+
+**Rendered and personally inspected** (Chrome automation for the Head Portal; the freshly rebuilt Debug Windows MAUI app driven through its WebView2 against an isolated API and disposable PostgreSQL):
+- Head: ECF and WCF workspaces at 1440, 1024, 768 and 390 (no page overflow); Prepare multiple amounts dialog; selected-source panel; WCF enable bar and dialog. (Single preparation, ECF Record Payment, draft Resume/Discard, authority review, Activity deep link, Statements/Reports and error state were inspected in the previous acceptance pass and not changed.)
+- Mobile at 346 px: WCF not-enabled blocker, not-assigned blocker, source list with facility lines, two T-001 spaces at different facilities, empty search, direct form, prepared form, offline "Water sources not loaded" with Try again + Back to menu and successful recovery; ECF new-collection list, select charges, amount, review and completion; bottom navigation. Prepared form and ECF review also at 390 and 430 (no horizontal overflow).
+- Not rendered: storage-fault and waiting-to-sync notices (they use the same component but were not triggered); on-screen keyboard behaviour (desktop only); Android.
+- Amount entry: typing into an empty field at human speed is correct (120.75 → ₱120.75). A zero-delay select-all-and-retype automation sequence once left the field at "80" while the button read ₱8.25; the button (the bound value) is what is recorded. Not reproduced at human speed; worth a manual check on a device.
+
+**Tests executed:** Unit 2560, Head component 1045, Mobile component 100, PostgreSQL WCF/Utility subset 54 passed (full integration last run 520 passed before this pass; the DTO change is additive), Release build, `git diff --check origin/master...HEAD` clean.
+
+**Environment note:** the Windows app is hard-wired to API port 5117, which an onboarding worktree API occupied; the app was built with a temporary local port change (reverted, never committed) and run against an isolated API on 5118. That process was not touched.
