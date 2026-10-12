@@ -2,6 +2,8 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @inject IFacilitiesApiClient FacilitiesApi
+@inject IOperationSettingsApiClient OperationSettingsApi
+@using EEMOCantilanSDS.Application.Dtos.Settings
 
 <PageTitle>StallTrack — Operations</PageTitle>
 
@@ -28,6 +30,16 @@
         <p class="ops-notice" role="status">No configured facilities are available.</p>
     }
 
+    @if (!_loading && _settingsFailed)
+    {
+        @* Which independent operations an office lists is its own configuration. When it can't be read the lines are unknown, not
+           absent, so none are guessed at (and none are shown that the office never chose). *@
+        <div class="ops-notice ops-notice-error" role="alert">
+            <p>This office's operation list couldn't be loaded.</p>
+            <button type="button" class="ops-retry" @onclick="LoadFacilitiesAsync">Try again</button>
+        </div>
+    }
+
     <div class="ops-sheet">
         <div class="ops-columns" aria-hidden="true">
             <span>Income line</span>
@@ -36,13 +48,15 @@
             <span></span>
         </div>
 
+        @if (ShowGroup(MarketLines.Count))
+        {
         <section class="ops-group" aria-labelledby="income-from-market-title">
             <h2 id="income-from-market-title" class="ops-group-title">
                 Income from Market
-                <span class="ops-group-count">@LineCount(IncomeFromMarketServices.Count)</span>
+                <span class="ops-group-count">@LineCount(MarketLines.Count)</span>
             </h2>
             <ul class="ops-rows">
-                @foreach (var service in IncomeFromMarketServices)
+                @foreach (var service in MarketLines)
                 {
                     var workspace = service.WorkspaceCode is { } workspaceCode ? ConfiguredFacility(workspaceCode) : null;
                     var href = service.Route ?? (workspace is not null ? FacilityHref(workspace) : null);
@@ -54,7 +68,10 @@
                 }
             </ul>
         </section>
+        }
 
+        @if (ShowRentGroup)
+        {
         <section class="ops-group" aria-labelledby="rent-income-title" aria-busy="@(_loading ? "true" : "false")">
             <h2 id="rent-income-title" class="ops-group-title">
                 Rent Income — Stall Rental
@@ -88,23 +105,30 @@
                 }
             </ul>
         </section>
+        }
 
+        @if (ShowGroup(SpaceLines.Count))
+        {
         <section class="ops-group" aria-labelledby="space-rental-title">
             <h2 id="space-rental-title" class="ops-group-title">
                 Space Rental
-                <span class="ops-group-count">@LineCount(SpaceRentalServices.Count)</span>
+                <span class="ops-group-count">@LineCount(SpaceLines.Count)</span>
             </h2>
             <ul class="ops-rows">
-                @foreach (var service in SpaceRentalServices)
+                @foreach (var service in SpaceLines)
                 {
                     <li class="ops-item">
-                        @Line(service.Name, null, service.Receipts, service.Route, null, service.Links ?? NoLinks, NoWorkspace)
+                        @Line(ServiceLabel(service, null), null, service.Receipts, service.Route, null, service.Links ?? NoLinks, NoWorkspace)
                     </li>
                 }
             </ul>
         </section>
+        }
 
-        @* Its own official group (Monthly Income B), in the same register as the others rather than a separate card. *@
+        @* Its own official group (Monthly Income B), in the same register as the others rather than a separate card. For an office
+           that has adopted tenant configuration it is shown only where it has a Terminal facility, like the other facility-backed lines. *@
+        @if (ShowTerminal)
+        {
         <section class="ops-group" aria-labelledby="income-from-terminal-title">
             <h2 id="income-from-terminal-title" class="ops-group-title">
                 Income From Terminal
@@ -116,6 +140,7 @@
                 </li>
             </ul>
         </section>
+        }
 
         @* Shown only with authoritative content: a configured slaughterhouse. An empty shell (or a "not configured" line)
            is not a Monthly Income row and is left out. *@
@@ -172,24 +197,31 @@
     private static readonly IReadOnlyList<OperationService> IncomeFromMarketServices =
     [
         new("Market Fees", CashTicket, Route: "/operations/market-fees",
+            OperationCode: "MARKET_FEES",
             Links: [new("Report", "/operations/market-fees/report")]),
         // Display names per Clint (2026-09-30); the office sheet row reads "Gen. Distribution / ECF".
         new("Electricity Consumption Fees", OfficialReceipt, Route: "/operations/ecf", Code: "ECF",
+            OperationCode: "ECF",
             Links: [new("Accounts", "/operations/ecf/accounts"), new("Report", "/operations/ecf/report")]),
         new("Water Consumption Fees", CashTicket, Route: "/operations/water-consumption-fees", Code: "WCF",
+            OperationCode: "WCF",
             Links: [new("Accounts", "/operations/water-consumption-fees/accounts"), new("Report", "/operations/water-consumption-fees/report")]),
         // Tabo = OR per IA-045 (EEMO Head, 2026-09-27).
         new("Tabo", OfficialReceipt, FacilityCode.TPM, Links: [new("Report", "/facility/tpm/report")]),
         new("Fish | Meat Vendor Fees", OfficialReceipt, Route: "/operations/fish-meat-vendor-fees",
+            OperationCode: "FISH_MEAT_VENDOR_FEE",
             Links: [new("Report", "/operations/fish-meat-vendor-fees/report")]),
         new("Landing | Berthing", CashTicket, Route: "/operations/landing-berthing",
+            OperationCode: "LANDING_BERTHING",
             Links: [new("Report", "/operations/landing-berthing/report")]),
         // Cash Ticket on Collector Mobile, direct amount received; it is a separate source from Income From Terminal.
         new("Transportation | Parking", CashTicket, Route: "/operations/transportation",
+            OperationCode: "TRANSPORTATION",
             Links: [new("Report", "/operations/transportation/report")]),
-        new("Weight & Measure | Registration", OfficialReceipt, Route: "/operations/weight-and-measure"),
+        new("Weight & Measure | Registration", OfficialReceipt, Route: "/operations/weight-and-measure", OperationCode: "WEIGHT_AND_MEASURE"),
         // Official Receipt, Collector Mobile, direct approved amount (IA-049).
         new("Transfer Large Cattle", OfficialReceipt, Route: "/operations/transfer-large-cattle",
+            OperationCode: "TRANSFER_LARGE_CATTLE",
             Links: [new("Report", "/operations/transfer-large-cattle/report")]),
         // Official Receipt, own ICE_PLANT classification (IA-050); monthly obligation, installments allowed.
         new("Ice Plant", OfficialReceipt, FacilityCode.ICE),
@@ -199,16 +231,21 @@
     [
         // Whole payment = OR, daily transaction = CT per IA-046 (EEMO Head, 2026-09-27).
         new("Vegetable | Fruits", [new("OR", "Monthly rental"), new("CT", "Daily transaction")], Route: "/operations/vegetable-fruit",
+            OperationCode: "VEGETABLE_FRUIT_SPACE_RENTAL",
             Links: [new("Report", "/operations/vegetable-fruit/report")]),
         new("Kanmanggay", OfficialReceipt, Route: "/operations/kanmanggay",
+            OperationCode: "KANMANGGAY_SPACE_RENTAL",
             Links: [new("Report", "/operations/kanmanggay/report")]),
         new("Fiesta | Araw", OfficialReceipt, Route: "/operations/fiesta-araw",
+            OperationCode: "FIESTA_ARAW_LOT_RENTAL",
             Links: [new("Report", "/operations/fiesta-araw/report")]),
     ];
 
     private IReadOnlyList<FacilitySidebarSummaryDto> _facilities = Array.Empty<FacilitySidebarSummaryDto>();
     private bool _loading = true;
     private bool _loadFailed;
+    private TenantOperationSettingsDto? _settings;
+    private bool _settingsFailed;
 
     /// <summary>
     /// The facility list fetched during prerender, carried into the interactive pass so the page asks the API once
@@ -217,6 +254,10 @@
     /// </summary>
     [PersistentState(AllowUpdates = true)]
     public FacilitySidebarSummaryDto[]? CachedFacilities { get; set; }
+
+    /// <summary>The office's operation configuration, carried across prerender for the same reason as the facilities.</summary>
+    [PersistentState(AllowUpdates = true)]
+    public TenantOperationSettingsDto? CachedSettings { get; set; }
 
     private IEnumerable<FacilitySidebarSummaryDto> RentIncomeFacilities =>
         new[] { FacilityCode.NPM, FacilityCode.NCC, FacilityCode.TCC, FacilityCode.BBQ }
@@ -232,9 +273,10 @@
 
     protected override Task OnInitializedAsync()
     {
-        if (CachedFacilities is { } cached)
+        if (CachedFacilities is { } cached && CachedSettings is { } cachedSettings)
         {
             _facilities = cached;
+            _settings = cachedSettings;
             _loading = false;
             return Task.CompletedTask;
         }
@@ -246,6 +288,9 @@
     {
         _loading = true;
         _loadFailed = false;
+        _settingsFailed = false;
+
+        await LoadSettingsAsync();
 
         try
         {
@@ -273,6 +318,62 @@
             _loading = false;
         }
     }
+
+    private async Task LoadSettingsAsync()
+    {
+        try
+        {
+            var result = await OperationSettingsApi.GetAsync();
+            if (result.IsSuccess && result.Value is not null)
+            {
+                _settings = result.Value;
+                CachedSettings = result.Value;
+                return;
+            }
+        }
+        catch
+        {
+            // Falls through to the unknown state below.
+        }
+
+        _settings = null;
+        _settingsFailed = true;
+    }
+
+    /// <summary>
+    /// True once the office has adopted tenant operation configuration (it declared operations at onboarding, or its Head has
+    /// edited them). An office that has not is read with the documented legacy fallback: every line shown, under its established
+    /// name - which is how Cantilan and every office activated before configuration existed behave, unchanged.
+    /// </summary>
+    private bool Adopted => _settings?.UsesConfiguration == true;
+
+    private TenantOperationSettingDto? SettingFor(OperationService service) =>
+        service.OperationCode is null ? null : _settings?.Items.FirstOrDefault(i => i.OperationCode == service.OperationCode);
+
+    /// <summary>
+    /// The lines this office lists. An independent operation is shown when the office lists it; a facility-backed one (Tabo, Ice
+    /// Plant) only when it has that facility. While the configuration is unknown (loading, or it failed) nothing is guessed.
+    /// Listing is presentation: it never decides whether anything may be collected, and hiding a line removes no data or history.
+    /// </summary>
+    private IReadOnlyList<OperationService> VisibleServices(IReadOnlyList<OperationService> services)
+    {
+        if (_settings is null) return Array.Empty<OperationService>();
+        if (!Adopted) return services;
+        return services.Where(service => service.OperationCode is null
+            ? service.WorkspaceCode is { } code && ConfiguredFacility(code) is not null
+            : SettingFor(service)?.IsListed == true).ToList();
+    }
+
+    private IReadOnlyList<OperationService> MarketLines => VisibleServices(IncomeFromMarketServices);
+
+    private IReadOnlyList<OperationService> SpaceLines => VisibleServices(SpaceRentalServices);
+
+    /// <summary>A group is shown when it has lines; the legacy fallback always shows its groups, as it always has.</summary>
+    private bool ShowGroup(int lines) => _settings is not null && (!Adopted || lines > 0);
+
+    private bool ShowRentGroup => _loading || _loadFailed || _settings is null || !Adopted || RentIncomeFacilities.Any();
+
+    private bool ShowTerminal => _settings is not null && (!Adopted || ConfiguredFacility(FacilityCode.TRM) is not null);
 
     /// <summary>
     /// One register line: a single link when a workspace exists, plain text otherwise (no navigation affordance),
@@ -382,8 +483,8 @@
     private static string InstrumentCssClass(string instrument) =>
         $"ops-instrument ops-instrument-{instrument.ToLowerInvariant()}";
 
-    private static string ServiceLabel(OperationService service, FacilitySidebarSummaryDto? workspace) =>
-        service.WorkspaceCode == FacilityCode.ICE ? workspace?.Name ?? service.Name : service.Name;
+    private string ServiceLabel(OperationService service, FacilitySidebarSummaryDto? workspace) =>
+        service.WorkspaceCode == FacilityCode.ICE ? workspace?.Name ?? service.Name : SettingFor(service)?.DisplayName ?? service.Name;
 
     private static string InstrumentName(string instrument) => instrument switch
     {
@@ -417,5 +518,7 @@
         FacilityCode? WorkspaceCode = null,
         string? Route = null,
         IReadOnlyList<QuickLink>? Links = null,
-        string? Code = null);
+        string? Code = null,
+        // The stable tenant-operation code, for a line the municipality itself lists and names. Null for a facility-backed line.
+        string? OperationCode = null);
 }

@@ -254,6 +254,23 @@
                     <div class="set-note">Rates are versioned by effectivity date, so a mid-term change never alters past billing.</div>
                 </section>
             }
+            @if (_isHead)
+            {
+                <!-- ── Operation directory — Head only. Presentation (listing and local names); never authority to collect. ── -->
+                <section class="set-card">
+                    <div class="set-card-head">
+                        <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10" /></svg></div>
+                        <div class="set-card-titles">
+                            <div class="set-card-title">Operation settings</div>
+                            <div class="set-card-sub">Which operations you list, and your own names for them</div>
+                        </div>
+                    </div>
+                    <div class="set-links">
+                        <a class="set-link" href="/settings/operations">Manage operations<span class="set-link-arrow">→</span></a>
+                    </div>
+                    <div class="set-note">Listing and naming change presentation only, never who may collect or how an operation is classified.</div>
+                </section>
+            }
             <!-- ── Revenue source configuration — Head only ── -->
             <section class="set-card">
                 <div class="set-card-head">
