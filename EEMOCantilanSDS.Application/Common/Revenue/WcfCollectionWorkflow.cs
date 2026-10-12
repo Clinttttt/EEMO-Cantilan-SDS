@@ -37,8 +37,10 @@ public sealed class WcfCollectionWorkflow(
         if (throughYear is < 2000 or > 2200 || throughMonth is < 1 or > 12)
             return Result<IReadOnlyList<WcfObligationQuoteDto>>.Failure("A valid billing year and month are required.", ResultStatus.Invalid);
         var policy = await ResolvePolicyAsync(actor.TenantId, BusinessToday, ct);
+        var obligationScope = await FacilityScopeAsync(actor, ct);       // a collector sees only the facilities they are assigned to
         var bills = await UtilityBillQuery(actor.TenantId, tracked: false)
             .Where(x => (x.Stall!.Facility!.Code == FacilityCode.NPM || (x.Stall.Fees & ApplicableFees.Water) != 0)
+                && (obligationScope == null || obligationScope.Contains(x.Stall.Facility.Code))
                 && (x.BillingYear < throughYear
                 || (x.BillingYear == throughYear && x.BillingMonth <= throughMonth)))
             .OrderBy(x => x.BillingYear).ThenBy(x => x.BillingMonth).ThenBy(x => x.Stall!.StallNo)
@@ -896,17 +898,17 @@ public sealed class WcfCollectionWorkflow(
 
     /// <summary>
     /// The facilities whose Water sources this actor may collect: null for the office (every facility), the collector's assigned
-    /// facilities otherwise. A collector with the WCF operation assignment and no facility assignment keeps the NPM scope they
-    /// have always had (IA-054: NPM was the context, the operation assignment the authority).
+    /// facilities otherwise. A collector with the WCF operation assignment and no facility assignment at all keeps the NPM scope they
+    /// have always had; explicit assignments are never widened (IA-054: NPM was the context, the operation assignment the authority).
     /// </summary>
     private async Task<IReadOnlySet<FacilityCode>?> FacilityScopeAsync(Actor actor, CancellationToken ct)
     {
         if (actor.Role != "Collector") return null;
         var assigned = await db.CollectorUsers.AsNoTracking().Where(x => x.MunicipalityId == actor.TenantId && x.Id == actor.UserId && x.IsActive)
             .SelectMany(x => x.FacilityAssignments.Select(a => a.FacilityCode)).ToListAsync(ct);
-        var scope = assigned.ToHashSet();
-        scope.Add(FacilityCode.NPM);
-        return scope;
+        // Explicit facility assignments are the whole scope: a TCC-only collector is never widened to NPM. Only a collector with the
+        // WCF operation assignment and no facility assignment at all keeps the NPM context they always had.
+        return assigned.Count > 0 ? assigned.ToHashSet() : new HashSet<FacilityCode> { FacilityCode.NPM };
     }
 
     private Task<bool> CollectorHasOperationAssignmentAsync(

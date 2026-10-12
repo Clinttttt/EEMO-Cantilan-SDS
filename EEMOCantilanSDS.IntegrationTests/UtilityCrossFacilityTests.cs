@@ -109,8 +109,8 @@ public sealed class UtilityCrossFacilityTests(PostgresFixture db)
         Assert.True((await Office(ctx, w).EnableAsync()).IsSuccess);
 
         var sources = (await Wcf(ctx, w, w.TccCollector, "Collector").GetMobileSourcesAsync(Today.Year, Today.Month)).Value!;
-        // The assigned facility's verified Water sources, plus the NPM stalls every WCF-assigned collector has always had (IA-054); never the flagless or the electric-only space.
-        Assert.Equal(new[] { w.TccBoth, w.TccWater, w.NpmStall }.Order(), sources.Select(s => s.StallId).Order());
+        // The assigned facility's verified Water sources only: never the flagless or the electric-only space, and never NPM stalls the collector is not assigned to.
+        Assert.Equal(new[] { w.TccBoth, w.TccWater }.Order(), sources.Select(s => s.StallId).Order());
 
         var op = Guid.NewGuid();
         var posted = await Wcf(ctx, w, w.TccCollector, "Collector").PostMobileAsync(DirectWater(w.TccWater, 250m, op));
