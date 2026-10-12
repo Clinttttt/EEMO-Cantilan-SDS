@@ -233,6 +233,42 @@ public sealed class UtilityRegisterTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task ASpaceWhoseOnlyTermHasLapsed_IsNotAnOrdinarySource_ButKeepsItsHistoricObligation_AndSuccessiveOccupantsStaySeparate()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync();
+        var thisMonth = new DateOnly(Today.Year, Today.Month, 1);
+        var lapsedStart = thisMonth.AddYears(-3);            // a 1-year term that lapsed two years ago and was never terminated
+        Guid vacant, shared;
+        await using (var ctx = db.CreateContext(w.TenantId))
+        {
+            var ncc = await ctx.Facilities.SingleAsync(f => f.Code == FacilityCode.NCC);
+            var stall = Stall.Create(ncc.Id, "L-1", 900m, ApplicableFees.BaseRental | ApplicableFees.Electricity, null, municipalityId: w.TenantId);
+            ctx.Add(stall);
+            ctx.Add(Contract.Create(stall.Id, "Lapsed Lessee", "Lapsed Lessee", lapsedStart, 1, 900m, createdBy: "test"));
+
+            var two = Stall.Create(ncc.Id, "S-1", 900m, ApplicableFees.BaseRental | ApplicableFees.Electricity, null, municipalityId: w.TenantId);
+            ctx.Add(two);
+            var first = Contract.Create(two.Id, "First Occupant", "First Occupant", thisMonth.AddMonths(-8), 5, 900m, createdBy: "test");
+            first.Terminate("test", thisMonth.AddMonths(-3).AddDays(-1));
+            ctx.Add(first);
+            ctx.Add(Contract.Create(two.Id, "Second Occupant", "Second Occupant", thisMonth.AddMonths(-3), 5, 900m, createdBy: "test"));
+            await ctx.SaveChangesAsync();
+            (vacant, shared) = (stall.Id, two.Id);
+        }
+        await using var verify = db.CreateContext(w.TenantId);
+        UtilityRegisterRequest In(DateOnly month) => new(UtilityKind.Electricity, month.Year, month.Month, null, null, null, null, 0, 100);
+
+        var now = (await Reader(verify, w).GetAsync(In(thisMonth))).Value!;
+        Assert.DoesNotContain(vacant, now.Rows.Select(r => r.StallId));           // no occupant, no bill: not an ordinary collectible row
+        Assert.DoesNotContain(now.Rows, r => string.IsNullOrWhiteSpace(r.Payer));
+        Assert.Equal("Second Occupant", now.Rows.Single(r => r.StallId == shared).Payer);
+        var before = (await Reader(verify, w).GetAsync(In(thisMonth.AddMonths(-5)))).Value!;
+        Assert.Equal("First Occupant", before.Rows.Single(r => r.StallId == shared).Payer);     // the same space, a different answerable occupant then
+    }
+
+    [SkippableFact]
     public async Task SearchFindsASourceOnlyThroughTheOccupantAnsweringForTheSelectedMonth_AndHistoricArrearsStayWithThePreviousOccupant()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);

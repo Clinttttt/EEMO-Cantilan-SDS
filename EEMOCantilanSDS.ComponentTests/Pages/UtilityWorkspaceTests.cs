@@ -124,6 +124,48 @@ public sealed class UtilityWorkspaceTests : TestContext
     // ── The shared register ──
 
     [Fact]
+    public void Toolbar_IsOneRowOfCompactControls_WithAreaAndStatusInsideOneFilterPopover()
+    {
+        Services.AddSingleton(Register(Row("Juan Dela Cruz", "Prepared", 100m, 0m, 100m)).Object);
+        Services.AddSingleton(EcfApi().Object);
+
+        var cut = RenderComponent<ElectricityConsumptionFees>();
+
+        cut.WaitForAssertion(() =>
+        {
+            var toolbar = cut.Find(".uw-toolbar");
+            Assert.Empty(toolbar.QuerySelectorAll(".v3-period"));                                  // no separate "Billing month" label
+            Assert.Equal("Billing month", toolbar.QuerySelector("input[type=month]")!.GetAttribute("aria-label"));
+            Assert.Equal("Refresh sources", toolbar.QuerySelector("button[aria-label='Refresh sources']")!.GetAttribute("title"));
+            Assert.Equal("Prepare multiple amounts", toolbar.QuerySelector("button[aria-label='Prepare multiple amounts']")!.GetAttribute("title"));
+            var popover = toolbar.QuerySelector("details.uw-filters")!;
+            Assert.NotNull(popover.QuerySelector("select[aria-label='Area']"));
+            Assert.NotNull(popover.QuerySelector("select[aria-label='Status']"));
+            Assert.Null(toolbar.QuerySelector(":scope > select[aria-label='Area']"));              // Area and Status never sit in the row itself
+            Assert.Null(toolbar.QuerySelector(":scope > select[aria-label='Status']"));
+        }, Timeout);
+    }
+
+    [Fact]
+    public void ClickingAnyCellOfARow_SelectsThatSource_ByItsId()
+    {
+        Services.AddSingleton(Register(Row("Juan Dela Cruz", "Prepared", 100m, 20m, 80m), Row("Maria Santos", "Prepared", 200m, 0m, 200m)).Object);
+        Services.AddSingleton(EcfApi().Object);
+
+        var cut = RenderComponent<ElectricityConsumptionFees>();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("tr.uw-row").Count), Timeout);
+
+        cut.FindAll("tr.uw-row")[1].QuerySelectorAll("td")[2].Click();                              // the Net settled cell, not the name
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Maria Santos", cut.Find("aside h2").TextContent);
+            Assert.Contains("is-selected", cut.FindAll("tr.uw-row")[1].ClassName);
+            Assert.DoesNotContain("is-selected", cut.FindAll("tr.uw-row")[0].ClassName);
+        }, Timeout);
+    }
+
+    [Fact]
     public void Register_ShowsServerStatusAndFigures_AndNeverInventsABalanceForADirectSource()
     {
         Services.AddSingleton(Register(
@@ -247,7 +289,7 @@ public sealed class UtilityWorkspaceTests : TestContext
 
         var cut = RenderComponent<ElectricityConsumptionFees>();
         cut.WaitForAssertion(() => Assert.Contains("Ana Reyes", cut.Markup), Timeout);
-        cut.FindAll("button").Single(x => x.TextContent.Trim() == "Prepare multiple amounts").Click();
+        cut.FindAll("button").Single(x => x.GetAttribute("aria-label") == "Prepare multiple amounts").Click();
 
         cut.FindAll(".uw-batch-input")[0].Input("100");
         cut.FindAll(".uw-batch-input")[1].Input("200");

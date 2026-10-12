@@ -34,40 +34,54 @@
             </header>
 
             <div class="v3-toolbar uw-toolbar no-print" aria-label="Source filters">
-                <label class="v3-period">
-                    <span>Billing month</span>
-                    <input class="v3-input" type="month" aria-label="Billing month" value="@_monthInput" @onchange="ChangeMonthAsync" />
-                </label>
+                <input class="v3-input uw-month" type="month" aria-label="Billing month" title="Billing month" value="@_monthInput" @onchange="ChangeMonthAsync" />
                 <label class="v3-search">
                     <span class="v3-sr-only">Search payer, stall or space</span>
                     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
                     <input type="search" placeholder="Search payer, stall or space" aria-label="Search payer, stall or space" autocomplete="off"
                            value="@_search" @oninput="OnSearchInput" />
                 </label>
-                <select class="v3-select" aria-label="Facility" @onchange="ChangeFacilityAsync">
+                <select class="v3-select uw-facility" aria-label="Facility" title="Facility" @onchange="ChangeFacilityAsync">
                     <option value="" selected="@(_facility == "")">All facilities</option>
                     @foreach (var facility in _page?.Facilities ?? [])
                     {
                         <option value="@((int)facility.Code)" selected="@(_facility == ((int)facility.Code).ToString())">@facility.Name</option>
                     }
                 </select>
-                <select class="v3-select" aria-label="Area" @onchange="ChangeSectionAsync">
-                    <option value="" selected="@(_section == "")">All areas</option>
-                    @foreach (var section in _page?.Sections ?? [])
-                    {
-                        <option value="@section" selected="@(_section == section)">@SectionLabel(section)</option>
-                    }
-                </select>
-                <select class="v3-select" aria-label="Status" @onchange="ChangeStatusAsync">
-                    @foreach (var (value, label) in Statuses)
-                    {
-                        <option value="@value" selected="@(_status == value)">@label</option>
-                    }
-                </select>
-                <div class="v3-btn-group" role="group" aria-label="Register actions">
-                    <button class="v3-btn" type="button" @onclick="RefreshAsync" disabled="@_loading">Refresh</button>
-                    <button class="v3-btn" type="button" @onclick="OpenBatch" disabled="@(_loading || _page is null)">Prepare multiple amounts</button>
-                </div>
+                <details class="uw-filters">
+                    <summary class="v3-btn uw-icon-btn" aria-label="@(AreaOrStatusActive ? "Filters, applied" : "Filters")" title="Filters">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
+                        @if (AreaOrStatusActive) { <span class="uw-filter-dot" aria-hidden="true"></span> }
+                    </summary>
+                    <div class="uw-filter-pop" role="group" aria-label="Area and status">
+                        <label class="uw-field">
+                            <span>Area</span>
+                            <select class="v3-select" aria-label="Area" @onchange="ChangeSectionAsync">
+                                <option value="" selected="@(_section == "")">All areas</option>
+                                @foreach (var section in _page?.Sections ?? [])
+                                {
+                                    <option value="@section" selected="@(_section == section)">@SectionLabel(section)</option>
+                                }
+                            </select>
+                        </label>
+                        <label class="uw-field">
+                            <span>Status</span>
+                            <select class="v3-select" aria-label="Status" @onchange="ChangeStatusAsync">
+                                @foreach (var (value, label) in Statuses)
+                                {
+                                    <option value="@value" selected="@(_status == value)">@label</option>
+                                }
+                            </select>
+                        </label>
+                        <button class="v3-btn v3-btn-sm" type="button" disabled="@(!Filtered)" @onclick="ClearFiltersAsync">Clear filters</button>
+                    </div>
+                </details>
+                <button class="v3-btn uw-icon-btn" type="button" @onclick="RefreshAsync" disabled="@_loading" aria-label="Refresh sources" title="Refresh sources">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5" /></svg>
+                </button>
+                <button class="v3-btn uw-icon-btn" type="button" @onclick="OpenBatch" disabled="@(_loading || _page is null)" aria-label="Prepare multiple amounts" title="Prepare multiple amounts">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                </button>
             </div>
 
             @if (_error is not null)
@@ -93,9 +107,9 @@
                     <tbody>
                         @foreach (var row in _page?.Rows ?? [])
                         {
-                            <tr class="uw-row @(IsSelected(row) ? "is-selected" : "")" @key="row.StallId" aria-selected="@(IsSelected(row) ? "true" : "false")">
+                            <tr class="uw-row @(IsSelected(row) ? "is-selected" : "")" @key="row.StallId" aria-selected="@(IsSelected(row) ? "true" : "false")" @onclick="() => Select(row)">
                                 <td>
-                                    <button type="button" class="uw-row-btn" @onclick="() => Select(row)" aria-label="@($"Open {PayerOf(row)}, {ContextOf(row)}")">
+                                    <button type="button" class="uw-row-btn" aria-label="@($"Open {PayerOf(row)}, {ContextOf(row)}")">
                                         <span class="v3-strong uw-payer">@PayerOf(row)</span>
                                         <span class="v3-block uw-context">@ContextOf(row)</span>
                                     </button>
@@ -168,15 +182,7 @@
                         }
                     </dl>
 
-                    <p class="uw-help">Net settled is what has been applied to this month's obligation, net of corrections. Each payment, with its own date, is in Collection activity.</p>
-                    @if (source.Mode == "Direct")
-                    {
-                        <p class="uw-note">This period is collected directly by the Collector. Each receipt is its own collection; no amount is prepared and no balance is owed.</p>
-                    }
-                    else if (source.Mode == "None")
-                    {
-                        <p class="uw-note">No amount is prepared. A Collector may record the amount actually received directly, or the office may prepare an approved amount first.</p>
-                    }
+                    <p class="uw-note">@StatusNote(source)</p>
 
                     @if (source.CanPrepare)
                     {
@@ -528,6 +534,20 @@
         string.Join(" · ", new[] { row.FacilityName, string.IsNullOrWhiteSpace(row.Section) ? null : SectionLabel(row.Section), $"Stall {row.StallNo.Replace("-", "-⁠")}" }.Where(x => !string.IsNullOrWhiteSpace(x)));
 
     private static string SectionLabel(string raw) => System.Text.RegularExpressions.Regex.Replace(raw, "(?<=[a-z])(?=[A-Z])", " ");
+
+    private bool AreaOrStatusActive => _section != "" || _status != "All";
+
+    // One short line on where the period stands; the longer rules live in the handoff, not on every source.
+    private static string StatusNote(UtilityRegisterRowDto row) => row.Status switch
+    {
+        "Unprepared" => "No approved amount for this period.",
+        "Unpaid" => $"{Money(row.Outstanding)} remaining.",
+        "Partial" => $"{Money(row.Outstanding)} remaining.",
+        "Settled" => "Settled for this period.",
+        "Direct" => "Collection recorded without a prepared assessment.",
+        "NeedsReview" => "Source requires office review.",
+        _ => ""
+    };
 
     private static string MethodOf(UtilityRegisterRowDto row) => row.Mode switch
     {
