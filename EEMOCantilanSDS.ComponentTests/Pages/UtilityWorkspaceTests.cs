@@ -324,10 +324,11 @@ public sealed class UtilityWorkspaceTests : TestContext
     }
 
     [Fact]
-    public void Wcf_LegacySource_OffersAuthorityReview_AndCanonicalSourceDoesNot()
+    public void Wcf_LegacySourceWithRecordedPayment_OffersAuthorityReview_ButRoutineAndCanonicalSourcesDoNot()
     {
         Services.AddSingleton(Register(
-            Row("Legacy Payer", "Prepared", 10m, 0m, 10m, authority: SettlementAuthority.Legacy),
+            Row("Legacy Payer", "Prepared", 10m, 4m, 6m, authority: SettlementAuthority.Legacy),
+            Row("Routine Payer", "Prepared", 10m, 0m, 10m, authority: SettlementAuthority.Legacy),
             Row("Canonical Payer", "Prepared", 10m, 0m, 10m, authority: SettlementAuthority.Canonical)).Object);
         Services.AddSingleton(WcfApi().Object);
         Services.AddSingleton(CollectorsApi().Object);
@@ -337,6 +338,8 @@ public sealed class UtilityWorkspaceTests : TestContext
 
         cut.FindAll(".uw-row-btn").Single(b => b.TextContent.Contains("Legacy Payer")).Click();
         Assert.Contains(cut.FindAll(".uw-detail button"), b => b.TextContent.Trim() == "Review authority");
+        cut.FindAll(".uw-row-btn").Single(b => b.TextContent.Contains("Routine Payer")).Click();       // nothing recorded: nothing to migrate
+        Assert.DoesNotContain(cut.FindAll(".uw-detail button"), b => b.TextContent.Trim() == "Review authority");
         cut.FindAll(".uw-row-btn").Single(b => b.TextContent.Contains("Canonical Payer")).Click();
         Assert.DoesNotContain(cut.FindAll(".uw-detail button"), b => b.TextContent.Trim() == "Review authority");
     }

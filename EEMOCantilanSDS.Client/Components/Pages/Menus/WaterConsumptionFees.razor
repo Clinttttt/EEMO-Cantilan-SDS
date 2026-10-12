@@ -68,7 +68,7 @@
         }
         else if (source.UtilityBillId is not null && source.Mode == "Prepared" && source.Outstanding > 0m)
         {
-            @if (source.Authority is SettlementAuthority.Legacy or SettlementAuthority.PendingCutover)
+            @if (source.Authority == SettlementAuthority.PendingCutover || source.Authority == SettlementAuthority.Legacy && source.Collected > 0m)
             {
                 <button class="v3-btn" type="button" disabled="@_busy" @onclick="() => OpenMigrationAsync(source)">Review authority</button>
             }

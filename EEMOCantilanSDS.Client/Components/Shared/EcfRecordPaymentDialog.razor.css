@@ -1,5 +1,6 @@
 /* Record ECF payment dialog — V3. Fields, buttons and notices come from the shared v3- layer. */
 .erd { width: min(34rem, calc(100vw - 32px)); }
+.erd .v3-modal-header { justify-content: space-between; }
 .erd-body { display: grid; gap: 14px; }
 .erd-lines { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
 .erd-lines li { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; font-size: 0.875rem; }

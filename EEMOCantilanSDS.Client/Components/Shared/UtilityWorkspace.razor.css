@@ -80,6 +80,7 @@
 
 /* Prepare multiple amounts */
 .uw-batch { max-width: min(46rem, 94vw); }
+.uw-batch .v3-modal-header { justify-content: space-between; }
 .uw-batch-input { width: 8.5rem; text-align: right; font-variant-numeric: tabular-nums; }
 .uw-batch-results { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 0.875rem; }
 .uw-batch-results .is-refused { color: var(--red, #b42318); }
