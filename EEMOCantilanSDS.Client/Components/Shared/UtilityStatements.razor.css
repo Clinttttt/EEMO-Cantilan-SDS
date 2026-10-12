@@ -97,3 +97,37 @@
 .us-sign ::deep .sig-title {
     overflow-wrap: anywhere;
 }
+
+/* One row on a desktop: billing month, a search that takes the slack, the balance filter, then Print. */
+.us-toolbar {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.us-toolbar ::deep input[type=month] {
+    flex: 0 0 auto;
+    width: 9.5rem;
+}
+
+.us-toolbar .v3-search {
+    flex: 1 1 12rem;
+    min-width: 8rem;
+}
+
+.us-toolbar .us-check,
+.us-toolbar .v3-btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+    .us-toolbar {
+        flex-wrap: wrap;
+    }
+
+    .us-toolbar .v3-search {
+        flex: 1 1 100%;
+        order: -1;
+    }
+}
