@@ -431,3 +431,8 @@
     .wcf-controls { flex-wrap: wrap; }
     .wcf-controls .v3-search { flex: 1 1 100%; }
 }
+
+/* Activity header and notes (the register layout lives in UtilityWorkspace). */
+.wcf-activity-header { flex-wrap: wrap; gap: 8px 16px; }
+.wcf-activity-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.wcf-note { margin: 0; color: var(--text-secondary); font-size: 0.8125rem; }

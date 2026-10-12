@@ -291,7 +291,7 @@ public sealed class OperationsFacilitiesHubTests : TestContext
 
             // The detail card offers only existing related pages.
             var ecfLinks = Row(cut, "Electricity Consumption Fees").QuerySelectorAll(".ops-card a").Select(a => a.GetAttribute("href"));
-            Assert.Equal(new[] { "/operations/ecf", "/operations/ecf/accounts", "/operations/ecf/report" }, ecfLinks);
+            Assert.Equal(new[] { "/operations/ecf", "/operations/ecf/statements", "/operations/ecf/report" }, ecfLinks);
         }, Timeout);
     }
 

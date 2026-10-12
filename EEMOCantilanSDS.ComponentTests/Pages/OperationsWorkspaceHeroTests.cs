@@ -49,39 +49,6 @@ public sealed class OperationsWorkspaceHeroTests : TestContext
     }
 
     [Fact]
-    public void ElectricityAccounts_UseTheCivicBlueHeroWithItsOwnFigures_AndNoRepeatedSummaryStrip()
-    {
-        ServeEcf(Result<IReadOnlyList<EcfObligationQuoteDto>>.Success([Ecf("Ana Reyes", 100m, 40m, 60m), Ecf("Ben Cruz", 50m, 50m, 0m)]));
-
-        var cut = RenderComponent<ElectricityConsumptionFeesAccounts>();
-
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Equal("Electricity Accounts", cut.Find("h1.v3h-title").TextContent.Trim());
-            var figures = cut.Find("dl.v3h-figures").TextContent;
-            Assert.Contains("₱150.00", figures); Assert.Contains("₱90.00", figures); Assert.Contains("₱60.00", figures);
-            Assert.Empty(cut.FindAll(".wh"));                       // the old white header is gone
-            Assert.Equal("Electricity account register", cut.Find("#ecfa-title").TextContent.Trim());
-        }, Timeout);
-        Assert.Single(cut.FindAll("dl[aria-label='Electricity account position']"));   // stated once, in the hero
-        Assert.NotNull(cut.Find(".v3-toolbar input[type=month]"));     // the billing month stays beside the filters it governs
-    }
-
-    [Fact]
-    public void ElectricityAccounts_AFailedReadShowsDashesNotZeroPesos()
-    {
-        ServeEcf(Result<IReadOnlyList<EcfObligationQuoteDto>>.Failure("offline"));
-
-        var cut = RenderComponent<ElectricityConsumptionFeesAccounts>();
-
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Contains("couldn't be loaded", cut.Find("[role=alert]").TextContent);
-            Assert.DoesNotContain("₱0.00", cut.Find("dl.v3h-figures").TextContent);
-        }, Timeout);
-    }
-
-    [Fact]
     public void EcfStatements_TheHeroIsScreenOnly_AndTheBillingMonthSurvivesALoadFailure()
     {
         ServeEcf(Result<IReadOnlyList<EcfObligationQuoteDto>>.Failure("offline"));

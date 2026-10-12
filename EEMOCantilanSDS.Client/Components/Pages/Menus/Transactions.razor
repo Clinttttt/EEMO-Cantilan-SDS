@@ -299,6 +299,9 @@
     private string _source = AllSources;
     private const string AllSources = "all";
 
+    /// <summary>Optional exact SRC from a workspace link; opens that collection's business date.</summary>
+    [SupplyParameterFromQuery(Name = "src")] public string? Src { get; set; }
+
     [PersistentState(AllowUpdates = true)]
     public TransactionsPageState? CachedTransactions { get; set; }
 
@@ -435,7 +438,7 @@
     protected override async Task OnInitializedAsync()
     {
         await FacilityCatalog.EnsureLoadedAsync();
-        if (CachedTransactions is { } state && state.SelectedDate == SelectedDate)
+        if (CachedTransactions is { } state && state.SelectedDate == SelectedDate && string.IsNullOrWhiteSpace(Src))
         {
             _feed = state.Feed;
             IsLoading = false;
@@ -443,6 +446,8 @@
         }
 
         await ReloadAsync(paintLoading: true);
+        // A deep link from a workspace (?src=SRC) opens that collection exactly as typing its reference into the search would.
+        if (!string.IsNullOrWhiteSpace(Src)) await OnSearchInputAsync(new ChangeEventArgs { Value = Src });
     }
 
     private async Task ShowLatest()
