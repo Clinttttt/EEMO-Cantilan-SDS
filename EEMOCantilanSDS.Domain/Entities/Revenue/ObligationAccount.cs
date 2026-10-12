@@ -41,6 +41,12 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
     public int? ContractYears { get; private set; }
     public decimal? AreaSqm { get; private set; }
     public string? AreaLocation { get; private set; }
+    /// <summary>
+    /// The monthly rental the signed contract itself states (the office register's "Monthly Rentals per Contract"). It is descriptive
+    /// evidence only: what the account is assessed is its approved <see cref="ObligationRate"/>, which may differ, and this figure never
+    /// prices, assesses or settles anything. Null means the contract rate was not recorded.
+    /// </summary>
+    public decimal? ContractMonthlyRate { get; private set; }
     public DateTime CreatedAtUtc { get; private set; }
     public string CreatedBy { get; private set; } = string.Empty;
 
@@ -123,10 +129,15 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
     }
 
     /// <summary>Stores source-native descriptive evidence; never changes assessment or account lifecycle.</summary>
-    public void SetLeaseDetails(string? contractName, DateOnly? contractDate, int? years, decimal? area, string? location)
+    public void SetLeaseDetails(string? contractName, DateOnly? contractDate, int? years, decimal? area, string? location,
+        decimal? contractMonthlyRate = null)
     {
         if (!IsMonthlySpaceKind(Kind))
             throw new ArgumentException("Lease details apply only to monthly space accounts.");
+        if (contractMonthlyRate is < 0m or > 1000000m || contractMonthlyRate is { } stated && decimal.Round(stated, 2) != stated)
+            throw new ArgumentException("The contract monthly rental must be a nonnegative amount with up to two decimals.");
+        if (Arrangement != OccupancyArrangement.SignedContract && contractMonthlyRate is > 0m)
+            throw new ArgumentException("A contract monthly rental requires signed contract occupancy.");
         var name = string.IsNullOrWhiteSpace(contractName) ? null : contractName.Trim();
         var note = string.IsNullOrWhiteSpace(location) ? null : location.Trim();
         if (name?.Length > 200 || note?.Length > 250)
@@ -146,13 +157,14 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
         ContractYears = years;
         AreaSqm = area is 0m ? null : area;
         AreaLocation = note;
+        ContractMonthlyRate = contractMonthlyRate is 0m ? null : contractMonthlyRate;
     }
 
     /// <summary>Corrects source-native holder evidence. A financial period fixes the occupant and lease term;
     /// moving occupancy to another person requires closure and a new accountable term instead.</summary>
     public void CorrectHolderEvidence(string actualOccupant, OccupancyArrangement arrangement, string? reference,
         string? contractName, DateOnly? contractDate, int? years, decimal? area, string? location,
-        bool hasAssessedPeriods)
+        bool hasAssessedPeriods, decimal? contractMonthlyRate = null)
     {
         if (!IsMonthlySpaceKind(Kind) || ActiveTo is not null)
             throw new ArgumentException("Only active monthly space accounts may correct holder details.");
@@ -164,7 +176,7 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
         if (hasAssessedPeriods && (arrangement != Arrangement || contractDate != ContractEffectiveDate || years != ContractYears))
             throw new ArgumentException("Recorded lease basis, start and term are locked after assessment. Correct descriptive notes only.");
         SetOccupancyBasis(arrangement, reference);
-        SetLeaseDetails(contractName, contractDate, years, area, location);
+        SetLeaseDetails(contractName, contractDate, years, area, location, contractMonthlyRate);
         ActualOccupant = holder;
     }
 

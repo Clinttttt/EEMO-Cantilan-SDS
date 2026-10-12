@@ -1,0 +1,226 @@
+@* RENTAL HISTORY LEDGER — the 12-month payment record first built for stalls (TCC / NCC / ICE / BBQ / NPM) and now the one presentation every
+   rental account's history uses: the same header, the same seven-figure strip, the same compliance row and the same ledger grid. It only
+   presents what it is handed. Each host builds its own rows from its own authoritative data (a stall's legacy payment records, a space
+   account's canonical collections), so one design never implies one data store. *@
+<div class="eemo-modal-overlay" @onclick="() => OnClose.InvokeAsync()">
+    <div class="ph-modal" role="dialog" aria-modal="true" aria-label="@AccessibleName" @onclick:stopPropagation="true">
+
+        <!-- ══ HEADER ══ -->
+        <div class="ph-header">
+            <div class="ph-header-glow"></div>
+
+            <div class="ph-header-left">
+                <div class="ph-header-icon">
+                    <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+                </div>
+                <div class="ph-header-text">
+                    <div class="ph-header-eyebrow">
+                        @for (var i = 0; i < EyebrowParts.Count; i++)
+                        {
+                            if (i > 0) { <span class="ph-dot">·</span> }
+                            @EyebrowParts[i]
+                        }
+                    </div>
+                    <div class="ph-header-name">@Name</div>
+                    @if (!string.IsNullOrWhiteSpace(ContractLine))
+                    {
+                        <div class="ph-header-contract">@ContractLine</div>
+                    }
+                </div>
+            </div>
+
+            <div class="ph-header-right">
+                <div class="ph-header-right-actions">
+                    <span class="ph-status-badge @(BadgeConsistent ? "ph-badge-consistent" : string.Empty)">@BadgeLabel</span>
+                    <button type="button" class="ph-close-btn" aria-label="Close" @onclick="() => OnClose.InvokeAsync()">
+                        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="ph-header-stats">
+                @foreach (var stat in Stats)
+                {
+                    <div class="ph-hstat">
+                        <div class="ph-hstat-val @(stat.Tone switch { "partial" => "ph-hstat-partial", "red" => "ph-hstat-red", _ => "" })">@stat.Value@if (stat.Of is not null) { <span class="ph-hstat-of">@stat.Of</span> }</div>
+                        <div class="ph-hstat-key">@stat.Key</div>
+                    </div>
+                }
+            </div>
+
+            <div class="ph-header-progress"><div class="ph-header-progress-fill" style="width:@CompliancePercent%"></div></div>
+        </div>
+
+        <!-- ══ COMPLIANCE ROW ══ -->
+        <div class="ph-compliance-row">
+            <div class="ph-compliance-label">
+                <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
+                Collection Compliance
+            </div>
+            <div class="ph-compliance-track">
+                <div class="ph-compliance-fill" style="width:@CompliancePercent%"></div>
+            </div>
+            <div class="ph-compliance-pct @(CompliancePercent == 100 ? "pct-full" : CompliancePercent < 50 ? "pct-low" : "")">@CompliancePercent%</div>
+        </div>
+
+        <!-- ══ LEDGER ══ -->
+        <div class="ph-body">
+            @if (Loading)
+            {
+                <div class="ph-state" role="status">Loading…</div>
+            }
+            else if (!string.IsNullOrWhiteSpace(Error))
+            {
+                <div class="ph-state ph-state-error" role="alert">
+                    <span>@Error</span>
+                    <button type="button" class="btn-ghost" @onclick="() => OnRetry.InvokeAsync()">Try again</button>
+                </div>
+            }
+            else
+            {
+            <div class="ph-ledger-header">
+                <div>Period</div>
+                <div>Status</div>
+                <div>@ReferenceHeading</div>
+                <div>@DateHeading</div>
+                <div>@CollectorHeading</div>
+                <div>Amount</div>
+                <div>Balance</div>
+            </div>
+
+            <div class="ph-ledger-body">
+                @foreach (var row in Rows)
+                {
+                    var kind = row.Kind;
+                    var muted = kind == LedgerKind.BeforeContract;
+                    <div class="ph-ledger-row @RowClass(kind) @(row.Current ? "ph-row-current" : "")">
+                        <div class="ph-cell-period">
+                            <div class="ph-period-dot @DotClass(kind)"></div>
+                            <div>
+                                <div class="ph-period-month">@row.Month</div>
+                                <div class="ph-period-year">@row.Year</div>
+                            </div>
+                            @if (row.Current) { <span class="ph-current-tag">Current</span> }
+                        </div>
+
+                        <div>
+                            @switch (kind)
+                            {
+                                case LedgerKind.BeforeContract:
+                                    <span class="ph-pay-pill ph-pill-gray"><svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12" /></svg>@row.StatusLabel</span>
+                                    break;
+                                case LedgerKind.Absent:
+                                    <span class="ph-pay-pill ph-pill-absent"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" /><line x1="8" y1="12" x2="16" y2="12" /></svg>@row.StatusLabel</span>
+                                    break;
+                                case LedgerKind.Paid:
+                                    <span class="ph-pay-pill ph-pill-paid"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>@row.StatusLabel</span>
+                                    break;
+                                case LedgerKind.Partial:
+                                    <span class="ph-pay-pill ph-pill-partial"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2" /><path d="M12 2 A 10 10 0 0 1 12 22 Z" fill="currentColor" /></svg>@row.StatusLabel</span>
+                                    break;
+                                default:
+                                    <span class="ph-pay-pill ph-pill-unpaid"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>@row.StatusLabel</span>
+                                    break;
+                            }
+                        </div>
+
+                        <div>@if (!string.IsNullOrEmpty(row.Reference)) { <span class="ph-or-num">@row.Reference</span> } else { <span class="ph-cell-empty">—</span> }</div>
+                        <div>@if (!string.IsNullOrEmpty(row.PaidOn)) { <span class="ph-pay-date">@row.PaidOn</span> } else { <span class="ph-cell-empty">—</span> }</div>
+                        <div>@if (!string.IsNullOrEmpty(row.Collector)) { <span class="ph-collector-name">@row.Collector</span> } else { <span class="ph-cell-empty">—</span> }</div>
+
+                        <div>
+                            @if (row.Amount is null) { <span class="ph-cell-empty">—</span> }
+                            else if (row.AmountIsPaid) { <span class="ph-amount-paid">@row.Amount</span> }
+                            else { <span class="ph-amount-unpaid">@row.Amount</span> }
+                        </div>
+
+                        <div>
+                            @if (row.Balance is null) { <span class="ph-cell-empty">—</span> }
+                            else if (row.BalanceDue) { <span class="ph-balance-due">@row.Balance</span> }
+                            else { <span class="ph-balance-zero">@row.Balance</span> }
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @if (Extra is not null)
+            {
+                @Extra
+            }
+            }
+        </div>
+
+        <!-- ══ FOOTER ══ -->
+        <div class="ph-footer">
+            <div class="ph-footer-meta">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                @FooterMeta
+            </div>
+            <div class="ph-footer-actions">
+                @if (!string.IsNullOrWhiteSpace(BalanceAlert))
+                {
+                    <div class="ph-balance-alert">
+                        <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+                        @BalanceAlert
+                    </div>
+                }
+                <button type="button" class="btn-ghost" @onclick="() => OnClose.InvokeAsync()">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    public enum LedgerKind { BeforeContract, Absent, Paid, Partial, Unpaid }
+
+    /// <summary>One figure of the header strip. <paramref name="Of"/> is the muted "/12" after a count; <paramref name="Tone"/> is "", "partial" or "red".</summary>
+    public sealed record LedgerStat(string Value, string? Of, string Key, string Tone = "");
+
+    /// <summary>One month of the ledger, already formatted by its host. A null cell shows a dash.</summary>
+    public sealed record LedgerRow(string Month, string Year, bool Current, LedgerKind Kind, string StatusLabel,
+        string? Reference, string? PaidOn, string? Collector, string? Amount, bool AmountIsPaid, string? Balance, bool BalanceDue);
+
+    [Parameter, EditorRequired] public IReadOnlyList<string> EyebrowParts { get; set; } = [];
+    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
+    [Parameter] public string? ContractLine { get; set; }
+    [Parameter] public string BadgeLabel { get; set; } = string.Empty;
+    [Parameter] public bool BadgeConsistent { get; set; }
+    [Parameter, EditorRequired] public IReadOnlyList<LedgerStat> Stats { get; set; } = [];
+    [Parameter] public int CompliancePercent { get; set; }
+    [Parameter, EditorRequired] public IReadOnlyList<LedgerRow> Rows { get; set; } = [];
+    [Parameter] public string FooterMeta { get; set; } = string.Empty;
+    [Parameter] public string? BalanceAlert { get; set; }
+    /// <summary>The reference column's heading: "OR Number" for a stall's legacy record, "Reference" for a canonical SRC.</summary>
+    [Parameter] public string ReferenceHeading { get; set; } = "OR Number";
+    [Parameter] public string DateHeading { get; set; } = "Payment Date";
+    [Parameter] public string CollectorHeading { get; set; } = "Collector";
+    /// <summary>Anything a host adds under the ledger (for example the list of every posted payment).</summary>
+    [Parameter] public RenderFragment? Extra { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>The dialog's accessible name; defaults to the eyebrow and the holder.</summary>
+    [Parameter] public string? AccessibleLabel { get; set; }
+    [Parameter] public bool Loading { get; set; }
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public EventCallback OnRetry { get; set; }
+
+    private string AccessibleName => AccessibleLabel ?? $"{string.Join(" · ", EyebrowParts)} — {Name}";
+
+    private static string RowClass(LedgerKind kind) => kind switch
+    {
+        LedgerKind.BeforeContract => "ph-row-before-contract",
+        LedgerKind.Absent => "ph-row-absent",
+        LedgerKind.Paid => "ph-row-paid",
+        LedgerKind.Partial => "ph-row-partial",
+        _ => "ph-row-unpaid"
+    };
+
+    private static string DotClass(LedgerKind kind) => kind switch
+    {
+        LedgerKind.BeforeContract => "ph-dot-gray",
+        LedgerKind.Absent => "ph-dot-absent",
+        LedgerKind.Paid => "ph-dot-paid",
+        LedgerKind.Partial => "ph-dot-partial",
+        _ => "ph-dot-unpaid"
+    };
+}

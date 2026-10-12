@@ -23,6 +23,12 @@ public sealed class ObligationsApiClient(HttpClient http) : HandleResponse(http)
     public Task<Result<IReadOnlyList<ObligationQuoteDto>>> GetRegisterAsync(Guid accountId) =>
         GetAsync<IReadOnlyList<ObligationQuoteDto>>($"api/obligations/accounts/{accountId}/register");
 
+    public Task<Result<IReadOnlyList<ObligationPaymentDto>>> GetPaymentsAsync(Guid accountId) =>
+        GetAsync<IReadOnlyList<ObligationPaymentDto>>($"api/obligations/accounts/{accountId}/payments");
+
+    public Task<Result<IReadOnlyList<SpaceHolderImportRunDto>>> GetImportRunsAsync(ObligationKind kind) =>
+        GetAsync<IReadOnlyList<SpaceHolderImportRunDto>>($"api/obligations/import-runs?kind={(int)kind}");
+
     public Task<Result<IReadOnlyList<VendorFeeStallDto>>> GetVendorStallsAsync() =>
         GetAsync<IReadOnlyList<VendorFeeStallDto>>("api/obligations/vendor-stalls");
 

@@ -799,4 +799,113 @@ public sealed class ObligationAccountTests(PostgresFixture db)
         Assert.False(five.IsSuccess);
         Assert.Contains("three-year standard", five.Error);           // the domain rule, unchanged
     }
+
+    [SkippableFact]
+    public async Task ContractMonthlyRate_IsEvidenceOnly_NeverPricesTheAccount_AndIsValidated()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync();
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+        await using var context = db.CreateContext(seed.TenantId);
+        var head = Setup(context, seed);
+        var signed = new CreateObligationAccountRequest(ObligationKind.KanmanggaySpaceRental, seed.PayorId, null, "", null, null, start, 900m,
+            OccupancyArrangement.SignedContract, "KM-1", "Actual Occupant", "Contract Lessee", start.AddDays(2), 3, 9.5m, "Row A", ContractMonthlyRate: 1000m);
+
+        // The signed contract states 1,000; the approved (assessed) amount is 900. Both are kept and neither prices the other.
+        var created = await head.CreateAccountAsync(signed);
+        Assert.True(created.IsSuccess, created.Error);
+        Assert.Equal((900m, 1000m), (created.Value!.CurrentAmount, created.Value.ContractMonthlyRate));
+        Assert.Equal(900m, Assert.Single((await head.GetRegisterAsync(created.Value.Id)).Value!).AssessedAmount);
+        Assert.Equal(900m, Assert.Single(await context.ObligationRates.ToListAsync()).Amount);
+
+        // A contract rate is only meaningful behind a signed contract, and must be a sane amount.
+        Assert.False((await head.CreateAccountAsync(signed with
+            { SubjectLabel = "", Arrangement = OccupancyArrangement.SpaceOnly, ContractReference = null, ContractName = null, ContractEffectiveDate = null, ContractYears = null })).IsSuccess);
+        Assert.False((await head.CreateAccountAsync(signed with { ContractMonthlyRate = -1m })).IsSuccess);
+        Assert.False((await head.CreateAccountAsync(signed with { ContractMonthlyRate = 1000.555m })).IsSuccess);
+
+        // Correcting the stated rate is audited descriptive evidence: the approved amount and the assessed period do not move.
+        var corrected = await head.CorrectHolderAsync(created.Value.Id, new("Actual Occupant", OccupancyArrangement.SignedContract, "KM-1", "Contract Lessee",
+            start.AddDays(2), 3, 9.5m, "Row A", 1200m));
+        Assert.True(corrected.IsSuccess, corrected.Error);
+        var reloaded = Assert.Single((await head.GetAccountsAsync(ObligationKind.KanmanggaySpaceRental)).Value!);
+        Assert.Equal((900m, 1200m), (reloaded.CurrentAmount, reloaded.ContractMonthlyRate));
+        Assert.Equal(900m, Assert.Single((await head.GetRegisterAsync(created.Value.Id)).Value!).AssessedAmount);
+    }
+
+    [SkippableFact]
+    public async Task PaymentHistory_IsOneAccountsCanonicalAllocations_NotItsOwnersOtherAccounts_AndIsTenantScoped()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync();
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+        await using var context = db.CreateContext(seed.TenantId);
+        var head = Setup(context, seed);
+        // The SAME person (one Business Payor) holds two spaces.
+        async Task<Guid> Open(string actual) => (await head.CreateAccountAsync(new CreateObligationAccountRequest(
+            ObligationKind.KanmanggaySpaceRental, seed.PayorId, null, "", null, null, start, 400m, OccupancyArrangement.SpaceOnly, null, actual))).Value!.Id;
+        var first = await Open("Same Person"); var second = await Open("Same Person");
+        var composer = Composer(context, seed);
+
+        Assert.Empty((await head.GetPaymentsAsync(first)).Value!);                                           // an honest empty history
+        var draft = await composer.AddObligationAllocationAsync(new AddObligationDraftAllocationRequest(first, seed.Today.Year, seed.Today.Month, 250m, null));
+        Assert.True(draft.IsSuccess, draft.Error);
+        await PostAsync(composer, draft.Value!, seed.OrIds[0]);
+
+        var payment = Assert.Single((await head.GetPaymentsAsync(first)).Value!);
+        Assert.Equal((250m, 0m, 250m, "Posted", start), (payment.Amount, payment.CorrectionEffect, payment.NetAmount, payment.Disposition, payment.PeriodStart));
+        Assert.StartsWith("SRC-", payment.ReferenceCode);
+        Assert.Equal(RevenueInstrumentType.OfficialReceipt, payment.Instrument);
+        Assert.Equal("obligation-test", payment.RecordedBy);
+        Assert.Empty((await head.GetPaymentsAsync(second)).Value!);                                          // the same person's other space shows nothing
+
+        // Authority and tenancy: a Head or Admin of this tenant may read; a Collector may not; another tenant cannot see the account at all.
+        Assert.True((await Setup(context, seed, "Admin").GetPaymentsAsync(first)).IsSuccess);
+        Assert.Equal(ResultStatus.Forbidden, (await Setup(context, seed, "Collector").GetPaymentsAsync(first)).Status);
+        var foreignSeed = seed with { TenantId = Guid.NewGuid() };
+        await using var foreign = db.CreateContext(foreignSeed.TenantId);
+        Assert.Equal(ResultStatus.NotFound, (await Setup(foreign, foreignSeed).GetPaymentsAsync(first)).Status);
+    }
+
+    [SkippableFact]
+    public async Task ImportRuns_AreRecordedOnlyForSavedImports_AndSeparatePreviewsFailuresAndReplays()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync();
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+        await using var context = db.CreateContext(seed.TenantId);
+        var head = Setup(context, seed);
+        ImportSpaceHolderRow Row(string subject, decimal rate = 100m) => new(new(ObligationKind.KanmanggaySpaceRental, seed.PayorId, null, subject, null, null, start, rate,
+            OccupancyArrangement.SignedContract, null, "Occupant " + subject, "Contract " + subject, start.AddDays(1), 3, 5m, null, ContractMonthlyRate: 120m));
+
+        // A preview and a refused list leave nothing behind.
+        Assert.True((await head.PreviewSpaceHoldersAsync(new([Row("K-1")]))).IsSuccess);
+        Assert.Empty((await head.GetImportRunsAsync(ObligationKind.KanmanggaySpaceRental)).Value!);
+        var refused = await head.ImportSpaceHoldersAsync(new([Row("K-1"), Row("K-2") with { Account = Row("K-2").Account with { PayorId = Guid.NewGuid() } }]));
+        Assert.Single(refused.Value!.NeedsReview);
+        Assert.Empty((await head.GetImportRunsAsync(ObligationKind.KanmanggaySpaceRental)).Value!);
+
+        // A saved import records one run with the real counts; the contract rate arrived with the account.
+        var saved = await head.ImportSpaceHoldersAsync(new([Row("K-1"), Row("K-2")]));
+        Assert.Equal(2, saved.Value!.Imported);
+        var run = Assert.Single((await head.GetImportRunsAsync(ObligationKind.KanmanggaySpaceRental)).Value!);
+        Assert.Equal((2, 2, 0, "obligation-test"), (run.RowCount, run.ImportedCount, run.SkippedCount, run.ImportedBy));
+        Assert.All((await head.GetAccountsAsync(ObligationKind.KanmanggaySpaceRental)).Value!, a => Assert.Equal(120m, a.ContractMonthlyRate));
+
+        // Replaying the same list adds nothing (existing spaces are skipped, never renumbered or overwritten), so it records no new run.
+        var replay = await head.ImportSpaceHoldersAsync(new([Row("K-1")]));
+        Assert.Equal((0, 1), (replay.Value!.Imported, replay.Value.Skipped));
+        Assert.Single((await head.GetImportRunsAsync(ObligationKind.KanmanggaySpaceRental)).Value!);
+        Assert.Equal(2, await context.ObligationAccounts.CountAsync());
+
+        // Head only; another tenant sees none; the run is for the line asked about.
+        Assert.Equal(ResultStatus.Forbidden, (await Setup(context, seed, "Admin").GetImportRunsAsync(ObligationKind.KanmanggaySpaceRental)).Status);
+        Assert.Empty((await head.GetImportRunsAsync(ObligationKind.FiestaArawLotRental)).Value!);
+        var foreignSeed = seed with { TenantId = Guid.NewGuid() };
+        await using var foreign = db.CreateContext(foreignSeed.TenantId);
+        Assert.Empty((await Setup(foreign, foreignSeed).GetImportRunsAsync(ObligationKind.KanmanggaySpaceRental)).Value!);
+    }
 }

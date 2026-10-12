@@ -63,7 +63,7 @@ public sealed class ObligationWorkflow(
                     account.SubjectLabel, account.Event, account.EventDate, account.ActiveFrom, account.ActiveTo,
                     current?.Amount, current?.EffectiveFrom,
                     accountQuotes.Sum(x => x.AssessedAmount), accountQuotes.Sum(x => x.SettledAmount),
-                    accountQuotes.Sum(x => x.OutstandingAmount), account.Arrangement, account.ContractReference, account.ActualOccupant, account.ContractName, account.ContractEffectiveDate, account.ContractYears, account.AreaSqm, account.AreaLocation);
+                    accountQuotes.Sum(x => x.OutstandingAmount), account.Arrangement, account.ContractReference, account.ActualOccupant, account.ContractName, account.ContractEffectiveDate, account.ContractYears, account.AreaSqm, account.AreaLocation, account.ContractMonthlyRate);
             }).ToList();
             return Result<IReadOnlyList<ObligationAccountDto>>.Success(rows);
         }, ct);
@@ -77,6 +77,56 @@ public sealed class ObligationWorkflow(
             if (account is null) return Result<IReadOnlyList<ObligationQuoteDto>>.NotFound();
             return Result<IReadOnlyList<ObligationQuoteDto>>.Success(
                 await new ObligationCollectionSource(db).GetQuotesAsync(actor.TenantId, [account], BusinessToday, ct));
+        }, ct);
+
+    /// <summary>
+    /// The payment history of ONE account: every posted Collection that allocated to one of its periods, newest first, with the SRC, the
+    /// period it settled, who recorded it, the instrument and any correction against it. Read from the canonical allocations of this account's
+    /// own period ids only, so another account of the same person, or of another tenant, never appears, and nothing is matched by name.
+    /// </summary>
+    public Task<Result<IReadOnlyList<ObligationPaymentDto>>> GetPaymentsAsync(Guid accountId, CancellationToken ct = default) =>
+        Run<IReadOnlyList<ObligationPaymentDto>>(async actor =>
+        {
+            var exists = await db.ObligationAccounts.AsNoTracking().AnyAsync(x => x.MunicipalityId == actor.TenantId && x.Id == accountId, ct);
+            if (!exists) return Result<IReadOnlyList<ObligationPaymentDto>>.NotFound();
+            var periods = db.ObligationPeriods.AsNoTracking().Where(x => x.MunicipalityId == actor.TenantId && x.ObligationAccountId == accountId);
+            var rows = await (from period in periods
+                              join allocation in db.CollectionAllocations.AsNoTracking() on period.Id equals allocation.SourceId
+                              join line in db.CollectionLines.AsNoTracking() on allocation.CollectionLineId equals line.Id
+                              join collection in db.Collections.AsNoTracking() on line.CollectionId equals collection.Id
+                              join policy in db.RevenueClassificationPolicies.AsNoTracking() on line.RevenueClassificationPolicyId equals policy.Id
+                              where allocation.MunicipalityId == actor.TenantId && collection.MunicipalityId == actor.TenantId
+                                  && allocation.SourceKind == CollectionSourceKind.ObligationPeriod
+                              orderby collection.RecordedAtUtc descending, period.PeriodStart descending
+                              select new
+                              {
+                                  AllocationId = allocation.Id, CollectionId = collection.Id, collection.ReferenceCode, collection.BusinessDate,
+                                  collection.RecordedAtUtc, period.PeriodStart, allocation.Amount, collection.ActorName, policy.PermittedInstrumentType
+                              }).Take(500).ToListAsync(ct);
+            var allocationIds = rows.Select(x => x.AllocationId).ToArray();
+            var effects = (await db.CollectionCorrectionAllocations.AsNoTracking()
+                .Where(x => x.MunicipalityId == actor.TenantId && allocationIds.Contains(x.OriginalAllocationId))
+                .Select(x => new { x.OriginalAllocationId, x.FinancialEffectAmount }).ToListAsync(ct))
+                .GroupBy(x => x.OriginalAllocationId).ToDictionary(g => g.Key, g => g.Sum(x => x.FinancialEffectAmount));
+            // The corrections against these exact Collections (and the SRC of any replacement), so a reversed payment keeps its audit relationship.
+            var collectionIds = rows.Select(x => x.CollectionId).Distinct().ToArray();
+            var corrections = await db.CollectionCorrections.AsNoTracking()
+                .Where(x => x.MunicipalityId == actor.TenantId && collectionIds.Contains(x.OriginalCollectionId)).ToListAsync(ct);
+            var replacementIds = corrections.Where(x => x.ReplacementCollectionId.HasValue).Select(x => x.ReplacementCollectionId!.Value).Distinct().ToArray();
+            var replacementCodes = await db.Collections.AsNoTracking().Where(x => x.MunicipalityId == actor.TenantId && replacementIds.Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id, x => x.ReferenceCode, ct);
+            var result = rows.Select(x =>
+            {
+                var effect = effects.GetValueOrDefault(x.AllocationId);
+                var net = x.Amount + effect;
+                var own = corrections.Where(c => c.OriginalCollectionId == x.CollectionId).OrderBy(c => c.RecordedAtUtc).ToList();
+                return new ObligationPaymentDto(x.CollectionId, x.ReferenceCode, x.BusinessDate, x.RecordedAtUtc, x.PeriodStart, x.Amount, effect, net,
+                    x.PermittedInstrumentType, x.ActorName, effect < 0m && net <= 0m ? "Reversed" : effect != 0m ? "Corrected" : "Posted",
+                    own.Select(c => new ObligationPaymentCorrectionDto(c.CorrectionType.ToString(), c.Reason, c.CorrectionEffectiveDate, c.RecordedAtUtc, c.FinancialEffectAmount)).ToList(),
+                    own.Where(c => c.ReplacementCollectionId.HasValue && replacementCodes.ContainsKey(c.ReplacementCollectionId.Value))
+                        .Select(c => replacementCodes[c.ReplacementCollectionId!.Value]).ToList());
+            }).ToList();
+            return Result<IReadOnlyList<ObligationPaymentDto>>.Success(result);
         }, ct);
 
     /// <summary>
@@ -173,7 +223,7 @@ public sealed class ObligationWorkflow(
                 account.SetOccupancyBasis(request.Arrangement, request.ContractReference);
                 if (ObligationAccount.IsMonthlySpaceKind(request.Kind))
                     account.SetLeaseDetails(request.ContractName, request.ContractEffectiveDate,
-                        request.ContractYears, request.AreaSqm, request.AreaLocation);
+                        request.ContractYears, request.AreaSqm, request.AreaLocation, request.ContractMonthlyRate);
                 // Preserve the actual rate start. Kanmanggay's first period resolves at occupancy start;
                 // subsequent monthly periods use their first day. Contract metadata never prices the account.
                 rate = ObligationRate.Create(actor.TenantId, account.Id, account.ActiveFrom, request.Amount, actor.Username);
@@ -250,6 +300,12 @@ public sealed class ObligationWorkflow(
             // Validate the complete list before any account or financial assessment is written.
             if (review.Length > 0) return Result<ImportSpaceHoldersResult>.Success(new(0, skipped, review, plan.Rows));
             foreach (var item in plan.Additions) { db.ObligationAccounts.Add(item.Account); db.ObligationRates.Add(item.Rate); }
+            // The run is recorded with the accounts it created, in the same transaction: a saved import always has its run, and a
+            // preview, a refusal or a list that added nothing never does.
+            if (plan.Additions.Count > 0)
+                db.SpaceHolderImportRuns.Add(SpaceHolderImportRun.Record(actor.TenantId, plan.Additions[0].Account.Kind, actor.UserId, actor.Username,
+                    request.Rows.Count, plan.Additions.Count, skipped,
+                    skipped == 0 ? null : string.Join("; ", plan.Rows.Where(x => x.Code == "DuplicateSpace").Select(x => $"Row {x.RowNumber}: {x.Message}"))));
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
             var saved = plan.Additions.GetEnumerator();
@@ -257,6 +313,19 @@ public sealed class ObligationWorkflow(
                 if (plan.Rows[i].Status == SpaceHolderImportStatus.Ready && saved.MoveNext())
                     plan.Rows[i] = plan.Rows[i] with { AccountId = saved.Current.Account.Id };
             return Result<ImportSpaceHoldersResult>.Success(new(plan.Additions.Count, skipped, [], plan.Rows));
+        }, ct);
+
+    /// <summary>The saved bulk imports of one space-rental line, newest first (Head only).</summary>
+    public Task<Result<IReadOnlyList<SpaceHolderImportRunDto>>> GetImportRunsAsync(ObligationKind kind, CancellationToken ct = default) =>
+        Run<IReadOnlyList<SpaceHolderImportRunDto>>(async actor =>
+        {
+            if (actor.Role != "SuperAdmin") return Result<IReadOnlyList<SpaceHolderImportRunDto>>.Forbidden();
+            if (!ObligationAccount.IsSpaceKind(kind)) return Result<IReadOnlyList<SpaceHolderImportRunDto>>.Failure("Choose a space-rental line.", ResultStatus.Invalid);
+            var runs = await db.SpaceHolderImportRuns.AsNoTracking().Where(x => x.MunicipalityId == actor.TenantId && x.Kind == kind)
+                .OrderByDescending(x => x.OccurredAtUtc).Take(100)
+                .Select(x => new SpaceHolderImportRunDto(x.Id, x.Kind, x.OccurredAtUtc, x.ActorName, x.RowCount, x.ImportedCount, x.SkippedCount, x.SkippedSummary))
+                .ToListAsync(ct);
+            return Result<IReadOnlyList<SpaceHolderImportRunDto>>.Success(runs);
         }, ct);
 
     private sealed record SpaceImportPlan(List<(ObligationAccount Account, ObligationRate Rate)> Additions,
@@ -309,6 +378,10 @@ public sealed class ObligationWorkflow(
                 var account = ObligationAccount.Create(actor.TenantId, input.Kind, input.PayorId, input.StallId,
                     input.SubjectLabel, input.Event, input.EventDate, input.ActiveFrom, actor.Username, actualOccupant: input.ActualOccupant);
                 account.SetOccupancyBasis(input.Arrangement, input.ContractReference);
+                // The same lease evidence a single Add New records (name on the signed contract, effectivity, years, area, the contract's own
+                // rate): an imported register keeps what the office wrote on it instead of silently dropping it. It prices nothing.
+                if (ObligationAccount.IsMonthlySpaceKind(input.Kind))
+                    account.SetLeaseDetails(input.ContractName, input.ContractEffectiveDate, input.ContractYears, input.AreaSqm, input.AreaLocation, input.ContractMonthlyRate);
                 var rate = ObligationRate.Create(actor.TenantId, account.Id, account.ActiveFrom, input.Amount, actor.Username);
                 if (row!.ClosedOn is { } closed) account.Close(closed);
                 if (!seen.Add(account.Kind, account.SubjectLabel, account.Event, account.EventDate))
@@ -362,18 +435,18 @@ public sealed class ObligationWorkflow(
                 x.MunicipalityId == actor.TenantId && x.ObligationAccountId == accountId, ct);
             var before = new { account.ActualOccupant, account.Arrangement, account.ContractReference,
                 account.ContractName, account.ContractEffectiveDate, account.ContractYears,
-                account.AreaSqm, account.AreaLocation };
+                account.AreaSqm, account.AreaLocation, account.ContractMonthlyRate };
             var previous = JsonSerializer.Serialize(before);
             var durationProblem = await SignedContractDurationProblemAsync(
                 actor.TenantId, account.Kind, request.Arrangement, request.ContractYears, account.ContractYears, ct);
             if (durationProblem is not null) return Result<bool>.Failure(durationProblem, ResultStatus.Conflict);
             try { account.CorrectHolderEvidence(request.ActualOccupant, request.Arrangement, request.ContractReference,
                 request.ContractName, request.ContractEffectiveDate, request.ContractYears,
-                request.AreaSqm, request.AreaLocation, hasHistory); }
+                request.AreaSqm, request.AreaLocation, hasHistory, request.ContractMonthlyRate); }
             catch (ArgumentException ex) { return Result<bool>.Failure(ex.Message, ResultStatus.Conflict); }
             var revised = JsonSerializer.Serialize(new { account.ActualOccupant, account.Arrangement, account.ContractReference,
                 account.ContractName, account.ContractEffectiveDate, account.ContractYears,
-                account.AreaSqm, account.AreaLocation });
+                account.AreaSqm, account.AreaLocation, account.ContractMonthlyRate });
             if (previous == revised) return Result<bool>.Success(true);
             db.AuditLogs.Add(AuditLog.Create(actor.UserId.ToString("N"), actor.Username, actor.Role,
                 "CorrectSpaceHolderEvidence", nameof(ObligationAccount), account.Id,

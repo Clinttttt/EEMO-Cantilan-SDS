@@ -19,6 +19,10 @@ public interface IObligationsApiClient
         Task.FromResult(Result<ImportSpaceHoldersResult>.Failure("Space import unavailable."));
     Task<Result<IReadOnlyList<ObligationAccountDto>>> GetAccountsAsync(ObligationKind kind);
     Task<Result<IReadOnlyList<ObligationQuoteDto>>> GetRegisterAsync(Guid accountId);
+    Task<Result<IReadOnlyList<ObligationPaymentDto>>> GetPaymentsAsync(Guid accountId) =>
+        Task.FromResult(Result<IReadOnlyList<ObligationPaymentDto>>.Failure("Payment history unavailable."));
+    Task<Result<IReadOnlyList<SpaceHolderImportRunDto>>> GetImportRunsAsync(ObligationKind kind) =>
+        Task.FromResult(Result<IReadOnlyList<SpaceHolderImportRunDto>>.Failure("Import history unavailable."));
     Task<Result<IReadOnlyList<VendorFeeStallDto>>> GetVendorStallsAsync();
     Task<Result<ObligationAccountDto>> CreateAccountAsync(CreateObligationAccountRequest request);
     Task<Result<bool>> CorrectHolderAsync(Guid accountId, CorrectObligationHolderRequest request) =>

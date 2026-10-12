@@ -1,0 +1,181 @@
+@* RENTAL PROFILE VIEW - the stall profile page's design (hero, field cards, 12-month grid, year navigator, collection history) as a presentational
+   component, so a space or lot account's profile is the same page, not a lookalike. It is data-driven on purpose: every element it draws is its
+   own, so the profile styles apply to all of it. It presents what it is handed; each host supplies figures from its own authoritative source. *@
+<div class="rental-profile">
+    <div class="prof-hero">
+        <div class="prof-hero-badge" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
+        </div>
+        <div class="prof-hero-identity">
+            <div class="prof-hero-eyebrow">@Eyebrow</div>
+            <h1 class="prof-hero-name">@Name</h1>
+            <div class="prof-hero-meta">
+                @if (!string.IsNullOrWhiteSpace(Location))
+                {
+                    <span class="prof-hero-chip">
+                        <svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" /></svg>
+                        @Location
+                    </span>
+                }
+                @foreach (var pill in Pills)
+                {
+                    <span class="prof-status-pill pill-@pill.Tone">@pill.Text</span>
+                }
+            </div>
+        </div>
+        <div class="prof-hero-actions">
+            @foreach (var action in Actions)
+            {
+                <button type="button" class="@(action.Primary ? "btn-primary" : "btn-outline")" disabled="@action.Disabled" title="@action.Title" @onclick="() => OnAction.InvokeAsync(action.Key)">
+                    <svg viewBox="0 0 24 24"><path d="@action.IconPath" /></svg>
+                    @action.Text
+                </button>
+            }
+        </div>
+    </div>
+
+    <div class="prof-grid">
+        <div class="prof-col">
+            @foreach (var section in Sections)
+            {
+                <section class="prof-card" aria-label="@section.Title">
+                    <div class="prof-card-header">
+                        <div class="prof-card-icon"><svg viewBox="0 0 24 24"><path d="@section.IconPath" /></svg></div>
+                        <h2 class="prof-card-title">@section.Title</h2>
+                    </div>
+                    <div class="prof-field-list">
+                        @foreach (var fact in section.Facts)
+                        {
+                            <div class="prof-field">
+                                <span class="prof-field-label">@fact.Label</span>
+                                @if (fact.Pill is { } factPill)
+                                {
+                                    <span class="prof-status-pill pill-@factPill.Tone">@factPill.Text</span>
+                                }
+                                else
+                                {
+                                    <span class="prof-field-val @fact.Style">@if (fact.Muted) { <span class="prof-no-contract">@fact.Value</span> } else { @fact.Value }</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                </section>
+            }
+        </div>
+
+        <div class="prof-col">
+            <section class="prof-card" aria-label="@HistoryTitle">
+                <div class="prof-card-header">
+                    <div class="prof-card-icon"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg></div>
+                    <h2 class="prof-card-title">@HistoryTitle</h2>
+                    @if (ShowYearNav)
+                    {
+                        <div class="ph-year-nav">
+                            <button type="button" class="ph-year-arrow" aria-label="Previous year" title="Previous year" @onclick="() => OnYear.InvokeAsync(-1)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg></button>
+                            <span class="ph-year-label" aria-live="polite">@Year</span>
+                            <button type="button" class="ph-year-arrow" aria-label="Next year" title="Next year" disabled="@(!CanNextYear)" @onclick="() => OnYear.InvokeAsync(1)"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg></button>
+                        </div>
+                    }
+                </div>
+
+                @if (Tiles.Count > 0)
+                {
+                <div class="prof-hist-grid" role="list" aria-label="@HistoryTitle by month">
+                    @foreach (var tile in Tiles)
+                    {
+                        <div class="prof-hist-month hist-@tile.Kind @(tile.Current ? "hist-current" : "")" role="listitem" aria-label="@($"{tile.Month} {tile.Sub}: {tile.Label}")">
+                            <div class="prof-hist-month-name">@tile.Month</div>
+                            <div class="prof-hist-month-year">@tile.Sub</div>
+                            <div class="prof-hist-icon" aria-hidden="true">@tile.Icon</div>
+                        </div>
+                    }
+                </div>
+                }
+
+                <div class="prof-hist-summary @(Tiles.Count == 0 ? "prof-hist-summary-solo" : "")">
+                    @foreach (var stat in Stats)
+                    {
+                        <div class="prof-hist-stat @(stat.Warn ? "stat-warn" : "")">
+                            <div class="prof-hist-stat-val @stat.Tone">@stat.Value</div>
+                            <div class="prof-hist-stat-key">@stat.Key</div>
+                        </div>
+                    }
+                </div>
+            </section>
+
+            <section class="prof-card" aria-label="Collection History">
+                <div class="prof-card-header">
+                    <div class="prof-card-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg></div>
+                    <h2 class="prof-card-title">Collection History</h2>
+                </div>
+                @if (PaymentsLoading)
+                {
+                    <div class="prof-ch-state" role="status">Loading collection history…</div>
+                }
+                else if (!string.IsNullOrWhiteSpace(PaymentsError))
+                {
+                    <div class="prof-ch-state" role="alert">@PaymentsError <button type="button" class="prof-ch-retry" @onclick="() => OnRetry.InvokeAsync()">Retry</button></div>
+                }
+                else if (Payments.Count == 0)
+                {
+                    <div class="prof-ch-state">No collections recorded yet.</div>
+                }
+                else
+                {
+                    <div class="prof-ch-wrap" tabindex="0" role="region" aria-label="Collections recorded against this account">
+                        <table class="prof-ch-table">
+                            <thead>
+                                <tr><th>Period</th><th>Status</th><th class="prof-ch-r">Amount</th><th>SRC</th><th>Recorded By</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in Payments)
+                                {
+                                    <tr>
+                                        <td class="prof-ch-date">@row.Period@if (!string.IsNullOrWhiteSpace(row.Date)) { <span class="prof-ch-multi">@row.Date</span> }</td>
+                                        <td><span class="prof-ch-pill prof-ch-@row.Status.ToLowerInvariant()">@row.Status</span>@if (!string.IsNullOrWhiteSpace(row.Note)) { <span class="prof-ch-multi">@row.Note</span> }</td>
+                                        <td class="prof-ch-r mono">@row.Amount</td>
+                                        <td class="mono">@row.Reference</td>
+                                        <td>@row.RecordedBy</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+        </div>
+    </div>
+</div>
+
+@code {
+    public sealed record ProfilePill(string Text, string Tone);
+    /// <summary><paramref name="Style"/> is "", "mono", "bold" or "gold". <paramref name="Muted"/> shows the value as an absent-record note.</summary>
+    public sealed record ProfileFact(string Label, string Value, string Style = "", bool Muted = false, ProfilePill? Pill = null);
+    public sealed record ProfileSection(string Title, string IconPath, IReadOnlyList<ProfileFact> Facts);
+    public sealed record ProfileAction(string Key, string Text, string IconPath, bool Primary = false, bool Disabled = false, string? Title = null);
+    /// <summary><paramref name="Kind"/> is paid, partial, unpaid, absent, na or future.</summary>
+    public sealed record ProfileTile(string Month, string Sub, string Kind, string Icon, string Label, bool Current = false);
+    public sealed record ProfileStat(string Value, string Key, string Tone = "", bool Warn = false);
+    public sealed record ProfilePaymentRow(string Period, string Date, string Status, string Amount, string Reference, string RecordedBy, string? Note = null);
+
+    [Parameter, EditorRequired] public string Eyebrow { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
+    [Parameter] public string? Location { get; set; }
+    [Parameter] public IReadOnlyList<ProfilePill> Pills { get; set; } = [];
+    [Parameter] public IReadOnlyList<ProfileAction> Actions { get; set; } = [];
+    [Parameter] public EventCallback<string> OnAction { get; set; }
+    [Parameter, EditorRequired] public IReadOnlyList<ProfileSection> Sections { get; set; } = [];
+
+    [Parameter] public string HistoryTitle { get; set; } = "12-Month Payment History";
+    [Parameter] public bool ShowYearNav { get; set; } = true;
+    [Parameter] public int Year { get; set; }
+    [Parameter] public bool CanNextYear { get; set; }
+    [Parameter] public EventCallback<int> OnYear { get; set; }
+    [Parameter] public IReadOnlyList<ProfileTile> Tiles { get; set; } = [];
+    [Parameter] public IReadOnlyList<ProfileStat> Stats { get; set; } = [];
+
+    [Parameter] public bool PaymentsLoading { get; set; }
+    [Parameter] public string? PaymentsError { get; set; }
+    [Parameter] public IReadOnlyList<ProfilePaymentRow> Payments { get; set; } = [];
+    [Parameter] public EventCallback OnRetry { get; set; }
+}

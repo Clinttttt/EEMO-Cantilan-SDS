@@ -16,7 +16,6 @@
 .op-space-modes button { flex: 1; min-height: 44px; border: 0; border-radius: 8px; background: transparent; color: var(--mobile-navy); font: inherit; }
 .op-space-modes .selected { background: var(--mobile-blue); color: white; font-weight: 600; }
 .op-space-modes button:focus-visible { outline: 2px solid var(--mobile-focus); outline-offset: 2px; }
-.op-instruction { margin: 0 0 12px; font-size: 14px; line-height: 1.5; color: var(--mobile-text-primary, var(--mobile-navy)); }
 .op-space .op-facts-main { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 8px; }
 .op-space .op-facts-amount { font-size: 20px; }
 .op-space .op-facts-grid { margin-top: 8px; }

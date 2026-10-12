@@ -52,6 +52,7 @@ public class TenantExportRepository(AppDbContext context) : ITenantExportReposit
             ["FishMeatVendorRegistrations"] = await context.FishMeatVendorRegistrations.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["FishMeatNpmAssociations"] = await context.FishMeatNpmAssociations.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["DirectCollectionReviewEvents"] = await context.DirectCollectionReviewEvents.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
+            ["SpaceHolderImportRuns"] = await context.SpaceHolderImportRuns.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["OfficialReportRevisions"] = await context.OfficialReportRevisions.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["CollectionSettlementCutovers"] = await context.CollectionSettlementCutovers.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["AccountableFormBooks"] = await context.AccountableFormBooks.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),

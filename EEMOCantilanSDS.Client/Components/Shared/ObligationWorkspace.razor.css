@@ -181,3 +181,8 @@
 .obw-advanced-filters label { position: absolute; right: 0; top: 38px; z-index: 30; display: grid; gap: 8px; width: 180px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: 0 4px 16px #102b4c1a; font-size: .8125rem; }
 .obw-advanced-filters select { width: 100%; min-height: 36px; font: inherit; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); }
 @media (max-width: 768px) { .obw-advanced-filters label { left: 0; right: auto; } }
+
+/* The two import actions in Add New's footer, the stallholder drawer's own: a pair pushed left of Cancel and Add. */
+.avm-import-group { margin-right: auto; display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.avm-import-btn { display: inline-flex; align-items: center; gap: 7px; }
+.avm-import-btn svg { width: 15px; height: 15px; }

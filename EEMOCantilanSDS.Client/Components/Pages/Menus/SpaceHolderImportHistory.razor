@@ -1,0 +1,104 @@
+@page "/operations/kanmanggay/import/history"
+@page "/operations/vegetable-fruit/import/history"
+@page "/operations/fiesta-araw/import/history"
+@attribute [Authorize(Roles = "SuperAdmin")]
+@rendermode InteractiveServer
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Client.Services
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@inject IObligationsApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>StallTrack — @Presentation.Name import history</PageTitle>
+
+@* The lists of holders already brought into this operation. A run exists only because an import was SAVED: a preview, a refused list and a
+   cancelled upload leave none. Each run says who imported, when, and how many rows were imported and skipped (a space that already has an
+   account is skipped, never renumbered or overwritten). The layout owns the <main> landmark. *@
+<OperationTopbar Title="@Presentation.Name" Crumb="Import history" ParentHref="@Presentation.Route" ParentTitle="@Presentation.Name" />
+<div class="content-area">
+    <section class="v3-panel" aria-labelledby="sih-title">
+        <header class="v3-panel-header">
+            <h2 id="sih-title">Import history</h2>
+            <span class="v3-panel-meta" role="status">@Summary</span>
+        </header>
+        <div class="v3-toolbar sih-toolbar">
+            <a class="v3-btn" href="@Presentation.ImportHref">Import a list</a>
+            <a class="v3-btn" href="@Presentation.Route">Back to @Presentation.Name</a>
+        </div>
+        @if (_error is not null)
+        {
+            <div class="v3-notice v3-notice-error v3-notice-row" role="alert">
+                <span>@_error</span>
+                <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadAsync">Try again</button>
+            </div>
+        }
+        <div class="v3-table-wrap" role="region" aria-label="Saved imports" tabindex="0">
+            <table class="v3-table">
+                <caption class="v3-sr-only">Saved imports of @Presentation.Name</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Imported</th>
+                        <th scope="col">Imported by</th>
+                        <th scope="col" class="v3-num">Rows</th>
+                        <th scope="col" class="v3-num">Imported</th>
+                        <th scope="col" class="v3-num">Skipped</th>
+                        <th scope="col">Skipped detail</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var run in _runs)
+                    {
+                        <tr @key="run.Id">
+                            <td>@run.OccurredAtUtc.Add(PhilippineTime.Offset).ToString("MMM d, yyyy · h:mm tt", CultureInfo.InvariantCulture)</td>
+                            <td>@run.ImportedBy</td>
+                            <td class="v3-num">@run.RowCount</td>
+                            <td class="v3-num v3-strong">@run.ImportedCount</td>
+                            <td class="v3-num">@run.SkippedCount</td>
+                            <td class="sih-detail">@(string.IsNullOrWhiteSpace(run.SkippedSummary) ? "—" : run.SkippedSummary)</td>
+                        </tr>
+                    }
+                    @if (_loading)
+                    {
+                        <tr><td class="v3-empty" colspan="6"><span role="status">Loading…</span></td></tr>
+                    }
+                    else if (_error is null && _runs.Count == 0)
+                    {
+                        <tr><td class="v3-empty" colspan="6">No list has been imported into @Presentation.Name yet.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+@code {
+    private IReadOnlyList<SpaceHolderImportRunDto> _runs = [];
+    private bool _loading = true;
+    private string? _error;
+
+    private SpaceAccountPresentation Presentation =>
+        Navigation.Uri.Contains("/operations/vegetable-fruit/", StringComparison.OrdinalIgnoreCase) ? SpaceAccountPresentation.VegetableFruit
+        : Navigation.Uri.Contains("/operations/fiesta-araw/", StringComparison.OrdinalIgnoreCase) ? SpaceAccountPresentation.FiestaAraw
+        : SpaceAccountPresentation.Kanmanggay;
+
+    private string Summary => _loading ? "Loading…" : $"{_runs.Count} saved import{(_runs.Count == 1 ? "" : "s")}";
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = null;
+        try
+        {
+            var result = await Api.GetImportRunsAsync(Presentation.Kind);
+            if (result is { IsSuccess: true, Value: { } runs }) _runs = runs;
+            else { _runs = []; _error = result?.Error ?? "The import history could not be loaded."; }
+        }
+        catch { _runs = []; _error = "The import history could not be loaded."; }
+        finally { _loading = false; }
+    }
+}

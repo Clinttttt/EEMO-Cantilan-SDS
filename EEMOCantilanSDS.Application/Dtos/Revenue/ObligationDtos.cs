@@ -44,7 +44,9 @@ public sealed record ObligationAccountDto(
     DateOnly? ContractEffectiveDate = null,
     int? ContractYears = null,
     decimal? AreaSqm = null,
-    string? AreaLocation = null);
+    string? AreaLocation = null,
+    // The monthly rental the signed contract states (evidence only; the approved amount above is what is assessed).
+    decimal? ContractMonthlyRate = null);
 
 public sealed record CreateObligationAccountRequest(
     ObligationKind Kind,
@@ -62,12 +64,13 @@ public sealed record CreateObligationAccountRequest(
     DateOnly? ContractEffectiveDate = null,
     int? ContractYears = null,
     decimal? AreaSqm = null,
-    string? AreaLocation = null);
+    string? AreaLocation = null,
+    decimal? ContractMonthlyRate = null);
 
 /// <summary>Head-authorized correction of recorded holder/lease evidence; it never changes existing financial periods.</summary>
 public sealed record CorrectObligationHolderRequest(string ActualOccupant, OccupancyArrangement Arrangement,
     string? ContractReference, string? ContractName, DateOnly? ContractEffectiveDate,
-    int? ContractYears, decimal? AreaSqm, string? AreaLocation);
+    int? ContractYears, decimal? AreaSqm, string? AreaLocation, decimal? ContractMonthlyRate = null);
 
 public sealed record SetObligationRateRequest(DateOnly EffectiveFrom, decimal Amount);
 
@@ -105,3 +108,20 @@ public sealed record AddObligationDraftAllocationRequest(
 
 /// <summary>A vendor-fee-eligible NPM Fish/Meat stall and the explicitly linked Payor of its current occupancy.</summary>
 public sealed record VendorFeeStallDto(Guid StallId, string StallNo, string Section, Guid? PayorId, string? PayerName, bool HasAccount);
+
+/// <summary>
+/// One posted Collection's allocation to one period of one space-rental account, read from the canonical ledger (never from a copy).
+/// <see cref="Amount"/> is what the Collection allocated to the period; <see cref="CorrectionEffect"/> is the net of any correction against
+/// that allocation (negative for a reversal), so <see cref="NetAmount"/> is what the period actually keeps. The original SRC always stays.
+/// </summary>
+public sealed record ObligationPaymentDto(
+    Guid CollectionId, string ReferenceCode, DateOnly BusinessDate, DateTime RecordedAtUtc, DateOnly PeriodStart,
+    decimal Amount, decimal CorrectionEffect, decimal NetAmount, RevenueInstrumentType? Instrument, string RecordedBy, string Disposition,
+    IReadOnlyList<ObligationPaymentCorrectionDto>? Corrections = null, IReadOnlyList<string>? ReplacementReferenceCodes = null);
+
+/// <summary>A correction recorded against a posted Collection: what kind, why, when, and its net financial effect. The original SRC is never altered by it.</summary>
+public sealed record ObligationPaymentCorrectionDto(string CorrectionType, string Reason, DateOnly EffectiveDate, DateTime RecordedAtUtc, decimal FinancialEffect);
+
+/// <summary>A saved bulk import of space holders (never a preview or a failed attempt).</summary>
+public sealed record SpaceHolderImportRunDto(
+    Guid Id, ObligationKind Kind, DateTime OccurredAtUtc, string ImportedBy, int RowCount, int ImportedCount, int SkippedCount, string? SkippedSummary);

@@ -16,3 +16,16 @@
     outline: 2px solid var(--civic-blue, #2563eb);
     outline-offset: 2px;
 }
+
+/* The same small line icons the stallholder pages' action bar carries. */
+.rental-navigation > a svg {
+    width: 13px;
+    height: 13px;
+    margin-right: 6px;
+    flex: 0 0 auto;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}

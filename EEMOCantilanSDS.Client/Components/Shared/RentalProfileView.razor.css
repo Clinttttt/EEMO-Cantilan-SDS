@@ -1,0 +1,759 @@
+/* ============================================================
+   RentalProfileView.razor.css - the stall profile page design (hero, field cards, 12-month grid, year navigator, collection history),
+   shared so a space/lot account profile is the same page. The rules below are the reference Profile.razor.css sections, unchanged;
+   migrating Profile.razor itself onto this component would remove the duplication.
+   ============================================================ */
+
+/* ── Hero ────────────────────────────────────────────────── */
+/* A light card, but not a sheet of white: set on the page's own tint with a slightly stronger edge, so it reads as a
+   header band rather than as a panel that lost its background. The navy slab it replaced opened the page on a block of
+   colour; plain white opened it on nothing at all. */
+.prof-hero {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg, #f1f4f8) 100%);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px 26px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    position: relative;
+    box-shadow: 0 1px 2px rgba(13, 33, 55, .04);
+}
+
+/* The facility's icon, the same tile the facility hero and the sidebar use, so a stall's page is marked the way its
+   facility is everywhere else. */
+.prof-hero-badge {
+    width: 56px;
+    height: 56px;
+    border-radius: 13px;
+    background: rgba(13, 33, 55, .06);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+    /* The mark is drawn by a child component, so it carries no scope of this page's own - hence ::deep. Without it the
+       browser's own defaults would decide the size and the drawing would arrive at whatever the SVG asked for. */
+    .prof-hero-badge ::deep svg {
+        width: 30px;
+        height: 30px;
+        stroke: var(--navy);
+        fill: none;
+    }
+
+.prof-hero-identity {
+    flex: 1 1 200px;
+}
+
+.prof-hero-eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.prof-hero-name {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--navy);
+    line-height: 1.2;
+}
+
+.prof-hero-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.prof-hero-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+}
+
+    .prof-hero-chip svg {
+        width: 13px;
+        height: 13px;
+        stroke: var(--text-muted);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.prof-hero-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+/* ── Action Buttons ──────────────────────────────────────── */
+.btn-outline,
+.btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    border-radius: 10px;
+    border: 1.5px solid var(--border);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .15s;
+    white-space: nowrap;
+}
+
+.btn-outline {
+    background: #fff;
+    color: var(--navy);
+    border-color: var(--border);
+}
+
+    .btn-outline:hover {
+        background: var(--bg-card);
+        border-color: var(--navy);
+    }
+
+    .btn-outline svg {
+        width: 16px;
+        height: 16px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.btn-primary {
+    /* Navy, the colour every other primary action in the portal uses. Gold was chosen against the navy hero this card
+       replaced; on a light hero it read as a warning rather than as the page's main action. */
+    background: var(--navy);
+    color: #fff;
+    border-color: var(--navy);
+    font-weight: 700;
+}
+
+    .btn-primary:hover {
+        background: #16324f;
+        border-color: #16324f;
+    }
+
+    .btn-primary svg {
+        width: 16px;
+        height: 16px;
+        stroke: #fff;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+/* Status pills used in hero + cards */
+.prof-status-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.pill-paid {
+    background: var(--green-bg);
+    color: var(--green);
+}
+
+.pill-unpaid {
+    background: var(--red-bg);
+    color: var(--red);
+}
+
+.pill-partial {
+    background: #fff8e1;
+    color: #7a5c00;
+}
+
+.pill-active {
+    background: var(--green-bg);
+    color: var(--green);
+}
+
+.pill-inactive {
+    background: var(--bg-icon);
+    color: var(--text-subtle);
+}
+
+
+/* ── 2-Column Grid ───────────────────────────────────────── */
+.prof-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 812px);
+    gap: 16px;
+    align-items: start;
+}
+
+.prof-col {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+
+/* ── Cards ───────────────────────────────────────────────── */
+.prof-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.prof-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+}
+
+.prof-card-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    background: var(--bg-icon);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+    .prof-card-icon svg {
+        width: 14px;
+        height: 14px;
+        stroke: var(--navy);
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+.prof-card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+
+/* ── Field List ──────────────────────────────────────────── */
+.prof-field-list {
+    padding: 6px 0;
+}
+
+.prof-field {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 18px;
+    border-bottom: 1px solid var(--border);
+}
+
+    .prof-field:last-child {
+        border-bottom: none;
+    }
+
+.prof-field-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    min-width: 160px;
+}
+
+.prof-field-val {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    text-align: right;
+}
+
+    .prof-field-val.bold {
+        font-weight: 700;
+        color: var(--navy);
+    }
+
+    .prof-field-val.mono {
+        font-family: monospace;
+    }
+
+    /* A figure on an official record is not decorated. It reads as the document's own ink, one step larger than
+       the label beside it. */
+    .prof-field-val.gold {
+        color: var(--navy);
+        font-weight: 700;
+        font-size: 15px;
+    }
+
+    .prof-field-val.text-warn {
+        color: #a06010;
+    }
+
+.prof-no-contract {
+    font-size: 11px;
+    color: var(--text-subtle);
+}
+
+.prof-expiry-warn {
+    display: inline-block;
+    margin-left: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 20px;
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffc107;
+}
+
+/* Utility badges */
+.prof-util-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+}
+
+/* Whether a service is billed on this space is a fact, not a verdict: both states are the same neutral chip,
+   told apart by the word inside and a hairline, not by green and grey. */
+.util-yes {
+    background: var(--bg-card);
+    border: 1px solid var(--navy);
+    color: var(--navy);
+}
+
+.util-no {
+    background: var(--bg-icon);
+    border: 1px solid var(--border);
+    color: var(--text-subtle);
+}
+
+
+
+/* ── 12-Month History ────────────────────────────────────── */
+.prof-hist-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+    padding: 14px 18px 10px;
+}
+
+.prof-hist-month {
+    border-radius: 8px;
+    padding: 8px 4px;
+    text-align: center;
+    border: 1.5px solid var(--border);
+    transition: transform .1s;
+}
+
+    .prof-hist-month:hover {
+        transform: translateY(-1px);
+    }
+
+.hist-paid {
+    background: var(--green-bg);
+    border-color: var(--green);
+}
+
+.hist-partial {
+    background: #fff8e1;
+    border-color: #b07d2b;
+}
+
+.hist-unpaid {
+    background: var(--red-bg);
+    border-color: #d9b0b0;
+}
+
+.hist-absent {
+    background: rgba(200, 168, 75, 0.14);
+    border-color: #c8a84b;
+}
+
+.hist-na,
+.hist-future {
+    background: #f5f7f9;
+    border-color: #dde4ea;
+    opacity: 0.6;
+}
+
+.hist-current {
+    outline: 2px solid var(--gold);
+    outline-offset: 1px;
+}
+
+.prof-hist-month-name {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--navy);
+}
+
+.prof-hist-month-year {
+    font-size: 11px;
+    color: var(--text-subtle);
+    margin-top: 1px;
+}
+
+.prof-hist-icon {
+    font-size: 13px;
+    margin-top: 5px;
+    color: var(--green);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hist-partial .prof-hist-icon {
+    color: #b07d2b;
+}
+
+.hist-unpaid .prof-hist-icon {
+    color: var(--red);
+}
+
+.hist-na .prof-hist-icon {
+    color: var(--text-muted);
+}
+
+.prof-hist-summary {
+    display: grid;
+    /* One row, however many figures there are: a fifth (an earlier term's balance) must not wrap onto a line of
+       its own, which reads as a separate section rather than one set of totals. */
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 0 18px 14px;
+}
+
+.prof-hist-stat {
+    padding: 10px;
+    border-radius: 8px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    text-align: center;
+}
+
+    /* No wash and no coloured border. A figure that is owed is stated, not alarmed about; the amount itself
+       already carries the emphasis. */
+    .prof-hist-stat.stat-warn {
+        background: var(--bg-subtle);
+        border-color: var(--border);
+    }
+
+.prof-hist-stat-val {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+    .prof-hist-stat-val.green {
+        color: var(--green);
+    }
+
+    .prof-hist-stat-val.red {
+        color: var(--red);
+    }
+
+.prof-hist-stat-key {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+
+
+/* ── Daily heatmap year navigation ─────────────────────────────── */
+.ph-year-nav {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.ph-year-arrow {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background .12s, border-color .12s;
+}
+
+    .ph-year-arrow:hover:not(:disabled) { background: var(--bg-icon); border-color: var(--navy); }
+    .ph-year-arrow:disabled { opacity: .4; cursor: default; }
+    .ph-year-arrow svg { width: 13px; height: 13px; stroke: var(--navy); fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+
+.ph-year-picker { position: relative; }
+
+.ph-year-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 84px;
+    justify-content: space-between;
+    padding: 5px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--navy);
+    cursor: pointer;
+    transition: border-color .12s;
+}
+
+    .ph-year-btn:hover, .ph-year-btn.open { border-color: var(--navy); }
+    .ph-year-btn svg { width: 14px; height: 14px; stroke: var(--text-subtle); fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+
+.ph-year-backdrop { position: fixed; inset: 0; z-index: 299; }
+
+.ph-year-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 300;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(13,33,55,0.16);
+    padding: 10px;
+    width: 232px;
+}
+
+.ph-year-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+
+.ph-year-cell {
+    padding: 9px 0;
+    border-radius: 8px;
+    border: none;
+    background: var(--bg-icon);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+    cursor: pointer;
+    transition: background .12s, color .12s;
+}
+
+    .ph-year-cell:hover { background: var(--border); }
+    .ph-year-cell.active { background: var(--navy); color: #fff; }
+
+.ph-year-current {
+    width: 100%;
+    margin-top: 8px;
+    padding: 8px 0;
+    border: none;
+    background: transparent;
+    border-top: 1px solid var(--border);
+    color: var(--gold);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+    .ph-year-current:hover { color: var(--navy); }
+.ph-heat-scroll { overflow-x: auto; padding: 12px 18px 2px; }
+
+.prof-ch-state {
+    padding: 22px 4px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+.prof-ch-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+
+.prof-ch-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    background: transparent;
+}
+
+.prof-ch-table thead th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--text-subtle);
+    padding: 10px 14px;
+    background: rgba(13, 33, 55, 0.03);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+.prof-ch-table tbody td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    white-space: nowrap;
+}
+
+.prof-ch-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.prof-ch-table tbody tr:hover td {
+    background: rgba(13, 33, 55, 0.02);
+}
+
+.prof-ch-r {
+    text-align: right;
+}
+
+.prof-ch-date {
+    color: var(--text-subtle);
+}
+
+.prof-ch-table .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.prof-ch-pill {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+.prof-ch-paid {
+    background: var(--green-bg);
+    color: var(--green);
+}
+
+.prof-ch-partial {
+    background: #fdf6e3;
+    color: #9a7b1f;
+}
+
+.prof-ch-unpaid {
+    background: var(--red-bg);
+    color: var(--red);
+}
+
+.prof-ch-absent {
+    background: var(--bg-icon);
+    color: var(--text-subtle);
+}
+
+.prof-ch-more {
+    display: block;
+    width: 100%;
+    margin-top: 12px;
+    padding: 9px 14px;
+    background: var(--bg-icon);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    color: var(--navy);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease;
+}
+
+.prof-ch-more:hover:not(:disabled) {
+    background: #e6ebf1;
+    border-color: var(--text-muted);
+}
+
+.prof-ch-more:disabled {
+    opacity: .6;
+    cursor: default;
+}
+
+.prof-ch-retry {
+    margin-left: 8px;
+    padding: 4px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--navy);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease;
+}
+
+.prof-ch-retry:hover:not(:disabled) {
+    background: var(--bg-icon);
+    border-color: var(--text-muted);
+}
+
+.prof-ch-retry:disabled {
+    opacity: .6;
+    cursor: default;
+}
+
+
+/* ── Responsive (from the reference) ── */
+@media (max-width: 900px) {
+    .prof-grid { grid-template-columns: 1fr; }
+    .prof-hist-grid { grid-template-columns: repeat(4, 1fr); }
+    .prof-hist-summary { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 768px) {
+    .prof-field { gap: 10px; }
+    .prof-field-label { min-width: 0; }
+    .prof-field-val { min-width: 0; overflow-wrap: anywhere; }
+    .prof-hist-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .prof-hist-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 600px) {
+    .prof-hero { padding: 16px; gap: 14px; }
+    .prof-hero-name { font-size: 18px; }
+    .prof-field-label { min-width: 120px; }
+}
+
+/* The year navigator here is two arrows and the year (the reference opens a year menu; a space account's list is short). */
+.ph-year-label {
+    min-width: 3rem;
+    padding: 0 8px;
+    color: var(--navy);
+    font-size: 13px;
+    font-weight: 700;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.rental-profile .prof-hero-name { margin: 0; }
+.prof-card-title { margin: 0; }
+
+/* Without a month grid above it (an event lot), the figures sit under the card header with their own top gap. */
+.prof-hist-summary-solo { padding-top: 14px; }
