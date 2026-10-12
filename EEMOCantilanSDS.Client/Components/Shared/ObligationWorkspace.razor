@@ -23,7 +23,7 @@
     }
     else
     {
-    <FacilityHero Title="@Name" Eyebrow="@(Kind == ObligationKind.FiestaArawLotRental ? "OPERATION · EVENT LOT RENTAL" : "OPERATION · SPACE RENTAL")" Stats="SpaceStats" ShowProgress="true" ProgressPercentage="@CollectionRate">
+    <FacilityHero Title="@Name" Eyebrow="@(Kind == ObligationKind.FiestaArawLotRental ? "OPERATION · EVENT LOT RENTAL" : Kind == ObligationKind.VegetableFruitSpaceRental ? "OPERATION · VF" : "OPERATION · SPACE RENTAL")" Stats="SpaceStats" ShowProgress="true" ProgressPercentage="@CollectionRate">
         <Icon><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></svg></Icon>
     </FacilityHero>
     }
@@ -836,11 +836,11 @@ else
     private static string RegistryContract(ObligationAccountDto account)
     {
         if (account.Event is not null) return "Event lot";
+        // As in the stall registers, the contract column names the lessee on the signed contract; when none is recorded it states the term.
+        if (account.Arrangement == OccupancyArrangement.SignedContract && account.ContractName is { Length: > 0 } contractName) return contractName;
         if (account.ContractYears is { } years && account.ContractEffectiveDate is { } signedDate)
-            return $"{years} years · expires {DomainRules.TermLastDay(signedDate, years):MMM yyyy}";
-        return account.Arrangement == OccupancyArrangement.SignedContract
-            ? account.ContractName is { Length: > 0 } ? account.ContractName : "Signed lease · term not recorded"
-            : SpaceAccountPresentation.Basis(account);
+            return $"{years} {(years == 1 ? "year" : "years")} · expires {DomainRules.TermLastDay(signedDate, years):MMM yyyy}";
+        return account.Arrangement == OccupancyArrangement.SignedContract ? "Signed lease · term not recorded" : SpaceAccountPresentation.Basis(account);
     }
     private IEnumerable<RentalTableRow<ObligationAccountDto>> RentalRows => VisibleAccounts.Select(a => new RentalTableRow<ObligationAccountDto>(a,
         a.SubjectLabel, SpaceAccountPresentation.Occupant(a), RegistryContract(a),

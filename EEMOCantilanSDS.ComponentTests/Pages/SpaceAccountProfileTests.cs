@@ -68,7 +68,7 @@ public sealed class SpaceAccountProfileTests : TestContext
             Assert.Contains("₱900/month", text);                                                             // what is assessed
             Assert.Contains("₱1,000/month", text);                                                           // what the contract states, kept beside it
             Assert.Contains("₱10,800", text);                                                                // whole year = 12 x the approved monthly, labelled as such
-            Assert.Contains("12 × approved monthly", text);
+            Assert.Contains("12 × approved", text);
             Assert.DoesNotContain("KanmanggaySpaceRental", text);                                            // no internal source name or id on the page
             Assert.DoesNotContain(account.Id.ToString(), cut.Markup.Replace("href=", ""));
         }, Timeout);

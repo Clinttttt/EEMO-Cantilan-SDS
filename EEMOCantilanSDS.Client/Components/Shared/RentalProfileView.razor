@@ -92,7 +92,7 @@
                 </div>
                 }
 
-                <div class="prof-hist-summary">
+                <div class="prof-hist-summary @(Tiles.Count == 0 ? "prof-hist-summary-solo" : "")">
                     @foreach (var stat in Stats)
                     {
                         <div class="prof-hist-stat @(stat.Warn ? "stat-warn" : "")">

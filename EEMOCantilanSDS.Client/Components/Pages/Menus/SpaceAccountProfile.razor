@@ -167,7 +167,7 @@
                     new("Area Location / Note", string.IsNullOrWhiteSpace(a.AreaLocation) ? "—" : a.AreaLocation),
                     new("Approved Monthly Rental", a.CurrentAmount is { } rate ? $"₱{rate:N0}/month" : "—", "bold gold"),
                     new("Rental per Contract", a.ContractMonthlyRate is { } stated ? $"₱{stated:N0}/month" : "Not recorded", Muted: a.ContractMonthlyRate is null),
-                    new("Whole Year", a.CurrentAmount is { } yearly ? $"₱{yearly * 12m:N0} (12 × approved monthly)" : "—"),
+                    new("Whole Year (12 × approved)", a.CurrentAmount is { } yearly ? $"₱{yearly * 12m:N0}" : "—"),
                     new("Account status", "", Pill: status)
                 ]),
                 new("Occupant & Contract", person,

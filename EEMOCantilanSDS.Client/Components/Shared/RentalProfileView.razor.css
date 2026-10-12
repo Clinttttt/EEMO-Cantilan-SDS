@@ -754,3 +754,6 @@
 
 .rental-profile .prof-hero-name { margin: 0; }
 .prof-card-title { margin: 0; }
+
+/* Without a month grid above it (an event lot), the figures sit under the card header with their own top gap. */
+.prof-hist-summary-solo { padding-top: 14px; }
