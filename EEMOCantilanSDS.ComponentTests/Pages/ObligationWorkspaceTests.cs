@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Application.Dtos.Settings;
 using Bunit;
 using Bunit.TestDoubles;
 using EEMOCantilanSDS.Application.Common;
@@ -794,6 +795,35 @@ public sealed class ObligationWorkspaceTests : TestContext
         {
             Assert.Contains("accounts couldn't be loaded", cut.Find("[role='alert']").TextContent);
             Assert.DoesNotContain("spaces found.", cut.Markup);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void AnOfficeWithNoConfirmedDurationPolicy_IsNotOfferedCantilansThreeYears_AndNeverSendsOne()
+    {
+        Serve(ObligationKind.KanmanggaySpaceRental, Space());
+        var model = OperationsTenantConfigurationTests.SettingsApi(adopted: true, listed: ["KANMANGGAY_SPACE_RENTAL"]).Object.GetAsync().Result.Value!;
+        var withNotice = model with
+        {
+            Items = model.Items.Select(i => i.OperationCode == "KANMANGGAY_SPACE_RENTAL" ? i with { PolicyNotice = "confirm" } : i).ToList(),
+        };
+        var settings = new Mock<IOperationSettingsApiClient>();
+        settings.Setup(c => c.GetAsync()).ReturnsAsync(Result<TenantOperationSettingsDto>.Success(withNotice));
+        Services.AddSingleton(new EEMOCantilanSDS.Client.Services.OperationNameService(settings.Object));
+        CreateObligationAccountRequest? sent = null;
+        _api.Setup(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>())).Callback<CreateObligationAccountRequest>(x => sent = x)
+            .ReturnsAsync(Result<ObligationAccountDto>.Failure("not saved in this test", 400));
+
+        var cut = RenderComponent<Kanmanggay>();
+        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New"), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var drawer = Assert.Single(cut.FindAll("[role='dialog']"));
+            Assert.DoesNotContain("Contract Duration (No. of Years)", drawer.TextContent);   // no three-year choice is offered
+            Assert.Contains("Policy confirmation required", drawer.TextContent);
+            Assert.Contains("Contract Effectivity Date", drawer.TextContent);                // the rest of the contract is recorded as usual
         }, Timeout);
     }
 }

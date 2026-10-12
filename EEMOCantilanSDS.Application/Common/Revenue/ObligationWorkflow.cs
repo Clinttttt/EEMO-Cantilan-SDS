@@ -160,6 +160,10 @@ public sealed class ObligationWorkflow(
             if (start < earliest || start > BusinessToday.AddDays(366))
                 return Result<ObligationAccountDto>.Failure("Choose a realistic start or event date (not more than a year ahead).", ResultStatus.Invalid);
 
+            var durationProblem = await SignedContractDurationProblemAsync(
+                actor.TenantId, request.Kind, request.Arrangement, request.ContractYears, recordedYears: null, ct);
+            if (durationProblem is not null) return Result<ObligationAccountDto>.Failure(durationProblem, ResultStatus.Conflict);
+
             ObligationAccount account;
             ObligationRate rate;
             try
@@ -318,6 +322,32 @@ public sealed class ObligationWorkflow(
         return plan;
     }
 
+    /// <summary>
+    /// The recorded duration of a signed Kanmanggay contract is a POLICY the Cantilan office adopted (three years, enforced by
+    /// <see cref="ObligationAccount.SetLeaseDetails"/>). No other office has confirmed a duration policy, so recording a duration
+    /// for one would either stamp Cantilan's number on another municipality's contract or accept an unvalidated one. The duration is
+    /// descriptive evidence only - it never prices, assesses or closes anything - so an office with no confirmed policy simply
+    /// saves the contract WITHOUT a duration. Returns the reason to refuse, or null when the write may proceed.
+    /// </summary>
+    /// <remarks>
+    /// Only a CHANGE is refused: a value an account already holds is preserved (<paramref name="recordedYears"/>), so no existing
+    /// record is rewritten or made uneditable. Where a duration policy is later approved for a municipality, this is the one place
+    /// to ask for it.
+    /// </remarks>
+    private async Task<string?> SignedContractDurationProblemAsync(
+        Guid tenantId, ObligationKind kind, OccupancyArrangement? arrangement, int? requestedYears, int? recordedYears, CancellationToken ct)
+    {
+        if (kind != ObligationKind.KanmanggaySpaceRental || arrangement != OccupancyArrangement.SignedContract) return null;
+        if (requestedYears is null || requestedYears == recordedYears) return null;
+
+        var isDefaultMunicipality = await db.Municipalities.AsNoTracking()
+            .Where(m => m.Id == tenantId).Select(m => m.IsDefault).FirstOrDefaultAsync(ct);
+        return isDefaultMunicipality
+            ? null // the office whose standard it is: the domain rule (three years) applies unchanged
+            : "A signed Kanmanggay contract duration cannot be recorded yet: the three-year standard is Cantilan's, and no duration policy " +
+              "has been confirmed for this municipality. Save the contract without a duration; the rest of the record is unaffected.";
+    }
+
     /// <summary>Audited correction of monthly space-holder evidence; never reprices or changes an assessed period.</summary>
     public Task<Result<bool>> CorrectHolderAsync(Guid accountId, CorrectObligationHolderRequest request, CancellationToken ct = default) =>
         Run<bool>(async actor =>
@@ -334,6 +364,9 @@ public sealed class ObligationWorkflow(
                 account.ContractName, account.ContractEffectiveDate, account.ContractYears,
                 account.AreaSqm, account.AreaLocation };
             var previous = JsonSerializer.Serialize(before);
+            var durationProblem = await SignedContractDurationProblemAsync(
+                actor.TenantId, account.Kind, request.Arrangement, request.ContractYears, account.ContractYears, ct);
+            if (durationProblem is not null) return Result<bool>.Failure(durationProblem, ResultStatus.Conflict);
             try { account.CorrectHolderEvidence(request.ActualOccupant, request.Arrangement, request.ContractReference,
                 request.ContractName, request.ContractEffectiveDate, request.ContractYears,
                 request.AreaSqm, request.AreaLocation, hasHistory); }

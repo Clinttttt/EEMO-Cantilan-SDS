@@ -83,6 +83,14 @@ public sealed class OperationNameService(IOperationSettingsApiClient api)
     }
 
     /// <summary>
+    /// The policy caution the server attached to an operation for THIS municipality (for Kanmanggay: the three-year contract duration
+    /// is Cantilan's standard and unconfirmed here), or null when none applies or the configuration has not loaded. The server is the
+    /// authority and refuses the guarded action itself; this only lets a screen stop offering a choice it would refuse.
+    /// </summary>
+    public string? PolicyNoticeFor(string? operationCode) =>
+        operationCode is null ? null : _settings?.Items.FirstOrDefault(i => i.OperationCode == operationCode)?.PolicyNotice;
+
+    /// <summary>
     /// The name to show for a revenue source key (an operation code or its classification code).
     /// A Head-set <paramref name="policyName"/> that is a real name always wins. Otherwise a municipality that has adopted tenant
     /// configuration sees ITS name for an operation this catalog covers. In every other case - not adopted, or a source the catalog

@@ -8,11 +8,13 @@
 @using EEMOCantilanSDS.Client.Services
 @inject IObligationsApiClient ObligationsApi
 @inject NavigationManager Navigation
+@inject IServiceProvider Services
 
 @* The body of a specialized obligation line (IA-050): Fish/Meat Vendor Fee, Kanmanggay space rental, Fiesta/Araw lot
    rental. The Head opens an account and approves its amount; the register shows what was assessed, collected and is
    still owed. Money is never recorded here: it is collected on an Official Receipt in Current Collection, and the
    balance is only what canonical allocations say. *@
+<OperationNameWatcher OnChanged="@(() => StateHasChanged())" />
 @if (SpaceExperience && !Management)
 {
     <div role="region" aria-label="@($"{Name} totals: all registered accounts, including closed accounts, to date")">
@@ -392,7 +394,14 @@ else
                             }
                         </EffectivityField>
                         <TermField>
-                            @if (_signedContract && Kind == ObligationKind.KanmanggaySpaceRental)
+                            @if (_signedContract && DurationUnconfirmed)
+                            {
+                                <div class="avm-group">
+                                    <span class="avm-label">Contract Duration</span>
+                                    <p class="avm-hint">Not recorded. Policy confirmation required: the three-year standard is Cantilan's and has not been confirmed for this municipality.</p>
+                                </div>
+                            }
+                            else if (_signedContract && Kind == ObligationKind.KanmanggaySpaceRental)
                             {
                                 <div class="avm-group">
                                     <label class="avm-label">Contract Duration (No. of Years)</label>
@@ -545,7 +554,14 @@ else
                         }
                     </EffectivityField>
                     <TermField>
-                        @if (_signedContract && Kind == ObligationKind.KanmanggaySpaceRental)
+                        @if (_signedContract && DurationUnconfirmed)
+                        {
+                            <div class="avm-group">
+                                <span class="avm-label">Contract Duration</span>
+                                <p class="avm-hint">@(_editFor?.ContractYears is { } kept ? $"{kept} years, as already recorded. " : "Not recorded. ")Policy confirmation required before a duration can be recorded or changed.</p>
+                            </div>
+                        }
+                        else if (_signedContract && Kind == ObligationKind.KanmanggaySpaceRental)
                         {
                             <div class="avm-group">
                                 <label class="avm-label" for="obw-contract-years">Contract Duration (No. of Years)</label>
@@ -725,6 +741,13 @@ else
     private string _areaLocation = string.Empty;
     private decimal? _areaSqm;
     private int _contractYears = 3;
+
+    // Kanmanggay's signed-contract duration is a three-year standard adopted by Cantilan's office. For any other office the server
+    // refuses to record one until a duration policy is confirmed, so the form does not offer the choice (and never sends one).
+    private EEMOCantilanSDS.Client.Services.OperationNameService? Names =>
+        Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<EEMOCantilanSDS.Client.Services.OperationNameService>(Services);
+    private bool DurationUnconfirmed => Kind == ObligationKind.KanmanggaySpaceRental
+        && Names?.PolicyNoticeFor(CollectorOperationCodes.KanmanggaySpaceRental) is not null;
     private DateTime? _contractDate = PhilippineTime.Now.Date;
     private string? NextSpaceNumber
     {
@@ -998,7 +1021,7 @@ else
             Kind == ObligationKind.FishMeatVendorFee ? null : _occupant.Trim(),
             SupportsContractBasis && _signedContract ? _contractName.Trim() : null,
             SupportsContractBasis && _signedContract && _contractDate is { } contractOn ? DateOnly.FromDateTime(contractOn) : null,
-            Kind == ObligationKind.KanmanggaySpaceRental && _signedContract ? _contractYears : null,
+            Kind == ObligationKind.KanmanggaySpaceRental && _signedContract && !DurationUnconfirmed ? _contractYears : null,
             SupportsContractBasis ? _areaSqm : null,
             SupportsContractBasis ? _areaLocation.Trim() : null);
         var today = PhilippineTime.Today;
@@ -1036,7 +1059,7 @@ else
                 _signedContract ? OccupancyArrangement.SignedContract : OccupancyArrangement.SpaceOnly,
                 _signedContract ? _contractRef : null, _signedContract ? _contractName : null,
                 _signedContract && _contractDate is { } contractDate ? DateOnly.FromDateTime(contractDate) : null,
-                _signedContract && _contractYears > 0 ? _contractYears : null,
+                _signedContract && DurationUnconfirmed ? account.ContractYears : _signedContract && _contractYears > 0 ? _contractYears : null,
                 _areaSqm, _areaLocation);
             var result = await ObligationsApi.CorrectHolderAsync(account.Id, request);
             if (!result.IsSuccess) { _formError = result.Error ?? "Holder details could not be saved."; return; }

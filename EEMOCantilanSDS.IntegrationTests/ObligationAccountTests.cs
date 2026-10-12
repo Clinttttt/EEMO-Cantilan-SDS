@@ -645,10 +645,11 @@ public sealed class ObligationAccountTests(PostgresFixture db)
         Assert.Equal(("Ice Plant", 250m), (only.Nature, only.Amount));
     }
 
-    private async Task<Seed> SeedAsync()
+    // The default office is the one whose rulings the platform carries (Cantilan); the signed-contract duration standard is its alone.
+    private async Task<Seed> SeedAsync(bool defaultOffice = true)
     {
         var municipality = Municipality.Create($"OBL-{Guid.NewGuid():N}"[..24], "Obligation Test", "Surigao del Sur",
-            MunicipalityStatus.Active, tenantCode: $"obl-{Guid.NewGuid():N}"[..32]);
+            MunicipalityStatus.Active, tenantCode: $"obl-{Guid.NewGuid():N}"[..32], isDefault: defaultOffice);
         var tenant = municipality.Id;
         var user = Guid.NewGuid();
         await using (var setup = db.CreateContext(Guid.Empty))
@@ -695,5 +696,107 @@ public sealed class ObligationAccountTests(PostgresFixture db)
             await context.SaveChangesAsync();
         }
         return new Seed(tenant, user, stall.Id, payor.Id, unlinkedStall.Id, documents.Select(x => x.Id).ToArray(), today);
+    }
+
+    // ---- The three-year signed-contract duration is Cantilan's standard, not every office's ------------------------------------
+
+    private static CreateObligationAccountRequest KanmanggayContract(Seed seed, DateOnly start, int? years) =>
+        new(ObligationKind.KanmanggaySpaceRental, seed.PayorId, null, "", null, null, start, 1200m,
+            OccupancyArrangement.SignedContract, "KM-2026", "Actual occupant", "Signed lessee", start.AddDays(3), years, 4.80m, "Extension");
+
+    [SkippableFact]
+    public async Task AnOfficeWithNoConfirmedDurationPolicy_CannotRecordCantilansThreeYears_ButEverythingElseStillWorks()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync(defaultOffice: false);
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+        await using var context = db.CreateContext(seed.TenantId);
+        var workflow = Setup(context, seed);
+
+        // Neither Cantilan's number nor any other number is accepted as an approved duration.
+        foreach (var years in new int?[] { 3, 5 })
+        {
+            var refused = await workflow.CreateAccountAsync(KanmanggayContract(seed, start, years));
+            Assert.False(refused.IsSuccess);
+            Assert.Equal(ResultStatus.Conflict, refused.Status);
+            Assert.Contains("no duration policy has been confirmed for this municipality", refused.Error);
+        }
+        Assert.Equal(0, await context.ObligationAccounts.CountAsync(a => a.MunicipalityId == seed.TenantId && a.Kind == ObligationKind.KanmanggaySpaceRental));
+
+        // The same contract WITHOUT a duration is a normal, legitimate record; so is a space-only occupant.
+        var signed = await workflow.CreateAccountAsync(KanmanggayContract(seed, start, null));
+        Assert.True(signed.IsSuccess, signed.Error);
+        Assert.Null(signed.Value!.ContractYears);
+        Assert.Equal("KM-2026", signed.Value.ContractReference);
+        var spaceOnly = await workflow.CreateAccountAsync(new CreateObligationAccountRequest(
+            ObligationKind.KanmanggaySpaceRental, seed.PayorId, null, "", null, null, start, 1200m,
+            OccupancyArrangement.SpaceOnly, null, "Space only occupant"));
+        Assert.True(spaceOnly.IsSuccess, spaceOnly.Error);
+
+        // Other space operations have no duration rule and are untouched.
+        var vegetable = await workflow.CreateAccountAsync(new CreateObligationAccountRequest(
+            ObligationKind.VegetableFruitSpaceRental, seed.PayorId, null, "", null, null, start, 900m,
+            OccupancyArrangement.SignedContract, "VF-1", "Vegetable seller", "Signed", start.AddDays(2), null, null, null));
+        Assert.True(vegetable.IsSuccess, vegetable.Error);
+
+        // Correcting the holder cannot introduce a duration either.
+        var correction = await workflow.CorrectHolderAsync(signed.Value.Id, new CorrectObligationHolderRequest(
+            "Actual occupant", OccupancyArrangement.SignedContract, "KM-2026", "Signed lessee", start.AddDays(3), 3, 4.80m, "Extension"));
+        Assert.False(correction.IsSuccess);
+        Assert.Equal(ResultStatus.Conflict, correction.Status);
+    }
+
+    [SkippableFact]
+    public async Task AnExistingRecordedDuration_IsPreservedAndStaysEditable_WhereItIsNotChanged()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync(defaultOffice: false);
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+
+        // A record that already carries three years (made before this rule existed) - written directly, as history is.
+        Guid accountId;
+        await using (var setup = db.CreateContext(seed.TenantId))
+        {
+            var account = ObligationAccount.Create(seed.TenantId, ObligationKind.KanmanggaySpaceRental, seed.PayorId, null, "KM-9",
+                null, null, start, "test", actualOccupant: "Existing holder");
+            account.SetOccupancyBasis(OccupancyArrangement.SignedContract, "KM-OLD");
+            account.SetLeaseDetails("Existing lessee", start.AddDays(2), 3, null, null);
+            setup.ObligationAccounts.Add(account);
+            setup.ObligationRates.Add(ObligationRate.Create(seed.TenantId, account.Id, start, 1200m, "test"));
+            await setup.SaveChangesAsync();
+            accountId = account.Id;
+        }
+
+        await using var context = db.CreateContext(seed.TenantId);
+        var workflow = Setup(context, seed);
+        var sameYears = await workflow.CorrectHolderAsync(accountId, new CorrectObligationHolderRequest(
+            "Existing holder", OccupancyArrangement.SignedContract, "KM-OLD", "Existing lessee", start.AddDays(2), 3, 9.5m, "Corner"));
+        Assert.True(sameYears.IsSuccess, sameYears.Error);          // a descriptive correction; the duration is not touched
+
+        var changed = await workflow.CorrectHolderAsync(accountId, new CorrectObligationHolderRequest(
+            "Existing holder", OccupancyArrangement.SignedContract, "KM-OLD", "Existing lessee", start.AddDays(2), 5, 9.5m, "Corner"));
+        Assert.False(changed.IsSuccess);                              // a different duration would be an unconfirmed policy value
+
+        Assert.Equal(3, (await context.ObligationAccounts.AsNoTracking().SingleAsync(a => a.Id == accountId)).ContractYears);
+    }
+
+    [SkippableFact]
+    public async Task TheDefaultOffice_KeepsItsThreeYearStandard_Exactly()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync(defaultOffice: true);
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+        await using var context = db.CreateContext(seed.TenantId);
+        var workflow = Setup(context, seed);
+
+        var three = await workflow.CreateAccountAsync(KanmanggayContract(seed, start, 3));
+        Assert.True(three.IsSuccess, three.Error);
+        Assert.Equal(3, three.Value!.ContractYears);
+        var five = await workflow.CreateAccountAsync(KanmanggayContract(seed, start, 5));
+        Assert.False(five.IsSuccess);
+        Assert.Contains("three-year standard", five.Error);           // the domain rule, unchanged
     }
 }
