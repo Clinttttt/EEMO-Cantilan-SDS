@@ -171,7 +171,7 @@ public sealed class RentalConsolidationTests : TestContext
         _accounts.Verify(x => x.GetRegisterAsync(account.Id), Times.Once);
         Assert.Empty(_activity.Invocations); Assert.Empty(_payments.Invocations);
         Click(cut, "Close"); Click(cut, "→");
-        Assert.EndsWith($"/operations/kanmanggay/manage-space-holders?account={account.Id}", Services.GetRequiredService<NavigationManager>().Uri);
+        Assert.EndsWith($"/operations/kanmanggay/profile/{account.Id}", Services.GetRequiredService<NavigationManager>().Uri);
         Assert.DoesNotContain(_accounts.Invocations, x => x.Method.Name == nameof(IObligationsApiClient.CreateAccountAsync));
     }
 
@@ -274,9 +274,9 @@ public sealed class RentalConsolidationTests : TestContext
     }
 
     [Theory]
-    [InlineData("KM", ObligationKind.KanmanggaySpaceRental, "/operations/kanmanggay/manage-space-holders")]
-    [InlineData("Vegetable/Fruits", ObligationKind.VegetableFruitSpaceRental, "/operations/vegetable-fruit/manage-space-holders")]
-    [InlineData("FA", ObligationKind.FiestaArawLotRental, "/vendors?workspace=FA")]
+    [InlineData("KM", ObligationKind.KanmanggaySpaceRental, "/operations/kanmanggay/profile")]
+    [InlineData("Vegetable/Fruits", ObligationKind.VegetableFruitSpaceRental, "/operations/vegetable-fruit/profile")]
+    [InlineData("FA", ObligationKind.FiestaArawLotRental, "/operations/fiesta-araw/profile")]
     public void SpaceActionProfileAndHistoryRemainTypedToTheSelectedAccount(string code, ObligationKind kind, string route)
     {
         var account = Account(kind); Serve(account);
@@ -291,7 +291,7 @@ public sealed class RentalConsolidationTests : TestContext
         cut.Find("button[title='View Profile']").Click();
         var uri = Services.GetRequiredService<NavigationManager>().Uri;
         Assert.Contains(route, Uri.UnescapeDataString(uri));
-        Assert.Contains($"account={account.Id}", uri);
+        Assert.Contains($"{account.Id}", uri);
         Assert.Empty(_stalls.Invocations);
         Assert.Empty(_payments.Invocations);
     }

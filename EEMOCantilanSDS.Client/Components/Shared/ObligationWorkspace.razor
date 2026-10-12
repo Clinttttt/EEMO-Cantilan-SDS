@@ -795,8 +795,8 @@ else
         a.Event is not null ? LotLabel(a) : !string.IsNullOrWhiteSpace(a.AreaLocation) ? a.AreaLocation : Name));
     private void OpenAccountPosition(ObligationAccountDto account) { _detailsAccount = account; _detailsHistory = false; }
     private void OpenAccountHistory(ObligationAccountDto account) { _detailsAccount = account; _detailsHistory = true; }
-    private void OpenAccountProfile(ObligationAccountDto account) => Navigation.NavigateTo(
-        account.Kind == ObligationKind.FiestaArawLotRental ? $"/vendors?workspace=FA&account={account.Id}" : $"{Presentation?.ManagementHref ?? "/operations/kanmanggay/manage-space-holders"}?account={account.Id}");
+    // View Profile opens the account's own profile page (the stall profile's design), keyed by its source id.
+    private void OpenAccountProfile(ObligationAccountDto account) => Navigation.NavigateTo(SpaceAccountPresentation.For(account.Kind).ProfileHref(account.Id));
 
     private IRentalRegistrationState RegistrationState => new ObligationRentalRegistrationState(
         () => _occupant, v => _occupant = v,
