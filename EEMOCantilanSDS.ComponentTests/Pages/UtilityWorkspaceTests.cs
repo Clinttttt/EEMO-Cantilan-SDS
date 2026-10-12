@@ -146,6 +146,10 @@ public sealed class UtilityWorkspaceTests : TestContext
             Assert.Equal("—", cells[3].TextContent.Trim());                          // no outstanding balance
             Assert.Contains("Unprepared", rows.Single(r => r.TextContent.Contains("Unprepared Payer")).TextContent);
             Assert.Contains("₱60.00", rows.Single(r => r.TextContent.Contains("Partial Payer")).TextContent);
+            // The figure is net settlement applied to the billing month - never described as cash received in the period.
+            Assert.Contains("Net settled", cut.Find("dl.v3h-figures").TextContent);
+            Assert.DoesNotContain("Received this period", cut.Markup);
+            Assert.DoesNotContain(cut.FindAll("th"), h => h.TextContent.Trim() == "Collected");
         }, Timeout);
     }
 

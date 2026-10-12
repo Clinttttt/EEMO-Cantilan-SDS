@@ -15,7 +15,7 @@
         <Meta><span class="uw-meta">@PeriodLabel · <InstrumentChip Instrument="@InstrumentCode" /> @InstrumentName</span></Meta>
         <Figures>
             <V3HeroFigure Label="Assessed" Value="@Figure(_page?.Totals.Assessed)" Note="@(_page is null ? null : "Approved amounts")" />
-            <V3HeroFigure Label="Collected" Value="@Figure(_page?.Totals.Collected)" Note="@DirectNote" />
+            <V3HeroFigure Label="Net settled" Value="@Figure(_page?.Totals.Collected)" Note="@DirectNote" />
             <V3HeroFigure Label="Outstanding" Value="@Figure(_page?.Totals.Outstanding)" Note="@(_page is null ? null : "Prepared balances")" />
         </Figures>
     </V3Hero>
@@ -85,7 +85,7 @@
                         <tr>
                             <th scope="col">Payor / source</th>
                             <th scope="col" class="v3-num">Approved</th>
-                            <th scope="col" class="v3-num">Collected</th>
+                            <th scope="col" class="v3-num">Net settled</th>
                             <th scope="col" class="v3-num">Outstanding</th>
                             <th scope="col">Status</th>
                         </tr>
@@ -161,13 +161,14 @@
                     <dl class="v3-facts uw-facts" aria-label="Source position">
                         <div><dt>Amount method</dt><dd>@MethodOf(source)</dd></div>
                         <div><dt>Approved</dt><dd>@(source.Approved is { } approved ? Money(approved) : "Not prepared")</dd></div>
-                        <div><dt>Collected</dt><dd>@Money(source.Collected)</dd></div>
+                        <div><dt>Net settled</dt><dd>@Money(source.Collected)</dd></div>
                         @if (source.Mode == "Prepared")
                         {
                             <div><dt>Outstanding</dt><dd class="v3-strong">@Money(source.Outstanding)</dd></div>
                         }
                     </dl>
 
+                    <p class="uw-help">Net settled is what has been applied to this month's obligation, net of corrections. Each payment, with its own date, is in Collection activity.</p>
                     @if (source.Mode == "Direct")
                     {
                         <p class="uw-note">This period is collected directly by the Collector. Each receipt is its own collection; no amount is prepared and no balance is owed.</p>
@@ -366,7 +367,7 @@
     private bool Filtered => _search.Length > 0 || _facility != "" || _section != "" || _status != "All";
 
     private string Summary => _page is null ? (_loading ? "Loading…" : "") : $"{_page.Total} source{(_page.Total == 1 ? "" : "s")}";
-    private string? DirectNote => _page is { Totals.DirectCollected: > 0m } p ? $"{Money(p.Totals.DirectCollected)} direct" : _page is null ? null : "Received this period";
+    private string? DirectNote => _page is { Totals.DirectCollected: > 0m } p ? $"{Money(p.Totals.DirectCollected)} of it direct" : _page is null ? null : "Applied to this month";
     private UtilityRegisterRowDto? Selected => _page?.Rows.FirstOrDefault(r => r.StallId == _selectedId);
     private bool IsSelected(UtilityRegisterRowDto row) => row.StallId == _selectedId;
     private IEnumerable<UtilityRegisterRowDto> PreparableRows => (_page?.Rows ?? []).Where(r => r.CanPrepare);
