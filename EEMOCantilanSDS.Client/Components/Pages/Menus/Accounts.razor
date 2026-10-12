@@ -632,7 +632,7 @@
                     </li>
                     <li>
                         <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                        The admin signs in with the password above. Give it to them securely.
+                        @(AdminForm.Invite ? "The admin chooses their own username and password through the one-time link. Nothing is shared with them except that link." : "The admin signs in with the password above. Give it to them securely.")
                     </li>
                     <li>
                         <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
