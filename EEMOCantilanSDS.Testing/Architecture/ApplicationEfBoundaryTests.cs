@@ -186,6 +186,12 @@ public class ApplicationEfBoundaryTests
         // WCF Mobile collection enablement: derives readiness from WCF policy, assignments, Cash Ticket custody and WCF
         // postings awaiting review, and writes the one tenant activation row with its audit entry in one transaction.
         "WcfMobileCollectionWorkflow.cs",
+        // Head-only direct-collection review: a server-paged read over the canonical Collections plus an append-only
+        // administrative review event. It never writes a Collection, SRC, allocation or amount.
+        "DirectCollectionReviewWorkflow.cs",
+        // Collector read of the canonical Collections already posted against one utility source and period, shown before another
+        // payment. Read-only: it reads posted allocations and corrections and writes nothing.
+        "CollectionComposerWorkflow.MobileRecent.cs",
         "AccountableFormCustodyWorkflow.cs",
         "AccountableFormCustodyWorkflow.Accountability.cs",
         // Head-only collector operation permissions: a tenant-bound collector lookup and one replace-set save of
