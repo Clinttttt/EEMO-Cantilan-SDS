@@ -85,8 +85,9 @@ public class RecordUtilityReadingCommandHandler(
         }
 
         await unitOfWork.SaveChangesAsync(ct);
+        // The views of the space's own facility (a utility source may be any facility's); unknown facility falls back to the whole period.
         await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
-            tenantContext.TenantCode, FacilityCode.NPM, request.BillingYear, request.BillingMonth, ct);
+            tenantContext.TenantCode, stall.Facility?.Code, request.BillingYear, request.BillingMonth, ct);
 
         return Result<UtilityBillDto>.Success(UtilityBillDto.From(bill));
     }
