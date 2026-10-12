@@ -13,9 +13,18 @@ public sealed record DirectCollectionReviewRequest(
 public sealed record DirectCollectionReviewRowDto(
     Guid CollectionId, string ReferenceCode, DateOnly BusinessDate, DateTime RecordedAtUtc, string Operation, string? Utility,
     string Payor, string SourceContext, decimal Amount, string RecordedBy, string Mode, string SourceState, string Disposition,
-    string ReviewState, string? ReviewNote, string? ReviewedBy, DateTime? ReviewedAtUtc, bool PossibleDuplicate, bool CanConfirm);
+    string ReviewState, string? ReviewNote, string? ReviewedBy, DateTime? ReviewedAtUtc, bool PossibleDuplicate, bool CanConfirm,
+    string? Registration = null);
 
-public sealed record DirectCollectionReviewPageDto(IReadOnlyList<DirectCollectionReviewRowDto> Rows, int Total, int PendingCount);
+public sealed record DirectCollectionReviewPageDto(IReadOnlyList<DirectCollectionReviewRowDto> Rows, int Total, int PendingCount, int NeedsRegistrationCount = 0);
+
+public sealed record DirectCollectionDetailLineDto(string Description, decimal Amount);
+public sealed record DirectCollectionHistoryDto(string Outcome, string? Note, string Actor, DateTime OccurredAtUtc);
+
+/// <summary>Everything the Head sees when opening one direct collection: the row, its document, its lines and its append-only review history.</summary>
+public sealed record DirectCollectionDetailDto(
+    DirectCollectionReviewRowDto Row, string? DocumentNumber, string? DocumentKind,
+    IReadOnlyList<DirectCollectionDetailLineDto> Lines, IReadOnlyList<DirectCollectionHistoryDto> History);
 
 public sealed record DirectCollectionReviewActionRequest(Guid ClientOperationId, Guid CollectionId, string Outcome, string? Note = null);
 public sealed record DirectCollectionBulkConfirmRequest(Guid ClientOperationId, IReadOnlyList<Guid> CollectionIds);

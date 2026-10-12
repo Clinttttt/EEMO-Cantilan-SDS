@@ -30,6 +30,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         public DbSet<FishMeatVendorRegistration> FishMeatVendorRegistrations => Set<FishMeatVendorRegistration>();
         public DbSet<FishMeatNpmAssociation> FishMeatNpmAssociations => Set<FishMeatNpmAssociation>();
         public DbSet<DirectCollectionReviewEvent> DirectCollectionReviewEvents => Set<DirectCollectionReviewEvent>();
+        public DbSet<FishMeatDirectCollectionLink> FishMeatDirectCollectionLinks => Set<FishMeatDirectCollectionLink>();
         private readonly ICurrentMunicipalityAccessor? _municipality;
 
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)

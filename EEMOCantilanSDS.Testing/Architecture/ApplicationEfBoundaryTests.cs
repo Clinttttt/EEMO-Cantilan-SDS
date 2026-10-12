@@ -189,6 +189,7 @@ public class ApplicationEfBoundaryTests
         // Head-only direct-collection review: a server-paged read over the canonical Collections plus an append-only
         // administrative review event. It never writes a Collection, SRC, allocation or amount.
         "DirectCollectionReviewWorkflow.cs",
+        "FishMeatPayorFollowUpWorkflow.cs",
         // Collector read of the canonical Collections already posted against one utility source and period, shown before another
         // payment. Read-only: it reads posted allocations and corrections and writes nothing.
         "CollectionComposerWorkflow.MobileRecent.cs",
