@@ -51,10 +51,25 @@
     else
     {
         <ImportReviewBar Count="Rows.Count" Title="rows to review" Detail="@($"{ReadyCount} ready · {InvalidCount} invalid")" Subtitle="@($"{(string.IsNullOrEmpty(_fileName) ? "Entered here" : _fileName)} · {Name}")">
-            <ImportButton Kind="ghost" Class="imp-add-row" OnClick="AddRow">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                Add row
-            </ImportButton>
+            @if (IsEvent)
+            {
+                <ImportButton Kind="ghost" Class="imp-add-row" OnClick="() => AddRow(true)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                    Add row
+                </ImportButton>
+            }
+            else
+            {
+                @* The same pair the stallholder import offers: a row with a signed contract, and a row for a space let without one. *@
+                <ImportButton Kind="ghost" Class="imp-add-row" OnClick="() => AddRow(true)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                    Add row with contract
+                </ImportButton>
+                <ImportButton Kind="ghost" Class="imp-add-space-row" OnClick="() => AddRow(false)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                    Add row for space only
+                </ImportButton>
+            }
             <ImportButton Kind="outline" Disabled="@Saving" OnClick="ResetAll">Discard</ImportButton>
         </ImportReviewBar>
 
@@ -92,7 +107,7 @@
     [Parameter] public string BackHref { get; set; } = "/menu";
     /// <summary>Historical registers may retain their documented numbers; ordinary imports use server allocation.</summary>
     [Parameter] public bool AllowImportedNumbers { get; set; } = true;
-    [Parameter] public string EffectiveMonthLabel { get; set; } = "Contract Effectivity (month)";
+    [Parameter] public string EffectiveMonthLabel { get; set; } = "Effectivity Date";
 
     /// <summary>The civic-blue hero of the newer Operations pages instead of the light import hero.</summary>
     [Parameter] public bool BlueHero { get; set; }
@@ -118,7 +133,14 @@
     private static readonly ImportColumn OccupantCol = new("name", "Actual Occupant", MinWidth: 200, Placeholder: "Full name");
     private static readonly ImportColumn BasisCol = new("basis", "Occupancy basis", "select", [Signed, SpaceOnly], MinWidth: 200);
     private static readonly ImportColumn ContractCol = new("contractRef", "Contract reference", MinWidth: 160, Placeholder: "Per contract");
-    private ImportColumn EffectivityCol => new("start", EffectiveMonthLabel, "month", MinWidth: 170);
+    // The office register's own contract columns (Name of Lessee per Signed Contract, Effectivity, No. of Years, Area, Monthly Rentals per
+    // Contract and Actual Monthly Rentals), the same ones the stallholder import reads. The contract columns apply only to a signed contract.
+    private static readonly ImportColumn ContractNameCol = new("contractName", "Name on Contract", MinWidth: 200, Placeholder: "Per signed contract");
+    private ImportColumn EffectivityCol => new("start", EffectiveMonthLabel, "date", MinWidth: 150);
+    private static readonly ImportColumn YearsCol = new("years", "No. of Years", "number", MinWidth: 110, Placeholder: "Per contract");
+    private static readonly ImportColumn AreaCol = new("area", "Area (sq.m)", "number", MinWidth: 110, Placeholder: "0");
+    private static readonly ImportColumn ContractRateCol = new("contractRate", "Monthly rental per contract", "number", MinWidth: 170, Placeholder: "Per contract");
+    private static readonly ImportColumn WholeYearCol = new("wholeYear", "Whole year (12 × monthly)", "number", MinWidth: 170, Placeholder: "—");
     private static readonly ImportColumn MonthlyCol = new("amount", "Approved monthly rental", "number", MinWidth: 160, Placeholder: "0.00");
     private static readonly ImportColumn EventCol = new("event", "Event", "select", ["Fiesta", "Araw"], MinWidth: 130);
     private static readonly ImportColumn EventDateCol = new("start", "Event date", "date", MinWidth: 150);
@@ -127,8 +149,8 @@
 
     private IReadOnlyList<ImportColumn> Columns => IsEvent
         ? [LotCol, OccupantCol, EventCol, EventDateCol, LotAmountCol, ClosedCol]
-        : AllowImportedNumbers ? [SubjectCol, OccupantCol, BasisCol, ContractCol, EffectivityCol, MonthlyCol, ClosedCol]
-        : [OccupantCol, BasisCol, ContractCol, EffectivityCol, MonthlyCol, ClosedCol];
+        : AllowImportedNumbers ? [SubjectCol, OccupantCol, BasisCol, ContractNameCol, ContractCol, EffectivityCol, YearsCol, AreaCol, ContractRateCol, MonthlyCol, WholeYearCol, ClosedCol]
+        : [OccupantCol, BasisCol, ContractNameCol, ContractCol, EffectivityCol, YearsCol, AreaCol, ContractRateCol, MonthlyCol, WholeYearCol, ClosedCol];
 
     // HEADER ONLY: a template carries column names and nothing the office could mistake for data the platform put there.
     private string TemplateUri => "data:text/csv;charset=utf-8," + Uri.EscapeDataString(string.Join(",", Columns.Select(c => c.Label)) + "\r\n");
@@ -136,7 +158,10 @@
     private sealed class Row
     {
         public string Subject = "", Name = "", Amount = "", Start = "", ClosedText = "", EventName = "", ContractRef = "", BasisText = "";
+        public string ContractName = "", YearsText = "", AreaText = "", ContractRateText = "";
         public decimal Approved;
+        public int? Years;
+        public decimal? Area, ContractRate;
         public DateOnly StartDate;
         public DateOnly? Closed;
         public LotRentalEvent? Event;
@@ -147,15 +172,21 @@
     }
 
     // ── The grid's view of a row ───────────────────────────────────────────────────────────────────────────────────────
-    private string CellOf(Row row, ImportColumn col) => col.Label switch
+    // Columns are told apart by their own key, never by a label that an operation can reword.
+    private string CellOf(Row row, ImportColumn col) => col.Key switch
     {
-        "Space No." or "Lot No." => row.Subject,
-        "Actual Occupant" => row.Name,
-        "Occupancy basis" => row.BasisText,
-        "Contract reference" => row.ContractRef,
-        "Event" => row.EventName,
-        "Closed on" => row.ClosedText,
-        "Approved monthly rental" or "Approved lot amount" => row.Amount,
+        "subject" => row.Subject,
+        "name" => row.Name,
+        "basis" => row.BasisText,
+        "contractRef" => row.ContractRef,
+        "contractName" => row.ContractName,
+        "years" => row.YearsText,
+        "area" => row.AreaText,
+        "contractRate" => row.ContractRateText,
+        "wholeYear" => row.Approved > 0m ? (row.Approved * 12m).ToString("0.00", CultureInfo.InvariantCulture) : string.Empty,
+        "event" => row.EventName,
+        "closed" => row.ClosedText,
+        "amount" => row.Amount,
         _ => row.Start
     };
 
@@ -163,18 +194,24 @@
     {
         var row = change.Row;
         var value = change.Value ?? string.Empty;
-        switch (change.Column.Label)
+        switch (change.Column.Key)
         {
-            case "Space No." or "Lot No.": row.Subject = value; break;
-            case "Actual Occupant": row.Name = value; break;
-            case "Occupancy basis":
+            case "subject": row.Subject = value; break;
+            case "name": row.Name = value; break;
+            case "basis":
                 row.BasisText = value;
-                if (row.Basis != OccupancyArrangement.SignedContract) row.ContractRef = string.Empty;                // a space let without a contract carries no contract data
+                if (row.Basis != OccupancyArrangement.SignedContract)                                               // a space let without a contract carries no contract data
+                    row.ContractRef = row.ContractName = row.YearsText = row.ContractRateText = string.Empty;
                 break;
-            case "Contract reference": row.ContractRef = value; break;
-            case "Event": row.EventName = value; break;
-            case "Closed on": row.ClosedText = value; break;
-            case "Approved monthly rental" or "Approved lot amount": row.Amount = value; break;
+            case "contractRef": row.ContractRef = value; break;
+            case "contractName": row.ContractName = value; break;
+            case "years": row.YearsText = value; break;
+            case "area": row.AreaText = value; break;
+            case "contractRate": row.ContractRateText = value; break;
+            case "wholeYear": break;                                                                                // derived, never typed
+            case "event": row.EventName = value; break;
+            case "closed": row.ClosedText = value; break;
+            case "amount": row.Amount = value; break;
             default: row.Start = value; break;
         }
         row.Preview = null;
@@ -182,15 +219,17 @@
         SchedulePreview();
     }
 
-    // A contract reference on a space let without a contract is shown settled, not typeable.
-    private bool IsLocked(Row row, ImportColumn col) => !IsEvent && col.Label == "Contract reference" && row.Basis != OccupancyArrangement.SignedContract;
+    // Contract data on a space let without a contract is shown settled, not typeable; the whole-year figure is always derived.
+    private static readonly HashSet<string> ContractOnly = ["contractRef", "contractName", "years", "contractRate"];
+    private bool IsLocked(Row row, ImportColumn col) => !IsEvent && (col.Key == "wholeYear" || ContractOnly.Contains(col.Key) && row.Basis != OccupancyArrangement.SignedContract);
 
     private static string? PlaceholderOf(Row row, ImportColumn col) =>
-        col.Label is "Space No." or "Lot No."
+        col.Key == "subject"
             ? row.Preview?.Facts is { NumberOrigin: SpaceNumberOrigin.ServerSuggested } facts && !string.IsNullOrWhiteSpace(facts.Account.SubjectLabel) ? $"Auto · {facts.Account.SubjectLabel}" : "Auto"
-            : col.Label == "Contract reference" && row.Basis != OccupancyArrangement.SignedContract ? "—" : null;
+            : col.Key == "wholeYear" ? "—"
+            : ContractOnly.Contains(col.Key) && row.Basis != OccupancyArrangement.SignedContract ? "—" : null;
 
-    private static string? TitleOf(Row row, ImportColumn col) => col.Label is "Space No." or "Lot No."
+    private static string? TitleOf(Row row, ImportColumn col) => col.Key == "subject"
         ? "Leave blank to have the server assign the next number." : null;
 
     // A row's state is the server's word once it has been checked there; until then (or if the check is unavailable) it is what this page can
@@ -201,9 +240,10 @@
         : (SpaceHolderImportStatus.Ready, null);
 
     // ── Getting rows in ────────────────────────────────────────────────────────────────────────────────────────────────
-    private void StartManual() { _uploadError = null; _fileName = null; Rows = [NewRow()]; SchedulePreview(); }
-    private void AddRow() { Rows.Add(NewRow()); }
-    private Row NewRow() { var row = new Row(); Validate(row); return row; }
+    private void StartManual() { _uploadError = null; _fileName = null; Rows = [NewRow(null)]; SchedulePreview(); }
+    private void AddRow(bool withContract) { Rows.Add(NewRow(withContract)); }
+    // A lot has no basis; a space starts as a signed contract or as a space let without one, as the office chooses, and is never guessed.
+    private Row NewRow(bool? withContract) { var row = new Row { BasisText = IsEvent || withContract is null ? string.Empty : withContract == true ? Signed : SpaceOnly }; Validate(row); return row; }
 
     // Sample rows exist to show what a filled register looks like. They are never saved except through the normal import.
     private void LoadSample()
@@ -214,13 +254,15 @@
         var today = PhilippineTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         Rows = IsEvent
             ? [Sample("1", "Maria Santos", amount: "2500", start: today, evt: "Fiesta"), Sample("2", "Jose Ramirez", amount: "3000", start: today, evt: "Fiesta"), Sample("1", "Ana Lopez", amount: "2500", start: today, evt: "Araw")]
-            : [Sample("1", "Maria Santos", amount: "1500", start: month, basis: Signed, contract: "LC-2026-001"), Sample("2", "Jose Ramirez", amount: "1200", start: month, basis: SpaceOnly), Sample("", "Ana Lopez", amount: "1800", start: month, basis: SpaceOnly)];
+            : [Sample("1", "Maria Santos", amount: "1500", start: today, basis: Signed, contract: "LC-2026-001", contractName: "Maria Santos", years: Kind == ObligationKind.KanmanggaySpaceRental ? "3" : "", area: "9.5", contractRate: "1500"), Sample("2", "Jose Ramirez", amount: "1200", start: today, basis: SpaceOnly), Sample("", "Ana Lopez", amount: "1800", start: today, basis: SpaceOnly)];
         foreach (var row in Rows) Validate(row);
         SchedulePreview();
     }
 
-    private static Row Sample(string subject, string name, string amount, string start, string basis = "", string contract = "", string evt = "") =>
-        new() { Subject = subject, Name = name, Amount = amount, Start = start, BasisText = basis, ContractRef = contract, EventName = evt };
+    private static Row Sample(string subject, string name, string amount, string start, string basis = "", string contract = "", string evt = "",
+        string contractName = "", string years = "", string area = "", string contractRate = "") =>
+        new() { Subject = subject, Name = name, Amount = amount, Start = start, BasisText = basis, ContractRef = contract, EventName = evt,
+            ContractName = contractName, YearsText = years, AreaText = area, ContractRateText = contractRate };
 
     private async Task OnFileChange(InputFileChangeEventArgs e)
     {
@@ -272,7 +314,7 @@
             for (var i = 0; i < cells.Length && i < map.Length; i++) Put(row, map[i], (cells[i] ?? string.Empty).Trim());
             if (string.IsNullOrWhiteSpace(row.Subject) && string.IsNullOrWhiteSpace(row.Name)) continue;
             if (!string.IsNullOrWhiteSpace(row.BasisText)) row.BasisText = CanonicalBasis(row.BasisText);
-            else if (!string.IsNullOrWhiteSpace(row.ContractRef)) row.BasisText = Signed;
+            else if (!string.IsNullOrWhiteSpace(row.ContractRef) || !string.IsNullOrWhiteSpace(row.ContractName) || !string.IsNullOrWhiteSpace(row.YearsText)) row.BasisText = Signed;   // only a signed contract has these
             Validate(row);
             rows.Add(row);
         }
@@ -285,25 +327,30 @@
         return true;
     }
 
-    private enum Col { None, Subject, Name, Amount, Start, Closed, Event, Basis, Contract }
+    private enum Col { None, Subject, Name, Amount, Start, Closed, Event, Basis, Contract, ContractName, Years, Area, ContractRate, WholeYear }
 
     private Col[] ColumnOrder => IsEvent
         ? [Col.Subject, Col.Name, Col.Event, Col.Start, Col.Amount, Col.Closed]
-        : AllowImportedNumbers ? [Col.Subject, Col.Name, Col.Basis, Col.Contract, Col.Start, Col.Amount, Col.Closed]
-        : [Col.Name, Col.Basis, Col.Contract, Col.Start, Col.Amount, Col.Closed];
+        : AllowImportedNumbers ? [Col.Subject, Col.Name, Col.Basis, Col.ContractName, Col.Contract, Col.Start, Col.Years, Col.Area, Col.ContractRate, Col.Amount, Col.WholeYear, Col.Closed]
+        : [Col.Name, Col.Basis, Col.ContractName, Col.Contract, Col.Start, Col.Years, Col.Area, Col.ContractRate, Col.Amount, Col.WholeYear, Col.Closed];
 
     private static string Norm(string s) => new((s ?? string.Empty).ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
 
     private static Col ColFor(string header) => Norm(header) switch
     {
         "space" or "spaceno" or "spacenumber" or "lot" or "lotno" or "stallspaceno" => Col.Subject,
-        "occupant" or "actualoccupant" or "name" or "nameofoccupant" or "holder" => Col.Name,
-        "monthly" or "monthlyrental" or "approvedmonthly" or "approvedmonthlyrental" or "approvedamount" or "approvedlotamount" or "amount" or "rental" or "actualmorental" => Col.Amount,
-        "start" or "startdate" or "startmonth" or "effectivemonth" or "effectivity" or "effectivitydate" or "contracteffectivitymonth" or "startcontracteffectivity" or "eventdate" or "occupyingsince" => Col.Start,
+        "occupant" or "actualoccupant" or "name" or "nameofoccupant" or "holder" or "nameoflesseeactualoccupants" or "nameoflesseeactualoccupant" or "actualoccupantlessee" or "actualoccupantleasee" => Col.Name,
+        "monthly" or "monthlyrental" or "approvedmonthly" or "approvedmonthlyrental" or "approvedamount" or "approvedlotamount" or "amount" or "rental" or "actualmorental" or "actualmonthlyrental" or "actualmonthlyrentals" => Col.Amount,
+        "start" or "startdate" or "startmonth" or "effectivemonth" or "effectivity" or "effectivitydate" or "contracteffectivitymonth" or "startcontracteffectivity" or "eventdate" or "occupyingsince" or "effectivityoflesseecontract" or "contractdate" => Col.Start,
         "closedon" or "closed" or "closeddate" or "enddate" => Col.Closed,
         "event" or "eventfiestaaraw" => Col.Event,
         "occupancybasis" or "basis" or "basisofoccupancy" or "arrangement" => Col.Basis,
-        "contractreference" or "contractref" or "contractno" or "contract" or "nameoncontract" => Col.Contract,
+        "contractreference" or "contractref" or "contractno" or "contract" => Col.Contract,
+        "nameoncontract" or "nameoflesseepersignedcontract" or "nameoflesseepercontract" or "nameonsignedcontract" or "contractlessee" => Col.ContractName,
+        "noofyears" or "years" or "numberofyears" or "term" or "contractduration" or "duration" => Col.Years,
+        "area" or "areasqm" or "areasqmeter" or "areasqmeters" => Col.Area,
+        "monthlyrentalcontract" or "monthlyrentalpercontract" or "monthlyrentalspercontract" or "monthlyrentalspercontract" or "contractrate" or "contractmonthlyrental" => Col.ContractRate,
+        "wholeyearrental" or "wholeyear" or "annualrental" or "wholeyear12monthly" => Col.WholeYear,
         _ => Col.None
     };
 
@@ -326,6 +373,11 @@
             case Col.Event: row.EventName = value; break;
             case Col.Basis: row.BasisText = value; break;
             case Col.Contract: row.ContractRef = value; break;
+            case Col.ContractName: row.ContractName = StripLeadingIndex(value); break;
+            case Col.Years: row.YearsText = SheetNumber.Normalize(value); break;
+            case Col.Area: row.AreaText = SheetNumber.Normalize(value); break;
+            case Col.ContractRate: row.ContractRateText = SheetNumber.Normalize(value); break;
+            case Col.WholeYear: break;                                             // derived from the monthly rental, never read from a sheet
         }
     }
 
@@ -341,12 +393,8 @@
         return DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : raw;
     }
 
-    // A space's start is a month (the register shows yyyy-MM); an event's is the event date.
-    private string NormalizeStart(string raw)
-    {
-        var date = NormalizeDate(raw);
-        return !IsEvent && date.Length == 10 && date[4] == '-' ? date[..7] : date;
-    }
+    // A signed contract's effectivity is a date (billing starts in that month); an event's is the event date. A bare month is read as the 1st.
+    private string NormalizeStart(string raw) => NormalizeDate(raw);
 
     // The basis is read only from words that say it. Anything else is left blank for the office to choose, never guessed.
     private static string CanonicalBasis(string text)
@@ -365,7 +413,7 @@
             row.Error = "Check approved amount";
         var date = row.Start.Length == 7 ? row.Start + "-01" : row.Start;
         if (!DateOnly.TryParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out row.StartDate))
-            row.Error = IsEvent ? "Use yyyy-MM-dd" : "Choose the effectivity month";
+            row.Error = IsEvent ? "Use yyyy-MM-dd" : "Choose the effectivity date";
         if (IsEvent)
         {
             if (Enum.TryParse<LotRentalEvent>(row.EventName, true, out var ev) && Enum.IsDefined(ev)) row.Event = ev;
@@ -373,6 +421,33 @@
         }
         else if (row.Basis is null) row.Error = "Choose an occupancy basis";
         else if (row.Basis == OccupancyArrangement.SpaceOnly && !string.IsNullOrWhiteSpace(row.ContractRef)) row.Error = "No contract has no contract reference";
+        row.Years = null; row.Area = null; row.ContractRate = null;
+        if (!IsEvent)
+        {
+            // Area is a plain recorded measure; the contract's term and stated rate exist only behind a signed contract.
+            if (!string.IsNullOrWhiteSpace(row.AreaText))
+            {
+                if (decimal.TryParse(SheetNumber.Normalize(row.AreaText), NumberStyles.Number, CultureInfo.InvariantCulture, out var area) && area >= 0m && area <= 1_000_000m && decimal.Round(area, 2) == area)
+                    row.Area = area == 0m ? null : area;
+                else row.Error = "Check area (sq.m)";
+            }
+            if (row.Basis == OccupancyArrangement.SignedContract)
+            {
+                if (!string.IsNullOrWhiteSpace(row.YearsText))
+                {
+                    if (!decimal.TryParse(SheetNumber.Normalize(row.YearsText), NumberStyles.Number, CultureInfo.InvariantCulture, out var years) || years != decimal.Truncate(years) || years is < 1 or > 50)
+                        row.Error = "Years must be a whole number from 1 to 50";
+                    else if (Kind == ObligationKind.KanmanggaySpaceRental && years != 3m) row.Error = "A Kanmanggay signed contract runs three years";
+                    else row.Years = (int)years;
+                }
+                if (!string.IsNullOrWhiteSpace(row.ContractRateText))
+                {
+                    if (decimal.TryParse(SheetNumber.Normalize(row.ContractRateText), NumberStyles.Number, CultureInfo.InvariantCulture, out var stated) && stated > 0m && stated <= 1_000_000m && decimal.Round(stated, 2) == stated)
+                        row.ContractRate = stated;
+                    else row.Error = "Check the contract monthly rental";
+                }
+            }
+        }
         // The number may be blank: the server numbers it. Only the occupant is required here.
         if (string.IsNullOrWhiteSpace(row.Name)) row.Error = "Occupant is required";
         row.Closed = null;
@@ -398,9 +473,17 @@
     private string? _previewNote;
     private CancellationTokenSource? _previewDelay;
 
-    private ImportSpaceHolderRow BuildRow(Row r) => new(new(Kind, Guid.Empty, null, AllowImportedNumbers ? r.Subject.Trim() : string.Empty,
-        r.Event, IsEvent ? r.StartDate : null, r.StartDate, r.Approved,
-        IsEvent ? null : r.Basis, IsEvent || r.Basis != OccupancyArrangement.SignedContract || string.IsNullOrWhiteSpace(r.ContractRef) ? null : r.ContractRef.Trim(), r.Name.Trim()), r.Closed);
+    // Billing starts in the month of the effectivity date; the signed contract keeps the date itself. Nothing is invented for a column left blank.
+    private ImportSpaceHolderRow BuildRow(Row r)
+    {
+        var signed = !IsEvent && r.Basis == OccupancyArrangement.SignedContract;
+        var billingStart = IsEvent ? r.StartDate : new DateOnly(r.StartDate.Year, r.StartDate.Month, 1);
+        return new(new(Kind, Guid.Empty, null, AllowImportedNumbers ? r.Subject.Trim() : string.Empty,
+            r.Event, IsEvent ? r.StartDate : null, billingStart, r.Approved,
+            IsEvent ? null : r.Basis, !signed || string.IsNullOrWhiteSpace(r.ContractRef) ? null : r.ContractRef.Trim(), r.Name.Trim(),
+            signed && !string.IsNullOrWhiteSpace(r.ContractName) ? r.ContractName.Trim() : null,
+            signed ? r.StartDate : null, signed ? r.Years : null, IsEvent ? null : r.Area, null, signed ? r.ContractRate : null), r.Closed);
+    }
 
     private void SchedulePreview()
     {

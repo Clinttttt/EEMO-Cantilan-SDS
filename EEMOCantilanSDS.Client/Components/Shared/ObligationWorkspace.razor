@@ -307,7 +307,7 @@ else
 <AuthorizeView Roles="SuperAdmin">
     <Authorized>
         <AddNewDrawer Show="@(_opening && _advanceRequest is null && !ReadOnlyHistory)" Title="@(SupportsContractBasis ? "Add New Space Holder" : $"Open {Name} account")" Subtitle="@OpenSubtitle"
-                      FormId="obw-open-form" FormLabel="Open account" SubmitText="Open account" Saving="_saving" Error="@_formError"
+                      FormId="obw-open-form" FormLabel="Open account" SubmitText="@SubmitLabel" Saving="_saving" Error="@_formError"
                       OnSubmit="CreateAsync" OnCancel="CloseForm" LeadingFooterActions="@ImportAction">
             @if (Kind == ObligationKind.FishMeatVendorFee)
             {
@@ -400,6 +400,21 @@ else
                                               Options="KmContractYearOptions" ValueChanged="value => _contractYears = 3" />
                                 </div>
                             }
+                            else if (_signedContract && Kind == ObligationKind.VegetableFruitSpaceRental)
+                            {
+                                @* Vegetable / Fruits carries no fixed term: the duration is whatever the signed contract states. Nothing is
+                                   preselected, and leaving it blank records no duration (never an invented one). *@
+                                <div class="avm-group">
+                                    <label class="avm-label" for="obw-vf-years">Contract Duration (No. of Years)</label>
+                                    <select id="obw-vf-years" class="avm-input" @bind="_contractYears">
+                                        <option value="0">Not recorded</option>
+                                        @for (var year = 1; year <= 10; year++)
+                                        {
+                                            <option value="@year">@year @(year == 1 ? "year" : "years")</option>
+                                        }
+                                    </select>
+                                </div>
+                            }
                         </TermField>
                     </RentalContractFields>
                     <AddNewSection Title="Space Information" Plain="true">
@@ -464,7 +479,8 @@ else
                 @if (SupportsContractBasis)
                 {
                     <AddNewSection Title="Rental Rates" Plain="true">
-                        <RentalRateFields Form="RegistrationState" InputId="obw-amount" Label="Approved Monthly Rental (₱)" Minimum="0.01m" Step="0.01" Entered="() => StateHasChanged()" />
+                        <RentalRateFields Form="RegistrationState" InputId="obw-amount" Label="Approved Monthly Rental (₱)" Minimum="0.01m" Step="0.01" Entered="() => StateHasChanged()"
+                                          ShowContractRate="_signedContract" ContractRate="_contractRate" ContractRateChanged="v => _contractRate = v" />
                     </AddNewSection>
                     <AddNewSection Title="Additional Information" Plain="true">
                         <div class="avm-row-2"><div class="avm-group">
@@ -555,6 +571,19 @@ else
                                 </select>
                             </div>
                         }
+                        else if (_signedContract && Kind == ObligationKind.VegetableFruitSpaceRental)
+                        {
+                            <div class="avm-group">
+                                <label class="avm-label" for="obw-contract-years">Contract Duration (No. of Years)</label>
+                                <select id="obw-contract-years" class="avm-input" @bind="_contractYears">
+                                    <option value="0">Not recorded</option>
+                                    @for (var year = 1; year <= 10; year++)
+                                    {
+                                        <option value="@year">@year @(year == 1 ? "year" : "years")</option>
+                                    }
+                                </select>
+                            </div>
+                        }
                     </TermField>
                 </RentalContractFields>
                 <AddNewSection Title="Space Information" Plain="true">
@@ -563,6 +592,17 @@ else
                         <input id="obw-area" class="avm-input" type="number" min="0" max="1000000" step="0.01" @bind="_areaSqm" />
                     </div></div>
                 </AddNewSection>
+                @if (_signedContract)
+                {
+                    <AddNewSection Title="Rental per Contract" Plain="true">
+                        <div class="avm-row-2"><div class="avm-group">
+                            <label class="avm-label" for="obw-contract-rate">Monthly Rental per Contract (₱)</label>
+                            <input id="obw-contract-rate" class="avm-input" type="number" min="0" step="0.01" placeholder="Per signed contract"
+                                   value="@_contractRate" @onchange="e => _contractRate = decimal.TryParse(e.Value?.ToString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var stated) && stated > 0m ? stated : null" />
+                            <div class="avm-hint-muted">What the signed contract states. Evidence only; the approved amount below is what is billed.</div>
+                        </div></div>
+                    </AddNewSection>
+                }
                 <AddNewSection Title="Additional Information" Plain="true">
                     <div class="avm-row-2"><div class="avm-group">
                         <label class="avm-label" for="obw-area-note">Area Location / Note</label>
@@ -684,8 +724,20 @@ else
         <a class="btn-outline" href="@ReportsHref">Reports</a>
         @RegistrationAction
     </div>;
-    private RenderFragment? ImportAction => string.IsNullOrWhiteSpace(ImportHref) ? null : @<button type="button" class="btn-ghost" disabled="@_saving" @onclick="OpenImport">Import list</button>;
+    // The same two actions, with the same icons, as the stallholder Add New: bring the office's own list in, and look back at lists already brought in.
+    private RenderFragment? ImportAction => string.IsNullOrWhiteSpace(ImportHref) ? null : @<div class="avm-import-group">
+        <button type="button" class="btn-ghost avm-import-btn" disabled="@_saving" @onclick="OpenImport" title="Bulk import @(SupportsContractBasis ? "space holders" : "lot holders") from a file">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+            Import list
+        </button>
+        <button type="button" class="btn-ghost avm-import-btn" disabled="@_saving" @onclick="OpenImportHistory" title="Lists already imported for this operation">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18" /><path d="M7 14l4-4 3 3 5-6" /></svg>
+            Import history
+        </button>
+    </div>;
     private void OpenImport() { if (!_saving && !string.IsNullOrWhiteSpace(ImportHref)) Navigation.NavigateTo(ImportHref); }
+    private void OpenImportHistory() { if (!_saving && !string.IsNullOrWhiteSpace(ImportHref)) Navigation.NavigateTo(ImportHref + "/history"); }
+    private string SubmitLabel => Kind == ObligationKind.FishMeatVendorFee ? "Open account" : Kind == ObligationKind.FiestaArawLotRental ? "Add Lot Holder" : "Add Space Holder";
     private List<FacilityHero.HeroStat> SpaceStats => [
         new() { Label = "Collected", Value = _workspace is null ? "—" : Money(_workspace.Collected) },
         new() { Label = "Remaining", Value = _workspace is null ? "—" : Money(_workspace.Outstanding) },
@@ -724,6 +776,8 @@ else
     private string _contractName = string.Empty;
     private string _areaLocation = string.Empty;
     private decimal? _areaSqm;
+    /// <summary>What the signed contract states per month; evidence recorded on the account, never what is billed.</summary>
+    private decimal? _contractRate;
     private int _contractYears = 3;
     private DateTime? _contractDate = PhilippineTime.Now.Date;
     private string? NextSpaceNumber
@@ -877,7 +931,8 @@ else
     {
         _formError = null; _saved = null; _rateFor = null; _editFor = null; _advanceRequest = null;
         _occupant = _stallId = _subject = _contractRef = _contractName = _areaLocation = string.Empty;
-        _areaSqm = null; _contractYears = 3; _contractDate = PhilippineTime.Now.Date;
+        // Kanmanggay's signed term is the MEEDO standard three years; Vegetable / Fruits has no fixed term, so none is preselected.
+        _areaSqm = null; _contractRate = null; _contractYears = Kind == ObligationKind.VegetableFruitSpaceRental ? 0 : 3; _contractDate = PhilippineTime.Now.Date;
         _signedContract = true; _lotEvent = LotRentalEvent.Fiesta;
         _amount = null;
         _opening = true;
@@ -906,6 +961,7 @@ else
         _contractDate = account.ContractEffectiveDate?.ToDateTime(TimeOnly.MinValue);
         _contractYears = account.ContractYears ?? 0;
         _areaSqm = account.AreaSqm;
+        _contractRate = account.ContractMonthlyRate;
         _areaLocation = account.AreaLocation ?? string.Empty;
     }
 
@@ -998,9 +1054,12 @@ else
             Kind == ObligationKind.FishMeatVendorFee ? null : _occupant.Trim(),
             SupportsContractBasis && _signedContract ? _contractName.Trim() : null,
             SupportsContractBasis && _signedContract && _contractDate is { } contractOn ? DateOnly.FromDateTime(contractOn) : null,
-            Kind == ObligationKind.KanmanggaySpaceRental && _signedContract ? _contractYears : null,
+            // Kanmanggay's three-year MEEDO standard is its own; Vegetable / Fruits records whatever term the contract states, or none.
+            Kind == ObligationKind.KanmanggaySpaceRental && _signedContract ? _contractYears
+                : Kind == ObligationKind.VegetableFruitSpaceRental && _signedContract && _contractYears > 0 ? _contractYears : null,
             SupportsContractBasis ? _areaSqm : null,
-            SupportsContractBasis ? _areaLocation.Trim() : null);
+            SupportsContractBasis ? _areaLocation.Trim() : null,
+            SupportsContractBasis && _signedContract ? _contractRate : null);
         var today = PhilippineTime.Today;
         var futureMonth = isLot && new DateOnly(start.Year, start.Month, 1) > new DateOnly(today.Year, today.Month, 1);
         if ((futureMonth && !confirmed) || (confirmed && request != _advanceRequest))
@@ -1037,7 +1096,7 @@ else
                 _signedContract ? _contractRef : null, _signedContract ? _contractName : null,
                 _signedContract && _contractDate is { } contractDate ? DateOnly.FromDateTime(contractDate) : null,
                 _signedContract && _contractYears > 0 ? _contractYears : null,
-                _areaSqm, _areaLocation);
+                _areaSqm, _areaLocation, _signedContract ? _contractRate : null);
             var result = await ObligationsApi.CorrectHolderAsync(account.Id, request);
             if (!result.IsSuccess) { _formError = result.Error ?? "Holder details could not be saved."; return; }
             _editFor = null;

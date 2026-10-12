@@ -294,7 +294,7 @@ public sealed class ObligationWorkspaceTests : TestContext
             var drawer = Assert.Single(cut.FindAll("[role='dialog']"));
             Assert.Contains("Add New Space Holder", drawer.TextContent);
             Assert.NotNull(drawer.QuerySelector("form[aria-label='Open account']"));
-            Assert.Contains("Open account", drawer.QuerySelector("footer")!.TextContent);
+            Assert.Contains("Add Space Holder", drawer.QuerySelector("footer")!.TextContent);
             Assert.DoesNotContain("obw-layout", drawer.ParentElement!.ClassName ?? "");      // not squeezed into the account list's own grid
         }, Timeout);
         cut.FindAll("footer button").Single(b => b.TextContent.Trim() == "Cancel").Click();
@@ -618,7 +618,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         Assert.NotNull(cut.Find(".imp-use-sample"));
         Assert.NotNull(cut.Find(".imp-enter-manually"));
         Assert.Empty(cut.FindAll("textarea"));                                        // no pasted-rows box: upload, sample or manual, as in ICE
-        Assert.Equal(new[] { "Space No.", "Actual Occupant", "Occupancy basis", "Contract reference", "Contract Effectivity (month)", "Approved monthly rental", "Closed on" },
+        Assert.Equal(new[] { "Space No.", "Actual Occupant", "Occupancy basis", "Name on Contract", "Contract reference", "Effectivity Date", "No. of Years", "Area (sq.m)", "Monthly rental per contract", "Approved monthly rental", "Whole year (12 × monthly)", "Closed on" },
             cut.FindAll(".imp-chip").Select(x => x.TextContent.Trim()).ToArray());
     }
 
@@ -633,7 +633,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         {
             Assert.Equal("3", cut.Find(".imp-review-count").TextContent.Trim());
             Assert.Contains("active", cut.FindAll(".imp-step")[1].ClassList);
-            Assert.Equal(new[] { "#", "Space No.", "Actual Occupant", "Occupancy basis", "Contract reference", "Contract Effectivity (month)", "Approved monthly rental", "Closed on", "Status" },
+            Assert.Equal(new[] { "#", "Space No.", "Actual Occupant", "Occupancy basis", "Name on Contract", "Contract reference", "Effectivity Date", "No. of Years", "Area (sq.m)", "Monthly rental per contract", "Approved monthly rental", "Whole year (12 × monthly)", "Closed on", "Status" },
                 cut.FindAll(".imp-table thead th").Select(x => x.TextContent.Trim()).Where(x => x.Length > 0).ToArray());
             Assert.Equal(3, cut.FindAll(".imp-table tbody tr").Count);
             Assert.All(cut.FindAll(".imp-table tbody tr"), r => Assert.Contains("Ready", r.TextContent));             // each sample row carries its own occupant
@@ -761,6 +761,128 @@ public sealed class ObligationWorkspaceTests : TestContext
             Assert.True(reference.HasAttribute("readonly"));                                                             // a space let without a contract carries none
             Assert.Equal(string.Empty, reference.GetAttribute("value") ?? string.Empty);
         }, Timeout);
+    }
+
+    // The office's own paper register (Name of Lessee per Signed Contract, Effectivity, No. of Years, Area, Monthly Rentals per Contract, Actual Monthly
+    // Rentals, Whole Year Rental) reads into its own columns, and every one of them reaches the server instead of being dropped.
+    private const string OfficeRegisterHeader =
+        "Name of Lessee (Actual Occupants),Name of Lessee per Signed Contract,Stall / Space No.,Effectivity of Lessee Contract,No. of Years,Area,Monthly Rentals per Contract,Actual Monthly Rentals,Whole Year Rental\r\n";
+
+    [Fact]
+    public void Import_TheOfficeRegisterHeadersFillTheirOwnColumns_AndNameOnContractIsNeverTheContractReference()
+    {
+        var cut = RenderComponent<KanmanggayImport>();
+        var csv = OfficeRegisterHeader + "Ana Reyes,Estate of Ana Reyes,K-1,2026-09-04,3,9.5,1000,900,10800\r\n";
+
+        cut.FindComponent<Microsoft.AspNetCore.Components.Forms.InputFile>().UploadFiles(InputFileContent.CreateFromText(csv, "register.csv"));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("Ana Reyes", cut.Find("input[aria-label='Actual Occupant of row 1']").GetAttribute("value"));
+            Assert.Equal("Estate of Ana Reyes", cut.Find("input[aria-label='Name on Contract of row 1']").GetAttribute("value"));
+            Assert.Equal(string.Empty, cut.Find("input[aria-label='Contract reference of row 1']").GetAttribute("value") ?? string.Empty);   // not mixed up with the lessee
+            Assert.Equal("2026-09-04", cut.Find("input[aria-label='Effectivity Date of row 1']").GetAttribute("value"));
+            Assert.Equal("3", cut.Find("input[aria-label='No. of Years of row 1']").GetAttribute("value"));
+            Assert.Equal("9.5", cut.Find("input[aria-label='Area (sq.m) of row 1']").GetAttribute("value"));
+            Assert.Equal("1000", cut.Find("input[aria-label='Monthly rental per contract of row 1']").GetAttribute("value"));
+            Assert.Equal("900", cut.Find("input[aria-label='Approved monthly rental of row 1']").GetAttribute("value"));
+            var wholeYear = cut.Find("input[aria-label='Whole year (12 × monthly) of row 1']");
+            Assert.True(wholeYear.HasAttribute("readonly"));                                              // derived (12 × the monthly rental), never typed or read from the sheet
+            Assert.Equal("10800.00", wholeYear.GetAttribute("value"));
+            Assert.Contains("Ready", cut.Find(".imp-table tbody tr").TextContent);                        // a basis was read from the contract evidence, not guessed from nothing
+        }, Timeout);
+    }
+
+    [Fact]
+    public void Import_EveryContractFieldReachesTheServer_AndBillingStartsInTheEffectivityMonth()
+    {
+        ImportSpaceHoldersRequest? saved = null;
+        _api.Setup(x => x.ImportSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>())).Callback<ImportSpaceHoldersRequest>(r => saved = r)
+            .ReturnsAsync(Result<ImportSpaceHoldersResult>.Success(new(1, 0, [])));
+        var cut = RenderComponent<KanmanggayImport>();
+        var csv = OfficeRegisterHeader + "Ana Reyes,Estate of Ana Reyes,K-1,2026-09-04,3,9.5,1000,900,10800\r\n";
+        cut.FindComponent<Microsoft.AspNetCore.Components.Forms.InputFile>().UploadFiles(InputFileContent.CreateFromText(csv, "register.csv"));
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".imp-table tbody tr")), Timeout);
+
+        cut.Find(".imp-foot-bar .imp-btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var account = Assert.Single(saved!.Rows).Account;
+            Assert.Equal("Ana Reyes", account.ActualOccupant);
+            Assert.Equal("Estate of Ana Reyes", account.ContractName);
+            Assert.Equal(new DateOnly(2026, 9, 4), account.ContractEffectiveDate);                        // the signed date itself
+            Assert.Equal(new DateOnly(2026, 9, 1), account.ActiveFrom);                                   // billing from that month
+            Assert.Equal((3, 9.5m, 1000m, 900m), (account.ContractYears, account.AreaSqm, account.ContractMonthlyRate, account.Amount));
+            Assert.Equal(OccupancyArrangement.SignedContract, account.Arrangement);
+            Assert.Null(account.ContractReference);
+        }, Timeout);
+    }
+
+    [Theory]
+    [InlineData("4", "A Kanmanggay signed contract runs three years")]
+    [InlineData("0", "Years must be a whole number from 1 to 50")]
+    public void Import_AKanmanggayTermOtherThanThreeYearsIsInvalid_NeverSilentlyChanged(string years, string reason)
+    {
+        var cut = RenderComponent<KanmanggayImport>();
+        var csv = OfficeRegisterHeader + $"Ana Reyes,Estate of Ana Reyes,K-1,2026-09-04,{years},9.5,1000,900,\r\n";
+
+        cut.FindComponent<Microsoft.AspNetCore.Components.Forms.InputFile>().UploadFiles(InputFileContent.CreateFromText(csv, "register.csv"));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains(reason, cut.Find(".imp-table tbody tr").TextContent);
+            Assert.Contains("0 ready", cut.Find(".shi-foot-note").TextContent);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void Import_VegetableFruitKeepsWhateverTermTheContractStates_AndAnyColumnsLeftBlankStayBlank()
+    {
+        ImportSpaceHoldersRequest? saved = null;
+        _api.Setup(x => x.ImportSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>())).Callback<ImportSpaceHoldersRequest>(r => saved = r)
+            .ReturnsAsync(Result<ImportSpaceHoldersResult>.Success(new(2, 0, [])));
+        var cut = RenderComponent<VegetableFruitImport>();
+        var csv = "Name of Lessee (Actual Occupants),Name of Lessee per Signed Contract,Effectivity of Lessee Contract,No. of Years,Area,Actual Monthly Rentals\r\n" +
+                  "Lina Torres,Lina Torres,2026-08-10,1,6,500\r\nRoy Dela Cruz,,2026-08-01,,,400\r\n";
+        cut.FindComponent<Microsoft.AspNetCore.Components.Forms.InputFile>().UploadFiles(InputFileContent.CreateFromText(csv, "vf.csv"));
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll(".imp-table tbody tr").Count), Timeout);
+        Assert.Empty(cut.FindAll("input[aria-label^='Space No.']"));                                       // Vegetable / Fruits numbers are the server's
+
+        cut.Find("select[aria-label='Occupancy basis of row 2']").Change("No contract (space only)");
+        cut.Find(".imp-foot-bar .imp-btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var first = saved!.Rows[0].Account; var second = saved.Rows[1].Account;
+            Assert.Equal((1, 6m), (first.ContractYears, first.AreaSqm));                                   // a one-year term is a legitimate Vegetable / Fruits contract
+            Assert.Equal(OccupancyArrangement.SignedContract, first.Arrangement);
+            Assert.Equal(OccupancyArrangement.SpaceOnly, second.Arrangement);
+            Assert.Null(second.ContractYears); Assert.Null(second.ContractName); Assert.Null(second.ContractMonthlyRate); Assert.Null(second.AreaSqm);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void Import_TheTwoAddRowButtonsChooseTheBasisExplicitly_AndEnterManuallyChoosesNone()
+    {
+        var cut = RenderComponent<KanmanggayImport>();
+        cut.Find(".imp-enter-manually").Click();
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".imp-table tbody tr")), Timeout);
+        Assert.Equal(string.Empty, cut.Find("select[aria-label='Occupancy basis of row 1']").GetAttribute("value") ?? string.Empty);      // never assumed
+
+        cut.Find(".imp-add-row").Click();
+        cut.Find(".imp-add-space-row").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(3, cut.FindAll(".imp-table tbody tr").Count);
+            Assert.Equal("Signed lease contract", cut.Find("select[aria-label='Occupancy basis of row 2']").GetAttribute("value"));
+            Assert.Equal("No contract (space only)", cut.Find("select[aria-label='Occupancy basis of row 3']").GetAttribute("value"));
+            Assert.True(cut.Find("input[aria-label='Name on Contract of row 3']").HasAttribute("readonly"));         // a space let without a contract carries no contract data
+            Assert.False(cut.Find("input[aria-label='Name on Contract of row 2']").HasAttribute("readonly"));
+        }, Timeout);
+        Assert.Contains("Add row with contract", cut.Find(".imp-add-row").TextContent);
+        Assert.Contains("Add row for space only", cut.Find(".imp-add-space-row").TextContent);
     }
 
     [Fact]

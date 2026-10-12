@@ -10,7 +10,21 @@
             <div class="avm-hint-muted">Whole Year: ₱@((Form.MonthlyRate * 12m).ToString("N0"))</div>
             @RateNote
         </div>
-        <div class="avm-group" style="visibility:hidden;"></div>
+        @if (ShowContractRate)
+        {
+            @* The monthly rental the signed contract itself states. It is evidence on the account (the office register's "Monthly Rentals per
+               Contract"); what is billed is the figure beside it. *@
+            <div class="avm-group">
+                <label class="avm-label" for="@(InputId + "-contract")">@ContractRateLabel</label>
+                <input id="@(InputId + "-contract")" class="avm-input" type="number" min="0" step="0.01" placeholder="Per signed contract"
+                       value="@ContractRate" @onchange="OnContractRate" />
+                <div class="avm-hint-muted">Evidence only; not billed.</div>
+            </div>
+        }
+        else
+        {
+            <div class="avm-group" style="visibility:hidden;"></div>
+        }
     </div>
 }
 else
@@ -44,6 +58,18 @@ else
     [Parameter] public string SourceName { get; set; } = "";
     [Parameter] public RenderFragment? Icon { get; set; }
     [Parameter] public RenderFragment? RateNote { get; set; }
+    /// <summary>Offers the second field: what the signed contract states per month (only for an account that has a signed contract).</summary>
+    [Parameter] public bool ShowContractRate { get; set; }
+    [Parameter] public string ContractRateLabel { get; set; } = "Monthly Rental per Contract (₱)";
+    [Parameter] public decimal? ContractRate { get; set; }
+    [Parameter] public EventCallback<decimal?> ContractRateChanged { get; set; }
+    private Task OnContractRate(ChangeEventArgs args)
+    {
+        var text = args.Value?.ToString();
+        decimal? value = decimal.TryParse(text, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var parsed) && parsed > 0m ? parsed : null;
+        ContractRate = value;
+        return ContractRateChanged.InvokeAsync(value);
+    }
     [Parameter] public EventCallback Entered { get; set; }
     [Parameter] public EventCallback Changed { get; set; }
     private Task NotifyEntered() => Entered.InvokeAsync();
