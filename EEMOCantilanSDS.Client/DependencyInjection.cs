@@ -100,6 +100,15 @@ namespace EEMOCantilanSDS.Client
         /// </remarks>
         public static IServiceCollection AddApiHttpClients(this IServiceCollection service, IConfiguration configuration)
         {
+            // One logger for every outbound API call, in place of the framework default that prints the full request URI.
+            // An activation, reset or verification lookup carries its one-time credential in that URI (see SensitiveRoutes).
+            service.AddTransient<EEMOCantilanSDS.Client.Securities.RedactedHttpLoggingHandler>();
+            service.ConfigureHttpClientDefaults(builder =>
+            {
+                builder.RemoveAllLoggers();
+                builder.AddHttpMessageHandler<EEMOCantilanSDS.Client.Securities.RedactedHttpLoggingHandler>();
+            });
+
             service.AddHttpClient<IAuthApiClient, AuthApiClient>("AuthClient", client =>
             {
                 client.BaseAddress = new Uri(configuration["ApiBaseUrl"]!);
