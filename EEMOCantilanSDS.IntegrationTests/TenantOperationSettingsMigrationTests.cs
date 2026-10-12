@@ -59,7 +59,7 @@ public sealed class TenantOperationSettingsMigrationTests(PostgresFixture db)
             Assert.Contains(ThisMigration, await verify.Database.GetAppliedMigrationsAsync());
             Assert.Equal(1, (await verify.Database.GetAppliedMigrationsAsync()).Count(m => m == ThisMigration));
             Assert.Equal(1, await verify.Facilities.IgnoreQueryFilters().CountAsync());
-            var rate = await verify.FacilityRates.IgnoreQueryFilters().SingleAsync();
+            var rate = await verify.FacilityRates.IgnoreQueryFilters().SingleAsync(r => r.MunicipalityId == cantilan);
             Assert.Equal(30m, rate.Amount);
             Assert.Equal(1, await verify.AdminUsers.IgnoreQueryFilters().CountAsync());
 
