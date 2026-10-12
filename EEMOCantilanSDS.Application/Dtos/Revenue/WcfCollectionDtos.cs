@@ -158,3 +158,11 @@ public sealed record AutoAllocatePlanLine(Guid CollectorId, string CollectorName
 public sealed record AutoAllocatePlanDto(
     Guid FormBookId, RevenueInstrumentType InstrumentType, int InOfficeBefore, int InOfficeAfter,
     IReadOnlyList<AutoAllocatePlanLine> Lines, bool Committed);
+
+/// <summary>
+/// One canonical Collection already posted against a utility source for a period, shown to the Collector before another payment.
+/// Read from the posted allocations; <see cref="Disposition"/> is "Reversed" once a reversal exists, never shown as still valid.
+/// </summary>
+public sealed record RecentUtilityCollectionDto(
+    Guid CollectionId, string ReferenceCode, decimal Amount, DateOnly BusinessDate, DateTime RecordedAtUtc,
+    string Disposition, string RecordedBy);
