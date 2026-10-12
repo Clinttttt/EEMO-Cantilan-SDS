@@ -167,7 +167,7 @@ public sealed class RentalConsolidationTests : TestContext
         Assert.Equal(new[] { "₱", "↺", "→" }, cut.FindAll("tbody button").Select(x => x.TextContent));
         Click(cut, "₱");
         Assert.Contains("not a receipt", cut.Find("[role='dialog']").TextContent);
-        Assert.Contains("₱500.00", cut.Find("[role='dialog'] tbody").TextContent);
+        Assert.Contains("₱500", cut.Find("[role='dialog']").TextContent);
         _accounts.Verify(x => x.GetRegisterAsync(account.Id), Times.Once);
         Assert.Empty(_activity.Invocations); Assert.Empty(_payments.Invocations);
         Click(cut, "Close"); Click(cut, "→");
@@ -181,23 +181,25 @@ public sealed class RentalConsolidationTests : TestContext
         var account = Account(); Serve(account); var periodId = Guid.NewGuid();
         _accounts.Setup(x => x.GetRegisterAsync(account.Id)).ReturnsAsync(Result<IReadOnlyList<ObligationQuoteDto>>.Success([
             new(account.Id, periodId, account.Kind, account.KindLabel, account.SubjectLabel, new(2026, 9, 1), 900m, 400m, 500m, Guid.Empty, "Same name", null, true)]));
-        var correction = new CollectionActivityCorrectionDto(Guid.NewGuid(), "Reversal", PhilippineTime.Today, DateTime.UtcNow, -400m, Guid.NewGuid(), "Authorized correction");
-        CollectionActivityEventDto Event(Guid source, string src) => new(src, "Canonical", "Space Rental", Guid.NewGuid(), PhilippineTime.Today,
-            DateTime.UtcNow, src, "OR-17", RevenueInstrumentType.OfficialReceipt, [], ["SRC-REPLACEMENT"], "Same name", null, null,
-            "Collector", "Head", null, "007", null, 400m, -400m, 0m, "Reversed", null,
-            [new("SPACE_RENTAL", "Space Rental", 400m, nameof(CollectionSourceKind.ObligationPeriod), null, source, 2026, 9, "Rent")], [correction]);
-        _activity.Setup(x => x.GetAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), null, null, null, 500, null))
-            .ReturnsAsync(Result<CollectionActivityFeedDto>.Success(new(PhilippineTime.Today, PhilippineTime.Today, "BusinessDate", "EffectiveDate", DateTime.UtcNow,
-                [Event(periodId, "SRC-CORRECT"), Event(Guid.NewGuid(), "SRC-OTHER-ACCOUNT")], 2, true, 0m, 800m, -800m, 0m, [])));
+        // The account's own canonical payments (read by THIS account's id on the server), one reversed and replaced, one live.
+        var correction = new ObligationPaymentCorrectionDto("Reversal", "Authorized correction", PhilippineTime.Today, DateTime.UtcNow, -400m);
+        var reversed = new ObligationPaymentDto(Guid.NewGuid(), "SRC-CORRECT", PhilippineTime.Today, DateTime.UtcNow.AddMinutes(-5), new(2026, 9, 1), 400m, -400m, 0m,
+            RevenueInstrumentType.OfficialReceipt, "Pat Collector", "Reversed", [correction], ["SRC-REPLACEMENT"]);
+        var live = new ObligationPaymentDto(Guid.NewGuid(), "SRC-REPLACEMENT", PhilippineTime.Today, DateTime.UtcNow, new(2026, 9, 1), 400m, 0m, 400m,
+            RevenueInstrumentType.OfficialReceipt, "Pat Collector", "Posted");
+        _accounts.Setup(x => x.GetPaymentsAsync(account.Id)).ReturnsAsync(Result<IReadOnlyList<ObligationPaymentDto>>.Success([reversed, live]));
         var cut = RenderComponent<Kanmanggay>(); Click(cut, "↺");
-        Assert.Contains("SRC-CORRECT", cut.Find("[role='dialog']").TextContent);
-        Assert.Contains("SRC-REPLACEMENT", cut.Find("[role='dialog']").TextContent);
-        Assert.Contains("Authorized correction", cut.Find("[role='dialog']").TextContent);
-        Assert.DoesNotContain("SRC-OTHER-ACCOUNT", cut.Find("[role='dialog']").TextContent);
-        Assert.Contains("activity feed was limited", cut.Find("[role='dialog']").TextContent);
+        var dialog = cut.Find("[role='dialog'][aria-label='Payment history']").TextContent;
+        Assert.Contains("SRC-CORRECT", dialog);                         // the original SRC is never hidden by its reversal
+        Assert.Contains("Authorized correction", dialog);
+        Assert.Contains("Replacement: SRC-REPLACEMENT", dialog);
+        Assert.Contains("Pat Collector", dialog);
+        _accounts.Verify(x => x.GetPaymentsAsync(account.Id), Times.Once);       // keyed by the account's id, never a name
+        Assert.Empty(_activity.Invocations);                                      // no second, name-matched feed
         Assert.Empty(_payments.Invocations);
-        var call = Assert.Single(_activity.Invocations); var from = (DateOnly)call.Arguments[0]; var to = (DateOnly)call.Arguments[1];
-        Assert.InRange(to.DayNumber - from.DayNumber, 27, 30);
+        // The ledger row for the period shows the live payment, not the reversed one.
+        Assert.Contains(cut.FindAll(".ph-ledger-row .ph-or-num"), x => x.TextContent.Trim() == "SRC-REPLACEMENT");
+        Assert.DoesNotContain(cut.FindAll(".ph-ledger-row .ph-or-num"), x => x.TextContent.Contains("SRC-CORRECT"));
         SpaceHolderWorkspaceTests.SaveVisualArtifact("km-history", cut.Markup);
     }
 
@@ -263,8 +265,8 @@ public sealed class RentalConsolidationTests : TestContext
         }
         Assert.Contains("Partial", cut.Find("td[data-label='Payment']").TextContent);
         cut.FindAll(".ohd-footer button").Single(b => b.TextContent == "Payment History").Click();
-        Assert.Contains("Payment History", cut.Find("[role='dialog']").TextContent);
-        cut.Find(".rph-footer button").Click();
+        Assert.Contains(kind == ObligationKind.FiestaArawLotRental ? "Event Settlement Record" : "12-Month Payment Record", cut.Find("[role='dialog']").TextContent);   // the stall history's own heading
+        cut.Find(".ph-footer button").Click();
 
         cut.Find("button[title='Close Account']").Click();
         Assert.Contains("Confirm account closure", cut.Markup);
@@ -285,7 +287,7 @@ public sealed class RentalConsolidationTests : TestContext
 
         cut.Find("button[title='Payment History']").Click();
         Assert.NotNull(cut.Find("[role='dialog'][aria-label='Payment history']"));
-        cut.Find(".rph-footer button").Click();
+        cut.Find(".ph-footer button").Click();
         cut.Find("button[title='View Profile']").Click();
         var uri = Services.GetRequiredService<NavigationManager>().Uri;
         Assert.Contains(route, Uri.UnescapeDataString(uri));

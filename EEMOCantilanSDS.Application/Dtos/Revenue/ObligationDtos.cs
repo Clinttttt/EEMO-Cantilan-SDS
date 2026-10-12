@@ -116,7 +116,11 @@ public sealed record VendorFeeStallDto(Guid StallId, string StallNo, string Sect
 /// </summary>
 public sealed record ObligationPaymentDto(
     Guid CollectionId, string ReferenceCode, DateOnly BusinessDate, DateTime RecordedAtUtc, DateOnly PeriodStart,
-    decimal Amount, decimal CorrectionEffect, decimal NetAmount, RevenueInstrumentType? Instrument, string RecordedBy, string Disposition);
+    decimal Amount, decimal CorrectionEffect, decimal NetAmount, RevenueInstrumentType? Instrument, string RecordedBy, string Disposition,
+    IReadOnlyList<ObligationPaymentCorrectionDto>? Corrections = null, IReadOnlyList<string>? ReplacementReferenceCodes = null);
+
+/// <summary>A correction recorded against a posted Collection: what kind, why, when, and its net financial effect. The original SRC is never altered by it.</summary>
+public sealed record ObligationPaymentCorrectionDto(string CorrectionType, string Reason, DateOnly EffectiveDate, DateTime RecordedAtUtc, decimal FinancialEffect);
 
 /// <summary>A saved bulk import of space holders (never a preview or a failed attempt).</summary>
 public sealed record SpaceHolderImportRunDto(

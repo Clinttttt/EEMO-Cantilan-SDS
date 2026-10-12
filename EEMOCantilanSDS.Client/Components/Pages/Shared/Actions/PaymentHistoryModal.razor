@@ -1,9 +1,10 @@
-
-
+@using EEMOCantilanSDS.Client.Components.Shared
 @inject IPaymentsApiClient PaymentsApi
 
 @typeparam TStall
 
+@* A stall's 12-month payment record. The figures and rows are this component's own (they come from the stall's legacy payment records
+   and the server's ledger); how they are presented is the shared RentalHistoryLedger, the same design a space-rental account uses. *@
 @if (Show && Stall is not null)
 {
     var history = GetPaymentHistory(Stall);
@@ -61,308 +62,66 @@
     // This rolling total includes the month in progress, so it cannot by itself prove that a fully elapsed month is unpaid.
     // Keep this modal's aggregate badge descriptive rather than assigning either delinquency or unresolved Arrears status.
     string statusLabel = monthsUnpaid == 0 ? "Consistent Payer" : "Unpaid Balance";
-    string statusClass = monthsUnpaid == 0 ? "ph-badge-consistent" : string.Empty;
 
-    <div class="eemo-modal-overlay" @onclick="() => OnClose.InvokeAsync()">
-        <div class="ph-modal" @onclick:stopPropagation="true">
+    var rows = new List<RentalHistoryLedger.LedgerRow>();
+    for (int i = 11; i >= 0; i--)
+    {
+        var month = now.AddMonths(-i);
+        var key = month.ToString("yyyy-MM");
+        var contractStart = contractDate.HasValue ? new DateTime(contractDate.Value.Year, contractDate.Value.Month, 1) : (DateTime?)null;
+        var apiRecord = PaymentHistory.FirstOrDefault(p => p.Period == key);
+        var hasRecord = apiRecord != null;
+        var isBeforeContract = !hasRecord && contractStart.HasValue && month < contractStart.Value;
+        var payStatus = hasRecord ? apiRecord!.Status : Domain.Enums.PaymentStatus.Unpaid;
+        var isExcused = hasRecord && apiRecord!.IsExcused;
+        var isPaid = !isExcused && payStatus == Domain.Enums.PaymentStatus.Paid;
+        var isPartial = payStatus == Domain.Enums.PaymentStatus.Partial;
+        var isCurr = month.Month == now.Month && month.Year == now.Year;
 
-            <!-- ══ HEADER ══ -->
-            <div class="ph-header">
-                <div class="ph-header-glow"></div>
+        decimal rowBalance = 0;
+        if (!isBeforeContract && !isExcused)
+        {
+            if (isPaid) rowBalance = 0;                                       // Fully paid
+            else if (isPartial && apiRecord != null) rowBalance = apiRecord.BalanceDue;   // Remaining balance after partial
+            else rowBalance = rate;                                           // Unpaid full amount
+        }
+        var paidRow = (isPaid || isPartial) && apiRecord is not null;
 
-                <!-- Title row -->
-                <div class="ph-header-left">
-                    <div class="ph-header-icon">
-                        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
-                    </div>
-                    <div class="ph-header-text">
-                        <div class="ph-header-eyebrow">
-                            @FacilityCode
-                            <span class="ph-dot">·</span>
-                            Stall @stallNo
-                            <span class="ph-dot">·</span>
-                            12-Month Payment Record
-                        </div>
-                        <div class="ph-header-name">@occupant</div>
-                        @if (!string.IsNullOrEmpty(contractName) && contractName != occupant)
-                        {
-                            <div class="ph-header-contract">Contract: @contractName</div>
-                        }
-                    </div>
-                </div>
+        rows.Add(new RentalHistoryLedger.LedgerRow(
+            month.ToString("MMMM"), month.Year.ToString(), isCurr,
+            isBeforeContract ? RentalHistoryLedger.LedgerKind.BeforeContract : isExcused ? RentalHistoryLedger.LedgerKind.Absent
+                : isPaid ? RentalHistoryLedger.LedgerKind.Paid : isPartial ? RentalHistoryLedger.LedgerKind.Partial : RentalHistoryLedger.LedgerKind.Unpaid,
+            isBeforeContract ? "N/A" : isExcused ? "Absent" : isPaid ? "Paid" : isPartial ? "Partial" : "Unpaid",
+            paidRow && !string.IsNullOrEmpty(apiRecord!.ORNumber) ? apiRecord.ORNumber : null,
+            paidRow && apiRecord!.PaidAt.HasValue ? apiRecord.PaidAt.Value.ToString("MMM d, yyyy") : null,
+            paidRow && !string.IsNullOrEmpty(apiRecord!.CollectorName) ? apiRecord.CollectorName : null,
+            isBeforeContract || isExcused ? null : paidRow ? $"₱{apiRecord!.AmountPaid:N0}" : $"₱{rate:N0}",
+            paidRow,
+            isBeforeContract ? null : $"₱{rowBalance:N0}",
+            rowBalance > 0));
+    }
 
-                <!-- Badge + close — absolute top-right -->
-                <div class="ph-header-right">
-                    <div class="ph-header-right-actions">
-                        <span class="ph-status-badge @statusClass">@statusLabel</span>
-                        <button class="ph-close-btn" @onclick="() => OnClose.InvokeAsync()">
-                            <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                        </button>
-                    </div>
-                </div>
+    var stats = new List<RentalHistoryLedger.LedgerStat>
+    {
+        new($"₱{rate:N0}", null, "Monthly Rate"),
+        new(monthsPaid.ToString(), $"/{experiencedMonths.Count}", "Months Paid"),
+        new(monthsPartial.ToString(), $"/{experiencedMonths.Count}", "Partial", monthsPartial > 0 ? "partial" : ""),
+        new(monthsUnpaid.ToString(), $"/{experiencedMonths.Count}", "Unpaid", monthsUnpaid > 0 ? "red" : ""),
+        new($"₱{collected:N0}", null, "Collected"),
+        new($"₱{balance:N0}", null, "Balance Due", balance > 0 ? "red" : ""),
+        new($"₱{currentPartial:N0}", null, "Current Partial")
+    };
 
-                <!-- Stats grid row — full width below the title -->
-                <div class="ph-header-stats">
-                    <div class="ph-hstat">
-                        <div class="ph-hstat-val">₱@rate.ToString("N0")</div>
-                        <div class="ph-hstat-key">Monthly Rate</div>
-                    </div>
-                    <div class="ph-hstat">
-                        <div class="ph-hstat-val">@monthsPaid<span class="ph-hstat-of">/@experiencedMonths.Count</span></div>
-                        <div class="ph-hstat-key">Months Paid</div>
-                    </div>
-                    <div class="ph-hstat">
-                        <div class="ph-hstat-val @(monthsPartial > 0 ? "ph-hstat-partial" : "")">@monthsPartial<span class="ph-hstat-of">/@experiencedMonths.Count</span></div>
-                        <div class="ph-hstat-key">Partial</div>
-                    </div>
-                    <div class="ph-hstat">
-                        <div class="ph-hstat-val @(monthsUnpaid > 0 ? "ph-hstat-red" : "")">@monthsUnpaid<span class="ph-hstat-of">/@experiencedMonths.Count</span></div>
-                        <div class="ph-hstat-key">Unpaid</div>
-                    </div>
-                    <div class="ph-hstat">
-                        <div class="ph-hstat-val">₱@collected.ToString("N0")</div>
-                        <div class="ph-hstat-key">Collected</div>
-                    </div>
-                    <div class="ph-hstat">
-                        <div class="ph-hstat-val @(balance > 0 ? "ph-hstat-red" : "")">₱@balance.ToString("N0")</div>
-                        <div class="ph-hstat-key">Balance Due</div>
-                    </div>
-                    <div class="ph-hstat">
-                        <div class="ph-hstat-val">₱@currentPartial.ToString("N0")</div>
-                        <div class="ph-hstat-key">Current Partial</div>
-                    </div>
-                </div>
-
-                <div class="ph-header-progress"><div class="ph-header-progress-fill" style="width:@compliancePct%"></div></div>
-            </div>
-
-            <!-- ══ COMPLIANCE ROW ══ -->
-            <div class="ph-compliance-row">
-                <div class="ph-compliance-label">
-                    <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
-                    Collection Compliance
-                </div>
-                <div class="ph-compliance-track">
-                    <div class="ph-compliance-fill" style="width:@compliancePct%"></div>
-                </div>
-                <div class="ph-compliance-pct @(compliancePct == 100 ? "pct-full" : compliancePct < 50 ? "pct-low" : "")">
-                    @compliancePct%
-                </div>
-            </div>
-
-            <!-- ══ LEDGER ══ -->
-            <div class="ph-body">
-
-                <div class="ph-ledger-header">
-                    <div>Period</div>
-                    <div>Status</div>
-                    <div>OR Number</div>
-                    <div>Payment Date</div>
-                    <div>Collector</div>
-                    <div>Amount</div>
-                    <div>Balance</div>
-                </div>
-
-                <div class="ph-ledger-body">
-                    @{
-                        decimal runningBalance = 0;
-                    }
-                    @for (int i = 11; i >= 0; i--)
-                    {
-                        var month = now.AddMonths(-i);
-                        var key = month.ToString("yyyy-MM");
-                        var contractStart = contractDate.HasValue ? new DateTime(contractDate.Value.Year, contractDate.Value.Month, 1) : (DateTime?)null;
-                        var apiRecord = PaymentHistory.FirstOrDefault(p => p.Period == key);
-                        var hasRecord = apiRecord != null;
-                        var isBeforeContract = !hasRecord && contractStart.HasValue && month < contractStart.Value;
-                        var payStatus = hasRecord ? apiRecord!.Status : Domain.Enums.PaymentStatus.Unpaid;
-                        var isExcused = hasRecord && apiRecord!.IsExcused;
-                        var isPaid = !isExcused && payStatus == Domain.Enums.PaymentStatus.Paid;
-                        var isPartial = payStatus == Domain.Enums.PaymentStatus.Partial;
-                        var tx = transactions.FirstOrDefault(t => t.PeriodKey == key);
-                        var isCurr = month.Month == now.Month && month.Year == now.Year;
-
-                        // Calculate balance for this row
-                        decimal rowBalance = 0;
-                        if (!isBeforeContract && !isExcused)
-                        {
-                            if (isPaid)
-                            {
-                                rowBalance = 0; // Fully paid
-                            }
-                            else if (isPartial && apiRecord != null)
-                            {
-                                rowBalance = apiRecord.BalanceDue; // Remaining balance after partial
-                            }
-                            else
-                            {
-                                rowBalance = rate; // Unpaid full amount
-                            }
-                        }
-
-                        <div class="ph-ledger-row @(isBeforeContract ? "ph-row-before-contract" : isExcused ? "ph-row-absent" : isPaid ? "ph-row-paid" : isPartial ? "ph-row-partial" : "ph-row-unpaid") @(isCurr ? "ph-row-current" : "")">
-
-                            <!-- Period -->
-                            <div class="ph-cell-period">
-                                <div class="ph-period-dot @(isBeforeContract ? "ph-dot-gray" : isExcused ? "ph-dot-absent" : isPaid ? "ph-dot-paid" : isPartial ? "ph-dot-partial" : "ph-dot-unpaid")"></div>
-                                <div>
-                                    <div class="ph-period-month">@month.ToString("MMMM")</div>
-                                    <div class="ph-period-year">@month.Year</div>
-                                </div>
-                                @if (isCurr)
-                                {
-                                    <span class="ph-current-tag">Current</span>
-                                }
-                            </div>
-
-                            <!-- Status -->
-                            <div>
-                                @if (isBeforeContract)
-                                {
-                                    <span class="ph-pay-pill ph-pill-gray">
-                                        <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                                        N/A
-                                    </span>
-                                }
-                                else if (isExcused)
-                                {
-                                    <span class="ph-pay-pill ph-pill-absent">
-                                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><line x1="8" y1="12" x2="16" y2="12" /></svg>
-                                        Absent
-                                    </span>
-                                }
-                                else if (isPaid)
-                                {
-                                    <span class="ph-pay-pill ph-pill-paid">
-                                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                                        Paid
-                                    </span>
-                                }
-                                else if (isPartial)
-                                {
-                                    <span class="ph-pay-pill ph-pill-partial">
-                                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2 A 10 10 0 0 1 12 22 Z" fill="currentColor"/></svg>
-                                        Partial
-                                    </span>
-                                }
-                                else
-                                {
-                                    <span class="ph-pay-pill ph-pill-unpaid">
-                                        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                                        Unpaid
-                                    </span>
-                                }
-                            </div>
-
-                            <!-- OR Number -->
-                            <div>
-                                @if (isBeforeContract)
-                                {
-                                    <span class="ph-cell-empty">—</span>
-                                }
-                                else if ((isPaid || isPartial) && !string.IsNullOrEmpty(apiRecord?.ORNumber))
-                                {
-                                    <span class="ph-or-num">@apiRecord!.ORNumber</span>
-                                }
-                                else
-                                {
-                                    <span class="ph-cell-empty">—</span>
-                                }
-                            </div>
-
-                            <!-- Payment Date -->
-                            <div>
-                                @if (isBeforeContract)
-                                {
-                                    <span class="ph-cell-empty">—</span>
-                                }
-                                else if ((isPaid || isPartial) && apiRecord?.PaidAt.HasValue == true)
-                                {
-                                    <span class="ph-pay-date">@apiRecord!.PaidAt!.Value.ToString("MMM d, yyyy")</span>
-                                }
-                                else
-                                {
-                                    <span class="ph-cell-empty">—</span>
-                                }
-                            </div>
-
-                            <!-- Collector -->
-                            <div>
-                                @if (isBeforeContract)
-                                {
-                                    <span class="ph-cell-empty">—</span>
-                                }
-                                else if ((isPaid || isPartial) && !string.IsNullOrEmpty(apiRecord?.CollectorName))
-                                {
-                                    <span class="ph-collector-name">@apiRecord!.CollectorName</span>
-                                }
-                                else
-                                {
-                                    <span class="ph-cell-empty">—</span>
-                                }
-                            </div>
-
-                            <!-- Amount -->
-                            <div>
-                                @if (isBeforeContract || isExcused)
-                                {
-                                    <span class="ph-cell-empty">—</span>
-                                }
-                                else if (isPaid || isPartial)
-                                {
-                                    <span class="ph-amount-paid">₱@(apiRecord!.AmountPaid.ToString("N0"))</span>
-                                }
-                                else
-                                {
-                                    <span class="ph-amount-unpaid">₱@rate.ToString("N0")</span>
-                                }
-                            </div>
-
-                            <!-- Balance Due (Per Row) -->
-                            <div>
-                                @if (isBeforeContract)
-                                {
-                                    <span class="ph-cell-empty">—</span>
-                                }
-                                else if (rowBalance > 0)
-                                {
-                                    <span class="ph-balance-due">₱@rowBalance.ToString("N0")</span>
-                                }
-                                else
-                                {
-                                    <span class="ph-balance-zero">₱0</span>
-                                }
-                            </div>
-
-                        </div>
-                    }
-                </div>
-            </div>
-
-            <!-- ══ FOOTER ══ -->
-            <div class="ph-footer">
-                <div class="ph-footer-meta">
-                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                    Records cover the last 12 rolling months &nbsp;·&nbsp;
-                    @now.AddMonths(-11).ToString("MMM yyyy") – @now.ToString("MMM yyyy")
-                </div>
-                <div class="ph-footer-actions">
-                    @if (balance > 0)
-                    {
-                        <div class="ph-balance-alert">
-                            <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-                            @* "unpaid" clashed with the arrears list, which counts only months that have CLOSED.
-                               This dialog shows the month in progress as a row and includes its earned days in the
-                               balance, so it counts months carrying a balance. *@
-                            Outstanding: ₱@balance.ToString("N0") · @monthsUnpaid month@(monthsUnpaid != 1 ? "s" : "") with a balance
-                        </div>
-                    }
-                    <button class="btn-ghost" @onclick="() => OnClose.InvokeAsync()">Close</button>
-                </div>
-            </div>
-
-        </div>
-    </div>
+    // "unpaid" clashed with the arrears list, which counts only months that have CLOSED. This dialog shows the month in progress as a
+    // row and includes its earned days in the balance, so it counts months carrying a balance.
+    <RentalHistoryLedger EyebrowParts="@(new[] { FacilityCode, $"Stall {stallNo}", "12-Month Payment Record" })"
+                         Name="@occupant"
+                         ContractLine="@(!string.IsNullOrEmpty(contractName) && contractName != occupant ? $"Contract: {contractName}" : null)"
+                         BadgeLabel="@statusLabel" BadgeConsistent="@(monthsUnpaid == 0)"
+                         Stats="stats" CompliancePercent="compliancePct" Rows="rows"
+                         FooterMeta="@($"Records cover the last 12 rolling months  ·  {now.AddMonths(-11):MMM yyyy} – {now:MMM yyyy}")"
+                         BalanceAlert="@(balance > 0 ? $"Outstanding: ₱{balance:N0} · {monthsUnpaid} month{(monthsUnpaid != 1 ? "s" : "")} with a balance" : null)"
+                         OnClose="OnClose" />
 }
 
 @code {

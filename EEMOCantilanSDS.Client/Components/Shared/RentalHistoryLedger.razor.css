@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════
-   PaymentHistoryModal.razor.css — Status-Report-style clean design
+   RentalHistoryLedger.razor.css — the proven 12-month payment-record design, moved here so every rental history (a stall, a space) shares it
 ══════════════════════════════════════════════════════════════════════ */
 
 /* ── Modal shell ── */
@@ -432,3 +432,19 @@
         outline: 2px solid var(--accent);
         outline-offset: 2px;
     }
+
+/* Loading / error inside the ledger body */
+.ph-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    min-height: 160px;
+    padding: 24px;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+.ph-state-error {
+    color: var(--red, #b42318);
+}

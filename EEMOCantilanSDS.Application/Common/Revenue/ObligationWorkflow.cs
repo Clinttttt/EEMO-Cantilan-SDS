@@ -108,12 +108,23 @@ public sealed class ObligationWorkflow(
                 .Where(x => x.MunicipalityId == actor.TenantId && allocationIds.Contains(x.OriginalAllocationId))
                 .Select(x => new { x.OriginalAllocationId, x.FinancialEffectAmount }).ToListAsync(ct))
                 .GroupBy(x => x.OriginalAllocationId).ToDictionary(g => g.Key, g => g.Sum(x => x.FinancialEffectAmount));
+            // The corrections against these exact Collections (and the SRC of any replacement), so a reversed payment keeps its audit relationship.
+            var collectionIds = rows.Select(x => x.CollectionId).Distinct().ToArray();
+            var corrections = await db.CollectionCorrections.AsNoTracking()
+                .Where(x => x.MunicipalityId == actor.TenantId && collectionIds.Contains(x.OriginalCollectionId)).ToListAsync(ct);
+            var replacementIds = corrections.Where(x => x.ReplacementCollectionId.HasValue).Select(x => x.ReplacementCollectionId!.Value).Distinct().ToArray();
+            var replacementCodes = await db.Collections.AsNoTracking().Where(x => x.MunicipalityId == actor.TenantId && replacementIds.Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id, x => x.ReferenceCode, ct);
             var result = rows.Select(x =>
             {
                 var effect = effects.GetValueOrDefault(x.AllocationId);
                 var net = x.Amount + effect;
+                var own = corrections.Where(c => c.OriginalCollectionId == x.CollectionId).OrderBy(c => c.RecordedAtUtc).ToList();
                 return new ObligationPaymentDto(x.CollectionId, x.ReferenceCode, x.BusinessDate, x.RecordedAtUtc, x.PeriodStart, x.Amount, effect, net,
-                    x.PermittedInstrumentType, x.ActorName, effect < 0m && net <= 0m ? "Reversed" : effect != 0m ? "Corrected" : "Posted");
+                    x.PermittedInstrumentType, x.ActorName, effect < 0m && net <= 0m ? "Reversed" : effect != 0m ? "Corrected" : "Posted",
+                    own.Select(c => new ObligationPaymentCorrectionDto(c.CorrectionType.ToString(), c.Reason, c.CorrectionEffectiveDate, c.RecordedAtUtc, c.FinancialEffectAmount)).ToList(),
+                    own.Where(c => c.ReplacementCollectionId.HasValue && replacementCodes.ContainsKey(c.ReplacementCollectionId.Value))
+                        .Select(c => replacementCodes[c.ReplacementCollectionId!.Value]).ToList());
             }).ToList();
             return Result<IReadOnlyList<ObligationPaymentDto>>.Success(result);
         }, ct);
