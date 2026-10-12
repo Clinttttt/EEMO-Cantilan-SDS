@@ -25,8 +25,8 @@
                 <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
             </button>
             <div class="header-title-block">
-                <div class="header-title">Water Consumption Fee</div>
-                <div class="header-sub">Direct amount · @Today.ToString("MMMM yyyy", CultureInfo.InvariantCulture)</div>
+                <div class="header-title">Water Consumption Fees</div>
+                <div class="header-sub">@Today.ToString("MMMM yyyy", CultureInfo.InvariantCulture) · Prepared or direct amounts</div>
             </div>
             <img class="header-logo" src="@Session.BrandingSeal" alt="Municipality seal" />
         </div>
@@ -39,13 +39,19 @@
         }
         else if (_capability is not { IsCollectible: true })
         {
-            <div class="menu-state-card" role="status">@CapabilityMessage</div>
-            <button class="btn-primary op-back" type="button" @onclick="GoBack">Back to menu</button>
+            @* A lost connection can be retried; an office-side blocker (not assigned, not enabled, no policy) cannot - it names what the office must do. *@
+            <StateNotice Tone="@(CapabilityTemporary ? StateNotice.NoticeTone.Danger : StateNotice.NoticeTone.Warning)" Title="@CapabilityTitle">@CapabilityMessage</StateNotice>
+            @if (CapabilityTemporary)
+            {
+                <button class="btn-primary op-back" type="button" @onclick="LoadAsync">Try again</button>
+            }
+            <button class="@(CapabilityTemporary ? "btn-cancel op-back-secondary" : "btn-primary") op-back" type="button" @onclick="GoBack">Back to menu</button>
         }
         else if (_loadFailed)
         {
-            <div class="menu-state-card" role="alert">Water sources could not be loaded. Retry while online.</div>
+            <StateNotice Tone="StateNotice.NoticeTone.Danger" Title="Water sources not loaded">Check the connection and try again. Nothing can be recorded until the sources load.</StateNotice>
             <button class="btn-primary op-back" type="button" @onclick="LoadAsync">Try again</button>
+            <button class="btn-cancel op-back op-back-secondary" type="button" @onclick="GoBack">Back to menu</button>
         }
         else if (_recorded is { } done)
         {
@@ -78,11 +84,11 @@
                     </label>
                     @if (_sources.Count == 0)
                     {
-                        <p class="op-form-note">No eligible Water sources for @Today.ToString("MMMM yyyy", CultureInfo.InvariantCulture).</p>
+                        <StateNotice Title="No Water sources">No eligible Water source is registered for your facilities in @Today.ToString("MMMM yyyy", CultureInfo.InvariantCulture).</StateNotice>
                     }
                     else if (!Filtered.Any())
                     {
-                        <p class="op-form-note">No payor or stall matches “@_search”.</p>
+                        <StateNotice>No payor, stall or facility matches “@_search”.</StateNotice>
                     }
                     else
                     {
@@ -94,7 +100,7 @@
                                     <button type="button" role="option" aria-selected="false" class="wcf-option" @onclick="() => Select(option)">
                                         <span class="wcf-option-main">
                                             <span class="wcf-option-name">@(option.PayerName ?? $"Stall {option.StallNo}")</span>
-                                            <span class="wcf-option-sub">Stall @option.StallNo@(string.IsNullOrWhiteSpace(option.Section) ? "" : $" · {option.Section}")</span>
+                                            <span class="wcf-option-sub">@SourceLine(option)</span>
                                         </span>
                                         <span class="wcf-option-state @StateClass(option, queued)">@StateLabel(option, queued)</span>
                                     </button>
@@ -111,7 +117,7 @@
 
                 <section class="op-facts" aria-label="Selected Water source">
                     <div class="op-facts-main">
-                        <span class="op-facts-key">Stall @source.StallNo@(string.IsNullOrWhiteSpace(source.Section) ? "" : $" · {source.Section}")</span>
+                        <span class="op-facts-key">@SourceLine(source)</span>
                         <span class="wcf-payor">@(source.PayerName ?? "Payor not named")</span>
                     </div>
                     <dl class="op-facts-grid">
@@ -128,22 +134,22 @@
 
                 @if (Sync.HasStorageFault)
                 {
-                    <div class="menu-state-card error" role="alert">Local queue storage needs attention. Do not record collections until it is healthy.</div>
+                    <StateNotice Tone="StateNotice.NoticeTone.Danger" Title="Device storage needs attention">Do not record collections until it is healthy.</StateNotice>
                 }
                 else if (queued)
                 {
-                    <div class="menu-state-card" role="status">A Water collection for this source is saved on this device and waiting to sync.</div>
+                    <StateNotice Title="Waiting to sync">A Water collection for this source is saved on this device and will be recorded when it syncs.</StateNotice>
                 }
                 else if (!source.CanCollect && !source.CanEnterDirect)
                 {
-                    <div class="menu-state-card" role="status">@NotCollectibleReason(source)</div>
+                    <StateNotice Tone="StateNotice.NoticeTone.Warning">@NotCollectibleReason(source)</StateNotice>
                 }
                 else
                 {
                     <section class="op-entry" aria-labelledby="wcf-amount-title">
-                        <h2 id="wcf-amount-title" class="op-section-title">Water amount</h2>
+                        <h2 id="wcf-amount-title" class="op-section-title">@(source.CanCollect ? "Prepared balance" : "Direct amount")</h2>
                         <label class="form-field">
-                            <span class="form-label">@(source.CanCollect ? "Amount to collect" : "Collection amount")</span>
+                            <span class="form-label">@(source.CanCollect ? "Amount to collect" : "Amount received")</span>
                             <input class="form-input mono-input" type="number" inputmode="decimal" min="0.01" step="0.01"
                                    max="@(source.CanCollect ? source.OutstandingAmount.ToString(CultureInfo.InvariantCulture) : null)"
                                    placeholder="0.00" @bind="_amount" @bind:event="oninput" />
@@ -151,7 +157,7 @@
                         <p class="op-form-note">
                             @(source.CanCollect
                                 ? "Collected against the office-prepared amount; the prepared amount itself does not change."
-                                : "Direct amount entered at collection.")
+                                : "Enter the amount actually received. No amount has been prepared for this month.")
                         </p>
                     </section>
 
@@ -199,6 +205,7 @@
     private IEnumerable<WcfMobileSourceDto> Filtered => _sources.Where(x => string.IsNullOrWhiteSpace(_search)
         || (x.PayerName?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false)
         || x.StallNo.Contains(_search, StringComparison.OrdinalIgnoreCase)
+        || (x.FacilityName?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false)
         || x.Section.Contains(_search, StringComparison.OrdinalIgnoreCase));
 
     private bool CanCapture => Selected is { } source
@@ -217,14 +224,25 @@
         : decimal.Round(_amount, 2, MidpointRounding.ToZero) != _amount ? "Use at most two decimal places."
         : null;
 
+    // No answer from the server (offline, timed out) is temporary; any answer that says "not collectible" is the office's to resolve.
+    private bool CapabilityTemporary => _capability is null;
+
+    private string CapabilityTitle => CapabilityTemporary ? "Could not check eligibility" : "Not available to collect";
+
+    private static string SourceLine(WcfMobileSourceDto s) => string.Join(" · ", new[]
+    {
+        s.FacilityName, $"Stall {s.StallNo}", string.IsNullOrWhiteSpace(s.Section) ? null : s.Section
+    }.Where(x => !string.IsNullOrWhiteSpace(x)));
+
     private string CapabilityMessage => _capability?.Status switch
     {
-        CollectorOperationCapabilityStatus.NotAssigned => "Water collection is not assigned to you. Ask the office to assign it.",
-        CollectorOperationCapabilityStatus.AssignedButInactive => "Your account is not active. Contact the office.",
-        CollectorOperationCapabilityStatus.PendingCutover => "Water Mobile collection has not been enabled by the office yet.",
-        CollectorOperationCapabilityStatus.NeedsPolicy => "No approved Water collection policy is in effect today.",
+        CollectorOperationCapabilityStatus.NotAssigned => "Water Consumption Fees are not assigned to you. Ask the office to assign them.",
+        CollectorOperationCapabilityStatus.AssignedButInactive => "Your authorization is not active. Contact the office.",
+        CollectorOperationCapabilityStatus.PendingCutover => "Water collection on Mobile has not been enabled yet. Ask the office to enable it.",
+        CollectorOperationCapabilityStatus.NeedsPolicy => "No approved Water collection policy is in effect today. Ask the office to set it up.",
         CollectorOperationCapabilityStatus.NeedsDocument => "Water collection is not ready. Contact the office.",
-        _ => "Water collection eligibility could not be verified. Retry while online."
+        null => "Water collection eligibility could not be verified. Check the connection and try again.",
+        _ => "Water collection is not ready. Contact the office."
     };
 
     // A source with a capture already waiting on this device is not offered again until it syncs.

@@ -1,0 +1,51 @@
+.state-notice {
+    margin: 0 0 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--mobile-border);
+    border-left-width: 4px;
+    border-radius: 14px;
+    background: var(--mobile-surface-subtle);
+    color: var(--mobile-text);
+    font-size: 14px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+.state-notice-title {
+    margin-bottom: 4px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--mobile-navy);
+}
+
+.state-notice-text {
+    color: var(--mobile-text);
+}
+
+.state-notice.is-info {
+    border-color: var(--mobile-border);
+    border-left-color: var(--mobile-blue);
+    background: var(--mobile-blue-subtle);
+}
+
+.state-notice.is-warning {
+    border-color: #ecd9a6;
+    border-left-color: var(--mobile-warning);
+    background: var(--mobile-warning-subtle);
+}
+
+.state-notice.is-warning .state-notice-title,
+.state-notice.is-warning .state-notice-text {
+    color: #4a3000;
+}
+
+.state-notice.is-danger {
+    border-color: #ebc4c4;
+    border-left-color: var(--mobile-danger);
+    background: var(--mobile-danger-subtle);
+}
+
+.state-notice.is-danger .state-notice-title,
+.state-notice.is-danger .state-notice-text {
+    color: #6e1f1f;
+}

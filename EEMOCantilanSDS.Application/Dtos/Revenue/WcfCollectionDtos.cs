@@ -114,7 +114,9 @@ public sealed record WcfMobileSourceDto(
     int BillingYear, int BillingMonth,
     Guid? UtilityBillId, long WaterSourceVersion,
     decimal? PreparedAmount, decimal SettledAmount, decimal OutstandingAmount,
-    string State, bool CanCollect, bool CanEnterDirect);
+    string State, bool CanCollect, bool CanEnterDirect,
+    // Facility identity of the source (additive, so an older client simply ignores it): the same stall number exists at several facilities.
+    string? FacilityName = null, FacilityCode? Facility = null);
 
 /// <summary>WCF Mobile collection status for the office: active or not, and — only while inactive — what blocks it.</summary>
 public sealed record WcfMobileStatusDto(

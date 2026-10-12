@@ -54,8 +54,13 @@
         }
         else if (_blocked is not null)
         {
-            <div class="menu-state-card" role="status">@_blocked</div>
-            <button class="btn-primary op-back" type="button" @onclick="GoBack">Back to menu</button>
+            @* A lost connection can be retried; an office-side blocker (not assigned, not set up) cannot, so it is never offered a retry. *@
+            <StateNotice Tone="@(_blockedTemporary ? StateNotice.NoticeTone.Danger : StateNotice.NoticeTone.Warning)" Title="@(_blockedTemporary ? "Could not check eligibility" : "Not available to collect")">@_blocked</StateNotice>
+            @if (_blockedTemporary)
+            {
+                <button class="btn-primary op-back" type="button" @onclick="LoadAsync">Try again</button>
+            }
+            <button class="@(_blockedTemporary ? "btn-cancel op-back-secondary" : "btn-primary") op-back" type="button" @onclick="GoBack">Back to menu</button>
         }
         else
         {
@@ -76,7 +81,7 @@
 
             @if (Variant?.Terms is null)
             {
-                <div class="menu-state-card" role="status">@(Variant?.Note ?? "Choose a collection mode.")</div>
+                <StateNotice Tone="StateNotice.NoticeTone.Warning">@(Variant?.Note ?? "Choose a collection mode.")</StateNotice>
             }
             else
             {
@@ -106,7 +111,7 @@
 
                 @if (Sync.HasStorageFault)
                 {
-                    <div class="menu-state-card error" role="alert">Local queue storage needs attention. Do not record collections until it is healthy.</div>
+                    <StateNotice Tone="StateNotice.NoticeTone.Danger" Title="Device storage needs attention">Do not record collections until it is healthy.</StateNotice>
                 }
                 else
                 {
@@ -129,7 +134,7 @@
                             var feeOptions = terms.FeeOptions ?? [];
                             @if (feeOptions.Count == 0)
                             {
-                                <div class="menu-state-card" role="status">No fee type is available today. Ask the office to set the approved fee types.</div>
+                                <StateNotice Tone="StateNotice.NoticeTone.Warning" Title="No fee type available">Ask the office to set the approved fee types.</StateNotice>
                             }
                             else if (feeOptions.Count <= MaxFeeCards)
                             {
@@ -212,11 +217,12 @@
             <h2 class="op-section-title op-month-title">This month</h2>
             @if (_recordsFailed)
             {
-                <div class="menu-state-card">Your collections could not be loaded. Retry while online.</div>
+                <StateNotice Tone="StateNotice.NoticeTone.Danger" Title="Collections not loaded">Your collections could not be loaded. Check the connection and try again.</StateNotice>
+                <button class="btn-cancel op-back op-back-secondary" type="button" @onclick="RetryRecordsAsync">Try again</button>
             }
             else if (_records.Count == 0)
             {
-                <div class="menu-state-card">Nothing recorded yet for this operation this month.</div>
+                <StateNotice>Nothing recorded yet for this operation this month.</StateNotice>
             }
             else
             {
@@ -261,6 +267,7 @@
     private bool _recordsFailed;
     private bool _saving;
     private string? _blocked;
+    private bool _blockedTemporary;
     private string? _message;
     private decimal _amount;
     private string? _payer;
@@ -361,11 +368,13 @@
     {
         _loading = true;
         _message = null;
+        _blockedTemporary = false;
         try
         {
             var capabilities = await MobileApi.GetOperationCapabilitiesAsync();
             if (!capabilities.IsSuccess || capabilities.Value is null)
             {
+                _blockedTemporary = true;
                 _blocked = "Eligibility could not be verified. Retry while online.";
                 return;
             }
@@ -398,12 +407,19 @@
         }
         catch (HttpRequestException)
         {
+            _blockedTemporary = true;
             _blocked = "Eligibility could not be verified. Retry while online.";
         }
         finally
         {
             _loading = false;
         }
+    }
+
+    private async Task RetryRecordsAsync()
+    {
+        try { await LoadRecordsAsync(); }
+        catch (HttpRequestException) { _recordsFailed = true; }
     }
 
     private async Task LoadRecordsAsync()

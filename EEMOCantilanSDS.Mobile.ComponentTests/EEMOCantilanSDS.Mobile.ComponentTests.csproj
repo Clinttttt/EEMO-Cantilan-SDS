@@ -26,6 +26,7 @@
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/SlowSaveHint.razor" Link="Components/Shared/SlowSaveHint.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/BottomNav.razor" Link="Components/Shared/BottomNav.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/LoadingState.razor" Link="Components/Shared/LoadingState.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/StateNotice.razor" Link="Components/Shared/StateNotice.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/NpmCollectAll.razor" Link="Components/Shared/NpmCollectAll.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/RecentCollections.razor" Link="Components/Shared/RecentCollections.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/SourceBrowser.razor" Link="Components/Shared/SourceBrowser.razor" />

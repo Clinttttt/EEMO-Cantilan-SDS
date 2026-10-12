@@ -247,7 +247,7 @@ public sealed class WcfCollectionWorkflow(
 
             rows.Add(new WcfMobileSourceDto(stall.Id, stall.StallNo, SectionOf(stall), payorId, payer,
                 billingYear, billingMonth, bill?.Id, bill?.WaterSourceVersion ?? 0, prepared, settled, outstanding,
-                state, canCollect, canDirect));
+                state, canCollect, canDirect, stall.Facility?.Name, stall.Facility?.Code));
         }
         return Result<IReadOnlyList<WcfMobileSourceDto>>.Success(rows);
     }, ct, requireNpmAuthorityForCollector: false);
