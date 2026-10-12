@@ -70,8 +70,64 @@ public class OnboardingOperationDeclarationTests
     public void AnOverlongOrControlCharacterNameIsRefused()
     {
         var long81 = new string('a', 81);
-        Assert.NotEmpty(Check($$$"""{"operations":{"items":[{"operationCode":"WCF","localDisplayName":"{{{long81}}}"}]}}"""));
-        Assert.NotEmpty(Check("""{"operations":{"items":[{"operationCode":"WCF","localDisplayName":"a\u0007b"}]}}"""));
+        Assert.Contains(Check($$$"""{"operations":{"items":[{"operationCode":"WCF","selected":true,"localDisplayName":"{{{long81}}}"}]}}"""),
+            e => e.Contains("80 characters"));
+        Assert.Contains(Check("""{"operations":{"items":[{"operationCode":"WCF","selected":true,"localDisplayName":"a\u0007b"}]}}"""),
+            e => e.Contains("control characters"));
+    }
+
+    [Fact]
+    public void AnItemWithoutASelectedFlagIsRefused_NotReadAsEitherAnswer() =>
+        Assert.Contains(Check("""{"operations":{"items":[{"operationCode":"WCF"}]}}"""), e => e.Contains("'selected' is required"));
+
+    [Fact]
+    public void ASelectedNameThatIsAnotherOperationsStandardNameIsRefused()
+    {
+        var errors = Check("""{"operations":{"items":[{"operationCode":"ECF","selected":true,"localDisplayName":"water consumption fees"}]}}""");
+        Assert.Contains(errors, e => e.Contains("standard name of another operation"));
+    }
+
+    [Fact]
+    public void ANameMayEqualItsOwnStandardName_AndAnUnselectedNameIsNotChecked()
+    {
+        Assert.Empty(Check("""{"operations":{"items":[{"operationCode":"WCF","selected":true,"localDisplayName":"Water Consumption Fees"}]}}"""));
+        Assert.Empty(Check("""{"operations":{"items":[{"operationCode":"ECF","selected":false,"localDisplayName":"Water Consumption Fees"}]}}"""));
+    }
+
+    [Fact]
+    public void TwoSelectedOperationsMayNotShareALocalName_IgnoringCaseAndPadding()
+    {
+        var errors = Check("""
+            {"operations":{"items":[
+              {"operationCode":"KANMANGGAY_SPACE_RENTAL","selected":true,"localDisplayName":"Plaza Space"},
+              {"operationCode":"FIESTA_ARAW_LOT_RENTAL","selected":true,"localDisplayName":"  plaza space "}]}}
+            """);
+        Assert.Contains(errors, e => e.Contains("already used by"));
+        // …but an unselected operation keeping the same name is not a conflict.
+        Assert.Empty(Check("""
+            {"operations":{"items":[
+              {"operationCode":"KANMANGGAY_SPACE_RENTAL","selected":true,"localDisplayName":"Plaza Space"},
+              {"operationCode":"FIESTA_ARAW_LOT_RENTAL","selected":false,"localDisplayName":"Plaza Space"}]}}
+            """));
+    }
+
+    /// <summary>
+    /// The landing workspace and admin console each keep their own copy of this catalog. These are the same literals their
+    /// specs pin; changing one place without the others fails a test in whichever repo is touched.
+    /// </summary>
+    [Fact]
+    public void TheCatalogMatchesTheCodesAndLabelsThePlatformAppsPin()
+    {
+        Assert.Equal(
+            new[]
+            {
+                "FISH_MEAT_VENDOR_FEE|Fish / Meat Vendor Fee", "WEIGHT_AND_MEASURE|Weight & Measure", "MARKET_FEES|Market Fees",
+                "KANMANGGAY_SPACE_RENTAL|Municipal Space Rental", "FIESTA_ARAW_LOT_RENTAL|Event / Temporary Lot Rental",
+                "VEGETABLE_FRUIT_SPACE_RENTAL|Vegetable / Fruit Space Rental", "ECF|Electricity Consumption Fees",
+                "WCF|Water Consumption Fees", "LANDING_BERTHING|Landing / Berthing", "TRANSPORTATION|Transportation / Parking",
+                "TRANSFER_LARGE_CATTLE|Transfer Large Cattle",
+            },
+            OnboardingOperationDeclarations.Catalog.Select(c => $"{c.Code}|{c.Label}").ToArray());
     }
 
     [Theory]

@@ -17,13 +17,19 @@ namespace EEMOCantilanSDS.Application.Common.Onboarding;
 /// </para>
 /// <para>
 /// Codes are the platform's own stable identities (<see cref="CollectorOperationCodes"/>, plus the utility
-/// classification codes). The optional local display name is presentation only - it is never read to decide what an
-/// operation is, and it is never a source code or a classification.
+/// classification codes). The optional local display name is an initial declaration for onboarding review only - it is not
+/// yet stored per tenant or shown in the activated portal, it is never read to decide what an operation is, and it is never a
+/// source code or a classification.
 /// </para>
 /// <para>
 /// Operations an LGU's FACILITIES already own (stall fees, commercial space rental, slaughterhouse, terminal, weekly
 /// market) are deliberately absent: they follow from the facility the office adds, and offering them twice would be two
 /// answers to one question.
+/// </para>
+/// <para>
+/// The labels here are the neutral standard names the workspace shows. They exist server-side so a local name cannot be
+/// accepted that reads as a DIFFERENT operation. KEEP IN STEP with the landing and admin catalogs; the contract tests pin the
+/// codes and labels in all three places.
 /// </para>
 /// </remarks>
 public static class OnboardingOperationDeclarations
@@ -33,20 +39,23 @@ public static class OnboardingOperationDeclarations
 
     public const string Ecf = "ECF";
 
-    public static readonly IReadOnlyList<string> SupportedCodes =
+    /// <summary>Stable code and neutral standard label of each declarable operation, in catalog order.</summary>
+    public static readonly IReadOnlyList<(string Code, string Label)> Catalog =
     [
-        CollectorOperationCodes.FishMeatVendorFee,
-        CollectorOperationCodes.WeightAndMeasure,
-        CollectorOperationCodes.MarketFees,
-        CollectorOperationCodes.KanmanggaySpaceRental,
-        CollectorOperationCodes.FiestaArawLotRental,
-        CollectorOperationCodes.VegetableFruitSpaceRental,
-        Ecf,
-        CollectorOperationCodes.Wcf,
-        CollectorOperationCodes.LandingBerthing,
-        CollectorOperationCodes.Transportation,
-        CollectorOperationCodes.TransferLargeCattle,
+        (CollectorOperationCodes.FishMeatVendorFee, "Fish / Meat Vendor Fee"),
+        (CollectorOperationCodes.WeightAndMeasure, "Weight & Measure"),
+        (CollectorOperationCodes.MarketFees, "Market Fees"),
+        (CollectorOperationCodes.KanmanggaySpaceRental, "Municipal Space Rental"),
+        (CollectorOperationCodes.FiestaArawLotRental, "Event / Temporary Lot Rental"),
+        (CollectorOperationCodes.VegetableFruitSpaceRental, "Vegetable / Fruit Space Rental"),
+        (Ecf, "Electricity Consumption Fees"),
+        (CollectorOperationCodes.Wcf, "Water Consumption Fees"),
+        (CollectorOperationCodes.LandingBerthing, "Landing / Berthing"),
+        (CollectorOperationCodes.Transportation, "Transportation / Parking"),
+        (CollectorOperationCodes.TransferLargeCattle, "Transfer Large Cattle"),
     ];
+
+    public static IReadOnlyList<string> SupportedCodes { get; } = Catalog.Select(c => c.Code).ToList();
 
     /// <summary>
     /// Returns one message per problem found in the <c>operations</c> block of an onboarding document, or an empty list when
@@ -84,7 +93,12 @@ public static class OnboardingOperationDeclarations
                 return errors;
             }
 
+            var known = Catalog.ToDictionary(c => c.Code, c => c.Label, StringComparer.Ordinal);
             var seen = new HashSet<string>(StringComparer.Ordinal);
+            // Selected operations' local names, by normalised text, to refuse two operations sharing one name.
+            var selectedNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var named = new List<(string Code, string Name, bool Selected)>();
+
             foreach (var item in items.EnumerateArray())
             {
                 if (item.ValueKind != JsonValueKind.Object)
@@ -94,16 +108,25 @@ public static class OnboardingOperationDeclarations
                 }
 
                 var code = item.TryGetProperty("operationCode", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() : null;
-                if (string.IsNullOrWhiteSpace(code) || !SupportedCodes.Contains(code, StringComparer.Ordinal))
+                if (string.IsNullOrWhiteSpace(code) || !known.ContainsKey(code))
                 {
-                    errors.Add($"“{code ?? "(missing)"}” is not a revenue operation StallTrack recognises.");
+                    errors.Add($"“{code ?? "(missing)"}” is not a revenue operation StallTrack recognises. Remove it, or update the onboarding workspace to the current version.");
                     continue;
                 }
                 if (!seen.Add(code))
+                {
                     errors.Add($"{code} was declared more than once; each operation is declared once.");
+                    continue;
+                }
 
-                if (item.TryGetProperty("selected", out var sel) && sel.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
-                    errors.Add($"{code}: 'selected' must be true or false.");
+                // `selected` is mandatory: an item that does not say whether it is chosen must not be read as either answer.
+                var hasSelected = item.TryGetProperty("selected", out var sel);
+                if (!hasSelected || sel.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                {
+                    errors.Add($"{code}: 'selected' is required and must be true or false.");
+                    continue;
+                }
+                var selected = sel.ValueKind == JsonValueKind.True;
 
                 if (item.TryGetProperty("localDisplayName", out var name) && name.ValueKind != JsonValueKind.Null)
                 {
@@ -112,12 +135,27 @@ public static class OnboardingOperationDeclarations
                         errors.Add($"{code}: the local display name must be text.");
                         continue;
                     }
-                    var label = name.GetString()!;
-                    if (label.Trim().Length > MaxLocalNameLength)
+                    var label = name.GetString()!.Trim();
+                    if (label.Length > MaxLocalNameLength)
                         errors.Add($"{code}: the local display name cannot exceed {MaxLocalNameLength} characters.");
                     if (label.Any(char.IsControl))
                         errors.Add($"{code}: the local display name cannot contain control characters.");
+                    if (label.Length > 0) named.Add((code, label, selected));
                 }
+            }
+
+            // A selected operation's local name must not read as ANOTHER operation's standard name, nor repeat another selected
+            // operation's name. Checked after the pass so the message is the same whichever item comes first.
+            foreach (var (code, label, selected) in named.Where(n => n.Selected))
+            {
+                var impersonated = Catalog.FirstOrDefault(o => o.Code != code
+                    && string.Equals(o.Label, label, StringComparison.OrdinalIgnoreCase));
+                if (impersonated.Code is not null)
+                    errors.Add($"{code}: the local display name “{label}” is the standard name of another operation ({impersonated.Label}).");
+                else if (selectedNames.TryGetValue(label, out var other))
+                    errors.Add($"{code}: the local display name “{label}” is already used by {other}.");
+                else
+                    selectedNames[label] = code;
             }
 
             return errors;

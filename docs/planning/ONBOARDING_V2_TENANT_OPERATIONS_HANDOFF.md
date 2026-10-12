@@ -38,11 +38,21 @@ not a Collector assignment, not posting authority.
   { "operationCode": "FIESTA_ARAW_LOT_RENTAL", "selected": true, "localDisplayName": "Pista Lot Rental" } ] }
 ```
 
-* `operationCode` — stable server identity. `localDisplayName` — presentation only (≤ 80 chars, no control characters, never
-  equal to another operation's standard name or another selected operation's name). It is never read to decide what an
-  operation is, and is never a source code, classification, instrument or rate key.
-* Absent block ⇒ nothing declared (every pre-existing draft). Unknown *top-level* fields are preserved on save. An
-  unrecognised operation code is dropped by the workspace with a visible notice (the server rejects it on save).
+* `operationCode` — stable server identity. `selected` — **required boolean** on every item. `localDisplayName` — an
+  **initial declaration used for onboarding review only** (≤ 80 chars, no control characters; a *selected* operation's name may
+  not be another operation's standard name or another selected operation's name; an operation may use its own standard name).
+  It is not yet stored per tenant and **does not appear in the activated Head Portal, on receipts or on collection documents**;
+  the workspace and operator screens say so. It is never read to decide what an operation is, and is never a source code,
+  classification, instrument or rate key.
+* Absent block ⇒ nothing declared (every pre-existing draft). Unknown *top-level* fields are preserved on save.
+* **Unknown or unreadable entries are preserved, not dropped.** An entry the workspace cannot edit (a code from a newer
+  version, a repeated code, an item with no boolean `selected`) is held untouched and written back verbatim on every save, so
+  an older frontend saving another section cannot erase it. The office sees a notice and can only remove them with an explicit
+  "Discard these entries". The server then decides: codes it knows pass; a code it does not know, or a malformed item, is
+  refused with a message naming it — a blocked save, never a silent loss. Unknown codes are never mapped to another operation.
+* Validation rules exist in three places and are kept equivalent: server (`OnboardingOperationDeclarations.Validate`), landing
+  (`localNameProblem`/`readOperations`) and admin (`parseOperations`). Contract tests in each repo pin the same 11
+  `code|label` pairs, so changing one copy fails a test in whichever suite is touched.
 
 ### Supported initial operation catalog (11)
 
@@ -75,7 +85,11 @@ Now (`activation.mapper.ts`):
 * Identity comes from the workspace's `catalogKey` (`public_market→NPM`, `commercial→TCC`, `barbecue→BBQ`, `iceplant→ICE`,
   `slaughterhouse→SLH`, `terminal→TRM`, `weekly→TPM`). The name is never read for new drafts.
 * `other` (an office's own facility) → reserved `Custom1…Custom5`, archetype `MonthlyRental`. A sixth is a **blocking error**
-  with an actionable message (add it from the Head Portal after activation).
+  that says so plainly. **There is no "add it later" route:** the Head Portal's Add Facility (`AddFacilityCommandHandler`) files a
+  facility under a `FacilityCode` and refuses one already configured, so it draws on the same five reserved slots. The
+  limit is 5 custom facilities **in total**, onboarding and later combined; the workspace picker says so and shows
+  "Limit reached". Add Facility could still add a *canonical* code the LGU does not yet have (e.g. NCC) — that is a Head
+  decision outside onboarding and is not offered here.
 * Two facilities of one standard type, an unknown `catalogKey`, a billing type that contradicts the identity, or an
   unrecognised billing type on a legacy draft are **blocking errors** — never re-coded.
 * Legacy drafts with no `catalogKey` still map by the old type/name reading, but now with a warning ("read as TCC…"); an
@@ -84,6 +98,12 @@ Now (`activation.mapper.ts`):
   (Duplicate-code refusal already existed.)
 * NCC is no longer reachable from a new draft (the catalog has one "Commercial Center" entry → TCC); a second commercial center
   is an office's own facility. Only a legacy draft whose name says "new commercial" still resolves to NCC.
+* **A second commercial center** is represented as a custom monthly-rental facility (`Custom1`…). It bills like TCC/NCC/BBQ/ICE
+  (stalls, contracts, payments, delinquency are keyed by the facility's Id, not its code), but it is *not* NCC: NCC-specific
+  behaviour (extension/corner area locations) and any report or screen keyed on the canonical `NCC` code do not apply to it,
+  it has no dedicated `/facility/ncc`-style route (it is reached through `/facility/{slug}`), and it counts against the shared
+  five-slot limit. An LGU that needs NCC semantics for its second center is an explicit Head/Backend decision, not something
+  onboarding infers.
 
 ## Rates that were never real (Phase A)
 
@@ -147,13 +167,13 @@ malformed `operations` block at save, which an older API simply would not enforc
 
 | Suite | Result |
 |---|---|
-| Platform `admin` (vitest) | 84 passed (61 existing + 23 new) |
-| Platform `landing` (vitest) | 32 passed (existing updated; 10 new in `onboarding-operations.spec.ts`) |
+| Platform `admin` (vitest) | 92 passed |
+| Platform `landing` (vitest) | 36 passed |
 | Platform `nx build admin` / `nx build landing` (production, type-checks templates) | both succeed |
-| EEMO unit (`EEMOCantilanSDS.UnitTest`) | 2583 passed, 0 failed, 0 skipped |
-| EEMO onboarding unit subset | 93 passed |
-| EEMO `OnboardingActivationTests` (Testcontainers PostgreSQL 16, disposable) | 6 passed |
-| `eslint` | one pre-existing error (`activation.mapper.ts` `\-`); new warnings only (non-null assertions in specs, unused destructure names) |
+| EEMO unit (`EEMOCantilanSDS.UnitTest`) | 2588 passed, 0 failed, 0 skipped |
+| EEMO integration (`OnboardingActivationTests` + `ActiveOnboardingPipeline*`, Testcontainers PostgreSQL 16, disposable) | 16 passed |
+| `eslint` (admin + landing workspace) | 0 errors, 16 warnings (non-null assertions in specs, unused destructure names, a `console.ts` warning that predates this work). The earlier `no-useless-escape` error in `activation.mapper.ts` (`/[^0-9.\-]/`) is fixed. |
+| `git diff --check` | clean (only LF→CRLF notices) |
 
 `dotnet build EEMOCantilanSDS.slnx --configuration Release` (EEMO worktree): succeeded, 0 errors.
 
@@ -167,9 +187,10 @@ integration tests were not re-run beyond the new file).
 2. No post-activation readiness summary.
 3. The operation catalog exists in three places (server, landing, admin) with a "keep in step" comment; there is no shared lib
    in this repo yet. A server-side catalog endpoint would remove the duplication.
-4. The LGU-facing workspace cannot be exercised end-to-end through a browser here (landing needs the live API + token); it is
-   covered by component-level tests and a production build, not a manual walkthrough. **Clint should click through
-   `/onboarding/:token` once.**
+4. **No browser walkthrough was performed.** `/onboarding/:token` needs a running API plus a real onboarding token, and no
+   isolated API/test environment with one was available; none was fabricated. The workspace is covered by component tests and a
+   production build only. **Clint should click through a non-production token once** (select operations, name one, save, reload,
+   submit, then check Validation/Activation).
 5. NCC is unreachable from a new draft (see above) — intentional, but an LGU that genuinely has two commercial centers gets
    `Custom1` for the second, not `NCC`.
 
