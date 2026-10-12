@@ -290,6 +290,16 @@ else
                 }
                 @if (_choice is not null)
                 {
+                    @if (UtilityChoice is { } utility)
+                    {
+                        <RecentUtilityNotice StallId="utility.StallId" Utility="@utility.Code" Year="utility.Year" Month="utility.Month" Resolved="OnRecentResolved" />
+                        @if (_confirmRepeat)
+                        {
+                            <StateNotice Tone="StateNotice.NoticeTone.Warning" Title="Record another payment?">
+                                A previous @utility.Code collection exists for this source. Confirm that a separate payment was actually received.
+                            </StateNotice>
+                        }
+                    }
                     @if (_choice.AmountRule == CollectionSessionAmountRule.FixedAmount && _choice.ServerAmount is { } fixedAmount)
                     { <div class="sheet-meta"><span>Amount</span><strong>@Money(fixedAmount)</strong></div> }
                     @if (IsWeighing)
@@ -316,10 +326,10 @@ else
             }
             </div>
             <div class="sheet-actions">
-                <button class="btn-cancel" type="button" @onclick="ClosePicker">Close</button>
+                <button class="btn-cancel" type="button" @onclick="CancelPicker">@(_confirmRepeat ? "Cancel" : "Close")</button>
                 @if (_operation is not null)
                 {
-                    <button class="btn-primary" type="button" disabled="@(!CanAddItem)" @onclick="AddItem">Add item</button>
+                    <button class="btn-primary" type="button" disabled="@(!CanAddItem)" @onclick="AddItem">@(_confirmRepeat ? "Continue" : "Add item")</button>
                 }
             </div>
         </section>
@@ -667,7 +677,7 @@ else
 
     private void ChooseChoice(string key)
     {
-        _choiceKey = key;
+        _choiceKey = key; _confirmRepeat = false; _recent = RecentUtilityNotice.Check.Loading;
         _choice = Choices.FirstOrDefault(x => x.SelectionKey == key);
         _amount = _choice is { AmountRule: CollectionSessionAmountRule.PreparedBalance, ServerAmount: { } balance } ? balance : 0m;
         _quantity = 0; _serverAmount = null;
@@ -687,7 +697,7 @@ else
         catch { _serverAmount = null; }
     }
 
-    private void ClosePicker() { _picker = false; _editingId = null; }
+    private void ClosePicker() { _picker = false; _editingId = null; _confirmRepeat = false; }
 
     // Editing re-opens the same sheet with what was entered; the original row stays until the changed one is added, so closing loses nothing.
     private async Task EditAsync(CollectionSessionItemIntent item)
@@ -703,9 +713,35 @@ else
         _editingId = item.ClientItemId; _picker = true;
     }
 
+    // What a Collector is told before taking a second utility payment for one source and period: the server shows what was already
+    // posted, and a repeat is a separate payment they confirm, never a silent second tap. A reversed collection does not count, and an
+    // answer that could not be had never blocks (the server still decides what posts).
+    private sealed record UtilityContext(string Code, Guid StallId, int Year, int Month);
+    private UtilityContext? UtilityChoice => _choice is { Identity.StallId: { } stall } c && c.Kind is CollectionSessionItemKind.Electricity or CollectionSessionItemKind.Water
+        ? new(c.Kind == CollectionSessionItemKind.Electricity ? "ECF" : "WCF", stall, c.Identity.Year ?? c.Identity.PeriodStart?.Year ?? BusinessDate.Year, c.Identity.Month ?? c.Identity.PeriodStart?.Month ?? BusinessDate.Month)
+        : null;
+    private RecentUtilityNotice.Check _recent = RecentUtilityNotice.Check.Loading;
+    private bool _confirmRepeat;
+    private void OnRecentResolved(RecentUtilityNotice.Check state) { _recent = state; StateHasChanged(); }
+    private void CancelPicker() { if (_confirmRepeat) { _confirmRepeat = false; return; } ClosePicker(); }
+
     private void AddItem()
     {
         if (!CanAddItem || _choice is not { } c) return;
+        if (UtilityChoice is { } repeat)
+        {
+            // The same source and period already in this unsent collection is one line: edit it, never add a twin.
+            var already = _items.FirstOrDefault(x => x.ClientItemId != _editingId && (x.Kind == CollectionSessionItemKind.Electricity
+                ? x.Electricity is { } e && e.StallId == repeat.StallId && e.Year == repeat.Year && e.Month == repeat.Month
+                : x.Kind == CollectionSessionItemKind.Water && x.Water is { } w && w.StallId == repeat.StallId && w.Year == repeat.Year && w.Month == repeat.Month));
+            if (already is not null)
+            {
+                _message = $"{repeat.Code} for this source is already in this collection. Edit that item instead of adding another.";
+                _picker = false; _confirmRepeat = false; return;
+            }
+            if (_recent == RecentUtilityNotice.Check.Prior && !_confirmRepeat) { _confirmRepeat = true; return; }
+        }
+        _confirmRepeat = false;
         var id = Guid.NewGuid(); var identity = c.Identity;
         SessionWaterIntent? water = null; SessionElectricityIntent? electricity = null; SessionObligationIntent? obligation = null;
         SessionGovernedIntent? service = null; SessionSlaughterIntent? slaughter = null; SessionNpmWholeIntent? npmWhole = null; SessionNpmDailyIntent? npmDaily = null; SessionNpmPartIntent? npmPart = null;
