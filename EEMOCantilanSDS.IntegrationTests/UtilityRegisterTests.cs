@@ -231,4 +231,45 @@ public sealed class UtilityRegisterTests(PostgresFixture db)
         Assert.DoesNotContain(elsewhere.Rows, r => r.StallId == w.NpmStallA);
         Assert.Equal(ResultStatus.Invalid, (await Reader(ctx, w).GetAsync(new(UtilityKind.Electricity, 1999, 13))).Status);
     }
+
+    [SkippableFact]
+    public async Task SearchFindsASourceOnlyThroughTheOccupantAnsweringForTheSelectedMonth_AndHistoricArrearsStayWithThePreviousOccupant()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync();
+        var thisMonth = new DateOnly(Today.Year, Today.Month, 1);
+        var old = thisMonth.AddMonths(-2);          // the outgoing occupant answered for this month
+        var handover = thisMonth.AddMonths(-1);     // the incoming occupant answers from this month on
+        Guid stallId;
+        await using (var ctx = db.CreateContext(w.TenantId))
+        {
+            var ncc = await ctx.Facilities.SingleAsync(f => f.Code == FacilityCode.NCC);
+            var stall = Stall.Create(ncc.Id, "H-1", 900m, ApplicableFees.BaseRental | ApplicableFees.Electricity, null, municipalityId: w.TenantId);
+            ctx.Add(stall);
+            var outgoing = Contract.Create(stall.Id, "Olga Outgoing", "Olga Outgoing", old.AddMonths(-4), 5, 900m, createdBy: "test");
+            outgoing.Terminate("test", handover.AddDays(-1));
+            ctx.Add(outgoing);
+            ctx.Add(Contract.Create(stall.Id, "Ines Incoming", "Ines Incoming", handover, 5, 900m, createdBy: "test"));
+            var (previous, current, rate) = UtilityBill.DirectApprovedReadings(400m);
+            var bill = UtilityBill.Create(stall.Id, old.Year, old.Month, previous, current, rate, 0m, 0m, 0m, "head");
+            bill.SetCalculationBasis(UtilityCalculationBasis.DirectApproved, UtilityCalculationBasis.Metered);
+            ctx.UtilityBills.Add(bill);
+            await ctx.SaveChangesAsync();
+            stallId = stall.Id;
+        }
+        await using var verify = db.CreateContext(w.TenantId);
+        UtilityRegisterRequest In(DateOnly month, string search) => new(UtilityKind.Electricity, month.Year, month.Month, null, null, null, search, 0, 25);
+        async Task<bool> Found(DateOnly month, string search) =>
+            (await Reader(verify, w).GetAsync(In(month, search))).Value!.Rows.Any(r => r.StallId == stallId);
+
+        Assert.True(await Found(old, "Olga"));                // the outgoing occupant answered for their own month
+        Assert.False(await Found(old, "Ines"));
+        Assert.False(await Found(handover, "Olga"));          // a previous occupant never finds the current account
+        Assert.True(await Found(handover, "Ines"));
+        Assert.False(await Found(thisMonth, "Olga"));
+
+        var arrears = (await Reader(verify, w).GetAsync(In(old, "Olga"))).Value!.Rows.Single(r => r.StallId == stallId);
+        Assert.Equal(("Olga Outgoing", 400m, 400m), (arrears.Payer, arrears.Approved, arrears.Outstanding));   // the historic obligation stays with who answered then
+    }
 }

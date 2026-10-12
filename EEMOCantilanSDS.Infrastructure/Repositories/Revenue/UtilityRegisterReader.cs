@@ -95,9 +95,15 @@ public sealed class UtilityRegisterReader(AppDbContext db, ICurrentUserService u
         var rows = scoped;
         if (!string.IsNullOrWhiteSpace(request.Status) && request.Status != "All") rows = rows.Where(d => d.Status == request.Status);
         var term = (request.Search ?? "").Trim().ToLower();
+        var monthStart = new DateOnly(request.Year, request.Month, 1); var monthEnd = monthStart.AddMonths(1).AddDays(-1);
+        // A payer name finds a source only through the occupancy that answers for the selected month (the latest-starting occupancy that
+        // covers it - StallOccupancy.AnsweringForMonth), never through an earlier or later occupant of the same space.
         if (term.Length > 0)
             rows = rows.Where(d => d.F.StallNo.ToLower().Contains(term) || d.F.FacilityName.ToLower().Contains(term)
                 || db.Contracts.Any(c => c.StallId == d.F.StallId && c.MunicipalityId == tenant
+                    && c.EffectivityDate <= monthEnd && (c.EndedOn == null || c.EndedOn >= monthStart)
+                    && !db.Contracts.Any(later => later.StallId == c.StallId && later.MunicipalityId == tenant
+                        && later.EffectivityDate > c.EffectivityDate && later.EffectivityDate <= monthEnd)
                     && ((c.ActualOccupant != null && c.ActualOccupant.ToLower().Contains(term)) || c.NameOnContract.ToLower().Contains(term)
                         || (c.Payor != null && c.Payor.DisplayName.ToLower().Contains(term)))));
 
