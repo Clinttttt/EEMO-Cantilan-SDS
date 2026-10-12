@@ -25,7 +25,12 @@ public class CreateFirstAdminCommandHandler(ISetupRepository setupRepository, IU
             request.Email,
             passwordHasher.Hash(request.Password),
             AdminRole.SuperAdmin,
-            municipalityId: defaultMunicipalityId
+            municipalityId: defaultMunicipalityId,
+            // The person completing first-run setup has just CHOSEN this password, so a forced change at first sign-in would
+            // make them replace the one they typed seconds ago. The requirement exists for a password SOMEONE ELSE issued (a
+            // Head-set temporary password, a reset); it is deliberately not weakened for those. Same rule as the municipal
+            // Head's activation link and the platform operator's first-run setup.
+            mustChangePassword: false
         );
 
         await setupRepository.AddFirstAdminAsync(admin, ct);

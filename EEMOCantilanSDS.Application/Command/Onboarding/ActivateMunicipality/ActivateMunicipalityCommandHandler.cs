@@ -11,6 +11,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Onboarding;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Onboarding;
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
@@ -150,6 +151,25 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                     AnimalType.Cow, labels.Cow, municipality.Id, "Activation"));
             }
 
+            // 3c-2) The operations the LGU declared at onboarding, as its tenant operation configuration. Written in this same
+            //       transaction, so a municipality can never go live with its Head and facilities but not its configuration.
+            //
+            //       A row is stored for EVERY catalog operation: a selected one is listed (under the LGU's own name, if it gave
+            //       one) and an unselected one is explicitly NOT listed. That keeps "chose not to use it" distinct from "was
+            //       never asked" (no declarations at all, an older onboarding), which stays on the legacy fallback. Nothing here
+            //       enables posting, assigns a Collector, files a rate or registers a source.
+            if (request.OperationDeclarations is { } declared)
+            {
+                var chosen = declared.ToDictionary(d => d.OperationCode, StringComparer.Ordinal);
+                foreach (var entry in TenantOperationCatalog.All)
+                {
+                    chosen.TryGetValue(entry.Code, out var d);
+                    var selected = d?.Selected == true;
+                    context.TenantOperationSettings.Add(TenantOperationSetting.Create(
+                        entry.Code, selected, selected ? d!.LocalDisplayName : null, "Onboarding", municipality.Id, "Activation"));
+                }
+            }
+
             // 3d) Optional OR-series suggestion config (one per LGU). OR numbers stay manually entered; this
             //     only seeds the suggested format the portal pre-fills.
             var orSeriesConfigured = false;
@@ -207,7 +227,9 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                 ratesToSeed.Count,
                 stallsCreated,
                 customAnimalsCreated,
-                orSeriesConfigured));
+                orSeriesConfigured,
+                // The environment's own link (ACTIVATION_LINK_BASE), so a console never rebuilds a host from the token.
+                activationLink));
         }
 
         // Names the daily market's three collection areas as the LGU named them.

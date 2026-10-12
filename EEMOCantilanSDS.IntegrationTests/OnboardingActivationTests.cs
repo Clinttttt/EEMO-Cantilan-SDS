@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality;
 using EEMOCantilanSDS.Application.Common.Interface.Security;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Onboarding;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
@@ -91,11 +92,12 @@ public sealed class OnboardingActivationTests(PostgresFixture db)
         return handler.Handle(command, CancellationToken.None);
     }
 
-    private static ActivateMunicipalityCommand Command(World w, IReadOnlyList<ActivationFacility> facilities, IReadOnlyList<ActivationRate> rates) =>
+    private static ActivateMunicipalityCommand Command(World w, IReadOnlyList<ActivationFacility> facilities, IReadOnlyList<ActivationRate> rates,
+        IReadOnlyList<ActivationOperation>? operations = null) =>
         new("MADRID",
             new ActivationBranding("Madrid Economic Enterprise Office", "Madrid, Surigao del Sur, Philippines", null, "MEEO"),
             new ActivationAdministrator("Ana Cruz", "madrid.head", "ana@madrid.gov.ph"),
-            facilities, rates, AssessmentRequestId: w.RequestId);
+            facilities, rates, AssessmentRequestId: w.RequestId, OperationDeclarations: operations);
 
     private static ActivationFacility Fac(FacilityCode code, string name, BillingArchetype archetype) =>
         new(code, name, name[..Math.Min(3, name.Length)].ToUpperInvariant(), archetype);
@@ -111,6 +113,9 @@ public sealed class OnboardingActivationTests(PostgresFixture db)
             [new ActivationRate(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 35m)]));
 
         Assert.True(result.IsSuccess, result.Error);
+        // The API states the activation URL; a console never rebuilds a host from the token. It is the environment's own base.
+        Assert.Equal(EEMOCantilanSDS.Application.Common.Onboarding.ActivationLinks.Build(result.Value!.ActivationToken),
+            result.Value.ActivationUrl);
         await using var verify = db.CreateContext(Guid.Empty);
         var facility = await verify.Facilities.IgnoreQueryFilters().SingleAsync(f => f.MunicipalityId == w.TargetId);
         Assert.Equal(("Madrid Pamilihan", FacilityCode.NPM), (facility.Name, facility.Code));
@@ -238,6 +243,84 @@ public sealed class OnboardingActivationTests(PostgresFixture db)
         Assert.Equal(1, await verify.AdminUsers.IgnoreQueryFilters().CountAsync(u => u.MunicipalityId == w.TargetId));
     }
 
+
+    [SkippableFact]
+    public async Task DeclaredOperations_BecomeTheTenantsConfiguration_SelectedListedAndUnselectedExplicitlyNot()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        var w = await SeedAsync();
+
+        var result = await ActivateAsync(w, Command(w,
+            [Fac(FacilityCode.NPM, "Madrid Pamilihan", BillingArchetype.DailyStall)],
+            [new ActivationRate(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 35m)],
+            [
+                new ActivationOperation("MARKET_FEES", true),
+                new ActivationOperation("KANMANGGAY_SPACE_RENTAL", true, "Municipal Plaza Rental"),
+                new ActivationOperation("LANDING_BERTHING", false, "Ignored because it is not selected"),
+            ]));
+
+        Assert.True(result.IsSuccess, result.Error);
+        await using var verify = db.CreateContext(w.TargetId);
+        var rows = await verify.TenantOperationSettings.ToListAsync();
+        Assert.Equal(TenantOperationCatalog.All.Count, rows.Count); // every operation has an explicit row
+        Assert.All(rows, r => Assert.Equal("Onboarding", r.Origin));
+        Assert.Equal(new[] { "KANMANGGAY_SPACE_RENTAL", "MARKET_FEES" }, rows.Where(r => r.IsListed).Select(r => r.OperationCode).Order().ToArray());
+        Assert.Equal("Municipal Plaza Rental", rows.Single(r => r.OperationCode == "KANMANGGAY_SPACE_RENTAL").LocalDisplayName);
+        Assert.False(rows.Single(r => r.OperationCode == "LANDING_BERTHING").IsListed);
+        Assert.Null(rows.Single(r => r.OperationCode == "LANDING_BERTHING").LocalDisplayName); // an unselected operation keeps no name
+
+        // The read model the Head Portal uses: Landing / Berthing is not listed, the selected ones carry the LGU's wording.
+        var dto = await EEMOCantilanSDS.Application.Common.Onboarding.TenantOperationSettingsStore.ReadAsync(verify, w.TargetId, CancellationToken.None);
+        Assert.True(dto.UsesConfiguration);
+        Assert.DoesNotContain(dto.Items.Where(i => i.IsListed), i => i.OperationCode == "LANDING_BERTHING");
+        Assert.Equal("Municipal Plaza Rental", dto.Items.Single(i => i.OperationCode == "KANMANGGAY_SPACE_RENTAL").DisplayName);
+
+        // Presentation only: nothing was enabled, assigned, filed or registered by declaring operations.
+        await using var all = db.CreateContext(Guid.Empty);
+        Assert.Equal(0, await all.CollectorOperationAssignments.IgnoreQueryFilters().CountAsync());
+        Assert.Equal(0, await all.GovernedServices.IgnoreQueryFilters().CountAsync());
+        Assert.Equal(0, await all.ObligationAccounts.IgnoreQueryFilters().CountAsync());
+        Assert.Equal(1, await all.FacilityRates.IgnoreQueryFilters().CountAsync(r => r.MunicipalityId == w.TargetId));
+        // The reference tenant has no configuration written to it.
+        Assert.Equal(0, await all.TenantOperationSettings.IgnoreQueryFilters().CountAsync(s => s.MunicipalityId == w.ReferenceTenantId));
+    }
+
+    [SkippableFact]
+    public async Task NoDeclarationsAtAll_AnOlderOnboarding_LeavesTheMunicipalityOnTheLegacyFallback()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        var w = await SeedAsync();
+
+        var result = await ActivateAsync(w, Command(w,
+            [Fac(FacilityCode.NPM, "Madrid Pamilihan", BillingArchetype.DailyStall)],
+            [new ActivationRate(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 35m)]));
+
+        Assert.True(result.IsSuccess, result.Error);
+        await using var verify = db.CreateContext(w.TargetId);
+        Assert.Equal(0, await verify.TenantOperationSettings.CountAsync());
+        var dto = await EEMOCantilanSDS.Application.Common.Onboarding.TenantOperationSettingsStore.ReadAsync(verify, w.TargetId, CancellationToken.None);
+        Assert.False(dto.UsesConfiguration);
+        Assert.All(dto.Items, i => Assert.True(i.IsListed)); // never read as "nothing selected"
+    }
+
+    [SkippableFact]
+    public async Task AnExplicitEmptyDeclaration_MeansNothingSelected_NotNeverAsked()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        var w = await SeedAsync();
+
+        var result = await ActivateAsync(w, Command(w,
+            [Fac(FacilityCode.NPM, "Madrid Pamilihan", BillingArchetype.DailyStall)],
+            [new ActivationRate(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 35m)],
+            []));
+
+        Assert.True(result.IsSuccess, result.Error);
+        await using var verify = db.CreateContext(w.TargetId);
+        var dto = await EEMOCantilanSDS.Application.Common.Onboarding.TenantOperationSettingsStore.ReadAsync(verify, w.TargetId, CancellationToken.None);
+        Assert.True(dto.UsesConfiguration);
+        Assert.All(dto.Items, i => Assert.False(i.IsListed));
+    }
+
     [SkippableFact]
     public async Task AFailedActivation_RollsBackEverything_AndLeavesTheMunicipalityUpcoming()
     {
@@ -252,7 +335,8 @@ public sealed class OnboardingActivationTests(PostgresFixture db)
                 Fac(FacilityCode.NPM, "Madrid Pamilihan", BillingArchetype.DailyStall),
                 Fac(FacilityCode.NPM, "Second Market", BillingArchetype.DailyStall),
             ],
-            [new ActivationRate(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 35m)]), email));
+            [new ActivationRate(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 35m)],
+            [new ActivationOperation("MARKET_FEES", true, "Pamilihan Fees")]), email));
 
         await using var verify = db.CreateContext(Guid.Empty);
         var madrid = await verify.Municipalities.SingleAsync(m => m.Id == w.TargetId);
@@ -260,6 +344,8 @@ public sealed class OnboardingActivationTests(PostgresFixture db)
         Assert.Equal(0, await verify.Facilities.IgnoreQueryFilters().CountAsync(f => f.MunicipalityId == w.TargetId));
         Assert.Equal(0, await verify.FacilityRates.IgnoreQueryFilters().CountAsync(r => r.MunicipalityId == w.TargetId));
         Assert.Equal(0, await verify.AdminUsers.IgnoreQueryFilters().CountAsync(u => u.MunicipalityId == w.TargetId));
+        // The operation configuration is part of the same transaction: none of it survives a failed activation.
+        Assert.Equal(0, await verify.TenantOperationSettings.IgnoreQueryFilters().CountAsync(s => s.MunicipalityId == w.TargetId));
         var request = await verify.AssessmentRequests.SingleAsync(r => r.Id == w.RequestId);
         Assert.Equal("Activation", request.Stage); // still retryable
         Assert.Equal(0, email.Sent); // nobody was told a portal is live

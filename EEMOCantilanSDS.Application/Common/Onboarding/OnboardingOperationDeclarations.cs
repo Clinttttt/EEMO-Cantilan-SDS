@@ -39,21 +39,9 @@ public static class OnboardingOperationDeclarations
 
     public const string Ecf = "ECF";
 
-    /// <summary>Stable code and neutral standard label of each declarable operation, in catalog order.</summary>
+    /// <summary>Stable code and neutral standard label of each declarable operation, in catalog order. One source: <see cref="TenantOperationCatalog"/>.</summary>
     public static readonly IReadOnlyList<(string Code, string Label)> Catalog =
-    [
-        (CollectorOperationCodes.FishMeatVendorFee, "Fish / Meat Vendor Fee"),
-        (CollectorOperationCodes.WeightAndMeasure, "Weight & Measure"),
-        (CollectorOperationCodes.MarketFees, "Market Fees"),
-        (CollectorOperationCodes.KanmanggaySpaceRental, "Municipal Space Rental"),
-        (CollectorOperationCodes.FiestaArawLotRental, "Event / Temporary Lot Rental"),
-        (CollectorOperationCodes.VegetableFruitSpaceRental, "Vegetable / Fruit Space Rental"),
-        (Ecf, "Electricity Consumption Fees"),
-        (CollectorOperationCodes.Wcf, "Water Consumption Fees"),
-        (CollectorOperationCodes.LandingBerthing, "Landing / Berthing"),
-        (CollectorOperationCodes.Transportation, "Transportation / Parking"),
-        (CollectorOperationCodes.TransferLargeCattle, "Transfer Large Cattle"),
-    ];
+        TenantOperationCatalog.All.Select(e => (e.Code, e.DefaultLabel)).ToList();
 
     public static IReadOnlyList<string> SupportedCodes { get; } = Catalog.Select(c => c.Code).ToList();
 

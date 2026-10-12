@@ -31,6 +31,7 @@ public class TenantUsageRepository(AppDbContext context) : ITenantUsageRepositor
         ["Collections"] = "Collection ledger entries",
         ["CollectionLines"] = "Classified collection lines",
         ["OrSeriesConfigs"] = "OR series config",
+        ["TenantOperationSettings"] = "Operation settings",
         ["Stalls"] = "Stalls",
         ["Contracts"] = "Contracts",
         ["PaymentRecords"] = "Payment records",

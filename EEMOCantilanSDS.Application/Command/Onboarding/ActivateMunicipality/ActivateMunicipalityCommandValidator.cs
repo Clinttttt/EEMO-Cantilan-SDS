@@ -98,6 +98,30 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
 
             RuleFor(x => x.Rates).NotNull();
 
+            // Declared operations are presentation configuration, but they are still written to the tenant's own record, so they
+            // are held to the same rules as the Head's own edits: a recognised stable code, declared once, and a local name that
+            // neither reads as another operation nor repeats another selected name.
+            When(x => x.OperationDeclarations is not null, () =>
+            {
+                RuleForEach(x => x.OperationDeclarations).ChildRules(d =>
+                    d.RuleFor(o => o.OperationCode).Must(TenantOperationCatalog.IsKnown)
+                        .WithMessage("A declared operation is not one StallTrack recognises."));
+                RuleFor(x => x.OperationDeclarations!)
+                    .Must(ops => ops.Select(o => o.OperationCode).Distinct(StringComparer.Ordinal).Count() == ops.Count)
+                    .WithMessage("An operation was declared more than once.");
+                RuleFor(x => x.OperationDeclarations!)
+                    .Custom((ops, ctx) =>
+                    {
+                        var selected = ops.Where(o => o.Selected && TenantOperationCatalog.IsKnown(o.OperationCode)).ToList();
+                        foreach (var o in selected)
+                        {
+                            var problem = TenantOperationCatalog.LabelProblem(
+                                o.OperationCode, o.LocalDisplayName, selected.Select(s => (s.OperationCode, s.LocalDisplayName, true)));
+                            if (problem is not null) ctx.AddFailure("OperationDeclarations", $"{o.OperationCode}: {problem}");
+                        }
+                    });
+            });
+
             // An office that measures its market month by the DAYS it has must not also declare a monthly rent. The rule
             // ignores such a figure by design, so accepting it would file a number in the office's own rate table that
             // nothing reads and that contradicts the basis printed on its screens. Refused at the door, where the

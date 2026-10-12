@@ -62,6 +62,11 @@ public class ApplicationEfBoundaryTests
         "DeclineAssessmentRequestCommandHandler.cs",
         "GetActivationContextQueryHandler.cs",
         "ActivateMunicipalityCommandHandler.cs",
+        // Tenant operation configuration (listing and local names): the Head edit handler loads the municipality's rows to apply an
+        // optimistic-concurrency edit and the explicit first-time adoption in ONE transaction; the store reads them for the directory.
+        // Presentation configuration only - no revenue or settlement data is read or written.
+        "UpdateTenantOperationSettingCommandHandler.cs",
+        "TenantOperationSettingsStore.cs",
 
         // Authentication, account recovery and MFA: pre-auth paths that resolve an account before a tenant exists.
         "RequestPasswordResetCommandHandler.cs",

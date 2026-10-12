@@ -23,7 +23,15 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
         ActivationSlaughterLabels? SlaughterLabels = null,
         ActivationOrSeries? OrSeries = null,
         DayOfWeek? TpmMarketDay = null,
-        Guid? AssessmentRequestId = null) : IRequest<Result<ActivationResultDto>>;
+        Guid? AssessmentRequestId = null,
+        IReadOnlyList<ActivationOperation>? OperationDeclarations = null) : IRequest<Result<ActivationResultDto>>;
+
+    /// <summary>
+    /// One revenue operation the LGU declared at onboarding. Carried as tenant PRESENTATION configuration (listed or not, and the
+    /// LGU's own name); it never enables posting, assigns a Collector or files a rate. A command with no declarations at all
+    /// (<c>null</c>, an older onboarding) leaves the municipality on the legacy fallback; an empty list means "explicitly nothing selected".
+    /// </summary>
+    public record ActivationOperation(string OperationCode, bool Selected, string? LocalDisplayName = null);
 
     /// <summary>Official identity captured at onboarding, stamped onto the LGU's registry record.</summary>
     public record ActivationBranding(string OfficeName, string? Address, string? SealPath, string? OfficeAcronym = null);
@@ -121,5 +129,6 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
         int RatesCreated,
         int StallsCreated,
         int CustomAnimalTypesCreated,
-        bool OrSeriesConfigured);
+        bool OrSeriesConfigured,
+        string? ActivationUrl = null);
 }
