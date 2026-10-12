@@ -47,9 +47,16 @@ not a Collector assignment, not posting authority.
 * Absent block ⇒ nothing declared (every pre-existing draft). Unknown *top-level* fields are preserved on save.
 * **Unknown or unreadable entries are preserved, not dropped.** An entry the workspace cannot edit (a code from a newer
   version, a repeated code, an item with no boolean `selected`) is held untouched and written back verbatim on every save, so
-  an older frontend saving another section cannot erase it. The office sees a notice and can only remove them with an explicit
-  "Discard these entries". The server then decides: codes it knows pass; a code it does not know, or a malformed item, is
-  refused with a message naming it — a blocked save, never a silent loss. Unknown codes are never mapped to another operation.
+  an older frontend saving another section cannot erase it. The notice says plainly that the entries are kept (not deleted)
+  and that **saving or submitting may be refused** if StallTrack does not recognise them, until the workspace supports them or
+  the office discards them. Discarding is a two-step confirmed action ("Discard these saved entries…" → "Yes, permanently
+  discard"). The server decides: codes it knows pass; a code it does not know, or a malformed item, is refused with a message
+  naming it — a blocked save, never a silent loss. Unknown codes are never mapped to another operation.
+* **A whole `operations` block from a newer version is kept byte-for-byte.** If `version` is not 1, `items` is not a list, or
+  the block is not an object, the workspace does not edit, normalise or downgrade it: the selector is hidden, an explanation
+  is shown, and the block is written back unchanged (also across reload). Facilities, Head and branding stay editable. The
+  server refuses an unsupported version, so submitting is blocked until the workspace is updated or the office confirms a
+  discard. Block-level fields beyond `version`/`items` on a supported block are written back untouched.
 * Validation rules exist in three places and are kept equivalent: server (`OnboardingOperationDeclarations.Validate`), landing
   (`localNameProblem`/`readOperations`) and admin (`parseOperations`). Contract tests in each repo pin the same 11
   `code|label` pairs, so changing one copy fails a test in whichever suite is touched.
@@ -168,7 +175,7 @@ malformed `operations` block at save, which an older API simply would not enforc
 | Suite | Result |
 |---|---|
 | Platform `admin` (vitest) | 92 passed |
-| Platform `landing` (vitest) | 36 passed |
+| Platform `landing` (vitest) | 45 passed |
 | Platform `nx build admin` / `nx build landing` (production, type-checks templates) | both succeed |
 | EEMO unit (`EEMOCantilanSDS.UnitTest`) | 2588 passed, 0 failed, 0 skipped |
 | EEMO integration (`OnboardingActivationTests` + `ActiveOnboardingPipeline*`, Testcontainers PostgreSQL 16, disposable) | 16 passed |
@@ -202,3 +209,14 @@ not touch `DependencyInjection.cs`, `CollectionComposerWorkflow*`, `WcfCollectio
 Client, migrations, or `docs/planning/{ACTIVE_WORKSTREAMS,CURRENT_RELEASE_STATE}.md`. The only shared *concept* is the operation
 codes `ECF`/`WCF`: this work records them as **declarations only** and relies on no ECF/WCF contract. If the utility agent
 introduces an `ECF` entry in `CollectorOperationCodes`, add it to `SupportedCodes` and nothing else changes.
+
+## Final state (2026-10-12)
+
+* Platform `feat/onboarding-tenant-operations-v2` — final correction commit `d2bf9ec` (on `326b0a9`).
+* EEMO `codex/onboarding-initial-operations-v2` — backend code last changed in `299d3e69`; this doc is the only later change.
+* Final verification: admin 92, landing 45, EEMO onboarding unit subset 98 (full unit suite 2588 last run on `299d3e69`; no
+  backend code changed since), activation/pipeline integration 16 (disposable PostgreSQL), both production builds succeed,
+  eslint 0 errors / 16 warnings, `git diff --check` clean. Whole-solution Release build was last run on `299d3e69`, 0 errors.
+* **No browser walkthrough was done** (no isolated API/token available). Someone must click through a non-production token.
+* Existing drafts: versionless, block-less and version-1 drafts load unchanged (tested). No other LGU's data is touched
+  (integration-tested tenant isolation). Nothing was pushed, merged, deployed or migrated.
