@@ -52,13 +52,10 @@
             <section class="v3-panel" aria-labelledby="os-intro">
                 <header class="v3-panel-header"><h2 id="os-intro">Your operations</h2><span class="v3-panel-meta">@ListedCount of @_model.Items.Count listed</span></header>
                 <div class="os-intro">
-                    <p>Choose which collection activities appear in your Operations directory and give them your office's own names.
-                       This changes <strong>wording and listing only</strong>. It does not let anyone collect for an operation, assign a Collector,
-                       register a payor or source, set a rate, or change how an operation is classified or which receipt it uses.</p>
+                    <p>Choose your listed operations and display names. Changes affect <strong>wording and listing only</strong>, not collection authority, rates, receipts or existing records.</p>
                     @if (!_model.UsesConfiguration)
                     {
-                        <p class="os-legacy" role="note">Your office has not customised this list, so every operation is listed under its established name.
-                           Saving a change first records that current list, so nothing else changes.</p>
+                        <p class="os-legacy" role="note">Your office has not customised this list; existing names remain until you save a change.</p>
                     }
                 </div>
                 @if (!string.IsNullOrWhiteSpace(_message))
@@ -120,12 +117,8 @@
             <section class="v3-panel" aria-labelledby="os-more">
                 <header class="v3-panel-header"><h2 id="os-more">Not listed here</h2></header>
                 <div class="os-intro">
-                    <p>Facility-backed lines — stall rental, commercial and other rental facilities, the slaughterhouse, the terminal and the weekly market —
-                       follow the facilities you configure under <a href="/settings/facilities">Facility Configuration</a>, with the names you gave them.</p>
-                    <p>Listing an operation does not set it up. Source registration, rates and Collector assignment are still done in the operation's own workspace.
-                       A rental program's contract or duration rules are those the platform already applies. In particular, <strong>Municipal Space Rental</strong> records
-                       space contracts under the three-year standard Cantilan's office uses, and that rule is not yet configurable per municipality &mdash;
-                       confirm it matches your own ordinance before relying on it.</p>
+                    <p>Facility-backed operations are managed in <a href="/settings/facilities">Facility Configuration</a>. Rates, Collectors and collection authority are configured separately.</p>
+                    <p>Cantilan's Municipal Space Rental uses a three-year contract standard; other LGUs must confirm their own approved contract terms.</p>
                 </div>
             </section>
 

@@ -4,7 +4,7 @@
    Presentation only: validation, state and saving stay with the page. *@
 @if (Show || KeepMounted)
 {
-<div class="vds">
+<div class="vds @(AnimateEntry ? "vds-entry" : "")">
     <div class="eemo-drawer-overlay @(Show ? "show" : "")" @onclick="OnClose"></div>
 
     <div class="eemo-drawer eemo-drawer-right @(Show ? "show" : "")" role="@(Show ? "dialog" : null)" aria-modal="@(Show ? "true" : null)" aria-labelledby="@_titleId" @onclick:stopPropagation="true" @onkeydown="HandleKey">
@@ -36,6 +36,8 @@
 
     /// <summary>Keep the drawer in the page while closed so it can slide in (the stallholder drawer does); otherwise it exists only while open.</summary>
     [Parameter] public bool KeepMounted { get; set; }
+    // Animate newly mounted Add New drawers without leaving hidden forms in the DOM.
+    [Parameter] public bool AnimateEntry { get; set; }
     [Parameter] public string Title { get; set; } = string.Empty;
     [Parameter] public string? Subtitle { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }

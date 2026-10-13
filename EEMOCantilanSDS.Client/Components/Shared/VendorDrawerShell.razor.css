@@ -505,3 +505,16 @@
     background: var(--accent);
     color: var(--surface);
 }
+
+/* AddNewDrawer mounts only while open: animate that entry without mounting hidden forms. */
+.vds-entry ::deep .eemo-drawer.show { animation: stalltrackDrawerEnter .26s cubic-bezier(.22,1,.36,1) both; }
+.vds-entry ::deep .eemo-drawer-overlay.show { animation: stalltrackBackdropEnter .22s ease-out both; }
+@keyframes stalltrackDrawerEnter {
+  from { transform: translateX(46px); opacity: .78; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes stalltrackBackdropEnter { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .vds-entry ::deep .eemo-drawer.show,
+  .vds-entry ::deep .eemo-drawer-overlay.show { animation: none !important; }
+}

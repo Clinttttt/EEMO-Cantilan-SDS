@@ -622,7 +622,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         Assert.NotNull(cut.Find(".imp-use-sample"));
         Assert.NotNull(cut.Find(".imp-enter-manually"));
         Assert.Empty(cut.FindAll("textarea"));                                        // no pasted-rows box: upload, sample or manual, as in ICE
-        Assert.Equal(new[] { "Space No.", "Actual Occupant", "Occupancy basis", "Name on Contract", "Contract reference", "Effectivity Date", "No. of Years", "Area (sq.m)", "Monthly rental per contract", "Approved monthly rental", "Whole year (12 × monthly)", "Closed on" },
+        Assert.Equal(new[] { "Actual Occupant", "Name on Contract", "Space No.", "Occupancy basis", "Contract reference", "Effectivity Date", "No. of Years", "Area (sq.m)", "Monthly rental per contract", "Approved monthly rental", "Whole year (12 × monthly)", "Closed on" },
             cut.FindAll(".imp-chip").Select(x => x.TextContent.Trim()).ToArray());
     }
 
@@ -637,7 +637,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         {
             Assert.Equal("3", cut.Find(".imp-review-count").TextContent.Trim());
             Assert.Contains("active", cut.FindAll(".imp-step")[1].ClassList);
-            Assert.Equal(new[] { "#", "Space No.", "Actual Occupant", "Occupancy basis", "Name on Contract", "Contract reference", "Effectivity Date", "No. of Years", "Area (sq.m)", "Monthly rental per contract", "Approved monthly rental", "Whole year (12 × monthly)", "Closed on", "Status" },
+            Assert.Equal(new[] { "#", "Actual Occupant", "Name on Contract", "Space No.", "Occupancy basis", "Contract reference", "Effectivity Date", "No. of Years", "Area (sq.m)", "Monthly rental per contract", "Approved monthly rental", "Whole year (12 × monthly)", "Closed on", "Status" },
                 cut.FindAll(".imp-table thead th").Select(x => x.TextContent.Trim()).Where(x => x.Length > 0).ToArray());
             Assert.Equal(3, cut.FindAll(".imp-table tbody tr").Count);
             Assert.All(cut.FindAll(".imp-table tbody tr"), r => Assert.Contains("Ready", r.TextContent));             // each sample row carries its own occupant
@@ -900,7 +900,7 @@ public sealed class ObligationWorkspaceTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Equal(new[] { "#", "Lot No.", "Actual Occupant", "Event", "Event date", "Approved lot amount", "Closed on", "Status" },
+            Assert.Equal(new[] { "#", "Actual Occupant", "Lot No.", "Event", "Event date", "Approved lot amount", "Closed on", "Status" },
                 cut.FindAll(".imp-table thead th").Select(x => x.TextContent.Trim()).Where(x => x.Length > 0).ToArray());
             Assert.Equal("Fiesta", cut.Find("select[aria-label='Event of row 1']").GetAttribute("value"));
             Assert.Equal("Araw", cut.Find("select[aria-label='Event of row 3']").GetAttribute("value"));

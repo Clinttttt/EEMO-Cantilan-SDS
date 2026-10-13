@@ -413,17 +413,20 @@ else
                             }
                             else if (_signedContract && Kind == ObligationKind.VegetableFruitSpaceRental)
                             {
-                                @* Vegetable / Fruits carries no fixed term: the duration is whatever the signed contract states. Nothing is
-                                   preselected, and leaving it blank records no duration (never an invented one). *@
+                                @* Same stallholder FhSelect duration control. No term is assumed for Vegetable/Fruits;
+                                   a Custom choice records only the actual years the office enters. *@
                                 <div class="avm-group">
-                                    <label class="avm-label" for="obw-vf-years">Contract Duration (No. of Years)</label>
-                                    <select id="obw-vf-years" class="avm-input" @bind="_contractYears">
-                                        <option value="0">Not recorded</option>
-                                        @for (var year = 1; year <= 10; year++)
-                                        {
-                                            <option value="@year">@year @(year == 1 ? "year" : "years")</option>
-                                        }
-                                    </select>
+                                    <label class="avm-label">Contract Duration (No. of Years)</label>
+                                    <FhSelect Block="true" Caption="" AriaLabel="Contract Duration (No. of Years)"
+                                              Value="@(_vfCustomYears ? "custom" : _contractYears.ToString(CultureInfo.InvariantCulture))"
+                                              Options="VfContractYearOptions" ValueChanged="SetVfContractYears" />
+                                    @if (_vfCustomYears)
+                                    {
+                                        <input class="avm-input" type="number" min="1" max="10" step="1" required
+                                               aria-label="Custom contract duration in years" placeholder="Enter years (1–10)"
+                                               @bind="_contractYears" @bind:event="oninput" />
+                                        <span class="avm-hint-muted">Enter the term from the signed contract.</span>
+                                    }
                                 </div>
                             }
                         </TermField>
@@ -707,6 +710,16 @@ else
     private static readonly List<string> OverviewFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
     private string RegistryCode => Kind == ObligationKind.FiestaArawLotRental ? "FA" : Kind == ObligationKind.KanmanggaySpaceRental ? "KM" : "Vegetable/Fruits";
     private static readonly IReadOnlyList<(string Value, string Label)> KmContractYearOptions = [("3", "3 years")];
+    // Match the existing NCC/TCC FhSelect presets, but permit no recorded term for Vegetable/Fruits.
+    private static readonly IReadOnlyList<(string Value, string Label)> VfContractYearOptions =
+        [("0", "Not recorded"), ("1", "1 year"), ("2", "2 years"), ("3", "3 years"), ("5", "5 years"), ("custom", "Custom…")];
+    private bool _vfCustomYears;
+    private void SetVfContractYears(string value)
+    {
+        _vfCustomYears = value == "custom";
+        if (_vfCustomYears) _contractYears = 0;
+        else if (int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var years)) _contractYears = years;
+    }
     private bool _closedShortcut;
     private bool _advancedLifecycle;
     private string RegistryFilter => _closedShortcut ? "Closed" : _filter;
@@ -974,7 +987,7 @@ else
         _formError = null; _saved = null; _rateFor = null; _editFor = null; _advanceRequest = null;
         _occupant = _stallId = _subject = _contractRef = _contractName = _areaLocation = string.Empty;
         // Kanmanggay's signed term is the MEEDO standard three years; Vegetable / Fruits has no fixed term, so none is preselected.
-        _areaSqm = null; _contractRate = null; _contractYears = Kind == ObligationKind.VegetableFruitSpaceRental ? 0 : 3; _contractDate = PhilippineTime.Now.Date;
+        _areaSqm = null; _contractRate = null; _contractYears = Kind == ObligationKind.VegetableFruitSpaceRental ? 0 : 3; _vfCustomYears = false; _contractDate = PhilippineTime.Now.Date;
         _signedContract = true; _lotEvent = LotRentalEvent.Fiesta;
         _amount = null;
         _opening = true; _openSession = Guid.NewGuid();

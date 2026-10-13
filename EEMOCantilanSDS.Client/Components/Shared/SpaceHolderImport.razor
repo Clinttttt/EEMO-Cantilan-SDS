@@ -147,10 +147,12 @@
     private static readonly ImportColumn LotAmountCol = new("amount", "Approved lot amount", "number", MinWidth: 160, Placeholder: "0.00");
     private static readonly ImportColumn ClosedCol = new("closed", "Closed on", "date", MinWidth: 150);
 
+    // Match the NCC/TCC review-first order: occupant, contract name, number, then lease facts.
+    // CSV/XLSX files with headers map by their own headings; the legacy headerless ColumnOrder remains unchanged.
     private IReadOnlyList<ImportColumn> Columns => IsEvent
-        ? [LotCol, OccupantCol, EventCol, EventDateCol, LotAmountCol, ClosedCol]
-        : AllowImportedNumbers ? [SubjectCol, OccupantCol, BasisCol, ContractNameCol, ContractCol, EffectivityCol, YearsCol, AreaCol, ContractRateCol, MonthlyCol, WholeYearCol, ClosedCol]
-        : [OccupantCol, BasisCol, ContractNameCol, ContractCol, EffectivityCol, YearsCol, AreaCol, ContractRateCol, MonthlyCol, WholeYearCol, ClosedCol];
+        ? [OccupantCol, LotCol, EventCol, EventDateCol, LotAmountCol, ClosedCol]
+        : AllowImportedNumbers ? [OccupantCol, ContractNameCol, SubjectCol, BasisCol, ContractCol, EffectivityCol, YearsCol, AreaCol, ContractRateCol, MonthlyCol, WholeYearCol, ClosedCol]
+        : [OccupantCol, ContractNameCol, BasisCol, ContractCol, EffectivityCol, YearsCol, AreaCol, ContractRateCol, MonthlyCol, WholeYearCol, ClosedCol];
 
     // HEADER ONLY: a template carries column names and nothing the office could mistake for data the platform put there.
     private string TemplateUri => "data:text/csv;charset=utf-8," + Uri.EscapeDataString(string.Join(",", Columns.Select(c => c.Label)) + "\r\n");

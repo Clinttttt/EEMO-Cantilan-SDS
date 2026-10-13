@@ -1,7 +1,7 @@
 @* ADD NEW DRAWER — the one shape every "Add New" takes, and it is the stallholder drawer's own: VendorDrawerShell (overlay, civic-blue header with its
    icon tile, scrolling body, fixed footer) around one form of sections. Operations supply their fields as the form's content (AddNewSection,
    ChoiceCards, avm-* groups). Presentation only: validation, state and the save itself stay with the page. *@
-<VendorDrawerShell Show="Show" Title="@Title" Subtitle="@Subtitle" OnClose="RequestClose">
+<VendorDrawerShell Show="Show" AnimateEntry="true" Title="@Title" Subtitle="@Subtitle" OnClose="RequestClose">
     <Icon>
         @if (Edit)
         {

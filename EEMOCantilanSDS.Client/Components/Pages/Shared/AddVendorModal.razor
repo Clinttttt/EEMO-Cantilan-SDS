@@ -416,7 +416,7 @@
 
     </ChildContent>
     <Footer>
-                @if (!IsEditing && (IsImportSupported || IsHistoryImportSupported))
+                @if (!IsEditing && IsImportSupported)
                 {
                     @* Both imports sit together, pushed to the left of Cancel and Add Vendor: they are the same kind
                        of act - bringing the office's existing paper in - so they read as one pair rather than two
@@ -430,14 +430,7 @@
                                 Import list
                             </button>
                         }
-                        @if (IsHistoryImportSupported)
-                        {
-                            <button type="button" class="btn-ghost avm-import-btn" @onclick="HandleImportHistory"
-                                    title="Record payments already collected, from the office's own books">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18" /><path d="M7 14l4-4 3 3 5-6" /></svg>
-                                Import history
-                            </button>
-                        }
+
                     </div>
                 }
                 <button type="button" class="btn-ghost" @onclick="HandleCancel">Cancel</button>
