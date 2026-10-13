@@ -3902,6 +3902,9 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<Guid?>("ClientOperationId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("ImportedCount")
                         .HasColumnType("integer");
 
@@ -3925,6 +3928,10 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .HasColumnType("character varying(1000)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("MunicipalityId", "ClientOperationId")
+                        .IsUnique()
+                        .HasFilter("\"ClientOperationId\" IS NOT NULL");
 
                     b.HasIndex("MunicipalityId", "Kind", "OccurredAtUtc");
 

@@ -293,6 +293,10 @@ public sealed class ObligationWorkflow(
             if (request.Rows is null || request.Rows.Count is 0 or > 200)
                 return Result<ImportSpaceHoldersResult>.Failure("Import between 1 and 200 reviewed rows.", ResultStatus.Invalid);
             await using var transaction = await db.BeginSpaceAccountTransactionAsync(actor.TenantId, ct);
+            // The same submission again answers with what it already saved: one import, never two.
+            if (request.ClientOperationId is { } operationId && operationId != Guid.Empty
+                && await db.SpaceHolderImportRuns.AsNoTracking().FirstOrDefaultAsync(x => x.MunicipalityId == actor.TenantId && x.ClientOperationId == operationId, ct) is { } prior)
+                return Result<ImportSpaceHoldersResult>.Success(new(prior.ImportedCount, prior.SkippedCount, [], null));
             var plan = await PlanSpaceImportAsync(request, actor, ct);
             var review = plan.Rows.Where(x => x.Code is not (null or "DuplicateSpace"))
                 .Select(x => $"Row {x.RowNumber}: {x.Message}").ToArray();
@@ -305,7 +309,7 @@ public sealed class ObligationWorkflow(
             if (plan.Additions.Count > 0)
                 db.SpaceHolderImportRuns.Add(SpaceHolderImportRun.Record(actor.TenantId, plan.Additions[0].Account.Kind, actor.UserId, actor.Username,
                     request.Rows.Count, plan.Additions.Count, skipped,
-                    skipped == 0 ? null : string.Join("; ", plan.Rows.Where(x => x.Code == "DuplicateSpace").Select(x => $"Row {x.RowNumber}: {x.Message}"))));
+                    skipped == 0 ? null : string.Join("; ", plan.Rows.Where(x => x.Code == "DuplicateSpace").Select(x => $"Row {x.RowNumber}: {x.Message}")), request.ClientOperationId));
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
             var saved = plan.Additions.GetEnumerator();

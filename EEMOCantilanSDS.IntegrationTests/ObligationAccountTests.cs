@@ -288,6 +288,35 @@ public sealed class ObligationAccountTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task ASubmittedImportIsSavedOnce_AReplayOfTheSameSubmissionAnswersWithTheSavedResult_AndKeepsItsRun()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync();
+        await using var ctx = db.CreateContext(seed.TenantId);
+        var workflow = Setup(ctx, seed);
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+        var holder = new CreateObligationAccountRequest(ObligationKind.VegetableFruitSpaceRental, seed.PayorId, null, "", null, null, start, 60m,
+            OccupancyArrangement.SpaceOnly);
+        var operation = Guid.NewGuid();
+        var request = new ImportSpaceHoldersRequest([new(holder), new(holder with { ActualOccupant = "Second stall" })], operation);
+
+        var first = (await workflow.ImportSpaceHoldersAsync(request)).Value!;
+        var replay = (await workflow.ImportSpaceHoldersAsync(request)).Value!;                                   // a double click or a retry after a lost response
+        Assert.Equal((2, 0), (first.Imported, first.Skipped));
+        Assert.Equal((2, 0, 0), (replay.Imported, replay.Skipped, replay.NeedsReview.Count));                    // the saved result, not a second import
+        Assert.Equal(2, await ctx.ObligationAccounts.CountAsync());                                              // no duplicate spaces
+        var run = Assert.Single(await ctx.SpaceHolderImportRuns.ToListAsync());                                  // the run (the import evidence) is kept once
+        Assert.Equal(operation, run.ClientOperationId);
+
+        // A new filling-in of the list is a new submission and is imported as before; a request without an id behaves as it always did.
+        var again = (await workflow.ImportSpaceHoldersAsync(request with { ClientOperationId = Guid.NewGuid() })).Value!;
+        Assert.Equal(2, again.Imported);
+        Assert.Equal(4, await ctx.ObligationAccounts.CountAsync());
+        Assert.Equal(2, await ctx.SpaceHolderImportRuns.CountAsync());
+    }
+
+    [SkippableFact]
     public async Task Kanmanggay_PersistsContractOrSpaceOnlyWithoutChangingMonthlyObligation_AndPreviewsIdentityErrors()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);

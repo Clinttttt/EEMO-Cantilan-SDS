@@ -80,7 +80,8 @@ public sealed record ObligationWorkspaceDto(IReadOnlyList<ObligationAccountDto> 
     decimal Assessed, decimal Collected, decimal Outstanding);
 
 public sealed record ImportSpaceHolderRow(CreateObligationAccountRequest Account, DateOnly? ClosedOn = null);
-public sealed record ImportSpaceHoldersRequest(IReadOnlyList<ImportSpaceHolderRow> Rows);
+/// <summary>The reviewed rows to save. <paramref name="ClientOperationId"/> identifies this submission: sending the same one again (a double click, a retry after a lost response) returns the saved result instead of registering the holders twice.</summary>
+public sealed record ImportSpaceHoldersRequest(IReadOnlyList<ImportSpaceHolderRow> Rows, Guid? ClientOperationId = null);
 public enum SpaceHolderImportStatus { Ready = 1, NeedsPayor = 2, Invalid = 3, NeedsSourceHolder = 4 }
 public enum SpaceNumberOrigin { Supplied = 1, ServerSuggested = 2 }
 public enum SpaceHolderImportAction { None = 0, SelectPayor = 1, CorrectRow = 2, ResolveDuplicate = 3, ConfirmSourceHolder = 4 }

@@ -466,7 +466,9 @@
         else SchedulePreview();
     }
 
-    private void ResetAll() { Rows = []; _result = null; Message = null; _uploadError = null; _fileName = null; _notImported = 0; _previewNote = null; }
+    // One id per filling-in of the list: a second click or a retry after a lost response is the same submission, so it cannot register the holders twice.
+    private Guid _operationId = Guid.NewGuid();
+    private void ResetAll() { _operationId = Guid.NewGuid(); Rows = []; _result = null; Message = null; _uploadError = null; _fileName = null; _notImported = 0; _previewNote = null; }
 
     // ── The server's typed preview ─────────────────────────────────────────────────────────────────────────────────────
     private bool _previewing;
@@ -533,7 +535,7 @@
         Message = null;
         try
         {
-            var result = await Api.ImportSpaceHoldersAsync(new(ready.Select(BuildRow).ToList()));
+            var result = await Api.ImportSpaceHoldersAsync(new(ready.Select(BuildRow).ToList(), _operationId));
             if (result.IsSuccess && result.Value is { } summary)
             {
                 _notImported = Rows.Count - ready.Count;
