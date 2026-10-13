@@ -31,3 +31,12 @@
 /* Both lists are bounded: about five rows show, the rest scroll inside the panel under a held heading. */
 .fmv-scroll { max-height: 21rem; overflow-y: auto; overscroll-behavior: contain; }
 .fmv-scroll thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-muted); }
+
+/* The two lists of the workspace: the registry, and the payors a Collector named who are not registered yet. */
+.fmv-views { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.fmv-view { min-height: 34px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-secondary); font: inherit; font-size: 0.8125rem; font-weight: 600; cursor: pointer; }
+.fmv-view.is-active { border-color: var(--accent); background: var(--surface-muted); color: var(--navy); }
+.fmv-view:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fmv-chip { display: inline-block; padding: 2px 8px; border: 1px solid currentColor; border-radius: 999px; color: var(--gold, #8a5a00); font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+.fmv-row-action { text-align: right; white-space: nowrap; }
+.fmv-more { padding: 12px 20px; }

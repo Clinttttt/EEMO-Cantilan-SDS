@@ -75,9 +75,73 @@ public sealed class DirectCollectionReviewTests : TestContext
             Assert.Contains("₱656.00", dialog.TextContent);
             Assert.Contains("Pat Collector", dialog.TextContent);
             Assert.Contains("Awaiting review", dialog.TextContent);
-            Assert.Contains("never changes the money or the SRC", dialog.TextContent);
-            Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/collections/activity?src=SRC-2026-000016");
+            // The long explanation is a tooltip on the info control, not a paragraph on the page.
+            Assert.DoesNotContain(cut.FindAll("p"), p => p.TextContent.Contains("never changes the money"));
+            Assert.Contains("never changes the money or the SRC", cut.Find("button[aria-label='About this review']").GetAttribute("title"));
+            Assert.Equal("Direct Collection Review", cut.Find("#dcr-title").TextContent);
         }, Timeout);
+    }
+
+    private static DirectCollectionDetailDto Detail(DirectCollectionReviewRowDto row, params DirectCollectionHistoryDto[] history) =>
+        new(row, "OR 1234567", "OfficialReceipt", [new("Fish / Meat Vendor Fee", row.Amount)], history);
+
+    [Fact]
+    public void ViewOpensTheSelectedCollectionsDetailInsideTheReview_NotANavigation()
+    {
+        var row = Row("SRC-2026-000016", 59m);
+        Serve(row);
+        _api.Setup(x => x.DetailAsync(row.CollectionId)).ReturnsAsync(Result<DirectCollectionDetailDto>.Success(
+            Detail(row, new DirectCollectionHistoryDto("Needs correction", "Amount looks short", "head-reviewer", new DateTime(2026, 10, 12, 11, 0, 0, DateTimeKind.Utc)))));
+        var cut = Open();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("button[aria-label='View record SRC-2026-000016']")), Timeout);
+
+        cut.Find("button[aria-label='View record SRC-2026-000016']").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("SRC-2026-000016", cut.Find("#dcr-title").TextContent);
+            var detail = cut.Find(".dcr-detail").TextContent;
+            Assert.Contains("₱59.00", detail); Assert.Contains("Juan Dela Cruz", detail); Assert.Contains("Pat Collector", detail);
+            Assert.Contains("OR 1234567", detail); Assert.Contains("Fish / Meat Vendor Fee", detail);
+            Assert.Contains("Amount looks short", detail); Assert.Contains("head-reviewer", detail);
+        }, Timeout);
+        _api.Verify(x => x.DetailAsync(row.CollectionId), Times.Once);
+        cut.Find(".dcr-back").Click();
+        cut.WaitForAssertion(() => Assert.Equal("Direct Collection Review", cut.Find("#dcr-title").TextContent), Timeout);
+    }
+
+    [Fact]
+    public void AFailedDetailIsStatedWithItsOwnBackButton()
+    {
+        var row = Row("SRC-2026-000016");
+        Serve(row);
+        _api.Setup(x => x.DetailAsync(row.CollectionId)).ReturnsAsync(Result<DirectCollectionDetailDto>.Failure("Unavailable"));
+        var cut = Open();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("button[aria-label='View record SRC-2026-000016']")), Timeout);
+        cut.Find("button[aria-label='View record SRC-2026-000016']").Click();
+        cut.WaitForAssertion(() => Assert.Contains("could not be loaded", cut.Find("[role=alert]").TextContent), Timeout);
+        Assert.NotNull(cut.Find(".dcr-back"));
+    }
+
+    [Fact]
+    public void APayorWhoIsOnlyANameIsMarkedNeedsRegistration_AsAStatusSeparateFromFinancialReview()
+    {
+        var needs = Row("SRC-2026-000020", 43m, canConfirm: false) with { Operation = "Fish / Meat Vendor Fee", Utility = null, Payor = "Giorgia Macapagal", Registration = "Needs registration" };
+        _api.Setup(x => x.GetAsync(It.IsAny<DirectCollectionReviewRequest>()))
+            .ReturnsAsync(Result<DirectCollectionReviewPageDto>.Success(new([needs], 1, 1, 1)));
+        var cut = Open();
+
+        cut.WaitForAssertion(() =>
+        {
+            var row = cut.Find("tbody tr").TextContent;
+            Assert.Contains("Awaiting review", row);          // the financial question
+            Assert.Contains("Needs registration", row);       // the identity question, a separate chip
+            Assert.Empty(cut.FindAll("input[type=checkbox]")); // never part of a bulk confirm
+            Assert.Contains("Needs registration (1)", cut.Find(".dcr-tabs").TextContent);
+            Assert.NotEmpty(cut.FindAll("button[aria-label='Confirm SRC-2026-000020']")); // a single financial confirm stays available
+        }, Timeout);
+        cut.FindAll(".dcr-tab").Single(t => t.TextContent.StartsWith("Needs registration")).Click();
+        _api.Verify(x => x.GetAsync(It.Is<DirectCollectionReviewRequest>(r => r.State == "NeedsRegistration")), Times.AtLeastOnce);
     }
 
     [Fact]

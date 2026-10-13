@@ -55,10 +55,138 @@
     gap: 12px;
 }
 
-.dcr-lede {
+/* Header: the same navy band, icon tile, title and one line the drawers carry, flat. */
+.dcr-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 20px;
+    background: var(--navy);
+    color: var(--bg-card);
+}
+
+.dcr-head-icon {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 auto;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.dcr-head-icon svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: var(--gold);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.dcr-head-text {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.dcr-head-text h2 {
     margin: 0;
+    color: var(--bg-card);
+    font-size: 1rem;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.dcr-head-text p {
+    margin: 2px 0 0;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.75rem;
+}
+
+.dcr-head-btn {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 auto;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+}
+
+.dcr-head-btn:hover {
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.dcr-head-btn:focus-visible {
+    outline: 2px solid var(--bg-card);
+    outline-offset: 2px;
+}
+
+.dcr-head-btn svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: var(--bg-card);
+    stroke-width: 2;
+    stroke-linecap: round;
+}
+
+.dcr-back {
+    justify-self: start;
+}
+
+.dcr-detail {
+    display: grid;
+    gap: 14px;
+}
+
+.dcr-facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+    gap: 12px 24px;
+    margin: 0;
+}
+
+.dcr-facts dt {
     color: var(--text-secondary);
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
+}
+
+.dcr-facts dd {
+    margin: 2px 0 0;
+    font-size: 0.875rem;
+}
+
+.dcr-sub-title {
+    margin: 4px 0 0;
+    color: var(--navy);
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.dcr-lines {
+    max-width: 32rem;
+}
+
+.dcr-history {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding-left: 18px;
+    font-size: 0.875rem;
+}
+
+.dcr-detail-actions {
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.dcr-detail-actions .v3-btn-group {
+    flex-wrap: wrap;
 }
 
 .dcr-tabs {
@@ -99,12 +227,19 @@
 }
 
 .dcr-filters .v3-input {
-    min-width: 8rem;
-    flex: 0 1 10rem;
+    min-width: 0;
 }
 
 .dcr-filters .dcr-grow {
     flex: 1 1 14rem;
+}
+
+.dcr-filters .dcr-date {
+    flex: 0 0 9.5rem;
+}
+
+.dcr-filters .dcr-narrow {
+    flex: 0 1 8rem;
 }
 
 .dcr-icon {
@@ -172,6 +307,17 @@
 .dcr-state-flagged {
     color: var(--red, #b42318);
     border-color: currentColor;
+}
+
+/* Identity (registration) is its own dimension, never folded into the financial review chip. */
+.dcr-state-identity {
+    margin-left: 4px;
+    color: var(--accent);
+    border-color: currentColor;
+}
+
+.dcr-state-identity.is-open {
+    color: var(--gold, #8a5a00);
 }
 
 .dcr-actions {
