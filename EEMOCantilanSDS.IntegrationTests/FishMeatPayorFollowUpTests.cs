@@ -130,14 +130,18 @@ public sealed class FishMeatPayorFollowUpTests(PostgresFixture db)
         var before = await ctx.Collections.AsNoTracking().SingleAsync(c => c.Id == id);
         var collectionsBefore = await ctx.Collections.CountAsync(c => c.MunicipalityId == w.TenantId);
 
+        Assert.Equal(43m, (await Office(ctx, w, "SuperAdmin").ManageRegistrationsAsync(Today.Year, Today.Month)).Value!.WalkUpVendorFeeCollected);   // counted, but under no vendor yet
+
         var op = Guid.NewGuid();
         var resolved = await FollowUp(ctx, w).ResolveAsync(new(op, id, Register: new(FishMeatVendorType.Fish, "Giorgia Macapagal", "Giorgia Fish Stand", "Stall 4")));
         Assert.True(resolved.IsSuccess, resolved.Error);
         Assert.True(resolved.Value!.Registered);
         Assert.Equal(Today.Year, resolved.Value.Registration.TaxYear);
 
-        // The registered-vendor registry now carries them; the follow-up no longer does.
-        Assert.Contains((await Office(ctx, w, "SuperAdmin").ManageRegistrationsAsync(Today.Year, Today.Month)).Value!.Rows, r => r.Registration.DisplayName == "Giorgia Macapagal");
+        // The registered-vendor registry now carries them and their linked payment; the follow-up no longer does. The money moves from "walk-up" to the vendor, never twice.
+        var registry = (await Office(ctx, w, "SuperAdmin").ManageRegistrationsAsync(Today.Year, Today.Month)).Value!;
+        Assert.Equal(43m, Assert.Single(registry.Rows, r => r.Registration.DisplayName == "Giorgia Macapagal").VendorFeeCollected);
+        Assert.Equal(0m, registry.WalkUpVendorFeeCollected);
         Assert.Empty((await FollowUp(ctx, w).ListAsync(null, 0, 25)).Value!.Rows);
         Assert.Empty((await Review(ctx, w).GetAsync(new("NeedsRegistration", Today.AddDays(-1), Today))).Value!.Rows);
         Assert.StartsWith("Registered: Giorgia Macapagal", (await Review(ctx, w).GetAsync(new("All", Today.AddDays(-1), Today))).Value!.Rows.Single().Registration);
