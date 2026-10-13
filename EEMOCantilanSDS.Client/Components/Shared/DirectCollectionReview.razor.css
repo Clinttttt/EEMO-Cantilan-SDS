@@ -346,9 +346,14 @@
 }
 
 @media (max-width: 640px) {
-    .dcr-filters .v3-input,
+    /* Search takes the row; the two dates and the two text filters pair up so the filters do not fill the screen. */
     .dcr-filters .dcr-grow {
         flex: 1 1 100%;
+    }
+
+    .dcr-filters .dcr-date,
+    .dcr-filters .dcr-narrow {
+        flex: 1 1 calc(50% - 8px);
     }
 }
 

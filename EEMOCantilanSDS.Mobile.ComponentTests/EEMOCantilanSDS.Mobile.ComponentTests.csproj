@@ -35,6 +35,7 @@
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/NpmWholeSummary.razor" Link="Components/Shared/NpmWholeSummary.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/RecordedNotice.razor" Link="Components/Shared/RecordedNotice.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/CollectorPositionPanel.razor" Link="Components/Shared/CollectorPositionPanel.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/OperationRecordsSection.razor" Link="Components/Shared/OperationRecordsSection.razor" />
     <Using Include="Xunit" />
     <Using Include="EEMOCantilanSDS.Application.Common" />
   </ItemGroup>

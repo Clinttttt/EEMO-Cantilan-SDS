@@ -50,4 +50,4 @@
 .npm-link-pick:hover { border-color: var(--accent); }
 .npm-link-pick.is-picked { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); background: var(--bg); }
 .npm-link-pick:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.npm-link-switch { margin-top: 6px; padding-left: 0; }
+.npm-link-switch { margin-top: 6px; }

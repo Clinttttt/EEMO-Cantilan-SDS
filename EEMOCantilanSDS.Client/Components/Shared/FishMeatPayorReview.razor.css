@@ -151,7 +151,6 @@
 
 .fmp-confirm button {
     justify-self: start;
-    padding-left: 0;
 }
 
 /* Fields in this drawer keep the same rhythm whether or not they sit inside a section. */
