@@ -29,13 +29,12 @@
             </div>
         </div>
 
-        <div class="report-type-tabs">
+        <div class="report-type-tabs" role="group" aria-label="Report view">
             @foreach (var tab in ReportTypes)
             {
-                <div class="report-type-tab @(ActiveReportType == tab ? "active" : "")"
-                     @onclick="() => SetReportType(tab)">
-                    @tab
-                </div>
+                <button type="button" class="report-type-tab @(ActiveReportType == tab ? "active" : "")"
+                        aria-pressed="@(ActiveReportType == tab ? "true" : "false")"
+                        @onclick="() => SetReportType(tab)">@tab</button>
             }
         </div>
 
@@ -183,10 +182,7 @@
                            @bind:event="oninput" />
                     @if (!string.IsNullOrEmpty(PayeeSearch))
                     {
-                        <div style="cursor:pointer;padding:0 4px;color:var(--text-muted);font-size:16px;"
-                             @onclick="() => PayeeSearch = string.Empty">
-                            x
-                        </div>
+                        <button type="button" class="search-clear" aria-label="Clear search" @onclick="() => PayeeSearch = string.Empty">×</button>
                     }
                 </div>
 

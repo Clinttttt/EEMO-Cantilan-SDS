@@ -90,3 +90,49 @@
     font-size: 14px;
     font-weight: 600;
 }
+
+/* The cash position as three figures side by side; they wrap rather than shrink when the screen is narrow. */
+.cpp-figures {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+    gap: 8px;
+    margin: 0;
+}
+
+.cpp-fig {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    padding: 10px 12px;
+    background: var(--mobile-surface);
+    border: 1px solid var(--mobile-border);
+    border-radius: 10px;
+}
+
+.cpp-fig dt {
+    margin: 0;
+    font-size: 11px;
+    color: var(--mobile-text-secondary);
+}
+
+.cpp-fig dd {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--mobile-navy);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
+.cpp-fig.strong {
+    border-color: var(--mobile-blue);
+}
+
+.cpp-fig.strong dd {
+    font-size: 17px;
+}
+
+.cpp-count {
+    font-size: 14px;
+}
