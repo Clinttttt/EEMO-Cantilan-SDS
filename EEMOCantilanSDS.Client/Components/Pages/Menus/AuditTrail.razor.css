@@ -552,3 +552,11 @@ select.af-input::-ms-expand { display: none; }
 .vs-hero-progress-fill {
     background: var(--accent);
 }
+
+/* An event that is not a plain create/update/delete is shown as words and wraps inside its column; the raw event name stays in the tooltip. */
+.audit-row { grid-template-columns: 150px 1.5fr minmax(120px, 11rem) 1.3fr 2fr; }
+.ac-badge-event { max-width: 100%; white-space: normal; overflow-wrap: anywhere; letter-spacing: 0; font-weight: 600; font-size: 0.72rem; line-height: 1.3; }
+.ac-action, .ac-actor-text, .ac-entity, .ac-details { min-width: 0; }
+@media (max-width: 760px) {
+    .audit-row { grid-template-columns: 1fr 1fr; }
+}

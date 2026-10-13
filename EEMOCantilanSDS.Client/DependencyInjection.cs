@@ -148,6 +148,7 @@ namespace EEMOCantilanSDS.Client
             service.AddApiHttpClient<IWcfCollectionsApiClient, WcfCollectionsApiClient>(configuration);
             service.AddApiHttpClient<IUtilityRegisterApiClient, UtilityRegisterApiClient>(configuration);
             service.AddApiHttpClient<IDirectCollectionReviewApiClient, DirectCollectionReviewApiClient>(configuration);
+            service.AddApiHttpClient<IFishMeatPayorFollowUpApiClient, FishMeatPayorFollowUpApiClient>(configuration);
             service.AddApiHttpClient<IFacilitiesApiClient, FacilitiesApiClient>(configuration);
             service.AddApiHttpClient<IDashboardApiClient, DashboardApiClient>(configuration);
             service.AddApiHttpClient<ITransactionsApiClient, TransactionsApiClient>(configuration);

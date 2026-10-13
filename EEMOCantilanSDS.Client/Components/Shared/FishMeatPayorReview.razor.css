@@ -1,0 +1,159 @@
+/* Review payor — the facts, then the one decision. Drawer chrome and form fields come from the shared vendor drawer shell. */
+
+.fmp-facts dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 20px;
+    margin: 0 0 12px;
+}
+
+.fmp-facts dt {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.fmp-facts dd {
+    margin: 2px 0 0;
+    font-size: 0.875rem;
+    overflow-wrap: anywhere;
+}
+
+.fmp-strong {
+    font-weight: 700;
+}
+
+.fmp-note {
+    margin: 6px 0;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+}
+
+.fmp-section {
+    display: grid;
+    gap: 10px;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+}
+
+.fmp-section h3 {
+    margin: 0;
+    color: var(--navy);
+    font-size: 0.9375rem;
+}
+
+.fmp-picks {
+    display: grid;
+    gap: 6px;
+}
+
+.fmp-pick {
+    display: grid;
+    gap: 2px;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-card);
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.fmp-pick strong {
+    font-size: 0.875rem;
+    overflow-wrap: anywhere;
+}
+
+.fmp-pick span {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    overflow-wrap: anywhere;
+}
+
+.fmp-pick:hover {
+    border-color: var(--accent);
+}
+
+.fmp-pick.is-picked {
+    border-color: var(--accent);
+    background: var(--bg);
+    box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.fmp-pick:focus-visible,
+.fmp-seg button:focus-visible,
+.fmp-more summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.fmp-more {
+    margin-top: 12px;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+}
+
+.fmp-more summary {
+    width: max-content;
+    padding: 3px 0;
+    cursor: pointer;
+}
+
+.fmp-more .avm-group {
+    margin-top: 8px;
+}
+
+.fmp-seg {
+    display: inline-grid;
+    grid-auto-flow: column;
+    justify-self: start;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-card);
+}
+
+.fmp-seg button {
+    padding: 7px 20px;
+    border: 0;
+    border-right: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.fmp-seg button:last-child {
+    border-right: 0;
+}
+
+.fmp-seg button.is-active {
+    background: var(--accent);
+    color: var(--bg-card);
+}
+
+.fmp-confirm {
+    display: grid;
+    gap: 4px;
+    margin-top: 14px;
+    padding-left: 12px;
+    border-left: 3px solid var(--accent);
+    font-size: 0.8125rem;
+}
+
+.fmp-confirm span {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.fmp-confirm button {
+    justify-self: start;
+}
+
+/* Fields in this drawer keep the same rhythm whether or not they sit inside a section. */
+.avm-group {
+    margin-top: 14px;
+}

@@ -4,10 +4,12 @@
 @using System.Globalization
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Entities.Revenue
 @inject IOfficeSourcesApiClient OfficeApi
+@inject IFishMeatPayorFollowUpApiClient FollowUpApi
 
 <PageTitle>StallTrack — Fish / Meat Vendors</PageTitle>
 
@@ -24,7 +26,7 @@
              OnSearch="v => _search = v"
              ActiveFilter="@_filter"
              OnFilterChanged="v => _filter = v"
-             Filters="@TypeFilters"
+             Filters="@(_view == ViewRegistered ? TypeFilters : null)"
              SearchPlaceholder="Search vendor, business or address…"
              MiddleContent="@ActionBarContent" />
 
@@ -35,10 +37,21 @@
 
     <section class="v3-panel" aria-labelledby="fmv-registry-title" aria-busy="@(_loading ? "true" : "false")">
         <header class="v3-panel-header">
-            <h2 id="fmv-registry-title">Vendor registry</h2>
+            <div class="fmv-views" role="group" aria-label="Vendor lists">
+                <button type="button" class="fmv-view @(_view == ViewRegistered ? "is-active" : "")" aria-pressed="@(_view == ViewRegistered ? "true" : "false")" @onclick="() => _view = ViewRegistered">Registered (@_rows.Count)</button>
+                <button type="button" class="fmv-view @(_view == ViewNeeds ? "is-active" : "")" aria-pressed="@(_view == ViewNeeds ? "true" : "false")" @onclick="() => _view = ViewNeeds">Needs registration@(_followUpTotal.HasValue ? $" ({_followUpTotal})" : "")</button>
+            </div>
+            <h2 id="fmv-registry-title" class="v3-sr-only">@(_view == ViewRegistered ? "Vendor registry" : "Payors needing registration")</h2>
             <div class="fmv-panel-tools">
-                <span class="v3-panel-meta">@VisibleRows.Count @(VisibleRows.Count == 1 ? "vendor" : "vendors")</span>
-                <a class="v3-btn v3-btn-sm" href="/operations/fish-meat-vendor-fees/manage">Manage</a>
+                @if (_view == ViewRegistered)
+                {
+                    <span class="v3-panel-meta">@VisibleRows.Count @(VisibleRows.Count == 1 ? "vendor" : "vendors")</span>
+                    <a class="v3-btn v3-btn-sm" href="/operations/fish-meat-vendor-fees/manage">Manage</a>
+                }
+                else
+                {
+                    <span class="v3-panel-meta">@VisibleFollowUp.Count @(VisibleFollowUp.Count == 1 ? "payor" : "payors")</span>
+                }
             </div>
         </header>
         @if (!string.IsNullOrWhiteSpace(_error))
@@ -48,6 +61,52 @@
                 <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadAsync">Try again</button>
             </div>
         }
+        @if (_view == ViewNeeds)
+        {
+            @if (_followUpFailed)
+            {
+                <div class="fmv-notice" role="alert">
+                    <p class="v3-notice v3-notice-error">Payors needing registration couldn't be loaded.</p>
+                    <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadFollowUpAsync">Try again</button>
+                </div>
+            }
+            <div class="v3-table-wrap fmv-scroll" role="region" aria-label="Payors needing registration" tabindex="0">
+                <table class="v3-table">
+                    <caption class="v3-sr-only">Direct Fish and Meat vendor fees recorded against a name with no registered vendor. The amounts are payments already received, not balances owed.</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Payor</th>
+                            <th scope="col">Collection</th>
+                            <th scope="col" class="v3-num">Amount paid</th>
+                            <th scope="col">Registration</th>
+                            <th scope="col"><span class="v3-sr-only">Action</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in VisibleFollowUp)
+                        {
+                            <tr @key="row.CollectionId">
+                                <td><span class="v3-strong">@row.Payor</span>@if (!string.IsNullOrWhiteSpace(row.CollectorName)) { <span class="v3-block fmv-sub">Recorded by @row.CollectorName</span> }</td>
+                                <td><span class="fmv-src">@row.ReferenceCode</span><span class="v3-block fmv-sub">@row.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</span></td>
+                                <td class="v3-num">@Money(row.Amount)</td>
+                                <td><span class="fmv-chip">Needs registration</span></td>
+                                <td class="fmv-row-action"><button type="button" class="v3-btn v3-btn-sm" aria-label="@($"Review {row.Payor}, {row.ReferenceCode}")" @onclick="() => _reviewCollection = row.CollectionId">Review</button></td>
+                            </tr>
+                        }
+                        @if (VisibleFollowUp.Count == 0)
+                        {
+                            <tr><td class="v3-empty" colspan="5">@(_followUpLoading ? "Loading payors…" : _followUpFailed ? "Not loaded." : HasSearch ? "No payor matches the search." : "Every direct Fish / Meat payor has a registered vendor.")</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (_followUp.Count < (_followUpTotal ?? 0))
+            {
+                <div class="fmv-more"><button type="button" class="v3-btn v3-btn-sm" disabled="@_followUpLoading" @onclick="LoadMoreFollowUpAsync">Show more (@_followUp.Count of @_followUpTotal)</button></div>
+            }
+        }
+        else
+        {
         <div class="v3-table-wrap fmv-scroll" role="region" aria-label="Registered vendors" tabindex="0">
             <table class="v3-table">
                 <caption class="v3-sr-only">Active Fish and Meat vendors registered for @_taxYear with what each paid in @_monthName</caption>
@@ -82,8 +141,11 @@
                 </tbody>
             </table>
         </div>
+        }
     </section>
 </div>
+
+<FishMeatPayorReview Show="@_reviewCollection.HasValue" CollectionId="_reviewCollection" OnClose="CloseReview" OnResolved="OnPayorResolved" />
 
 <VendorRegistrationDrawer Show="_registering" Model="_form" Title="Register vendor" Subtitle="@($"Tax year {_taxYear}")" SubmitText="Register"
                           Saving="_saving" Error="@_formError" OnSubmit="RegisterAsync" OnCancel="CloseRegister" />
@@ -92,6 +154,19 @@
 @code {
     [SupplyParameterFromQuery(Name = "npmContractId")] public Guid? NpmContractId { get; set; }
     [SupplyParameterFromQuery(Name = "taxYear")] public int? SelectedTaxYear { get; set; }
+    // A deep link from the direct-collection review: ?tab=needs opens the follow-up list and ?collection= opens that payment's review.
+    [SupplyParameterFromQuery(Name = "tab")] public string? Tab { get; set; }
+    [SupplyParameterFromQuery(Name = "collection")] public Guid? FocusCollection { get; set; }
+    private const string ViewRegistered = "registered", ViewNeeds = "needs";
+    private string _view = ViewRegistered;
+    private IReadOnlyList<FishMeatPayorFollowUpRowDto> _followUp = [];
+    private int? _followUpTotal;
+    private bool _followUpFailed, _followUpLoading;
+    private Guid? _reviewCollection;
+    private const int FollowUpPage = 25;
+
+    private List<FishMeatPayorFollowUpRowDto> VisibleFollowUp => _followUp
+        .Where(x => !HasSearch || $"{x.Payor} {x.ReferenceCode}".Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
     private int _taxYear = PhilippineTime.Today.Year;
     private bool _npmReview;
     private int? _npmUnresolved;
@@ -137,6 +212,43 @@
         _monthName = $"{PhilippineTime.Today.ToString("MMMM", CultureInfo.InvariantCulture)} {_taxYear}";
         await LoadAsync();
         if (NpmContractId.HasValue) _npmReview = true;
+        if (string.Equals(Tab, "needs", StringComparison.OrdinalIgnoreCase) || FocusCollection.HasValue) _view = ViewNeeds;
+        if (FocusCollection.HasValue) _reviewCollection = FocusCollection;
+    }
+
+    private async Task LoadFollowUpAsync()
+    {
+        _followUpLoading = true; _followUpFailed = false;
+        try
+        {
+            var result = await FollowUpApi.ListAsync(null, 0, FollowUpPage);
+            if (result is { IsSuccess: true, Value: { } page }) { _followUp = page.Rows; _followUpTotal = page.Total; }
+            else { _followUp = []; _followUpTotal = null; _followUpFailed = true; }
+        }
+        catch { _followUp = []; _followUpTotal = null; _followUpFailed = true; }
+        finally { _followUpLoading = false; }
+    }
+
+    private async Task LoadMoreFollowUpAsync()
+    {
+        _followUpLoading = true;
+        try
+        {
+            var result = await FollowUpApi.ListAsync(null, _followUp.Count, FollowUpPage);
+            if (result is { IsSuccess: true, Value: { } page }) { _followUp = _followUp.Concat(page.Rows.Where(r => _followUp.All(x => x.CollectionId != r.CollectionId))).ToList(); _followUpTotal = page.Total; }
+            else _followUpFailed = true;
+        }
+        catch { _followUpFailed = true; }
+        finally { _followUpLoading = false; }
+    }
+
+    private void CloseReview() => _reviewCollection = null;
+
+    private async Task OnPayorResolved(string message)
+    {
+        _reviewCollection = null;
+        _saved = message;
+        await LoadAsync();
     }
 
     private async Task LoadAsync()
@@ -154,6 +266,7 @@
         finally { _loading = false; }
         try { var candidates = await OfficeApi.NpmVendorCandidatesAsync(_taxYear); _npmUnresolved = candidates?.IsSuccess == true ? candidates.Value!.UnresolvedCount : null; }
         catch { _npmUnresolved = null; }
+        await LoadFollowUpAsync();
     }
 
     private void OpenRegister()

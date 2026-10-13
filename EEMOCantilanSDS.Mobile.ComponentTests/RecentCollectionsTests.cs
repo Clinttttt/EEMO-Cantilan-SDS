@@ -81,7 +81,7 @@ public sealed class RecentCollectionsTests : TestContext
         view.Find(".rc-row").Click();
 
         var sheet = view.Find("[role=dialog]");
-        Assert.Equal(["Close", "Remove", "Edit"], sheet.QuerySelectorAll(".sheet-actions button").Select(b => b.TextContent.Trim()).ToArray());
+        Assert.Equal(["Close", "Remove", "Correct record"], sheet.QuerySelectorAll(".sheet-actions button").Select(b => b.TextContent.Trim()).ToArray());
         Assert.DoesNotContain("ask the office", sheet.TextContent, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("never edited", sheet.TextContent, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("SRC-2026-000021", sheet.TextContent);
@@ -97,6 +97,7 @@ public sealed class RecentCollectionsTests : TestContext
         var sheet = view.Find("[role=dialog]");
         Assert.Equal(["Close"], sheet.QuerySelectorAll(".sheet-actions button").Select(b => b.TextContent.Trim()).ToArray());
         Assert.Contains("already remitted", sheet.QuerySelector(".rc-block")!.TextContent);   // worded from the code
+        Assert.Contains("Ask the office to review it", sheet.QuerySelector(".rc-block")!.TextContent);   // the window is closed: the office can still review
     }
 
     [Fact]
@@ -106,7 +107,7 @@ public sealed class RecentCollectionsTests : TestContext
         var view = Open(row);
         view.Find(".rc-row").Click();
 
-        view.FindAll(".sheet-actions button").Single(b => b.TextContent.Trim() == "Edit").Click();
+        view.FindAll(".sheet-actions button").Single(b => b.TextContent.Trim() == "Correct record").Click();
 
         Assert.EndsWith($"/collections/new?correct={row.Collection.CollectionId}", Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().Uri);
     }
@@ -163,7 +164,7 @@ public sealed class RecentCollectionsTests : TestContext
         var view = Open(Recent("SRC-2026-000021", 75m, "Fish / Meat Vendor Fee", edit: true, remove: true));
         view.Find(".rc-row").Click();
 
-        var buttons = view.FindAll(".sheet-actions button").Where(b => b.TextContent.Trim() is "Edit" or "Remove").ToList();
+        var buttons = view.FindAll(".sheet-actions button").Where(b => b.TextContent.Trim() is "Correct record" or "Remove").ToList();
 
         Assert.All(buttons, b => Assert.True(b.HasAttribute("disabled")));
         Assert.Contains("Connect to correct a collection", view.Find("[role=dialog]").TextContent);

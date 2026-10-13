@@ -1,0 +1,211 @@
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@using System.Globalization
+@inject IFishMeatPayorFollowUpApiClient FollowUp
+@inject IOfficeSourcesApiClient Office
+
+@* Review one posted direct Fish / Meat Vendor Fee whose payor is only a name. The payment stays exactly as the Collector recorded it: this drawer
+   only lets the Head say who paid, by registering the vendor or linking an existing registration of the collection's tax year. A similar name is a
+   suggestion until the Head picks it; nothing here posts, edits or reverses money, and only the Head can save. *@
+@if (Show)
+{
+<VendorDrawerShell Show="Show" Title="Review payor" Subtitle="@(_detail is null ? "Direct Fish / Meat Vendor Fee" : _detail.Row.ReferenceCode)" OnClose="CloseAsync">
+    <Icon><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg></Icon>
+    <ChildContent>
+        @if (_loading) { <p role="status">Loading…</p> }
+        else if (_detail is null) { <div class="avm-error" role="alert">@(_error ?? "This collection could not be loaded.")</div> }
+        else
+        {
+            <section class="fmp-facts" aria-label="Collection">
+                <dl>
+                    <div><dt>Payor as recorded</dt><dd class="fmp-strong">@_detail.Row.Payor</dd></div>
+                    <div><dt>Amount paid</dt><dd class="fmp-strong">@Money(_detail.Row.Amount)</dd></div>
+                    <div><dt>SRC</dt><dd>@_detail.Row.ReferenceCode</dd></div>
+                    <div><dt>Date</dt><dd>@_detail.Row.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</dd></div>
+                    <div><dt>Collector</dt><dd>@(_detail.Row.CollectorName ?? "—")</dd></div>
+                    <div><dt>@(_detail.DocumentKind == "CashTicket" ? "Cash Ticket" : "Official Receipt")</dt><dd>@(_detail.DocumentNumber ?? "None recorded")</dd></div>
+                </dl>
+                <p class="fmp-note">This payment is already posted and counted. Identifying the payor does not change it.</p>
+            </section>
+
+            @if (_detail.LinkedVendor is not null)
+            {
+                <section class="fmp-section" aria-label="Linked vendor">
+                    <h3>Linked vendor</h3>
+                    <p><strong>@_detail.LinkedVendor</strong> · linked by @_detail.LinkedBy@(_detail.LinkedAtUtc is { } at ? $" · {at.Add(PhilippineTime.Offset).ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}" : "")</p>
+                </section>
+            }
+            else if (!_head)
+            {
+                <p class="fmp-note" role="status">Only the Head can register a vendor or link this payor.</p>
+            }
+            else
+            {
+                @if (_detail.Suggestions.Count > 0)
+                {
+                    <section class="fmp-section" aria-label="Possible matches">
+                        <h3>Possible matches</h3>
+                        <p class="fmp-note">Similar names are suggestions only. Choose one only if it is the same vendor.</p>
+                        <div class="fmp-picks" role="group" aria-label="Possible matches">
+                            @foreach (var s in _detail.Suggestions) { <button type="button" class="fmp-pick @(_vendorId == s.Registration.Id ? "is-picked" : "")" aria-pressed="@(_vendorId == s.Registration.Id ? "true" : "false")" @onclick="() => Pick(s.Registration.Id)"><strong>@s.Registration.DisplayName</strong><span>@s.Registration.VendorType · @(s.Registration.BusinessName ?? "No business name recorded")</span></button> }
+                        </div>
+                    </section>
+                }
+
+                <details class="fmp-more">
+                    <summary>Link to another registered vendor</summary>
+                    <div class="avm-group"><label class="avm-label" for="fmp-search">Search registered vendors, @_detail.TaxYear</label>
+                    <input id="fmp-search" class="avm-input" type="search" autocomplete="off" placeholder="Vendor or business" @bind="_search" @bind:event="oninput" @bind:after="LoadVendorsAsync" /></div>
+                    @if (_search.Trim().Length >= 2)
+                    {
+                        <div class="fmp-picks" role="group" aria-label="Search results">
+                            @foreach (var v in Matches) { <button type="button" class="fmp-pick @(_vendorId == v.Id ? "is-picked" : "")" aria-pressed="@(_vendorId == v.Id ? "true" : "false")" @onclick="() => Pick(v.Id)"><strong>@v.DisplayName</strong><span>@v.VendorType · @(v.BusinessName ?? "No business name recorded")</span></button> }
+                            @if (!Matches.Any()) { <p class="fmp-note">No registered vendor matches.</p> }
+                        </div>
+                    }
+                </details>
+
+                @if (_vendorId is null)
+                {
+                    <section class="fmp-section" aria-label="Register vendor">
+                        <h3>Register as a new vendor</h3>
+                        <div class="avm-group"><label class="avm-label" for="fmp-name">Vendor name <span class="avm-req">*</span></label>
+                        <input id="fmp-name" class="avm-input" maxlength="200" autocomplete="off" @bind="_form.Name" @bind:event="oninput" /></div>
+                        <div class="avm-group"><label class="avm-label">Type <span class="avm-req">*</span></label>
+                        <div class="fmp-seg" role="group" aria-label="Vendor type">
+                            <button type="button" class="@(_type == FishMeatVendorType.Fish ? "is-active" : "")" aria-pressed="@(_type == FishMeatVendorType.Fish ? "true" : "false")" @onclick="() => _type = FishMeatVendorType.Fish">Fish</button>
+                            <button type="button" class="@(_type == FishMeatVendorType.Meat ? "is-active" : "")" aria-pressed="@(_type == FishMeatVendorType.Meat ? "true" : "false")" @onclick="() => _type = FishMeatVendorType.Meat">Meat</button>
+                        </div></div>
+                        <div class="avm-group"><label class="avm-label" for="fmp-business">Business name</label>
+                        <input id="fmp-business" class="avm-input" maxlength="200" autocomplete="off" @bind="_form.Business" @bind:event="oninput" /></div>
+                        <div class="avm-group"><label class="avm-label" for="fmp-address">Address</label>
+                        <input id="fmp-address" class="avm-input" maxlength="300" autocomplete="off" @bind="_form.Address" @bind:event="oninput" /></div>
+                    </section>
+                }
+                else if (PickedVendor is { } picked)
+                {
+                    <div class="fmp-confirm"><strong>@picked.DisplayName</strong><span>@picked.VendorType · @(picked.BusinessName ?? "No business name recorded") · Tax year @picked.TaxYear</span>
+                        <button type="button" class="btn-ghost" @onclick="() => _vendorId = null">Register a new vendor instead</button></div>
+                }
+
+                <div class="avm-group"><label class="avm-label" for="fmp-note">Note</label>
+                <input id="fmp-note" class="avm-input" maxlength="300" autocomplete="off" placeholder="Optional: how the identity was checked" @bind="_note" @bind:event="oninput" /></div>
+            }
+            @if (_error is not null) { <div class="avm-error" role="alert">@_error</div> }
+        }
+    </ChildContent>
+    <Footer>
+        <button class="btn-ghost" type="button" disabled="@_saving" @onclick="CloseAsync">@(CanResolve ? "Keep pending" : "Close")</button>
+        @if (CanResolve)
+        {
+            <button class="btn-primary" type="button" disabled="@(_saving || !CanSubmit)" @onclick="ResolveAsync">@(_vendorId is null ? "Register and link" : "Link to this vendor")</button>
+        }
+    </Footer>
+</VendorDrawerShell>
+}
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public Guid? CollectionId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    /// <summary>Raised after the payor was registered or linked, with the sentence to show the Head.</summary>
+    [Parameter] public EventCallback<string> OnResolved { get; set; }
+    [CascadingParameter] private Task<AuthenticationState>? Authentication { get; set; }
+
+    private FishMeatPayorFollowUpDetailDto? _detail;
+    private IReadOnlyList<FishMeatVendorRegistrationDto> _vendors = [];
+    private readonly VendorRegistrationForm _form = new();
+    private FishMeatVendorType? _type;
+    private Guid? _vendorId, _loadedFor;
+    private string _search = "", _note = "";
+    private string? _error, _submittedIntent;
+    private bool _head, _loading, _saving;
+    private Guid _operation = Guid.NewGuid();
+
+    private bool CanResolve => _head && _detail is { LinkedVendor: null };
+    private bool CanSubmit => _vendorId is not null || (_form.Name.Trim().Length >= 2 && _type is not null);
+    private FishMeatVendorRegistrationDto? PickedVendor =>
+        _vendorId is { } id ? _detail?.Suggestions.Select(s => s.Registration).Concat(_vendors).FirstOrDefault(x => x.Id == id) : null;
+    private IEnumerable<FishMeatVendorRegistrationDto> Matches => _vendors
+        .Where(x => $"{x.DisplayName} {x.BusinessName}".Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase)).Take(6);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Show) { _loadedFor = null; return; }
+        if (CollectionId is not { } id || _loadedFor == id) return;
+        _loadedFor = id;
+        _head = Authentication is not null && (await Authentication).User.IsInRole("SuperAdmin");
+        _loading = true; _error = null; _detail = null; _vendorId = null; _search = ""; _note = ""; _type = null; _vendors = [];
+        _submittedIntent = null; _operation = Guid.NewGuid();
+        try
+        {
+            var result = await FollowUp.DetailAsync(id);
+            if (_loadedFor != id) return;
+            if (result is { IsSuccess: true, Value: { } detail })
+            {
+                _detail = detail;
+                _form.Name = detail.Row.Payor == "No payer named" ? "" : detail.Row.Payor;
+                _form.Business = _form.Address = "";
+            }
+            else _error = "This collection could not be loaded.";
+        }
+        catch { if (_loadedFor == id) _error = "This collection could not be loaded."; }
+        finally { if (_loadedFor == id) _loading = false; }
+    }
+
+    private async Task LoadVendorsAsync()
+    {
+        if (_vendors.Count > 0 || _detail is null || _search.Trim().Length < 2) return;
+        try
+        {
+            var result = await Office.RegistrationsAsync(_detail.TaxYear);
+            if (result.IsSuccess) _vendors = result.Value!;
+        }
+        catch { /* the search stays empty; the suggestions and the registration form still work */ }
+    }
+
+    private void Pick(Guid id) { _vendorId = id; _error = null; }
+
+    private async Task ResolveAsync()
+    {
+        if (_saving || !CanResolve || !CanSubmit || _detail is null) return;
+        // An unchanged retry keeps its operation id (an unknown response is never saved twice); any edit is a new intent.
+        var intent = $"{_vendorId}|{_form.Fingerprint}|{_type}|{_note}";
+        if (_submittedIntent is not null && _submittedIntent != intent) _operation = Guid.NewGuid();
+        _submittedIntent = intent;
+        _saving = true; _error = null;
+        try
+        {
+            var request = _vendorId is { } vendor
+                ? new FishMeatPayorResolveRequest(_operation, _detail.Row.CollectionId, vendor, null, VendorRegistrationForm.Blank(_note))
+                : new FishMeatPayorResolveRequest(_operation, _detail.Row.CollectionId, null,
+                    new(_type!.Value, _form.Name.Trim(), VendorRegistrationForm.Blank(_form.Business), VendorRegistrationForm.Blank(_form.Address)), VendorRegistrationForm.Blank(_note));
+            var result = await FollowUp.ResolveAsync(request);
+            if (result is { IsSuccess: true, Value: { } done })
+            {
+                var message = $"{done.Registration.DisplayName} {(done.Registered ? "registered for" : "linked for")} {done.Registration.TaxYear}. {_detail.Row.ReferenceCode} and its amount are unchanged.";
+                await OnResolved.InvokeAsync(message);
+            }
+            else _error = Problem(result?.Error);
+        }
+        catch { _error = "This could not be saved. Retrying keeps the same request."; }
+        finally { _saving = false; }
+    }
+
+    // The server's stable codes decide the wording; no message text is read.
+    private static string Problem(string? code) => code switch
+    {
+        "RegistrationIntentConflict" => "This registration was already submitted with different details. Close the drawer and try again.",
+        "RegistryConcurrencyConflict" => "Another change was saved at the same time. Try again.",
+        "RegistrationClosed" => "That registration is closed. Choose an active one.",
+        _ when code?.Contains("already linked", StringComparison.OrdinalIgnoreCase) == true => "This collection was just linked by someone else. Close and reopen it.",
+        _ when code?.Contains("year of this collection", StringComparison.OrdinalIgnoreCase) == true => "Choose a registration for the year of this collection.",
+        _ => "This could not be saved. Check the details and try again."
+    };
+
+    private async Task CloseAsync() { if (!_saving) await OnClose.InvokeAsync(); }
+    private static string Money(decimal amount) => $"₱{amount.ToString("N2", CultureInfo.InvariantCulture)}";
+}

@@ -21,6 +21,9 @@ public sealed class DirectCollectionReviewApiClient(HttpClient http) : HandleRes
         return GetAsync<DirectCollectionReviewPageDto>("api/direct-collection-review?" + string.Join("&", query));
     }
 
+    public Task<Result<DirectCollectionDetailDto>> DetailAsync(Guid collectionId) =>
+        GetAsync<DirectCollectionDetailDto>($"api/direct-collection-review/{collectionId}");
+
     public Task<Result<DirectCollectionReviewRowDto>> ReviewAsync(DirectCollectionReviewActionRequest request) =>
         PostAsync<DirectCollectionReviewActionRequest, DirectCollectionReviewRowDto>("api/direct-collection-review/review", request);
 

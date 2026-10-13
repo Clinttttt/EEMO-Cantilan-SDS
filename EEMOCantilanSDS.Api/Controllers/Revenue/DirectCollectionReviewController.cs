@@ -21,6 +21,10 @@ public sealed class DirectCollectionReviewController(ISender sender, DirectColle
         [FromQuery] string? search, [FromQuery] int skip = 0, [FromQuery] int take = 25, CancellationToken ct = default) =>
         HandleResponse(await workflow.GetAsync(new(state ?? "Pending", from, to, operation, collector, search, skip, take), ct));
 
+    [HttpGet("{collectionId:guid}")]
+    public async Task<ActionResult<DirectCollectionDetailDto>> Detail(Guid collectionId, CancellationToken ct = default) =>
+        HandleResponse(await workflow.GetDetailAsync(collectionId, ct));
+
     [HttpPost("review")]
     public async Task<ActionResult<DirectCollectionReviewRowDto>> Review([FromBody] DirectCollectionReviewActionRequest request, CancellationToken ct = default) =>
         HandleResponse(await workflow.ReviewAsync(request, ct));

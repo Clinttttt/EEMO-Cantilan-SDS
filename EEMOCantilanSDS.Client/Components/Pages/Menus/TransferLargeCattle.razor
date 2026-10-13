@@ -11,10 +11,14 @@
    livestock registry or certificate system. Nothing on this page records money. The layout owns the <main> landmark. *@
 <div class="v3-page">
     @* Identity only: the workspace below owns the collections and setup reads, so the hero adds no second figure or request. *@
-    <V3Hero OperationCode="TRANSFER_LARGE_CATTLE" Compact="true" Eyebrow="Operations · Governed service" Title="Transfer Large Cattle">
+    <V3Hero OperationCode="TRANSFER_LARGE_CATTLE" Compact="true" Eyebrow="Operation · Governed service" Title="Transfer Large Cattle" Subtitle="Official Receipt collection workspace">
         <Icon><svg viewBox="0 0 24 24"><path d="M3 8h13l4 4v5h-3" /><circle cx="8" cy="17" r="2" /><circle cx="17" cy="17" r="2" /><path d="M3 8v9h3m5 0h4" /></svg></Icon>
-        <Meta><span>Occasional transfer, direct approved amount</span><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
-        <Actions><a href="/operations/transfer-large-cattle/report">Report</a></Actions>
+        <Actions>
+            <a class="v3-btn" href="/operations/transfer-large-cattle/report">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17" x2="13" y2="17" /></svg>
+                Report
+            </a>
+        </Actions>
     </V3Hero>
 
     <GovernedServiceWorkspace OperationCode="@CollectorOperationCodes.TransferLargeCattle" Name="Transfer Large Cattle" />

@@ -3,6 +3,7 @@ using Bunit.TestDoubles;
 using EEMOCantilanSDS.Application.Common;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
+using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Client.Components.Pages.Menus;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,6 +17,7 @@ public sealed class FishMeatVendorRegistryTests : TestContext
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
     private readonly Mock<IOfficeSourcesApiClient> _office = new();
+    private readonly Mock<IFishMeatPayorFollowUpApiClient> _followUp = new();
     private static readonly int Year = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year;
     private static readonly int Month = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Month;
 
@@ -34,6 +36,8 @@ public sealed class FishMeatVendorRegistryTests : TestContext
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.FacilityState>();
         Services.AddSingleton(_office.Object);
+        Services.AddSingleton(_followUp.Object);
+        _followUp.Setup(x => x.ListAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<int>())).ReturnsAsync(Result<FishMeatPayorFollowUpPageDto>.Success(new([], 0)));
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
         _office.Setup(x => x.ManageRegistrationsAsync(Year, Month, VendorRegistrationStatus.Active, null)).ReturnsAsync(Result<VendorRegistryManagement>.Success(
@@ -176,6 +180,117 @@ public sealed class FishMeatVendorRegistryTests : TestContext
         Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Trim() == "Register vendor");
         Assert.DoesNotContain(cut.FindAll("a"), a => a.TextContent.Trim() == "Import list");
         Assert.Contains(cut.FindAll("a"), a => a.TextContent.Trim() == "Manage");
+    }
+
+    private static FishMeatPayorFollowUpRowDto Payor(string name = "Giorgia Macapagal", decimal amount = 43m) =>
+        new(Guid.NewGuid(), "SRC-2026-000042", new DateOnly(2026, 10, 13), new DateTime(2026, 10, 13, 2, 0, 0, DateTimeKind.Utc), name, amount, "Pat Collector");
+
+    private static FishMeatPayorFollowUpDetailDto PayorDetail(FishMeatPayorFollowUpRowDto row, params FishMeatPayorSuggestionDto[] suggestions) =>
+        new(row, "OR 7700123", "OfficialReceipt", "Posted", 2026, suggestions, null, null, null);
+
+    [Fact]
+    public void ADirectPayorWhoIsOnlyANameAppearsUnderNeedsRegistration_NotInTheRegistry_AndItsAmountIsNotABalance()
+    {
+        var row = Payor();
+        _followUp.Setup(x => x.ListAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<int>())).ReturnsAsync(Result<FishMeatPayorFollowUpPageDto>.Success(new([row], 1)));
+        var cut = RenderComponent<FishMeatVendorFees>();
+        cut.WaitForAssertion(() => Assert.Contains("Needs registration (1)", cut.Find(".fmv-views").TextContent), Timeout);
+        Assert.DoesNotContain("Giorgia Macapagal", cut.Markup);               // never listed as a registered vendor
+
+        cut.FindAll(".fmv-view").Single(b => b.TextContent.StartsWith("Needs registration")).Click();
+
+        var table = cut.Find("table");
+        Assert.Equal(["Payor", "Collection", "Amount paid", "Registration", "Action"], table.QuerySelectorAll("thead th").Select(h => h.TextContent.Trim()).ToArray());
+        var text = table.QuerySelector("tbody tr")!.TextContent;
+        Assert.Contains("Giorgia Macapagal", text); Assert.Contains("SRC-2026-000042", text); Assert.Contains("₱43.00", text); Assert.Contains("Needs registration", text);
+        Assert.Empty(cut.FindAll(".filter-tab"));                             // Fish/Meat filters belong to the registry, not to an unregistered payor
+        Assert.Contains("already received", table.QuerySelector("caption")!.TextContent);
+    }
+
+    [Fact]
+    public void ReviewOpensThePayorsCollection_AndRegisteringLinksItWithoutChangingTheAmount()
+    {
+        var row = Payor();
+        _followUp.Setup(x => x.ListAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<int>())).ReturnsAsync(Result<FishMeatPayorFollowUpPageDto>.Success(new([row], 1)));
+        _followUp.Setup(x => x.DetailAsync(row.CollectionId)).ReturnsAsync(Result<FishMeatPayorFollowUpDetailDto>.Success(PayorDetail(row)));
+        FishMeatPayorResolveRequest? sent = null;
+        _followUp.Setup(x => x.ResolveAsync(It.IsAny<FishMeatPayorResolveRequest>())).Callback<FishMeatPayorResolveRequest>(r => sent = r)
+            .ReturnsAsync(Result<FishMeatPayorResolveResult>.Success(new(row.CollectionId, new(Guid.NewGuid(), 2026, FishMeatVendorType.Fish, VendorRegistrationKind.New, "Giorgia Macapagal", null, null, null), true)));
+        var cut = RenderComponent<FishMeatVendorFees>();
+        cut.WaitForAssertion(() => Assert.Contains("(1)", cut.Find(".fmv-views").TextContent), Timeout);
+        cut.FindAll(".fmv-view").Single(b => b.TextContent.StartsWith("Needs registration")).Click();
+
+        cut.Find("button[aria-label='Review Giorgia Macapagal, SRC-2026-000042']").Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("OR 7700123", cut.Find(".eemo-drawer.show").TextContent), Timeout);
+        var drawer = cut.Find(".eemo-drawer.show").TextContent;
+        Assert.Contains("₱43.00", drawer); Assert.Contains("already posted and counted", drawer);
+        Assert.Equal("Giorgia Macapagal", cut.Find("#fmp-name").GetAttribute("value"));             // prefilled from what the Collector recorded
+        Assert.True(cut.Find(".eemo-drawer-footer .btn-primary").HasAttribute("disabled"));         // the vendor type is never assumed
+        cut.FindAll(".fmp-seg button").Single(b => b.TextContent == "Meat").Click();
+        cut.Find("#fmp-address").Input("Stall 4");
+        cut.Find(".eemo-drawer-footer .btn-primary").Click();
+
+        cut.WaitForAssertion(() => Assert.NotNull(sent), Timeout);
+        Assert.Equal(row.CollectionId, sent!.CollectionId); Assert.Null(sent.VendorRegistrationId);
+        Assert.Equal((FishMeatVendorType.Meat, "Giorgia Macapagal", "Stall 4"), (sent.Register!.VendorType, sent.Register.DisplayName, sent.Register.Address));
+        cut.WaitForAssertion(() => Assert.Contains("registered for 2026. SRC-2026-000042 and its amount are unchanged", cut.Find(".fmv-saved").TextContent), Timeout);
+    }
+
+    [Fact]
+    public void ASimilarNameIsOnlyASuggestion_UntilTheHeadPicksIt_ThenItLinksThatExistingVendor()
+    {
+        var row = Payor("Lisa Ilogans");
+        var existing = new FishMeatVendorRegistrationDto(Guid.NewGuid(), 2026, FishMeatVendorType.Fish, VendorRegistrationKind.New, "Lisa Ilogans", "Ilogans Fish Stall", null, null);
+        _followUp.Setup(x => x.ListAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<int>())).ReturnsAsync(Result<FishMeatPayorFollowUpPageDto>.Success(new([row], 1)));
+        _followUp.Setup(x => x.DetailAsync(row.CollectionId)).ReturnsAsync(Result<FishMeatPayorFollowUpDetailDto>.Success(PayorDetail(row, new FishMeatPayorSuggestionDto(existing, "Similar name"))));
+        FishMeatPayorResolveRequest? sent = null;
+        _followUp.Setup(x => x.ResolveAsync(It.IsAny<FishMeatPayorResolveRequest>())).Callback<FishMeatPayorResolveRequest>(r => sent = r)
+            .ReturnsAsync(Result<FishMeatPayorResolveResult>.Success(new(row.CollectionId, existing, false)));
+        var cut = RenderComponent<FishMeatVendorFees>();
+        cut.WaitForAssertion(() => Assert.Contains("(1)", cut.Find(".fmv-views").TextContent), Timeout);
+        cut.FindAll(".fmv-view").Single(b => b.TextContent.StartsWith("Needs registration")).Click();
+        cut.Find("button[aria-label='Review Lisa Ilogans, SRC-2026-000042']").Click();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".fmp-pick")), Timeout);
+
+        Assert.Empty(cut.FindAll(".fmp-pick.is-picked"));                                            // nothing is chosen for the Head
+        Assert.Equal("Register and link", cut.Find(".eemo-drawer-footer .btn-primary").TextContent.Trim());
+        cut.Find(".fmp-pick").Click();
+        Assert.Equal("Link to this vendor", cut.Find(".eemo-drawer-footer .btn-primary").TextContent.Trim());
+        Assert.Empty(cut.FindAll("#fmp-name"));                                                      // linking shows no registration form
+        cut.Find(".eemo-drawer-footer .btn-primary").Click();
+
+        cut.WaitForAssertion(() => Assert.NotNull(sent), Timeout);
+        Assert.Equal(existing.Id, sent!.VendorRegistrationId); Assert.Null(sent.Register);
+        cut.WaitForAssertion(() => Assert.Contains("linked for 2026", cut.Find(".fmv-saved").TextContent), Timeout);
+    }
+
+    [Fact]
+    public void AnAdminSeesThePayorButCannotRegisterOrLink()
+    {
+        this.AddTestAuthorization().SetAuthorized("admin").SetRoles("Admin");
+        var row = Payor();
+        _followUp.Setup(x => x.ListAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<int>())).ReturnsAsync(Result<FishMeatPayorFollowUpPageDto>.Success(new([row], 1)));
+        _followUp.Setup(x => x.DetailAsync(row.CollectionId)).ReturnsAsync(Result<FishMeatPayorFollowUpDetailDto>.Success(PayorDetail(row)));
+        var cut = RenderComponent<FishMeatVendorFees>();
+        cut.WaitForAssertion(() => Assert.Contains("(1)", cut.Find(".fmv-views").TextContent), Timeout);
+        cut.FindAll(".fmv-view").Single(b => b.TextContent.StartsWith("Needs registration")).Click();
+        cut.Find("button[aria-label='Review Giorgia Macapagal, SRC-2026-000042']").Click();
+        cut.WaitForAssertion(() => Assert.Contains("Only the Head can register", cut.Find(".eemo-drawer.show").TextContent), Timeout);
+        Assert.Empty(cut.FindAll(".eemo-drawer.show .eemo-drawer-footer .btn-primary"));
+        Assert.Empty(cut.FindAll("#fmp-name"));
+    }
+
+    [Fact]
+    public void AFailedNeedsRegistrationLoad_IsNotAnEmptyList()
+    {
+        _followUp.Setup(x => x.ListAsync(It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<int>())).ReturnsAsync(Result<FishMeatPayorFollowUpPageDto>.Failure("boom"));
+        var cut = RenderComponent<FishMeatVendorFees>();
+        cut.WaitForAssertion(() => Assert.Contains("Lisa Ilogans", cut.Markup), Timeout);
+        Assert.DoesNotContain("(0)", cut.Find(".fmv-views").TextContent.Replace("Registered (", ""));
+        cut.FindAll(".fmv-view").Single(b => b.TextContent.StartsWith("Needs registration")).Click();
+        Assert.Contains("couldn't be loaded", cut.Find("[role=alert]").TextContent);
+        Assert.DoesNotContain("Every direct Fish / Meat payor has a registered vendor", cut.Markup);
     }
 
     [Fact]

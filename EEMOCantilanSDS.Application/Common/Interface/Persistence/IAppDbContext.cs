@@ -37,6 +37,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<FishMeatNpmAssociation> FishMeatNpmAssociations { get; }
         DbSet<DirectCollectionReviewEvent> DirectCollectionReviewEvents { get; }
         DbSet<SpaceHolderImportRun> SpaceHolderImportRuns { get; }
+        DbSet<FishMeatDirectCollectionLink> FishMeatDirectCollectionLinks { get; }
         DbSet<RevenueClassificationPolicy> RevenueClassificationPolicies { get; }
         DbSet<EEMOCantilanSDS.Domain.Entities.Revenue.Collection> Collections { get; }
         DbSet<EEMOCantilanSDS.Domain.Entities.Revenue.CollectionLine> CollectionLines { get; }

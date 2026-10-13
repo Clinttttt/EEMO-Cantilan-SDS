@@ -32,7 +32,9 @@ public sealed class NpmVendorAssociationTests : TestContext
         _api.Setup(x => x.RegistrationsAsync(Year)).ReturnsAsync(Result<IReadOnlyList<FishMeatVendorRegistrationDto>>.Success([_vendor]));
     }
     private IRenderedComponent<NpmVendorRegistrationWorkflow> Open() => RenderComponent<NpmVendorRegistrationWorkflow>(p => p.Add(x => x.Show, true).Add(x => x.TaxYear, Year));
-    private static void Choose(IRenderedComponent<NpmVendorRegistrationWorkflow> cut, string title) => cut.FindAll("[role=radio]").Single(x => x.TextContent == title).Click();
+    // The first step follows the situation (no match: register from NPM; a similar name: link); a quiet switch changes it.
+    private static void SwitchPath(IRenderedComponent<NpmVendorRegistrationWorkflow> cut) => cut.Find(".npm-link-switch").Click();
+    private static void PickVendor(IRenderedComponent<NpmVendorRegistrationWorkflow> cut, string search) { cut.Find("#npm-vendor-search").Input(search); cut.Find(".npm-link-pick").Click(); }
 
     [Fact]
     public void Source_review_prefills_existing_drawer_without_inventing_business_or_address()
@@ -40,7 +42,6 @@ public sealed class NpmVendorAssociationTests : TestContext
         var cut = Open(); cut.Find(".npm-link-candidate").Click();
         Assert.False(cut.FindAll("button").Single(x => x.TextContent == "Back").HasAttribute("disabled"));
         Assert.Contains(_source.ContractId.ToString(), cut.Markup);
-        Choose(cut, "Register new vendor");
         cut.Find("#npm-confirmation").Change("Office checked source and person");
         cut.Find("footer .btn-primary").Click();
         var form = cut.FindComponent<VendorRegistrationDrawer>();
@@ -57,8 +58,8 @@ public sealed class NpmVendorAssociationTests : TestContext
             .Callback<Guid, ConfirmNpmVendorAssociationRequest>((_, r) => sent = r)
             .ReturnsAsync(Result<NpmVendorAssociationDto>.Failure("test", ResultStatus.Invalid));
         var cut = Open(); cut.Find(".npm-link-candidate").Click();
-        Choose(cut, "Link existing registration");
-        cut.Find("#npm-vendor").Change(_vendor.Id.ToString()); cut.Find("#npm-confirmation").Change("Verified office evidence");
+        SwitchPath(cut);
+        PickVendor(cut, "Existing"); cut.Find("#npm-confirmation").Change("Verified office evidence");
         cut.Find("footer .btn-primary").Click();
         cut.WaitForAssertion(() => Assert.NotNull(sent)); Assert.Equal(_source.ContractId, sent!.ContractId); Assert.Equal(_source.StallId, sent.StallId);
         _api.Verify(x => x.RegisterAsync(It.IsAny<RegisterFishMeatVendorRequest>()), Times.Never);
@@ -69,7 +70,7 @@ public sealed class NpmVendorAssociationTests : TestContext
         var requests = new List<RegisterFishMeatVendorRequest>();
         _api.Setup(x => x.RegisterAsync(It.IsAny<RegisterFishMeatVendorRequest>())).Callback<RegisterFishMeatVendorRequest>(requests.Add)
             .ReturnsAsync(Result<FishMeatVendorRegistrationDto>.Failure("test", ResultStatus.Invalid));
-        var cut = Open(); cut.Find(".npm-link-candidate").Click(); Choose(cut, "Register new vendor"); cut.Find("#npm-confirmation").Change("Confirmed source");
+        var cut = Open(); cut.Find(".npm-link-candidate").Click(); cut.Find("#npm-confirmation").Change("Confirmed source");
         cut.Find("footer .btn-primary").Click();
         cut.Find("form").Submit(); cut.Find("form").Submit();
         Assert.Equal(2, requests.Count); Assert.Equal(requests[0].ClientOperationId, requests[1].ClientOperationId);
@@ -80,9 +81,11 @@ public sealed class NpmVendorAssociationTests : TestContext
     public void Name_matches_require_review_and_do_not_auto_link()
     {
         _api.Setup(x => x.NpmVendorCandidatesAsync(Year, It.IsAny<bool>(), It.IsAny<bool>())).ReturnsAsync(Result<NpmVendorCandidates>.Success(new(Year, 1, [_source with { PossibleMatches = [_vendor] }])));
-        var cut = Open(); cut.Find(".npm-link-candidate").Click(); Choose(cut, "Link existing registration");
-        Assert.Contains("Possible name matches", cut.Markup); Assert.Equal("", cut.Find("#npm-vendor").GetAttribute("value") ?? "");
-        Choose(cut, "Register new vendor"); cut.Find("#npm-confirmation").Change("Confirmed");
+        var cut = Open(); cut.Find(".npm-link-candidate").Click();
+        // A similar name starts the review at linking, as a suggestion only: nothing is chosen and nothing can be confirmed until the Head picks one.
+        Assert.Contains("Similar names are suggestions only", cut.Markup); Assert.Empty(cut.FindAll(".npm-link-pick.is-picked"));
+        cut.Find("#npm-confirmation").Change("Confirmed"); Assert.True(cut.Find("footer .btn-primary").HasAttribute("disabled"));
+        SwitchPath(cut); cut.Find("#npm-confirmation").Change("Confirmed");
         Assert.True(cut.Find("footer .btn-primary").HasAttribute("disabled"));
         Export("npm-review", cut.Markup);
         _api.Verify(x => x.LinkNpmVendorAsync(It.IsAny<Guid>(), It.IsAny<ConfirmNpmVendorAssociationRequest>()), Times.Never);
@@ -92,7 +95,7 @@ public sealed class NpmVendorAssociationTests : TestContext
     {
         this.AddTestAuthorization().SetAuthorized("admin").SetRoles("Admin");
         var cut = Open(); cut.Find(".npm-link-candidate").Click();
-        Assert.Empty(cut.FindAll("#npm-confirmation")); Assert.DoesNotContain("Link existing registration", cut.Markup);
+        Assert.Empty(cut.FindAll("#npm-confirmation")); Assert.Empty(cut.FindAll("footer .btn-primary")); Assert.Empty(cut.FindAll(".npm-link-switch"));
     }
     [Fact]
     public void Loading_failure_is_not_an_empty_verified_registry()
@@ -111,27 +114,31 @@ public sealed class NpmVendorAssociationTests : TestContext
     {
         var cut = Open();
         Assert.DoesNotContain(_source.ContractId.ToString(), cut.Find(".npm-link-candidate").TextContent);
-        Assert.Contains("Active occupancy · Needs verification", cut.Markup);
+        Assert.Contains("Fish Area · Stall 3", cut.Find(".npm-link-candidate").TextContent);
+        Assert.Equal("Not linked", cut.Find(".npm-link-state").TextContent);
         Export("npm-candidates", cut.Markup);
         cut.Find(".npm-link-candidate").Click();
         Assert.Contains(_source.ContractId.ToString(), cut.Find(".npm-link-evidence").TextContent);
         Assert.False(cut.Find(".npm-link-evidence").HasAttribute("open"));
-        Assert.Empty(cut.FindAll("#npm-vendor, #npm-confirmation, footer .btn-primary"));
+        Assert.Empty(cut.FindAll("#npm-vendor-search"));
         Assert.Contains($"Tax year {Year}", cut.Markup);
         Export("npm-selected", cut.Markup);
     }
     [Fact]
     public void Only_the_chosen_path_renders_controls_and_one_primary_footer_action()
     {
-        var cut = Open(); cut.Find(".npm-link-candidate").Click(); Choose(cut, "Link existing registration");
-        Assert.Single(cut.FindAll("#npm-vendor")); Assert.Equal("Confirm link", cut.Find("footer .btn-primary").TextContent);
+        var cut = Open(); cut.Find(".npm-link-candidate").Click();
+        // No matching registration: the situation starts at Register from NPM; linking is the quiet alternative.
+        Assert.Equal("Register from NPM", cut.Find("footer .btn-primary").TextContent); Assert.Empty(cut.FindAll("#npm-vendor-search"));
+        SwitchPath(cut);
+        Assert.Single(cut.FindAll("#npm-vendor-search")); Assert.Equal("Confirm link", cut.Find("footer .btn-primary").TextContent);
         Assert.True(cut.Find("footer .btn-primary").HasAttribute("disabled"));
-        cut.Find("#npm-vendor").Change(_vendor.Id.ToString());
+        PickVendor(cut, "Exi");
         Assert.Contains("Fish shop", cut.Find(".npm-link-confirmation").TextContent);
         Assert.Contains("Stall 3", cut.Find(".npm-link-confirmation").TextContent);
         Export("npm-link-existing", cut.Markup);
-        Choose(cut, "Register new vendor");
-        Assert.Empty(cut.FindAll("#npm-vendor")); Assert.Equal("Register new vendor", cut.Find("footer .btn-primary").TextContent);
+        SwitchPath(cut);
+        Assert.Empty(cut.FindAll("#npm-vendor-search")); Assert.Equal("Register from NPM", cut.Find("footer .btn-primary").TextContent);
         Assert.Single(cut.FindAll("footer .btn-primary"));
         cut.FindAll("button").Single(x => x.TextContent == "Back").Click();
         Assert.Empty(cut.FindAll("#npm-confirmation"));
@@ -140,7 +147,7 @@ public sealed class NpmVendorAssociationTests : TestContext
     public void Historical_exception_is_explicit_and_does_not_create_an_automatic_link()
     {
         _api.Setup(x => x.NpmVendorCandidatesAsync(Year, It.IsAny<bool>(), It.IsAny<bool>())).ReturnsAsync(Result<NpmVendorCandidates>.Success(new(Year, 1, [_source with { Active = false }])));
-        var cut = Open(); cut.Find(".npm-link-candidate").Click(); Choose(cut, "Register new vendor");
+        var cut = Open(); cut.Find(".npm-link-candidate").Click();
         cut.Find("#npm-confirmation").Change("Historical source verified");
         Assert.True(cut.Find("footer .btn-primary").HasAttribute("disabled"));
         cut.Find(".npm-link-options input").Change(true);
@@ -168,9 +175,9 @@ public sealed class NpmVendorAssociationTests : TestContext
     {
         var name = new string('A', 180);
         _api.Setup(x => x.NpmVendorCandidatesAsync(Year, It.IsAny<bool>(), It.IsAny<bool>())).ReturnsAsync(Result<NpmVendorCandidates>.Success(new(Year, 1, [_source with { Occupant = name }])));
-        var cut = Open(); cut.Find(".npm-link-candidate").Click(); Choose(cut, "Link existing registration");
+        var cut = Open(); cut.Find(".npm-link-candidate").Click(); SwitchPath(cut);
         Assert.Equal(name, cut.Find(".npm-link-summary h3").TextContent);
-        Assert.DoesNotContain(_source.ContractId.ToString(), cut.Find("label[for=npm-vendor]").TextContent);
+        Assert.DoesNotContain(_source.ContractId.ToString(), cut.Find("label[for=npm-vendor-search]").TextContent);
         Export("npm-long-name", cut.Markup);
     }
     [Theory]
@@ -193,6 +200,34 @@ public sealed class NpmVendorAssociationTests : TestContext
         _api.Setup(x => x.NpmVendorCandidatesAsync(Year, false, true)).ReturnsAsync(Result<NpmVendorCandidates>.Success(new(Year, 1, [_source])));
         var cut = RenderComponent<NpmOccupancyVendorContext>(p => p.Add(x => x.StallId, _source.StallId).Add(x => x.TaxYear, Year));
         var link = cut.Find("a"); Assert.Equal($"/operations/fish-meat-vendor-fees?taxYear={Year}&npmContractId={_source.ContractId}", link.GetAttribute("href"));
+    }
+    [Fact]
+    public void Fish_and_Meat_filter_narrows_the_occupant_rows_and_each_row_carries_its_link_action()
+    {
+        var meat = _source with { ContractId = Guid.NewGuid(), Occupant = "Mark Lorgadar", Area = "Meat Area", StallNo = "1", SuggestedType = FishMeatVendorType.Meat };
+        _api.Setup(x => x.NpmVendorCandidatesAsync(Year, It.IsAny<bool>(), It.IsAny<bool>())).ReturnsAsync(Result<NpmVendorCandidates>.Success(new(Year, 2, [_source, meat])));
+        var cut = Open();
+        Assert.Equal(2, cut.FindAll(".npm-link-candidate").Count);
+        cut.FindAll(".npm-link-seg button").Single(x => x.TextContent == "Meat").Click();
+        var only = Assert.Single(cut.FindAll(".npm-link-candidate"));
+        Assert.Contains("Mark Lorgadar", only.TextContent); Assert.Contains("Meat Area · Stall 1", only.TextContent);
+        Assert.Equal("Link or register this vendor", only.GetAttribute("title"));
+        Assert.Equal("true", cut.FindAll(".npm-link-seg button").Single(x => x.TextContent == "Meat").GetAttribute("aria-pressed"));
+        cut.FindAll(".npm-link-seg button").Single(x => x.TextContent == "Fish").Click();
+        Assert.Contains("Verified occupant", Assert.Single(cut.FindAll(".npm-link-candidate")).TextContent);
+    }
+    [Fact]
+    public void An_already_linked_occupant_shows_its_link_and_offers_nothing_until_a_separate_registration_is_asked_for()
+    {
+        var link = new NpmVendorAssociationDto(Guid.NewGuid(), _vendor.Id, _source.ContractId, _source.StallId,
+            _source.Occupant, "head", DateTime.UtcNow, "Office checked", null, null, null);
+        _api.Setup(x => x.NpmVendorCandidatesAsync(Year, It.IsAny<bool>(), It.IsAny<bool>())).ReturnsAsync(Result<NpmVendorCandidates>.Success(new(Year, 0, [_source with { Links = [link] }])));
+        var cut = Open();
+        Assert.Equal("Linked", cut.Find(".npm-link-state").TextContent);
+        cut.Find(".npm-link-candidate").Click();
+        Assert.Empty(cut.FindAll("#npm-confirmation")); Assert.Empty(cut.FindAll("footer .btn-primary"));
+        cut.FindAll("button").Single(x => x.TextContent == "Link a separate registration").Click();
+        Assert.Single(cut.FindAll("#npm-vendor-search")); Assert.Single(cut.FindAll("#npm-confirmation"));
     }
     private static void Export(string name, string markup)
     {

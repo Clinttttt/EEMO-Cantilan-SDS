@@ -202,7 +202,7 @@
                             </div>
                         </div>
                         <div class="ac-action">
-                            <span class="ac-badge ac-badge-@log.Action.ToLower()">@log.Action.ToUpper()</span>
+                            <span class="ac-badge ac-badge-@log.Action.ToLower() @(EEMOCantilanSDS.Client.Services.AuditActionLabel.IsCore(log.Action) ? "" : "ac-badge-event")" title="@log.Action">@EEMOCantilanSDS.Client.Services.AuditActionLabel.For(log.Action)</span>
                         </div>
                         <div class="ac-entity">
                             <div class="ac-entity-name">@EntityLabel(log.EntityType)</div>

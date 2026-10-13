@@ -459,7 +459,7 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
 
         var cut = RenderComponent<MarketFees>();
 
-        cut.WaitForAssertion(() => Assert.Contains("only when the amount rule is", cut.Find(".gsw-fee-rule").TextContent), Timeout);
+        cut.WaitForAssertion(() => { Assert.Contains("Not offered to Collectors yet", cut.Find(".gsw-fee-rule").TextContent); Assert.DoesNotContain("Direct approved amount", cut.Find(".gsw-fee-rule").TextContent); }, Timeout);
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Collect by fee type").Click();
 
         cut.WaitForAssertion(() =>

@@ -2889,6 +2889,52 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.FishMeatDirectCollectionLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ActorName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("ClientOperationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CollectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("LinkedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("MunicipalityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid>("VendorRegistrationId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MunicipalityId", "ClientOperationId")
+                        .IsUnique();
+
+                    b.HasIndex("MunicipalityId", "CollectionId")
+                        .IsUnique();
+
+                    b.HasIndex("MunicipalityId", "VendorRegistrationId");
+
+                    b.ToTable("FishMeatDirectCollectionLinks", (string)null);
+                });
+
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.FishMeatNpmAssociation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5828,6 +5874,23 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.PenaltyDefinition", null)
                         .WithMany()
                         .HasForeignKey("MunicipalityId", "PenaltyVersionId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.FishMeatDirectCollectionLink", b =>
+                {
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.Collection", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "CollectionId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.FishMeatVendorRegistration", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "VendorRegistrationId")
                         .HasPrincipalKey("MunicipalityId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

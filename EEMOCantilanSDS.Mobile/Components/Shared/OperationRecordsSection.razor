@@ -14,6 +14,18 @@ else if (_records.Count > 0)
 {
     <section class="ors" aria-labelledby="ors-title">
         <h2 id="ors-title" class="ors-title">Operation collections</h2>
+        @* A mistake in today's own collection is corrected where the server decides who may: the recent-collections sheet (replacement under a new SRC or an
+           audited reversal, never an in-place edit). It is offered only while the range includes today, and a closed window shows the server's reason. *@
+        @if (IncludesToday)
+        {
+            <button type="button" class="ors-correct" aria-expanded="@(_correcting ? "true" : "false")" @onclick="() => _correcting = !_correcting">
+                @(_correcting ? "Hide today's collections" : "Correct a collection recorded today")
+            </button>
+            @if (_correcting)
+            {
+                <div class="ors-today"><RecentCollections Heading="Today's collections" OnChanged="LoadAsync" /></div>
+            }
+        }
         <ul class="ors-list">
             @foreach (var record in _records)
             {
@@ -41,15 +53,21 @@ else if (_records.Count > 0)
     [Parameter, EditorRequired] public DateOnly To { get; set; }
 
     private IReadOnlyList<OperationRecord> _records = Array.Empty<OperationRecord>();
-    private bool _failed;
+    private bool _failed, _correcting;
     private DateOnly _loadedFrom;
     private DateOnly _loadedTo;
+    private bool IncludesToday => From <= EEMOCantilanSDS.Domain.Common.PhilippineTime.Today && To >= EEMOCantilanSDS.Domain.Common.PhilippineTime.Today;
 
     protected override async Task OnParametersSetAsync()
     {
         if (_loadedFrom == From && _loadedTo == To) return;
         _loadedFrom = From;
         _loadedTo = To;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
         _failed = false;
         try
         {
