@@ -60,7 +60,7 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         var cut = Render(builder => { builder.OpenComponent(0, page); builder.CloseComponent(); });
         Assert.DoesNotContain(cut.FindAll("button, a"), x => x.TextContent.Trim() == "Import list");
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New" || b.TextContent.Contains("Add Occupant")).Click();
-        Assert.Equal(new[] { "Import list", kind == ObligationKind.FiestaArawLotRental ? "Add Lot Holder" : "Add Space Holder" }, cut.FindAll("footer button").Select(x => x.TextContent.Trim()));   // no second dismiss beside the header X, and no import-history entry
+        Assert.Equal(new[] { "Import list", "Add Rent / Space Holder" }, cut.FindAll("footer button").Select(x => x.TextContent.Trim()));   // no second dismiss beside the header X, and no import-history entry
         Assert.NotNull(cut.Find("#obw-occupant"));
         SaveVisualArtifact(operation + "-registration", cut.Markup);
         Click(cut, "Import list");

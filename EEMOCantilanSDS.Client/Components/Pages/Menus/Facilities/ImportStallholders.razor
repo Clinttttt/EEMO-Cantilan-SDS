@@ -1418,16 +1418,16 @@
         return d;
     }
 
-    private static readonly ImportColumn Occupant = new("occupant", "Actual Occupant (Leasee)", MinWidth: 200, Placeholder: "Full name");
-    private static readonly ImportColumn ContractName = new("contractName", "Name on Contract", MinWidth: 200, Placeholder: "Per signed contract");
-    private static readonly ImportColumn StallNo = new("stallNo", "Stall / Space No.", MinWidth: 110, Placeholder: "e.g. 1");
-    private static readonly ImportColumn Effectivity = new("effectivity", "Effectivity Date", "date", MinWidth: 150);
-    private static readonly ImportColumn Years = new("years", "No. of Years", "number", MinWidth: 110, Placeholder: "3");
-    private static readonly ImportColumn Area = new("area", "Area (sqm)", "number", MinWidth: 110, Placeholder: "0");
-    private static readonly ImportColumn Monthly = new("monthly", "Monthly Rental / Contract", "number", MinWidth: 160, Placeholder: "0.00");
-    private static readonly ImportColumn ActualMonthly = new("actualMonthly", "Actual Mo. Rental", "number", MinWidth: 150, Placeholder: "0.00");
-    private static readonly ImportColumn WholeYear = new("wholeYear", "Whole Year Rental", "number", MinWidth: 150, Placeholder: "0.00");
-    private static readonly ImportColumn Delinquent = new("delinquent", "Delinquent (₱)", "number", MinWidth: 130, Placeholder: "0.00");
+    private static readonly ImportColumn Occupant = RentalImportColumns.Occupant;
+    private static readonly ImportColumn ContractName = RentalImportColumns.ContractName;
+    private static readonly ImportColumn StallNo = RentalImportColumns.Number;
+    private static readonly ImportColumn Effectivity = RentalImportColumns.Effectivity;
+    private static readonly ImportColumn Years = RentalImportColumns.Years;
+    private static readonly ImportColumn Area = RentalImportColumns.Area;
+    private static readonly ImportColumn Monthly = RentalImportColumns.ContractMonthly;
+    private static readonly ImportColumn ActualMonthly = RentalImportColumns.ActualMonthly;
+    private static readonly ImportColumn WholeYear = RentalImportColumns.WholeYear;
+    private static readonly ImportColumn Delinquent = RentalImportColumns.Delinquent;
 
     private static readonly Dictionary<string, FacilityImportConfig> Configs = BuildConfigs();
 

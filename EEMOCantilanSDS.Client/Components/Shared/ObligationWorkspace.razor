@@ -310,7 +310,7 @@ else
 
 <AuthorizeView Roles="SuperAdmin">
     <Authorized>
-        <AddNewDrawer Show="@(_opening && _advanceRequest is null && !ReadOnlyHistory)" Title="@(SupportsContractBasis ? "Add Occupant & Space" : Kind == ObligationKind.FiestaArawLotRental ? "Add Lot Holder" : $"Open {Name} account")" Subtitle="@OpenSubtitle" ShowCancel="false" GuardUnsaved="true" SessionKey="_openSession"
+        <AddNewDrawer Show="@(_opening && _advanceRequest is null && !ReadOnlyHistory)" Title="@(SupportsContractBasis || Kind == ObligationKind.FiestaArawLotRental ? "Add Rent / Space Holder" : $"Open {Name} account")" Subtitle="@OpenSubtitle" ShowCancel="false" GuardUnsaved="true" SessionKey="_openSession"
                       FormId="obw-open-form" FormLabel="Open account" SubmitText="@SubmitLabel" Saving="_saving" Error="@_formError"
                       OnSubmit="CreateAsync" OnCancel="CloseForm" LeadingFooterActions="@ImportAction">
             @if (Kind == ObligationKind.FishMeatVendorFee)
@@ -355,7 +355,8 @@ else
                         <label class="avm-label">@(Kind == ObligationKind.FiestaArawLotRental ? "Event" : "Basis of Occupancy") <span class="avm-req">*</span></label>
                         @if (Kind == ObligationKind.FiestaArawLotRental)
                         {
-                            <ChoiceCards Label="Event" Items="EventChoices" Value="@(((int)_lotEvent).ToString())" ValueChanged="PickEvent" />
+                            <FhSelect Block="true" Caption="" AriaLabel="Event" Value="@(((int)_lotEvent).ToString(CultureInfo.InvariantCulture))"
+                                              Options="EventSelectOptions" ValueChanged="PickEvent" />
                         }
                         else
                         {
@@ -365,7 +366,7 @@ else
                     <div class="@(SupportsContractBasis && _signedContract ? "avm-row-2" : "avm-group")">
                         @* The holder is the source's own occupant: typed once on the account, never a master record or a name match. *@
                         <div class="avm-group">
-                            <label class="avm-label" for="obw-occupant">@(Kind == ObligationKind.FiestaArawLotRental ? "Lot holder" : "Actual occupant") <span class="avm-req">*</span></label>
+                            <label class="avm-label" for="obw-occupant">Actual Occupant (Leasee) <span class="avm-req">*</span></label>
                             <input id="obw-occupant" class="avm-input" type="text" maxlength="200" autocomplete="off" aria-label="Actual occupant" @bind="_occupant" @bind:event="oninput" />
                         </div>
                         @if (SupportsContractBasis && _signedContract)
@@ -381,9 +382,9 @@ else
 
                 @if (SupportsContractBasis)
                 {
-                    <RentalContractFields>
+                    <RentalContractFields Title="Rent / Space & Contract Details">
                         <SourceField><div class="avm-group"><label class="avm-label">Operation <span class="avm-req">*</span></label><div class="avm-input avm-input-locked">@Name</div></div></SourceField>
-                        <NumberField><RentalUnitNumberField ServerAssigned="true" SuggestedNumber="@NextSpaceNumber" SignedContract="_signedContract" /></NumberField>
+                        <NumberField><RentalUnitNumberField ServerAssigned="true" SuggestedNumber="@NextSpaceNumber" SignedContract="_signedContract" UnitLabel="Rent / Space No." /></NumberField>
                         <EffectivityField>
                             @if (_signedContract)
                             {
@@ -408,7 +409,8 @@ else
                                 <div class="avm-group">
                                     <label class="avm-label">Contract Duration (No. of Years)</label>
                                     <FhSelect Block="true" Caption="" AriaLabel="Contract Duration (No. of Years)" Value="@_contractYears.ToString()"
-                                              Options="KmContractYearOptions" ValueChanged="value => _contractYears = 3" />
+                                              Options="KmContractYearOptions" DisabledValues="KmUnavailableYears" ValueChanged="value => _contractYears = 3" />
+                                    <span class="avm-hint-muted">Other terms need an approved LGU contract-duration policy.</span>
                                 </div>
                             }
                             else if (_signedContract && Kind == ObligationKind.VegetableFruitSpaceRental)
@@ -431,7 +433,7 @@ else
                             }
                         </TermField>
                     </RentalContractFields>
-                    <AddNewSection Title="Space Information" Plain="true">
+                    <AddNewSection Title="Rent / Space Information" Plain="true">
                         <div class="avm-row-2"><div class="avm-group">
                             <label class="avm-label" for="obw-area">Area (sq.m)</label>
                             <input id="obw-area" type="number" class="avm-input" min="0" max="1000000" step="0.01" placeholder="Area if recorded" @bind="_areaSqm" />
@@ -440,55 +442,74 @@ else
                 }
                 else
                 {
-                <AddNewSection Title="@(Kind == ObligationKind.FiestaArawLotRental ? "Lot & Event Details" : "Space & Contract Details")" Plain="true">
-                    <div class="avm-row-2">
-                        <div class="avm-group">
-                            <label class="avm-label">Operation</label>
-                            <div class="avm-input avm-input-locked">@(Kind == ObligationKind.FiestaArawLotRental ? EventChoices.FirstOrDefault(x => x.Value == ((int)_lotEvent).ToString())?.Title ?? Name : Name)</div>
-                        </div>
-                        @if (!ServerAssignedNumber)
-                        {
-                        <div class="avm-group">
-                            <label class="avm-label" for="obw-subject">@(SubjectNoun == "Lot" ? "Lot No." : "Space No.")</label>
-                            <input id="obw-subject" class="avm-input" type="text" maxlength="120" placeholder="Assigned automatically" @bind="_subject" />
-                        </div>
-                        }
-                        else if (Workspace is not null)
-                        {
+                @if (Kind == ObligationKind.FiestaArawLotRental)
+                {
+                    @* An event is a one-time rental; reuse the NCC/TCC rental form grid without pretending it has a multi-year lease. *@
+                    <RentalContractFields Title="Rent / Space & Event Details">
+                        <SourceField>
                             <div class="avm-group">
-                                <label class="avm-label">Space No.</label>
-                                <div class="avm-input avm-input-locked">Assigned by the server on registration</div>
+                                <label class="avm-label">Operation</label>
+                                <div class="avm-input avm-input-locked">@Name</div>
                             </div>
-                        }
-                    </div>
-                    <div class="avm-row-2">
-                        @if (Kind == ObligationKind.FiestaArawLotRental)
-                        {
+                        </SourceField>
+                        <NumberField>
+                            <div class="avm-group">
+                                <label class="avm-label" for="obw-subject">Rent / Space No.</label>
+                                <input id="obw-subject" class="avm-input" type="text" maxlength="120"
+                                       placeholder="Assigned automatically" @bind="_subject" />
+                            </div>
+                        </NumberField>
+                        <EffectivityField>
                             <div class="avm-group">
                                 <label class="avm-label" for="obw-event-date">Event date <span class="avm-req">*</span></label>
                                 <input id="obw-event-date" class="avm-input" type="date" required @bind="_eventDate" />
                             </div>
+                        </EffectivityField>
+                        <TermField>
                             <div class="avm-group">
-                                <label class="avm-label" for="obw-amount">Approved lot amount (₱) <span class="avm-req">*</span></label>
+                                <label class="avm-label" for="obw-amount">Approved Event Amount (₱) <span class="avm-req">*</span></label>
                                 <input id="obw-amount" class="avm-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
                             </div>
-                        }
-                        else
-                        {
+                        </TermField>
+                    </RentalContractFields>
+                }
+                else
+                {
+                    <AddNewSection Title="Rent / Space & Contract Details" Plain="true">
+                        <div class="avm-row-2">
                             <div class="avm-group">
-                                <label class="avm-label" for="obw-start">@(EffectiveMonthLabel ?? (_signedContract ? "Contract Effectivity (month)" : "Occupying Since (month)")) <span class="avm-req">*</span></label>
-                                <input id="obw-start" class="avm-input" type="month" required aria-label="Start month" value="@_startMonth" @onchange="e => _startMonth = e.Value?.ToString() ?? string.Empty" />
+                                <label class="avm-label">Operation</label>
+                                <div class="avm-input avm-input-locked">@Name</div>
                             </div>
-                            @if (!SupportsContractBasis)
+                            @if (!ServerAssignedNumber)
                             {
+                                <div class="avm-group">
+                                    <label class="avm-label" for="obw-subject">Rent / Space No.</label>
+                                    <input id="obw-subject" class="avm-input" type="text" maxlength="120"
+                                           placeholder="Assigned automatically" @bind="_subject" />
+                                </div>
+                            }
+                            else if (Workspace is not null)
+                            {
+                                <div class="avm-group">
+                                    <label class="avm-label">Rent / Space No.</label>
+                                    <div class="avm-input avm-input-locked">Assigned by the server on registration</div>
+                                </div>
+                            }
+                        </div>
+                        <div class="avm-row-2">
                             <div class="avm-group">
-                                <label class="avm-label" for="obw-amount">Approved monthly rental (₱) <span class="avm-req">*</span></label>
+                                <label class="avm-label" for="obw-start">@(EffectiveMonthLabel ?? "Occupying Since (month)") <span class="avm-req">*</span></label>
+                                <input id="obw-start" class="avm-input" type="month" required aria-label="Start month"
+                                       value="@_startMonth" @onchange="e => _startMonth = e.Value?.ToString() ?? string.Empty" />
+                            </div>
+                            <div class="avm-group">
+                                <label class="avm-label" for="obw-amount">Approved Monthly Rental (₱) <span class="avm-req">*</span></label>
                                 <input id="obw-amount" class="avm-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
                             </div>
-                            }
-                        }
-                    </div>
-                </AddNewSection>
+                        </div>
+                    </AddNewSection>
+                }
                 }
                 @if (SupportsContractBasis)
                 {
@@ -547,7 +568,7 @@ else
                         }
                     </ExtraFields>
                 </RentalLesseeFields>
-                <RentalContractFields>
+                <RentalContractFields Title="Rent / Space & Contract Details">
                     <SourceField>
                         <div class="avm-group">
                             <label class="avm-label">Facility / Operation</label>
@@ -607,7 +628,7 @@ else
                         }
                     </TermField>
                 </RentalContractFields>
-                <AddNewSection Title="Space Information" Plain="true">
+                <AddNewSection Title="Rent / Space Information" Plain="true">
                     <div class="avm-row-2"><div class="avm-group">
                         <label class="avm-label" for="obw-area">Area (sq.m)</label>
                         <input id="obw-area" class="avm-input" type="number" min="0" max="1000000" step="0.01" @bind="_areaSqm" />
@@ -709,7 +730,9 @@ else
     private static readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid" };
     private static readonly List<string> OverviewFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
     private string RegistryCode => Kind == ObligationKind.FiestaArawLotRental ? "FA" : Kind == ObligationKind.KanmanggaySpaceRental ? "KM" : "Vegetable/Fruits";
-    private static readonly IReadOnlyList<(string Value, string Label)> KmContractYearOptions = [("3", "3 years")];
+    private static readonly IReadOnlyList<(string Value, string Label)> KmContractYearOptions =
+        [("1", "1 year"), ("2", "2 years"), ("3", "3 years"), ("5", "5 years"), ("custom", "Custom…")];
+    private static readonly IReadOnlySet<string> KmUnavailableYears = new HashSet<string> { "1", "2", "5", "custom" };
     // Match the existing NCC/TCC FhSelect presets, but permit no recorded term for Vegetable/Fruits.
     private static readonly IReadOnlyList<(string Value, string Label)> VfContractYearOptions =
         [("0", "Not recorded"), ("1", "1 year"), ("2", "2 years"), ("3", "3 years"), ("5", "5 years"), ("custom", "Custom…")];
@@ -763,7 +786,7 @@ else
         </button>
     </div>;
     private void OpenImport() { if (!_saving && !string.IsNullOrWhiteSpace(ImportHref)) Navigation.NavigateTo(ImportHref); }
-    private string SubmitLabel => Kind == ObligationKind.FishMeatVendorFee ? "Open account" : Kind == ObligationKind.FiestaArawLotRental ? "Add Lot Holder" : "Add Space Holder";
+    private string SubmitLabel => Kind == ObligationKind.FishMeatVendorFee ? "Open account" : Kind == ObligationKind.FiestaArawLotRental ? "Add Rent / Space Holder" : "Add Rent / Space Holder";
     private List<FacilityHero.HeroStat> SpaceStats => [
         new() { Label = "Collected", Value = _workspace is null ? "—" : Money(_workspace.Collected) },
         new() { Label = "Remaining", Value = _workspace is null ? "—" : Money(_workspace.Outstanding) },
@@ -1033,7 +1056,7 @@ else
     private string AdvanceEventName => EventChoices.FirstOrDefault(x => x.Value == ((int)_advanceRequest!.Event!.Value).ToString())?.Title ?? _advanceRequest!.Event.ToString()!;
 
     private string OpenSubtitle => Kind == ObligationKind.FiestaArawLotRental
-        ? "A lot for an event, with the approved amount."
+        ? "One-time rental for Fiesta or Araw."
         : Kind == ObligationKind.FishMeatVendorFee ? "A vendor stall with its approved monthly amount." : $"Register an occupant and their space.";
 
     private static readonly IReadOnlyList<ChoiceCards.Choice> BasisChoices =
@@ -1055,6 +1078,8 @@ else
         }
     }
     private void PickBasis(string value) => _signedContract = value == "signed";
+    private IReadOnlyList<(string Value, string Label)> EventSelectOptions =>
+        EventChoices.Select(e => (e.Value, e.Title)).ToList();
     private void PickEvent(string value) => _lotEvent = (LotRentalEvent)int.Parse(value, CultureInfo.InvariantCulture);
 
     private async Task LoadOperationsAsync()

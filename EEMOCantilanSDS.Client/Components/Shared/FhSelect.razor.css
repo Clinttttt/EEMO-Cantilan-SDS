@@ -113,3 +113,6 @@
 .fh-dd-name {
     overflow-wrap: break-word;
 }
+
+.fh-dd-item.fh-dd-disabled { opacity:.46;cursor:not-allowed; }
+.fh-dd-item.fh-dd-disabled:hover { background:transparent; }

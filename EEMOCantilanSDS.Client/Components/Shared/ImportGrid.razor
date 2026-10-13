@@ -11,7 +11,7 @@
                 {
                     <th style="@($"min-width:{c.MinWidth}px")">@c.Label</th>
                 }
-                @if (Status is not null)
+                @if (Status is not null && !InlineStatus)
                 {
                     <th class="imp-th-status" style="min-width:150px">@StatusHeader</th>
                 }
@@ -60,11 +60,13 @@
                             }
                         </td>
                     }
-                    @if (Status is not null)
+                    @if (Status is not null && !InlineStatus)
                     {
                         <td class="imp-td-status">@Status(row)</td>
                     }
                     <td class="imp-td-act">
+                        @if (Status is not null && InlineStatus) { @Status(row) }
+                        @if (RowActions is not null) { @RowActions(row) }
                         <button class="imp-row-del" type="button" title="Remove row" aria-label="@($"Remove row {rowIndex + 1}")" @onclick="() => OnRemove.InvokeAsync(rowIndex)">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
                         </button>
@@ -74,7 +76,7 @@
             @if (Rows.Count == 0)
             {
                 <tr>
-                    <td colspan="@(Columns.Count + (Status is not null ? 3 : 2))" class="imp-empty">@EmptyText</td>
+                    <td colspan="@(Columns.Count + (Status is not null && !InlineStatus ? 3 : 2))" class="imp-empty">@EmptyText</td>
                 </tr>
             }
         </tbody>
@@ -100,6 +102,8 @@
     /// <summary>An optional trailing status cell for each row.</summary>
     [Parameter] public RenderFragment<TRow>? Status { get; set; }
     [Parameter] public string StatusHeader { get; set; } = "Status";
+    [Parameter] public bool InlineStatus { get; set; }
+    [Parameter] public RenderFragment<TRow>? RowActions { get; set; }
     [Parameter] public string Label { get; set; } = "Rows to import";
     [Parameter] public string EmptyText { get; set; } = "No rows. Use “Add row” to start, or discard and upload again.";
 

@@ -1,12 +1,13 @@
 @* The established facility registration grid, shared by facility and obligation adapters. *@
 <div class="avm-section">
-    <div class="avm-section-label">Space &amp; Contract Details</div>
+    <div class="avm-section-label">@Title</div>
     <div class="avm-row-2">@SourceField @NumberField</div>
     @AdditionalFields
     <div class="avm-row-2">@EffectivityField @TermField</div>
     @Note
 </div>
 @code {
+    [Parameter] public string Title { get; set; } = "Space & Contract Details";
     [Parameter, EditorRequired] public RenderFragment SourceField { get; set; } = null!;
     [Parameter, EditorRequired] public RenderFragment NumberField { get; set; } = null!;
     [Parameter, EditorRequired] public RenderFragment EffectivityField { get; set; } = null!;

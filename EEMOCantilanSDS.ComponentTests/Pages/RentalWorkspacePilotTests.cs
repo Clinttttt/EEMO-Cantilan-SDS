@@ -122,8 +122,8 @@ public sealed class RentalWorkspacePilotTests : TestContext
         Assert.Equal(hero, cut.Find(".facility-hero").TextContent);
         cut.FindAll("button").Single(x => x.TextContent.Trim() == "+ Add New").Click();
         var titles = cut.FindAll(".avm-section-label").Select(x => x.TextContent).ToArray();
-        Assert.Equal(eventRental ? new[] { "Event & Occupant Information", "Lot & Event Details" }
-            : new[] { "Lessee Information", "Space & Contract Details", "Space Information", "Rental Rates", "Additional Information", "Applicable Charges" }, titles);
+        Assert.Equal(eventRental ? new[] { "Event & Occupant Information", "Rent / Space & Event Details" }
+            : new[] { "Lessee Information", "Rent / Space & Contract Details", "Rent / Space Information", "Rental Rates", "Additional Information", "Applicable Charges" }, titles);
         Assert.Single(cut.FindAll("#obw-amount"));
         if (eventRental)
         {

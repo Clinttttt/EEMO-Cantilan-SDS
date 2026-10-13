@@ -1,4 +1,4 @@
-﻿@*
+@*
     FhSelect — a custom dropdown styled to match the Follow-up History year/month pickers:
     a trigger showing a small caption + the selected value + chevron, opening a panel with a
     header and a checkmark on the active option. Drop-in replacement for a small <select>.
@@ -27,7 +27,9 @@
             @foreach (var opt in Options)
             {
                 var val = opt.Value;
-                <div class="fh-dd-item @(val == Value ? "active" : "")" role="option" aria-selected="@(val == Value ? "true" : "false")" @onclick="() => Pick(val)">
+                <div class="fh-dd-item @(val == Value ? "active" : "") @(DisabledValues?.Contains(val) == true ? "fh-dd-disabled" : "")" role="option"
+                     aria-selected="@(val == Value ? "true" : "false")" aria-disabled="@(DisabledValues?.Contains(val) == true)"
+                     title="@(DisabledValues?.Contains(val) == true ? "Not allowed by the current contract policy" : null)" @onclick="() => Pick(val)">
                     <span class="fh-dd-name">@opt.Label</span>
                     @if (val == Value)
                     {
@@ -40,6 +42,7 @@
 </div>
 
 @code {
+    [Parameter] public IReadOnlySet<string>? DisabledValues { get; set; }
     [Parameter] public string Caption { get; set; } = string.Empty;
     [Parameter] public IReadOnlyList<(string Value, string Label)> Options { get; set; } = Array.Empty<(string, string)>();
     [Parameter] public string Value { get; set; } = string.Empty;
@@ -74,6 +77,7 @@
 
     private async Task Pick(string value)
     {
+        if (DisabledValues?.Contains(value) == true) return;
         _open = false;
         if (value != Value)
             await ValueChanged.InvokeAsync(value);
