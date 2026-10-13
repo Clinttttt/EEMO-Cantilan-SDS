@@ -71,6 +71,8 @@
     [Parameter] public bool GuardUnsaved { get; set; }
     private bool _touched, _confirmDiscard, _wasShown;
     private void Touch() { if (Show) _touched = true; }
+    /// <summary>Choice cards and custom selects change through callbacks rather than native input events.</summary>
+    public void MarkChanged() => Touch();
     private void KeepEditing() => _confirmDiscard = false;
     private Task Discard() { _confirmDiscard = false; _touched = false; return OnCancel.InvokeAsync(); }
     private Task RequestClose()

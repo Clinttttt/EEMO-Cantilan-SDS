@@ -310,7 +310,7 @@ else
 
 <AuthorizeView Roles="SuperAdmin">
     <Authorized>
-        <AddNewDrawer Show="@(_opening && _advanceRequest is null && !ReadOnlyHistory)" Title="@(SupportsContractBasis || Kind == ObligationKind.FiestaArawLotRental ? "Add Rent / Space Holder" : $"Open {Name} account")" Subtitle="@OpenSubtitle" ShowCancel="false" GuardUnsaved="true" SessionKey="_openSession"
+        <AddNewDrawer @ref="_registrationDrawer" Show="@(_opening && _advanceRequest is null && !ReadOnlyHistory)" Title="@(SupportsContractBasis || Kind == ObligationKind.FiestaArawLotRental ? "Add Rent / Space Holder" : $"Open {Name} account")" Subtitle="@OpenSubtitle" ShowCancel="false" GuardUnsaved="true" SessionKey="_openSession"
                       FormId="obw-open-form" FormLabel="Open account" SubmitText="@SubmitLabel" Saving="_saving" Error="@_formError"
                       OnSubmit="CreateAsync" OnCancel="CloseForm" LeadingFooterActions="@ImportAction">
             @if (Kind == ObligationKind.FishMeatVendorFee)
@@ -347,6 +347,12 @@ else
                             }
                         </ExtraFields>
                     </RentalLesseeFields>
+                }
+                else if (Kind == ObligationKind.FiestaArawLotRental)
+                {
+                    <RentalLesseeFields Form="RegistrationState" ContractNameSupported="false" OccupantId="obw-occupant"
+                                        OccupantLabel="Actual Occupant (Leasee)" OccupantPlaceholder="Current lot occupant"
+                                        Options="EventOccupancyOptions" OnArrangement="SelectRentalBasis" />
                 }
                 else
                 {
@@ -467,11 +473,43 @@ else
                         </EffectivityField>
                         <TermField>
                             <div class="avm-group">
-                                <label class="avm-label" for="obw-amount">Approved Event Amount (₱) <span class="avm-req">*</span></label>
-                                <input id="obw-amount" class="avm-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
+                                <label class="avm-label">Event <span class="avm-req">*</span></label>
+                                <FhSelect Block="true" Caption="" AriaLabel="Event" Value="@(((int)_lotEvent).ToString(CultureInfo.InvariantCulture))"
+                                          Options="EventSelectOptions" ValueChanged="PickEvent" />
                             </div>
                         </TermField>
+                        <Note><div class="avm-section-note">The event date identifies this one-time rental. No monthly lease term is created.</div></Note>
                     </RentalContractFields>
+                    <AddNewSection Title="Space Information" Plain="true">
+                        <div class="avm-row-2"><div class="avm-group">
+                            <span class="avm-label">Area (sq.m)</span>
+                            <div class="avm-input avm-input-locked">Not recorded for event lots</div>
+                        </div><div class="avm-group">
+                            <span class="avm-label">Contract Duration (No. of Years)</span>
+                            <div class="avm-input avm-input-locked">One-time event rental</div>
+                        </div></div>
+                    </AddNewSection>
+                    <AddNewSection Title="Rental Rates" Plain="true">
+                        <RentalRateFields Form="RegistrationState" OneTime="true" InputId="obw-amount" Label="Approved Event Amount (₱)"
+                                          Minimum="0.01m" Step="0.01" Entered="() => StateHasChanged()" />
+                    </AddNewSection>
+                    <AddNewSection Title="Additional Information" Plain="true">
+                        <div class="avm-row-2"><div class="avm-group">
+                            <label class="avm-label" for="obw-event-reference">Contract reference</label>
+                            @if (_signedContract)
+                            {
+                                <input id="obw-event-reference" class="avm-input" type="text" maxlength="200"
+                                       placeholder="As written on the contract" @bind="_contractRef" />
+                            }
+                            else { <div class="avm-input avm-input-locked">No contract (space only)</div> }
+                        </div></div>
+                    </AddNewSection>
+                    <AddNewSection Title="Applicable Charges" Plain="true">
+                        <RentalRateFields Form="RegistrationState" OneTime="true" ChargeCard="true" Minimum="0.01m" Step="0.01"
+                                          SourceName="@($"{Name} · {_lotEvent}")" Entered="() => StateHasChanged()" Changed="EventRegistrationChanged">
+                            <Icon>@SpaceIcon</Icon>
+                        </RentalRateFields>
+                    </AddNewSection>
                 }
                 else
                 {
@@ -936,7 +974,16 @@ else
         v => _signedContract = v == OccupancyArrangement.SignedContract,
         () => _amount ?? 0m, v => _amount = v,
         () => _contractName, v => _contractName = v);
-    private void SelectRentalBasis(OccupancyArrangement arrangement) => _signedContract = arrangement == OccupancyArrangement.SignedContract;
+    private AddNewDrawer? _registrationDrawer;
+    private void EventRegistrationChanged() { _registrationDrawer?.MarkChanged(); StateHasChanged(); }
+    private void SelectRentalBasis(OccupancyArrangement arrangement)
+    {
+        _signedContract = arrangement == OccupancyArrangement.SignedContract;
+        if (Kind == ObligationKind.FiestaArawLotRental) EventRegistrationChanged();
+    }
+    private static readonly (OccupancyArrangement Value, string Title, string Note)[] EventOccupancyOptions = [
+        (OccupancyArrangement.SignedContract, "Signed lease contract", "Record the signed event contract reference"),
+        (OccupancyArrangement.SpaceOnly, "No contract (space only)", "Event rental without a contract on file")];
 
     protected override void OnParametersSet()
     {
@@ -1011,7 +1058,7 @@ else
         _occupant = _stallId = _subject = _contractRef = _contractName = _areaLocation = string.Empty;
         // Kanmanggay's signed term is the MEEDO standard three years; Vegetable / Fruits has no fixed term, so none is preselected.
         _areaSqm = null; _contractRate = null; _contractYears = Kind == ObligationKind.VegetableFruitSpaceRental ? 0 : 3; _vfCustomYears = false; _contractDate = PhilippineTime.Now.Date;
-        _signedContract = true; _lotEvent = LotRentalEvent.Fiesta;
+        _signedContract = Kind != ObligationKind.FiestaArawLotRental; _lotEvent = LotRentalEvent.Fiesta;
         _amount = null;
         _opening = true; _openSession = Guid.NewGuid();
         if (Kind == ObligationKind.FiestaArawLotRental && _operations.Count == 0) await LoadOperationsAsync();
@@ -1080,7 +1127,11 @@ else
     private void PickBasis(string value) => _signedContract = value == "signed";
     private IReadOnlyList<(string Value, string Label)> EventSelectOptions =>
         EventChoices.Select(e => (e.Value, e.Title)).ToList();
-    private void PickEvent(string value) => _lotEvent = (LotRentalEvent)int.Parse(value, CultureInfo.InvariantCulture);
+    private void PickEvent(string value)
+    {
+        _lotEvent = (LotRentalEvent)int.Parse(value, CultureInfo.InvariantCulture);
+        EventRegistrationChanged();
+    }
 
     private async Task LoadOperationsAsync()
     {
@@ -1128,9 +1179,9 @@ else
             : ServerAssignedNumber ? string.Empty : _subject.Trim();
         var request = new CreateObligationAccountRequest(
             Kind, payorId, stallId, subject, isLot ? _lotEvent : null, isLot ? _eventDate : null, start, _amount!.Value,
-            // Monthly space accounts record occupancy basis; space-only occupancy implies no contract.
-            SupportsContractBasis ? (_signedContract ? OccupancyArrangement.SignedContract : OccupancyArrangement.SpaceOnly) : null,
-            SupportsContractBasis && _signedContract && !string.IsNullOrWhiteSpace(_contractRef) ? _contractRef.Trim() : null,
+            // Both space and event lot accounts persist basis/reference; event accounts carry no monthly lease metadata.
+            SupportsContractBasis || isLot ? (_signedContract ? OccupancyArrangement.SignedContract : OccupancyArrangement.SpaceOnly) : null,
+            (SupportsContractBasis || isLot) && _signedContract && !string.IsNullOrWhiteSpace(_contractRef) ? _contractRef.Trim() : null,
             Kind == ObligationKind.FishMeatVendorFee ? null : _occupant.Trim(),
             SupportsContractBasis && _signedContract ? _contractName.Trim() : null,
             SupportsContractBasis && _signedContract && _contractDate is { } contractOn ? DateOnly.FromDateTime(contractOn) : null,

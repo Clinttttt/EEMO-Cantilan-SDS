@@ -75,13 +75,20 @@
 
 
         <ImportGrid TRow="Row" Columns="Columns" Rows="Rows" Label="Rent / space holders to import" GetCell="CellOf" OnChange="CellChanged" OnRemove="RemoveRow"
-                    IsReadonly="IsLocked" Placeholder="PlaceholderOf" CellTitle="TitleOf" InlineStatus="true">
+                    IsReadonly="IsLocked" Placeholder="PlaceholderOf" CellTitle="TitleOf">
             <RowActions Context="row">
-                @if (!IsEvent)
+                @{ var (state, why) = StatusOf(row); }
+                @if (!IsEvent || state != SpaceHolderImportStatus.Ready)
                 {
                     <details class="shi-row-details">
-                        <summary title="Edit contract or rent/space details" aria-label="Edit row details @(Rows.IndexOf(row) + 1)">Details</summary>
+                        <summary title="@(why ?? "Edit contract or rent/space details")" aria-label="@($"Edit row details {Rows.IndexOf(row) + 1}{(state != SpaceHolderImportStatus.Ready ? $": {why ?? "Review required"}" : "")}")">Details@if (state != SpaceHolderImportStatus.Ready) { <text> · Review</text> }</summary>
                         <div class="shi-row-fields">
+                            @if (state != SpaceHolderImportStatus.Ready)
+                            {
+                                <p class="shi-why" role="status">@(why ?? "Review this row before importing.")</p>
+                            }
+                            @if (!IsEvent)
+                            {
                             <label>Lease type
                                 <select class="shi-basis-action" aria-label="Lease type of row @(Rows.IndexOf(row) + 1)"
                                         value="@row.BasisText" @onchange="e => ChangeBasis(row, e.Value?.ToString())">
@@ -100,18 +107,11 @@
                                 <input class="shi-row-extra" type="date" aria-label="Closed on row @(Rows.IndexOf(row) + 1)"
                                        value="@row.ClosedText" @onchange="e => ChangeClosedOn(row, e.Value?.ToString())" />
                             </label>
+                            }
                         </div>
                     </details>
                 }
             </RowActions>
-            <Status Context="row">
-                @{ var (state, why) = StatusOf(row); }
-                <span class="shi-inline-status @(state == SpaceHolderImportStatus.Ready ? "shi-inline-ready" : "shi-inline-invalid")"
-                      title="@(state == SpaceHolderImportStatus.Ready ? "Ready" : why ?? "Review required")"
-                      aria-label="@(state == SpaceHolderImportStatus.Ready ? "Ready" : why ?? "Review required")">
-                    @(state == SpaceHolderImportStatus.Ready ? "✓" : "!")
-                </span>
-            </Status>
         </ImportGrid>
 
         <ImportFootBar CancelHref="@BackHref" Error="@Message" Saving="Saving" Disabled="@(ReadyCount == 0 || _previewing)" OnSave="ImportAsync"

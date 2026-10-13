@@ -7,7 +7,8 @@
             <label class="avm-label" for="@InputId">@Label <span class="avm-req">*</span></label>
             <input id="@InputId" class="avm-input" type="number" min="@Minimum" step="@Step" placeholder="e.g. 900"
                    @bind="Form.MonthlyRate" @bind:after="NotifyEntered" />
-            <div class="avm-hint-muted">Whole Year: ₱@((Form.MonthlyRate * 12m).ToString("N0"))</div>
+            @if (!OneTime) { <div class="avm-hint-muted">Whole Year: ₱@((Form.MonthlyRate * 12m).ToString("N0"))</div> }
+            else { <div class="avm-hint-muted">Charged once for the selected event.</div> }
             @RateNote
         </div>
         @if (ShowContractRate)
@@ -29,28 +30,30 @@
 }
 else
 {
-    <div class="avm-sublabel">Base Rental</div>
+    <div class="avm-sublabel">@(OneTime ? "Event Rental" : "Base Rental")</div>
     <div class="avm-rental-card">
         <div class="avm-rental-info">
             <div class="avm-rental-icon">@Icon</div>
-            <div><div class="avm-rental-title">Monthly Rental</div><div class="avm-rental-sub">@SourceName</div></div>
+            <div><div class="avm-rental-title">@(OneTime ? "Approved Event Amount" : "Monthly Rental")</div><div class="avm-rental-sub">@SourceName</div></div>
         </div>
         <div class="avm-spinner">
-            <button type="button" class="avm-spin-btn avm-spin-left" aria-label="Decrease monthly rental" @onclick="Decrease">−</button>
+            <button type="button" class="avm-spin-btn avm-spin-left" aria-label="@(OneTime ? "Decrease event amount" : "Decrease monthly rental")" @onclick="Decrease">−</button>
             <div class="avm-spin-inner">
                 <span class="avm-spin-currency">₱</span>
                 <input type="number" min="@Minimum" step="@Step" class="avm-spin-input" @bind="Form.MonthlyRate" @bind:after="NotifyEntered" />
-                <span class="avm-spin-freq">/mo</span>
+                @if (!OneTime) { <span class="avm-spin-freq">/mo</span> }
             </div>
-            <button type="button" class="avm-spin-btn avm-spin-right" aria-label="Increase monthly rental" @onclick="Increase">+</button>
+            <button type="button" class="avm-spin-btn avm-spin-right" aria-label="@(OneTime ? "Increase event amount" : "Increase monthly rental")" @onclick="Increase">+</button>
         </div>
     </div>
-    <div class="avm-yearly-hint"><span class="avm-yearly-label">Whole-year equivalent</span><strong class="avm-yearly-value">₱@((Form.MonthlyRate * 12m).ToString("N2"))</strong></div>
+    @if (!OneTime) { <div class="avm-yearly-hint"><span class="avm-yearly-label">Whole-year equivalent</span><strong class="avm-yearly-value">₱@((Form.MonthlyRate * 12m).ToString("N2"))</strong></div> }
+    else { <div class="avm-hint-muted">One approved charge; no monthly or whole-year rental.</div> }
 }
 
 @code {
     [Parameter, EditorRequired] public IRentalRegistrationState Form { get; set; } = null!;
     [Parameter] public bool ChargeCard { get; set; }
+    [Parameter] public bool OneTime { get; set; }
     [Parameter] public string? InputId { get; set; }
     [Parameter] public string Label { get; set; } = "Monthly Rental / Rate (₱)";
     [Parameter] public decimal Minimum { get; set; }

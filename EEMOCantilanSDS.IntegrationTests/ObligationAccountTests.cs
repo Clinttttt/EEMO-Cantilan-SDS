@@ -585,8 +585,10 @@ public sealed class ObligationAccountTests(PostgresFixture db)
         Assert.Equal(900m, month.AssessedAmount);   // the assessed month is history and is never re-priced
     }
 
-    [SkippableFact]
-    public async Task ALotRental_HasOneEventPeriod_AndTheEventDateIsNotAMonthlyBillingDate()
+    [SkippableTheory]
+    [InlineData(OccupancyArrangement.SignedContract)]
+    [InlineData(OccupancyArrangement.SpaceOnly)]
+    public async Task ALotRental_HasOneEventPeriod_AndTheEventDateIsNotAMonthlyBillingDate(OccupancyArrangement basis)
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
         await db.ResetAsync();
@@ -596,8 +598,19 @@ public sealed class ObligationAccountTests(PostgresFixture db)
 
         var eventDate = seed.Today.AddDays(-3);
         var lot = await head.CreateAccountAsync(new CreateObligationAccountRequest(ObligationKind.FiestaArawLotRental,
-            seed.PayorId, null, "Lot F-12", LotRentalEvent.Fiesta, eventDate, eventDate, 2500m));
+            seed.PayorId, null, "Lot F-12", LotRentalEvent.Fiesta, eventDate, eventDate, 2500m,
+            basis, basis == OccupancyArrangement.SignedContract ? "EVENT-LEASE-14" : null, "Ana Reyes"));
         Assert.True(lot.IsSuccess, lot.Error);
+        await using (var reloaded = db.CreateContext(seed.TenantId))
+        {
+            var saved = await reloaded.ObligationAccounts.SingleAsync(x => x.Id == lot.Value!.Id);
+            Assert.Equal(basis, saved.Arrangement);
+            Assert.Equal(basis == OccupancyArrangement.SignedContract ? "EVENT-LEASE-14" : null, saved.ContractReference);
+            Assert.Equal(seed.PayorId, saved.PayorId); // Preserve this existing collection test's explicit Payor context.
+            Assert.Null(saved.ContractName); Assert.Null(saved.ContractEffectiveDate); Assert.Null(saved.ContractYears);
+            Assert.Null(saved.AreaSqm); Assert.Null(saved.AreaLocation); Assert.Null(saved.ContractMonthlyRate);
+            Assert.Equal(new[] { eventDate }, saved.PeriodStarts(eventDate.AddYears(1)));
+        }
 
         var register = Assert.Single((await head.GetRegisterAsync(lot.Value!.Id)).Value!);
         Assert.Equal(eventDate, register.PeriodStart);

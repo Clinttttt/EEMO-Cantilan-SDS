@@ -122,12 +122,15 @@ public sealed class RentalWorkspacePilotTests : TestContext
         Assert.Equal(hero, cut.Find(".facility-hero").TextContent);
         cut.FindAll("button").Single(x => x.TextContent.Trim() == "+ Add New").Click();
         var titles = cut.FindAll(".avm-section-label").Select(x => x.TextContent).ToArray();
-        Assert.Equal(eventRental ? new[] { "Event & Occupant Information", "Rent / Space & Event Details" }
+        Assert.Equal(eventRental ? new[] { "Lessee Information", "Rent / Space & Event Details", "Space Information", "Rental Rates", "Additional Information", "Applicable Charges" }
             : new[] { "Lessee Information", "Rent / Space & Contract Details", "Rent / Space Information", "Rental Rates", "Additional Information", "Applicable Charges" }, titles);
         Assert.Single(cut.FindAll("#obw-amount"));
         if (eventRental)
         {
-            Assert.DoesNotContain("Contract Duration", cut.Find("form").TextContent);
+            Assert.Contains("One-time event rental", cut.Find("form").TextContent);
+            Assert.Empty(cut.FindAll("input[aria-label='Custom contract duration in years'], #obw-contract-date, #obw-area, #obw-area-note"));
+            Assert.NotNull(cut.FindComponent<RentalLesseeFields>());
+            Assert.All(cut.FindComponents<RentalRateFields>(), rate => Assert.True(rate.Instance.OneTime));
             Assert.DoesNotContain("Whole Year", cut.Find("form").TextContent);
         }
         else
