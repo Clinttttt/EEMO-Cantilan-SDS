@@ -3,7 +3,7 @@
 
 <div class="rental-navigation" role="group" aria-label="@($"{Workspace.DisplayName(Facilities)} workspace actions")">
     @if (Workspace.RosterRoute is { } roster)
-    { <a class="btn-outline" href="@roster"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><circle cx="3" cy="6" r="1" /><circle cx="3" cy="12" r="1" /><circle cx="3" cy="18" r="1" /></svg>@Workspace.Unit(Facilities) Holder List</a> }
+    { <a class="btn-outline" href="@roster"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><circle cx="3" cy="6" r="1" /><circle cx="3" cy="12" r="1" /><circle cx="3" cy="18" r="1" /></svg>Space Holder List</a> }
     @if (ShowManagement && Workspace.ManagementRoute is { } management)
     { <a class="btn-outline" href="@management"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>Manage @Workspace.Unit(Facilities) Holders</a> }
     @if (ShowReports)

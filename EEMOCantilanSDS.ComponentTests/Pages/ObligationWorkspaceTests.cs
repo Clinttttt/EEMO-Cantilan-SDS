@@ -293,12 +293,13 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var drawer = Assert.Single(cut.FindAll("[role='dialog']"));
-            Assert.Contains("Add New Space Holder", drawer.TextContent);
+            Assert.Contains("Add Occupant & Space", drawer.TextContent);
             Assert.NotNull(drawer.QuerySelector("form[aria-label='Open account']"));
             Assert.Contains("Add Space Holder", drawer.QuerySelector("footer")!.TextContent);
             Assert.DoesNotContain("obw-layout", drawer.ParentElement!.ClassName ?? "");      // not squeezed into the account list's own grid
         }, Timeout);
-        cut.FindAll("footer button").Single(b => b.TextContent.Trim() == "Cancel").Click();
+        Assert.DoesNotContain(cut.FindAll("footer button"), b => b.TextContent.Trim() == "Cancel");     // one dismiss control: the header X
+        cut.Find(".eemo-drawer-header-close").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -515,7 +516,9 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.Find("#obw-occupant").Input("Advance holder");
         cut.Find("form[aria-label='Open account']").Submit();
         cut.FindAll("button").Single(b => b.TextContent == "Review details").Click();
-        cut.FindAll("button").Single(b => b.TextContent == "Cancel").Click();
+        cut.Find(".eemo-drawer-header-close").Click();                                    // fields were changed: closing asks first
+        Assert.Contains("unsaved changes", cut.Find("[role='alertdialog']").TextContent);
+        cut.FindAll("button").Single(b => b.TextContent == "Discard changes").Click();
         Assert.Empty(cut.FindAll("[role='dialog']"));
         _api.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Never);
     }

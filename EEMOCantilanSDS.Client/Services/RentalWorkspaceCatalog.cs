@@ -52,7 +52,7 @@ public static class RentalWorkspaceCatalog
         RentalContractPolicy.ReportedThreeYearStandardPendingLifecycleApproval, "Space Rentals");
     public static readonly RentalWorkspaceDefinition FiestaAraw = new(
         RentalWorkspaceKey.FiestaAraw, "FA", "Fiesta / Araw", new EventLotRentalSource(ObligationKind.FiestaArawLotRental),
-        "/operations/fiesta-araw", null, "/vendors?workspace=FA", "/operations/fiesta-araw/report", "/operations/fiesta-araw/import",
+        "/operations/fiesta-araw", SpaceAccountPresentation.FiestaAraw.RosterHref, "/vendors?workspace=FA", "/operations/fiesta-araw/report", "/operations/fiesta-araw/import",
         true, RentalAdministration.Periods | RentalAdministration.Close,
         RentalSection.Occupant | RentalSection.Unit | RentalSection.Event | RentalSection.EventAmount,
         RentalNumberingPolicy.EventScopedLot, RentalReporting.ExistingReport, RentalContractPolicy.EventOnly, "Event Lots");

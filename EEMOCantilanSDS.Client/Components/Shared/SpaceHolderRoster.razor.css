@@ -24,3 +24,10 @@
     .space-roster-table thead th { padding-top: 5mm; }
     .v3-report-note { font-size: 8pt; break-inside: avoid; }
 }
+
+/* On screen the official list is the registry above; the printed sheet exists only on paper. */
+.roster-print-only { display: none; }
+@media print {
+    .roster-screen { display: none !important; }
+    .roster-print-only { display: block; }
+}

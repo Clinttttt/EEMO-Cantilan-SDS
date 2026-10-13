@@ -1,7 +1,7 @@
 @* ADD NEW DRAWER — the one shape every "Add New" takes, and it is the stallholder drawer's own: VendorDrawerShell (overlay, civic-blue header with its
    icon tile, scrolling body, fixed footer) around one form of sections. Operations supply their fields as the form's content (AddNewSection,
    ChoiceCards, avm-* groups). Presentation only: validation, state and the save itself stay with the page. *@
-<VendorDrawerShell Show="Show" Title="@Title" Subtitle="@Subtitle" OnClose="OnCancel">
+<VendorDrawerShell Show="Show" Title="@Title" Subtitle="@Subtitle" OnClose="RequestClose">
     <Icon>
         @if (Edit)
         {
@@ -13,11 +13,15 @@
         }
     </Icon>
     <ChildContent>
-        <form id="@FormId" aria-label="@FormLabel" @onsubmit="OnSubmit" @onsubmit:preventDefault="true">
+        <form id="@FormId" aria-label="@FormLabel" @onsubmit="OnSubmit" @onsubmit:preventDefault="true" @onchange="Touch" @oninput="Touch">
             @ChildContent
             @if (!string.IsNullOrWhiteSpace(Error))
             {
                 <div class="avm-error" role="alert">@Error</div>
+            }
+            @if (_confirmDiscard)
+            {
+                <div class="avm-error" role="alertdialog" aria-label="Discard changes">You have unsaved changes. Discard them and close?</div>
             }
         </form>
     </ChildContent>
@@ -26,8 +30,16 @@
         {
             <div class="add-new-footer-leading">@LeadingFooterActions</div>
         }
-        <button type="button" class="btn-ghost" disabled="@Saving" @onclick="FooterCancel">@CancelText</button>
-        <button type="submit" class="btn-primary" form="@FormId" disabled="@(Saving || SubmitDisabled)">@SubmitText</button>
+        @if (_confirmDiscard)
+        {
+            <button type="button" class="btn-ghost" @onclick="KeepEditing">Keep editing</button>
+            <button type="button" class="btn-primary" @onclick="Discard">Discard changes</button>
+        }
+        else
+        {
+            @if (ShowCancel) { <button type="button" class="btn-ghost" disabled="@Saving" @onclick="FooterCancel">@CancelText</button> }
+            <button type="submit" class="btn-primary" form="@FormId" disabled="@(Saving || SubmitDisabled)">@SubmitText</button>
+        }
     </Footer>
 </VendorDrawerShell>
 
@@ -51,6 +63,30 @@
     [Parameter] public EventCallback OnCancel { get; set; }
     [Parameter] public EventCallback OnFooterCancel { get; set; }
     private Task FooterCancel() => OnFooterCancel.HasDelegate ? OnFooterCancel.InvokeAsync() : OnCancel.InvokeAsync();
+
+    /// <summary>False for a drawer whose close X is the one dismiss control (no second Cancel button beside Save).</summary>
+    [Parameter] public bool ShowCancel { get; set; } = true;
+
+    /// <summary>True to ask before closing a drawer in which a field was changed. Opt-in; closing an untouched form never asks.</summary>
+    [Parameter] public bool GuardUnsaved { get; set; }
+    private bool _touched, _confirmDiscard, _wasShown;
+    private void Touch() { if (Show) _touched = true; }
+    private void KeepEditing() => _confirmDiscard = false;
+    private Task Discard() { _confirmDiscard = false; _touched = false; return OnCancel.InvokeAsync(); }
+    private Task RequestClose()
+    {
+        if (GuardUnsaved && _touched && !Saving) { _confirmDiscard = true; return Task.CompletedTask; }
+        return OnCancel.InvokeAsync();
+    }
+    /// <summary>Identifies one filling-in of the form. While it is unchanged, edits survive the drawer being hidden for a step (an advance review) and shown again; a new key is a fresh form.</summary>
+    [Parameter] public object? SessionKey { get; set; }
+    private object? _sessionKey;
+    protected override void OnParametersSet()
+    {
+        if (SessionKey is not null) { if (!Equals(SessionKey, _sessionKey)) { _touched = false; _confirmDiscard = false; _sessionKey = SessionKey; } }
+        else if (Show && !_wasShown) { _touched = false; _confirmDiscard = false; }
+        _wasShown = Show;
+    }
     [Parameter] public RenderFragment? ChildContent { get; set; }
     /// <summary>Optional navigation actions before Cancel/Submit; callers retain permission and saving guards.</summary>
     [Parameter] public RenderFragment? LeadingFooterActions { get; set; }

@@ -159,15 +159,15 @@ public sealed class RentalConsolidationTests : TestContext
     {
         var account = Account(); Serve(account);
         var period = new ObligationQuoteDto(account.Id, Guid.NewGuid(), account.Kind, account.KindLabel, account.SubjectLabel,
-            new(2026, 9, 1), 900m, 400m, 500m, Guid.Empty, "Same name", null, true);
+            new(EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year, EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Month, 1), 900m, 400m, 500m, Guid.Empty, "Same name", null, true);
         _accounts.Setup(x => x.GetRegisterAsync(account.Id)).ReturnsAsync(Result<IReadOnlyList<ObligationQuoteDto>>.Success([period]));
         var cut = RenderComponent<Kanmanggay>();
         Assert.NotNull(cut.FindComponent<RegisteredRentalTable<ObligationAccountDto>>());
         Assert.NotNull(cut.FindComponent<RentalSummaryStrip>());
         Assert.Equal(new[] { "₱", "↺", "→" }, cut.FindAll("tbody button").Select(x => x.TextContent));
         Click(cut, "₱");
-        Assert.Contains("not a receipt", cut.Find("[role='dialog']").TextContent);
-        Assert.Contains("₱500", cut.Find("[role='dialog']").TextContent);
+        var receipt = cut.Find(".receipt").TextContent;                                    // the stall registers' own acknowledgement, read from the account's period register
+        Assert.Contains("Monthly Rental", receipt); Assert.Contains("₱900.00", receipt); Assert.Contains("Balance Due", receipt); Assert.Contains("₱500.00", receipt); Assert.Contains("Total Paid", receipt); Assert.Contains("₱400.00", receipt);
         _accounts.Verify(x => x.GetRegisterAsync(account.Id), Times.Once);
         Assert.Empty(_activity.Invocations); Assert.Empty(_payments.Invocations);
         Click(cut, "Close"); Click(cut, "→");
@@ -255,8 +255,9 @@ public sealed class RentalConsolidationTests : TestContext
 
         cut.Find("button[title='View Details']").Click();
         var detailsText = cut.Find("[role='dialog']").TextContent;
-        Assert.Contains(kind == ObligationKind.FiestaArawLotRental ? "Lot Holder & Event" : "Occupant & Contract", detailsText);
-        Assert.Contains(kind == ObligationKind.FiestaArawLotRental ? "Lot & Account Details" : "Space & Rental Details", detailsText);
+        Assert.Contains(kind == ObligationKind.FiestaArawLotRental ? "Lot holder & event" : "Occupant & contract", detailsText);
+        Assert.Contains("Fee structure", detailsText);
+        Assert.DoesNotContain(account.Id.ToString(), detailsText);
         Assert.Contains("Source occupant", detailsText);
         if (kind == ObligationKind.FiestaArawLotRental)
         {
@@ -264,7 +265,7 @@ public sealed class RentalConsolidationTests : TestContext
             Assert.DoesNotContain("Area (sq.m)", detailsText);
         }
         Assert.Contains("Partial", cut.Find("td[data-label='Payment']").TextContent);
-        cut.FindAll(".ohd-footer button").Single(b => b.TextContent == "Payment History").Click();
+        cut.FindAll(".dv-footer button").Single(b => b.TextContent == "History").Click();
         Assert.Contains(kind == ObligationKind.FiestaArawLotRental ? "Event Settlement Record" : "12-Month Payment Record", cut.Find("[role='dialog']").TextContent);   // the stall history's own heading
         cut.Find(".ph-footer button").Click();
 
@@ -329,7 +330,7 @@ public sealed class RentalConsolidationTests : TestContext
         cut.Find("input[placeholder='As written on the signed contract']").Input("Corrected signed lessee");
         cut.Find("input[placeholder='As written on the contract']").Change("LEASE-REF-2");
         cut.Find("#obw-area-note").Change("Corner A");
-        cut.Find("form[aria-label='Edit Space Holder']").Submit();
+        cut.Find("form[aria-label='Edit Occupant & Space']").Submit();
         cut.WaitForAssertion(() => Assert.NotNull(sent));
         Assert.Equal("Corrected source occupant", sent!.ActualOccupant);
         Assert.Equal("Corrected signed lessee", sent.ContractName);

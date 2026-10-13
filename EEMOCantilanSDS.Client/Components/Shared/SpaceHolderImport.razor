@@ -110,7 +110,7 @@
     [Parameter] public string EffectiveMonthLabel { get; set; } = "Effectivity Date";
 
     /// <summary>The civic-blue hero of the newer Operations pages instead of the light import hero.</summary>
-    [Parameter] public bool BlueHero { get; set; }
+    [Parameter] public bool BlueHero { get; set; } = true;
 
     private bool IsEvent => Kind == ObligationKind.FiestaArawLotRental;
     private string Holders => IsEvent ? "Lot Holders" : "Space Holders";

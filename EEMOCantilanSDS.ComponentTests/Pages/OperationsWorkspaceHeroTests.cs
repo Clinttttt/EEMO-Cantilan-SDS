@@ -105,7 +105,8 @@ public sealed class OperationsWorkspaceHeroTests : TestContext
         Assert.Contains("active", blue.Find(".imp-step").ClassList);
         Assert.Contains("Upload", blue.Find(".imp-steps").TextContent);
 
-        var light = RenderComponent<KanmanggayImport>();
-        Assert.Empty(light.FindAll(".imp-hero-blue"));
+        // Every space import shares the blue operation hero; only the stallholder imports keep the light one.
+        Assert.NotNull(RenderComponent<KanmanggayImport>().Find(".imp-hero-blue"));
+        Assert.NotNull(RenderComponent<FiestaArawImport>().Find(".imp-hero-blue"));
     }
 }

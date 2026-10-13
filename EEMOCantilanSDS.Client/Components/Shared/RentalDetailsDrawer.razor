@@ -1,0 +1,124 @@
+@* RENTAL DETAILS DRAWER - the stall-holder "View Details" slide-in (header with name, space, status; one summary band; Occupant & contract; Fee structure;
+   optional monthly payment calendar; Close / History / Edit footer) as a data-driven presentational component, so a space or lot opens the same drawer a
+   stall does. It draws only what it is handed: every figure and label comes from the host's own authoritative source, and the host owns every action. *@
+<div class="eemo-modal-overlay rd-overlay" @onclick="() => OnClose.InvokeAsync()">
+    <div class="eemo-modal eemo-modal-wide detail-modal" role="dialog" aria-modal="true" aria-labelledby="@_titleId" @onclick:stopPropagation="true" @onkeydown="OnKey">
+
+        <header class="dv-header">
+            <div>
+                <h2 class="dv-title" id="@_titleId">@Title</h2>
+                <div class="dv-context">
+                    @for (var i = 0; i < Context.Count; i++)
+                    {
+                        if (i > 0) { <span aria-hidden="true">·</span> }
+                        <span>@Context[i]</span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(StatusText)) { <span class="status-pill @StatusClass">@StatusText</span> }
+                </div>
+            </div>
+            <button type="button" class="dv-close" aria-label="Close" @onclick="() => OnClose.InvokeAsync()" @ref="_close">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            </button>
+        </header>
+
+        <div class="eemo-modal-body detail-body">
+            <dl class="dv-summary">
+                @foreach (var item in Summary)
+                {
+                    <div class="dv-summary-item">
+                        <dt>@item.Label</dt>
+                        <dd>
+                            @if (item.PillText is not null) { <span class="status-pill @item.PillClass" title="@item.Title">@item.PillText</span> }
+                            else if (item.Muted) { <span class="dv-muted">@item.Value</span> }
+                            else { @item.Value }
+                        </dd>
+                    </div>
+                }
+            </dl>
+
+            @for (var s = 0; s < Sections.Count; s++)
+            {
+                var section = Sections[s];
+                var id = $"{_titleId}-s{s}";
+                <section class="dv-section" aria-labelledby="@id">
+                    <h3 class="dv-section-title" id="@id">@section.Title</h3>
+                    <dl class="dv-kv">
+                        @foreach (var row in section.Rows)
+                        {
+                            <div class="dv-kv-row">
+                                <dt class="dv-kv-key">@row.Key</dt>
+                                <dd class="dv-kv-val">
+                                    @if (row.Muted) { <span class="dv-muted">@row.Value</span> } else { @row.Value }
+                                    @if (!string.IsNullOrWhiteSpace(row.Note)) { <span class="dv-expiry @(row.NoteExpired ? "dv-expiry-expired" : "dv-expiry-ok")">@row.Note</span> }
+                                </dd>
+                            </div>
+                        }
+                    </dl>
+                </section>
+            }
+
+            @if (Fees is not null)
+            {
+                <section class="dv-section" aria-labelledby="@(_titleId)-fees">
+                    <h3 class="dv-section-title" id="@(_titleId)-fees">Fee structure</h3>
+                    @if (Fees.Count > 0)
+                    {
+                        <ul class="dv-fees">
+                            @foreach (var fee in Fees)
+                            {
+                                <li class="dv-fee">
+                                    <span class="dv-fee-name">@fee.Name@if (!string.IsNullOrWhiteSpace(fee.Note)) { <span class="dv-fee-note">@fee.Note</span> }</span>
+                                    <span class="dv-fee-amount @(fee.Variable ? "dv-fee-variable" : "")">@fee.Amount@if (!string.IsNullOrWhiteSpace(fee.Unit)) { <span class="dv-fee-unit">@fee.Unit</span> }</span>
+                                </li>
+                            }
+                        </ul>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(NoFeesText)) { <div class="dv-none">@NoFeesText</div> }
+                </section>
+            }
+
+            @ChildContent
+        </div>
+
+        <footer class="dv-footer">
+            <button type="button" class="btn-ghost" @onclick="() => OnClose.InvokeAsync()">Close</button>
+            @if (OnHistory.HasDelegate) { <button type="button" class="btn-outline modal-icon-button" @onclick="() => OnHistory.InvokeAsync()">@HistoryLabel</button> }
+            @if (OnEdit.HasDelegate) { <button type="button" class="btn-primary" @onclick="() => OnEdit.InvokeAsync()">@EditLabel</button> }
+        </footer>
+    </div>
+</div>
+
+@code {
+    public sealed record Row(string Key, string? Value, bool Muted = false, string? Note = null, bool NoteExpired = false);
+    public sealed record Section(string Title, IReadOnlyList<Row> Rows);
+    public sealed record SummaryItem(string Label, string? Value, bool Muted = false, string? PillText = null, string? PillClass = null, string? Title = null);
+    public sealed record Fee(string Name, string? Note, string Amount, string? Unit = null, bool Variable = false);
+
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public IReadOnlyList<string> Context { get; set; } = [];
+    [Parameter] public string? StatusText { get; set; }
+    [Parameter] public string StatusClass { get; set; } = "pill-active";
+    [Parameter] public IReadOnlyList<SummaryItem> Summary { get; set; } = [];
+    [Parameter] public IReadOnlyList<Section> Sections { get; set; } = [];
+
+    /// <summary>The fee rows; null omits the section, an empty list draws it with <see cref="NoFeesText"/>.</summary>
+    [Parameter] public IReadOnlyList<Fee>? Fees { get; set; }
+    [Parameter] public string? NoFeesText { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string HistoryLabel { get; set; } = "History";
+    [Parameter] public string EditLabel { get; set; } = "Edit Occupant & Space";
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnHistory { get; set; }
+    [Parameter] public EventCallback OnEdit { get; set; }
+
+    private readonly string _titleId = $"rd-{Guid.NewGuid():N}";
+    private ElementReference _close;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // The drawer takes focus on opening so the keyboard starts inside it, and Escape closes it.
+        if (firstRender) { try { await _close.FocusAsync(); } catch { /* focus is a convenience */ } }
+    }
+
+    private async Task OnKey(KeyboardEventArgs e) { if (e.Key == "Escape") await OnClose.InvokeAsync(); }
+}

@@ -8,19 +8,19 @@ else
 {
 <div class="table-wrap" role="region" aria-label="Occupancy registry" tabindex="0">
     <table class="data-table registry-table">
-        <thead><tr><th>@Unit No.</th><th>Actual Occupant</th><th>Section / Area</th><th>@RateLabel</th><th>Contract</th><th>Payment</th><th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th>@Unit No.</th><th>Actual Occupant</th><th>@ContextLabel</th><th>@RateLabel</th><th>Contract</th>@if (ShowPayment) {<th>Payment</th>}<th>Status</th><th>Actions</th></tr></thead>
         <tbody>@foreach (var row in Rows)
         {
             <tr class="vendor-row @(row.LifecycleStatus == "Closed" ? "row-inactive" : "")" @onclick="() => OnInspect.InvokeAsync(row.Source)">
                 <td data-label="@(Unit + " No.")">@row.Number</td><td data-label="Actual Occupant">@row.Occupant</td>
-                <td data-label="Section / Context">@row.Context</td><td data-label="@RateLabel">₱@row.Amount?.ToString("N2")</td>
+                <td data-label="@ContextLabel">@row.Context</td><td data-label="@RateLabel">₱@row.Amount?.ToString("N2")</td>
                 <td data-label="Contract / Effectivity">@row.Contract <span class="registry-date">@row.StartDate</span></td>
-                <td data-label="Payment"><AccountStatusPill Status="@row.PaymentStatus" />@if (Position is not null) { @Position(row.Source) }</td>
+                @if (ShowPayment) {<td data-label="Payment"><AccountStatusPill Status="@row.PaymentStatus" />@if (Position is not null) { @Position(row.Source) }</td>}
                 <td data-label="Status"><AccountStatusPill Status="@row.LifecycleStatus" /></td>
                 <td class="registry-actions" data-label="Actions" @onclick:stopPropagation="true">@Actions(row.Source)</td>
             </tr>
         }
-        @if (!Rows.Any()) { <tr><td colspan="8" class="v3-empty">No registrations match this search and filter.</td></tr> }
+        @if (!Rows.Any()) { <tr><td colspan="@(ShowPayment ? 8 : 7)" class="v3-empty">No registrations match this search and filter.</td></tr> }
         </tbody>
     </table>
 </div>
@@ -31,6 +31,10 @@ else
     [Parameter] public IEnumerable<RentalTableRow<TItem>> Rows { get; set; } = [];
     [Parameter] public string Unit { get; set; } = "Stall";
     [Parameter] public string RateLabel { get; set; } = "Monthly Rate";
+    /// <summary>The third column's heading: the stall registers' section, or what a space roster states there (its occupancy basis).</summary>
+    [Parameter] public string ContextLabel { get; set; } = "Section / Area";
+    /// <summary>False for a list that carries no payment position (a roster of who holds what).</summary>
+    [Parameter] public bool ShowPayment { get; set; } = true;
     [Parameter, EditorRequired] public RenderFragment<TItem> Actions { get; set; } = null!;
     [Parameter] public RenderFragment<TItem>? Position { get; set; }
     [Parameter] public EventCallback<TItem> OnInspect { get; set; }

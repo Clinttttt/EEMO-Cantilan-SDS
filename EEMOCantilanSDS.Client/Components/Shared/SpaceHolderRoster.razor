@@ -4,28 +4,53 @@
 @using EEMOCantilanSDS.Client.Exports
 @inject IObligationsApiClient ObligationsApi
 @inject IJSRuntime JS
+@inject NavigationManager Navigation
 
+@* The holder list of a space or lot operation. On screen it is the occupancy registry the stall facilities use (hero, status chips, search, the same table and
+   row actions), read-only here; Print, Excel, CSV and Save as PDF produce the official list below, which is shown only on paper. The register is the account
+   register's current records, not a reconstructed historical roster, and an editable screen is never a certified report. *@
 <PageTitle>StallTrack — @Source.Name — Space Holder List</PageTitle>
 <div class="no-print">
     <OperationTopbar Title="Space Holder List" Crumb="Space Holder List" ParentHref="@Source.Route" ParentTitle="@Source.Name" />
 </div>
 <div class="content-area space-roster">
-    <div class="v3-toolbar no-print" aria-label="Roster controls">
-        <label><span class="v3-sr-only">Search occupant or space number</span><input class="v3-input" type="search" placeholder="Search occupant or space no…" @bind="_search" @bind:event="oninput" /></label>
-        <label class="v3-period"><span>Occupancy</span><select class="v3-select" aria-label="Account lifecycle" @bind="_lifecycle"><option>Active</option><option>Closed</option><option>All</option></select></label>
-        <div class="v3-btn-group" role="group" aria-label="Document actions">
-            <button class="v3-btn" type="button" disabled="@(!Ready)" @onclick="PrintAsync">Print</button>
-            <button class="v3-btn" type="button" disabled="@(!Ready)" @onclick="DownloadExcelAsync">Excel</button>
-            @if (Ready) { <a class="v3-btn" href="@CsvHref" download="@(FileName + ".csv")">CSV</a> }
-            <button class="v3-btn" type="button" disabled="@(!Ready)" @onclick="PrintAsync" title="Choose Save as PDF in the print dialog">Save as PDF</button>
-        </div>
+    <div class="no-print roster-screen">
+        <RentalRegistryHero Title="Spaces &amp; Occupants">
+            <Figures>
+                <V3HeroFigure Label="@($"Registered {Source.Unit.ToLowerInvariant()}s")" Value="@(Ready ? _accounts.Count(a => a.Kind == Source.Kind).ToString(CultureInfo.InvariantCulture) : "—")" Note="@(Ready ? $"{Count(true)} active · {Count(false)} closed" : null)" />
+                <V3HeroFigure Label="Active" Value="@(Ready ? Count(true).ToString(CultureInfo.InvariantCulture) : "—")" Note="Current occupancies" />
+                <V3HeroFigure Label="Closed" Value="@(Ready ? Count(false).ToString(CultureInfo.InvariantCulture) : "—")" Note="Records kept" />
+            </Figures>
+        </RentalRegistryHero>
+        <RentalRegistryToolbar Choices="Choices" Selected="@Source.RegistryCode" SearchQuery="@_search" OnSearch="v => _search = v"
+                               Filters="LifecycleChoices" ActiveFilter="@_lifecycle" OnFilterChanged="v => _lifecycle = v"
+                               SearchPlaceholder="@($"Search {Source.Unit.ToLowerInvariant()} no. or occupant…")"
+                               CountLabel="@(Ready ? $"{Rows.Count} {Source.Unit.ToLowerInvariant()}{(Rows.Count == 1 ? "" : "s")}" : "—")">
+            <PrimaryAction>
+                <div class="v3-btn-group" role="group" aria-label="Document actions">
+                    <button class="v3-btn" type="button" disabled="@(!Ready)" @onclick="PrintAsync">Print</button>
+                    <button class="v3-btn" type="button" disabled="@(!Ready)" @onclick="DownloadExcelAsync">Excel</button>
+                    @if (Ready) { <a class="v3-btn" href="@CsvHref" download="@(FileName + ".csv")">CSV</a> }
+                    <button class="v3-btn" type="button" disabled="@(!Ready)" @onclick="PrintAsync" title="Choose Save as PDF in the print dialog">PDF</button>
+                </div>
+            </PrimaryAction>
+        </RentalRegistryToolbar>
+        @if (_error is not null)
+        {
+            <div class="v3-notice v3-notice-error" role="alert">@_error <button type="button" class="v3-btn v3-btn-sm" @onclick="LoadAsync">Try again</button></div>
+        }
+        <RentalRegistryTable TItem="ObligationAccountDto" Rows="TableRows" Unit="@Source.Unit" Loading="_loading" Failed="@(_error is not null)"
+                             RateLabel="@(IsLot ? "Approved Event Amount" : "Monthly Rate")" ContextLabel="@(IsLot ? "Event" : "Occupancy Basis")" ShowPayment="false"
+                             OnInspect="a => _details = a">
+            <Actions Context="a">
+                <RentalRegistryActionButtons Subject="@($"{Source.Unit.ToLowerInvariant()} {a.SubjectLabel}")" ShowEdit="false" ShowHistory="false" ShowToggle="false"
+                                             OnInspect="() => _details = a" OnProfile="() => Navigation.NavigateTo(Source.ProfileHref(a.Id))" />
+            </Actions>
+        </RentalRegistryTable>
     </div>
-    @if (_error is not null)
-    {
-        <div class="v3-notice v3-notice-error no-print" role="alert">@_error <button type="button" class="v3-btn v3-btn-sm" @onclick="LoadAsync">Try again</button></div>
-    }
-    <article class="v3-report-sheet print-report-sheet space-roster-sheet" aria-label="Official space holder roster" aria-busy="@(_loading ? "true" : "false")">
-        <ReportLetterhead Title="SPACE HOLDER LIST" Period="@Source.Name.ToUpperInvariant()">
+
+    <article class="v3-report-sheet print-report-sheet space-roster-sheet roster-print-only" aria-label="Official space holder roster" aria-hidden="true">
+        <ReportLetterhead Title="@(IsLot ? "LOT HOLDER LIST" : "SPACE HOLDER LIST")" Period="@Source.Name.ToUpperInvariant()">
             <Facts>
                 <div><dt>Current records as of</dt><dd>@(_asOf?.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture) ?? "Unavailable")</dd></div>
                 <div><dt>Occupancy scope</dt><dd>@_lifecycle</dd></div>
@@ -36,38 +61,53 @@
         <div class="space-roster-table-wrap">
             <table class="v3-report-table space-roster-table">
                 <colgroup><col class="roster-number" /><col class="roster-occupant" /><col class="roster-space" /><col class="roster-basis" /><col class="roster-reference" /><col class="roster-date" /><col class="roster-amount" /><col class="roster-status" /></colgroup>
-                <thead><tr><th scope="col">#</th><th scope="col">Actual occupant</th><th scope="col">Space No.</th><th scope="col">Occupancy basis</th><th scope="col">Contract reference</th><th scope="col">Effectivity</th><th scope="col" class="v3-num">Approved monthly rental</th><th scope="col">Status</th></tr></thead>
+                <thead><tr>@foreach (var column in Columns) { <th scope="col" class="@(column.Kind == SheetValueKind.Money ? "v3-num" : null)">@column.Header</th> }</tr></thead>
                 <tbody>
                     @for (var i = 0; i < Rows.Count; i++)
                     {
-                        var account = Rows[i];
-                        <tr><td>@(i + 1)</td><td>@SpaceAccountPresentation.Occupant(account)</td><td>@account.SubjectLabel</td><td>@SpaceAccountPresentation.Basis(account)</td><td>@(SpaceAccountPresentation.Reference(account) is { Length: > 0 } reference ? reference : "—")</td><td>@((account.ContractEffectiveDate ?? account.ActiveFrom).ToString("MMM d, yyyy", CultureInfo.InvariantCulture))</td><td class="v3-num">@(account.CurrentAmount is { } amount ? "₱" + amount.ToString("N2", CultureInfo.InvariantCulture) : "—")</td><td>@(account.ActiveTo is null ? "Active" : $"Closed {account.ActiveTo:MMM d, yyyy}")</td></tr>
+                        var cells = ExportRows[i];
+                        <tr>@for (var c = 0; c < cells.Count; c++) { <td class="@(Columns[c].Kind == SheetValueKind.Money ? "v3-num" : null)">@SheetCell(cells[c])</td> }</tr>
                     }
                     @if (Rows.Count == 0)
                     {
-                        <tr><td colspan="8" class="v3-empty">@(_loading ? "Loading roster…" : _error is not null ? "The roster is unavailable." : _accounts.Count == 0 ? "No space holders registered." : !string.IsNullOrWhiteSpace(_search) ? "No records match this search." : _lifecycle == "Closed" ? "No closed accounts recorded." : "No active registrations.")
-                            @if (_loading) { <Skeleton Height="24px" /><span class="v3-sr-only" role="status">Loading the space holder roster</span> }
-                        </td></tr>
+                        <tr><td colspan="@Columns.Count" class="v3-empty">@(_loading ? "Loading roster…" : _error is not null ? "The roster is unavailable." : !_accounts.Any(a => a.Kind == Source.Kind) ? "No space holders registered." : !string.IsNullOrWhiteSpace(_search) ? "No records match this search." : _lifecycle == "Closed" ? "No closed accounts recorded." : "No active registrations.")</td></tr>
                     }
                 </tbody>
             </table>
         </div>
-        <p class="v3-report-note">Effectivity shows the recorded signed-contract date when available, otherwise the source occupancy start. Space-only occupancy does not imply a signed contract. Approved amounts are the account register's current amounts. Closed accounts retain their history; an unavailable amount is shown as —. This is a current register, not a reconstructed historical roster.</p>
+        <p class="v3-report-note">@(IsLot
+            ? "Each lot is held for its event; the approved event amount is the account register's current amount. Closed accounts retain their history; an unavailable amount is shown as —. This is a current register, not a reconstructed historical roster."
+            : "Effectivity shows the recorded signed-contract date when available, otherwise the source occupancy start. Space-only occupancy does not imply a signed contract. Approved amounts are the account register's current amounts. Closed accounts retain their history; an unavailable amount is shown as —. This is a current register, not a reconstructed historical roster.")</p>
     </article>
 </div>
+
+@if (_details is { } details)
+{
+    <ObligationHolderDetails Account="details" Operation="@Source.Name" OnClose="() => _details = null" />
+}
 
 @code {
     [Parameter, EditorRequired] public SpaceAccountPresentation Source { get; set; } = null!;
     private IReadOnlyList<ObligationAccountDto> _accounts = [];
+    private ObligationAccountDto? _details;
     private string _search = "", _lifecycle = "Active";
     private bool _loading = true;
     private string? _error;
     private DateOnly? _asOf;
+    private bool IsLot => Source.Kind == EEMOCantilanSDS.Domain.Enums.ObligationKind.FiestaArawLotRental;
     private bool Ready => !_loading && _error is null && _asOf is not null;
+    private static readonly IReadOnlyList<string> LifecycleChoices = ["Active", "Closed", "All"];
+    private IReadOnlyList<RentalRegistryToolbar.Choice> Choices => [new(Source.RegistryCode, Source.Kind == EEMOCantilanSDS.Domain.Enums.ObligationKind.FiestaArawLotRental ? "FA" : Source.Kind == EEMOCantilanSDS.Domain.Enums.ObligationKind.KanmanggaySpaceRental ? "KM" : "VF", Source.Name)];
+    private int Count(bool active) => _accounts.Count(a => a.Kind == Source.Kind && (a.ActiveTo is null) == active);
     private IReadOnlyList<ObligationAccountDto> Rows => _accounts.Where(a => a.Kind == Source.Kind
         && (_lifecycle == "All" || (_lifecycle == "Closed" ? a.ActiveTo is not null : a.ActiveTo is null))
         && (string.IsNullOrWhiteSpace(_search) || SpaceAccountPresentation.Occupant(a).Contains(_search, StringComparison.OrdinalIgnoreCase) || a.SubjectLabel.Contains(_search, StringComparison.OrdinalIgnoreCase)))
         .OrderBy(a => a.SubjectLabel, StringComparer.OrdinalIgnoreCase).ThenBy(a => a.ActiveFrom).ToArray();
+    private IEnumerable<RentalTableRow<ObligationAccountDto>> TableRows => Rows.Select(a => new RentalTableRow<ObligationAccountDto>(a,
+        a.SubjectLabel, SpaceAccountPresentation.Occupant(a), SpaceAccountPresentation.RegistryContract(a),
+        (a.ContractEffectiveDate ?? a.ActiveFrom).ToString("MMM d, yyyy", CultureInfo.InvariantCulture), a.CurrentAmount, "",
+        a.ActiveTo is null ? "Active" : "Closed", IsLot ? EventText(a) : SpaceAccountPresentation.Basis(a)));
+    private static string EventText(ObligationAccountDto a) => a.Event is null ? "—" : $"{a.Event} · {a.EventDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) ?? "date not recorded"}";
     protected override Task OnInitializedAsync() => LoadAsync();
     private async Task LoadAsync()
     {
@@ -82,17 +122,30 @@
         finally { _loading = false; }
     }
     private async Task PrintAsync() { if (Ready) await JS.InvokeVoidAsync("stalltrackPrint.landscape"); }
-    private string FileName => $"space-holders-{Source.Route.Split('/').Last()}-{_lifecycle.ToLowerInvariant()}-{_asOf:yyyy-MM-dd}";
-    private static readonly IReadOnlyList<SheetColumn> Columns = [new("#", SheetValueKind.Number), new("Actual occupant", SheetValueKind.Text), new("Space No.", SheetValueKind.Text), new("Occupancy basis", SheetValueKind.Text), new("Contract reference", SheetValueKind.Text), new("Effectivity", SheetValueKind.Date), new("Approved monthly rental", SheetValueKind.Money), new("Status", SheetValueKind.Text)];
-    private IReadOnlyList<IReadOnlyList<object?>> ExportRows => Rows.Select((a, i) => (IReadOnlyList<object?>)new object?[] { i + 1, SpaceAccountPresentation.Occupant(a), a.SubjectLabel, SpaceAccountPresentation.Basis(a), SpaceAccountPresentation.Reference(a), a.ContractEffectiveDate ?? a.ActiveFrom, a.CurrentAmount, a.ActiveTo is null ? "Active" : $"Closed {a.ActiveTo:MMM d, yyyy}" }).ToArray();
+    private string FileName => $"{(IsLot ? "lot" : "space")}-holders-{Source.Route.Split('/').Last()}-{_lifecycle.ToLowerInvariant()}-{_asOf:yyyy-MM-dd}";
+    private IReadOnlyList<SheetColumn> Columns => IsLot ? LotColumns : SpaceColumns;
+    private static readonly IReadOnlyList<SheetColumn> SpaceColumns = [new("#", SheetValueKind.Number), new("Actual occupant", SheetValueKind.Text), new("Space No.", SheetValueKind.Text), new("Occupancy basis", SheetValueKind.Text), new("Contract reference", SheetValueKind.Text), new("Effectivity", SheetValueKind.Date), new("Approved monthly rental", SheetValueKind.Money), new("Status", SheetValueKind.Text)];
+    private static readonly IReadOnlyList<SheetColumn> LotColumns = [new("#", SheetValueKind.Number), new("Lot holder", SheetValueKind.Text), new("Lot No.", SheetValueKind.Text), new("Event", SheetValueKind.Text), new("Event date", SheetValueKind.Date), new("Start", SheetValueKind.Date), new("Approved event amount", SheetValueKind.Money), new("Status", SheetValueKind.Text)];
+    private static string Status(ObligationAccountDto a) => a.ActiveTo is null ? "Active" : $"Closed {a.ActiveTo:MMM d, yyyy}";
+    private IReadOnlyList<IReadOnlyList<object?>> ExportRows => Rows.Select((a, i) => (IReadOnlyList<object?>)(IsLot
+        ? new object?[] { i + 1, SpaceAccountPresentation.Occupant(a), a.SubjectLabel, a.Event?.ToString(), a.EventDate, a.ActiveFrom, a.CurrentAmount, Status(a) }
+        : new object?[] { i + 1, SpaceAccountPresentation.Occupant(a), a.SubjectLabel, SpaceAccountPresentation.Basis(a), SpaceAccountPresentation.Reference(a), a.ContractEffectiveDate ?? a.ActiveFrom, a.CurrentAmount, Status(a) })).ToArray();
+    private static string SheetCell(object? value) => value switch
+    {
+        null => "—",
+        DateOnly date => date.ToString("MMM d, yyyy", CultureInfo.InvariantCulture),
+        decimal amount => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture),
+        string { Length: 0 } => "—",
+        _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? "—"
+    };
     private string CsvHref => "data:text/csv;charset=utf-8," + Uri.EscapeDataString(string.Join("\r\n",
-        new[] { Csv("SPACE HOLDER LIST", Source.Name), Csv("Office", Branding.OfficeName), Csv("Municipality", Branding.Municipality, Branding.Province), Csv("Current records as of", _asOf?.ToString("yyyy-MM-dd"), "Occupancy", _lifecycle), Csv("Search", _search), Csv(Columns.Select(c => c.Header).ToArray()) }
+        new[] { Csv(IsLot ? "LOT HOLDER LIST" : "SPACE HOLDER LIST", Source.Name), Csv("Office", Branding.OfficeName), Csv("Municipality", Branding.Municipality, Branding.Province), Csv("Current records as of", _asOf?.ToString("yyyy-MM-dd"), "Occupancy", _lifecycle), Csv("Search", _search), Csv(Columns.Select(c => c.Header).ToArray()) }
         .Concat(ExportRows.Select(row => Csv(row.Select(v => v switch { DateOnly date => date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), decimal amount => amount.ToString("0.00", CultureInfo.InvariantCulture), _ => Convert.ToString(v, CultureInfo.InvariantCulture) }).ToArray())))));
     private static string Csv(params string?[] cells) => string.Join(',', cells.Select(c => CsvCell.Escape(c ?? "")));
     private async Task DownloadExcelAsync()
     {
         if (!Ready) return;
-        var bytes = SpreadsheetBuilder.Build("Space Holder List", Columns, ExportRows);
+        var bytes = SpreadsheetBuilder.Build(IsLot ? "Lot Holder List" : "Space Holder List", Columns, ExportRows);
         await JS.InvokeVoidAsync("downloadFileFromBytes", FileName + ".xlsx", Convert.ToBase64String(bytes), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     }
 }

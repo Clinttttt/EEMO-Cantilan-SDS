@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Dtos.Revenue;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Client.Services;
@@ -30,6 +31,18 @@ public sealed record SpaceAccountPresentation(ObligationKind Kind, string Name, 
         OccupancyArrangement.Extension => "No contract (extension)",
         _ => "Not recorded"
     };
+    /// <summary>As in the stall registers, the contract column names the lessee on the signed contract; when none is recorded it states the term.</summary>
+    public static string RegistryContract(ObligationAccountDto account)
+    {
+        if (account.Event is not null) return "Event lot";
+        if (account.Arrangement == OccupancyArrangement.SignedContract && account.ContractName is { Length: > 0 } contractName) return contractName;
+        if (account.ContractYears is { } years && account.ContractEffectiveDate is { } signedDate)
+            return $"{years} {(years == 1 ? "year" : "years")} · expires {DomainRules.TermLastDay(signedDate, years):MMM yyyy}";
+        return account.Arrangement == OccupancyArrangement.SignedContract ? "Signed lease · term not recorded" : Basis(account);
+    }
+    /// <summary>The code the registry's workspace picker knows this operation by.</summary>
+    public string RegistryCode => Kind == ObligationKind.FiestaArawLotRental ? "FA" : Kind == ObligationKind.KanmanggaySpaceRental ? "KM" : "Vegetable/Fruits";
+    public string Unit => Kind == ObligationKind.FiestaArawLotRental ? "Lot" : "Space";
     public static string Reference(ObligationAccountDto account) =>
         account.Arrangement == OccupancyArrangement.SignedContract ? account.ContractReference ?? "" : "";
 }

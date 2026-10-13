@@ -60,13 +60,13 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         var cut = Render(builder => { builder.OpenComponent(0, page); builder.CloseComponent(); });
         Assert.DoesNotContain(cut.FindAll("button, a"), x => x.TextContent.Trim() == "Import list");
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New" || b.TextContent.Contains("Add Occupant")).Click();
-        Assert.Equal(new[] { "Import list", "Import history", "Cancel", kind == ObligationKind.FiestaArawLotRental ? "Add Lot Holder" : "Add Space Holder" }, cut.FindAll("footer button").Select(x => x.TextContent.Trim()));
+        Assert.Equal(new[] { "Import list", kind == ObligationKind.FiestaArawLotRental ? "Add Lot Holder" : "Add Space Holder" }, cut.FindAll("footer button").Select(x => x.TextContent.Trim()));   // no second dismiss beside the header X, and no import-history entry
         Assert.NotNull(cut.Find("#obw-occupant"));
         SaveVisualArtifact(operation + "-registration", cut.Markup);
         Click(cut, "Import list");
         Assert.EndsWith($"/operations/{operation}/import", Services.GetRequiredService<NavigationManager>().Uri);
         _api.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Never);
-        Click(cut, "Cancel");
+        cut.Find(".eemo-drawer-header-close").Click();
         Assert.Empty(cut.FindAll("form[aria-label='Open account']"));
     }
 
@@ -176,11 +176,13 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         Assert.DoesNotContain("Area", cut.Find("thead").TextContent);
         Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent is "Change amount" or "Close account");
         SaveVisualArtifact("kanmanggay-roster", cut.Markup);
-        cut.Find("select").Change("Closed");
-        Assert.Contains("LEASE-17", cut.Find("tbody").TextContent);
-        Assert.Contains("Closed", cut.Find("tbody").TextContent);
-        cut.Find("input[type='search']").Input("absent");
-        Assert.Contains("No records match", cut.Find("tbody").TextContent);
+        cut.FindAll(".filter-tab").Single(b => b.TextContent.Trim() == "Closed").Click();
+        Assert.Contains("LEASE-17", cut.Find("article tbody").TextContent);              // the printed document carries the contract reference
+        Assert.Contains("Closed", cut.Find("article tbody").TextContent);
+        Assert.Contains("Closed", cut.Find(".roster-screen tbody").TextContent);
+        cut.Find("input.search-input").Input("absent");
+        Assert.Contains("No registrations match", cut.Find(".roster-screen tbody").TextContent);
+        Assert.Contains("No records match", cut.Find("article tbody").TextContent);
     }
     [Fact]
     public void CsvExcelAndPrintUseTheFilteredAuthoritativeRoster()
@@ -200,7 +202,7 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         Assert.Contains("=FORMULA", sheet.InnerText);
         Assert.DoesNotContain("Closed holder", sheet.InnerText);
         Assert.DoesNotContain("Must not print", sheet.InnerText);
-        Click(cut, "Print"); Click(cut, "Save as PDF");
+        Click(cut, "Print"); Click(cut, "PDF");
         Assert.Equal(2, JSInterop.Invocations["stalltrackPrint.landscape"].Count);
     }
     [Fact]
@@ -295,9 +297,10 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
             SubjectLabel = i.ToString("000"), Arrangement = i % 2 == 0 ? OccupancyArrangement.SignedContract : OccupancyArrangement.SpaceOnly,
             ContractReference = i % 2 == 0 ? $"TEST-LEASE-{i:000}" : null }).ToArray());
         var cut = RenderComponent<KanmanggaySpaceHolders>();
-        Assert.Equal(90, cut.FindAll("tbody tr").Count);
+        Assert.Equal(90, cut.FindAll(".roster-screen tbody tr").Count);           // the registry on screen
         Assert.Single(cut.FindAll("article"));
-        Assert.Equal(8, cut.FindAll("thead th").Count);
+        Assert.Equal(90, cut.FindAll("article tbody tr").Count);                  // the one official document on paper
+        Assert.Equal(8, cut.FindAll("article thead th").Count);
         SaveVisualArtifact("kanmanggay-roster-many", cut.Markup);
     }
 

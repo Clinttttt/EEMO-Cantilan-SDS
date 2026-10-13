@@ -55,7 +55,7 @@ public sealed class RentalWorkspacePilotTests : TestContext
         {
             Assert.False(workspace.Sections.HasFlag(RentalSection.MonthlyRate));
             Assert.False(workspace.Sections.HasFlag(RentalSection.ContractEvidence));
-            Assert.Null(workspace.RosterRoute);
+            Assert.Equal("/operations/fiesta-araw/space-holders", workspace.RosterRoute);   // the lot holder list the office reads like the other operations' lists
             Assert.Equal("/vendors?workspace=FA", workspace.ManagementRoute);
             Assert.Equal(RentalContractPolicy.EventOnly, workspace.ContractPolicy);
         }
@@ -81,7 +81,7 @@ public sealed class RentalWorkspacePilotTests : TestContext
     [Theory]
     [InlineData(RentalWorkspaceKey.Ice, 3)]
     [InlineData(RentalWorkspaceKey.Kanmanggay, 3)]
-    [InlineData(RentalWorkspaceKey.FiestaAraw, 2)]
+    [InlineData(RentalWorkspaceKey.FiestaAraw, 3)]
     public void NavigationOnlyOffersExistingRoutesAndNeverInventsAdministrativeActions(RentalWorkspaceKey key, int links)
     {
         var workspace = RentalWorkspaceCatalog.Get(key);
@@ -139,7 +139,7 @@ public sealed class RentalWorkspacePilotTests : TestContext
         Assert.Equal(eventRental, cut.FindAll("#obw-event-date").Any());
         Assert.Equal(!eventRental, cut.FindAll("#obw-contract-date").Any());
         Assert.Equal(eventRental, cut.FindAll("#obw-subject").Any());
-        cut.FindAll("button").Single(x => x.TextContent.Trim() == "Cancel").Click();
+        cut.Find(".eemo-drawer-header-close").Click();                                    // the one dismiss control: the header X (an untouched form closes at once)
         _authorization.SetRoles("Admin");
         Assert.DoesNotContain(cut.FindAll("button"), x => x.TextContent is "+ Add New" or "Close account" or "Change amount");
         _obligations.Verify(x => x.GetWorkspaceAsync(kind), Times.Once);
