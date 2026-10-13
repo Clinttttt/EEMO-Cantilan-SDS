@@ -26,6 +26,10 @@ public sealed class SpaceRentalDetailsDrawerTests : TestContext
         Services.AddSingleton(_api.Object);
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
         Services.AddSingleton(Mock.Of<IEcfCollectionsApiClient>());
+        Services.AddSingleton(Mock.Of<ISetupApiClient>());
+        Services.AddSingleton(Mock.Of<IStallsApiClient>());
+        Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
+        Services.AddSingleton<BrandingState>();
         JSInterop.Mode = JSRuntimeMode.Loose;
     }
 
