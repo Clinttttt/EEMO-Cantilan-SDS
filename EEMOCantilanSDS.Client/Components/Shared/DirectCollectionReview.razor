@@ -141,7 +141,6 @@
                                         else
                                         {
                                             <div class="v3-btn-group">
-                                                <button class="v3-btn v3-btn-sm" type="button" @onclick="() => ViewAsync(row)" aria-label="@($"View record {row.ReferenceCode}")">View</button>
                                                 @if (CanConfirmOne(row))
                                                 {
                                                     <button class="v3-btn v3-btn-sm" type="button" disabled="@_busy" @onclick='() => ReviewAsync(row, "Confirmed", null)'
@@ -157,6 +156,7 @@
                                                     <button class="v3-btn v3-btn-sm" type="button" disabled="@_busy" @onclick='() => ReviewAsync(row, "Resolved", null)'
                                                             aria-label="@($"Resolve {row.ReferenceCode}")">Resolve</button>
                                                 }
+                                                <button class="v3-btn v3-btn-sm" type="button" @onclick="() => ViewAsync(row)" aria-label="@($"View record {row.ReferenceCode}")">View</button>
                                             </div>
                                         }
                                     </td>

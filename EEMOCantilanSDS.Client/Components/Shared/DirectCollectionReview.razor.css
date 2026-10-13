@@ -324,8 +324,19 @@
     min-width: 12rem;
 }
 
+/* Confirm | Needs correction | View stay on one line at ordinary widths; only a narrow screen wraps them. */
+.dcr-actions {
+    white-space: nowrap;
+}
+
 .dcr-actions .v3-btn-group {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+}
+
+@media (max-width: 900px) {
+    .dcr-actions .v3-btn-group {
+        flex-wrap: wrap;
+    }
 }
 
 .dcr-note textarea {

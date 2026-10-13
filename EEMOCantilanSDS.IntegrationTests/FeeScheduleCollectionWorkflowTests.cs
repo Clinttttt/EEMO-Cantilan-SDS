@@ -364,6 +364,38 @@ public sealed class FeeScheduleCollectionWorkflowTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task ACanonicalSlaughterCollectionAppearsOnceInTheSlaughterhouseWorkspace_NeverAsAnEditableLegacyRow()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync(enabled: true);
+        var request = Slaughter(240m);
+        string src;
+        await using (var ctx = db.CreateContext(w.TenantId))
+        {
+            var first = await Workflow(ctx, w.TenantId, w.CollectorId).PostMobileAsync(request);
+            Assert.True(first.IsSuccess, first.Error);
+            src = first.Value!.ReferenceCode;
+            Assert.True((await Workflow(ctx, w.TenantId, w.CollectorId).PostMobileAsync(request)).IsSuccess);   // a replay is the same collection
+        }
+        await using var verify = db.CreateContext(w.TenantId);
+        var repo = new EEMOCantilanSDS.Infrastructure.Repositories.SlaughterRepository(verify);
+
+        var overview = await repo.GetOverviewAsync(Today.Year, Today.Month);
+        Assert.Equal((1, 3, 240m, 3), (overview.TotalTransactions, overview.TotalHeads, overview.TotalCollected, overview.HogCount));   // counted exactly once
+        var group = Assert.Single(await repo.GetGroupedTransactionsByMonthAsync(Today.Year, Today.Month));
+        Assert.Equal("Juan Owner", group.OwnerName);
+        var row = Assert.Single(group.LatestTransactions);
+        Assert.Equal((src, src, 3, 240m, AnimalType.Hog), (row.ReferenceCode, row.ORNumber, row.NumberOfHeads, row.TotalAmount, row.AnimalType));
+        var history = await repo.GetOwnerTransactionHistoryAsync("Juan Owner", Today.Year, Today.Month);
+        Assert.Equal(src, Assert.Single(Assert.Single(history.TransactionGroups).Transactions).ReferenceCode);
+        var year = await repo.GetHistoryAsync(Today.Year);
+        Assert.Equal(240m, year.Yearly.Single(y => y.Year == Today.Year).TotalCollected);
+        Assert.Empty(await verify.SlaughterTransactions.ToListAsync());   // reading it never creates a legacy row
+
+    }
+
+    [SkippableFact]
     public async Task Slaughter_UsesLargeAnimalAndApprovedCustomRates_AndRefusesUnapprovedUnstatedOrTypedAmounts()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);

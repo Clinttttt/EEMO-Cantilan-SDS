@@ -33,7 +33,11 @@ public record SlaughterTransactionDto(
     string? ORNumber,
     DateOnly TransactionDate,
     SlaughterFeeComponentsDto? Components = null
-);
+)
+{
+    /// <summary>Set only on a collection the Collector recorded on the canonical workflow (its SRC): such a row is read here, never edited here.</summary>
+    public string? ReferenceCode { get; init; }
+}
 
 public record SlaughterOverviewDto(
     int TotalTransactions,

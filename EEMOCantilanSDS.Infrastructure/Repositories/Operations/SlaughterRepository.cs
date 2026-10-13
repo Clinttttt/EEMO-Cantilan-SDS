@@ -24,6 +24,52 @@ public class SlaughterRepository(
     /// <summary>Test/non-DI convenience, matching the other repositories: reads the real clock and this office's rates.</summary>
     public SlaughterRepository(AppDbContext context) : this(
         context, new FeeRateResolver(context), new SystemClock(), new SlaughterAnimalLabelProvider(context)) { }
+    // ── Canonical slaughterhouse collections ───────────────────────────────────────────────────────────────
+    // From the Head's enablement date a Collector's slaughterhouse collection is a canonical Collection (SRC) and the legacy transaction
+    // writer is closed to Collectors, so those payments never reach SlaughterTransactions. The workspace reads both: the legacy history
+    // and the canonical collections (a reversed one is excluded; a replacement stands on its own SRC). One payment lives on one path only.
+    private sealed record CanonicalSlaughter(Guid CollectionId, string Src, DateOnly Date, DateTime RecordedAtUtc, string Owner, AnimalType Animal,
+        string? Custom, int Heads, decimal Rate, decimal Total)
+    {
+        public SlaughterTransactionDto ToDto() => new(CollectionId, Owner, Animal, Custom, Heads, Rate, Total, Src, Date) { ReferenceCode = Src };
+    }
+
+    private async Task<List<CanonicalSlaughter>> CanonicalSlaughterAsync(DateOnly start, DateOnly end, CancellationToken ct)
+    {
+        var reversed = context.CollectionCorrections.AsNoTracking().Where(x => x.FinancialEffectAmount < 0m).Select(x => x.OriginalCollectionId);
+        var rows = await (from l in context.CollectionLines.AsNoTracking()
+                          join c in context.Collections.AsNoTracking() on l.CollectionId equals c.Id
+                          join k in context.RevenueClassifications.AsNoTracking() on l.RevenueClassificationId equals k.Id
+                          where k.SemanticCode == RevenueClassificationCodes.Slaughterhouse && l.SourceKind == CollectionSourceKind.GovernedService
+                              && c.BusinessDate >= start && c.BusinessDate <= end && !reversed.Contains(c.Id)
+                          select new { c.Id, c.ReferenceCode, c.BusinessDate, c.RecordedAtUtc, c.PayerName, l.Amount, l.CalculationSnapshot })
+            .ToListAsync(ct);
+        return rows.Select(r =>
+        {
+            string owner = r.PayerName ?? "—"; var animal = AnimalType.Other; string? custom = null; var heads = 1; var rate = r.Amount;
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(r.CalculationSnapshot ?? "{}");
+                if (doc.RootElement.TryGetProperty("source", out var source))
+                {
+                    if (source.TryGetProperty("ownerName", out var o) && o.ValueKind == System.Text.Json.JsonValueKind.String && !string.IsNullOrWhiteSpace(o.GetString())) owner = o.GetString()!;
+                    if (source.TryGetProperty("animal", out var a) && a.ValueKind == System.Text.Json.JsonValueKind.String && Enum.TryParse<AnimalType>(a.GetString(), true, out var parsed)) animal = parsed;
+                    if (source.TryGetProperty("customAnimalName", out var cn) && cn.ValueKind == System.Text.Json.JsonValueKind.String) custom = cn.GetString();
+                    if (source.TryGetProperty("heads", out var h) && h.TryGetInt32(out var hc) && hc > 0) heads = hc;
+                    if (source.TryGetProperty("ratePerHead", out var rp) && rp.TryGetDecimal(out var rv)) rate = rv;
+                }
+            }
+            catch (System.Text.Json.JsonException) { /* an unreadable snapshot still counts at the posted amount */ }
+            return new CanonicalSlaughter(r.Id, r.ReferenceCode, r.BusinessDate, r.RecordedAtUtc, owner, animal, custom, heads, rate, r.Amount);
+        }).ToList();
+    }
+
+    private static DateOnly MonthEnd(int year, int month) => new DateOnly(year, month, 1).AddMonths(1).AddDays(-1);
+
+    private static SlaughterTransactionDto ToDto(SlaughterTransaction x) => new(
+        x.Id, x.OwnerName, x.AnimalType, x.CustomAnimalType, x.NumberOfHeads, x.RatePerHead, x.RatePerHead * x.NumberOfHeads, x.ORNumber, x.TransactionDate,
+        new SlaughterFeeComponentsDto(x.SlaughterFee, x.SlaughterPermit, x.AntemortemFee, x.PostmortemFee, x.TableCharge, x.EntranceFee, x.LivestockFee));
+
     public async Task<IReadOnlyList<SlaughterAnimalRateDto>> GetApprovedCustomAnimalsAsync(CancellationToken ct = default) =>
         await context.SlaughterAnimalRates.AsNoTracking().Where(x => x.IsActive)
             .Select(x => new SlaughterAnimalRateDto(x.Id, x.AnimalName, x.RatePerHead, x.IsActive)).ToListAsync(ct);
@@ -153,47 +199,39 @@ public class SlaughterRepository(
 
     public async Task<IReadOnlyList<OwnerTransactionGroupDto>> GetGroupedTransactionsByMonthAsync(int year, int month, CancellationToken ct = default)
     {
-        var allTransactions = await context.SlaughterTransactions
+        var legacy = await context.SlaughterTransactions
             .AsNoTracking()
             .Where(x => x.TransactionDate.Year == year && x.TransactionDate.Month == month)
-            .OrderByDescending(x => x.TransactionDate)
-            .ThenByDescending(x => x.CreatedAt)
-            .ThenBy(x => x.OwnerName)
             .ToListAsync(ct);
+        var canonical = await CanonicalSlaughterAsync(new DateOnly(year, month, 1), MonthEnd(year, month), ct);
+
+        var allTransactions = legacy.Select(x => (Dto: ToDto(x), Created: x.CreatedAt))
+            .Concat(canonical.Select(x => (Dto: x.ToDto(), Created: x.RecordedAtUtc)))
+            .OrderByDescending(x => x.Dto.TransactionDate).ThenByDescending(x => x.Created).ThenBy(x => x.Dto.OwnerName)
+            .ToList();
 
         // Grouped by person: one client is one row in the list, whatever capitalisation each entry happened to use.
         // The key keeps a typed name so the office still reads the spelling it entered.
         var grouped = allTransactions
-            .GroupBy(x => PersonName.Canonical(x.OwnerName), PersonName.Comparer)
+            .GroupBy(x => PersonName.Canonical(x.Dto.OwnerName), PersonName.Comparer)
             .Select(ownerGroup =>
             {
-                // Group by OR number first
-                var orGroups = ownerGroup.GroupBy(x => x.ORNumber).ToList();
-                
+                // Group by OR number first (a canonical collection's own reference stands in for it)
+                var orGroups = ownerGroup.GroupBy(x => x.Dto.ORNumber).ToList();
+
                 // Get the latest OR number group (most recent transaction)
                 var latestORGroup = orGroups
-                    .OrderByDescending(g => g.Max(t => t.TransactionDate))
-                    .ThenByDescending(g => g.Max(t => t.CreatedAt))
+                    .OrderByDescending(g => g.Max(t => t.Dto.TransactionDate))
+                    .ThenByDescending(g => g.Max(t => t.Created))
                     .First();
 
-                var latestDate = latestORGroup.Max(x => x.TransactionDate);
-                
+                var latestDate = latestORGroup.Max(x => x.Dto.TransactionDate);
+
                 // Get ALL transactions for this OR number (not just one)
                 var latestTransactions = latestORGroup
-                    .OrderBy(x => x.AnimalType)
-                    .ThenBy(x => x.CustomAnimalType)
-                    .Select(x => new SlaughterTransactionDto(
-                        x.Id,
-                        x.OwnerName,
-                        x.AnimalType,
-                        x.CustomAnimalType,
-                        x.NumberOfHeads,
-                        x.RatePerHead,
-                        x.RatePerHead * x.NumberOfHeads,
-                        x.ORNumber,
-                        x.TransactionDate,
-                        new SlaughterFeeComponentsDto(x.SlaughterFee, x.SlaughterPermit, x.AntemortemFee, x.PostmortemFee, x.TableCharge, x.EntranceFee, x.LivestockFee)
-                    ))
+                    .OrderBy(x => x.Dto.AnimalType)
+                    .ThenBy(x => x.Dto.CustomAnimalType)
+                    .Select(x => x.Dto)
                     .ToList();
 
                 // Count distinct OR numbers for this owner
@@ -226,34 +264,27 @@ public class SlaughterRepository(
             .OrderByDescending(x => x.TransactionDate)
             .ThenByDescending(x => x.CreatedAt)
             .ToListAsync(ct);
+        var canonicalOwn = (await CanonicalSlaughterAsync(new DateOnly(year, month, 1), MonthEnd(year, month), ct))
+            .Where(x => PersonName.MatchKey(x.Owner) == ownerKey).ToList();
+        var combined = transactions.Select(x => (Dto: ToDto(x), Created: x.CreatedAt))
+            .Concat(canonicalOwn.Select(x => (Dto: x.ToDto(), Created: x.RecordedAtUtc))).ToList();
 
         // Group by OR number (not by date)
-        var orGroups = transactions
-            .GroupBy(x => x.ORNumber)
+        var orGroups = combined
+            .GroupBy(x => x.Dto.ORNumber)
             .Select(g => new
             {
                 ORNumber = g.Key,
-                LatestDate = g.Max(t => t.TransactionDate),
-                LatestCreated = g.Max(t => t.CreatedAt),
-                Transactions = g.ToList()
+                LatestDate = g.Max(t => t.Dto.TransactionDate),
+                LatestCreated = g.Max(t => t.Created),
+                Transactions = g.Select(t => t.Dto).ToList()
             })
             .OrderByDescending(g => g.LatestDate)
             .ThenByDescending(g => g.LatestCreated)
             .Select(g => new TransactionDateGroupDto(
                 g.LatestDate,
                 g.ORNumber,
-                g.Transactions.Select(x => new SlaughterTransactionDto(
-                    x.Id,
-                    x.OwnerName,
-                    x.AnimalType,
-                    x.CustomAnimalType,
-                    x.NumberOfHeads,
-                    x.RatePerHead,
-                    x.RatePerHead * x.NumberOfHeads,
-                    x.ORNumber,
-                    x.TransactionDate,
-                    new SlaughterFeeComponentsDto(x.SlaughterFee, x.SlaughterPermit, x.AntemortemFee, x.PostmortemFee, x.TableCharge, x.EntranceFee, x.LivestockFee)
-                )).ToList()
+                g.Transactions
             ))
             .ToList();
 
@@ -266,15 +297,16 @@ public class SlaughterRepository(
             .AsNoTracking()
             .Where(x => x.TransactionDate.Year == year && x.TransactionDate.Month == month)
             .ToListAsync(ct);
+        var canonical = await CanonicalSlaughterAsync(new DateOnly(year, month, 1), MonthEnd(year, month), ct);
 
         return new SlaughterOverviewDto(
-            transactions.Count,
-            transactions.Sum(x => x.NumberOfHeads),
-            transactions.Sum(x => x.RatePerHead * x.NumberOfHeads),
-            transactions.Where(x => x.AnimalType == AnimalType.Hog).Sum(x => x.NumberOfHeads),
-            transactions.Where(x => x.AnimalType == AnimalType.Carabao).Sum(x => x.NumberOfHeads),
-            transactions.Where(x => x.AnimalType == AnimalType.Cow).Sum(x => x.NumberOfHeads),
-            transactions.Where(x => x.AnimalType == AnimalType.Other).Sum(x => x.NumberOfHeads)
+            transactions.Count + canonical.Count,
+            transactions.Sum(x => x.NumberOfHeads) + canonical.Sum(x => x.Heads),
+            transactions.Sum(x => x.RatePerHead * x.NumberOfHeads) + canonical.Sum(x => x.Total),
+            transactions.Where(x => x.AnimalType == AnimalType.Hog).Sum(x => x.NumberOfHeads) + canonical.Where(x => x.Animal == AnimalType.Hog).Sum(x => x.Heads),
+            transactions.Where(x => x.AnimalType == AnimalType.Carabao).Sum(x => x.NumberOfHeads) + canonical.Where(x => x.Animal == AnimalType.Carabao).Sum(x => x.Heads),
+            transactions.Where(x => x.AnimalType == AnimalType.Cow).Sum(x => x.NumberOfHeads) + canonical.Where(x => x.Animal == AnimalType.Cow).Sum(x => x.Heads),
+            transactions.Where(x => x.AnimalType == AnimalType.Other).Sum(x => x.NumberOfHeads) + canonical.Where(x => x.Animal == AnimalType.Other).Sum(x => x.Heads)
         );
     }
 
@@ -302,6 +334,8 @@ public class SlaughterRepository(
                 x.ORNumber,
                 x.TransactionDate))
             .ToListAsync(ct);
+        rows.AddRange((await CanonicalSlaughterAsync(new DateOnly(firstYear, 1, 1), new DateOnly(year, 12, 31), ct))
+            .Select(x => new HistoryRow(x.Owner, x.Animal, x.Custom, x.Heads, x.Total, x.Src, x.Date)));
 
         // Current year: only months that have started. Past years: all 12. Future years: none.
         var maxMonth = year < today.Year ? 12 : year == today.Year ? today.Month : 0;
