@@ -3,8 +3,23 @@
 .gsw-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
-    align-items: start;
+    align-items: stretch;
     gap: 20px;
+}
+
+/* Collections and Setup share one row height: the shorter card stretches to the taller one, and the Collections total stays at the card's foot.
+   Stacked (narrow) they keep their natural heights. */
+.gsw-layout > .v3-panel {
+    display: flex;
+    flex-direction: column;
+}
+
+.gsw-layout > .v3-panel > .gsw-scroll {
+    flex: 1 1 auto;
+}
+
+.gsw-layout > .v3-panel > .gsw-total {
+    margin-top: auto;
 }
 
 .gsw-period {
@@ -174,12 +189,15 @@
     }
 }
 
+/* One short line at the fee types it concerns; the amount rule itself is read in Setup. */
 .gsw-fee-rule {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     gap: 8px 12px;
     margin: 0 0 12px;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
 }
 
 .gsw-period .v3-input { min-height: 36px; padding-block: 4px; }

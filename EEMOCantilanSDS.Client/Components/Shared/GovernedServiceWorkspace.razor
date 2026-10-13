@@ -213,8 +213,8 @@
     {
         @* The collector is only offered fee types when the amount rule is "By approved fee type". Defining a type while another rule
            is in force would otherwise look saved and never reach Collector Mobile. *@
-        <p class="v3-notice gsw-fee-rule" role="status">
-            Collectors are offered these fee types only when the amount rule is <strong>By approved fee type</strong>. Today's rule is <strong>@BasisLabel(_definition)</strong>.
+        <p class="gsw-fee-rule" role="status" title="Fee types reach Collector Mobile only while the amount rule is By approved fee type.">
+            <span>Not offered to Collectors yet.</span>
             <AuthorizeView Roles="SuperAdmin">
                 <Authorized>
                     <button class="v3-btn v3-btn-sm" type="button" @onclick="UseFeeTypesAsync" disabled="@_saving">Collect by fee type</button>
