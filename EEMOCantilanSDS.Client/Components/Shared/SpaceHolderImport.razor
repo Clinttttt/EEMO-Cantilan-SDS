@@ -50,7 +50,7 @@
     }
     else
     {
-        <ImportReviewBar Count="Rows.Count" Title="rows to review" Detail="@($"{ReadyCount} ready · {InvalidCount} invalid")" Subtitle="@($"{(string.IsNullOrEmpty(_fileName) ? "Entered here" : _fileName)} · {Name}")">
+        <ImportReviewBar Count="Rows.Count" Title="rows to review" Detail="@ReviewCounts" Subtitle="@($"{(string.IsNullOrEmpty(_fileName) ? "Entered here" : _fileName)} · {Name}")">
             @if (IsEvent)
             {
                 <ImportButton Kind="ghost" Class="imp-add-row" OnClick="() => AddRow(true)">
@@ -74,52 +74,81 @@
         </ImportReviewBar>
 
 
-        <ImportGrid TRow="Row" Columns="Columns" Rows="Rows" Label="Rent / space holders to import" GetCell="CellOf" OnChange="CellChanged" OnRemove="RemoveRow"
-                    IsReadonly="IsLocked" Placeholder="PlaceholderOf" CellTitle="TitleOf">
+        <ImportGrid TRow="Row" Columns="ReviewColumns" Rows="Rows" Label="Rent / space holders to import" GetCell="CellOf" OnChange="CellChanged" OnRemove="RemoveRow"
+                    Compact="true" IsReadonly="IsLocked" Placeholder="PlaceholderOf" CellTitle="TitleOf" OptionText="OptionText">
+            <Status Context="row">
+                @{ var (state, why) = StatusOf(row); }
+                <div class="shi-status">
+                    <span class="shi-chip-status @(state == SpaceHolderImportStatus.Ready ? "shi-ready" : "shi-invalid")">@StatusLabel(state)</span>
+                    @if (state != SpaceHolderImportStatus.Ready)
+                    {
+                        <p class="shi-why" role="status">@(why ?? "Review this row before importing.")</p>
+                    }
+                </div>
+            </Status>
             <RowActions Context="row">
                 @{ var (state, why) = StatusOf(row); }
-                @if (!IsEvent || state != SpaceHolderImportStatus.Ready)
-                {
-                    <details class="shi-row-details">
-                        <summary title="@(why ?? "Edit contract or rent/space details")" aria-label="@($"Edit row details {Rows.IndexOf(row) + 1}{(state != SpaceHolderImportStatus.Ready ? $": {why ?? "Review required"}" : "")}")">Details@if (state != SpaceHolderImportStatus.Ready) { <text> · Review</text> }</summary>
-                        <div class="shi-row-fields">
-                            @if (state != SpaceHolderImportStatus.Ready)
-                            {
-                                <p class="shi-why" role="status">@(why ?? "Review this row before importing.")</p>
-                            }
-                            @if (!IsEvent)
-                            {
-                            <label>Lease type
-                                <select class="shi-basis-action" aria-label="Lease type of row @(Rows.IndexOf(row) + 1)"
-                                        value="@row.BasisText" @onchange="e => ChangeBasis(row, e.Value?.ToString())">
-                                    <option value="">Choose…</option>
-                                    <option value="@Signed">Contract</option>
-                                    <option value="@SpaceOnly">Space only</option>
-                                </select>
-                            </label>
-                            <label>Contract reference
-                                <input class="shi-row-extra" type="text" maxlength="200" aria-label="Contract reference of row @(Rows.IndexOf(row) + 1)"
-                                       placeholder="Per signed lease" value="@row.ContractRef"
-                                       readonly="@(row.Basis != OccupancyArrangement.SignedContract)"
-                                       @oninput="e => ChangeContractRef(row, e.Value?.ToString())" />
-                            </label>
-                            <label>Closed on
-                                <input class="shi-row-extra" type="date" aria-label="Closed on row @(Rows.IndexOf(row) + 1)"
-                                       value="@row.ClosedText" @onchange="e => ChangeClosedOn(row, e.Value?.ToString())" />
-                            </label>
-                            }
-                        </div>
-                    </details>
-                }
+                <button class="shi-row-edit" type="button" title="@(why ?? "Edit rent/space details")"
+                        aria-label="Edit row details @(Rows.IndexOf(row) + 1)" aria-haspopup="dialog"
+                        @ref="_editButtons[row]" @onclick="() => OpenEditor(row)">
+                    @(state == SpaceHolderImportStatus.Ready ? "Details" : "Review")
+                </button>
             </RowActions>
         </ImportGrid>
+
+        @if (_editing is { } editing)
+        {
+            <VendorDrawerShell Show="true" AnimateEntry="true" Title="@($"Row {Rows.IndexOf(editing) + 1} · {(string.IsNullOrWhiteSpace(editing.Name) ? "Rent / space holder" : editing.Name)}")"
+                               Subtitle="Edit this row before importing. Changes stay in the review list." OnClose="CloseEditor">
+                <Icon><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9M16 3l5 5L8 21H3v-5L16 3Z" /></svg></Icon>
+                <ChildContent>
+                    <div class="shi-editor" tabindex="-1" @ref="_editorHeading">
+                        @if (StatusOf(editing).Status != SpaceHolderImportStatus.Ready)
+                        {
+                            <p class="shi-why shi-editor-error" id="@_errorId" role="status">@(StatusOf(editing).Why ?? "Review this row before importing.")</p>
+                        }
+                        <section class="avm-section">
+                            <div class="avm-section-label">Holder &amp; @(IsEvent ? "Event" : "Space")</div>
+                            <div class="avm-row-2">
+                                @foreach (var col in ReviewColumns) { @EditorField(editing, col) }
+                            </div>
+                        </section>
+                        @if (!IsEvent)
+                        {
+                            <section class="avm-section">
+                                <div class="avm-section-label">Contract Information</div>
+                                <div class="avm-row-2">
+                                    @foreach (var col in new[] { ContractNameCol, ContractReferenceCol, YearsCol }) { @EditorField(editing, col) }
+                                </div>
+                            </section>
+                            <section class="avm-section">
+                                <div class="avm-section-label">Space &amp; Rental Details</div>
+                                <div class="avm-row-2">
+                                    @foreach (var col in new[] { AreaCol, AreaLocCol, ContractRateCol, WholeYearCol, DelinquentCol }) { @EditorField(editing, col) }
+                                </div>
+                                <p class="avm-section-note">Whole Year Rental is a display calculation from the approved monthly rental. Delinquency is available from the account ledger after registration.</p>
+                            </section>
+                        }
+                        <section class="avm-section">
+                            <div class="avm-section-label">Additional Information</div>
+                            @EditorField(editing, ClosedCol)
+                        </section>
+                    </div>
+                </ChildContent>
+                <Footer>
+                    <ImportButton Kind="ghost" Disabled="@(Rows.IndexOf(editing) == 0)" OnClick="() => OpenEditor(Rows[Rows.IndexOf(editing) - 1])">Previous row</ImportButton>
+                    <ImportButton Kind="ghost" Disabled="@(Rows.IndexOf(editing) == Rows.Count - 1)" OnClick="() => OpenEditor(Rows[Rows.IndexOf(editing) + 1])">Next row</ImportButton>
+                    <ImportButton Kind="primary" OnClick="CloseEditor">Back to review</ImportButton>
+                </Footer>
+            </VendorDrawerShell>
+        }
 
         <ImportFootBar CancelHref="@BackHref" Error="@Message" Saving="Saving" Disabled="@(ReadyCount == 0 || _previewing)" OnSave="ImportAsync"
                        SaveLabel="@($"Import {ReadyCount} ready {(ReadyCount == 1 ? "row" : "rows")}")">
             <span class="shi-foot-note" role="status">
                 @if (_previewing) { <text>Checking rows…</text> }
                 else if (_previewNote is not null) { <text>@_previewNote</text> }
-                else { <text>@ReadyCount ready · @InvalidCount invalid. Only ready rows are imported.</text> }
+                else { <text>@ReviewCounts. Only ready rows are imported.</text> }
             </span>
         </ImportFootBar>
     }
@@ -148,10 +177,38 @@
     private int _notImported;
     private ImportSpaceHoldersResult? _result;
     private List<Row> Rows = [];
+    private Row? _editing, _returnFocus;
+    private bool _focusEditor;
+    private ElementReference _editorHeading;
+    private readonly Dictionary<Row, ElementReference> _editButtons = [];
+    private readonly string _errorId = $"shi-error-{Guid.NewGuid():N}";
+
+    private void OpenEditor(Row row) { _editing = row; _focusEditor = true; }
+    private void CloseEditor() { _returnFocus = _editing; _editing = null; }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusEditor) { _focusEditor = false; await _editorHeading.FocusAsync(); }
+        else if (_returnFocus is { } row)
+        {
+            _returnFocus = null;
+            if (_editButtons.TryGetValue(row, out var button)) await button.FocusAsync();
+        }
+    }
+
+    private static string StatusLabel(SpaceHolderImportStatus state) => state switch
+    {
+        SpaceHolderImportStatus.Ready => "Ready",
+        SpaceHolderImportStatus.Invalid => "Invalid",
+        SpaceHolderImportStatus.NeedsSourceHolder => "Needs holder",
+        SpaceHolderImportStatus.NeedsPayor => "Needs review",
+        _ => "Needs review"
+    };
 
     private int Step => _result is not null || Saving ? 3 : Rows.Count > 0 ? 2 : 1;
     private int ReadyCount => Rows.Count(r => StatusOf(r).Status == SpaceHolderImportStatus.Ready);
     private int InvalidCount => Rows.Count(r => StatusOf(r).Status == SpaceHolderImportStatus.Invalid);
+    private int NeedsReviewCount => Rows.Count - ReadyCount - InvalidCount;
+    private string ReviewCounts => $"{ReadyCount} ready · {InvalidCount} invalid" + (NeedsReviewCount > 0 ? $" · {NeedsReviewCount} need review" : "");
 
     private const string Signed = "Signed lease contract", SpaceOnly = "No contract (space only)";
 
@@ -171,6 +228,51 @@
     private static readonly ImportColumn EventCol = new("event", "Event", "select", ["Fiesta", "Araw"], MinWidth: 130);
     private static readonly ImportColumn EventDateCol = new("start", "Event date", "date", MinWidth: 150);
     private static readonly ImportColumn EventAmountCol = new("amount", "Approved Event Amount (₱)", "number", MinWidth: 170, Placeholder: "0.00");
+    private static readonly ImportColumn BasisCol = new("basis", "Lease type", "select", Options: [Signed, SpaceOnly]);
+    private static readonly ImportColumn ContractReferenceCol = new("contractRef", "Contract reference", Placeholder: "Per signed lease");
+    private static readonly ImportColumn ClosedCol = new("closed", "Closed on", "date");
+    private IReadOnlyList<ImportColumn> ReviewColumns => IsEvent ? Columns : [OccupantCol, SubjectCol, BasisCol, EffectivityCol, MonthlyCol];
+    private static string OptionText(ImportColumn col, string value) => col.Key == "basis" ? value == Signed ? "Contract" : "Space only" : value;
+
+    private RenderFragment EditorField(Row row, ImportColumn col) => @<label class="avm-group">
+        <span class="avm-label">@col.Label</span>
+        @if (col.Type == "select")
+        {
+            <select class="avm-input @(ErrorColumn(row) == col.Key ? "form-input-error" : "")" aria-label="@($"{col.Label} of row {Rows.IndexOf(row) + 1}")" value="@CellOf(row, col)"
+                    aria-invalid="@(ErrorColumn(row) == col.Key ? "true" : null)" aria-describedby="@(StatusOf(row).Status != SpaceHolderImportStatus.Ready ? _errorId : null)"
+                    @onchange="e => CellChanged(new(row, col, e.Value?.ToString()))">
+                <option value="">Choose…</option>
+                @foreach (var option in col.Options) { <option value="@option">@OptionText(col, option)</option> }
+            </select>
+        }
+        else
+        {
+            <input class="avm-input @(IsLocked(row, col) ? "avm-input-locked" : "") @(ErrorColumn(row) == col.Key ? "form-input-error" : "")"
+                   aria-label="@($"{col.Label} of row {Rows.IndexOf(row) + 1}")" aria-invalid="@(ErrorColumn(row) == col.Key ? "true" : null)"
+                   aria-describedby="@(StatusOf(row).Status != SpaceHolderImportStatus.Ready ? _errorId : null)"
+                   type="@col.Type" step="@(col.Type == "number" ? "any" : null)" maxlength="@(col.Key == "contractRef" ? "200" : null)" value="@CellOf(row, col)" readonly="@IsLocked(row, col)"
+                   placeholder="@(PlaceholderOf(row, col) ?? col.Placeholder)" title="@TitleOf(row, col)"
+                   @oninput="e => CellChanged(new(row, col, e.Value?.ToString()))" />
+        }
+        @if (ErrorColumn(row) == col.Key) { <span class="form-error">@StatusOf(row).Why</span> }
+    </label>;
+
+    // Attach the existing validation result to its field; this does not add or change validation rules.
+    private string? ErrorColumn(Row row) => row.Error switch
+    {
+        "Occupant is required" => "name",
+        "Check approved amount" => "amount",
+        "Choose the effectivity date" or "Use yyyy-MM-dd" => "start",
+        "Choose Fiesta or Araw" => "event",
+        "Choose an occupancy basis" => "basis",
+        "No contract has no contract reference" => "contractRef",
+        "Area location is too long" => "areaLoc",
+        "Check area (sq.m)" => "area",
+        "Years must be a whole number from 1 to 50" or "A Kanmanggay signed contract runs three years" => "years",
+        "Check the contract monthly rental" => "contractRate",
+        "Check closure date" => "closed",
+        _ => row.Preview?.Code == "DuplicateSpace" ? "subject" : null
+    };
 
     private IReadOnlyList<ImportColumn> Columns => IsEvent
         ? [OccupantCol, SubjectCol, EventCol, EventDateCol, EventAmountCol]
@@ -216,10 +318,6 @@
         "amount" => row.Amount,
         _ => row.Start
     };
-
-    private void ChangeBasis(Row row, string? choice) => CellChanged(new(row, new ImportColumn("basis", "Lease type"), choice));
-    private void ChangeContractRef(Row row, string? value) => CellChanged(new(row, new ImportColumn("contractRef", "Contract reference"), value));
-    private void ChangeClosedOn(Row row, string? value) => CellChanged(new(row, new ImportColumn("closed", "Closed on"), value));
 
     private void CellChanged(ImportCellChange<Row> change)
     {
@@ -373,7 +471,7 @@
     {
         "space" or "spaceno" or "spacenumber" or "lot" or "lotno" or "stallspaceno" or "rentspaceno" => Col.Subject,
         "occupant" or "actualoccupant" or "name" or "nameofoccupant" or "holder" or "nameoflesseeactualoccupants" or "nameoflesseeactualoccupant" or "actualoccupantlessee" or "actualoccupantleasee" => Col.Name,
-        "monthly" or "monthlyrental" or "approvedmonthly" or "approvedmonthlyrental" or "approvedamount" or "approvedlotamount" or "amount" or "rental" or "actualmorental" or "actualmonthlyrental" or "actualmonthlyrentals" => Col.Amount,
+        "monthly" or "monthlyrental" or "approvedmonthly" or "approvedmonthlyrental" or "approvedamount" or "approvedlotamount" or "approvedeventamount" or "amount" or "rental" or "actualmorental" or "actualmonthlyrental" or "actualmonthlyrentals" => Col.Amount,
         "start" or "startdate" or "startmonth" or "effectivemonth" or "effectivity" or "effectivitydate" or "contracteffectivitymonth" or "startcontracteffectivity" or "eventdate" or "occupyingsince" or "effectivityoflesseecontract" or "contractdate" => Col.Start,
         "closedon" or "closed" or "closeddate" or "enddate" => Col.Closed,
         "event" or "eventfiestaaraw" => Col.Event,
@@ -499,6 +597,8 @@
     private void RemoveRow(int index)
     {
         if (index < 0 || index >= Rows.Count) return;
+        if (_editing == Rows[index]) _editing = null;
+        _editButtons.Remove(Rows[index]);
         Rows.RemoveAt(index);
         if (Rows.Count == 0) { _fileName = null; Message = null; _previewNote = null; }
         else SchedulePreview();
@@ -506,7 +606,7 @@
 
     // One id per filling-in of the list: a second click or a retry after a lost response is the same submission, so it cannot register the holders twice.
     private Guid _operationId = Guid.NewGuid();
-    private void ResetAll() { _operationId = Guid.NewGuid(); Rows = []; _result = null; Message = null; _uploadError = null; _fileName = null; _notImported = 0; _previewNote = null; }
+    private void ResetAll() { _editing = null; _editButtons.Clear(); _operationId = Guid.NewGuid(); Rows = []; _result = null; Message = null; _uploadError = null; _fileName = null; _notImported = 0; _previewNote = null; }
 
     // ── The server's typed preview ─────────────────────────────────────────────────────────────────────────────────────
     private bool _previewing;

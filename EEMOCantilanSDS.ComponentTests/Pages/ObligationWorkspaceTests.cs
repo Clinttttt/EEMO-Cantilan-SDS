@@ -640,17 +640,75 @@ public sealed class ObligationWorkspaceTests : TestContext
     {
         var cut = RenderComponent<SpaceHolderImport>(p => p.Add(x => x.Kind, kind));
         cut.Find(".imp-enter-manually").Click();
-        Assert.Empty(cut.FindAll(".shi-inline-status, .imp-td-status, .imp-th-status"));
-        var details = cut.Find(".shi-row-details");
-        Assert.Contains("Review", details.QuerySelector("summary")!.TextContent);
-        details.SetAttribute("open", "");
-        Assert.False(string.IsNullOrWhiteSpace(cut.Find(".shi-why[role='status']").TextContent));
+        Assert.Empty(cut.FindAll(".shi-inline-status"));
+        var details = cut.Find(".shi-row-edit");
+        Assert.DoesNotContain("@if", details.TextContent);
+        Assert.Equal("Review", details.TextContent.Trim());
+        Assert.Equal("Invalid", cut.Find(".shi-chip-status").TextContent);
+        details.Click();
+        Assert.False(string.IsNullOrWhiteSpace(cut.Find(".shi-editor-error[role='status']").TextContent));
+        Assert.DoesNotContain("@if", cut.Find("[role='dialog']").TextContent);
         Assert.Contains("0 ready", cut.Find(".shi-foot-note").TextContent);
         Assert.Contains("1 invalid", cut.Find(".shi-foot-note").TextContent);
         Assert.True(cut.Find(".imp-foot-bar .imp-btn-primary").HasAttribute("disabled"));
+        cut.Find(".eemo-drawer-header-close").Click();
         cut.Find("button[aria-label='Remove row 1']").Click();
         Assert.Empty(cut.FindAll(".imp-table tbody tr"));
         Assert.NotNull(cut.Find(".imp-enter-manually"));
+    }
+
+    [Fact]
+    public void ImportEditorPreservesEachRowsValuesWhenSwitchingAndRemoving()
+    {
+        var cut = RenderComponent<KanmanggayImport>();
+        cut.Find(".imp-use-sample").Click();
+        cut.Find("button[aria-label='Edit row details 1']").Click();
+        Assert.Contains("Row 1", cut.Find(".eemo-drawer-header-title").TextContent);
+        cut.Find("input[aria-label='Contract reference of row 1']").Input("LC-EDITED");
+        cut.Find(".shi-editor input[aria-label='Actual Mo. Rental of row 1']").Input("1700");
+        Assert.Equal("20400.00", cut.Find("input[aria-label='Whole Year Rental of row 1']").GetAttribute("value"));
+        Assert.True(cut.Find("input[aria-label='Whole Year Rental of row 1']").HasAttribute("readonly"));
+        Assert.True(cut.Find("input[aria-label='Delinquent (₱) of row 1']").HasAttribute("readonly"));
+        Assert.Equal(string.Empty, cut.Find("input[aria-label='Delinquent (₱) of row 1']").GetAttribute("value"));
+        cut.FindAll("footer button").Single(x => x.TextContent == "Next row").Click();
+        Assert.Contains("Jose Ramirez", cut.Find(".eemo-drawer-header-title").TextContent);
+        Assert.True(cut.Find("input[aria-label='Contract reference of row 2']").HasAttribute("readonly"));
+        cut.Find(".shi-editor input[aria-label='Actual Occupant (Leasee) of row 2']").Input("Jose Edited");
+        cut.FindAll("footer button").Single(x => x.TextContent == "Previous row").Click();
+        Assert.Equal("LC-EDITED", cut.Find("input[aria-label='Contract reference of row 1']").GetAttribute("value"));
+        cut.FindAll("footer button").Single(x => x.TextContent == "Back to review").Click();
+        Assert.Empty(cut.FindAll("[role='dialog']"));
+        cut.Find("button[aria-label='Remove row 1']").Click();
+        Assert.Equal(2, cut.FindAll(".imp-table tbody tr").Count);
+        Assert.Equal("Jose Edited", cut.Find("input[aria-label='Actual Occupant (Leasee) of row 1']").GetAttribute("value"));
+        Assert.Equal("Ana Lopez", cut.Find("input[aria-label='Actual Occupant (Leasee) of row 2']").GetAttribute("value"));
+    }
+
+    [Fact]
+    public void ImportEditorRevalidatesTermAndShowsReasonBesideTheField()
+    {
+        ImportSpaceHoldersRequest? previewed = null;
+        _api.Setup(x => x.PreviewSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>())).Returns((ImportSpaceHoldersRequest request) =>
+        {
+            previewed = request;
+            return Task.FromResult(Result<SpaceHolderImportPreview>.Success(new(request.Rows.Select((row, i) =>
+                new SpaceHolderImportRowResult(i + 1, SpaceHolderImportStatus.Ready, null, null)).ToArray(), true)));
+        });
+        var cut = RenderComponent<KanmanggayImport>();
+        cut.Find(".imp-use-sample").Click();
+        cut.Find("button[aria-label='Edit row details 1']").Click();
+        cut.Find("input[aria-label='No. of Years of row 1']").Input("2");
+        var field = cut.Find("input[aria-label='No. of Years of row 1']");
+        Assert.Equal("true", field.GetAttribute("aria-invalid"));
+        Assert.Contains("three years", field.ParentElement!.QuerySelector(".form-error")!.TextContent);
+        Assert.Contains("1 invalid", cut.Find(".imp-review-detail").TextContent);
+        cut.Find("input[aria-label='No. of Years of row 1']").Input("3");
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(3, previewed!.Rows[0].Account.ContractYears);
+            Assert.Contains("3 ready", cut.Find(".shi-foot-note").TextContent);
+            Assert.Empty(cut.FindAll(".form-error, .shi-editor-error"));
+        }, Timeout);
     }
 
     [Fact]
@@ -666,6 +724,42 @@ public sealed class ObligationWorkspaceTests : TestContext
         import.Click();
         Assert.EndsWith("/operations/kanmanggay/import", Services.GetRequiredService<NavigationManager>().Uri);
         _api.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(ObligationKind.KanmanggaySpaceRental)]
+    [InlineData(ObligationKind.VegetableFruitSpaceRental)]
+    [InlineData(ObligationKind.FiestaArawLotRental)]
+    public void ImportOtherServerReviewStatesRemainVisibleAndAreNeverSubmitted(ObligationKind kind)
+    {
+        ImportSpaceHoldersRequest? saved = null;
+        _api.Setup(x => x.PreviewSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>())).Returns((ImportSpaceHoldersRequest request) =>
+            Task.FromResult(Result<SpaceHolderImportPreview>.Success(new(request.Rows.Select((row, i) =>
+                new SpaceHolderImportRowResult(i + 1, i == 0 ? SpaceHolderImportStatus.NeedsSourceHolder : SpaceHolderImportStatus.Ready,
+                    i == 0 ? "RequiresSourceHolder" : null, i == 0 ? "Confirm the source holder." : null)).ToArray(), false))));
+        _api.Setup(x => x.ImportSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>())).Callback<ImportSpaceHoldersRequest>(r => saved = r)
+            .ReturnsAsync(Result<ImportSpaceHoldersResult>.Success(new(2, 0, [])));
+        var cut = RenderComponent<SpaceHolderImport>(p => p.Add(x => x.Kind, kind));
+        cut.Find(".imp-use-sample").Click();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("2 ready · 0 invalid · 1 need review", cut.Find(".imp-review-detail").TextContent);
+            Assert.Equal("Needs holder", cut.Find(".shi-chip-status").TextContent);
+            Assert.Equal("Review", cut.Find(".shi-row-edit").TextContent.Trim());
+        }, Timeout);
+        cut.Find(".imp-foot-bar .imp-btn-primary").Click();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(new[] { "Jose Ramirez", "Ana Lopez" }, saved!.Rows.Select(x => x.Account.ActualOccupant));
+            if (kind == ObligationKind.FiestaArawLotRental)
+                Assert.All(saved.Rows, row =>
+                {
+                    Assert.NotNull(row.Account.EventDate);
+                    Assert.Null(row.Account.Arrangement);
+                    Assert.Null(row.Account.ContractYears);
+                    Assert.Null(row.Account.ContractMonthlyRate);
+                });
+        }, Timeout);
     }
 
     [Fact]
@@ -720,11 +814,13 @@ public sealed class ObligationWorkspaceTests : TestContext
         {
             Assert.Equal("3", cut.Find(".imp-review-count").TextContent.Trim());
             Assert.Contains("active", cut.FindAll(".imp-step")[1].ClassList);
-            Assert.Equal(new[] { "#", "Actual Occupant (Leasee)", "Name on Contract", "Rent / Space No.", "Effectivity Date", "No. of Years", "Area (sqm)", "Monthly Rental / Contract", "Actual Mo. Rental", "Whole Year Rental", "Area Loc.", "Delinquent (₱)" },
+            Assert.Equal(new[] { "#", "Actual Occupant (Leasee)", "Rent / Space No.", "Lease type", "Effectivity Date", "Actual Mo. Rental", "Status", "Actions" },
                 cut.FindAll(".imp-table thead th").Select(x => x.TextContent.Trim()).Where(x => x.Length > 0).ToArray());
             Assert.Equal(3, cut.FindAll(".imp-table tbody tr").Count);
-            Assert.Empty(cut.FindAll(".shi-inline-status, .imp-td-status, .shi-why"));
-            Assert.Equal(3, cut.FindAll(".shi-row-details summary").Count);
+            Assert.Empty(cut.FindAll(".shi-inline-status, .shi-why"));
+            Assert.Equal(3, cut.FindAll(".shi-row-edit").Count);
+            Assert.All(cut.FindAll(".shi-row-edit"), action => Assert.Equal("Details", action.TextContent.Trim()));
+            Assert.All(cut.FindAll(".shi-chip-status"), status => Assert.Equal("Ready", status.TextContent));
             Assert.Contains("3 ready", cut.Find(".shi-foot-note").TextContent);
             Assert.NotNull(cut.Find(".imp-add-row"));
             Assert.Equal(new[] { "Cancel", "Import 3 ready rows" }, cut.FindAll(".imp-foot-bar .imp-btn").Select(x => x.TextContent.Trim()).ToArray());
@@ -748,9 +844,12 @@ public sealed class ObligationWorkspaceTests : TestContext
         {
             Assert.Equal("2", cut.Find(".imp-review-count").TextContent.Trim());
             Assert.Contains("list.csv", cut.Find(".imp-review-sub").TextContent);
-            Assert.Equal("LC-1", cut.Find("input[aria-label='Contract reference of row 1']").GetAttribute("value"));
-            Assert.True(cut.Find("input[aria-label='Contract reference of row 2']").HasAttribute("readonly"));      // no contract: no reference
         }, Timeout);
+        cut.Find("button[aria-label='Edit row details 1']").Click();
+        Assert.Equal("LC-1", cut.Find("input[aria-label='Contract reference of row 1']").GetAttribute("value"));
+        cut.Find(".eemo-drawer-header-close").Click();
+        cut.Find("button[aria-label='Edit row details 2']").Click();
+        Assert.True(cut.Find("input[aria-label='Contract reference of row 2']").HasAttribute("readonly"));
     }
 
     [Fact]
@@ -815,7 +914,7 @@ public sealed class ObligationWorkspaceTests : TestContext
             Assert.Contains("2 ready", cut.Find(".shi-foot-note").TextContent);
             Assert.Contains("1 invalid", cut.Find(".shi-foot-note").TextContent);
             Assert.Contains("This space already has an account.", cut.FindAll(".imp-table tbody tr")[1].QuerySelector(".shi-why[role='status']")!.TextContent);
-            Assert.Contains("Review", cut.FindAll(".imp-table tbody tr")[1].QuerySelector("summary")!.TextContent);
+            Assert.Equal("Review", cut.FindAll(".imp-table tbody tr")[1].QuerySelector(".shi-row-edit")!.TextContent.Trim());
             Assert.Contains("Auto · 3", cut.Find("input[aria-label='Rent / Space No. of row 3']").GetAttribute("placeholder"));
         }, Timeout);
 
@@ -838,6 +937,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".imp-table tbody tr")), Timeout);
 
         cut.Find("input[aria-label='Actual Occupant (Leasee) of row 1']").Input("Ana Reyes");
+        cut.Find("button[aria-label='Edit row details 1']").Click();
         Assert.True(cut.Find("input[aria-label='Contract reference of row 1']").HasAttribute("readonly"));              // no basis chosen yet: nothing to reference
 
         cut.Find("select[aria-label='Lease type of row 1']").Change("Signed lease contract");
@@ -866,6 +966,7 @@ public sealed class ObligationWorkspaceTests : TestContext
 
         cut.FindComponent<Microsoft.AspNetCore.Components.Forms.InputFile>().UploadFiles(InputFileContent.CreateFromText(csv, "register.csv"));
 
+        cut.Find("button[aria-label='Edit row details 1']").Click();
         cut.WaitForAssertion(() =>
         {
             Assert.Equal("Ana Reyes", cut.Find("input[aria-label='Actual Occupant (Leasee) of row 1']").GetAttribute("value"));
@@ -969,9 +1070,12 @@ public sealed class ObligationWorkspaceTests : TestContext
             Assert.Equal(3, cut.FindAll(".imp-table tbody tr").Count);
             Assert.Equal("Signed lease contract", cut.Find("select[aria-label='Lease type of row 2']").GetAttribute("value"));
             Assert.Equal("No contract (space only)", cut.Find("select[aria-label='Lease type of row 3']").GetAttribute("value"));
-            Assert.True(cut.Find("input[aria-label='Name on Contract of row 3']").HasAttribute("readonly"));         // a space let without a contract carries no contract data
-            Assert.False(cut.Find("input[aria-label='Name on Contract of row 2']").HasAttribute("readonly"));
         }, Timeout);
+        cut.Find("button[aria-label='Edit row details 3']").Click();
+        Assert.True(cut.Find("input[aria-label='Name on Contract of row 3']").HasAttribute("readonly"));
+        cut.Find(".eemo-drawer-header-close").Click();
+        cut.Find("button[aria-label='Edit row details 2']").Click();
+        Assert.False(cut.Find("input[aria-label='Name on Contract of row 2']").HasAttribute("readonly"));
         Assert.Contains("Add row with contract", cut.Find(".imp-add-row").TextContent);
         Assert.Contains("Add row for rent/space only", cut.Find(".imp-add-space-row").TextContent);
     }
@@ -987,11 +1091,35 @@ public sealed class ObligationWorkspaceTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Equal(new[] { "#", "Actual Occupant (Leasee)", "Rent / Space No.", "Event", "Event date", "Approved Event Amount (₱)" },
+            Assert.Equal(new[] { "#", "Actual Occupant (Leasee)", "Rent / Space No.", "Event", "Event date", "Approved Event Amount (₱)", "Status", "Actions" },
                 cut.FindAll(".imp-table thead th").Select(x => x.TextContent.Trim()).Where(x => x.Length > 0).ToArray());
             Assert.Equal("Fiesta", cut.Find("select[aria-label='Event of row 1']").GetAttribute("value"));
             Assert.Equal("Araw", cut.Find("select[aria-label='Event of row 3']").GetAttribute("value"));
             Assert.Empty(cut.FindAll("select[aria-label^='Occupancy basis']"));                                          // basis is Kanmanggay's, not a lot rental's
+        }, Timeout);
+    }
+
+    [Fact]
+    public void FiestaArawCsvTemplateHeadersPreserveTheApprovedOneTimeAmount()
+    {
+        ImportSpaceHoldersRequest? saved = null;
+        _api.Setup(x => x.ImportSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>())).Callback<ImportSpaceHoldersRequest>(r => saved = r)
+            .ReturnsAsync(Result<ImportSpaceHoldersResult>.Success(new(1, 0, [])));
+        var cut = RenderComponent<FiestaArawImport>();
+        var template = cut.Find(".imp-upload-foot a[download]").GetAttribute("href")!;
+        var csv = Uri.UnescapeDataString(template[(template.IndexOf(',') + 1)..]) + "Ana Reyes,,Fiesta,2026-08-15,2500\r\n";
+        cut.FindComponent<Microsoft.AspNetCore.Components.Forms.InputFile>().UploadFiles(InputFileContent.CreateFromText(csv, "event-template.csv"));
+        Assert.Contains("1 ready", cut.Find(".imp-review-detail").TextContent);
+        cut.Find(".imp-foot-bar .imp-btn-primary").Click();
+        cut.WaitForAssertion(() =>
+        {
+            var account = Assert.Single(saved!.Rows).Account;
+            Assert.Equal(2500m, account.Amount);
+            Assert.Equal(LotRentalEvent.Fiesta, account.Event);
+            Assert.Equal(new DateOnly(2026, 8, 15), account.EventDate);
+            Assert.Null(account.ContractYears);
+            Assert.Null(account.ContractMonthlyRate);
+            Assert.Null(account.Arrangement);
         }, Timeout);
     }
 
