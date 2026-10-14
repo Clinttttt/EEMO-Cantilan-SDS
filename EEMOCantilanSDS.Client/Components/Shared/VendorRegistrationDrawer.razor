@@ -25,6 +25,18 @@
                     <label class="avm-label" for="@($"{FormId}-business")">Business name</label>
                     <input id="@($"{FormId}-business")" class="avm-input" type="text" maxlength="200" autocomplete="off" @bind="Model.Business" @bind:event="oninput" />
                 </div>
+            @if (!IsRenew)
+            {
+                <fieldset class="vendor-office-fields">
+                    <legend>Office registration details <span class="avm-optional">· Optional</span></legend>
+                    <div class="avm-group"><label class="avm-label" for="@($"{FormId}-last")">Last name</label><input class="avm-input" id="@($"{FormId}-last")" maxlength="100" @bind="Model.LastName" @bind:event="oninput" /></div>
+                    <div class="avm-group"><label class="avm-label" for="@($"{FormId}-first")">First name</label><input class="avm-input" id="@($"{FormId}-first")" maxlength="100" @bind="Model.FirstName" @bind:event="oninput" /></div>
+                    <div class="avm-group"><label class="avm-label" for="@($"{FormId}-middle")">Middle name</label><input class="avm-input" id="@($"{FormId}-middle")" maxlength="100" @bind="Model.MiddleName" @bind:event="oninput" /></div>
+                    <div class="avm-group"><label class="avm-label" for="@($"{FormId}-extension")">Name extension</label><input class="avm-input" id="@($"{FormId}-extension")" maxlength="30" @bind="Model.NameExtension" @bind:event="oninput" /></div>
+                    <div class="avm-group"><label class="avm-label" for="@($"{FormId}-sex")">Sex (office record)</label><select class="avm-input" id="@($"{FormId}-sex")" @bind="Model.Sex"><option value="">Not recorded</option><option>Male</option><option>Female</option><option>Other / unspecified</option></select></div>
+                    <div class="avm-group"><label class="avm-label" for="@($"{FormId}-nature")">Nature of business</label><input class="avm-input" id="@($"{FormId}-nature")" list="@($"{FormId}-nature-options")" maxlength="300" @bind="Model.NatureOfBusiness" @bind:event="oninput" placeholder="Enter the registered business activity" /><datalist id="@($"{FormId}-nature-options")"><option value="Retail sale of fish and other seafood (fresh and dried)" /><option value="Fish retailing" /><option value="Fish retail" /><option value="Meat retailing" /></datalist></div>
+                </fieldset>
+            }
             @if (IsRenew)
             {
                     <div class="avm-group">
@@ -61,7 +73,7 @@
     </ChildContent>
     <Footer>
         <button type="button" class="btn-ghost" @onclick="OnCancel">Cancel</button>
-        <button type="submit" class="btn-primary" form="@FormId" disabled="@Saving">@SubmitText</button>
+        <button type="submit" class="btn-primary" form="@FormId" disabled="@(Saving || !CanSubmit)">@SubmitText</button>
     </Footer>
 </VendorDrawerShell>
 
@@ -78,6 +90,7 @@
     [Parameter] public string? Subtitle { get; set; }
     [Parameter] public string SubmitText { get; set; } = "Register";
     [Parameter] public bool Saving { get; set; }
+    [Parameter] public bool CanSubmit { get; set; } = true;
     [Parameter] public string? Error { get; set; }
 
     /// <summary>A renewal: the type is the registration's own and the tax year is chosen from <see cref="TaxYears"/>.</summary>

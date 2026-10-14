@@ -199,6 +199,7 @@
     private RenderFragment ActionBarContent => @<div class="fmv-actions-bar">
         <a class="btn-outline" href="/collections/activity">Collection Activity</a>
         <a class="btn-outline" href="/operations/fish-meat-vendor-fees/report">Reports</a>
+        <a class="btn-outline" href="/operations/fish-meat-vendor-fees/office-register">Office register</a>
         <AuthorizeView Roles="SuperAdmin"><Authorized>
             <button class="btn-outline" type="button" title="Unresolved eligible occupancy reviews for the selected tax year" @onclick="() => _npmReview = true">From NPM occupants @(_npmUnresolved.HasValue ? $"({_npmUnresolved})" : "")</button>
             <a class="btn-outline" href="/operations/fish-meat-vendor-fees/import">Import list</a>
@@ -272,6 +273,7 @@
     private void OpenRegister()
     {
         _form.Name = _form.Business = _form.Address = _form.Reference = string.Empty;
+        _form.LastName = _form.FirstName = _form.MiddleName = _form.NameExtension = _form.Sex = _form.NatureOfBusiness = string.Empty;
         _form.Type = FishMeatVendorType.Fish;
         _form.Kind = VendorRegistrationKind.New;
         _form.TaxYear = _taxYear;
@@ -295,7 +297,10 @@
         try
         {
             var result = await OfficeApi.RegisterAsync(new RegisterFishMeatVendorRequest(_operationId, _taxYear, _form.Type, _form.Kind, _form.Name.Trim(),
-                VendorRegistrationForm.Blank(_form.Business), VendorRegistrationForm.Blank(_form.Address), null));
+                VendorRegistrationForm.Blank(_form.Business), VendorRegistrationForm.Blank(_form.Address), null,
+                LastName: VendorRegistrationForm.Blank(_form.LastName), FirstName: VendorRegistrationForm.Blank(_form.FirstName),
+                MiddleName: VendorRegistrationForm.Blank(_form.MiddleName), NameExtension: VendorRegistrationForm.Blank(_form.NameExtension),
+                Sex: VendorRegistrationForm.Blank(_form.Sex), NatureOfBusiness: VendorRegistrationForm.Blank(_form.NatureOfBusiness)));
             if (!result.IsSuccess) { _formError = RegistrationProblem(result.Error); return; }
             _registering = false;
             _saved = $"{result.Value!.DisplayName} registered for {_taxYear}.";

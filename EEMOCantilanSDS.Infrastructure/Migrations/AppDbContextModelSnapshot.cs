@@ -3063,8 +3063,28 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("FirstName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("LastName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("MiddleName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<Guid>("MunicipalityId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("NameExtension")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("NatureOfBusiness")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
 
                     b.Property<Guid?>("PriorRegistrationId")
                         .HasColumnType("uuid");
@@ -3078,6 +3098,10 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
 
                     b.Property<int>("RegistrationKind")
                         .HasColumnType("integer");
+
+                    b.Property<string>("Sex")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
 
                     b.Property<int>("Status")
                         .ValueGeneratedOnAdd()

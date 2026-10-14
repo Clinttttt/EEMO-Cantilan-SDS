@@ -3,3 +3,20 @@
     grid-template-columns: minmax(0, 1fr);
     gap: 14px;
 }
+
+.vendor-office-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: 12px;
+    min-width: 0;
+    margin: 14px 0 2px;
+    padding: 12px 0 0;
+    border: 0;
+    border-top: 1px solid var(--border);
+}
+.vendor-office-fields legend { color: var(--navy); font-size: .875rem; font-weight: 650; padding: 0 8px 0 0; }
+.vendor-office-fields .avm-group { min-width: 0; margin: 0; }
+.vendor-office-fields input, .vendor-office-fields select { width: 100%; box-sizing: border-box; }
+.vendor-office-fields .avm-group:last-child { grid-column: 1 / -1; }
+.avm-optional { color: var(--text-secondary); font-size: .75rem; font-weight: 400; }
+@media(max-width: 480px) { .vendor-office-fields { grid-template-columns: minmax(0,1fr); } }

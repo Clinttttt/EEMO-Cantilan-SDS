@@ -111,13 +111,17 @@
                 else
                 {
                     <h3>Register from NPM</h3>
-                    <p class="npm-link-muted">No registration is linked to this occupant. The name and vendor type are taken from NPM; you add anything missing next.</p>
+                    <p class="npm-link-muted">No registration is linked to this occupant. Review the office registration details next; only the occupant name and suggested Fish/Meat type come from NPM.</p>
                     <button type="button" class="btn-ghost npm-link-switch" @onclick="() => ChoosePath(ReviewPath.Link)">Link an existing registration instead</button>
                 }
                 @if (_path.HasValue)
                 {
-                <div class="avm-group"><label class="avm-label" for="npm-confirmation">Verification note</label>
-                <input id="npm-confirmation" class="avm-input" maxlength="500" placeholder="e.g. Office reference and identity checked" @bind="_note" /></div>
+                @if (_path == ReviewPath.Link)
+                {
+                <div class="avm-group npm-office-evidence"><label class="avm-label" for="npm-confirmation">Office link verification <span class="avm-req">*</span></label>
+                <input id="npm-confirmation" class="avm-input" maxlength="500" placeholder="Reference or evidence checked by the office" @bind="_note" />
+                <small class="npm-link-muted">Required to confirm the NPM association; this is not a payment or vendor fee.</small></div>
+                }
                 <div class="npm-link-options">
                     @if (RequiresException) { <label><input type="checkbox" @bind="_exceptionConfirmed" /> Exception confirmed<span>Verify this historical occupancy or area/type exception.</span></label> }
                     @if (_path == ReviewPath.New && RequiresDuplicateReview) { <label><input type="checkbox" @bind="_duplicatesReviewed" /> Existing records reviewed<span>A separate legitimate business or vendor type is confirmed.</span></label> }
@@ -141,12 +145,15 @@
 </VendorDrawerShell>
 @if (_registering)
 {
-<VendorRegistrationDrawer Show="@(Show && _registering)" Model="_form" Title="Register Fish/Meat vendor" Subtitle="@($"Tax year {TaxYear} · verified NPM occupancy")"
+<VendorRegistrationDrawer Show="@(Show && _registering)" Model="_form" Title="Register Fish/Meat vendor" Subtitle="@($"Tax year {TaxYear} · NPM-linked registration")" CanSubmit="@(!string.IsNullOrWhiteSpace(_note))"
                           FormId="npm-vendor-register" Saving="_saving" Error="@_error" OnSubmit="Register" OnCancel="BackToReview">
     <SourceContext>
         @if (_selected is not null)
         {
-            <div class="npm-link-record"><strong>NPM occupancy</strong><span>@_selected.Area · Stall @_selected.StallNo · Tax year @TaxYear</span><details class="npm-link-evidence"><summary>Source details</summary><p>Contract @_selected.ContractId</p><p>@_note</p></details></div>
+            <div class="npm-link-record"><strong>NPM occupancy</strong><span>@_selected.Area · Stall @_selected.StallNo · Tax year @TaxYear</span><details class="npm-link-evidence"><summary>Source details</summary><p>Contract @_selected.ContractId</p></details></div>
+            <div class="avm-group npm-office-evidence"><label class="avm-label" for="npm-registration-evidence">Office link reference <span class="avm-req">*</span></label>
+                <input id="npm-registration-evidence" class="avm-input" maxlength="500" placeholder="Source verified by office / reference checked" @bind="_note" @bind:event="oninput" />
+                <small class="npm-link-muted">Only for documenting the verified NPM association. No collection is recorded.</small></div>
             @if (!_selected.Active || _selected.SuggestedType != _form.Type) { <div class="npm-link-options"><label><input type="checkbox" @bind="_exceptionConfirmed" /> Exception confirmed<span>Verify this historical occupancy or area/type exception.</span></label></div> }
         }
     </SourceContext>
@@ -163,7 +170,7 @@
     private bool RequiresDuplicateReview => HasVerifiedLink || _selected?.PossibleMatches.Count > 0;
     private FishMeatVendorRegistrationDto? SelectedVendor => Guid.TryParse(_vendorId, out var id) ? _vendors.FirstOrDefault(x => x.Id == id) : null;
     private bool RequiresException => _selected is { } source && (!source.Active || !source.SuggestedType.HasValue || _path == ReviewPath.Link && SelectedVendor is { } vendor && source.SuggestedType != vendor.VendorType);
-    private bool CanContinue => !_saving && !string.IsNullOrWhiteSpace(_note) && (!RequiresException || _exceptionConfirmed);
+    private bool CanContinue => !_saving && (_path == ReviewPath.New || !string.IsNullOrWhiteSpace(_note)) && (!RequiresException || _exceptionConfirmed);
     private void ChoosePath(ReviewPath path) { _path = path; _exceptionConfirmed = false; _duplicatesReviewed = false; _error = null; }
     // A suggestion is chosen by an explicit click; nothing is ever preselected.
     private void PickVendor(Guid id) { _vendorId = id.ToString(); _exceptionConfirmed = false; _error = null; }
@@ -247,13 +254,16 @@
     }
     private async Task Register()
     {
-        if (_saving || !_head) return;
+        if (_saving || !_head || string.IsNullOrWhiteSpace(_note)) return;
         PrepareIntent($"register|{_form.Fingerprint}|{_selected?.SourceVersion}|{_note}|{_exceptionConfirmed}|{_duplicatesReviewed}");
         _saving = true; _error = null;
         try
         {
             var result = await Api.RegisterAsync(new(_operation, TaxYear, _form.Type, _form.Kind, _form.Name.Trim(),
-                VendorRegistrationForm.Blank(_form.Business), VendorRegistrationForm.Blank(_form.Address), null, Request()));
+                VendorRegistrationForm.Blank(_form.Business), VendorRegistrationForm.Blank(_form.Address), null, Request(),
+                VendorRegistrationForm.Blank(_form.LastName), VendorRegistrationForm.Blank(_form.FirstName),
+                VendorRegistrationForm.Blank(_form.MiddleName), VendorRegistrationForm.Blank(_form.NameExtension),
+                VendorRegistrationForm.Blank(_form.Sex), VendorRegistrationForm.Blank(_form.NatureOfBusiness)));
             if (!result.IsSuccess) _error = Problem(result.Error); else { _registering = false; await RefreshSelected(); }
         }
         catch { _error = "The registration could not be saved. Retry keeps the same request identity."; }

@@ -89,7 +89,8 @@ public sealed partial class OfficeCollectionWorkflow
             if (await db.FishMeatVendorRegistrations.AnyAsync(x => x.MunicipalityId == Tenant && x.ClientOperationId == request.ClientOperationId, ct))
                 return Result<FishMeatVendorRegistrationDto>.Failure("RegistrationIntentConflict", ResultStatus.Conflict);
             var vendor = FishMeatVendorRegistration.Register(Tenant, request.ClientOperationId, request.TaxYear, request.VendorType,
-                request.RegistrationKind, request.DisplayName, request.BusinessName, request.Address, request.Reference, user.Username ?? "Head");
+                request.RegistrationKind, request.DisplayName, request.BusinessName, request.Address, request.Reference, user.Username ?? "Head",
+                request.LastName, request.FirstName, request.MiddleName, request.NameExtension, request.Sex, request.NatureOfBusiness);
             var validated = await ValidateNpmAssociation(vendor, link, true, ct);
             if (validated.Error is { } error) return Result<FishMeatVendorRegistrationDto>.Failure(error, ResultStatus.Conflict);
             db.FishMeatVendorRegistrations.Add(vendor);

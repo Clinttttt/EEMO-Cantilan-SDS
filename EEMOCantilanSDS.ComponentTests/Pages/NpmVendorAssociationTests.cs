@@ -42,8 +42,11 @@ public sealed class NpmVendorAssociationTests : TestContext
         var cut = Open(); cut.Find(".npm-link-candidate").Click();
         Assert.False(cut.FindAll("button").Single(x => x.TextContent == "Back").HasAttribute("disabled"));
         Assert.Contains(_source.ContractId.ToString(), cut.Markup);
-        cut.Find("#npm-confirmation").Change("Office checked source and person");
+        Assert.Empty(cut.FindAll("#npm-confirmation")); // new registration no longer asks for link evidence before the form
         cut.Find("footer .btn-primary").Click();
+        Assert.True(cut.Find("button[type=submit]").HasAttribute("disabled"));
+        cut.Find("#npm-registration-evidence").Input("Office checked source and person");
+        Assert.False(cut.Find("button[type=submit]").HasAttribute("disabled"));
         var form = cut.FindComponent<VendorRegistrationDrawer>();
         Assert.Null(form.Instance.Error); Assert.DoesNotContain("_error", cut.Markup);
         Assert.Equal("Verified occupant", form.Instance.Model.Name); Assert.Equal(FishMeatVendorType.Fish, form.Instance.Model.Type);
@@ -70,8 +73,9 @@ public sealed class NpmVendorAssociationTests : TestContext
         var requests = new List<RegisterFishMeatVendorRequest>();
         _api.Setup(x => x.RegisterAsync(It.IsAny<RegisterFishMeatVendorRequest>())).Callback<RegisterFishMeatVendorRequest>(requests.Add)
             .ReturnsAsync(Result<FishMeatVendorRegistrationDto>.Failure("test", ResultStatus.Invalid));
-        var cut = Open(); cut.Find(".npm-link-candidate").Click(); cut.Find("#npm-confirmation").Change("Confirmed source");
+        var cut = Open(); cut.Find(".npm-link-candidate").Click();
         cut.Find("footer .btn-primary").Click();
+        cut.Find("#npm-registration-evidence").Input("Confirmed source");
         cut.Find("form").Submit(); cut.Find("form").Submit();
         Assert.Equal(2, requests.Count); Assert.Equal(requests[0].ClientOperationId, requests[1].ClientOperationId);
         Assert.Equal(requests[0].ClientOperationId, requests[0].NpmAssociation!.ClientOperationId);
@@ -85,7 +89,7 @@ public sealed class NpmVendorAssociationTests : TestContext
         // A similar name starts the review at linking, as a suggestion only: nothing is chosen and nothing can be confirmed until the Head picks one.
         Assert.Contains("Similar names are suggestions only", cut.Markup); Assert.Empty(cut.FindAll(".npm-link-pick.is-picked"));
         cut.Find("#npm-confirmation").Change("Confirmed"); Assert.True(cut.Find("footer .btn-primary").HasAttribute("disabled"));
-        SwitchPath(cut); cut.Find("#npm-confirmation").Change("Confirmed");
+        SwitchPath(cut); Assert.Empty(cut.FindAll("#npm-confirmation"));
         Assert.True(cut.Find("footer .btn-primary").HasAttribute("disabled"));
         Export("npm-review", cut.Markup);
         _api.Verify(x => x.LinkNpmVendorAsync(It.IsAny<Guid>(), It.IsAny<ConfirmNpmVendorAssociationRequest>()), Times.Never);
@@ -148,7 +152,7 @@ public sealed class NpmVendorAssociationTests : TestContext
     {
         _api.Setup(x => x.NpmVendorCandidatesAsync(Year, It.IsAny<bool>(), It.IsAny<bool>())).ReturnsAsync(Result<NpmVendorCandidates>.Success(new(Year, 1, [_source with { Active = false }])));
         var cut = Open(); cut.Find(".npm-link-candidate").Click();
-        cut.Find("#npm-confirmation").Change("Historical source verified");
+        Assert.Empty(cut.FindAll("#npm-confirmation"));
         Assert.True(cut.Find("footer .btn-primary").HasAttribute("disabled"));
         cut.Find(".npm-link-options input").Change(true);
         Assert.False(cut.Find("footer .btn-primary").HasAttribute("disabled"));

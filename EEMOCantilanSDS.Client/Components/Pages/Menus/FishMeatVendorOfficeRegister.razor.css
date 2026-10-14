@@ -1,0 +1,29 @@
+.fmo { display: grid; gap: 16px; min-width: 0; }
+.fmo-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+.fmo-toolbar > div { display: grid; gap: 4px; min-width: 0; }
+.fmo-toolbar label { color: var(--text-secondary); font-size: .6875rem; font-weight: 600; }
+.fmo-toolbar input, .fmo-toolbar select {
+    min-height: 38px; min-width: 0; width: 100%; box-sizing: border-box;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
+    color: var(--text); padding: 7px 10px; font: inherit; font-size: .8125rem;
+}
+.fmo-period { flex: 0 1 175px; }
+.fmo-filter { flex: 0 1 148px; }
+.fmo-search { flex: 1 1 180px; }
+.fmo-scroll { max-height: 65vh; overflow: auto; overscroll-behavior: contain; }
+.fmo-scroll table { min-width: 1250px; }
+.fmo-scroll thead th { position: sticky; top: 0; background: var(--surface-muted); z-index: 2; white-space: nowrap; }
+.fmo-scroll td { vertical-align: top; overflow-wrap: anywhere; }
+.fmo-scroll tfoot th, .fmo-scroll tfoot td { background: var(--surface-muted); white-space: nowrap; }
+.fmo-sub { display: block; margin-top: 3px; color: var(--text-secondary); font-size: .75rem; }
+.fmo-note { margin: 0; font-size: .75rem; line-height: 1.5; color: var(--text-secondary); }
+@media(max-width: 600px) {
+    .fmo-toolbar > div { flex: 1 1 140px; }
+    .fmo-toolbar .v3-btn { flex: 1 1 130px; }
+}
+@media print {
+    .fmo-scroll { overflow: visible; max-height: none; }
+    .fmo-scroll table { min-width: 0; width: 100%; font-size: 8pt; }
+    .fmo-scroll thead th { position: static; }
+    .fmo-toolbar { display: none; }
+}

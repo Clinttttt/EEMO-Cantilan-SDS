@@ -40,7 +40,8 @@ public sealed partial class OfficeCollectionWorkflow(IAppDbContext db, ICurrentU
         if (request.NpmAssociation is not null) return await RegisterFromNpmAsync(request, ct);
         FishMeatVendorRegistration candidate;
         try { candidate = FishMeatVendorRegistration.Register(Tenant, request.ClientOperationId, request.TaxYear, request.VendorType,
-            request.RegistrationKind, request.DisplayName, request.BusinessName, request.Address, request.Reference, user.Username ?? "Head"); }
+            request.RegistrationKind, request.DisplayName, request.BusinessName, request.Address, request.Reference, user.Username ?? "Head",
+            request.LastName, request.FirstName, request.MiddleName, request.NameExtension, request.Sex, request.NatureOfBusiness); }
         catch (ArgumentException e) { return Result<FishMeatVendorRegistrationDto>.Failure(e.Message, ResultStatus.Invalid); }
         var prior = await db.FishMeatVendorRegistrations.AsNoTracking().SingleOrDefaultAsync(x => x.MunicipalityId == Tenant && x.ClientOperationId == request.ClientOperationId, ct);
         if (prior is not null && await db.FishMeatNpmAssociations.AnyAsync(x => x.MunicipalityId == Tenant && x.ClientOperationId == request.ClientOperationId, ct))
@@ -70,7 +71,8 @@ public sealed partial class OfficeCollectionWorkflow(IAppDbContext db, ICurrentU
         return Result<IReadOnlyList<FishMeatVendorRegistrationDto>>.Success((await db.FishMeatVendorRegistrations.AsNoTracking()
             .Where(x => x.MunicipalityId == Tenant && x.TaxYear == year && (user.Role != "Collector" || x.Status == VendorRegistrationStatus.Active)).OrderBy(x => x.DisplayName).ThenBy(x => x.Id).ToListAsync(ct)).Select(ToDto).ToArray());
     }
-    public static FishMeatVendorRegistrationDto ToDto(FishMeatVendorRegistration x) => new(x.Id, x.TaxYear, x.VendorType, x.RegistrationKind, x.DisplayName, x.BusinessName, x.Address, x.Reference);
+    public static FishMeatVendorRegistrationDto ToDto(FishMeatVendorRegistration x) => new(x.Id, x.TaxYear, x.VendorType, x.RegistrationKind, x.DisplayName, x.BusinessName, x.Address, x.Reference, x.LastName, x.FirstName, x.MiddleName,
+        x.NameExtension, x.Sex, x.NatureOfBusiness);
     public async Task<Result<bool>> MapVehicleAsync(TerminalVehicleMappingRequest request, CancellationToken ct = default)
     {
         if (!TenantValid || !user.IsAuthenticated || user.Role != "SuperAdmin") return Result<bool>.Forbidden();

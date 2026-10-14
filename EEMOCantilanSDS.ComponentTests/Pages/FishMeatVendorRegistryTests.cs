@@ -74,7 +74,7 @@ public sealed class FishMeatVendorRegistryTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Empty(cut.FindAll(".fh-dd, select"));
+            Assert.Empty(cut.FindAll(".toolbar-unified .fh-dd, .toolbar-unified select"));
             Assert.DoesNotContain("Tax year", cut.Find(".toolbar-unified").TextContent);
             Assert.DoesNotContain("Tax year", cut.Find(".facility-hero").TextContent);
             var manage = cut.Find(".v3-panel-header a");
@@ -94,7 +94,7 @@ public sealed class FishMeatVendorRegistryTests : TestContext
         Assert.Equal(["2|Registered", "1|Fish", "1|Meat"], figures);
         Assert.Single(cut.FindAll(".toolbar-unified"));
         Assert.Equal(["All", "Fish", "Meat"], cut.FindAll(".filter-tab").Select(t => t.TextContent.Trim()).ToArray());
-        Assert.Equal(["Collection Activity", "Reports", "From NPM occupants", "Import list", "Register vendor"], cut.FindAll(".fmv-actions-bar a, .fmv-actions-bar button").Select(a => a.TextContent.Trim()).ToArray());
+        Assert.Equal(["Collection Activity", "Reports", "Office register", "From NPM occupants", "Import list", "Register vendor"], cut.FindAll(".fmv-actions-bar a, .fmv-actions-bar button").Select(a => a.TextContent.Trim()).ToArray());
         Assert.Equal("/operations/fish-meat-vendor-fees/import", cut.FindAll(".fmv-actions-bar a").Single(a => a.TextContent.Trim() == "Import list").GetAttribute("href"));
     }
 
@@ -132,8 +132,10 @@ public sealed class FishMeatVendorRegistryTests : TestContext
             form.QuerySelectorAll(":scope > .avm-group > label").Select(l => l.TextContent.Replace("*", "").Trim()).ToArray());
         Assert.DoesNotContain("Reference", form.TextContent);
         Assert.Contains($"Tax year {Year}", cut.Find(".eemo-drawer").TextContent);
-        Assert.Empty(form.QuerySelectorAll("select"));                                                 // no native dropdown
-        Assert.DoesNotContain("optional", form.TextContent, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(form.QuerySelectorAll(".vendor-office-fields select")); // the optional office sex record
+        Assert.Contains("Nature of business", form.TextContent);
+        Assert.Contains("Last name", form.TextContent);
+        Assert.Contains("Optional", form.TextContent);
         foreach (var word in new[] { "Payor", "NPM", "stall", "fee amount", "Weight" })
             Assert.DoesNotContain(word, form.TextContent, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("Cancel", cut.Find(".eemo-drawer-footer .btn-ghost").TextContent.Trim());
