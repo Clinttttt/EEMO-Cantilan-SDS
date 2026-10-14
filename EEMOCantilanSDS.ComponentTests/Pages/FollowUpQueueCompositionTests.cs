@@ -152,7 +152,12 @@ public sealed class FollowUpQueueCompositionTests : TestContext
         cut.WaitForAssertion(() => Assert.NotNull(RowFor(cut, "Lower-age delinquent")), RenderTimeout);
         Assert.Single(cut.FindAll(".fq-filterbar"));
         Assert.Single(cut.FindAll(".fq-filterbar > .fq-reasons"));
-        Assert.Single(cut.FindAll(".fq-filterbar > .fq-toolrow"));
+        Assert.Single(cut.FindAll(".fq-navrow"));
+        Assert.Single(cut.FindAll(".fq-navrow nav[aria-label='Monitoring registers']"));
+        Assert.Single(cut.FindAll(".fq-navrow .fq-search"));
+        Assert.Single(cut.FindAll(".fq-navrow .fq-history-link"));
+        Assert.Single(cut.FindAll(".fq-filterbar > .fq-source-select"));
+        Assert.Empty(cut.FindAll(".fq-filterbar .fq-search, .fq-filterbar .fq-history-link"));
         Assert.Single(cut.FindAll(".fq-source-select .fh-dd-trigger"));
         Assert.Collection(cut.FindAll(".fq-reasons .fq-chip"),
             x => Assert.StartsWith("All", x.TextContent.Trim()),

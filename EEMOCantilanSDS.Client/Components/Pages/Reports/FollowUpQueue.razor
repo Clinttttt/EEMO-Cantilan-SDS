@@ -77,9 +77,24 @@
         </Figures>
     </V3Hero>
 
-    <MonitoringTabs Current="follow-up" />
+    <!-- Navigation and contextual actions share a row; search uses the available right side. -->
+    <div class="fq-navrow">
+        <MonitoringTabs Current="follow-up" />
+            <a class="btn-outline fq-history-link" href="/reports/follow-up/history" title="Past-period snapshot from source records; this is not a log of actions or local hides.">
+                <svg viewBox="0 0 24 24"><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><polyline points="12 7 12 12 15 14" /></svg>
+                Past-period view
+            </a>
+            <div class="fq-search">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input type="search" placeholder="Search payor, stall, facility, or reason…" value="@_search" @oninput="OnSearchInput" aria-label="Search the queue" />
+                @if (HasSearch)
+                {
+                    <button class="fq-search-clear" type="button" @onclick="ClearSearch" aria-label="Clear search">&times;</button>
+                }
+            </div>
+    </div>
 
-    <!-- Filter choices + search -->
+    <!-- Source/reason filters remain beneath the monitoring navigation. -->
     <div class="fq-filterbar">
         <div class="fq-filters fq-reasons" role="group" aria-label="Filter by reason">
             @foreach (var f in Filters)
@@ -95,24 +110,10 @@
             }
         </div>
 
-        <div class="fq-toolrow">
-            <div class="fq-search">
-                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                <input type="search" placeholder="Search payor, stall, facility, or reason…" value="@_search" @oninput="OnSearchInput" aria-label="Search the queue" />
-                @if (HasSearch)
-                {
-                    <button class="fq-search-clear" type="button" @onclick="ClearSearch" aria-label="Clear search">&times;</button>
-                }
-            </div>
             <div class="fq-source-select">
                 <FhSelect Block="true" Caption="" AriaLabel="Filter by source"
                           Options="SourceOptions" Value="@SourceValue" ValueChanged="SelectSource" />
             </div>
-            <a class="btn-outline fq-history-link" href="/reports/follow-up/history" title="Past-period snapshot from source records; this is not a log of actions or local hides.">
-                <svg viewBox="0 0 24 24"><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><polyline points="12 7 12 12 15 14" /></svg>
-                Past-period view
-            </a>
-        </div>
     </div>
 
     @{
