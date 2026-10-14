@@ -57,3 +57,11 @@ no page-level horizontal scroll at 1440 / 1024 / 768 / 390 (table scrolls inside
 * Validation: focused FollowUpQueueCompositionTests **8 passed / 0 failed**; complete Head Portal component suite **1,198 passed / 0 failed / 0 skipped** (Debug); Client Release build succeeded (pre-existing warnings); git diff --check clean.
 * Restarted only the verified isolated V12 Head Portal preview on :7567 with ApiBaseUrl pointing to the unchanged V12 API on :7597. Both Monitoring routes returned 302 for unauthenticated HTTP probes, as expected.
 * Authenticated browser layout and actual account-position visual acceptance after this refinement are still pending with the owner. No main-checkout merge, database migration, production deployment, or push.
+
+## October 14 Whole-time History reason shortcut simplification
+
+* Only the **Missing OR** and **NPM Daily** reason shortcut buttons were removed from `PastFollowUpQueue.razor`'s `ReasonFilters` presentation list. The retained shortcuts are All, Delinquent, Current-period, Contract, Excused, Miscellaneous, and Closed.
+* The source DTO, API, query composition, All list, search, facility selection, section counts, and underlying follow-up records are unchanged. Missing OR and NPM daily items remain visible under All and discoverable via search.
+* A new rendered-component test verifies both removed shortcut buttons are absent while example records from both categories are still present under All, including its item count.
+* Validation: focused Follow-up tests **9 passed / 0 failed**; full Head Portal component suite **1,199 passed / 0 failed / 0 skipped** (Debug); Client Release build **succeeded with 82 pre-existing warnings, 0 errors**.
+* Only the identified V12 preview Head Portal process was restarted on :7567; the V12 API on :7597 and the local PostgreSQL database were left running. Authenticated manual visual acceptance remains with the owner. No main integration, migration, deployment, or push.

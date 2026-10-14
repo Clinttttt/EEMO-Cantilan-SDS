@@ -173,6 +173,62 @@ public sealed class FollowUpQueueCompositionTests : TestContext
     }
 
     [Fact]
+    public void WholeTimeHistoryHidesTwoReasonShortcutsButKeepsTheirSourceRowsInAll()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var sample = SampleQueue();
+        var npmDaily = new FollowUpItemDto(
+            4, "Normal", "NPM missed collection", "npm", FacilityCode.NPM, "Daily stall",
+            "NPM daily coverage", "1 missed day", null, false, "September 2026",
+            "Daily coverage gap", "Open daily calendar", "/npm");
+        var history = sample with { Items = sample.Items.Append(npmDaily).ToArray() };
+        var reports = new Mock<IReportsApiClient>();
+        reports.Setup(a => a.GetFollowUpHistoryYearsAsync())
+            .ReturnsAsync(Result<IReadOnlyList<int>>.Success([2026]));
+        reports.Setup(a => a.GetFollowUpHistoryAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()))
+            .ReturnsAsync(Result<FollowUpQueueDto>.Success(history));
+        Services.AddSingleton(reports.Object);
+
+        var stalls = new Mock<IStallsApiClient>();
+        stalls.Setup(a => a.GetClosedStallAccountsAsync())
+            .ReturnsAsync(Result<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Stalls.ClosedStallAccountDto>>.Success([]));
+        Services.AddSingleton(stalls.Object);
+
+        var facilities = new Mock<IFacilitiesApiClient>();
+        facilities.Setup(a => a.GetFacilitySummariesAsync(It.IsAny<int>(), It.IsAny<int>()))
+            .ReturnsAsync(Result<IReadOnlyList<FacilitySidebarSummaryDto>>.Failure("Unavailable", 500));
+        Services.AddSingleton(facilities.Object);
+        Services.AddSingleton(new FacilityState(facilities.Object));
+
+        var branding = new Mock<IMunicipalitiesApiClient>();
+        branding.Setup(a => a.GetCurrentBrandingAsync())
+            .ReturnsAsync(Result<MunicipalityBrandingDto>.Failure("Unavailable", 500));
+        Services.AddSingleton(new BrandingState(branding.Object));
+        Services.AddSingleton(Mock.Of<ISetupApiClient>());
+        Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
+        Services.AddSingleton(Mock.Of<IObligationsApiClient>());
+        Services.AddSingleton(Mock.Of<IPenaltiesApiClient>());
+        Services.AddSingleton(Mock.Of<IDailyCollectionApiClient>());
+        Services.AddSingleton(Mock.Of<ITrmApiClient>());
+        Services.AddSingleton(Mock.Of<ITpmApiClient>());
+        Services.AddSingleton(Mock.Of<ISlaughterApiClient>());
+        this.AddTestAuthorization().SetAuthorized("SuperAdmin");
+
+        var cut = RenderComponent<EEMOCantilanSDS.Client.Components.Pages.Reports.PastFollowUpQueue>();
+        cut.WaitForAssertion(() =>
+        {
+            var chips = cut.FindAll(".fh-reasonrow .fh-chip").Select(x => x.TextContent).ToArray();
+            Assert.Equal(7, chips.Length);
+            Assert.DoesNotContain(chips, x => x.Contains("Missing OR") || x.Contains("NPM Daily"));
+            Assert.Contains(chips, x => x.Contains("Closed"));
+            Assert.Contains(cut.FindAll(".fh-row"), x => x.TextContent.Contains("Receipt follow-up"));
+            Assert.Contains(cut.FindAll(".fh-row"), x => x.TextContent.Contains("NPM daily coverage"));
+            Assert.Contains("9", chips[0]); // All includes all nine source rows.
+        }, RenderTimeout);
+        reports.Verify(a => a.GetFollowUpHistoryAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), true), Times.Once);
+    }
+
+    [Fact]
     public void ReviewCarriesActualAccountAndPeriodToExistingPaymentDialogWithoutNestedReview()
     {
         var queue=SampleQueue(); var account=queue.Items.First();
