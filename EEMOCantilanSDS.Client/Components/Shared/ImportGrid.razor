@@ -2,20 +2,20 @@
 @* The editable review register of every bulk import, taken from the stallholder import: a numbered row per record, one editable cell per
    column (text, number, date or a choice), an optional trailing status cell, and a remove button. The page owns the rows and what a
    cell change means; the grid only shows them and reports edits. *@
-<div class="imp-table-wrap" role="region" aria-label="@Label" tabindex="0">
+<div class="imp-table-wrap @(Compact ? "imp-grid-compact" : "")" role="region" aria-label="@Label" tabindex="0">
     <table class="imp-table">
         <thead>
             <tr>
                 <th class="imp-th-num">#</th>
                 @foreach (var c in Columns)
                 {
-                    <th style="@($"min-width:{c.MinWidth}px")">@c.Label</th>
+                    <th style="@(Compact ? null : $"min-width:{c.MinWidth}px")">@c.Label</th>
                 }
                 @if (Status is not null && !InlineStatus)
                 {
-                    <th class="imp-th-status" style="min-width:150px">@StatusHeader</th>
+                    <th class="imp-th-status" style="@(Compact ? null : "min-width:150px")">@StatusHeader</th>
                 }
-                <th class="imp-th-act"></th>
+                <th class="imp-th-act">@(Compact ? "Actions" : null)</th>
             </tr>
         </thead>
         <tbody>
@@ -23,12 +23,12 @@
             {
                 var row = Rows[i];
                 var rowIndex = i;
-                <tr>
+                <tr @key="@(Compact ? (object?)row : null)">
                     <td class="imp-td-num">@(rowIndex + 1)</td>
                     @foreach (var c in Columns)
                     {
                         var col = c;
-                        <td>
+                        <td data-label="@col.Label">
                             @if (col.Type == "select")
                             {
                                 <div class="imp-select-wrap">
@@ -39,7 +39,7 @@
                                         <option value=""></option>
                                         @foreach (var opt in col.Options)
                                         {
-                                            <option value="@opt">@opt</option>
+                                            <option value="@opt">@(OptionText?.Invoke(col, opt) ?? opt)</option>
                                         }
                                     </select>
                                     <svg class="imp-select-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
@@ -62,9 +62,9 @@
                     }
                     @if (Status is not null && !InlineStatus)
                     {
-                        <td class="imp-td-status">@Status(row)</td>
+                        <td class="imp-td-status" data-label="@StatusHeader">@Status(row)</td>
                     }
-                    <td class="imp-td-act">
+                    <td class="imp-td-act" data-label="Actions">
                         @if (Status is not null && InlineStatus) { @Status(row) }
                         @if (RowActions is not null) { @RowActions(row) }
                         <button class="imp-row-del" type="button" title="Remove row" aria-label="@($"Remove row {rowIndex + 1}")" @onclick="() => OnRemove.InvokeAsync(rowIndex)">
@@ -103,6 +103,9 @@
     [Parameter] public RenderFragment<TRow>? Status { get; set; }
     [Parameter] public string StatusHeader { get; set; } = "Status";
     [Parameter] public bool InlineStatus { get; set; }
+    /// <summary>Opt-in compact review, with labelled stacked rows when the containing workspace is narrow.</summary>
+    [Parameter] public bool Compact { get; set; }
+    [Parameter] public Func<ImportColumn, string, string>? OptionText { get; set; }
     [Parameter] public RenderFragment<TRow>? RowActions { get; set; }
     [Parameter] public string Label { get; set; } = "Rows to import";
     [Parameter] public string EmptyText { get; set; } = "No rows. Use “Add row” to start, or discard and upload again.";

@@ -26,9 +26,14 @@ Branch `codex/rental-consistency-v11-1`, worktree `C:\dev\stalltrack-v2-worktree
 Whole-solution Release build: 0 errors. Unit 2593, Head component 1153, Mobile component 114: all pass. PostgreSQL integration: 579 passed, 7 skipped (snapshot-database tests), 0 failed. Runtime on an isolated Docker PostgreSQL, API and Head Portal: the new migration applied on top of an existing database at API start (upgrade path); details drawer, import and holder lists checked at 1440, 1024 and 768 with no horizontal overflow.
 
 ## Limitations
+
 - The Windows MAUI app was not run in this pass (no Mobile change).
 - `RentalDetailsDrawer` is shared by the spaces; the stall registry (`Vendor.razor`) still carries its own copy of the same markup and CSS until it adopts the shared drawer.
 - Owner history for a canonical slaughter row opens the existing details page by owner name; the page itself was not redesigned.
 
 ## Integration
 Merge this branch onto `d68382d8` (it already contains the V11 branch at `f0533a2b`). The model snapshot carries `SpaceHolderImportRuns`, `FishMeatDirectCollectionLinks` and the new operation-id column and reports no pending model changes. Two additive migrations come from V11 and this pass (`FishMeatDirectCollectionLinks20261013`, `SpaceHolderImportRunOperationId20261013`); none was applied to production.
+
+## Later local import review evidence — 2026-10-14
+
+Based on `ea101648`: [Kanmanggay import review repair](KANMANGGAY_IMPORT_REVIEW_REPAIR_20261014.md). It replaces malformed row actions and narrows the Space import review list while preserving this handoff's source and billing behavior; it is not a production release or integration declaration.
