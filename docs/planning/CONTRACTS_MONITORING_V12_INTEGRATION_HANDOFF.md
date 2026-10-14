@@ -47,3 +47,13 @@ no page-level horizontal scroll at 1440 / 1024 / 768 / 390 (table scrolls inside
 * "Today" expiry choice needs an API window of 0.
 * The intermittent failures seen earlier in the full suite (three different unrelated tests, each passing when re-run) did not
   recur in five clean runs after the final change; no cause was found in this work.
+
+## October 14 Follow-up clarity refinement (CORE BRAIN V6)
+
+* Follow-up navigation includes an optional Past-period view link rendered by the existing MonitoringTabs component, with the same unboxed tab styling as Follow-ups / Contracts. The existing historical route and semantics remain unchanged.
+* The Follow-up search is transparent and underlined, not a boxed field. Compact breakpoints keep the tabs and filters within their own scrolling/wrapping regions rather than creating page-level horizontal overflow.
+* The account drawer distinguishes the selected **queue follow-up amount** (from the queue DTO, with its reported coverage) from **total outstanding balance across returned periods** (from the existing authoritative account ledger). No client-side reconciliation, amount modification, or billing-policy changes were introduced.
+* Outstanding-year disclosures label years relative to Philippine local today as Current year, Past year, or Future year. Source periods and annual sums remain unchanged.
+* Validation: focused FollowUpQueueCompositionTests **8 passed / 0 failed**; complete Head Portal component suite **1,198 passed / 0 failed / 0 skipped** (Debug); Client Release build succeeded (pre-existing warnings); git diff --check clean.
+* Restarted only the verified isolated V12 Head Portal preview on :7567 with ApiBaseUrl pointing to the unchanged V12 API on :7597. Both Monitoring routes returned 302 for unauthenticated HTTP probes, as expected.
+* Authenticated browser layout and actual account-position visual acceptance after this refinement are still pending with the owner. No main-checkout merge, database migration, production deployment, or push.

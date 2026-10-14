@@ -3,11 +3,16 @@
 <nav class="mt-tabs" aria-label="Monitoring registers">
     <a href="/monitoring/follow-up" class="mt-tab @(Current == "follow-up" ? "mt-tab-active" : "")" aria-current="@PageIf("follow-up")">Follow-ups</a>
     <a href="/monitoring/contracts" class="mt-tab @(Current == "contracts" ? "mt-tab-active" : "")" aria-current="@PageIf("contracts")">Contracts</a>
+    @if (ShowHistory)
+    {
+        <a href="/reports/follow-up/history" class="mt-tab fq-history-link" title="Past-period snapshot from source records; this is not a log of actions or local hides.">Past-period view</a>
+    }
 </nav>
 
 @code {
     /// <summary>"follow-up" or "contracts".</summary>
     [Parameter, EditorRequired] public string Current { get; set; } = "follow-up";
+    [Parameter] public bool ShowHistory { get; set; }
 
     private string? PageIf(string tab) => Current == tab ? "page" : null;
 }

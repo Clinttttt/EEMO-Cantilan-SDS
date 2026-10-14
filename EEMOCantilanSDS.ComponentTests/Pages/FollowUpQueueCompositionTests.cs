@@ -187,6 +187,11 @@ public sealed class FollowUpQueueCompositionTests : TestContext
         cut.WaitForAssertion(()=>Assert.Single(cut.FindComponents<FollowUpAccountReview>()),RenderTimeout);
         var review=cut.FindComponent<FollowUpAccountReview>();
         Assert.Single(review.FindAll(".review-footer-actions"));
+        Assert.Contains("Queue follow-up amount", review.Find(".review-queue-position").TextContent);
+        Assert.Contains("₱4,800.00", review.Find(".review-queue-position").TextContent);
+        Assert.Contains("12 months to August 2026", review.Find(".review-queue-position").TextContent);
+        Assert.Contains("Total outstanding balance · all periods", review.Find(".review-summary").TextContent);
+        Assert.Contains("₱800.00", review.Find(".review-summary").TextContent);
         SpaceHolderWorkspaceTests.SaveVisualArtifact("account-review-payment",review.Markup);
         review.Find(".review-period-toggle").Click();
         review.Find(".btn-primary").Click();
@@ -194,6 +199,32 @@ public sealed class FollowUpQueueCompositionTests : TestContext
         var form=cut.FindComponent<PayBillModal>().Instance;
         Assert.True(form.Show); Assert.Equal(account.StallId,form.StallId);
         Assert.Equal(account.ContractId,form.ContractId); Assert.Equal(2026,form.PeriodYear); Assert.Equal(8,form.PeriodMonth);
+    }
+
+    [Fact]
+    public void AccountReviewLabelsCurrentAndPastYearsWithoutChangingPeriodBalances()
+    {
+        var queue = SampleQueue();
+        var account = queue.Items.First();
+        var currentYear = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year;
+        var payments = new Mock<IPaymentsApiClient>();
+        payments.Setup(x => x.GetOutstandingMonthsAsync(account.StallId!.Value, account.ContractId, null, null))
+            .ReturnsAsync(Result<IReadOnlyList<PaymentHistoryDto>>.Success([
+                new($"{currentYear - 1}-08", PaymentStatus.Unpaid, 900, 0, 900, null, null),
+                new($"{currentYear}-08", PaymentStatus.Partial, 1000, 200, 800, null, null)
+            ]));
+        var (cut, _) = RenderQueue(queue, payments.Object);
+        cut.WaitForAssertion(() => Assert.NotNull(RowFor(cut, account.Person)), RenderTimeout);
+        RowFor(cut, account.Person).QuerySelector("button")!.Click();
+        cut.WaitForAssertion(() =>
+        {
+            var review = cut.FindComponent<FollowUpAccountReview>();
+            Assert.Equal(2, review.FindAll(".review-year-badge").Count);
+            Assert.Contains("Past year", review.FindAll(".review-year-badge")[0].TextContent);
+            Assert.Contains("Current year", review.FindAll(".review-year-badge")[1].TextContent);
+            Assert.Contains("₱1,700.00", review.Find(".review-summary").TextContent);
+            Assert.Contains("₱4,800.00", review.Find(".review-queue-position").TextContent);
+        }, RenderTimeout);
     }
 
     private (IRenderedComponent<FollowUpPage> Cut, Mock<IReportsApiClient> Api) RenderQueue(FollowUpQueueDto? queue = null, IPaymentsApiClient? payments = null)
