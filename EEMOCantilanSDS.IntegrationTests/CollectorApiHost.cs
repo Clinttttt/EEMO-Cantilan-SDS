@@ -40,7 +40,8 @@ internal sealed class CollectorApiHost(WebApplication app, HttpClient client) : 
             return ValueTask.FromResult(result);
         }
     }
-    internal static async Task<CollectorApiHost> StartAsync(PostgresFixture database, Guid collector, Guid tenant, Fault? fault = null)
+    internal static async Task<CollectorApiHost> StartAsync(PostgresFixture database, Guid collector, Guid tenant, Fault? fault = null,
+        string role = "Collector", EEMOCantilanSDS.Application.Common.Interface.Time.IClock? clock = null)
     {
         var key = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions {
@@ -58,6 +59,7 @@ internal sealed class CollectorApiHost(WebApplication app, HttpClient client) : 
         builder.Services.AddInfrastructureService(builder.Configuration);
         builder.Services.AddApplicationService();
         builder.ConfigureServices(); // Real JWT validation, not a test authentication scheme.
+        if (clock is not null) builder.Services.AddSingleton(clock);
         foreach (var service in builder.Services.Where(x => x.ServiceType == typeof(IHostedService)
             && x.ImplementationType == typeof(DailyTenantBackupService)).ToArray()) builder.Services.Remove(service);
         if (fault is not null) builder.Services.AddDbContext<AppDbContext>((_, options) => options.AddInterceptors(fault));
@@ -68,7 +70,7 @@ internal sealed class CollectorApiHost(WebApplication app, HttpClient client) : 
         app.MapControllers();
         await app.StartAsync();
         var client = app.GetTestClient();
-        var claims = new[] { new Claim(AppClaimTypes.UserId, collector.ToString()), new Claim(AppClaimTypes.Role, "Collector"),
+        var claims = new[] { new Claim(AppClaimTypes.UserId, collector.ToString()), new Claim(AppClaimTypes.Role, role),
             new Claim(AppClaimTypes.Username, "scratch-collector"), new Claim(AppClaimTypes.FullName, "Scratch Collector"),
             new Claim(AppClaimTypes.MunicipalityId, tenant.ToString()), new Claim(AppClaimTypes.Municipality, "scratch"),
             new Claim(AppClaimTypes.IsActive, "true"), new Claim(AppClaimTypes.MustChangePassword, "false") };

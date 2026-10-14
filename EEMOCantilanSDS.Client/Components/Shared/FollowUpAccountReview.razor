@@ -24,8 +24,18 @@
             <p class="review-scope">As of @PhilippineTime.Today.ToString("MMM d, yyyy")@if (Context.SnapshotDate != PhilippineTime.Today) { <span> · Queue dated @Context.SnapshotDate.ToString("MMM d, yyyy")</span> }</p>
             @if (_hasLedger && (Owed.Any() || Context.FacilityItem?.ReasonKind != "contract"))
             {
+                @if (Context.FacilityItem is { ReasonKind: "delinquent" or "current", Amount: { } queueAmount })
+                {
+                    <div class="review-queue-position" aria-label="Selected follow-up amount">
+                        <div>
+                            <span class="review-queue-label">Queue follow-up amount</span>
+                            <span class="review-queue-period">@Context.FacilityItem.Period</span>
+                        </div>
+                        <strong>@Money(queueAmount)</strong>
+                    </div>
+                }
                 <dl class="review-summary">
-                    <div><dt>Outstanding balance</dt><dd>@Money(Outstanding)</dd></div>
+                    <div><dt>Total outstanding balance · all periods</dt><dd>@Money(Outstanding)</dd></div>
                     <div><dt>Periods with a balance</dt><dd>@Owed.Count()</dd></div>
                     <div><dt>Earliest period with balance</dt><dd>@(Owed.FirstOrDefault()?.Label ?? "None")</dd></div>
                     <div><dt>Collected in displayed periods</dt><dd>@Money(_periods.Sum(p => p.Collected))</dd></div>
@@ -38,7 +48,10 @@
                     @foreach (var year in Owed.GroupBy(p => p.Date.Year))
                     {
                         <details class="review-year" open="@(year.Key == Owed.First().Date.Year)">
-                            <summary>@year.Key <span>@year.Count() @(year.Count() == 1 ? "period" : "periods") with balance · @Money(year.Sum(p => p.Remaining))</span></summary>
+                            <summary>
+                                <span class="review-year-heading"><strong>@year.Key</strong><span class="review-year-badge">@YearScopeLabel(year.Key)</span></span>
+                                <span class="review-year-total">@year.Count() @(year.Count() == 1 ? "period" : "periods") with balance · @Money(year.Sum(p => p.Remaining))</span>
+                            </summary>
                             @PeriodTable(year)
                         </details>
                     }
@@ -144,6 +157,7 @@
     private IEnumerable<Period> Owed => _periods.Where(p => p.Remaining > 0).OrderBy(p => p.Date);
     private decimal Outstanding => _account?.OutstandingToDate ?? _periods.Sum(p => p.Remaining);
     private static string Money(decimal value) => $"₱{value:N2}";
+    private static string YearScopeLabel(int year) => year == PhilippineTime.Today.Year ? "Current year" : year < PhilippineTime.Today.Year ? "Past year" : "Future year";
     private static string Status(Period p) => p.Remaining == 0 ? "Paid" : p.Collected > 0 ? "Partial" : "Unpaid";
     protected override async Task OnInitializedAsync() { _head=Authentication is not null && (await Authentication).User.IsInRole("SuperAdmin"); await Load(); }
     protected override async Task OnAfterRenderAsync(bool firstRender)

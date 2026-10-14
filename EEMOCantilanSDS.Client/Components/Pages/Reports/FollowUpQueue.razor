@@ -77,9 +77,22 @@
         </Figures>
     </V3Hero>
 
-    <!-- Filter choices + search -->
+    <!-- Navigation and contextual actions share a row; search uses the available right side. -->
+    <div class="fq-navrow">
+        <MonitoringTabs Current="follow-up" ShowHistory="true" />
+            <div class="fq-search">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input type="search" placeholder="Search payor, stall, facility, or reason…" value="@_search" @oninput="OnSearchInput" aria-label="Search the queue" />
+                @if (HasSearch)
+                {
+                    <button class="fq-search-clear" type="button" @onclick="ClearSearch" aria-label="Clear search">&times;</button>
+                }
+            </div>
+    </div>
+
+    <!-- Source/reason filters remain beneath the monitoring navigation. -->
     <div class="fq-filterbar">
-        <div class="fq-filters" role="group" aria-label="Filter by reason">
+        <div class="fq-filters fq-reasons" role="group" aria-label="Filter by reason">
             @foreach (var f in Filters)
             {
                 var count = CountFor(f.Key);
@@ -93,31 +106,10 @@
             }
         </div>
 
-        <div class="fq-toolrow">
-            <div class="fq-search">
-                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                <input type="search" placeholder="Search payor, stall, facility, or reason…" value="@_search" @oninput="OnSearchInput" aria-label="Search the queue" />
-                @if (HasSearch)
-                {
-                    <button class="fq-search-clear" type="button" @onclick="ClearSearch" aria-label="Clear search">&times;</button>
-                }
+            <div class="fq-source-select">
+                <FhSelect Block="true" Caption="" AriaLabel="Filter by source"
+                          Options="SourceOptions" Value="@SourceValue" ValueChanged="SelectSource" />
             </div>
-            <div class="fq-filters" role="group" aria-label="Filter by source">
-                <button type="button" class="fq-chip @(_facility is null && _operation is null ? "fq-chip-active" : "")" @onclick="@(() => SelectFacility(null))">@(OperationScopes.Count > 0 ? "All sources" : "All Facilities")</button>
-                @foreach (var fc in FacilityCatalog.All)
-                {
-                    <button type="button" class="fq-chip @(_facility == fc ? "fq-chip-active" : "")" title="@fc" @onclick="@(() => SelectFacility(fc))">@FacilityCatalog.ShortNameOf(fc)</button>
-                }
-                @foreach (var scope in OperationScopes)
-                {
-                    <button type="button" class="fq-chip @(_operation == scope.OperationCode ? "fq-chip-active" : "")" @onclick="@(() => SelectOperation(scope.OperationCode))">@scope.DisplayName</button>
-                }
-            </div>
-            <a class="btn-outline fq-history-link" href="/reports/follow-up/history" title="Past-period snapshot from source records; this is not a log of actions or local hides.">
-                <svg viewBox="0 0 24 24"><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><polyline points="12 7 12 12 15 14" /></svg>
-                Past-period view
-            </a>
-        </div>
     </div>
 
     @{
@@ -1043,10 +1035,8 @@
     [
         new("all", "All"),
         new("delinquent", "Delinquent"),
-        new("missingor", "Missing OR"),
         new("current", "Current-period"),
         new("contract", "Contract"),
-        new("npm", $"{FacilityCatalog.ShortNameOf(FacilityCode.NPM)} Daily"),
         new("excused", "Excused Review"),
         new("misc", "Miscellaneous"),
     ];
@@ -1066,6 +1056,25 @@
     private void SelectFilter(string key) => _filter = key;
     private void SelectFacility(FacilityCode? code) { _facility = code; _operation = null; }
     private void SelectOperation(string operationCode) { _operation = operationCode; _facility = null; }
+
+    // Preserve the same typed facility and space-operation scopes as the previous chips.
+    // Only presentation changes; the same underlying server-sourced follow-up records remain available.
+    private IReadOnlyList<(string Value, string Label)> SourceOptions =>
+        [("", "All sources"),
+         .. FacilityCatalog.All.Select(f => ($"f:{f}", FacilityCatalog.NameOf(f))),
+         .. OperationScopes.Select(s => ($"o:{s.OperationCode}", s.DisplayName))];
+    private string SourceValue => _operation is not null ? $"o:{_operation}" :
+                                  _facility is { } f ? $"f:{f}" : string.Empty;
+    private void SelectSource(string value)
+    {
+        if (string.IsNullOrEmpty(value)) { SelectFacility(null); return; }
+        if (value.StartsWith("f:", StringComparison.Ordinal) &&
+            Enum.TryParse<FacilityCode>(value[2..], out var f) && FacilityCatalog.All.Contains(f))
+            SelectFacility(f);
+        else if (value.StartsWith("o:", StringComparison.Ordinal) &&
+                 OperationScopes.Any(s => s.OperationCode == value[2..]))
+            SelectOperation(value[2..]);
+    }
 
     // Space-operation scopes come from the server's typed feed; only what it returns is offered.
     private IReadOnlyList<FollowUpScopeDto> OperationScopes =>

@@ -1,4 +1,9 @@
 .review-scope { color: var(--text-secondary); font-size: .8125rem; line-height: 1.5; }
+.review-queue-position { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0 13px; border-bottom: 1px solid var(--border); }
+.review-queue-position > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.review-queue-label { font-size: .75rem; font-weight: 650; color: var(--text); }
+.review-queue-period { font-size: .75rem; color: var(--text-secondary); }
+.review-queue-position strong { font-size: 1.125rem; color: var(--navy); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .review-summary, .review-facts { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin: 12px 0 20px; }
 .review-summary dt, .review-facts dt { color: var(--text-secondary); font-size: .75rem; }
 .review-summary dd, .review-facts dd { margin: 4px 0 0; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
@@ -6,7 +11,9 @@ h3 { font-size: .9375rem; margin: 20px 0 10px; }
 p { font-size: .8125rem; line-height: 1.5; }
 .review-year { border: 1px solid var(--border); border-radius: 8px; margin: 10px 0; }
 .review-year > summary { padding: 12px; cursor: pointer; font-weight: 600; font-size: .875rem; }
-.review-year > summary span { display: block; margin: 4px 0 0 16px; font-weight: 400; color: var(--text-secondary); font-size: .75rem; }
+.review-year > summary .review-year-heading { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; width: calc(100% - 22px); vertical-align: middle; }
+.review-year > summary .review-year-badge { display: inline-block; font-size: .6875rem; font-weight: 600; color: var(--text-secondary); background: var(--bg-app, #f5f7fa); padding: 3px 8px; border-radius: 5px; white-space: nowrap; }
+.review-year > summary .review-year-total { display: block; margin: 4px 0 0 16px; font-weight: 400; color: var(--text-secondary); font-size: .75rem; }
 .review-year .review-facts { padding: 0 12px; }
 .review-table-wrap { overflow-x: auto; }
 .review-table { width: 100%; font-variant-numeric: tabular-nums; }

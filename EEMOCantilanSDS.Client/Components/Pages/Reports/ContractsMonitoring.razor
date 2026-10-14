@@ -1,0 +1,349 @@
+@page "/monitoring/contracts"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@using System.Globalization
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Client.Services
+@implements IDisposable
+@inject IContractsMonitoringSource Source
+
+<PageTitle>StallTrack — Contracts Monitoring</PageTitle>
+
+@* ───────────────────────────────────────────────────────────────────────────────
+   Contracts Monitoring — one read-only view of contracts and space occupancy across every operation, for the Head/Admin.
+   Status, expiry and remaining days are the server's; this page filters and pages by asking the server, and displays what comes
+   back. It records nothing and recalculates nothing. "Not recorded" is shown for an unknown date, never a guess.
+   ─────────────────────────────────────────────────────────────────────────────── *@
+
+<header class="topbar">
+    <div class="topbar-left">
+        <div class="topbar-title">Contracts Monitoring</div>
+        <div class="topbar-breadcrumb">
+            <a href="/menu" class="breadcrumb-link">@Branding.OfficeAcronym Admin</a>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">Contracts Monitoring</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <AccountChip />
+    </div>
+</header>
+
+<div class="content-area">
+    <V3Hero Eyebrow="@($"{Branding.OfficeAcronym} Admin · Monitoring")" Title="Contracts Monitoring"
+            Subtitle="Track contracts and space occupancy across operations." FiguresLabel="Contracts summary">
+        <Icon>
+            <svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" /><path d="M14 3v5h5" /><path d="M9 13h6M9 17h4" /></svg>
+        </Icon>
+        <Figures>
+            <V3HeroFigure Label="Active" Value="@Figure(_summary?.Active)" Note="includes expiring soon" />
+            <V3HeroFigure Label="Expiring soon" Value="@Figure(_summary?.ExpiringIn30Days)" Note="within 30 days" />
+            <V3HeroFigure Label="Expired" Value="@Figure(_summary?.Expired)" />
+            <V3HeroFigure Label="No contract" Value="@Figure(_summary?.NoContract)" />
+            <V3HeroFigure Label="Total monitored" Value="@Figure(_summary?.Total)" />
+        </Figures>
+    </V3Hero>
+
+    <MonitoringTabs Current="contracts" />
+
+    <div class="cm-toolbar">
+        <div class="cm-row">
+            <div class="cm-search">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input type="search" placeholder="Search occupant or space number…" value="@_search" @onchange="OnSearchChanged" aria-label="Search occupant or space number" />
+            </div>
+            <div class="cm-select cm-operation">
+                <FhSelect Block="true" Caption="" AriaLabel="Facility or operation"
+                          Options="OperationOptions" Value="@(_operation ?? string.Empty)" ValueChanged="OnOperationSelected" />
+            </div>
+            <div class="cm-chips" role="group" aria-label="Expiry window">
+                @foreach (var w in Windows)
+                {
+                    <button type="button" class="cm-chip @(ActiveChip == w.Value ? "cm-chip-active" : "")" aria-pressed="@(ActiveChip == w.Value ? "true" : "false")" @onclick="@(() => SelectChip(w.Value))">@w.Label</button>
+                }
+            </div>
+            <div class="cm-select cm-status-filter">
+                <FhSelect Block="true" Caption="Status" AriaLabel="Status"
+                          Options="StatusOptions" Value="@(_status ?? string.Empty)" ValueChanged="OnStatusSelected" />
+            </div>
+            @if (HasFilters)
+            {
+                <button type="button" class="v3-btn v3-btn-sm cm-clear" @onclick="ClearFilters">Clear</button>
+            }
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="cm-skeleton" role="status" aria-label="Loading contracts">
+            @for (var i = 0; i < 6; i++)
+            {
+                <Skeleton Height="40px" Class="cm-skeleton-row" />
+            }
+        </div>
+    }
+    else if (_failure is not null)
+    {
+        <div class="v3-notice v3-notice-error v3-notice-row" role="alert">
+            <span>@FailureText</span>
+            @if (_failure == ContractsMonitoringFailure.Error)
+            {
+                <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadAsync">Retry</button>
+            }
+        </div>
+    }
+    else if (_rows.Count == 0)
+    {
+        <div class="cm-empty" role="status">No contracts match these filters.</div>
+    }
+    else
+    {
+        <div class="v3-table-wrap cm-table-wrap" role="region" aria-label="Contracts" tabindex="0">
+            <table class="v3-table cm-table">
+                <caption class="v3-sr-only">Contracts and space occupancy across operations</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Holder / Occupant</th>
+                        <th scope="col">Facility / Operation</th>
+                        <th scope="col">Stall / Space</th>
+                        <th scope="col">Contract basis</th>
+                        <th scope="col">Duration</th>
+                        <th scope="col">Expiry</th>
+                        <th scope="col">Status</th>
+                        <th scope="col"><span class="v3-sr-only">Action</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in _rows)
+                    {
+                        <tr @key="r.Id">
+                            <td class="v3-strong">@r.Occupant</td>
+                            <td>@r.Operation</td>
+                            <td>@r.Space</td>
+                            <td>@(r.ContractBasis ?? NotRecorded)</td>
+                            <td>@(r.Duration ?? NotRecorded)</td>
+                            <td class="cm-date">@ExpiryText(r)</td>
+                            <td><span class="cm-status @StatusClass(r.Status)">@r.Status</span></td>
+                            <td class="cm-action"><button type="button" class="v3-btn v3-btn-sm" aria-label="@($"View details for {r.Occupant}, {r.Space}")" @onclick="() => _selected = r">View details</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <nav class="cm-pager" aria-label="Contracts pages">
+            <span role="status">@RangeText</span>
+            <div class="cm-pager-buttons">
+                <button type="button" class="v3-btn v3-btn-sm" disabled="@(_page <= 1)" @onclick="PreviousPage">Previous</button>
+                <button type="button" class="v3-btn v3-btn-sm" disabled="@(!HasNext)" @onclick="NextPage">Next</button>
+            </div>
+        </nav>
+    }
+</div>
+
+<SideDrawer Show="@(_selected is not null)" Title="@(_selected?.Occupant ?? "Contract")" Subtitle="@(_selected is null ? null : $"{_selected.Operation} · {_selected.Space}")" Wide="false" OnClose="@(() => _selected = null)">
+    <ChildContent>
+        @if (_selected is { } d)
+        {
+            <p><span class="cm-status @StatusClass(d.Status)">@d.Status</span> <span class="cm-remaining">@RemainingText(d)</span></p>
+            <details class="cm-account" open>
+                <summary>Account information</summary>
+                <dl class="cm-facts">
+                    @foreach (var f in d.Facts)
+                    {
+                        <div>
+                            <dt>@f.Label</dt>
+                            <dd>@f.Value</dd>
+                        </div>
+                    }
+                </dl>
+            </details>
+        }
+    </ChildContent>
+    <Footer>
+        @if (_selected?.SourceHref is { Length: > 0 } href)
+        {
+            <a class="v3-btn v3-btn-primary" href="@href">Open source record</a>
+        }
+        else
+        {
+            <span class="cm-muted" role="status">Source record unavailable.</span>
+        }
+        <button type="button" class="v3-btn" @onclick="@(() => _selected = null)">Close</button>
+    </Footer>
+</SideDrawer>
+
+@code {
+    private const string NotRecorded = "Not recorded";
+
+    // "Today" is not offered: the API supports 7- and 30-day windows only. "Expired" is a status, not a window.
+    private static readonly (string Value, string Label)[] Windows =
+    [
+        ("", "All"), ("7", "7 days"), ("30", "30 days"), ("expired", "Expired")
+    ];
+
+    // The statuses the API accepts, in the words the office uses. The server decides which row has which.
+    private static readonly ContractsMonitoringOption[] Statuses =
+    [
+        new("Active", "Active"), new("ExpiringSoon", "Expiring soon"), new("Expired", "Expired"), new("NoContract", "No contract"),
+        new("Ended", "Ended"), new("Unknown", "Unknown"), new("NotYetEffective", "Not yet effective")
+    ];
+
+    // Use the existing Follow-up History dropdown so operation and status pickers match other Head Portal screens.
+    private IReadOnlyList<(string Value, string Label)> OperationOptions =>
+        [("", "All operations"), .. _operations.Select(o => (o.Value, o.Label))];
+    private static readonly IReadOnlyList<(string Value, string Label)> StatusOptions =
+        [("", "All statuses"), .. Statuses.Select(x => (x.Value, x.Label))];
+
+    private ContractsMonitoringSummary? _summary;
+    private IReadOnlyList<ContractsMonitoringRow> _rows = [];
+    private IReadOnlyList<ContractsMonitoringOption> _operations = [];
+    private ContractsMonitoringRow? _selected;
+    private ContractsMonitoringFailure? _failure;
+    private bool _loading = true;
+    private string _search = string.Empty;
+    private string? _operation;
+    private string? _status;
+    private int? _window;
+    private int _page = 1;
+    private int _pageSize = ContractsMonitoringQuery.DefaultPageSize;
+    private int _total;
+    private int _requestId;
+
+    private string ActiveChip => _window is { } w ? w.ToString(CultureInfo.InvariantCulture) : _status == "Expired" ? "expired" : _status is null ? string.Empty : "other";
+    private bool HasFilters => !string.IsNullOrWhiteSpace(_search) || !string.IsNullOrEmpty(_operation) || !string.IsNullOrEmpty(_status) || _window is not null;
+    private bool HasNext => _page * _pageSize < _total;
+
+    private string FailureText => _failure switch
+    {
+        ContractsMonitoringFailure.Unauthorized => "You do not have access to Contracts Monitoring.",
+        ContractsMonitoringFailure.Unavailable => "Contracts Monitoring is not available yet. Nothing has been recorded or changed.",
+        _ => "Contracts could not be loaded."
+    };
+
+    private string RangeText
+    {
+        get
+        {
+            var from = (_page - 1) * _pageSize + 1;
+            var to = Math.Min(_page * _pageSize, _total);
+            return $"{from.ToString("N0", CultureInfo.InvariantCulture)}–{to.ToString("N0", CultureInfo.InvariantCulture)} of {_total.ToString("N0", CultureInfo.InvariantCulture)}";
+        }
+    }
+
+    // The first, unfiltered page is handed from the prerender to the interactive circuit, so opening the page asks the API once.
+    [PersistentState(AllowUpdates = true)]
+    public ContractsMonitoringPage? CachedFirstPage { get; set; }
+
+    private CancellationTokenSource? _cts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (CachedFirstPage is { } cached)
+        {
+            Apply(cached);
+            _loading = false;
+            return;
+        }
+        await LoadAsync();
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+
+    private void Apply(ContractsMonitoringPage page)
+    {
+        _summary = page.Summary;
+        _rows = page.Rows;
+        _total = page.TotalRows;
+        _page = page.Page;
+        _pageSize = page.PageSize;
+        _operations = page.Operations;
+    }
+
+    private async Task LoadAsync()
+    {
+        var id = ++_requestId;
+        _loading = true;
+        _failure = null;
+        StateHasChanged();
+
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+
+        ContractsMonitoringResult result;
+        try
+        {
+            result = await Source.LoadAsync(new ContractsMonitoringQuery(
+                string.IsNullOrWhiteSpace(_search) ? null : _search.Trim(), _operation, _status, _window, null, _page, _pageSize), _cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return; // superseded by a newer request, or the page was left
+        }
+        catch (Exception)
+        {
+            result = ContractsMonitoringResult.Fail(ContractsMonitoringFailure.Error);
+        }
+        if (id != _requestId) return; // a newer request owns the screen
+
+        _loading = false;
+        if (result.Page is not { } page)
+        {
+            _failure = result.Failure ?? ContractsMonitoringFailure.Error;
+            _rows = [];
+            return;
+        }
+        Apply(page);
+        if (!HasFilters && page.Page == 1) CachedFirstPage = page;
+    }
+
+    private Task Refilter() { _page = 1; return LoadAsync(); }
+    private Task OnSearchChanged(ChangeEventArgs e) { _search = e.Value?.ToString() ?? string.Empty; return Refilter(); }
+    private Task OnOperationSelected(string value) { _operation = NullIfEmpty(value); return Refilter(); }
+    private Task OnStatusSelected(string value)
+    {
+        _status = NullIfEmpty(value);
+        // The expiry chips are a narrower filter: remove them when switching to a standalone contract status.
+        if (_status is not null && _window is not null) _window = null;
+        return Refilter();
+    }
+    private Task SelectChip(string value)
+    {
+        // 7 / 30 narrow by expiry window; "expired" is the Expired status; "All" clears both. Any other chosen status is kept for "All".
+        _window = int.TryParse(value, out var days) ? days : null;
+        if (value == "expired") _status = "Expired";
+        else if (_status == "Expired") _status = null;
+        return Refilter();
+    }
+    private Task ClearFilters() { _search = string.Empty; _operation = _status = null; _window = null; return Refilter(); }
+    private Task PreviousPage() { _page = Math.Max(1, _page - 1); return LoadAsync(); }
+    private Task NextPage() { _page++; return LoadAsync(); }
+    private static string? NullIfEmpty(object? v) => string.IsNullOrEmpty(v?.ToString()) ? null : v!.ToString();
+
+    private static string Figure(int? n) => n is { } v ? v.ToString("N0", CultureInfo.InvariantCulture) : "—";
+    private static string ExpiryText(ContractsMonitoringRow r) =>
+        r.Expiry is { } d ? d.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
+        : r.StatusKey == "NoContract" ? "No expiry" : NotRecorded;
+
+    private static string RemainingText(ContractsMonitoringRow r) => r.RemainingDays switch
+    {
+        null => string.Empty,
+        0 => "Expires today",
+        1 => "1 day remaining",
+        > 1 => $"{r.RemainingDays} days remaining",
+        -1 => "Expired 1 day ago",
+        _ => $"Expired {-r.RemainingDays} days ago"
+    };
+
+    // Colour is a hint on top of the status words, never the only signal. Unrecognised statuses stay neutral.
+    private static string StatusClass(string status) => status.Trim().ToLowerInvariant() switch
+    {
+        "active" => "cm-status-active",
+        "expiring soon" => "cm-status-soon",
+        "expired" => "cm-status-expired",
+        _ => "cm-status-neutral"
+    };
+}

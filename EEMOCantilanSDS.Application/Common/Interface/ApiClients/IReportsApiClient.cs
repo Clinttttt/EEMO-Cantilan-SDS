@@ -6,6 +6,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 
 public interface IReportsApiClient
 {
+    Task<Result<Dtos.Monitoring.ContractsMonitoringPageDto>> GetContractsMonitoringAsync(Dtos.Monitoring.ContractsMonitoringRequest request);
     Task<Result<FinancialReportDto>> GetFinancialReportAsync(
         ReportPeriod period,
         int year,

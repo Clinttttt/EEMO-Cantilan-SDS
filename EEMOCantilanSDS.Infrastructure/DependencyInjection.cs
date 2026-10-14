@@ -168,6 +168,7 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<IStallMobileQueries>(sp => (StallRepository)sp.GetRequiredService<IStallRepository>());
             service.AddScoped<IClosedStallAccountQueries>(sp => (StallRepository)sp.GetRequiredService<IStallRepository>());
             service.AddScoped<IContractAttentionQueries>(sp => (StallRepository)sp.GetRequiredService<IStallRepository>());
+            service.AddScoped<IContractsMonitoringQueries, ContractsMonitoringQueries>();
             service.AddScoped<IStallRegisterQueries>(sp => (StallRepository)sp.GetRequiredService<IStallRepository>());
 
             // The OR rule is LGU-wide, so it is its own service rather than a method on whichever module repository

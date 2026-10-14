@@ -75,6 +75,8 @@ namespace EEMOCantilanSDS.Client
             service.AddScoped<EEMOCantilanSDS.Client.Services.BrandingState>();
             service.AddScoped<EEMOCantilanSDS.Client.Services.FacilityState>();
             service.AddScoped<EEMOCantilanSDS.Client.Services.OperationNameService>();
+            // Contracts Monitoring reads the monitoring API through the existing Reports client.
+            service.AddScoped<EEMOCantilanSDS.Client.Services.IContractsMonitoringSource, EEMOCantilanSDS.Client.Services.ReportsContractsMonitoringSource>();
             service.AddScoped<PayorAuthService>();
             service.AddScoped<PayorRealtimeNotifier>();
             service.AddScoped<AuthorizationDelegatingHandler>();
