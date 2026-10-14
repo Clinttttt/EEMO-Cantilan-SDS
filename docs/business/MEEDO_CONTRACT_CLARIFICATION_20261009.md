@@ -14,7 +14,9 @@ The owner clarified that **three years is the default, not an exclusive permitte
 
 The default occupancy contract is **three years** in **Kanmanggay, NPM, NCC and TCC**, with the actual signed duration recorded when different. Contract duration is separate from rental assessment and payment frequency. Monthly rent remains monthly; authorized NPM Daily collection remains daily under the underlying occupancy agreement. Expiration is not unpaid status, closure, renewal or rate approval.
 
-Vegetable/Fruits, BBQ, Ice Plant, Fiesta/Araw and custom/temporary rentals are **not confirmed** within this rule. Shared UI does not extend contract policy to them. No historical commencement, expiry, reference or renewal approval may be fabricated. Unknown expiry is not an approved indefinite contract.
+The owner's subsequent October 14 instruction applies the same manual contract-entry presentation to **Vegetable/Fruits**: a three-year default, flexible actual terms, and no Lease type selector in the import table/editor. Existing unsigned or unknown uploaded records retain their recorded evidence; this is not an exclusive three-year mandate or a historical conversion. New Vegetable/Fruit Add New contracts share the three-year default while keeping the existing flexible duration controls.
+
+**Fiesta/Araw remains event-only**, explicitly confirmed by the owner for this follow-up: show Event (Fiesta or Araw), event date, and approved one-time amount. No year duration or monthly contract fields are added. BBQ, Ice Plant and custom/temporary sources are not newly governed by this instruction. No historical commencement, expiry, reference or renewal approval may be fabricated. Unknown expiry is not an approved indefinite contract.
 
 This clarification establishes a default rather than an exclusive term. It does not authorize automatic expiration, changes to billing, or historical backfill. Preserve recorded Space Only/Extension exceptions; removing Kanmanggay import selectors does not erase the historical arrangement model.
 

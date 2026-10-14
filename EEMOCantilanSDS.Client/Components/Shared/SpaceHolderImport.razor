@@ -41,7 +41,7 @@
             <Notes>
                 @if (!IsEvent)
                 {
-                    <div class="imp-cols-note">Choose <strong>Add row with contract</strong> or <strong>Add row for rent/space only</strong>. For uploaded rows, review the lease choice in row actions. Unfilled numbers are assigned automatically.</div>
+                    <div class="imp-cols-note">New manual contract rows default to three years; enter the actual signed term when different. Uploaded records keep their recorded evidence. Unfilled numbers are assigned automatically.</div>
                 }
                 else
                 {
@@ -55,25 +55,18 @@
         <ImportReviewBar Count="Rows.Count" Title="rows to review" Detail="@ReviewCounts" Subtitle="@($"{(string.IsNullOrEmpty(_fileName) ? "Entered here" : _fileName)} · {Name}")">
             @if (IsEvent)
             {
-                <ImportButton Kind="ghost" Class="imp-add-row" OnClick="() => AddRow(true)">
+                <ImportButton Kind="ghost" Class="imp-add-row" OnClick="AddRow">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                     Add row
                 </ImportButton>
             }
             else
             {
-                @* The same pair the stallholder import offers: a row with a signed contract, and a row for a space let without one. *@
-                <ImportButton Kind="ghost" Class="imp-add-row" OnClick="() => AddRow(true)">
+                @* Monthly space imports use the office's contract-entry workflow. Uploaded evidence stays unchanged. *@
+                <ImportButton Kind="ghost" Class="imp-add-row" OnClick="AddRow">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                     Add row with contract
                 </ImportButton>
-                @if (Kind != ObligationKind.KanmanggaySpaceRental)
-                {
-                <ImportButton Kind="ghost" Class="imp-add-space-row" OnClick="() => AddRow(false)">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                    Add row for rent/space only
-                </ImportButton>
-                }
             }
             <ImportButton Kind="outline" Disabled="@Saving" OnClick="ResetAll">Discard</ImportButton>
         </ImportReviewBar>
@@ -238,12 +231,10 @@
     private static readonly ImportColumn EventCol = new("event", "Event", "select", ["Fiesta", "Araw"], MinWidth: 130);
     private static readonly ImportColumn EventDateCol = new("start", "Event date", "date", MinWidth: 150);
     private static readonly ImportColumn EventAmountCol = new("amount", "Approved Event Amount (₱)", "number", MinWidth: 170, Placeholder: "0.00");
-    private static readonly ImportColumn BasisCol = new("basis", "Lease type", "select", Options: [Signed, SpaceOnly]);
     private static readonly ImportColumn ContractReferenceCol = new("contractRef", "Contract reference", Placeholder: "Per signed lease");
     private static readonly ImportColumn ClosedCol = new("closed", "Closed on", "date");
-    private IReadOnlyList<ImportColumn> HolderColumns => IsEvent ? Columns : Kind == ObligationKind.KanmanggaySpaceRental
-        ? [OccupantCol, SubjectCol, EffectivityCol, MonthlyCol] : [OccupantCol, SubjectCol, BasisCol, EffectivityCol, MonthlyCol];
-    private IReadOnlyList<ImportColumn> ReviewColumns => IsEvent ? Columns :
+    private IReadOnlyList<ImportColumn> HolderColumns => IsEvent ? ReviewColumns : [OccupantCol, SubjectCol, EffectivityCol, MonthlyCol];
+    private IReadOnlyList<ImportColumn> ReviewColumns => IsEvent ? [EventCol, OccupantCol, SubjectCol, EventDateCol, EventAmountCol] :
         [OccupantCol, ContractNameCol, SubjectCol, EffectivityCol, YearsCol, AreaCol, ContractRateCol, MonthlyCol, WholeYearCol, AreaLocCol];
     private static string OptionText(ImportColumn col, string value) => col.Key == "basis" ? value == Signed ? "Contract" : "Space only" : value;
     private static readonly IReadOnlyList<(string Value, string Label)> TermOptions =
@@ -258,7 +249,7 @@
 
     private RenderFragment EditorField(Row row, ImportColumn col) => @<div class="avm-group">
         <span class="avm-label">@col.Label</span>
-        @if (col.Key == "years" && Kind == ObligationKind.KanmanggaySpaceRental)
+        @if (col.Key == "years" && !IsEvent)
         {
             <FhSelect Block="true" Caption="" AriaLabel="@($"Contract duration options of row {Rows.IndexOf(row) + 1}")"
                 Options="TermOptions" Value="@(CustomTerm(row) ? "custom" : row.YearsText)" ValueChanged="value => SelectTerm(row, value)" />
@@ -359,7 +350,7 @@
         var row = change.Row;
         var value = change.Value ?? string.Empty;
         // Recording contract evidence is explicit; merely opening a historical unsigned row never converts it.
-        if (Kind == ObligationKind.KanmanggaySpaceRental && ContractOnly.Contains(change.Column.Key) && !string.IsNullOrWhiteSpace(value))
+        if (!IsEvent && ContractOnly.Contains(change.Column.Key) && !string.IsNullOrWhiteSpace(value))
             row.BasisText = Signed;
         switch (change.Column.Key)
         {
@@ -388,9 +379,9 @@
         SchedulePreview();
     }
 
-    // Contract data on a space let without a contract is shown settled, not typeable; the whole-year figure is always derived.
+    // Contract evidence is editable; annual figures and ledger delinquency remain display-only.
     private static readonly HashSet<string> ContractOnly = ["contractRef", "contractName", "years", "contractRate"];
-    private bool IsLocked(Row row, ImportColumn col) => (col.Key == "subject" && !AllowImportedNumbers) || (!IsEvent && (col.Key is "wholeYear" or "delinquent" || ContractOnly.Contains(col.Key) && row.Basis != OccupancyArrangement.SignedContract && Kind != ObligationKind.KanmanggaySpaceRental));
+    private bool IsLocked(Row row, ImportColumn col) => (col.Key == "subject" && !AllowImportedNumbers) || (!IsEvent && col.Key is "wholeYear" or "delinquent");
 
     private string? PlaceholderOf(Row row, ImportColumn col) =>
         col.Key == "subject"
@@ -410,13 +401,13 @@
         : (SpaceHolderImportStatus.Ready, null);
 
     // ── Getting rows in ────────────────────────────────────────────────────────────────────────────────────────────────
-    private void StartManual() { _uploadError = null; _fileName = null; Rows = [NewRow(null)]; SchedulePreview(); }
-    private void AddRow(bool withContract) { Rows.Add(NewRow(withContract)); SchedulePreview(); }
-    // A lot has no basis; a space starts as a signed contract or as a space let without one, as the office chooses, and is never guessed.
-    private Row NewRow(bool? withContract)
+    private void StartManual() { _uploadError = null; _fileName = null; Rows = [NewRow()]; SchedulePreview(); }
+    private void AddRow() { Rows.Add(NewRow()); SchedulePreview(); }
+    // A lot has no contract basis. New monthly entries use the contract workflow; imported evidence is never defaulted here.
+    private Row NewRow()
     {
-        var row = new Row { BasisText = Kind == ObligationKind.KanmanggaySpaceRental ? Signed : IsEvent || withContract is null ? string.Empty : withContract == true ? Signed : SpaceOnly,
-            YearsText = Kind == ObligationKind.KanmanggaySpaceRental ? "3" : string.Empty,
+        var row = new Row { BasisText = IsEvent ? string.Empty : Signed,
+            YearsText = IsEvent ? string.Empty : "3",
             Start = IsEvent ? string.Empty : PhilippineTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) };
         Validate(row);
         return row;

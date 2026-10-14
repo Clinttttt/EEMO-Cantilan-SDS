@@ -412,8 +412,7 @@ else
                             }
                             else if (_signedContract && SupportsContractBasis)
                             {
-                                @* Same stallholder FhSelect duration control. No term is assumed for Vegetable/Fruits;
-                                   a Custom choice records only the actual years the office enters. *@
+                                @* Same stallholder FhSelect duration control; Custom records the actual years the office enters. *@
                                 <div class="avm-group">
                                     <label class="avm-label">Contract Duration (No. of Years)</label>
                                     <FhSelect Block="true" Caption="" AriaLabel="Contract Duration (No. of Years)"
@@ -1049,8 +1048,8 @@ else
     {
         _formError = null; _saved = null; _rateFor = null; _editFor = null; _advanceRequest = null;
         _occupant = _stallId = _subject = _contractRef = _contractName = _areaLocation = string.Empty;
-        // Kanmanggay defaults to three years; Vegetable / Fruits has no default term.
-        _areaSqm = null; _contractRate = null; _contractYears = Kind == ObligationKind.VegetableFruitSpaceRental ? 0 : 3; _vfCustomYears = false; _contractDate = PhilippineTime.Now.Date;
+        // Monthly space contracts default to three years; recorded terms remain flexible.
+        _areaSqm = null; _contractRate = null; _contractYears = 3; _vfCustomYears = false; _contractDate = PhilippineTime.Now.Date;
         _signedContract = Kind != ObligationKind.FiestaArawLotRental; _lotEvent = LotRentalEvent.Fiesta;
         _amount = null;
         _opening = true; _openSession = Guid.NewGuid();
