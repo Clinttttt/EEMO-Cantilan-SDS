@@ -1,37 +1,30 @@
 /* Contracts Monitoring — scoped styles (cm-). Register, not cards: one toolbar, one table, one pager. */
 
-.cm-toolbar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
-.cm-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
-
-.cm-search {
-    position: relative;
-    flex: 1 1 240px;
-    max-width: 360px;
-}
+/* Compact single-row filters at desktop widths; only smaller viewports wrap.
+   Operation and Status use the existing FhSelect component instead of native browser menus. */
+.cm-toolbar { margin-bottom: 16px; min-width: 0; }
+.cm-row { display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; min-width: 0; }
+.cm-search { position: relative; flex: 1 1 245px; min-width: 155px; }
 .cm-search svg {
     position: absolute; left: 10px; top: 50%; width: 16px; height: 16px; transform: translateY(-50%);
     fill: none; stroke: var(--text-subtle); stroke-width: 2; pointer-events: none;
 }
-.cm-search input,
-.cm-select select,
-.cm-field select {
-    width: 100%;
-    min-height: 40px;
-    padding: 8px 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg-card);
-    color: var(--text);
-    font: inherit;
-    font-size: 13px;
+.cm-search input {
+    width: 100%; min-width: 0; min-height: 40px; padding: 8px 12px 8px 34px;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card);
+    color: var(--text); font: inherit; font-size: 13px;
 }
-.cm-search input { padding-left: 34px; }
-.cm-select { flex: 0 1 220px; }
-.cm-search input:focus-visible,
-.cm-select select:focus-visible,
-.cm-field select:focus-visible,
-.cm-chip:focus-visible,
-.cm-more:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cm-select { min-width: 0; }
+.cm-operation { flex: 0 1 205px; min-width: 170px; }
+.cm-status-filter { flex: 0 0 178px; }
+.cm-select ::deep .fh-dd-trigger { height: 40px; border-radius: 9px; }
+.cm-status-filter ::deep .fh-dd-trigger { background: var(--bg-card); }
+.cm-status-filter ::deep .fh-dd-cap { letter-spacing: .08em; }
+.cm-select ::deep .fh-dd-menu { min-width: 205px; }
+.cm-status-filter ::deep .fh-dd-menu { min-width: 188px; }
+.cm-search input:focus-visible, .cm-chip:focus-visible,
+.cm-clear:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cm-clear { flex-shrink: 0; white-space: nowrap; }
 
 .cm-chips {
     display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 3px;
@@ -44,15 +37,12 @@
 .cm-chip:hover { color: var(--navy); }
 .cm-chip-active, .cm-chip-active:hover { background: var(--accent); color: #fff; }
 
-.cm-more {
-    min-height: 40px; padding: 6px 12px; border: 0; background: transparent;
-    color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+@media (max-width: 1150px) {
+    .cm-row { flex-wrap: wrap; }
+    .cm-search { flex: 1 1 230px; }
+    .cm-operation { flex: 1 1 180px; }
+    .cm-status-filter { flex: 1 1 170px; }
 }
-.cm-more:hover { color: var(--accent-hover); text-decoration: underline; }
-.cm-more-panel { padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); }
-.cm-field { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--text-muted); }
-.cm-field select { min-width: 180px; }
-
 .cm-table-wrap { max-width: 100%; overflow-x: auto; }
 .cm-table { min-width: 880px; }
 .cm-table .cm-date, .cm-table .cm-action { white-space: nowrap; }
@@ -75,11 +65,20 @@
 .cm-muted { color: var(--text-muted); font-size: 13px; }
 .cm-remaining { margin-left: 8px; font-size: 13px; color: var(--text-muted); }
 
-.cm-facts { display: grid; grid-template-columns: minmax(110px, 38%) 1fr; gap: 8px 16px; margin: 16px 0 0; font-size: 13px; }
-.cm-facts dt { color: var(--text-muted); }
-.cm-facts dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+/* Match Follow-up review's Account information section and two-column facts grid. */
+.cm-account { border: 1px solid var(--border); border-radius: 8px; margin: 16px 0 0; }
+.cm-account > summary { padding: 12px 14px; cursor: pointer; font-size: .875rem; font-weight: 600; color: var(--text); }
+.cm-account > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.cm-facts { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px 16px; margin: 0; padding: 0 14px 18px; }
+.cm-facts > div { min-width: 0; }
+.cm-facts dt { color: var(--text-secondary); font-size: .75rem; }
+.cm-facts dd { margin: 4px 0 0; color: var(--text); font-size: .875rem; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 
 @media (max-width: 640px) {
-    .cm-search, .cm-select { flex: 1 1 100%; max-width: none; }
+    .cm-search { flex: 1 1 100%; }
+    .cm-operation, .cm-status-filter { flex: 1 1 calc(50% - 8px); min-width: 0; }
+    .cm-chips { max-width: 100%; }
+    .cm-chip { padding: 6px 9px; }
+    .cm-facts { grid-template-columns: minmax(0,1fr); }
     .cm-pager { flex-direction: column; align-items: flex-start; }
 }

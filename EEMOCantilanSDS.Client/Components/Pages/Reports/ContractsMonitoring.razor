@@ -51,43 +51,25 @@
                 <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
                 <input type="search" placeholder="Search occupant or space number…" value="@_search" @onchange="OnSearchChanged" aria-label="Search occupant or space number" />
             </div>
-            <label class="cm-select">
-                <span class="v3-sr-only">Facility or operation</span>
-                <select @onchange="OnOperationChanged" aria-label="Facility or operation">
-                    <option value="" selected="@string.IsNullOrEmpty(_operation)">All operations</option>
-                    @foreach (var o in _operations)
-                    {
-                        <option value="@o.Value" selected="@(_operation == o.Value)">@o.Label</option>
-                    }
-                </select>
-            </label>
+            <div class="cm-select cm-operation">
+                <FhSelect Block="true" Caption="" AriaLabel="Facility or operation"
+                          Options="OperationOptions" Value="@(_operation ?? string.Empty)" ValueChanged="OnOperationSelected" />
+            </div>
             <div class="cm-chips" role="group" aria-label="Expiry window">
                 @foreach (var w in Windows)
                 {
                     <button type="button" class="cm-chip @(ActiveChip == w.Value ? "cm-chip-active" : "")" aria-pressed="@(ActiveChip == w.Value ? "true" : "false")" @onclick="@(() => SelectChip(w.Value))">@w.Label</button>
                 }
             </div>
-            <button type="button" class="cm-more" aria-expanded="@(_moreOpen ? "true" : "false")" aria-controls="cm-more-panel" @onclick="() => _moreOpen = !_moreOpen">More filters</button>
-        </div>
-        @if (_moreOpen)
-        {
-            <div class="cm-row cm-more-panel" id="cm-more-panel">
-                <label class="cm-field">
-                    <span>Status</span>
-                    <select @onchange="OnStatusChanged" aria-label="Status">
-                        <option value="" selected="@string.IsNullOrEmpty(_status)">All statuses</option>
-                        @foreach (var s in Statuses)
-                        {
-                            <option value="@s.Value" selected="@(_status == s.Value)">@s.Label</option>
-                        }
-                    </select>
-                </label>
-                @if (HasFilters)
-                {
-                    <button type="button" class="v3-btn v3-btn-sm" @onclick="ClearFilters">Clear filters</button>
-                }
+            <div class="cm-select cm-status-filter">
+                <FhSelect Block="true" Caption="Status" AriaLabel="Status"
+                          Options="StatusOptions" Value="@(_status ?? string.Empty)" ValueChanged="OnStatusSelected" />
             </div>
-        }
+            @if (HasFilters)
+            {
+                <button type="button" class="v3-btn v3-btn-sm cm-clear" @onclick="ClearFilters">Clear</button>
+            }
+        </div>
     </div>
 
     @if (_loading)
@@ -162,13 +144,18 @@
         @if (_selected is { } d)
         {
             <p><span class="cm-status @StatusClass(d.Status)">@d.Status</span> <span class="cm-remaining">@RemainingText(d)</span></p>
-            <dl class="cm-facts">
-                @foreach (var f in d.Facts)
-                {
-                    <dt>@f.Label</dt>
-                    <dd>@f.Value</dd>
-                }
-            </dl>
+            <details class="cm-account" open>
+                <summary>Account information</summary>
+                <dl class="cm-facts">
+                    @foreach (var f in d.Facts)
+                    {
+                        <div>
+                            <dt>@f.Label</dt>
+                            <dd>@f.Value</dd>
+                        </div>
+                    }
+                </dl>
+            </details>
         }
     </ChildContent>
     <Footer>
@@ -200,13 +187,18 @@
         new("Ended", "Ended"), new("Unknown", "Unknown"), new("NotYetEffective", "Not yet effective")
     ];
 
+    // Use the existing Follow-up History dropdown so operation and status pickers match other Head Portal screens.
+    private IReadOnlyList<(string Value, string Label)> OperationOptions =>
+        [("", "All operations"), .. _operations.Select(o => (o.Value, o.Label))];
+    private static readonly IReadOnlyList<(string Value, string Label)> StatusOptions =
+        [("", "All statuses"), .. Statuses.Select(x => (x.Value, x.Label))];
+
     private ContractsMonitoringSummary? _summary;
     private IReadOnlyList<ContractsMonitoringRow> _rows = [];
     private IReadOnlyList<ContractsMonitoringOption> _operations = [];
     private ContractsMonitoringRow? _selected;
     private ContractsMonitoringFailure? _failure;
     private bool _loading = true;
-    private bool _moreOpen;
     private string _search = string.Empty;
     private string? _operation;
     private string? _status;
@@ -310,8 +302,14 @@
 
     private Task Refilter() { _page = 1; return LoadAsync(); }
     private Task OnSearchChanged(ChangeEventArgs e) { _search = e.Value?.ToString() ?? string.Empty; return Refilter(); }
-    private Task OnOperationChanged(ChangeEventArgs e) { _operation = NullIfEmpty(e.Value); return Refilter(); }
-    private Task OnStatusChanged(ChangeEventArgs e) { _status = NullIfEmpty(e.Value); return Refilter(); }
+    private Task OnOperationSelected(string value) { _operation = NullIfEmpty(value); return Refilter(); }
+    private Task OnStatusSelected(string value)
+    {
+        _status = NullIfEmpty(value);
+        // The expiry chips are a narrower filter: remove them when switching to a standalone contract status.
+        if (_status is not null && _window is not null) _window = null;
+        return Refilter();
+    }
     private Task SelectChip(string value)
     {
         // 7 / 30 narrow by expiry window; "expired" is the Expired status; "All" clears both. Any other chosen status is kept for "All".

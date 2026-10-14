@@ -121,6 +121,53 @@ public sealed class ContractsMonitoringTests : TestContext
     }
 
     [Fact]
+    public void FiltersAreDirectlyVisibleAndUseEstablishedHeadPortalDropdowns()
+    {
+        var (cut, source) = Render();
+        cut.WaitForAssertion(() => Assert.Equal(3, cut.FindAll("tbody tr").Count), Wait);
+        Assert.Empty(cut.FindAll(".cm-more, .cm-more-panel"));
+        Assert.Equal(1, cut.FindAll(".cm-row").Count);
+        Assert.Equal(2, cut.FindAll(".cm-row .fh-dd-trigger").Count);
+        Assert.Contains("Status", cut.Find(".cm-status-filter").TextContent);
+
+        cut.Find(".cm-operation .fh-dd-trigger").Click();
+        cut.FindAll(".cm-operation [role='option']").Single(o => o.TextContent.Contains("Sample Operation")).Click();
+        cut.WaitForAssertion(() => source.Verify(a => a.LoadAsync(
+            It.Is<ContractsMonitoringQuery>(q => q.Operation == "NCC"), It.IsAny<CancellationToken>()), Times.AtLeastOnce), Wait);
+
+        cut.Find(".cm-status-filter .fh-dd-trigger").Click();
+        cut.FindAll(".cm-status-filter [role='option']").Single(o => o.TextContent.Trim() == "Expired").Click();
+        cut.WaitForAssertion(() => source.Verify(a => a.LoadAsync(
+            It.Is<ContractsMonitoringQuery>(q => q.Status == "Expired" && q.Operation == "NCC"), It.IsAny<CancellationToken>()), Times.AtLeastOnce), Wait);
+        cut.Find(".cm-clear").Click();
+        cut.WaitForAssertion(() => source.Verify(a => a.LoadAsync(
+            It.Is<ContractsMonitoringQuery>(q => q.Operation == null && q.Status == null && q.ExpiryWindow == null),
+            It.IsAny<CancellationToken>()), Times.AtLeast(2)), Wait);
+    }
+
+    [Fact]
+    public void ContractDetailsReuseAccountInformationGridInsteadOfLabelValueRows()
+    {
+        var (cut, _) = Render();
+        cut.WaitForAssertion(() => Assert.Equal(3, cut.FindAll("tbody tr").Count), Wait);
+        cut.FindAll(".cm-action button").First().Click();
+        cut.WaitForAssertion(() =>
+        {
+            var card = cut.Find("details.cm-account");
+            Assert.True(card.HasAttribute("open"));
+            Assert.Equal("Account information", card.QuerySelector("summary")!.TextContent.Trim());
+            var facts = cut.FindAll(".cm-facts > div");
+            Assert.Equal(2, facts.Count);
+            Assert.All(facts, fact =>
+            {
+                Assert.NotNull(fact.QuerySelector("dt"));
+                Assert.NotNull(fact.QuerySelector("dd"));
+            });
+            Assert.Equal("REF-001", facts[1].QuerySelector("dd")!.TextContent);
+        }, Wait);
+    }
+
+    [Fact]
     public void NextPageAsksTheServerForPageTwoAndPagingIsDisabledAtTheEnds()
     {
         var (cut, source) = Render(q => ContractsMonitoringResult.Ok(SamplePage(total: 60, page: q.Page, size: 25)));
