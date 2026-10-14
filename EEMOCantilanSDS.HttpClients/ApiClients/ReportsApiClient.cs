@@ -7,6 +7,21 @@ namespace EEMOCantilanSDS.HttpClients.ApiClients;
 
 public class ReportsApiClient(HttpClient http) : HandleResponse(http), IReportsApiClient
 {
+    public Task<Result<Application.Dtos.Monitoring.ContractsMonitoringPageDto>> GetContractsMonitoringAsync(Application.Dtos.Monitoring.ContractsMonitoringRequest request)
+    {
+        var parameters = new List<string>
+        {
+            "page=" + request.Page.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            "pageSize=" + request.PageSize.ToString(System.Globalization.CultureInfo.InvariantCulture)
+        };
+        void Add(string key, string? value) { if (!string.IsNullOrWhiteSpace(value)) parameters.Add(key + "=" + Uri.EscapeDataString(value.Trim())); }
+        Add("search", request.Search); Add("operation", request.Operation); Add("status", request.Status);
+        Add("occupancyBasis", request.OccupancyBasis); Add("sort", request.Sort);
+        Add("facilityId", request.FacilityId?.ToString());
+        Add("expiryWindow", request.ExpiryWindow?.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        Add("asOf", request.AsOf?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture));
+        return GetAsync<Application.Dtos.Monitoring.ContractsMonitoringPageDto>("api/monitoring/contracts?" + string.Join("&", parameters));
+    }
     public Task<Result<FollowUpQueueDto>> GetScopedFollowUpQueueAsync(int year, int month, FacilityCode? facility, string? operationCode) =>
         GetAsync<FollowUpQueueDto>($"api/Reports/follow-up?year={year}&month={month}" +
             (facility is { } code ? $"&facility={code}" : "") +
