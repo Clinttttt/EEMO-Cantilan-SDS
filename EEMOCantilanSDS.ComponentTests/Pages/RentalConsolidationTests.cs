@@ -91,7 +91,7 @@ public sealed class RentalConsolidationTests : TestContext
         Assert.True(duration.Instance.Block);
         Assert.Equal("3", duration.Instance.Value);
         Assert.Equal(new[] { ("1", "1 year"), ("2", "2 years"), ("3", "3 years"), ("5", "5 years"), ("custom", "Custom…") }, duration.Instance.Options);
-        Assert.Equal(new HashSet<string> { "1", "2", "5", "custom" }, duration.Instance.DisabledValues!.ToHashSet());
+        Assert.Null(duration.Instance.DisabledValues);
         Assert.NotEmpty(original.FindComponents<FhSelect>());
         Assert.Empty(km.FindAll("#obw-contract-years"));
         Assert.Single(km.FindAll("input[type='date']"));
@@ -101,10 +101,14 @@ public sealed class RentalConsolidationTests : TestContext
         SpaceHolderWorkspaceTests.SaveVisualArtifact("km-shared-registration", km.Markup);
         duration.Find("button").Click();
         Assert.Equal(5, duration.FindAll("[role='option']").Count);
-        Assert.Equal(4, duration.FindAll(".fh-dd-disabled").Count);
+        Assert.Empty(duration.FindAll(".fh-dd-disabled"));
         SpaceHolderWorkspaceTests.SaveVisualArtifact("km-duration-open", km.Markup);
-        duration.FindAll("[role='option']").Single(x => x.TextContent.Trim() == "3 years").Click();
-        Assert.Equal("3", duration.Instance.Value);
+        duration.FindAll("[role='option']").Single(x => x.TextContent.Trim() == "1 year").Click();
+        Assert.Equal("1", duration.Instance.Value);
+        duration.Find("button").Click();
+        duration.FindAll("[role='option']").Single(x => x.TextContent.Trim() == "Custom…").Click();
+        km.Find("input[aria-label='Custom contract duration in years']").Input("7");
+        Assert.Equal("7", km.Find("input[aria-label='Custom contract duration in years']").GetAttribute("value"));
         Assert.DoesNotContain("Recorded term does not automatically", km.Markup);
         var iceDuration = original.FindComponents<FhSelect>().Single(x => x.Instance.Options.Any(o => o.Value == "custom"));
         iceDuration.Find("button").Click();

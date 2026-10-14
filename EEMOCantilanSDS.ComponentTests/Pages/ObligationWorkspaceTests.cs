@@ -670,6 +670,41 @@ public sealed class ObligationWorkspaceTests : TestContext
         Assert.Equal(kind == ObligationKind.FiestaArawLotRental ? "" : PhilippineTime.Today.ToString("yyyy-MM-dd"), date.GetAttribute("value"));
     }
 
+    [Fact]
+    public void KanmanggayImportHasNoLeaseChoice_DefaultsThreeYears_AndRecordsExplicitContractEvidence()
+    {
+        ImportSpaceHoldersRequest? saved = null;
+        _api.Setup(x => x.ImportSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>())).Callback<ImportSpaceHoldersRequest>(r => saved = r)
+            .ReturnsAsync(Result<ImportSpaceHoldersResult>.Success(new(3, 0, [])));
+        var cut = RenderComponent<KanmanggayImport>();
+        cut.Find(".imp-enter-manually").Click();
+        Assert.Equal("3", cut.Find("input[aria-label='No. of Years of row 1']").GetAttribute("value"));
+        Assert.Empty(cut.FindAll(".imp-add-space-row"));
+        cut.Find("button[aria-label='Edit row details 1']").Click();
+        Assert.Empty(cut.FindAll("select[aria-label^='Lease type']"));
+        Assert.Equal("", cut.Find("input[aria-label='Contract reference of row 1']").GetAttribute("value"));
+        cut.Find(".eemo-drawer-header-close").Click();
+        cut.FindAll(".imp-review-actions button").Single(x => x.TextContent == "Discard").Click();
+        cut.Find(".imp-use-sample").Click();
+        Assert.Equal("", cut.Find(".imp-table input[aria-label='No. of Years of row 2']").GetAttribute("value"));
+        cut.Find(".imp-table input[aria-label='Name on Contract of row 2']").Input("Recorded Jose contract");
+        cut.Find(".imp-table input[aria-label='No. of Years of row 2']").Input("1");
+        cut.Find("button[aria-label='Edit row details 2']").Click();
+        cut.Find("input[aria-label='Contract reference of row 2']").Input("SIGNED-JOSE-1");
+        cut.Find("button[aria-label='Contract duration options of row 2']").Click();
+        Assert.All(cut.FindAll(".fh-dd-menu [role='option']"), option => Assert.NotEqual("true", option.GetAttribute("aria-disabled")));
+        cut.FindAll(".fh-dd-menu [role='option']").Single(x => x.TextContent.Contains("Custom")).Click();
+        cut.Find(".shi-editor input[aria-label='No. of Years of row 2']").Input("7");
+        Assert.Equal("7", cut.Find(".imp-table input[aria-label='No. of Years of row 2']").GetAttribute("value"));
+        cut.Find(".eemo-drawer-header-close").Click();
+        SubmitReadyImport(cut);
+        Assert.Equal(7, saved!.Rows[1].Account.ContractYears);
+        Assert.Equal(OccupancyArrangement.SignedContract, saved.Rows[1].Account.Arrangement);
+        Assert.Equal(1200m, saved.Rows[1].Account.Amount);
+        Assert.Equal(OccupancyArrangement.SpaceOnly, saved.Rows[2].Account.Arrangement);
+        Assert.Null(saved.Rows[2].Account.ContractYears);
+    }
+
     private static void SubmitReadyImport(IRenderedFragment cut)
     {
         cut.WaitForAssertion(() => Assert.False(cut.Find(".imp-foot-bar .imp-btn-primary").HasAttribute("disabled")), Timeout);
@@ -717,14 +752,14 @@ public sealed class ObligationWorkspaceTests : TestContext
         var cut = RenderComponent<KanmanggayImport>();
         cut.Find(".imp-use-sample").Click();
         cut.WaitForAssertion(() => _api.Verify(x => x.PreviewSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>()), Times.Once), Timeout);
-        cut.Find(".imp-add-space-row").Click();
+        cut.Find(".imp-add-row").Click();
         cut.WaitForAssertion(() => _api.Verify(x => x.PreviewSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>()), Times.Exactly(2)), Timeout);
     }
 
     [Fact]
     public void ImportTableAndDrawerShareContractRateAndDateEdits()
     {
-        var cut = RenderComponent<KanmanggayImport>();
+        var cut = RenderComponent<VegetableFruitImport>();
         cut.Find(".imp-use-sample").Click();
         cut.Find(".imp-table input[aria-label='Name on Contract of row 1']").Input("Estate of Maria");
         cut.Find(".imp-table input[aria-label='Effectivity Date of row 1']").Input("2026-03-17");
@@ -752,7 +787,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.Find(".imp-enter-manually").Click();
         cut.Find("input[aria-label='Effectivity Date of row 1']").Input("2026-03-17");
         cut.Find(".imp-add-row").Click();
-        cut.Find(".imp-add-space-row").Click();
+        cut.Find(kind == ObligationKind.KanmanggaySpaceRental ? ".imp-add-row" : ".imp-add-space-row").Click();
         Assert.Equal("2026-03-17", cut.Find("input[aria-label='Effectivity Date of row 1']").GetAttribute("value"));
         Assert.All(new[] { 2, 3 }, i => Assert.Equal(PhilippineTime.Today.ToString("yyyy-MM-dd"), cut.Find($"input[aria-label='Effectivity Date of row {i}']").GetAttribute("value")));
         cut.FindAll(".imp-review-actions button").Single(x => x.TextContent == "Discard").Click();
@@ -872,7 +907,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         Assert.Equal(string.Empty, cut.Find("input[aria-label='Delinquent (₱) of row 1']").GetAttribute("value"));
         cut.FindAll("footer button").Single(x => x.TextContent == "Next row").Click();
         Assert.Contains("Jose Ramirez", cut.Find(".eemo-drawer-header-title").TextContent);
-        Assert.True(cut.Find("input[aria-label='Contract reference of row 2']").HasAttribute("readonly"));
+        Assert.False(cut.Find("input[aria-label='Contract reference of row 2']").HasAttribute("readonly"));
         cut.Find(".shi-editor input[aria-label='Actual Occupant (Leasee) of row 2']").Input("Jose Edited");
         cut.FindAll("footer button").Single(x => x.TextContent == "Previous row").Click();
         Assert.Equal("LC-EDITED", cut.Find("input[aria-label='Contract reference of row 1']").GetAttribute("value"));
@@ -897,15 +932,15 @@ public sealed class ObligationWorkspaceTests : TestContext
         var cut = RenderComponent<KanmanggayImport>();
         cut.Find(".imp-use-sample").Click();
         cut.Find("button[aria-label='Edit row details 1']").Click();
-        cut.Find(".shi-editor input[aria-label='No. of Years of row 1']").Input("2");
+        cut.Find(".imp-table input[aria-label='No. of Years of row 1']").Input("0");
         var field = cut.Find(".shi-editor input[aria-label='No. of Years of row 1']");
         Assert.Equal("true", field.GetAttribute("aria-invalid"));
-        Assert.Contains("three years", field.ParentElement!.QuerySelector(".form-error")!.TextContent);
+        Assert.Contains("1 to 50", field.ParentElement!.QuerySelector(".form-error")!.TextContent);
         Assert.Contains("1 invalid", cut.Find(".imp-review-detail").TextContent);
-        cut.Find("input[aria-label='No. of Years of row 1']").Input("3");
+        cut.Find(".imp-table input[aria-label='No. of Years of row 1']").Input("2");
         cut.WaitForAssertion(() =>
         {
-            Assert.Equal(3, previewed!.Rows[0].Account.ContractYears);
+            Assert.Equal(2, previewed!.Rows[0].Account.ContractYears);
             Assert.Contains("3 ready", cut.Find(".shi-foot-note").TextContent);
             Assert.Empty(cut.FindAll(".form-error, .shi-editor-error"));
         }, Timeout);
@@ -1014,7 +1049,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         {
             Assert.Equal("3", cut.Find(".imp-review-count").TextContent.Trim());
             Assert.Contains("active", cut.FindAll(".imp-step")[1].ClassList);
-            Assert.Equal(new[] { "#", "Actual Occupant (Leasee)", "Name on Contract", "Rent / Space No.", "Lease type", "Effectivity Date", "No. of Years", "Area (sqm)", "Monthly Rental / Contract", "Actual Mo. Rental", "Whole Year Rental", "Area Loc.", "Status", "Actions" },
+            Assert.Equal(new[] { "#", "Actual Occupant (Leasee)", "Name on Contract", "Rent / Space No.", "Effectivity Date", "No. of Years", "Area (sqm)", "Monthly Rental / Contract", "Actual Mo. Rental", "Whole Year Rental", "Area Loc.", "Status", "Actions" },
                 cut.FindAll(".imp-table thead th").Select(x => x.TextContent.Trim()).Where(x => x.Length > 0).ToArray());
             Assert.Equal(3, cut.FindAll(".imp-table tbody tr").Count);
             Assert.Empty(cut.FindAll(".shi-inline-status, .shi-why"));
@@ -1049,7 +1084,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         Assert.Equal("LC-1", cut.Find("input[aria-label='Contract reference of row 1']").GetAttribute("value"));
         cut.Find(".eemo-drawer-header-close").Click();
         cut.Find("button[aria-label='Edit row details 2']").Click();
-        Assert.True(cut.Find("input[aria-label='Contract reference of row 2']").HasAttribute("readonly"));
+        Assert.False(cut.Find("input[aria-label='Contract reference of row 2']").HasAttribute("readonly"));
     }
 
     [Fact]
@@ -1134,7 +1169,7 @@ public sealed class ObligationWorkspaceTests : TestContext
     [Fact]
     public void Import_NeverAssumesTheBasis_AndASignedRowSendsItsContractReference()
     {
-        var cut = RenderComponent<KanmanggayImport>();
+        var cut = RenderComponent<VegetableFruitImport>();
         cut.Find(".imp-enter-manually").Click();
         cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".imp-table tbody tr")), Timeout);
 
@@ -1214,9 +1249,9 @@ public sealed class ObligationWorkspaceTests : TestContext
     }
 
     [Theory]
-    [InlineData("4", "A Kanmanggay signed contract runs three years")]
+    [InlineData("51", "Years must be a whole number from 1 to 50")]
     [InlineData("0", "Years must be a whole number from 1 to 50")]
-    public void Import_AKanmanggayTermOtherThanThreeYearsIsInvalid_NeverSilentlyChanged(string years, string reason)
+    public void Import_UnsupportedKanmanggayTermsAreInvalid_NeverSilentlyChanged(string years, string reason)
     {
         var cut = RenderComponent<KanmanggayImport>();
         var csv = OfficeRegisterHeader + $"Ana Reyes,Estate of Ana Reyes,K-1,2026-09-04,{years},9.5,1000,900,\r\n";
@@ -1243,7 +1278,9 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll(".imp-table tbody tr").Count), Timeout);
         Assert.All(cut.FindAll("input[aria-label^='Rent / Space No.']"), cell => Assert.True(cell.HasAttribute("readonly")));                                       // Vegetable / Fruits numbers are the server's
 
-        cut.Find("select[aria-label='Lease type of row 2']").Change("No contract (space only)");
+        cut.Find("button[aria-label='Edit row details 2']").Click();
+        cut.Find(".shi-editor select[aria-label='Lease type of row 2']").Change("No contract (space only)");
+        cut.Find(".eemo-drawer-header-close").Click();
         SubmitReadyImport(cut);
 
         cut.WaitForAssertion(() =>
@@ -1259,10 +1296,13 @@ public sealed class ObligationWorkspaceTests : TestContext
     [Fact]
     public void Import_TheTwoAddRowButtonsChooseTheBasisExplicitly_AndEnterManuallyChoosesNone()
     {
-        var cut = RenderComponent<KanmanggayImport>();
+        var cut = RenderComponent<VegetableFruitImport>();
         cut.Find(".imp-enter-manually").Click();
         cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".imp-table tbody tr")), Timeout);
-        Assert.Equal(string.Empty, cut.Find("select[aria-label='Lease type of row 1']").GetAttribute("value") ?? string.Empty);      // never assumed
+        Assert.Empty(cut.FindAll(".imp-table select[aria-label^='Lease type']"));
+        cut.Find("button[aria-label='Edit row details 1']").Click();
+        Assert.Equal(string.Empty, cut.Find(".shi-editor select[aria-label='Lease type of row 1']").GetAttribute("value") ?? string.Empty);      // never assumed
+        cut.Find(".eemo-drawer-header-close").Click();
 
         cut.Find(".imp-add-row").Click();
         cut.Find(".imp-add-space-row").Click();
@@ -1270,13 +1310,14 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.Equal(3, cut.FindAll(".imp-table tbody tr").Count);
-            Assert.Equal("Signed lease contract", cut.Find("select[aria-label='Lease type of row 2']").GetAttribute("value"));
-            Assert.Equal("No contract (space only)", cut.Find("select[aria-label='Lease type of row 3']").GetAttribute("value"));
+            Assert.Empty(cut.FindAll(".imp-table select[aria-label^='Lease type']"));
         }, Timeout);
         cut.Find("button[aria-label='Edit row details 3']").Click();
+        Assert.Equal("No contract (space only)", cut.Find(".shi-editor select[aria-label='Lease type of row 3']").GetAttribute("value"));
         Assert.True(cut.Find("input[aria-label='Name on Contract of row 3']").HasAttribute("readonly"));
         cut.Find(".eemo-drawer-header-close").Click();
         cut.Find("button[aria-label='Edit row details 2']").Click();
+        Assert.Equal("Signed lease contract", cut.Find(".shi-editor select[aria-label='Lease type of row 2']").GetAttribute("value"));
         Assert.False(cut.Find("input[aria-label='Name on Contract of row 2']").HasAttribute("readonly"));
         Assert.Contains("Add row with contract", cut.Find(".imp-add-row").TextContent);
         Assert.Contains("Add row for rent/space only", cut.Find(".imp-add-space-row").TextContent);

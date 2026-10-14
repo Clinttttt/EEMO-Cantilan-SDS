@@ -43,12 +43,12 @@ public static class TenantOperationCatalog
         string Code, string DefaultLabel, string GroupKey, string ClassificationCode, string LegacyDirectoryLabel, string? PolicyNotice = null);
 
     /// <summary>
-    /// Signed Kanmanggay space contracts must record a three-year duration (ObligationAccount.SetLeaseDetails): the MEEDO standard of
-    /// 2026-10-09 (docs/business/MEEDO_CONTRACT_CLARIFICATION_20261009.md). It is Cantilan's accepted office policy; for any other
+    /// Signed Kanmanggay space contracts default to three years but retain the actual approved term (2026-10-14 clarification).
+    /// It is Cantilan's accepted office policy; for any other
     /// municipality it is an imposed number until a per-municipality duration policy is approved and modelled.
     /// </summary>
     public const string SpaceContractDurationNotice =
-        "Signed space contracts are recorded under the three-year standard adopted by Cantilan's office (MEEDO). " +
+        "Signed space contracts use Cantilan's three-year default, with the actual signed term recorded when different. " +
         "That duration rule is not yet configurable per municipality; confirm it matches your ordinance before registering signed contracts.";
 
     public static readonly IReadOnlyList<Entry> All =

@@ -69,7 +69,7 @@
     else
     {
         <!-- ── Hero ── -->
-        <ImportHero Eyebrow="@(_facility.ShortCode + SectionSuffix + " · Bulk Import")" Title="@($"Import {_facility.Name} Stallholders")" Step="@(_saved ? 3 : _loaded ? 2 : 1)" />
+        <ImportHero Blue="true" Eyebrow="@(_facility.ShortCode + SectionSuffix + " · Bulk Import")" Title="@($"Import {_facility.Name} Stallholders")" Step="@(_saved ? 3 : _loaded ? 2 : 1)" />
 
         @if (_saved && _result is not null)
         {

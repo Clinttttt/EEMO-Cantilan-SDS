@@ -407,19 +407,10 @@ else
                             {
                                 <div class="avm-group">
                                     <span class="avm-label">Contract Duration</span>
-                                    <p class="avm-hint">Not recorded. Policy confirmation required: the three-year standard is Cantilan's and has not been confirmed for this municipality.</p>
+                                    <p class="avm-hint">Not recorded. Policy confirmation required: Cantilan's duration policy has not been confirmed for this municipality.</p>
                                 </div>
                             }
-                            else if (_signedContract && Kind == ObligationKind.KanmanggaySpaceRental)
-                            {
-                                <div class="avm-group">
-                                    <label class="avm-label">Contract Duration (No. of Years)</label>
-                                    <FhSelect Block="true" Caption="" AriaLabel="Contract Duration (No. of Years)" Value="@_contractYears.ToString()"
-                                              Options="KmContractYearOptions" DisabledValues="KmUnavailableYears" ValueChanged="value => _contractYears = 3" />
-                                    <span class="avm-hint-muted">Other terms need an approved LGU contract-duration policy.</span>
-                                </div>
-                            }
-                            else if (_signedContract && Kind == ObligationKind.VegetableFruitSpaceRental)
+                            else if (_signedContract && SupportsContractBasis)
                             {
                                 @* Same stallholder FhSelect duration control. No term is assumed for Vegetable/Fruits;
                                    a Custom choice records only the actual years the office enters. *@
@@ -427,11 +418,11 @@ else
                                     <label class="avm-label">Contract Duration (No. of Years)</label>
                                     <FhSelect Block="true" Caption="" AriaLabel="Contract Duration (No. of Years)"
                                               Value="@(_vfCustomYears ? "custom" : _contractYears.ToString(CultureInfo.InvariantCulture))"
-                                              Options="VfContractYearOptions" ValueChanged="SetVfContractYears" />
+                                              Options="@(Kind == ObligationKind.KanmanggaySpaceRental ? KmContractYearOptions : VfContractYearOptions)" ValueChanged="SetVfContractYears" />
                                     @if (_vfCustomYears)
                                     {
-                                        <input class="avm-input" type="number" min="1" max="10" step="1" required
-                                               aria-label="Custom contract duration in years" placeholder="Enter years (1–10)"
+                                        <input class="avm-input" type="number" min="1" max="@(Kind == ObligationKind.KanmanggaySpaceRental ? 50 : 10)" step="1" required
+                                               aria-label="Custom contract duration in years" placeholder="Enter years"
                                                @bind="_contractYears" @bind:event="oninput" />
                                         <span class="avm-hint-muted">Enter the term from the signed contract.</span>
                                     }
@@ -647,7 +638,10 @@ else
                                 <label class="avm-label" for="obw-contract-years">Contract Duration (No. of Years)</label>
                                 <select id="obw-contract-years" class="avm-input" @bind="_contractYears">
                                     <option value="0">Not recorded</option>
-                                    <option value="3">3 years</option>
+                                    @for (var year = 1; year <= 50; year++)
+                                    {
+                                        <option value="@year">@year @(year == 1 ? "year" : "years")</option>
+                                    }
                                 </select>
                             </div>
                         }
@@ -770,7 +764,6 @@ else
     private string RegistryCode => Kind == ObligationKind.FiestaArawLotRental ? "FA" : Kind == ObligationKind.KanmanggaySpaceRental ? "KM" : "Vegetable/Fruits";
     private static readonly IReadOnlyList<(string Value, string Label)> KmContractYearOptions =
         [("1", "1 year"), ("2", "2 years"), ("3", "3 years"), ("5", "5 years"), ("custom", "Custom…")];
-    private static readonly IReadOnlySet<string> KmUnavailableYears = new HashSet<string> { "1", "2", "5", "custom" };
     // Match the existing NCC/TCC FhSelect presets, but permit no recorded term for Vegetable/Fruits.
     private static readonly IReadOnlyList<(string Value, string Label)> VfContractYearOptions =
         [("0", "Not recorded"), ("1", "1 year"), ("2", "2 years"), ("3", "3 years"), ("5", "5 years"), ("custom", "Custom…")];
@@ -867,7 +860,7 @@ else
     private decimal? _contractRate;
     private int _contractYears = 3;
 
-    // Kanmanggay's signed-contract duration is a three-year standard adopted by Cantilan's office. For any other office the server
+    // Cantilan defaults Kanmanggay's signed term to three years but permits the actual recorded duration. For another office the server
     // refuses to record one until a duration policy is confirmed, so the form does not offer the choice (and never sends one).
     private EEMOCantilanSDS.Client.Services.OperationNameService? Names =>
         Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<EEMOCantilanSDS.Client.Services.OperationNameService>(Services);
@@ -1056,7 +1049,7 @@ else
     {
         _formError = null; _saved = null; _rateFor = null; _editFor = null; _advanceRequest = null;
         _occupant = _stallId = _subject = _contractRef = _contractName = _areaLocation = string.Empty;
-        // Kanmanggay's signed term is the MEEDO standard three years; Vegetable / Fruits has no fixed term, so none is preselected.
+        // Kanmanggay defaults to three years; Vegetable / Fruits has no default term.
         _areaSqm = null; _contractRate = null; _contractYears = Kind == ObligationKind.VegetableFruitSpaceRental ? 0 : 3; _vfCustomYears = false; _contractDate = PhilippineTime.Now.Date;
         _signedContract = Kind != ObligationKind.FiestaArawLotRental; _lotEvent = LotRentalEvent.Fiesta;
         _amount = null;
@@ -1185,7 +1178,7 @@ else
             Kind == ObligationKind.FishMeatVendorFee ? null : _occupant.Trim(),
             SupportsContractBasis && _signedContract ? _contractName.Trim() : null,
             SupportsContractBasis && _signedContract && _contractDate is { } contractOn ? DateOnly.FromDateTime(contractOn) : null,
-            // Only Cantilan has the confirmed three-year Kanmanggay rule; Vegetable/Fruit retains its recorded term.
+            // Only Cantilan has the confirmed flexible Kanmanggay duration policy; Vegetable/Fruit retains its recorded term.
             Kind == ObligationKind.KanmanggaySpaceRental && _signedContract && !DurationUnconfirmed ? _contractYears
                 : Kind == ObligationKind.VegetableFruitSpaceRental && _signedContract && _contractYears > 0 ? _contractYears : null,
             SupportsContractBasis ? _areaSqm : null,

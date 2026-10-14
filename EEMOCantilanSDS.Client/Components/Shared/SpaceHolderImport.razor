@@ -67,10 +67,13 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                     Add row with contract
                 </ImportButton>
+                @if (Kind != ObligationKind.KanmanggaySpaceRental)
+                {
                 <ImportButton Kind="ghost" Class="imp-add-space-row" OnClick="() => AddRow(false)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                     Add row for rent/space only
                 </ImportButton>
+                }
             }
             <ImportButton Kind="outline" Disabled="@Saving" OnClick="ResetAll">Discard</ImportButton>
         </ImportReviewBar>
@@ -238,14 +241,36 @@
     private static readonly ImportColumn BasisCol = new("basis", "Lease type", "select", Options: [Signed, SpaceOnly]);
     private static readonly ImportColumn ContractReferenceCol = new("contractRef", "Contract reference", Placeholder: "Per signed lease");
     private static readonly ImportColumn ClosedCol = new("closed", "Closed on", "date");
-    private IReadOnlyList<ImportColumn> HolderColumns => IsEvent ? Columns : [OccupantCol, SubjectCol, BasisCol, EffectivityCol, MonthlyCol];
+    private IReadOnlyList<ImportColumn> HolderColumns => IsEvent ? Columns : Kind == ObligationKind.KanmanggaySpaceRental
+        ? [OccupantCol, SubjectCol, EffectivityCol, MonthlyCol] : [OccupantCol, SubjectCol, BasisCol, EffectivityCol, MonthlyCol];
     private IReadOnlyList<ImportColumn> ReviewColumns => IsEvent ? Columns :
-        [OccupantCol, ContractNameCol, SubjectCol, BasisCol, EffectivityCol, YearsCol, AreaCol, ContractRateCol, MonthlyCol, WholeYearCol, AreaLocCol];
+        [OccupantCol, ContractNameCol, SubjectCol, EffectivityCol, YearsCol, AreaCol, ContractRateCol, MonthlyCol, WholeYearCol, AreaLocCol];
     private static string OptionText(ImportColumn col, string value) => col.Key == "basis" ? value == Signed ? "Contract" : "Space only" : value;
+    private static readonly IReadOnlyList<(string Value, string Label)> TermOptions =
+        [("", "Not recorded"), ("1", "1 year"), ("2", "2 years"), ("3", "3 years"), ("5", "5 years"), ("custom", "Custom…")];
 
-    private RenderFragment EditorField(Row row, ImportColumn col) => @<label class="avm-group">
+    private bool CustomTerm(Row row) => row.CustomYears || !TermOptions.Any(x => x.Value == row.YearsText);
+    private void SelectTerm(Row row, string value)
+    {
+        row.CustomYears = value == "custom";
+        if (!row.CustomYears) CellChanged(new(row, YearsCol, value));
+    }
+
+    private RenderFragment EditorField(Row row, ImportColumn col) => @<div class="avm-group">
         <span class="avm-label">@col.Label</span>
-        @if (col.Type == "select")
+        @if (col.Key == "years" && Kind == ObligationKind.KanmanggaySpaceRental)
+        {
+            <FhSelect Block="true" Caption="" AriaLabel="@($"Contract duration options of row {Rows.IndexOf(row) + 1}")"
+                Options="TermOptions" Value="@(CustomTerm(row) ? "custom" : row.YearsText)" ValueChanged="value => SelectTerm(row, value)" />
+            @if (CustomTerm(row))
+            {
+                <input class="avm-input" type="number" min="1" max="50" step="1" value="@row.YearsText"
+                    aria-label="@($"{col.Label} of row {Rows.IndexOf(row) + 1}")" aria-invalid="@(ErrorColumn(row) == col.Key ? "true" : null)"
+                    aria-describedby="@(StatusOf(row).Status != SpaceHolderImportStatus.Ready ? _errorId : null)"
+                    @oninput="e => CellChanged(new(row, col, e.Value?.ToString()))" />
+            }
+        }
+        else if (col.Type == "select")
         {
             <select class="avm-input @(ErrorColumn(row) == col.Key ? "form-input-error" : "")" aria-label="@($"{col.Label} of row {Rows.IndexOf(row) + 1}")" value="@CellOf(row, col)"
                     aria-invalid="@(ErrorColumn(row) == col.Key ? "true" : null)" aria-describedby="@(StatusOf(row).Status != SpaceHolderImportStatus.Ready ? _errorId : null)"
@@ -264,7 +289,7 @@
                    @oninput="e => CellChanged(new(row, col, e.Value?.ToString()))" />
         }
         @if (ErrorColumn(row) == col.Key) { <span class="form-error">@StatusOf(row).Why</span> }
-    </label>;
+    </div>;
 
     // Attach the existing validation result to its field; this does not add or change validation rules.
     private string? ErrorColumn(Row row) => row.Error switch
@@ -277,7 +302,7 @@
         "No contract has no contract reference" => "contractRef",
         "Area location is too long" => "areaLoc",
         "Check area (sq.m)" => "area",
-        "Years must be a whole number from 1 to 50" or "A Kanmanggay signed contract runs three years" => "years",
+        "Years must be a whole number from 1 to 50" => "years",
         "Check the contract monthly rental" => "contractRate",
         "Check closure date" => "closed",
         _ => row.Preview?.Code == "DuplicateSpace" ? "subject" : null
@@ -293,6 +318,7 @@
 
     private sealed class Row
     {
+        public bool CustomYears;
         public string Subject = "", Name = "", Amount = "", Start = "", ClosedText = "", EventName = "", ContractRef = "", BasisText = "";
         public string ContractName = "", YearsText = "", AreaText = "", ContractRateText = "", AreaLocation = "";
         public decimal Approved;
@@ -332,6 +358,9 @@
     {
         var row = change.Row;
         var value = change.Value ?? string.Empty;
+        // Recording contract evidence is explicit; merely opening a historical unsigned row never converts it.
+        if (Kind == ObligationKind.KanmanggaySpaceRental && ContractOnly.Contains(change.Column.Key) && !string.IsNullOrWhiteSpace(value))
+            row.BasisText = Signed;
         switch (change.Column.Key)
         {
             case "subject": row.Subject = value; break;
@@ -361,7 +390,7 @@
 
     // Contract data on a space let without a contract is shown settled, not typeable; the whole-year figure is always derived.
     private static readonly HashSet<string> ContractOnly = ["contractRef", "contractName", "years", "contractRate"];
-    private bool IsLocked(Row row, ImportColumn col) => (col.Key == "subject" && !AllowImportedNumbers) || (!IsEvent && (col.Key is "wholeYear" or "delinquent" || ContractOnly.Contains(col.Key) && row.Basis != OccupancyArrangement.SignedContract));
+    private bool IsLocked(Row row, ImportColumn col) => (col.Key == "subject" && !AllowImportedNumbers) || (!IsEvent && (col.Key is "wholeYear" or "delinquent" || ContractOnly.Contains(col.Key) && row.Basis != OccupancyArrangement.SignedContract && Kind != ObligationKind.KanmanggaySpaceRental));
 
     private string? PlaceholderOf(Row row, ImportColumn col) =>
         col.Key == "subject"
@@ -386,7 +415,8 @@
     // A lot has no basis; a space starts as a signed contract or as a space let without one, as the office chooses, and is never guessed.
     private Row NewRow(bool? withContract)
     {
-        var row = new Row { BasisText = IsEvent || withContract is null ? string.Empty : withContract == true ? Signed : SpaceOnly,
+        var row = new Row { BasisText = Kind == ObligationKind.KanmanggaySpaceRental ? Signed : IsEvent || withContract is null ? string.Empty : withContract == true ? Signed : SpaceOnly,
+            YearsText = Kind == ObligationKind.KanmanggaySpaceRental ? "3" : string.Empty,
             Start = IsEvent ? string.Empty : PhilippineTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) };
         Validate(row);
         return row;
@@ -589,7 +619,6 @@
                 {
                     if (!decimal.TryParse(SheetNumber.Normalize(row.YearsText), NumberStyles.Number, CultureInfo.InvariantCulture, out var years) || years != decimal.Truncate(years) || years is < 1 or > 50)
                         row.Error = "Years must be a whole number from 1 to 50";
-                    else if (Kind == ObligationKind.KanmanggaySpaceRental && years != 3m) row.Error = "A Kanmanggay signed contract runs three years";
                     else row.Years = (int)years;
                 }
                 if (!string.IsNullOrWhiteSpace(row.ContractRateText))

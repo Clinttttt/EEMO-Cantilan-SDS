@@ -96,7 +96,7 @@ public sealed class OperationsWorkspaceHeroTests : TestContext
     }
 
     [Fact]
-    public void VegetableFruitImport_UsesTheBlueHeroWithItsThreeSteps_WhileOtherImportsKeepTheLightHero()
+    public void SpaceImports_UseTheBlueHeroWithTheirThreeSteps()
     {
         var blue = RenderComponent<VegetableFruitImport>();
 
@@ -105,7 +105,7 @@ public sealed class OperationsWorkspaceHeroTests : TestContext
         Assert.Contains("active", blue.Find(".imp-step").ClassList);
         Assert.Contains("Upload", blue.Find(".imp-steps").TextContent);
 
-        // Every space import shares the blue operation hero; only the stallholder imports keep the light one.
+        // Space and stallholder imports share the established blue operation hero.
         Assert.NotNull(RenderComponent<KanmanggayImport>().Find(".imp-hero-blue"));
         Assert.NotNull(RenderComponent<FiestaArawImport>().Find(".imp-hero-blue"));
     }

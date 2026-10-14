@@ -355,6 +355,8 @@ public sealed class ObligationWorkflow(
             .Concat(request.Rows.Where(r => r?.Account is not null && !string.IsNullOrWhiteSpace(r.Account.SubjectLabel))
                 .Select(r => (r.Account.Kind, r.Account.SubjectLabel, r.Account.Event, r.Account.EventDate))));
         var plan = new SpaceImportPlan([], []);
+        var durationConfirmed = await db.Municipalities.AsNoTracking().Where(m => m.Id == actor.TenantId)
+            .Select(m => m.IsDefault).FirstOrDefaultAsync(ct);
         for (var index = 0; index < request.Rows.Count; index++)
         {
             var row = request.Rows[index];
@@ -372,6 +374,9 @@ public sealed class ObligationWorkflow(
             {
                 if (!ObligationAccount.IsSpaceKind(input.Kind))
                     throw new ArgumentException("Only space and event lot accounts can be imported here.");
+                if (input.Kind == ObligationKind.KanmanggaySpaceRental && input.Arrangement == OccupancyArrangement.SignedContract
+                    && input.ContractYears is not null && !durationConfirmed)
+                    throw new ArgumentException("No duration policy has been confirmed for this municipality. Save the contract without a duration.");
                 if (input.Kind == ObligationKind.VegetableFruitSpaceRental && origin == SpaceNumberOrigin.Supplied)
                     throw new ArgumentException("Vegetable / Fruits space numbers are assigned by the server.");
                 if (input.PayorId != Guid.Empty && !payors.ContainsKey(input.PayorId))
@@ -400,8 +405,8 @@ public sealed class ObligationWorkflow(
     }
 
     /// <summary>
-    /// The recorded duration of a signed Kanmanggay contract is a POLICY the Cantilan office adopted (three years, enforced by
-    /// <see cref="ObligationAccount.SetLeaseDetails"/>). No other office has confirmed a duration policy, so recording a duration
+    /// Cantilan defaults new signed Kanmanggay contracts to three years but permits the actual recorded term (2026-10-14 ruling).
+    /// No other office has confirmed a duration policy, so recording a duration
     /// for one would either stamp Cantilan's number on another municipality's contract or accept an unvalidated one. The duration is
     /// descriptive evidence only - it never prices, assesses or closes anything - so an office with no confirmed policy simply
     /// saves the contract WITHOUT a duration. Returns the reason to refuse, or null when the write may proceed.
@@ -420,8 +425,8 @@ public sealed class ObligationWorkflow(
         var isDefaultMunicipality = await db.Municipalities.AsNoTracking()
             .Where(m => m.Id == tenantId).Select(m => m.IsDefault).FirstOrDefaultAsync(ct);
         return isDefaultMunicipality
-            ? null // the office whose standard it is: the domain rule (three years) applies unchanged
-            : "A signed Kanmanggay contract duration cannot be recorded yet: the three-year standard is Cantilan's, and no duration policy " +
+            ? null // Cantilan permits the actual signed term within the existing 1–50 year bounds.
+            : "A signed Kanmanggay contract duration cannot be recorded yet: the confirmed duration policy is Cantilan's, and no duration policy " +
               "has been confirmed for this municipality. Save the contract without a duration; the rest of the record is unaffected.";
     }
 

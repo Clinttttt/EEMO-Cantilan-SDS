@@ -825,7 +825,7 @@ public sealed class ObligationAccountTests(PostgresFixture db)
     }
 
     [SkippableFact]
-    public async Task TheDefaultOffice_KeepsItsThreeYearStandard_Exactly()
+    public async Task TheDefaultOffice_AcceptsActualContractTerms_WithoutChangingTheApprovedRate()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
         await db.ResetAsync();
@@ -837,9 +837,39 @@ public sealed class ObligationAccountTests(PostgresFixture db)
         var three = await workflow.CreateAccountAsync(KanmanggayContract(seed, start, 3));
         Assert.True(three.IsSuccess, three.Error);
         Assert.Equal(3, three.Value!.ContractYears);
-        var five = await workflow.CreateAccountAsync(KanmanggayContract(seed, start, 5));
-        Assert.False(five.IsSuccess);
-        Assert.Contains("three-year standard", five.Error);           // the domain rule, unchanged
+        foreach (var years in new[] { 1, 2, 5, 7 })
+        {
+            var actual = await workflow.CreateAccountAsync(KanmanggayContract(seed, start, years));
+            Assert.True(actual.IsSuccess, actual.Error);
+            Assert.Equal(years, actual.Value!.ContractYears);
+            Assert.Equal(1200m, actual.Value.CurrentAmount);
+        }
+    }
+
+    [SkippableTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task BulkContractTermsFollowConfirmedTenantPolicy_AndNeverCreateAssessments(bool defaultOffice)
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync(defaultOffice);
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+        await using var context = db.CreateContext(seed.TenantId);
+        var workflow = Setup(context, seed);
+        var request = new ImportSpaceHoldersRequest(new[] { 1, 3, 7 }.Select(years => new ImportSpaceHolderRow(
+            KanmanggayContract(seed, start, years))).ToList());
+        var preview = await workflow.PreviewSpaceHoldersAsync(request);
+        Assert.True(preview.IsSuccess, preview.Error);
+        Assert.Equal(defaultOffice, preview.Value!.CanSave);
+        var imported = await workflow.ImportSpaceHoldersAsync(request);
+        Assert.True(imported.IsSuccess, imported.Error);
+        Assert.Equal(defaultOffice ? 3 : 0, imported.Value!.Imported);
+        Assert.Empty(await context.ObligationPeriods.ToListAsync());
+        if (defaultOffice)
+            Assert.Equal(new int?[] { 1, 3, 7 }, await context.ObligationAccounts.OrderBy(a => a.ContractYears).Select(a => a.ContractYears).ToArrayAsync());
+        else
+            Assert.All(preview.Value.Rows, row => Assert.Contains("No duration policy has been confirmed", row.Message));
     }
 
     [SkippableFact]

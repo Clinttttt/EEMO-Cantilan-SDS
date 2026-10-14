@@ -148,8 +148,6 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
             throw new ArgumentException("Signed contract evidence requires signed contract occupancy.");
         if (years is not null && years is < 1 or > 50)
             throw new ArgumentException("Contract duration must be between 1 and 50 years.");
-        if (Kind == ObligationKind.KanmanggaySpaceRental && Arrangement == OccupancyArrangement.SignedContract && years is not null && years != 3)
-            throw new ArgumentException("Kanmanggay's recorded signed contract duration must follow the MEEDO three-year standard.");
         if (contractDate is { } date && (date.Year != ActiveFrom.Year || date.Month != ActiveFrom.Month))
             throw new ArgumentException("Contract effective date and billing start must be within the same month.");
         ContractName = name;
