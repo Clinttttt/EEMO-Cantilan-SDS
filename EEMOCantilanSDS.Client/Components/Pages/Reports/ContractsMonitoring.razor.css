@@ -1,0 +1,85 @@
+/* Contracts Monitoring — scoped styles (cm-). Register, not cards: one toolbar, one table, one pager. */
+
+.cm-toolbar { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.cm-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+
+.cm-search {
+    position: relative;
+    flex: 1 1 240px;
+    max-width: 360px;
+}
+.cm-search svg {
+    position: absolute; left: 10px; top: 50%; width: 16px; height: 16px; transform: translateY(-50%);
+    fill: none; stroke: var(--text-subtle); stroke-width: 2; pointer-events: none;
+}
+.cm-search input,
+.cm-select select,
+.cm-field select {
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-card);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+}
+.cm-search input { padding-left: 34px; }
+.cm-select { flex: 0 1 220px; }
+.cm-search input:focus-visible,
+.cm-select select:focus-visible,
+.cm-field select:focus-visible,
+.cm-chip:focus-visible,
+.cm-more:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.cm-chips {
+    display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 3px;
+    border: 1px solid var(--border); border-radius: 10px; background: var(--bg);
+}
+.cm-chip {
+    min-height: 34px; padding: 6px 12px; border: 1px solid transparent; border-radius: 7px;
+    background: transparent; color: var(--text-muted); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;
+}
+.cm-chip:hover { color: var(--navy); }
+.cm-chip-active, .cm-chip-active:hover { background: var(--accent); color: #fff; }
+
+.cm-more {
+    min-height: 40px; padding: 6px 12px; border: 0; background: transparent;
+    color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.cm-more:hover { color: var(--accent-hover); text-decoration: underline; }
+.cm-more-panel { padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); }
+.cm-field { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--text-muted); }
+.cm-field select { min-width: 180px; }
+
+.cm-table-wrap { max-width: 100%; overflow-x: auto; }
+.cm-table { min-width: 880px; }
+.cm-table .cm-date, .cm-table .cm-action { white-space: nowrap; }
+.cm-table .cm-action { text-align: right; }
+.cm-date { font-variant-numeric: tabular-nums; }
+
+.cm-status {
+    display: inline-block; padding: 2px 10px; border: 1px solid var(--border); border-radius: 999px;
+    font-size: 12px; font-weight: 600; white-space: nowrap; color: var(--text-muted); background: var(--bg);
+}
+.cm-status-active { color: var(--green); background: var(--green-bg); border-color: color-mix(in srgb, var(--green) 30%, var(--border)); }
+.cm-status-soon { color: var(--navy); background: color-mix(in srgb, var(--gold) 18%, #fff); border-color: color-mix(in srgb, var(--gold) 55%, var(--border)); }
+.cm-status-expired { color: var(--red); background: var(--red-bg); border-color: color-mix(in srgb, var(--red) 30%, var(--border)); }
+
+.cm-pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 2px; font-size: 12.5px; color: var(--text-muted); }
+.cm-pager-buttons { display: inline-flex; gap: 8px; }
+
+.cm-empty { padding: 40px 16px; text-align: center; color: var(--text-muted); border: 1px dashed var(--border); border-radius: 12px; }
+.cm-skeleton { display: flex; flex-direction: column; gap: 8px; }
+.cm-muted { color: var(--text-muted); font-size: 13px; }
+.cm-remaining { margin-left: 8px; font-size: 13px; color: var(--text-muted); }
+
+.cm-facts { display: grid; grid-template-columns: minmax(110px, 38%) 1fr; gap: 8px 16px; margin: 16px 0 0; font-size: 13px; }
+.cm-facts dt { color: var(--text-muted); }
+.cm-facts dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+
+@media (max-width: 640px) {
+    .cm-search, .cm-select { flex: 1 1 100%; max-width: none; }
+    .cm-pager { flex-direction: column; align-items: flex-start; }
+}

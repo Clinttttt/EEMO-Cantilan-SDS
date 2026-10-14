@@ -215,6 +215,7 @@
                 || IsRouteOrDescendant(path, "/profile")
                 || IsRouteOrDescendant(path, "/payor/profile"),
             "/monitoring/follow-up" => IsRouteOrDescendant(path, "/monitoring/follow-up")
+                || IsRouteOrDescendant(path, "/monitoring/contracts")
                 || IsRouteOrDescendant(path, "/reports/follow-up"),
             "/remittances" => IsRouteOrDescendant(path, "/remittances") || IsRouteOrDescendant(path, "/accountable-forms"),
             "/reports" => IsRouteOrDescendant(path, "/reports")

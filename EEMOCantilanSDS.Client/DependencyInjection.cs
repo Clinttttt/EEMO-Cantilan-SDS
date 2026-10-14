@@ -75,6 +75,8 @@ namespace EEMOCantilanSDS.Client
             service.AddScoped<EEMOCantilanSDS.Client.Services.BrandingState>();
             service.AddScoped<EEMOCantilanSDS.Client.Services.FacilityState>();
             service.AddScoped<EEMOCantilanSDS.Client.Services.OperationNameService>();
+            // Until the monitoring API is bound this reports "unavailable"; replace the registration, not the page.
+            service.AddScoped<EEMOCantilanSDS.Client.Services.IContractsMonitoringSource, EEMOCantilanSDS.Client.Services.UnavailableContractsMonitoringSource>();
             service.AddScoped<PayorAuthService>();
             service.AddScoped<PayorRealtimeNotifier>();
             service.AddScoped<AuthorizationDelegatingHandler>();
