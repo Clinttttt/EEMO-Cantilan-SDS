@@ -107,7 +107,11 @@
 .uw-facts dd { font-variant-numeric: tabular-nums; }
 .uw-note, .uw-help { margin: 0; color: var(--text-secondary); font-size: 0.8125rem; line-height: 1.45; }
 .uw-error { margin: 0; color: var(--red, #b42318); font-size: 0.8125rem; }
-.uw-review { margin: 0; line-height: 1.45; }
+.uw-review { margin: 0; font-size: 0.8125rem; line-height: 1.5; overflow-wrap: anywhere; }
+.uw-review-context { margin: -3px 0 0; color: var(--text-secondary); font-size: 0.75rem; line-height: 1.45; }
+.uw-review-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.uw-review-actions .v3-btn { min-width: 0; white-space: normal; text-align: center; }
+.uw-review-actions .v3-btn-primary { flex: 1 1 10rem; }
 
 .uw-prepare { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--border); }
 .uw-prepare h3 { margin: 0; font-size: 0.875rem; font-weight: 700; color: var(--navy); }

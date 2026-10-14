@@ -267,7 +267,10 @@ public sealed class UtilityWorkspaceTests : TestContext
         cut.Find(".uw-prepare input").Input("125.50");
         Assert.Contains("No collection or SRC is created", cut.Find(".uw-prepare").TextContent);
         cut.FindAll(".uw-prepare button").Single(b => b.TextContent.Trim() == "Review").Click();
-        Assert.Contains("Nothing is collected", cut.Find(".uw-review").TextContent);
+        Assert.Contains("Approve", cut.Find(".uw-review").TextContent);
+        Assert.Contains("This step records an approved amount only; it does not collect payment.", cut.Find(".uw-review-context").TextContent);
+        Assert.Equal(2, cut.FindAll(".uw-review-actions button").Count);
+        Assert.Empty(cut.FindAll(".uw-prepare .v3-btn-group"));
         register.Verify(x => x.PrepareAsync(It.IsAny<UtilityPrepareRequest>()), Times.Never);       // review alone saves nothing
 
         cut.FindAll(".uw-prepare button").Single(b => b.TextContent.Trim() == "Save approved amount").Click();

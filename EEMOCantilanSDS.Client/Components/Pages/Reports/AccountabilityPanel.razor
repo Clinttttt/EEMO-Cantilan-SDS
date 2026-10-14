@@ -1,10 +1,12 @@
 @using System.Globalization
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Application.Dtos.Collections
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Enums
 @inject IRemittancesApiClient Remittances
 @inject IOfficialReportsApiClient Reports
+@inject ICollectionActivityApiClient Activity
 @inject IJSRuntime JS
 
 @* The reporting counterpart of Remittance and Liquidation (IA-052): each collector's collected, remitted and unremitted pesos,
@@ -92,12 +94,25 @@
     }
 
     <form class="ap-trace no-print" aria-label="Trace a document" @onsubmit="TraceAsync" @onsubmit:preventDefault="true">
-        <label class="v3-field"><span>Trace a serial</span><input @bind="_serial" maxlength="50" placeholder="e.g. CT-000101" /></label>
-        <button class="v3-btn" type="submit" disabled="@string.IsNullOrWhiteSpace(_serial)">Trace</button>
+        <label class="v3-field"><span>Trace a serial or SRC</span><input @bind="_serial" maxlength="50" placeholder="OR / CT number or SRC-2026-000016" /></label>
+        <button class="v3-btn" type="submit" disabled="@(_tracing || string.IsNullOrWhiteSpace(_serial))">Trace</button>
     </form>
     @if (!string.IsNullOrWhiteSpace(_traceError))
     {
         <p class="v3-notice v3-notice-error" role="alert">@_traceError</p>
+    }
+    @if (_srcTrace is { } src)
+    {
+        <dl class="v3-facts ap-trace-facts" aria-label="Collection reference trace">
+            <div><dt>Collection reference (SRC)</dt><dd class="v3-strong">@src.ReferenceCode</dd></div>
+            <div><dt>Collection</dt><dd>@src.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) · @Money(src.Total) · @(src.CollectorName ?? "Office")</dd></div>
+            <div><dt>Payor</dt><dd>@(string.IsNullOrWhiteSpace(src.PayorName) ? "—" : src.PayorName)</dd></div>
+            <div><dt>Physical OR / CT</dt><dd>@(string.IsNullOrWhiteSpace(src.DocumentNumber) ? "No linked physical document" : src.DocumentNumber)</dd></div>
+            <div><dt>Revenue lines</dt><dd>@string.Join(" · ", src.Lines.Select(l => $"{l.ClassificationName} {Money(l.Amount)}"))</dd></div>
+            <div><dt>Remittance coverage</dt><dd>@(src.RemittanceId is not null ? $"Covered ({src.RemittanceStatus})" : "Not yet covered by a remittance")
+                @if (src.RemittanceId is { } remittanceId) { <a href="@($"/remittances/{remittanceId}")">Open remittance</a> }
+            </dd></div>
+        </dl>
     }
     @if (_trace is { } trace)
     {
@@ -125,6 +140,9 @@
 
     private AccountabilityPositionDto? _data;
     private DocumentTraceDto? _trace;
+    private CollectionDocumentDto? _srcTrace;
+    private bool _tracing;
+    private static readonly System.Text.RegularExpressions.Regex SrcFormat = new("^SRC-[0-9]{4}-[0-9]{6,}$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
     private string? _error;
     private string? _traceError;
     private bool _loading;
@@ -159,12 +177,61 @@
 
     private async Task TraceAsync()
     {
+        if (_tracing) return;
         _traceError = null;
         _trace = null;
-        var result = await Reports.TraceDocumentAsync(_serial.Trim());
-        if (result.IsSuccess) _trace = result.Value;
-        else _traceError = result.Status == EEMOCantilanSDS.Application.Common.ResultStatus.NotFound
-            ? "No document with that number exists in this office." : "The document could not be traced.";
+        _srcTrace = null;
+        var input = _serial.Trim();
+        if (input.Length == 0) return;
+        _tracing = true;
+        try
+        {
+            if (input.StartsWith("SRC", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!SrcFormat.IsMatch(input))
+                {
+                    _traceError = "Enter the full collection reference, for example SRC-2026-000016.";
+                    return;
+                }
+
+                // An SRC is a Collection identifier, not an accountable-form OR/CT serial. The exact
+                // tenant-scoped reference lookup works across dates, then the existing official document
+                // reader supplies authoritative remittance coverage for that collection.
+                var feed = await Activity.GetAsync(From, To, reference: input.ToUpperInvariant());
+                if (!feed.IsSuccess)
+                {
+                    _traceError = "The collection reference could not be traced. Please try again.";
+                    return;
+                }
+
+                var match = feed.Value?.Events.SingleOrDefault(e =>
+                    e.Authority == "Canonical" &&
+                    string.Equals(e.ReferenceCode, input, StringComparison.OrdinalIgnoreCase));
+                if (match?.CollectionId is not { } collectionId)
+                {
+                    _traceError = "No collection with that SRC exists in this office.";
+                    return;
+                }
+
+                var collection = await Reports.GetCollectionAsync(collectionId);
+                if (collection.IsSuccess && collection.Value is { } found &&
+                    string.Equals(found.ReferenceCode, input, StringComparison.OrdinalIgnoreCase))
+                    _srcTrace = found;
+                else
+                    _traceError = "The collection details could not be traced. Please try again.";
+                return;
+            }
+
+            var document = await Reports.TraceDocumentAsync(input);
+            if (document.IsSuccess) _trace = document.Value;
+            else _traceError = document.Status == EEMOCantilanSDS.Application.Common.ResultStatus.NotFound
+                ? "No OR/CT document with that serial exists in this office." : "The document could not be traced.";
+        }
+        catch
+        {
+            _traceError = "The reference could not be traced. Please try again.";
+        }
+        finally { _tracing = false; }
     }
 
     private async Task PrintAsync() => await JS.InvokeVoidAsync("print");

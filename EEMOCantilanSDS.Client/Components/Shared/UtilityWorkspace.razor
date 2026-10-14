@@ -201,8 +201,9 @@
                             }
                             else
                             {
-                                <p class="uw-review" role="status">Approve <strong>@Money(_amount!.Value)</strong> of @UtilityName for <strong>@PayerOf(source)</strong>, @PeriodLabel. Nothing is collected by this.</p>
-                                <div class="v3-btn-group">
+                                <p class="uw-review" role="status">Approve <strong>@Money(_amount!.Value)</strong> of @UtilityName for <strong>@PayerOf(source)</strong>.</p>
+                                <p class="uw-review-context">@PeriodLabel · This step records an approved amount only; it does not collect payment.</p>
+                                <div class="uw-review-actions">
                                     <button class="v3-btn" type="button" disabled="@_busy" @onclick="() => _reviewing = false">Back</button>
                                     <button class="v3-btn v3-btn-primary" type="button" disabled="@_busy" @onclick="SaveAmountAsync">Save approved amount</button>
                                 </div>

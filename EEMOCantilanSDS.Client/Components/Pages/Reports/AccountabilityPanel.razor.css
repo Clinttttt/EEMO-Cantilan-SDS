@@ -36,8 +36,14 @@
 .ap-trace {
     display: flex;
     align-items: flex-end;
+    flex-wrap: wrap;
     gap: 8px;
 }
+.ap-trace .v3-field { flex: 0 1 320px; min-width: min(100%, 230px); }
+.ap-trace .v3-field input { width: 100%; box-sizing: border-box; }
+.ap-trace-facts { min-width: 0; }
+.ap-trace-facts dd { overflow-wrap: anywhere; }
+.ap-trace-facts a { margin-left: 8px; }
 
 .ap-print-head {
     display: none;

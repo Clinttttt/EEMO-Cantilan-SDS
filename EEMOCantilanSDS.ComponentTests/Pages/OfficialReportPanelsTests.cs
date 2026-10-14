@@ -3,6 +3,7 @@ using Bunit.TestDoubles;
 using EEMOCantilanSDS.Application.Common;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
+using EEMOCantilanSDS.Application.Dtos.Collections;
 using EEMOCantilanSDS.Client.Components.Pages.Reports;
 using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,6 +20,7 @@ public sealed class OfficialReportPanelsTests : TestContext
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
     private readonly Mock<IOfficialReportsApiClient> _reports = new();
     private readonly Mock<IRemittancesApiClient> _remittances = new();
+    private readonly Mock<ICollectionActivityApiClient> _activity = new();
 
     public OfficialReportPanelsTests()
     {
@@ -28,6 +30,7 @@ public sealed class OfficialReportPanelsTests : TestContext
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
         Services.AddSingleton(_reports.Object);
+        Services.AddSingleton(_activity.Object);
         Services.AddSingleton(Mock.Of<ISettingsApiClient>());
         Services.AddSingleton(_remittances.Object);
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -277,7 +280,77 @@ public sealed class OfficialReportPanelsTests : TestContext
         }, Timeout);
     }
 
-    // ── Official Monthly Income: the final statement, in the office sheet's structure ──
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Accountability_TracesSRCThroughCollectionAndAuthoritativeRemittanceCoverage(bool covered)
+    {
+        var date = new DateOnly(2026, 10, 12);
+        var collectionId = Guid.NewGuid();
+        var remittanceId = covered ? Guid.NewGuid() : (Guid?)null;
+        const string reference = "SRC-2026-000016";
+        var activity = new CollectionActivityEventDto(
+            EventKey: "canonical-one", Authority: "Canonical", Source: "ECF", CollectionId: collectionId,
+            BusinessDate: date, RecordedAtUtc: DateTime.UtcNow, ReferenceCode: reference, DocumentNumber: null,
+            InstrumentType: null, ReplacementDocumentNumbers: [], ReplacementReferenceCodes: [],
+            PayerName: "Delta Rall", PayorId: null, CollectorId: null, CollectorName: "Personalunos",
+            RecordedBy: "Personalunos", Facility: null, Subject: "Stall 2", LegacyStatus: null,
+            Amount: 656m, CorrectionEffect: 0m, NetAmount: 656m, Disposition: "Posted",
+            ReplacesCollectionId: null, Lines: [], Corrections: []);
+        _activity.Setup(x => x.GetAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(),
+            It.IsAny<FacilityCode?>(), It.IsAny<Guid?>(), It.IsAny<string?>(), It.IsAny<int>(), reference))
+            .ReturnsAsync(Result<CollectionActivityFeedDto>.Success(new CollectionActivityFeedDto(
+                date, date, "Business date", "LatestCorrected", DateTime.UtcNow, [activity],
+                1, false, 0m, 656m, 0m, 656m, [])));
+        _reports.Setup(x => x.GetCollectionAsync(collectionId))
+            .ReturnsAsync(Result<CollectionDocumentDto>.Success(new CollectionDocumentDto(
+                collectionId, reference, null, null, null, date, DateTime.UtcNow, "Delta Rall", "Personalunos",
+                656m, 0m, [new CollectionDocumentLineDto("Electricity Consumption Fees", "ECF", 656m, 0m, [])],
+                remittanceId, covered ? "Recorded" : null)));
+
+        var cut = RenderComponent<AccountabilityPanel>(p => p
+            .Add(x => x.From, new DateOnly(2026, 10, 1))
+            .Add(x => x.To, new DateOnly(2026, 10, 31))
+            .Add(x => x.PeriodLabel, "October 2026"));
+        cut.Find("form[aria-label='Trace a document'] input").Change("src-2026-000016");
+        cut.Find("form[aria-label='Trace a document']").Submit();
+        cut.WaitForAssertion(() =>
+        {
+            var result = cut.Find("dl[aria-label='Collection reference trace']").TextContent;
+            Assert.Contains(reference, result);
+            Assert.Contains("Delta Rall", result);
+            Assert.Contains("₱656.00", result);
+            Assert.Contains("No linked physical document", result);
+            Assert.Contains(covered ? "Covered (Recorded)" : "Not yet covered by a remittance", result);
+            Assert.Equal(covered ? 1 : 0, cut.FindAll("dl[aria-label='Collection reference trace'] a[href^='/remittances/']").Count);
+            Assert.Empty(cut.FindAll("dl[aria-label='Document trace']"));
+        }, Timeout);
+        _reports.Verify(x => x.TraceDocumentAsync(It.IsAny<string>()), Times.Never);
+        _reports.Verify(x => x.GetCollectionAsync(collectionId), Times.Once);
+    }
+
+    [Fact]
+    public void Accountability_RejectsIncompleteSRCWithoutInventingADocumentOrRemittance()
+    {
+        _remittances.Setup(x => x.GetPositionAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(Result<AccountabilityPositionDto>.Success(new AccountabilityPositionDto(
+                new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31), 0m, 0m, 0m, 0, 0m, [])));
+        var cut = RenderComponent<AccountabilityPanel>(p => p
+            .Add(x => x.From, new DateOnly(2026, 10, 1))
+            .Add(x => x.To, new DateOnly(2026, 10, 31))
+            .Add(x => x.PeriodLabel, "October 2026"));
+        cut.Find("form[aria-label='Trace a document'] input").Change("SRC-2026");
+        cut.Find("form[aria-label='Trace a document']").Submit();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains(cut.FindAll("[role='alert']"), alert => alert.TextContent.Contains("Enter the full collection reference"));
+            Assert.Empty(cut.FindAll("dl[aria-label='Collection reference trace']"));
+        }, Timeout);
+        _activity.Verify(x => x.GetAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(),
+            It.IsAny<FacilityCode?>(), It.IsAny<Guid?>(), It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<string?>()), Times.Never);
+    }
+
+        // ── Official Monthly Income: the final statement, in the office sheet's structure ──
 
     private IRenderedComponent<OfficialMonthlyIncome> RenderOfficial(int year)
     {
