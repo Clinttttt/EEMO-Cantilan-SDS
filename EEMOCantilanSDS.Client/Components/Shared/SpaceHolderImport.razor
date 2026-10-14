@@ -6,6 +6,8 @@
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
 @inject IObligationsApiClient Api
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
 @* Bulk import of space holders and event lots. It is the stallholder import's own implementation, adapted rather than imitated: the same hero,
    upload card, review bar, editable grid and footer bar (the shared Import* components); only the columns and what a row means are this
@@ -75,16 +77,12 @@
 
 
         <ImportGrid TRow="Row" Columns="ReviewColumns" Rows="Rows" Label="Rent / space holders to import" GetCell="CellOf" OnChange="CellChanged" OnRemove="RemoveRow"
-                    Compact="true" IsReadonly="IsLocked" Placeholder="PlaceholderOf" CellTitle="TitleOf" OptionText="OptionText">
+                    Compact="true" PreserveColumnWidths="@(!IsEvent)" SelectPlaceholder="Choose…" IsReadonly="IsLocked" Placeholder="PlaceholderOf" CellTitle="TitleOf" OptionText="OptionText">
             <Status Context="row">
                 @{ var (state, why) = StatusOf(row); }
-                <div class="shi-status">
-                    <span class="shi-chip-status @(state == SpaceHolderImportStatus.Ready ? "shi-ready" : "shi-invalid")">@StatusLabel(state)</span>
-                    @if (state != SpaceHolderImportStatus.Ready)
-                    {
-                        <p class="shi-why" role="status">@(why ?? "Review this row before importing.")</p>
-                    }
-                </div>
+                <ImportStatusDetails Label="@StatusLabel(state)" Ready="@(state == SpaceHolderImportStatus.Ready)"
+                    RowNumber="@(Rows.IndexOf(row) + 1)" Heading="@(row.Preview?.Code == "DuplicateSpace" ? "Duplicate space / lot" : "Review required")"
+                    Message="@(why ?? "Review this row before importing.")" />
             </Status>
             <RowActions Context="row">
                 @{ var (state, why) = StatusOf(row); }
@@ -110,7 +108,7 @@
                         <section class="avm-section">
                             <div class="avm-section-label">Holder &amp; @(IsEvent ? "Event" : "Space")</div>
                             <div class="avm-row-2">
-                                @foreach (var col in ReviewColumns) { @EditorField(editing, col) }
+                                @foreach (var col in HolderColumns) { @EditorField(editing, col) }
                             </div>
                         </section>
                         @if (!IsEvent)
@@ -143,12 +141,13 @@
             </VendorDrawerShell>
         }
 
-        <ImportFootBar CancelHref="@BackHref" Error="@Message" Saving="Saving" Disabled="@(ReadyCount == 0 || _previewing)" OnSave="ImportAsync"
+        <ImportFootBar CancelHref="@BackHref" Error="@Message" Saving="Saving" Disabled="@(ReadyCount == 0 || _previewing || _previewPending)" OnSave="ImportAsync"
                        SaveLabel="@($"Import {ReadyCount} ready {(ReadyCount == 1 ? "row" : "rows")}")">
             <span class="shi-foot-note" role="status">
-                @if (_previewing) { <text>Checking rows…</text> }
+                <text>@ReviewCounts. </text>
+                @if (_previewing || _previewPending) { <text>Checking rows…</text> }
                 else if (_previewNote is not null) { <text>@_previewNote</text> }
-                else { <text>@ReviewCounts. Only ready rows are imported.</text> }
+                else { <text>Only ready rows are imported.</text> }
             </span>
         </ImportFootBar>
     }
@@ -182,17 +181,25 @@
     private ElementReference _editorHeading;
     private readonly Dictionary<Row, ElementReference> _editButtons = [];
     private readonly string _errorId = $"shi-error-{Guid.NewGuid():N}";
+    private Task<IJSObjectReference>? _reviewModule;
 
     private void OpenEditor(Row row) { _editing = row; _focusEditor = true; }
     private void CloseEditor() { _returnFocus = _editing; _editing = null; }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_focusEditor) { _focusEditor = false; await _editorHeading.FocusAsync(); }
+        if (_focusEditor) { _focusEditor = false; await FocusConnected(_editorHeading, ".shi-editor"); }
         else if (_returnFocus is { } row)
         {
             _returnFocus = null;
-            if (_editButtons.TryGetValue(row, out var button)) await button.FocusAsync();
+            if (_editButtons.TryGetValue(row, out var button)) await FocusConnected(button, $".shi-row-edit[aria-label='Edit row details {Rows.IndexOf(row) + 1}']");
         }
+    }
+
+    private async Task FocusConnected(ElementReference target, string selector)
+    {
+        _reviewModule ??= JS.InvokeAsync<IJSObjectReference>("import", "./js/import-status.js").AsTask();
+        var module = await _reviewModule;
+        if (!_disposed) await module.InvokeVoidAsync("focusConnected", target, selector);
     }
 
     private static string StatusLabel(SpaceHolderImportStatus state) => state switch
@@ -213,8 +220,8 @@
     private const string Signed = "Signed lease contract", SpaceOnly = "No contract (space only)";
 
     // NCC/TCC are the single source for rental-register visible labels and widths.
-    // Do not expose administrative basis, contract reference, closure or validation as permanent columns.
-    private static readonly ImportColumn SubjectCol = RentalImportColumns.Number with { Key = "subject", Label = "Rent / Space No.", Placeholder = "Auto" };
+    // Contract reference and closure stay in the drawer; detailed validation stays in floating status feedback.
+    private static readonly ImportColumn SubjectCol = RentalImportColumns.Number with { Key = "subject", Label = "Rent / Space No.", Placeholder = "Auto", MinWidth = 140 };
     private static readonly ImportColumn OccupantCol = RentalImportColumns.Occupant with { Key = "name" };
     private static readonly ImportColumn ContractNameCol = RentalImportColumns.ContractName;
     private static readonly ImportColumn EffectivityCol = RentalImportColumns.Effectivity with { Key = "start" };
@@ -231,7 +238,9 @@
     private static readonly ImportColumn BasisCol = new("basis", "Lease type", "select", Options: [Signed, SpaceOnly]);
     private static readonly ImportColumn ContractReferenceCol = new("contractRef", "Contract reference", Placeholder: "Per signed lease");
     private static readonly ImportColumn ClosedCol = new("closed", "Closed on", "date");
-    private IReadOnlyList<ImportColumn> ReviewColumns => IsEvent ? Columns : [OccupantCol, SubjectCol, BasisCol, EffectivityCol, MonthlyCol];
+    private IReadOnlyList<ImportColumn> HolderColumns => IsEvent ? Columns : [OccupantCol, SubjectCol, BasisCol, EffectivityCol, MonthlyCol];
+    private IReadOnlyList<ImportColumn> ReviewColumns => IsEvent ? Columns :
+        [OccupantCol, ContractNameCol, SubjectCol, BasisCol, EffectivityCol, YearsCol, AreaCol, ContractRateCol, MonthlyCol, WholeYearCol, AreaLocCol];
     private static string OptionText(ImportColumn col, string value) => col.Key == "basis" ? value == Signed ? "Contract" : "Space only" : value;
 
     private RenderFragment EditorField(Row row, ImportColumn col) => @<label class="avm-group">
@@ -354,14 +363,15 @@
     private static readonly HashSet<string> ContractOnly = ["contractRef", "contractName", "years", "contractRate"];
     private bool IsLocked(Row row, ImportColumn col) => (col.Key == "subject" && !AllowImportedNumbers) || (!IsEvent && (col.Key is "wholeYear" or "delinquent" || ContractOnly.Contains(col.Key) && row.Basis != OccupancyArrangement.SignedContract));
 
-    private static string? PlaceholderOf(Row row, ImportColumn col) =>
+    private string? PlaceholderOf(Row row, ImportColumn col) =>
         col.Key == "subject"
-            ? row.Preview?.Facts is { NumberOrigin: SpaceNumberOrigin.ServerSuggested } facts && !string.IsNullOrWhiteSpace(facts.Account.SubjectLabel) ? $"Auto · {facts.Account.SubjectLabel}" : "Auto"
+            ? _previewPending && string.IsNullOrWhiteSpace(row.Subject) ? "Auto · pending"
+                : row.Preview?.Facts is { NumberOrigin: SpaceNumberOrigin.ServerSuggested } facts && !string.IsNullOrWhiteSpace(facts.Account.SubjectLabel) ? $"Auto · {facts.Account.SubjectLabel}" : "Auto"
             : col.Key is "wholeYear" or "delinquent" ? "—"
             : ContractOnly.Contains(col.Key) && row.Basis != OccupancyArrangement.SignedContract ? "—" : null;
 
     private static string? TitleOf(Row row, ImportColumn col) => col.Key == "subject"
-        ? "Leave blank to have the server assign the next number." : null;
+        ? "Number suggested by the system. Confirmed when imported. Leave blank for automatic numbering." : null;
 
     // A row's state is the server's word once it has been checked there; until then (or if the check is unavailable) it is what this page can
     // tell: a row that fails its own checks is Invalid.
@@ -372,9 +382,15 @@
 
     // ── Getting rows in ────────────────────────────────────────────────────────────────────────────────────────────────
     private void StartManual() { _uploadError = null; _fileName = null; Rows = [NewRow(null)]; SchedulePreview(); }
-    private void AddRow(bool withContract) { Rows.Add(NewRow(withContract)); }
+    private void AddRow(bool withContract) { Rows.Add(NewRow(withContract)); SchedulePreview(); }
     // A lot has no basis; a space starts as a signed contract or as a space let without one, as the office chooses, and is never guessed.
-    private Row NewRow(bool? withContract) { var row = new Row { BasisText = IsEvent || withContract is null ? string.Empty : withContract == true ? Signed : SpaceOnly }; Validate(row); return row; }
+    private Row NewRow(bool? withContract)
+    {
+        var row = new Row { BasisText = IsEvent || withContract is null ? string.Empty : withContract == true ? Signed : SpaceOnly,
+            Start = IsEvent ? string.Empty : PhilippineTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) };
+        Validate(row);
+        return row;
+    }
 
     // Sample rows exist to show what a filled register looks like. They are never saved except through the normal import.
     private void LoadSample()
@@ -601,15 +617,17 @@
         _editButtons.Remove(Rows[index]);
         Rows.RemoveAt(index);
         if (Rows.Count == 0) { _fileName = null; Message = null; _previewNote = null; }
-        else SchedulePreview();
+        SchedulePreview();
     }
 
     // One id per filling-in of the list: a second click or a retry after a lost response is the same submission, so it cannot register the holders twice.
     private Guid _operationId = Guid.NewGuid();
-    private void ResetAll() { _editing = null; _editButtons.Clear(); _operationId = Guid.NewGuid(); Rows = []; _result = null; Message = null; _uploadError = null; _fileName = null; _notImported = 0; _previewNote = null; }
+    private void ResetAll() { InvalidatePreview(); _previewPending = false; _editing = null; _editButtons.Clear(); _operationId = Guid.NewGuid(); Rows = []; _result = null; Message = null; _uploadError = null; _fileName = null; _notImported = 0; _previewNote = null; }
 
     // ── The server's typed preview ─────────────────────────────────────────────────────────────────────────────────────
     private bool _previewing;
+    private bool _previewPending, _disposed;
+    private int _previewRevision;
     private string? _previewNote;
     private CancellationTokenSource? _previewDelay;
 
@@ -628,30 +646,52 @@
 
     private void SchedulePreview()
     {
-        _previewDelay?.Cancel();
+        InvalidatePreview();
+        foreach (var row in Rows) row.Preview = null;
+        _previewPending = Rows.Count > 0;
         _previewDelay = new CancellationTokenSource();
-        _ = DebouncedPreviewAsync(_previewDelay.Token);
+        _ = DebouncedPreviewAsync(_previewRevision, _previewDelay.Token);
     }
 
-    private async Task DebouncedPreviewAsync(CancellationToken token)
+    private void InvalidatePreview()
+    {
+        _previewRevision++;
+        _previewDelay?.Cancel();
+        _previewDelay?.Dispose();
+        _previewDelay = null;
+        _previewing = false;
+        _previewNote = null;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        InvalidatePreview();
+        if (_reviewModule is not null)
+            try { await (await _reviewModule).DisposeAsync(); } catch (JSDisconnectedException) { }
+    }
+
+    private async Task DebouncedPreviewAsync(int revision, CancellationToken token)
     {
         try { await Task.Delay(400, token); } catch (OperationCanceledException) { return; }
-        await InvokeAsync(PreviewAsync);
+        if (!_disposed && revision == _previewRevision) await InvokeAsync(() => PreviewAsync(revision));
     }
 
     // Asks the server to check every well-formed row without saving anything: it answers Ready / Needs Payor / Invalid with a stable code,
     // finds duplicate spaces, and suggests the next number in this operation. Nothing is created or reserved by asking.
-    private async Task PreviewAsync()
+    private async Task PreviewAsync(int revision)
     {
-        foreach (var row in Rows) row.Preview = null;
+        if (_disposed || revision != _previewRevision) return;
         var checkable = Rows.Where(r => r.Error is null).ToList();
-        if (checkable.Count == 0 || checkable.Count > 200) { _previewNote = null; StateHasChanged(); return; }
+        if (checkable.Count == 0 || checkable.Count > 200) { _previewPending = false; StateHasChanged(); return; }
         _previewing = true;
         StateHasChanged();
         try
         {
             var result = await Api.PreviewSpaceHoldersAsync(new(checkable.Select(BuildRow).ToList()));
-            if (result.IsSuccess && result.Value is { } preview && preview.Rows.Count == checkable.Count)
+            if (_disposed || revision != _previewRevision) return;
+            if (result.IsSuccess && result.Value is { } preview && preview.Rows.Count == checkable.Count
+                && preview.Rows.Select(x => x.RowNumber).Order().SequenceEqual(Enumerable.Range(1, checkable.Count)))
             {
                 var ordered = preview.Rows.OrderBy(x => x.RowNumber).ToList();
                 for (var i = 0; i < checkable.Count; i++) checkable[i].Preview = ordered[i];
@@ -659,8 +699,8 @@
             }
             else _previewNote = "The server check is unavailable. Rows are checked here only; the server checks them again when you import.";
         }
-        catch { _previewNote = "The server check is unavailable. Rows are checked here only; the server checks them again when you import."; }
-        finally { _previewing = false; StateHasChanged(); }
+        catch { if (!_disposed && revision == _previewRevision) _previewNote = "The server check is unavailable. Rows are checked here only; the server checks them again when you import."; }
+        finally { if (!_disposed && revision == _previewRevision) { _previewing = false; _previewPending = false; StateHasChanged(); } }
     }
 
     // ── Saving ─────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -669,7 +709,7 @@
         // Only rows the office's own checks and the server's preview call Ready are sent. A blank number stays blank, so the server numbers it
         // again under its own lock when it saves; the suggestion shown in the grid is only a hint.
         var ready = Rows.Where(r => StatusOf(r).Status == SpaceHolderImportStatus.Ready).ToList();
-        if (Saving || _previewing || ready.Count == 0) return;
+        if (Saving || _previewing || _previewPending || ready.Count == 0) return;
         Saving = true;
         Message = null;
         try

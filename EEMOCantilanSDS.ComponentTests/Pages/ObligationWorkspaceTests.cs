@@ -42,6 +42,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         Services.AddSingleton(_governed.Object);
         Services.AddSingleton(Mock.Of<IBusinessPayorsApiClient>());
         JSInterop.Mode = JSRuntimeMode.Loose;
+        JSInterop.SetupModule("./js/import-status.js").Mode = JSRuntimeMode.Loose;
         this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
     }
 
@@ -657,6 +658,205 @@ public sealed class ObligationWorkspaceTests : TestContext
         Assert.NotNull(cut.Find(".imp-enter-manually"));
     }
 
+    [Theory]
+    [InlineData(ObligationKind.KanmanggaySpaceRental)]
+    [InlineData(ObligationKind.VegetableFruitSpaceRental)]
+    [InlineData(ObligationKind.FiestaArawLotRental)]
+    public void ImportNewManualDateUsesPhilippineTodayOnlyForMonthlyRows(ObligationKind kind)
+    {
+        var cut = RenderComponent<SpaceHolderImport>(p => p.Add(x => x.Kind, kind));
+        cut.Find(".imp-enter-manually").Click();
+        var date = cut.Find("input[type='date']");
+        Assert.Equal(kind == ObligationKind.FiestaArawLotRental ? "" : PhilippineTime.Today.ToString("yyyy-MM-dd"), date.GetAttribute("value"));
+    }
+
+    private static void SubmitReadyImport(IRenderedFragment cut)
+    {
+        cut.WaitForAssertion(() => Assert.False(cut.Find(".imp-foot-bar .imp-btn-primary").HasAttribute("disabled")), Timeout);
+        cut.Find(".imp-foot-bar .imp-btn-primary").Click();
+    }
+
+    private static SpaceHolderImportPreview NumberPreview(ImportSpaceHoldersRequest request, string automaticNumber) => new(
+        request.Rows.Select((row, i) => new SpaceHolderImportRowResult(i + 1, SpaceHolderImportStatus.Ready, null, null,
+            Facts: new(row.Account with { SubjectLabel = string.IsNullOrWhiteSpace(row.Account.SubjectLabel) ? automaticNumber : row.Account.SubjectLabel },
+                row.ClosedOn, string.IsNullOrWhiteSpace(row.Account.SubjectLabel) ? SpaceNumberOrigin.ServerSuggested : SpaceNumberOrigin.Supplied, null))).ToArray(), true);
+
+    [Fact]
+    public async Task ImportOlderPreviewCannotOverwriteNewerRowEditsOrNumberSuggestions()
+    {
+        var oldReply = new TaskCompletionSource<Result<SpaceHolderImportPreview>>();
+        var newReply = new TaskCompletionSource<Result<SpaceHolderImportPreview>>();
+        var firstStarted = new TaskCompletionSource<ImportSpaceHoldersRequest>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondStarted = new TaskCompletionSource<ImportSpaceHoldersRequest>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var requests = new System.Collections.Concurrent.ConcurrentQueue<ImportSpaceHoldersRequest>();
+        _api.Setup(x => x.PreviewSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>())).Returns((ImportSpaceHoldersRequest request) =>
+        {
+            requests.Enqueue(request);
+            if (requests.Count == 1) firstStarted.TrySetResult(request); else secondStarted.TrySetResult(request);
+            return requests.Count == 1 ? oldReply.Task : newReply.Task;
+        });
+        var cut = RenderComponent<KanmanggayImport>();
+        cut.Find(".imp-use-sample").Click();
+        await firstStarted.Task.WaitAsync(Timeout);
+        cut.Find("input[aria-label='Actual Occupant (Leasee) of row 3']").Input("Ana Edited");
+        await secondStarted.Task.WaitAsync(Timeout);
+        var snapshots = requests.ToArray();
+        await cut.InvokeAsync(() => newReply.SetResult(Result<SpaceHolderImportPreview>.Success(NumberPreview(snapshots[1], "9"))));
+        cut.WaitForAssertion(() => Assert.Equal("Auto · 9", cut.Find("input[aria-label='Rent / Space No. of row 3']").GetAttribute("placeholder")), Timeout);
+        await cut.InvokeAsync(async () => { oldReply.SetResult(Result<SpaceHolderImportPreview>.Success(NumberPreview(snapshots[0], "99"))); await Task.Yield(); });
+        cut.FindComponent<SpaceHolderImport>().Render();
+        Assert.Equal("Auto · 9", cut.Find("input[aria-label='Rent / Space No. of row 3']").GetAttribute("placeholder"));
+        Assert.Equal("Ana Edited", cut.Find("input[aria-label='Actual Occupant (Leasee) of row 3']").GetAttribute("value"));
+    }
+
+    [Fact]
+    public void ImportAddingRowRefreshesTheServerPreview()
+    {
+        _api.Setup(x => x.PreviewSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>())).Returns((ImportSpaceHoldersRequest request) =>
+            Task.FromResult(Result<SpaceHolderImportPreview>.Success(NumberPreview(request, "4"))));
+        var cut = RenderComponent<KanmanggayImport>();
+        cut.Find(".imp-use-sample").Click();
+        cut.WaitForAssertion(() => _api.Verify(x => x.PreviewSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>()), Times.Once), Timeout);
+        cut.Find(".imp-add-space-row").Click();
+        cut.WaitForAssertion(() => _api.Verify(x => x.PreviewSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>()), Times.Exactly(2)), Timeout);
+    }
+
+    [Fact]
+    public void ImportTableAndDrawerShareContractRateAndDateEdits()
+    {
+        var cut = RenderComponent<KanmanggayImport>();
+        cut.Find(".imp-use-sample").Click();
+        cut.Find(".imp-table input[aria-label='Name on Contract of row 1']").Input("Estate of Maria");
+        cut.Find(".imp-table input[aria-label='Effectivity Date of row 1']").Input("2026-03-17");
+        cut.Find("button[aria-label='Edit row details 1']").Click();
+        Assert.Equal("Estate of Maria", cut.Find(".shi-editor input[aria-label='Name on Contract of row 1']").GetAttribute("value"));
+        cut.Find(".shi-editor input[aria-label='Monthly Rental / Contract of row 1']").Input("1000");
+        cut.Find(".shi-editor input[aria-label='Actual Mo. Rental of row 1']").Input("900");
+        Assert.Equal("1000", cut.Find(".imp-table input[aria-label='Monthly Rental / Contract of row 1']").GetAttribute("value"));
+        Assert.Equal("10800.00", cut.Find(".imp-table input[aria-label='Whole Year Rental of row 1']").GetAttribute("value"));
+        cut.Find(".shi-editor select[aria-label='Lease type of row 1']").Change("No contract (space only)");
+        Assert.Equal("2026-03-17", cut.Find(".imp-table input[aria-label='Effectivity Date of row 1']").GetAttribute("value"));
+        Assert.True(cut.Find(".imp-table input[aria-label='Name on Contract of row 1']").HasAttribute("readonly"));
+        Assert.Equal("", cut.Find(".imp-table input[aria-label='Name on Contract of row 1']").GetAttribute("value"));
+        Assert.Equal("", cut.Find(".imp-table input[aria-label='No. of Years of row 1']").GetAttribute("value"));
+        Assert.Equal("", cut.Find(".imp-table input[aria-label='Monthly Rental / Contract of row 1']").GetAttribute("value"));
+        Assert.Equal("900", cut.Find(".imp-table input[aria-label='Actual Mo. Rental of row 1']").GetAttribute("value"));
+    }
+
+    [Theory]
+    [InlineData(ObligationKind.KanmanggaySpaceRental)]
+    [InlineData(ObligationKind.VegetableFruitSpaceRental)]
+    public void ImportOnlyNewMonthlyRowsDefaultDatesAndUploadsKeepMissingDatesInvalid(ObligationKind kind)
+    {
+        var cut = RenderComponent<SpaceHolderImport>(p => p.Add(x => x.Kind, kind));
+        cut.Find(".imp-enter-manually").Click();
+        cut.Find("input[aria-label='Effectivity Date of row 1']").Input("2026-03-17");
+        cut.Find(".imp-add-row").Click();
+        cut.Find(".imp-add-space-row").Click();
+        Assert.Equal("2026-03-17", cut.Find("input[aria-label='Effectivity Date of row 1']").GetAttribute("value"));
+        Assert.All(new[] { 2, 3 }, i => Assert.Equal(PhilippineTime.Today.ToString("yyyy-MM-dd"), cut.Find($"input[aria-label='Effectivity Date of row {i}']").GetAttribute("value")));
+        cut.FindAll(".imp-review-actions button").Single(x => x.TextContent == "Discard").Click();
+        var csv = "Actual Occupant,Occupancy basis,Effectivity Date,Approved amount\r\nHistorical holder,No contract (space only),,500\r\n";
+        cut.FindComponent<Microsoft.AspNetCore.Components.Forms.InputFile>().UploadFiles(InputFileContent.CreateFromText(csv, "missing-date.csv"));
+        Assert.Equal("", cut.Find("input[aria-label='Effectivity Date of row 1']").GetAttribute("value"));
+        Assert.Equal("Invalid", cut.Find(".shi-chip-status").TextContent);
+        Assert.Contains("Choose the effectivity date", cut.Find("[popover='auto']").TextContent);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ImportUnavailableOrMalformedPreviewNeverInventsNumberHints(bool malformed)
+    {
+        _api.Setup(x => x.PreviewSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>())).Returns((ImportSpaceHoldersRequest request) =>
+            Task.FromResult(malformed
+                ? Result<SpaceHolderImportPreview>.Success(NumberPreview(request, "99") with { Rows = NumberPreview(request, "99").Rows.Select(x => x with { RowNumber = 1 }).ToArray() })
+                : Result<SpaceHolderImportPreview>.Failure("offline")));
+        var cut = RenderComponent<KanmanggayImport>();
+        cut.Find(".imp-use-sample").Click();
+        Assert.Equal("Auto · pending", cut.Find("input[aria-label='Rent / Space No. of row 3']").GetAttribute("placeholder"));
+        Assert.True(cut.Find(".imp-foot-bar .imp-btn-primary").HasAttribute("disabled"));
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("server check is unavailable", cut.Find(".shi-foot-note").TextContent);
+            Assert.Equal("Auto", cut.Find("input[aria-label='Rent / Space No. of row 3']").GetAttribute("placeholder"));
+            Assert.Equal("", cut.Find("input[aria-label='Rent / Space No. of row 3']").GetAttribute("value"));
+        }, Timeout);
+    }
+
+    [Fact]
+    public void ImportFloatingReasonKeepsExactServerMessageAndAccessibleInvoker()
+    {
+        const string message = "The server's exact duplicate explanation, including its recorded source.";
+        _api.Setup(x => x.PreviewSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>())).Returns((ImportSpaceHoldersRequest request) =>
+            Task.FromResult(Result<SpaceHolderImportPreview>.Success(NumberPreview(request, "4") with {
+                Rows = NumberPreview(request, "4").Rows.Select((row, i) => i == 1 ? row with { Status = SpaceHolderImportStatus.Invalid, Code = "DuplicateSpace", Message = message } : row).ToArray() })));
+        var cut = RenderComponent<KanmanggayImport>();
+        cut.Find(".imp-use-sample").Click();
+        cut.WaitForAssertion(() =>
+        {
+            var popup = cut.Find("[role='tooltip'][popover='auto']");
+            Assert.Equal(message, popup.QuerySelector("p")!.TextContent);
+            var trigger = cut.Find("button.is-trigger");
+            Assert.Equal("button", trigger.GetAttribute("type"));
+            Assert.Equal(popup.Id, trigger.GetAttribute("popovertarget"));
+            Assert.Equal(popup.Id, trigger.GetAttribute("aria-controls"));
+            Assert.Equal(popup.Id, trigger.GetAttribute("aria-describedby"));
+            Assert.Contains("row 2", trigger.GetAttribute("aria-label"));
+            Assert.False(trigger.HasAttribute("title"));
+            Assert.Empty(cut.FindAll(".imp-td-status .shi-why"));
+        }, Timeout);
+    }
+
+    [Fact]
+    public async Task ImportNumberHintsRefreshAfterExplicitEditsAndRemovalWithoutBecomingSuppliedNumbers()
+    {
+        ImportSpaceHoldersRequest? saved = null;
+        var removalStarted = new TaskCompletionSource<ImportSpaceHoldersRequest>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var removalReply = new TaskCompletionSource<Result<SpaceHolderImportPreview>>();
+        _api.Setup(x => x.PreviewSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>())).Returns((ImportSpaceHoldersRequest request) =>
+        {
+            if (request.Rows.Count == 2) { removalStarted.TrySetResult(request); return removalReply.Task; }
+            return Task.FromResult(Result<SpaceHolderImportPreview>.Success(NumberPreview(request, request.Rows.Any(x => x.Account.SubjectLabel == "7") ? "8" : "3")));
+        });
+        _api.Setup(x => x.ImportSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>())).Callback<ImportSpaceHoldersRequest>(r => saved = r)
+            .ReturnsAsync(Result<ImportSpaceHoldersResult>.Success(new(2, 0, [])));
+        var cut = RenderComponent<KanmanggayImport>();
+        cut.Find(".imp-use-sample").Click();
+        cut.Find("input[aria-label='Rent / Space No. of row 1']").Input("7");
+        cut.WaitForAssertion(() => Assert.Equal("Auto · 8", cut.Find("input[aria-label='Rent / Space No. of row 3']").GetAttribute("placeholder")), Timeout);
+        Assert.Equal("7", cut.Find("input[aria-label='Rent / Space No. of row 1']").GetAttribute("value"));
+        cut.Find("button[aria-label='Remove row 1']").Click();
+        var removal = await removalStarted.Task.WaitAsync(Timeout);
+        cut.WaitForAssertion(() => Assert.Equal("Auto · pending", cut.Find("input[aria-label='Rent / Space No. of row 2']").GetAttribute("placeholder")), Timeout);
+        await cut.InvokeAsync(() => removalReply.SetResult(Result<SpaceHolderImportPreview>.Success(NumberPreview(removal, "3"))));
+        cut.WaitForAssertion(() => Assert.Equal("Auto · 3", cut.Find("input[aria-label='Rent / Space No. of row 2']").GetAttribute("placeholder")), Timeout);
+        SubmitReadyImport(cut);
+        Assert.Equal(new[] { "2", "" }, saved!.Rows.Select(x => x.Account.SubjectLabel));
+    }
+
+    [Fact]
+    public async Task ImportBusyAndRetryKeepOneSubmissionIdentity()
+    {
+        var pending = new TaskCompletionSource<Result<ImportSpaceHoldersResult>>();
+        var requests = new List<ImportSpaceHoldersRequest>();
+        _api.Setup(x => x.ImportSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>())).Callback<ImportSpaceHoldersRequest>(r => requests.Add(r)).Returns(pending.Task);
+        var cut = RenderComponent<KanmanggayImport>();
+        cut.Find(".imp-use-sample").Click();
+        cut.WaitForAssertion(() => Assert.False(cut.Find(".imp-foot-bar .imp-btn-primary").HasAttribute("disabled")), Timeout);
+        var save = cut.Find(".imp-foot-bar .imp-btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        cut.WaitForAssertion(() => Assert.True(cut.Find(".imp-foot-bar .imp-btn-primary").HasAttribute("disabled")), Timeout);
+        await cut.Find(".imp-foot-bar .imp-btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        Assert.Single(requests);
+        pending.SetResult(Result<ImportSpaceHoldersResult>.Failure("not confirmed"));
+        await save;
+        _api.Setup(x => x.ImportSpaceHoldersAsync(It.IsAny<ImportSpaceHoldersRequest>())).Callback<ImportSpaceHoldersRequest>(r => requests.Add(r))
+            .ReturnsAsync(Result<ImportSpaceHoldersResult>.Success(new(3, 0, [])));
+        SubmitReadyImport(cut);
+        Assert.Equal(2, requests.Count);
+        Assert.Equal(requests[0].ClientOperationId, requests[1].ClientOperationId);
+    }
+
     [Fact]
     public void ImportEditorPreservesEachRowsValuesWhenSwitchingAndRemoving()
     {
@@ -697,8 +897,8 @@ public sealed class ObligationWorkspaceTests : TestContext
         var cut = RenderComponent<KanmanggayImport>();
         cut.Find(".imp-use-sample").Click();
         cut.Find("button[aria-label='Edit row details 1']").Click();
-        cut.Find("input[aria-label='No. of Years of row 1']").Input("2");
-        var field = cut.Find("input[aria-label='No. of Years of row 1']");
+        cut.Find(".shi-editor input[aria-label='No. of Years of row 1']").Input("2");
+        var field = cut.Find(".shi-editor input[aria-label='No. of Years of row 1']");
         Assert.Equal("true", field.GetAttribute("aria-invalid"));
         Assert.Contains("three years", field.ParentElement!.QuerySelector(".form-error")!.TextContent);
         Assert.Contains("1 invalid", cut.Find(".imp-review-detail").TextContent);
@@ -747,7 +947,7 @@ public sealed class ObligationWorkspaceTests : TestContext
             Assert.Equal("Needs holder", cut.Find(".shi-chip-status").TextContent);
             Assert.Equal("Review", cut.Find(".shi-row-edit").TextContent.Trim());
         }, Timeout);
-        cut.Find(".imp-foot-bar .imp-btn-primary").Click();
+        SubmitReadyImport(cut);
         cut.WaitForAssertion(() =>
         {
             Assert.Equal(new[] { "Jose Ramirez", "Ana Lopez" }, saved!.Rows.Select(x => x.Account.ActualOccupant));
@@ -814,7 +1014,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         {
             Assert.Equal("3", cut.Find(".imp-review-count").TextContent.Trim());
             Assert.Contains("active", cut.FindAll(".imp-step")[1].ClassList);
-            Assert.Equal(new[] { "#", "Actual Occupant (Leasee)", "Rent / Space No.", "Lease type", "Effectivity Date", "Actual Mo. Rental", "Status", "Actions" },
+            Assert.Equal(new[] { "#", "Actual Occupant (Leasee)", "Name on Contract", "Rent / Space No.", "Lease type", "Effectivity Date", "No. of Years", "Area (sqm)", "Monthly Rental / Contract", "Actual Mo. Rental", "Whole Year Rental", "Area Loc.", "Status", "Actions" },
                 cut.FindAll(".imp-table thead th").Select(x => x.TextContent.Trim()).Where(x => x.Length > 0).ToArray());
             Assert.Equal(3, cut.FindAll(".imp-table tbody tr").Count);
             Assert.Empty(cut.FindAll(".shi-inline-status, .shi-why"));
@@ -913,12 +1113,14 @@ public sealed class ObligationWorkspaceTests : TestContext
         {
             Assert.Contains("2 ready", cut.Find(".shi-foot-note").TextContent);
             Assert.Contains("1 invalid", cut.Find(".shi-foot-note").TextContent);
-            Assert.Contains("This space already has an account.", cut.FindAll(".imp-table tbody tr")[1].QuerySelector(".shi-why[role='status']")!.TextContent);
+            var popup = cut.FindAll(".imp-table tbody tr")[1].QuerySelector("[popover='auto'][role='tooltip']")!;
+            Assert.Contains("This space already has an account.", popup.TextContent);
+            Assert.Empty(cut.FindAll(".imp-td-status .shi-why"));
             Assert.Equal("Review", cut.FindAll(".imp-table tbody tr")[1].QuerySelector(".shi-row-edit")!.TextContent.Trim());
             Assert.Contains("Auto · 3", cut.Find("input[aria-label='Rent / Space No. of row 3']").GetAttribute("placeholder"));
         }, Timeout);
 
-        cut.Find(".imp-foot-bar .imp-btn-primary").Click();
+        SubmitReadyImport(cut);
 
         cut.WaitForAssertion(() =>
         {
@@ -996,7 +1198,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.FindComponent<Microsoft.AspNetCore.Components.Forms.InputFile>().UploadFiles(InputFileContent.CreateFromText(csv, "register.csv"));
         cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".imp-table tbody tr")), Timeout);
 
-        cut.Find(".imp-foot-bar .imp-btn-primary").Click();
+        SubmitReadyImport(cut);
 
         cut.WaitForAssertion(() =>
         {
@@ -1023,7 +1225,7 @@ public sealed class ObligationWorkspaceTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Contains(reason, cut.Find(".imp-table tbody tr .shi-why[role='status']").TextContent);
+            Assert.Contains(reason, cut.Find(".imp-table tbody tr [popover='auto']").TextContent);
             Assert.Contains("0 ready", cut.Find(".shi-foot-note").TextContent);
         }, Timeout);
     }
@@ -1042,7 +1244,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         Assert.All(cut.FindAll("input[aria-label^='Rent / Space No.']"), cell => Assert.True(cell.HasAttribute("readonly")));                                       // Vegetable / Fruits numbers are the server's
 
         cut.Find("select[aria-label='Lease type of row 2']").Change("No contract (space only)");
-        cut.Find(".imp-foot-bar .imp-btn-primary").Click();
+        SubmitReadyImport(cut);
 
         cut.WaitForAssertion(() =>
         {
@@ -1110,7 +1312,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         var csv = Uri.UnescapeDataString(template[(template.IndexOf(',') + 1)..]) + "Ana Reyes,,Fiesta,2026-08-15,2500\r\n";
         cut.FindComponent<Microsoft.AspNetCore.Components.Forms.InputFile>().UploadFiles(InputFileContent.CreateFromText(csv, "event-template.csv"));
         Assert.Contains("1 ready", cut.Find(".imp-review-detail").TextContent);
-        cut.Find(".imp-foot-bar .imp-btn-primary").Click();
+        SubmitReadyImport(cut);
         cut.WaitForAssertion(() =>
         {
             var account = Assert.Single(saved!.Rows).Account;

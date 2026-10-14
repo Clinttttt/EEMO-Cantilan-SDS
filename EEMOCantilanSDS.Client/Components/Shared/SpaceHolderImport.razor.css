@@ -1,11 +1,7 @@
 /* Space imports reuse the shared import controls and drawer; only their compact review presentation is scoped here. */
 .shi { display: flex; flex-direction: column; gap: 16px; min-width: 0; max-width: 100%; }
-.shi-status { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
-.shi-chip-status { display: inline-flex; padding: 2px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-muted); color: var(--text-secondary); font-size: 11px; font-weight: 600; }
-.shi-ready { background: var(--green-bg); color: var(--green); }
-.shi-invalid { background: var(--red-bg); color: var(--red); }
 .shi-why { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
-.shi-row-edit { border: 1px solid var(--border); border-radius: 7px; background: var(--bg-card); padding: 6px 9px; cursor: pointer; font: inherit; font-size: 12px; font-weight: 600; color: var(--accent); }
+.shi-row-edit { border: 1px solid var(--border); border-radius: 7px; background: var(--bg-card); padding: 6px 9px; cursor: pointer; font: inherit; font-size: 12px; font-weight: 600; color: var(--accent); white-space: nowrap; }
 .shi-row-edit:hover { background: var(--accent-soft); }
 .shi-row-edit:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .shi-foot-note { margin-right: auto; color: var(--text-secondary); font-size: 12.5px; }
