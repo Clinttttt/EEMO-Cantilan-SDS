@@ -3,6 +3,7 @@
 @using System.Globalization
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Client.Services
+@implements IDisposable
 @inject IContractsMonitoringSource Source
 
 <PageTitle>StallTrack — Contracts Monitoring</PageTitle>
@@ -236,9 +237,37 @@
         }
     }
 
+    // The first, unfiltered page is handed from the prerender to the interactive circuit, so opening the page asks the API once.
+    [PersistentState(AllowUpdates = true)]
+    public ContractsMonitoringPage? CachedFirstPage { get; set; }
+
+    private CancellationTokenSource? _cts;
+
     protected override async Task OnInitializedAsync()
     {
+        if (CachedFirstPage is { } cached)
+        {
+            Apply(cached);
+            _loading = false;
+            return;
+        }
         await LoadAsync();
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+
+    private void Apply(ContractsMonitoringPage page)
+    {
+        _summary = page.Summary;
+        _rows = page.Rows;
+        _total = page.TotalRows;
+        _page = page.Page;
+        _pageSize = page.PageSize;
+        _operations = page.Operations;
     }
 
     private async Task LoadAsync()
@@ -248,11 +277,19 @@
         _failure = null;
         StateHasChanged();
 
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+
         ContractsMonitoringResult result;
         try
         {
             result = await Source.LoadAsync(new ContractsMonitoringQuery(
-                string.IsNullOrWhiteSpace(_search) ? null : _search.Trim(), _operation, _status, _window, null, _page, _pageSize));
+                string.IsNullOrWhiteSpace(_search) ? null : _search.Trim(), _operation, _status, _window, null, _page, _pageSize), _cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return; // superseded by a newer request, or the page was left
         }
         catch (Exception)
         {
@@ -267,12 +304,8 @@
             _rows = [];
             return;
         }
-        _summary = page.Summary;
-        _rows = page.Rows;
-        _total = page.TotalRows;
-        _page = page.Page;
-        _pageSize = page.PageSize;
-        _operations = page.Operations;
+        Apply(page);
+        if (!HasFilters && page.Page == 1) CachedFirstPage = page;
     }
 
     private Task Refilter() { _page = 1; return LoadAsync(); }
@@ -294,7 +327,8 @@
 
     private static string Figure(int? n) => n is { } v ? v.ToString("N0", CultureInfo.InvariantCulture) : "—";
     private static string ExpiryText(ContractsMonitoringRow r) =>
-        r.Expiry is { } d ? d.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) : NotRecorded;
+        r.Expiry is { } d ? d.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
+        : r.StatusKey == "NoContract" ? "No expiry" : NotRecorded;
 
     private static string RemainingText(ContractsMonitoringRow r) => r.RemainingDays switch
     {

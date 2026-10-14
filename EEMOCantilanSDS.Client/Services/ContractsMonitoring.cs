@@ -42,7 +42,8 @@ public sealed record ContractsMonitoringRow(
     string Status,
     int? RemainingDays,
     IReadOnlyList<ContractsMonitoringFact> Facts,
-    string? SourceHref);
+    string? SourceHref,
+    string? StatusKey = null);
 
 public sealed record ContractsMonitoringPage(
     ContractsMonitoringSummary Summary,
@@ -72,14 +73,4 @@ public enum ContractsMonitoringFailure
 public interface IContractsMonitoringSource
 {
     Task<ContractsMonitoringResult> LoadAsync(ContractsMonitoringQuery query, CancellationToken cancellationToken = default);
-}
-
-/// <summary>
-/// Registered until the monitoring API is bound. It returns no data on purpose, so the running portal shows an honest
-/// "not connected" state instead of sample contracts.
-/// </summary>
-public sealed class UnavailableContractsMonitoringSource : IContractsMonitoringSource
-{
-    public Task<ContractsMonitoringResult> LoadAsync(ContractsMonitoringQuery query, CancellationToken cancellationToken = default) =>
-        Task.FromResult(ContractsMonitoringResult.Fail(ContractsMonitoringFailure.Unavailable));
 }
