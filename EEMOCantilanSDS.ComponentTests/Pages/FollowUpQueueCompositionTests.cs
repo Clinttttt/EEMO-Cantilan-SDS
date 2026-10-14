@@ -123,8 +123,9 @@ public sealed class FollowUpQueueCompositionTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Contains(cut.FindAll(".fq-chip"), c => c.TextContent.Trim() == "All sources");
-            Assert.DoesNotContain(cut.FindAll(".fq-chip"), c => c.TextContent.Trim() == "All Facilities");
+            Assert.Contains("All sources", cut.Find(".fq-source-select .fh-dd-trigger").TextContent);
+            Assert.Empty(cut.FindAll("[aria-label='Filter by source'] .fq-chip"));
+            Assert.Single(cut.FindAll(".fq-source-select .fh-dd-trigger"));
             Assert.Contains("Unpaid and partial periods", cut.Markup);
             Assert.Contains("August 2026", cut.Markup);                       // monthly period
             Assert.Contains("Fiesta · Aug 15, 2026", cut.Markup);             // event period
@@ -133,13 +134,37 @@ public sealed class FollowUpQueueCompositionTests : TestContext
             Assert.Null(cut.FindAll(".fq-priority").FirstOrDefault(p => p.TextContent.Contains("Critical")));
         }, RenderTimeout);
 
-        cut.FindAll(".fq-chip").Single(c => c.TextContent.Trim() == "Kanmanggay").Click();
+        cut.Find(".fq-source-select .fh-dd-trigger").Click();
+        cut.FindAll(".fq-source-select [role='option']").Single(c => c.TextContent.Contains("Kanmanggay")).Click();
         Assert.Contains("Lisa Ilogans", cut.Markup);
         Assert.DoesNotContain("Ben Cruz", cut.Markup);
         Assert.DoesNotContain("Lower-age delinquent", cut.Markup);            // classic rows are not mixed into a space scope
 
-        cut.FindAll(".fq-chip").Single(c => c.TextContent.Trim().StartsWith("TCC") || c.GetAttribute("title") == "TCC").Click();
+        cut.Find(".fq-source-select .fh-dd-trigger").Click();
+        cut.FindAll(".fq-source-select [role='option']").Single(c => c.TextContent.Trim() == "TCC" || c.TextContent.Contains("Tampak Commercial Center")).Click();
         Assert.DoesNotContain("Lisa Ilogans", cut.Markup);
+    }
+
+    [Fact]
+    public void FilterToolbarKeepsReasonShortcutsAndSourcePickerWithoutRemovingFollowUpRecords()
+    {
+        var (cut, _) = RenderQueue();
+        cut.WaitForAssertion(() => Assert.NotNull(RowFor(cut, "Lower-age delinquent")), RenderTimeout);
+        Assert.Single(cut.FindAll(".fq-filterbar"));
+        Assert.Single(cut.FindAll(".fq-filterbar > .fq-reasons"));
+        Assert.Single(cut.FindAll(".fq-filterbar > .fq-toolrow"));
+        Assert.Single(cut.FindAll(".fq-source-select .fh-dd-trigger"));
+        Assert.Collection(cut.FindAll(".fq-reasons .fq-chip"),
+            x => Assert.StartsWith("All", x.TextContent.Trim()),
+            x => Assert.StartsWith("Delinquent", x.TextContent.Trim()),
+            x => Assert.StartsWith("Current-period", x.TextContent.Trim()),
+            x => Assert.StartsWith("Contract", x.TextContent.Trim()),
+            x => Assert.StartsWith("Excused Review", x.TextContent.Trim()),
+            x => Assert.StartsWith("Miscellaneous", x.TextContent.Trim()));
+        Assert.DoesNotContain(cut.FindAll(".fq-reasons .fq-chip"),
+            x => x.TextContent.Contains("Missing OR") || x.TextContent.Contains("NPM Daily"));
+        Assert.NotNull(RowFor(cut, "Lower-age delinquent"));
+        Assert.Contains("Past-period view", cut.Find(".fq-history-link").TextContent);
     }
 
     [Fact]

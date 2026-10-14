@@ -7,11 +7,39 @@
    ══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Filter choices header (chips) + search ── */
+/* Keep reason shortcuts, search, source picker and history together at desktop widths.
+   Scroll within the reasons only when space is exceptionally tight; never wrap a chip label. */
 .fq-filterbar {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: nowrap;
     gap: 10px;
     margin-bottom: 20px;
+    min-width: 0;
+}
+.fq-reasons {
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-wrap: nowrap !important;
+    white-space: nowrap;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+.fq-reasons .fq-chip { white-space: nowrap; flex-shrink: 0; }
+.fq-source-select { flex: 0 0 174px; min-width: 0; }
+.fq-source-select ::deep .fh-dd-trigger { height: 42px; border-radius: 10px; }
+.fq-source-select ::deep .fh-dd-menu { min-width: 235px; }
+.fq-source-select ::deep .fh-dd-val { overflow: hidden; text-overflow: ellipsis; max-width: 145px; }
+@media (max-width: 1160px) {
+    .fq-filterbar { flex-wrap: wrap; }
+    .fq-reasons { flex: 1 1 100%; }
+    .fq-toolrow { flex: 1 1 100%; }
+}
+@media (max-width: 560px) {
+    .fq-toolrow { flex-wrap: wrap; }
+    .fq-source-select { flex: 1 1 42%; }
+    .fq-history-link { margin-left: 0; }
 }
 .fq-context-note {
     display: flex;
@@ -31,8 +59,10 @@
 .fq-toolrow {
     display: flex;
     align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
+    gap: 10px;
+    flex: 0 1 auto;
+    min-width: 0;
+    flex-wrap: nowrap;
 }
 .fq-filters {
     display: inline-flex; flex-wrap: wrap; gap: 5px; align-items: center;
@@ -64,6 +94,7 @@
 .fq-chip-active .fq-chip-count { background: rgba(255, 255, 255, .22); color: #fff; }
 
 .fq-search {
+    max-width: 245px;
     display: flex;
     align-items: center;
     gap: 9px;
@@ -110,7 +141,7 @@
 .fq-r { text-align: center; }
 
 .fq-person { font-size: 13.5px; font-weight: 700; color: var(--text); white-space: nowrap; }
-.fq-period { font-size: 13px; color: var(--text); white-space: nowrap; }
+.fq-period { font-size: 13.5px; font-weight: 700; color: var(--text); white-space: nowrap; }
 .fq-note { font-size: 13px; color: var(--text); }
 .fq-sub { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
 
