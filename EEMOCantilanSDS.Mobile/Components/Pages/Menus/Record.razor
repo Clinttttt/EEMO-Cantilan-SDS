@@ -153,10 +153,18 @@
                                         <span class="record-section">@rec.SlaughterLines.Count animal types</span>
                                     }
                                     <span class="record-time">@RowTimeLine(row)</span>
+                                    @if (!rec.IsAbsent)
+                                    {
+                                        <span class="record-nature">@(row.SharesOneNature ? rec.Nature : "Multiple charges")</span>
+                                    }
                                 </div>
                             </div>
                             <div class="record-amount-col">
-                                <div class="record-amount">@(rec.IsAbsent ? "—" : "₱" + row.TotalAmount.ToString("N0"))</div>
+                                <div class="record-amount">@(rec.IsAbsent ? "—" : "₱" + row.TotalPaid.ToString("N2"))</div>
+                                @if (!rec.IsAbsent)
+                                {
+                                    <div class="record-amount-caption">@(row.AnyPartial ? $"of ₱{row.TotalAmount:N2} assessed" : "Collected")</div>
+                                }
                                 <span class="record-status-pill @RowPillClass(row)">@RowStatusLabel(row)</span>
                             </div>
                         </div>
@@ -188,7 +196,14 @@
                 }
                 else
                 {
-                    <div class="detail-row"><span class="detail-key">OR Number</span><span class="detail-val">#@SelectedRecord.ORNumber</span></div>
+                    @if (HasReceiptNumber(SelectedRecord.ORNumber))
+                    {
+                        <div class="detail-row"><span class="detail-key">OR Number</span><span class="detail-val">@SelectedRecord.ORNumber</span></div>
+                    }
+                    else
+                    {
+                        <div class="detail-row"><span class="detail-key">Receipt evidence</span><span class="detail-val">No linked OR / SRC</span></div>
+                    }
                 }
             }
             <div class="detail-row"><span class="detail-key">Facility</span><span class="detail-val">@SelectedRecord.FacilityName</span></div>
@@ -309,7 +324,7 @@
     <div class="sheet-overlay" @onclick="ClosePendingSheet">
         <div class="sheet" @onclick:stopPropagation="true">
             <div class="sheet-handle"></div>
-            <div class="sheet-title">Offline &amp; Cash Ticket history</div>
+            <div class="sheet-title">Offline collection history</div>
             <div class="sheet-sub">
                 @if (Sync.HasStorageFault)
                 {
@@ -319,13 +334,17 @@
                         This device could not read or write its offline queue@(PendingOps.Count > 0 ? $", and {PendingOps.Count} collection{(PendingOps.Count == 1 ? "" : "s")} are held in memory only" : ""). Sync while you have signal, and report this device.
                     </text>
                 }
+                else if (PendingOps.Count == 0)
+                {
+                    <text>No offline collections are waiting to sync. Confirmed collections are listed in Records.</text>
+                }
                 else if (WaitingOperationCount == 0 && RetainedTicketCount == 0)
                 {
-                    <text>No offline collections are waiting to sync.</text>
+                    <text>Synced local history retained for verification. Check Records for the server copy.</text>
                 }
                 else
                 {
-                    <text>@WaitingOperationCount operation@(WaitingOperationCount == 1 ? "" : "s") need sync or review; @RetainedTicketCount physically issued Cash Ticket record@(RetainedTicketCount == 1 ? "" : "s") retained on this device.</text>
+                    <text>@WaitingOperationCount collection@(WaitingOperationCount == 1 ? "" : "s") need sync or review. @if (RetainedTicketCount > 0) { <span>@RetainedTicketCount issued document record@(RetainedTicketCount == 1 ? "" : "s") retained on this device.</span> } Synced collections with confirmed SRCs appear in Records.</text>
                 }
             </div>
 
@@ -342,7 +361,7 @@
                         var orphaned = op.OwnerKey is null;
                         <div class="pending-item @(orphaned ? "rejected" : PendingItemClass(op))" @key="op.ClientOperationId">
                             <div class="pending-item-main">
-                                <div class="pending-item-title">@op.Title</div>
+                                <div class="pending-item-title">@OfflineCollectionHistory.Title(op)</div>
                                 <div class="pending-item-detail">
                                     @op.FacilityLabel@(string.IsNullOrWhiteSpace(op.Detail) ? "" : " · " + op.Detail)@(string.IsNullOrWhiteSpace(op.ORNumber) ? "" : " · OR " + op.ORNumber)
                                 </div>
@@ -360,7 +379,7 @@
                                 }
                                 else if (op.IssuedDocumentState == IssuedDocumentLocalState.SyncedAcknowledged)
                                 {
-                                    <div class="pending-item-msg">@(string.IsNullOrWhiteSpace(op.ReferenceCode) ? "Collection recorded." : $"Collection recorded · {op.ReferenceCode}")</div>
+                                    <div class="pending-item-msg pending-item-confirmed">@(OfflineCollectionHistory.ServerReferences(op) is { } refs ? $"Recorded · {refs}" : "Synced acknowledgement; reference unavailable. Verify in Records.")</div>
                                 }
                                 else if (op.LocalStatus == PendingLocalStatus.Failed)
                                 {
@@ -373,7 +392,7 @@
                                 }
                             </div>
                             <div class="pending-item-right">
-                                <div class="pending-item-amount">₱@op.Amount.ToString("N0")</div>
+                                <div class="pending-item-amount">@(OfflineCollectionHistory.DisplayAmount(op) is { } amount ? $"₱{amount:N2}" : "Amount unconfirmed")</div>
                                 <span class="pending-status @(orphaned ? "rejected" : PendingItemClass(op))">@(orphaned ? "Unassigned" : PendingStatusLabel(op))</span>
                                 @if (!orphaned && MobileSyncService.CanReviewUnpostedSession(op))
                                 { <button class="pending-discard" type="button" @onclick='() => Navigation.NavigateTo("/collections/new?sessionId=" + op.ClientOperationId)'>Review</button> }
@@ -718,7 +737,7 @@
 
     static string RowStatusLabel(RecordRow row) =>
         row.Primary.IsAbsent ? "Excused"
-        : row.AnyPartial ? $"₱{row.TotalPaid:N0} paid"
+        : row.AnyPartial ? "Partial"
         : "Paid";
 
     // The line under the name: the time the last money came in, and the receipt number while there is only one to name.
@@ -728,12 +747,16 @@
     // An absence names the DAY it excuses, not the moment it was written. A section closure excuses a whole frozen span in
     // one act, so every day of it shares one written-at time; stating that time told the office nothing and put the excusal
     // on a day nobody had touched the section.
+    static bool HasReceiptNumber(string? number) =>
+        !string.IsNullOrWhiteSpace(number) && number.Trim() is not ("—" or "-" or "0");
+
     static string RowTimeLine(RecordRow row) =>
         row.Primary.IsAbsent
             ? (row.FeeDayLabel.Length > 0 ? row.FeeDayLabel + " · excused" : "excused")
             : row.ReceiptCount == 1
-                ? row.LatestAt.ToString("hh:mm tt") + " · OR #" + row.Primary.ORNumber
-                : row.LatestAt.ToString("hh:mm tt") + " · last of " + row.ReceiptCount + " receipts";
+                ? row.LatestAt.ToString("MMM d · hh:mm tt")
+                  + (HasReceiptNumber(row.Primary.ORNumber) ? " · OR " + row.Primary.ORNumber : " · Receipt not linked")
+                : row.LatestAt.ToString("MMM d · hh:mm tt") + " · " + row.ReceiptCount + " receipts";
 
     // Tag on a collapsed entry. Several receipts are counted as receipts, because that is what the office answers for; one
     // receipt covering several owed days states the days; anything else states plain entries.
@@ -751,14 +774,13 @@
     IReadOnlyList<PendingOperation> PendingOps = Array.Empty<PendingOperation>();
 
     int WaitingOperationCount => PendingOps.Count(op => op.LocalStatus != PendingLocalStatus.Synced);
-    int RetainedTicketCount => PendingOps.Count(op => op.AccountableDocumentId is not null
-        || op.IssuedDocumentState is not null);
+    int RetainedTicketCount => OfflineCollectionHistory.IssuedDocumentCount(PendingOps);
 
     bool HasRetryable => PendingOps.Any(o => o.OwnerKey is not null && o.LocalStatus is PendingLocalStatus.Pending or PendingLocalStatus.Failed);
 
     async Task OpenPendingSheetAsync()
     {
-        PendingOps = await Sync.GetAllAsync();
+        PendingOps = OfflineCollectionHistory.Display(await Sync.GetAllAsync());
         ShowPendingSheet = true;
     }
 
@@ -767,7 +789,7 @@
     async Task SyncPendingNowAsync()
     {
         var summary = await Sync.SyncNowAsync();
-        PendingOps = await Sync.GetAllAsync();
+        PendingOps = OfflineCollectionHistory.Display(await Sync.GetAllAsync());
         if (summary.Synced > 0)
             await RefreshRecordsAsync();
     }
@@ -775,7 +797,7 @@
     async Task DiscardPendingAsync(Guid clientOperationId)
     {
         await Sync.DiscardAsync(clientOperationId);
-        PendingOps = await Sync.GetAllAsync();
+        PendingOps = OfflineCollectionHistory.Display(await Sync.GetAllAsync());
     }
 
     static string PendingStatusLabel(PendingOperation op) => op.LocalStatus switch
@@ -793,6 +815,7 @@
         PendingLocalStatus.Rejected => "rejected",
         PendingLocalStatus.ReconciliationRequired => "rejected",
         PendingLocalStatus.Failed => "failed",
+        PendingLocalStatus.Synced => "synced",
         _ => "pending"
     };
 
@@ -821,7 +844,7 @@
                 if (_disposed)
                     return;
                 if (ShowPendingSheet)
-                    PendingOps = await Sync.GetAllAsync();
+                    PendingOps = OfflineCollectionHistory.Display(await Sync.GetAllAsync());
 
                 if (queueDrained)
                     await RefreshRecordsAsync();

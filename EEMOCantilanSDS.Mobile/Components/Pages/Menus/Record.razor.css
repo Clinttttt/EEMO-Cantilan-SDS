@@ -73,6 +73,33 @@
     box-shadow: 0 0 0 2px var(--bg-page);
 }
 
+.record-nature {
+    display: block;
+    color: var(--text-subtle);
+    font-size: 12px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.record-amount-caption {
+    font-size: 10.5px;
+    line-height: 1.3;
+    color: var(--text-subtle);
+    text-align: right;
+    white-space: normal;
+    max-width: 135px;
+}
+
+.pending-item-msg.pending-item-confirmed {
+    color: var(--paid-green);
+    overflow-wrap: anywhere;
+}
+
+.pending-item-amount {
+    max-width: 130px;
+    text-align: right;
+}
+
 /* Connectivity strip inside the sheet */
 .pending-conn {
     display: flex;
@@ -200,6 +227,11 @@
     .pending-status.failed {
         color: var(--text-subtle);
         background: var(--bg-icon);
+    }
+
+    .pending-status.synced {
+        color: var(--paid-green);
+        background: var(--paid-green-bg);
     }
 
     .pending-status.rejected {
