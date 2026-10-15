@@ -1,5 +1,17 @@
-.npm-request { display: grid; gap: 8px; padding: 12px; margin: 12px 0; border: 1px solid var(--mobile-border); border-radius: 10px; background: var(--mobile-surface); font-size: 13px; }
-.npm-request p { margin: 0; line-height: 1.4; }
-.npm-request label { display: grid; gap: 4px; }
-.npm-request input, .npm-request select, .npm-request textarea { width: 100%; min-width: 0; box-sizing: border-box; }
-.npm-request a { color: var(--mobile-blue); }
+.npm-request { display: grid; gap: 10px; box-sizing: border-box; width: 100%; min-width: 0; padding: 13px; margin: 8px 0 14px; border: 1px solid #b9d3ed; border-radius: 11px; background: #f0f6fd; color: #183450; font-size: 13px; }
+.npm-request-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.npm-request-head strong { color: #173f76; font-size: 13px; font-weight: 700; }
+.npm-request-head span { padding: 3px 8px; color: #45607e; background: #e1edf8; border-radius: 20px; font-size: 11px; white-space: nowrap; }
+.npm-request p { margin: 0; line-height: 1.48; opacity: 1; }
+.npm-request-message { color: #294462; }
+.npm-request-policy { color: #516680; font-size: 12px; }
+.npm-request-success { color: #176247; font-weight: 600; }
+.npm-request .npm-request-error { padding: 9px; border-left: 3px solid #b34a4a; background: #fff2f2; color: #8d2727; }
+.npm-request .npm-request-field { display: grid; gap: 5px; font-weight: 600; color: #30465d; font-size: 12px; }
+.npm-request .form-input { width: 100%; min-width: 0; box-sizing: border-box; background: #fff; border: 1px solid #b9cce1; color: #142c45; font-size: 14px; }
+.npm-request textarea { resize: vertical; min-height: 76px; }
+.npm-request button.npm-request-action { box-sizing: border-box; width: 100%; min-height: 42px; padding: 10px 12px; border: 1px solid #215db2; border-radius: 9px; background: #215db2; color: #fff; font-size: 13px; font-weight: 700; opacity: 1; }
+.npm-request button.npm-request-action:disabled { opacity: 1; border-color: #bbcbdc; color: #40536b; background: #dce5ee; cursor: not-allowed; }
+.npm-request button.npm-request-back { border: 0; background: transparent; color: #205eac; min-height: 35px; font-weight: 600; }
+.npm-request .npm-request-history { display: flex; align-items: center; justify-content: space-between; padding: 5px 0 0; border-top: 1px solid #cfdeef; color: #215ca8; font-size: 12px; font-weight: 650; text-decoration: none; }
+.npm-request button:focus-visible, .npm-request a:focus-visible { outline: 2px solid #174f99; outline-offset: 2px; }

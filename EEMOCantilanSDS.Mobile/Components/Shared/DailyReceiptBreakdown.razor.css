@@ -1,0 +1,9 @@
+.daily-breakdown { border: 1px solid var(--mobile-border); border-radius: 10px; margin: 8px 0 12px; padding: 10px 12px; background: var(--mobile-surface-subtle); }
+.daily-breakdown-summary { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px; font-size: 12px; line-height: 1.5; color: var(--mobile-text-secondary); }
+.daily-breakdown-summary strong { color: var(--mobile-navy); font-variant-numeric: tabular-nums; }
+.daily-breakdown details { margin-top: 8px; }
+.daily-breakdown summary { color: var(--mobile-blue); cursor: pointer; font-size: 12px; font-weight: 650; padding: 4px 0; }
+.daily-breakdown summary:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2px; }
+.daily-breakdown-items { max-height: 190px; overflow-y: auto; padding-top: 8px; border-top: 1px solid var(--mobile-border); overscroll-behavior: contain; }
+.daily-breakdown-item { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; font-size: 12px; color: var(--mobile-text-secondary); }
+.daily-breakdown-item strong { color: var(--mobile-navy); font-variant-numeric: tabular-nums; white-space: nowrap; }

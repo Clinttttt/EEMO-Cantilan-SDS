@@ -1,33 +1,162 @@
 @page "/npm-requests"
+@using EEMOCantilanSDS.Application.Common
 @using EEMOCantilanSDS.Application.Dtos.Mobile
 @using EEMOCantilanSDS.Domain.Entities.Revenue
 @inject EEMOCantilanSDS.Application.Common.Interface.ApiClients.IMobileApiClient Api
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
+
 <div class="page-shell">
     <AppHeader CollectorName="@Session.CollectorName" />
-    <div class="content">
-        <h1>My NPM requests</h1><p>Registration review only. No cash received and no SRC issued.</p>
-        @if (_error is not null) { <p role="alert">@_error</p><button type="button" @onclick="Load">Try again</button> }
-        @foreach (var row in _data?.Rows ?? [])
+    <main class="content npm-history">
+        <header class="npm-history-hero">
+            <span class="npm-history-eyebrow">NPM · REGISTRATION</span>
+            <h1>My NPM requests</h1>
+            <p>Track stall registration reviews from the office.</p>
+        </header>
+        <p class="npm-history-safeguard">Registration only · No payment or SRC is created.</p>
+
+        @if (_loading)
         {
-            <CollectionRecordRow Identity="@row.VendorName" ShowAmount="false" DateText="@EEMOCantilanSDS.Domain.Common.PhilippineTime.ToPhilippineTime(row.SubmittedAtUtc).ToString("MMM d, yyyy")" Status="@row.Status.ToString()">
-                <Details><span>@row.ProposedStall · @row.ProposedSection · @row.FinancialState</span><p>@row.Note</p>@if (row.ReviewReason is not null) { <p>Office review: @row.ReviewReason</p> }</Details>
-            </CollectionRecordRow>
-            @if (row.Status == NpmRegistrationRequestStatus.Returned) { <NpmRegistrationRequestForm VendorId="row.VendorRegistrationId" ReplacesRequestId="row.Id" /> }
+            <section class="npm-history-state" role="status">
+                <strong>Loading requests…</strong>
+                <p>Checking your office review history.</p>
+            </section>
         }
-        @if (_data is { Total: 0 }) { <p>No registration requests.</p> }
-        <button class="collection-small" type="button" disabled="@(_page == 1)" @onclick="Previous">Previous</button>
-        <button class="collection-small" type="button" disabled="@(_data is null || _page * 25 >= _data.Total)" @onclick="Next">Next</button>
-        <a href="/records">Back to Records</a>
-    </div>
+        else if (_error is not null)
+        {
+            <section class="npm-history-state npm-history-error" role="alert">
+                <strong>Request history unavailable</strong>
+                <p>@_error</p>
+                <div class="npm-history-actions">
+                    <button type="button" class="npm-history-retry" @onclick="Load" disabled="@_loading">Try again</button>
+                    <a href="/records">Back to Records</a>
+                </div>
+            </section>
+        }
+        else if (_data is { Total: 0 })
+        {
+            <section class="npm-history-state">
+                <strong>No requests yet</strong>
+                <p>When you submit a registration request, its review status will appear here.</p>
+                <a href="/records">Back to Records</a>
+            </section>
+        }
+        else if (_data is { } history)
+        {
+            <div class="npm-history-list-head">
+                <h2>Submitted requests</h2>
+                <span>@history.Total total</span>
+            </div>
+            <div class="npm-history-list">
+                @foreach (var row in history.Rows)
+                {
+                    <article class="npm-history-card" @key="row.Id">
+                        <div class="npm-history-card-top">
+                            <strong>@row.VendorName</strong>
+                            <span class="npm-history-status @StatusClass(row.Status)">@StatusText(row.Status)</span>
+                        </div>
+                        <div class="npm-history-meta">
+                            @EEMOCantilanSDS.Domain.Common.PhilippineTime.ToPhilippineTime(row.SubmittedAtUtc).ToString("MMM d, yyyy · h:mm tt")
+                        </div>
+                        <div class="npm-history-stall">
+                            <span>Proposed stall</span>
+                            <strong>@row.ProposedStall</strong>
+                            @if (row.ProposedSection is not null) { <span>· @row.ProposedSection</span> }
+                        </div>
+                        @if (row.Status == NpmRegistrationRequestStatus.Returned)
+                        {
+                            <p class="npm-history-feedback">Returned for correction. Review the office note below.</p>
+                        }
+                        else if (row.Status == NpmRegistrationRequestStatus.Approved)
+                        {
+                            <p class="npm-history-feedback">Registration verified by the office. No payment recorded by this review.</p>
+                        }
+                        <details class="npm-history-details">
+                            <summary>Request details</summary>
+                            <dl>
+                                <dt>Office reference</dt><dd>@row.Note</dd>
+                                @if (!string.IsNullOrWhiteSpace(row.ReviewReason))
+                                {
+                                    <dt>Office response</dt><dd>@row.ReviewReason</dd>
+                                }
+                                <dt>Financial state</dt><dd>@row.FinancialState</dd>
+                            </dl>
+                        </details>
+                        @if (row.Status == NpmRegistrationRequestStatus.Returned)
+                        {
+                            <details class="npm-history-correction">
+                                <summary>Submit a corrected request</summary>
+                                <NpmRegistrationRequestForm VendorId="row.VendorRegistrationId" ReplacesRequestId="row.Id" />
+                            </details>
+                        }
+                    </article>
+                }
+            </div>
+            @if (history.Total > history.PageSize)
+            {
+                <nav class="npm-history-paging" aria-label="Request pages">
+                    <button type="button" disabled="@(_loading || _page <= 1)" @onclick="Previous">Previous</button>
+                    <span>Page @_page of @Math.Max(1, (int)Math.Ceiling(history.Total / (double)history.PageSize))</span>
+                    <button type="button" disabled="@(_loading || _page * history.PageSize >= history.Total)" @onclick="Next">Next</button>
+                </nav>
+            }
+            <a class="npm-history-back" href="/records">← Back to Records</a>
+        }
+    </main>
     <BottomNav ActiveTab="records" />
 </div>
+
 @code {
     private NpmRegistrationRequestPage? _data;
     private string? _error;
+    private bool _loading;
     private int _page = 1;
     protected override Task OnInitializedAsync() => Load();
-    private async Task Load() { try { var result = await Api.GetNpmRequestsAsync(_page); _data = result.Value; _error = result.IsSuccess ? null : result.Error ?? "Could not load requests."; } catch { _error = "Connect to load requests."; } }
-    private async Task Previous() { _page--; await Load(); }
-    private async Task Next() { _page++; await Load(); }
+    private async Task Load()
+    {
+        if (_loading) return;
+        _loading = true;
+        _error = null;
+        try
+        {
+            var result = await Api.GetNpmRequestsAsync(_page);
+            if (result.IsSuccess && result.Value is not null)
+            {
+                _data = result.Value;
+            }
+            else
+            {
+                _data = null;
+                _error = result.Status switch
+                {
+                    ResultStatus.NotFound => "The local API does not have the NPM request feature enabled yet. The updated server and its approved migration are required.",
+                    ResultStatus.Unauthorized or ResultStatus.Forbidden => "Your session is not authorized to view these requests. Sign in with your assigned collector account.",
+                    _ => result.Error ?? "The office request service could not respond. Check your connection or ask the office to verify the API version."
+                };
+            }
+        }
+        catch
+        {
+            _data = null;
+            _error = "Could not contact the office service. Check your connection and try again.";
+        }
+        finally { _loading = false; }
+    }
+    private async Task Previous() { if (_page > 1) { _page--; await Load(); } }
+    private async Task Next() { if (_data is { } d && _page * d.PageSize < d.Total) { _page++; await Load(); } }
+    private static string StatusClass(NpmRegistrationRequestStatus status) => status switch
+    {
+        NpmRegistrationRequestStatus.Approved => "is-approved",
+        NpmRegistrationRequestStatus.Returned => "is-returned",
+        NpmRegistrationRequestStatus.Rejected => "is-rejected",
+        _ => "is-pending"
+    };
+    private static string StatusText(NpmRegistrationRequestStatus status) => status switch
+    {
+        NpmRegistrationRequestStatus.Submitted => "Pending review",
+        NpmRegistrationRequestStatus.Approved => "Approved",
+        NpmRegistrationRequestStatus.Returned => "Returned",
+        NpmRegistrationRequestStatus.Rejected => "Rejected",
+        _ => status.ToString()
+    };
 }

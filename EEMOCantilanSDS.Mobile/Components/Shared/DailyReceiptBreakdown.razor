@@ -1,0 +1,44 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+<section class="daily-breakdown" aria-label="Covered payment dates">
+    <div class="daily-breakdown-summary">
+        <span class="daily-breakdown-count">@Days.Count covered day@(Days.Count == 1 ? "" : "s")</span>
+        <strong>@Period</strong>
+    </div>
+    <details>
+        <summary>View daily breakdown (@Items.Count entries)</summary>
+        <div class="daily-breakdown-items">
+            @foreach (var item in Items.OrderBy(x => x.FeeDate).ThenBy(x => x.CollectedAt))
+            {
+                <div class="daily-breakdown-item">
+                    <span>@item.FeeDate?.ToString("MMM d, yyyy")</span>
+                    <strong>₱@item.AmountPaid.ToString("N2", CultureInfo.InvariantCulture)</strong>
+                </div>
+            }
+        </div>
+    </details>
+</section>
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<MobileCollectorRecordDto> Items { get; set; } = [];
+    private IReadOnlyList<DateOnly> Days => Items.Where(x => x.FeeDate.HasValue)
+        .Select(x => x.FeeDate!.Value).Distinct().OrderBy(x => x).ToArray();
+    private string Period
+    {
+        get
+        {
+            var days = Days;
+            if (days.Count == 0) return "Dates not recorded";
+            if (days.Count == 1) return days[0].ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+            var first = days[0];
+            var last = days[^1];
+            var consecutive = days.Count == last.DayNumber - first.DayNumber + 1;
+            var from = first.ToString("MMM d", CultureInfo.InvariantCulture);
+            var end = first.Year == last.Year && first.Month == last.Month
+                ? last.Day.ToString(CultureInfo.InvariantCulture)
+                : last.ToString("MMM d", CultureInfo.InvariantCulture);
+            return consecutive
+                ? $"{from}–{end}, {last.Year}"
+                : $"Between {from} and {last:MMM d, yyyy} (not continuous)";
+        }
+    }
+}
