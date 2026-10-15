@@ -66,6 +66,10 @@ public sealed partial class OfficeCollectionWorkflow
         }
         catch (ArgumentException e) { return Result<NpmRegistrationRequestDto>.Failure(e.Message, ResultStatus.Invalid); }
         catch (DbUpdateException) { return Result<NpmRegistrationRequestDto>.Failure("Request concurrency conflict; refresh before retrying.", ResultStatus.Conflict); }
+        catch (DbException ex) when (ex.SqlState == "42P01")
+        {
+            return Result<NpmRegistrationRequestDto>.Failure("NPM registration requests are not available in this office database yet. Ask the administrator to complete the approved setup.", ResultStatus.Failed);
+        }
         catch (DbException) { return Result<NpmRegistrationRequestDto>.Failure("Request concurrency conflict; refresh before retrying.", ResultStatus.Conflict); }
         finally { if (!committed) db.ChangeTracker.Clear(); }
     }
