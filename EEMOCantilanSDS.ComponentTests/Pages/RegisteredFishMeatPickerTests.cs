@@ -72,7 +72,8 @@ public sealed class RegisteredFishMeatPickerTests : TestContext
         _api.Setup(x => x.ReviewNpmRequestAsync(row.Id, It.IsAny<ReviewNpmRegistrationRequest>()))
             .Callback<Guid, ReviewNpmRegistrationRequest>((_, r) => sent = r).ReturnsAsync(Result<NpmRegistrationRequestDto>.Failure("Retry"));
         var view = RenderComponent<EEMOCantilanSDS.Client.Components.Pages.Menus.PendingNpmRequests>();
-        view.FindAll("button").Single(x => x.TextContent == "View details").Click();
+        view.FindAll("button").Single(x => x.TextContent == "Review").Click();
+        Assert.Contains("Pending review", view.Markup);
         Assert.Contains("No cash received", view.Markup);
         Assert.Equal("", view.FindComponents<FhSelect>().Single().Instance.Value);
         Assert.DoesNotContain("_association", view.Markup);

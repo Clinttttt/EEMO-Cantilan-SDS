@@ -2,10 +2,16 @@
     display: flex;
     gap: 4px;
     margin: 0 0 16px;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: thin;
     border-bottom: 1px solid var(--border);
 }
 .mt-tab {
     padding: 8px 14px;
+    flex-shrink: 0;
+    white-space: nowrap;
     margin-bottom: -1px;
     border-bottom: 2px solid transparent;
     font-size: 13px;

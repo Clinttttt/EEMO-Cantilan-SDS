@@ -82,15 +82,16 @@ public sealed class ContractsMonitoringTests : TestContext
     }
 
     [Fact]
-    public void TabsLinkBothRegistersAndMarkContractsCurrent()
+    public void TabsLinkAllMonitoringRegistersAndMarkContractsCurrent()
     {
         var (cut, _) = Render();
         cut.WaitForAssertion(() =>
         {
             var tabs = cut.FindAll(".mt-tab");
-            Assert.Equal(new[] { "/monitoring/follow-up", "/monitoring/contracts" }, tabs.Select(t => t.GetAttribute("href")));
+            Assert.Equal(new[] { "/monitoring/follow-up", "/monitoring/contracts", "/monitoring/npm-requests" }, tabs.Select(t => t.GetAttribute("href")));
             Assert.Equal("page", tabs[1].GetAttribute("aria-current"));
             Assert.Null(tabs[0].GetAttribute("aria-current"));
+            Assert.Null(tabs[2].GetAttribute("aria-current"));
         }, Wait);
     }
 

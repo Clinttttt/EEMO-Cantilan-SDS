@@ -1,7 +1,82 @@
-.pnr-facts { display: grid; grid-template-columns: 8rem minmax(0,1fr); gap: 10px; font-size: 13px; }
-.pnr-facts dt { color: var(--text-secondary); }
-.pnr-facts dd { margin: 0; overflow-wrap: anywhere; }
-.pnr-pagination { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
-@media (max-width: 560px) { .pnr-facts { grid-template-columns: 6rem minmax(0,1fr); } }
-.pnr-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; width:100%; }
-.pnr-actions button { max-width:100%; white-space:normal; }
+/* Government review workspace: calm hierarchy, native Monitoring tabs, restrained statuses. */
+.pnr-page { min-width: 0; }
+.pnr-toolbar {
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 12px; padding: 13px 16px; margin-bottom: 15px;
+    background: var(--bg-card, #fff); border: 1px solid var(--border, #dbe3ee);
+    border-radius: 11px;
+}
+.pnr-toolbar-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.pnr-toolbar-copy strong { font-size: 13px; color: var(--text, #1a304a); }
+.pnr-toolbar-copy span { font-size: 12px; color: var(--text-muted, #63758c); }
+.pnr-toolbar-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.pnr-register {
+    overflow: hidden; background: var(--bg-card, #fff);
+    border: 1px solid var(--border, #dbe3ee); border-radius: 12px;
+}
+.pnr-register-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 14px 16px; font-size: 13px; color: var(--text, #192f4a);
+}
+.pnr-register-head span { color: var(--text-muted, #64768e); font-size: 12px; }
+.pnr-table-wrap { border-top: 1px solid var(--border, #dfe6ee); }
+.pnr-table { width: 100%; min-width: 760px; }
+.pnr-table th { white-space: nowrap; }
+.pnr-table td { vertical-align: middle; font-size: 13px; }
+.pnr-table td strong { color: var(--text, #19324f); font-weight: 650; }
+.pnr-secondary { display: block; margin-top: 4px; color: var(--text-muted, #68798d); font-size: 12px; }
+.pnr-status {
+    display: inline-block; max-width: 100%; padding: 5px 10px;
+    border: 1px solid #dce4ee; border-radius: 18px;
+    color: #536a84; background: #f4f7fa;
+    font-size: 11px; font-weight: 700; line-height: 1.35; white-space: nowrap;
+}
+.pnr-status-pending { background: #eaf2ff; border-color: #cbdcf6; color: #205694; }
+.pnr-status-approved { background: #e5f5ef; border-color: #c5e7d7; color: #216b52; }
+.pnr-status-returned { background: #fff5e6; border-color: #f3dfbe; color: #885b20; }
+.pnr-status-closed { background: #f1f3f6; border-color: #dce2e9; color: #647085; }
+.pnr-empty { padding: 22px 16px; color: var(--text-muted, #64758b); font-size: 13px; text-align: center; }
+.pnr-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--border, #e3e9f1); }
+.pnr-pagination span { font-size: 12px; color: var(--text-muted, #64758b); }
+
+/* Drawer: group only actionable information, with one purposeful warning zone. */
+.pnr-drawer-content { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.pnr-request-summary { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.pnr-request-main { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.pnr-request-main > strong { font-size: 17px; color: var(--text, #182e49); }
+.pnr-request-meta { color: var(--text-muted, #66798e); font-size: 12px; }
+.pnr-request-stall {
+    display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px;
+    padding: 13px 14px; background: #f4f7fb; border: 1px solid #e1e9f3; border-radius: 10px;
+}
+.pnr-request-stall strong { font-size: 14px; color: #1b3655; }
+.pnr-request-stall span { font-size: 12px; color: #5b7290; }
+.pnr-section { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.pnr-section h3 { margin: 0; font-size: 13px; font-weight: 700; color: var(--text, #1d334f); }
+.pnr-facts { display: grid; grid-template-columns: 7rem minmax(0,1fr); gap: 9px 12px; margin: 0; font-size: 12.5px; line-height: 1.5; }
+.pnr-facts dt { color: var(--text-muted, #64768c); }
+.pnr-facts dd { margin: 0; color: var(--text, #263b54); overflow-wrap: anywhere; }
+.pnr-financial { margin: 0; padding: 10px 12px; background: #f6f8fb; border: 1px solid #e3e9f1; border-radius: 9px; font-size: 12px; color: #587088; }
+.pnr-decision { padding-top: 18px; border-top: 1px solid #e3e9f1; }
+.pnr-instruction { margin: 0; color: #586d85; line-height: 1.55; font-size: 12.5px; }
+.pnr-instruction a { color: #235db2; text-decoration: underline; text-underline-offset: 2px; }
+.pnr-verification { display: flex; flex-direction: column; gap: 6px; padding: 11px 12px; border: 1px solid #e1ccab; border-radius: 9px; background: #fffaf2; font-size: 12px; line-height: 1.5; color: #76592d; }
+.pnr-verification strong { font-size: 12.5px; }
+.pnr-verification details { margin-top: 3px; }
+.pnr-verification summary { cursor: pointer; font-weight: 650; }
+.pnr-verification details p { margin: 7px 0 0; overflow-wrap: anywhere; }
+.pnr-field-label { display: flex; flex-direction: column; gap: 7px; font-size: 12px; font-weight: 650; color: #405674; }
+.pnr-field-label ::deep .fh-dd { width: 100%; }
+.pnr-reason { width: 100%; min-height: 90px; resize: vertical; font-size: 13px; }
+.pnr-confirm { padding: 11px 12px; margin: 0; color: #735120; background: #fff8e9; border: 1px solid #e9d5af; border-radius: 8px; font-size: 12.5px; line-height: 1.5; }
+.pnr-reviewed { display: flex; flex-direction: column; gap: 3px; padding: 12px; background: #f5f7fb; border-radius: 9px; font-size: 12px; color: #455b76; }
+.pnr-reviewed small { color: #738499; }
+.pnr-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; width: 100%; }
+.pnr-actions button { max-width: 100%; white-space: normal; font-size: 12.5px; }
+@media (max-width: 600px) {
+    .pnr-toolbar { align-items: stretch; }
+    .pnr-toolbar-actions { justify-content: flex-start; }
+    .pnr-facts { grid-template-columns: 5.8rem minmax(0,1fr); }
+    .pnr-actions { justify-content: stretch; }
+    .pnr-actions button { flex: 1 1 auto; }
+}
