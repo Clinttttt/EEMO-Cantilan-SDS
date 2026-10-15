@@ -31,6 +31,7 @@ public sealed class CachingMobileApiClient(
     // Registration review is nonfinancial and live only: never put requests into the collection queue
     // or return a stale approval decision from the offline collection/read caches.
     public Task<Result<NpmRegistrationRequestDto>> SubmitNpmRequestAsync(SubmitNpmRegistrationRequest request) => inner.SubmitNpmRequestAsync(request);
+    public Task<Result<NpmStallNumberSuggestionDto>> SuggestNpmStallAsync(EEMOCantilanSDS.Domain.Enums.MarketSection section) => inner.SuggestNpmStallAsync(section);
     public Task<Result<NpmRegistrationRequestPage>> GetNpmRequestsAsync(int page = 1, int pageSize = 25) => inner.GetNpmRequestsAsync(page, pageSize);
     public Task<Result<CollectionSourcePage>> BrowseCollectionSourcesAsync(string? category, string? search, int skip, int take) => inner.BrowseCollectionSourcesAsync(category, search, skip, take);
     public Task<Result<IReadOnlyList<CollectionSourceSearchResult>>> SearchCollectionSourcesAsync(string? search) => inner.SearchCollectionSourcesAsync(search);

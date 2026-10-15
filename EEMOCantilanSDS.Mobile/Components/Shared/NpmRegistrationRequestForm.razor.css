@@ -10,6 +10,15 @@
 .npm-request .npm-request-field { display: grid; gap: 5px; font-weight: 600; color: #30465d; font-size: 12px; }
 .npm-request .form-input { width: 100%; min-width: 0; box-sizing: border-box; background: #fff; border: 1px solid #b9cce1; color: #142c45; font-size: 14px; }
 .npm-request textarea { resize: vertical; min-height: 76px; }
+.npm-request .npm-request-hint { margin: -4px 0 2px; color: #526983; font-size: 11px; line-height: 1.4; }
+.npm-request ::deep .mc { gap: 5px; margin: 0; }
+.npm-request ::deep .mc-label { font-size: 12px; font-weight: 650; color: #30465d; }
+.npm-request ::deep .mc-trigger { min-height: 45px; border-color: #b9cce1; border-radius: 9px; background: #fff; }
+.npm-request ::deep .mc-list { max-height: 230px; border-color: #b9cce1; border-radius: 9px; }
+.npm-request ::deep .mc-option { min-height: 45px; }
+.npm-request ::deep .mc-option.selected { background: #e3effe; }
+.npm-request ::deep .mc-option .mc-name { font-size: 13px; }
+
 .npm-request button.npm-request-action { box-sizing: border-box; width: 100%; min-height: 42px; padding: 10px 12px; border: 1px solid #215db2; border-radius: 9px; background: #215db2; color: #fff; font-size: 13px; font-weight: 700; opacity: 1; }
 .npm-request button.npm-request-action:disabled { opacity: 1; border-color: #bbcbdc; color: #40536b; background: #dce5ee; cursor: not-allowed; }
 .npm-request button.npm-request-back { border: 0; background: transparent; color: #205eac; min-height: 35px; font-weight: 600; }

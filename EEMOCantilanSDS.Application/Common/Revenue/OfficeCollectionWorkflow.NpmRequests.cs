@@ -14,6 +14,17 @@ public sealed partial class OfficeCollectionWorkflow
         x.TaxYear, x.VendorName, x.CollectorId, x.CollectorName, x.ProposedStall, x.ProposedSection, x.Note,
         x.SubmittedAtUtc, x.Status, x.Version, x.ReviewedBy, x.ReviewedAtUtc, x.ReviewReason, x.AssociationId, x.ReplacesRequestId);
 
+    /// <summary>Advisory next stall number for a canonical NPM area; not a reservation or authorization.</summary>
+    public async Task<Result<NpmStallNumberSuggestionDto>> SuggestNpmStallAsync(MarketSection section, CancellationToken ct = default)
+    {
+        if (!await CanRequestNpm(ct)) return Result<NpmStallNumberSuggestionDto>.Forbidden();
+        if (!Enum.IsDefined(section)) return Result<NpmStallNumberSuggestionDto>.Failure("Invalid section.", ResultStatus.Invalid);
+        var registered = await db.Stalls.AsNoTracking()
+            .Where(x => x.MunicipalityId == Tenant && x.Facility!.Code == FacilityCode.NPM && x.Section == section)
+            .Select(x => x.StallNo).ToListAsync(ct);
+        return Result<NpmStallNumberSuggestionDto>.Success(new(section, NpmStallNumberSuggestion.Next(registered)));
+    }
+
     public async Task<Result<NpmRegistrationRequestPage>> NpmRequestsAsync(int page = 1, int pageSize = 25, CancellationToken ct = default)
     {
         var headRead = TenantValid && user.IsAuthenticated && user.Role is "SuperAdmin" or "Admin";

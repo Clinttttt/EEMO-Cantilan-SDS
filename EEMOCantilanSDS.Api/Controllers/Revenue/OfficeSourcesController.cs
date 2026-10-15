@@ -9,6 +9,10 @@ namespace EEMOCantilanSDS.Api.Controllers;
 [ApiController, Authorize, Route("api/office-sources")]
 public sealed class OfficeSourcesController(ISender sender, OfficeCollectionWorkflow workflow) : ApiBaseController(sender)
 {
+    [HttpGet("npm-requests/stall-suggestion"), Authorize(Roles = "Collector")]
+    public async Task<ActionResult<NpmStallNumberSuggestionDto>> SuggestNpmStall([FromQuery] EEMOCantilanSDS.Domain.Enums.MarketSection section, CancellationToken ct) =>
+        HandleResponse(await workflow.SuggestNpmStallAsync(section, ct));
+
     [HttpGet("npm-requests"), Authorize(Roles = "SuperAdmin,Admin,Collector")]
     public async Task<ActionResult<NpmRegistrationRequestPage>> NpmRequests(int page = 1, int pageSize = 25, CancellationToken ct = default) => HandleResponse(await workflow.NpmRequestsAsync(page, pageSize, ct));
     [HttpPost("npm-requests"), Authorize(Roles = "Collector")]

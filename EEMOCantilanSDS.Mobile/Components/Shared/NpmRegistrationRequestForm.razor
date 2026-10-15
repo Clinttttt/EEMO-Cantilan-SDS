@@ -19,8 +19,17 @@
     }
     else
     {
-        <label class="npm-request-field">Proposed stall / space<input class="form-input" maxlength="20" @bind="_stall" @bind:event="oninput" disabled="@_busy" /></label>
-        <label class="npm-request-field">Proposed section<select class="form-input" @bind="_section" disabled="@_busy"><option value="">Office to verify</option><option value="FishSection">Fish Area</option><option value="MeatSection">Meat Area</option><option value="VegetableArea">Vegetable Area</option></select></label>
+        <MobileChoice Label="Proposed section" Options="SectionOptions" Value="@_section"
+                      ValueChanged="SelectSectionAsync" Disabled="@_busy" Placeholder="Choose an area" />
+        <label class="npm-request-field">Proposed stall / space
+            <input class="form-input" maxlength="20" autocomplete="off" placeholder="Enter stall number"
+                   @bind="_stall" @bind:event="oninput" disabled="@_busy" />
+        </label>
+        <p class="npm-request-hint" role="status">
+            @if (_suggesting) { <span>Checking the next number…</span> }
+            else if (!string.IsNullOrEmpty(_suggested) && _stall == _suggested) { <span>Suggested next number · Editable. Office will verify.</span> }
+            else { <span>@(_section.Length == 0 ? "Choose an area for an optional next-number suggestion." : "Stall number is editable and subject to office verification.")</span> }
+        </p>
         <label class="npm-request-field">Office reference / evidence<textarea class="form-input" maxlength="1000" rows="3" @bind="_note" @bind:event="oninput" disabled="@_busy"></textarea></label>
         @if (_error is not null) { <p class="npm-request-error" role="alert">@_error</p> }
         <button class="npm-request-action" type="button" disabled="@(_busy || string.IsNullOrWhiteSpace(_stall) || string.IsNullOrWhiteSpace(_note))" @onclick="Submit">@(_busy ? "Submitting…" : "Submit request")</button>
@@ -33,15 +42,61 @@
     [Parameter] public Guid? ReplacesRequestId { get; set; }
     private Guid _loadedVendor, _operation = Guid.NewGuid();
     private Guid? _loadedPrior;
-    private string _stall = "", _section = "", _note = "";
-    private bool _editing, _busy;
+    private static readonly IReadOnlyList<MobileChoice.Choice> SectionOptions =
+    [
+        new("", "Office to verify"),
+        new("FishSection", "Fish Area"),
+        new("MeatSection", "Meat Area"),
+        new("VegetableArea", "Vegetable Area")
+    ];
+    private string _stall = "", _section = "", _note = "", _suggested = "";
+    private bool _editing, _busy, _suggesting;
+    private int _suggestVersion;
     private string? _error;
     private NpmRegistrationRequestDto? _saved;
     protected override void OnParametersSet()
     {
         if (_loadedVendor == VendorId && _loadedPrior == ReplacesRequestId) return;
-        _loadedVendor = VendorId; _loadedPrior = ReplacesRequestId; _operation = Guid.NewGuid(); _stall = _section = _note = ""; _saved = null; _error = null; _editing = false;
+        _loadedVendor = VendorId; _loadedPrior = ReplacesRequestId; _operation = Guid.NewGuid(); _stall = _section = _note = _suggested = ""; _saved = null; _error = null; _editing = false; _suggesting = false; _suggestVersion++;
     }
+    private async Task SelectSectionAsync(string value)
+    {
+        if (_busy) return;
+        _section = value;
+        var version = ++_suggestVersion;
+        var previousSuggestion = _suggested;
+        _suggested = "";
+        if (!Enum.TryParse<MarketSection>(value, out var section) || !Enum.IsDefined(section))
+        {
+            _suggesting = false;
+            return;
+        }
+
+        _suggesting = true;
+        try
+        {
+            // Read-only from the authenticated office's NPM section inventory, never from guessed local numbering.
+            var result = await Api.SuggestNpmStallAsync(section);
+            if (version != _suggestVersion || _section != value) return;
+            if (result.IsSuccess && result.Value is { SuggestedStallNo: { Length: > 0 } suggestion }
+                && result.Value.Section == section)
+            {
+                _suggested = suggestion;
+                // A manual change always wins, even if the lookup completes after typing.
+                if (string.IsNullOrWhiteSpace(_stall) || _stall == previousSuggestion)
+                    _stall = suggestion;
+            }
+        }
+        catch
+        {
+            // Older/offline API: leave the field for manual input; never fabricate a number.
+        }
+        finally
+        {
+            if (version == _suggestVersion) _suggesting = false;
+        }
+    }
+
     private async Task Submit()
     {
         if (_busy) return; _busy = true; _error = null;

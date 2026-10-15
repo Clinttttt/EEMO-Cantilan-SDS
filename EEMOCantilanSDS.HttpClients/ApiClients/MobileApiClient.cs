@@ -13,6 +13,8 @@ namespace EEMOCantilanSDS.HttpClients.ApiClients;
 public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApiClient
 {
     public Task<Result<NpmRegistrationRequestDto>> SubmitNpmRequestAsync(SubmitNpmRegistrationRequest request) => PostAsync<SubmitNpmRegistrationRequest, NpmRegistrationRequestDto>("api/office-sources/npm-requests", request);
+    public Task<Result<NpmStallNumberSuggestionDto>> SuggestNpmStallAsync(EEMOCantilanSDS.Domain.Enums.MarketSection section) =>
+        GetAsync<NpmStallNumberSuggestionDto>($"api/office-sources/npm-requests/stall-suggestion?section={Uri.EscapeDataString(section.ToString())}");
     public Task<Result<NpmRegistrationRequestPage>> GetNpmRequestsAsync(int page = 1, int pageSize = 25) => GetAsync<NpmRegistrationRequestPage>($"api/office-sources/npm-requests?page={page}&pageSize={pageSize}");
     public Task<Result<CollectionSourcePage>> BrowseCollectionSourcesAsync(string? category, string? search, int skip, int take) => GetAsync<CollectionSourcePage>($"api/mobile/collection-session/sources/browse?category={Uri.EscapeDataString(category ?? "")}&search={Uri.EscapeDataString(search ?? "")}&skip={skip}&take={take}");
     public Task<Result<IReadOnlyList<CollectionSourceSearchResult>>> SearchCollectionSourcesAsync(string? search) => GetAsync<IReadOnlyList<CollectionSourceSearchResult>>($"api/mobile/collection-session/sources?search={Uri.EscapeDataString(search ?? "")}");

@@ -23,3 +23,11 @@ Base: `48bb5d45` (`codex/mobile-reports-npm-reuse`, includes Fish/Meat UI branch
 - Windows MAUI Debug `net10.0-windows10.0.19041.0`: build succeeds with 0 errors (15 pre-existing dependency/nullability warnings, including high-severity SignalR advisory).
 - The current municipal PostgreSQL database **has not** been migrated for NPM requests. **Do not run the new API against that database or advertise the NPM request functionality as live until the owner separately approves a backed-up schema migration**. The old 5117 API can serve old Records but cannot provide new NPM history/submit.
 - No APK publish, cloud deployment, financial data manipulation, or modification to the eight protected dirty files. Native Windows acceptance requires operator's visual test of updated preview.
+
+## 2026-10-15 follow-up: editable stall-number suggestion and section chooser
+
+The collector's new NPM registration request now uses the existing native MobileChoice component (instead of OS-native dropdown). It has four labels: Office to verify, Fish Area, Meat Area, Vegetable Area. It displays a bounded accessible selection list within the scrolling charge sheet.
+
+A new read-only `GET api/office-sources/npm-requests/stall-suggestion?section=FishSection` endpoint uses the authenticated, assigned collector, same-tenant NPM stalls in the selected section, and the same max+1/prefix/padding concept as the web NPM drawer. Only a string suggestion is returned; the endpoint does not allocate a stall or create registration, rent, payment or SRC. A manual value is never overwritten by late responses or later section changes, and unavailable/offline APIs leave the field editable and blank. No database migration is required for this lookup itself, but the broader NPM registration-request feature still requires the separately approved additive migration; do not restart the local API against live schema without approval.
+
+Added regression tests for numeric/prefixed/padded/custom patterns, autopopulation, editable override and old-API fallback. Windows preview can be built without changing the currently running old local API or municipal data.
