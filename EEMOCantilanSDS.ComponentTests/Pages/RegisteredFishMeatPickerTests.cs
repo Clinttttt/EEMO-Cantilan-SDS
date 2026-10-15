@@ -75,7 +75,9 @@ public sealed class RegisteredFishMeatPickerTests : TestContext
         view.FindAll("button").Single(x => x.TextContent == "Review").Click();
         Assert.Contains("Pending review", view.Markup);
         Assert.Contains("No cash received", view.Markup);
-        Assert.Equal("", view.FindComponents<FhSelect>().Single().Instance.Value);
+        Assert.Empty(view.FindComponents<FhSelect>());
+        Assert.Contains("No verified NPM occupancy linked", view.Markup);
+        Assert.Contains("Check again", view.Markup);
         Assert.DoesNotContain("_association", view.Markup);
         Assert.True(view.FindAll("button").Single(x => x.TextContent == "Approve registration").HasAttribute("disabled"));
         view.Find("#pnr-reason").Input("Provide tenancy evidence");
@@ -83,6 +85,40 @@ public sealed class RegisteredFishMeatPickerTests : TestContext
         view.FindAll("button").Single(x => x.TextContent == "Confirm decision").Click();
         view.WaitForAssertion(() => Assert.NotNull(sent));
         Assert.Equal(NpmRegistrationRequestStatus.Returned, sent!.Outcome); Assert.Equal(1, sent.ExpectedVersion); Assert.Null(sent.AssociationId);
+    }
+
+    [Fact]
+    public void Verified_NPM_link_shows_selectable_occupancy_and_requires_an_explicit_choice()
+    {
+        var vendor = Guid.NewGuid();
+        var contract = Guid.NewGuid();
+        var stall = Guid.NewGuid();
+        var row = new NpmRegistrationRequestDto(Guid.NewGuid(), vendor, PhilippineTime.Today.Year, "Verified vendor",
+            Guid.NewGuid(), "Collector", "F-12", null, "Office reference", DateTime.UtcNow,
+            NpmRegistrationRequestStatus.Submitted, 1, null, null, null, null, null);
+        var link = new NpmVendorAssociationDto(Guid.NewGuid(), vendor, contract, stall, "Verified vendor",
+            "Head", DateTime.UtcNow, "Verified occupancy", null, null, null);
+        var candidate = new NpmVendorCandidate(contract, stall, "F-12", "Verified vendor", "Fish Area",
+            true, DateOnly.FromDateTime(DateTime.Today), null, "current", [link], []);
+        _api.Setup(x => x.NpmRequestsAsync(1, 25))
+            .ReturnsAsync(Result<NpmRegistrationRequestPage>.Success(new([row], 1, 1, 25)));
+        _api.Setup(x => x.NpmVendorCandidatesAsync(row.TaxYear, true, true))
+            .ReturnsAsync(Result<NpmVendorCandidates>.Success(new(row.TaxYear, 0, [candidate])));
+
+        var view = RenderComponent<EEMOCantilanSDS.Client.Components.Pages.Menus.PendingNpmRequests>();
+        view.FindAll("button").Single(x => x.TextContent == "Review").Click();
+
+        var selector = view.FindComponents<FhSelect>().Single();
+        Assert.DoesNotContain("No verified NPM occupancy linked", view.Markup);
+        Assert.Equal(2, selector.Instance.Options.Count);
+        var approval = view.FindAll("button").Single(x => x.TextContent == "Approve registration");
+        Assert.True(approval.HasAttribute("disabled"));
+
+        selector.Find(".fh-dd-trigger").Click();
+        selector.FindAll(".fh-dd-item").Last().Click();
+        view.Find("#pnr-reason").Input("Verified and linked by office");
+        approval = view.FindAll("button").Single(x => x.TextContent == "Approve registration");
+        Assert.False(approval.HasAttribute("disabled"));
     }
 
     [Fact]

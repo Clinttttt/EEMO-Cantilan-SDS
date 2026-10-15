@@ -131,11 +131,32 @@
                                     </details>
                                 </div>
                             }
-                            <p class="pnr-instruction">Confirm the actual tenancy and link the Fish/Meat registration in the <a href="/npm">NPM register</a> before approving.</p>
-                            <label class="pnr-field-label">Verified occupancy
-                                <FhSelect Block="true" AriaLabel="Verified NPM association" Options="_links"
-                                          Value="@_association" ValueChanged="v => _association = v" />
-                            </label>
+                            @if (_checkingAssociations)
+                            {
+                                <p class="pnr-link-loading" role="status">Checking verified NPM occupancies…</p>
+                            }
+                            else if (_detailError is null && _links.Count > 1)
+                            {
+                                <label class="pnr-field-label">Verified occupancy
+                                    <FhSelect Block="true" AriaLabel="Verified NPM association" Options="_links"
+                                              Value="@_association" ValueChanged="v => _association = v" />
+                                </label>
+                            }
+                            else if (_detailError is null)
+                            {
+                                <div class="pnr-link-empty" role="status">
+                                    <strong>No verified NPM occupancy linked</strong>
+                                    <p>Check the stall and link this vendor in the NPM register before approval.</p>
+                                    <div class="pnr-link-actions">
+                                        <a href="/npm" target="_blank" rel="noopener" class="v3-btn v3-btn-sm">Open NPM register</a>
+                                        <button type="button" class="v3-btn v3-btn-sm" @onclick="() => LoadAssociations(row)">Check again</button>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <button type="button" class="v3-btn v3-btn-sm" @onclick="() => LoadAssociations(row)">Retry verification</button>
+                            }
                             <label class="pnr-field-label" for="pnr-reason">Review reason / evidence</label>
                             <textarea id="pnr-reason" class="avm-input pnr-reason" maxlength="1000" rows="3"
                                       placeholder="Enter the office verification or correction reason"
@@ -181,7 +202,7 @@
     private string? _error, _detailError;
     private string _reason = "", _association = "";
     private Guid _operation;
-    private bool _saving, _loading;
+    private bool _saving, _loading, _checkingAssociations;
     private int _page = 1;
     private IReadOnlyList<(string Value, string Label)> _links = [];
     private IReadOnlyList<string> _warnings = [];
@@ -237,8 +258,18 @@
     private async Task Open(NpmRegistrationRequestDto row)
     {
         _selected = row; _confirm = null; _reason = _association = ""; _detailError = null;
-        _operation = Guid.NewGuid(); _links = [("", "Select a verified NPM occupancy")]; _warnings = [];
+        _operation = Guid.NewGuid(); _links = []; _warnings = [];
         if (row.Status != NpmRegistrationRequestStatus.Submitted) return;
+        await LoadAssociations(row);
+    }
+    private async Task LoadAssociations(NpmRegistrationRequestDto row)
+    {
+        if (_selected?.Id != row.Id) return;
+        _checkingAssociations = true;
+        _detailError = null;
+        _association = "";
+        _links = [];
+        _warnings = [];
         try
         {
             var result = await OfficeApi.NpmVendorCandidatesAsync(row.TaxYear, true, true);
@@ -261,7 +292,15 @@
                 .SelectMany(x => x.Links.Where(l => l.VendorRegistrationId == row.VendorRegistrationId && l.CorrectedAtUtc is null)
                     .Select(l => (l.Id.ToString(), $"{x.Area} · Stall {x.StallNo} · {x.Occupant}")))).ToArray();
         }
-        catch { _detailError = "Could not verify NPM associations. Approval is unavailable."; }
+        catch
+        {
+            if (_selected?.Id == row.Id)
+                _detailError = "Could not verify NPM associations. Approval is unavailable.";
+        }
+        finally
+        {
+            if (_selected?.Id == row.Id) _checkingAssociations = false;
+        }
     }
     private void Close() { if (!_saving) _selected = null; }
     private async Task Save()

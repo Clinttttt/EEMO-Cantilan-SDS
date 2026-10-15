@@ -67,6 +67,13 @@
 .pnr-verification details p { margin: 7px 0 0; overflow-wrap: anywhere; }
 .pnr-field-label { display: flex; flex-direction: column; gap: 7px; font-size: 12px; font-weight: 650; color: #405674; }
 .pnr-field-label ::deep .fh-dd { width: 100%; }
+.pnr-link-loading { margin: 0; padding: 12px 14px; border-radius: 9px; background: #f3f7fc; font-size: 12.5px; color: #58718d; }
+.pnr-link-empty { display: flex; flex-direction: column; gap: 7px; padding: 13px 14px; border: 1px solid #d4e1f1; border-radius: 10px; background: #f4f8fd; color: #334e70; }
+.pnr-link-empty > strong { font-size: 13px; color: #203e62; }
+.pnr-link-empty > p { margin: 0; font-size: 12.5px; line-height: 1.55; color: #5d728d; }
+.pnr-link-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 5px; }
+.pnr-link-actions .v3-btn { white-space: normal; font-size: 12px; text-decoration: none; }
+
 .pnr-reason { width: 100%; min-height: 90px; resize: vertical; font-size: 13px; }
 .pnr-confirm { padding: 11px 12px; margin: 0; color: #735120; background: #fff8e9; border: 1px solid #e9d5af; border-radius: 8px; font-size: 12.5px; line-height: 1.5; }
 .pnr-reviewed { display: flex; flex-direction: column; gap: 3px; padding: 12px; background: #f5f7fb; border-radius: 9px; font-size: 12px; color: #455b76; }
