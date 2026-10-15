@@ -48,6 +48,7 @@ public sealed class NpmVendorAssociationTests : TestContext
         cut.Find("#npm-registration-evidence").Input("Office checked source and person");
         Assert.False(cut.Find("button[type=submit]").HasAttribute("disabled"));
         var form = cut.FindComponent<VendorRegistrationDrawer>();
+        Assert.Empty(form.FindAll(".vendor-import-action button"));
         Assert.Null(form.Instance.Error); Assert.DoesNotContain("_error", cut.Markup);
         Assert.Equal("Verified occupant", form.Instance.Model.Name); Assert.Equal(FishMeatVendorType.Fish, form.Instance.Model.Type);
         Assert.True(string.IsNullOrEmpty(form.Instance.Model.Address)); Assert.True(string.IsNullOrEmpty(form.Instance.Model.Business));
