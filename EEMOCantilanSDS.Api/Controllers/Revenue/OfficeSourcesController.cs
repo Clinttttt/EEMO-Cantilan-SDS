@@ -13,6 +13,10 @@ public sealed class OfficeSourcesController(ISender sender, OfficeCollectionWork
     public async Task<ActionResult<NpmStallNumberSuggestionDto>> SuggestNpmStall([FromQuery] EEMOCantilanSDS.Domain.Enums.MarketSection section, CancellationToken ct) =>
         HandleResponse(await workflow.SuggestNpmStallAsync(section, ct));
 
+    [HttpGet("npm-requests/pending/{vendorRegistrationId:guid}"), Authorize(Roles = "Collector")]
+    public async Task<ActionResult<NpmRegistrationRequestDto>> PendingNpmRequest(Guid vendorRegistrationId, CancellationToken ct) =>
+        HandleResponse(await workflow.PendingNpmRequestAsync(vendorRegistrationId, ct));
+
     [HttpGet("npm-requests"), Authorize(Roles = "SuperAdmin,Admin,Collector")]
     public async Task<ActionResult<NpmRegistrationRequestPage>> NpmRequests(int page = 1, int pageSize = 25, CancellationToken ct = default) => HandleResponse(await workflow.NpmRequestsAsync(page, pageSize, ct));
     [HttpPost("npm-requests"), Authorize(Roles = "Collector")]

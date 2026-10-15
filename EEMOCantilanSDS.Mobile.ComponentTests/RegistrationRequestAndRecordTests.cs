@@ -43,6 +43,7 @@ public sealed class RegistrationRequestAndRecordTests : TestContext
             .ReturnsAsync(Result<NpmRegistrationRequestDto>.Failure("Network response unavailable"));
         api.Setup(x => x.SuggestNpmStallAsync(MarketSection.FishSection))
             .ReturnsAsync(Result<NpmStallNumberSuggestionDto>.Success(new(MarketSection.FishSection, "F-13")));
+        api.Setup(x => x.GetPendingNpmRequestAsync(It.IsAny<Guid>())).ReturnsAsync(Result<NpmRegistrationRequestDto>.NotFound());
         Services.AddSingleton(api.Object);
         var vendor = Guid.NewGuid();
         var view = RenderComponent<NpmRegistrationRequestForm>(p => p.Add(x => x.VendorId, vendor));
@@ -59,6 +60,7 @@ public sealed class RegistrationRequestAndRecordTests : TestContext
         Assert.Equal("F-12", view.Find("input").GetAttribute("value"));
         Assert.Equal("Office reference 42", sent[0].Note);
         api.Verify(x => x.SuggestNpmStallAsync(MarketSection.FishSection), Times.Once);
+        api.Verify(x => x.GetPendingNpmRequestAsync(vendor), Times.Once);
         api.Verify(x => x.SubmitNpmRequestAsync(It.IsAny<SubmitNpmRegistrationRequest>()), Times.Exactly(2));
         api.VerifyNoOtherCalls();
     }
@@ -69,6 +71,7 @@ public sealed class RegistrationRequestAndRecordTests : TestContext
         var api = new Mock<IMobileApiClient>();
         var pending = new TaskCompletionSource<Result<NpmRegistrationRequestDto>>();
         api.Setup(x => x.SubmitNpmRequestAsync(It.IsAny<SubmitNpmRegistrationRequest>())).Returns(pending.Task);
+        api.Setup(x => x.GetPendingNpmRequestAsync(It.IsAny<Guid>())).ReturnsAsync(Result<NpmRegistrationRequestDto>.NotFound());
         Services.AddSingleton(api.Object);
         var view = RenderComponent<NpmRegistrationRequestForm>(p => p.Add(x => x.VendorId, Guid.NewGuid()));
         view.Find("button").Click(); view.Find("input").Input("F-1"); view.Find("textarea").Input("Verify tenancy");

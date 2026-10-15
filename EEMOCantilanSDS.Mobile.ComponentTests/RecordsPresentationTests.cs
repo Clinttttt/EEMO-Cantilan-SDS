@@ -32,7 +32,10 @@ public sealed class RecordsPresentationTests : TestContext
         Assert.Contains("SRC-2026-000009", view.Markup); Assert.Contains("Ana Reyes", view.Markup);
         var legacy = view.Find("button.collection-record-row");
         Assert.Contains("870.00", legacy.TextContent); Assert.Contains("900.00 assessed", legacy.TextContent);
-        Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(legacy.TextContent, "HIST-123").Count);
+        Assert.DoesNotContain("HIST-123", legacy.TextContent);
+        Assert.DoesNotContain("No linked receipt", legacy.TextContent);
+        Assert.DoesNotContain("Paid", legacy.TextContent);
+        Assert.Contains("Daily Fee", legacy.TextContent);
         view.Find(".search-wrap input").Input("SRC-2026");
         Assert.Single(view.FindAll(".collection-record-row")); Assert.Contains("SRC-2026-000009", view.Markup);
         view.Find(".search-wrap input").Input("Ana");

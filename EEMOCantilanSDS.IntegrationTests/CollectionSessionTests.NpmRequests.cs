@@ -108,15 +108,18 @@ public sealed partial class CollectionSessionTests
         var row = submitted.Value!;
         Assert.Equal(NpmRegistrationRequestStatus.Submitted, row.Status);
         Assert.Equal(row.Id, (await collector.SubmitNpmRequestAsync(command)).Value!.Id);
+        Assert.Equal(row.Id, (await collector.PendingNpmRequestAsync(vendor.Id)).Value!.Id);
         Assert.Equal(ResultStatus.Conflict, (await collector.SubmitNpmRequestAsync(command with { Note = "changed" })).Status);
         Assert.Equal(ResultStatus.Conflict, (await collector.SubmitNpmRequestAsync(command with { ClientOperationId = Guid.NewGuid() })).Status);
         var returned = new ReviewNpmRegistrationRequest(Guid.NewGuid(), row.Version, NpmRegistrationRequestStatus.Returned, "Provide the actual stall authorization.");
         Assert.True((await head.ReviewNpmRequestAsync(row.Id, returned)).IsSuccess);
+        Assert.Equal(ResultStatus.NotFound, (await collector.PendingNpmRequestAsync(vendor.Id)).Status);
         Assert.True((await head.ReviewNpmRequestAsync(row.Id, returned)).IsSuccess);
         Assert.Equal(ResultStatus.Conflict, (await head.ReviewNpmRequestAsync(row.Id, returned with { Reason = "different" })).Status);
         var replacement = await collector.SubmitNpmRequestAsync(command with { ClientOperationId = Guid.NewGuid(), ReplacesRequestId = row.Id, Note = "Office reference supplied." });
         Assert.True(replacement.IsSuccess, replacement.Error);
         Assert.Equal(row.Id, replacement.Value!.ReplacesRequestId);
+        Assert.Equal(replacement.Value.Id, (await collector.PendingNpmRequestAsync(vendor.Id)).Value!.Id);
         Assert.Equal(2, (await collector.NpmRequestsAsync()).Value!.Total);
         Assert.Equal(stalls, await db.Stalls.CountAsync()); Assert.Equal(terms, await db.Contracts.CountAsync());
         Assert.Empty(await db.Collections.ToListAsync()); Assert.Empty(await db.CollectionAllocations.ToListAsync());
@@ -160,6 +163,7 @@ public sealed partial class CollectionSessionTests
         await using var foreign = database.CreateContext(other.TenantId); await EnableOffice(foreign, other);
         Assert.Equal(ResultStatus.NotFound, (await Office(foreign, other).SubmitNpmRequestAsync(command)).Status);
         Assert.Empty((await Office(foreign, other, "SuperAdmin").NpmRequestsAsync()).Value!.Rows);
+        Assert.Equal(ResultStatus.NotFound, (await Office(foreign, other).PendingNpmRequestAsync(vendor.Id)).Status);
         var rejected = new ReviewNpmRegistrationRequest(Guid.NewGuid(), 1, NpmRegistrationRequestStatus.Rejected, "No verified tenancy authorization.");
         Assert.Equal(ResultStatus.NotFound, (await Office(foreign, other, "SuperAdmin").ReviewNpmRequestAsync(row.Id, rejected)).Status);
         Assert.True((await head.ReviewNpmRequestAsync(row.Id, rejected)).IsSuccess);

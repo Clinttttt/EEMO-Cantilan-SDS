@@ -3,6 +3,7 @@
 @using global::EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Mobile.Models
 @using EEMOCantilanSDS.Mobile.Records
+@using System.Globalization
 @using RecordRow = EEMOCantilanSDS.Mobile.Records.CollectorRecordEntry
 @using EEMOCantilanSDS.Mobile.Services
 @inject NavigationManager Navigation
@@ -131,14 +132,11 @@
                     {
                         var rec = row.Primary;
                         <CollectionRecordRow Identity="@rec.PayorName" Amount="@(rec.IsAbsent ? (decimal?)null : row.TotalPaid)"
-                            Assessed="@(row.AnyPartial && !rec.IsAbsent ? row.TotalAmount : (decimal?)null)" DateText="@RowTimeLine(row)"
-                            Status="@RowStatusLabel(row)" ReceiptEvidence="@(rec.IsAbsent ? null : row.ReceiptCount > 1 ? $"{row.ReceiptCount} recorded receipts" : HasReceiptNumber(rec.ORNumber) ? $"OR {rec.ORNumber}" : "No linked receipt")"
+                            Assessed="@(row.AnyPartial && !rec.IsAbsent ? row.TotalAmount : (decimal?)null)" DateText="@rec.CollectedAt.ToString("MMM d", CultureInfo.InvariantCulture)"
+                            Status="@(rec.IsAbsent ? "Excused" : row.AnyPartial ? "Partial" : null)"
                             OnOpen="() => OpenDetail(row)">
                             <Details>
-                                <span>@rec.FacilityCode@(string.IsNullOrWhiteSpace(rec.StallNo) ? "" : $" · {rec.StallNo}")</span>
-                                @if (rec.IsAdminRecorded) { <span> · Office</span> }
-                                @if (row.IsMerged && row.ReceiptCount <= 1) { <span> · @MergedLabel(row)</span> }
-                                @if (!rec.IsAbsent) { <span> · @(row.SharesOneNature ? rec.Nature : "Multiple charges")</span> }
+                                <span>@rec.FacilityCode · @(rec.IsAbsent ? "Excused" : row.SharesOneNature ? rec.Nature : "Multiple charges")@if (!rec.IsAbsent) { <text> · ₱@row.TotalPaid.ToString("N2", CultureInfo.InvariantCulture)</text> }</span>
                             </Details>
                         </CollectionRecordRow>
                     }

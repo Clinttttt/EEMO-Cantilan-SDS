@@ -32,6 +32,7 @@ public sealed class NpmStallSuggestionTests : TestContext
         var api = new Mock<IMobileApiClient>();
         api.Setup(x => x.SuggestNpmStallAsync(MarketSection.FishSection))
             .ReturnsAsync(Result<NpmStallNumberSuggestionDto>.Success(new(MarketSection.FishSection, "F-13")));
+        api.Setup(x => x.GetPendingNpmRequestAsync(It.IsAny<Guid>())).ReturnsAsync(Result<NpmRegistrationRequestDto>.NotFound());
         Services.AddSingleton(api.Object);
         var cut = RenderComponent<NpmRegistrationRequestForm>(x => x.Add(p => p.VendorId, Guid.NewGuid()));
         cut.Find("button.npm-request-action").Click();
@@ -42,6 +43,7 @@ public sealed class NpmStallSuggestionTests : TestContext
         cut.Find("input").Input("F-12");
         Assert.Equal("F-12", cut.Find("input").GetAttribute("value"));
         api.Verify(x => x.SuggestNpmStallAsync(MarketSection.FishSection), Times.Once);
+        api.Verify(x => x.GetPendingNpmRequestAsync(It.IsAny<Guid>()), Times.Once);
         api.VerifyNoOtherCalls();
     }
 
@@ -51,6 +53,7 @@ public sealed class NpmStallSuggestionTests : TestContext
         var api = new Mock<IMobileApiClient>();
         api.Setup(x => x.SuggestNpmStallAsync(MarketSection.MeatSection))
             .ReturnsAsync(Result<NpmStallNumberSuggestionDto>.NotFound());
+        api.Setup(x => x.GetPendingNpmRequestAsync(It.IsAny<Guid>())).ReturnsAsync(Result<NpmRegistrationRequestDto>.NotFound());
         Services.AddSingleton(api.Object);
         var cut = RenderComponent<NpmRegistrationRequestForm>(x => x.Add(p => p.VendorId, Guid.NewGuid()));
         cut.Find("button.npm-request-action").Click();

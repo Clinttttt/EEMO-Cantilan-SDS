@@ -32,6 +32,9 @@ public sealed class CachingMobileApiClient(
     // or return a stale approval decision from the offline collection/read caches.
     public Task<Result<NpmRegistrationRequestDto>> SubmitNpmRequestAsync(SubmitNpmRegistrationRequest request) => inner.SubmitNpmRequestAsync(request);
     public Task<Result<NpmStallNumberSuggestionDto>> SuggestNpmStallAsync(EEMOCantilanSDS.Domain.Enums.MarketSection section) => inner.SuggestNpmStallAsync(section);
+    // Never cache an approval or pending-status read: server state is authoritative.
+    public Task<Result<NpmRegistrationRequestDto>> GetPendingNpmRequestAsync(Guid vendorRegistrationId) =>
+        inner.GetPendingNpmRequestAsync(vendorRegistrationId);
     public Task<Result<NpmRegistrationRequestPage>> GetNpmRequestsAsync(int page = 1, int pageSize = 25) => inner.GetNpmRequestsAsync(page, pageSize);
     public Task<Result<CollectionSourcePage>> BrowseCollectionSourcesAsync(string? category, string? search, int skip, int take) => inner.BrowseCollectionSourcesAsync(category, search, skip, take);
     public Task<Result<IReadOnlyList<CollectionSourceSearchResult>>> SearchCollectionSourcesAsync(string? search) => inner.SearchCollectionSourcesAsync(search);

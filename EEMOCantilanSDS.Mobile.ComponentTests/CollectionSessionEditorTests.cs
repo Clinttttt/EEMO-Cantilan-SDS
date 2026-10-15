@@ -51,6 +51,7 @@ public sealed class CollectionSessionEditorTests : TestContext
             var matched = all.Where(x => string.IsNullOrWhiteSpace(term) || x.DisplayName.Contains(term, StringComparison.OrdinalIgnoreCase) || x.Context.Contains(term, StringComparison.OrdinalIgnoreCase)).ToList();
             return Result<CollectionSourcePage>.Success(new(matched.Skip(skip).Take(take).ToArray(), matched.Count, [new("npm", "NPM"), new("spaces", "Spaces")]));
         });
+        _api.Setup(x => x.GetPendingNpmRequestAsync(It.IsAny<Guid>())).ReturnsAsync(Result<NpmRegistrationRequestDto>.NotFound());
         _api.Setup(x => x.GetOfficeActivityAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<string?>())).ReturnsAsync(Result<IReadOnlyList<SourceNativeActivityDto>>.Success([]));
         _api.Setup(x => x.QuoteCollectionSessionAsync(It.IsAny<CollectionSessionIntent>())).ReturnsAsync((CollectionSessionIntent i) =>
         {

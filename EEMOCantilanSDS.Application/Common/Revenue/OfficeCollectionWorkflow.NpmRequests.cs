@@ -25,6 +25,24 @@ public sealed partial class OfficeCollectionWorkflow
         return Result<NpmStallNumberSuggestionDto>.Success(new(section, NpmStallNumberSuggestion.Next(registered)));
     }
 
+    /// <summary>
+    /// Collector-scoped pending review lookup. A missing request returns NotFound (not an empty
+    /// stale cache), and only the authenticated collector's own vendor requests can be read.
+    /// </summary>
+    public async Task<Result<NpmRegistrationRequestDto>> PendingNpmRequestAsync(Guid vendorRegistrationId, CancellationToken ct = default)
+    {
+        if (!await CanRequestNpm(ct) || user.CollectorId is not { } collector)
+            return Result<NpmRegistrationRequestDto>.Forbidden();
+        if (vendorRegistrationId == Guid.Empty)
+            return Result<NpmRegistrationRequestDto>.Failure("Select a registered vendor.", ResultStatus.Invalid);
+        var row = await db.NpmRegistrationRequests.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.MunicipalityId == Tenant && x.CollectorId == collector
+                && x.VendorRegistrationId == vendorRegistrationId
+                && x.Status == NpmRegistrationRequestStatus.Submitted, ct);
+        return row is null ? Result<NpmRegistrationRequestDto>.NotFound()
+            : Result<NpmRegistrationRequestDto>.Success(RequestDto(row));
+    }
+
     public async Task<Result<NpmRegistrationRequestPage>> NpmRequestsAsync(int page = 1, int pageSize = 25, CancellationToken ct = default)
     {
         var headRead = TenantValid && user.IsAuthenticated && user.Role is "SuperAdmin" or "Admin";
