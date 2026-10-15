@@ -47,6 +47,33 @@ public sealed class RegisteredFishMeatPickerTests : TestContext
     }
 
     [Fact]
+    public void Request_link_opens_exact_fish_meat_vendor_for_head_registration()
+    {
+        var year = PhilippineTime.Today.Year;
+        var first = new FishMeatVendorRegistrationDto(Guid.NewGuid(), year, FishMeatVendorType.Fish, VendorRegistrationKind.New, "Identical name", "Shop A", "East", null);
+        var second = first with { Id = Guid.NewGuid(), BusinessName = "Shop B" };
+        VendorRegistrationManagementRow Row(FishMeatVendorRegistrationDto v) => new(v, VendorRegistrationStatus.Active, "Head", DateTime.UtcNow, null, null, null, null, null, 0m, 0m);
+        _api.Setup(x => x.ManageRegistrationsAsync(year, It.IsAny<int>(), null, null))
+            .ReturnsAsync(Result<VendorRegistryManagement>.Success(new(year, year, 10, [Row(first), Row(second)], 0m)));
+        _api.Setup(x => x.NpmVendorCandidatesAsync(year, true, true))
+            .ReturnsAsync(Result<NpmVendorCandidates>.Success(new(year, 0, [])));
+        FishMeatVendorRegistrationDto? picked = null;
+        var view = RenderComponent<RegisteredFishMeatPicker>(p => p
+            .Add(x => x.Show, true)
+            .Add(x => x.PreferredVendorId, second.Id)
+            .Add(x => x.PreferredYear, year)
+            .Add(x => x.OnSelected, v => picked = v));
+        view.WaitForAssertion(() => Assert.Single(view.FindAll(".rfm-row")));
+        Assert.Contains("Shop B", view.Find(".rfm-row").TextContent);
+        Assert.DoesNotContain("Shop A", view.Find(".rfm-row").TextContent);
+        Assert.True(view.FindComponent<VendorDrawerShell>().Instance.AnimateEntry);
+        view.Find(".rfm-row button:last-child").Click();
+        Assert.Equal(second.Id, picked?.Id);
+        view.Find(".rfm-preferred button").Click();
+        Assert.Equal(2, view.FindAll(".rfm-row").Count);
+    }
+
+    [Fact]
     public void Registry_action_is_opt_in_to_new_NPM_registration_and_preserves_entered_form()
     {
         var form = new EEMOCantilanSDS.Client.Components.Pages.Shared.AddVendorModal.VendorModalForm {
@@ -77,6 +104,8 @@ public sealed class RegisteredFishMeatPickerTests : TestContext
         Assert.Contains("No cash received", view.Markup);
         Assert.Empty(view.FindComponents<FhSelect>());
         Assert.Contains("No verified NPM occupancy linked", view.Markup);
+        Assert.Contains($"/npm?registerVendor={row.VendorRegistrationId:D}&amp;registrationYear={row.TaxYear}", view.Markup);
+        Assert.True(view.FindComponent<VendorDrawerShell>().Instance.AnimateEntry);
         Assert.Contains("Check again", view.Markup);
         Assert.DoesNotContain("_association", view.Markup);
         Assert.True(view.FindAll("button").Single(x => x.TextContent == "Approve registration").HasAttribute("disabled"));

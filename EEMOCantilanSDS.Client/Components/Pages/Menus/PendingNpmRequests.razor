@@ -85,7 +85,7 @@
     </section>
 </div>
 
-<VendorDrawerShell Show="@(_selected is not null)" Title="Review NPM request"
+<VendorDrawerShell Show="@(_selected is not null)" AnimateEntry="true" Title="Review NPM request"
                    Subtitle="@(_selected?.VendorName ?? "Registration review")" OnClose="Close">
     <Icon>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 10h6M9 14h6M9 18h4"/></svg>
@@ -148,7 +148,7 @@
                                     <strong>No verified NPM occupancy linked</strong>
                                     <p>Check the stall and link this vendor in the NPM register before approval.</p>
                                     <div class="pnr-link-actions">
-                                        <a href="/npm" target="_blank" rel="noopener" class="v3-btn v3-btn-sm">Open NPM register</a>
+                                        <a href="@NpmVendorRegistrationUrl(row)" target="_blank" rel="noopener" class="v3-btn v3-btn-sm">Register NPM occupancy</a>
                                         <button type="button" class="v3-btn v3-btn-sm" @onclick="() => LoadAssociations(row)">Check again</button>
                                     </div>
                                 </div>
@@ -208,6 +208,7 @@
     private IReadOnlyList<string> _warnings = [];
     private static string When(DateTime utc) => PhilippineTime.ToPhilippineTime(utc).ToString("MMM d, yyyy h:mm tt");
     private static string Stall(NpmRegistrationRequestDto row) => string.IsNullOrWhiteSpace(row.ProposedStall) ? "Not specified" : row.ProposedStall;
+    private static string NpmVendorRegistrationUrl(NpmRegistrationRequestDto row) => $"/npm?registerVendor={row.VendorRegistrationId:D}&registrationYear={row.TaxYear}";
     private static string SectionName(MarketSection? section) => section switch
     {
         MarketSection.FishSection => "Fish Area",

@@ -1,5 +1,6 @@
 @page "/npm"
 @page "/facility/npm"
+@* Optional review context opens the existing registered-vendor workflow; never auto-creates a tenancy. *@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Application.Dtos.Facilities
@@ -53,6 +54,13 @@
                 Stats="@HeroStats"
                 ShowProgress="true"
                 ProgressPercentage="@CollectionRate" />
+            @if (!string.IsNullOrWhiteSpace(_rosterError))
+            {
+                <div class="npm-custom-err" role="alert">
+                    @_rosterError
+                    <button class="btn-outline" type="button" @onclick="ReloadNpmRosterAsync">Retry loading stalls</button>
+                </div>
+            }
 
             <!-- ── Section Tabs ── -->
             <div class="npm-section-tabs">
@@ -320,7 +328,7 @@
                 OnFacilityChanged="() => {}"
                 OnSectionChanged="OnSectionModalChanged"
                 OnToggleFee="ToggleVendorFee" />
-<RegisteredFishMeatPicker Show="_registryPicker" OnClose="() => _registryPicker = false" OnSelected="SelectRegisteredVendor" OnExisting="ReviewExistingRegistryStall" />
+<RegisteredFishMeatPicker Show="_registryPicker" PreferredVendorId="RegisterVendor" PreferredYear="RegistrationYear" OnClose="() => _registryPicker = false" OnSelected="SelectRegisteredVendor" OnExisting="ReviewExistingRegistryStall" />
 
 
 @* ══════════════════════════════════════════════
@@ -434,6 +442,28 @@
 
     private RenderFragment ActionBarContent => @<ActionBar Facility="npm" />;
 
+    [Parameter, SupplyParameterFromQuery(Name = "registerVendor")] public Guid? RegisterVendor { get; set; }
+    [Parameter, SupplyParameterFromQuery(Name = "registrationYear")] public int? RegistrationYear { get; set; }
+    private string? _rosterError;
+    private void OpenRequestedNpmRegistration()
+    {
+        // A deep link only opens the normal Head verification form. It never registers
+        // a tenancy, chooses a stall, or approves the pending Mobile request.
+        if (RegisterVendor is not { } vendor || vendor == Guid.Empty) return;
+        OpenAddVendorModal();
+        _registryPicker = true;
+    }
+
+    private async Task ReloadNpmRosterAsync()
+    {
+        try { await LoadStallsFromApi(paintLoading: true); }
+        catch
+        {
+            _rosterError = "The current NPM stall roster could not be loaded. Existing records have not been changed.";
+            CachedNpmPage = null;
+        }
+        finally { _loading = false; }
+    }
     private bool _loading = true;
 
     protected override async Task OnInitializedAsync()
@@ -446,16 +476,18 @@
         var now = PhilippineTime.Now;
         if (CachedNpmPage is { } state
             && state.Year == now.Year
-            && state.Month == now.Month)
+            && state.Month == now.Month
+            && state.Stalls.Count > 0)
         {
             Report = state.Report;
             Stalls = state.Stalls.ToList();
             _loading = false;
+            OpenRequestedNpmRegistration();
             return;
         }
 
-        try { await LoadStallsFromApi(paintLoading: true); }
-        finally { _loading = false; }
+        await ReloadNpmRosterAsync();
+        OpenRequestedNpmRegistration();
     }
 
     private async Task LoadStallsFromApi(bool paintLoading = false)
@@ -483,6 +515,13 @@
         if (reportResult.IsSuccess) Report = reportResult.Value;
 
         var result = await stallsTask;
+        if (!result.IsSuccess || result.Value is null)
+        {
+            _rosterError = "The current NPM stall roster could not be loaded. Existing records have not been changed.";
+            CachedNpmPage = null;
+            return;
+        }
+        _rosterError = null;
         if (result.IsSuccess && result.Value != null)
         {
             // Single batch call for all current-month payment records (avoids per-stall N+1)
@@ -589,7 +628,8 @@
             }
         }
 
-        CachedNpmPage = new NpmPageState(now.Year, now.Month, Report, Stalls.ToList());
+        // Never cache an unexplained empty roster for an entire month; a subsequent visit must recheck.
+        CachedNpmPage = Stalls.Count > 0 ? new NpmPageState(now.Year, now.Month, Report, Stalls.ToList()) : null;
     }
 
     // ── Add OR number to the most-recent paid day (NPM daily collection) ──

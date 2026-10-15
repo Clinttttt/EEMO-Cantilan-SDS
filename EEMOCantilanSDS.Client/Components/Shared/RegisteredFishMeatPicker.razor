@@ -3,12 +3,19 @@
 @using EEMOCantilanSDS.Domain.Entities.Revenue
 @inject IOfficeSourcesApiClient OfficeApi
 
-<VendorDrawerShell Show="Show" Title="Registered Fish / Meat" Subtitle="Reuse verified identity; NPM tenancy still requires office confirmation." OnClose="OnClose">
+<VendorDrawerShell Show="Show" AnimateEntry="true" Title="Registered Fish / Meat" Subtitle="Reuse verified identity; NPM tenancy still requires office confirmation." OnClose="OnClose">
     <Icon><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="7" r="3" /><path d="M3 21v-2a6 6 0 0 1 12 0v2M17 5h4M17 9h4M18 15l2 2 3-4" /></svg></Icon>
     <ChildContent>
         <div class="rfm" aria-busy="@(_loading ? "true" : "false")">
             <label for="rfm-search">Find a registered vendor</label>
             <input id="rfm-search" class="avm-input" type="search" @bind="_search" @bind:event="oninput" placeholder="Vendor, business or office name" />
+            @if (PreferredVendorId.HasValue && !_showAllVendors)
+            {
+                <div class="rfm-preferred" role="status">
+                    <span>Requested Fish / Meat registration</span>
+                    <button type="button" class="btn-ghost" @onclick="ShowAllVendors">Show all vendors</button>
+                </div>
+            }
             <div class="rfm-controls">
                 <FhSelect AriaLabel="Registration tax year" Options="Years" Value="@_year.ToString()" ValueChanged="ChangeYear" />
                 <FhSelect AriaLabel="Vendor type" Options="Types" Value="@_type" ValueChanged="v => _type = v" />
@@ -39,7 +46,12 @@
                         <button type="button" class="btn-ghost" disabled="@(row.Status != VendorRegistrationStatus.Active)" @onclick="() => OnSelected.InvokeAsync(vendor)">Use for a new NPM occupancy</button>
                     </section>
                 }
-                @if (!Visible.Any()) { <p>No matching vendor registrations.</p> }
+                @if (!Visible.Any())
+                {
+                    <p>@(PreferredVendorId.HasValue && !_showAllVendors
+                        ? "The requested registration was not found for this tax year. Verify its status before proceeding."
+                        : "No matching vendor registrations.")</p>
+                }
             }
         </div>
     </ChildContent>
@@ -47,10 +59,13 @@
 </VendorDrawerShell>
 @code {
     [Parameter] public bool Show { get; set; }
+    [Parameter] public Guid? PreferredVendorId { get; set; }
+    [Parameter] public int? PreferredYear { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback<FishMeatVendorRegistrationDto> OnSelected { get; set; }
     [Parameter] public EventCallback<Guid> OnExisting { get; set; }
-    private bool _wasShown, _loading;
+    private bool _wasShown, _loading, _showAllVendors;
+    private void ShowAllVendors() { _showAllVendors = true; _search = ""; }
     private int _loadVersion;
     private int _year = PhilippineTime.Today.Year;
     private string _search = "", _type = "All";
@@ -60,16 +75,23 @@
     private IReadOnlyList<(string Value, string Label)> Years => Enumerable.Range(0, 6).Select(i => _year > PhilippineTime.Today.Year ? _year - i : PhilippineTime.Today.Year - i).Select(y => (y.ToString(), y.ToString())).ToArray();
     private static readonly IReadOnlyList<(string Value, string Label)> Types = [("All", "All"), ("Fish", "Fish"), ("Meat", "Meat")];
     private List<NpmVendorCandidate> Related(Guid id) => _sources.Where(s => s.Links.Any(l => l.VendorRegistrationId == id && l.CorrectedAtUtc is null)).ToList();
-    private IEnumerable<VendorRegistrationManagementRow> Visible => _rows.Where(x => (_type == "All" || x.Registration.VendorType.ToString() == _type)
+    private IEnumerable<VendorRegistrationManagementRow> Visible => _rows.Where(x => (!PreferredVendorId.HasValue || _showAllVendors || x.Registration.Id == PreferredVendorId.Value)
+        && (_type == "All" || x.Registration.VendorType.ToString() == _type)
         && string.Join(" ", new[] { x.Registration.DisplayName, x.Registration.BusinessName, x.Registration.LastName, x.Registration.FirstName, x.Registration.Address })
             .Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase))
         .OrderBy(x => x.Status != VendorRegistrationStatus.Active).ThenBy(x => Related(x.Registration.Id).Any(r => r.Active)).ThenBy(x => x.Registration.DisplayName).ThenBy(x => x.Registration.Id);
     protected override async Task OnParametersSetAsync()
     {
         var opening = Show && !_wasShown; _wasShown = Show;
-        if (opening) await Load();
+        if (opening)
+        {
+            _showAllVendors = false;
+            _search = "";
+            _year = PreferredYear is >= 2000 and <= 2100 ? PreferredYear.Value : PhilippineTime.Today.Year;
+            await Load();
+        }
     }
-    private async Task ChangeYear(string value) { _year = int.Parse(value); await Load(); }
+    private async Task ChangeYear(string value) { _year = int.Parse(value); _showAllVendors = true; await Load(); }
     private async Task Load()
     {
         var version = ++_loadVersion; var year = _year;
