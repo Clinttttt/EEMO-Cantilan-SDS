@@ -33,6 +33,9 @@ public sealed class CachingMobileApiClient(
     public Task<Result<NpmRegistrationRequestDto>> SubmitNpmRequestAsync(SubmitNpmRegistrationRequest request) => inner.SubmitNpmRequestAsync(request);
     public Task<Result<NpmStallNumberSuggestionDto>> SuggestNpmStallAsync(EEMOCantilanSDS.Domain.Enums.MarketSection section) => inner.SuggestNpmStallAsync(section);
     // Never cache an approval or pending-status read: server state is authoritative.
+    // A withdrawal is an audited online office workflow; never queue it as a cash or offline operation.
+    public Task<Result<NpmRegistrationRequestDto>> CancelNpmRequestAsync(Guid requestId, CancelNpmRegistrationRequest request) =>
+        inner.CancelNpmRequestAsync(requestId, request);
     public Task<Result<NpmRegistrationRequestDto>> GetPendingNpmRequestAsync(Guid vendorRegistrationId) =>
         inner.GetPendingNpmRequestAsync(vendorRegistrationId);
     public Task<Result<NpmRegistrationRequestPage>> GetNpmRequestsAsync(int page = 1, int pageSize = 25) => inner.GetNpmRequestsAsync(page, pageSize);

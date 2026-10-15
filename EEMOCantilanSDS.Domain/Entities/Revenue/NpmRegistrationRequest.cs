@@ -3,7 +3,7 @@ using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Domain.Entities.Revenue;
 
-public enum NpmRegistrationRequestStatus { Submitted = 1, Approved = 2, Returned = 3, Rejected = 4 }
+public enum NpmRegistrationRequestStatus { Submitted = 1, Approved = 2, Returned = 3, Rejected = 4, Cancelled = 5 }
 
 /// <summary>Nonfinancial office review. No amount, cash custody, receipt or Collection identity belongs here.</summary>
 public sealed class NpmRegistrationRequest : BaseEntity, IMunicipalityOwned
@@ -48,6 +48,18 @@ public sealed class NpmRegistrationRequest : BaseEntity, IMunicipalityOwned
             throw new ArgumentException("Approval requires a verified NPM association; return/rejection must not create one.");
         ReviewReason = Text(reason, 1000); ReviewedBy = Text(actor, 100); DecisionOperationId = operation;
         ReviewedAtUtc = now; AssociationId = association; Status = outcome; Version++;
+    }
+    public void Cancel(Guid operation, int expectedVersion, string actor, DateTime now)
+    {
+        if (operation == Guid.Empty || expectedVersion != Version || Status != NpmRegistrationRequestStatus.Submitted)
+            throw new InvalidOperationException("Request changed; refresh before cancelling.");
+        ReviewedBy = Text(actor, 100);
+        ReviewReason = "Cancelled by submitting collector";
+        ReviewedAtUtc = now;
+        DecisionOperationId = operation;
+        AssociationId = null;
+        Status = NpmRegistrationRequestStatus.Cancelled;
+        Version++;
     }
     private static string Text(string value, int max) => !string.IsNullOrWhiteSpace(value) && value.Trim().Length <= max
         ? value.Trim() : throw new ArgumentException("Complete the required request evidence within the supported length.");

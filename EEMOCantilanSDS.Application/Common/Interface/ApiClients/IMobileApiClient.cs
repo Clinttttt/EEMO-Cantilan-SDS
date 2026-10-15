@@ -15,6 +15,8 @@ public interface IMobileApiClient
     Task<Result<NpmRegistrationRequestDto>> SubmitNpmRequestAsync(SubmitNpmRegistrationRequest request) => Task.FromResult(Result<NpmRegistrationRequestDto>.Failure("Registration requests unavailable."));
     Task<Result<NpmStallNumberSuggestionDto>> SuggestNpmStallAsync(EEMOCantilanSDS.Domain.Enums.MarketSection section) =>
         Task.FromResult(Result<NpmStallNumberSuggestionDto>.Failure("Stall suggestion unavailable."));
+    Task<Result<NpmRegistrationRequestDto>> CancelNpmRequestAsync(Guid requestId, CancelNpmRegistrationRequest request) =>
+        Task.FromResult(Result<NpmRegistrationRequestDto>.Failure("Cancellation is unavailable."));
     Task<Result<NpmRegistrationRequestDto>> GetPendingNpmRequestAsync(Guid vendorRegistrationId) =>
         Task.FromResult(Result<NpmRegistrationRequestDto>.Failure("NPM request lookup is unavailable."));
     Task<Result<NpmRegistrationRequestPage>> GetNpmRequestsAsync(int page = 1, int pageSize = 25) => Task.FromResult(Result<NpmRegistrationRequestPage>.Failure("Registration requests unavailable."));

@@ -146,3 +146,14 @@ button:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2p
 .linked-sources { display: grid; gap: 6px; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--border, #dbe3ee); }
 .linked-label { font-size: 12px; font-weight: 600; color: var(--text-subtle, #5b6b82); text-transform: none; }
 .linked-note { color: var(--text-subtle, #5b6b82); }
+/* Inline, server-eligible charges in New Collection; opening one still follows the quote and review workflow. */
+.collection-available-fees { display: grid; gap: 5px; margin: 12px 0; min-width: 0; }
+.collection-available-caption { color: #526984; font-size: 12px; font-weight: 700; margin-bottom: 3px; }
+.collection-available-fees .collection-option { background: #f6f9fd; border: 1px solid #dee8f5; border-radius: 9px; padding: 11px 12px; min-width: 0; }
+.collection-available-fees .option-text { display: flex; flex-direction: column; min-width: 0; gap: 3px; }
+.collection-available-fees .option-text strong { font-size: 13px; color: #1a3f69; }
+.collection-available-fees .option-text small { font-size: 11px; color: #637891; }
+.collection-monthly-route { display: grid; gap: 8px; margin: 11px 0 4px; border: 1px solid #d9e5f4; border-radius: 10px; padding: 13px; background: #f2f7ff; }
+.collection-monthly-route > strong { font-size: 13px; color: #204f8b; }
+.collection-monthly-route p { font-size: 12px; line-height: 1.5; color: #506781; margin: 0; }
+.collection-monthly-route .collection-small { justify-self: start; }

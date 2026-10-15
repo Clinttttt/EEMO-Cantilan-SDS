@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Domain.Enums;
 namespace EEMOCantilanSDS.Application.Dtos.Mobile;
 public sealed record SubmitNpmRegistrationRequest(Guid ClientOperationId, Guid VendorRegistrationId,
     string ProposedStall, MarketSection? ProposedSection, string Note, Guid? ReplacesRequestId = null);
+public sealed record CancelNpmRegistrationRequest(Guid ClientOperationId, int ExpectedVersion);
 public sealed record ReviewNpmRegistrationRequest(Guid ClientOperationId, int ExpectedVersion,
     NpmRegistrationRequestStatus Outcome, string Reason, Guid? AssociationId = null);
 public sealed record NpmRegistrationRequestDto(Guid Id, Guid VendorRegistrationId, int TaxYear, string VendorName,

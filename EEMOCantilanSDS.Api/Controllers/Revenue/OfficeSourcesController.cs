@@ -21,6 +21,9 @@ public sealed class OfficeSourcesController(ISender sender, OfficeCollectionWork
     public async Task<ActionResult<NpmRegistrationRequestPage>> NpmRequests(int page = 1, int pageSize = 25, CancellationToken ct = default) => HandleResponse(await workflow.NpmRequestsAsync(page, pageSize, ct));
     [HttpPost("npm-requests"), Authorize(Roles = "Collector")]
     public async Task<ActionResult<NpmRegistrationRequestDto>> SubmitNpmRequest(SubmitNpmRegistrationRequest request, CancellationToken ct) => HandleResponse(await workflow.SubmitNpmRequestAsync(request, ct));
+    [HttpPost("npm-requests/{id:guid}/cancel"), Authorize(Roles = "Collector")]
+    public async Task<ActionResult<NpmRegistrationRequestDto>> CancelNpmRequest(Guid id, CancelNpmRegistrationRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.CancelNpmRequestAsync(id, request, ct));
     [HttpPost("npm-requests/{id:guid}/review"), Authorize(Roles = "SuperAdmin")]
     public async Task<ActionResult<NpmRegistrationRequestDto>> ReviewNpmRequest(Guid id, ReviewNpmRegistrationRequest request, CancellationToken ct) => HandleResponse(await workflow.ReviewNpmRequestAsync(id, request, ct));
     [HttpPost("fish-meat/npm-occupancies"), Authorize(Roles = "SuperAdmin")]

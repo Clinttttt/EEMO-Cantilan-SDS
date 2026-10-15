@@ -15,6 +15,8 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
     public Task<Result<NpmRegistrationRequestDto>> SubmitNpmRequestAsync(SubmitNpmRegistrationRequest request) => PostAsync<SubmitNpmRegistrationRequest, NpmRegistrationRequestDto>("api/office-sources/npm-requests", request);
     public Task<Result<NpmStallNumberSuggestionDto>> SuggestNpmStallAsync(EEMOCantilanSDS.Domain.Enums.MarketSection section) =>
         GetAsync<NpmStallNumberSuggestionDto>($"api/office-sources/npm-requests/stall-suggestion?section={Uri.EscapeDataString(section.ToString())}");
+    public Task<Result<NpmRegistrationRequestDto>> CancelNpmRequestAsync(Guid requestId, CancelNpmRegistrationRequest request) =>
+        PostAsync<CancelNpmRegistrationRequest, NpmRegistrationRequestDto>($"api/office-sources/npm-requests/{requestId:D}/cancel", request);
     public Task<Result<NpmRegistrationRequestDto>> GetPendingNpmRequestAsync(Guid vendorRegistrationId) =>
         GetAsync<NpmRegistrationRequestDto>($"api/office-sources/npm-requests/pending/{vendorRegistrationId:D}");
     public Task<Result<NpmRegistrationRequestPage>> GetNpmRequestsAsync(int page = 1, int pageSize = 25) => GetAsync<NpmRegistrationRequestPage>($"api/office-sources/npm-requests?page={page}&pageSize={pageSize}");

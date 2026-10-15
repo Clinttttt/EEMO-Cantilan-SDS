@@ -92,6 +92,29 @@ public sealed partial class OfficeCollectionWorkflow
         finally { if (!committed) db.ChangeTracker.Clear(); }
     }
 
+    public async Task<Result<NpmRegistrationRequestDto>> CancelNpmRequestAsync(Guid id, CancelNpmRegistrationRequest request, CancellationToken ct = default)
+    {
+        if (!await CanRequestNpm(ct) || user.CollectorId is not { } collector) return Result<NpmRegistrationRequestDto>.Forbidden();
+        var committed = false;
+        try
+        {
+            await using var tx = await db.BeginSerializableTransactionAsync(ct);
+            var row = await db.NpmRegistrationRequests.SingleOrDefaultAsync(x => x.MunicipalityId == Tenant && x.Id == id && x.CollectorId == collector, ct);
+            if (row is null) return Result<NpmRegistrationRequestDto>.NotFound();
+            if (row.DecisionOperationId == request.ClientOperationId && row.Status == NpmRegistrationRequestStatus.Cancelled)
+                return Result<NpmRegistrationRequestDto>.Success(RequestDto(row));
+            row.Cancel(request.ClientOperationId, request.ExpectedVersion, user.Username ?? "Collector", clock.UtcNow);
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+            committed = true;
+            return Result<NpmRegistrationRequestDto>.Success(RequestDto(row));
+        }
+        catch (InvalidOperationException e) { return Result<NpmRegistrationRequestDto>.Failure(e.Message, ResultStatus.Conflict); }
+        catch (DbUpdateException) { return Result<NpmRegistrationRequestDto>.Failure("Request changed; refresh before cancelling.", ResultStatus.Conflict); }
+        catch (DbException) { return Result<NpmRegistrationRequestDto>.Failure("Request changed; refresh before cancelling.", ResultStatus.Conflict); }
+        finally { if (!committed) db.ChangeTracker.Clear(); }
+    }
+
     public async Task<Result<NpmRegistrationRequestDto>> ReviewNpmRequestAsync(Guid id, ReviewNpmRegistrationRequest request, CancellationToken ct = default)
     {
         if (!RegistryHead) return Result<NpmRegistrationRequestDto>.Forbidden();

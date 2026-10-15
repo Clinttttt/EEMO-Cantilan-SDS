@@ -22,6 +22,15 @@
 .npm-history-status.is-approved { background: #dff4eb; color: #176b4a; }
 .npm-history-status.is-returned { background: #fff0d3; color: #79540f; }
 .npm-history-status.is-rejected { background: #f9e3e3; color: #8f2e2e; }
+.npm-history-status.is-cancelled { background: #edf0f4; color: #52647a; }
+.npm-history-cancel-actions { margin: 12px 0 0; }
+.npm-history-cancel-trigger { background: transparent; border: 0; color: #596b83; padding: 7px 0; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.npm-history-cancel-actions > p { font-size: 12px; color: var(--mobile-text-secondary); margin: 0 0 10px; line-height: 1.5; }
+.npm-history-cancel-actions .npm-history-cancel-error { color: #a23636; }
+.npm-history-cancel-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.npm-history-cancel-buttons button { font: inherit; font-size: 12px; font-weight: 650; padding: 9px 13px; border: 1px solid var(--mobile-border); border-radius: 9px; background: #fff; color: var(--mobile-navy); cursor: pointer; }
+.npm-history-cancel-buttons .npm-history-cancel-confirm { border-color: #c7d0dd; color: #7a2630; }
+.npm-history-cancel-buttons button:disabled { opacity: .55; cursor: wait; }
 .npm-history-meta { font-size: 11px; margin-top: 4px; color: var(--mobile-text-secondary); }
 .npm-history-stall { display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap; padding-top: 10px; font-size: 12px; color: var(--mobile-text-secondary); }
 .npm-history-stall strong { color: var(--mobile-navy); }

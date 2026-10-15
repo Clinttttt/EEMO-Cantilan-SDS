@@ -9,7 +9,7 @@ public sealed class NpmRegistrationRequestConfiguration : IEntityTypeConfigurati
     public void Configure(EntityTypeBuilder<NpmRegistrationRequest> b)
     {
         b.ToTable("NpmRegistrationRequests", t => {
-            t.HasCheckConstraint("CK_NpmRegistrationRequest_State", "\"Status\" IN (1,2,3,4) AND \"Version\" > 0 AND ((\"Status\" = 1 AND \"DecisionOperationId\" IS NULL AND \"ReviewedAtUtc\" IS NULL AND \"AssociationId\" IS NULL) OR (\"Status\" <> 1 AND \"DecisionOperationId\" IS NOT NULL AND \"ReviewedAtUtc\" IS NOT NULL AND \"ReviewedBy\" IS NOT NULL AND \"ReviewReason\" IS NOT NULL)) AND ((\"Status\" = 2 AND \"AssociationId\" IS NOT NULL) OR (\"Status\" <> 2 AND \"AssociationId\" IS NULL))");
+            t.HasCheckConstraint("CK_NpmRegistrationRequest_State", "\"Status\" IN (1,2,3,4,5) AND \"Version\" > 0 AND ((\"Status\" = 1 AND \"DecisionOperationId\" IS NULL AND \"ReviewedAtUtc\" IS NULL AND \"AssociationId\" IS NULL) OR (\"Status\" <> 1 AND \"DecisionOperationId\" IS NOT NULL AND \"ReviewedAtUtc\" IS NOT NULL AND \"ReviewedBy\" IS NOT NULL AND \"ReviewReason\" IS NOT NULL)) AND ((\"Status\" = 2 AND \"AssociationId\" IS NOT NULL) OR (\"Status\" <> 2 AND \"AssociationId\" IS NULL))");
         });
         b.HasKey(x => x.Id); b.HasAlternateKey(x => new { x.MunicipalityId, x.Id });
         b.HasIndex(x => new { x.MunicipalityId, x.ClientOperationId }).IsUnique();

@@ -61,7 +61,7 @@
                         <div class="npm-history-stall">
                             <span>Proposed stall</span>
                             <strong>@row.ProposedStall</strong>
-                            @if (row.ProposedSection is not null) { <span>· @row.ProposedSection</span> }
+                            @if (row.ProposedSection is not null) { <span>· @SectionName(row.ProposedSection.Value)</span> }
                         </div>
                         @if (row.Status == NpmRegistrationRequestStatus.Returned)
                         {
@@ -70,6 +70,26 @@
                         else if (row.Status == NpmRegistrationRequestStatus.Approved)
                         {
                             <p class="npm-history-feedback">Registration verified by the office. No payment recorded by this review.</p>
+                        }
+                        @if (row.Status == NpmRegistrationRequestStatus.Submitted)
+                        {
+                            <div class="npm-history-cancel-actions">
+                                @if (_confirmCancel == row.Id)
+                                {
+                                    <p>Cancel this pending request? It will remain in your history, and no payment is affected.</p>
+                                    @if (_cancelError is not null) { <p role="alert" class="npm-history-cancel-error">@_cancelError</p> }
+                                    <div class="npm-history-cancel-buttons">
+                                        <button type="button" class="npm-history-cancel-confirm" disabled="@_cancelling" @onclick="() => CancelRequest(row)">
+                                            @(_cancelling ? "Cancelling…" : "Confirm cancellation")
+                                        </button>
+                                        <button type="button" disabled="@_cancelling" @onclick="ResetCancel">Keep request</button>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <button class="npm-history-cancel-trigger" type="button" @onclick="() => AskCancel(row.Id)">Cancel request</button>
+                                }
+                            </div>
                         }
                         <details class="npm-history-details">
                             <summary>Request details</summary>
@@ -111,6 +131,34 @@
     private string? _error;
     private bool _loading;
     private int _page = 1;
+    private Guid? _confirmCancel;
+    private bool _cancelling;
+    private string? _cancelError;
+    private readonly Dictionary<Guid, Guid> _cancelOperations = new();
+
+    private void AskCancel(Guid id) { _confirmCancel = id; _cancelError = null; }
+    private void ResetCancel() { _confirmCancel = null; _cancelError = null; }
+    private async Task CancelRequest(NpmRegistrationRequestDto row)
+    {
+        if (_cancelling || _confirmCancel != row.Id || row.Status != NpmRegistrationRequestStatus.Submitted) return;
+        _cancelling = true;
+        _cancelError = null;
+        try
+        {
+            if (!_cancelOperations.TryGetValue(row.Id, out var operation))
+                _cancelOperations[row.Id] = operation = Guid.NewGuid();
+            var result = await Api.CancelNpmRequestAsync(row.Id, new(operation, row.Version));
+            if (result.IsSuccess && result.Value is { Status: NpmRegistrationRequestStatus.Cancelled })
+            {
+                _cancelOperations.Remove(row.Id);
+                ResetCancel();
+                await Load();
+            }
+            else _cancelError = result.Error ?? "Could not cancel. Check the latest request status and try again.";
+        }
+        catch { _cancelError = "Cancellation could not be confirmed. Check your connection before retrying."; }
+        finally { _cancelling = false; }
+    }
     protected override Task OnInitializedAsync() => Load();
     private async Task Load()
     {
@@ -144,11 +192,19 @@
     }
     private async Task Previous() { if (_page > 1) { _page--; await Load(); } }
     private async Task Next() { if (_data is { } d && _page * d.PageSize < d.Total) { _page++; await Load(); } }
+    private static string SectionName(EEMOCantilanSDS.Domain.Enums.MarketSection section) => section switch
+    {
+        EEMOCantilanSDS.Domain.Enums.MarketSection.FishSection => "Fish Area",
+        EEMOCantilanSDS.Domain.Enums.MarketSection.MeatSection => "Meat Area",
+        EEMOCantilanSDS.Domain.Enums.MarketSection.VegetableArea => "Vegetable Area",
+        _ => section.ToString()
+    };
     private static string StatusClass(NpmRegistrationRequestStatus status) => status switch
     {
         NpmRegistrationRequestStatus.Approved => "is-approved",
         NpmRegistrationRequestStatus.Returned => "is-returned",
         NpmRegistrationRequestStatus.Rejected => "is-rejected",
+        NpmRegistrationRequestStatus.Cancelled => "is-cancelled",
         _ => "is-pending"
     };
     private static string StatusText(NpmRegistrationRequestStatus status) => status switch
@@ -157,6 +213,7 @@
         NpmRegistrationRequestStatus.Approved => "Approved",
         NpmRegistrationRequestStatus.Returned => "Returned",
         NpmRegistrationRequestStatus.Rejected => "Rejected",
+        NpmRegistrationRequestStatus.Cancelled => "Cancelled",
         _ => status.ToString()
     };
 }

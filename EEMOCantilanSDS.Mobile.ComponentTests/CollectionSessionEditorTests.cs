@@ -139,6 +139,28 @@ public sealed class CollectionSessionEditorTests : TestContext
         _api.Verify(x => x.GetSourceCollectionDiscoveryAsync(It.IsAny<CollectionSourceIdentity?>()), Times.Never);
     }
 
+    [Theory]
+    [InlineData("TCC")]
+    [InlineData("NCC")]
+    public void Monthly_stall_without_canonical_rent_uses_existing_operation_and_never_direct_cash(string facility)
+    {
+        var identity = new CollectionSourceIdentity(SourceIdentityKind.Occupancy, Guid.NewGuid());
+        _api.Setup(x => x.SearchCollectionSourcesAsync(It.IsAny<string?>()))
+            .ReturnsAsync(Result<IReadOnlyList<CollectionSourceSearchResult>>.Success([
+                new(identity, "Alarcon Ryan", facility + " · Stall 4", "FACILITY_" + facility)
+            ]));
+        _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(identity))
+            .ReturnsAsync(Result<CollectionSessionDiscovery>.Success(new(null, Today, [], SourceIdentity: identity)));
+        var view = Open("FACILITY_" + facility);
+        view.Find("input[type=search]").Focus();
+        view.WaitForAssertion(() => Assert.NotEmpty(view.FindAll(".payer-option")));
+        ClickSource(view, "Alarcon Ryan");
+        view.WaitForAssertion(() => Assert.Contains("Open " + facility + " collections", view.Markup));
+        Assert.Contains("Monthly stall rental", view.Markup);
+        Assert.DoesNotContain("Continue as direct collection", view.Markup);
+        Assert.Empty(view.FindAll(".collection-available-fees button"));
+    }
+
     [Fact]
     public void VendorVisitCannotDiscardUnrecordedItemsBySwitchingToElectricityOrRent()
     {
@@ -147,7 +169,7 @@ public sealed class CollectionSessionEditorTests : TestContext
         view.Find("input[type=search]").Focus();
         ClickSource(view, "Pantom Dant");
         Click(view, "+ Add item");
-        view.FindAll(".collection-option").Single(x => x.TextContent.Contains("Fish / Meat Vendor Fee")).Click();
+        view.Find("[role=dialog]").QuerySelectorAll(".collection-option").Single(x => x.TextContent.Contains("Fish / Meat Vendor Fee")).Click();
         view.Find("[role=dialog] input[type=number]").Input("50");
         Click(view, "Add item");
         Assert.All(view.FindAll(".collection-source-actions button"), button => Assert.True(button.HasAttribute("disabled")));

@@ -132,7 +132,28 @@ else
             <div class="collection-row"><h2>Items</h2><button class="collection-small" type="button" disabled="@(_busy || (Correction is not null && _items.Count > 0))" @onclick="OpenPickerAsync">+ Add item</button></div>
             @if (_items.Count == 0)
             {
-                <p>@(NothingDue ? "No linked collection is due for this source." : "No items added.")</p>
+                <p>@(NothingDue && MonthlyFacilityCode is not null ? "No collectible monthly rent is prepared for this stall in New Collection." : NothingDue ? "No linked collection is due for this source." : "No items added.")</p>
+                @if (_source is not null && Offered.Count > 0)
+                {
+                    <div class="collection-available-fees" role="group" aria-label="Available charges">
+                        <span class="collection-available-caption">Available charges</span>
+                        @foreach (var offered in Offered)
+                        {
+                            <button type="button" class="collection-option" disabled="@_busy" @onclick="() => OpenOfferedAsync(offered.OperationCode)">
+                                <span class="option-text"><strong>@OperationLabel(offered)</strong><small>@(OperationDetail(offered) ?? (offered.Choices?.Count > 1 ? offered.Choices.Count + " approved options" : "Review office-approved charge"))</small></span>
+                                <span aria-hidden="true">›</span>
+                            </button>
+                        }
+                    </div>
+                }
+                @if (NothingDue && MonthlyFacilityCode is { } monthly)
+                {
+                    <div class="collection-monthly-route">
+                        <strong>Monthly stall rental</strong>
+                        <p>No canonical rental balance is available in New Collection. Review rental dues and authorized collection options in this facility's existing monthly operation.</p>
+                        <button type="button" class="collection-small" @onclick='() => Navigation.NavigateTo("/collect/" + monthly)'>Open @monthly collections</button>
+                    </div>
+                }
                 @if (NothingDue && OnlyOperation == CollectorOperationCodes.VegetableFruitSpaceRental)
                 {
                     <p role="status">No collectible Monthly periods are available. Ask the office to check the account and OR collection setup.</p>
@@ -157,7 +178,7 @@ else
                 {
                     <NpmRegistrationRequestForm VendorId="_source.Identity.Id" />
                 }
-                @if (NothingDue && DirectAllowed)
+                @if (NothingDue && DirectAllowed && MonthlyFacilityCode is null)
                 {
                     <button class="collection-small" type="button" @onclick="() => StartDirectAsync(_source!.DisplayName)">Continue as direct collection</button>
                 }
@@ -450,6 +471,10 @@ else
 
     // A source with nothing collectible says so; the collector may then start a separate direct collection.
     private bool NothingDue => _source is not null && _discovery is not null && !_discovery.Operations.Any(x => x.CanAdd && Allows(x.OperationCode));
+    // A facility-only rental authority cannot become a direct collection when no canonical period is prepared.
+    private string? MonthlyFacilityCode => _source?.Identity.Kind == SourceIdentityKind.Occupancy
+        && _source.OperationCode is "FACILITY_TCC" or "FACILITY_NCC" or "FACILITY_BBQ" or "FACILITY_ICE"
+        ? _source.OperationCode["FACILITY_".Length..] : null;
 
     private IReadOnlyList<CollectionSessionCapability> Offered => (_discovery?.Operations ?? [])
         .Where(x => x.Supported && x.CanAdd && Allows(x.OperationCode)).ToList();
@@ -708,6 +733,13 @@ else
     }
 
     // ── Adding an item ──────────────────────────────────────────────────────────────────────────────
+    private async Task OpenOfferedAsync(string operationCode)
+    {
+        if (_busy || _items.Count > 0 || _source is null) return;
+        await OpenPickerAsync();
+        if (_picker && Offered.Any(x => x.OperationCode == operationCode)) Choose(operationCode);
+    }
+
     private async Task OpenPickerAsync()
     {
         _message = null; _editingId = null; await LoadAsync(); _operation = null; _choice = null; _choiceKey = "";
