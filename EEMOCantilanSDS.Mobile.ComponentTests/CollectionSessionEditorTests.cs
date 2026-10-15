@@ -120,7 +120,8 @@ public sealed class CollectionSessionEditorTests : TestContext
         var editor = view.FindComponent<CollectionSessionEditor>();
         Assert.Equal(CollectorOperationCodes.FishMeatVendorFee, editor.Instance.OnlyOperation);
         Assert.Equal(new[] { CollectorOperationCodes.WeightAndMeasure }, editor.Instance.AlsoOperations);
-        Assert.Equal(2, view.FindAll(".collection-source-actions button").Count);
+        Assert.Equal(3, view.FindAll(".collection-source-actions button").Count);
+        Assert.Contains("My NPM requests", view.Find(".collection-source-actions").TextContent);
         VegetableFruitModeTests.SaveVisual("mobile-fish-visit", view.Markup);
     }
 
@@ -592,7 +593,9 @@ public sealed class CollectionSessionEditorTests : TestContext
 
         var offered = view.Find("[role=dialog]").QuerySelectorAll(".collection-option").Select(x => x.TextContent.Replace("›", "").Trim()).ToList();
         Assert.Equal(["Fish / Meat Vendor Fee", "Weight & Measure"], offered);                         // the page no longer hides what the server confirms
-        Assert.DoesNotContain("NPM", view.Find("[role=dialog]").TextContent);
+        Assert.DoesNotContain(offered, x => x.Contains("NPM")); // no collectible rent without verified tenancy
+        Assert.Contains("Request NPM registration", view.Find("[role=dialog]").TextContent);
+        Assert.Contains("No cash before approval", view.Find("[role=dialog]").TextContent);
     }
 
     [Fact]
@@ -654,15 +657,20 @@ public sealed class CollectionSessionEditorTests : TestContext
         Assert.Contains("Rent Income", view.Find("[role=dialog]").TextContent);                       // grouped where the office reads them
     }
 
-    [Fact]
-    public void A_vendors_confirmed_npm_link_opens_that_stall_as_its_own_collection_and_never_adds_its_charges_here()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void A_vendors_confirmed_npm_link_opens_that_stall_as_its_own_collection_and_never_adds_its_charges_here(bool dedicated)
     {
         ServeFishVendor();
         var linked = new CollectionSourceSearchResult(Occupancy, "Ana Reyes", "New Public Market · Stall 1", "FACILITY_NPM");
         var served = _api.Object.GetSourceCollectionDiscoveryAsync(FishVendor).GetAwaiter().GetResult().Value!;
         _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(FishVendor)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(served with { LinkedSources = [linked] }));
         ServeNpmOccupancy();
-        var view = PickSource("Pantom Dant");
+        var view = dedicated ? OpenFishMeatPage() : Open();
+        if (dedicated) view.Find("input[type=search]").Focus();
+        view.WaitForAssertion(() => Assert.NotEmpty(view.FindAll(".payer-option")));
+        ClickSource(view, "Pantom Dant");
 
         Assert.Contains("Linked NPM stall", view.Markup);
         Assert.Contains("Collected as a separate payment", view.Markup);
@@ -673,6 +681,7 @@ public sealed class CollectionSessionEditorTests : TestContext
         view.WaitForAssertion(() => Assert.Equal("Ana Reyes", view.Find(".payer-selected strong").TextContent.Trim()), TimeSpan.FromSeconds(3));
         _api.Verify(x => x.GetSourceCollectionDiscoveryAsync(Occupancy), Times.AtLeastOnce);
         Assert.Empty(view.FindAll(".linked-sources"));                              // the stall's own session has no link back
+        Assert.Contains("Daily stall payment", view.Find("[role=dialog]").TextContent); // the vendor-page filter must not hide the linked stall's rent
         Assert.Empty(_queue);                                                       // navigation recorded nothing
     }
 

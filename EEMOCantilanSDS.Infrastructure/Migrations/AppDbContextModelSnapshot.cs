@@ -3365,6 +3365,112 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.ToTable("MobileCollectionSessions", (string)null);
                 });
 
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.NpmRegistrationRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AssociationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClientOperationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CollectorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CollectorName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("DecisionOperationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("MunicipalityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int?>("ProposedSection")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ProposedStall")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid?>("ReplacesRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ReviewReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ReviewedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("SubmittedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("TaxYear")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("VendorName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("VendorRegistrationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MunicipalityId", "AssociationId");
+
+                    b.HasIndex("MunicipalityId", "ClientOperationId")
+                        .IsUnique();
+
+                    b.HasIndex("MunicipalityId", "DecisionOperationId")
+                        .IsUnique()
+                        .HasFilter("\"DecisionOperationId\" IS NOT NULL");
+
+                    b.HasIndex("MunicipalityId", "ReplacesRequestId");
+
+                    b.HasIndex("MunicipalityId", "VendorRegistrationId");
+
+                    b.HasIndex("MunicipalityId", "CollectorId", "VendorRegistrationId")
+                        .IsUnique()
+                        .HasFilter("\"Status\" = 1");
+
+                    b.HasIndex("MunicipalityId", "SubmittedAtUtc", "Id");
+
+                    b.ToTable("NpmRegistrationRequests", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_NpmRegistrationRequest_State", "\"Status\" IN (1,2,3,4) AND \"Version\" > 0 AND ((\"Status\" = 1 AND \"DecisionOperationId\" IS NULL AND \"ReviewedAtUtc\" IS NULL AND \"AssociationId\" IS NULL) OR (\"Status\" <> 1 AND \"DecisionOperationId\" IS NOT NULL AND \"ReviewedAtUtc\" IS NOT NULL AND \"ReviewedBy\" IS NOT NULL AND \"ReviewReason\" IS NOT NULL)) AND ((\"Status\" = 2 AND \"AssociationId\" IS NOT NULL) OR (\"Status\" <> 2 AND \"AssociationId\" IS NULL))");
+                        });
+                });
+
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.ObligationAccount", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5993,6 +6099,35 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.GovernedService", null)
                         .WithMany()
                         .HasForeignKey("MunicipalityId", "GovernedServiceId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.NpmRegistrationRequest", b =>
+                {
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.FishMeatNpmAssociation", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "AssociationId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Users.BaseUser", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "CollectorId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.NpmRegistrationRequest", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "ReplacesRequestId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.FishMeatVendorRegistration", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "VendorRegistrationId")
                         .HasPrincipalKey("MunicipalityId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

@@ -1,0 +1,5 @@
+.npm-request { display: grid; gap: 8px; padding: 12px; margin: 12px 0; border: 1px solid var(--mobile-border); border-radius: 10px; background: var(--mobile-surface); font-size: 13px; }
+.npm-request p { margin: 0; line-height: 1.4; }
+.npm-request label { display: grid; gap: 4px; }
+.npm-request input, .npm-request select, .npm-request textarea { width: 100%; min-width: 0; box-sizing: border-box; }
+.npm-request a { color: var(--mobile-blue); }

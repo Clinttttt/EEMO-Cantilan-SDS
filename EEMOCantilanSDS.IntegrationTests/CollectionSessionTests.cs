@@ -491,10 +491,10 @@ public sealed partial class CollectionSessionTests(PostgresFixture database)
         public AdminUserDto? GetCurrentUser() => null;
     }
     private sealed record World(Guid TenantId, Guid CollectorId, Guid PayorId, Guid AccountId, Guid StallId);
-    private async Task<World> SeedAsync(DateOnly? accountStart = null, bool linked = true, MarketSection section = MarketSection.FishSection)
+    private async Task<World> SeedAsync(DateOnly? accountStart = null, bool linked = true, MarketSection section = MarketSection.FishSection, bool reset = true)
     {
         Skip.IfNot(database.Available, database.UnavailableReason ?? "");
-        await database.ResetAsync();
+        if (reset) await database.ResetAsync();
         var tenant = Municipality.Create("SESSION-" + Guid.NewGuid().ToString("N")[..8], "Session test", "Province", MunicipalityStatus.Active,
             tenantCode: "session-" + Guid.NewGuid().ToString("N")[..8]);
         await using (var setup = database.CreateContext(Guid.Empty)) { setup.Add(tenant); await setup.SaveChangesAsync(); }

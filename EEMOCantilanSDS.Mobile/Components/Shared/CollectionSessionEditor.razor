@@ -120,6 +120,7 @@ else
             <div class="collection-source-actions">
                 <button class="collection-small" type="button" disabled="@(_items.Count > 0 || _busy || _picker)" @onclick='() => Navigation.NavigateTo("/ecf")'>Choose electricity / ECF account</button>
                 <button class="collection-small" type="button" disabled="@(_items.Count > 0 || _busy || _picker)" @onclick='() => Navigation.NavigateTo("/market")'>Choose NPM stall</button>
+                <button class="collection-small" type="button" disabled="@(_items.Count > 0 || _busy || _picker)" @onclick='() => Navigation.NavigateTo("/npm-requests")'>My NPM requests</button>
             </div>
             @if (_items.Count > 0) { <p>Record or remove current items before switching sources.</p> }
         </section>
@@ -143,13 +144,18 @@ else
                 {
                     <div class="linked-sources" role="group" aria-label="Linked NPM stall">
                         <span class="linked-label">Linked NPM stall</span>
+                        <small class="linked-note">Open NPM Stall Fee / Rental in the stall's own collection context.</small>
                         @foreach (var link in linkedSources)
                         {
-                            <button class="collection-option payer-option" type="button" disabled="@_busy" @onclick="() => SelectBrowsedAsync(link)">
+                            <button class="collection-option payer-option" type="button" disabled="@_busy" @onclick="() => OpenLinkedNpmAsync(link)">
                                 <span class="payer-option-text"><strong>@link.DisplayName</strong><small>@link.Context</small></span><span aria-hidden="true">›</span></button>
                         }
                         <small class="linked-note">Collected as a separate payment from this vendor's fees.</small>
                     </div>
+                }
+                @if (!_picker && _source?.Identity.Kind == SourceIdentityKind.FishMeatVendorRegistration && Correction is null && (_discovery?.LinkedSources?.Count ?? 0) == 0)
+                {
+                    <NpmRegistrationRequestForm VendorId="_source.Identity.Id" />
                 }
                 @if (NothingDue && DirectAllowed)
                 {
@@ -225,6 +231,14 @@ else
             <div class="sheet-body">
             @if (_operation is null)
             {
+                @if (_source?.Identity.Kind == SourceIdentityKind.FishMeatVendorRegistration && Correction is null)
+                {
+                    @foreach (var linked in _discovery?.LinkedSources ?? [])
+                    {
+                        <button class="collection-option" type="button" disabled="@(_busy || _items.Count > 0)" @onclick="() => OpenLinkedNpmAsync(linked)"><span class="option-text"><strong>NPM Stall Fee / Rental</strong><small>@linked.Context · separate collection</small></span></button>
+                    }
+                    @if ((_discovery?.LinkedSources?.Count ?? 0) == 0) { <NpmRegistrationRequestForm VendorId="_source.Identity.Id" /> }
+                }
                 @foreach (var section in PickerSections)
                 {
                     <div class="sheet-group">@section.Name</div>
@@ -359,7 +373,8 @@ else
     /// under a new SRC. The original is never changed, and a correction is made online.</summary>
     [Parameter] public MobileRecentCollection? Correction { get; set; }
 
-    private bool Allows(string? code) => OnlyOperation is null || code == OnlyOperation || (AlsoOperations?.Contains(code ?? "") ?? false);
+    private bool _linkedNpmContext;
+    private bool Allows(string? code) => _linkedNpmContext || OnlyOperation is null || code == OnlyOperation || (AlsoOperations?.Contains(code ?? "") ?? false);
 
     private sealed record Shown(string Name, string Context);
 
@@ -647,9 +662,20 @@ else
     private async Task OpenLinkedUtilityAsync(CollectionSourceSearchResult link, string code)
     {
         if (_items.Count > 0 || _busy) return;
-        ClosePicker();
-        await SelectBrowsedAsync(link);
+        await OpenLinkedNpmAsync(link);
         if (_picker && Offered.Any(x => x.OperationCode == code)) Choose(code);
+    }
+
+    private async Task OpenLinkedNpmAsync(CollectionSourceSearchResult link)
+    {
+        if (_busy || _items.Count > 0 || Correction is not null || link.Identity.Kind != SourceIdentityKind.Occupancy
+            || !(_discovery?.LinkedSources?.Any(x => x.Identity == link.Identity) ?? false)) return;
+        ClosePicker();
+        await SelectSourceAsync(link);
+        // The office-confirmed stall is now the sole source. Its server-authorized capabilities replace
+        // the vendor-page display filter; no vendor item is carried into this separate checkout.
+        _linkedNpmContext = true;
+        if (_discovery is not null && Offered.Count > 0) await OpenPickerAsync();
     }
 
     private async Task SelectBrowsedAsync(CollectionSourceSearchResult found)
@@ -660,6 +686,7 @@ else
 
     private async Task SelectSourceAsync(CollectionSourceSearchResult found)
     {
+        _linkedNpmContext = false;
         _source = found; _found = []; _suggestOpen = false; _searched = false; _quote = null; _direct = false;
         await LoadAsync();
     }
@@ -667,12 +694,14 @@ else
     // A direct collection has no Source Identity; the typed name is only the payer's name on the receipt.
     private async Task StartDirectAsync(string name)
     {
+        _linkedNpmContext = false;
         _source = null; _direct = true; _snapshot = name.Trim(); _found = []; _suggestOpen = false; _searched = false; _quote = null;
         await LoadAsync();
     }
 
     private async Task ClearSourceAsync()
     {
+        _linkedNpmContext = false;
         _source = null; _direct = false; _snapshot = ""; _quote = null; _search = ""; _found = []; _searched = false; _browsed = false; _suggestOpen = false;
         _discovery = null; _message = null;
         await Task.CompletedTask;
@@ -861,6 +890,7 @@ else
 
     private async Task StartAnotherAsync()
     {
+        _linkedNpmContext = false;
         _sessionId = Guid.NewGuid(); _items.Clear(); _shown.Clear(); _drafts.Clear(); _result = null; _quote = null; _queued = _needsReview = false;
         _source = null; _snapshot = ""; _search = ""; _found = []; _searched = _browsed = _suggestOpen = false; _discovery = null;
         _direct = OnlyOperation == CollectorOperationCodes.Terminal;

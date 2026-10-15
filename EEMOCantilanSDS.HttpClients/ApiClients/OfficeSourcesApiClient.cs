@@ -5,6 +5,10 @@ using EEMOCantilanSDS.Domain.Common;
 namespace EEMOCantilanSDS.HttpClients.ApiClients;
 public sealed class OfficeSourcesApiClient(HttpClient http) : HandleResponse(http), IOfficeSourcesApiClient
 {
+    public Task<Result<NpmRegistrationRequestPage>> NpmRequestsAsync(int page = 1, int pageSize = 25) => GetAsync<NpmRegistrationRequestPage>($"api/office-sources/npm-requests?page={page}&pageSize={pageSize}");
+    public Task<Result<NpmRegistrationRequestDto>> ReviewNpmRequestAsync(Guid id, ReviewNpmRegistrationRequest request) => PostAsync<ReviewNpmRegistrationRequest, NpmRegistrationRequestDto>($"api/office-sources/npm-requests/{id}/review", request);
+    public Task<Result<NpmVendorOccupancyResult>> CreateNpmVendorOccupancyAsync(CreateNpmVendorOccupancyRequest request) =>
+        PostAsync<CreateNpmVendorOccupancyRequest, NpmVendorOccupancyResult>("api/office-sources/fish-meat/npm-occupancies", request);
     public Task<Result<NpmVendorCandidates>> NpmVendorCandidatesAsync(int taxYear, bool historical = false, bool exceptions = false) =>
         GetAsync<NpmVendorCandidates>($"api/office-sources/fish-meat/npm-candidates?taxYear={taxYear}&historical={historical}&exceptions={exceptions}");
     public Task<Result<IReadOnlyList<NpmVendorAssociationDto>>> NpmVendorLinksAsync(Guid vendorId) =>

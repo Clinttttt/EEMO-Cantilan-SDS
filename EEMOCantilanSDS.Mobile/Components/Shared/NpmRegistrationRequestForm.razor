@@ -1,0 +1,54 @@
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Domain.Enums
+@inject IMobileApiClient Api
+<section class="npm-request" aria-label="Nonfinancial NPM registration request">
+    <p>This vendor has no verified NPM stall linked. Office approval is required before NPM rental can be recorded.</p>
+    <p><strong>No cash before approval.</strong> This request records no payment and issues no SRC.</p>
+    @if (_saved is not null)
+    {
+        <p role="status">Registration request submitted · @_saved.Status. No payment collected.</p>
+    }
+    else if (!_editing)
+    {
+        <button class="collection-small" type="button" @onclick="() => _editing = true">Request NPM registration</button>
+    }
+    else
+    {
+        <label>Proposed stall / space<input class="form-input" maxlength="20" @bind="_stall" @bind:event="oninput" disabled="@_busy" /></label>
+        <label>Proposed section<select class="form-input" @bind="_section" disabled="@_busy"><option value="">Office to verify</option><option value="FishSection">Fish Area</option><option value="MeatSection">Meat Area</option><option value="VegetableArea">Vegetable Area</option></select></label>
+        <label>Tenancy evidence / office reference<textarea class="form-input" maxlength="1000" @bind="_note" @bind:event="oninput" disabled="@_busy"></textarea></label>
+        @if (_error is not null) { <p role="alert">@_error</p> }
+        <button class="collection-small" type="button" disabled="@(_busy || string.IsNullOrWhiteSpace(_stall) || string.IsNullOrWhiteSpace(_note))" @onclick="Submit">@(_busy ? "Submitting…" : "Submit registration request")</button>
+        <button class="collection-small" type="button" disabled="@_busy" @onclick="() => _editing = false">Back</button>
+    }
+    <a href="/npm-requests">My NPM requests</a>
+</section>
+@code {
+    [Parameter] public Guid VendorId { get; set; }
+    [Parameter] public Guid? ReplacesRequestId { get; set; }
+    private Guid _loadedVendor, _operation = Guid.NewGuid();
+    private Guid? _loadedPrior;
+    private string _stall = "", _section = "", _note = "";
+    private bool _editing, _busy;
+    private string? _error;
+    private NpmRegistrationRequestDto? _saved;
+    protected override void OnParametersSet()
+    {
+        if (_loadedVendor == VendorId && _loadedPrior == ReplacesRequestId) return;
+        _loadedVendor = VendorId; _loadedPrior = ReplacesRequestId; _operation = Guid.NewGuid(); _stall = _section = _note = ""; _saved = null; _error = null; _editing = false;
+    }
+    private async Task Submit()
+    {
+        if (_busy) return; _busy = true; _error = null;
+        try
+        {
+            MarketSection? section = Enum.TryParse<MarketSection>(_section, out var value) ? value : null;
+            var result = await Api.SubmitNpmRequestAsync(new(_operation, VendorId, _stall, section, _note, ReplacesRequestId));
+            if (result.IsSuccess && result.Value is not null) _saved = result.Value;
+            else _error = result.Error ?? "Could not submit. Connect and retry; the same request identity is retained.";
+        }
+        catch { _error = "Submission could not be confirmed. Connect and retry; no payment was recorded."; }
+        finally { _busy = false; }
+    }
+}

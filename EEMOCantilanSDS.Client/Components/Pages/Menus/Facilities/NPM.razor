@@ -4,6 +4,7 @@
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @using EEMOCantilanSDS.Application.Dtos.Stalls
+@using EEMOCantilanSDS.Application.Dtos.Mobile
 @using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Application.Command.DailyCollections.SaveDailyCollectionOrNumber
 
@@ -12,6 +13,7 @@
 @inject IPaymentsApiClient PaymentsApi
 @inject IFacilitiesApiClient FacilitiesApi
 @inject IDailyCollectionApiClient DailyCollectionApi
+@inject IOfficeSourcesApiClient OfficeApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 <PageTitle>StallTrack — @FacilityCatalog.NameOf(FacilityCode.NPM)</PageTitle>
@@ -294,7 +296,7 @@
 <!-- ══════════════════════════════════════════════
      ADD / EDIT VENDOR MODAL (NEW PUBLIC MARKET)
 ══════════════════════════════════════════════ -->
-<AddVendorModal Show="ShowAddVendorModal"
+<AddVendorModal Show="@(ShowAddVendorModal && !_registryPicker)"
                 IsEditing="IsEditingVendor"
                 Form="VendorForm"
                 @bind-FormError="VendorErrorMessage"
@@ -312,10 +314,13 @@
                 ReuseOfferMessage="@_vendorReuseOffer"
                 OnReuseConfirm="ConfirmStallTakeOverAsync"
                 OnSave="SubmitVendor"
+                OnRegisteredFishMeat="() => _registryPicker = true"
+                RegistryContext="RegistryContext"
                 OnCancel="CloseAddVendorModal"
                 OnFacilityChanged="() => {}"
                 OnSectionChanged="OnSectionModalChanged"
                 OnToggleFee="ToggleVendorFee" />
+<RegisteredFishMeatPicker Show="_registryPicker" OnClose="() => _registryPicker = false" OnSelected="SelectRegisteredVendor" OnExisting="ReviewExistingRegistryStall" />
 
 
 @* ══════════════════════════════════════════════
@@ -1024,6 +1029,7 @@
 
     private void OpenAddVendorModal()
     {
+        _registryVendor = null; _registryNote = ""; _registryReviewed = false; _registryException = false; _registryOperation = Guid.NewGuid();
         IsEditingVendor = false;
         EditingStallId = 0;
 
@@ -1066,6 +1072,7 @@
 
     private void CloseAddVendorModal()
     {
+        _registryPicker = false; _registryVendor = null;
         ShowAddVendorModal = false;
         _takeOverVacatedStall = false;
         _vendorReuseOffer = null;
@@ -1201,7 +1208,14 @@
             ReuseVacatedStall: _takeOverVacatedStall,
             Arrangement: VendorForm.Arrangement);
 
-        var result = await StallsApi.CreateStallAsync(command);
+        Result<StallDto> result;
+        if (_registryVendor is { } vendor)
+        {
+            var linked = await OfficeApi.CreateNpmVendorOccupancyAsync(new(_registryOperation, vendor.Id, vendor.DisplayName,
+                _registryNote, command, _registryReviewed, _registryException));
+            result = linked.IsSuccess ? Result<StallDto>.Success(null!) : new(false, null, linked.StatusCode, linked.Error) { ValidationErrors = linked.ValidationErrors };
+        }
+        else result = await StallsApi.CreateStallAsync(command);
 
         if (result.IsSuccess)
         {
@@ -1267,11 +1281,50 @@
     }
     private async Task SubmitVendor()
     {
+        if (_vendorSubmitting) return;
+        _vendorSubmitting = true;
+        try
+        {
         if (IsEditingVendor)
             await SubmitEditVendor();
         else
             await SubmitAddVendor();
+        }
+        finally { _vendorSubmitting = false; }
     }
+
+    private bool _registryPicker, _registryReviewed, _registryException, _vendorSubmitting;
+    private Guid _registryOperation = Guid.NewGuid();
+    private FishMeatVendorRegistrationDto? _registryVendor;
+    private string _registryNote = "";
+    private void SelectRegisteredVendor(FishMeatVendorRegistrationDto vendor)
+    {
+        _registryVendor = vendor; _registryPicker = false; _registryOperation = Guid.NewGuid();
+        _registryNote = ""; _registryReviewed = false; _registryException = false;
+        VendorForm.ActualOccupant = vendor.DisplayName;
+        VendorForm.SelectedSection = vendor.VendorType == EEMOCantilanSDS.Domain.Entities.Revenue.FishMeatVendorType.Fish ? "Fish" : "Meat";
+        // This is a section suggestion only. Do not copy any price, date, area or contract fact from a vendor registration.
+    }
+    private void ReviewExistingRegistryStall(Guid stallId)
+    {
+        var existing = Stalls.SingleOrDefault(x => x.StallGuid == stallId);
+        if (existing is null) { VendorErrorMessage = "Refresh NPM to review this recorded stall."; _registryPicker = false; return; }
+        _registryPicker = false; _registryVendor = null; OpenEdit(existing);
+    }
+    private RenderFragment RegistryContext => @<text>
+        @if (_registryVendor is { } vendor)
+        {
+            <section class="avm-section" aria-label="Selected Fish or Meat registration">
+                <strong>@vendor.DisplayName · @vendor.VendorType · @vendor.TaxYear</strong>
+                <p>@vendor.BusinessName @vendor.Address</p>
+                <p>Identity reused from the registered vendor. Confirm the actual NPM tenancy separately.</p>
+                <label><input type="checkbox" @bind="_registryReviewed" /> I reviewed existing NPM occupancies and office evidence; this is a separate valid tenancy.</label>
+                <label><input type="checkbox" @bind="_registryException" /> Office confirms a different section from the vendor classification, if applicable.</label>
+                <label class="avm-label" for="npm-registry-note">Office confirmation</label>
+                <input id="npm-registry-note" class="avm-input" maxlength="500" @bind="_registryNote" @bind:event="oninput" />
+            </section>
+        }
+    </text>;
 
     // True when the form's selected section is a per-LGU CUSTOM section rather than one of the three
     // canonical market sections — the same test SubmitAddVendor applies when it stamps the daily rate.

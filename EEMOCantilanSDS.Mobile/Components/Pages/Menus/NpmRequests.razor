@@ -1,0 +1,33 @@
+@page "/npm-requests"
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@inject EEMOCantilanSDS.Application.Common.Interface.ApiClients.IMobileApiClient Api
+@inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
+<div class="page-shell">
+    <AppHeader CollectorName="@Session.CollectorName" />
+    <div class="content">
+        <h1>My NPM requests</h1><p>Registration review only. No cash received and no SRC issued.</p>
+        @if (_error is not null) { <p role="alert">@_error</p><button type="button" @onclick="Load">Try again</button> }
+        @foreach (var row in _data?.Rows ?? [])
+        {
+            <CollectionRecordRow Identity="@row.VendorName" ShowAmount="false" DateText="@EEMOCantilanSDS.Domain.Common.PhilippineTime.ToPhilippineTime(row.SubmittedAtUtc).ToString("MMM d, yyyy")" Status="@row.Status.ToString()">
+                <Details><span>@row.ProposedStall · @row.ProposedSection · @row.FinancialState</span><p>@row.Note</p>@if (row.ReviewReason is not null) { <p>Office review: @row.ReviewReason</p> }</Details>
+            </CollectionRecordRow>
+            @if (row.Status == NpmRegistrationRequestStatus.Returned) { <NpmRegistrationRequestForm VendorId="row.VendorRegistrationId" ReplacesRequestId="row.Id" /> }
+        }
+        @if (_data is { Total: 0 }) { <p>No registration requests.</p> }
+        <button class="collection-small" type="button" disabled="@(_page == 1)" @onclick="Previous">Previous</button>
+        <button class="collection-small" type="button" disabled="@(_data is null || _page * 25 >= _data.Total)" @onclick="Next">Next</button>
+        <a href="/records">Back to Records</a>
+    </div>
+    <BottomNav ActiveTab="records" />
+</div>
+@code {
+    private NpmRegistrationRequestPage? _data;
+    private string? _error;
+    private int _page = 1;
+    protected override Task OnInitializedAsync() => Load();
+    private async Task Load() { try { var result = await Api.GetNpmRequestsAsync(_page); _data = result.Value; _error = result.IsSuccess ? null : result.Error ?? "Could not load requests."; } catch { _error = "Connect to load requests."; } }
+    private async Task Previous() { _page--; await Load(); }
+    private async Task Next() { _page++; await Load(); }
+}

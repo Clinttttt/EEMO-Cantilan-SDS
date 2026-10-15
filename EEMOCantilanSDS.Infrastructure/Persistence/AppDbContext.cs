@@ -29,6 +29,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
     {
         public DbSet<FishMeatVendorRegistration> FishMeatVendorRegistrations => Set<FishMeatVendorRegistration>();
         public DbSet<FishMeatNpmAssociation> FishMeatNpmAssociations => Set<FishMeatNpmAssociation>();
+        public DbSet<NpmRegistrationRequest> NpmRegistrationRequests => Set<NpmRegistrationRequest>();
         public DbSet<DirectCollectionReviewEvent> DirectCollectionReviewEvents => Set<DirectCollectionReviewEvent>();
         public DbSet<SpaceHolderImportRun> SpaceHolderImportRuns => Set<SpaceHolderImportRun>();
         public DbSet<FishMeatDirectCollectionLink> FishMeatDirectCollectionLinks => Set<FishMeatDirectCollectionLink>();

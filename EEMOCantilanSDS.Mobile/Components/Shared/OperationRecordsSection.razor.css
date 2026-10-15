@@ -13,10 +13,6 @@
     list-style: none;
     margin: 0;
     padding: 0;
-    background: var(--mobile-surface);
-    border: 1px solid var(--mobile-border);
-    border-radius: 10px;
-    overflow: hidden;
 }
 
 .ors-row {

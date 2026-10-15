@@ -1,0 +1,8 @@
+.collection-record-row { display: flex; flex-direction: column; gap: 3px; width: 100%; min-width: 0; box-sizing: border-box; padding: 11px 13px; margin: 0 0 6px; border: 1px solid var(--mobile-border); border-radius: 10px; background: var(--mobile-surface); color: var(--mobile-text); text-align: left; font: inherit; box-shadow: none; }
+button.collection-record-row { cursor: pointer; }
+.collection-record-row:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2px; }
+.crr-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.crr-identity { min-width: 0; overflow-wrap: anywhere; font-size: 14px; font-weight: 600; color: var(--mobile-navy); }
+.crr-amount { flex-shrink: 0; font-size: 15px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--mobile-navy); }
+.crr-meta, .crr-details { font-size: 12px; line-height: 1.4; color: var(--mobile-text-secondary); overflow-wrap: anywhere; }
+.crr-status { align-self: flex-start; font-size: 11px; font-weight: 600; color: var(--mobile-text-secondary); }

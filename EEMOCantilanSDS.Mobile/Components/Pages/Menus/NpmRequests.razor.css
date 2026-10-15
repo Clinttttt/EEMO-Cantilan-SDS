@@ -1,0 +1,3 @@
+h1 { margin: 0 0 8px; font-size: 20px; color: var(--mobile-navy); }
+.content > p { font-size: 13px; line-height: 1.5; color: var(--mobile-text-secondary); }
+.content > a { display: inline-block; padding: 12px 0; color: var(--mobile-blue); }

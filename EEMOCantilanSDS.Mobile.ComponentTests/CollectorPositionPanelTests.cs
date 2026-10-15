@@ -65,6 +65,18 @@ public sealed class CollectorPositionPanelTests : TestContext
     }
 
     [Fact]
+    public void Server_position_keeps_legacy_outside_cash_totals_and_explains_unremitted()
+    {
+        var data = Position(2000m, 262m) with { LegacyCollectionsOutsideRemittance = 777m };
+        var view = Open(data);
+        Assert.Contains("1,738.00", view.Find(".cpp-fig.strong dd").TextContent);
+        Assert.Contains("2,000.00", view.FindAll(".cpp-fig dd")[0].TextContent);
+        Assert.Contains("collected money not yet turned over", view.Find(".cpp-cash-note").TextContent);
+        Assert.Contains("777.00", view.Find(".cpp-rows").TextContent);
+        Assert.DoesNotContain("777.00", view.Find(".cpp-figures").TextContent);
+    }
+
+    [Fact]
     public void AFailedLoadIsStatedWithARetry_NeverZeroFigures()
     {
         _api.Setup(x => x.GetMyPositionAsync(From, To)).ReturnsAsync(Result<CollectorPositionDto>.Failure("offline"));

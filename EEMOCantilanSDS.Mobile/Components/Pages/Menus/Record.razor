@@ -86,7 +86,7 @@
 
         @if (ActiveFacility is null && !IsLoading)
         {
-            <OperationRecordsSection From="CurrentRange().From" To="CurrentRange().To" />
+            <OperationRecordsSection From="CurrentRange().From" To="CurrentRange().To" Search="@SearchQuery" />
         }
 
         @if (IsLoading)
@@ -130,44 +130,17 @@
                     @foreach (var row in band.Rows)
                     {
                         var rec = row.Primary;
-                        <div class="record-card @RowCardClass(row)" @onclick="() => OpenDetail(row)">
-                            <div class="record-info">
-                                <div class="record-name">@rec.PayorName</div>
-                                <div class="record-meta">
-                                    @* The area is not repeated here: the band above says it. The facility is stated only when the
-                                       band is an area rather than the facility itself, so it is never said twice either. *@
-                                    @if (AssignedFacilities.Count > 1 && !BandNamesTheFacility(row))
-                                    {
-                                        <span class="record-facility">@rec.FacilityCode</span>
-                                    }
-                                    @if (rec.IsAdminRecorded)
-                                    {
-                                        <span class="record-admin-tag">Office</span>
-                                    }
-                                    @if (row.IsMerged)
-                                    {
-                                        <span class="record-section">@MergedLabel(row)</span>
-                                    }
-                                    else if (rec.SlaughterLines is { Count: > 1 })
-                                    {
-                                        <span class="record-section">@rec.SlaughterLines.Count animal types</span>
-                                    }
-                                    <span class="record-time">@RowTimeLine(row)</span>
-                                    @if (!rec.IsAbsent)
-                                    {
-                                        <span class="record-nature">@(row.SharesOneNature ? rec.Nature : "Multiple charges")</span>
-                                    }
-                                </div>
-                            </div>
-                            <div class="record-amount-col">
-                                <div class="record-amount">@(rec.IsAbsent ? "—" : "₱" + row.TotalPaid.ToString("N2"))</div>
-                                @if (!rec.IsAbsent)
-                                {
-                                    <div class="record-amount-caption">@(row.AnyPartial ? $"of ₱{row.TotalAmount:N2} assessed" : "Collected")</div>
-                                }
-                                <span class="record-status-pill @RowPillClass(row)">@RowStatusLabel(row)</span>
-                            </div>
-                        </div>
+                        <CollectionRecordRow Identity="@rec.PayorName" Amount="@(rec.IsAbsent ? (decimal?)null : row.TotalPaid)"
+                            Assessed="@(row.AnyPartial && !rec.IsAbsent ? row.TotalAmount : (decimal?)null)" DateText="@RowTimeLine(row)"
+                            Status="@RowStatusLabel(row)" ReceiptEvidence="@(rec.IsAbsent ? null : row.ReceiptCount > 1 ? $"{row.ReceiptCount} recorded receipts" : HasReceiptNumber(rec.ORNumber) ? $"OR {rec.ORNumber}" : "No linked receipt")"
+                            OnOpen="() => OpenDetail(row)">
+                            <Details>
+                                <span>@rec.FacilityCode@(string.IsNullOrWhiteSpace(rec.StallNo) ? "" : $" · {rec.StallNo}")</span>
+                                @if (rec.IsAdminRecorded) { <span> · Office</span> }
+                                @if (row.IsMerged && row.ReceiptCount <= 1) { <span> · @MergedLabel(row)</span> }
+                                @if (!rec.IsAbsent) { <span> · @(row.SharesOneNature ? rec.Nature : "Multiple charges")</span> }
+                            </Details>
+                        </CollectionRecordRow>
                     }
                 }
 
@@ -753,10 +726,7 @@
     static string RowTimeLine(RecordRow row) =>
         row.Primary.IsAbsent
             ? (row.FeeDayLabel.Length > 0 ? row.FeeDayLabel + " · excused" : "excused")
-            : row.ReceiptCount == 1
-                ? row.LatestAt.ToString("MMM d · hh:mm tt")
-                  + (HasReceiptNumber(row.Primary.ORNumber) ? " · OR " + row.Primary.ORNumber : " · Receipt not linked")
-                : row.LatestAt.ToString("MMM d · hh:mm tt") + " · " + row.ReceiptCount + " receipts";
+            : row.LatestAt.ToString("MMM d · h:mm tt");
 
     // Tag on a collapsed entry. Several receipts are counted as receipts, because that is what the office answers for; one
     // receipt covering several owed days states the days; anything else states plain entries.

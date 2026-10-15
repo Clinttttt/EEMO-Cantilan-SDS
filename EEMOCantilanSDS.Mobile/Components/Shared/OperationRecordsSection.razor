@@ -27,21 +27,19 @@ else if (_records.Count > 0)
             }
         }
         <ul class="ors-list">
-            @foreach (var record in _records)
+            @foreach (var record in VisibleRecords)
             {
-                <li class="ors-row">
-                    <div class="ors-main">
-                        <div class="ors-name">@record.ReferenceCode</div>
-                        <div class="ors-sub">@record.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)@(string.IsNullOrWhiteSpace(record.PayorName) ? "" : " · " + record.PayorName)</div>
+                <li>
+                    <CollectionRecordRow Identity="@record.ReferenceCode" Amount="record.Total"
+                        DateText="@(record.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture) + (string.IsNullOrWhiteSpace(record.PayorName) ? "" : " · " + record.PayorName))"
+                        Status="@(record.Status == "Posted" ? null : record.Status)">
+                        <Details>
                         @foreach (var line in record.Lines)
                         {
                             <div class="ors-line">@line.ClassificationName · @Peso(line.Amount)</div>
                         }
-                    </div>
-                    <div class="ors-amt">
-                        <div>@Peso(record.Total)</div>
-                        @if (record.Status != "Posted") { <div class="ors-status">@record.Status</div> }
-                    </div>
+                        </Details>
+                    </CollectionRecordRow>
                 </li>
             }
         </ul>
@@ -51,6 +49,10 @@ else if (_records.Count > 0)
 @code {
     [Parameter, EditorRequired] public DateOnly From { get; set; }
     [Parameter, EditorRequired] public DateOnly To { get; set; }
+    [Parameter] public string? Search { get; set; }
+    private IEnumerable<OperationRecord> VisibleRecords => string.IsNullOrWhiteSpace(Search) ? _records : _records.Where(x =>
+        (x.ReferenceCode + " " + x.PayorName + " " + string.Join(" ", x.Lines.Select(l => l.ClassificationName + " " + l.SourceLabel)))
+        .Contains(Search.Trim(), StringComparison.OrdinalIgnoreCase));
 
     private IReadOnlyList<OperationRecord> _records = Array.Empty<OperationRecord>();
     private bool _failed, _correcting;

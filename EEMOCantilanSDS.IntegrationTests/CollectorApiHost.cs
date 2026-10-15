@@ -33,8 +33,11 @@ internal sealed class CollectorApiHost(WebApplication app, HttpClient client) : 
     internal sealed class Fault : SaveChangesInterceptor
     {
         internal Guid? FailAfterPostingOperation { get; set; }
+        internal string? FailAfterStallNumber { get; set; }
         public override ValueTask<int> SavedChangesAsync(SaveChangesCompletedEventData data, int result, CancellationToken ct = default)
         {
+            if (FailAfterStallNumber is { } number && data.Context!.ChangeTracker.Entries<EEMOCantilanSDS.Domain.Entities.Facilities.Stall>()
+                .Any(x => x.Entity.StallNo == number)) throw new InvalidOperationException("Injected failure after canonical tenancy save.");
             if (FailAfterPostingOperation is { } id && data.Context!.ChangeTracker.Entries<PostingOperation>()
                 .Any(x => x.Entity.ClientOperationId == id)) throw new InvalidOperationException("Injected failure after canonical replacement save.");
             return ValueTask.FromResult(result);

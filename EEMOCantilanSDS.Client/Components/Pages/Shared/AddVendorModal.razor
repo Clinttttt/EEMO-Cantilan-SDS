@@ -68,6 +68,7 @@
         </svg>
     </Icon>
     <ChildContent>
+                @RegistryContext
 
                 <RentalLesseeFields Form="Form" SectionTitle="@(UseOccupantTerminology ? "Occupant Information" : "Leasee Information")"
                                     OccupantLabel="@(UseOccupantTerminology ? "Occupant" : "Actual Occupant (Leasee)")"
@@ -429,6 +430,12 @@
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
                                 Import list
                             </button>
+                            @if (Form.FacilityCode == "NPM" && OnRegisteredFishMeat.HasDelegate)
+                            {
+                                <AuthorizeView Roles="SuperAdmin"><Authorized>
+                                    <button type="button" class="btn-ghost avm-import-btn" aria-label="Select a registered Fish or Meat vendor for NPM" @onclick="OnRegisteredFishMeat">Registered Fish / Meat</button>
+                                </Authorized></AuthorizeView>
+                            }
                         }
 
                     </div>
@@ -811,6 +818,8 @@
 
     /// Fires when Save / Add Vendor is clicked — host runs its own validation + save logic
     [Parameter] public EventCallback OnSave { get; set; }
+    [Parameter] public EventCallback OnRegisteredFishMeat { get; set; }
+    [Parameter] public RenderFragment? RegistryContext { get; set; }
 
     /// Fires when Cancel or the ✕ button is clicked
     [Parameter] public EventCallback OnCancel { get; set; }

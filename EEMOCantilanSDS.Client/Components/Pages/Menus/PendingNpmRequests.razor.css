@@ -1,0 +1,7 @@
+.pnr-facts { display: grid; grid-template-columns: 8rem minmax(0,1fr); gap: 10px; font-size: 13px; }
+.pnr-facts dt { color: var(--text-secondary); }
+.pnr-facts dd { margin: 0; overflow-wrap: anywhere; }
+.pnr-pagination { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+@media (max-width: 560px) { .pnr-facts { grid-template-columns: 6rem minmax(0,1fr); } }
+.pnr-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; width:100%; }
+.pnr-actions button { max-width:100%; white-space:normal; }

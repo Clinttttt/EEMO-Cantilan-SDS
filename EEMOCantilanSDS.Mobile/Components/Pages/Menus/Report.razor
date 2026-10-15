@@ -17,16 +17,16 @@
     <div class="content">
 
         <div class="period-selector">
-            <div class="period-arrow" @onclick="PrevPeriod">
+            <button type="button" class="period-arrow" aria-label="Previous period" @onclick="PrevPeriod">
                 <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
-            </div>
+            </button>
             <div class="period-label-block">
                 <div class="period-title">@PeriodTitle</div>
                 <div class="period-sub">@PeriodSubtitle</div>
             </div>
-            <div class="period-arrow @(CanGoNext ? "" : "disabled")" @onclick="NextPeriod">
+            <button type="button" class="period-arrow" aria-label="Next period" disabled="@(!CanGoNext)" @onclick="NextPeriod">
                 <svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18" /></svg>
-            </div>
+            </button>
         </div>
 
         <div class="report-type-tabs" role="group" aria-label="Report view">

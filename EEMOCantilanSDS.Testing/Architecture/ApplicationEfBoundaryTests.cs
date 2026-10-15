@@ -172,6 +172,11 @@ public class ApplicationEfBoundaryTests
         // Optional IA-068 registration evidence uses the existing registry's transaction/context boundary to
         // atomically confirm an NPM contract and annual vendor registration. It adds no collection writer.
         "OfficeCollectionWorkflow.NpmAssociations.cs",
+        // New partials retain that same tenant-scoped registry/context boundary. Occupancy creation wraps the
+        // canonical CreateStall pipeline and verified association in one serializable transaction; request review
+        // persists only nonfinancial evidence with replay/concurrency protection. Neither adds a money writer.
+        "OfficeCollectionWorkflow.NpmOccupancy.cs",
+        "OfficeCollectionWorkflow.NpmRequests.cs",
 
         // The shared Composer posting transaction revalidates every participating source and atomically writes
         // the draft, Collection/lines/allocations, compatibility projections, accountable document, and durable

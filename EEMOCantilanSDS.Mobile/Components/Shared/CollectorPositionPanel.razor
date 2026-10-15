@@ -27,12 +27,14 @@
             <div class="cpp-fig"><dt>Remitted</dt><dd>@Peso(_data.Remitted)</dd></div>
             <div class="cpp-fig strong" title="Collected money not yet turned over to the office. The office records remittance."><dt>Unremitted</dt><dd>@Peso(_data.Unremitted)</dd></div>
         </dl>
+        <p class="cpp-cash-note">Unremitted is collected money not yet turned over to the office.</p>
 
         @if (_data.LegacyCollectionsOutsideRemittance > 0m)
         {
             <dl class="cpp-rows">
                 <div class="cpp-row" title="Not yet tracked for remittance."><dt>Recorded before activation</dt><dd>@Peso(_data.LegacyCollectionsOutsideRemittance)</dd></div>
             </dl>
+            <p class="cpp-note">Historical collections outside remittance tracking; separate from the cash position above.</p>
         }
 
         @if (_data.NeedsReviewCount > 0)

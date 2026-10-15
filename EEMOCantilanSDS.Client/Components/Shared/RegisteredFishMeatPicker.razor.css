@@ -1,0 +1,5 @@
+.rfm { display: grid; gap: 12px; min-width: 0; }
+.rfm-controls { display: flex; gap: 10px; flex-wrap: wrap; }
+.rfm-row { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 12px 0; border-top: 1px solid var(--border); font-size: 13px; overflow-wrap: anywhere; }
+.rfm-row span, .rfm-note { color: var(--text-secondary); font-size: 12px; line-height: 1.4; }
+.rfm-row .rfm-warning { color: var(--gold, #8a5a00); }

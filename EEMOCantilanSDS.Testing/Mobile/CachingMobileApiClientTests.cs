@@ -22,6 +22,20 @@ public class CachingMobileApiClientTests
         new(inner, cache, new FakeConnectivityMonitor(online));
 
     [Fact]
+    public async Task Npm_registration_requests_are_forwarded_live_without_using_collection_cache_or_offline_queue()
+    {
+        var inner = new Mock<IMobileApiClient>();
+        var request = new SubmitNpmRegistrationRequest(Guid.NewGuid(), Guid.NewGuid(), "F-1", null, "Verify tenancy");
+        inner.Setup(x => x.SubmitNpmRequestAsync(request)).ReturnsAsync(Result<NpmRegistrationRequestDto>.Failure("Submitted to server"));
+        inner.Setup(x => x.GetNpmRequestsAsync(2, 25)).ReturnsAsync(Result<NpmRegistrationRequestPage>.Success(new([], 0, 2, 25)));
+        IMobileApiClient sut = Sut(inner.Object, new FakeOfflineReadCache(), online: false);
+        Assert.Equal("Submitted to server", (await sut.SubmitNpmRequestAsync(request)).Error);
+        Assert.True((await sut.GetNpmRequestsAsync(2, 25)).IsSuccess);
+        inner.Verify(x => x.SubmitNpmRequestAsync(request), Times.Once);
+        inner.Verify(x => x.GetNpmRequestsAsync(2, 25), Times.Once);
+    }
+
+    [Fact]
     public async Task Recent_utility_collections_always_ask_the_server_and_are_never_read_from_or_written_to_the_cache()
     {
         var stall = Guid.NewGuid();

@@ -12,6 +12,8 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 
 public interface IMobileApiClient
 {
+    Task<Result<NpmRegistrationRequestDto>> SubmitNpmRequestAsync(SubmitNpmRegistrationRequest request) => Task.FromResult(Result<NpmRegistrationRequestDto>.Failure("Registration requests unavailable."));
+    Task<Result<NpmRegistrationRequestPage>> GetNpmRequestsAsync(int page = 1, int pageSize = 25) => Task.FromResult(Result<NpmRegistrationRequestPage>.Failure("Registration requests unavailable."));
     /// <summary>Bounded, category-filtered pages of the registered sources assigned to this collector. Online only; nothing is cached or computed here.</summary>
     Task<Result<CollectionSourcePage>> BrowseCollectionSourcesAsync(string? category, string? search, int skip, int take) => Task.FromResult(Result<CollectionSourcePage>.Failure("Source browsing unavailable."));
     Task<Result<IReadOnlyList<CollectionSourceSearchResult>>> SearchCollectionSourcesAsync(string? search) => Task.FromResult(Result<IReadOnlyList<CollectionSourceSearchResult>>.Failure("Source search unavailable."));
