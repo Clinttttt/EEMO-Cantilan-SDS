@@ -22,13 +22,15 @@
     <FacilityHero Title="Fish / Meat Vendors" Eyebrow="OPERATION · FISH / MEAT" Subtitle="OR Official Receipt" Stats="HeroStats">
         <Icon><svg viewBox="0 0 24 24"><path d="M3 12c3-5 8-6 12-3l4-3v12l-4-3c-4 3-9 2-12-3z" /><circle cx="8" cy="11" r="0.8" /></svg></Icon>
     </FacilityHero>
+    <div class="fmv-toolbar" role="region" aria-label="Vendor registry controls" tabindex="0">
     <Toolbar SearchQuery="@_search"
              OnSearch="v => _search = v"
              ActiveFilter="@_filter"
              OnFilterChanged="v => _filter = v"
-             Filters="@(_view == ViewRegistered ? TypeFilters : null)"
+             Filters="@((List<string>?)null)"
              SearchPlaceholder="Search vendor, business or address…"
-             MiddleContent="@ActionBarContent" />
+             BeforeSearch="@ActionBarContent" />
+    </div>
 
     @if (!string.IsNullOrWhiteSpace(_saved))
     {
@@ -37,16 +39,11 @@
 
     <section class="v3-panel" aria-labelledby="fmv-registry-title" aria-busy="@(_loading ? "true" : "false")">
         <header class="v3-panel-header">
-            <div class="fmv-views" role="group" aria-label="Vendor lists">
-                <button type="button" class="fmv-view @(_view == ViewRegistered ? "is-active" : "")" aria-pressed="@(_view == ViewRegistered ? "true" : "false")" @onclick="() => _view = ViewRegistered">Registered (@_rows.Count)</button>
-                <button type="button" class="fmv-view @(_view == ViewNeeds ? "is-active" : "")" aria-pressed="@(_view == ViewNeeds ? "true" : "false")" @onclick="() => _view = ViewNeeds">Needs registration@(_followUpTotal.HasValue ? $" ({_followUpTotal})" : "")</button>
-            </div>
-            <h2 id="fmv-registry-title" class="v3-sr-only">@(_view == ViewRegistered ? "Vendor registry" : "Payors needing registration")</h2>
+            <h2 id="fmv-registry-title">@(_view == ViewRegistered ? "Vendor registry" : "Payors needing registration")</h2>
             <div class="fmv-panel-tools">
                 @if (_view == ViewRegistered)
                 {
                     <span class="v3-panel-meta">@VisibleRows.Count @(VisibleRows.Count == 1 ? "vendor" : "vendors")</span>
-                    <a class="v3-btn v3-btn-sm" href="/operations/fish-meat-vendor-fees/manage">Manage</a>
                 }
                 else
                 {
@@ -148,7 +145,7 @@
 <FishMeatPayorReview Show="@_reviewCollection.HasValue" CollectionId="_reviewCollection" OnClose="CloseReview" OnResolved="OnPayorResolved" />
 
 <VendorRegistrationDrawer Show="_registering" Model="_form" Title="Register vendor" Subtitle="@($"Tax year {_taxYear}")" SubmitText="Register"
-                          Saving="_saving" Error="@_formError" OnSubmit="RegisterAsync" OnCancel="CloseRegister" />
+                          ShowImport="true" Saving="_saving" Error="@_formError" OnSubmit="RegisterAsync" OnCancel="CloseRegister" />
 <NpmVendorRegistrationWorkflow Show="_npmReview" TaxYear="_taxYear" InitialContractId="NpmContractId" OnClose="() => _npmReview = false" OnSaved="LoadAsync" />
 
 @code {
@@ -197,12 +194,24 @@
 
     // One bar: the office's links and actions, in the order the Kanmanggay bar uses.
     private RenderFragment ActionBarContent => @<div class="fmv-actions-bar">
-        <a class="btn-outline" href="/collections/activity">Collection Activity</a>
+        <div class="fmv-types" role="group" aria-label="Vendor type">
+            @foreach (var filter in TypeFilters)
+            {
+                <button type="button" class="fmv-view filter-tab @(_filter == filter ? "is-active" : "")"
+                    disabled="@(_view != ViewRegistered)" aria-pressed="@(_filter == filter ? "true" : "false")" @onclick="() => _filter = filter">@filter</button>
+            }
+        </div>
+        <div class="fmv-views" role="group" aria-label="Vendor lists">
+            <button type="button" class="fmv-view @(_view == ViewRegistered ? "is-active" : "")" aria-pressed="@(_view == ViewRegistered ? "true" : "false")" @onclick="() => _view = ViewRegistered">Registered @_rows.Count</button>
+            <button type="button" class="fmv-view @(_view == ViewNeeds ? "is-active" : "")" aria-pressed="@(_view == ViewNeeds ? "true" : "false")" title="Payors requiring vendor registration" aria-label="@($"Payors requiring vendor registration: {_followUpTotal?.ToString() ?? "not loaded"}")" @onclick="() => _view = ViewNeeds">Needs reg. @(_followUpTotal?.ToString() ?? "—")</button>
+        </div>
+        <AuthorizeView Roles="SuperAdmin"><Authorized>
+            <button class="btn-outline" type="button" title="Review Fish/Meat occupants from NPM" aria-label="@($"Review Fish/Meat occupants from NPM: {_npmUnresolved?.ToString() ?? "not loaded"}")" @onclick="() => _npmReview = true">NPM links @(_npmUnresolved?.ToString() ?? "—")</button>
+        </Authorized></AuthorizeView>
+        <a class="btn-outline" href="/operations/fish-meat-vendor-fees/manage">Manage</a>
         <a class="btn-outline" href="/operations/fish-meat-vendor-fees/report">Reports</a>
         <a class="btn-outline" href="/operations/fish-meat-vendor-fees/office-register">Office register</a>
         <AuthorizeView Roles="SuperAdmin"><Authorized>
-            <button class="btn-outline" type="button" title="Unresolved eligible occupancy reviews for the selected tax year" @onclick="() => _npmReview = true">From NPM occupants @(_npmUnresolved.HasValue ? $"({_npmUnresolved})" : "")</button>
-            <a class="btn-outline" href="/operations/fish-meat-vendor-fees/import">Import list</a>
             <button class="btn-primary" type="button" @onclick="OpenRegister">Register vendor</button>
         </Authorized></AuthorizeView>
     </div>;
