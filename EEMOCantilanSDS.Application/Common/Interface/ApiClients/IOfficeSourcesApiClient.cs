@@ -17,6 +17,7 @@ public interface IOfficeSourcesApiClient
     Task<Result<VendorRegistryImportResult>> SaveImportAsync(VendorRegistryImportRequest request);
     Task<Result<VendorRegistrySummary>> RegistrySummaryAsync(int year);
     Task<Result<VendorRegistryManagement>> ManageRegistrationsAsync(int taxYear, int month, EEMOCantilanSDS.Domain.Entities.Revenue.VendorRegistrationStatus? status = null, int? year = null);
+    Task<Result<VendorRegistrationMutationResult>> CorrectOfficeDetailsAsync(Guid id, CorrectVendorOfficeDetailsRequest request);
     Task<Result<VendorRegistrationMutationResult>> CloseRegistrationAsync(Guid id, CloseVendorRegistrationRequest request);
     Task<Result<VendorRegistrationMutationResult>> RenewRegistrationAsync(Guid id, RenewVendorRegistrationRequest request);
     Task<Result<IReadOnlyList<TerminalVehicleChoice>>> VehicleChoicesAsync(DateOnly date);

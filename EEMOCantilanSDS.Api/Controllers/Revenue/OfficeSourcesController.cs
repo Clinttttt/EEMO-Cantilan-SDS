@@ -52,6 +52,9 @@ public sealed class OfficeSourcesController(ISender sender, OfficeCollectionWork
     [HttpGet("fish-meat/manage"), Authorize(Roles = "SuperAdmin,Admin")]
     public async Task<ActionResult<VendorRegistryManagement>> Manage(int taxYear, int month, EEMOCantilanSDS.Domain.Entities.Revenue.VendorRegistrationStatus? status,
         int? year, CancellationToken ct) => HandleResponse(await workflow.ManageRegistrationsAsync(taxYear, month, status, year, ct));
+    [HttpPut("fish-meat/registrations/{id:guid}/office-details"), Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<VendorRegistrationMutationResult>> CorrectOfficeDetails(Guid id, CorrectVendorOfficeDetailsRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.CorrectOfficeDetailsAsync(id, request, ct));
     [HttpPost("fish-meat/registrations/{id:guid}/close"), Authorize(Roles = "SuperAdmin")]
     public async Task<ActionResult<VendorRegistrationMutationResult>> Close(Guid id, CloseVendorRegistrationRequest request, CancellationToken ct) => HandleResponse(await workflow.CloseRegistrationAsync(id, request, ct));
     [HttpPost("fish-meat/registrations/{id:guid}/renew"), Authorize(Roles = "SuperAdmin")]

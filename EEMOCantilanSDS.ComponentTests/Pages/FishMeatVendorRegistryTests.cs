@@ -77,7 +77,7 @@ public sealed class FishMeatVendorRegistryTests : TestContext
         {
             Assert.Empty(cut.FindAll(".toolbar-unified .fh-dd, .toolbar-unified select"));
             Assert.DoesNotContain("Tax year", cut.Find(".toolbar-unified").TextContent);
-            Assert.DoesNotContain("Tax year", cut.Find(".facility-hero").TextContent);
+            Assert.DoesNotContain("Tax year", cut.Find(".v3h").TextContent);
             var manage = cut.Find(".fmv-toolbar a[href$='/manage']");
             Assert.Equal("Manage", manage.TextContent.Trim());
             Assert.Equal("/operations/fish-meat-vendor-fees/manage", manage.GetAttribute("href"));
@@ -90,12 +90,12 @@ public sealed class FishMeatVendorRegistryTests : TestContext
         var cut = RenderComponent<FishMeatVendorFees>();
         cut.WaitForAssertion(() => Assert.Contains("Pantom Dant", cut.Markup), Timeout);
 
-        Assert.Contains("OPERATION · FISH / MEAT", cut.Find(".facility-hero-eyebrow").TextContent);
-        var figures = cut.FindAll(".facility-hero-stat").Select(s => s.QuerySelector(".facility-hero-val")!.TextContent.Trim() + "|" + s.QuerySelector(".facility-hero-key")!.TextContent.Trim()).ToList();
+        Assert.Contains("Fish / Meat", cut.Find(".v3h-eyebrow").TextContent);
+        var figures = cut.FindAll(".v3h-figure").Select(s => s.QuerySelector(".v3h-val")!.TextContent.Trim() + "|" + s.QuerySelector(".v3h-key")!.TextContent.Trim()).ToList();
         Assert.Equal(["2|Registered", "1|Fish", "1|Meat"], figures);
         Assert.Single(cut.FindAll(".toolbar-unified"));
         Assert.Equal(["All", "Fish", "Meat"], cut.FindAll(".filter-tab").Select(t => t.TextContent.Trim()).ToArray());
-        Assert.Equal(["All", "Fish", "Meat", "Registered 2", "Needs reg. 0", "NPM links 3", "Manage", "Reports", "Office register", "Register vendor"], cut.FindAll(".fmv-actions-bar a, .fmv-actions-bar button").Select(a => a.TextContent.Trim()).ToArray());
+        Assert.Equal(["All", "Fish", "Meat", "Vendors 2", "Needs reg. 0", "NPM links 3", "Manage", "Reports", "Office register", "Register vendor"], cut.FindAll(".fmv-actions-bar a, .fmv-actions-bar button").Select(a => a.TextContent.Trim()).ToArray());
         Assert.Empty(cut.FindAll(".fmv-toolbar a[href='/collections/activity'], .fmv-toolbar a[href$='/import']"));
         Assert.Empty(cut.FindAll(".v3-panel-header button, .v3-panel-header a"));
         Assert.NotNull(cut.Find("button[title='Payors requiring vendor registration']"));

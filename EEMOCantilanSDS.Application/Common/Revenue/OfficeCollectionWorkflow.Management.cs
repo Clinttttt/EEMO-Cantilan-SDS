@@ -12,6 +12,42 @@ public sealed partial class OfficeCollectionWorkflow
     private static VendorRegistrationMutationResult Mutation(FishMeatVendorRegistration r, bool replay) =>
         new(ToDto(r), r.Status, r.PriorRegistrationId, r.ClosedOn, r.ClosedAtUtc, r.ClosedBy, r.CloseNote, replay);
 
+    /// <summary>Correct office register fields in place. Registration ownership and the previous
+    /// exact snapshot are checked before saving, so an old drawer cannot silently overwrite a
+    /// newer correction. The tax year, vendor type, status and all financial records stay unchanged.</summary>
+    public async Task<Result<VendorRegistrationMutationResult>> CorrectOfficeDetailsAsync(Guid id,
+        CorrectVendorOfficeDetailsRequest request, CancellationToken ct = default)
+    {
+        if (!RegistryHead) return Result<VendorRegistrationMutationResult>.Forbidden();
+        if (id == Guid.Empty || request.Before is null || request.Before.Id != id)
+            return Result<VendorRegistrationMutationResult>.Failure("InvalidOfficeDetails", ResultStatus.Invalid);
+        var committed = false;
+        try
+        {
+            await using var tx = await db.BeginSerializableTransactionAsync(ct);
+            var registration = await db.FishMeatVendorRegistrations.SingleOrDefaultAsync(
+                x => x.MunicipalityId == Tenant && x.Id == id, ct);
+            if (registration is null) return Result<VendorRegistrationMutationResult>.NotFound();
+            var prior = ToDto(registration);
+            if (prior != request.Before)
+                return Result<VendorRegistrationMutationResult>.Failure("RegistryConcurrencyConflict", ResultStatus.Conflict);
+            try
+            {
+                registration.CorrectOfficeDetails(request.BusinessName, request.Address, request.LastName,
+                    request.FirstName, request.MiddleName, request.NameExtension, request.Sex, request.NatureOfBusiness);
+            }
+            catch (ArgumentException e) { return Result<VendorRegistrationMutationResult>.Failure(e.Message, ResultStatus.Invalid); }
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct); committed = true;
+            return Result<VendorRegistrationMutationResult>.Success(Mutation(registration, false));
+        }
+        catch (DbUpdateException) { return Result<VendorRegistrationMutationResult>.Failure("RegistryConcurrencyConflict", ResultStatus.Conflict); }
+        catch (DbException) { return Result<VendorRegistrationMutationResult>.Failure("RegistryConcurrencyConflict", ResultStatus.Conflict); }
+        catch (InvalidOperationException e) when (e.InnerException is DbUpdateException)
+        { return Result<VendorRegistrationMutationResult>.Failure("RegistryConcurrencyConflict", ResultStatus.Conflict); }
+        finally { if (!committed) db.ChangeTracker.Clear(); }
+    }
+
     public async Task<Result<VendorRegistrationMutationResult>> CloseRegistrationAsync(Guid id,
         CloseVendorRegistrationRequest request, CancellationToken ct = default)
     {

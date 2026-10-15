@@ -26,6 +26,39 @@ public class FishMeatRegistryLifecycleTests
         Assert.Equal(2026, v.TaxYear); Assert.Equal(2027, next.TaxYear); Assert.Equal(VendorRegistrationKind.Renew, next.RegistrationKind);
         Assert.Equal(VendorRegistrationStatus.Active, next.Status); Assert.Equal(v.BusinessName, next.BusinessName); Assert.Null(next.ClosedOn);
     }
+    [Fact]
+    public void Office_detail_correction_preserves_registration_and_collection_identity()
+    {
+        var v = Vendor();
+        var id = v.Id;
+        var municipality = v.MunicipalityId;
+        var operation = v.ClientOperationId;
+        var originalName = v.DisplayName;
+        var reference = v.Reference;
+        v.CorrectOfficeDetails(" Fish stall ", " Purok 3 ", " Reyes ", " Josephine ", null, null, "Female", " Fish retail ");
+        Assert.Equal(id, v.Id);
+        Assert.Equal(municipality, v.MunicipalityId);
+        Assert.Equal(operation, v.ClientOperationId);
+        Assert.Equal(originalName, v.DisplayName);
+        Assert.Equal(reference, v.Reference);
+        Assert.Equal(FishMeatVendorType.Fish, v.VendorType);
+        Assert.Equal(VendorRegistrationKind.New, v.RegistrationKind);
+        Assert.Equal(VendorRegistrationStatus.Active, v.Status);
+        Assert.Equal(2026, v.TaxYear);
+        Assert.Equal("Purok 3", v.Address);
+        Assert.Equal("Josephine", v.FirstName);
+        Assert.Equal("Fish retail", v.NatureOfBusiness);
+    }
+
+    [Fact]
+    public void Office_detail_correction_rejects_overlong_values()
+    {
+        var v = Vendor();
+        Assert.Throws<ArgumentException>(() =>
+            v.CorrectOfficeDetails("Business", new string('X', 301), null, null, null, null, null, null));
+        Assert.Equal("Address", v.Address);
+    }
+
     [Theory]
     [InlineData(2025)]
     [InlineData(2026)]

@@ -24,6 +24,8 @@ public sealed class OfficeSourcesApiClient(HttpClient http) : HandleResponse(htt
     public Task<Result<VendorRegistrySummary>> RegistrySummaryAsync(int year) => GetAsync<VendorRegistrySummary>($"api/office-sources/fish-meat/summary?year={year}");
     public Task<Result<VendorRegistryManagement>> ManageRegistrationsAsync(int taxYear, int month, EEMOCantilanSDS.Domain.Entities.Revenue.VendorRegistrationStatus? status = null, int? year = null) =>
         GetAsync<VendorRegistryManagement>($"api/office-sources/fish-meat/manage?taxYear={taxYear}&month={month}&status={status}&year={year}");
+    public Task<Result<VendorRegistrationMutationResult>> CorrectOfficeDetailsAsync(Guid id, CorrectVendorOfficeDetailsRequest request) =>
+        PutAsync<CorrectVendorOfficeDetailsRequest, VendorRegistrationMutationResult>($"api/office-sources/fish-meat/registrations/{id}/office-details", request);
     public Task<Result<VendorRegistrationMutationResult>> CloseRegistrationAsync(Guid id, CloseVendorRegistrationRequest request) =>
         PostAsync<CloseVendorRegistrationRequest, VendorRegistrationMutationResult>($"api/office-sources/fish-meat/registrations/{id}/close", request);
     public Task<Result<VendorRegistrationMutationResult>> RenewRegistrationAsync(Guid id, RenewVendorRegistrationRequest request) =>

@@ -1,7 +1,15 @@
-.rfm { display: grid; gap: 12px; min-width: 0; }
-.rfm-controls { display: flex; gap: 10px; flex-wrap: wrap; }
-.rfm-preferred { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 10px 12px; background: #f1f6fd; border: 1px solid #d6e5f6; border-radius: 9px; color: #24518b; font-size: 12px; font-weight: 650; }
-.rfm-preferred button { font-size: 12px; padding: 7px 10px; }
-.rfm-row { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 12px 0; border-top: 1px solid var(--border); font-size: 13px; overflow-wrap: anywhere; }
-.rfm-row span, .rfm-note { color: var(--text-secondary); font-size: 12px; line-height: 1.4; }
-.rfm-row .rfm-warning { color: var(--gold, #8a5a00); }
+.rfm { display:grid; gap:12px; min-width:0; }
+.rfm-controls { display:flex; gap:10px; flex-wrap:wrap; }
+.rfm-preferred { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; padding:10px 12px; background:#f1f6fd; border:1px solid #d6e5f6; border-radius:9px; color:#24518b; font-size:12px; font-weight:650; }
+.rfm-preferred button { font-size:12px; padding:7px 10px; }
+.rfm-row { display:grid; gap:9px; padding:14px 16px; border:1px solid var(--border); border-radius:12px; background:var(--surface); font-size:13px; overflow-wrap:anywhere; }
+.rfm-row-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+.rfm-row-header strong { font-size:.94rem; color:var(--navy); }
+.rfm-row span, .rfm-note { color:var(--text-secondary); font-size:.8125rem; line-height:1.5; }
+.rfm-note { margin:0 0 4px; }
+.rfm-row .rfm-tag { font-size:.75rem; background:var(--surface-muted); color:var(--navy); padding:5px 9px; border-radius:999px; }
+.rfm-row .rfm-link-state { font-size:.75rem; color:#24518b; font-weight:650; }
+.rfm-row .rfm-link-context { font-size:.78rem; }
+.rfm-row .rfm-warning { color:#8a5a00; font-size:.75rem; }
+.rfm-select { justify-self:start; min-height:36px; }
+@media (max-width:430px) { .rfm-row { padding:12px; } .rfm-select { width:100%; } }

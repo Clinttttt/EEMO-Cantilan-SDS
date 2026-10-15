@@ -60,7 +60,7 @@
                         <th scope="col">Vendor / type</th><th scope="col">Address</th><th scope="col">Registration</th>
                         <th scope="col">Tax year</th><th scope="col">Nature of business</th>
                         <th scope="col" class="v3-num">Vendor fee collected</th>
-                        <th scope="col" class="v3-num">Weight &amp; Measure collected</th>
+                        <th scope="col" class="v3-num">Weight &amp; Measure collected</th><th scope="col" class="no-print fmo-edit-header">Action</th>
                     </tr></thead>
                     <tbody>
                         @foreach (var (row, idx) in VisibleRows.Select((r, i) => (r, i)))
@@ -71,15 +71,20 @@
                                 <td>@(v.LastName ?? "—")</td><td>@(v.FirstName ?? "—")</td>
                                 <td>@(v.MiddleName ?? "—")</td><td>@(v.NameExtension ?? "—")</td><td>@(v.Sex ?? "—")</td>
                                 <td>@v.DisplayName <span class="fmo-sub">@v.VendorType</span></td>
-                                <td>@(v.Address ?? "—")</td><td>@v.RegistrationKind</td><td>@v.TaxYear</td>
+                                <td class="fmo-address" title="@v.Address">@VendorAddressDisplay.Clean(v.Address)</td><td>@v.RegistrationKind</td><td>@v.TaxYear</td>
                                 <td>@(v.NatureOfBusiness ?? "—")</td>
                                 <td class="v3-num">@Money(row.VendorFeeCollected)</td>
                                 <td class="v3-num">@Money(row.WeightMeasureCollected)</td>
+                                <td class="no-print fmo-edit-cell">
+                                    <AuthorizeView Roles="SuperAdmin"><Authorized>
+                                        <button type="button" class="v3-btn v3-btn-sm" aria-label="@($"Edit office details for {v.DisplayName}")" @onclick="() => OpenEdit(row)">Edit details</button>
+                                    </Authorized></AuthorizeView>
+                                </td>
                             </tr>
                         }
                         @if (VisibleRows.Count == 0)
                         {
-                            <tr><td colspan="14" class="v3-empty">@(_loading ? "Loading office register…" : _error is not null ? "Register unavailable." : "No registrations match this view.")</td></tr>
+                            <tr><td colspan="15" class="v3-empty">@(_loading ? "Loading office register…" : _error is not null ? "Register unavailable." : "No registrations match this view.")</td></tr>
                         }
                     </tbody>
                     @if (!_loading && _error is null)
@@ -87,12 +92,13 @@
                         <tfoot><tr>
                             <th scope="row" colspan="12">Visible registered vendors</th>
                             <td class="v3-num v3-strong">@Money(VisibleRows.Sum(x => x.VendorFeeCollected))</td>
-                            <td class="v3-num v3-strong">@Money(VisibleRows.Sum(x => x.WeightMeasureCollected))</td>
+                            <td class="v3-num v3-strong">@Money(VisibleRows.Sum(x => x.WeightMeasureCollected))</td><td class="no-print"></td>
                         </tr></tfoot>
                     }
                 </table>
             </div>
         </section>
+        @if (_saved is not null) { <p role="status" class="v3-notice">@_saved</p> }
         @if (_data is not null)
         {
             <p class="fmo-note">The amounts are actual recorded collections for @_period.ToString("MMMM yyyy", CultureInfo.InvariantCulture), not approved rates or amounts due. Vendor Fee and Weight &amp; Measure are separate revenue sources. Unregistered walk-up vendor fees: <strong>@Money(_data.WalkUpVendorFeeCollected)</strong> (not included in the registered-vendor rows). Totals on historical paper are reference evidence only and are not entered as new collections.</p>
@@ -100,6 +106,7 @@
         }
     </div>
 </div>
+<VendorOfficeDetailsEditor Row="_editing" OnClose="CloseEdit" OnSaved="SavedEditAsync" />
 
 @code {
     private DateOnly _period = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
@@ -107,7 +114,16 @@
     private string _type = "All", _search = "";
     private VendorRegistryManagement? _data;
     private bool _loading;
-    private string? _error;
+    private string? _error, _saved;
+    private VendorRegistrationManagementRow? _editing;
+    private void OpenEdit(VendorRegistrationManagementRow row) => _editing = row;
+    private void CloseEdit() => _editing = null;
+    private async Task SavedEditAsync()
+    {
+        _editing = null;
+        _saved = "Office details updated.";
+        await LoadAsync();
+    }
     private IReadOnlyList<int> YearOptions => Enumerable.Range(0, 7).Select(i => PhilippineTime.Today.Year + 1 - i)
         .Append(_taxYear).Distinct().OrderByDescending(x => x).ToArray();
     private List<VendorRegistrationManagementRow> VisibleRows => (_data?.Rows ?? [])

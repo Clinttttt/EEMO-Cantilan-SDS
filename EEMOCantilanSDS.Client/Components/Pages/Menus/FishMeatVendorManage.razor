@@ -73,7 +73,7 @@
                             </td>
                             <td>@vendor.VendorType</td>
                             <td>@vendor.RegistrationKind</td>
-                            <td>@(string.IsNullOrWhiteSpace(vendor.Address) ? "—" : vendor.Address)</td>
+                            <td title="@vendor.Address">@VendorAddressDisplay.Clean(vendor.Address)</td>
                             <td><span class="fmm-status @(row.Status == VendorRegistrationStatus.Closed ? "fmm-status-closed" : "")">@row.Status</span></td>
                             <td class="v3-num">@Money(row.TotalCollected)</td>
                             <td class="fmm-actions">
@@ -116,7 +116,7 @@
             <dl class="fmm-facts" aria-label="Registration details">
                 <dt>Vendor</dt><dd>@vendor.DisplayName</dd>
                 <dt>Business</dt><dd>@(vendor.BusinessName ?? "—")</dd>
-                <dt>Address</dt><dd>@(vendor.Address ?? "—")</dd>
+                <dt>Address</dt><dd>@VendorAddressDisplay.Clean(vendor.Address)</dd>
                 <dt>Type</dt><dd>@vendor.VendorType</dd>
                 <dt>Tax year</dt><dd>@vendor.TaxYear</dd>
                 <dt>Registration</dt><dd>@vendor.RegistrationKind@(d.PriorRegistrationId is not null ? " · follows an earlier registration" : "")</dd>

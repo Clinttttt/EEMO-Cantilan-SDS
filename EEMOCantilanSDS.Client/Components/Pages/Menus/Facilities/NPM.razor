@@ -1354,14 +1354,23 @@
     private RenderFragment RegistryContext => @<text>
         @if (_registryVendor is { } vendor)
         {
-            <section class="avm-section" aria-label="Selected Fish or Meat registration">
-                <strong>@vendor.DisplayName · @vendor.VendorType · @vendor.TaxYear</strong>
-                <p>@vendor.BusinessName @vendor.Address</p>
-                <p>Identity reused from the registered vendor. Confirm the actual NPM tenancy separately.</p>
-                <label><input type="checkbox" @bind="_registryReviewed" /> I reviewed existing NPM occupancies and office evidence; this is a separate valid tenancy.</label>
-                <label><input type="checkbox" @bind="_registryException" /> Office confirms a different section from the vendor classification, if applicable.</label>
-                <label class="avm-label" for="npm-registry-note">Office confirmation</label>
-                <input id="npm-registry-note" class="avm-input" maxlength="500" @bind="_registryNote" @bind:event="oninput" />
+            <section class="avm-section npm-registry-context" aria-label="Fish or Meat identity and NPM verification">
+                <div class="npm-registry-identity">
+                    <div><strong>@vendor.DisplayName</strong>
+                        <span>Fish / Meat fee: @vendor.VendorType · @vendor.TaxYear</span>
+                        @if (!string.IsNullOrWhiteSpace(vendor.BusinessName)) { <small>@vendor.BusinessName</small> }
+                    </div>
+                    <span class="npm-registry-state">NPM review required</span>
+                </div>
+                <p class="npm-registry-help">The vendor identity is reused. Verify the actual stall and tenancy before saving an NPM occupancy.</p>
+                <div class="npm-registry-verifications">
+                    <label><input type="checkbox" @bind="_registryReviewed" /><span>Office checked the NPM register and confirmed this tenancy.</span></label>
+                    <label><input type="checkbox" @bind="_registryException" /><span>Verified different section from Fish / Meat type (only if applicable).</span></label>
+                </div>
+                <div class="npm-registry-note">
+                    <label class="avm-label" for="npm-registry-note">Verification evidence</label>
+                    <input id="npm-registry-note" class="avm-input" maxlength="500" placeholder="Office record or supporting reference" @bind="_registryNote" @bind:event="oninput" />
+                </div>
             </section>
         }
     </text>;

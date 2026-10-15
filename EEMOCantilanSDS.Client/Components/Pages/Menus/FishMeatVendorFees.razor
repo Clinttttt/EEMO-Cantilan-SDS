@@ -19,9 +19,14 @@
    Collector Mobile. The layout owns the <main> landmark. *@
 <OperationTopbar OperationCode="FISH_MEAT_VENDOR_FEE" Title="Fish / Meat Vendors" Crumb="Operation" />
 <div class="content-area">
-    <FacilityHero Title="Fish / Meat Vendors" Eyebrow="OPERATION · FISH / MEAT" Subtitle="OR Official Receipt" Stats="HeroStats">
-        <Icon><svg viewBox="0 0 24 24"><path d="M3 12c3-5 8-6 12-3l4-3v12l-4-3c-4 3-9 2-12-3z" /><circle cx="8" cy="11" r="0.8" /></svg></Icon>
-    </FacilityHero>
+    <V3Hero Eyebrow="Operation · Fish / Meat" Title="Fish / Meat Vendors" Compact="true">
+        <Meta><span class="fmv-hero-meta">Registered vendor fees · Official Receipt</span></Meta>
+        <Figures>
+            <V3HeroFigure Label="Registered" Value="@_rows.Count.ToString("N0", CultureInfo.InvariantCulture)" />
+            <V3HeroFigure Label="Fish" Value="@_rows.Count(x => x.Registration.VendorType == FishMeatVendorType.Fish).ToString("N0")" />
+            <V3HeroFigure Label="Meat" Value="@_rows.Count(x => x.Registration.VendorType == FishMeatVendorType.Meat).ToString("N0")" />
+        </Figures>
+    </V3Hero>
     <div class="fmv-toolbar" role="region" aria-label="Vendor registry controls" tabindex="0">
     <Toolbar SearchQuery="@_search"
              OnSearch="v => _search = v"
@@ -127,7 +132,7 @@
                             </td>
                             <td>@vendor.VendorType</td>
                             <td>@vendor.RegistrationKind</td>
-                            <td>@(string.IsNullOrWhiteSpace(vendor.Address) ? "—" : vendor.Address)</td>
+                            <td class="fmv-address" title="@vendor.Address">@VendorAddressDisplay.Clean(vendor.Address)</td>
                             <td class="v3-num">@Money(row.TotalCollected)</td>
                         </tr>
                     }
@@ -202,18 +207,20 @@
             }
         </div>
         <div class="fmv-views" role="group" aria-label="Vendor lists">
-            <button type="button" class="fmv-view @(_view == ViewRegistered ? "is-active" : "")" aria-pressed="@(_view == ViewRegistered ? "true" : "false")" @onclick="() => _view = ViewRegistered">Registered @_rows.Count</button>
+            <button type="button" class="fmv-view @(_view == ViewRegistered ? "is-active" : "")" aria-pressed="@(_view == ViewRegistered ? "true" : "false")" title="Registered Fish / Meat vendors (separate from NPM)" @onclick="() => _view = ViewRegistered">Vendors @_rows.Count</button>
             <button type="button" class="fmv-view @(_view == ViewNeeds ? "is-active" : "")" aria-pressed="@(_view == ViewNeeds ? "true" : "false")" title="Payors requiring vendor registration" aria-label="@($"Payors requiring vendor registration: {_followUpTotal?.ToString() ?? "not loaded"}")" @onclick="() => _view = ViewNeeds">Needs reg. @(_followUpTotal?.ToString() ?? "—")</button>
         </div>
-        <AuthorizeView Roles="SuperAdmin"><Authorized>
-            <button class="btn-outline" type="button" title="Review Fish/Meat occupants from NPM" aria-label="@($"Review Fish/Meat occupants from NPM: {_npmUnresolved?.ToString() ?? "not loaded"}")" @onclick="() => _npmReview = true">NPM links @(_npmUnresolved?.ToString() ?? "—")</button>
-        </Authorized></AuthorizeView>
-        <a class="btn-outline" href="/operations/fish-meat-vendor-fees/manage">Manage</a>
-        <a class="btn-outline" href="/operations/fish-meat-vendor-fees/report">Reports</a>
-        <a class="btn-outline" href="/operations/fish-meat-vendor-fees/office-register">Office register</a>
-        <AuthorizeView Roles="SuperAdmin"><Authorized>
-            <button class="btn-primary" type="button" @onclick="OpenRegister">Register vendor</button>
-        </Authorized></AuthorizeView>
+        <div class="v3-btn-group fmv-primary-actions" role="group" aria-label="Fish / Meat office actions">
+            <AuthorizeView Roles="SuperAdmin"><Authorized>
+                <button class="btn-outline" type="button" title="Review Fish/Meat occupants from NPM" aria-label="@($"Review Fish/Meat occupants from NPM: {_npmUnresolved?.ToString() ?? "not loaded"}")" @onclick="() => _npmReview = true">NPM links @(_npmUnresolved?.ToString() ?? "—")</button>
+            </Authorized></AuthorizeView>
+            <a class="btn-outline" href="/operations/fish-meat-vendor-fees/manage">Manage</a>
+            <a class="btn-outline" href="/operations/fish-meat-vendor-fees/report">Reports</a>
+            <a class="btn-outline" href="/operations/fish-meat-vendor-fees/office-register">Office register</a>
+            <AuthorizeView Roles="SuperAdmin"><Authorized>
+                <button class="btn-primary" type="button" @onclick="OpenRegister">Register vendor</button>
+            </Authorized></AuthorizeView>
+        </div>
     </div>;
 
     protected override async Task OnParametersSetAsync()

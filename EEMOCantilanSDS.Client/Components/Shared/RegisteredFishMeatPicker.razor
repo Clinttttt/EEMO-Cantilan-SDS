@@ -3,7 +3,7 @@
 @using EEMOCantilanSDS.Domain.Entities.Revenue
 @inject IOfficeSourcesApiClient OfficeApi
 
-<VendorDrawerShell Show="Show" AnimateEntry="true" Title="Registered Fish / Meat" Subtitle="Reuse verified identity; NPM tenancy still requires office confirmation." OnClose="OnClose">
+<VendorDrawerShell Show="Show" AnimateEntry="true" Title="Select Fish / Meat vendor" Subtitle="Reuse a vendor identity for a separate NPM tenancy" OnClose="OnClose">
     <Icon><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="7" r="3" /><path d="M3 21v-2a6 6 0 0 1 12 0v2M17 5h4M17 9h4M18 15l2 2 3-4" /></svg></Icon>
     <ChildContent>
         <div class="rfm" aria-busy="@(_loading ? "true" : "false")">
@@ -24,26 +24,27 @@
             else if (_loading) { <p role="status">Loading registrations and NPM evidence…</p> }
             else
             {
-                <p class="rfm-note">An absent link does not prove the vendor has no stall. Review possible matches and office records before creating an occupancy.</p>
+                <p class="rfm-note">These vendors are registered for Fish / Meat fees. <strong>NPM occupancy is separate</strong> and must be verified by the Head. An absent link does not prove a stall is vacant.</p>
                 @foreach (var row in Visible)
                 {
                     var vendor = row.Registration;
                     var related = Related(vendor.Id);
                     <section class="rfm-row" @key="vendor.Id">
-                        <strong>@vendor.DisplayName</strong>
+                        <div class="rfm-row-header">
+                            <strong>@vendor.DisplayName</strong>
+                            <span class="rfm-tag">@vendor.VendorType · @vendor.TaxYear</span>
+                        </div>
                         @if (!string.IsNullOrWhiteSpace(vendor.BusinessName)) { <span>@vendor.BusinessName</span> }
-                        <span>@vendor.VendorType · @vendor.TaxYear · @row.Status</span>
-                        @if (!string.IsNullOrWhiteSpace(vendor.Address)) { <span>@vendor.Address</span> }
-                        @if (!string.IsNullOrWhiteSpace(vendor.NatureOfBusiness)) { <span>@vendor.NatureOfBusiness</span> }
-                        <span>@string.Join(" ", new[] { vendor.FirstName, vendor.MiddleName, vendor.LastName, vendor.NameExtension }.Where(x => !string.IsNullOrWhiteSpace(x)))</span>
+                        @if (!string.IsNullOrWhiteSpace(vendor.Address)) { <span>@VendorAddressDisplay.Clean(vendor.Address)</span> }
+                        <small class="rfm-link-state">@(related.Any(x => x.Active) ? "NPM link recorded" : "NPM occupancy not verified")</small>
                         @foreach (var source in related)
                         {
-                            <span>Verified link: @source.Area · @source.StallNo · @(source.Active ? "Recorded active" : "Historical")</span>
+                            <span class="rfm-link-context">@source.Area · Stall @source.StallNo · @(source.Active ? "Linked occupancy" : "Historical link")</span>
                             @if (source.Active) { <button type="button" class="btn-ghost" @onclick="() => OnExisting.InvokeAsync(source.StallId)">Review existing NPM stall</button> }
                         }
                         @if (_sources.Any(x => x.PossibleMatches.Any(v => v.Id == vendor.Id) && !related.Any(r => r.ContractId == x.ContractId)))
                         { <span class="rfm-warning">Similar NPM identity recorded; verify it. Names are not an association.</span> }
-                        <button type="button" class="btn-ghost" disabled="@(row.Status != VendorRegistrationStatus.Active)" @onclick="() => OnSelected.InvokeAsync(vendor)">Use for a new NPM occupancy</button>
+                        <button type="button" class="btn-primary rfm-select" disabled="@(row.Status != VendorRegistrationStatus.Active)" @onclick="() => OnSelected.InvokeAsync(vendor)">Continue to NPM details</button>
                     </section>
                 }
                 @if (!Visible.Any())

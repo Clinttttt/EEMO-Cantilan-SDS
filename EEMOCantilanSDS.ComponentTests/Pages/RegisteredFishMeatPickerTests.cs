@@ -74,6 +74,42 @@ public sealed class RegisteredFishMeatPickerTests : TestContext
     }
 
     [Fact]
+    public void Office_details_editor_updates_exact_existing_registration_without_creating_another()
+    {
+        var current = new FishMeatVendorRegistrationDto(Guid.NewGuid(), PhilippineTime.Today.Year,
+            FishMeatVendorType.Fish, VendorRegistrationKind.New, "Josephine Reyes",
+            "reyes fishland", "San Vicent Carmen SurigaoSan Vicent Carmen Surigao", null);
+        var row = new VendorRegistrationManagementRow(current, VendorRegistrationStatus.Active,
+            "Head", DateTime.UtcNow, null, null, null, null, null, 0m, 0m);
+        CorrectVendorOfficeDetailsRequest? requested = null;
+        _api.Setup(x => x.CorrectOfficeDetailsAsync(current.Id, It.IsAny<CorrectVendorOfficeDetailsRequest>()))
+            .Callback<Guid, CorrectVendorOfficeDetailsRequest>((_, r) => requested = r)
+            .ReturnsAsync(Result<VendorRegistrationMutationResult>.Failure("try again"));
+        var cut = RenderComponent<VendorOfficeDetailsEditor>(p => p.Add(x => x.Row, row));
+        Assert.Contains("Josephine Reyes", cut.Markup);
+        cut.Find("#vod-address").Input("San Vicente, Carmen, Surigao del Sur");
+        cut.Find("#vod-last").Input("Reyes");
+        cut.Find("#vod-nature").Input("Retail sale of fish");
+        cut.Find("#vod-form").Submit();
+        cut.WaitForAssertion(() => Assert.NotNull(requested));
+        Assert.Equal(current, requested!.Before);
+        Assert.Equal("Reyes", requested.LastName);
+        Assert.Equal("Retail sale of fish", requested.NatureOfBusiness);
+        Assert.Equal("San Vicente, Carmen, Surigao del Sur", requested.Address);
+        _api.Verify(x => x.RegisterAsync(It.IsAny<RegisterFishMeatVendorRequest>()), Times.Never);
+    }
+
+    [Fact]
+    public void Doubled_vendor_address_is_presented_once_without_changing_the_saved_record()
+    {
+        var raw = "San Vicente, CarmenSan Vicente, Carmen";
+        Assert.Equal("San Vicente, Carmen", VendorAddressDisplay.Clean(raw));
+        Assert.Equal(raw, raw);
+        Assert.Equal("Not recorded", VendorAddressDisplay.Clean(null));
+        Assert.Equal("San Vicente, Carmen", VendorAddressDisplay.Clean("San Vicente, Carmen"));
+    }
+
+    [Fact]
     public void Registry_action_is_opt_in_to_new_NPM_registration_and_preserves_entered_form()
     {
         var form = new EEMOCantilanSDS.Client.Components.Pages.Shared.AddVendorModal.VendorModalForm {

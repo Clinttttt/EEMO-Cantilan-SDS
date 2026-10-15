@@ -36,6 +36,27 @@ public sealed class FishMeatVendorRegistration : BaseEntity, IMunicipalityOwned
     public string? ClosedBy { get; private set; }
     public string? CloseNote { get; private set; }
     private FishMeatVendorRegistration() { }
+
+    /// <summary>Correct office facts on the existing registration, without changing identity, registration
+    /// category, tax year, status, NPM links, collections, or receipt history.</summary>
+    public void CorrectOfficeDetails(string? business, string? address, string? lastName,
+        string? firstName, string? middleName, string? extension, string? sex, string? nature)
+    {
+        static string? Normalized(string? value, int max)
+        {
+            var text = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+            if (text?.Length > max) throw new ArgumentException("InvalidOfficeDetails");
+            return text;
+        }
+        BusinessName = Normalized(business, 200);
+        Address = Normalized(address, 300);
+        LastName = Normalized(lastName, 100);
+        FirstName = Normalized(firstName, 100);
+        MiddleName = Normalized(middleName, 100);
+        NameExtension = Normalized(extension, 30);
+        Sex = Normalized(sex, 30);
+        NatureOfBusiness = Normalized(nature, 300);
+    }
     public void Close(Guid operation, DateOnly businessDate, string actor, string? note)
     {
         note = string.IsNullOrWhiteSpace(note) ? null : note.Trim();

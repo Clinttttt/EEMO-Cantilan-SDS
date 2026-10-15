@@ -27,3 +27,23 @@
     .fmo-scroll thead th { position: static; }
     .fmo-toolbar { display: none; }
 }
+
+/* Give office-paper columns deliberate widths without compressing the address. */
+.fmo-scroll table { min-width:1590px; table-layout:fixed; }
+.fmo-scroll th:nth-child(1) { width:42px; }
+.fmo-scroll th:nth-child(2) { width:170px; }
+.fmo-scroll th:nth-child(3), .fmo-scroll th:nth-child(4) { width:105px; }
+.fmo-scroll th:nth-child(5), .fmo-scroll th:nth-child(6) { width:90px; }
+.fmo-scroll th:nth-child(7) { width:80px; }
+.fmo-scroll th:nth-child(8) { width:155px; }
+.fmo-scroll th:nth-child(9) { width:255px; }
+.fmo-scroll th:nth-child(10), .fmo-scroll th:nth-child(11) { width:95px; }
+.fmo-scroll th:nth-child(12) { width:215px; }
+.fmo-scroll th:nth-child(13), .fmo-scroll th:nth-child(14) { width:145px; }
+.fmo-scroll th:nth-child(15) { width:110px; }
+.fmo-address { line-height:1.4; overflow-wrap:break-word; }
+.fmo-edit-cell, .fmo-edit-header { text-align:right; }
+.fmo-edit-cell .v3-btn { white-space:nowrap; }
+.fmo-scroll td { padding:12px 10px; }
+.fmo-scroll .v3-num { white-space:nowrap; }
+@media print { .fmo-scroll table { min-width:0; table-layout:auto; } .fmo-scroll .no-print, .fmo .no-print { display:none !important; } }

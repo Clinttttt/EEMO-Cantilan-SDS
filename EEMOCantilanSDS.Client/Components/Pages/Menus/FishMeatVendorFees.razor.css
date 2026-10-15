@@ -51,3 +51,20 @@
 .fmv-types { display: flex; flex-wrap: nowrap; gap: 3px; }
 .fmv-actions-bar .fmv-view { white-space: nowrap; padding: 0 8px; font-size: 12px; }
 .fmv-view:disabled { opacity: .55; cursor: default; }
+/* The civic-blue operation hero shares the compact V3 style used by Transportation / Parking. */
+.fmv-hero-meta { color:rgba(255,255,255,.85); font-size:.8125rem; }
+.fmv-toolbar ::deep .toolbar-unified { border:1px solid var(--border); }
+.fmv-actions-bar { gap:0; }
+.fmv-types, .fmv-views { display:inline-flex; flex-wrap:nowrap; gap:0; align-items:stretch; }
+.fmv-types { margin-right:8px; }
+.fmv-views { margin-right:8px; }
+.fmv-actions-bar .fmv-view { border-radius:0; margin-left:-1px; }
+.fmv-types .fmv-view:first-child, .fmv-views .fmv-view:first-child { border-radius:8px 0 0 8px; margin-left:0; }
+.fmv-types .fmv-view:last-child, .fmv-views .fmv-view:last-child { border-radius:0 8px 8px 0; }
+.fmv-primary-actions { display:inline-flex; flex-wrap:nowrap; gap:0; align-items:center; }
+.fmv-primary-actions > .btn-outline, .fmv-primary-actions > .btn-primary { border-radius:0; margin-left:-1px; }
+.fmv-primary-actions > :first-child { border-radius:8px 0 0 8px; margin-left:0; }
+.fmv-primary-actions > :last-child { border-radius:0 8px 8px 0; }
+.fmv-address { min-width:180px; max-width:300px; line-height:1.45; overflow-wrap:break-word; }
+.fmv-toolbar ::deep .search-box { margin-left:auto; }
+@media (max-width:1100px) { .fmv-toolbar ::deep .toolbar-unified { overflow-x:auto; } }
