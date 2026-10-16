@@ -5,6 +5,7 @@
 @using EEMOCantilanSDS.Domain.Entities.Revenue
 @using EEMOCantilanSDS.Domain.Enums
 @inject IOfficeSourcesApiClient OfficeApi
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 <PageTitle>StallTrack — NPM Registration Requests</PageTitle>
 <OperationTopbar Title="NPM Registration Requests" Crumb="Monitoring" />
 <div class="content-area pnr-page">
@@ -212,14 +213,10 @@
         $"/npm?registerVendor={row.VendorRegistrationId:D}&registrationYear={row.TaxYear}" +
         $"&proposedStall={Uri.EscapeDataString((row.ProposedStall ?? string.Empty).Trim())}" +
         (row.ProposedSection is { } section ? $"&proposedSection={section}" : string.Empty);
-    private static string SectionName(MarketSection? section) => section switch
-    {
-        MarketSection.FishSection => "Fish Area",
-        MarketSection.MeatSection => "Meat Area",
-        MarketSection.VegetableArea => "Vegetable Area",
-        null => "Section to verify",
-        _ => section.ToString()!
-    };
+    // Display the current LGU's market-area name; the enum remains the stable registration key.
+    private string SectionName(MarketSection? section) => section is { } area
+        ? FacilityCatalog.SectionLabelOf(FacilityCode.NPM, area)
+        : "Section to verify";
     private static string StatusName(NpmRegistrationRequestStatus status) => status switch
     {
         NpmRegistrationRequestStatus.Submitted => "Pending review",
@@ -246,7 +243,11 @@
         _ => "review"
     };
 
-    protected override Task OnInitializedAsync() => Load();
+    protected override async Task OnInitializedAsync()
+    {
+        await FacilityCatalog.EnsureLoadedAsync();
+        await Load();
+    }
     private async Task Load()
     {
         _loading = true; _error = null;
