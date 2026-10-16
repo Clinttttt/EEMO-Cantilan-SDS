@@ -15,10 +15,16 @@ using Moq;
 
 namespace EEMOCantilanSDS.ComponentTests.Pages;
 
+// Keep the import-preview and drawer tests separate from concurrently running test collections;
+// the full suite intermittently lost a row editor in the default parallel configuration.
+[CollectionDefinition("ObligationWorkspaceSerial", DisableParallelization = true)]
+public sealed class ObligationWorkspaceSerialCollection { }
+
 /// <summary>
 /// Kanmanggay and Fiesta / Araw lot rental (IA-050) are Head-configured obligation accounts. The workspaces show what is
 /// assessed, collected and owed, let only the Head open an account and approve its amount, and never record money.
 /// </summary>
+[Collection("ObligationWorkspaceSerial")]
 public sealed class ObligationWorkspaceTests : TestContext
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
@@ -713,6 +719,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.Find(".imp-table input[aria-label='Name on Contract of row 2']").Input("Recorded Jose contract");
         cut.Find(".imp-table input[aria-label='No. of Years of row 2']").Input("1");
         cut.Find("button[aria-label='Edit row details 2']").Click();
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("input[aria-label='Contract reference of row 2']")), Timeout);
         cut.Find("input[aria-label='Contract reference of row 2']").Input("SIGNED-JOSE-1");
         cut.Find("button[aria-label='Contract duration options of row 2']").Click();
         cut.WaitForAssertion(() => Assert.Equal(6, cut.FindAll(".fh-dd-menu [role='option']").Count), Timeout);
