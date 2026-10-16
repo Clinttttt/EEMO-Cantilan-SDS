@@ -18,29 +18,27 @@
             <Icon><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12c3-5 8-6 12-3l4-3v12l-4-3c-4 3-9 2-12-3z" /><circle cx="8" cy="11" r="1" /></svg></Icon>
         </FacilityHero>
 
-        <div class="fmo-toolbar no-print">
+        <div class="fmo-toolbar no-print" role="region" aria-label="Office register filters">
             <div class="fmo-period">
-                <label for="fmo-month">Collection month</label>
+                <label for="fmo-month">Month</label>
                 <input id="fmo-month" type="month" value="@_period.ToString("yyyy-MM", CultureInfo.InvariantCulture)" max="@PhilippineTime.Today.ToString("yyyy-MM", CultureInfo.InvariantCulture)" @onchange="ChangeMonth" />
             </div>
-            <div class="fmo-period">
-                <label for="fmo-year">Registration tax year</label>
-                <select id="fmo-year" value="@_taxYear" @onchange="ChangeYear">
-                    @foreach (var y in YearOptions) { <option value="@y">@y</option> }
-                </select>
+            <div class="fmo-period fmo-year">
+                <FhSelect Caption="Tax year" AriaLabel="Registration tax year" Block="true"
+                          Options="TaxYearOptions" Value="@_taxYear.ToString(CultureInfo.InvariantCulture)" ValueChanged="ChangeYearValue" />
             </div>
             <div class="fmo-filter">
-                <label for="fmo-type">Vendor type</label>
-                <select id="fmo-type" @bind="_type">
-                    <option value="All">All types</option><option value="Fish">Fish</option><option value="Meat">Meat</option>
-                </select>
+                <FhSelect Caption="Type" AriaLabel="Vendor type" Block="true"
+                          Options="VendorTypeOptions" Value="@_type" ValueChanged="v => _type = v" />
             </div>
             <div class="fmo-search">
                 <label for="fmo-search">Search</label>
                 <input id="fmo-search" type="search" placeholder="Vendor or business" @bind="_search" @bind:event="oninput" />
             </div>
-            <button type="button" class="v3-btn" @onclick="PrintAsync">Print</button>
-            <a class="v3-btn" href="/operations/fish-meat-vendor-fees">Back to vendors</a>
+            <div class="fmo-actions">
+                <button type="button" class="v3-btn" @onclick="PrintAsync">Print</button>
+                <a class="v3-btn" href="/operations/fish-meat-vendor-fees">Back</a>
+            </div>
         </div>
 
         @if (_error is not null)
@@ -101,8 +99,13 @@
         @if (_saved is not null) { <p role="status" class="v3-notice">@_saved</p> }
         @if (_data is not null)
         {
-            <p class="fmo-note">The amounts are actual recorded collections for @_period.ToString("MMMM yyyy", CultureInfo.InvariantCulture), not approved rates or amounts due. Vendor Fee and Weight &amp; Measure are separate revenue sources. Unregistered walk-up vendor fees: <strong>@Money(_data.WalkUpVendorFeeCollected)</strong> (not included in the registered-vendor rows). Totals on historical paper are reference evidence only and are not entered as new collections.</p>
-            <p class="fmo-note">This view shows registrations for tax year @_taxYear; a different tax-year selection may exclude historical vendor identities even when a payment was recorded during the chosen month. Use the official Financial Reports for complete monthly revenue across sources.</p>
+            <div class="fmo-footnotes">
+                <p class="fmo-note">Recorded collections only, not amounts due. Walk-up vendor fees: <strong>@Money(_data.WalkUpVendorFeeCollected)</strong> (excluded from the registered-vendor rows).</p>
+                <details class="fmo-method">
+                    <summary>About this register</summary>
+                    <p>Amounts reflect @_period.ToString("MMMM yyyy", CultureInfo.InvariantCulture) collections for registrations in tax year @_taxYear. Vendor fees and Weight &amp; Measure are separate revenue sources. Historical paper totals are reference evidence, not newly entered collections. See Financial Reports for full monthly revenue.</p>
+                </details>
+            </div>
         }
     </div>
 </div>
@@ -126,6 +129,10 @@
     }
     private IReadOnlyList<int> YearOptions => Enumerable.Range(0, 7).Select(i => PhilippineTime.Today.Year + 1 - i)
         .Append(_taxYear).Distinct().OrderByDescending(x => x).ToArray();
+    private IReadOnlyList<(string Value, string Label)> TaxYearOptions => YearOptions
+        .Select(year => (year.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture))).ToArray();
+    private static readonly IReadOnlyList<(string Value, string Label)> VendorTypeOptions =
+        [("All", "All types"), ("Fish", "Fish"), ("Meat", "Meat")];
     private List<VendorRegistrationManagementRow> VisibleRows => (_data?.Rows ?? [])
         .Where(r => _type == "All" || r.Registration.VendorType.ToString() == _type)
         .Where(r => string.IsNullOrWhiteSpace(_search) || $"{r.Registration.DisplayName} {r.Registration.BusinessName} {r.Registration.LastName} {r.Registration.FirstName} {r.Registration.NatureOfBusiness}"
@@ -146,9 +153,9 @@
             await LoadAsync();
         }
     }
-    private async Task ChangeYear(ChangeEventArgs args)
+    private async Task ChangeYearValue(string value)
     {
-        if (int.TryParse(args.Value?.ToString(), out var year) && year is >= 2000 and <= 2200)
+        if (int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var year) && year is >= 2000 and <= 2200)
         {
             _taxYear = year;
             await LoadAsync();
