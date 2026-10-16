@@ -1,5 +1,12 @@
 # StallTrack Current Release State
 
+## 2026-10-16 local integration update (supersedes older checkout references below)
+
+- **EEMO primary checkout:** `C:\dev\stalltrack\eemo`, branch `codex/local-unified-v8-v10-20261013`. This checkout now contains the Fish/Meat, NPM, Mobile Records/Reports, ECF/WCF Accountability SRC, and three V7 rental/space-import integration commits through `01ab7727`, followed by isolated Head import-test stabilization (`4f35c14d`) and the local Login/Audit Trail refinement (`30cf5c08`). Inspect Git for subsequent commits and the exact current HEAD.
+- **Validation at integration:** V7 Head components 1,253/1,253 passed in both serial-collection mode and the default test command after test isolation. Final builds/tests of the subsequently combined primary checkout must be recorded separately. The Windows MAUI executable had not yet been rebuilt from the new source.
+- **Platform is a separate repository:** `C:\dev\stalltrack\platform`; local `main` and `feat/onboarding-tenant-operations-v2` both point to `e1a478a`. Admin 134/134 and Landing 77/77 tests passed; both production frontend builds passed. `origin/main` was not pushed.
+- **Deployment boundary:** These are local Git/validation facts, not evidence of production deployment, migrated production data, mobile APK publication or user visual acceptance. The October 8 implementation and checkout instructions below are historical snapshots; do not treat their branch names, test totals, or uncommitted/unmerged claims as current.
+
 Latest space-holder test/render evidence: [final workspace handoff](SPACE_HOLDER_WORKSPACE_HANDOFF_20261008.md). Its final counts and actual fixture-PDF checks supersede the initial follow-up evidence below; logged-in visual acceptance and integration remain pending.
 
 **Status:** Production release verified; newer local integration checkpoint accepted for continued development
@@ -17,7 +24,13 @@ The same primary checkout contains feature branch `codex/vegetable-fruit-space-w
 
 Validation: Unit **2,525 passed / 0 failed / 0 skipped**; full PostgreSQL **369 passed / 0 failed / 7 snapshot-gated skipped**; Web **750 passed / 0 failed / 0 skipped**; Mobile **70 passed / 0 failed / 0 skipped**. API Release passed (**0 warnings / 0 errors**), Client Release passed (**70 warnings / 0 errors**), Mobile Windows Release passed (**16 warnings / 0 errors**). Whitespace and scoped/generated Client CSS brace checks passed. Local API, Client and Windows Mobile run from the primary checkout; the Mobile DLL is newer than `cfef4261`. Authenticated Monthly/Daily read APIs return 200. The additive migration only widens three account constraints and is verified in the localhost development database; production is unchanged.
 
-Browser automation cannot initialize because its sandbox helper fails. The user answered **“I’ll check next”** to the requested visual and save/numbering checkpoint. This feature is **not yet visually accepted or fast-forward integrated**. See [the workspace checkpoint](VEGETABLE_FRUIT_WORKSPACE_20261008.md) for source boundaries, compatibility and validation details. `CONTEXT.md` was reviewed; its source identity, snapshot and instrument definitions remain valid. `ACTIVE_WORKSTREAMS.md` remains historical coordination evidence.
+Browser automation cannot initialize because its sandbox helper fails. The user answered **“I’ll check next”** to the requested visual and save/numbering checkpoint. This feature is **not yet visually accepted or fast-forward integrated**. See [the workspace checkpoint](VEGETABLE_FRUIT_WORKSPACE_20261008.md) for source boundaries, compatibility and validation details. `CONTEXT.md` was reviewed; its source identity, snapshot and instrument definitions remain valid. `ACTIVE_WORKSTREAMS.md` records current coordination guidance and retains older branch-map material as history.
+
+## 2026-10-08 space-holder workspace split — visual acceptance pending
+
+The existing Vegetable/Fruits feature branch `codex/vegetable-fruit-space-workspace` is being preserved at its verified starting HEAD `5fc26ae6`; the space-account presentation follow-up remains on that same branch. Kanmanggay now has separate overview, read-only roster (`/operations/kanmanggay/space-holders`) and account-management (`/operations/kanmanggay/manage-space-holders`) views. Vegetable/Fruits Monthly reuses the roster and management views at `/operations/vegetable-fruit/space-holders` and `/operations/vegetable-fruit/manage-space-holders`; its Daily CT mode is unchanged. Source-specific account kinds and backend balance/register workflows remain authoritative. NCC uses Stall Holder List terminology while its existing route and stall data remain intact.
+
+Focused space-holder/NCC components: **21 passed / 0 failed / 0 skipped**. Full Web component suite: **770 passed / 0 failed / 0 skipped**. Client Release build: **0 warnings / 0 errors**; `git diff --check` passed. No API, persistence, migration, Mobile or production data changes were made. Live desktop/narrow-width and actual browser-PDF pagination review is still pending because the Windows UI automation helper failed to initialize twice. Do not integrate this feature branch until Clint completes that visual gate. No commit, push, production migration/deployment or APK publication has occurred.
 
 ## 2026-10-08 accepted local consolidation
 

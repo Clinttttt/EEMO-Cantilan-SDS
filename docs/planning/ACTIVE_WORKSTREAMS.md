@@ -1,5 +1,7 @@
 # StallTrack — Active Workstreams and Checkout Model
 
+**Current local coordination checkpoint (2026-10-16):** The authoritative primary EEMO checkout is `C:\dev\stalltrack\eemo` on `codex/local-unified-v8-v10-20261013`. V7's three rental/space-import commits and test-isolation change have now been fast-forwarded into this checkout; the earlier October 8 instruction to keep the feature unmerged is retained below solely as historical evidence. Use `git status -sb` and the top of `CURRENT_RELEASE_STATE.md` for current local state. The Platform Admin/Landing repository at `C:\dev\stalltrack\platform` is distinct and has its own local `main` at `e1a478a`. Do not push, deploy, migrate production, or publish Mobile merely because local work has been integrated.
+
 Latest sequential space-holder checkpoint: [final workspace handoff](SPACE_HOLDER_WORKSPACE_HANDOFF_20261008.md). Local feature commits are allowed by the current task; integration still requires visual acceptance. No additional checkout is authorized for this follow-up.
 
 **Status:** Current coordination guidance as of 2026-10-08; older linked-worktree map retained below as archive
@@ -8,6 +10,10 @@ Latest sequential space-holder checkpoint: [final workspace handoff](SPACE_HOLDE
 **Shared local Web preview:** `https://localhost:7167`
 
 Read `CURRENT_RELEASE_STATE.md` before using this file for implementation status. Business authority still comes from the Decision Registry, ADRs, operational rulebook, office evidence and source-specific architecture—not from branch naming.
+
+## Active sequential feature branch — space-holder workspaces (2026-10-08)
+
+Continue in the primary checkout on `codex/vegetable-fruit-space-workspace`, preserving the existing Vegetable/Fruits Monthly/Daily changes at starting HEAD `5fc26ae6`. The new Kanmanggay and Vegetable/Fruits Monthly routes separate the official read-only roster from account management; the overview links to both. NCC terminology correction remains in the existing stall-holder component. The implementation is still uncommitted and not integrated. Focused tests passed **21/21**, full Web components **770/770**, and Client Release build **0 warnings / 0 errors**. Desktop/narrow-width and actual PDF visual review is pending because computer-use initialization failed; wait for the user's visual acceptance before committing/integrating. Do not push, merge to master, deploy, migrate production, or publish an APK.
 
 ## Current development model
 
