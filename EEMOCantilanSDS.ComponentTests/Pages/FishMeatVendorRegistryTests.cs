@@ -95,7 +95,7 @@ public sealed class FishMeatVendorRegistryTests : TestContext
         Assert.Equal(["2|Registered", "1|Fish", "1|Meat"], figures);
         Assert.Single(cut.FindAll(".toolbar-unified"));
         Assert.Equal(["All", "Fish", "Meat"], cut.FindAll(".filter-tab").Select(t => t.TextContent.Trim()).ToArray());
-        Assert.Equal(["All", "Fish", "Meat", "Vendors 2", "Needs reg. 0", "NPM links 3", "Manage", "Reports", "Office register", "Register vendor"], cut.FindAll(".fmv-actions-bar a, .fmv-actions-bar button").Select(a => a.TextContent.Trim()).ToArray());
+        Assert.Equal(["All", "Fish", "Meat", "Vendors 2", "Needs reg. 0", "NPM review 3", "Manage", "Reports", "Office register", "Register vendor"], cut.FindAll(".fmv-actions-bar a, .fmv-actions-bar button").Select(a => a.TextContent.Trim()).ToArray());
         Assert.Empty(cut.FindAll(".fmv-toolbar a[href='/collections/activity'], .fmv-toolbar a[href$='/import']"));
         Assert.Empty(cut.FindAll(".v3-panel-header button, .v3-panel-header a"));
         Assert.NotNull(cut.Find("button[title='Payors requiring vendor registration']"));

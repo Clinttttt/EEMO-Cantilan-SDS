@@ -205,10 +205,17 @@ public sealed class FishMeatVendorImportTests : TestContext
             Assert.Equal(2, selectors.Count);
             Assert.Equal("Registration tax year", selectors[0].Instance.AriaLabel);
             Assert.Equal("Vendor type", selectors[1].Instance.AriaLabel);
-            Assert.Contains("About this register", cut.Markup);
+            Assert.Contains("About the figures", cut.Markup);
             Assert.Single(cut.FindAll(".fmo-note"));
             Assert.Single(cut.FindAll(".fmo-method summary"));
         }, Timeout);
+        var fullViewButton = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Full register");
+        fullViewButton.Click();
+        Assert.Contains("is-visible", cut.Find(".fmo-paper").ClassList);
+        Assert.Contains("is-hidden", cut.Find(".fmo-overview").ClassList);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Compact view").Click();
+        Assert.DoesNotContain("is-visible", cut.Find(".fmo-paper").ClassList);
+        Assert.DoesNotContain("is-hidden", cut.Find(".fmo-overview").ClassList);
         var typeSelector = cut.FindComponents<EEMOCantilanSDS.Client.Components.Shared.FhSelect>()[1];
         typeSelector.Find(".fh-dd-trigger").Click();
         typeSelector.FindAll(".fh-dd-item").Single(x => x.TextContent.Trim() == "Meat").Click();

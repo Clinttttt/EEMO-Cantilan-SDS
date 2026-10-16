@@ -212,7 +212,7 @@
         </div>
         <div class="v3-btn-group fmv-primary-actions" role="group" aria-label="Fish / Meat office actions">
             <AuthorizeView Roles="SuperAdmin"><Authorized>
-                <button class="btn-outline" type="button" title="Review Fish/Meat occupants from NPM" aria-label="@($"Review Fish/Meat occupants from NPM: {_npmUnresolved?.ToString() ?? "not loaded"}")" @onclick="() => _npmReview = true">NPM links @(_npmUnresolved?.ToString() ?? "—")</button>
+                <button class="btn-outline" type="button" title="Review Fish/Meat occupants from NPM" aria-label="@($"Review Fish/Meat occupants from NPM: {_npmUnresolved?.ToString() ?? "not loaded"}")" @onclick="() => _npmReview = true">NPM review @(_npmUnresolved?.ToString() ?? "—")</button>
             </Authorized></AuthorizeView>
             <a class="btn-outline" href="/operations/fish-meat-vendor-fees/manage">Manage</a>
             <a class="btn-outline" href="/operations/fish-meat-vendor-fees/report">Reports</a>

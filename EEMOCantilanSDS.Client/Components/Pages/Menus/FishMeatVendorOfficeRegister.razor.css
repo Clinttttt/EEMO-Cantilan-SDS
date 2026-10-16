@@ -71,3 +71,37 @@
 .fmo-scroll td { padding:12px 10px; }
 .fmo-scroll .v3-num { white-space:nowrap; }
 @media print { .fmo-scroll table { min-width:0; table-layout:auto; } .fmo-scroll .no-print, .fmo .no-print { display:none !important; } }
+
+/* Ordinary office review is compact; the full official-paper columns remain accessible and printable. */
+.fmo-control-label { display:block; margin-bottom:5px; color:var(--text-secondary); font-size:.6875rem; font-weight:600; }
+.fmo-toolbar ::deep .fh-dd-val { font-size:.8125rem; font-weight:600; margin-top:0; }
+.fmo-toolbar ::deep .fh-dd-menu { max-height:240px; min-width:100%; }
+.fmo-toolbar ::deep .fh-dd-item { padding:10px 12px; }
+.fmo-toolbar ::deep .fh-dd-header { display:none; }
+.fmo-panel-actions { display:flex; align-items:center; gap:12px; }
+.fmo-overview { overflow-x:auto; overscroll-behavior-inline:contain; }
+.fmo-overview.is-hidden { display:none; }
+.fmo-paper { display:none; }
+.fmo-paper.is-visible { display:block; }
+.fmo-compact-table { width:100%; min-width:940px; table-layout:auto; }
+.fmo-compact-table thead th { white-space:nowrap; }
+.fmo-compact-table th:nth-child(1) { min-width:185px; }
+.fmo-compact-table th:nth-child(2) { min-width:95px; }
+.fmo-compact-table th:nth-child(3) { min-width:210px; }
+.fmo-compact-table th:nth-child(4) { min-width:160px; }
+.fmo-compact-table td { vertical-align:middle; padding:13px 12px; line-height:1.45; }
+.fmo-compact-table .fmo-identity strong { display:block; color:var(--navy); overflow-wrap:anywhere; }
+.fmo-compact-table .fmo-activity { max-width:260px; overflow-wrap:break-word; color:var(--text-secondary); }
+.fmo-compact-table .fmo-address { min-width:170px; max-width:300px; overflow-wrap:break-word; }
+.fmo-compact-table .v3-num { white-space:nowrap; }
+.fmo-compact-table .fmo-edit-cell { white-space:nowrap; }
+.fmo-compact-table tfoot th, .fmo-compact-table tfoot td { background:var(--surface-muted); }
+@media(max-width:740px) {
+    .fmo-panel-actions { flex-wrap:wrap; justify-content:flex-end; }
+    .fmo-compact-table { min-width:850px; }
+}
+@media print {
+    .fmo-overview { display:none !important; }
+    .fmo-paper { display:block !important; }
+    .fmo-panel-actions { display:none !important; }
+}

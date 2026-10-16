@@ -13,3 +13,19 @@
 .rfm-row .rfm-warning { color:#8a5a00; font-size:.75rem; }
 .rfm-select { justify-self:start; min-height:36px; }
 @media (max-width:430px) { .rfm-row { padding:12px; } .rfm-select { width:100%; } }
+
+/* Condensed office filters and readable registration-versus-tenancy states. */
+.rfm-controls { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:10px; }
+.rfm-filter { display:grid; gap:5px; min-width:0; }
+.rfm-filter > span { color:var(--text-secondary); font-size:11px; font-weight:650; }
+.rfm-filter ::deep .fh-dd-trigger { width:100%; height:40px; min-width:0; }
+.rfm-filter ::deep .fh-dd-menu { min-width:100%; }
+.rfm-filter ::deep .fh-dd-item { min-height:36px; }
+.rfm-note { font-size:12px; color:var(--text-secondary); margin:1px 0 3px; }
+.rfm-row { gap:6px; }
+.rfm-row .rfm-business { color:var(--text); font-weight:500; }
+.rfm-row .rfm-address { font-size:12px; color:var(--text-secondary); overflow-wrap:break-word; }
+.rfm-row .rfm-link-state { font-size:12px; }
+.rfm-row .rfm-link-context { font-size:12px; }
+.rfm-row .rfm-select { margin-top:6px; }
+@media (max-width:430px) { .rfm-controls { grid-template-columns:minmax(0,1fr) minmax(0,1fr); } }

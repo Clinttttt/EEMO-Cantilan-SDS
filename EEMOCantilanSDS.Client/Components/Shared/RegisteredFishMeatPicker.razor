@@ -3,12 +3,12 @@
 @using EEMOCantilanSDS.Domain.Entities.Revenue
 @inject IOfficeSourcesApiClient OfficeApi
 
-<VendorDrawerShell Show="Show" AnimateEntry="true" Title="Select Fish / Meat vendor" Subtitle="Reuse a vendor identity for a separate NPM tenancy" OnClose="OnClose">
+<VendorDrawerShell Show="Show" AnimateEntry="true" Title="Select Fish / Meat vendor" Subtitle="For NPM registration" OnClose="OnClose">
     <Icon><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="7" r="3" /><path d="M3 21v-2a6 6 0 0 1 12 0v2M17 5h4M17 9h4M18 15l2 2 3-4" /></svg></Icon>
     <ChildContent>
         <div class="rfm" aria-busy="@(_loading ? "true" : "false")">
-            <label for="rfm-search">Find a registered vendor</label>
-            <input id="rfm-search" class="avm-input" type="search" @bind="_search" @bind:event="oninput" placeholder="Vendor, business or office name" />
+            <label for="rfm-search">Find vendor</label>
+            <input id="rfm-search" class="avm-input" type="search" @bind="_search" @bind:event="oninput" placeholder="Search name or business" />
             @if (PreferredVendorId.HasValue && !_showAllVendors)
             {
                 <div class="rfm-preferred" role="status">
@@ -17,14 +17,14 @@
                 </div>
             }
             <div class="rfm-controls">
-                <FhSelect AriaLabel="Registration tax year" Options="Years" Value="@_year.ToString()" ValueChanged="ChangeYear" />
-                <FhSelect AriaLabel="Vendor type" Options="Types" Value="@_type" ValueChanged="v => _type = v" />
+                <div class="rfm-filter"><span>Tax year</span><FhSelect Block="true" AriaLabel="Registration tax year" Options="Years" Value="@_year.ToString()" ValueChanged="ChangeYear" /></div>
+                <div class="rfm-filter"><span>Type</span><FhSelect Block="true" AriaLabel="Vendor type" Options="Types" Value="@_type" ValueChanged="v => _type = v" /></div>
             </div>
             @if (_error is not null) { <p role="alert">@_error</p><button type="button" class="btn-ghost" @onclick="Load">Try again</button> }
             else if (_loading) { <p role="status">Loading registrations and NPM evidence…</p> }
             else
             {
-                <p class="rfm-note">These vendors are registered for Fish / Meat fees. <strong>NPM occupancy is separate</strong> and must be verified by the Head. An absent link does not prove a stall is vacant.</p>
+                <p class="rfm-note">Fish / Meat registration is separate from NPM tenancy. Verify the actual stall before saving.</p>
                 @foreach (var row in Visible)
                 {
                     var vendor = row.Registration;
@@ -34,17 +34,17 @@
                             <strong>@vendor.DisplayName</strong>
                             <span class="rfm-tag">@vendor.VendorType · @vendor.TaxYear</span>
                         </div>
-                        @if (!string.IsNullOrWhiteSpace(vendor.BusinessName)) { <span>@vendor.BusinessName</span> }
-                        @if (!string.IsNullOrWhiteSpace(vendor.Address)) { <span>@VendorAddressDisplay.Clean(vendor.Address)</span> }
-                        <small class="rfm-link-state">@(related.Any(x => x.Active) ? "NPM link recorded" : "NPM occupancy not verified")</small>
+                        @if (!string.IsNullOrWhiteSpace(vendor.BusinessName)) { <span class="rfm-business">@vendor.BusinessName</span> }
+                        @if (!string.IsNullOrWhiteSpace(vendor.Address)) { <span class="rfm-address">@VendorAddressDisplay.Clean(vendor.Address)</span> }
+                        <small class="rfm-link-state">@(related.Any(x => x.Active) ? "NPM linked" : "NPM not linked")</small>
                         @foreach (var source in related)
                         {
-                            <span class="rfm-link-context">@source.Area · Stall @source.StallNo · @(source.Active ? "Linked occupancy" : "Historical link")</span>
+                            <span class="rfm-link-context">@source.Area · Stall @source.StallNo @(source.Active ? "" : "· Former link")</span>
                             @if (source.Active) { <button type="button" class="btn-ghost" @onclick="() => OnExisting.InvokeAsync(source.StallId)">Review existing NPM stall</button> }
                         }
                         @if (_sources.Any(x => x.PossibleMatches.Any(v => v.Id == vendor.Id) && !related.Any(r => r.ContractId == x.ContractId)))
-                        { <span class="rfm-warning">Similar NPM identity recorded; verify it. Names are not an association.</span> }
-                        <button type="button" class="btn-primary rfm-select" disabled="@(row.Status != VendorRegistrationStatus.Active)" @onclick="() => OnSelected.InvokeAsync(vendor)">Continue to NPM details</button>
+                        { <span class="rfm-warning">Possible existing NPM record. Verify before proceeding.</span> }
+                        <button type="button" class="btn-primary rfm-select" disabled="@(row.Status != VendorRegistrationStatus.Active)" @onclick="() => OnSelected.InvokeAsync(vendor)">Use for NPM</button>
                     </section>
                 }
                 @if (!Visible.Any())
@@ -56,7 +56,7 @@
             }
         </div>
     </ChildContent>
-    <Footer><button type="button" class="btn-ghost" @onclick="OnClose">Back to NPM form</button></Footer>
+    <Footer><button type="button" class="btn-ghost" @onclick="OnClose">Back</button></Footer>
 </VendorDrawerShell>
 @code {
     [Parameter] public bool Show { get; set; }

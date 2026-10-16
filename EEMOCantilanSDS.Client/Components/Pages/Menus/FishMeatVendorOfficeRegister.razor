@@ -24,11 +24,13 @@
                 <input id="fmo-month" type="month" value="@_period.ToString("yyyy-MM", CultureInfo.InvariantCulture)" max="@PhilippineTime.Today.ToString("yyyy-MM", CultureInfo.InvariantCulture)" @onchange="ChangeMonth" />
             </div>
             <div class="fmo-period fmo-year">
-                <FhSelect Caption="Tax year" AriaLabel="Registration tax year" Block="true"
+                <span class="fmo-control-label">Tax year</span>
+                <FhSelect AriaLabel="Registration tax year" Block="true"
                           Options="TaxYearOptions" Value="@_taxYear.ToString(CultureInfo.InvariantCulture)" ValueChanged="ChangeYearValue" />
             </div>
             <div class="fmo-filter">
-                <FhSelect Caption="Type" AriaLabel="Vendor type" Block="true"
+                <span class="fmo-control-label">Type</span>
+                <FhSelect AriaLabel="Vendor type" Block="true"
                           Options="VendorTypeOptions" Value="@_type" ValueChanged="v => _type = v" />
             </div>
             <div class="fmo-search">
@@ -48,9 +50,61 @@
         <section class="v3-panel" aria-label="Office vendor register" aria-busy="@_loading">
             <header class="v3-panel-header">
                 <h2>Office vendor list · @_period.ToString("MMMM yyyy", CultureInfo.InvariantCulture)</h2>
-                <span class="v3-panel-meta">@VisibleRows.Count rows · Tax year @_taxYear</span>
+                <div class="fmo-panel-actions no-print">
+                    <span class="v3-panel-meta">@VisibleRows.Count rows</span>
+                    <button type="button" class="v3-btn v3-btn-sm" aria-pressed="@_showPaperView"
+                            @onclick="() => _showPaperView = !_showPaperView">
+                        @(_showPaperView ? "Compact view" : "Full register")
+                    </button>
+                </div>
             </header>
-            <div class="v3-table-wrap fmo-scroll" role="region" aria-label="Monthly fish and meat vendor register" tabindex="0">
+            <div class="v3-table-wrap fmo-overview @(_showPaperView ? "is-hidden" : "")" role="region" aria-label="Summary of registered Fish and Meat vendors" tabindex="0">
+                <table class="v3-table fmo-compact-table">
+                    <thead><tr>
+                        <th scope="col">Vendor / business</th>
+                        <th scope="col">Registration</th>
+                        <th scope="col">Address</th>
+                        <th scope="col">Business activity</th>
+                        <th scope="col" class="v3-num">Vendor fee</th>
+                        <th scope="col" class="v3-num">Weight &amp; Measure</th>
+                        <th scope="col" class="no-print fmo-edit-header">Action</th>
+                    </tr></thead>
+                    <tbody>
+                        @foreach (var row in VisibleRows)
+                        {
+                            var v = row.Registration;
+                            <tr @key="v.Id">
+                                <td class="fmo-identity"><strong>@v.DisplayName</strong>
+                                    @if (!string.IsNullOrWhiteSpace(v.BusinessName)) { <span class="fmo-sub">@v.BusinessName</span> }
+                                </td>
+                                <td>@v.VendorType <span class="fmo-sub">@v.RegistrationKind · @v.TaxYear</span></td>
+                                <td class="fmo-address" title="@v.Address">@VendorAddressDisplay.Clean(v.Address)</td>
+                                <td class="fmo-activity" title="@v.NatureOfBusiness">@(string.IsNullOrWhiteSpace(v.NatureOfBusiness) ? "—" : v.NatureOfBusiness)</td>
+                                <td class="v3-num">@Money(row.VendorFeeCollected)</td>
+                                <td class="v3-num">@Money(row.WeightMeasureCollected)</td>
+                                <td class="no-print fmo-edit-cell">
+                                    <AuthorizeView Roles="SuperAdmin"><Authorized>
+                                        <button type="button" class="v3-btn v3-btn-sm" aria-label="@($"Edit office details for {v.DisplayName}")" @onclick="() => OpenEdit(row)">Edit details</button>
+                                    </Authorized></AuthorizeView>
+                                </td>
+                            </tr>
+                        }
+                        @if (VisibleRows.Count == 0)
+                        {
+                            <tr><td colspan="7" class="v3-empty">@(_loading ? "Loading office register…" : _error is not null ? "Register unavailable." : "No registrations match this view.")</td></tr>
+                        }
+                    </tbody>
+                    @if (!_loading && _error is null)
+                    {
+                        <tfoot><tr>
+                            <th scope="row" colspan="4">Visible total</th>
+                            <td class="v3-num v3-strong">@Money(VisibleRows.Sum(x => x.VendorFeeCollected))</td>
+                            <td class="v3-num v3-strong">@Money(VisibleRows.Sum(x => x.WeightMeasureCollected))</td><td class="no-print"></td>
+                        </tr></tfoot>
+                    }
+                </table>
+            </div>
+            <div class="v3-table-wrap fmo-scroll fmo-paper @(_showPaperView ? "is-visible" : "")" role="region" aria-label="Full monthly fish and meat vendor register" tabindex="0">
                 <table class="v3-table">
                     <thead><tr>
                         <th scope="col">#</th><th scope="col">Business name</th><th scope="col">Last name</th><th scope="col">First name</th>
@@ -100,9 +154,9 @@
         @if (_data is not null)
         {
             <div class="fmo-footnotes">
-                <p class="fmo-note">Recorded collections only, not amounts due. Walk-up vendor fees: <strong>@Money(_data.WalkUpVendorFeeCollected)</strong> (excluded from the registered-vendor rows).</p>
+                <p class="fmo-note">Recorded collections · Walk-up fees: <strong>@Money(_data.WalkUpVendorFeeCollected)</strong> (separate)</p>
                 <details class="fmo-method">
-                    <summary>About this register</summary>
+                    <summary>About the figures</summary>
                     <p>Amounts reflect @_period.ToString("MMMM yyyy", CultureInfo.InvariantCulture) collections for registrations in tax year @_taxYear. Vendor fees and Weight &amp; Measure are separate revenue sources. Historical paper totals are reference evidence, not newly entered collections. See Financial Reports for full monthly revenue.</p>
                 </details>
             </div>
@@ -116,7 +170,7 @@
     private int _taxYear = PhilippineTime.Today.Year;
     private string _type = "All", _search = "";
     private VendorRegistryManagement? _data;
-    private bool _loading;
+    private bool _loading, _showPaperView;
     private string? _error, _saved;
     private VendorRegistrationManagementRow? _editing;
     private void OpenEdit(VendorRegistrationManagementRow row) => _editing = row;

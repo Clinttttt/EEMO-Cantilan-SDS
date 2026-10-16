@@ -39,7 +39,8 @@ public sealed class RegisteredFishMeatPickerTests : TestContext
         FishMeatVendorRegistrationDto? selected = null;
         var view = RenderComponent<RegisteredFishMeatPicker>(p => p.Add(x => x.Show, true).Add(x => x.OnSelected, v => selected = v));
         view.WaitForAssertion(() => Assert.Equal(2, view.FindAll(".rfm-row").Count));
-        Assert.Contains("absent link does not prove", view.Markup);
+        Assert.Contains("Fish / Meat registration is separate from NPM tenancy", view.Markup);
+        Assert.Contains("NPM not linked", view.Markup);
         Assert.True(view.FindAll(".rfm-row")[1].QuerySelector("button")!.HasAttribute("disabled"));
         view.FindAll(".rfm-row")[0].QuerySelector("button")!.Click(); Assert.Equal(first.Id, selected!.Id);
         view.Find("#rfm-search").Input("Closed shop"); Assert.Single(view.FindAll(".rfm-row"));
