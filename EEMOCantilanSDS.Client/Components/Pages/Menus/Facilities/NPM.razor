@@ -444,6 +444,8 @@
 
     [Parameter, SupplyParameterFromQuery(Name = "registerVendor")] public Guid? RegisterVendor { get; set; }
     [Parameter, SupplyParameterFromQuery(Name = "registrationYear")] public int? RegistrationYear { get; set; }
+    [Parameter, SupplyParameterFromQuery(Name = "proposedStall")] public string? RequestedStall { get; set; }
+    [Parameter, SupplyParameterFromQuery(Name = "proposedSection")] public string? RequestedSection { get; set; }
     private string? _rosterError;
     private void OpenRequestedNpmRegistration()
     {
@@ -1069,7 +1071,8 @@
 
     private void OpenAddVendorModal()
     {
-        _registryVendor = null; _registryNote = ""; _registryReviewed = false; _registryException = false; _registryOperation = Guid.NewGuid();
+        _registryVendor = null; _registryNote = ""; _registryReviewed = false; _registryException = false;
+        _registryProposedFromRequest = false; _registryOperation = Guid.NewGuid();
         IsEditingVendor = false;
         EditingStallId = 0;
 
@@ -1112,7 +1115,7 @@
 
     private void CloseAddVendorModal()
     {
-        _registryPicker = false; _registryVendor = null;
+        _registryPicker = false; _registryVendor = null; _registryProposedFromRequest = false;
         ShowAddVendorModal = false;
         _takeOverVacatedStall = false;
         _vendorReuseOffer = null;
@@ -1337,13 +1340,19 @@
     private Guid _registryOperation = Guid.NewGuid();
     private FishMeatVendorRegistrationDto? _registryVendor;
     private string _registryNote = "";
+    private bool _registryProposedFromRequest;
     private void SelectRegisteredVendor(FishMeatVendorRegistrationDto vendor)
     {
         _registryVendor = vendor; _registryPicker = false; _registryOperation = Guid.NewGuid();
         _registryNote = ""; _registryReviewed = false; _registryException = false;
         VendorForm.ActualOccupant = vendor.DisplayName;
         VendorForm.SelectedSection = vendor.VendorType == EEMOCantilanSDS.Domain.Entities.Revenue.FishMeatVendorType.Fish ? "Fish" : "Meat";
-        // This is a section suggestion only. Do not copy any price, date, area or contract fact from a vendor registration.
+        // Only the exact Fish/Meat registration carried by the Head request link may reuse
+        // the collector's *proposal*. This is not proof of a free stall or a tenancy.
+        _registryProposedFromRequest = NpmRequestStallPrefill.TryApply(
+            VendorForm, vendor, RegisterVendor, RegistrationYear, RequestedStall, RequestedSection);
+        // Rate and rent remain governed by the selected NPM section, never by Fish/Meat registration data.
+        OnSectionModalChanged();
     }
     private void ReviewExistingRegistryStall(Guid stallId)
     {
@@ -1362,7 +1371,16 @@
                     </div>
                     <span class="npm-registry-state">NPM review required</span>
                 </div>
-                <p class="npm-registry-help">The vendor identity is reused. Verify the actual stall and tenancy before saving an NPM occupancy.</p>
+                <p class="npm-registry-help">
+                    @if (_registryProposedFromRequest)
+                    {
+                        <text>Proposed Stall @VendorForm.StallNo · @(EffectiveSelectedSectionName()). Verify the stall and tenancy with office records before saving.</text>
+                    }
+                    else
+                    {
+                        <text>Confirm the NPM stall and tenancy with office records before saving.</text>
+                    }
+                </p>
                 <div class="npm-registry-verifications">
                     <label><input type="checkbox" @bind="_registryReviewed" /><span>Office checked the NPM register and confirmed this tenancy.</span></label>
                     <label><input type="checkbox" @bind="_registryException" /><span>Verified different section from Fish / Meat type (only if applicable).</span></label>

@@ -208,7 +208,10 @@
     private IReadOnlyList<string> _warnings = [];
     private static string When(DateTime utc) => PhilippineTime.ToPhilippineTime(utc).ToString("MMM d, yyyy h:mm tt");
     private static string Stall(NpmRegistrationRequestDto row) => string.IsNullOrWhiteSpace(row.ProposedStall) ? "Not specified" : row.ProposedStall;
-    private static string NpmVendorRegistrationUrl(NpmRegistrationRequestDto row) => $"/npm?registerVendor={row.VendorRegistrationId:D}&registrationYear={row.TaxYear}";
+    private static string NpmVendorRegistrationUrl(NpmRegistrationRequestDto row) =>
+        $"/npm?registerVendor={row.VendorRegistrationId:D}&registrationYear={row.TaxYear}" +
+        $"&proposedStall={Uri.EscapeDataString((row.ProposedStall ?? string.Empty).Trim())}" +
+        (row.ProposedSection is { } section ? $"&proposedSection={section}" : string.Empty);
     private static string SectionName(MarketSection? section) => section switch
     {
         MarketSection.FishSection => "Fish Area",

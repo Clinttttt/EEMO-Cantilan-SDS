@@ -110,6 +110,33 @@ public sealed class RegisteredFishMeatPickerTests : TestContext
     }
 
     [Fact]
+    public void Collector_proposed_Fish_Area_stall_2_is_prefilled_not_replaced_by_next_number()
+    {
+        var year = PhilippineTime.Today.Year;
+        var vendor = new FishMeatVendorRegistrationDto(Guid.NewGuid(), year, FishMeatVendorType.Fish,
+            VendorRegistrationKind.New, "Josephine Reyes", "reyes fishland", "Carmen", null);
+        var form = new EEMOCantilanSDS.Client.Components.Pages.Shared.AddVendorModal.VendorModalForm
+        {
+            FacilityCode = "NPM", SelectedSection = "Vegetable", StallNo = "", ContractYears = 1
+        };
+        Assert.True(NpmRequestStallPrefill.TryApply(form, vendor, vendor.Id, year, " 2 ", "FishSection"));
+        Assert.Equal("Fish", form.SelectedSection);
+        Assert.Equal("2", form.StallNo);
+
+        var cut = RenderComponent<EEMOCantilanSDS.Client.Components.Pages.Shared.AddVendorModal>(p => p
+            .Add(x => x.Show, true).Add(x => x.Form, form)
+            .Add(x => x.ExistingStallNos, new[] { "1", "24" }));
+        Assert.Equal("2", form.StallNo); // Normal next-number suggestion would be 25.
+        cut.SetParametersAndRender(p => p.Add(x => x.ExistingStallNos, new[] { "1", "24", "26" }));
+        Assert.Equal("2", form.StallNo); // A rerender may not overwrite the proposed number.
+        Assert.False(NpmRequestStallPrefill.TryApply(form, vendor, Guid.NewGuid(), year, "99", "MeatSection"));
+        Assert.Equal("2", form.StallNo);
+        Assert.Equal("Fish", form.SelectedSection);
+        Assert.False(NpmRequestStallPrefill.TryApply(form, vendor, vendor.Id, year - 1, "99", "MeatSection"));
+        Assert.False(NpmRequestStallPrefill.TryApply(form, vendor, vendor.Id, year, " ", "MeatSection"));
+    }
+
+    [Fact]
     public void Registry_action_is_opt_in_to_new_NPM_registration_and_preserves_entered_form()
     {
         var form = new EEMOCantilanSDS.Client.Components.Pages.Shared.AddVendorModal.VendorModalForm {
@@ -128,7 +155,7 @@ public sealed class RegisteredFishMeatPickerTests : TestContext
     public void Request_review_shows_nonfinancial_state_and_return_requires_explicit_confirmation()
     {
         var row = new NpmRegistrationRequestDto(Guid.NewGuid(), Guid.NewGuid(), PhilippineTime.Today.Year, "Verified vendor", Guid.NewGuid(), "Collector",
-            "F-12", null, "Office reference", DateTime.UtcNow, NpmRegistrationRequestStatus.Submitted, 1, null, null, null, null, null);
+            "2", EEMOCantilanSDS.Domain.Enums.MarketSection.FishSection, "Office reference", DateTime.UtcNow, NpmRegistrationRequestStatus.Submitted, 1, null, null, null, null, null);
         _api.Setup(x => x.NpmRequestsAsync(1, 25)).ReturnsAsync(Result<NpmRegistrationRequestPage>.Success(new([row], 1, 1, 25)));
         _api.Setup(x => x.NpmVendorCandidatesAsync(row.TaxYear, true, true)).ReturnsAsync(Result<NpmVendorCandidates>.Success(new(row.TaxYear, 0, [])));
         ReviewNpmRegistrationRequest? sent = null;
@@ -140,7 +167,7 @@ public sealed class RegisteredFishMeatPickerTests : TestContext
         Assert.Contains("No cash received", view.Markup);
         Assert.Empty(view.FindComponents<FhSelect>());
         Assert.Contains("No verified NPM occupancy linked", view.Markup);
-        Assert.Contains($"/npm?registerVendor={row.VendorRegistrationId:D}&amp;registrationYear={row.TaxYear}", view.Markup);
+        Assert.Contains($"/npm?registerVendor={row.VendorRegistrationId:D}&amp;registrationYear={row.TaxYear}&amp;proposedStall=2&amp;proposedSection=FishSection", view.Markup);
         Assert.True(view.FindComponent<VendorDrawerShell>().Instance.AnimateEntry);
         Assert.Contains("Check again", view.Markup);
         Assert.DoesNotContain("_association", view.Markup);
