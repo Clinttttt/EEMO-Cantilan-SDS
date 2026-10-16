@@ -29,55 +29,64 @@
 
 <div class="content-area">
 
-    @* ── Hero: the page's own header, in the shell's house style. The four counts double as the action filter,
-       so the office reads the scope and narrows it in the same place. Deliberately monochrome: an audit page
-       states facts, and colour-coding created/updated/deleted made a government record look like a dashboard. *@
-    <div class="vs-hero audit-hero">
-        <div class="vs-hero-left">
-            <div class="vs-hero-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                    <line x1="16" y1="13" x2="8" y2="13" />
-                    <line x1="16" y1="17" x2="8" y2="17" />
-                </svg>
+    @* Share the Occupancy Registry's civic-blue hero. Counts stay interactive audit-action filters. *@
+    <V3Hero Eyebrow="@($"{Branding.OfficeAcronym} Admin · System Record")" Title="Audit Trail"
+            Subtitle="Every create, update and deletion, attributed to the person who made it">
+        <Icon>
+            <svg viewBox="0 0 24 24">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+            </svg>
+        </Icon>
+        <Figures>
+            <div class="v3h-figure audit-hero-metric">
+                <dt class="v3-sr-only">All events</dt>
+                <dd class="audit-hero-metric-content">
+                    <button type="button" class="audit-hero-stat @(_action is null ? "is-active" : "")"
+                        aria-pressed="@(_action is null ? "true" : "false")" @onclick="() => SetAction(null)">
+                        <span class="audit-hero-val">@(_data?.TotalEvents ?? 0)</span>
+                        <span class="audit-hero-key">Total Events</span>
+                        <span class="audit-hero-note">All recorded activity</span>
+                    </button>
+                </dd>
             </div>
-            <div>
-                <div class="vs-hero-eyebrow">@Branding.OfficeAcronym Admin · System Record</div>
-                <div class="vs-hero-title">Audit Trail</div>
-                <div class="vs-hero-sub">Every create, update and deletion, attributed to the person who made it</div>
+            <div class="v3h-figure audit-hero-metric">
+                <dt class="v3-sr-only">Created events</dt>
+                <dd class="audit-hero-metric-content">
+                    <button type="button" class="audit-hero-stat @(_action == "Created" ? "is-active" : "")"
+                        aria-pressed="@(_action == "Created" ? "true" : "false")" @onclick='() => SetAction("Created")'>
+                        <span class="audit-hero-val">@(_data?.CreatedCount ?? 0)</span>
+                        <span class="audit-hero-key">Created</span>
+                        <span class="audit-hero-note">New records</span>
+                    </button>
+                </dd>
             </div>
-        </div>
-        <div class="vs-hero-stats">
-            <button type="button" class="vs-hero-stat audit-hero-stat @(_action is null ? "is-active" : "")"
-                    @onclick="() => SetAction(null)">
-                <div class="vs-hero-val">@(_data?.TotalEvents ?? 0)</div>
-                <div class="vs-hero-key">Total Events</div>
-                <div class="vs-hero-sub2">All recorded activity</div>
-            </button>
-            <div class="vs-hero-divider"></div>
-            <button type="button" class="vs-hero-stat audit-hero-stat @(_action == "Created" ? "is-active" : "")"
-                    @onclick='() => SetAction("Created")'>
-                <div class="vs-hero-val">@(_data?.CreatedCount ?? 0)</div>
-                <div class="vs-hero-key">Created</div>
-                <div class="vs-hero-sub2">New records</div>
-            </button>
-            <div class="vs-hero-divider"></div>
-            <button type="button" class="vs-hero-stat audit-hero-stat @(_action == "Updated" ? "is-active" : "")"
-                    @onclick='() => SetAction("Updated")'>
-                <div class="vs-hero-val">@(_data?.UpdatedCount ?? 0)</div>
-                <div class="vs-hero-key">Updated</div>
-                <div class="vs-hero-sub2">Records modified</div>
-            </button>
-            <div class="vs-hero-divider"></div>
-            <button type="button" class="vs-hero-stat audit-hero-stat @(_action == "Deleted" ? "is-active" : "")"
-                    @onclick='() => SetAction("Deleted")'>
-                <div class="vs-hero-val">@(_data?.DeletedCount ?? 0)</div>
-                <div class="vs-hero-key">Deleted</div>
-                <div class="vs-hero-sub2">Records removed</div>
-            </button>
-        </div>
-    </div>
+            <div class="v3h-figure audit-hero-metric">
+                <dt class="v3-sr-only">Updated events</dt>
+                <dd class="audit-hero-metric-content">
+                    <button type="button" class="audit-hero-stat @(_action == "Updated" ? "is-active" : "")"
+                        aria-pressed="@(_action == "Updated" ? "true" : "false")" @onclick='() => SetAction("Updated")'>
+                    <span class="audit-hero-val">@(_data?.UpdatedCount ?? 0)</span>
+                    <span class="audit-hero-key">Updated</span>
+                        <span class="audit-hero-note">Records modified</span>
+                    </button>
+                </dd>
+            </div>
+            <div class="v3h-figure audit-hero-metric">
+                <dt class="v3-sr-only">Deleted events</dt>
+                <dd class="audit-hero-metric-content">
+                    <button type="button" class="audit-hero-stat @(_action == "Deleted" ? "is-active" : "")"
+                        aria-pressed="@(_action == "Deleted" ? "true" : "false")" @onclick='() => SetAction("Deleted")'>
+                    <span class="audit-hero-val">@(_data?.DeletedCount ?? 0)</span>
+                    <span class="audit-hero-key">Deleted</span>
+                        <span class="audit-hero-note">Records removed</span>
+                    </button>
+                </dd>
+            </div>
+        </Figures>
+    </V3Hero>
 
     <!-- ── Filter bar ── -->
     <div class="audit-filters">
@@ -202,7 +211,7 @@
                             </div>
                         </div>
                         <div class="ac-action">
-                            <span class="ac-badge ac-badge-@log.Action.ToLower() @(EEMOCantilanSDS.Client.Services.AuditActionLabel.IsCore(log.Action) ? "" : "ac-badge-event")" title="@log.Action">@EEMOCantilanSDS.Client.Services.AuditActionLabel.For(log.Action)</span>
+                            <span class="ac-badge ac-badge-@log.Action.ToLowerInvariant() @(EEMOCantilanSDS.Client.Services.AuditActionLabel.IsCore(log.Action) ? "" : "ac-badge-event")" title="@log.Action">@EEMOCantilanSDS.Client.Services.AuditActionLabel.For(log.Action)</span>
                         </div>
                         <div class="ac-entity">
                             <div class="ac-entity-name">@EntityLabel(log.EntityType)</div>
