@@ -60,13 +60,13 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         var cut = Render(builder => { builder.OpenComponent(0, page); builder.CloseComponent(); });
         Assert.DoesNotContain(cut.FindAll("button, a"), x => x.TextContent.Trim() == "Import list");
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New" || b.TextContent.Contains("Add Occupant")).Click();
-        Assert.Equal(new[] { "Import list", "Cancel", "Open account" }, cut.FindAll("footer button").Select(x => x.TextContent.Trim()));
+        Assert.Equal(new[] { "Import list", "Add Rent / Space Holder" }, cut.FindAll("footer button").Select(x => x.TextContent.Trim()));   // no second dismiss beside the header X, and no import-history entry
         Assert.NotNull(cut.Find("#obw-occupant"));
         SaveVisualArtifact(operation + "-registration", cut.Markup);
         Click(cut, "Import list");
         Assert.EndsWith($"/operations/{operation}/import", Services.GetRequiredService<NavigationManager>().Uri);
         _api.Verify(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()), Times.Never);
-        Click(cut, "Cancel");
+        cut.Find(".eemo-drawer-header-close").Click();
         Assert.Empty(cut.FindAll("form[aria-label='Open account']"));
     }
 
@@ -159,31 +159,45 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
     }
 
     [Fact]
-    public void RosterUsesSourceFactsAndNeverInventsContractFactsForSpaceOnly()
+    public void RosterIsTheTenColumnOfficialList_AndNeverInventsContractFactsForSpaceOnly()
     {
-        Serve(Account(), Account("Signed holder", true) with { Arrangement = OccupancyArrangement.SignedContract, ContractReference = "LEASE-17", SubjectLabel = "008" });
+        Serve(Account(), Account("Signed holder", true) with { Arrangement = OccupancyArrangement.SignedContract, ContractReference = "LEASE-17", SubjectLabel = "008", ContractName = "Signed Name",
+            ContractEffectiveDate = new(2026, 2, 3), ContractYears = 3, AreaSqm = 12m, ContractMonthlyRate = 800m });
         var cut = RenderComponent<KanmanggaySpaceHolders>();
-        Assert.Contains("SPACE HOLDER LIST", cut.Find(".lh-title").TextContent);
-        Assert.Equal("KANMANGGAY", cut.Find(".lh-period").TextContent);
+        Assert.Equal("Kanmanggay Space Holder List", cut.Find(".lsh-hero-title").TextContent.Trim());
+        Assert.Contains("KANMANGGAY SPACE HOLDER LIST", cut.Find(".lsh-doc-title").TextContent.ToUpperInvariant());
         Assert.Contains("Republic of the Philippines", cut.Markup);
-        Assert.NotNull(cut.Find(".lh-seal"));
-        Assert.Equal("/operations/kanmanggay", cut.Find("a[aria-label='Back to Kanmanggay']").GetAttribute("href"));
+        Assert.Equal("/operations/kanmanggay", cut.Find(".page-toolbar a[href='/operations/kanmanggay']").GetAttribute("href"));
+        Assert.Equal(10, cut.FindAll(".lsh-table thead th").Count);
         Assert.Contains("Actual holder", cut.Find("tbody").TextContent);
         Assert.DoesNotContain("Compatibility name", cut.Find("tbody").TextContent);
         Assert.Contains("No contract (space only)", cut.Find("tbody").TextContent);
         Assert.DoesNotContain("Must not print", cut.Markup);
-        Assert.DoesNotContain("Years", cut.Find("thead").TextContent);
-        Assert.DoesNotContain("Area", cut.Find("thead").TextContent);
-        Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent is "Change amount" or "Close account");
-        SaveVisualArtifact("kanmanggay-roster", cut.Markup);
-        cut.Find("select").Change("Closed");
-        Assert.Contains("LEASE-17", cut.Find("tbody").TextContent);
-        Assert.Contains("Closed", cut.Find("tbody").TextContent);
-        cut.Find("input[type='search']").Input("absent");
+        var open = Assert.Single(cut.FindAll("tbody tr"));
+        Assert.Equal(10, open.Children.Length);
+        Assert.Equal(["₱900.00", "₱10,800.00"], open.Children.Skip(8).Select(x => x.TextContent.Trim()).ToArray());   // whole year = 12 x the approved monthly amount
+        Assert.Equal("—", open.Children[4].TextContent.Trim());                                                         // no effectivity for a space-only occupancy
+        Assert.Contains("projection", cut.Find(".lsh-footnote").TextContent);
+        cut.FindAll(".lsh-seg-item").Single(b => b.TextContent.Trim() == "Closed").Click();
+        var closed = Assert.Single(cut.FindAll("tbody tr")).Children.Select(x => x.TextContent.Trim()).ToArray();
+        Assert.Contains("Signed Name", closed); Assert.Contains("2/3/2026", closed); Assert.Contains("12 sq.m.", closed); Assert.Contains("₱800.00", closed);
+        cut.Find(".search-box input").Input("absent");
         Assert.Contains("No records match", cut.Find("tbody").TextContent);
     }
+
     [Fact]
-    public void CsvExcelAndPrintUseTheFilteredAuthoritativeRoster()
+    public void FiestaArawRosterIsTheSixColumnLotList()
+    {
+        var lot = Account("Lot holder") with { Kind = ObligationKind.FiestaArawLotRental, Event = LotRentalEvent.Fiesta };
+        _api.Setup(x => x.GetAccountsAsync(ObligationKind.FiestaArawLotRental)).ReturnsAsync(Result<IReadOnlyList<ObligationAccountDto>>.Success([lot]));
+        var cut = RenderComponent<FiestaArawSpaceHolders>();
+        Assert.Equal(["#", "Name of Lessee", "Lot No.", "Event", "Approved Amount", "Contract"],
+            cut.FindAll(".lsh-table thead th").Select(t => string.Join(' ', t.TextContent.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))).ToArray());
+        Assert.Equal(6, Assert.Single(cut.FindAll("tbody tr")).Children.Length);
+    }
+
+    [Fact]
+    public void CsvFollowsTheFilteredRosterAndPrintAndPdfUseTheLandscapeSheet()
     {
         Serve(Account("=FORMULA"), Account("Closed holder", true));
         var cut = RenderComponent<KanmanggaySpaceHolders>();
@@ -191,27 +205,17 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         Assert.Contains("'=FORMULA", csv);
         Assert.DoesNotContain("Closed holder", csv);
         Assert.DoesNotContain("Must not print", csv);
-        Click(cut, "Excel");
-        var download = JSInterop.Invocations["downloadFileFromBytes"].Single();
-        using var stream = new MemoryStream(Convert.FromBase64String((string)download.Arguments[1]!));
-        using var book = SpreadsheetDocument.Open(stream, false);
-        var sheet = book.WorkbookPart!.WorksheetParts.Single().Worksheet!;
-        Assert.Equal(2, sheet.Descendants<Row>().Count());
-        Assert.Contains("=FORMULA", sheet.InnerText);
-        Assert.DoesNotContain("Closed holder", sheet.InnerText);
-        Assert.DoesNotContain("Must not print", sheet.InnerText);
+        Assert.StartsWith("#,Name of Lessee (Actual Occupants),Name of Lessee per Signed Contract,Space No.", csv);
         Click(cut, "Print"); Click(cut, "Save as PDF");
         Assert.Equal(2, JSInterop.Invocations["stalltrackPrint.landscape"].Count);
     }
     [Fact]
-    public void FailedRosterHasRetryAndCannotIssueADocument()
+    public void FailedRosterHasRetryAndCannotIssueACsv()
     {
         _api.Setup(x => x.GetAccountsAsync(ObligationKind.KanmanggaySpaceRental)).ReturnsAsync(Result<IReadOnlyList<ObligationAccountDto>>.Failure("Offline"));
         var cut = RenderComponent<KanmanggaySpaceHolders>();
         Assert.Contains("Offline", cut.Find("[role='alert']").TextContent);
         Assert.DoesNotContain("No space holders registered", cut.Markup);
-        Assert.Empty(cut.FindAll("a[download]"));
-        Assert.All(cut.FindAll("[aria-label='Document actions'] button"), b => Assert.True(b.HasAttribute("disabled")));
         Serve(Account()); Click(cut, "Try again");
         Assert.Contains("Actual holder", cut.Find("tbody").TextContent);
     }
@@ -228,7 +232,7 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
         Assert.Contains("Closed paid", cut.Find("tbody").TextContent);
         Assert.DoesNotContain("Active unpaid", cut.Find("tbody").TextContent);
         Assert.Contains("₱1,800.00", cut.FindComponent<RentalRegistryHero>().Markup);
-        Assert.Contains("All accounts · to date", cut.FindComponent<RentalRegistryHero>().Markup);
+        Assert.DoesNotContain("All accounts · to date", cut.FindComponent<RentalRegistryHero>().Markup);
         Assert.Contains("1 spaces", cut.Find(".vs-count-label").TextContent);
         Assert.DoesNotContain("Space Account Management", cut.Markup);
         Assert.DoesNotContain("Financial totals:", cut.Markup);
@@ -289,15 +293,15 @@ public sealed class SpaceHolderWorkspaceTests : TestContext
     }
 
     [Fact]
-    public void ManyRowsUseASingleDocumentWithoutUnsupportedPhysicalOrContractColumns()
+    public void ManyRowsUseASingleOfficialDocumentWithTheFixedTenColumns()
     {
         Serve(Enumerable.Range(1, 90).Select(i => Account($"Test holder {i:000}") with {
             SubjectLabel = i.ToString("000"), Arrangement = i % 2 == 0 ? OccupancyArrangement.SignedContract : OccupancyArrangement.SpaceOnly,
             ContractReference = i % 2 == 0 ? $"TEST-LEASE-{i:000}" : null }).ToArray());
         var cut = RenderComponent<KanmanggaySpaceHolders>();
-        Assert.Equal(90, cut.FindAll("tbody tr").Count);
-        Assert.Single(cut.FindAll("article"));
-        Assert.Equal(8, cut.FindAll("thead th").Count);
+        Assert.Equal(90, cut.FindAll(".lsh-table tbody tr").Count);
+        Assert.Single(cut.FindAll(".lsh-doc-panel"));
+        Assert.Equal(10, cut.FindAll(".lsh-table thead th").Count);
         SaveVisualArtifact("kanmanggay-roster-many", cut.Markup);
     }
 

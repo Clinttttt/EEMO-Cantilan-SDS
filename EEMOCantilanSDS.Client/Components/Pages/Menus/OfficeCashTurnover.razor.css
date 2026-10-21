@@ -1,0 +1,199 @@
+/* Office cash turnover — V3. The hero, tables, fields and buttons come from the shared layer; Remittances.razor.css is scoped to that page, so the layout here is this page's own. */
+
+.oc-page {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.oc-page ::deep .v3h { min-height: 6rem; margin-bottom: 0; }
+
+/* ── Period filter: one compact row, Apply aligned to the inputs ── */
+.oc-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+}
+.oc-filters .v3-field { flex: 0 0 176px; min-width: 140px; }
+.oc-filters .v3-field:nth-child(3) { flex: 1 1 240px; }
+.oc-filters .v3-field input, .oc-filters .v3-field select { width: 100%; min-width: 0; }
+.oc-filters .v3-btn[type="submit"] { margin-left: auto; }
+@media (max-width: 640px) {
+    .oc-filters .v3-field { flex: 1 1 140px; min-width: 0; }
+}
+
+.oc-page .oc-note {
+    margin: 0;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
+
+.oc-page .oc-empty {
+    margin: 0;
+    padding: 16px 20px;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+}
+
+.oc-page .v3-panel-header h2 { font-size: 0.9375rem; }
+.oc-page .v3-panel-meta strong { color: var(--navy); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ── Registers: aligned checkboxes and figures, a quiet tint for the rows chosen ── */
+.oc-table th, .oc-table td { vertical-align: middle; }
+.oc-table td { padding-top: 10px; padding-bottom: 10px; }
+.oc-table .v3-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.oc-src, .oc-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.oc-check { width: 44px; text-align: center; }
+.oc-check input { width: 16px; height: 16px; margin: 0; vertical-align: middle; accent-color: var(--accent); }
+.oc-check input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.oc-table tbody tr.is-selected td { background: var(--accent-soft); }
+.oc-row-action { text-align: right; white-space: nowrap; }
+
+/* ── Record turnover ── */
+.oc-form {
+    display: grid;
+    gap: 16px;
+    padding: 16px 20px 20px;
+    border-top: 1px solid var(--border);
+}
+
+.oc-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-muted);
+}
+.oc-summary > div { display: grid; gap: 2px; padding: 10px 14px; }
+.oc-summary > div + div { border-left: 1px solid var(--border); }
+.oc-summary dt { color: var(--text-secondary); font-size: 0.75rem; }
+.oc-summary dd { margin: 0; color: var(--navy); font-weight: 700; font-variant-numeric: tabular-nums; }
+.oc-summary .oc-flag dd { color: var(--danger, #b42318); }
+
+.oc-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    align-items: end;
+    gap: 12px 16px;
+}
+.oc-fields .v3-field { min-width: 0; }
+.oc-fields input, .oc-fields textarea { width: 100%; box-sizing: border-box; min-width: 0; }
+.oc-fields textarea { resize: vertical; }
+.oc-fields .oc-wide { grid-column: 1 / -1; }
+
+.oc-difference {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--danger, #b42318);
+}
+
+.oc-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+}
+.oc-record { min-height: 40px; padding: 0 24px; font-weight: 700; }
+
+.oc-status {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    background: var(--green-bg);
+    color: var(--green);
+}
+
+.oc-voided {
+    background: var(--bg-icon);
+    color: var(--text-muted);
+}
+
+/* ── Details drawer ── */
+.oc-facts {
+    margin: 0 0 16px;
+}
+
+.oc-facts > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.8125rem;
+}
+
+.oc-facts dt {
+    color: var(--text-secondary);
+}
+
+.oc-facts dd {
+    margin: 0;
+    text-align: right;
+    color: var(--navy);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
+.oc-h {
+    margin: 16px 0 6px;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.oc-label {
+    display: block;
+    margin: 12px 0 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.oc-reason {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font: inherit;
+    font-size: 0.8125rem;
+    resize: vertical;
+}
+
+.oc-reason:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.oc-ack {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 10px 0 12px;
+    font-size: 0.78rem;
+    color: var(--navy);
+    cursor: pointer;
+}
+
+@media (max-width: 720px) {
+    .oc-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .oc-summary > div:nth-child(3) { border-left: 0; }
+    .oc-summary > div:nth-child(n + 3) { border-top: 1px solid var(--border); }
+    .oc-filters .v3-field { flex: 1 1 140px; }
+    .oc-actions { flex-direction: column; align-items: stretch; }
+    .oc-record { width: 100%; }
+}

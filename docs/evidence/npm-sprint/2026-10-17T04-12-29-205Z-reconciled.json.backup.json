@@ -1,0 +1,9 @@
+{
+  "postBackup": {
+    "path": "C:/dev/stalltrack-v2-worktrees/local-db-backups/EEMOCantilanSDS.DB_npm_install_after_2026-10-17T04-12-29-211Z.dump",
+    "sha256": "2c9017ce10fb703f85ef4de66e06ebe4244c9544e031dd5cb00f6f95f0a6e02d",
+    "bytes": 1720931,
+    "verifiedFullDecode": true,
+    "publicTableDataEntries": 96
+  }
+}

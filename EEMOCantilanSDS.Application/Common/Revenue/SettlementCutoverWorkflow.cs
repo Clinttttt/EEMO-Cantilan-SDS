@@ -178,6 +178,8 @@ public sealed class SettlementCutoverWorkflow(
         {
             blockers.Add("Assessment, legacy settled evidence, and outstanding do not reconcile.");
         }
+        if (scope.SourceKind == CollectionSourceKind.PaymentRecord && source.LegacySettled > 0m)
+            blockers.Add("Monthly rent with legacy cash requires preserved dated receipt/report evidence before cutover. Keep this period on legacy authority; prefer a new unpaid month. An opening balance is not a historical receipt ledger.");
 
         var policy = await ResolvePolicyAsync(actor.TenantId, source.ClassificationCode, ct);
         if (policy is null)

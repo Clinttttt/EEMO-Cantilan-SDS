@@ -112,13 +112,13 @@ public sealed class PostgresFixture : IAsyncLifetime
         await using var context = CreateContext(Guid.Empty);
         await context.Database.ExecuteSqlRawAsync(
             """
-            TRUNCATE TABLE "OnboardingDrafts", "AccountableFormSpoilages", "CollectionRemittanceCoverages", "CollectionRemittances", "VehicleClassRates", "VehicleClasses", "ObligationPeriods", "ObligationRates", "ObligationAccounts", "AssessmentRequests", "CollectorOperationAssignments", "PenaltyDefinitions", "GovernedServiceSettings", "GovernedServices", "TpmAttendances", "TpmVendors", "TrmTrips", "TrmTransporters",
+            TRUNCATE TABLE "FishMeatRegistrationRequests", "OnboardingDrafts", "AccountableFormSpoilages", "CollectionRemittanceCoverages", "CollectionRemittances", "VehicleClassRates", "VehicleClasses", "ObligationPeriods", "ObligationRates", "ObligationAccounts", "AssessmentRequests", "CollectorOperationAssignments", "PenaltyDefinitions", "GovernedServiceSettings", "GovernedServices", "TpmAttendances", "TpmVendors", "TrmTrips", "TrmTransporters",
                 "CollectionCorrectionAllocations", "CollectionCorrectionLines", "CollectionCorrections",
                 "WebCollectionDraftAllocations", "WebCollectionDraftLines", "WebCollectionDrafts",
                 "PostingOperations", "AccountableDocuments", "AccountableFormAssignments", "AccountableFormBooks",
                 "CollectionAllocations", "CollectionLines", "Collections", "CollectionSettlementCutovers",
                 "RevenueClassificationPolicies", "RevenueClassifications", "Payors",
-                "SlaughterAnimalLabels", "SlaughterAnimalRates", "UtilityBills", "Contracts", "Stalls", "Facilities", "Municipalities" CASCADE;
+                "TenantOperationSettings", "Users", "SlaughterAnimalLabels", "SlaughterAnimalRates", "UtilityBills", "Contracts", "Stalls", "Facilities", "Municipalities" CASCADE;
             """);
     }
 

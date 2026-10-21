@@ -124,7 +124,46 @@ public sealed partial class CollectionSessionTests(PostgresFixture database)
         var future = await setup.CreateAccountAsync(new(ObligationKind.KanmanggaySpaceRental, w.PayorId, null,
             "", null, null, Today.AddDays(1), 250m, OccupancyArrangement.SpaceOnly));
         Assert.True(future.IsSuccess, future.Error);
-        Assert.Equal(0m, (await setup.GetAccountsAsync(ObligationKind.KanmanggaySpaceRental)).Value!.Single(x => x.Id == future.Value!.Id).OutstandingToDate);
+        var futureView = (await setup.GetAccountsAsync(ObligationKind.KanmanggaySpaceRental)).Value!.Single(x => x.Id == future.Value!.Id);
+        Assert.Equal(0m, futureView.OutstandingToDate);
+        Assert.Equal(250m, futureView.CurrentAmount); // Future approved rent is visible, not an invented ₱0.
+    }
+
+    [SkippableFact]
+    public async Task Vegetable_fruit_space_uses_its_approved_whole_payment_OR_policy_not_vendor_fee_policy()
+    {
+        var w = await SeedAsync();
+        await using var db = database.CreateContext(w.TenantId);
+        var tenant = new Tenant(w.TenantId);
+        var head = new Caller(Guid.NewGuid(), w.TenantId, "SuperAdmin");
+        var classification = RevenueClassification.Create(RevenueClassificationCodes.VegetableFruitSpaceRental, w.TenantId);
+        db.Add(classification);
+        // Deliberately leave Default as Cash Ticket; the source-owning Whole Payment context must win.
+        db.Add(RevenueClassificationPolicy.Create(classification.Id, Today.AddYears(-1),
+            "Default ticket", RevenueInstrumentType.CashTicket, w.TenantId));
+        db.Add(RevenueClassificationPolicy.Create(classification.Id, Today.AddYears(-1),
+            "Approved space OR", RevenueInstrumentType.OfficialReceipt, w.TenantId,
+            businessContext: RevenuePolicyContext.VegetableWholePayment));
+        db.Add(CollectorOperationAssignment.Assign(w.TenantId, w.CollectorId,
+            CollectorOperationCodes.VegetableFruitSpaceRental, "head"));
+        await db.SaveChangesAsync();
+
+        var setup = new ObligationWorkflow(db, head, tenant, new Clock());
+        var created = await setup.CreateAccountAsync(new(ObligationKind.VegetableFruitSpaceRental, w.PayorId, null,
+            "", null, null, Today, 1000m, OccupancyArrangement.SpaceOnly));
+        Assert.True(created.IsSuccess, created.Error);
+        var account = created.Value!;
+        var collector = new Caller(w.CollectorId, w.TenantId);
+        var source = new CollectionSessionSources(db, collector, tenant, new Clock(),
+            new DiscoverySender(db, w), new NoMarketDays());
+        var flow = Workflow(db, w, source);
+        var intent = new CollectionSessionIntent(Guid.NewGuid(), Today, w.PayorId,
+            [new(Guid.NewGuid(), CollectionSessionItemKind.Obligation, 1000m,
+                Obligation: new(account.Id, Today.Year, Today.Month))]);
+        var quote = await flow.QuoteAsync(intent);
+        Assert.True(quote.IsSuccess, quote.Error);
+        Assert.True(quote.Value!.CanRecord, string.Join("; ", quote.Value.Problems.Select(x => x.Message)));
+        Assert.Equal(RevenueInstrumentType.OfficialReceipt, Assert.Single(quote.Value.Items).Instrument);
     }
 
     [SkippableFact]
@@ -491,10 +530,10 @@ public sealed partial class CollectionSessionTests(PostgresFixture database)
         public AdminUserDto? GetCurrentUser() => null;
     }
     private sealed record World(Guid TenantId, Guid CollectorId, Guid PayorId, Guid AccountId, Guid StallId);
-    private async Task<World> SeedAsync(DateOnly? accountStart = null, bool linked = true, MarketSection section = MarketSection.FishSection)
+    private async Task<World> SeedAsync(DateOnly? accountStart = null, bool linked = true, MarketSection section = MarketSection.FishSection, bool reset = true)
     {
         Skip.IfNot(database.Available, database.UnavailableReason ?? "");
-        await database.ResetAsync();
+        if (reset) await database.ResetAsync();
         var tenant = Municipality.Create("SESSION-" + Guid.NewGuid().ToString("N")[..8], "Session test", "Province", MunicipalityStatus.Active,
             tenantCode: "session-" + Guid.NewGuid().ToString("N")[..8]);
         await using (var setup = database.CreateContext(Guid.Empty)) { setup.Add(tenant); await setup.SaveChangesAsync(); }
@@ -1202,6 +1241,36 @@ public sealed partial class CollectionSessionTests(PostgresFixture database)
         Assert.False((await flow.QuoteAsync(invalid)).Value!.CanRecord);
         Assert.True((await flow.RecordAsync(new(basket, quote.QuoteFingerprint))).Value!.ExistingOutcome);
         Assert.Equal(2, await db.Collections.CountAsync());
+    }
+
+    [SkippableFact]
+    public async Task Slaughter_itemized_checkout_prices_the_selected_charges_and_refuses_a_per_head_basket()
+    {
+        var w = await SeedAsync(); await using var db = database.CreateContext(w.TenantId);
+        var facility = Facility.Create(FacilityCode.SLH, "Slaughterhouse", "SLH", municipalityId: w.TenantId);
+        var service = GovernedService.Create(w.TenantId, CollectorOperationCodes.Slaughterhouse, "head");
+        var classification = RevenueClassification.Create(RevenueClassificationCodes.Slaughterhouse, w.TenantId);
+        var charge = GovernedServiceFeeOption.Create(w.TenantId, service.Id, "Ante-mortem", null, null, null, "head", applicableAnimals: null, quantityBasis: FeeQuantityBasis.PerHead);
+        db.AddRange(facility, service, classification, charge, CollectorFacilityAssignment.Create(w.CollectorId, facility.Id, FacilityCode.SLH),
+            GovernedServiceSetting.Create(w.TenantId, service.Id, Today, GovernedServiceBasis.ApprovedFeeOption, null, null, true, true, "head"),
+            GovernedServiceFeeOptionRate.Create(w.TenantId, charge.Id, Today, GovernedServiceBasis.FixedAmount, 35m, null, "head"),
+            RevenueClassificationPolicy.Create(classification.Id, Today, "Slaughterhouse", RevenueInstrumentType.OfficialReceipt, w.TenantId));
+        await db.SaveChangesAsync();
+        var flow = Workflow(db, w);
+        // Per-head basket (no charges) cannot be recorded while the office collects by approved charges.
+        var perHead = new CollectionSessionIntent(Guid.NewGuid(), Today, null,
+            [new(Guid.NewGuid(), CollectionSessionItemKind.Slaughter, 0m, Slaughter: new(AnimalType.Hog, 2, OwnerName: "Walk-in owner"))]);
+        Assert.False((await flow.QuoteAsync(perHead)).Value!.CanRecord);
+        var basket = new CollectionSessionIntent(Guid.NewGuid(), Today, null,
+            [new(Guid.NewGuid(), CollectionSessionItemKind.Slaughter, 0m,
+                Slaughter: new(AnimalType.Hog, 2, OwnerName: "Walk-in owner", Charges: [new SlaughterChargeSelectionDto(charge.Id, 2)]))]);
+        var quote = (await flow.QuoteAsync(basket)).Value!;
+        Assert.True(quote.CanRecord, string.Join(";", quote.Problems.Select(x => x.Message)));
+        Assert.Equal(70m, quote.GrandTotal);
+        var recorded = await Record(flow, basket);
+        Assert.Single(recorded.Collections);
+        Assert.Equal(70m, (await db.CollectionLines.SingleAsync()).Amount);
+        Assert.Equal(0, await db.SlaughterTransactions.CountAsync());
     }
 
     [SkippableFact]

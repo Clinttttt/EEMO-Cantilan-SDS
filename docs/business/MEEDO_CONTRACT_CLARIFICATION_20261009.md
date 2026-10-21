@@ -1,16 +1,28 @@
-# MEEDO three-year occupancy contract clarification
+# MEEDO occupancy contract duration clarification
 
 Received: October 9, 2026. Source: direct clarification from MEEDO office personnel, relayed by the project owner in the current task. This records authoritative local office direction, with operational details still to be confirmed. Signed contracts were not independently inspected; this is not a national-law claim.
 
 ## Confirmed rule and scope
 
-The standard occupancy contract runs for **three years** in **Kanmanggay, NPM, NCC and TCC**. Contract duration is separate from rental assessment and payment frequency. Monthly rent remains monthly; authorized NPM Daily collection remains daily under the underlying occupancy agreement. Expiration is not unpaid status, closure, renewal or rate approval.
+### Space-rental terminology clarification — 2026-10-14
 
-Vegetable/Fruits, BBQ, Ice Plant, Fiesta/Araw and custom/temporary rentals are **not confirmed** within this rule. Shared UI does not extend contract policy to them. No historical commencement, expiry, reference or renewal approval may be fabricated. Unknown expiry is not an approved indefinite contract.
+A **space rental can have a signed contract**. Space describes the rented unit, not the absence of contract evidence. Per the owner's October 14 office clarification, Kanmanggay import no longer offers a Lease type selector in the table or drawer: new manual rows use the contract workflow, while existing unsigned/unknown uploads retain their recorded evidence until the office explicitly enters contract details. `SpaceOnly` still denotes no signed contract recorded; no historical conversion or fabricated document is authorized.
 
-This clarification establishes the standard term; it does not resolve previously accepted Space Only/Extension exceptions or authorize automatic expiration, changes to billing, or historical backfill. Preserve those arrangements and controls until MEEDO resolves the exception policy.
+### Flexible recorded terms — October 14 supersession
 
-## Current capability matrix (code audit, not new implementation)
+The owner clarified that **three years is the default, not an exclusive permitted duration**. Contract duration must record the actual signed term: presets such as one, two, three, and five years and a custom term are allowed, as in TCC/NCC. This supersedes the earlier three-year-only Kanmanggay interpretation and validation. Existing Kanmanggay metadata bounds remain whole years from 1 to 50; no fractional-year/month-term model is introduced. Only new manual rows receive a three-year default; uploaded or historical terms and unknown values are not rewritten. Other municipalities still require their own confirmed policy. Approved charge, monthly assessment, expiry consequences, and historical account identity are unchanged.
+
+The default occupancy contract is **three years** in **Kanmanggay, NPM, NCC and TCC**, with the actual signed duration recorded when different. Contract duration is separate from rental assessment and payment frequency. Monthly rent remains monthly; authorized NPM Daily collection remains daily under the underlying occupancy agreement. Expiration is not unpaid status, closure, renewal or rate approval.
+
+The owner's subsequent October 14 instruction applies the same manual contract-entry presentation to **Vegetable/Fruits**: a three-year default, flexible actual terms, and no Lease type selector in the import table/editor. Existing unsigned or unknown uploaded records retain their recorded evidence; this is not an exclusive three-year mandate or a historical conversion. New Vegetable/Fruit Add New contracts share the three-year default while keeping the existing flexible duration controls.
+
+**Fiesta/Araw remains event-only**, explicitly confirmed by the owner for this follow-up: show Event (Fiesta or Araw), event date, and approved one-time amount. No year duration or monthly contract fields are added. BBQ, Ice Plant and custom/temporary sources are not newly governed by this instruction. No historical commencement, expiry, reference or renewal approval may be fabricated. Unknown expiry is not an approved indefinite contract.
+
+This clarification establishes a default rather than an exclusive term. It does not authorize automatic expiration, changes to billing, or historical backfill. Preserve recorded Space Only/Extension exceptions; removing Kanmanggay import selectors does not erase the historical arrangement model.
+
+## October 9–10 capability matrix (historical audit)
+
+The October 14 clarification above supersedes this snapshot's three-year-only Kanmanggay validation. The implementation now retains flexible 1–50-year metadata, a three-year manual default, and tenant policy confirmation in create/correction and bulk preview/save. No expiry, renewal, or billing lifecycle was added.
 
 | Source | Stored contract information | Duration / expiry | Renewal and history | Closure / reopening | API / UI limitations |
 |---|---|---|---|---|---|

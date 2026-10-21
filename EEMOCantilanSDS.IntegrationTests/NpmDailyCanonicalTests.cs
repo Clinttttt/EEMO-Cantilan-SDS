@@ -412,11 +412,23 @@ public sealed partial class NpmDailyCanonicalTests(PostgresFixture db)
         var w = await SeedAsync(canonical: true);
         var owedBefore = await PayableAsync(w, w.StallA);
         var op = Guid.NewGuid();
-        // A typed receipt number sent by an old client is ignored on the canonical path.
-        var command = new RecordDailyCollectionCommand(w.StallA, Today, true, null, "TYPED-123", op);
-
+        // An arbitrary physical OR must never bypass accountable-form custody or post cash.
+        // Once that attempt is refused, a normal canonical daily collection without an OR
+        // can still post, then replay exactly once under its own operation id.
+        await using (var deniedContext = db.CreateContext(w.TenantId))
+        {
+            var refused = await Record(deniedContext, w.TenantId, Collector(w)).Handle(
+                new RecordDailyCollectionCommand(w.StallA, Today, true, null, "TYPED-123", Guid.NewGuid()), CancellationToken.None);
+            Assert.Equal(ResultStatus.Conflict, refused.Status);
+            Assert.Contains("accountable-form custody", refused.Error);
+            Assert.Empty(await deniedContext.Collections.ToListAsync());
+        }
+        var command = new RecordDailyCollectionCommand(w.StallA, Today, true, null, null, op);
         await using (var ctx = db.CreateContext(w.TenantId))
-            Assert.True((await Record(ctx, w.TenantId, Collector(w)).Handle(command, CancellationToken.None)).IsSuccess);
+        {
+            var recorded = await Record(ctx, w.TenantId, Collector(w)).Handle(command, CancellationToken.None);
+            Assert.True(recorded.IsSuccess, recorded.Error);
+        }
 
         string src;
         Guid collectionId;

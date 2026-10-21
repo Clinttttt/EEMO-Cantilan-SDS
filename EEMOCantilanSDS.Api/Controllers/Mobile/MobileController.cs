@@ -45,6 +45,25 @@ namespace EEMOCantilanSDS.Api.Controllers;
 [ApiController]
 public class MobileController(ISender sender, WcfCollectionWorkflow wcfWorkflow, RemittanceWorkflow remittances, CollectionsReportWorkflow collections) : ApiBaseController(sender)
 {
+    [HttpGet("npm/outstanding/accounts")]
+    public async Task<ActionResult<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmOutstandingRentAccount>>> NpmOutstandingAccounts(
+        [FromServices] NpmOutstandingRentWorkflow workflow, CancellationToken ct) => HandleResponse(await workflow.AccountsAsync(ct));
+
+    [HttpGet("npm/outstanding/accounts/page")]
+    public async Task<ActionResult<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmOutstandingRentAccountsPage>> NpmOutstandingAccountsPage(
+        [FromQuery] int offset, [FromQuery] int pageSize, [FromServices] NpmOutstandingRentWorkflow workflow, CancellationToken ct) =>
+        HandleResponse(await workflow.AccountsPageAsync(offset, pageSize, ct));
+
+    [HttpGet("npm/outstanding/quote")]
+    public async Task<ActionResult<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmOutstandingRentQuote>> NpmOutstandingQuote(
+        Guid stallId, Guid? contractId, decimal? amount, [FromServices] NpmOutstandingRentWorkflow workflow, CancellationToken ct) =>
+        HandleResponse(await workflow.QuoteAsync(stallId, contractId, amount, ct));
+
+    [HttpPost("npm/outstanding/payment")]
+    public async Task<ActionResult<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmPartPaymentOutcomeDto>> NpmOutstandingPayment(
+        EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmOutstandingRentPayment request,
+        [FromServices] NpmOutstandingRentWorkflow workflow, CancellationToken ct) => HandleResponse(await workflow.PostAsync(request, ct));
+
     [HttpGet("npm/whole-payment/quote")]
     public async Task<ActionResult<NpmWholePaymentQuoteDto>> WholePaymentQuoteAsync(
         Guid stallId, int year, int month, [FromServices] NpmWholePaymentWorkflow workflow, CancellationToken ct) =>
@@ -174,7 +193,9 @@ public class MobileController(ISender sender, WcfCollectionWorkflow wcfWorkflow,
             request.FishKilos,
             request.ORNumber,
             IsAbsent: request.IsAbsent);
-        command = command with { MeatKilos = request.MeatKilos };
+        command = command with { MeatKilos = request.MeatKilos, ClientOperationId = request.ClientOperationId,
+            ReviewedMonthAmount = request.ReviewedMonthAmount, MonthQuoteToken = request.MonthQuoteToken,
+            PaymentBusinessDate = request.PaymentBusinessDate };
 
         var result = await Sender.Send(command);
         return HandleResponse(result);

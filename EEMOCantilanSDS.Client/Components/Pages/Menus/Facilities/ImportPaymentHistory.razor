@@ -669,7 +669,7 @@
 
     private bool IsSupported => Code is { } code && !NoHistoryFacilities.Contains(code);
 
-    private bool IsDaily => Code is { } code && DailyFacilities.Contains(code);
+    private bool IsDaily => Code is { } code && DailyFacilities.Contains(code) && !FacilityCatalog.IsMonthlyRentMarket;
 
     /// <summary>The market's canonical sections. Its spaces are numbered separately in each.</summary>
     private sealed record DailySectionOption(MarketSection Section, string Css, string Icon);

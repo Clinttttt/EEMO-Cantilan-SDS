@@ -3,6 +3,7 @@
 @using global::EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using global::EEMOCantilanSDS.Application.Command.Payors.GenerateStallActivationCode
 @using global::EEMOCantilanSDS.Application.Dtos.Mobile
+@using global::EEMOCantilanSDS.Application.Dtos.DailyCollections
 @using global::EEMOCantilanSDS.Application.Dtos.Payors
 @using global::EEMOCantilanSDS.Application.Dtos.Revenue
 @using global::EEMOCantilanSDS.Application.Requests.Mobile
@@ -83,16 +84,12 @@
                    sheet a collector uses forty times a day. The count is the number of payors with an outstanding day
                    this period, so it is visible before anybody is opened. *@
                 <button class="owed-btn owed-pill" type="button"
-                        title="Payors with days still owed" aria-label="@(OwedPayorCount > 0 ? $"Days still owed, {OwedPayorCount} payors" : "Days still owed")"
+                        title="Outstanding rental balances" aria-label="Outstanding rental balances"
                         @onclick="OpenArrears">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
                         <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
                     </svg>
-                    <span class="owed-label">Owed</span>
-                    @if (OwedPayorCount > 0)
-                    {
-                        <span class="owed-count">@OwedPayorCount</span>
-                    }
+                    <span class="owed-label">Outstanding</span>
                 </button>
             </div>
 
@@ -158,7 +155,7 @@
                                     {
                                         <span class="tx-badge @GetBadgeClass(stall)"><span class="tx-dot"></span>@GetStatusLabel(stall)</span>
                                     }
-                                    <span class="tx-amount">@FormatCurrency(stall.DailyRate)</span>
+                                    <span class="tx-amount">@FormatCurrency(stall.MonthlyRentQuote?.EligibleAmount ?? stall.DailyRate)</span>
                                 </div>
                             </div>
                         </button>
@@ -187,79 +184,55 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
             </button>
             <div class="arrears-head-text">
-                <div class="arrears-title">Days still owed</div>
-                <div class="arrears-sub">@MonthLabel</div>
+                <div class="arrears-title">Outstanding rent</div>
+                <div class="arrears-sub">All eligible periods</div>
             </div>
         </div>
 
         <div class="arrears-body">
-            @if (ArrearsLoading)
+            @if (ArrearsLoading && _outstandingAccounts.Count == 0)
             {
                 <div class="state-card">
                     <div class="state-title">Loading</div>
                     <div class="state-text">Reading what each payor still owes.</div>
                 </div>
             }
-            else if (ArrearsError is not null)
+            else if (ArrearsError is not null && _outstandingAccounts.Count == 0)
             {
-                <div class="state-card">
-                    <div class="state-title">Not available</div>
+                <div class="state-card" role="alert">
+                    <div class="state-title">Unable to load outstanding rent</div>
                     <div class="state-text">@ArrearsError</div>
+                    <button class="arrears-retry" type="button" disabled="@ArrearsLoading" @onclick="LoadArrearsAsync">Try again</button>
                 </div>
             }
-            else if (ArrearsPayors.Count == 0)
+            else if (_outstandingAccounts.Count == 0)
             {
                 <div class="state-card">
                     <div class="state-title">Nothing outstanding</div>
-                    <div class="state-text">Every payor is settled or excused for the days gone by.</div>
+                    <div class="state-text">No eligible outstanding rent.</div>
                 </div>
             }
             else
             {
-                @* The whole round's outstanding total first, because it is the figure an officer is asked for. *@
-                <div class="arrears-summary">
-                    <div class="arrears-summary-line">
-                        <span class="arrears-summary-label">Payors behind</span>
-                        <span class="arrears-summary-val">@ArrearsPayors.Count</span>
-                    </div>
-                    <div class="arrears-summary-line">
-                        <span class="arrears-summary-label">Months behind</span>
-                        <span class="arrears-summary-val">@ArrearsPayors.Sum(p => p.PastMonths.Count)</span>
-                    </div>
-                    <div class="arrears-summary-line">
-                        <span class="arrears-summary-label">Days owed this month</span>
-                        <span class="arrears-summary-val">@ArrearsPayors.Sum(p => p.DaysOwedThisMonth.Count)</span>
-                    </div>
-                    <div class="arrears-summary-line arrears-summary-total">
-                        <span class="arrears-summary-label">Still to collect</span>
-                        <span class="arrears-summary-val">@FormatCurrency(Arrears?.TotalOutstanding ?? 0m)</span>
-                    </div>
-                </div>
-
-                @foreach (var sectionGroup in ArrearsPayors
+                @foreach (var sectionGroup in _outstandingAccounts
                     .GroupBy(s => s.SectionName)
-                    .OrderBy(g => g.First().Section is null)
-                    .ThenBy(g => g.First().Section)
-                    .ThenBy(g => g.Key))
+                    .OrderBy(g => g.Key))
                 {
                     <div class="section-label">@sectionGroup.Key</div>
 
                     @foreach (var payor in sectionGroup)
                     {
-                        <button class="tx-card" type="button" @onclick="() => OpenArrearsFor(payor)">
-                            @* The unpaid marker, which is what every one of these rows is: money still owed. bar-pending does
-                               not exist in this stylesheet; the plain bar is grey. *@
+                        <button class="tx-card" type="button" disabled="@(payor.BlockingReason is not null)" @onclick="() => _outstandingAccount = payor">
                             <div class="tx-left-bar bar-unpaid"></div>
                             <div class="tx-body">
                                 <div class="tx-col-info">
                                     <span class="tx-owner">@payor.PayorName</span>
                                     <span class="tx-sub">
-                                        <span class="tx-tag">No. @payor.StallNo</span>
-                                        <span class="tx-or">@ArrearsSummaryLabel(payor)</span>
+                                        <span>Stall @payor.StallNo · @payor.SectionName</span>
                                     </span>
                                 </div>
                                 <div class="tx-col-right">
-                                    <span class="tx-amount">@FormatCurrency(payor.TotalOutstanding)</span>
+                                    <span class="tx-amount">@(payor.Outstanding is { } balance ? FormatCurrency(balance) : "Office review required")</span>
                                     @if (IsQueuedOffline(payor.StallId))
                                     {
                                         @* A capture for this payor is still waiting to sync. Said here, not only on the
@@ -268,57 +241,44 @@
                                            rather than per day, so this says a capture is waiting and not which day. *@
                                         <span class="tx-badge queued"><span class="tx-dot"></span>Queued</span>
                                     }
-                                    else
-                                    {
-                                        <span class="arrears-oldest">from @OldestOwedLabel(payor)</span>
-                                    }
                                 </div>
                             </div>
                         </button>
 
-                        @if (payor.PastMonths.Count > 0)
+                        @if (payor.BlockingReason is not null)
                         {
-                            @* The months named, each at the figure the office settles it for. A single total tells the collector
-                               how much without telling him what for, and a payor asked for eighteen hundred pesos will ask which
-                               months - so the answer is on the screen before the question is put. *@
-                            <div class="arrears-months">
-                                @foreach (var m in payor.PastMonths)
-                                {
-                                    var month = m;
-                                    @* Tappable: the office rules that collectors may take past months. Settled as a MONTH at the
-                                       figure shown, not day by day - a month let for a rent owes that rent whatever its calendar
-                                       gave it, so days would collect too much on a 31-day month. *@
-                                    <button type="button" class="arrears-month-line arrears-month-act"
-                                            @onclick="() => OpenMonthSettle(payor, month)">
-                                        <span class="arrears-month-name">@MonthName(month.Year, month.Month)</span>
-                                        <span class="arrears-month-amount">@FormatCurrency(month.Amount)</span>
-                                        <svg class="arrears-month-chev" viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
-                                    </button>
-                                }
-                                @if (payor.DaysOwedThisMonth.Count > 0)
-                                {
-                                    @* Tappable as well. Reported 2026-09-08: a payor owing ₱540 for August and ₱30 for two days of
-                                       September could only be given ₱540 — the ₱30 had nowhere to be taken. The daily round is the
-                                       ordinary path for the month in hand, but a stall whose section has been CLOSED is not in the
-                                       round at all, so its days were owed with no way on any screen to collect them.
-
-                                       Settled as DAYS, not as a month: the month is still running, so what is owed is exactly the
-                                       days gone by, and those dates are already on this row. *@
-                                    <button type="button" class="arrears-month-line arrears-month-act"
-                                            @onclick="() => OpenDaysSettle(payor)">
-                                        <span class="arrears-month-name">@MonthLabel · @DaysLabel(payor.DaysOwedThisMonth.Count)</span>
-                                        <span class="arrears-month-amount">@FormatCurrency(payor.AmountThisMonth)</span>
-                                        <svg class="arrears-month-chev" viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
-                                    </button>
-                                }
-                                @* What a tap does, and why the two are settled differently. A closed month is one act at the office's
-                                   own figure; the month in hand is the days it has actually run. *@
-                                @if (ReferenceEquals(payor, ArrearsPayors[0])) { <div class="arrears-month-note">Tap a month to settle it, or the current month to take the days owed.</div> }
-                            </div>
+                            <details class="arrears-month-note"><summary>Review reason</summary>@payor.BlockingReason</details>
                         }
                     }
                 }
             }
+            @if (ArrearsLoading && _outstandingAccounts.Count > 0)
+            {
+                <div class="state-card" role="status">
+                    <div class="state-title">Loading more payors</div>
+                    <div class="state-text">Showing verified balances while the remaining stalls are checked.</div>
+                </div>
+            }
+            @if (ArrearsError is not null && _outstandingAccounts.Count > 0)
+            {
+                <div class="state-card" role="alert">
+                    <div class="state-title">Some payors could not be loaded</div>
+                    <div class="state-text">@ArrearsError</div>
+                    <button class="arrears-retry" type="button" @onclick="LoadArrearsAsync">Retry all payors</button>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@if (_outstandingAccount is { } account)
+{
+    <div class="sheet-overlay" @onclick="() => _outstandingAccount = null">
+        <div class="sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <div class="sheet-title">Collect outstanding rent</div>
+            <NpmRentAmountForm @key="account.ContractId" StallId="account.StallId" ContractId="account.ContractId" OnConfirmed="OutstandingCollected" />
+            <button class="btn-cancel arrears-close" type="button" @onclick="() => _outstandingAccount = null">Close</button>
         </div>
     </div>
 }
@@ -367,10 +327,7 @@
             <div class="sheet-title">Record Daily Collection</div>
             @if (NpmCanonical)
             {
-                <div class="npm-payment-modes" aria-label="Payment type">
-                    <button type="button" class="selected" aria-pressed="true">Daily</button>
-                    <button type="button" @onclick="() => OpenWholePayment(SelectedStall.StallId, SelectedDate.Year, SelectedDate.Month, SelectedStall.PayorName, SelectedStall.StallNo)">Whole payment</button>
-                </div>
+                <button class="rent-secondary-link" type="button" @onclick="() => OpenWholePayment(SelectedStall.StallId, SelectedDate.Year, SelectedDate.Month, SelectedStall.PayorName, SelectedStall.StallNo)">Collect outstanding rent</button>
             }
             <div class="sheet-sub">
                 @if (IsSettlingPastDay)
@@ -380,7 +337,7 @@
                 }
                 else
                 {
-                    <text>Update today's collection status for this stall.</text>
+                    <text>@SelectedDate.ToString("MMM d, yyyy")</text>
                 }
             </div>
 
@@ -388,7 +345,7 @@
                 <div class="preview-num">@SelectedStall.StallNo</div>
                 <div class="preview-info">
                     <div class="preview-name">@SelectedStall.PayorName</div>
-                    <div class="preview-detail">@SelectedStall.SectionName - @FormatCurrency(SelectedStall.DailyRate)</div>
+                    <div class="preview-detail">Stall @SelectedStall.StallNo · @SelectedStall.SectionName</div>
                 </div>
             </div>
 
@@ -432,69 +389,20 @@
                 </div>
             }
 
-            <button class="status-option @(SelectedIsPaid ? "status-option-active paid" : "")" type="button" @onclick="() => SetStatus(true, false)">
-                <div class="status-option-icon paid-icon-sm">
-                    <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                </div>
-                <div class="status-option-info">
-                    <div class="status-option-label">Collected</div>
-                    <div class="status-option-sub">Daily stall fee collected - @FormatCurrency(SelectedStall.DailyRate)</div>
-                </div>
-                @if (SelectedIsPaid)
-                {
-                    <div class="status-option-check">✓</div>
-                }
-            </button>
-
-            @if (SelectedIsPaid && SelectedStall.Section == MarketSection.FishSection)
+            @if (SelectedIsPaid)
             {
-                <div class="fish-kilo-wrap">
-                    <div class="form-label">Fish weighing · kilos</div>
-                    <div class="form-hint-weighing">Weighing is recorded apart from the daily stall fee.</div>
-                    <div class="fish-input-row">
-                        <input class="form-input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" aria-label="Fish kilos" @bind="FishKilos" @bind:event="oninput" />
-                        <span>kg</span>
-                    </div>
-                </div>
+                <NpmRentAmountForm @key="SelectedStall.StallId" StallId="SelectedStall.StallId" DailyAmount="SelectedRentAmount"
+                    ApprovedDailyRate="SelectedStall.DailyRate" Disabled="IsSaving" OnDailyConfirm="ConfirmCollectionAsync" OnConfirmed="AmountRentCollected"
+                    @bind-OfficialReceiptNumber="ORNumber" />
+            }
+            else
+            {
+                <button class="rent-secondary-link" type="button" @onclick="() => SetStatus(true, false)">Record a rental payment</button>
             }
 
-            @if (SelectedIsPaid && SelectedStall.Section == MarketSection.MeatSection)
-            {
-                <div class="fish-kilo-wrap">
-                    <div class="form-label">Meat weighing · kilos</div>
-                    <div class="form-hint-weighing">Weighing is recorded apart from the daily stall fee.</div>
-                    <div class="fish-input-row">
-                        <input class="form-input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" aria-label="Meat kilos" @bind="MeatKilos" @bind:event="oninput" />
-                        <span>kg</span>
-                    </div>
-                </div>
-            }
-
-            @if (SelectedIsPaid && NpmCanonical)
-            {
-                @* Canonical daily stall fee: the server issues the SRC; no receipt number is typed. The instrument is policy only. *@
-                <div class="or-number-wrap">
-                    <div class="form-label">Instrument</div>
-                    <div><span class="tx-tag">@NpmInstrumentLabel</span></div>
-                </div>
-                <div class="sheet-meta-row"><span>Reference</span><strong>SRC assigned after recording</strong></div>
-            }
-            else if (SelectedIsPaid)
-            {
-                <div class="or-number-wrap">
-                    <div class="form-label">Official receipt no. <span>optional</span></div>
-                    <input class="form-input mono-input"
-                           type="text"
-                           inputmode="numeric"
-                           maxlength="30"
-                           placeholder="000001"
-                           @bind="ORNumber"
-                           @bind:event="oninput" />
-                    <div class="form-hint">Use the pre-numbered OR from the issued receipt.</div>
-                </div>
-            }
-
-            <button class="status-option @(!SelectedIsPaid && !SelectedIsAbsent && !SelectedIsMisc ? "status-option-active unpaid" : "")" type="button" @onclick="() => SetStatus(false, false)">
+            <details class="daily-statuses">
+            <summary>Not collected / Absent</summary>
+            <button class="status-option @(!SelectedIsPaid && !SelectedIsAbsent ? "status-option-active unpaid" : "")" type="button" @onclick="() => SetStatus(false, false)">
                 <div class="status-option-icon unpaid-icon-sm">
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
                 </div>
@@ -522,156 +430,9 @@
                 }
             </button>
 
-            <button id="misc-option" class="status-option @(SelectedIsMisc ? "status-option-active misc" : "")" type="button" @onclick="SetMisc">
-                <div class="status-option-icon misc-icon-sm">
-                    <svg viewBox="0 0 24 24"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
-                </div>
-                <div class="status-option-info">
-                    <div class="status-option-label">Miscellaneous</div>
-                    <div class="status-option-sub">
-                        Electricity &amp; water bill@(SelectedBill is not null ? $" · {FormatPeso(SelectedBill.BalanceDue)} due" : "")
-                    </div>
-                </div>
-                @if (SelectedIsMisc)
-                {
-                    <div class="status-option-check">✓</div>
-                }
-            </button>
-
-            @if (SelectedIsMisc)
-            {
-                @if (SelectedBill is null)
-                {
-                    @if (UtilityLoadFailed)
-                    {
-                        <div class="misc-empty">The utility bills could not be loaded just now, so this stall's bill cannot be shown. Reload the sheet and try again.</div>
-                    }
-                    else
-                    {
-                        <div class="misc-empty">No electricity or water bill on file for this stall. Utility bills are entered at the office.</div>
-                    }
-                }
-                else if (SelectedBill.TotalCharge <= 0m)
-                {
-                    <div class="misc-empty">@BillPeriodLabel(SelectedBill) has no consumption to charge on this stall.</div>
-                }
-                else
-                {
-                    <div class="misc-pay">
-                        @* Which month is being settled. Said plainly, because an unpaid bill stays collectible
-                           after the month turns over and the receipt must answer for the right period. *@
-                        <div class="misc-period">
-                            <span class="misc-period-label">@BillPeriodLabel(SelectedBill)</span>
-                            @if (SelectedBillIsArrears)
-                            {
-                                <span class="misc-period-note">unpaid from an earlier month</span>
-                            }
-                        </div>
-                        @if (SelectedOutstandingCount > 1)
-                        {
-                            <div class="misc-period-more">@SelectedOutstandingCount unpaid bills on this stall — the oldest is settled first.</div>
-                        }
-
-                        @* Marked by tapping the utility itself, not by choosing one of three equal buttons. Unmarked means unpaid,
-                           which is how the sheet opens: nothing is collected until the collector says it was. A part payment is
-                           the exception, so it sits behind its own small action rather than competing for the same weight. *@
-                        @if (SelectedBill.ElecCharge > 0m)
-                        {
-                            <button type="button" class="misc-util @(MiscElecPay != PaymentStatus.Unpaid ? "misc-util-on" : "")"
-                                    @onclick="ToggleElecCollected">
-                                <span class="misc-util-check" aria-hidden="true">
-                                    @if (MiscElecPay == PaymentStatus.Paid)
-                                    {
-                                        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                                    }
-                                    else if (MiscElecPay == PaymentStatus.Partial)
-                                    {
-                                        <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                                    }
-                                </span>
-                                <span class="misc-util-body">
-                                    <span class="misc-util-name">Electricity</span>
-                                    <span class="misc-util-state">@UtilityStateLabel(MiscElecPay, MiscElecPartial)</span>
-                                </span>
-                                <span class="misc-util-amt">
-                                    @FormatPeso(SelectedBill.ElecBalanceDue)
-                                    @if (SelectedBill.ElecBalanceDue < SelectedBill.ElecCharge)
-                                    {
-                                        <span class="misc-util-of">of @FormatPeso(SelectedBill.ElecCharge)</span>
-                                    }
-                                </span>
-                            </button>
-                            <div class="misc-util-aside">
-                                <button type="button" class="misc-part-link @(MiscElecPay == PaymentStatus.Partial ? "on" : "")"
-                                        @onclick="ToggleElecPartial">
-                                    @(MiscElecPay == PaymentStatus.Partial ? "Collect in full instead" : "Part payment")
-                                </button>
-                            </div>
-                            @if (MiscElecPay == PaymentStatus.Partial)
-                            {
-                                <input class="form-input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Electricity partial amount" aria-label="Electricity partial amount" @bind="MiscElecPartial" @bind:event="oninput" />
-                            }
-                        }
-
-                        @if (MiscElecPay != PaymentStatus.Unpaid && SelectedBill is { ElecCanonical: false })
-                        {
-                            <input class="form-input mono-input misc-or-input" type="text" inputmode="numeric" maxlength="50"
-                                   placeholder="Electricity OR no." @bind="MiscElecOr" @bind:event="oninput" />
-                        }
-
-@if (!string.IsNullOrWhiteSpace(EcfNotice))                        {                            <div class="misc-util-state" role="status">@EcfNotice</div>                        }
-                        <div class="misc-wcf-block">
-                            <div class="misc-period-label">Water</div>
-                            @if (WcfCapability is { Status: CollectorOperationCapabilityStatus.NotAssigned })
-                            {
-                                <div class="misc-empty">@WcfCapabilityMessage</div>
-                            }
-                            else if (WcfLoadFailed)
-                            {
-                                <div class="misc-empty">Water collection eligibility could not be verified. Retry while online.</div>
-                            }
-                            else if (SelectedWcfQuote is null)
-                            {
-                                <div class="misc-empty">No outstanding Water obligation was returned for this stall through the selected collection month.</div>
-                            }
-                            else
-                            {
-                                <MobileChoice Label="Water period · oldest outstanding first"
-                                              EmptyText="No outstanding Water periods for this stall."
-                                              Options="@WcfPeriodChoices" Value="@SelectedWcfBillId?.ToString()"
-                                              ValueChanged="@(v => SelectedWcfBillId = Guid.TryParse(v, out var id) ? id : null)" />
-                                <div class="misc-util-state">@SelectedWcfQuote.BillingYear-@SelectedWcfQuote.BillingMonth.ToString("00") · @FormatPeso(SelectedWcfQuote.OutstandingAmount) outstanding</div>
-                                @if (SelectedWcfQuote.SettlementAuthority != SettlementAuthority.Canonical)
-                                {
-                                    <div class="misc-empty">Canonical WCF settlement is not active for this source. It cannot be collected through the canonical workflow.</div>
-                                }
-                                else if (WcfCapability is not { IsCollectible: true })
-                                {
-                                    @* The server's capability answer decides whether this collector may record a WCF collection
-                                       today; the obligation above is shown for reference only. *@
-                                    <div class="misc-empty">@WcfCapabilityMessage</div>
-                                }
-                                else if (Sync.HasStorageFault)
-                                {
-                                    <div class="misc-empty">Local queue storage needs attention. Offline collection is blocked until storage is healthy.</div>
-                                }
-                                else
-                                {
-                                    <input class="form-input" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="Amount received" aria-label="Water amount received" @bind="WcfReceivedAmount" @bind:event="oninput" />
-                                    <button class="btn-primary" type="button" disabled="@(!CanCaptureWcf)" @onclick="CaptureWcfAsync">Record collection</button>
-                                    <div class="misc-util-state">Business date: @Today.ToString("MMM d, yyyy", CultureInfo.InvariantCulture). Obligation period: @SelectedWcfQuote.BillingYear-@SelectedWcfQuote.BillingMonth.ToString("00").</div>
-                                }
-                            }
-                            @if (!string.IsNullOrWhiteSpace(WcfMessage))
-                            {
-                                <div class="misc-util-state">@WcfMessage</div>
-                            }
-                        </div>
-
-                        <div class="misc-collect"><span>Collecting</span><strong>@FormatPeso(MiscCollectAmount)</strong></div>
-                    </div>
-                }
-            }
+            </details>
+            @if (SelectedStall.Section is MarketSection.FishSection or MarketSection.MeatSection)
+            { <button class="rent-secondary-link" type="button" @onclick='() => Navigation.NavigateTo("/weight-measure")'>Collect weighing separately</button> }
 
             @if (!string.IsNullOrWhiteSpace(SheetError))
             {
@@ -689,9 +450,12 @@
                    no way out of the sheet at all - closing the app was the only exit. Backing out cannot lose money: a write
                    already sent either lands or is queued regardless of this screen. *@
                 <button class="btn-cancel" type="button" @onclick="CloseCollectionSheet">Cancel</button>
+                @if (!SelectedIsPaid)
+                {
                 <button class="btn-confirm" type="button" @onclick="ConfirmCollectionAsync" disabled="@IsSaving">
                     @(IsSaving ? "Saving..." : "Confirm")
                 </button>
+                }
             </div>
         </div>
     </div>
@@ -748,7 +512,7 @@
             </div>
             <div class="receipt-close-row">
                 <button class="btn-receipt-edit" type="button" @onclick="OpenEditFromReceipt">Edit</button>
-                <button class="btn-receipt-misc" type="button" @onclick="OpenMiscFromReceipt">Misc</button>
+                <button class="btn-receipt-misc" type="button" @onclick="OpenMiscFromReceipt">Utilities</button>
                 <button class="btn-receipt-close" type="button" @onclick="CloseReceipt">Close</button>
             </div>
         </div>
@@ -877,7 +641,6 @@
     private string MiscElecOr = string.Empty;
     private string MiscWaterOr = string.Empty;
 
-    private bool _scrollToMisc;
     // Every utility bill a stall still has to answer for, keyed by stall number and oldest first: this month's
     // bill and any earlier one left owed. The sheet settles them one at a time, starting with the oldest.
     private Dictionary<string, List<MobileUtilityBillDto>> UtilityByStallNo = new(StringComparer.OrdinalIgnoreCase);
@@ -1353,31 +1116,80 @@
         if (Collection is null)
             return;
 
+        var loadVersion = ++_arrearsLoadVersion;
         ArrearsLoading = true;
         ArrearsError = null;
+        _outstandingAccounts = [];
 
         try
         {
-            var result = await MobileApi.GetNpmArrearsAsync(Collection.Year, Collection.Month);
-
-            if (result.IsSuccess && result.Value is not null)
-                Arrears = result.Value;
-            else
-                ArrearsError = result.Error ?? "Unable to read what is still owed.";
+            // A single unbounded request multiplied every stall by every eligible rent
+            // month and timed out on the demo data. Pages count occupancies (including
+            // zero-balance occupants) so no payor is silently skipped.
+            var all = new List<NpmOutstandingRentAccount>();
+            int? offset = 0;
+            while (ShowArrears && loadVersion == _arrearsLoadVersion && offset is { } next)
+            {
+                // One failed page should not discard previously verified balances. Retry that
+                // same offset once before showing a partial-load warning; never advance on failure.
+                EEMOCantilanSDS.Application.Common.Result<NpmOutstandingRentAccountsPage>? result = null;
+                for (var attempt = 0; attempt < 2; attempt++)
+                {
+                    try
+                    {
+                        result = await MobileApi.GetNpmOutstandingAccountsPageAsync(next, 1);
+                    }
+                    catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException)
+                    {
+                        if (!ShowArrears || loadVersion != _arrearsLoadVersion) return;
+                        if (attempt == 1)
+                            ArrearsError = "The office took too long to load the remaining payors. Try again.";
+                        else
+                            await Task.Delay(350);
+                        continue;
+                    }
+                    if (!ShowArrears || loadVersion != _arrearsLoadVersion) return;
+                    if (result.IsSuccess && result.Value is not null) break;
+                    // Validation, permission and reconciliation failures are not transient.
+                    ArrearsError = result.Error ?? "Outstanding rent couldn't be loaded. Please try again.";
+                    break;
+                }
+                if (result is null || !result.IsSuccess || result.Value is null || ArrearsError is not null)
+                    break;
+                all.AddRange(result.Value.Accounts);
+                _outstandingAccounts = all.ToArray();
+                offset = result.Value.NextOffset;
+                await InvokeAsync(StateHasChanged);
+            }
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException)
         {
             // The same rule the sheet follows: a thin signal states itself and hands the screen back, rather than leaving the
             // collector looking at a spinner he cannot dismiss.
-            ArrearsError = "The connection is too weak to read what is still owed. Try again where the signal is better.";
+            if (loadVersion == _arrearsLoadVersion)
+                ArrearsError = "Unable to reach the office API. Check the connection or local API service, then try again.";
         }
         finally
         {
-            ArrearsLoading = false;
+            if (loadVersion == _arrearsLoadVersion)
+                ArrearsLoading = false;
         }
     }
 
-    private void CloseArrears() => ShowArrears = false;
+    private int _arrearsLoadVersion;
+    private IReadOnlyList<NpmOutstandingRentAccount> _outstandingAccounts = [];
+    private NpmOutstandingRentAccount? _outstandingAccount;
+    private async Task OutstandingCollected()
+    {
+        await LoadCollectionAsync();
+        if (ShowArrears) await LoadArrearsAsync();
+    }
+    private void CloseArrears()
+    {
+        ShowArrears = false;
+        ++_arrearsLoadVersion;
+        ArrearsLoading = false;
+    }
 
     // ── Settling a closed month in the field ──
     //
@@ -1554,6 +1366,8 @@
     /// one the office missed.
     /// </summary>
     private DateOnly SelectedDate;
+    private Guid _monthlyDailyOperation;
+    private decimal SelectedRentAmount => SelectedStall?.MonthlyRentQuote?.EligibleAmount ?? SelectedStall?.DailyRate ?? 0;
 
     // The days this one payment covers. A payor clearing four owed days at once is ordinary in the field, and the office's
     // portal has always been able to record it in one act; the collector could only do one day at a time, which meant four
@@ -1652,11 +1466,7 @@
     private void OpenMiscFromReceipt()
     {
         ShowReceipt = false;
-        if (SelectedStall is not null)
-        {
-            OpenCollectionSheet(SelectedStall);
-            SetMisc();
-        }
+        Navigation.NavigateTo("/collections/new");
     }
 
     private void CloseReceipt()
@@ -1668,6 +1478,7 @@
     private void OpenCollectionSheet(MobileNpmStallCollectionDto stall, bool asArrears = false)
     {
         SelectedStall = stall;
+        _monthlyDailyOperation = Guid.NewGuid();
         SheetIsArrears = asArrears;
 
         // Which day this sheet answers for. Today's round answers for TODAY, always: it is today's round, the sheet says
@@ -1713,6 +1524,8 @@
             MeatKilos = null;
             ORNumber = string.Empty;
         }
+        if (!queuedHere && !SelectedIsAbsent && !stall.IsCollectedToday) SelectedIsPaid = true;
+        FishKilos = null; MeatKilos = null; // Weighing is collected through its independent registered-vendor source.
         SelectedIsMisc = false;
         // The oldest bill still owed, so arrears are collected before this month's; if nothing is owed, the
         // month's own bill is shown so the collector can see it was already settled.
@@ -1740,23 +1553,10 @@
         SelectedIsMisc = false;
     }
 
-    // Selects the Miscellaneous (electricity & water bill) option and seeds each utility to Paid
-    // when it still has a balance, mirroring the office/web collection defaults.
-    private void SetMisc()
+    private async Task AmountRentCollected()
     {
-        SelectedIsPaid = false;
-        SelectedIsAbsent = false;
-        SelectedIsMisc = true;
-
-        // NOTHING IS MARKED COLLECTED UNTIL THE COLLECTOR SAYS SO. This used to open with each owing utility already set to Paid,
-        // which decided on the collector's behalf that money had changed hands: confirming without looking would receipt a bill
-        // nobody had paid. The sheet now opens stating what is owed and waits.
-        MiscElecPay = PaymentStatus.Unpaid;
-        MiscWaterPay = PaymentStatus.Unpaid;
-        MiscElecPartial = MiscWaterPartial = 0m;
-        MiscElecOr = MiscWaterOr = string.Empty;
-        SheetError = null;
-        _scrollToMisc = true;
+        CloseCollectionSheet();
+        await LoadCollectionAsync();
     }
 
     /// <summary>
@@ -1883,22 +1683,25 @@
         if (SelectedStall is null) return;
         var stall = SelectedStall;
         var day = SelectedDate;
-        var operationId = Guid.NewGuid();
+        var operationId = stall.MonthlyRentQuote is not null ? _monthlyDailyOperation : Guid.NewGuid();
         await Sync.EnqueueAsync(new PendingOperation
         {
             ClientOperationId = operationId,
             Kind = OfflineOperationKind.NpmDaily,
-            BusinessDate = day,
+            BusinessDate = stall.MonthlyRentQuote?.BusinessDate ?? day,
+            NpmInstallmentDate = stall.MonthlyRentQuote?.InstallmentDate,
+            ReceivedAmount = stall.MonthlyRentQuote?.EligibleAmount,
+            NpmQuoteToken = stall.MonthlyRentQuote?.Token,
             StallId = stall.StallId,
             IsPaid = true,
             IsAbsent = false,
             FishKilos = stall.Section == MarketSection.FishSection ? FishKilos : null,
             MeatKilos = stall.Section == MarketSection.MeatSection ? MeatKilos : null,
-            ORNumber = null,
+            ORNumber = string.IsNullOrWhiteSpace(ORNumber) ? null : ORNumber.Trim(),
             FacilityLabel = "NPM",
             Title = stall.PayorName,
             Detail = $"No. {stall.StallNo}",
-            Amount = stall.DailyRate
+            Amount = stall.MonthlyRentQuote?.EligibleAmount ?? stall.DailyRate
         });
         NpmNotice = "Saved on this device. Waiting to sync.";
         if (Collection is not null && day == Collection.CollectionDate)
@@ -1909,9 +1712,9 @@
             if (Sync.IsOnline)
                 await Sync.SyncNowAsync(force: true);
             var result = (await Sync.GetAllAsync()).FirstOrDefault(x => x.ClientOperationId == operationId);
-            if (result is null || result.LocalStatus == PendingLocalStatus.Synced)
-                NpmNotice = result?.ReferenceCode is { } src ? $"Collection recorded · {src}" : "Collection recorded.";
-            else if (result.LocalStatus is PendingLocalStatus.Rejected or PendingLocalStatus.ReconciliationRequired)
+            if (result?.LocalStatus == PendingLocalStatus.Synced && result.ReferenceCode is { } src)
+                NpmNotice = $"Collection recorded · {src}";
+            else if (result?.LocalStatus is PendingLocalStatus.Rejected or PendingLocalStatus.ReconciliationRequired)
                 NpmNotice = result.ResultMessage ?? "The server could not accept this collection. It was not recorded.";
             await LoadCollectionAsync();
         }
@@ -1934,6 +1737,17 @@
 
         IsSaving = true;
         SheetError = null;
+
+        if (SelectedStall.MonthlyRentQuote is { } monthQuote)
+        {
+            if (!SelectedIsPaid || SelectedIsAbsent || ChosenDays.Count != 1 || monthQuote.InstallmentDate != SelectedDate
+                || monthQuote.EligibleAmount <= 0 || FishKilos is > 0 || MeatKilos is > 0)
+            {
+                SheetError = "Use the reviewed month payment for arrears, the office for credit/correction, or the separate weighing source. No rent was recorded.";
+                IsSaving = false; return;
+            }
+            await ConfirmCanonicalDailyAsync(); return;
+        }
 
         // Several days against one receipt, in one transaction on the server. Only ever reached from the arrears sheet,
         // and only for money actually collected: "Not collected" and "Absent" are statements about a single day, so they
@@ -2285,17 +2099,6 @@ if (SelectedBill.ElecCanonical)        {            await ConfirmCanonicalEcfAsy
 
     // Formal 2-decimal peso for official bill amounts (electricity/water/collecting).
     private static string FormatPeso(decimal value) => $"₱{value:N2}";
-
-    // Brings the Miscellaneous panel into view when it opens, so the sheet stays clean/structured.
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (_scrollToMisc)
-        {
-            _scrollToMisc = false;
-            try { await JS.InvokeVoidAsync("scrollElementIntoView", "misc-option"); }
-            catch { /* webview not ready / sheet closed — non-fatal */ }
-        }
-    }
 
     private static string GetBarClass(MobileNpmStallCollectionDto stall) =>
         stall.IsCollectedToday ? "bar-paid" :

@@ -129,7 +129,7 @@ public sealed partial class FollowUpAccountReviewTests
         cut.FindAll("button").Single(x=>x.TextContent=="Assess fine").Click();
         Assert.Single(cut.FindAll("[role=dialog]")); Assert.Equal(source.Account,cut.FindComponent<FineAssessmentDrawer>().Instance.Account);
         SpaceHolderWorkspaceTests.SaveVisualArtifact("account-review-assess-fine",cut.Markup);
-        cut.Find("select").Change(policy.Id.ToString()); cut.Find("textarea").Change("Recorded event"); cut.Find("input[aria-label='Fine amount']").Change("120");
+        cut.Find("select").Change(policy.Id.ToString()); cut.FindAll("input[name='fine-reason']").Last().Change(true); cut.Find("textarea").Change("Recorded event"); cut.Find("input[aria-label='Fine amount']").Change("120");
         cut.Find("form").Submit(); SpaceHolderWorkspaceTests.SaveVisualArtifact("account-review-confirm-fine",cut.Markup); cut.Find("form").Submit();
         cut.WaitForAssertion(()=>Assert.Empty(cut.FindComponents<FineAssessmentDrawer>()));
         Assert.Single(cut.FindAll("[role=dialog]")); Assert.Equal(before,cut.Find(".review-summary").TextContent);

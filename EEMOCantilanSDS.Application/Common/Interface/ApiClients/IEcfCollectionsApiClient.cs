@@ -5,6 +5,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 
 public interface IEcfCollectionsApiClient
 {
+    Task<Result<EcfPostOutcomeDto>> PostRentReceiptAsync(MobileRentPostRequest request);
     Task<Result<IReadOnlyList<EcfObligationQuoteDto>>> GetObligationsAsync(int year, int month);
     Task<Result<EcfObligationQuoteDto>> GetObligationAsync(Guid utilityBillId);
     Task<Result<SettlementCutoverReadinessDto>> GetActivationReadinessAsync(Guid utilityBillId, SettlementCutoverReconciliationEvidence? evidence);

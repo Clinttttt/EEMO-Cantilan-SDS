@@ -1,0 +1,202 @@
+/* Utility workspace (ECF / WCF) — V3. Panels, tables, buttons, fields and notices come from the shared v3- layer; this file holds
+   only the workspace layout. Typography and colour use the app tokens; the register is a table, not a card mosaic. */
+
+.uw-meta { display: inline-flex; align-items: center; gap: 10px; }
+
+/* The register takes the width; the selected source's panel sits beside it and stacks beneath on a narrower screen. */
+.uw-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(19rem, 23rem);
+    align-items: start;
+    gap: 20px;
+}
+
+/* One row on a desktop: month, a search that takes the slack, facility, then three icon controls. */
+.uw-toolbar { flex-wrap: nowrap; align-items: center; gap: 8px; }
+.uw-toolbar .v3-search { flex: 1 1 12rem; min-width: 8rem; }
+.uw-toolbar .uw-month { flex: 0 0 auto; width: 9.5rem; }
+.uw-toolbar .uw-facility { flex: 0 1 11rem; min-width: 7rem; max-width: 12rem; }
+
+.uw-icon-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 40px;
+    min-height: 40px;
+    padding: 0;
+    cursor: pointer;
+    list-style: none;
+}
+.uw-icon-btn::-webkit-details-marker { display: none; }
+.uw-icon-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.uw-icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.uw-filter-dot { position: absolute; top: 7px; right: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+
+.uw-filters { position: relative; flex: 0 0 auto; }
+.uw-filter-pop {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 20;
+    display: grid;
+    gap: 12px;
+    width: 16rem;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface, #fff);
+    box-shadow: 0 8px 24px rgba(16, 24, 40, 0.14);
+}
+
+/* About six sources show; the rest scroll inside the register, scrollbar hidden, header held in place. */
+.uw-scroll { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.uw-scroll::-webkit-scrollbar { display: none; }
+.uw-scroll thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-muted); }
+
+.uw-table td, .uw-table th { vertical-align: top; }
+.uw-row { cursor: pointer; }
+.uw-row:hover { background: var(--surface-muted); }
+.uw-row.is-selected { background: var(--surface-muted); box-shadow: inset 3px 0 0 var(--accent); }
+
+/* The first cell is the row's one keyboard target: a quiet button that reads as text. */
+.uw-row-btn {
+    display: block;
+    width: 100%;
+    padding: 2px 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.uw-row-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.uw-payer { overflow-wrap: anywhere; }
+.uw-context { color: var(--text-secondary); font-size: 0.8125rem; overflow-wrap: anywhere; }
+.uw-awaiting { color: var(--text-secondary); font-size: 0.75rem; font-weight: 500; white-space: nowrap; }
+
+.uw-status {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: var(--surface-muted);
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.uw-status-unprepared { padding-inline: 0; background: transparent; color: var(--text-tertiary); font-weight: 500; }
+.uw-status-unpaid { background: var(--red-bg); color: var(--red); }
+.uw-status-partial { background: color-mix(in srgb, var(--gold) 16%, var(--surface)); color: var(--navy); }
+.uw-status-settled, .uw-status-direct { background: var(--green-bg); color: var(--green); }
+.uw-status-needsreview { background: var(--accent-soft); color: var(--navy); }
+
+.uw-pager {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Selected source */
+.uw-detail { position: sticky; top: 12px; }
+.uw-detail-body { display: grid; gap: 14px; }
+/* Nothing selected: a taller card with one short line centred in it. */
+.uw-empty-detail { display: grid; place-items: center; min-height: 12rem; text-align: center; }
+.uw-empty-detail .uw-note { max-width: 20rem; font-size: 0.75rem; }
+.uw-detail-context { margin: 0; color: var(--text-secondary); font-size: 0.8125rem; }
+.uw-facts dd { font-variant-numeric: tabular-nums; }
+.uw-note, .uw-help { margin: 0; color: var(--text-secondary); font-size: 0.8125rem; line-height: 1.45; }
+.uw-error { margin: 0; color: var(--red, #b42318); font-size: 0.8125rem; }
+.uw-review { margin: 0; font-size: 0.8125rem; line-height: 1.5; overflow-wrap: anywhere; }
+.uw-review-context { margin: -3px 0 0; color: var(--text-secondary); font-size: 0.75rem; line-height: 1.45; }
+.uw-review-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.uw-review-actions .v3-btn { min-width: 0; white-space: normal; text-align: center; }
+.uw-review-actions .v3-btn-primary { flex: 1 1 10rem; }
+
+.uw-prepare { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--border); }
+.uw-prepare h3 { margin: 0; font-size: 0.875rem; font-weight: 700; color: var(--navy); }
+.uw-field { display: grid; gap: 4px; font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); }
+.uw-field .v3-input { font-variant-numeric: tabular-nums; }
+
+
+/* Prepare multiple amounts */
+.uw-batch { max-width: min(46rem, 94vw); }
+.uw-batch .v3-modal-header { justify-content: space-between; }
+.uw-batch-input { width: 8.5rem; text-align: right; font-variant-numeric: tabular-nums; }
+.uw-batch-results { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 0.875rem; }
+.uw-batch-results .is-refused { color: var(--red, #b42318); }
+
+@media (max-width: 1100px) {
+    .uw-layout { grid-template-columns: minmax(0, 1fr); }
+    .uw-detail { position: static; }
+}
+
+@media (max-width: 760px) {
+    .uw-toolbar { flex-wrap: wrap; }
+    .uw-toolbar .v3-search { flex: 1 1 100%; order: -1; }
+    .uw-toolbar .uw-month, .uw-toolbar .uw-facility { flex: 1 1 8rem; max-width: none; width: auto; }
+    .uw-filter-pop { right: auto; left: 0; }
+}
+
+@media (max-width: 640px) {
+    .uw-pager { justify-content: flex-start; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .uw-row, .uw-row-btn { transition: none; }
+}
+
+/* Switching between the sources view and the collection activity view: the new view fades and rises in. */
+.uw-enter { animation: uw-in 0.22s ease both; }
+
+@keyframes uw-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .uw-enter { animation: none; }
+}
+
+/* Prepare multiple amounts: roomier, one line per source, header held while the list scrolls, count beside the actions. */
+.uw-batch { max-width: min(54rem, 94vw); }
+.uw-batch .v3-table-wrap { max-height: 22rem; overflow-y: auto; scrollbar-width: none; }
+.uw-batch .v3-table-wrap::-webkit-scrollbar { display: none; }
+.uw-batch .v3-table-wrap thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-muted); }
+.uw-batch-count { margin-right: auto; color: var(--text-secondary); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+
+/* Nothing selected: Source details matches the register's height, with its hint centred in the card. */
+.uw-idle { align-items: stretch; }
+.uw-idle .uw-detail { position: static; display: flex; flex-direction: column; }
+.uw-idle .uw-empty-detail { flex: 1 1 auto; }
+
+@media (max-width: 1100px) {
+    .uw-idle .uw-empty-detail { min-height: 8rem; }
+}
+
+/* The batch table is fixed to the modal's width: source takes the slack and wraps, status and amount keep their own columns. */
+.uw-batch .v3-table-wrap { overflow-x: hidden; }
+.uw-batch .v3-table { width: 100%; table-layout: fixed; }
+.uw-batch .v3-table th:nth-child(2),
+.uw-batch .v3-table td:nth-child(2) { width: 8rem; }
+.uw-batch .v3-table th:nth-child(3),
+.uw-batch .v3-table td:nth-child(3) { width: 9.5rem; }
+.uw-batch .uw-batch-input { width: 100%; }
+.uw-batch .uw-payer,
+.uw-batch .uw-context { overflow-wrap: anywhere; }
+
+@media (max-width: 640px) {
+    .uw-batch .v3-table th:nth-child(2),
+    .uw-batch .v3-table td:nth-child(2) { width: 6.5rem; }
+    .uw-batch .v3-table th:nth-child(3),
+    .uw-batch .v3-table td:nth-child(3) { width: 7.5rem; }
+}

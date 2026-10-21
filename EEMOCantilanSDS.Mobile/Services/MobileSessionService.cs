@@ -333,8 +333,8 @@ public sealed class MobileSessionService(
     // scopes login + branding for whoever uses this app. Presentation + login-scoping only — NOT a security
     // boundary (login + LGU-scoped accounts remain the gate). Unbound (Cantilan / single-tenant) → the app
     // behaves exactly as before: existing picker / global login.
-    private const string BoundCodeKey = "stalltrack_bound_municipality_code";
-    private const string BoundNameKey = "stalltrack_bound_municipality_name";
+    private static string BoundCodeKey => LocalAcceptanceProfile.Key("stalltrack_bound_municipality_code");
+    private static string BoundNameKey => LocalAcceptanceProfile.Key("stalltrack_bound_municipality_name");
 
     /// <summary>The LGU code this app is bound to, or null when unbound.</summary>
     public string? BoundMunicipalityCode
@@ -368,6 +368,7 @@ public sealed class MobileSessionService(
     /// </summary>
     public async Task<MobileBindInfoDto?> ResolvePendingBindInfoAsync()
     {
+        if (LocalAcceptanceProfile.Enabled) return null;
         if (IsBound)
             return null;
 

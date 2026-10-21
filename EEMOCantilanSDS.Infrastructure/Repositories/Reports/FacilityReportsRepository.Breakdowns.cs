@@ -24,7 +24,7 @@ public partial class FacilityReportsRepository
         DateOnly endDate,
         CancellationToken ct)
     {
-        if (facilityCode != FacilityCode.NPM)
+        if (!IsDailyMarket(facilityCode))
         {
             return null;
         }
@@ -149,7 +149,7 @@ public partial class FacilityReportsRepository
         });
 
         return new FeeTypeBreakdownDto(
-            DailyFeeAmount: dailyFeeFromCollections + dailyFeeFromMonthly,
+            DailyFeeAmount: dailyFeeFromCollections + dailyFeeFromMonthly + (await MonthCashAsync(facilityId, startDate, endDate, ct)).Sum(x => x.Amount),
             FishFeeAmount: fishFeeFromCollections + fishFeeFromMonthly,
             FishKiloComparison: fishComparison,
             PaidDayRecords: paidDayRecords,
@@ -212,7 +212,7 @@ public partial class FacilityReportsRepository
         DateOnly endDate,
         CancellationToken ct)
     {
-        if (facilityCode != FacilityCode.NPM)
+        if (!IsDailyMarket(facilityCode))
         {
             return null;
         }
@@ -424,7 +424,7 @@ public partial class FacilityReportsRepository
             .ToDictionary(pr => pr.StallId, pr => pr.Status);
 
         // For NPM: Check daily collections to determine if Unpaid should be Partial
-        if (facilityCode == FacilityCode.NPM)
+        if (IsDailyMarket(facilityCode))
         {
             var dailyCollections = await _context.DailyCollections
                 .AsNoTracking()

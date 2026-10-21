@@ -86,6 +86,7 @@ Before changing StallTrack code, read:
 
 ### Planning and evidence
 
+- `planning/NPM_MONTHLY_BILLING_STANDARD_REVIEW_20261016.md` — Task 1 monthly-obligation architecture audit, local read-only compatibility evidence, characterization tests and proposed rollout; no production billing change or PureDays retirement authorized.
 - `planning/CURRENT_RELEASE_STATE.md` — single current implementation-status checkpoint. Prefer this over old dated audits/handoffs when asking what is live, canonical, legacy, pending or blocked.
 - `planning/MOBILE_ITEMIZED_COLLECTION_BACKEND.md` — bounded backend feature-branch contract, actual supported/deferred sources, atomic checkout boundaries and Mobile.Core UI handoff; not a production activation checkpoint.
 - `planning/REPORT_GOVERNANCE_FAST_COLLECTION_HANDOFF.md` — IA-066 local backend contracts for approved targets/report adjustments, space assignments/readiness, typed follow-up, multi-collector remittance and fast collection. Not a production activation checkpoint.

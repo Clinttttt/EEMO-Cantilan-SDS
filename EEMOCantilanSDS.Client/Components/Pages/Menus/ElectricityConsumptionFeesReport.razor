@@ -20,7 +20,7 @@
             <Meta><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
             <Actions>
                 <label class="v3-period">
-                    <span>Billing month</span>
+                    <span>Month</span>
                     <input class="v3-input" type="month" aria-label="Billing month" value="@_monthInput" @onchange="ChangeMonthAsync" />
                 </label>
                 <div class="v3-btn-group" role="group" aria-label="Report actions">
@@ -64,33 +64,18 @@
         <OperationMonthlyIncome Classification="General Distribution / ECF" RowKey="ECF" Year="_period.Year" HeadingId="ecfr-official" />
 
         <section class="v3-report-section" aria-labelledby="ecfr-position">
-            <h3 id="ecfr-position">Obligation position — @PeriodLabel</h3>
-            <div class="v3-table-wrap">
-                <table class="v3-report-table">
-                    <thead>
-                        <tr>
-                            <th scope="col" class="v3-num">Accounts</th>
-                            <th scope="col" class="v3-num">With balance</th>
-                            <th scope="col" class="v3-num">Approved amount</th>
-                            <th scope="col" class="v3-num">Settled</th>
-                            <th scope="col" class="v3-num">Outstanding</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td class="v3-num">@Figure(_quotes.Count.ToString())</td>
-                            <td class="v3-num">@Figure(_quotes.Count(x => x.OutstandingAmount > 0m).ToString())</td>
-                            <td class="v3-num">@Figure(Money(TotalAssessed))</td>
-                            <td class="v3-num">@Figure(Money(TotalSettled))</td>
-                            <td class="v3-num">@Figure(Money(TotalOutstanding))</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            <h3 id="ecfr-position">Obligation position</h3>
+            <dl class="v3-report-summary">
+                <div><dt>Accounts</dt><dd>@Figure(_quotes.Count.ToString())</dd></div>
+                <div><dt>With balance</dt><dd>@Figure(_quotes.Count(x => x.OutstandingAmount > 0m).ToString())</dd></div>
+                <div><dt>Approved amount</dt><dd>@Figure(Money(TotalAssessed))</dd></div>
+                <div><dt>Settled</dt><dd>@Figure(Money(TotalSettled))</dd></div>
+                <div><dt>Outstanding</dt><dd>@Figure(Money(TotalOutstanding))</dd></div>
+            </dl>
         </section>
 
         <section class="v3-report-section" aria-labelledby="ecfr-accounts">
-            <h3 id="ecfr-accounts">Accounts — @PeriodLabel</h3>
+            <h3 id="ecfr-accounts">Accounts</h3>
             <div class="v3-table-wrap">
                 <table class="v3-report-table">
                     <thead>
@@ -129,7 +114,6 @@
                     }
                 </table>
             </div>
-            <p class="v3-report-note">Basis: ECF obligations recorded in StallTrack for this billing month, as of the date prepared. Settled is all settlement recorded against these obligations. OR numbers are recorded per collection.</p>
         </section>
     </article>
 </div>

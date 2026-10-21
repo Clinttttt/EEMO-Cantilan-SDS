@@ -7,35 +7,32 @@
 @inject IOfficialReportsApiClient Api
 @inject IJSRuntime JS
 
-@* The Collections register (IA-052): every classified line of a posted collection, with the RCD-style summary derived from the
-   same rows. Transactions first, report second: no total is typed and none is computed in the browser. One collection can
-   appear on several rows; opening a row shows the one parent collection, itemized. Legacy-authoritative sources stay in their
-   own registers below until their source goes canonical. *@
+@* The Collections register (IA-052): posted collections, one row per SRC, with the RCD-style summary derived from the same server
+   rows. Transactions first, report second: no total is typed and none is computed for the summary in the browser. The server sends one
+   row per classified line; this panel groups those rows under their parent Collection and adds nothing and drops nothing, so a
+   transaction's amount is exactly the sum of its listed lines. Opening an SRC shows the parent collection, itemized. Legacy-authoritative
+   sources keep their own evidence registers; they are not listed here. *@
 <section class="cr" aria-labelledby="@_titleId" aria-busy="@(_loading ? "true" : "false")">
     <div class="cr-print-head" aria-hidden="true"><ReportLetterhead Title="Collections Register" Period="@PeriodLabel" /></div>
     <header class="cr-head">
         <h2 id="@_titleId">Collections · @PeriodLabel</h2>
-        <div class="cr-tools no-print">
-            <label class="v3-field"><span>Instrument</span>
-                <select @bind="_instrument" @bind:after="LoadAsync">
-                    <option value="">OR and CT</option>
-                    <option value="@((int)RevenueInstrumentType.OfficialReceipt)">Official Receipt</option>
-                    <option value="@((int)RevenueInstrumentType.CashTicket)">Cash Ticket</option>
-                </select>
-            </label>
-            @if (_data is { Summary.Count: > 0 } withSummary)
+        <div class="cr-tools no-print" role="group" aria-label="Collection filters">
+            <select aria-label="Instrument" @bind="_instrument" @bind:after="LoadAsync">
+                <option value="">OR and CT</option>
+                <option value="@((int)RevenueInstrumentType.OfficialReceipt)">Official Receipt</option>
+                <option value="@((int)RevenueInstrumentType.CashTicket)">Cash Ticket</option>
+            </select>
+            @if (_data is { Summary.Count: > 0 })
             {
-                <label class="v3-field"><span>Revenue line</span>
-                    <select @bind="_classification" @bind:after="LoadAsync">
-                        <option value="">All lines</option>
-                        @foreach (var line in _summaryOptions)
-                        {
-                            <option value="@line.ClassificationId">@SourceNames.Name(line.ClassificationName)</option>
-                        }
-                    </select>
-                </label>
+                <select aria-label="Revenue line" @bind="_classification" @bind:after="LoadAsync">
+                    <option value="">All lines</option>
+                    @foreach (var line in _summaryOptions)
+                    {
+                        <option value="@line.ClassificationId">@SourceNames.Name(line.ClassificationName)</option>
+                    }
+                </select>
             }
-            <button class="v3-btn v3-btn-sm" type="button" @onclick="PrintAsync">Print</button>
+            <button class="cr-print" type="button" @onclick="PrintAsync">Print</button>
         </div>
     </header>
 
@@ -88,9 +85,14 @@
         </div>
 
         <div class="cr-panel">
-            <h3>Register</h3>
+            <header class="cr-panel-head">
+                <h3>Collection transactions</h3>
+                <span class="cr-count" aria-live="polite">@Visible.Count@(_search.Length > 0 ? $" of {_transactions.Count}" : "") @(Visible.Count == 1 ? "transaction" : "transactions")</span>
+                <input class="cr-search no-print" type="search" aria-label="Search transactions" placeholder="Search SRC, payer or collector"
+                       value="@_search" @oninput="e => _search = (e.Value?.ToString() ?? string.Empty).Trim()" />
+            </header>
             <div class="v3-table-wrap" role="region" aria-label="Collections register" tabindex="0">
-                <table class="v3-table">
+                <table class="v3-table cr-table">
                     <thead>
                         <tr>
                             <th scope="col">Date</th>
@@ -99,78 +101,45 @@
                             <th scope="col">Payor</th>
                             <th scope="col">Collector</th>
                             <th scope="col">Revenue line</th>
-                            <th scope="col">Operation / source</th>
                             <th scope="col" class="v3-num">Amount</th>
                             <th scope="col">Status</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @{ Guid? previousCollection = null; }
-                        @foreach (var row in _data.Rows)
+                        @foreach (var tx in Visible)
                         {
-                            @* One physical document, several revenue lines: the document facts are stated once, on its first line,
-                               and the lines that follow are indented under it — never three rows that read as three receipts. *@
-                            var continuation = previousCollection == row.CollectionId;
-                            previousCollection = row.CollectionId;
-                            <tr class="@(continuation ? "cr-cont" : "cr-doc")">
-                                @if (continuation)
-                                {
-                                    <td colspan="5" class="cr-cont-cell"><span class="v3-sr-only">Same collection @row.ReferenceCode:</span></td>
-                                }
-                                else
-                                {
-                                    <td>@row.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
-                                    <td><button type="button" class="cr-link" @onclick="() => OpenAsync(row.CollectionId)">@row.ReferenceCode</button></td>
-                                    <td>@(row.Instrument switch { RevenueInstrumentType.OfficialReceipt => "OR", RevenueInstrumentType.CashTicket => "CT", _ => "—" })</td>
-                                    <td>@(string.IsNullOrWhiteSpace(row.PayorName) ? "—" : row.PayorName)</td>
-                                    <td>@(row.CollectorName ?? "Office")</td>
-                                }
-                                <td>@SourceNames.Name(row.ClassificationName)</td>
-                                <td>@row.SourceLabel</td>
-                                <td class="v3-num">@Money(row.Amount)</td>
-                                <td>@row.Status</td>
+                            <tr @key="tx.CollectionId">
+                                <td>@tx.Date.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
+                                <td><button type="button" class="cr-link" @ref="_triggers[tx.CollectionId]" @onclick="() => Open(tx)">@tx.Reference</button></td>
+                                <td>@(tx.Instrument switch { RevenueInstrumentType.OfficialReceipt => "OR", RevenueInstrumentType.CashTicket => "CT", _ => "—" })</td>
+                                <td>@(string.IsNullOrWhiteSpace(tx.Payor) ? "—" : tx.Payor)</td>
+                                <td>@(tx.Collector ?? "Office")</td>
+                                <td>@tx.Source</td>
+                                <td class="v3-num">@Money(tx.Amount)</td>
+                                <td><span class="cr-status cr-status-@tx.Status.ToLowerInvariant()">@tx.Status</span></td>
                             </tr>
                         }
-                        @if (_data.Rows.Count == 0)
+                        @if (Visible.Count == 0)
                         {
-                            <tr><td class="v3-empty" colspan="9">No collection matches these filters.</td></tr>
+                            <tr><td class="v3-empty" colspan="8">@(_search.Length > 0 ? "No transaction matches this search." : "No collection matches these filters.")</td></tr>
                         }
                     </tbody>
                 </table>
             </div>
+            @if (_classification.Length > 0)
+            {
+                <p class="cr-note">Amounts are the selected revenue line of each collection; open an SRC for the whole collection.</p>
+            }
             @if (_data.RowsTruncated)
             {
-                <p class="cr-note">The register shows the newest 2,000 rows; the summary above covers the whole period.</p>
+                <p class="cr-note">The register shows the newest @_transactions.Count.ToString("N0") transactions and search covers only these; the summary above covers the whole period.</p>
             }
         </div>
     }
 
-    @if (_document is { } doc)
+    @if (_open is { } open)
     {
-        <aside class="cr-panel cr-doc" aria-label="Collection detail">
-            <header class="cr-doc-head">
-                <h3>@doc.PayorName@(string.IsNullOrWhiteSpace(doc.PayorName) ? "Collection" : "") · @doc.ReferenceCode</h3>
-                <button class="v3-btn v3-btn-sm no-print" type="button" @onclick="() => _document = null">Close</button>
-            </header>
-            <p class="cr-note">Collection recorded
-                · @doc.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
-                · @(doc.CollectorName ?? "Office")
-                @(string.IsNullOrWhiteSpace(doc.DocumentNumber) ? "" : $"· physical document {doc.DocumentNumber}")
-                @(doc.RemittanceId is null ? "· not yet remitted" : $"· covered by a remittance ({doc.RemittanceStatus})")</p>
-            <table class="v3-table" aria-label="Collection lines">
-                <tbody>
-                    @foreach (var line in doc.Lines)
-                    {
-                        <tr>
-                            <td>@SourceNames.Name(line.ClassificationName)<span class="v3-block cr-note">@line.SourceLabel</span>
-                                @foreach (var detail in line.Details) { <span class="v3-block cr-note">@detail</span> }</td>
-                            <td class="v3-num">@Money(line.Amount)</td>
-                        </tr>
-                    }
-                </tbody>
-                <tfoot><tr><td><strong>Total</strong></td><td class="v3-num v3-strong">@Money(doc.Total)</td></tr></tfoot>
-            </table>
-        </aside>
+        <CollectionDetailModal CollectionId="open.CollectionId" Reference="@open.Reference" BusinessDate="open.Date" OnClose="CloseAsync" />
     }
 </section>
 
@@ -181,15 +150,28 @@
     [Parameter, EditorRequired] public DateOnly To { get; set; }
     [Parameter] public string PeriodLabel { get; set; } = string.Empty;
 
+    /// <summary>One visible transaction: every register line of one SRC, added back together.</summary>
+    private sealed record Transaction(Guid CollectionId, DateOnly Date, string Reference, RevenueInstrumentType? Instrument, string? Payor,
+        string? Collector, string Source, decimal Amount, string Status);
+
     private CollectionsRegisterDto? _data;
+    private List<Transaction> _transactions = [];
     private List<CollectionsSummaryLineDto> _summaryOptions = [];
-    private CollectionDocumentDto? _document;
+    private Transaction? _open;
+    private readonly Dictionary<Guid, ElementReference> _triggers = [];
     private string? _error;
     private bool _loading;
     private string _instrument = string.Empty;
     private string _classification = string.Empty;
+    private string _search = string.Empty;
     private DateOnly _loadedFrom;
     private DateOnly _loadedTo;
+
+    private List<Transaction> Visible => _search.Length == 0 ? _transactions : _transactions.Where(Matches).ToList();
+
+    private bool Matches(Transaction tx) =>
+        new[] { tx.Reference, tx.Payor, tx.Collector ?? "Office", tx.Source, tx.Date.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) }
+            .Any(x => x?.Contains(_search, StringComparison.OrdinalIgnoreCase) == true);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -197,7 +179,8 @@
         _loadedFrom = From;
         _loadedTo = To;
         _classification = string.Empty;
-        _document = null;
+        _search = string.Empty;
+        _open = null;
         await LoadAsync();
     }
 
@@ -213,19 +196,44 @@
             if (result.IsSuccess)
             {
                 _data = result.Value;
+                _transactions = Group(_data!);
                 if (_classification == string.Empty) _summaryOptions = _data!.Summary.ToList();
             }
-            else { _data = null; _error = "The collections could not be loaded."; }
+            else { _data = null; _transactions = []; _error = "The collections could not be loaded."; }
         }
-        catch { _data = null; _error = "The collections could not be loaded."; }
+        catch { _data = null; _transactions = []; _error = "The collections could not be loaded."; }
         finally { _loading = false; }
     }
 
-    private async Task OpenAsync(Guid collectionId)
+    // The server sends the newest rows first and a collection's lines together. When the list was cut at its row limit, the last
+    // collection may have lost lines, so it is left out rather than shown with an amount that is not the whole collection.
+    private static List<Transaction> Group(CollectionsRegisterDto data)
     {
-        var result = await Api.GetCollectionAsync(collectionId);
-        _document = result.IsSuccess ? result.Value : null;
-        if (!result.IsSuccess) _error = "That collection could not be opened.";
+        var groups = data.Rows.GroupBy(r => r.CollectionId).ToList();
+        if (data.RowsTruncated && groups.Count > 1) groups.RemoveAt(groups.Count - 1);
+        return groups.Select(g =>
+        {
+            var first = g.First();
+            var amount = g.Sum(r => r.Amount);
+            var effect = g.Sum(r => r.CorrectionEffect);
+            var names = g.Select(r => SourceNames.Name(r.ClassificationName)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var source = names.Count <= 2 ? string.Join(" · ", names) : $"{names[0]} + {names.Count - 1} more";
+            return new Transaction(first.CollectionId, first.BusinessDate, first.ReferenceCode, first.Instrument, first.PayorName, first.CollectorName,
+                source, amount, effect == 0m ? "Posted" : amount + effect <= 0m ? "Reversed" : "Corrected");
+        }).ToList();
+    }
+
+    private void Open(Transaction tx) => _open = tx;
+
+    private async Task CloseAsync()
+    {
+        var id = _open?.CollectionId;
+        _open = null;
+        StateHasChanged();
+        if (id is { } key && _triggers.TryGetValue(key, out var trigger))
+        {
+            try { await trigger.FocusAsync(); } catch (InvalidOperationException) { }
+        }
     }
 
     private async Task PrintAsync() => await JS.InvokeVoidAsync("print");

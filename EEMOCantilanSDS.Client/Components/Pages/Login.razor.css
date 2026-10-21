@@ -115,14 +115,10 @@
     line-height: 1.5;
 }
 
-/* The one gold accent: a short municipal rule between the government lines and the system name. */
-.login-panel-divider {
-    display: block;
-    width: 32px;
-    height: 2px;
-    margin: 2px auto 10px;
-    background: var(--gold);
-    border-radius: 2px;
+/* Login branding stays clean: suppress the shared gold underline without changing other auth pages. */
+body .setup-root .setup-brand-title.login-brand-title::after {
+    content: none;
+    display: none;
 }
 
 .login-secure-access {
@@ -481,7 +477,7 @@
     .setup-brand-city { font-size: 13px; margin-bottom: 5px; }
     .setup-brand-title { font-size: 39px; }
     .setup-brand-sub { font-size: 12px; }
-    .login-panel-divider, .login-secure-access, .setup-left-footer { display: none; }
+    .login-secure-access, .setup-left-footer { display: none; }
     .setup-step-row { display: none; }
     .setup-right { height: auto; min-height: calc(100vh - 235px); padding: 28px 20px 32px; overflow: visible; }
     .setup-right::before { background: rgba(246, 248, 252, 0.88); }

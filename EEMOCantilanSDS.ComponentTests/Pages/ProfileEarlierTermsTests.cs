@@ -85,7 +85,7 @@ public class ProfileEarlierTermsTests : TestContext
         Services.AddSingleton(payments.Object);
         Services.AddSingleton(Mock.Of<IFacilitiesApiClient>());
         Services.AddSingleton(Mock.Of<IDailyCollectionApiClient>());
-        Services.AddSingleton(Mock.Of<ISetupApiClient>());
+        Services.AddSingleton(Mock.Of<ILifecycleApiClient>()); Services.AddSingleton(Mock.Of<ISetupApiClient>());
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.FacilityState>();

@@ -21,8 +21,11 @@ public class EcfPhilippineTimeTests
             "Menus",
             "ElectricityConsumptionFees.razor"));
 
-        Assert.Contains("private DateTime _period = PhilippineTime.Today.ToDateTime(TimeOnly.MinValue);", page);
-        Assert.Contains("_period = PhilippineTime.Today.ToDateTime(TimeOnly.MinValue);", page);
+        var workspace = File.ReadAllText(Path.Combine(dir.FullName, "EEMOCantilanSDS.Client", "Components", "Shared", "UtilityWorkspace.razor"));
+        Assert.Contains("PhilippineTime.Today.Year", workspace);
+        Assert.Contains("PhilippineTime.Today.Month", workspace);
+        Assert.DoesNotContain("DateTime.Today", workspace);
+        Assert.Contains("PhilippineTime.Today", page);
         Assert.Contains("PhilippineTime.ToPhilippineTime(activity.RecordedAtUtc).ToString(\"HH:mm\")", page);
         Assert.DoesNotContain("DateTime.Today", page);
         Assert.DoesNotContain("RecordedAtUtc.ToLocalTime()", page);

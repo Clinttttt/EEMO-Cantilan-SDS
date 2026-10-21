@@ -19,6 +19,10 @@ public sealed class ObligationAccountConfiguration : IEntityTypeConfiguration<Ob
                 "OR (\"Kind\" IN (2, 4) AND \"StallId\" IS NULL AND \"Event\" IS NULL AND \"EventDate\" IS NULL) " +
                 "OR (\"Kind\" = 3 AND \"StallId\" IS NULL AND \"Event\" IN (1, 2) AND \"EventDate\" IS NOT NULL))");
             table.HasCheckConstraint("CK_ObligationAccounts_Window", "\"ActiveTo\" IS NULL OR \"ActiveTo\" >= \"ActiveFrom\"");
+            // A physical-space registration belongs to a monthly space only, and an occupancy never follows itself.
+            table.HasCheckConstraint("CK_ObligationAccounts_SpaceIdentity",
+                "(\"SpaceRegistrationId\" IS NULL OR \"Kind\" IN (2, 4)) AND (\"PredecessorAccountId\" IS NULL OR (\"SpaceRegistrationId\" IS NOT NULL AND \"PredecessorAccountId\" <> \"Id\"))");
+            table.HasCheckConstraint("CK_ObligationAccounts_Retired", "\"RetiredAtUtc\" IS NULL OR \"ActiveTo\" IS NOT NULL");
             table.HasCheckConstraint("CK_ObligationAccounts_SourceHolder", "\"PayorId\" IS NOT NULL OR (\"Kind\" IN (2, 3, 4) AND \"ActualOccupant\" IS NOT NULL AND length(trim(\"ActualOccupant\")) > 0)");
         });
         builder.HasKey(x => x.Id);
@@ -30,6 +34,7 @@ public sealed class ObligationAccountConfiguration : IEntityTypeConfiguration<Ob
         builder.Property(x => x.ContractName).HasMaxLength(200);
         builder.Property(x => x.AreaLocation).HasMaxLength(250);
         builder.Property(x => x.AreaSqm).HasPrecision(12, 2);
+        builder.Property(x => x.ContractMonthlyRate).HasPrecision(12, 2);
         builder.Property(x => x.SubjectLabel).HasMaxLength(120).IsRequired();
         builder.Property(x => x.ActualOccupant).HasMaxLength(200);
         builder.Property(x => x.ActiveFrom).IsRequired();
@@ -47,6 +52,99 @@ public sealed class ObligationAccountConfiguration : IEntityTypeConfiguration<Ob
             .HasForeignKey(x => new { x.MunicipalityId, x.PayorId })
             .HasPrincipalKey(x => new { x.MunicipalityId, x.Id })
             .OnDelete(DeleteBehavior.Restrict);
+        // The physical space and the occupancy chain, tenant-composite so a space or predecessor of another municipality cannot be named.
+        builder.HasOne<SpaceRegistration>().WithMany()
+            .HasForeignKey(x => new { x.MunicipalityId, x.SpaceRegistrationId })
+            .HasPrincipalKey(x => new { x.MunicipalityId, x.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<ObligationAccount>().WithMany()
+            .HasForeignKey(x => new { x.MunicipalityId, x.PredecessorAccountId })
+            .HasPrincipalKey(x => new { x.MunicipalityId, x.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(x => new { x.MunicipalityId, x.SpaceRegistrationId });
+        // One successor per predecessor. (The exclusion constraint that forbids overlapping occupancies on one space is raw SQL in the
+        // migration: EF cannot model a gist exclusion, and it needs the btree_gist extension.)
+        builder.HasIndex(x => new { x.MunicipalityId, x.PredecessorAccountId }).IsUnique()
+            .HasFilter("\"PredecessorAccountId\" IS NOT NULL");
+    }
+}
+
+public sealed class SpaceRegistrationConfiguration : IEntityTypeConfiguration<SpaceRegistration>
+{
+    public void Configure(EntityTypeBuilder<SpaceRegistration> builder)
+    {
+        builder.ToTable("SpaceRegistrations", table =>
+            table.HasCheckConstraint("CK_SpaceRegistrations_Kind", "\"Kind\" IN (2, 4)"));
+        builder.HasKey(x => x.Id);
+        builder.HasAlternateKey(x => new { x.MunicipalityId, x.Id });
+        builder.Property(x => x.Kind).HasConversion<int>().IsRequired();
+        builder.Property(x => x.DisplayNumber).HasMaxLength(120).IsRequired();
+        builder.Property(x => x.NormalizedNumber).HasMaxLength(120).IsRequired();
+        builder.Property(x => x.CreatedAtUtc).IsRequired();
+        builder.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
+        // One physical space per tenant, source and normalized number: "7" and "007" are the same space.
+        builder.HasIndex(x => new { x.MunicipalityId, x.Kind, x.NormalizedNumber }).IsUnique();
+        builder.HasOne<Municipality>().WithMany().HasForeignKey(x => x.MunicipalityId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public sealed class SpaceLifecycleEventConfiguration : IEntityTypeConfiguration<SpaceLifecycleEvent>
+{
+    public void Configure(EntityTypeBuilder<SpaceLifecycleEvent> builder)
+    {
+        builder.ToTable("SpaceLifecycleEvents");
+        builder.HasKey(x => x.Id);
+        builder.HasAlternateKey(x => new { x.MunicipalityId, x.Id });
+        builder.Property(x => x.Action).HasConversion<int>().IsRequired();
+        builder.Property(x => x.IntentFingerprint).HasMaxLength(64).IsRequired();
+        builder.Property(x => x.PreviewVersion).HasMaxLength(64).IsRequired();
+        builder.Property(x => x.Reason).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.Evidence).HasMaxLength(500);
+        builder.Property(x => x.ActorName).HasMaxLength(100).IsRequired();
+        builder.Property(x => x.RecordedAtUtc).IsRequired();
+        // The idempotency key: one operation id per tenant, ever.
+        builder.HasIndex(x => new { x.MunicipalityId, x.ClientOperationId }).IsUnique();
+        builder.HasIndex(x => new { x.MunicipalityId, x.SpaceRegistrationId, x.RecordedAtUtc });
+        builder.HasOne<SpaceRegistration>().WithMany()
+            .HasForeignKey(x => new { x.MunicipalityId, x.SpaceRegistrationId })
+            .HasPrincipalKey(x => new { x.MunicipalityId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<ObligationAccount>().WithMany()
+            .HasForeignKey(x => new { x.MunicipalityId, x.SourceAccountId })
+            .HasPrincipalKey(x => new { x.MunicipalityId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<ObligationAccount>().WithMany()
+            .HasForeignKey(x => new { x.MunicipalityId, x.ResultAccountId })
+            .HasPrincipalKey(x => new { x.MunicipalityId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public sealed class SpaceContractTermConfiguration : IEntityTypeConfiguration<SpaceContractTerm>
+{
+    public void Configure(EntityTypeBuilder<SpaceContractTerm> builder)
+    {
+        builder.ToTable("SpaceContractTerms", table =>
+            table.HasCheckConstraint("CK_SpaceContractTerms_Years", "\"Years\" BETWEEN 1 AND 50"));
+        builder.HasKey(x => x.Id);
+        builder.HasAlternateKey(x => new { x.MunicipalityId, x.Id });
+        builder.Property(x => x.ContractName).HasMaxLength(200);
+        builder.Property(x => x.Reference).HasMaxLength(200);
+        builder.Property(x => x.ApprovalEvidence).HasMaxLength(500).IsRequired();
+        builder.Property(x => x.ActorName).HasMaxLength(100).IsRequired();
+        builder.Property(x => x.RecordedAtUtc).IsRequired();
+        builder.HasIndex(x => new { x.MunicipalityId, x.ObligationAccountId, x.Commencement });
+        // A term has at most one successor term.
+        builder.HasIndex(x => new { x.MunicipalityId, x.PriorTermId }).IsUnique().HasFilter("\"PriorTermId\" IS NOT NULL");
+        builder.HasOne<ObligationAccount>().WithMany()
+            .HasForeignKey(x => new { x.MunicipalityId, x.ObligationAccountId })
+            .HasPrincipalKey(x => new { x.MunicipalityId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<SpaceRegistration>().WithMany()
+            .HasForeignKey(x => new { x.MunicipalityId, x.SpaceRegistrationId })
+            .HasPrincipalKey(x => new { x.MunicipalityId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<SpaceContractTerm>().WithMany()
+            .HasForeignKey(x => new { x.MunicipalityId, x.PriorTermId })
+            .HasPrincipalKey(x => new { x.MunicipalityId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<SpaceLifecycleEvent>().WithMany()
+            .HasForeignKey(x => new { x.MunicipalityId, x.LifecycleEventId })
+            .HasPrincipalKey(x => new { x.MunicipalityId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     }
 }
 

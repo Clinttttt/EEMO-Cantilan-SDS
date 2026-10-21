@@ -3,6 +3,7 @@ using Bunit.TestDoubles;
 using EEMOCantilanSDS.Application.Common;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
+using EEMOCantilanSDS.Application.Dtos.Collections;
 using EEMOCantilanSDS.Client.Components.Pages.Reports;
 using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,6 +20,7 @@ public sealed class OfficialReportPanelsTests : TestContext
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
     private readonly Mock<IOfficialReportsApiClient> _reports = new();
     private readonly Mock<IRemittancesApiClient> _remittances = new();
+    private readonly Mock<ICollectionActivityApiClient> _activity = new();
 
     public OfficialReportPanelsTests()
     {
@@ -28,6 +30,7 @@ public sealed class OfficialReportPanelsTests : TestContext
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
         Services.AddSingleton(_reports.Object);
+        Services.AddSingleton(_activity.Object);
         Services.AddSingleton(Mock.Of<ISettingsApiClient>());
         Services.AddSingleton(_remittances.Object);
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -172,40 +175,99 @@ public sealed class OfficialReportPanelsTests : TestContext
         ], 280m, 0m, 280m, false);
     }
 
-    [Fact]
-    public void AnItemizedOfficialReceipt_ReadsAsOneDocumentWithItsLines_NotSeveralReceipts()
+    private static CollectionsRegisterDto Itemized(Guid collection, string[] names, decimal[] amounts, bool truncated = false)
     {
-        var collection = Guid.NewGuid();
-        var rent = Guid.NewGuid();
-        var ecf = Guid.NewGuid();
-        var register = new CollectionsRegisterDto(new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30),
-        [
-            new CollectionRegisterRowDto(collection, new DateOnly(2026, 9, 5), "SRC-2026-000001", null, RevenueInstrumentType.OfficialReceipt, "Lisa Cruz", null, null,
-                rent, "Stall Rental", "NPM · Stall 12", 500m, 0m, "Posted"),
-            new CollectionRegisterRowDto(collection, new DateOnly(2026, 9, 5), "SRC-2026-000001", null, RevenueInstrumentType.OfficialReceipt, "Lisa Cruz", null, null,
-                ecf, "General Distribution / ECF", "ECF · Stall 12", 650m, 0m, "Posted"),
-        ],
-        [
-            new CollectionsSummaryLineDto(rent, "Stall Rental", 1, 500m, 0m, 500m, "SRC-2026-000001", "SRC-2026-000001"),
-            new CollectionsSummaryLineDto(ecf, "General Distribution / ECF", 1, 650m, 0m, 650m, "SRC-2026-000001", "SRC-2026-000001"),
-        ], 1150m, 0m, 1150m, false);
+        var rows = names.Select((n, i) => new CollectionRegisterRowDto(collection, new DateOnly(2026, 9, 5), "SRC-2026-000001", null, RevenueInstrumentType.OfficialReceipt,
+            "Lisa Cruz", null, null, Guid.NewGuid(), n, n, amounts[i], 0m, "Posted")).ToList();
+        return new CollectionsRegisterDto(new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30), rows,
+            rows.Select(r => new CollectionsSummaryLineDto(r.ClassificationId, r.ClassificationName, 1, r.Amount, 0m, r.Amount, r.ReferenceCode, r.ReferenceCode)).ToList(),
+            amounts.Sum(), 0m, amounts.Sum(), truncated);
+    }
+
+    private IRenderedComponent<CollectionsRegisterPanel> RenderCollections(CollectionsRegisterDto register)
+    {
         _reports.Setup(x => x.GetCollectionsAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), null, null, null))
             .ReturnsAsync(Result<CollectionsRegisterDto>.Success(register));
+        return RenderComponent<CollectionsRegisterPanel>(p => p.Add(x => x.From, new DateOnly(2026, 9, 1)).Add(x => x.To, new DateOnly(2026, 9, 30)).Add(x => x.PeriodLabel, "September 2026"));
+    }
 
-        var cut = RenderComponent<CollectionsRegisterPanel>(p => p.Add(x => x.From, new DateOnly(2026, 9, 1)).Add(x => x.To, new DateOnly(2026, 9, 30)).Add(x => x.PeriodLabel, "September 2026"));
+    [Fact]
+    public void AnItemizedCollection_IsOneTransaction_WhoseAmountIsTheSumOfItsLines_AndTheSummaryIsUnchanged()
+    {
+        var cut = RenderCollections(Itemized(Guid.NewGuid(), ["Stall Rental", "General Distribution / ECF"], [500m, 650m]));
 
         cut.WaitForAssertion(() =>
         {
-            var rows = cut.FindAll("[aria-label='Collections register'] tbody tr");
-            Assert.Equal(2, rows.Count);                                         // both revenue lines are listed...
-            Assert.Single(cut.FindAll("button.cr-link"));                          // ...under one document link
-            Assert.Contains("cr-cont", rows[1].GetAttribute("class"));
-            Assert.Contains("General Distribution / ECF", rows[1].TextContent);
+            var row = Assert.Single(cut.FindAll("[aria-label='Collections register'] tbody tr"));   // one SRC, one row
+            Assert.Contains("Stall Rental · General Distribution / ECF", row.TextContent);          // a multi-line source is named, not collapsed to one line
+            Assert.Contains("₱1,150.00", row.TextContent);
+            Assert.Single(cut.FindAll("button.cr-link"));
+            Assert.Equal(2, cut.FindAll("table[aria-label='Collections by revenue line'] tbody tr").Count);   // revenue-line totals still per classification
+            Assert.Equal("Collection transactions", cut.Find(".cr-panel-head h3").TextContent.Trim());
         }, Timeout);
     }
 
     [Fact]
-    public void CollectionsRegister_ShowsTheServerSummaryAndRows_AndOpensTheItemizedDocument()
+    public void ThreeSlaughterhouseLines_AppearOnceInTheRegister_WithTheFullAmount()
+    {
+        var cut = RenderCollections(Itemized(Guid.NewGuid(), ["Slaughterhouse", "Slaughterhouse", "Slaughterhouse"], [100m, 50m, 20m]));
+
+        cut.WaitForAssertion(() =>
+        {
+            var row = Assert.Single(cut.FindAll("[aria-label='Collections register'] tbody tr"));
+            Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(row.TextContent, "Slaughterhouse").Count);
+            Assert.Contains("₱170.00", row.TextContent);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void TheToolbarKeepsAccessibleNamesWithoutVisibleLabels_AndTheRegisterHasNoOperationColumn()
+    {
+        var cut = RenderCollections(Register());
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(cut.Find("select[aria-label='Instrument']"));
+            Assert.NotNull(cut.Find("select[aria-label='Revenue line']"));
+            Assert.Empty(cut.FindAll(".cr-tools .v3-field"));
+            var headings = cut.FindAll("[aria-label='Collections register'] thead th").Select(h => h.TextContent.Trim()).ToList();
+            Assert.DoesNotContain("Operation / source", headings);
+            Assert.Contains("Revenue line", headings);
+            Assert.DoesNotContain("Legacy-source", cut.Markup);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void Search_FindsATransactionBySrcOrPayer_AndSaysWhenNothingMatches()
+    {
+        var cut = RenderCollections(Register());
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[aria-label='Collections register'] tbody tr").Count), Timeout);
+
+        cut.Find("input[aria-label='Search transactions']").Input("000201");
+        Assert.Contains("SRC-2026-000201", Assert.Single(cut.FindAll("[aria-label='Collections register'] tbody tr")).TextContent);
+        cut.Find("input[aria-label='Search transactions']").Input("ana");
+        Assert.Contains("SRC-2026-000101", Assert.Single(cut.FindAll("[aria-label='Collections register'] tbody tr")).TextContent);
+        cut.Find("input[aria-label='Search transactions']").Input("nobody");
+        Assert.Contains("No transaction matches", cut.Find("[aria-label='Collections register'] tbody").TextContent);
+    }
+
+    [Fact]
+    public void ATruncatedRegister_LeavesOutTheCollectionItMayHaveSplit_AndSaysSo()
+    {
+        var split = Guid.NewGuid();
+        var whole = Itemized(Guid.NewGuid(), ["Market Fees"], [30m]);
+        var cutRow = whole.Rows[0] with { CollectionId = split, ReferenceCode = "SRC-2026-000002", Amount = 40m };
+        var cut = RenderCollections(whole with { Rows = [whole.Rows[0], cutRow], RowsTruncated = true });
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Single(cut.FindAll("[aria-label='Collections register'] tbody tr"));
+            Assert.Contains("search covers only these", cut.Markup);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void CollectionsRegister_ShowsTheServerSummaryAndRows_AndOpensTheItemizedCollectionInAModal()
     {
         var register = Register();
         _reports.Setup(x => x.GetCollectionsAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), null, null, null))
@@ -227,14 +289,60 @@ public sealed class OfficialReportPanelsTests : TestContext
             Assert.Contains("Office", cut.Markup);   // a Web collection has no collector
         }, Timeout);
 
+        Assert.Empty(cut.FindAll("[role='dialog']"));
         cut.FindAll("button.cr-link").Single(b => b.TextContent.Trim() == "SRC-2026-000201").Click();
         cut.WaitForAssertion(() =>
         {
-            var doc = cut.Find("aside[aria-label='Collection detail']");
+            var doc = cut.Find("[role='dialog']");
             Assert.Contains("SRC-2026-000201", doc.TextContent);
-            Assert.Contains("not yet remitted", doc.TextContent);
+            Assert.Contains("Not yet remitted", doc.TextContent);
             Assert.Contains("ICE allocation", doc.TextContent);
+            Assert.Contains("₱250.00", doc.TextContent);
+            Assert.Contains("Gross collection", doc.TextContent);
         }, Timeout);
+        _reports.Verify(x => x.GetCollectionAsync(target.CollectionId), Times.Once);       // the clicked collection, not another
+
+        cut.Find("[role='dialog']").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Escape" });
+        Assert.Empty(cut.FindAll("[role='dialog']"));
+    }
+
+    [Fact]
+    public void TheCollectionModal_UsesTheRecordedChargeNames_OnlyWhenTheyAddBackToTheCollection()
+    {
+        var collection = Guid.NewGuid();
+        var register = Itemized(collection, ["Slaughterhouse", "Slaughterhouse"], [120m, 50m]);
+        _reports.Setup(x => x.GetCollectionAsync(collection)).ReturnsAsync(Result<CollectionDocumentDto>.Success(new CollectionDocumentDto(
+            collection, "SRC-2026-000001", null, RevenueInstrumentType.OfficialReceipt, null, new DateOnly(2026, 9, 5), DateTime.UtcNow, "Lisa Cruz", "Ana Reyes", 170m, -20m,
+            [new CollectionDocumentLineDto("Slaughterhouse", "Slaughterhouse", 120m, -20m, []), new CollectionDocumentLineDto("Slaughterhouse", "Slaughterhouse", 50m, 0m, [])], null, null)));
+        ActivityEvent(collection, [new CollectionActivityLineDto("SLAUGHTERHOUSE", "Slaughterhouse", 120m, "GovernedService", null, null, null, null, "Slaughter fee · Hog", "Slaughterhouse"),
+            new CollectionActivityLineDto("SLAUGHTERHOUSE", "Slaughterhouse", 50m, "GovernedService", null, null, null, null, "Inspection fee", "Slaughterhouse")], 170m);
+        var cut = RenderCollections(register);
+        cut.WaitForAssertion(() => cut.Find("button.cr-link"), Timeout);
+
+        cut.Find("button.cr-link").Click();
+        cut.WaitForAssertion(() =>
+        {
+            var dialog = cut.Find("[role='dialog']");
+            Assert.Contains("Slaughter fee · Hog", dialog.TextContent);
+            Assert.Contains("Inspection fee", dialog.TextContent);
+            Assert.Contains("Ana Reyes", dialog.TextContent);
+            Assert.Contains("₱170.00", dialog.TextContent);                               // gross
+            Assert.Contains("₱150.00", dialog.TextContent);                               // net after the ₱20.00 correction
+        }, Timeout);
+        cut.Find("[role='dialog'] .cdm-foot button").Click();
+
+        // Recorded charges that do not add back to the collection are not trusted: the report's own lines are shown instead.
+        ActivityEvent(collection, [new CollectionActivityLineDto("SLAUGHTERHOUSE", "Slaughterhouse", 100m, "GovernedService", null, null, null, null, "Stray fee", "Slaughterhouse")], 100m);
+        cut.Find("button.cr-link").Click();
+        cut.WaitForAssertion(() => Assert.DoesNotContain("Stray fee", cut.Find("[role='dialog']").TextContent), Timeout);
+    }
+
+    private void ActivityEvent(Guid collection, IReadOnlyList<CollectionActivityLineDto> lines, decimal amount)
+    {
+        var e = new CollectionActivityEventDto("k", "Canonical", "Slaughterhouse", collection, new DateOnly(2026, 9, 5), DateTime.UtcNow, "SRC-2026-000001", null, null, [], [],
+            "Lisa Cruz", null, null, "Ana Reyes", "Ana Reyes", null, null, null, amount, 0m, amount, "Posted", null, lines, []);
+        _activity.Setup(x => x.GetAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<FacilityCode?>(), It.IsAny<Guid?>(), It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<string?>()))
+            .ReturnsAsync(Result<CollectionActivityFeedDto>.Success(new(new DateOnly(2026, 9, 5), new DateOnly(2026, 9, 5), "Business date", "Net", DateTime.UtcNow, [e], 1, false, 0m, amount, 0m, amount, [])));
     }
 
     [Fact]
@@ -258,12 +366,17 @@ public sealed class OfficialReportPanelsTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            var row = Assert.Single(cut.FindAll("[aria-label='Collector accountability'] tbody tr"));
-            Assert.Contains("10000", row.TextContent);
-            Assert.Contains("9275", row.TextContent);
-            Assert.Contains("₱20,000.00", row.TextContent);
+            // Cash and forms are separate tables: pesos in one, counts in the other.
+            var cash = Assert.Single(cut.FindAll("[aria-label='Collector accountability'] tbody tr"));
+            Assert.Contains("₱20,000.00", cash.TextContent);
+            Assert.DoesNotContain("10000", cash.TextContent);
+            var forms = Assert.Single(cut.FindAll("[aria-label='Accountable forms'] tbody tr"));
+            Assert.Contains("10000", forms.TextContent);
+            Assert.Contains("9275", forms.TextContent);
             Assert.DoesNotContain("₱9,275", cut.Markup);   // remaining tickets are never money
-            Assert.Contains("never an amount", cut.Markup);
+            Assert.DoesNotContain("never an amount", cut.Markup);
+            Assert.Equal("Trace an OR or SRC", cut.Find("label.ap-trace-label").TextContent.Trim());
+            Assert.Equal("Enter OR number or SRC", cut.Find("form[aria-label='Trace a document'] input").GetAttribute("placeholder"));
         }, Timeout);
 
         cut.Find("form[aria-label='Trace a document'] input").Change("CT-004120");
@@ -272,12 +385,118 @@ public sealed class OfficialReportPanelsTests : TestContext
         {
             var trace = cut.Find("dl[aria-label='Document trace']").TextContent;
             Assert.Contains("Issued / consumed", trace);
-            Assert.Contains("Market Fees ₱30.00", trace);
             Assert.Contains("Covered (Recorded)", trace);
+            var card = cut.Find(".ap-card").TextContent;
+            Assert.Contains("Market Fees", card);
+            Assert.Contains("₱30.00", card);
         }, Timeout);
     }
 
-    // ── Official Monthly Income: the final statement, in the office sheet's structure ──
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Accountability_TracesSRCThroughCollectionAndAuthoritativeRemittanceCoverage(bool covered)
+    {
+        var date = new DateOnly(2026, 10, 12);
+        var collectionId = Guid.NewGuid();
+        var remittanceId = covered ? Guid.NewGuid() : (Guid?)null;
+        const string reference = "SRC-2026-000016";
+        var activity = new CollectionActivityEventDto(
+            EventKey: "canonical-one", Authority: "Canonical", Source: "ECF", CollectionId: collectionId,
+            BusinessDate: date, RecordedAtUtc: DateTime.UtcNow, ReferenceCode: reference, DocumentNumber: null,
+            InstrumentType: null, ReplacementDocumentNumbers: [], ReplacementReferenceCodes: [],
+            PayerName: "Delta Rall", PayorId: null, CollectorId: null, CollectorName: "Personalunos",
+            RecordedBy: "Personalunos", Facility: null, Subject: "Stall 2", LegacyStatus: null,
+            Amount: 656m, CorrectionEffect: 0m, NetAmount: 656m, Disposition: "Posted",
+            ReplacesCollectionId: null, Lines: [], Corrections: []);
+        _activity.Setup(x => x.GetAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(),
+            It.IsAny<FacilityCode?>(), It.IsAny<Guid?>(), It.IsAny<string?>(), It.IsAny<int>(), reference))
+            .ReturnsAsync(Result<CollectionActivityFeedDto>.Success(new CollectionActivityFeedDto(
+                date, date, "Business date", "LatestCorrected", DateTime.UtcNow, [activity],
+                1, false, 0m, 656m, 0m, 656m, [])));
+        _reports.Setup(x => x.GetCollectionAsync(collectionId))
+            .ReturnsAsync(Result<CollectionDocumentDto>.Success(new CollectionDocumentDto(
+                collectionId, reference, null, null, null, date, DateTime.UtcNow, "Delta Rall", "Personalunos",
+                656m, 0m, [new CollectionDocumentLineDto("Electricity Consumption Fees", "ECF", 656m, 0m, [])],
+                remittanceId, covered ? "Recorded" : null)));
+
+        var cut = RenderComponent<AccountabilityPanel>(p => p
+            .Add(x => x.From, new DateOnly(2026, 10, 1))
+            .Add(x => x.To, new DateOnly(2026, 10, 31))
+            .Add(x => x.PeriodLabel, "October 2026"));
+        cut.Find("form[aria-label='Trace a document'] input").Change("src-2026-000016");
+        cut.Find("form[aria-label='Trace a document']").Submit();
+        cut.WaitForAssertion(() =>
+        {
+            var result = cut.Find("dl[aria-label='Collection reference trace']").TextContent;
+            Assert.Contains(reference, result);
+            Assert.Contains("Delta Rall", result);
+            Assert.Contains("₱656.00", cut.Find(".ap-card").TextContent);
+            Assert.Contains("No linked physical document", result);
+            Assert.Contains(covered ? "Covered (Recorded)" : "Not yet covered by a remittance", result);
+            Assert.Equal(covered ? 1 : 0, cut.FindAll("dl[aria-label='Collection reference trace'] a[href^='/remittances/']").Count);
+            Assert.Empty(cut.FindAll("dl[aria-label='Document trace']"));
+        }, Timeout);
+        _reports.Verify(x => x.TraceDocumentAsync(It.IsAny<string>()), Times.Never);
+        _reports.Verify(x => x.GetCollectionAsync(collectionId), Times.Once);
+    }
+
+    [Fact]
+    public void Accountability_JoinsCollectorTotalsAndTable_WithoutTheOfficeOriginNotice()
+    {
+        _remittances.Setup(x => x.GetPositionAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(Result<AccountabilityPositionDto>.Success(new AccountabilityPositionDto(
+                new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31), 600m, 0m, 600m, 0, 0m, [], 1200m, 2)));
+        var cut = RenderComponent<AccountabilityPanel>(p => p
+            .Add(x => x.From, new DateOnly(2026, 10, 1)).Add(x => x.To, new DateOnly(2026, 10, 31)).Add(x => x.PeriodLabel, "October 2026"));
+
+        cut.WaitForAssertion(() =>
+        {
+            var panel = cut.Find(".ap-cash-panel");
+            var totals = panel.QuerySelector("dl[aria-label='Cash position']")!.TextContent;
+            Assert.Contains("600.00", totals);
+            Assert.DoesNotContain("1,200.00", totals);
+            Assert.DoesNotContain("1,800.00", totals);
+            Assert.NotNull(panel.QuerySelector("table"));
+            Assert.Empty(cut.FindAll(".ap-office"));
+            Assert.DoesNotContain("Office-origin cash", cut.Markup);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void Accountability_ShowsNoOfficeOriginNoteWhenThereIsNone()
+    {
+        _remittances.Setup(x => x.GetPositionAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(Result<AccountabilityPositionDto>.Success(new AccountabilityPositionDto(
+                new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31), 0m, 0m, 0m, 0, 0m, [])));
+        var cut = RenderComponent<AccountabilityPanel>(p => p
+            .Add(x => x.From, new DateOnly(2026, 10, 1)).Add(x => x.To, new DateOnly(2026, 10, 31)).Add(x => x.PeriodLabel, "October 2026"));
+        cut.WaitForAssertion(() => Assert.Contains("Unremitted", cut.Markup), Timeout);
+        Assert.Empty(cut.FindAll("p.v3-notice"));
+    }
+
+    [Fact]
+    public void Accountability_RejectsIncompleteSRCWithoutInventingADocumentOrRemittance()
+    {
+        _remittances.Setup(x => x.GetPositionAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(Result<AccountabilityPositionDto>.Success(new AccountabilityPositionDto(
+                new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31), 0m, 0m, 0m, 0, 0m, [])));
+        var cut = RenderComponent<AccountabilityPanel>(p => p
+            .Add(x => x.From, new DateOnly(2026, 10, 1))
+            .Add(x => x.To, new DateOnly(2026, 10, 31))
+            .Add(x => x.PeriodLabel, "October 2026"));
+        cut.Find("form[aria-label='Trace a document'] input").Change("SRC-2026");
+        cut.Find("form[aria-label='Trace a document']").Submit();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains(cut.FindAll("[role='alert']"), alert => alert.TextContent.Contains("Enter the full collection reference"));
+            Assert.Empty(cut.FindAll("dl[aria-label='Collection reference trace']"));
+        }, Timeout);
+        _activity.Verify(x => x.GetAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(),
+            It.IsAny<FacilityCode?>(), It.IsAny<Guid?>(), It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<string?>()), Times.Never);
+    }
+
+        // ── Official Monthly Income: the final statement, in the office sheet's structure ──
 
     private IRenderedComponent<OfficialMonthlyIncome> RenderOfficial(int year)
     {
@@ -675,7 +894,7 @@ public sealed class OfficialReportPanelsTests : TestContext
             Assert.Equal(headers, report.FindAll("table.rsp-table thead th").Select(h => h.TextContent.Trim()).ToArray());
             Assert.Equal(headers, overview.FindAll("table.rsp-table thead th").Select(h => h.TextContent.Trim()).ToArray());
             Assert.Contains("Revenue source performance — October 2026", report.Find("#rsp-title").TextContent);
-            Assert.Equal("Official collections and operating activity by revenue source for the selected period.", report.Find(".rsp-sub").TextContent.Trim());
+            Assert.Equal("Actual collections and operating activity by revenue source. Target attainment uses adjusted official income.", report.Find(".rsp-sub").TextContent.Trim());
             Assert.DoesNotContain("Targets partially configured", report.Markup);
             Assert.DoesNotContain("Targets partially configured", overview.Markup);
             Assert.Empty(report.FindAll(".rsp-cov"));
@@ -798,20 +1017,23 @@ public sealed class OfficialReportPanelsTests : TestContext
     }
 
     [Fact]
-    public void TheSummaryStatesTargetAttainmentByCoverage_NeverAnInventedFigure()
+    public void TheCashSummaryKeepsAnnualTargetsInRevenuePerformance_NotCashPosition()
     {
         TargetCoverageDto Coverage(TargetCoverageState state, decimal? attainment) => new(state, 1, 2, 1000m, 100m, attainment);
         string Text(TargetCoverageDto? coverage) => RenderComponent<SummaryCashPosition>(p => p
             .Add(x => x.Collected, 1m).Add(x => x.From, new DateOnly(2026, 1, 1)).Add(x => x.To, new DateOnly(2026, 10, 1))
             .Add(x => x.TargetCoverage, coverage)).Markup;
 
-        Assert.Contains("Not configured", Text(null));
-        var partial = Text(Coverage(TargetCoverageState.Partial, 10m));
-        Assert.Contains("1 of 2 configured", partial);
-        Assert.DoesNotContain("Partially", partial);
-        var complete = Text(Coverage(TargetCoverageState.Complete, 62.5m));
-        Assert.Contains("62.5%", complete);
-        Assert.DoesNotContain("Partially", complete);
+        // Target coverage moved to Revenue Source Performance. The cash position must
+        // not imply incomplete targets are zero, or confuse targets with collectible cash.
+        foreach (var markup in new[] { Text(null), Text(Coverage(TargetCoverageState.Partial, 10m)), Text(Coverage(TargetCoverageState.Complete, 62.5m)) })
+        {
+            Assert.Contains("Collections and accountability position", markup);
+            Assert.DoesNotContain("Not configured", markup);
+            Assert.DoesNotContain("1 of 2 configured", markup);
+            Assert.DoesNotContain("62.5%", markup);
+            Assert.DoesNotContain("Target attainment", markup);
+        }
     }
 
     [Fact]

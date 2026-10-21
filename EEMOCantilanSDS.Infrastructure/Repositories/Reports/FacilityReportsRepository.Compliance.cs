@@ -22,7 +22,7 @@ public partial class FacilityReportsRepository
     /// and the full "all stalls" table). Covers occupied stalls (active contract) only.
     /// Status/balance reflect the selected period; MissedMonths counts months in the
     /// period year (up to the period month) the stall was under contract yet paid nothing
-    /// (NPM recognises daily collections; see <see cref="CountMissedMonths"/>).
+    /// (NPM recognises daily collections; see <see cref="CountMissedMonthsAsync"/>).
     /// </summary>
     private async Task<IReadOnlyList<StallComplianceDto>> GenerateStallComplianceAsync(
         FacilityCode facilityCode,
@@ -32,7 +32,7 @@ public partial class FacilityReportsRepository
         CancellationToken ct,
         // Where the missed-month count starts. The report's All Stalls column counts this year (null → January),
         // while the arrears source counts a rolling twelve months and says so.
-        DateOnly? countMissedFrom = null)
+        DateOnly? countMissedFrom = null, DateOnly? balanceAsOf = null)
     {
         var stalls = (await _context.Stalls
             .AsNoTracking()
@@ -71,7 +71,7 @@ public partial class FacilityReportsRepository
                     || (pr.BillingYear == endDate.Year && pr.BillingMonth <= endDate.Month)))
             .ToListAsync(ct);
 
-        var includeFish = facilityCode == FacilityCode.NPM;
+        var includeFish = IsDailyMarket(facilityCode);
         var (complianceStart, complianceEnd) = (startDate, endDate);
 
         var periodPayments = paymentRecords
@@ -276,6 +276,11 @@ public partial class FacilityReportsRepository
                 amountPaid = DailyCollectedFrom(dailyRowsByStall, s.Id, accountStart);
             }
 
+            if (includeFish)
+            {
+                var delta = await MonthComplianceDeltaAsync(s, accountStart, complianceEnd, absentSet, ct, balanceAsOf);
+                rentBill += delta.BillDelta; totalBill += delta.BillDelta; amountPaid += delta.PaidDelta;
+            }
             var balance = Math.Max(0m, totalBill - amountPaid);
 
             // Distinct "Absent" status: the stall WAS under contract this period (had collectable days)
@@ -297,10 +302,13 @@ public partial class FacilityReportsRepository
                     ? "Excused"
                     : balance <= 0m ? "Paid" : amountPaid > 0m ? "Partial" : "Unpaid";
 
-            var missedMonths = CountMissedMonths(
+            var missedDetail = await MissedMonthsAsync(
                 paymentRecords, s, endDate, includeFish, dailyCollectedByStallMonth.GetValueOrDefault(s.Id), absentSet,
-                excusedMonths, countMissedFrom, NewestOccupancyStart(s, complianceEnd));
+                excusedMonths, countMissedFrom, NewestOccupancyStart(s, complianceEnd), ct, balanceAsOf);
+            var missedMonths = missedDetail.Count;
 
+            var reviewedMonth = includeFish && complianceStart.Year == complianceEnd.Year && complianceStart.Month == complianceEnd.Month
+                ? await MonthReportAsync(s.Id, new(complianceStart.Year, complianceStart.Month, 1), balanceAsOf ?? complianceEnd, ct) : null;
             rows.Add(new StallComplianceDto(
                 s.Id,
                 s.StallNo,
@@ -324,7 +332,10 @@ public partial class FacilityReportsRepository
                 contract?.DurationYears ?? 0,
                 rentBill,
                 absentDays,
-                fishKilosByStall.GetValueOrDefault(s.Id), totalBill));
+                fishKilosByStall.GetValueOrDefault(s.Id), totalBill,
+                reviewedMonth is null ? null : reviewedMonth.Position.Assessment - reviewedMonth.Position.Credits,
+                // Only the delinquency source counts a span of its own; it is the one reader that classifies each month.
+                countMissedFrom is null ? null : missedDetail));
         }
 
         return rows.OrderBy(r => NaturalStallSortKey(r.StallNo), StringComparer.Ordinal).ToList();
@@ -343,7 +354,7 @@ public partial class FacilityReportsRepository
     /// Who is behind, and by how many months.
     ///
     /// <para>Counted on the SAME rules as the compliance rows the office reads per stall
-    /// (<see cref="GenerateStallComplianceAsync"/> → <see cref="CountMissedMonths"/>): every fully-elapsed month
+    /// (<see cref="GenerateStallComplianceAsync"/> → <see cref="CountMissedMonthsAsync"/>): every fully-elapsed month
     /// the stall was under contract and owed something, unless it was covered — a fully-paid monthly record, or
     /// for NPM a month settled by its daily collections. Months outside the contract, admin-excused months, and
     /// months whose every collectable day was an absence or a market closure are not owed and never counted.</para>
@@ -371,6 +382,7 @@ public partial class FacilityReportsRepository
     public async Task<IReadOnlyList<DelinquentStallDto>> GetDelinquentStallsAsync(
         FacilityCode? facility, int year, int month, bool includeClosed, bool wholeAccount, CancellationToken ct)
     {
+        await ResolveNpmModeAsync(ct);
         var facilities = await _context.Facilities
             .AsNoTracking()
             .Select(f => new { f.Id, f.Code })
@@ -423,12 +435,17 @@ public partial class FacilityReportsRepository
         // from them — that is why they are on this list — but the row should say so, or a lapsed tenancy is
         // indistinguishable from a live one and the office cannot tell whether to renew or to chase. One query for
         // the tenant, not one per facility.
+        //
+        // The date every obligation is classified against: today for a live view, the first day after the last included month for a past one,
+        // so a report read as of an earlier year is judged by that year's calendar and not by today's. A term is lapsed AS OF that date too:
+        // a contract that runs out next September was not expired when June was read.
+        var reference = end < lastElapsed ? end.AddDays(1) : today;
         var lapsedStallIds = (await _context.Stalls
                 .AsNoTracking()
                 .Include(s => s.Contracts)
                 .Where(s => s.Status == StallStatus.Active && s.Contracts.Any())
                 .ToListAsync(ct))
-            .Where(s => s.Occupancies(today).LastOrDefault() is { } newest
+            .Where(s => s.Occupancies(reference).LastOrDefault() is { } newest
                 && !newest.IsCurrent
                 && newest.Contract.EndedOn is null)
             .Select(s => s.Id)
@@ -437,23 +454,47 @@ public partial class FacilityReportsRepository
         var results = new List<DelinquentStallDto>();
         foreach (var target in targets)
         {
-            var compliance = await GenerateStallComplianceAsync(target.Code, target.Id, start, end, ct, countMissedFrom: start);
+            var compliance = await GenerateStallComplianceAsync(target.Code, target.Id, start, end, ct, countMissedFrom: start, balanceAsOf: today);
 
             results.AddRange(compliance
                 .Where(r => r.MissedMonths >= 1 && !closedStallIds.Contains(r.StallId))
-                .Select(r => new DelinquentStallDto(
+                .Select(r => ClassifyAccount(new DelinquentStallDto(
                     target.Code, r.StallNo, r.Occupant, r.MissedMonths, r.Balance, r.StallId,
                     TermLapsed: lapsedStallIds.Contains(r.StallId),
                     // The market numbers its spaces per section, so "Stall 1" exists in the Vegetable Area, the
                     // Fish Section and the Meat Section at once — three different payors. Without the section the
                     // office cannot tell which space a row is about.
-                    Section: r.Section)));
+                    Section: r.Section), r.UnpaidMonths, reference)));
         }
 
         return results
             .OrderByDescending(d => d.MonthsUnpaid)
             .ThenByDescending(d => d.OutstandingBalance)
             .ToList();
+    }
+
+    /// <summary>
+    /// Sorts the account's fully elapsed unpaid months into Arrears and Delinquent, obligation by obligation (IA-019, IA-020, IA-069). A month of an
+    /// account whose contract term has run out is Arrears whatever its year; otherwise a previous-calendar-year month is Arrears and a current-year
+    /// month is Delinquent. The month in progress is never in this list. Nothing is posted or moved - this only labels what is already owed.
+    /// </summary>
+    private static DelinquentStallDto ClassifyAccount(DelinquentStallDto account, IReadOnlyList<UnpaidMonthDto>? months, DateOnly reference)
+    {
+        if (months is null) return account;
+        var arrears = new List<UnpaidMonthDto>();
+        var delinquent = new List<UnpaidMonthDto>();
+        foreach (var month in months.OrderBy(m => m.Year).ThenBy(m => m.Month))
+            (EEMOCantilanSDS.Domain.Common.Billing.ReceivableClassification.Classify(month.Year, month.Month, reference, account.TermLapsed)
+                == EEMOCantilanSDS.Domain.Common.Billing.ReceivableCategory.Arrears ? arrears : delinquent).Add(month);
+        static string? Label(UnpaidMonthDto? m) => m is null ? null : $"{m.Year:0000}-{m.Month:00}";
+        return account with
+        {
+            Classified = true,
+            ArrearsMonths = arrears.Count, ArrearsAmount = arrears.Sum(m => m.Unpaid),
+            DelinquentMonths = delinquent.Count, DelinquentAmount = delinquent.Sum(m => m.Unpaid),
+            ArrearsFirstPeriod = Label(arrears.FirstOrDefault()), ArrearsLastPeriod = Label(arrears.LastOrDefault()),
+            DelinquentFirstPeriod = Label(delinquent.FirstOrDefault()), DelinquentLastPeriod = Label(delinquent.LastOrDefault())
+        };
     }
 
     // Orders stall numbers naturally so "2" precedes "10" (and "A2" precedes "A10"): each run of
@@ -522,7 +563,19 @@ public partial class FacilityReportsRepository
     ///     so a partial payment reduces the balance and leaves the month outstanding.
     /// </para>
     /// </summary>
-    private int CountMissedMonths(
+    private async Task<int> CountMissedMonthsAsync(
+        List<PaymentRecord> paymentRecords, Stall stall, DateOnly endDate, bool isNpm,
+        Dictionary<(int Year, int Month), decimal>? dailyCollectedByMonth, IReadOnlySet<DateOnly>? absentDates = null,
+        IReadOnlySet<(int Year, int Month)>? excusedMonths = null, DateOnly? countFrom = null, DateOnly? accountStart = null,
+        CancellationToken ct = default, DateOnly? balanceAsOf = null)
+        => (await MissedMonthsAsync(paymentRecords, stall, endDate, isNpm, dailyCollectedByMonth, absentDates, excusedMonths, countFrom,
+            accountStart, ct, balanceAsOf)).Count;
+
+    /// <summary>
+    /// The fully elapsed unpaid months the count above is made of, each with what is still owed on it. The same walk and the same settled-month
+    /// rules, so the count and the list cannot disagree; the amounts are what let every obligation be classified on its own (IA-069).
+    /// </summary>
+    private async Task<List<UnpaidMonthDto>> MissedMonthsAsync(
         List<PaymentRecord> paymentRecords,
         Stall stall,
         DateOnly endDate,
@@ -531,7 +584,7 @@ public partial class FacilityReportsRepository
         IReadOnlySet<DateOnly>? absentDates = null,
         IReadOnlySet<(int Year, int Month)>? excusedMonths = null,
         DateOnly? countFrom = null,
-        DateOnly? accountStart = null)
+        DateOnly? accountStart = null, CancellationToken ct = default, DateOnly? balanceAsOf = null)
     {
         dailyCollectedByMonth ??= new Dictionary<(int Year, int Month), decimal>();
 
@@ -558,7 +611,7 @@ public partial class FacilityReportsRepository
             .Select(pr => (pr.BillingYear, pr.BillingMonth))
             .ToHashSet();
 
-        var missed = 0;
+        var missed = new List<UnpaidMonthDto>();
         var today = _clock.PhilippineToday;
         for (var cursor = first; cursor <= new DateOnly(endDate.Year, endDate.Month, 1); cursor = cursor.AddMonths(1))
         {
@@ -591,14 +644,37 @@ public partial class FacilityReportsRepository
             // contractual rent — the daily fees collected, with any month-end adjustment — or a monthly record
             // paid in full for a payor who settled the month in one go. Anything short of it leaves the month
             // outstanding, which is what the balance beside it already says.
-            var covered = isNpm
+            var sourcePosition = isNpm ? await MonthReportAsync(stall.Id, cursor, balanceAsOf ?? endDate, ct) : null;
+            var covered = sourcePosition is not null ? sourcePosition.Position.Outstanding <= 0 : isNpm
                 ? paidMonths.Contains((cursor.Year, cursor.Month))
                     || dailyCollectedByMonth.GetValueOrDefault((cursor.Year, cursor.Month))
                         >= CalculateNpmDailyObligation(stall, monthStart, monthEnd, absentDates)
                 : paidMonths.Contains((cursor.Year, cursor.Month));
 
-            if (!covered)
-                missed++;
+            if (covered) continue;
+
+            // What this month still owes. NPM: the activated month source's own outstanding, else its daily obligation less what was collected.
+            // Monthly rental: the month's rent (snapshot rate where a record exists) and any utilities billed on it, less what was handed over.
+            decimal unpaid;
+            if (isNpm)
+            {
+                unpaid = sourcePosition is not null
+                    ? sourcePosition.Position.Outstanding
+                    : Math.Max(0m, CalculateNpmDailyObligation(stall, monthStart, monthEnd, absentDates)
+                        - dailyCollectedByMonth.GetValueOrDefault((cursor.Year, cursor.Month)));
+            }
+            else
+            {
+                var inMonth = stallPayments.Where(pr => pr.BillingYear == cursor.Year && pr.BillingMonth == cursor.Month).ToList();
+                var excusedHere = excusedMonths is not null && excusedMonths.Contains((cursor.Year, cursor.Month));
+                var owed = CalculateMonthlyRentObligationDue(stall, monthStart, monthEnd, inMonth, excusedMonths)
+                    + (excusedHere ? 0m : inMonth.Sum(pr => (pr.ElecAmount ?? 0m) + (pr.WaterAmount ?? 0m)));
+                var paid = inMonth.Sum(pr => pr.Status == PaymentStatus.Paid
+                    ? pr.BaseRentalAmount + (pr.ElecAmount ?? 0m) + (pr.WaterAmount ?? 0m)
+                    : pr.Status == PaymentStatus.Partial ? pr.PartialAmount : 0m);
+                unpaid = Math.Max(0m, owed - paid);
+            }
+            missed.Add(new UnpaidMonthDto(cursor.Year, cursor.Month, unpaid));
         }
 
         return missed;

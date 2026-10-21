@@ -1,0 +1,29 @@
+@using System.Globalization
+@if (OnOpen.HasDelegate)
+{
+    <button type="button" class="collection-record-row" @onclick="OnOpen">@Body</button>
+}
+else
+{
+    <div class="collection-record-row">@Body</div>
+}
+@code {
+    [Parameter, EditorRequired] public string Identity { get; set; } = "";
+    [Parameter] public decimal? Amount { get; set; }
+    [Parameter] public bool ShowAmount { get; set; } = true;
+    [Parameter] public decimal? Assessed { get; set; }
+    [Parameter] public string? DateText { get; set; }
+    [Parameter] public string? ReceiptEvidence { get; set; }
+    [Parameter] public string? Status { get; set; }
+    [Parameter] public RenderFragment? Details { get; set; }
+    [Parameter] public EventCallback OnOpen { get; set; }
+    private static string Peso(decimal value) => "₱" + value.ToString("N2", CultureInfo.InvariantCulture);
+    private RenderFragment Body => @<text>
+        <span class="crr-heading"><strong class="crr-identity">@Identity</strong>@if (ShowAmount) { <strong class="crr-amount">@(Amount is { } amount ? Peso(amount) : "—")</strong> }</span>
+        <span class="crr-meta">@DateText</span>
+        @if (Details is not null) { <div class="crr-details">@Details</div> }
+        @if (Assessed is { } assessed) { <span class="crr-meta">@Peso(assessed) assessed · partial payment</span> }
+        @if (!string.IsNullOrWhiteSpace(ReceiptEvidence)) { <span class="crr-meta">@ReceiptEvidence</span> }
+        @if (!string.IsNullOrWhiteSpace(Status)) { <span class="crr-status">@Status</span> }
+    </text>;
+}

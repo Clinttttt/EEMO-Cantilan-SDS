@@ -1,0 +1,31 @@
+/* Collection detail opened from the Collections register; the same shell as the remittance detail. */
+.cdm { width: min(42rem, 94vw); max-width: 94vw; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; }
+.cdm-head { display: flex; align-items: center; gap: 12px; padding: 16px 20px; background: var(--civic-panel); color: #ffffff; }
+.cdm-head-text { flex: 1 1 auto; min-width: 0; }
+.cdm-head h2 { margin: 0; color: #ffffff; font-size: 1.0625rem; font-weight: 700; overflow-wrap: anywhere; }
+.cdm-head p { margin: 2px 0 0; color: rgba(255, 255, 255, 0.78); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+.cdm-close { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 8px; background: rgba(255, 255, 255, 0.1); cursor: pointer; }
+.cdm-close svg { width: 16px; height: 16px; fill: none; stroke: #ffffff; stroke-width: 2; stroke-linecap: round; }
+.cdm-close:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+.cdm-body { display: grid; gap: 16px; overflow-y: auto; padding: 20px; background: var(--surface); }
+.cdm-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; margin: 0; }
+.cdm-meta dt { color: var(--text-tertiary); font-size: 0.75rem; }
+.cdm-meta dd { margin: 2px 0 0; color: var(--text); font-size: 0.875rem; font-weight: 600; overflow-wrap: anywhere; }
+.cdm-sub { display: block; margin-top: 4px; color: var(--text-secondary); font-size: 0.8125rem; font-weight: 400; }
+.cdm-muted { color: var(--text-secondary); font-size: 0.8125rem; font-weight: 400; }
+.cdm-pill { display: inline-block; padding: 2px 8px; border: 1px solid var(--border-strong); border-radius: 999px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+.cdm-subject { margin: 0; color: var(--text-secondary); font-size: 0.8125rem; }
+.cdm-items { width: 100%; border-collapse: collapse; font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.cdm-items th, .cdm-items td { padding: 8px 0; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.cdm-items thead th { color: var(--text-tertiary); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.cdm-items .cdm-num { text-align: right; white-space: nowrap; }
+.cdm-items tfoot th, .cdm-items tfoot td { border-bottom: 0; font-weight: 700; }
+.cdm-items tfoot tr:first-child th, .cdm-items tfoot tr:first-child td { border-top: 2px solid var(--border-strong); }
+.cdm-net th, .cdm-net td { color: var(--navy); }
+.cdm-h { margin: 0; color: var(--navy); font-size: 0.8125rem; font-weight: 700; }
+.cdm-corrections { margin: -8px 0 0; padding: 0; list-style: none; font-size: 0.8125rem; }
+.cdm-corrections li { padding: 6px 0; border-bottom: 1px solid var(--border); }
+.cdm-note { margin: 0; color: var(--text-secondary); font-size: 0.75rem; line-height: 1.45; }
+.cdm-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--border); background: var(--surface-muted); }
+@media (max-width: 560px) { .cdm-meta { grid-template-columns: minmax(0, 1fr); } }
+@media print { .cdm-foot { display: none; } }

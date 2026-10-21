@@ -21,7 +21,8 @@ public record PaymentHistoryDto(
     // NPM only: the days this month is made of, earliest first, each with its own fee and receipt. A daily-billed month is
     // folded into one row here because that is how the office reconciles it, but the payor pays a day at a time and could
     // not see the days behind the total, including the ones a collector took in the field. Empty for monthly facilities.
-    IReadOnlyList<PaymentHistoryDayDto>? Days = null
+    IReadOnlyList<PaymentHistoryDayDto>? Days = null,
+    SettlementAuthority SettlementAuthority = SettlementAuthority.Legacy
 );
 
 /// <summary>

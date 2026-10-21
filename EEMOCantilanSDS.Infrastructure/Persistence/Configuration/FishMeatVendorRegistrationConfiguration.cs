@@ -27,6 +27,12 @@ public sealed class FishMeatVendorRegistrationConfiguration : IEntityTypeConfigu
         b.Property(x => x.BusinessName).HasMaxLength(200);
         b.Property(x => x.Address).HasMaxLength(300);
         b.Property(x => x.Reference).HasMaxLength(200);
+        b.Property(x => x.LastName).HasMaxLength(100);
+        b.Property(x => x.FirstName).HasMaxLength(100);
+        b.Property(x => x.MiddleName).HasMaxLength(100);
+        b.Property(x => x.NameExtension).HasMaxLength(30);
+        b.Property(x => x.Sex).HasMaxLength(30);
+        b.Property(x => x.NatureOfBusiness).HasMaxLength(300);
         b.Property(x => x.CreatedBy).HasMaxLength(100);
         b.HasOne<Municipality>().WithMany().HasForeignKey(x => x.MunicipalityId).OnDelete(DeleteBehavior.Restrict);
     }

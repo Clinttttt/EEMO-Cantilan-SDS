@@ -139,7 +139,8 @@ public sealed class CollectionsReportWorkflow(
                 collection.PayerName, collection.CollectorId, collection.CollectorId is { } cid ? collectors.GetValueOrDefault(cid) : null,
                 line.RevenueClassificationId, names.GetValueOrDefault(line.RevenueClassificationId, "Unclassified"),
                 labels.GetValueOrDefault(line.Id, "—"), line.Amount, effect,
-                effect == 0m ? "Posted" : line.Amount + effect <= 0m ? "Reversed" : "Corrected")));
+                effect == 0m ? "Posted" : line.Amount + effect <= 0m ? "Reversed" : "Corrected",
+                FrozenCollectionFacts.ChargeName(line.CalculationSnapshot), FrozenCollectionFacts.SlaughterSubject([line.CalculationSnapshot]))));
         }
         return rows;
     }

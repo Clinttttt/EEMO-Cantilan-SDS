@@ -1,9 +1,11 @@
 @page "/npm"
 @page "/facility/npm"
+@* Optional review context opens the existing registered-vendor workflow; never auto-creates a tenancy. *@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @using EEMOCantilanSDS.Application.Dtos.Stalls
+@using EEMOCantilanSDS.Application.Dtos.Mobile
 @using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Application.Command.DailyCollections.SaveDailyCollectionOrNumber
 
@@ -12,6 +14,7 @@
 @inject IPaymentsApiClient PaymentsApi
 @inject IFacilitiesApiClient FacilitiesApi
 @inject IDailyCollectionApiClient DailyCollectionApi
+@inject IOfficeSourcesApiClient OfficeApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 <PageTitle>StallTrack — @FacilityCatalog.NameOf(FacilityCode.NPM)</PageTitle>
@@ -51,6 +54,13 @@
                 Stats="@HeroStats"
                 ShowProgress="true"
                 ProgressPercentage="@CollectionRate" />
+            @if (!string.IsNullOrWhiteSpace(_rosterError))
+            {
+                <div class="npm-custom-err" role="alert">
+                    @_rosterError
+                    <button class="btn-outline" type="button" @onclick="ReloadNpmRosterAsync">Retry loading stalls</button>
+                </div>
+            }
 
             <!-- ── Section Tabs ── -->
             <div class="npm-section-tabs">
@@ -294,7 +304,7 @@
 <!-- ══════════════════════════════════════════════
      ADD / EDIT VENDOR MODAL (NEW PUBLIC MARKET)
 ══════════════════════════════════════════════ -->
-<AddVendorModal Show="ShowAddVendorModal"
+<AddVendorModal Show="@(ShowAddVendorModal && !_registryPicker)"
                 IsEditing="IsEditingVendor"
                 Form="VendorForm"
                 @bind-FormError="VendorErrorMessage"
@@ -312,10 +322,13 @@
                 ReuseOfferMessage="@_vendorReuseOffer"
                 OnReuseConfirm="ConfirmStallTakeOverAsync"
                 OnSave="SubmitVendor"
+                OnRegisteredFishMeat="() => _registryPicker = true"
+                RegistryContext="RegistryContext"
                 OnCancel="CloseAddVendorModal"
                 OnFacilityChanged="() => {}"
                 OnSectionChanged="OnSectionModalChanged"
                 OnToggleFee="ToggleVendorFee" />
+<RegisteredFishMeatPicker Show="_registryPicker" PreferredVendorId="RegisterVendor" PreferredYear="RegistrationYear" OnClose="() => _registryPicker = false" OnSelected="SelectRegisteredVendor" OnExisting="ReviewExistingRegistryStall" />
 
 
 @* ══════════════════════════════════════════════
@@ -429,11 +442,41 @@
 
     private RenderFragment ActionBarContent => @<ActionBar Facility="npm" />;
 
+    [Parameter, SupplyParameterFromQuery(Name = "registerVendor")] public Guid? RegisterVendor { get; set; }
+    [Parameter, SupplyParameterFromQuery(Name = "registrationYear")] public int? RegistrationYear { get; set; }
+    [Parameter, SupplyParameterFromQuery(Name = "proposedStall")] public string? RequestedStall { get; set; }
+    [Parameter, SupplyParameterFromQuery(Name = "proposedSection")] public string? RequestedSection { get; set; }
+    private string? _rosterError;
+    private void OpenRequestedNpmRegistration()
+    {
+        // A deep link only opens the normal Head verification form. It never registers
+        // a tenancy, chooses a stall, or approves the pending Mobile request.
+        if (RegisterVendor is not { } vendor || vendor == Guid.Empty) return;
+        OpenAddVendorModal();
+        _registryPicker = true;
+    }
+
+    private async Task ReloadNpmRosterAsync()
+    {
+        try { await LoadStallsFromApi(paintLoading: true); }
+        catch
+        {
+            _rosterError = "The current NPM stall roster could not be loaded. Existing records have not been changed.";
+            CachedNpmPage = null;
+        }
+        finally { _loading = false; }
+    }
     private bool _loading = true;
 
     protected override async Task OnInitializedAsync()
     {
         await FacilityCatalog.EnsureLoadedAsync();
+        // An LGU whose Public Market is standard monthly rental has no daily calendar: send it to the monthly rental workspace.
+        if (FacilityCatalog.IsMonthlyRentMarket)
+        {
+            Navigation.NavigateTo("/facility/market-rent", replace: true);
+            return;
+        }
         ResetState();
         InitializeToolbarActions();
         await LoadNpmRatesAsync();
@@ -441,16 +484,18 @@
         var now = PhilippineTime.Now;
         if (CachedNpmPage is { } state
             && state.Year == now.Year
-            && state.Month == now.Month)
+            && state.Month == now.Month
+            && state.Stalls.Count > 0)
         {
             Report = state.Report;
             Stalls = state.Stalls.ToList();
             _loading = false;
+            OpenRequestedNpmRegistration();
             return;
         }
 
-        try { await LoadStallsFromApi(paintLoading: true); }
-        finally { _loading = false; }
+        await ReloadNpmRosterAsync();
+        OpenRequestedNpmRegistration();
     }
 
     private async Task LoadStallsFromApi(bool paintLoading = false)
@@ -478,6 +523,13 @@
         if (reportResult.IsSuccess) Report = reportResult.Value;
 
         var result = await stallsTask;
+        if (!result.IsSuccess || result.Value is null)
+        {
+            _rosterError = "The current NPM stall roster could not be loaded. Existing records have not been changed.";
+            CachedNpmPage = null;
+            return;
+        }
+        _rosterError = null;
         if (result.IsSuccess && result.Value != null)
         {
             // Single batch call for all current-month payment records (avoids per-stall N+1)
@@ -584,7 +636,8 @@
             }
         }
 
-        CachedNpmPage = new NpmPageState(now.Year, now.Month, Report, Stalls.ToList());
+        // Never cache an unexplained empty roster for an entire month; a subsequent visit must recheck.
+        CachedNpmPage = Stalls.Count > 0 ? new NpmPageState(now.Year, now.Month, Report, Stalls.ToList()) : null;
     }
 
     // ── Add OR number to the most-recent paid day (NPM daily collection) ──
@@ -1024,6 +1077,8 @@
 
     private void OpenAddVendorModal()
     {
+        _registryVendor = null; _registryNote = ""; _registryReviewed = false; _registryException = false;
+        _registryProposedFromRequest = false; _registryOperation = Guid.NewGuid();
         IsEditingVendor = false;
         EditingStallId = 0;
 
@@ -1066,6 +1121,7 @@
 
     private void CloseAddVendorModal()
     {
+        _registryPicker = false; _registryVendor = null; _registryProposedFromRequest = false;
         ShowAddVendorModal = false;
         _takeOverVacatedStall = false;
         _vendorReuseOffer = null;
@@ -1201,7 +1257,14 @@
             ReuseVacatedStall: _takeOverVacatedStall,
             Arrangement: VendorForm.Arrangement);
 
-        var result = await StallsApi.CreateStallAsync(command);
+        Result<StallDto> result;
+        if (_registryVendor is { } vendor)
+        {
+            var linked = await OfficeApi.CreateNpmVendorOccupancyAsync(new(_registryOperation, vendor.Id, vendor.DisplayName,
+                _registryNote, command, _registryReviewed, _registryException));
+            result = linked.IsSuccess ? Result<StallDto>.Success(null!) : new(false, null, linked.StatusCode, linked.Error) { ValidationErrors = linked.ValidationErrors };
+        }
+        else result = await StallsApi.CreateStallAsync(command);
 
         if (result.IsSuccess)
         {
@@ -1267,11 +1330,74 @@
     }
     private async Task SubmitVendor()
     {
+        if (_vendorSubmitting) return;
+        _vendorSubmitting = true;
+        try
+        {
         if (IsEditingVendor)
             await SubmitEditVendor();
         else
             await SubmitAddVendor();
+        }
+        finally { _vendorSubmitting = false; }
     }
+
+    private bool _registryPicker, _registryReviewed, _registryException, _vendorSubmitting;
+    private Guid _registryOperation = Guid.NewGuid();
+    private FishMeatVendorRegistrationDto? _registryVendor;
+    private string _registryNote = "";
+    private bool _registryProposedFromRequest;
+    private void SelectRegisteredVendor(FishMeatVendorRegistrationDto vendor)
+    {
+        _registryVendor = vendor; _registryPicker = false; _registryOperation = Guid.NewGuid();
+        _registryNote = ""; _registryReviewed = false; _registryException = false;
+        VendorForm.ActualOccupant = vendor.DisplayName;
+        VendorForm.SelectedSection = vendor.VendorType == EEMOCantilanSDS.Domain.Entities.Revenue.FishMeatVendorType.Fish ? "Fish" : "Meat";
+        // Only the exact Fish/Meat registration carried by the Head request link may reuse
+        // the collector's *proposal*. This is not proof of a free stall or a tenancy.
+        _registryProposedFromRequest = NpmRequestStallPrefill.TryApply(
+            VendorForm, vendor, RegisterVendor, RegistrationYear, RequestedStall, RequestedSection);
+        // Rate and rent remain governed by the selected NPM section, never by Fish/Meat registration data.
+        OnSectionModalChanged();
+    }
+    private void ReviewExistingRegistryStall(Guid stallId)
+    {
+        var existing = Stalls.SingleOrDefault(x => x.StallGuid == stallId);
+        if (existing is null) { VendorErrorMessage = "Refresh NPM to review this recorded stall."; _registryPicker = false; return; }
+        _registryPicker = false; _registryVendor = null; OpenEdit(existing);
+    }
+    private RenderFragment RegistryContext => @<text>
+        @if (_registryVendor is { } vendor)
+        {
+            <section class="avm-section npm-registry-context" aria-label="Fish or Meat identity and NPM verification">
+                <div class="npm-registry-identity">
+                    <div><strong>@vendor.DisplayName</strong>
+                        <span>Fish / Meat fee: @vendor.VendorType · @vendor.TaxYear</span>
+                        @if (!string.IsNullOrWhiteSpace(vendor.BusinessName)) { <small>@vendor.BusinessName</small> }
+                    </div>
+                    <span class="npm-registry-state">NPM review required</span>
+                </div>
+                <p class="npm-registry-help">
+                    @if (_registryProposedFromRequest)
+                    {
+                        <text>Proposed Stall @VendorForm.StallNo · @(EffectiveSelectedSectionName()). Verify the stall and tenancy with office records before saving.</text>
+                    }
+                    else
+                    {
+                        <text>Confirm the NPM stall and tenancy with office records before saving.</text>
+                    }
+                </p>
+                <div class="npm-registry-verifications">
+                    <label><input type="checkbox" @bind="_registryReviewed" /><span>Office checked the NPM register and confirmed this tenancy.</span></label>
+                    <label><input type="checkbox" @bind="_registryException" /><span>Verified different section from Fish / Meat type (only if applicable).</span></label>
+                </div>
+                <div class="npm-registry-note">
+                    <label class="avm-label" for="npm-registry-note">Verification evidence</label>
+                    <input id="npm-registry-note" class="avm-input" maxlength="500" placeholder="Office record or supporting reference" @bind="_registryNote" @bind:event="oninput" />
+                </div>
+            </section>
+        }
+    </text>;
 
     // True when the form's selected section is a per-LGU CUSTOM section rather than one of the three
     // canonical market sections — the same test SubmitAddVendor applies when it stamps the daily rate.

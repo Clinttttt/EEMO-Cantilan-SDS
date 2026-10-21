@@ -47,6 +47,27 @@ public sealed class FishMeatVendorManageTests : TestContext
         cut.FindAll("tbody tr").Single(r => r.TextContent.Contains(vendor)).QuerySelectorAll("button").First(b => b.TextContent.Trim() == button).Click();
 
     [Fact]
+    public void ManageReusesTheCivicBlueHeroAndShowsOnlyRecordedOfficeDetails()
+    {
+        var enriched = _lisa with { Registration = _lisa.Registration with {
+            LastName = "Ilogans", FirstName = "Lisa", MiddleName = "R", NameExtension = "Jr", Sex = "Female", NatureOfBusiness = "Fish retailing" } };
+        _office.Setup(x => x.ManageRegistrationsAsync(Year, Month, null, null))
+            .ReturnsAsync(Result<VendorRegistryManagement>.Success(new(Year, Year, Month, [enriched, _closed], 75m)));
+        var cut = RenderComponent<FishMeatVendorManage>();
+        cut.WaitForAssertion(() => Assert.Contains("Lisa Ilogans", cut.Markup), Timeout);
+        Assert.Equal("FISH / MEAT · REGISTRY", cut.Find(".facility-hero-eyebrow").TextContent);
+        Assert.Single(cut.FindAll("h1"));
+        Assert.Empty(cut.FindAll(".fmm-back"));
+        Assert.Equal("/operations/fish-meat-vendor-fees", cut.Find(".tcc-back-btn").GetAttribute("href"));
+        Row(cut, "Lisa", "Details");
+        var office = cut.Find("dl[aria-label='Office information']");
+        foreach (var value in new[] { "Ilogans", "Lisa", "Female", "Fish retailing", "Jr" }) Assert.Contains(value, office.TextContent);
+        cut.Find(".eemo-drawer.show .eemo-drawer-header-close").Click();
+        Row(cut, "Old Vendor", "Details");
+        Assert.Empty(cut.FindAll("dl[aria-label='Office information']"));
+    }
+
+    [Fact]
     public void TaxYearMonthAndStatusLiveHere_AsStyledSelectors_NextToTheSearchAndTypeFilter()
     {
         var cut = RenderComponent<FishMeatVendorManage>();
@@ -71,13 +92,16 @@ public sealed class FishMeatVendorManageTests : TestContext
         {
             Assert.Equal(["Vendor", "Type", "Registration", "Address", "Status", "Collected", "Actions"], cut.FindAll("thead th").Select(h => h.TextContent.Trim()).ToArray());
             var rows = cut.FindAll("tbody tr").Select(r => r.TextContent).ToList();
-            Assert.Contains(rows, r => r.Contains("Lisa Ilogans") && r.Contains("Ilogans Fish Stall · Purok 3") && r.Contains("Active") && r.Contains("₱186.00"));
+            Assert.Contains(rows, r => r.Contains("Lisa Ilogans") && r.Contains("Ilogans Fish Stall") && r.Contains("Active") && r.Contains("₱186.00"));
             Assert.Contains(rows, r => r.Contains("Old Vendor") && r.Contains("Closed"));
             Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Contains("Delete", StringComparison.OrdinalIgnoreCase));
             Assert.Contains("Walk-up Vendor Fee collected", cut.Find(".fmm-foot").TextContent);
             Assert.Contains("₱75.00", cut.Find(".fmm-foot").TextContent);
         }, Timeout);
         var active = cut.FindAll("tbody tr").Single(r => r.TextContent.Contains("Lisa"));
+        Assert.DoesNotContain("Purok 3", active.QuerySelector("td")!.TextContent);
+        Assert.Equal("Purok 3", active.QuerySelectorAll("td")[3].TextContent);
+        Assert.NotNull(active.QuerySelector(".fmm-action-group[role='group']"));
         var closed = cut.FindAll("tbody tr").Single(r => r.TextContent.Contains("Old Vendor"));
         Assert.Equal(["Details", "Renew", "Close"], active.QuerySelectorAll("button").Select(b => b.TextContent.Trim()).ToArray());
         Assert.Equal(["Details", "Renew"], closed.QuerySelectorAll("button").Select(b => b.TextContent.Trim()).ToArray());
@@ -94,6 +118,7 @@ public sealed class FishMeatVendorManageTests : TestContext
 
         Pick(cut, "Tax year", (Year - 1).ToString());
         cut.WaitForAssertion(() => Assert.Contains("Earlier Vendor", cut.Markup), Timeout);
+        Assert.Equal($"/operations/fish-meat-vendor-fees?taxYear={Year - 1}", cut.Find(".tcc-back-btn").GetAttribute("href"));
         Pick(cut, "Month", "March");
         Pick(cut, "Status", "Closed");
 

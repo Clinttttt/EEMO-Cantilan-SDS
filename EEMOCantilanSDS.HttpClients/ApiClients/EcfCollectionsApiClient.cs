@@ -7,6 +7,8 @@ namespace EEMOCantilanSDS.HttpClients.ApiClients;
 
 public sealed class EcfCollectionsApiClient(HttpClient http) : HandleResponse(http), IEcfCollectionsApiClient
 {
+    public Task<Result<EcfPostOutcomeDto>> PostRentReceiptAsync(MobileRentPostRequest request) =>
+        PostAsync<MobileRentPostRequest, EcfPostOutcomeDto>("api/collections/composer/rent-receipts", request);
     public Task<Result<IReadOnlyList<EcfObligationQuoteDto>>> GetObligationsAsync(int year, int month) =>
         GetAsync<IReadOnlyList<EcfObligationQuoteDto>>($"api/ecf-collections/obligations?year={year}&month={month}");
 

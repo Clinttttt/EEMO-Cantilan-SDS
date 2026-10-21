@@ -18,7 +18,10 @@ public record FacilityReportsDto(
     FeeTypeBreakdownDto? FeeTypeBreakdown,
     IReadOnlyList<FishKiloTrendDto> FishKiloTrend,
     IReadOnlyList<StallComplianceDto> StallCompliance,
-    MonitoringTotalsDto? MonitoringTotals = null
+    MonitoringTotalsDto? MonitoringTotals = null,
+    // False for a Public Market its LGU rents by the month (rent is read from the monthly source, there is no daily ledger); true for every
+    // daily-collected market and every other facility, which is what every report built before this field existed meant.
+    bool BillsDaily = true
 );
 
 public sealed record MonitoringTotalsDto(decimal Assessed, decimal Collected, decimal Balance);

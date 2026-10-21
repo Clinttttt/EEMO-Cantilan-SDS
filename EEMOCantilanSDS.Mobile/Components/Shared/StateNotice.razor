@@ -1,0 +1,20 @@
+@* One readable status / error presentation for Mobile pages: a clear surface, border and text colour from the Mobile V3 tokens,
+   so a blocker, an offline failure, a storage fault or an empty result never inherits the page's light text colour.
+   Tone says how serious it is; the actions (Try again, Back to menu) stay with the page that owns the flow. *@
+<div class="state-notice @ToneClass" role="@(Tone == NoticeTone.Danger ? "alert" : "status")">
+    @if (!string.IsNullOrWhiteSpace(Title))
+    {
+        <div class="state-notice-title">@Title</div>
+    }
+    <div class="state-notice-text">@ChildContent</div>
+</div>
+
+@code {
+    public enum NoticeTone { Info, Warning, Danger }
+
+    [Parameter] public NoticeTone Tone { get; set; } = NoticeTone.Info;
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private string ToneClass => Tone switch { NoticeTone.Danger => "is-danger", NoticeTone.Warning => "is-warning", _ => "is-info" };
+}

@@ -55,7 +55,7 @@ public sealed class RentalWorkspacePilotTests : TestContext
         {
             Assert.False(workspace.Sections.HasFlag(RentalSection.MonthlyRate));
             Assert.False(workspace.Sections.HasFlag(RentalSection.ContractEvidence));
-            Assert.Null(workspace.RosterRoute);
+            Assert.Equal("/operations/fiesta-araw/space-holders", workspace.RosterRoute);   // the lot holder list the office reads like the other operations' lists
             Assert.Equal("/vendors?workspace=FA", workspace.ManagementRoute);
             Assert.Equal(RentalContractPolicy.EventOnly, workspace.ContractPolicy);
         }
@@ -81,7 +81,7 @@ public sealed class RentalWorkspacePilotTests : TestContext
     [Theory]
     [InlineData(RentalWorkspaceKey.Ice, 3)]
     [InlineData(RentalWorkspaceKey.Kanmanggay, 3)]
-    [InlineData(RentalWorkspaceKey.FiestaAraw, 2)]
+    [InlineData(RentalWorkspaceKey.FiestaAraw, 3)]
     public void NavigationOnlyOffersExistingRoutesAndNeverInventsAdministrativeActions(RentalWorkspaceKey key, int links)
     {
         var workspace = RentalWorkspaceCatalog.Get(key);
@@ -122,12 +122,15 @@ public sealed class RentalWorkspacePilotTests : TestContext
         Assert.Equal(hero, cut.Find(".facility-hero").TextContent);
         cut.FindAll("button").Single(x => x.TextContent.Trim() == "+ Add New").Click();
         var titles = cut.FindAll(".avm-section-label").Select(x => x.TextContent).ToArray();
-        Assert.Equal(eventRental ? new[] { "Event & Occupant Information", "Lot & Event Details" }
-            : new[] { "Lessee Information", "Space & Contract Details", "Space Information", "Rental Rates", "Additional Information", "Applicable Charges" }, titles);
+        Assert.Equal(eventRental ? new[] { "Lessee Information", "Rent / Space & Event Details", "Space Information", "Rental Rates", "Additional Information", "Applicable Charges" }
+            : new[] { "Lessee Information", "Rent / Space & Contract Details", "Rent / Space Information", "Rental Rates", "Additional Information", "Applicable Charges" }, titles);
         Assert.Single(cut.FindAll("#obw-amount"));
         if (eventRental)
         {
-            Assert.DoesNotContain("Contract Duration", cut.Find("form").TextContent);
+            Assert.Contains("One-time event rental", cut.Find("form").TextContent);
+            Assert.Empty(cut.FindAll("input[aria-label='Custom contract duration in years'], #obw-contract-date, #obw-area, #obw-area-note"));
+            Assert.NotNull(cut.FindComponent<RentalLesseeFields>());
+            Assert.All(cut.FindComponents<RentalRateFields>(), rate => Assert.True(rate.Instance.OneTime));
             Assert.DoesNotContain("Whole Year", cut.Find("form").TextContent);
         }
         else
@@ -139,7 +142,7 @@ public sealed class RentalWorkspacePilotTests : TestContext
         Assert.Equal(eventRental, cut.FindAll("#obw-event-date").Any());
         Assert.Equal(!eventRental, cut.FindAll("#obw-contract-date").Any());
         Assert.Equal(eventRental, cut.FindAll("#obw-subject").Any());
-        cut.FindAll("button").Single(x => x.TextContent.Trim() == "Cancel").Click();
+        cut.Find(".eemo-drawer-header-close").Click();                                    // the one dismiss control: the header X (an untouched form closes at once)
         _authorization.SetRoles("Admin");
         Assert.DoesNotContain(cut.FindAll("button"), x => x.TextContent is "+ Add New" or "Close account" or "Change amount");
         _obligations.Verify(x => x.GetWorkspaceAsync(kind), Times.Once);

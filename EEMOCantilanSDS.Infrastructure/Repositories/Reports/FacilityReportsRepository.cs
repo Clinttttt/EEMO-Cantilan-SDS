@@ -15,7 +15,8 @@ using Microsoft.EntityFrameworkCore;
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
 // Entry partial of FacilityReportsRepository: public IFacilityReportsRepository methods. Helpers live in sibling FacilityReportsRepository.*.cs partial files.
-public partial class FacilityReportsRepository(AppDbContext context, IFeeRateResolver feeRateResolver, IClock clock) : IFacilityReportsRepository
+public partial class FacilityReportsRepository(AppDbContext context, IFeeRateResolver feeRateResolver, IClock clock,
+    EEMOCantilanSDS.Application.Common.Payments.NpmRentMonthWorkflow? npmRentMonths = null) : IFacilityReportsRepository
 {
     /// <summary>
     /// Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants) and reads the real
@@ -25,6 +26,7 @@ public partial class FacilityReportsRepository(AppDbContext context, IFeeRateRes
     public FacilityReportsRepository(AppDbContext context) : this(context, new FeeRateResolver(context), new SystemClock()) { }
 
     private readonly AppDbContext _context = context;
+    private readonly EEMOCantilanSDS.Application.Common.Payments.NpmRentMonthWorkflow? _npmRentMonths = npmRentMonths;
     private readonly IFeeRateResolver _feeRateResolver = feeRateResolver;
 
     /// <summary>
@@ -47,6 +49,7 @@ public partial class FacilityReportsRepository(AppDbContext context, IFeeRateRes
     // returns the ordinance constants, so Cantilan is unchanged; a second LGU gets its own rates.
     private async Task LoadNpmRatesAsync(DateOnly asOf, CancellationToken ct)
     {
+        _monthReportCutoff = asOf > _clock.PhilippineToday ? _clock.PhilippineToday : asOf;
         var snapshot = await _feeRateResolver.GetSnapshotAsync(ct);
         _npmDailyRate = snapshot.Resolve(FeeRateKey.NpmDailyStall, asOf);
         _npmFishRate = snapshot.Resolve(FeeRateKey.NpmFishPerKilo, asOf);
@@ -92,6 +95,18 @@ public partial class FacilityReportsRepository(AppDbContext context, IFeeRateRes
         return years.Min();
     }
 
+    // True when the tenant's Public Market is declared standard monthly rental: its rent is read from the monthly source like TCC/NCC,
+    // never from the daily calendar. Resolved once per repository use by the public entry points below; false (daily) otherwise.
+    private bool _npmMonthly;
+    private bool _npmModeKnown;
+    private bool IsDailyMarket(FacilityCode code) => code == FacilityCode.NPM && !_npmMonthly;
+    private async Task ResolveNpmModeAsync(CancellationToken ct)
+    {
+        if (_npmModeKnown) return;
+        _npmMonthly = await _context.Facilities.AsNoTracking().AnyAsync(f => f.Code == FacilityCode.NPM && f.Archetype == BillingArchetype.MonthlyRental, ct);
+        _npmModeKnown = true;
+    }
+
     public async Task<FacilityReportsDto> GetFacilityReportsAsync(
         FacilityCode facilityCode,
         ReportPeriod period,
@@ -100,6 +115,7 @@ public partial class FacilityReportsRepository(AppDbContext context, IFeeRateRes
         int? weekNumber,
         CancellationToken ct)
     {
+        await ResolveNpmModeAsync(ct);
         // Get facility ID. A tenant may not operate every facility archetype (e.g. an LGU with no
         // NCC/BBQ/ICE). Rather than failing the whole multi-facility report, treat an absent facility
         // as one with no stalls/records: Guid.Empty matches no rows, so every helper below naturally
@@ -119,7 +135,7 @@ public partial class FacilityReportsRepository(AppDbContext context, IFeeRateRes
         decimal currentRevenue;
         decimal previousRevenue;
 
-        if (facilityCode == FacilityCode.NPM)
+        if (IsDailyMarket(facilityCode))
         {
             currentRevenue = await CalculateNpmRevenueAsync(facilityId, currentStart, currentEnd, ct);
             previousRevenue = await CalculateNpmRevenueAsync(facilityId, previousStart, previousEnd, ct);
@@ -164,7 +180,8 @@ public partial class FacilityReportsRepository(AppDbContext context, IFeeRateRes
             DailyCollectionStreak: dailyCollectionStreak,
             FeeTypeBreakdown: feeTypeBreakdown,
             FishKiloTrend: fishKiloTrend,
-            StallCompliance: stallCompliance
+            StallCompliance: stallCompliance,
+            BillsDaily: facilityCode != FacilityCode.NPM || IsDailyMarket(facilityCode)
         );
     }
 
@@ -179,6 +196,7 @@ public partial class FacilityReportsRepository(AppDbContext context, IFeeRateRes
         int year,
         CancellationToken ct)
     {
+        await ResolveNpmModeAsync(ct);
         var facility = await _context.Facilities.AsNoTracking().FirstOrDefaultAsync(f => f.Code == facilityCode, ct)
             ?? throw new InvalidOperationException($"Facility with code {facilityCode} not found");
         var facilityId = facility.Id;
@@ -231,11 +249,12 @@ public partial class FacilityReportsRepository(AppDbContext context, IFeeRateRes
         int month,
         CancellationToken ct)
     {
+        await ResolveNpmModeAsync(ct);
         var (start, end) = CalculateMonthlyDateRange(year, month);
 
         await LoadNpmRatesAsync(end, ct);
 
-        var collected = facilityCode == FacilityCode.NPM
+        var collected = IsDailyMarket(facilityCode)
             ? await CalculateNpmRevenueAsync(facilityId, start, end, ct)
             : await CalculateMonthlyRentalRevenueAsync(facilityId, start, end, ct);
 
@@ -249,7 +268,7 @@ public partial class FacilityReportsRepository(AppDbContext context, IFeeRateRes
         // the count comes from the collections themselves (see GenerateFeeTypeBreakdownAsync). Monthly facilities
         // count paid + partial stalls.
         int paidTransactions;
-        if (facilityCode == FacilityCode.NPM)
+        if (IsDailyMarket(facilityCode))
         {
             var breakdown = await GenerateFeeTypeBreakdownAsync(facilityCode, facilityId, start, end, ct);
             paidTransactions = breakdown?.PaidDayRecords ?? 0;
@@ -294,7 +313,7 @@ public partial class FacilityReportsRepository(AppDbContext context, IFeeRateRes
         ComputePeriodSummaryAsync(FacilityCode facilityCode, Guid facilityId, DateOnly start, DateOnly end, CancellationToken ct)
     {
         var compliance = await GenerateStallComplianceAsync(facilityCode, facilityId, start, end, ct);
-        var collected = facilityCode == FacilityCode.NPM
+        var collected = IsDailyMarket(facilityCode)
             ? await CalculateNpmRevenueAsync(facilityId, start, end, ct)
             : await CalculateMonthlyRentalRevenueAsync(facilityId, start, end, ct);
         var rate = await CalculateCollectionRateAsync(facilityCode, facilityId, start, end, ct);

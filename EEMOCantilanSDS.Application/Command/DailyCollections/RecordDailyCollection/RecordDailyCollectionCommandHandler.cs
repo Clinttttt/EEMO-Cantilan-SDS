@@ -21,13 +21,16 @@ public class RecordDailyCollectionCommandHandler(
     IEemoCacheInvalidator cacheInvalidator,
     IFeeRateResolver feeRateResolver,
     ITenantContext tenantContext,
-    Common.Revenue.NpmDailyCanonicalPoster? canonical = null) : IRequestHandler<RecordDailyCollectionCommand, Result<bool>>
+    Common.Revenue.NpmDailyCanonicalPoster? canonical = null,
+    Common.Payments.NpmRentMonthWorkflow? monthly = null) : IRequestHandler<RecordDailyCollectionCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(RecordDailyCollectionCommand request, CancellationToken ct)
     {
         var stall = await stallRepository.GetByIdAsync(request.StallId, ct);
         if (stall is null)
             return Result<bool>.NotFound();
+        if (stall.Facility?.IsMonthlyRentMarket == true)
+            return Result<bool>.Failure("This market collects standard monthly rent. Record the payment against the month's rent, not the daily calendar.", ResultStatus.Invalid);
 
         var isCollectorRequest = currentUser.Role == "Collector";
         if (isCollectorRequest)
@@ -43,19 +46,36 @@ public class RecordDailyCollectionCommandHandler(
             }
         }
 
+        if (stall.Facility?.Code == FacilityCode.NPM && monthly is not null
+            && await monthly.IsMonthActivatedAsync(stall.Id, new(request.CollectionDate.Year, request.CollectionDate.Month, 1), ct))
+        {
+            if (!monthly.Enabled)
+                return Result<bool>.Failure("RECONCILIATION_REQUIRED: Activated month authority is unavailable; legacy collection is blocked.", ResultStatus.Conflict);
+            if (!request.IsPaid || request.IsAbsent || request.FishKilos is > 0m || request.MeatKilos is > 0m)
+                return Result<bool>.Failure("Use the authorized month correction/credit or separate weighing workflow.", ResultStatus.Conflict);
+            if (request.ClientOperationId is not { } monthOperation || monthOperation == Guid.Empty
+                || request.ReviewedMonthAmount is not > 0m || string.IsNullOrWhiteSpace(request.MonthQuoteToken))
+                return Result<bool>.Failure("RECONCILIATION_REQUIRED: Refresh and confirm the authoritative month quote before collecting rent.", ResultStatus.Conflict);
+            var result = await monthly.PostAsync(new(monthOperation, stall.Id,
+                new(request.CollectionDate.Year, request.CollectionDate.Month, 1), request.PaymentBusinessDate ?? PhilippineTime.Today,
+                Common.Payments.NpmRentPaymentScope.DailyInstallment, request.ReviewedMonthAmount.Value,
+                request.MonthQuoteToken, request.CollectionDate, request.ORNumber), ct);
+            return result.IsSuccess ? Result<bool>.Success(true) : Result<bool>.Failure(result.Error!, result.Status);
+        }
+
         var collectorId = currentUser.CollectorId;
         var recordedBy = currentUser.Username ?? "System";
 
         // IA-051/IA-062: from the business date the Head turns the NPM daily switch on, a NEW daily stall-fee payment is
         // canonical money - one Collection with an SRC - whoever records it. The market rules below are unchanged; only where
-        // the money lives changes, and no typed receipt serial is carried on that path.
+        // the money lives changes; an optional OR is validated against accountable-form custody.
         var paymentDate = PhilippineTime.Today;
         var canonicalMoney = canonical is not null && stall.Facility?.Code == FacilityCode.NPM
             && await canonical.IsCanonicalAsync(paymentDate, ct);
         var operationId = request.ClientOperationId ?? Guid.NewGuid();
         var intent = canonicalMoney
             ? canonical!.NormalizeIntent("NpmDailyRecord", request.StallId, [request.CollectionDate], paymentDate,
-                $"paid={request.IsPaid};absent={request.IsAbsent}")
+                $"paid={request.IsPaid};absent={request.IsAbsent}" + Common.Revenue.NpmReceiptEvidence.IntentSuffix(request.ORNumber))
             : null;
         if (canonicalMoney && request.ClientOperationId is not null && request.IsPaid && !request.IsAbsent
             && await canonical!.FindPriorAsync(operationId, intent!, ct) is { } prior)
@@ -235,7 +255,7 @@ public class RecordDailyCollectionCommandHandler(
         {
             // The day's stall fee is posted as one Collection (the SRC is its identity). Weighing recorded with the day stays
             // on the day row under Weight and Measure and is not part of this Collection.
-            var posted = await canonical!.PostAsync(stall, [new(newlyPaid, newlyPaid.DailyFee)], operationId, intent!, paymentDate, ct);
+            var posted = await canonical!.PostAsync(stall, [new(newlyPaid, newlyPaid.DailyFee)], operationId, intent!, paymentDate, ct, request.ORNumber);
             if (!posted.IsSuccess)
                 return Result<bool>.Failure(posted.Error ?? "The collection could not be posted.", posted.Status);
         }

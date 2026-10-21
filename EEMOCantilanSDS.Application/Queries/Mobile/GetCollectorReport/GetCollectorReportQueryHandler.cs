@@ -4,6 +4,8 @@ using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Domain.Common;
 using MediatR;
+using EEMOCantilanSDS.Application.Common.Payments;
+using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorReport;
 
@@ -15,7 +17,7 @@ public class GetCollectorReportQueryHandler(
     // The collector's posted canonical Collections (governed operations, obligations, penalties, converted rent and
     // utilities): the same facts their Position sums, so the report and the Position cannot disagree.
     ICollectorCollectionFacts canonicalFacts,
-    ICurrentUserService currentUser, IClock clock) : IRequestHandler<GetCollectorReportQuery, Result<MobileCollectorReportDto>>
+    ICurrentUserService currentUser, IClock clock, NpmRentMonthWorkflow? monthly = null) : IRequestHandler<GetCollectorReportQuery, Result<MobileCollectorReportDto>>
 {
     public async Task<Result<MobileCollectorReportDto>> Handle(GetCollectorReportQuery request, CancellationToken ct)
     {
@@ -52,6 +54,35 @@ public class GetCollectorReportQueryHandler(
             monthStart,
             effectiveEnd,
             ct);
+
+        if (monthly is not null)
+        {
+            var payees = report.Payees.ToArray();
+            var changed = false;
+            for (var i = 0; i < payees.Length; i++)
+            {
+                var row = payees[i];
+                if (row.FacilityCode != FacilityCode.NPM || row.StallId is not { } stallId) continue;
+                var monthlyReport = await monthly.ReadReportPositionAsync(stallId, monthStart, effectiveEnd, ct);
+                if (monthlyReport is null) continue;
+                var position = monthlyReport.Position;
+                changed = true;
+                var assessed = monthlyReport.EarnedLiability;
+                var paid = position.LegacyCash + position.CanonicalCash;
+                var balance = Math.Max(0, assessed - paid);
+                payees[i] = row with { AssessedAmount = assessed, AmountPaid = paid, Balance = balance,
+                    Status = assessed > 0 && balance == 0 ? PaymentStatus.Paid : paid > 0 ? PaymentStatus.Partial : PaymentStatus.Unpaid };
+            }
+            if (changed) report = report with { Payees = payees,
+                Totals = report.Totals with { OutstandingAmount = payees.Sum(x => x.Balance),
+                    PaidCount = payees.Count(x => x.Status == PaymentStatus.Paid), PartialCount = payees.Count(x => x.Status == PaymentStatus.Partial),
+                    UnpaidCount = payees.Count(x => x.Status == PaymentStatus.Unpaid) },
+                Facilities = report.Facilities.Select(f => f with {
+                    OutstandingAmount = payees.Where(x => x.FacilityCode == f.FacilityCode).Sum(x => x.Balance),
+                    PaidCount = payees.Count(x => x.FacilityCode == f.FacilityCode && x.Status == PaymentStatus.Paid),
+                    PartialCount = payees.Count(x => x.FacilityCode == f.FacilityCode && x.Status == PaymentStatus.Partial),
+                    UnpaidCount = payees.Count(x => x.FacilityCode == f.FacilityCode && x.Status == PaymentStatus.Unpaid) }).ToArray() };
+        }
 
         // Canonical money is selected by its own Philippine business date over the whole selected month, inclusive — the
         // date the collection answers for, never a sync or device timestamp. A failed read is a failed report, never ₱0.

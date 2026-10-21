@@ -1,0 +1,112 @@
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@inject IOfficeSourcesApiClient OfficeApi
+
+<VendorDrawerShell Show="Show" AnimateEntry="true" Title="Select Fish / Meat vendor" Subtitle="For NPM registration" OnClose="OnClose">
+    <Icon><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="7" r="3" /><path d="M3 21v-2a6 6 0 0 1 12 0v2M17 5h4M17 9h4M18 15l2 2 3-4" /></svg></Icon>
+    <ChildContent>
+        <div class="rfm" aria-busy="@(_loading ? "true" : "false")">
+            <label for="rfm-search">Find vendor</label>
+            <input id="rfm-search" class="avm-input" type="search" @bind="_search" @bind:event="oninput" placeholder="Search name or business" />
+            @if (PreferredVendorId.HasValue && !_showAllVendors)
+            {
+                <div class="rfm-preferred" role="status">
+                    <span>Requested Fish / Meat registration</span>
+                    <button type="button" class="btn-ghost" @onclick="ShowAllVendors">Show all vendors</button>
+                </div>
+            }
+            <div class="rfm-controls">
+                <div class="rfm-filter"><span>Tax year</span><FhSelect Block="true" AriaLabel="Registration tax year" Options="Years" Value="@_year.ToString()" ValueChanged="ChangeYear" /></div>
+                <div class="rfm-filter"><span>Type</span><FhSelect Block="true" AriaLabel="Vendor type" Options="Types" Value="@_type" ValueChanged="v => _type = v" /></div>
+            </div>
+            @if (_error is not null) { <p role="alert">@_error</p><button type="button" class="btn-ghost" @onclick="Load">Try again</button> }
+            else if (_loading) { <p role="status">Loading registrations and NPM evidence…</p> }
+            else
+            {
+                <p class="rfm-note">Fish / Meat registration is separate from NPM tenancy. Verify the actual stall before saving.</p>
+                @foreach (var row in Visible)
+                {
+                    var vendor = row.Registration;
+                    var related = Related(vendor.Id);
+                    <section class="rfm-row" @key="vendor.Id">
+                        <div class="rfm-row-header">
+                            <strong>@vendor.DisplayName</strong>
+                            <span class="rfm-tag">@vendor.VendorType · @vendor.TaxYear</span>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(vendor.BusinessName)) { <span class="rfm-business">@vendor.BusinessName</span> }
+                        @if (!string.IsNullOrWhiteSpace(vendor.Address)) { <span class="rfm-address">@VendorAddressDisplay.Clean(vendor.Address)</span> }
+                        <small class="rfm-link-state">@(related.Any(x => x.Active) ? "NPM linked" : "NPM not linked")</small>
+                        @foreach (var source in related)
+                        {
+                            <span class="rfm-link-context">@source.Area · Stall @source.StallNo @(source.Active ? "" : "· Former link")</span>
+                            @if (source.Active) { <button type="button" class="btn-ghost" @onclick="() => OnExisting.InvokeAsync(source.StallId)">Review existing NPM stall</button> }
+                        }
+                        @if (_sources.Any(x => x.PossibleMatches.Any(v => v.Id == vendor.Id) && !related.Any(r => r.ContractId == x.ContractId)))
+                        { <span class="rfm-warning">Possible existing NPM record. Verify before proceeding.</span> }
+                        <button type="button" class="btn-primary rfm-select" disabled="@(row.Status != VendorRegistrationStatus.Active)" @onclick="() => OnSelected.InvokeAsync(vendor)">Use for NPM</button>
+                    </section>
+                }
+                @if (!Visible.Any())
+                {
+                    <p>@(PreferredVendorId.HasValue && !_showAllVendors
+                        ? "The requested registration was not found for this tax year. Verify its status before proceeding."
+                        : "No matching vendor registrations.")</p>
+                }
+            }
+        </div>
+    </ChildContent>
+    <Footer><button type="button" class="btn-ghost" @onclick="OnClose">Back</button></Footer>
+</VendorDrawerShell>
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public Guid? PreferredVendorId { get; set; }
+    [Parameter] public int? PreferredYear { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<FishMeatVendorRegistrationDto> OnSelected { get; set; }
+    [Parameter] public EventCallback<Guid> OnExisting { get; set; }
+    private bool _wasShown, _loading, _showAllVendors;
+    private void ShowAllVendors() { _showAllVendors = true; _search = ""; }
+    private int _loadVersion;
+    private int _year = PhilippineTime.Today.Year;
+    private string _search = "", _type = "All";
+    private string? _error;
+    private IReadOnlyList<VendorRegistrationManagementRow> _rows = [];
+    private IReadOnlyList<NpmVendorCandidate> _sources = [];
+    private IReadOnlyList<(string Value, string Label)> Years => Enumerable.Range(0, 6).Select(i => _year > PhilippineTime.Today.Year ? _year - i : PhilippineTime.Today.Year - i).Select(y => (y.ToString(), y.ToString())).ToArray();
+    private static readonly IReadOnlyList<(string Value, string Label)> Types = [("All", "All"), ("Fish", "Fish"), ("Meat", "Meat")];
+    private List<NpmVendorCandidate> Related(Guid id) => _sources.Where(s => s.Links.Any(l => l.VendorRegistrationId == id && l.CorrectedAtUtc is null)).ToList();
+    private IEnumerable<VendorRegistrationManagementRow> Visible => _rows.Where(x => (!PreferredVendorId.HasValue || _showAllVendors || x.Registration.Id == PreferredVendorId.Value)
+        && (_type == "All" || x.Registration.VendorType.ToString() == _type)
+        && string.Join(" ", new[] { x.Registration.DisplayName, x.Registration.BusinessName, x.Registration.LastName, x.Registration.FirstName, x.Registration.Address })
+            .Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase))
+        .OrderBy(x => x.Status != VendorRegistrationStatus.Active).ThenBy(x => Related(x.Registration.Id).Any(r => r.Active)).ThenBy(x => x.Registration.DisplayName).ThenBy(x => x.Registration.Id);
+    protected override async Task OnParametersSetAsync()
+    {
+        var opening = Show && !_wasShown; _wasShown = Show;
+        if (opening)
+        {
+            _showAllVendors = false;
+            _search = "";
+            _year = PreferredYear is >= 2000 and <= 2100 ? PreferredYear.Value : PhilippineTime.Today.Year;
+            await Load();
+        }
+    }
+    private async Task ChangeYear(string value) { _year = int.Parse(value); _showAllVendors = true; await Load(); }
+    private async Task Load()
+    {
+        var version = ++_loadVersion; var year = _year;
+        _loading = true; _error = null;
+        try
+        {
+            var registry = await OfficeApi.ManageRegistrationsAsync(year, PhilippineTime.Today.Month);
+            var sources = await OfficeApi.NpmVendorCandidatesAsync(year, true, true);
+            if (version != _loadVersion) return;
+            if (!registry.IsSuccess || registry.Value is null || !sources.IsSuccess || sources.Value is null)
+                _error = "Could not verify registrations and NPM evidence. Try again before selecting a vendor.";
+            else { _rows = registry.Value.Rows; _sources = sources.Value.Rows; }
+        }
+        catch { if (version == _loadVersion) _error = "Could not load registrations and NPM evidence."; }
+        finally { if (version == _loadVersion) _loading = false; }
+    }
+}

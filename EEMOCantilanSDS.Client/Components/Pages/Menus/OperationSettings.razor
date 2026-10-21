@@ -1,0 +1,226 @@
+@page "/settings/operations"
+@attribute [Authorize(Roles = "SuperAdmin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Application.Command.Settings.UpdateTenantOperationSetting
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Settings
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Client.Services
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Constants
+@inject IOperationSettingsApiClient OperationSettingsApi
+@inject BrandingState BrandingStore
+@inject IServiceProvider Services
+
+<PageTitle>StallTrack — Operation settings</PageTitle>
+
+@* Which revenue operations this office lists in its Operations directory, and what it calls them. Presentation only: listing or
+   naming an operation never grants, removes or changes authority to collect, its classification, its receipt instrument, its
+   sources or its Collector assignments, and hiding one deletes nothing. The office's own configuration, never hard-coded. *@
+<header class="topbar">
+    <div class="topbar-left">
+        <div class="topbar-title">Operation settings</div>
+        <div class="topbar-breadcrumb">
+            <span>@Branding.OfficeAcronym Admin</span>
+            <span class="breadcrumb-sep">/</span>
+            <a class="breadcrumb-link" href="/settings">Settings</a>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">Operations</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-date">@PhilippineTime.Now.ToString("MMMM d, yyyy")</div>
+        <AccountChip />
+    </div>
+</header>
+
+<div class="content-area">
+    <div class="v3-page os-page">
+        @if (_loading)
+        {
+            <p class="v3-notice" role="status">Loading operation settings…</p>
+        }
+        else if (_model is null)
+        {
+            <div class="v3-notice v3-notice-error" role="alert">
+                <p>Operation settings couldn't be loaded.</p>
+                <button type="button" class="v3-btn" @onclick="LoadAsync">Try again</button>
+            </div>
+        }
+        else
+        {
+            <section class="v3-panel" aria-labelledby="os-intro">
+                <header class="v3-panel-header"><h2 id="os-intro">Your operations</h2><span class="v3-panel-meta">@ListedCount of @_model.Items.Count listed</span></header>
+                <div class="os-intro">
+                    <p>Choose your listed operations and display names. Changes affect <strong>wording and listing only</strong>, not collection authority, rates, receipts or existing records.</p>
+                    @if (!_model.UsesConfiguration)
+                    {
+                        <p class="os-legacy" role="note">Your office has not customised this list; existing names remain until you save a change.</p>
+                    }
+                </div>
+                @if (!string.IsNullOrWhiteSpace(_message))
+                {
+                    <p class="v3-notice @(_failed ? "v3-notice-error" : "")" role="@(_failed ? "alert" : "status")">@_message</p>
+                }
+            </section>
+
+            @foreach (var group in Groups)
+            {
+                <section class="v3-panel" aria-labelledby="os-group-@group.Key">
+                    <header class="v3-panel-header"><h2 id="os-group-@group.Key">@group.Label</h2></header>
+                    <ul class="os-rows">
+                        @foreach (var item in _model.Items.Where(i => i.GroupKey == group.Key))
+                        {
+                            var draft = DraftFor(item);
+                            <li class="os-row" data-operation="@item.OperationCode">
+                                <form class="os-form" aria-label="@item.DefaultLabel" @onsubmit="() => SaveAsync(item)" @onsubmit:preventDefault="true">
+                                    <div class="os-head">
+                                        <label class="os-listed">
+                                            <input type="checkbox" checked="@draft.Listed" @onchange="e => draft.Listed = (bool)(e.Value ?? false)" />
+                                            <span class="os-standard">@item.DefaultLabel</span>
+                                        </label>
+                                        <span class="os-status">@(item.IsListed ? "Listed" : "Not listed")</span>
+                                    </div>
+                                    <label class="v3-field os-name">
+                                        <span>Your name for it <small>(optional)</small></span>
+                                        <input type="text" maxlength="@TenantOperationCatalog.MaxLabelLength" value="@draft.Name" placeholder="@item.DefaultLabel"
+                                               @oninput="e => draft.Name = e.Value?.ToString() ?? string.Empty" />
+                                    </label>
+                                    @if (!string.IsNullOrWhiteSpace(item.PolicyNotice))
+                                    {
+                                        <p class="os-policy" role="note"><strong>Policy confirmation required.</strong> @item.PolicyNotice</p>
+                                    }
+                                    @if (item.IsListed)
+                                    {
+                                        @* Facts only. Whether the operation can collect also depends on its source, rate and documents, which this page does not judge. *@
+                                        <p class="os-facts">@(item.AssignedCollectors == 0 ? "No Collector assigned" : item.AssignedCollectors == 1 ? "1 Collector assigned" : $"{item.AssignedCollectors} Collectors assigned")@(item.HasRecordedActivity ? " · Collections recorded" : " · No collections recorded yet")</p>
+                                    }
+                                    @if (item.HasRecordedActivity)
+                                    {
+                                        <p class="os-hint">Collections are already recorded under this operation. Hiding it removes nothing from your records or reports.</p>
+                                    }
+                                    @if (_rowError.TryGetValue(item.OperationCode, out var rowError))
+                                    {
+                                        <p class="os-error" role="alert">@rowError</p>
+                                    }
+                                    <div class="os-actions">
+                                        <button type="button" class="v3-btn" @onclick="() => UseStandardName(item)" disabled="@(_saving || string.IsNullOrEmpty(draft.Name))">Use standard name</button>
+                                        <button type="submit" class="v3-btn v3-btn-primary" disabled="@(_saving || !IsDirty(item, draft))">Save</button>
+                                    </div>
+                                </form>
+                            </li>
+                        }
+                    </ul>
+                </section>
+            }
+
+            <section class="v3-panel" aria-labelledby="os-more">
+                <header class="v3-panel-header"><h2 id="os-more">Not listed here</h2></header>
+                <div class="os-intro">
+                    <p>Facility-backed operations are managed in <a href="/settings/facilities">Facility Configuration</a>. Rates, Collectors and collection authority are configured separately.</p>
+                    <p>Cantilan's Municipal Space Rental uses a three-year contract standard; other LGUs must confirm their own approved contract terms.</p>
+                </div>
+            </section>
+
+            <div class="os-footer"><a class="v3-btn" href="/settings">Back to Settings</a></div>
+        }
+    </div>
+</div>
+
+@code {
+    private sealed class Draft { public bool Listed { get; set; } public string Name { get; set; } = string.Empty; }
+
+    private static readonly (string Key, string Label)[] Groups =
+    [
+        (TenantOperationCatalog.MarketGroup, "Income From Market"),
+        (TenantOperationCatalog.SpaceGroup, "Space Rental"),
+    ];
+
+    private TenantOperationSettingsDto? _model;
+    private readonly Dictionary<string, Draft> _drafts = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _rowError = new(StringComparer.Ordinal);
+    private bool _loading = true;
+    private bool _saving;
+    private bool _failed;
+    private string? _message;
+
+    private int ListedCount => _model?.Items.Count(i => i.IsListed) ?? 0;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var result = await OperationSettingsApi.GetAsync();
+            _model = result.IsSuccess ? result.Value : null;
+            ResetDrafts();
+        }
+        catch
+        {
+            _model = null;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void ResetDrafts()
+    {
+        _drafts.Clear();
+        if (_model is null) return;
+        foreach (var item in _model.Items)
+            _drafts[item.OperationCode] = new Draft { Listed = item.IsListed, Name = item.LocalDisplayName ?? string.Empty };
+    }
+
+    private Draft DraftFor(TenantOperationSettingDto item) =>
+        _drafts.TryGetValue(item.OperationCode, out var d) ? d : _drafts[item.OperationCode] = new Draft { Listed = item.IsListed, Name = item.LocalDisplayName ?? string.Empty };
+
+    private static bool IsDirty(TenantOperationSettingDto item, Draft draft) =>
+        draft.Listed != item.IsListed || !string.Equals(draft.Name.Trim(), item.LocalDisplayName ?? string.Empty, StringComparison.Ordinal);
+
+    private void UseStandardName(TenantOperationSettingDto item) => DraftFor(item).Name = string.Empty;
+
+    private async Task SaveAsync(TenantOperationSettingDto item)
+    {
+        if (_saving || _model is null) return;
+        var draft = DraftFor(item);
+        _saving = true;
+        _message = null;
+        _rowError.Remove(item.OperationCode);
+        try
+        {
+            var result = await OperationSettingsApi.UpdateAsync(
+                item.OperationCode,
+                new UpdateTenantOperationSettingRequest(draft.Listed, draft.Name, item.Version == 0 ? null : item.Version));
+            if (result.IsSuccess && result.Value is not null)
+            {
+                _model = result.Value;
+                ResetDrafts();
+                _failed = false;
+                _message = "Saved.";
+                // Headers, dashboard cards and activity lists already on screen elsewhere in this session follow the new name.
+                var names = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<EEMOCantilanSDS.Client.Services.OperationNameService>(Services);
+                if (names is not null) await names.InvalidateAsync();
+            }
+            else
+            {
+                // The server's own reason, verbatim: a name that reads as another operation, a stale edit, a refusal.
+                _rowError[item.OperationCode] = result.Error ?? "That change couldn't be saved.";
+                _failed = true;
+                _message = "That change couldn't be saved. See the message on the operation.";
+            }
+        }
+        catch
+        {
+            _failed = true;
+            _message = "That change couldn't be saved. Try again.";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

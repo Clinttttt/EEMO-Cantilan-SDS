@@ -1,0 +1,276 @@
+@page "/operations/kanmanggay/profile/{AccountId:guid}"
+@page "/operations/vegetable-fruit/profile/{AccountId:guid}"
+@page "/operations/fiesta-araw/profile/{AccountId:guid}"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Common.Lifecycle
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Client.Services
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Constants
+@using EEMOCantilanSDS.Domain.Enums
+@inject IObligationsApiClient AccountsApi
+@inject NavigationManager Navigation
+
+<PageTitle>StallTrack — @(IsLot ? "Lot" : "Space") Profile</PageTitle>
+
+@* The profile of ONE space or lot account, in the stall profile's own design (RentalProfileView). It is keyed by the account's source id in the
+   route: a person who holds several spaces has several profiles, and an earlier occupant is never merged into the current one. Every figure is
+   the account's own: the lease evidence recorded on it, its canonical period balances and the Collections posted against its periods. *@
+<OperationTopbar Title="@(IsLot ? "Lot Profile" : "Space Profile")" Crumb="@CrumbText" ParentHref="@Presentation.Route" ParentTitle="@Presentation.Name" />
+<div class="content-area">
+    @if (_loading)
+    {
+        <Skeleton Height="220px" />
+    }
+    else if (_error is not null)
+    {
+        <div class="v3-notice v3-notice-error v3-notice-row" role="alert">
+            <span>@_error</span>
+            <button class="btn-outline" type="button" @onclick="() => LoadAsync()">Try again</button>
+        </div>
+    }
+    else if (_account is null)
+    {
+        <div class="v3-notice" role="status">
+            <span>This @(IsLot ? "lot" : "space") account was not found in @Presentation.Name.</span>
+            <a class="btn-outline" href="@Presentation.Route">Back to @Presentation.Name</a>
+        </div>
+    }
+    else
+    {
+        var account = _account;
+        <RentalProfileView Eyebrow="@($"{Presentation.Name} · {(IsLot ? "Lot" : "Space")} {account.SubjectLabel}")"
+                           Name="@SpaceAccountPresentation.Occupant(account)"
+                           Location="@LocationText" Pills="Pills" Actions="Actions" OnAction="HandleAction"
+                           Sections="Sections"
+                           HistoryTitle="@(IsLot ? "Event Settlement" : "12-Month Payment History")" ShowYearNav="@(!IsLot)"
+                           Year="_year" CanNextYear="@(_year < PhilippineTime.Today.Year)" OnYear="ShiftYear"
+                           Tiles="Tiles" Stats="Stats"
+                           PaymentsLoading="false" PaymentsError="@_paymentsError" Payments="PaymentRows" OnRetry="() => LoadAsync()">
+            <AfterHero>
+                @if (!IsLot)
+                {
+                    <AccountLifecycleBar Source="LifecycleSource.SpaceRental" AccountId="AccountId" ProfileHref="Presentation.ProfileHref"
+                                         InitialAction="LifecyclePresentation.FromQuery(ActionName)" OnChanged="() => LoadAsync(quiet: true)" OnLoaded="v => _lifecycle = v" />
+                }
+            </AfterHero>
+        </RentalProfileView>
+    }
+</div>
+
+@if (_history && _account is not null)
+{
+    <ObligationRentalDetails Account="_account" History="true" OnClose="() => _history = false" />
+}
+
+@code {
+    [Parameter] public Guid AccountId { get; set; }
+    /// <summary>A deep link from another page (for example Closed Accounts): opens this lifecycle action if the server offers it.</summary>
+    [SupplyParameterFromQuery(Name = "action")] public string? ActionName { get; set; }
+
+    private ObligationAccountDto? _account;
+    private AccountLifecycleDto? _lifecycle;
+    private IReadOnlyList<ObligationQuoteDto> _periods = [];
+    private IReadOnlyList<ObligationPaymentDto> _payments = [];
+    private bool _loading = true, _history;
+    private string? _error, _paymentsError;
+    private int _year = PhilippineTime.Today.Year;
+
+    private SpaceAccountPresentation Presentation =>
+        Navigation.Uri.Contains("/operations/vegetable-fruit/", StringComparison.OrdinalIgnoreCase) ? SpaceAccountPresentation.VegetableFruit
+        : Navigation.Uri.Contains("/operations/fiesta-araw/", StringComparison.OrdinalIgnoreCase) ? SpaceAccountPresentation.FiestaAraw
+        : SpaceAccountPresentation.Kanmanggay;
+    private bool IsLot => Presentation.Kind == ObligationKind.FiestaArawLotRental;
+    private string CrumbText => _account is null ? (IsLot ? "Lot" : "Space") : $"{(IsLot ? "Lot" : "Space")} {_account.SubjectLabel}";
+
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    // A quiet reload (after a lifecycle action) refreshes the figures without blanking the page, so the lifecycle panel keeps its own message.
+    private async Task LoadAsync(bool quiet = false)
+    {
+        if (!quiet) { _loading = true; _account = null; _periods = []; _payments = []; }
+        _error = null; _paymentsError = null;
+        try
+        {
+            var accounts = await AccountsApi.GetAccountsAsync(Presentation.Kind);
+            if (accounts is not { IsSuccess: true }) { _error = accounts?.Error ?? "The account could not be loaded."; return; }
+            _account = accounts.Value?.FirstOrDefault(a => a.Id == AccountId && a.Kind == Presentation.Kind);
+            if (_account is null) return;
+            var register = await AccountsApi.GetRegisterAsync(AccountId);
+            if (register is not { IsSuccess: true }) { _error = register?.Error ?? "The account's periods could not be loaded."; return; }
+            _periods = (register.Value ?? []).Where(p => p.AccountId == AccountId).ToArray();
+            var payments = await AccountsApi.GetPaymentsAsync(AccountId);
+            if (payments is { IsSuccess: true, Value: { } list }) _payments = list; else _paymentsError = "Collection history could not be loaded.";
+        }
+        catch { _error = "The account could not be loaded."; }
+        finally { _loading = false; }
+    }
+
+    private Task ShiftYear(int delta) { _year = Math.Clamp(_year + delta, 2020, PhilippineTime.Today.Year); return Task.CompletedTask; }
+
+    private void HandleAction(string key)
+    {
+        if (key == "history") _history = true;
+        else if (key == "collect") Navigation.NavigateTo("/collections/current");
+    }
+
+    private string? LocationText => _account is null ? null
+        : string.Join(" · ", new[] { Presentation.Name, IsLot ? null : _account.AreaLocation }.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+    // One classification for every screen: an end date that has not passed is still an active account.
+    private static RentalProfileView.ProfilePill StatusPill(ObligationAccountDto a) => RentalAccountStatus.Of(a) switch
+    {
+        RentalAccountState.Active => new("Active", "active"),
+        RentalAccountState.Ending => new(a.ActiveTo == PhilippineTime.Today ? "Ends today" : $"Ends {a.ActiveTo:MMM d, yyyy}", "partial"),
+        RentalAccountState.TermExpired => new("Term ended", "partial"),
+        RentalAccountState.Retired => new("Retired", "inactive"),
+        _ => new("Closed", "inactive")
+    };
+
+    private DateOnly CurrentMonth => new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
+
+    private IReadOnlyList<RentalProfileView.ProfilePill> Pills
+    {
+        get
+        {
+            if (_account is null) return [];
+            var pills = new List<RentalProfileView.ProfilePill>();
+            var now = _periods.FirstOrDefault(p => p.PeriodStart == CurrentMonth) ?? (IsLot ? _periods.FirstOrDefault() : null);
+            if (now is { AssessedAmount: > 0 })
+                pills.Add(now.OutstandingAmount == 0 ? new("Paid", "paid") : now.SettledAmount > 0 ? new("Partial", "partial") : new("Unpaid", "unpaid"));
+            pills.Add(StatusPill(_account));
+            return pills;
+        }
+    }
+
+    private IReadOnlyList<RentalProfileView.ProfileAction> Actions =>
+    [
+        new("history", "Payment History", "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"),
+        new("collect", "Manage Collection", "M3 4h18v18H3z M16 2v4 M8 2v4 M3 10h18", Primary: true)
+    ];
+
+    private IReadOnlyList<RentalProfileView.ProfileSection> Sections
+    {
+        get
+        {
+            if (_account is not { } a) return [];
+            const string home = "M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z";
+            const string person = "M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2 M12 3a4 4 0 100 8 4 4 0 000-8z";
+            var occupant = SpaceAccountPresentation.Occupant(a);
+            var status = StatusPill(a);
+            if (IsLot)
+                return
+                [
+                    new("Lot Information", home,
+                    [
+                        new("Operation", Presentation.Name),
+                        new("Lot No.", a.SubjectLabel, "mono"),
+                        new("Event", a.Event?.ToString() ?? "—"),
+                        new("Event date", a.EventDate?.ToString("MMMM d, yyyy") ?? "Not recorded"),
+                        new("Approved lot amount", Money(a.CurrentAmount), "bold gold"),
+                        new("Account status", "", Pill: status)
+                    ]),
+                    new("Lot Holder", person,
+                    [
+                        new("Lot holder", occupant, "bold"),
+                        new("Account opened", a.ActiveFrom.ToString("MMMM d, yyyy"))
+                    ])
+                ];
+            var expiry = a.ContractEffectiveDate is { } start && a.ContractYears is { } years
+                ? DomainRules.TermLastDay(start.ToDateTime(TimeOnly.MinValue), years) : (DateTime?)null;
+            return
+            [
+                new("Space Information", home,
+                [
+                    new("Operation", Presentation.Name),
+                    new("Space No.", a.SubjectLabel, "mono"),
+                    new("Area (sq.m)", a.AreaSqm is { } sqm ? $"{sqm:N2} sqm" : "—"),
+                    new("Area Location / Note", string.IsNullOrWhiteSpace(a.AreaLocation) ? "—" : a.AreaLocation),
+                    new("Approved Monthly Rental", a.CurrentAmount is { } rate ? $"₱{rate:N0}/month" : "—", "bold gold"),
+                    new("Rental per Contract", a.ContractMonthlyRate is { } stated ? $"₱{stated:N0}/month" : "Not recorded", Muted: a.ContractMonthlyRate is null),
+                    new("Whole Year (12 × approved)", a.CurrentAmount is { } yearly ? $"₱{yearly * 12m:N0}" : "—"),
+                    new("Account status", "", Pill: status)
+                ]),
+                new("Occupant & Contract", person,
+                [
+                    new("Actual Occupant", occupant, "bold"),
+                    a.Arrangement == OccupancyArrangement.SignedContract && !string.IsNullOrWhiteSpace(a.ContractName)
+                        ? new("Name on Contract", a.ContractName!)
+                        : new("Name on Contract", a.Arrangement == OccupancyArrangement.SignedContract ? "Not recorded" : "No contract on file", Muted: true),
+                    new("Basis of Occupancy", SpaceAccountPresentation.Basis(a)),
+                    new("Contract Reference", string.IsNullOrWhiteSpace(a.ContractReference) ? "—" : a.ContractReference),
+                    new("Contract Effectivity Date", a.ContractEffectiveDate?.ToString("MMMM d, yyyy") ?? "—"),
+                    new("Contract Duration", a.ContractYears is { } n ? $"{n} years" : "—"),
+                    new("Contract Expiry", expiry?.ToString("MMMM d, yyyy") ?? "—")
+                ]),
+                ..HistorySection()
+            ];
+        }
+    }
+
+    // The account's own lifecycle history (closure, renewals, a successor), newest first, in the same card style as the rest of the profile.
+    private IEnumerable<RentalProfileView.ProfileSection> HistorySection()
+    {
+        var rows = (_lifecycle?.History ?? []).Where(h => h.Kind != "AccountOpened").OrderByDescending(h => h.Date).Take(8).ToList();
+        if (rows.Count == 0) yield break;
+        yield return new("History", "M12 8v4l3 3 M3 12a9 9 0 1 0 3-6.7 M3 4v5h5", rows.Select(h => new RentalProfileView.ProfileFact(h.Date.ToString("MMM d, yyyy"), h.Description)).ToList());
+    }
+
+    private IReadOnlyList<RentalProfileView.ProfileTile> Tiles
+    {
+        get
+        {
+            if (_account is not { } a || IsLot) return [];
+            var active = new DateOnly(a.ActiveFrom.Year, a.ActiveFrom.Month, 1);
+            var quotes = _periods.ToLookup(p => p.PeriodStart);
+            return Enumerable.Range(1, 12).Select(m =>
+            {
+                var start = new DateOnly(_year, m, 1);
+                var name = start.ToString("MMM"); var yy = start.ToString("yy");
+                var current = start == CurrentMonth;
+                if (start > CurrentMonth) return new RentalProfileView.ProfileTile(name, yy, "future", "—", "not yet due", current);
+                var closedBefore = a.ActiveTo is { } closed && start > new DateOnly(closed.Year, closed.Month, 1);
+                if (start < active || closedBefore) return new(name, yy, "na", "—", "no account", current);
+                var q = quotes[start].FirstOrDefault();
+                if (q is null || q.AssessedAmount <= 0) return new(name, yy, "na", "—", "not assessed", current);
+                return q.OutstandingAmount == 0 ? new(name, yy, "paid", "✓", "paid", current)
+                    : q.SettledAmount > 0 ? new(name, yy, "partial", "◐", "partial", current)
+                    : new(name, yy, "unpaid", "✗", "unpaid", current);
+            }).ToList();
+        }
+    }
+
+    private IReadOnlyList<RentalProfileView.ProfileStat> Stats
+    {
+        get
+        {
+            if (_account is not { } a) return [];
+            if (IsLot)
+                return [new(Money0(a.CurrentAmount ?? 0m), "Approved Amount"), new(Money0(a.AssessedToDate), "Assessed"),
+                        new(Money0(a.CollectedToDate), "Settled", "green"), new(Money0(a.OutstandingToDate), "Remaining", "red", a.OutstandingToDate > 0)];
+            var assessed = _periods.Where(p => p.AssessedAmount > 0).ToList();
+            return
+            [
+                new(assessed.Count(p => p.OutstandingAmount == 0).ToString(), "Months Paid", "green"),
+                new(assessed.Count(p => p.OutstandingAmount > 0).ToString(), "Months With Balance", "red"),
+                new(Money0(a.CollectedToDate), "Total Collected"),
+                new(Money0(a.OutstandingToDate), "Balance To Date", "red", a.OutstandingToDate > 0)
+            ];
+        }
+    }
+
+    private IReadOnlyList<RentalProfileView.ProfilePaymentRow> PaymentRows => _payments.Take(25).Select(p =>
+        new RentalProfileView.ProfilePaymentRow(
+            IsLot ? (_account?.Event?.ToString() ?? "Event") : p.PeriodStart.ToString("MMM yyyy"),
+            p.BusinessDate.ToString("MMM d, yyyy"),
+            p.Disposition == "Reversed" ? "Absent" : p.NetAmount < p.Amount ? "Partial" : "Paid",
+            p.Disposition == "Reversed" ? $"₱{p.Amount:N0} → ₱0" : Money0(p.NetAmount),
+            p.ReferenceCode, p.RecordedBy,
+            p.Disposition == "Posted" ? null : p.Disposition + (p.Corrections is { Count: > 0 } c ? $" · {c[0].Reason}" : ""))).ToList();
+
+    private static string Money(decimal? amount) => amount is { } value ? $"₱{value:N2}" : "—";
+    private static string Money0(decimal amount) => $"₱{amount:N0}";
+}

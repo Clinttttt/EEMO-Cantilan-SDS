@@ -1,5 +1,8 @@
 using EEMOCantilanSDS.Application.Command.Admins.CreateAdmin;
+using EEMOCantilanSDS.Application.Command.Admins.InviteAdmin;
+using EEMOCantilanSDS.Application.Command.Admins.ResendAdminInvitation;
 using EEMOCantilanSDS.Application.Command.Admins.ResetAdminPassword;
+using EEMOCantilanSDS.Application.Command.Admins.RevokeAdminInvitation;
 using EEMOCantilanSDS.Application.Command.Admins.SendAdminEmailVerification;
 using EEMOCantilanSDS.Application.Command.Admins.ToggleAdminStatus;
 using EEMOCantilanSDS.Application.Command.Admins.UpdateAdmin;
@@ -39,6 +42,24 @@ public class AdminsController : ApiBaseController
         var result = await Sender.Send(new SendAdminEmailVerificationCommand(id));
         return HandleResponse(result);
     }
+
+    /// <summary>
+    /// Invites an admin: the account is created inactive and its owner chooses their own password through a one-time emailed link.
+    /// No password is issued or shared.
+    /// </summary>
+    [HttpPost("invitations")]
+    public async Task<ActionResult<AdminInvitationDto>> InviteAdminAsync([FromBody] InviteAdminCommand command) =>
+        HandleResponse(await Sender.Send(command));
+
+    /// <summary>Issues a fresh link for an invitation not yet accepted; the previous link stops working.</summary>
+    [HttpPost("{id:guid}/invitation/resend")]
+    public async Task<ActionResult<AdminInvitationDto>> ResendInvitationAsync(Guid id) =>
+        HandleResponse(await Sender.Send(new ResendAdminInvitationCommand(id)));
+
+    /// <summary>Withdraws an invitation not yet accepted.</summary>
+    [HttpPost("{id:guid}/invitation/revoke")]
+    public async Task<ActionResult<bool>> RevokeInvitationAsync(Guid id) =>
+        HandleResponse(await Sender.Send(new RevokeAdminInvitationCommand(id)));
 
     [HttpPost]
     public async Task<ActionResult<AdminDto>> CreateAdminAsync([FromBody] CreateAdminCommand command)

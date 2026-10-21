@@ -18,10 +18,10 @@
    checks every row first (nothing is saved or reserved by checking) and says which look like an existing registration; the Head confirms each
    genuinely separate one, and nothing is ever merged or linked by name. A money column, such as the monthly amounts on the office's paper, is not
    read: those are collections, which Collector Mobile records. The layout owns the <main> landmark. *@
-<OperationTopbar Title="Fish / Meat Vendors" Crumb="Import vendor list" />
+<OperationTopbar OperationCode="FISH_MEAT_VENDOR_FEE" Title="Fish / Meat Vendors" Crumb="Import vendor list" ParentHref="@RegistryHref" ParentTitle="Fish / Meat Vendors" />
 <div class="content-area">
     <div class="fmi">
-        <ImportHero Eyebrow="Fish / Meat · Bulk Import" Title="Import Fish / Meat vendors" Subtitle="Registry only: vendors are registered here, never collected from a list." Step="Step" />
+        <ImportHero Eyebrow="Fish / Meat · Bulk Import" Title="Import Fish / Meat vendors" Subtitle="Office vendor register · Upload, review and save registration details." Step="Step" Blue="true" />
 
         @if (_result is not null)
         {
@@ -30,6 +30,7 @@
                 <ChildContent>
                     <ImportButton Kind="ghost" OnClick="ResetAll">Import another list</ImportButton>
                     <ImportButton Kind="primary" Href="/operations/fish-meat-vendor-fees/manage">Open Manage</ImportButton>
+                    <a class="imp-btn imp-btn-outline" href="/operations/fish-meat-vendor-fees/office-register">Open office register</a>
                 </ChildContent>
             </ImportResultCard>
         }
@@ -105,6 +106,7 @@
     private string? _message, _uploadError, _fileName, _previewNote;
     private bool _saving, _previewing;
     private int _taxYear = PhilippineTime.Today.Year;
+    private string RegistryHref => _taxYear == PhilippineTime.Today.Year ? "/operations/fish-meat-vendor-fees" : $"/operations/fish-meat-vendor-fees?taxYear={_taxYear}";
     private VendorRegistryImportResult? _result;
     private List<Row> Rows = [];
 
@@ -116,11 +118,18 @@
 
     private static readonly ImportColumn NameCol = new("name", "Vendor name", MinWidth: 200, Placeholder: "Full name");
     private static readonly ImportColumn BusinessCol = new("business", "Business name", MinWidth: 180);
+    private static readonly ImportColumn LastCol = new("last", "Last name", MinWidth: 140);
+    private static readonly ImportColumn FirstCol = new("first", "First name", MinWidth: 140);
+    private static readonly ImportColumn MiddleCol = new("middle", "Middle name", MinWidth: 130);
+    private static readonly ImportColumn ExtCol = new("extension", "Extname", MinWidth: 90);
+    private static readonly ImportColumn SexCol = new("sex", "Sex", "select", ["Male", "Female", "Other / unspecified"], MinWidth: 110);
+    private static readonly ImportColumn NatureCol = new("nature", "Nature of business", MinWidth: 280, Placeholder: "Office-registered activity");
     private static readonly ImportColumn TypeCol = new("type", "Type", "select", ["Fish", "Meat"], MinWidth: 110);
     private static readonly ImportColumn KindCol = new("kind", "Registration", "select", ["New", "Renew"], MinWidth: 130);
     private static readonly ImportColumn AddressCol = new("address", "Address", MinWidth: 200);
     private static readonly ImportColumn ReferenceCol = new("reference", "Reference", MinWidth: 150);
-    private static readonly IReadOnlyList<ImportColumn> Columns = [NameCol, BusinessCol, TypeCol, KindCol, AddressCol, ReferenceCol];
+    private static readonly IReadOnlyList<ImportColumn> Columns = [NameCol, BusinessCol, LastCol, FirstCol, MiddleCol,
+        ExtCol, SexCol, TypeCol, KindCol, AddressCol, NatureCol, ReferenceCol];
 
     // HEADER ONLY: a template carries column names and nothing the office could mistake for data the platform put there.
     private static string TemplateUri => "data:text/csv;charset=utf-8," + Uri.EscapeDataString(string.Join(",", Columns.Select(c => c.Label)) + "\r\n");
@@ -129,6 +138,8 @@
     {
         public Guid OperationId = Guid.NewGuid();
         public string Name = "", Business = "", TypeText = "", KindText = "", Address = "", Reference = "";
+        public string LastName = "", FirstName = "", MiddleName = "", Extension = "", Sex = "", Nature = "";
+        public string FileTaxYear = "";
         public bool Confirm;
         public string? Error;
         public VendorRegistryImportPreviewRow? Preview;
@@ -141,7 +152,10 @@
 
     private string CellOf(Row row, ImportColumn col) => col.Key switch
     {
-        "name" => row.Name, "business" => row.Business, "type" => row.TypeText, "kind" => row.KindText, "address" => row.Address, _ => row.Reference
+        "name" => row.Name, "business" => row.Business, "type" => row.TypeText, "kind" => row.KindText,
+        "last" => row.LastName, "first" => row.FirstName, "middle" => row.MiddleName,
+        "extension" => row.Extension, "sex" => row.Sex, "nature" => row.Nature,
+        "address" => row.Address, _ => row.Reference
     };
 
     private void CellChanged(ImportCellChange<Row> change)
@@ -152,6 +166,12 @@
         {
             case "name": row.Name = value; break;
             case "business": row.Business = value; break;
+            case "last": row.LastName = value; break;
+            case "first": row.FirstName = value; break;
+            case "middle": row.MiddleName = value; break;
+            case "extension": row.Extension = value; break;
+            case "sex": row.Sex = value; break;
+            case "nature": row.Nature = value; break;
             case "type": row.TypeText = value; break;
             case "kind": row.KindText = value; break;
             case "address": row.Address = value; break;
@@ -173,7 +193,7 @@
     private void ChangeYear(string value)
     {
         _taxYear = int.Parse(value);
-        foreach (var row in Rows) { row.Preview = null; row.Confirm = false; row.OperationId = Guid.NewGuid(); }
+        foreach (var row in Rows) { row.Preview = null; row.Confirm = false; row.OperationId = Guid.NewGuid(); Validate(row); }
         SchedulePreview();
     }
 
@@ -208,7 +228,11 @@
         if (row.Name.Trim().Length < 2) row.Error = "Vendor name is required";
         else if (row.Name.Trim().Length > 200) row.Error = "Vendor name is too long";
         else if (row.Business.Trim().Length > 200 || row.Reference.Trim().Length > 200) row.Error = "Business or reference is too long";
-        else if (row.Address.Trim().Length > 300) row.Error = "Address is too long";
+        else if (row.Address.Trim().Length > 300 || row.Nature.Trim().Length > 300) row.Error = "Address or nature of business is too long";
+        else if (new[] { row.LastName, row.FirstName, row.MiddleName }.Any(x => x.Trim().Length > 100) || row.Extension.Trim().Length > 30 || row.Sex.Trim().Length > 30)
+            row.Error = "Office name or sex entry is too long";
+        else if (row.FileTaxYear.Length > 0 && (!int.TryParse(row.FileTaxYear, out var fileYear) || fileYear != _taxYear))
+            row.Error = "The list tax year does not match the selected tax year";
     }
 
     // ── Getting rows in ──
@@ -262,7 +286,8 @@
         }
     }
 
-    private enum Col { None, Name, Business, Type, Kind, Address, Reference }
+    private enum Col { None, Name, Business, Last, First, Middle, Extension, Sex, Type, Kind, Address, Nature, Reference, TaxYear }
+    // Older headerless six-column lists keep their documented order; new office-paper fields are header-mapped only.
     private static readonly Col[] DocumentedOrder = [Col.Name, Col.Business, Col.Type, Col.Kind, Col.Address, Col.Reference];
 
     private static string Norm(string s) => new((s ?? string.Empty).ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
@@ -272,8 +297,15 @@
     {
         "vendor" or "vendorname" or "name" or "displayname" or "nameofvendor" or "nameofbusinessowner" or "owner" => Col.Name,
         "business" or "businessname" or "stall" or "tradename" => Col.Business,
+        "lastname" or "surname" => Col.Last,
+        "firstname" or "givenname" => Col.First,
+        "middlename" or "middleinitial" => Col.Middle,
+        "extname" or "extension" or "nameextension" or "suffix" => Col.Extension,
+        "sex" => Col.Sex,
+        "natureofbusiness" or "businessnature" or "businessactivity" => Col.Nature,
+        "taxyear" or "year" => Col.TaxYear,
         "type" or "vendortype" or "fishmeat" or "category" or "fishormeat" => Col.Type,
-        "registration" or "registrationkind" or "newrenew" or "kind" or "newrenewal" or "status" => Col.Kind,
+        "registration" or "registrationkind" or "newrenew" or "kind" or "newrenewal" or "status" or "typeof" => Col.Kind,
         "address" or "location" => Col.Address,
         "reference" or "ref" or "referenceno" or "registrationno" or "permitno" or "controlno" => Col.Reference,
         _ => Col.None
@@ -295,6 +327,8 @@
             if (HeaderMapFor(cells) is { } header) { map = header; continue; }
             var row = new Row();
             for (var i = 0; i < cells.Length && i < map.Length; i++) Put(row, map[i], (cells[i] ?? string.Empty).Trim());
+            if (string.IsNullOrWhiteSpace(row.Name) && (!string.IsNullOrWhiteSpace(row.FirstName) || !string.IsNullOrWhiteSpace(row.LastName)))
+                row.Name = string.Join(" ", new[] { row.FirstName, row.MiddleName, row.LastName, row.Extension }.Where(x => !string.IsNullOrWhiteSpace(x)));
             if (string.IsNullOrWhiteSpace(row.Name)) continue;
             Validate(row);
             rows.Add(row);
@@ -314,6 +348,13 @@
         {
             case Col.Name: row.Name = System.Text.RegularExpressions.Regex.Replace(value, @"^\s*\d+\s*[\.\)]\s*", string.Empty); break;
             case Col.Business: row.Business = value; break;
+            case Col.Last: row.LastName = value; break;
+            case Col.First: row.FirstName = value; break;
+            case Col.Middle: row.MiddleName = value; break;
+            case Col.Extension: row.Extension = value; break;
+            case Col.Sex: row.Sex = value; break;
+            case Col.Nature: row.Nature = value; break;
+            case Col.TaxYear: row.FileTaxYear = value; break;
             case Col.Type: row.TypeText = Norm(value) switch { "fish" => "Fish", "meat" => "Meat", _ => string.Empty }; break;
             case Col.Kind: row.KindText = Norm(value) switch { "new" => "New", "renew" or "renewal" or "renewed" => "Renew", _ => string.Empty }; break;
             case Col.Address: row.Address = value; break;
@@ -335,7 +376,10 @@
     private CancellationTokenSource? _previewDelay;
 
     private VendorRegistryImportRow Build(Row row, int number) => new(number, new RegisterFishMeatVendorRequest(row.OperationId, _taxYear, row.Type!.Value, row.Kind!.Value,
-        row.Name.Trim(), VendorRegistrationForm.Blank(row.Business), VendorRegistrationForm.Blank(row.Address), VendorRegistrationForm.Blank(row.Reference)), row.Confirm);
+        row.Name.Trim(), VendorRegistrationForm.Blank(row.Business), VendorRegistrationForm.Blank(row.Address), VendorRegistrationForm.Blank(row.Reference),
+        LastName: VendorRegistrationForm.Blank(row.LastName), FirstName: VendorRegistrationForm.Blank(row.FirstName),
+        MiddleName: VendorRegistrationForm.Blank(row.MiddleName), NameExtension: VendorRegistrationForm.Blank(row.Extension),
+        Sex: VendorRegistrationForm.Blank(row.Sex), NatureOfBusiness: VendorRegistrationForm.Blank(row.Nature)), row.Confirm);
 
     private void SchedulePreview()
     {

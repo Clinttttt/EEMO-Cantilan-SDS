@@ -33,18 +33,19 @@ public static class GovernedServiceCatalog
         new(CollectorOperationCodes.TransferLargeCattle, "Transfer Large Cattle", RevenueClassificationCodes.TransferLargeCattle, false, BothOrOptions),
         // Daily CT remains governed direct amount. Monthly OR now settles a registered obligation period;
         // WholePayment mode is retained only for immutable history and successful posting retries.
+        // The Daily transaction may also be collected by approved fee type (named walk-in vendor fees, each with its own amount rule).
         new(CollectorOperationCodes.VegetableFruitSpaceRental, "Vegetable / Fruit Space Rental",
-            RevenueClassificationCodes.VegetableFruitSpaceRental, true, [GovernedServiceBasis.DirectApprovedAmount]),
+            RevenueClassificationCodes.VegetableFruitSpaceRental, true, [GovernedServiceBasis.DirectApprovedAmount, GovernedServiceBasis.ApprovedFeeOption]),
         // Transportation / Parking (IA-030, IA-050): a Cash Ticket day-to-day collection whose amount is the approved,
-        // effective-dated rate of the vehicle class the collector selects. The rate table is Head-configured.
+        // effective-dated rate of the vehicle class the collector selects. The rate table is Head-configured. With approved fee types (e.g. Transportation, Parking) the Head instead defines named fees with their own amount rules; the direct-amount path applies only when that basis is not active.
         new(CollectorOperationCodes.Transportation, "Transportation / Parking", RevenueClassificationCodes.TransportationParking,
-            false, [GovernedServiceBasis.VehicleClassRate, GovernedServiceBasis.DirectApprovedAmount]),
+            false, [GovernedServiceBasis.VehicleClassRate, GovernedServiceBasis.DirectApprovedAmount, GovernedServiceBasis.ApprovedFeeOption]),
         // Tabo and the current Slaughterhouse transaction already have an office-defined amount (vendor market-day fee;
         // approved per-head rate x heads). The governed setting is only their prospective canonical-collection switch; the
         // amount is never read from it or typed (FeeScheduleCollectionWorkflow computes it from the existing rules).
         new(CollectorOperationCodes.Tabo, "Tabo", RevenueClassificationCodes.Tabo, false, [GovernedServiceBasis.DirectApprovedAmount]),
         new(CollectorOperationCodes.Slaughterhouse, "Slaughterhouse", RevenueClassificationCodes.Slaughterhouse, false,
-            [GovernedServiceBasis.DirectApprovedAmount]),
+            [GovernedServiceBasis.DirectApprovedAmount, GovernedServiceBasis.ApprovedFeeOption]),
         // The NPM daily stall fee keeps its existing stall-rent classification and its own market rules (occupancy, closures,
         // rent goal, month-end adjustment). The setting is only the prospective switch that makes its money canonical.
         new(CollectorOperationCodes.NpmDaily, "NPM daily stall fee", RevenueClassificationCodes.PermanentStallRent, false,
@@ -103,6 +104,21 @@ public sealed partial class GovernedServiceWorkflow(
                 return Result<GovernedServiceDefinitionDto>.Failure("This service does not support the chosen amount basis.", ResultStatus.Invalid);
             if (request.EffectiveDate < new DateOnly(2020, 1, 1) || request.EffectiveDate > BusinessToday.AddDays(366))
                 return Result<GovernedServiceDefinitionDto>.Failure("Choose a realistic effective date (not more than a year ahead).", ResultStatus.Invalid);
+
+            // Readiness: collecting Slaughterhouse by approved charges needs at least one charge with a fixed rate in force on the effective date,
+            // otherwise a collector would have nothing to select. No rate is supplied here; the Head and Admin state them.
+            if (entry.Code == CollectorOperationCodes.Slaughterhouse && request.Basis == GovernedServiceBasis.ApprovedFeeOption
+                && (request.IsEnabled || request.MobileEnabled))
+            {
+                var existing = await db.GovernedServices.AsNoTracking().SingleOrDefaultAsync(x =>
+                    x.MunicipalityId == actor.TenantId && x.OperationCode == entry.Code, ct);
+                var ready = existing is not null && (await CurrentFeeOptionTermsAsync(actor.TenantId, existing.Id, request.EffectiveDate, ct))
+                    .Any(t => t.Basis == GovernedServiceBasis.FixedAmount && t.Amount is > 0m);
+                if (!ready)
+                    return Result<GovernedServiceDefinitionDto>.Failure(
+                        "Set up at least one approved charge with a rate in force on the effective date before Slaughterhouse is collected by approved charges.",
+                        ResultStatus.Invalid);
+            }
 
             var service = await db.GovernedServices.SingleOrDefaultAsync(x =>
                 x.MunicipalityId == actor.TenantId && x.OperationCode == entry.Code, ct);
@@ -169,10 +185,52 @@ public sealed partial class GovernedServiceWorkflow(
             .Where(x => x.Rate is not null)
             .OrderBy(x => FeeOptionLabel(x.Option), StringComparer.OrdinalIgnoreCase)
             .Select(x => new FeeOptionTermDto(x.Option.Id, x.Option.DisplayName, x.Option.Location, x.Rate!.Basis,
-                x.Rate.FixedAmount, x.Rate.MaximumAmount, x.Option.Code, x.Rate.Id, x.Rate.EffectiveDate)).ToList();
+                x.Rate.FixedAmount, x.Rate.MaximumAmount, x.Option.Code, x.Rate.Id, x.Rate.EffectiveDate,
+                x.Option.ApplicableAnimals, x.Option.QuantityBasis)).ToList();
     }
 
     // ── Approved fee options (Head configures; Head/Admin read) ─────────────────────────────────────────
+
+    /// <summary>
+    /// The reference tenant's documented Slaughterhouse per-head breakdown (<see cref="FeeRates"/>) as Add Charge presets. Any other tenant gets none:
+    /// its rates are the Office's to state. Reading a preset changes nothing.
+    /// </summary>
+    public Task<Result<IReadOnlyList<SlaughterChargePresetDto>>> GetSlaughterChargePresetsAsync(CancellationToken ct = default) =>
+        Run<IReadOnlyList<SlaughterChargePresetDto>>(async actor =>
+        {
+            if (!CanManageFeeOptions(actor, CollectorOperationCodes.Slaughterhouse))
+                return Result<IReadOnlyList<SlaughterChargePresetDto>>.Forbidden();
+            if (!await db.Municipalities.AsNoTracking().AnyAsync(m => m.Id == actor.TenantId && m.IsDefault, ct))
+                return Result<IReadOnlyList<SlaughterChargePresetDto>>.Success([]);
+            const int hog = (int)SlaughterAnimalScope.Hog, large = (int)(SlaughterAnimalScope.Carabao | SlaughterAnimalScope.Cow);
+            SlaughterChargePresetDto P(string name, string group, int scope, decimal amount) => new(name, group, scope, FeeQuantityBasis.PerHead, amount);
+            return Result<IReadOnlyList<SlaughterChargePresetDto>>.Success(
+            [
+                P("Slaughter Fee", "Hog", hog, FeeRates.SlhHogSlaughterFee),
+                P("Ante-mortem Inspection", "Hog", hog, FeeRates.SlhHogAntemortem),
+                P("Table Charge", "Hog", hog, FeeRates.SlhHogTableCharge),
+                P("Entrance Fee", "Hog", hog, FeeRates.SlhHogEntranceFee),
+                P("Slaughter Fee", "Carabao / Cow", large, FeeRates.SlhLargeSlaughterFee),
+                P("Slaughter Permit", "Carabao / Cow", large, FeeRates.SlhLargePermit),
+                P("Ante-mortem Inspection", "Carabao / Cow", large, FeeRates.SlhLargeAntemortem),
+                P("Post-mortem Inspection", "Carabao / Cow", large, FeeRates.SlhLargePostmortem),
+                P("Table Charge", "Carabao / Cow", large, FeeRates.SlhLargeTableCharge),
+                P("Livestock Fee", "Carabao / Cow", large, FeeRates.SlhLargeLivestockFee)
+            ]);
+        }, ct);
+
+    /// <summary>
+    /// One name may carry different rates for different animals (Slaughter Fee: Hog 50, Carabao / Cow 150), but never two definitions of the
+    /// same name that are both offered for the same animal, which a collector could not tell apart. No scope means every animal.
+    /// </summary>
+    private async Task<bool> OverlapsAnOfferedChargeAsync(Guid tenantId, Guid serviceId, Guid? exceptId, string name, int? scope, CancellationToken ct)
+    {
+        var today = BusinessToday;
+        var same = (await db.GovernedServiceFeeOptions.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenantId && x.GovernedServiceId == serviceId && (exceptId == null || x.Id != exceptId)).ToListAsync(ct))
+            .Where(x => string.Equals(x.DisplayName, name, StringComparison.OrdinalIgnoreCase) && x.IsOfferedOn(today));
+        return same.Any(x => ((x.ApplicableAnimals ?? (int)SlaughterAnimalScope.All) & (scope ?? (int)SlaughterAnimalScope.All)) != 0);
+    }
 
     public Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> GetFeeOptionsAsync(string operationCode, CancellationToken ct = default, bool activeOnly = false) =>
         Run<IReadOnlyList<GovernedServiceFeeOptionDto>>(async actor =>
@@ -193,7 +251,7 @@ public sealed partial class GovernedServiceWorkflow(
         string operationCode, AddFeeOptionRequest request, CancellationToken ct = default) =>
         Run<IReadOnlyList<GovernedServiceFeeOptionDto>>(async actor =>
         {
-            if (actor.Role != "SuperAdmin") return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Forbidden();
+            if (!CanManageFeeOptions(actor, operationCode)) return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Forbidden();
             var entry = GovernedServiceCatalog.Find(operationCode);
             if (entry is null || !entry.AllowedBases.Contains(GovernedServiceBasis.ApprovedFeeOption))
                 return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure("This service has no fee options.", ResultStatus.NotFound);
@@ -208,15 +266,24 @@ public sealed partial class GovernedServiceWorkflow(
                     service = GovernedService.Create(actor.TenantId, entry.Code, actor.Username, UtcNow);
                     db.GovernedServices.Add(service);
                 }
+                var slaughter = entry.Code == CollectorOperationCodes.Slaughterhouse;
+                if (slaughter && request.Basis != GovernedServiceBasis.FixedAmount)
+                    return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure(
+                        "A Slaughterhouse charge has an approved fixed rate; a collector never enters one.", ResultStatus.Invalid);
                 var option = GovernedServiceFeeOption.Create(actor.TenantId, service.Id, request.DisplayName, request.Code,
-                    request.Location, request.Description, actor.Username, UtcNow);
+                    request.Location, request.Description, actor.Username, UtcNow,
+                    slaughter ? request.ApplicableAnimals : null, slaughter ? request.QuantityBasis ?? FeeQuantityBasis.PerHead : null);
                 var name = option.DisplayName;
                 var location = option.Location;
-                if (await db.GovernedServiceFeeOptions.AnyAsync(x => x.MunicipalityId == actor.TenantId
+                if (slaughter
+                    ? await OverlapsAnOfferedChargeAsync(actor.TenantId, service.Id, null, name, option.ApplicableAnimals, ct)
+                    : await db.GovernedServiceFeeOptions.AnyAsync(x => x.MunicipalityId == actor.TenantId
                         && x.GovernedServiceId == service.Id && x.DisplayName == name && x.Location == location, ct))
                 {
                     db.ChangeTracker.Clear();
-                    return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure("A fee option with this name and location already exists.", ResultStatus.Conflict);
+                    return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure(slaughter
+                        ? "This charge is already offered for one of these animals. Use a different animal scope or retire the other first."
+                        : "A fee option with this name and location already exists.", ResultStatus.Conflict);
                 }
                 db.GovernedServiceFeeOptions.Add(option);
                 db.GovernedServiceFeeOptionRates.Add(GovernedServiceFeeOptionRate.Create(actor.TenantId, option.Id, request.EffectiveDate,
@@ -235,7 +302,7 @@ public sealed partial class GovernedServiceWorkflow(
         string operationCode, Guid feeOptionId, ScheduleFeeOptionRateRequest request, CancellationToken ct = default) =>
         Run<IReadOnlyList<GovernedServiceFeeOptionDto>>(async actor =>
         {
-            if (actor.Role != "SuperAdmin") return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Forbidden();
+            if (!CanManageFeeOptions(actor, operationCode)) return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Forbidden();
             var (service, option, problem) = await FindFeeOptionAsync(actor, operationCode, feeOptionId, tracked: false, ct);
             if (problem is not null) return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure(problem, ResultStatus.NotFound);
             // A new rule applies from today or later: a rule already in force (and every amount posted under it) is never rewritten.
@@ -244,6 +311,9 @@ public sealed partial class GovernedServiceWorkflow(
                     "Schedule the change from today or a later date (not more than a year ahead).", ResultStatus.Invalid);
             if (option!.RetiredFrom is { } retired && request.EffectiveDate >= retired)
                 return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure("The option is retired from that date.", ResultStatus.Conflict);
+            if (operationCode?.Trim() == CollectorOperationCodes.Slaughterhouse && request.Basis != GovernedServiceBasis.FixedAmount)
+                return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure(
+                    "A Slaughterhouse charge has an approved fixed rate; a collector never enters one.", ResultStatus.Invalid);
             if (await db.GovernedServiceFeeOptionRates.AnyAsync(x => x.MunicipalityId == actor.TenantId
                     && x.FeeOptionId == option.Id && x.EffectiveDate == request.EffectiveDate, ct))
                 return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure(
@@ -262,11 +332,46 @@ public sealed partial class GovernedServiceWorkflow(
             return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success(await FeeOptionDtosAsync(actor.TenantId, service!.Id, ct));
         }, ct);
 
+    /// <summary>Changes a Slaughterhouse charge's label and scope (the animals it applies to, and whether its quantity is the head count).</summary>
+    public Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> UpdateFeeOptionAsync(
+        string operationCode, Guid feeOptionId, UpdateFeeOptionRequest request, CancellationToken ct = default) =>
+        Run<IReadOnlyList<GovernedServiceFeeOptionDto>>(async actor =>
+        {
+            if (!CanManageFeeOptions(actor, operationCode)) return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Forbidden();
+            if (operationCode?.Trim() != CollectorOperationCodes.Slaughterhouse)
+                return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure("Only Slaughterhouse charges have a label and scope to change.", ResultStatus.Invalid);
+            var (service, option, problem) = await FindFeeOptionAsync(actor, operationCode, feeOptionId, tracked: true, ct);
+            if (problem is not null) return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure(problem, ResultStatus.NotFound);
+            try
+            {
+                option!.Update(request.DisplayName, request.ApplicableAnimals, request.QuantityBasis ?? FeeQuantityBasis.PerHead);
+                var name = option.DisplayName;
+                if (await OverlapsAnOfferedChargeAsync(actor.TenantId, service!.Id, option.Id, name, option.ApplicableAnimals, ct))
+                {
+                    db.ChangeTracker.Clear();
+                    return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure(
+                        "This charge is already offered for one of these animals. Use a different animal scope or retire the other first.", ResultStatus.Conflict);
+                }
+            }
+            catch (ArgumentException ex)
+            {
+                db.ChangeTracker.Clear();
+                return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure(ex.Message, ResultStatus.Invalid);
+            }
+            await db.SaveChangesAsync(ct);
+            return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success(await FeeOptionDtosAsync(actor.TenantId, service!.Id, ct));
+        }, ct);
+
+    // Head configures every service's fee types; Slaughterhouse charges are also managed by Admin (IA-050: Head/Admin approve the definitions).
+    private static bool CanManageFeeOptions(Actor actor, string? operationCode) =>
+        actor.Role == "SuperAdmin"
+        || actor.Role == "Admin" && string.Equals(operationCode?.Trim(), CollectorOperationCodes.Slaughterhouse, StringComparison.Ordinal);
+
     public Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> RetireFeeOptionAsync(
         string operationCode, Guid feeOptionId, RetireFeeOptionRequest request, CancellationToken ct = default) =>
         Run<IReadOnlyList<GovernedServiceFeeOptionDto>>(async actor =>
         {
-            if (actor.Role != "SuperAdmin") return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Forbidden();
+            if (!CanManageFeeOptions(actor, operationCode)) return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Forbidden();
             var (service, option, problem) = await FindFeeOptionAsync(actor, operationCode, feeOptionId, tracked: true, ct);
             if (problem is not null) return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure(problem, ResultStatus.NotFound);
             try { option!.Retire(request.FromDate, BusinessToday, actor.Username); }
@@ -275,6 +380,28 @@ public sealed partial class GovernedServiceWorkflow(
                 db.ChangeTracker.Clear();
                 return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure(ex.Message, ResultStatus.Invalid);
             }
+            await db.SaveChangesAsync(ct);
+            return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success(await FeeOptionDtosAsync(actor.TenantId, service!.Id, ct));
+        }, ct);
+
+    /// <summary>Offers a retired or retiring fee option again. A Slaughterhouse charge is refused if another offered charge of the same name now covers the same animals.</summary>
+    public Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> ReinstateFeeOptionAsync(
+        string operationCode, Guid feeOptionId, CancellationToken ct = default) =>
+        Run<IReadOnlyList<GovernedServiceFeeOptionDto>>(async actor =>
+        {
+            if (!CanManageFeeOptions(actor, operationCode)) return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Forbidden();
+            var (service, option, problem) = await FindFeeOptionAsync(actor, operationCode, feeOptionId, tracked: true, ct);
+            if (problem is not null) return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure(problem, ResultStatus.NotFound);
+            if (option!.RetiredFrom is null)
+                return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure("This fee option is not retired.", ResultStatus.Invalid);
+            if (operationCode?.Trim() == CollectorOperationCodes.Slaughterhouse
+                && await OverlapsAnOfferedChargeAsync(actor.TenantId, service!.Id, option.Id, option.DisplayName, option.ApplicableAnimals, ct))
+            {
+                db.ChangeTracker.Clear();
+                return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure(
+                    "Another charge with this name is already offered for one of these animals. Retire it first.", ResultStatus.Conflict);
+            }
+            option.Reinstate();
             await db.SaveChangesAsync(ct);
             return Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Success(await FeeOptionDtosAsync(actor.TenantId, service!.Id, ct));
         }, ct);
@@ -305,9 +432,9 @@ public sealed partial class GovernedServiceWorkflow(
             var totals = lines.Select(x => (Facts: ReadSnapshot(x.CalculationSnapshot), x.Amount))
                 .GroupBy(x => x.Facts?.FeeOptionId)
                 .Select(g => new FeeOptionTotalDto(g.Key,
-                    g.Key is null ? $"{entry.Name} (no fee option recorded)"
+                    g.Key is null ? (entry.Code == CollectorOperationCodes.Slaughterhouse ? "Per-head total (not itemized)" : $"{entry.Name} (no fee option recorded)")
                         : g.Select(x => x.Facts?.FeeOptionName).FirstOrDefault(n => !string.IsNullOrWhiteSpace(n)) ?? "Fee option",
-                    g.Count(), g.Sum(x => x.Amount)))
+                    g.Count(), g.Sum(x => x.Amount), g.All(x => x.Facts?.Quantity is not null) ? g.Sum(x => x.Facts!.Quantity!.Value) : null))
                 .OrderByDescending(x => x.Amount).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase).ToList();
             return Result<IReadOnlyList<FeeOptionTotalDto>>.Success(totals);
         }, ct);
@@ -364,7 +491,7 @@ public sealed partial class GovernedServiceWorkflow(
                 .ToList();
             return new GovernedServiceFeeOptionDto(o.Id, o.Code, o.DisplayName, o.Location, o.Description,
                 current?.Basis, current?.FixedAmount, current?.MaximumAmount, current?.EffectiveDate, status, o.RetiredFrom, history, o.RetiredBy,
-                availability, reason is null, reason, current?.Id, instrument);
+                availability, reason is null, reason, current?.Id, instrument, o.ApplicableAnimals, o.QuantityBasis);
         }).OrderBy(x => x.Status == "Retired").ThenBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Location).ToList();
     }
 
@@ -414,7 +541,8 @@ public sealed partial class GovernedServiceWorkflow(
         else if (!setting.IsEnabled) state = GovernedServiceSetupState.Disabled;
         else state = issues.Count == 0 ? GovernedServiceSetupState.Active : GovernedServiceSetupState.SetupRequired;
 
-        var directTransportation = entry.Code == CollectorOperationCodes.Transportation && today >= OfficeCollectionWorkflow.EffectiveFrom;
+        var directTransportation = entry.Code == CollectorOperationCodes.Transportation && today >= OfficeCollectionWorkflow.EffectiveFrom
+            && setting?.Basis != GovernedServiceBasis.ApprovedFeeOption;
         return new(entry.Code, entry.Name, entry.ClassificationCode, entry.ModeAware, entry.AllowedBases, state,
             directTransportation ? GovernedServiceBasis.DirectApprovedAmount : setting?.Basis,
             directTransportation ? null : setting?.FixedAmount, directTransportation ? null : setting?.MaximumAmount, setting?.MobileEnabled ?? false,
@@ -447,7 +575,8 @@ public sealed partial class GovernedServiceWorkflow(
             if (setting is null || !setting.IsEnabled || !setting.MobileEnabled)
                 return Result<GovernedServiceTermsDto>.Failure(
                     "This operation is not set up for Collector Mobile today.", ResultStatus.Conflict);
-            var prospectiveTransport = entry.Code == CollectorOperationCodes.Transportation && (businessDate ?? BusinessToday) >= OfficeCollectionWorkflow.EffectiveFrom;
+            var prospectiveTransport = entry.Code == CollectorOperationCodes.Transportation && (businessDate ?? BusinessToday) >= OfficeCollectionWorkflow.EffectiveFrom
+                && setting.Basis != GovernedServiceBasis.ApprovedFeeOption;
             var quick = mode == GovernedServiceMode.QuickAmount || prospectiveTransport;
             if (quick && !prospectiveTransport && !setting.QuickAmountEnabled) return Result<GovernedServiceTermsDto>.Failure("Quick amount is not enabled.", ResultStatus.Conflict);
             var resolved = await ResolvePolicyAsync(actor.TenantId, entry, mode, (businessDate ?? BusinessToday), ct);
@@ -545,7 +674,8 @@ public sealed partial class GovernedServiceWorkflow(
             VehicleClass? vehicleClass = null;
             VehicleClassRate? vehicleRate = null;
             var classCode = request.VehicleClassCode?.Trim().ToUpperInvariant();
-            var prospectiveTransport = entry.Code == CollectorOperationCodes.Transportation && request.BusinessDate >= OfficeCollectionWorkflow.EffectiveFrom;
+            var prospectiveTransport = entry.Code == CollectorOperationCodes.Transportation && request.BusinessDate >= OfficeCollectionWorkflow.EffectiveFrom
+                && setting.Basis != GovernedServiceBasis.ApprovedFeeOption;
             var quick = request.Mode == GovernedServiceMode.QuickAmount || prospectiveTransport;
             if (quick && instrument != RevenueInstrumentType.CashTicket)
                 return await RecordTerminalAsync(actor, request, normalized, "POLICY_NOT_EFFECTIVE", "Quick amount requires the Cash Ticket policy.", ct);
@@ -740,8 +870,15 @@ public sealed partial class GovernedServiceWorkflow(
 
             var activity = collections.Select(collection =>
             {
-                var line = lines.First(x => x.CollectionId == collection.Id);
+                // A collection is normally one line; an itemized Slaughterhouse collection has one line per approved charge.
+                var collectionLines = lines.Where(x => x.CollectionId == collection.Id).OrderBy(x => x.Id).ToList();
+                var line = collectionLines[0];
                 var facts = ReadSnapshot(line.CalculationSnapshot);
+                var lineTotal = collectionLines.Sum(x => x.Amount);
+                var items = collectionLines.Select(x => (Line: x, Facts: ReadSnapshot(x.CalculationSnapshot)))
+                    .Where(x => x.Facts?.Quantity is not null)
+                    .Select(x => new GovernedActivityItemDto(x.Facts!.FeeOptionId, x.Facts.FeeOptionName ?? "Charge", x.Facts.Quantity,
+                        x.Facts.UnitAmount, x.Line.Amount, x.Facts.FeeOptionRateEffectiveDate)).ToList();
                 var effects = corrections.Where(x => x.OriginalCollectionId == collection.Id).ToList();
                 var disposition = effects.Any(x => x.FinancialEffectAmount < 0m) ? "Reversed"
                     : effects.Any(x => x.CorrectionType == CollectionCorrectionType.DocumentCorrection) ? "Document corrected" : "Posted";
@@ -750,11 +887,11 @@ public sealed partial class GovernedServiceWorkflow(
                         ? GovernedCollectionState.DocumentCorrected : GovernedCollectionState.Posted;
                 return new GovernedServiceActivityDto(collection.Id, collection.BusinessDate, collection.RecordedAtUtc,
                     collection.ReferenceCode, facts?.Instrument, facts?.Mode,
-                    collection.PayerName, facts?.Reference, line.Amount,
-                    collection.CollectorId is { } id ? collectors.GetValueOrDefault(id) : null, disposition, facts?.FeeOptionName,
+                    collection.PayerName, facts?.Reference, lineTotal,
+                    collection.CollectorId is { } id ? collectors.GetValueOrDefault(id) : null, disposition, items.Count > 1 ? null : facts?.FeeOptionName,
                     collection.CollectorId, collection.PayorId, facts?.VehicleClassCode, facts?.VehicleClassName,
                     facts?.VehicleClassRateId, facts?.VehicleClassRateEffectiveDate, facts?.VehicleClassRate,
-                    line.Amount + effects.Sum(x => x.FinancialEffectAmount), state);
+                    lineTotal + effects.Sum(x => x.FinancialEffectAmount), state, items.Count == 0 ? null : items);
             }).ToList();
             return Result<IReadOnlyList<GovernedServiceActivityDto>>.Success(activity);
         }, ct);
@@ -896,5 +1033,6 @@ public sealed partial class GovernedServiceWorkflow(
         DateOnly? VehicleClassRateEffectiveDate = null, decimal? VehicleClassRate = null,
         Guid? FeeOptionId = null, string? FeeOptionName = null, string? FeeOptionCode = null, Guid? FeeOptionRateId = null,
         DateOnly? FeeOptionRateEffectiveDate = null, GovernedServiceBasis? FeeOptionBasis = null,
-        decimal? FeeOptionFixedAmount = null, decimal? FeeOptionMaximumAmount = null);
+        decimal? FeeOptionFixedAmount = null, decimal? FeeOptionMaximumAmount = null,
+        decimal? Quantity = null, decimal? UnitAmount = null);
 }

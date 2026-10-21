@@ -4,12 +4,16 @@ using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.Slaughterhouse;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
+using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
 using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Application.Common.Slaughterhouse;
 
-public sealed record SaveApprovedSlaughterAnimalRequest(string AnimalName, decimal RatePerHead);
+/// <param name="RatePerHead">The legacy per-head rate. Optional only while Slaughterhouse is collected by approved charges, where the
+/// charges set the fee and this list only says which other animals may be recorded; a new animal is then stored with no per-head rate.</param>
+public sealed record SaveApprovedSlaughterAnimalRequest(string AnimalName, decimal? RatePerHead = null);
 
 /// <summary>
 /// The Head/Admin-approved custom slaughter animals and their per-head rates (IA-050). This is the only place a rate for an
@@ -28,7 +32,11 @@ public sealed class ApprovedSlaughterAnimalWorkflow(
             var name = (request.AnimalName ?? string.Empty).Trim();
             if (name.Length is 0 or > 60)
                 return Result<SlaughterAnimalRateDto>.Failure("Enter an animal name of 1-60 characters.", ResultStatus.Invalid);
-            if (request.RatePerHead <= 0m || request.RatePerHead > 1_000_000m || decimal.Round(request.RatePerHead, 2) != request.RatePerHead)
+            var itemized = await IsItemizedAsync(tenantId, ct);
+            if (request.RatePerHead is null && !itemized)
+                return Result<SlaughterAnimalRateDto>.Failure("Enter the approved rate per head.", ResultStatus.Invalid);
+            if (request.RatePerHead is { } stated
+                && (stated <= 0m || stated > 1_000_000m || decimal.Round(stated, 2) != stated))
                 return Result<SlaughterAnimalRateDto>.Failure("The approved rate must be a positive amount in whole centavos.", ResultStatus.Invalid);
             var builtIn = await labels.GetAsync(ct);
             if (SlaughterAnimalNames.IsCanonicalNameOrAlias(name)
@@ -39,18 +47,28 @@ public sealed class ApprovedSlaughterAnimalWorkflow(
                 .Where(x => x.MunicipalityId == tenantId && x.AnimalName.ToLower() == name.ToLower()).SingleOrDefaultAsync(ct);
             if (existing is null)
             {
-                existing = SlaughterAnimalRate.Create(name, request.RatePerHead, tenantId, actor);
+                existing = SlaughterAnimalRate.Create(name, request.RatePerHead ?? 0m, tenantId, actor);
                 db.SlaughterAnimalRates.Add(existing);
             }
             else
             {
-                existing.UpdateRate(request.RatePerHead, actor);
+                if (request.RatePerHead is { } rate) existing.UpdateRate(rate, actor);
                 existing.SetActive(true, actor);
             }
             await db.SaveChangesAsync(ct);
             return Result<SlaughterAnimalRateDto>.Success(
                 new SlaughterAnimalRateDto(existing.Id, existing.AnimalName, existing.RatePerHead, existing.IsActive));
         }, ct);
+
+    private async Task<bool> IsItemizedAsync(Guid tenantId, CancellationToken ct)
+    {
+        var service = await db.GovernedServices.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.MunicipalityId == tenantId && x.OperationCode == CollectorOperationCodes.Slaughterhouse, ct);
+        if (service is null) return false;
+        var setting = GovernedServiceSetting.Resolve(await db.GovernedServiceSettings.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenantId && x.GovernedServiceId == service.Id).ToListAsync(ct), PhilippineTime.Today);
+        return setting is { IsEnabled: true, Basis: GovernedServiceBasis.ApprovedFeeOption };
+    }
 
     public Task<Result<SlaughterAnimalRateDto>> SetActiveAsync(Guid id, bool isActive, CancellationToken ct = default) =>
         Run(async (tenantId, actor) =>

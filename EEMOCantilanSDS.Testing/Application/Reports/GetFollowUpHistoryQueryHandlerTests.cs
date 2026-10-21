@@ -49,8 +49,9 @@ public class GetFollowUpHistoryQueryHandlerTests
             .ReturnsAsync((FacilityCode code, ReportPeriod _, int _, int? _, int? _, CancellationToken _) =>
                 code == FacilityCode.NPM ? npm : empty);
 
+        // A past period is read as the whole account as of that period (includeClosed: true), like the live queue.
         reports.Setup(r => r.GetDelinquentStallsAsync(
-                It.IsAny<FacilityCode?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                It.IsAny<FacilityCode?>(), It.IsAny<int>(), It.IsAny<int>(), true, true, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<DelinquentStallDto>
             {
                 new(FacilityCode.TCC, "04", "Rosa Magbanua", 3, 12_000m),  // delinquent (3 mo)
@@ -60,7 +61,7 @@ public class GetFollowUpHistoryQueryHandlerTests
         // The whole-time view asks for each account's WHOLE position rather than a rolling twelve months, so it
         // states the same figure the register does. Same two payors, their full balances.
         reports.Setup(r => r.GetDelinquentStallsAsync(
-                It.IsAny<FacilityCode?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+                It.IsAny<FacilityCode?>(), It.IsAny<int>(), It.IsAny<int>(), false, true, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<DelinquentStallDto>
             {
                 new(FacilityCode.TCC, "04", "Rosa Magbanua", 12, 48_000m),
@@ -86,7 +87,7 @@ public class GetFollowUpHistoryQueryHandlerTests
                 new(iceStall02, FacilityCode.ICE, "02", "Luz Mendoza", new DateOnly(2022, 11, 30), new DateOnly(2025, 11, 30), IsExpired: true),
             });
 
-        closedRegister.Setup(s => s.GetClosedStallAccountsAsync(It.IsAny<CancellationToken>()))
+        closedRegister.Setup(s => s.GetClosedStallAccountsAsOfAsync(It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new[]
             {
                 new EEMOCantilanSDS.Application.Dtos.Stalls.ClosedStallAccountDto(
@@ -246,7 +247,7 @@ public class GetFollowUpHistoryQueryHandlerTests
         // single year's heading.
         closed.Verify(s => s.GetClosedStallAccountsForPeriodAsync(
             new DateOnly(2026, 1, 1), new DateOnly(2026, 7, 31), It.IsAny<CancellationToken>()), Times.Once);
-        closed.Verify(s => s.GetClosedStallAccountsAsync(It.IsAny<CancellationToken>()), Times.Never);
+        closed.Verify(s => s.GetClosedStallAccountsAsOfAsync(It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -323,7 +324,7 @@ public class GetFollowUpHistoryQueryHandlerTests
 
         await handler.Handle(new GetFollowUpHistoryQuery(2025, 12, AllTime: true), CancellationToken.None);
 
-        closed.Verify(s => s.GetClosedStallAccountsAsync(It.IsAny<CancellationToken>()), Times.Once);
+        closed.Verify(s => s.GetClosedStallAccountsAsOfAsync(It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()), Times.Once);
         closed.Verify(s => s.GetClosedStallAccountsForPeriodAsync(
             It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()), Times.Never);
     }

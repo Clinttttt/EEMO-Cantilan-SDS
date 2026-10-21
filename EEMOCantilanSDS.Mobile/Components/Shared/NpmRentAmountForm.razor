@@ -1,0 +1,146 @@
+@using System.Globalization
+@using global::EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using global::EEMOCantilanSDS.Application.Dtos.DailyCollections
+@using global::EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Mobile.Models
+@using EEMOCantilanSDS.Mobile.Services
+@implements IDisposable
+@inject IMobileApiClient Api
+@inject MobileSyncService Sync
+
+<section class="rent-amount-form" aria-label="Rental collection">
+    @if (DailyAmount is null && _position is { } identity)
+    { <div class="rent-payor"><strong>@identity.PayorName</strong><span>Stall @identity.StallNo</span></div> }
+    @if (ApprovedDailyRate is { } rate)
+    { <div class="rent-position"><span>Approved daily rate</span><strong>@Money(rate)</strong></div> }
+    @if (_position is { } position)
+    { <div class="rent-position"><span>Total outstanding</span><strong>@Money(position.TotalOutstanding)</strong></div> }
+    @if (_position?.TotalOutstanding == 0) { <p class="rent-note" role="status">No outstanding rent.</p> }
+    <label for="@_inputId">@(DailyAmount is null ? "Amount to collect" : "Amount received")</label>
+    <input id="@_inputId" class="form-input rent-amount-input" type="number" inputmode="decimal" min="0.01" step="0.01"
+           value="@_amountText" @oninput="ChangeAmount" disabled="@(_captured || _saving || Disabled)" />
+    <label for="@(_inputId + "-or")">Official Receipt No. (Optional)</label>
+    <input id="@(_inputId + "-or")" class="form-input" type="text" maxlength="100" autocomplete="off"
+           value="@OfficialReceiptNumber" @oninput="ChangeReceipt" disabled="@(_captured || _saving || Disabled)" />
+    @if (_quote is { } quote)
+    {
+        <div class="rent-position"><span>Remaining after payment</span><strong>@Money(quote.RemainingAfter)</strong></div>
+        <details class="rent-allocation"><summary>View allocation</summary>
+            @foreach (var period in quote.Periods.Where(x => x.Applied > 0))
+            { <div class="rent-position"><span>@period.PeriodStart.ToString("MMMM yyyy")</span><strong>@Money(period.Applied)</strong></div> }
+        </details>
+    }
+    @if (_loading) { <p class="rent-note" role="status">Reviewing allocation…</p> }
+    @if (!Sync.IsOnline && !IsDailyExact) { <p class="rent-note">Connect to review and collect outstanding rent.</p> }
+    @if (_error is not null) { <p class="form-error" role="alert">@_error</p> }
+    @if (_notice is not null) { <p class="rent-note" role="status">@_notice</p> }
+    @if (!_captured)
+    {
+        <button type="button" class="btn-primary rent-confirm" disabled="@(!CanConfirm)" @onclick="Confirm">@(_saving ? "Confirming…" : "Confirm collection")</button>
+    }
+    else if (!_confirmed && _savedHere)
+    { <button type="button" class="rent-retry" disabled="@_saving" @onclick="Retry">Retry saved payment</button> }
+</section>
+
+@code {
+    [Parameter] public Guid StallId { get; set; }
+    [Parameter] public Guid? ContractId { get; set; }
+    [Parameter] public decimal? DailyAmount { get; set; }
+    [Parameter] public decimal? ApprovedDailyRate { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public EventCallback OnDailyConfirm { get; set; }
+    [Parameter] public EventCallback OnConfirmed { get; set; }
+    [Parameter] public string OfficialReceiptNumber { get; set; } = "";
+    [Parameter] public EventCallback<string> OfficialReceiptNumberChanged { get; set; }
+    private async Task ChangeReceipt(ChangeEventArgs e)
+    {
+        OfficialReceiptNumber = e.Value?.ToString() ?? "";
+        await OfficialReceiptNumberChanged.InvokeAsync(OfficialReceiptNumber);
+    }
+    private readonly string _inputId = $"rent-amount-{Guid.NewGuid():N}";
+    private readonly Guid _operation = Guid.NewGuid();
+    private NpmOutstandingRentQuote? _position, _quote;
+    private Guid? _resolvedContract;
+    private string _amountText = "";
+    private string? _error, _notice;
+    private bool _loading, _saving, _captured, _confirmed;
+    private int _revision;
+    private decimal? Amount => decimal.TryParse(_amountText, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var amount) ? amount : null;
+    private bool IsDailyExact => OnDailyConfirm.HasDelegate && DailyAmount is > 0 && Amount == DailyAmount;
+    private bool CanConfirm => !_saving && !_loading && !_captured && !Disabled && !Sync.HasStorageFault && _error is null && Amount is > 0
+        && (IsDailyExact || Sync.IsOnline && _quote?.Amount == Amount);
+    private static string Money(decimal amount) => amount.ToString("C2", CultureInfo.GetCultureInfo("en-PH"));
+    protected override async Task OnInitializedAsync()
+    {
+        Sync.Changed += QueueChanged;
+        var pending = (await Sync.GetAllAsync()).Any(x => x.StallId == StallId && x.LocalStatus != PendingLocalStatus.Synced
+            && x.Kind is OfflineOperationKind.NpmDaily or OfflineOperationKind.NpmWholePayment or OfflineOperationKind.NpmOutstandingRent);
+        if (pending) { _captured = true; _error = "A rental payment is waiting to sync or needs review. Open Records before collecting again."; return; }
+        _amountText = DailyAmount?.ToString("0.00", CultureInfo.InvariantCulture) ?? "";
+        if (!Sync.IsOnline) { if (!IsDailyExact) _error = "Connect to review outstanding rent."; return; }
+        _loading = true;
+        try
+        {
+            var result = await Api.GetNpmOutstandingQuoteAsync(StallId, ContractId);
+            if (!result.IsSuccess) { if (!IsDailyExact) _error = result.Error; return; }
+            _position = result.Value;
+            _resolvedContract = _position!.ContractId;
+            if (DailyAmount is null) { _quote = _position; _amountText = _position!.Amount.ToString("0.00", CultureInfo.InvariantCulture); }
+        }
+        catch (Exception) { if (!IsDailyExact) _error = "Outstanding rent could not be reviewed. Try again while connected."; }
+        finally { _loading = false; }
+    }
+    private async Task ChangeAmount(ChangeEventArgs args)
+    {
+        _amountText = args.Value?.ToString() ?? ""; _quote = null; _error = null;
+        var revision = ++_revision;
+        if (IsDailyExact) { _loading = false; return; }
+        if (Amount is not > 0 || decimal.Round(Amount.Value, 2) != Amount) { _error = "Enter an amount with at most two decimal places."; _loading = false; return; }
+        if (!Sync.IsOnline) { _error = "Connect to review this amount."; _loading = false; return; }
+        _loading = true;
+        try
+        {
+            var result = await Api.GetNpmOutstandingQuoteAsync(StallId, ContractId ?? _resolvedContract, Amount);
+            if (revision != _revision) return;
+            if (result.IsSuccess) { _quote = result.Value; _position = _quote; }
+            else _error = result.Error ?? "This amount cannot be allocated.";
+        }
+        catch (Exception) { if (revision == _revision) _error = "Allocation could not be reviewed. Try again while connected."; }
+        finally { if (revision == _revision) _loading = false; }
+    }
+    private bool _savedHere;
+    private async Task Confirm()
+    {
+        if (!CanConfirm) return;
+        _saving = true;
+        try
+        {
+            if (IsDailyExact) { await OnDailyConfirm.InvokeAsync(); return; }
+            var quote = _quote!;
+            await Sync.EnqueueIssuedDocumentAsync(new PendingOperation {
+                ClientOperationId = _operation, Kind = OfflineOperationKind.NpmOutstandingRent, StallId = StallId,
+                NpmContractId = quote.ContractId, BusinessDate = quote.BusinessDate, ReceivedAmount = quote.Amount,
+                NpmQuoteToken = quote.QuoteToken, PayloadVersion = 1, FacilityLabel = "NPM", Title = quote.PayorName,
+                Detail = $"Stall {quote.StallNo} · Outstanding rent", Amount = quote.Amount,
+                ORNumber = string.IsNullOrWhiteSpace(OfficialReceiptNumber) ? null : OfficialReceiptNumber.Trim() });
+            _captured = true; _savedHere = true; _notice = "Payment saved · waiting for server confirmation.";
+            await Sync.SyncNowAsync(); await ReadOutcome();
+        }
+        catch (Exception) { _error = "The payment outcome is uncertain. Check Records before starting another payment."; _captured = true; }
+        finally { _saving = false; }
+    }
+    private async Task Retry() { _saving = true; try { await Sync.SyncNowAsync(); await ReadOutcome(); } finally { _saving = false; } }
+    private void QueueChanged() => _ = InvokeAsync(async () => { if (_captured) await ReadOutcome(); StateHasChanged(); });
+    private async Task ReadOutcome()
+    {
+        var result = (await Sync.GetAllAsync()).SingleOrDefault(x => x.ClientOperationId == _operation);
+        if (result?.LocalStatus == PendingLocalStatus.Synced && result.ReferenceCode is { } src)
+        {
+            _notice = $"Collection recorded · {src}"; _error = null;
+            if (!_confirmed) { _confirmed = true; await OnConfirmed.InvokeAsync(); }
+        }
+        else if (result?.LocalStatus is PendingLocalStatus.Rejected or PendingLocalStatus.ReconciliationRequired)
+            _error = result.ResultMessage ?? "Office reconciliation is required. No collection success is confirmed.";
+    }
+    public void Dispose() => Sync.Changed -= QueueChanged;
+}

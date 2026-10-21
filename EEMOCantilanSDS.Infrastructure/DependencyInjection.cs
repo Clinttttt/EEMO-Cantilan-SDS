@@ -68,7 +68,10 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<ICollectionSessionStore, Repositories.Revenue.CollectionSessionStore>();
             service.AddScoped<ICollectionSessionSources, Repositories.Revenue.CollectionSessionSources>();
             service.AddScoped<IBackEntryReconciliationReader, Repositories.Revenue.BackEntryReconciliationReader>();
+            service.AddScoped<IUtilityRegisterReader, Repositories.Revenue.UtilityRegisterReader>();
             service.AddScoped<IUnitOfWork, UnitOfWork>();
+            service.AddScoped(_ => new Application.Common.Revenue.NpmPartPaymentOptions(
+                configuration.GetValue<bool>("StallTrack:NpmPartPayments:Enabled")));
             // The NPM poster uses the same scoped context as the repositories and application workflows:
             // the day rows and canonical Collection commit together or not at all.
             service.AddScoped(sp =>
@@ -77,7 +80,8 @@ namespace EEMOCantilanSDS.Infrastructure
                 var tenant = sp.GetRequiredService<Application.Common.Tenancy.ICurrentMunicipalityAccessor>();
                 return new Application.Common.Revenue.NpmDailyCanonicalPoster(context,
                     sp.GetRequiredService<Application.Common.Interface.Services.ICurrentUserService>(), tenant,
-                    new Application.Common.Revenue.GovernedCanonicalAuthority(context, tenant));
+                    new Application.Common.Revenue.GovernedCanonicalAuthority(context, tenant),
+                    sp.GetRequiredService<Application.Common.Payments.NpmRentMonthWorkflow>());
             });
             service.AddScoped(sp => new Application.Common.Revenue.NpmWholePaymentWorkflow(
                 sp.GetRequiredService<Application.Common.Interface.Persistence.IStallRepository>(),
@@ -87,7 +91,8 @@ namespace EEMOCantilanSDS.Infrastructure
                 sp.GetRequiredService<Application.Common.Revenue.NpmDailyCanonicalPoster>(),
                 sp.GetRequiredService<Application.Common.Interface.Services.ICurrentUserService>(),
                 sp.GetRequiredService<Application.Common.Interface.Time.IClock>(),
-                sp.GetRequiredService<IEemoCacheInvalidator>(), sp.GetRequiredService<Application.Common.Tenancy.ITenantContext>()));
+                sp.GetRequiredService<IEemoCacheInvalidator>(), sp.GetRequiredService<Application.Common.Tenancy.ITenantContext>(),
+                sp.GetRequiredService<Application.Common.Payments.NpmRentMonthWorkflow>()));
             service.AddScoped(sp => new Application.Common.Revenue.NpmPartPaymentWorkflow(
                 sp.GetRequiredService<Application.Common.Interface.Persistence.IStallRepository>(),
                 sp.GetRequiredService<Application.Common.Interface.Persistence.ICollectorRepository>(),
@@ -97,7 +102,8 @@ namespace EEMOCantilanSDS.Infrastructure
                 sp.GetRequiredService<Application.Common.Interface.Services.ICurrentUserService>(),
                 sp.GetRequiredService<Application.Common.Interface.Time.IClock>(),
                 sp.GetRequiredService<IEemoCacheInvalidator>(), sp.GetRequiredService<Application.Common.Tenancy.ITenantContext>(),
-                new Application.Common.Revenue.NpmPartPaymentOptions(configuration.GetValue<bool>("StallTrack:NpmPartPayments:Enabled"))));
+                sp.GetRequiredService<Application.Common.Revenue.NpmPartPaymentOptions>(),
+                sp.GetRequiredService<Application.Common.Payments.NpmRentMonthWorkflow>()));
             return service;
         }
 
@@ -167,6 +173,7 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<IStallMobileQueries>(sp => (StallRepository)sp.GetRequiredService<IStallRepository>());
             service.AddScoped<IClosedStallAccountQueries>(sp => (StallRepository)sp.GetRequiredService<IStallRepository>());
             service.AddScoped<IContractAttentionQueries>(sp => (StallRepository)sp.GetRequiredService<IStallRepository>());
+            service.AddScoped<IContractsMonitoringQueries, ContractsMonitoringQueries>();
             service.AddScoped<IStallRegisterQueries>(sp => (StallRepository)sp.GetRequiredService<IStallRepository>());
 
             // The OR rule is LGU-wide, so it is its own service rather than a method on whichever module repository

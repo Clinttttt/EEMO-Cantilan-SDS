@@ -1,0 +1,11 @@
+/* The eleven-column vendor identity list. Table, bands and print rules are the shared holder-list document (OfficialRegisterPage.razor.css); only the column widths are local. */
+.fm-col { table-layout: fixed; width: 100%; }
+.col-no { width: 3.5%; }
+.col-biz { width: 14%; }
+.col-nm { width: 9.5%; }
+.col-ext { width: 6.5%; }
+.col-sex { width: 4.5%; }
+.col-addr { width: 17.5%; }
+.col-kind { width: 6%; }
+.col-year { width: 6%; }
+.col-nature { width: 14%; }

@@ -26,12 +26,31 @@
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/SlowSaveHint.razor" Link="Components/Shared/SlowSaveHint.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/BottomNav.razor" Link="Components/Shared/BottomNav.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/LoadingState.razor" Link="Components/Shared/LoadingState.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/StateNotice.razor" Link="Components/Shared/StateNotice.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/RecentUtilityNotice.razor" Link="Components/Shared/RecentUtilityNotice.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/NpmCollectAll.razor" Link="Components/Shared/NpmCollectAll.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/RecentCollections.razor" Link="Components/Shared/RecentCollections.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/SourceBrowser.razor" Link="Components/Shared/SourceBrowser.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/CorrectionReason.razor" Link="Components/Shared/CorrectionReason.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/NpmWholeSummary.razor" Link="Components/Shared/NpmWholeSummary.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/NpmRentAmountForm.razor" Link="Components/Shared/NpmRentAmountForm.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/RecordedNotice.razor" Link="Components/Shared/RecordedNotice.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/CollectorPositionPanel.razor" Link="Components/Shared/CollectorPositionPanel.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/OperationRecordsSection.razor" Link="Components/Shared/OperationRecordsSection.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/CollectionRecordRow.razor" Link="Components/Shared/CollectionRecordRow.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/DailyReceiptBreakdown.razor" Link="Components/Shared/DailyReceiptBreakdown.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/NpmRegistrationRequestForm.razor" Link="Components/Shared/NpmRegistrationRequestForm.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Pages/Menus/Record.razor" Link="Components/Pages/Menus/Record.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Pages/Menus/Report.razor" Link="Components/Pages/Menus/Report.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Pages/Menus/NpmRequests.razor" Link="Components/Pages/Menus/NpmRequests.razor" />
+    <None Include="../EEMOCantilanSDS.Mobile/Components/Shared/CollectionRecordRow.razor.css" Link="Components/Shared/CollectionRecordRow.razor.css" />
+    <None Include="../EEMOCantilanSDS.Mobile/Components/Shared/DailyReceiptBreakdown.razor.css" Link="Components/Shared/DailyReceiptBreakdown.razor.css" />
+    <None Include="../EEMOCantilanSDS.Mobile/Components/Shared/CollectorPositionPanel.razor.css" Link="Components/Shared/CollectorPositionPanel.razor.css" />
+    <None Include="../EEMOCantilanSDS.Mobile/Components/Shared/OperationRecordsSection.razor.css" Link="Components/Shared/OperationRecordsSection.razor.css" />
+    <None Include="../EEMOCantilanSDS.Mobile/Components/Shared/NpmRegistrationRequestForm.razor.css" Link="Components/Shared/NpmRegistrationRequestForm.razor.css" />
+    <None Include="../EEMOCantilanSDS.Mobile/Components/Pages/Menus/Report.razor.css" Link="Components/Pages/Menus/Report.razor.css" />
+    <None Include="../EEMOCantilanSDS.Mobile/Components/Pages/Menus/Record.razor.css" Link="Components/Pages/Menus/Record.razor.css" />
+    <None Include="../EEMOCantilanSDS.Mobile/Components/Pages/Menus/NpmRequests.razor.css" Link="Components/Pages/Menus/NpmRequests.razor.css" />
     <Using Include="Xunit" />
     <Using Include="EEMOCantilanSDS.Application.Common" />
   </ItemGroup>

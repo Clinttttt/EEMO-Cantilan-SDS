@@ -1,0 +1,42 @@
+/* Collection & Registration Review — three separate review areas as V3 panels. */
+.crr-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+    align-items: stretch;
+}
+
+.crr-card { display: flex; flex-direction: column; }
+
+.crr-text {
+    flex: 1 1 auto;
+    margin: 0;
+    padding: 16px 20px;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+}
+
+.crr-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 0 20px 20px;
+}
+
+.crr-count {
+    min-width: 24px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--surface-muted);
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 1100px) {
+    .crr-grid { grid-template-columns: minmax(0, 1fr); }
+}

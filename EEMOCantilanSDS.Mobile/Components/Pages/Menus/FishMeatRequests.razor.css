@@ -1,0 +1,32 @@
+.fmq { display: grid; gap: 12px; align-content: start; }
+.fmq-head { display: flex; align-items: center; gap: 10px; }
+.fmq-head > div { flex: 1 1 auto; min-width: 0; }
+.fmq-head h1 { margin: 0; color: var(--navy-primary); font-size: 17px; font-weight: 800; }
+.fmq-head p { margin: 2px 0 0; color: var(--text-muted); font-size: 12px; }
+
+.fmq-state { margin: 0; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-page); color: var(--text-muted); font-size: 13px; line-height: 1.45; }
+.fmq-error { display: grid; gap: 8px; border-color: #e5b9b9; background: #fff6f6; color: #8d2727; }
+.fmq-error p { margin: 0; }
+
+.fmq-list { display: grid; gap: 10px; }
+.fmq-card { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: #fff; }
+.fmq-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.fmq-top strong { min-width: 0; color: var(--navy-primary); font-size: 14px; font-weight: 800; overflow-wrap: anywhere; }
+.fmq-meta { color: var(--text-muted); font-size: 12px; }
+.fmq-feedback { margin: 0; color: #294462; font-size: 12px; line-height: 1.45; }
+.fmq-bad { color: #8d2727; }
+
+.fmq-status { flex: none; padding: 3px 9px; border-radius: 20px; background: #e9f1fc; color: #24579a; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.fmq-status.is-approved { background: #dff4eb; color: #176b4a; }
+.fmq-status.is-returned { background: #fff0d3; color: #79540f; }
+.fmq-status.is-rejected { background: #f9e3e3; color: #8f2e2e; }
+.fmq-status.is-cancelled { background: #edf0f4; color: #52647a; }
+
+.fmq-row { display: flex; gap: 8px; }
+.fmq-row button { flex: 1 1 0; }
+.fmq-small, .fmq-primary { min-height: 40px; padding: 0 14px; border-radius: 10px; font-size: 13px; font-weight: 700; }
+.fmq-small { border: 1px solid var(--border); background: #fff; color: var(--navy-primary); }
+.fmq-primary { border: 1px solid var(--navy-primary); background: var(--navy-primary); color: #fff; }
+.fmq-small:disabled, .fmq-primary:disabled { opacity: 0.6; }
+.fmq-small:focus-visible, .fmq-primary:focus-visible { outline: 2px solid var(--navy-primary); outline-offset: 2px; }
+.fmq-paging { display: flex; align-items: center; justify-content: space-between; color: var(--text-muted); font-size: 12px; }

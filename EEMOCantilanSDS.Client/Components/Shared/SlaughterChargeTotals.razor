@@ -1,0 +1,65 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Constants
+@inject IGovernedServicesApiClient GovernedApi
+
+@* Slaughterhouse collected by approved charge, for a period: the server's own totals per charge (the amounts frozen on each collection).
+   Per-head collections appear on one line, "not itemized", so the table adds up to the same figure as the register and the official
+   Monthly Income. Hidden when no collection in the period used a charge. *@
+@if (_totals is { Count: > 0 } totals && totals.Any(t => t.FeeOptionId is not null))
+{
+    <section class="v3-report-section" aria-labelledby="@HeadingId">
+        <h3 id="@HeadingId">By charge</h3>
+        <div class="v3-table-wrap">
+            <table class="v3-report-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Charge</th>
+                        <th scope="col" class="v3-num">Quantity</th>
+                        <th scope="col" class="v3-num">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var total in totals)
+                    {
+                        <tr>
+                            <td>@total.Name</td>
+                            <td class="v3-num">@(total.Quantity is { } q ? q.ToString("N0", CultureInfo.InvariantCulture) : "—")</td>
+                            <td class="v3-num">₱@total.Amount.ToString("N2", CultureInfo.InvariantCulture)</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <th scope="row">Total</th>
+                        <td></td>
+                        <td class="v3-num">₱@totals.Sum(t => t.Amount).ToString("N2", CultureInfo.InvariantCulture)</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </section>
+}
+
+@code {
+    [Parameter, EditorRequired] public DateOnly From { get; set; }
+    [Parameter, EditorRequired] public DateOnly To { get; set; }
+    [Parameter] public string HeadingId { get; set; } = "slh-by-charge";
+
+    private IReadOnlyList<FeeOptionTotalDto>? _totals;
+    private DateOnly _loadedFrom, _loadedTo;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_totals is not null && _loadedFrom == From && _loadedTo == To) return;
+        _loadedFrom = From;
+        _loadedTo = To;
+        try
+        {
+            var result = await GovernedApi.GetFeeOptionTotalsAsync(CollectorOperationCodes.Slaughterhouse, From, To);
+            _totals = result is { IsSuccess: true, Value: { } rows } ? rows : [];
+        }
+        catch { _totals = []; }
+    }
+}

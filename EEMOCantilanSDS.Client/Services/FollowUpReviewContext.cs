@@ -6,7 +6,7 @@ namespace EEMOCantilanSDS.Client.Services;
 public sealed record FollowUpReviewContext(FollowUpItemDto? FacilityItem, ObligationFollowUpItemDto? ObligationItem,
     DateOnly SnapshotDate, bool CanRecordPayment = false, int? PeriodYear = null, int? PeriodMonth = null)
 {
-    public bool IsAccount => ObligationItem is not null || FacilityItem is { StallId: not null, ReasonKind: "delinquent" or "current" or "contract" or "npm" };
+    public bool IsAccount => ObligationItem is not null || FacilityItem is { StallId: not null, ReasonKind: "delinquent" or "arrears" or "current" or "contract" or "npm" };
     public string Name => ObligationItem?.PayerName ?? FacilityItem?.Person ?? "Registered account";
     public string Reference => ObligationItem?.SpaceNumber ?? FacilityItem?.Identifier ?? "";
     public string Link => ObligationItem?.Link ?? FacilityItem?.Link ?? "";

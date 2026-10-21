@@ -25,6 +25,12 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.SubmitOnboarding
             if (string.IsNullOrWhiteSpace(draft.ConfigJson))
                 return Result<OnboardingDraftDto>.Failure("Please complete your configuration before submitting for validation.");
 
+            // A draft saved by an older workspace carries no declarations and passes. A malformed block is refused here too,
+            // so a document that never went through the save validator cannot reach the operator.
+            var operationErrors = OnboardingOperationDeclarations.Validate(draft.ConfigJson);
+            if (operationErrors.Count > 0)
+                return Result<OnboardingDraftDto>.Failure(string.Join(" ", operationErrors));
+
             var requestEntity = await context.AssessmentRequests
                 .FirstOrDefaultAsync(r => r.Id == draft.AssessmentRequestId, ct);
             if (requestEntity is null

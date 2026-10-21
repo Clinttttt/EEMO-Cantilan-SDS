@@ -25,6 +25,12 @@ public sealed class GovernedServiceFeeOption : BaseEntity, IMunicipalityOwned
 
     public string? Description { get; private set; }
 
+    /// <summary>Slaughterhouse charges only: the animals this charge applies to (<see cref="SlaughterAnimalScope"/> flags; null = every animal).</summary>
+    public int? ApplicableAnimals { get; private set; }
+
+    /// <summary>Slaughterhouse charges only: whether the quantity is the head count or a unit count the collector enters; null for other services.</summary>
+    public FeeQuantityBasis? QuantityBasis { get; private set; }
+
     /// <summary>The first business date the option is no longer offered (null = offered). Never in the past.</summary>
     public DateOnly? RetiredFrom { get; private set; }
     public string? RetiredBy { get; private set; }
@@ -36,8 +42,10 @@ public sealed class GovernedServiceFeeOption : BaseEntity, IMunicipalityOwned
 
     public static GovernedServiceFeeOption Create(
         Guid municipalityId, Guid governedServiceId, string displayName, string? code, string? location, string? description,
-        string createdBy, DateTime? createdAtUtc = null)
+        string createdBy, DateTime? createdAtUtc = null, int? applicableAnimals = null, FeeQuantityBasis? quantityBasis = null)
     {
+        if (applicableAnimals is { } scope && (scope < 0 || scope > (int)SlaughterAnimalScope.All))
+            throw new ArgumentException("The animal scope is not valid.", nameof(applicableAnimals));
         if (municipalityId == Guid.Empty || governedServiceId == Guid.Empty)
             throw new ArgumentException("A tenant and a governed service are required.");
         var name = (displayName ?? string.Empty).Trim();
@@ -70,13 +78,39 @@ public sealed class GovernedServiceFeeOption : BaseEntity, IMunicipalityOwned
             DisplayName = name,
             Location = place,
             Description = note,
+            ApplicableAnimals = applicableAnimals == 0 ? null : applicableAnimals,
+            QuantityBasis = quantityBasis,
             CreatedAtUtc = created,
             CreatedBy = createdBy.Trim()
         };
     }
 
+    /// <summary>Changes the collector-facing label and the Slaughterhouse scope. History is untouched: posted lines froze what they used.</summary>
+    public void Update(string displayName, int? applicableAnimals, FeeQuantityBasis? quantityBasis)
+    {
+        var name = (displayName ?? string.Empty).Trim();
+        if (name.Length is 0 or > 120)
+            throw new ArgumentException("A display name of 1-120 characters is required.", nameof(displayName));
+        if (applicableAnimals is { } scope && (scope < 0 || scope > (int)SlaughterAnimalScope.All))
+            throw new ArgumentException("The animal scope is not valid.", nameof(applicableAnimals));
+        DisplayName = name;
+        ApplicableAnimals = applicableAnimals == 0 ? null : applicableAnimals;
+        QuantityBasis = quantityBasis;
+    }
+
     /// <summary>True when the option may be selected for a transaction on this business date.</summary>
     public bool IsOfferedOn(DateOnly businessDate) => RetiredFrom is not { } from || businessDate < from;
+
+    /// <summary>
+    /// Offers a retired (or retiring) option again from now on. Its identity, rate history and every recorded collection are untouched;
+    /// only the stop date is cleared.
+    /// </summary>
+    public void Reinstate()
+    {
+        if (RetiredFrom is null) throw new InvalidOperationException("This fee option is not retired.");
+        RetiredFrom = null;
+        RetiredBy = null;
+    }
 
     /// <summary>Stops offering the option from a business date that is not in the past. History is untouched.</summary>
     public void Retire(DateOnly fromDate, DateOnly today, string actor)

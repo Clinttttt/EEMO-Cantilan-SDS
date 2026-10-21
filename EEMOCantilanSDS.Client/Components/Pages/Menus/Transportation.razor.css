@@ -1,19 +1,49 @@
 .tp-meta { display: inline-flex; align-items: center; gap: 8px; }
 
-.tp-toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px 16px;
-    margin: 16px 0;
+/* Collections beside Setup, one row height, the same 20px rhythm as the other operation workspaces. */
+.tp-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+    align-items: stretch;
+    gap: 20px;
 }
 
-.tp-status { margin: 0; font-size: 0.875rem; color: var(--text-secondary); }
-.tp-status strong { color: var(--navy); }
-.tp-notice { margin: 0 0 16px; }
+.tp-layout > .v3-panel { display: flex; flex-direction: column; }
+.tp-layout > .v3-panel > .tp-scroll { flex: 1 1 auto; }
 
-/* Today's list is bounded: about five rows show, the rest scroll inside the panel under a held heading and total. */
-.tp-scroll { max-height: 21rem; overflow-y: auto; overscroll-behavior: contain; }
+.tp-notice { margin: 0 0 20px; }
+
+.tp-status { color: var(--navy); }
+
+.tp-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+}
+
+.tp-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    min-height: 36px;
+    padding: 0;
+}
+
+.tp-icon-btn svg { width: 16px; height: 16px; }
+
+/* Today's list is bounded: about five rows show, the rest scroll inside the panel (scrollbar hidden) under a held heading and total. */
+.tp-scroll { max-height: 21rem; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.tp-scroll::-webkit-scrollbar { display: none; }
 .tp-scroll thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-muted); }
 .tp-scroll tfoot td { position: sticky; bottom: 0; z-index: 1; background: var(--surface-muted); border-top: 1px solid var(--border); }
+
+@media (max-width: 1100px) {
+    .tp-layout { grid-template-columns: minmax(0, 1fr); }
+}
+
+.tp-fees { margin-top: 20px; }
+.tp-fee { display: block; font-weight: 600; color: var(--text); }

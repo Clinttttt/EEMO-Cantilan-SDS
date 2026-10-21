@@ -1,73 +1,41 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Payments
 @using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Client.Services
-@using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Constants
-<div class="eemo-modal-overlay" @onclick="() => OnClose.InvokeAsync()">
-    <div class="holder-details" role="dialog" aria-modal="true" aria-labelledby="ohd-title" @onclick:stopPropagation="true">
-        <header class="ohd-header">
-            <div>
-                <h2 id="ohd-title">@SpaceAccountPresentation.Occupant(Account)</h2>
-                <div class="ohd-sub">@Operation · @(Account.Kind == ObligationKind.FiestaArawLotRental ? "Lot" : "Space") @Account.SubjectLabel
-                    <AccountStatusPill Status="@(Account.ActiveTo is null ? "Active" : "Closed")" />
-                </div>
-            </div>
-            <button type="button" class="ohd-close" aria-label="Close" @onclick="() => OnClose.InvokeAsync()">×</button>
-        </header>
-        <div class="ohd-body">
-            <div class="ohd-stats">
-                <div><small>@(Account.Kind == ObligationKind.FiestaArawLotRental ? "Approved event amount" : "Approved monthly rental")</small><strong>@Money(Account.CurrentAmount)</strong></div>
-                <div><small>Assessed · to date</small><strong>@Money(Account.AssessedToDate)</strong></div>
-                <div><small>Collected · to date</small><strong>@Money(Account.CollectedToDate)</strong></div>
-                <div><small>Balance · to date</small><strong>@Money(Account.OutstandingToDate)</strong></div>
-            </div>
+@using EEMOCantilanSDS.Domain.Enums
+@inject IObligationsApiClient ObligationsApi
 
-            <section class="ohd-section">
-                <h3>@(Account.Kind == ObligationKind.FiestaArawLotRental ? "Lot Holder & Event" : "Occupant & Contract")</h3>
-                <dl>
-                    <div><dt>@(Account.Kind == ObligationKind.FiestaArawLotRental ? "Lot holder" : "Actual occupant (lessee)")</dt><dd>@SpaceAccountPresentation.Occupant(Account)</dd></div>
-                    @if (Account.Kind == ObligationKind.FiestaArawLotRental)
-                    {
-                        <div><dt>Event</dt><dd>@Account.Event</dd></div>
-                        <div><dt>Event date</dt><dd>@(Account.EventDate?.ToString("MMM d, yyyy") ?? "Not recorded")</dd></div>
-                    }
-                    else
-                    {
-                        <div><dt>Basis of occupancy</dt><dd>@SpaceAccountPresentation.Basis(Account)</dd></div>
-                        <div><dt>Name on contract</dt><dd>@(Account.ContractName ?? "Not recorded")</dd></div>
-                        <div><dt>Contract reference</dt><dd>@(Account.ContractReference ?? "Not recorded")</dd></div>
-                        <div><dt>Contract effective date</dt><dd>@(Account.ContractEffectiveDate?.ToString("MMM d, yyyy") ?? "Not recorded")</dd></div>
-                        <div><dt>Duration</dt><dd>@(Account.ContractYears is { } years ? $"{years} years" : "Not recorded")</dd></div>
-                        @if (Account.ContractEffectiveDate is { } start && Account.ContractYears is { } term)
-                        { <div><dt>Term expiration</dt><dd>@DomainRules.TermLastDay(start.ToDateTime(TimeOnly.MinValue), term).ToString("MMM d, yyyy")</dd></div> }
-                    }
-                </dl>
-            </section>
+@* A space or lot account's details in the stall-holder drawer: occupant and contract evidence, the approved billing amount apart from the contract's own
+   figure, and the months' payment position (the same read-only calendar the stall drawer carries). Source-owned: every value is the account register's or the
+   period register's; nothing is repriced or computed here. *@
+<RentalDetailsDrawer Title="@SpaceAccountPresentation.Occupant(Account)" Context="Header" StatusText="@RentalAccountStatus.Label(Account)"
+                     StatusClass="@(RentalAccountStatus.IsOpen(Account) ? "pill-active" : "pill-inactive")" Summary="SummaryItems" Sections="SectionRows" Fees="FeeRows"
+                     NoFeesText="@NoFees" HistoryLabel="History" EditLabel="Edit Occupant & Space"
+                     OnClose="OnClose" OnHistory="OnHistory" OnEdit="@(CanEditNow ? OnEdit : default)">
+    @if (IsLot)
+    {
+        <section class="dv-section" aria-label="Event settlement">
+            <h3 class="dv-section-title">Event settlement</h3>
+            <dl class="dv-kv">
+                <div class="dv-kv-row"><dt class="dv-kv-key">Assessed</dt><dd class="dv-kv-val">@Money(Account.AssessedToDate)</dd></div>
+                <div class="dv-kv-row"><dt class="dv-kv-key">Collected</dt><dd class="dv-kv-val">@Money(Account.CollectedToDate)</dd></div>
+                <div class="dv-kv-row"><dt class="dv-kv-key">Balance</dt><dd class="dv-kv-val">@Money(Account.OutstandingToDate)</dd></div>
+            </dl>
+        </section>
+    }
+    else if (_loaded)
+    {
+        <MonthlyPaymentCalendar StallId="Account.Id" ContractDate="@Start" MonthlyRate="@(Account.CurrentAmount ?? 0m)" PaymentHistory="_months" ReadOnly="true" />
+    }
+    else if (_failed)
+    {
+        <p class="dv-none" role="alert">The payment months could not be loaded. Payment History still shows what was collected.</p>
+    }
+</RentalDetailsDrawer>
 
-            <section class="ohd-section">
-                <h3>@(Account.Kind == ObligationKind.FiestaArawLotRental ? "Lot & Account Details" : "Space & Rental Details")</h3>
-                <dl>
-                    <div><dt>Facility / Operation</dt><dd>@Operation</dd></div>
-                    <div><dt>@(Account.Kind == ObligationKind.FiestaArawLotRental ? "Lot No." : "Space No.")</dt><dd>@Account.SubjectLabel</dd></div>
-                    <div><dt>Active from</dt><dd>@Account.ActiveFrom.ToString("MMM d, yyyy")</dd></div>
-                    @if (Account.ActiveTo is { } ended) { <div><dt>Closed on</dt><dd>@ended.ToString("MMM d, yyyy")</dd></div> }
-                    @if (Account.Kind != ObligationKind.FiestaArawLotRental)
-                    {
-                        <div><dt>Area (sq.m)</dt><dd>@(Account.AreaSqm?.ToString("N2") ?? "Not recorded")</dd></div>
-                        <div><dt>Area location / note</dt><dd>@(Account.AreaLocation ?? "Not recorded")</dd></div>
-                        <div><dt>Current approved rate from</dt><dd>@(Account.CurrentAmountEffectiveFrom?.ToString("MMM yyyy") ?? "Not recorded")</dd></div>
-                    }
-                </dl>
-            </section>
-            <p class="ohd-note">This is the source's recorded occupancy and assessment position, not an Official Receipt. Posted collections remain in Collection Activity and Payment History.</p>
-        </div>
-        <footer class="ohd-footer">
-            <button type="button" class="btn-ghost" @onclick="() => OnClose.InvokeAsync()">Close</button>
-            <button type="button" class="btn-outline" @onclick="() => OnHistory.InvokeAsync()">Payment History</button>
-            @if (CanEdit && Account.ActiveTo is null && Account.Kind != ObligationKind.FiestaArawLotRental)
-            { <button type="button" class="btn-primary" @onclick="() => OnEdit.InvokeAsync()">Edit Occupant &amp; Space</button> }
-        </footer>
-    </div>
-</div>
 @code {
     [Parameter, EditorRequired] public ObligationAccountDto Account { get; set; } = null!;
     [Parameter] public string Operation { get; set; } = "Space Rental";
@@ -75,5 +43,118 @@
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback OnEdit { get; set; }
     [Parameter] public EventCallback OnHistory { get; set; }
-    private static string Money(decimal? value) => value is { } money ? $"₱{money:N2}" : "—";
+
+    private List<PaymentHistoryDto> _months = [];
+    private bool _loaded, _failed;
+
+    private bool IsLot => Account.Kind == ObligationKind.FiestaArawLotRental;
+    private bool CanEditNow => CanEdit && RentalAccountStatus.IsOpen(Account) && !IsLot;
+    private DateTime? Start => (Account.ContractEffectiveDate ?? Account.ActiveFrom).ToDateTime(TimeOnly.MinValue);
+    private string NoFees => IsLot ? "No additional fees for this lot." : "No additional fees for this space.";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (IsLot) return;
+        try
+        {
+            var register = await ObligationsApi.GetRegisterAsync(Account.Id);
+            if (register.IsSuccess)
+            {
+                _months = SpacePaymentMonths.From((register.Value ?? []).Where(p => p.AccountId == Account.Id));
+                _loaded = true;
+            }
+            else _failed = true;
+        }
+        catch { _failed = true; }
+    }
+
+    private IReadOnlyList<string> Header => new[] { $"{(IsLot ? "Lot" : "Space")} {Account.SubjectLabel}", Operation }.Where(x => !string.IsNullOrWhiteSpace(x)).ToArray();
+
+    private IReadOnlyList<RentalDetailsDrawer.SummaryItem> SummaryItems
+    {
+        get
+        {
+            var items = new List<RentalDetailsDrawer.SummaryItem>
+            {
+                new(IsLot ? "Event amount" : "Monthly rental", Account.CurrentAmount is { } amount ? $"₱{amount.ToString("N0", CultureInfo.InvariantCulture)}" : "—", Account.CurrentAmount is null)
+            };
+            if (IsLot)
+            {
+                items.Add(new("Event date", Account.EventDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) ?? "Not recorded", Account.EventDate is null));
+                items.Add(Settlement);
+            }
+            else
+            {
+                items.Add(new("Contract date", Account.ContractEffectiveDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) ?? "No contract", Account.ContractEffectiveDate is null));
+                items.Add(Settlement);
+                if (Account.AreaSqm is > 0) items.Add(new("Area", $"{Account.AreaSqm:0.##} sq.m"));
+            }
+            return items;
+        }
+    }
+
+    // The current month for a monthly account, the whole event for a lot: whether it is settled, part-settled or open.
+    private RentalDetailsDrawer.SummaryItem Settlement
+    {
+        get
+        {
+            if (IsLot) return Pill("Settlement", Account.OutstandingToDate <= 0m && Account.AssessedToDate > 0m, Account.CollectedToDate > 0m);
+            var label = PhilippineTime.Today.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+            if (!_loaded) return new(label, "—", true);
+            var current = _months.FirstOrDefault(m => m.Period == PhilippineTime.Today.ToString("yyyy-MM", CultureInfo.InvariantCulture));
+            return current is null ? new(label, "Not assessed", true) : Pill(label, current.Status == PaymentStatus.Paid, current.Status == PaymentStatus.Partial);
+        }
+    }
+
+    private static RentalDetailsDrawer.SummaryItem Pill(string label, bool paid, bool partial) =>
+        new(label, null, PillText: paid ? "Paid" : partial ? "Partial" : "Unpaid", PillClass: paid ? "pill-paid" : partial ? "pill-partial" : "pill-unpaid");
+
+    private IReadOnlyList<RentalDetailsDrawer.Section> SectionRows
+    {
+        get
+        {
+            var rows = new List<RentalDetailsDrawer.Row> { new(IsLot ? "Lot holder" : "Actual occupant", SpaceAccountPresentation.Occupant(Account)) };
+            if (IsLot)
+            {
+                rows.Add(new("Event", Account.Event?.ToString() ?? "Not recorded", Account.Event is null));
+                rows.Add(new("Event date", Account.EventDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) ?? "Not recorded", Account.EventDate is null));
+                rows.Add(new("Lot no.", Account.SubjectLabel));
+                rows.Add(new("Active from", Account.ActiveFrom.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)));
+                if (Account.ActiveTo is { } closed) rows.Add(new(RentalAccountStatus.IsOpen(Account) ? "Ends on" : "Closed on", closed.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)));
+                return [new("Lot holder & event", rows)];
+            }
+            rows.Add(new("Basis of occupancy", SpaceAccountPresentation.Basis(Account)));
+            rows.Add(new("Name on contract", Account.ContractName ?? "No contract", string.IsNullOrWhiteSpace(Account.ContractName)));
+            if (!string.IsNullOrWhiteSpace(Account.ContractReference)) rows.Add(new("Contract reference", Account.ContractReference));
+            rows.Add(new("Facility", Operation));
+            rows.Add(new("Space no.", Account.SubjectLabel));
+            if (Account.ContractEffectiveDate is { } start && Account.ContractYears is { } years && years > 0)
+            {
+                var expiry = DomainRules.TermLastDay(start, years);
+                rows.Add(new("Contract duration", $"{years} year{(years > 1 ? "s" : "")}", Note: $"(expires {expiry.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)})", NoteExpired: expiry < PhilippineTime.Today));
+            }
+            else rows.Add(new("Contract duration", "No contract", true));
+            rows.Add(new("Active from", Account.ActiveFrom.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)));
+            if (Account.ActiveTo is { } ended) rows.Add(new(RentalAccountStatus.IsOpen(Account) ? "Ends on" : "Closed on", ended.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)));
+            if (!string.IsNullOrWhiteSpace(Account.AreaLocation)) rows.Add(new("Area note", Account.AreaLocation));
+            return [new("Occupant & contract", rows)];
+        }
+    }
+
+    private IReadOnlyList<RentalDetailsDrawer.Fee> FeeRows
+    {
+        get
+        {
+            var fees = new List<RentalDetailsDrawer.Fee>();
+            if (Account.CurrentAmount is { } amount)
+                fees.Add(IsLot
+                    ? new("Approved event amount", "Lot rental · One-time for the event", $"₱{amount.ToString("N0", CultureInfo.InvariantCulture)}")
+                    : new("Approved monthly rental", $"{Operation} · Billed monthly", $"₱{amount.ToString("N0", CultureInfo.InvariantCulture)}", "/mo"));
+            if (!IsLot && Account.ContractMonthlyRate is { } stated)
+                fees.Add(new("Rental per contract", "Evidence only · Not billed", $"₱{stated.ToString("N0", CultureInfo.InvariantCulture)}", "/mo"));
+            return fees;
+        }
+    }
+
+    private static string Money(decimal? value) => value is { } money ? $"₱{money.ToString("N2", CultureInfo.InvariantCulture)}" : "—";
 }

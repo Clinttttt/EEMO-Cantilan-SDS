@@ -90,3 +90,59 @@
     font-size: 14px;
     font-weight: 600;
 }
+
+/* The cash position as three figures side by side; they wrap rather than shrink when the screen is narrow. */
+.cpp-figures {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0;
+    margin: 0;
+    background: var(--mobile-navy);
+    color: #fff;
+    border-radius: 12px 12px 0 0;
+    padding: 16px;
+}
+
+.cpp-fig {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    padding: 8px 0;
+}
+
+.cpp-fig dt {
+    margin: 0;
+    font-size: 11px;
+    color: #dce7f5;
+}
+
+.cpp-fig dd {
+    margin: 0;
+    font-size: clamp(14px, 4vw, 18px);
+    font-weight: 600;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow-wrap: normal;
+}
+
+.cpp-fig.strong {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    border-bottom: 1px solid #ffffff38;
+    margin-bottom: 6px;
+    padding-top: 0;
+    padding-bottom: 14px;
+}
+
+.cpp-fig.strong dd {
+    font-size: clamp(24px, 7vw, 32px);
+}
+.cpp-cash-note { margin: 0 0 16px; padding: 0 16px 14px; border-radius: 0 0 12px 12px; background: var(--mobile-navy); color: #dce7f5; font-size: 12px; line-height: 1.4; }
+@media (max-width: 360px) { .cpp-figures { padding: 13px; } }
+@media (max-width: 430px) { .cpp-fig:not(.strong) { grid-column: 1 / -1; flex-direction: row; justify-content: space-between; gap: 10px; } }
+
+.cpp-count {
+    font-size: 14px;
+}

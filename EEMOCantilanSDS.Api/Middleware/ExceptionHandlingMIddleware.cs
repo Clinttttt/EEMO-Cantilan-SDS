@@ -53,7 +53,7 @@ namespace EEMOCantilanSDS.Api.Middleware
             var traceId = context.TraceIdentifier;
             // Log at Warning (not Error) — it's an expected conflict, and we keep the trace for support.
             _logger.LogWarning(exception, "Unique-constraint conflict on {Method} {Path}. TraceId: {TraceId}",
-                context.Request?.Method, context.Request?.Path.Value, traceId);
+                context.Request?.Method, EEMOCantilanSDS.Application.Common.Security.SensitiveRoutes.Redact(context.Request?.Path.Value), traceId);
 
             context.Response.ContentType = "application/json";
             context.Response.StatusCode = StatusCodes.Status409Conflict;
@@ -98,7 +98,7 @@ namespace EEMOCantilanSDS.Api.Middleware
         {   
             var traceId = context.TraceIdentifier;
             _logger.LogError(exception, "Unhandled exception while processing {Method} {Path}. TraceId: {TraceId}",
-                context.Request?.Method, context.Request?.Path.Value, traceId);
+                context.Request?.Method, EEMOCantilanSDS.Application.Common.Security.SensitiveRoutes.Redact(context.Request?.Path.Value), traceId);
 
             context.Response.ContentType = "application/json";
             context.Response.StatusCode = StatusCodes.Status500InternalServerError;

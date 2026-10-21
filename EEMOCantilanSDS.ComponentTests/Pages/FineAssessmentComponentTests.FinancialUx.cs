@@ -62,7 +62,7 @@ public sealed partial class FineAssessmentComponentTests
         drawer.FindAll("button").Single(x=>x.TextContent.Trim()=="Search").Click();
         drawer.WaitForAssertion(()=>Assert.Contains("Liable holder",drawer.Markup));
         drawer.Find(".fine-result").Click();
-        drawer.Find("select").Change(policy.Id.ToString()); drawer.Find("textarea").Change("Actual incident"); drawer.Find("input[type='number']").Change("120");
+        drawer.Find("select").Change(policy.Id.ToString()); ChooseOther(drawer,"Actual incident"); drawer.Find("input[type='number']").Change("120");
         drawer.Find("form").Submit(); drawer.Find("form").Submit();
         cut.FindAll("button").Single(x=>x.TextContent=="Record payment now").Click();
         cut.WaitForAssertion(()=>Assert.Single(cut.FindComponents<FinePaymentDrawer>()));

@@ -42,6 +42,22 @@ public class ApplicationEfBoundaryTests
     {
         // The seam itself, and the paging helper built on IQueryable.
         "IAppDbContext.cs",
+        // Specialized NPM month writer reads canonical allocations and corrections in the same tenant transaction.
+        // This is the source-owned boundary, not a second ledger or a client-calculated balance.
+        "NpmRentMonthWorkflow.cs",
+        "NpmRentMonthWorkflow.Corrections.cs",
+        "NpmRentMonthWorkflow.ReadModels.cs",
+        "NpmRentMonthWorkflow.ReportBatch.cs",
+        "NpmRentMonthWorkflow.Preparation.cs",
+        "NpmRentMonthWorkflow.Credits.cs",
+        "NpmRentMonthWorkflow.HeadReview.cs",
+        // The same source-owned transaction verifies persisted tenant rates and absence of prior assessment before creating an opening month.
+        "NpmRentMonthWorkflow.OpeningMonth.cs",
+        // Optional NPM physical OR custody is validated against the tracked accountable document
+        // inside the SAME tenant-scoped payment transaction. Moving this lookup to a detached
+        // repository read risks breaking custody revalidation before canonical posting; it uses
+        // explicit MunicipalityId, instrument, normalized serial and assignee checks.
+        "NpmReceiptEvidence.cs",
         "PaginationExtensions.cs",
 
         // Onboarding and assessment: the operator pipeline from request to activation.
@@ -62,6 +78,11 @@ public class ApplicationEfBoundaryTests
         "DeclineAssessmentRequestCommandHandler.cs",
         "GetActivationContextQueryHandler.cs",
         "ActivateMunicipalityCommandHandler.cs",
+        // Tenant operation configuration (listing and local names): the Head edit handler loads the municipality's rows to apply an
+        // optimistic-concurrency edit and the explicit first-time adoption in ONE transaction; the store reads them for the directory.
+        // Presentation configuration only - no revenue or settlement data is read or written.
+        "UpdateTenantOperationSettingCommandHandler.cs",
+        "TenantOperationSettingsStore.cs",
 
         // Authentication, account recovery and MFA: pre-auth paths that resolve an account before a tenant exists.
         "RequestPasswordResetCommandHandler.cs",
@@ -158,6 +179,12 @@ public class ApplicationEfBoundaryTests
         // Collector self-correction releases allocations/daily projections and re-quotes the existing source writer
         // in ONE shared IAppDbContext transaction. It has no replacement fee algorithm or independent money reader.
         "MobileCollectionCorrectionWorkflow.cs",
+        // Head-only reversal of one Office-recorded canonical rent receipt: appends a linked CollectionCorrection and reopens the
+        // rent projection through the existing rent adapter in ONE shared transaction. No replacement, fee or money algorithm.
+        "HeadCollectionCorrectionWorkflow.cs",
+        // Head-only Office cash turnover: records and voids whole-Collection coverage derived from existing Collections and
+        // corrections in ONE shared transaction. It creates no Collection, receipt, deposit or money algorithm.
+        "OfficeCashTurnoverWorkflow.cs",
         // Partial of the existing source-owned registry workflow: preview is read-only and save revalidates/inserts
         // domain registrations atomically with their existing operation identities. It never imports Collections.
         "OfficeCollectionWorkflow.Import.cs",
@@ -167,6 +194,12 @@ public class ApplicationEfBoundaryTests
         // Optional IA-068 registration evidence uses the existing registry's transaction/context boundary to
         // atomically confirm an NPM contract and annual vendor registration. It adds no collection writer.
         "OfficeCollectionWorkflow.NpmAssociations.cs",
+        // New partials retain that same tenant-scoped registry/context boundary. Occupancy creation wraps the
+        // canonical CreateStall pipeline and verified association in one serializable transaction; request review
+        // persists only nonfinancial evidence with replay/concurrency protection. Neither adds a money writer.
+        "OfficeCollectionWorkflow.NpmOccupancy.cs",
+        "OfficeCollectionWorkflow.NpmRequests.cs",
+        "OfficeCollectionWorkflow.FishMeatRequests.cs", // Same tenant-scoped nonfinancial review transaction; no new financial ledger.
 
         // The shared Composer posting transaction revalidates every participating source and atomically writes
         // the draft, Collection/lines/allocations, compatibility projections, accountable document, and durable
@@ -186,6 +219,15 @@ public class ApplicationEfBoundaryTests
         // WCF Mobile collection enablement: derives readiness from WCF policy, assignments, Cash Ticket custody and WCF
         // postings awaiting review, and writes the one tenant activation row with its audit entry in one transaction.
         "WcfMobileCollectionWorkflow.cs",
+        // Head-only direct-collection review: a server-paged read over the canonical Collections plus an append-only
+        // administrative review event. It never writes a Collection, SRC, allocation or amount.
+        "DirectCollectionReviewWorkflow.cs",
+        // The shared verification rule set and the review-event label lookup the Activity reader reuses; read-only over Collections, corrections and review events.
+        "DirectCollectionVerification.cs",
+        "FishMeatPayorFollowUpWorkflow.cs",
+        // Collector read of the canonical Collections already posted against one utility source and period, shown before another
+        // payment. Read-only: it reads posted allocations and corrections and writes nothing.
+        "CollectionComposerWorkflow.MobileRecent.cs",
         "AccountableFormCustodyWorkflow.cs",
         "AccountableFormCustodyWorkflow.Accountability.cs",
         // Head-only collector operation permissions: a tenant-bound collector lookup and one replace-set save of
@@ -209,6 +251,12 @@ public class ApplicationEfBoundaryTests
         "FineAssessmentCollectionSource.cs",
         "CollectionComposerWorkflow.Fines.cs",
         "ObligationWorkflow.cs",
+        // Read-only account lifecycle adapters: the market-section closure and obligation-account reads have no repository seam, and the adapters write nothing.
+        "AccountLifecycleAdapters.cs",
+        // Space lifecycle execution and the identity preflight/backfill: tenant-scoped reads and writes inside one advisory-locked transaction, over the same
+        // obligation tables as ObligationWorkflow. No repository seam exists for them and none is invented.
+        "SpaceLifecycleWorkflow.cs",
+        "SpaceIdentityMigration.cs",
         "VehicleClassWorkflow.cs",
         "RemittanceWorkflow.cs",
         "CollectionsReportWorkflow.cs",
@@ -223,6 +271,8 @@ public class ApplicationEfBoundaryTests
         "ReportGovernanceWorkflow.cs",
         "SpaceFollowUpWorkflow.cs",
         "FeeScheduleCollectionWorkflow.TaboBatch.cs",
+        // Office (Head/Admin) Slaughterhouse recording by approved charges: a partial of the same canonical writer, same calculation and posting, different actor.
+        "FeeScheduleCollectionWorkflow.Office.cs",
         "ApprovedSlaughterAnimalWorkflow.cs",
         "ObligationCollectionSource.cs",
         // The scoped cutover coordinator reads one source part, its effective instrument policy,

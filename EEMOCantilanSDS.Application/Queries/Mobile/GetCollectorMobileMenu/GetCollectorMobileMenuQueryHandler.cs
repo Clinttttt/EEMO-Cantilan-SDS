@@ -46,7 +46,11 @@ public class GetCollectorMobileMenuQueryHandler(
             && await canonicalAuthority.IsCanonicalForCollectorAsync(CollectorOperationCodes.Tabo, today, cancellationToken);
         var slaughter = canonicalAuthority is not null && assigned.Contains(FacilityCode.SLH)
             && await canonicalAuthority.IsCanonicalForCollectorAsync(CollectorOperationCodes.Slaughterhouse, today, cancellationToken);
-        var npmDaily = canonicalAuthority is not null && assigned.Contains(FacilityCode.NPM)
+        // A Public Market its LGU declared as standard monthly rental is collected like TCC/NCC: the device shows the monthly rent screen and
+        // the daily NPM collection is not offered. Read from the stored declaration, never from a rate or a name.
+        var npmMonthly = names.ContainsKey(FacilityCode.NPM)
+            && (await facilityRepository.GetByCodeAsync(FacilityCode.NPM, cancellationToken))?.IsMonthlyRentMarket == true;
+        var npmDaily = canonicalAuthority is not null && assigned.Contains(FacilityCode.NPM) && !npmMonthly
             && await canonicalAuthority.IsCanonicalForCollectorAsync(CollectorOperationCodes.NpmDaily, today, cancellationToken);
         var canonical = new Dictionary<FacilityCode, RevenueInstrumentType?>();
         foreach (var (facility, on, classification) in new[]
@@ -60,12 +64,12 @@ public class GetCollectorMobileMenuQueryHandler(
             .OrderBy(kv => kv.Key)
             .Select(kv =>
             {
-                var archetype = Facility.DefaultArchetypeFor(kv.Key);
+                var archetype = kv.Key == FacilityCode.NPM && npmMonthly ? BillingArchetype.MonthlyRental : Facility.DefaultArchetypeFor(kv.Key);
                 var isAssigned = assigned.Contains(kv.Key);
                 return new MobileFacilityMenuItemDto(
                     kv.Key,
                     kv.Value,
-                    GetFacilityDescription(kv.Key),
+                    kv.Key == FacilityCode.NPM && npmMonthly ? "NPM - Monthly Stall Rental" : GetFacilityDescription(kv.Key),
                     isAssigned,
                     // Available when assigned AND the billing archetype maps to a built mobile screen. Every
                     // archetype except the unmapped "Custom" has one (custom FACILITIES bill as MonthlyRental

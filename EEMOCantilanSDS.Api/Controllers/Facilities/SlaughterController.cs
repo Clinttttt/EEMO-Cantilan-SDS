@@ -20,7 +20,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace EEMOCantilanSDS.Api.Controllers;
 
 [Authorize(Roles = "SuperAdmin,Admin,Collector")]
-public class SlaughterController(ISender sender, ApprovedSlaughterAnimalWorkflow approvedAnimals) : ApiBaseController(sender)
+public class SlaughterController(ISender sender, ApprovedSlaughterAnimalWorkflow approvedAnimals,
+    EEMOCantilanSDS.Application.Common.Revenue.FeeScheduleCollectionWorkflow charges) : ApiBaseController(sender)
 {
     [HttpGet("overview")]
     public async Task<ActionResult<SlaughterOverviewDto>> GetOverview([FromQuery] int year, [FromQuery] int month)
@@ -61,6 +62,24 @@ public class SlaughterController(ISender sender, ApprovedSlaughterAnimalWorkflow
         var result = await sender.Send(query);
         return HandleResponse(result);
     }
+
+    /// <summary>The approved charges the office may select today; Itemized is false until the Head has Slaughterhouse on approved charges.</summary>
+    [HttpGet("office/terms")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<EEMOCantilanSDS.Application.Dtos.Revenue.SlaughterTermsDto>> OfficeTerms([FromQuery] DateOnly? date, CancellationToken ct) =>
+        HandleResponse(await charges.GetOfficeSlaughterTermsAsync(date, ct));
+
+    [HttpPost("office/quote")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<EEMOCantilanSDS.Application.Common.Revenue.FeeScheduleCollectionWorkflow.SlaughterQuote>> OfficeQuote(
+        EEMOCantilanSDS.Application.Dtos.Revenue.FeeSchedulePostRequest request, CancellationToken ct) =>
+        HandleResponse(await charges.QuoteOfficeSlaughterAsync(request, ct));
+
+    [HttpPost("office/record")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<EEMOCantilanSDS.Application.Dtos.Revenue.GovernedServiceOutcomeDto>> OfficeRecord(
+        EEMOCantilanSDS.Application.Dtos.Revenue.FeeSchedulePostRequest request, CancellationToken ct) =>
+        HandleResponse(await charges.PostOfficeSlaughterAsync(request, ct));
 
     [HttpPost("record")]
     public async Task<ActionResult<bool>> RecordSlaughter([FromBody] RecordSlaughterCommand command)

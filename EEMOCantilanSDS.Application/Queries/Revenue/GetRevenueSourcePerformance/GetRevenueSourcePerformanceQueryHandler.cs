@@ -15,8 +15,8 @@ namespace EEMOCantilanSDS.Application.Queries.Revenue.GetRevenueSourcePerformanc
 public sealed record GetRevenueSourcePerformanceQuery(int Year, int? Month) : IRequest<Result<RevenueSourcePerformanceDto>>;
 
 /// <summary>
-/// Builds the complete revenue-source register from the official Monthly Income, so its money is the statement's money —
-/// legacy-authoritative cash before cutover plus canonical cash after it, exactly once — and never a second total. Every
+/// Builds the source register from the statement's system cash components, excluding report-only adjustments.
+/// Legacy-authoritative cash before cutover plus canonical cash after it counts once. Every
 /// source the statement knows is listed, facility or not. Counts come from the period's posted Collections and are left
 /// null for any row that also carries legacy money, because they could not describe that money.
 /// </summary>
@@ -55,11 +55,11 @@ public sealed class GetRevenueSourcePerformanceQueryHandler(
                 row.Key, row.Label, entry.GroupKey, RevenueSourceCatalog.GroupLabel(entry.GroupKey), entry.Model,
                 row.ClassificationCode is { } code ? instruments.GetValueOrDefault(code) : null,
                 entry.Facility,
-                cell.Total, cell.Legacy, cell.Canonical,
+                cell.SystemAmount, cell.Legacy, cell.Canonical,
                 countable ? mine.Select(f => f.CollectionId).Distinct().Count() : null,
                 null, // A physical document count is no longer derivable: collections are identified by SRC (IA-062).
                 countable ? mine.Where(f => f.CollectorId is not null).Select(f => f.CollectorId).Distinct().Count() : null,
-                RevenueSourceCatalog.StatusFor(entry.Model, cell.Total, awaiting),
+                RevenueSourceCatalog.StatusFor(entry.Model, cell.SystemAmount, awaiting),
                 awaiting, cell.AdjustmentAmount, row.AnnualTarget, row.Attainment));
         }
 
@@ -72,7 +72,7 @@ public sealed class GetRevenueSourcePerformanceQueryHandler(
 
         var notes = new List<string>
         {
-            "Collected is the official Monthly Income for the same period: each real collection counted once, under the authority of its source.",
+            "Collected is actual authoritative collection money, excluding Head-only report adjustments. Target attainment uses adjusted official income, not cash accountability.",
             "Counts are read from posted collections; a source that still holds legacy records in the period shows no count rather than a partial one.",
             "A source paid on service has no assessment, so it never shows an unpaid amount or a collection rate.",
         };

@@ -1,0 +1,243 @@
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Common.Lifecycle
+@using EEMOCantilanSDS.Client.Services
+@inject ILifecycleApiClient LifecycleApi
+
+@* One lifecycle action on one account: collect the details, ask the server to preview, then confirm. The server decides eligibility, dates and
+   amounts; this drawer only gathers the person's input, shows what the server said, and sends the confirmation with one operation id per
+   intent so a retry can never apply the action twice. *@
+<AddNewDrawer Show="true" Edit="true" Title="@LifecyclePresentation.Label(Action)" Subtitle="@Subtitle"
+              FormId="lc-form" FormLabel="@LifecyclePresentation.Label(Action)" Saving="_busy" SubmitDisabled="@(_blocked is not null || _loading)"
+              SubmitText="@SubmitText" Error="@_error" OnSubmit="SubmitAsync" OnCancel="OnCancel">
+    <LeadingFooterActions>
+        @if (_confirming) { <button type="button" class="btn-ghost" disabled="@_busy" @onclick="BackToEdit">Back</button> }
+    </LeadingFooterActions>
+    <ChildContent>
+        @if (_loading)
+        {
+            <p class="v3-notice" role="status">Checking this account…</p>
+        }
+        else if (_blocked is not null)
+        {
+            <p class="v3-notice lc-blocked" role="status">@_blocked</p>
+        }
+        else
+        {
+            @* The account's facts, until the review: the review repeats them with what will happen, so they are not shown twice. *@
+            @if (!_confirming)
+            {
+                <dl class="lc-facts" aria-label="Account">
+                    @foreach (var (key, value) in Facts)
+                    {
+                        <div><dt>@key</dt><dd>@value</dd></div>
+                    }
+                </dl>
+            }
+            <fieldset class="lc-fields" disabled="@(_confirming || _busy)">
+                @if (Action is LifecycleAction.Resume or LifecycleAction.Reassign)
+                {
+                    @if (Action == LifecycleAction.Reassign)
+                    {
+                        <div class="avm-group">
+                            <label class="avm-label" for="lc-holder">New holder <span class="avm-req">*</span></label>
+                            <input id="lc-holder" class="avm-input" type="text" maxlength="200" autocomplete="off" @bind="_holder" @bind:event="oninput" aria-describedby="lc-holder-err" />
+                            <span id="lc-holder-err" class="lc-error" role="alert">@FieldError("holder")</span>
+                            <label class="lc-check"><input type="checkbox" @bind="_distinct" /> This is a different person even if the name is the same</label>
+                        </div>
+                        <div class="avm-group">
+                            <label class="avm-label" for="lc-amount">Approved monthly amount <span class="avm-req">*</span></label>
+                            <input id="lc-amount" class="avm-input" type="number" min="0" step="0.01" inputmode="decimal" @bind="_amount" aria-describedby="lc-amount-err" />
+                            <span id="lc-amount-err" class="lc-error" role="alert">@FieldError("amount")</span>
+                        </div>
+                    }
+                    <div class="avm-group">
+                        <label class="avm-label" for="lc-date">@(Action == LifecycleAction.Resume ? "Resumes on" : "New holder starts on") <span class="avm-req">*</span></label>
+                        <input id="lc-date" class="avm-input" type="date" @bind="_date" aria-describedby="lc-date-err" />
+                        <span id="lc-date-err" class="lc-error" role="alert">@FieldError("date")</span>
+                    </div>
+                }
+                else if (Action == LifecycleAction.Renew)
+                {
+                    <div class="avm-group">
+                        <label class="avm-label" for="lc-date">New term starts on <span class="avm-req">*</span></label>
+                        <input id="lc-date" class="avm-input" type="date" @bind="_date" aria-describedby="lc-date-err" />
+                        <span id="lc-date-err" class="lc-error" role="alert">@FieldError("date")</span>
+                    </div>
+                    <div class="avm-group">
+                        <label class="avm-label" for="lc-years">Term (years) <span class="avm-req">*</span></label>
+                        <input id="lc-years" class="avm-input" type="number" min="1" max="50" step="1" @bind="_years" aria-describedby="lc-years-err" />
+                        <span id="lc-years-err" class="lc-error" role="alert">@FieldError("years")</span>
+                    </div>
+                    <div class="avm-group">
+                        <label class="avm-label" for="lc-contract">Name on contract</label>
+                        <input id="lc-contract" class="avm-input" type="text" maxlength="200" @bind="_contractName" />
+                    </div>
+                    <div class="avm-group">
+                        <label class="avm-label" for="lc-ref">Contract reference</label>
+                        <input id="lc-ref" class="avm-input" type="text" maxlength="200" placeholder="As written on the contract" @bind="_reference" />
+                    </div>
+                }
+                <div class="avm-group">
+                    <label class="avm-label" for="lc-reason">@(Action == LifecycleAction.Remove ? "Reason for retiring" : "Reason") <span class="avm-req">*</span></label>
+                    <textarea id="lc-reason" class="avm-input" rows="2" maxlength="500" @bind="_reason" @bind:event="oninput" aria-describedby="lc-reason-err"></textarea>
+                    <span id="lc-reason-err" class="lc-error" role="alert">@FieldError("reason")</span>
+                </div>
+                <div class="avm-group">
+                    <label class="avm-label" for="lc-evidence">Document or reference</label>
+                    <input id="lc-evidence" class="avm-input" type="text" maxlength="500" placeholder="Letter, resolution or contract number" @bind="_evidence" />
+                </div>
+            </fieldset>
+            @if (Action == LifecycleAction.Remove)
+            {
+                <p class="avm-hint">Retiring keeps every record and does not delete or forgive any balance. It is allowed only when nothing is owed.</p>
+            }
+            else if (Action is LifecycleAction.Resume or LifecycleAction.Reassign)
+            {
+                <p class="avm-hint">This opens a new occupancy. The closed account, its balance and its collections stay as they are, and the closed period is not billed.</p>
+            }
+            else
+            {
+                <p class="avm-hint">A renewal records the new term only. The approved rental rate and earlier records are not changed.</p>
+            }
+            @if (_confirming && _preview is not null)
+            {
+                <div class="lc-review" role="status" aria-label="Review before confirming">
+                    <strong>Review</strong>
+                    <dl class="lc-facts">
+                        @foreach (var (key, value) in _preview.Facts.Where(f => !f.Key.StartsWith("Outstanding", StringComparison.Ordinal) || Action == LifecycleAction.Remove))
+                        {
+                            <div><dt>@key</dt><dd>@value</dd></div>
+                        }
+                    </dl>
+                </div>
+            }
+        }
+    </ChildContent>
+</AddNewDrawer>
+
+@code {
+    [Parameter, EditorRequired] public LifecycleSource Source { get; set; }
+    [Parameter, EditorRequired] public AccountLifecycleDto Account { get; set; } = default!;
+    [Parameter, EditorRequired] public LifecycleAction Action { get; set; }
+    [Parameter] public EventCallback<LifecycleOutcome> OnDone { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private bool _loading = true, _busy, _confirming;
+    private string? _error, _blocked, _blockedCode;
+    private DateOnly? _date;
+    private string? _holder, _reason, _evidence, _contractName, _reference;
+    private decimal? _amount;
+    private int? _years;
+    private bool _distinct;
+    private LifecyclePreviewDto? _preview;
+    private IReadOnlyDictionary<string, string> _context = new Dictionary<string, string>();
+    private readonly Dictionary<string, string> _fieldErrors = [];
+    // One operation id per intent: reused while the request is unchanged (a retry), replaced only when the person changes the request.
+    private Guid _operationId = Guid.NewGuid();
+    private string? _intentKey;
+
+    private string Subtitle => string.IsNullOrWhiteSpace(Account.Holder) ? Account.Label : $"{Account.Label} · {Account.Holder}";
+    private string SubmitText => _confirming ? $"Confirm: {LifecyclePresentation.Label(Action)}" : "Review";
+    private IEnumerable<KeyValuePair<string, string>> Facts => (_preview?.Facts ?? _context).Where(f => !f.Key.StartsWith("Outstanding", StringComparison.Ordinal) || Action == LifecycleAction.Remove);
+    private string? FieldError(string field) => _fieldErrors.TryGetValue(field, out var message) ? message : null;
+
+    // Reasons that mean "still needs your input", not "the server will not do this".
+    private static readonly HashSet<string?> InputReasons = [LifecycleReasonCodes.StartRequired, SpaceLifecycleWorkflow.HolderRequired,
+        SpaceLifecycleWorkflow.SameHolderName, SpaceLifecycleWorkflow.ApprovedAmountRequired, SpaceLifecycleWorkflow.InvalidRequest];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var result = await LifecycleApi.PreviewAsync(Source, Account.AccountId, Command());
+            if (!result.IsSuccess) { var f = LifecyclePresentation.Describe(result); _blocked = f.Message; _blockedCode = f.Code; return; }
+            var preview = result.Value!;
+            _context = preview.Facts;
+            if (!preview.CanExecute && !InputReasons.Contains(preview.ReasonCode)) { _blocked = preview.Explanation; _blockedCode = preview.ReasonCode; return; }
+            // Start from what the server says is allowed, never from a guess: the earliest start, or the day after the current term.
+            if (_context.TryGetValue("Earliest start", out var earliest) && DateOnly.TryParse(earliest, out var start)) _date = start;
+            else if (_context.TryGetValue("Current term ends", out var ends) && DateOnly.TryParse(ends, out var last)) _date = last.AddDays(1);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException) { _blocked = "The server did not answer. Close this and try again."; }
+        finally { _loading = false; }
+    }
+
+    private LifecycleCommand Command() => new(Action, _date, (_reason ?? string.Empty).Trim(), Clean(_evidence), Action == LifecycleAction.Reassign ? Clean(_holder) : null,
+        null, Action == LifecycleAction.Reassign && _distinct, Action == LifecycleAction.Reassign ? _amount : null,
+        Action == LifecycleAction.Renew ? _years : null, Action == LifecycleAction.Renew ? Clean(_contractName) : null,
+        Action == LifecycleAction.Renew ? Clean(_reference) : null);
+
+    private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private bool Validate()
+    {
+        _fieldErrors.Clear();
+        if (string.IsNullOrWhiteSpace(_reason)) _fieldErrors["reason"] = "Give a reason.";
+        else if (Action == LifecycleAction.Remove && _reason.Trim().Length < 10) _fieldErrors["reason"] = "Describe why in at least 10 characters.";
+        if (Action != LifecycleAction.Remove && _date is null) _fieldErrors["date"] = "Choose the date it begins.";
+        if (Action == LifecycleAction.Reassign)
+        {
+            if (string.IsNullOrWhiteSpace(_holder)) _fieldErrors["holder"] = "Name the new holder.";
+            if (_amount is not > 0) _fieldErrors["amount"] = "Enter the approved monthly amount.";
+        }
+        if (Action == LifecycleAction.Renew && _years is not (>= 1 and <= 50)) _fieldErrors["years"] = "Enter the term in whole years (1–50).";
+        return _fieldErrors.Count == 0;
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_busy) return;
+        _error = null;
+        if (_confirming) { await ExecuteAsync(); return; }
+        if (!Validate()) return;
+        await ReviewAsync();
+    }
+
+    private async Task ReviewAsync()
+    {
+        _busy = true;
+        try
+        {
+            var command = Command();
+            var result = await LifecycleApi.PreviewAsync(Source, Account.AccountId, command);
+            if (!result.IsSuccess) { _error = LifecyclePresentation.Describe(result).Message; return; }
+            var preview = result.Value!;
+            if (!preview.CanExecute) { Place(preview.ReasonCode, preview.Explanation ?? "The server will not allow this."); return; }
+            var key = string.Join('|', command.Action, command.EffectiveDate, command.Reason, command.Evidence, command.NewHolder, command.ConfirmDistinctHolder, command.Amount, command.TermYears, command.ContractName, command.Reference);
+            if (key != _intentKey) { _intentKey = key; _operationId = Guid.NewGuid(); }
+            _preview = preview;
+            _confirming = true;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException) { _error = "The server did not answer. Nothing was changed; try Review again."; }
+        finally { _busy = false; }
+    }
+
+    private async Task ExecuteAsync()
+    {
+        if (_preview is null) return;
+        _busy = true;
+        try
+        {
+            var result = await LifecycleApi.ExecuteAsync(Source, Account.AccountId, new(_operationId, _preview.Version, Command()));
+            if (result.IsSuccess) { await OnDone.InvokeAsync(result.Value!); return; }
+            var failure = LifecyclePresentation.Describe(result);
+            if (failure.Stale) { _confirming = false; _preview = null; _error = "This account changed after it was reviewed. Review it again; nothing was applied."; return; }
+            if (failure.Code == SpaceLifecycleWorkflow.OperationConflict) { _confirming = false; _preview = null; _intentKey = null; }
+            _error = failure.Message;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            // The confirmation may have been received. Confirming again sends the same operation id, so it is applied once at most.
+            _error = "No answer from the server. It may have been applied; confirm again to check. The same request is never applied twice.";
+        }
+        finally { _busy = false; }
+    }
+
+    private void Place(string? code, string text)
+    {
+        var field = LifecyclePresentation.FieldOf(code);
+        if (field is not null) _fieldErrors[field] = text; else _error = text;
+    }
+
+    private void BackToEdit() { _confirming = false; _preview = null; _error = null; }
+}

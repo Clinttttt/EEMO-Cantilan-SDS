@@ -3,7 +3,8 @@ namespace EEMOCantilanSDS.Application.Dtos.Mobile;
 public sealed record NpmDailyBatchItem(Guid ClientItemId, Guid StallId);
 public sealed record NpmDailyBatchIntent(Guid ClientCollectionSessionId, DateOnly BusinessDate, IReadOnlyList<NpmDailyBatchItem> Items);
 public sealed record NpmDailyBatchSource(Guid StallId, Guid OccupancyId, string StallNumber, string Occupant,
-    decimal EffectiveCharge, bool CanCollect, string? ReasonCode);
+    decimal EffectiveCharge, bool CanCollect, string? ReasonCode,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] string? MonthQuoteToken = null);
 public sealed record NpmDailyBatchQuote(NpmDailyBatchIntent Intent, IReadOnlyList<NpmDailyBatchSource> Sources,
     decimal Total, string? QuoteFingerprint, IReadOnlyList<CollectionSessionProblem> Problems)
 {

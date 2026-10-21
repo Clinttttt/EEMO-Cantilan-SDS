@@ -1,0 +1,195 @@
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Application.Common
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@inject IMobileApiClient Api
+<section class="npm-request" aria-label="NPM registration request">
+    <div class="npm-request-head">
+        <strong>NPM registration</strong>
+        <span>@(_pending is not null ? "Pending review" : "Not linked")</span>
+    </div>
+    @if (_pending is { } existing)
+    {
+        <p class="npm-request-message">Your registration request for stall <strong>@existing.ProposedStall</strong> is awaiting office review.</p>
+        <p class="npm-request-policy">No cash collected or SRC issued. Check the request status before taking further action.</p>
+    }
+    else if (_checking)
+    {
+        <p class="npm-request-message" role="status">Checking registration requests…</p>
+    }
+    else if (_lookupError is not null)
+    {
+        <p class="npm-request-message" role="alert">@_lookupError</p>
+        <button class="npm-request-action" type="button" @onclick="CheckPendingAsync">Check status again</button>
+    }
+    else
+    {
+        <p class="npm-request-message">No verified NPM stall. Ask the office to review the tenancy.</p>
+        <p class="npm-request-policy">No cash before approval. This request issues no SRC.</p>
+        @if (_saved is not null)
+        {
+            <p class="npm-request-success" role="status">Request submitted · @_saved.Status. Await office review.</p>
+        }
+        else if (!_editing)
+        {
+            <button class="npm-request-action" type="button" @onclick="() => _editing = true">Request NPM registration</button>
+        }
+        else
+        {
+            <MobileChoice Label="Proposed section" Options="SectionOptions" Value="@_section"
+                          ValueChanged="SelectSectionAsync" Disabled="@_busy" Placeholder="Choose an area" />
+            <label class="npm-request-field">Proposed stall / space
+                <input class="form-input" maxlength="20" autocomplete="off" placeholder="Enter stall number"
+                       @bind="_stall" @bind:event="oninput" disabled="@_busy" />
+            </label>
+            <p class="npm-request-hint" role="status">
+                @if (_suggesting) { <span>Checking the next number…</span> }
+                else if (!string.IsNullOrEmpty(_suggested) && _stall == _suggested) { <span>Suggested next number · Editable. Office will verify.</span> }
+                else { <span>@(_section.Length == 0 ? "Choose an area for an optional next-number suggestion." : "Stall number is editable and subject to office verification.")</span> }
+            </p>
+            <label class="npm-request-field">Office reference / evidence
+                <textarea class="form-input" maxlength="1000" rows="3" @bind="_note" @bind:event="oninput" disabled="@_busy"></textarea>
+            </label>
+            @if (_error is not null) { <p class="npm-request-error" role="alert">@_error</p> }
+            <button class="npm-request-action" type="button"
+                    disabled="@(_busy || string.IsNullOrWhiteSpace(_stall) || string.IsNullOrWhiteSpace(_note))"
+                    @onclick="Submit">@(_busy ? "Submitting…" : "Submit request")</button>
+            <button class="npm-request-back" type="button" disabled="@_busy" @onclick="() => _editing = false">Back</button>
+        }
+    }
+    <a class="npm-request-history" href="/npm-requests">My NPM requests <span aria-hidden="true">→</span></a>
+</section>
+@code {
+    [Parameter] public Guid VendorId { get; set; }
+    [Parameter] public Guid? ReplacesRequestId { get; set; }
+
+    private static readonly IReadOnlyList<MobileChoice.Choice> SectionOptions =
+    [
+        new("", "Office to verify"),
+        new("FishSection", "Fish Area"),
+        new("MeatSection", "Meat Area"),
+        new("VegetableArea", "Vegetable Area")
+    ];
+
+    private Guid _loadedVendor, _operation = Guid.NewGuid();
+    private Guid? _loadedPrior;
+    private string _stall = "", _section = "", _note = "", _suggested = "";
+    private bool _editing, _busy, _suggesting, _checking;
+    private int _suggestVersion, _lookupVersion;
+    private string? _error, _lookupError;
+    private NpmRegistrationRequestDto? _saved, _pending;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedVendor == VendorId && _loadedPrior == ReplacesRequestId) return;
+        _loadedVendor = VendorId;
+        _loadedPrior = ReplacesRequestId;
+        _operation = Guid.NewGuid();
+        _stall = _section = _note = _suggested = "";
+        _saved = _pending = null;
+        _error = _lookupError = null;
+        _editing = _busy = _suggesting = false;
+        _suggestVersion++;
+        await CheckPendingAsync();
+    }
+
+    private async Task CheckPendingAsync()
+    {
+        var vendor = VendorId;
+        var generation = ++_lookupVersion;
+        _checking = true;
+        _lookupError = null;
+        try
+        {
+            // The office is authoritative. Never infer "no pending request" from a local/offline cache.
+            var result = await Api.GetPendingNpmRequestAsync(vendor);
+            if (generation != _lookupVersion || _loadedVendor != vendor) return;
+            if (result.IsSuccess && result.Value is { Status: NpmRegistrationRequestStatus.Submitted } pending
+                && pending.VendorRegistrationId == vendor)
+            {
+                _pending = pending;
+                _editing = false;
+                _error = null;
+            }
+            else if (result.Status == ResultStatus.NotFound)
+            {
+                _pending = null;
+            }
+            else
+            {
+                _lookupError = result.Error ?? "Can't check current NPM requests. Reconnect and try again.";
+            }
+        }
+        catch
+        {
+            if (generation == _lookupVersion && _loadedVendor == vendor)
+                _lookupError = "Can't check current NPM requests. Reconnect and try again.";
+        }
+        finally
+        {
+            if (generation == _lookupVersion) _checking = false;
+        }
+    }
+
+    private async Task SelectSectionAsync(string value)
+    {
+        if (_busy || _pending is not null) return;
+        _section = value;
+        var version = ++_suggestVersion;
+        var previousSuggestion = _suggested;
+        _suggested = "";
+        if (!Enum.TryParse<MarketSection>(value, out var section) || !Enum.IsDefined(section))
+        {
+            _suggesting = false;
+            return;
+        }
+
+        _suggesting = true;
+        try
+        {
+            var result = await Api.SuggestNpmStallAsync(section);
+            if (version != _suggestVersion || _section != value) return;
+            if (result.IsSuccess && result.Value is { SuggestedStallNo: { Length: > 0 } suggestion }
+                && result.Value.Section == section)
+            {
+                _suggested = suggestion;
+                if (string.IsNullOrWhiteSpace(_stall) || _stall == previousSuggestion)
+                    _stall = suggestion;
+            }
+        }
+        catch
+        {
+            // Older/offline API: leave the field editable without fabricating a stall number.
+        }
+        finally
+        {
+            if (version == _suggestVersion) _suggesting = false;
+        }
+    }
+
+    private async Task Submit()
+    {
+        if (_busy || _checking || _lookupError is not null || _pending is not null) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            MarketSection? section = Enum.TryParse<MarketSection>(_section, out var value) ? value : null;
+            var result = await Api.SubmitNpmRequestAsync(new(_operation, VendorId, _stall, section, _note, ReplacesRequestId));
+            if (result.IsSuccess && result.Value is { } saved)
+            {
+                _saved = saved;
+                if (saved.Status == NpmRegistrationRequestStatus.Submitted) _pending = saved;
+            }
+            else
+            {
+                _error = result.Error ?? "Could not submit. Connect and retry; the same request identity is retained.";
+                if (result.Status == ResultStatus.Conflict)
+                    await CheckPendingAsync();
+            }
+        }
+        catch { _error = "Submission could not be confirmed. Connect and retry; no payment was recorded."; }
+        finally { _busy = false; }
+    }
+}

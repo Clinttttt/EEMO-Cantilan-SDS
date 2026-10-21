@@ -1,0 +1,2 @@
+.sih-toolbar { display: flex; flex-wrap: wrap; gap: 8px; }
+.sih-detail { max-width: 28rem; overflow-wrap: anywhere; color: var(--text-secondary); font-size: 0.8125rem; }

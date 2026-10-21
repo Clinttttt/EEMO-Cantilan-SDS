@@ -23,13 +23,13 @@
 
                 <div class="receipt-meta">
                     <div class="receipt-meta-row"><span>Period</span><strong>@PeriodLabel</strong></div>
-                    <div class="receipt-meta-row"><span>Stall No.</span><strong>@StallNo</strong></div>
+                    <div class="receipt-meta-row"><span>@UnitLabel</span><strong>@StallNo</strong></div>
                     <div class="receipt-meta-row"><span>Payor</span><strong>@PayorName</strong></div>
                     @if (!string.IsNullOrWhiteSpace(Section))
                     {
                         <div class="receipt-meta-row"><span>Section</span><strong>@Section</strong></div>
                     }
-                    <div class="receipt-meta-row"><span>OR No.</span><strong>@(string.IsNullOrWhiteSpace(OrNumber) ? "—" : OrNumber)</strong></div>
+                    <div class="receipt-meta-row"><span>@ReferenceLabel</span><strong>@(string.IsNullOrWhiteSpace(OrNumber) ? "—" : OrNumber)</strong></div>
                 </div>
 
                 @if (Lines.Count > 0)
@@ -70,9 +70,13 @@
     [Parameter] public string FacilityName { get; set; } = string.Empty;
     [Parameter] public string PeriodLabel { get; set; } = string.Empty;
     [Parameter] public string StallNo { get; set; } = string.Empty;
+    /// <summary>What the unit line is called: Stall No. for a stall, Space No. or Lot No. for a space operation.</summary>
+    [Parameter] public string UnitLabel { get; set; } = "Stall No.";
     [Parameter] public string PayorName { get; set; } = string.Empty;
     [Parameter] public string Section { get; set; } = string.Empty;
     [Parameter] public string OrNumber { get; set; } = string.Empty;
+    /// <summary>What the reference line is called: the stall pages read an OR number; a space or lot account reads its SRC.</summary>
+    [Parameter] public string ReferenceLabel { get; set; } = "OR No.";
     [Parameter] public IReadOnlyList<ReceiptLine> Lines { get; set; } = Array.Empty<ReceiptLine>();
     [Parameter] public string TotalLabel { get; set; } = "Total Collected";
     [Parameter] public string TotalValue { get; set; } = string.Empty;

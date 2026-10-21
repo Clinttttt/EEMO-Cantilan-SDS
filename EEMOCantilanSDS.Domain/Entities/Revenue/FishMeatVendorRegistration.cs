@@ -19,6 +19,13 @@ public sealed class FishMeatVendorRegistration : BaseEntity, IMunicipalityOwned
     public string? BusinessName { get; private set; }
     public string? Address { get; private set; }
     public string? Reference { get; private set; }
+    // Optional office-register facts, separate from the canonical vendor type and financial collections.
+    public string? LastName { get; private set; }
+    public string? FirstName { get; private set; }
+    public string? MiddleName { get; private set; }
+    public string? NameExtension { get; private set; }
+    public string? Sex { get; private set; }
+    public string? NatureOfBusiness { get; private set; }
     public string CreatedBy { get; private set; } = "";
     public DateTime RecordedAtUtc { get; private set; }
     public VendorRegistrationStatus Status { get; private set; } = VendorRegistrationStatus.Active;
@@ -29,6 +36,27 @@ public sealed class FishMeatVendorRegistration : BaseEntity, IMunicipalityOwned
     public string? ClosedBy { get; private set; }
     public string? CloseNote { get; private set; }
     private FishMeatVendorRegistration() { }
+
+    /// <summary>Correct office facts on the existing registration, without changing identity, registration
+    /// category, tax year, status, NPM links, collections, or receipt history.</summary>
+    public void CorrectOfficeDetails(string? business, string? address, string? lastName,
+        string? firstName, string? middleName, string? extension, string? sex, string? nature)
+    {
+        static string? Normalized(string? value, int max)
+        {
+            var text = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+            if (text?.Length > max) throw new ArgumentException("InvalidOfficeDetails");
+            return text;
+        }
+        BusinessName = Normalized(business, 200);
+        Address = Normalized(address, 300);
+        LastName = Normalized(lastName, 100);
+        FirstName = Normalized(firstName, 100);
+        MiddleName = Normalized(middleName, 100);
+        NameExtension = Normalized(extension, 30);
+        Sex = Normalized(sex, 30);
+        NatureOfBusiness = Normalized(nature, 300);
+    }
     public void Close(Guid operation, DateOnly businessDate, string actor, string? note)
     {
         note = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
@@ -52,10 +80,15 @@ public sealed class FishMeatVendorRegistration : BaseEntity, IMunicipalityOwned
         var next = Register(prior.MunicipalityId, operation, year, prior.VendorType, VendorRegistrationKind.Renew,
             name ?? prior.DisplayName, business ?? prior.BusinessName, address ?? prior.Address, reference ?? prior.Reference, actor);
         next.PriorRegistrationId = prior.Id;
+        next.LastName = prior.LastName; next.FirstName = prior.FirstName;
+        next.MiddleName = prior.MiddleName; next.NameExtension = prior.NameExtension;
+        next.Sex = prior.Sex; next.NatureOfBusiness = prior.NatureOfBusiness;
         return next;
     }
     public static FishMeatVendorRegistration Register(Guid tenant, Guid operation, int year, FishMeatVendorType type,
-        VendorRegistrationKind kind, string name, string? business, string? address, string? reference, string actor)
+        VendorRegistrationKind kind, string name, string? business, string? address, string? reference, string actor,
+        string? lastName = null, string? firstName = null, string? middleName = null,
+        string? nameExtension = null, string? sex = null, string? natureOfBusiness = null)
     {
         if (tenant == Guid.Empty || operation == Guid.Empty || year is < 2000 or > 2200 || !Enum.IsDefined(type) || !Enum.IsDefined(kind))
             throw new ArgumentException("InvalidRegistration");
@@ -68,6 +101,8 @@ public sealed class FishMeatVendorRegistration : BaseEntity, IMunicipalityOwned
         return new() { Id = Guid.NewGuid(), MunicipalityId = tenant, ClientOperationId = operation, TaxYear = year,
             VendorType = type, RegistrationKind = kind, DisplayName = Text(name, 200) ?? throw new ArgumentException("RequiresPayerSnapshot"),
             BusinessName = Text(business, 200), Address = Text(address, 300), Reference = Text(reference, 200),
+            LastName = Text(lastName, 100), FirstName = Text(firstName, 100), MiddleName = Text(middleName, 100),
+            NameExtension = Text(nameExtension, 30), Sex = Text(sex, 30), NatureOfBusiness = Text(natureOfBusiness, 300),
             CreatedBy = Text(actor, 100) ?? throw new ArgumentException("InvalidActor"), RecordedAtUtc = DateTime.UtcNow };
     }
 }

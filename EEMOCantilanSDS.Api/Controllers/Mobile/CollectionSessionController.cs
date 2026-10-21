@@ -26,6 +26,17 @@ public sealed class CollectionSessionController(ISender sender, CollectionSessio
     [HttpGet("electricity-sources")]
     public async Task<ActionResult<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Revenue.EcfObligationQuoteDto>>> ElectricitySources(CancellationToken ct) =>
         HandleResponse(await composer.GetMobileEcfSourcesAsync(ct: ct));
+    /// <summary>The canonical Collections already posted against one stall's utility for a billing month, so a Collector sees a prior payment before taking another.</summary>
+    [HttpGet("recent-utility")]
+    public async Task<ActionResult<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Revenue.RecentUtilityCollectionDto>>> RecentUtility(
+        Guid stallId, string utility, int year, int month, CancellationToken ct)
+    {
+        EEMOCantilanSDS.Domain.Common.UtilityKind kind;
+        if (string.Equals(utility, "ECF", StringComparison.OrdinalIgnoreCase) || string.Equals(utility, "Electricity", StringComparison.OrdinalIgnoreCase)) kind = EEMOCantilanSDS.Domain.Common.UtilityKind.Electricity;
+        else if (string.Equals(utility, "WCF", StringComparison.OrdinalIgnoreCase) || string.Equals(utility, "Water", StringComparison.OrdinalIgnoreCase)) kind = EEMOCantilanSDS.Domain.Common.UtilityKind.Water;
+        else return BadRequest("Choose ECF or WCF.");
+        return HandleResponse(await composer.GetMobileRecentUtilityCollectionsAsync(stallId, kind, year, month, ct));
+    }
     [HttpGet("eligible")]
     public async Task<ActionResult<CollectionSessionDiscovery>> Eligible(Guid? payorId, CancellationToken ct) =>
         HandleResponse(await workflow.DiscoverAsync(payorId, ct));

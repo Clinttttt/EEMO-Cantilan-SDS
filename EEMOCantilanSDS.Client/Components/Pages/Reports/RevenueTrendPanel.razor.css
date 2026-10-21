@@ -1,0 +1,375 @@
+/* Revenue trend — V3. A stacked bar per period over a quiet grid; tables and notes come from the v3- layer. */
+.rtp {
+    margin-bottom: 20px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+}
+
+.rtp-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px 20px;
+    padding: 16px 20px 8px;
+}
+
+.rtp-head h2 {
+    margin: 0;
+    color: var(--navy);
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.rtp-sub {
+    margin: 2px 0 0;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.rtp-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.rtp-legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.rtp-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    flex: none;
+}
+
+.rtp-state {
+    margin: 0;
+    padding: 16px 20px;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+}
+
+/* ── Chart: the report's own bar design (raised 3D bars, mono axis, lift on hover, white tooltip), stacked by revenue group ── */
+.rtp-chart {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 22px 16px;
+}
+
+.rpt-yaxis {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    flex-shrink: 0;
+    height: 160px;
+    color: var(--text-subtle);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    text-align: right;
+}
+
+.rpt-plot {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+}
+
+.rpt-grid {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 160px;
+    pointer-events: none;
+}
+
+.rpt-grid-line {
+    width: 100%;
+    height: 1px;
+    background: #eef2f6;
+}
+
+.bar-chart {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    height: 190px;
+    padding: 0 2px;
+}
+
+.bar-group {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    outline: none;
+}
+
+.bar-wrap {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    width: 100%;
+    height: 160px;
+}
+
+.bar {
+    --depth: 6px;
+    position: relative;
+    width: min(56%, 56px);
+    display: flex;
+    align-items: flex-end;
+    cursor: pointer;
+    transform-origin: bottom;
+    animation: rpt-bar-grow 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+    transition: transform 0.15s ease, filter 0.15s ease;
+    filter: drop-shadow(3px 6px 8px color-mix(in srgb, var(--navy) 8%, transparent));
+}
+
+.bar-group:hover .bar,
+.bar-group:focus-visible .bar {
+    transform: translateY(-2px);
+    filter: drop-shadow(5px 9px 11px color-mix(in srgb, var(--navy) 13%, transparent)) brightness(1.04);
+}
+
+.bar-group:focus-visible .bar-month {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+/* The stack holds the coloured segments, bottom up; the faces beside it give the raised look. */
+.bar-stack {
+    display: flex;
+    flex-direction: column-reverse;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    border-radius: 4px 4px 0 0;
+}
+
+.bar-seg { flex: none; width: 100%; }
+
+.bar::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: 100%;
+    width: 100%;
+    height: var(--depth);
+    background: #2e4d6e;
+    transform-origin: left bottom;
+    transform: skewX(-45deg);
+    pointer-events: none;
+}
+
+.bar::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 100%;
+    width: var(--depth);
+    height: 100%;
+    background: #081626;
+    transform-origin: left top;
+    transform: skewY(-45deg);
+    pointer-events: none;
+}
+
+/* The bar is exactly as tall as the stack, so the faces wrap what is drawn. The total sits above it. */
+.bar-top {
+    position: absolute;
+    bottom: calc(100% + var(--depth) + 4px);
+    left: 50%;
+    transform: translateX(-50%);
+    color: var(--navy);
+    font-family: 'DM Mono', monospace;
+    font-size: 10.5px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+/* A period with no money keeps a thin trace on the baseline, so a missing month reads as zero rather than as a gap. */
+.bar-none {
+    width: min(56%, 56px);
+    height: 3px;
+    border-radius: 2px;
+    background: repeating-linear-gradient(90deg, var(--border-strong) 0 6px, transparent 6px 9px);
+}
+
+.rtp-summary { padding: 4px 22px 0; }
+
+.bar-month {
+    color: var(--text-subtle);
+    font-size: 10.5px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.bar-month.is-selected {
+    color: var(--gold);
+    font-weight: 700;
+}
+
+/* Series colours, one per official revenue group. */
+.rtp-s0 { background: var(--navy); }
+.rtp-s1 { background: var(--accent); }
+.rtp-s2 { background: var(--gold); }
+.rtp-s3 { background: color-mix(in srgb, var(--accent) 45%, #ffffff); }
+.rtp-s4 { background: color-mix(in srgb, var(--navy) 55%, #ffffff); }
+.rtp-s5 { background: var(--border-strong); }
+
+/* Hover and keyboard figures. */
+.bar-tip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    z-index: 30;
+    min-width: 190px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 10px 28px rgba(13, 33, 55, 0.14);
+    color: var(--navy);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateX(-50%) translateY(4px);
+    transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+.bar-group:hover .bar-tip,
+.bar-group:focus-visible .bar-tip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+
+.bar-tip-title {
+    margin-bottom: 6px;
+    color: var(--text-muted);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.bar-tip-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 4px;
+    color: var(--text-subtle);
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.bar-tip-val {
+    margin-left: auto;
+    padding-left: 10px;
+    color: var(--navy);
+    font-family: 'DM Mono', monospace;
+    font-weight: 700;
+}
+
+.bar-tip-dot {
+    flex-shrink: 0;
+    width: 9px;
+    height: 9px;
+    border-radius: 3px;
+}
+
+.bar-tip-total {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+    font-weight: 700;
+}
+
+@keyframes rpt-bar-grow {
+    from { transform: scaleY(0); }
+    to { transform: scaleY(1); }
+}
+
+/* ── Table ── */
+.rtp-table th,
+.rtp-table td {
+    white-space: nowrap;
+}
+
+.rtp-table .v3-num {
+    font-variant-numeric: tabular-nums;
+}
+
+.rtp-table tbody tr.is-selected th,
+.rtp-table tbody tr.is-selected td {
+    background: var(--accent-soft);
+}
+
+.rtp-table tfoot th,
+.rtp-table tfoot td {
+    border-top: 2px solid var(--border-strong);
+    background: var(--surface-muted);
+    color: var(--navy);
+    font-weight: 700;
+}
+
+.rtp-note {
+    margin: 0;
+    padding: 10px 20px 14px;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    line-height: 1.45;
+}
+
+@media (max-width: 640px) {
+    .rtp-chart { padding: 8px 12px 12px; }
+    .rtp-summary { padding: 4px 14px 0; }
+    .bar-top { font-size: 9.5px; }
+    .rtp-head { padding: 14px 14px 6px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bar { animation: none; transition: none; }
+}
+
+@media print {
+    .bar-tip { display: none; }
+    .bar { animation: none; }
+}
+
+/* Nothing runs off the panel: the summary labels wrap, the plot may shrink, and a tooltip opens inward at either edge. */
+.rtp-chart, .rpt-plot { min-width: 0; }
+.rtp-summary ::deep .ss-item dt { white-space: normal; }
+.bar-tip { max-width: min(260px, 70vw); }
+@media (max-width: 640px) { .bar-chart { gap: 4px; } .bar-month { font-size: 9px; } }
+
+.bar-tip { top: 50%; bottom: auto; transform: translateY(-50%); }
+.bar-group:hover .bar-tip, .bar-group:focus-visible .bar-tip { transform: translateY(-50%); }
+.bar-group.tip-right .bar-tip { left: calc(50% + 40px); right: auto; }
+.bar-group.tip-left .bar-tip { right: calc(50% + 40px); left: auto; }
+.bar-group:hover, .bar-group:focus-visible { z-index: 40; }

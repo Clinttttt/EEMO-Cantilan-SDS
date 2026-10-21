@@ -17,13 +17,13 @@
     <div class="v3-table-wrap" tabindex="0" aria-label="Status report">
         <table>
             <thead><tr><th>Occupant / @(Code == FacilityCode.NPM ? "Stall holder" : "Space holder")</th><th>@(Code == FacilityCode.NPM ? "Stall" : "Space") No.</th>
-                <th class="office-num">@(Code == FacilityCode.NPM ? "Daily rate" : "Monthly rate")</th>
+                <th class="office-num">@(DailyRate ? "Daily rate" : "Monthly rate")</th>
                 <th class="office-num">Assessed · @Period</th><th class="office-num">Account collected</th><th class="office-num">Account balance</th><th>Status</th></tr></thead>
             <tbody>
                 @foreach (var row in Report?.StallCompliance ?? [])
                 {
                     <tr><td>@row.Occupant</td><td>@SpaceNumber.Display(row.StallNo)</td>
-                        <td class="office-num">@Money(Code == FacilityCode.NPM ? row.DailyRate : row.MonthlyRate)</td>
+                        <td class="office-num">@Money(DailyRate ? row.DailyRate : row.MonthlyRate)</td>
                         <td class="office-num">@Money(row.AccountAssessment ?? row.ExpectedBill)</td>
                         <td class="office-num">@Money(row.AmountPaid)</td><td class="office-num">@Money(row.Balance)</td><td>@row.Status</td></tr>
                 }
@@ -38,6 +38,9 @@
 </OfficeReportShell>
 
 @code {
+    // A Public Market declared as standard monthly rental states its rent by the month like any monthly facility; only a daily market has a daily rate.
+    private bool DailyRate => Code == FacilityCode.NPM && !Facilities.IsMonthlyRentMarket;
+
     [Parameter] public FacilityCode Code { get; set; }
     [Parameter] public int Year { get; set; }
     [Parameter] public int Month { get; set; }

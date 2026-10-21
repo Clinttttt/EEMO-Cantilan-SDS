@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
@@ -41,7 +42,8 @@ public sealed partial class FeeScheduleCollectionWorkflow(
     public static bool Handles(string? operationCode) =>
         operationCode is CollectorOperationCodes.Tabo or CollectorOperationCodes.Slaughterhouse;
 
-    public sealed record SlaughterQuote(decimal Amount, RevenueInstrumentType Instrument, string Context, string Version);
+    public sealed record SlaughterQuote(decimal Amount, RevenueInstrumentType Instrument, string Context, string Version,
+        IReadOnlyList<GovernedActivityItemDto>? Items = null);
     /// <summary>Read-only preview of the SAME calculation used by PostMobileAsync.</summary>
     public async Task<Result<SlaughterQuote>> QuoteSlaughterAsync(FeeSchedulePostRequest request, CancellationToken ct = default)
     {
@@ -51,12 +53,19 @@ public sealed partial class FeeScheduleCollectionWorkflow(
             || request.OperationCode != CollectorOperationCodes.Slaughterhouse || request.BusinessDate == default || request.BusinessDate > BusinessToday
             || !await db.CollectorUsers.AsNoTracking().AnyAsync(x => x.MunicipalityId == tenant && x.Id == collector && x.IsActive
                 && x.FacilityAssignments.Any(a => a.FacilityCode == FacilityCode.SLH), ct)) return Result<SlaughterQuote>.Forbidden();
-        var resolved = await ResolveSlaughterAsync(tenant, collector, currentUser.Username ?? "Collector", request, ct);
-        if (resolved.Problem is { } problem) return Result<SlaughterQuote>.Failure(problem.Message);
+        return await QuoteSlaughterCoreAsync(request, tenant, collector, currentUser.Username ?? "Collector", true, ct);
+    }
+
+    private async Task<Result<SlaughterQuote>> QuoteSlaughterCoreAsync(
+        FeeSchedulePostRequest request, Guid tenant, Guid? collector, string username, bool mobile, CancellationToken ct)
+    {
         var service = await db.GovernedServices.AsNoTracking().SingleOrDefaultAsync(x => x.MunicipalityId == tenant && x.OperationCode == request.OperationCode, ct);
         if (service is null) return Result<SlaughterQuote>.Failure("Slaughterhouse collection is not currently available.");
         var setting = GovernedServiceSetting.Resolve(await db.GovernedServiceSettings.AsNoTracking().Where(x => x.MunicipalityId == tenant && x.GovernedServiceId == service.Id).ToListAsync(ct), request.BusinessDate);
-        if (setting is null || !setting.IsEnabled || !setting.MobileEnabled) return Result<SlaughterQuote>.Failure("Slaughterhouse collection is not currently available.");
+        if (setting is null || !setting.IsEnabled || mobile && !setting.MobileEnabled || !mobile && setting.Basis != GovernedServiceBasis.ApprovedFeeOption) return Result<SlaughterQuote>.Failure("Slaughterhouse collection is not currently available.");
+        var resolved = await ResolveSlaughterAsync(tenant, collector ?? Guid.Empty, username, request, service.Id,
+            setting.Basis == GovernedServiceBasis.ApprovedFeeOption, ct);
+        if (resolved.Problem is { } problem) return Result<SlaughterQuote>.Failure(problem.Message);
         if (setting.MaximumAmount is { } ceiling && resolved.Amount > ceiling)
             return Result<SlaughterQuote>.Failure("The amount exceeds the approved Slaughterhouse ceiling.");
         var classification = await db.RevenueClassifications.AsNoTracking().SingleOrDefaultAsync(x => x.MunicipalityId == tenant && x.IsActive && x.SemanticCode == RevenueClassificationCodes.Slaughterhouse, ct);
@@ -65,7 +74,44 @@ public sealed partial class FeeScheduleCollectionWorkflow(
             .OrderByDescending(x => x.EffectiveDate).FirstOrDefaultAsync(ct);
         if (policy?.PermittedInstrumentType is not { } instrument) return Result<SlaughterQuote>.Failure("The collection policy is unavailable.");
         var version = JsonSerializer.Serialize(new { setting.Id, setting.MaximumAmount, Policy = policy.Id, resolved.Facts, resolved.Amount }, JsonOptions);
-        return Result<SlaughterQuote>.Success(new(resolved.Amount, instrument, resolved.Reference!, version));
+        var items = resolved.Charges?.Select(c => new GovernedActivityItemDto(c.FeeOptionId, c.Name, c.Quantity, c.UnitAmount, c.Amount, c.RateEffectiveDate)).ToList();
+        return Result<SlaughterQuote>.Success(new(resolved.Amount, instrument, resolved.Reference!, version, items));
+    }
+
+    /// <summary>
+    /// What a facility-assigned collector may select today. When the Head has the service on approved charges (<c>Itemized</c>) the
+    /// list is the charges offered with an approved fixed rate in force; the collector selects and counts, and never prices.
+    /// </summary>
+    public async Task<Result<SlaughterTermsDto>> GetSlaughterTermsAsync(DateOnly? date, CancellationToken ct = default)
+    {
+        var tenant = municipality.MunicipalityId;
+        var day = date ?? BusinessToday;
+        if (!currentUser.IsAuthenticated || currentUser.Role != "Collector" || currentUser.CollectorId is not { } collector
+            || tenant == Guid.Empty || currentUser.MunicipalityId is { } claimed && claimed != tenant || day > BusinessToday
+            || !await db.CollectorUsers.AsNoTracking().AnyAsync(x => x.MunicipalityId == tenant && x.Id == collector && x.IsActive
+                && x.FacilityAssignments.Any(a => a.FacilityCode == FacilityCode.SLH), ct)) return Result<SlaughterTermsDto>.Forbidden();
+        return await BuildTermsAsync(tenant, day, true, ct);
+    }
+
+    private async Task<Result<SlaughterTermsDto>> BuildTermsAsync(Guid tenant, DateOnly day, bool mobile, CancellationToken ct)
+    {
+        var service = await db.GovernedServices.AsNoTracking().SingleOrDefaultAsync(x => x.MunicipalityId == tenant && x.OperationCode == CollectorOperationCodes.Slaughterhouse, ct);
+        if (service is null) return Result<SlaughterTermsDto>.Success(new(false, []));
+        var setting = GovernedServiceSetting.Resolve(await db.GovernedServiceSettings.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenant && x.GovernedServiceId == service.Id).ToListAsync(ct), day);
+        if (setting is not { IsEnabled: true, Basis: GovernedServiceBasis.ApprovedFeeOption } || mobile && !setting.MobileEnabled)
+            return Result<SlaughterTermsDto>.Success(new(false, []));
+        var options = (await db.GovernedServiceFeeOptions.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenant && x.GovernedServiceId == service.Id).ToListAsync(ct)).Where(x => x.IsOfferedOn(day)).ToList();
+        var ids = options.Select(x => x.Id).ToArray();
+        var rates = (await db.GovernedServiceFeeOptionRates.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenant && ids.Contains(x.FeeOptionId)).ToListAsync(ct)).ToLookup(x => x.FeeOptionId);
+        var charges = options.Select(o => (Option: o, Rate: GovernedServiceFeeOptionRate.Resolve(rates[o.Id], day)))
+            .Where(x => x.Rate is { Basis: GovernedServiceBasis.FixedAmount })
+            .OrderBy(x => x.Option.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .Select(x => new FeeOptionTermDto(x.Option.Id, x.Option.DisplayName, x.Option.Location, x.Rate!.Basis, x.Rate.FixedAmount, null,
+                x.Option.Code, x.Rate.Id, x.Rate.EffectiveDate, x.Option.ApplicableAnimals, x.Option.QuantityBasis ?? FeeQuantityBasis.PerHead)).ToList();
+        return Result<SlaughterTermsDto>.Success(new(true, charges));
     }
 
     public async Task<Result<GovernedServiceOutcomeDto>> PostMobileAsync(FeeSchedulePostRequest request, CancellationToken ct = default)
@@ -87,8 +133,18 @@ public sealed partial class FeeScheduleCollectionWorkflow(
             return Result<GovernedServiceOutcomeDto>.Forbidden();
         var username = collector.Username ?? collector.FullName ?? "Collector";
         var actorId = collectorId.ToString("N");
+        return await PostCoreAsync(request, new Poster(tenantId, collectorId, username, actorId, "Collector", Origin, true), ct);
+    }
 
-        var normalized = JsonSerializer.Serialize(new
+    /// <summary>Who is posting: a facility-assigned collector (Mobile) or the office (Admin/Head) recording by approved charges. The rules are the same.</summary>
+    private sealed record Poster(Guid TenantId, Guid? CollectorId, string Username, string ActorId, string Role, string Origin, bool Mobile);
+
+    private async Task<Result<GovernedServiceOutcomeDto>> PostCoreAsync(FeeSchedulePostRequest request, Poster poster, CancellationToken ct)
+    {
+        var (tenantId, collectorId, username, actorId, role, origin, mobile) = poster;
+        var isTabo = request.OperationCode == CollectorOperationCodes.Tabo;
+
+        var normalized = WithCharges(JsonSerializer.Serialize(new
         {
             SchemaVersion = 1,
             OperationType = "FeeScheduleCollection",
@@ -104,17 +160,17 @@ public sealed partial class FeeScheduleCollectionWorkflow(
             CustomAnimalName = request.CustomAnimalName?.Trim(),
             request.Heads,
             OwnerName = request.OwnerName?.Trim()
-        }, JsonOptions);
-        var fingerprint = PostingOperation.ComputeIntentFingerprint(IntentVersion, normalized, Origin, actorId);
+        }, JsonOptions), request);
+        var fingerprint = PostingOperation.ComputeIntentFingerprint(IntentVersion, normalized, origin, actorId);
 
         try
         {
             var prior = await db.PostingOperations.AsNoTracking().SingleOrDefaultAsync(x =>
                 x.MunicipalityId == tenantId && x.ClientOperationId == request.ClientOperationId, ct);
-            if (prior is not null) return await ResolvePriorAsync(prior, fingerprint, actorId, tenantId, ct);
+            if (prior is not null) return await ResolvePriorAsync(prior, fingerprint, actorId, tenantId, ct, origin);
 
             Task<Result<GovernedServiceOutcomeDto>> Reject(string code, string message) =>
-                RejectAsync(tenantId, actorId, request, normalized, fingerprint, code, message, ct);
+                RejectAsync(tenantId, actorId, request, normalized, fingerprint, code, message, ct, origin);
 
             if (request.ReceivedAmount <= 0m || decimal.Round(request.ReceivedAmount, 2, MidpointRounding.ToZero) != request.ReceivedAmount)
                 return await Reject("INVALID_INTENT", "A positive confirmed amount with at most two decimals is required.");
@@ -127,7 +183,8 @@ public sealed partial class FeeScheduleCollectionWorkflow(
             var versions = service is null ? [] : await db.GovernedServiceSettings.AsNoTracking()
                 .Where(x => x.MunicipalityId == tenantId && x.GovernedServiceId == service.Id).ToListAsync(ct);
             var setting = GovernedServiceSetting.Resolve(versions, request.BusinessDate);
-            if (service is null || setting is null || !setting.IsEnabled || !setting.MobileEnabled)
+            if (service is null || setting is null || !setting.IsEnabled || mobile && !setting.MobileEnabled
+                || !mobile && setting.Basis != GovernedServiceBasis.ApprovedFeeOption)
                 return await Reject("SERVICE_NOT_ENABLED",
                     "This service is not yet collected through canonical collections; it stays on its existing path until the office enables it.");
 
@@ -145,6 +202,7 @@ public sealed partial class FeeScheduleCollectionWorkflow(
             string payer;
             string reference;
             object facts;
+            IReadOnlyList<ChargeLine>? charges = null;
             if (isTabo)
             {
                 var tabo = await ResolveTaboAsync(tenantId, request, ct);
@@ -153,9 +211,11 @@ public sealed partial class FeeScheduleCollectionWorkflow(
             }
             else
             {
-                var slaughter = await ResolveSlaughterAsync(tenantId, collectorId, username, request, ct);
+                var slaughter = await ResolveSlaughterAsync(tenantId, collectorId ?? Guid.Empty, username, request, service.Id,
+                    setting.Basis == GovernedServiceBasis.ApprovedFeeOption, ct);
                 if (slaughter.Problem is { } problem) return await Reject(problem.Code, problem.Message);
                 (amount, payer, reference, facts) = (slaughter.Amount, slaughter.Payer!, slaughter.Reference!, slaughter.Facts!);
+                charges = slaughter.Charges;
             }
             if (amount != request.ReceivedAmount)
                 return await Reject("AMOUNT_NOT_APPROVED",
@@ -163,7 +223,9 @@ public sealed partial class FeeScheduleCollectionWorkflow(
             if (setting.MaximumAmount is { } ceiling && amount > ceiling)
                 return await Reject("AMOUNT_ABOVE_CEILING", "The amount exceeds the approved ceiling for this service.");
 
-            var snapshot = JsonSerializer.Serialize(new
+            string Snapshot(ChargeLine? charge)
+            {
+                var node = JsonSerializer.SerializeToNode(new
             {
                 schemaVersion = 1,
                 municipalityId = tenantId,
@@ -182,12 +244,30 @@ public sealed partial class FeeScheduleCollectionWorkflow(
                 reference,
                 payerName = payer,
                 source = facts
-            }, JsonOptions);
-            var line = new CollectionLineDraft(classification, policy, amount, CollectionSourceKind.GovernedService,
-                service.Id, null, snapshot, null);
+            }, JsonOptions)!.AsObject();
+                if (charge is null) return node.ToJsonString(JsonOptions);
+                // An itemized line freezes the approved charge, its quantity and the approved rate it used (the same fields the
+                // fee-type drill-down reads), so a later rate change never alters a recorded receipt. Single-line snapshots are unchanged.
+                node["feeOptionId"] = JsonSerializer.SerializeToNode(charge.FeeOptionId, JsonOptions);
+                node["feeOptionName"] = charge.Name;
+                node["feeOptionCode"] = charge.Code;
+                node["feeOptionRateId"] = JsonSerializer.SerializeToNode(charge.RateId, JsonOptions);
+                node["feeOptionRateEffectiveDate"] = JsonSerializer.SerializeToNode(charge.RateEffectiveDate, JsonOptions);
+                node["feeOptionBasis"] = (int)GovernedServiceBasis.FixedAmount;
+                node["feeOptionFixedAmount"] = charge.UnitAmount;
+                node["quantity"] = charge.Quantity;
+                node["unitAmount"] = charge.UnitAmount;
+                return node.ToJsonString(JsonOptions);
+            }
+            // One canonical Collection (one SRC): a single line as before, or one line per selected approved charge.
+            IReadOnlyList<CollectionLineDraft> lines = charges is { Count: > 0 }
+                ? charges.Select(c => new CollectionLineDraft(classification, policy, c.Amount, CollectionSourceKind.GovernedService,
+                    service.Id, null, Snapshot(c), null)).ToList()
+                : [new CollectionLineDraft(classification, policy, amount, CollectionSourceKind.GovernedService,
+                    service.Id, null, Snapshot(null), null)];
             var collection = await new CanonicalCollectionPostingCoordinator(db).PostAsync(
-                tenantId, request.ClientOperationId, IntentVersion, normalized, Origin, actorId, username, "Collector",
-                request.BusinessDate, username, [line], null, collectorId: collectorId, payerName: payer, ct: ct);
+                tenantId, request.ClientOperationId, IntentVersion, normalized, origin, actorId, username, role,
+                request.BusinessDate, username, lines, null, collectorId: collectorId, payerName: payer, ct: ct);
             return Result<GovernedServiceOutcomeDto>.Success(new GovernedServiceOutcomeDto(
                 collection.Id, collection.ReferenceCode, collection.BusinessDate, collection.TotalAmount, instrument, "Posted", false));
         }
@@ -196,14 +276,18 @@ public sealed partial class FeeScheduleCollectionWorkflow(
             db.ChangeTracker.Clear();
             var winner = await db.PostingOperations.AsNoTracking().SingleOrDefaultAsync(x =>
                 x.MunicipalityId == tenantId && x.ClientOperationId == request.ClientOperationId, ct);
-            if (winner is not null) return await ResolvePriorAsync(winner, fingerprint, actorId, tenantId, ct);
+            if (winner is not null) return await ResolvePriorAsync(winner, fingerprint, actorId, tenantId, ct, origin);
             return await RejectAsync(tenantId, actorId, request, normalized, fingerprint, "POST_CONFLICT",
-                "The operation identity conflicts with another saved transaction; nothing was posted.", ct);
+                "The operation identity conflicts with another saved transaction; nothing was posted.", ct, origin);
         }
     }
 
     private sealed record Problem(string Code, string Message);
-    private sealed record Resolved(decimal Amount, string? Payer, string? Reference, object? Facts, Problem? Problem)
+    private sealed record ChargeLine(Guid FeeOptionId, string Name, string? Code, decimal Quantity, decimal UnitAmount, decimal Amount,
+        Guid RateId, DateOnly RateEffectiveDate);
+
+    private sealed record Resolved(decimal Amount, string? Payer, string? Reference, object? Facts, Problem? Problem,
+        IReadOnlyList<ChargeLine>? Charges = null)
     {
         public static Resolved Fail(string code, string message) => new(0m, null, null, null, new Problem(code, message));
     }
@@ -268,7 +352,7 @@ public sealed partial class FeeScheduleCollectionWorkflow(
     // ── Slaughterhouse: the existing per-transaction calculation, unchanged ──────────────────────────────
 
     private async Task<Resolved> ResolveSlaughterAsync(
-        Guid tenantId, Guid collectorId, string username, FeeSchedulePostRequest request, CancellationToken ct)
+        Guid tenantId, Guid collectorId, string username, FeeSchedulePostRequest request, Guid serviceId, bool itemized, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.OwnerName) || request.OwnerName.Trim().Length > 200)
             return Resolved.Fail("INVALID_INTENT", "The owner name is required.");
@@ -277,6 +361,12 @@ public sealed partial class FeeScheduleCollectionWorkflow(
         var facility = await db.Facilities.AsNoTracking().SingleOrDefaultAsync(x =>
             x.MunicipalityId == tenantId && x.Code == FacilityCode.SLH, ct);
         if (facility is null) return Resolved.Fail("SOURCE_NOT_FOUND", "The slaughterhouse facility is not available in this tenant.");
+
+        // Itemized mode (the Head has the service on approved charges): the total is the sum of the selected charges at their approved
+        // rates. The per-head total below is the unchanged legacy calculation and is never read in this mode, nor are its rows reinterpreted.
+        if (itemized) return await ResolveItemizedSlaughterAsync(tenantId, serviceId, request, animal, request.Heads!.Value, ct);
+        if (request.Charges is { Count: > 0 })
+            return Resolved.Fail("CHARGES_NOT_ACTIVE", "Approved charges apply only once the office collects Slaughterhouse by approved charges.");
 
         var snapshot = await feeRates.GetSnapshotAsync(ct);
         var key = SlaughterRateKeys.For(animal);
@@ -294,6 +384,8 @@ public sealed partial class FeeScheduleCollectionWorkflow(
                 .FirstOrDefaultAsync(x => x.MunicipalityId == tenantId && x.IsActive && x.AnimalName.ToUpper() == (wanted ?? "").ToUpper(), ct);
             if (approved is null)
                 return Resolved.Fail("ANIMAL_NOT_APPROVED", $"'{wanted}' is not an approved slaughter animal.");
+            if (approved.RatePerHead <= 0m)
+                return Resolved.Fail("RATE_NOT_STATED", $"'{approved.AnimalName}' has no per-head rate; the office collects it by approved charges.");
             (approvedName, approvedRate) = (approved.AnimalName, approved.RatePerHead);
         }
 
@@ -321,12 +413,78 @@ public sealed partial class FeeScheduleCollectionWorkflow(
         }, null);
     }
 
+    private async Task<Resolved> ResolveItemizedSlaughterAsync(
+        Guid tenantId, Guid serviceId, FeeSchedulePostRequest request, AnimalType animal, int heads, CancellationToken ct)
+    {
+        string? approvedName = null;
+        if (animal == AnimalType.Other)
+        {
+            var wanted = request.CustomAnimalName?.Trim();
+            var approved = await db.SlaughterAnimalRates.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.MunicipalityId == tenantId && x.IsActive && x.AnimalName.ToUpper() == (wanted ?? "").ToUpper(), ct);
+            if (approved is null)
+                return Resolved.Fail("ANIMAL_NOT_APPROVED", $"'{wanted}' is not an approved slaughter animal.");
+            approvedName = approved.AnimalName;
+        }
+        var selections = request.Charges ?? [];
+        if (selections.Count == 0)
+            return Resolved.Fail("CHARGES_REQUIRED", "Select the approved charges for this transaction.");
+        var ids = selections.Select(x => x.FeeOptionId).Distinct().ToArray();
+        if (selections.Count > 20 || ids.Length != selections.Count || ids.Any(x => x == Guid.Empty))
+            return Resolved.Fail("INVALID_INTENT", "Each approved charge may be selected once.");
+
+        var options = await db.GovernedServiceFeeOptions.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenantId && x.GovernedServiceId == serviceId && ids.Contains(x.Id)).ToListAsync(ct);
+        if (options.Count != ids.Length)
+            return Resolved.Fail("CHARGE_UNKNOWN", "A selected charge is not an approved Slaughterhouse charge.");
+        var rates = (await db.GovernedServiceFeeOptionRates.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenantId && ids.Contains(x.FeeOptionId)).ToListAsync(ct)).ToLookup(x => x.FeeOptionId);
+
+        var lines = new List<ChargeLine>();
+        foreach (var selection in selections.OrderBy(x => options.First(o => o.Id == x.FeeOptionId).DisplayName, StringComparer.OrdinalIgnoreCase))
+        {
+            var option = options.First(o => o.Id == selection.FeeOptionId);
+            if (!option.IsOfferedOn(request.BusinessDate))
+                return Resolved.Fail("CHARGE_NOT_OFFERED", $"'{option.DisplayName}' is not offered on the business date.");
+            if (!SlaughterAnimalScopes.Includes(option.ApplicableAnimals, animal))
+                return Resolved.Fail("CHARGE_NOT_APPLICABLE", $"'{option.DisplayName}' does not apply to this animal.");
+            var rate = GovernedServiceFeeOptionRate.Resolve(rates[option.Id], request.BusinessDate);
+            if (rate is not { Basis: GovernedServiceBasis.FixedAmount, FixedAmount: { } unit })
+                return Resolved.Fail("RATE_NOT_STATED", $"'{option.DisplayName}' has no approved rate in force on the business date.");
+            var perHead = (option.QuantityBasis ?? FeeQuantityBasis.PerHead) == FeeQuantityBasis.PerHead;
+            if (perHead ? selection.Quantity != heads : selection.Quantity is < 1 or > 100_000)
+                return Resolved.Fail("INVALID_INTENT", perHead
+                    ? $"'{option.DisplayName}' is charged per head: its quantity is the head count."
+                    : $"A quantity of 1 to 100,000 is required for '{option.DisplayName}'.");
+            lines.Add(new ChargeLine(option.Id, option.DisplayName, option.Code, selection.Quantity, unit, unit * selection.Quantity, rate.Id, rate.EffectiveDate));
+        }
+
+        var owner = PersonName.Canonical(request.OwnerName!);
+        var label = approvedName ?? animal.ToString();
+        var total = lines.Sum(x => x.Amount);
+        return new Resolved(total, owner, $"{heads} {label} · {lines.Count} charge{(lines.Count == 1 ? "" : "s")}", new
+        {
+            kind = "Slaughterhouse", ownerName = owner, animal = animal.ToString(), customAnimalName = approvedName,
+            heads, itemized = true, total
+        }, null, lines);
+    }
+
+    /// <summary>The selected charges are part of the intent only when stated, so every earlier intent keeps its exact fingerprint.</summary>
+    private static string WithCharges(string normalized, FeeSchedulePostRequest request)
+    {
+        if (request.Charges is not { Count: > 0 } charges) return normalized;
+        var node = JsonNode.Parse(normalized)!.AsObject();
+        node["Charges"] = JsonSerializer.SerializeToNode(
+            charges.OrderBy(x => x.FeeOptionId).Select(x => new { FeeOptionId = x.FeeOptionId.ToString("D"), x.Quantity }), JsonOptions);
+        return node.ToJsonString(JsonOptions);
+    }
+
     // ── Idempotency and durable rejection ────────────────────────────────────────────────────────────────
 
     private async Task<Result<GovernedServiceOutcomeDto>> ResolvePriorAsync(
-        PostingOperation prior, string fingerprint, string actorId, Guid tenantId, CancellationToken ct)
+        PostingOperation prior, string fingerprint, string actorId, Guid tenantId, CancellationToken ct, string? origin = null)
     {
-        if (prior.Origin != Origin || prior.ActorId != actorId || prior.IntentFingerprint != fingerprint)
+        if (prior.Origin != (origin ?? Origin) || prior.ActorId != actorId || prior.IntentFingerprint != fingerprint)
             return Result<GovernedServiceOutcomeDto>.Failure(
                 "IDEMPOTENCY CONFLICT: this ClientOperationId is already bound to a different posting intent.", ResultStatus.Conflict);
         if (prior.Status != PostingOperationStatus.Succeeded || prior.CollectionId is not { } collectionId)
@@ -353,10 +511,10 @@ public sealed partial class FeeScheduleCollectionWorkflow(
 
     private async Task<Result<GovernedServiceOutcomeDto>> RejectAsync(
         Guid tenantId, string actorId, FeeSchedulePostRequest request, string normalized, string fingerprint,
-        string code, string message, CancellationToken ct)
+        string code, string message, CancellationToken ct, string? origin = null)
     {
         db.ChangeTracker.Clear();
-        db.PostingOperations.Add(PostingOperation.Record(tenantId, request.ClientOperationId, IntentVersion, normalized, Origin,
+        db.PostingOperations.Add(PostingOperation.Record(tenantId, request.ClientOperationId, IntentVersion, normalized, origin ?? Origin,
             actorId, PostingOperationStatus.Rejected, code, message, null, null, DateTime.UtcNow));
         try { await db.SaveChangesAsync(ct); }
         catch (DbUpdateException)
@@ -364,7 +522,7 @@ public sealed partial class FeeScheduleCollectionWorkflow(
             db.ChangeTracker.Clear();
             var prior = await db.PostingOperations.AsNoTracking().SingleOrDefaultAsync(x =>
                 x.MunicipalityId == tenantId && x.ClientOperationId == request.ClientOperationId, ct);
-            if (prior is not null) return await ResolvePriorAsync(prior, fingerprint, actorId, tenantId, ct);
+            if (prior is not null) return await ResolvePriorAsync(prior, fingerprint, actorId, tenantId, ct, origin);
             throw;
         }
         return Result<GovernedServiceOutcomeDto>.Failure(message, ResultStatus.Conflict);

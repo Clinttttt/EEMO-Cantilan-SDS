@@ -26,6 +26,47 @@ namespace EEMOCantilanSDS.IntegrationTests;
 public sealed class ObligationAccountTests(PostgresFixture db)
 {
     [SkippableFact]
+    public async Task Holder_and_approved_rate_save_atomically_without_repricing_history()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync(); var seed = await SeedAsync();
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+        Guid id;
+        await using (var context = db.CreateContext(seed.TenantId))
+        {
+            var head = Setup(context, seed);
+            var created = await head.CreateAccountAsync(new(ObligationKind.KanmanggaySpaceRental, seed.PayorId,
+                null, "", null, null, start, 175m, OccupancyArrangement.SpaceOnly, ActualOccupant: "Original"));
+            Assert.True(created.IsSuccess, created.Error); id = created.Value!.Id;
+            var invalid = await head.CorrectHolderAsync(id, new("Original", OccupancyArrangement.SpaceOnly,
+                null, null, null, null, 10m, null, RateChange: new(start, 200m)));
+            Assert.False(invalid.IsSuccess);
+        }
+        await using (var context = db.CreateContext(seed.TenantId))
+        {
+            var invalidHolder = await Setup(context, seed).CorrectHolderAsync(id, new("Different holder", OccupancyArrangement.SpaceOnly,
+                null, null, null, null, 10m, null, RateChange: new(start.AddMonths(1), 200m)));
+            Assert.False(invalidHolder.IsSuccess);
+        }
+        await using (var context = db.CreateContext(seed.TenantId))
+        {
+            Assert.Equal("Original", (await context.ObligationAccounts.SingleAsync()).ActualOccupant);
+            Assert.Single(await context.ObligationRates.ToListAsync());
+            var result = await Setup(context, seed).CorrectHolderAsync(id, new("Original", OccupancyArrangement.SpaceOnly,
+                null, null, null, null, 10m, null, RateChange: new(start.AddMonths(1), 200m)));
+            Assert.True(result.IsSuccess, result.Error);
+        }
+        await using var verify = db.CreateContext(seed.TenantId);
+        Assert.Equal("Original", (await verify.ObligationAccounts.SingleAsync()).ActualOccupant);
+        Assert.Equal(10m, (await verify.ObligationAccounts.SingleAsync()).AreaSqm);
+        Assert.Equal(new[] { 175m, 200m }, await verify.ObligationRates.OrderBy(x => x.EffectiveFrom).Select(x => x.Amount).ToArrayAsync());
+        Assert.All(await verify.ObligationPeriods.ToListAsync(), x => Assert.Equal(175m, x.AssessedAmount));
+        Assert.Contains(await verify.AuditLogs.ToListAsync(), x => x.Action == "CorrectSpaceHolderEvidence");
+        Assert.Contains(await verify.AuditLogs.ToListAsync(), x => x.Action == "ChangeApprovedSpaceAmount");
+        Assert.Empty(await verify.Collections.ToListAsync());
+    }
+
+    [SkippableFact]
     public async Task Kanmanggay_LeaseMetadata_PersistsAcrossContexts_WithoutInventingLegacyTerms()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
@@ -288,6 +329,35 @@ public sealed class ObligationAccountTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task ASubmittedImportIsSavedOnce_AReplayOfTheSameSubmissionAnswersWithTheSavedResult_AndKeepsItsRun()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync();
+        await using var ctx = db.CreateContext(seed.TenantId);
+        var workflow = Setup(ctx, seed);
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+        var holder = new CreateObligationAccountRequest(ObligationKind.VegetableFruitSpaceRental, seed.PayorId, null, "", null, null, start, 60m,
+            OccupancyArrangement.SpaceOnly);
+        var operation = Guid.NewGuid();
+        var request = new ImportSpaceHoldersRequest([new(holder), new(holder with { ActualOccupant = "Second stall" })], operation);
+
+        var first = (await workflow.ImportSpaceHoldersAsync(request)).Value!;
+        var replay = (await workflow.ImportSpaceHoldersAsync(request)).Value!;                                   // a double click or a retry after a lost response
+        Assert.Equal((2, 0), (first.Imported, first.Skipped));
+        Assert.Equal((2, 0, 0), (replay.Imported, replay.Skipped, replay.NeedsReview.Count));                    // the saved result, not a second import
+        Assert.Equal(2, await ctx.ObligationAccounts.CountAsync());                                              // no duplicate spaces
+        var run = Assert.Single(await ctx.SpaceHolderImportRuns.ToListAsync());                                  // the run (the import evidence) is kept once
+        Assert.Equal(operation, run.ClientOperationId);
+
+        // A new filling-in of the list is a new submission and is imported as before; a request without an id behaves as it always did.
+        var again = (await workflow.ImportSpaceHoldersAsync(request with { ClientOperationId = Guid.NewGuid() })).Value!;
+        Assert.Equal(2, again.Imported);
+        Assert.Equal(4, await ctx.ObligationAccounts.CountAsync());
+        Assert.Equal(2, await ctx.SpaceHolderImportRuns.CountAsync());
+    }
+
+    [SkippableFact]
     public async Task Kanmanggay_PersistsContractOrSpaceOnlyWithoutChangingMonthlyObligation_AndPreviewsIdentityErrors()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
@@ -357,6 +427,70 @@ public sealed class ObligationAccountTests(PostgresFixture db)
         public DateTime UtcNow => DateTime.UtcNow;
         public DateTime PhilippineNow => PhilippineToday.ToDateTime(TimeOnly.MinValue);
     }
+    [SkippableFact]
+    public async Task Retire_IsRefusedWhileMoneyIsOwed_AndSucceedsOnlyAfterARealCollectionSettlesIt_PreservingEveryRecord()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync();
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1).AddMonths(-1);
+        var end = start.AddMonths(1).AddDays(-1);                                                      // ended before today: one month (the previous one) accrued
+        await using var context = db.CreateContext(seed.TenantId);
+        var head = Setup(context, seed);
+        var created = await head.CreateAccountAsync(new CreateObligationAccountRequest(ObligationKind.KanmanggaySpaceRental, seed.PayorId, null, "", null, null, start, 1200m));
+        Assert.True(created.IsSuccess, created.Error);
+        var accountId = created.Value!.Id;
+        Assert.True((await head.CloseAccountAsync(accountId, new CloseObligationAccountRequest(end))).IsSuccess);
+
+        EEMOCantilanSDS.Application.Common.Lifecycle.SpaceLifecycleWorkflow Lifecycle(string role) =>
+            new(context, new TestActor(seed.UserId, seed.TenantId, role), new FixedTenant(seed.TenantId), new HistoricalClock());
+        var retire = new EEMOCantilanSDS.Application.Common.Lifecycle.LifecycleCommand(EEMOCantilanSDS.Application.Common.Lifecycle.LifecycleAction.Remove, null, "Space removed from the roll", "Memo 4");
+        async Task<EEMOCantilanSDS.Application.Common.Result<EEMOCantilanSDS.Application.Common.Lifecycle.LifecycleOutcome>> TryRetire(string role)
+        {
+            var workflow = Lifecycle(role);
+            var preview = await workflow.PreviewAsync(accountId, retire);
+            return await workflow.ExecuteAsync(accountId, new(Guid.NewGuid(), preview.Value!.Version, retire));
+        }
+
+        // 1. Money is owed: refused with the balance, and nothing changes.
+        var owing = await Lifecycle("SuperAdmin").PreviewAsync(accountId, retire);
+        Assert.Equal(("OutstandingBalance", false), (owing.Value!.ReasonCode, owing.Value.CanExecute));
+        Assert.Contains("1,200.00", owing.Value.Explanation);
+        Assert.Equal(1200m, (await head.GetRegisterAsync(accountId)).Value!.Sum(p => p.OutstandingAmount));
+
+        // 2. A real Collection (Official Receipt) settles the month in full.
+        var composer = Composer(context, seed);
+        var draft = await composer.AddObligationAllocationAsync(new AddObligationDraftAllocationRequest(accountId, start.Year, start.Month, 1200m, null));
+        Assert.True(draft.IsSuccess, draft.Error);
+        await PostAsync(composer, draft.Value!, seed.OrIds[0]);
+        Assert.Equal(0m, (await head.GetRegisterAsync(accountId)).Value!.Sum(p => p.OutstandingAmount));
+        var cashBefore = await context.Collections.AsNoTracking().SingleAsync();
+        var allocationBefore = await context.CollectionAllocations.AsNoTracking().SingleAsync();
+        var periodBefore = await context.ObligationPeriods.AsNoTracking().SingleAsync();
+
+        // 3. An Admin can never retire; the Head can, now that nothing is owed.
+        Assert.Equal(EEMOCantilanSDS.Application.Common.ResultStatus.Forbidden, (await TryRetire("Admin")).Status);
+        Assert.Null((await context.ObligationAccounts.AsNoTracking().SingleAsync()).RetiredAtUtc);
+        var done = await TryRetire("SuperAdmin");
+        Assert.True(done.IsSuccess, done.Error);
+
+        // 4. Retiring deleted nothing: the account, its period, the Collection with its reference, the allocation and the rate are exactly as they were.
+        context.ChangeTracker.Clear();
+        var account = await context.ObligationAccounts.AsNoTracking().SingleAsync();
+        Assert.NotNull(account.RetiredAtUtc);
+        Assert.Equal((start, end), (account.ActiveFrom, account.ActiveTo!.Value));
+        var cashAfter = await context.Collections.AsNoTracking().SingleAsync();
+        Assert.Equal((cashBefore.Id, cashBefore.TotalAmount), (cashAfter.Id, cashAfter.TotalAmount));
+        Assert.Equal(cashBefore.ReferenceCode, cashAfter.ReferenceCode);
+        Assert.Equal((allocationBefore.Id, allocationBefore.Amount), (await context.CollectionAllocations.AsNoTracking().SingleAsync() is var a2 ? (a2.Id, a2.Amount) : default));
+        Assert.Equal((periodBefore.Id, periodBefore.AssessedAmount), (await context.ObligationPeriods.AsNoTracking().SingleAsync() is var p2 ? (p2.Id, p2.AssessedAmount) : default));
+        Assert.Equal(1, await context.ObligationRates.CountAsync());
+        Assert.Equal(1, await context.SpaceLifecycleEvents.CountAsync(e => e.Action == EEMOCantilanSDS.Domain.Entities.Revenue.SpaceLifecycleAction.Retire));
+        // A retired account can no longer be resumed.
+        var resume = await Lifecycle("SuperAdmin").PreviewAsync(accountId, new(EEMOCantilanSDS.Application.Common.Lifecycle.LifecycleAction.Resume, start.AddMonths(2), "x"));
+        Assert.Equal("Retired", resume.Value!.ReasonCode);
+    }
+
     private sealed record Seed(Guid TenantId, Guid UserId, Guid StallId, Guid PayorId, Guid UnlinkedStallId,
         Guid[] OrIds, DateOnly Today);
 
@@ -556,8 +690,10 @@ public sealed class ObligationAccountTests(PostgresFixture db)
         Assert.Equal(900m, month.AssessedAmount);   // the assessed month is history and is never re-priced
     }
 
-    [SkippableFact]
-    public async Task ALotRental_HasOneEventPeriod_AndTheEventDateIsNotAMonthlyBillingDate()
+    [SkippableTheory]
+    [InlineData(OccupancyArrangement.SignedContract)]
+    [InlineData(OccupancyArrangement.SpaceOnly)]
+    public async Task ALotRental_HasOneEventPeriod_AndTheEventDateIsNotAMonthlyBillingDate(OccupancyArrangement basis)
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
         await db.ResetAsync();
@@ -567,8 +703,19 @@ public sealed class ObligationAccountTests(PostgresFixture db)
 
         var eventDate = seed.Today.AddDays(-3);
         var lot = await head.CreateAccountAsync(new CreateObligationAccountRequest(ObligationKind.FiestaArawLotRental,
-            seed.PayorId, null, "Lot F-12", LotRentalEvent.Fiesta, eventDate, eventDate, 2500m));
+            seed.PayorId, null, "Lot F-12", LotRentalEvent.Fiesta, eventDate, eventDate, 2500m,
+            basis, basis == OccupancyArrangement.SignedContract ? "EVENT-LEASE-14" : null, "Ana Reyes"));
         Assert.True(lot.IsSuccess, lot.Error);
+        await using (var reloaded = db.CreateContext(seed.TenantId))
+        {
+            var saved = await reloaded.ObligationAccounts.SingleAsync(x => x.Id == lot.Value!.Id);
+            Assert.Equal(basis, saved.Arrangement);
+            Assert.Equal(basis == OccupancyArrangement.SignedContract ? "EVENT-LEASE-14" : null, saved.ContractReference);
+            Assert.Equal(seed.PayorId, saved.PayorId); // Preserve this existing collection test's explicit Payor context.
+            Assert.Null(saved.ContractName); Assert.Null(saved.ContractEffectiveDate); Assert.Null(saved.ContractYears);
+            Assert.Null(saved.AreaSqm); Assert.Null(saved.AreaLocation); Assert.Null(saved.ContractMonthlyRate);
+            Assert.Equal(new[] { eventDate }, saved.PeriodStarts(eventDate.AddYears(1)));
+        }
 
         var register = Assert.Single((await head.GetRegisterAsync(lot.Value!.Id)).Value!);
         Assert.Equal(eventDate, register.PeriodStart);
@@ -645,10 +792,11 @@ public sealed class ObligationAccountTests(PostgresFixture db)
         Assert.Equal(("Ice Plant", 250m), (only.Nature, only.Amount));
     }
 
-    private async Task<Seed> SeedAsync()
+    // The default office is the one whose rulings the platform carries (Cantilan); the signed-contract duration standard is its alone.
+    private async Task<Seed> SeedAsync(bool defaultOffice = true)
     {
         var municipality = Municipality.Create($"OBL-{Guid.NewGuid():N}"[..24], "Obligation Test", "Surigao del Sur",
-            MunicipalityStatus.Active, tenantCode: $"obl-{Guid.NewGuid():N}"[..32]);
+            MunicipalityStatus.Active, tenantCode: $"obl-{Guid.NewGuid():N}"[..32], isDefault: defaultOffice);
         var tenant = municipality.Id;
         var user = Guid.NewGuid();
         await using (var setup = db.CreateContext(Guid.Empty))
@@ -695,5 +843,246 @@ public sealed class ObligationAccountTests(PostgresFixture db)
             await context.SaveChangesAsync();
         }
         return new Seed(tenant, user, stall.Id, payor.Id, unlinkedStall.Id, documents.Select(x => x.Id).ToArray(), today);
+    }
+
+    // ---- The three-year signed-contract duration is Cantilan's standard, not every office's ------------------------------------
+
+    private static CreateObligationAccountRequest KanmanggayContract(Seed seed, DateOnly start, int? years) =>
+        new(ObligationKind.KanmanggaySpaceRental, seed.PayorId, null, "", null, null, start, 1200m,
+            OccupancyArrangement.SignedContract, "KM-2026", "Actual occupant", "Signed lessee", start.AddDays(3), years, 4.80m, "Extension");
+
+    [SkippableFact]
+    public async Task AnOfficeWithNoConfirmedDurationPolicy_CannotRecordCantilansThreeYears_ButEverythingElseStillWorks()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync(defaultOffice: false);
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+        await using var context = db.CreateContext(seed.TenantId);
+        var workflow = Setup(context, seed);
+
+        // Neither Cantilan's number nor any other number is accepted as an approved duration.
+        foreach (var years in new int?[] { 3, 5 })
+        {
+            var refused = await workflow.CreateAccountAsync(KanmanggayContract(seed, start, years));
+            Assert.False(refused.IsSuccess);
+            Assert.Equal(ResultStatus.Conflict, refused.Status);
+            Assert.Contains("no duration policy has been confirmed for this municipality", refused.Error);
+        }
+        Assert.Equal(0, await context.ObligationAccounts.CountAsync(a => a.MunicipalityId == seed.TenantId && a.Kind == ObligationKind.KanmanggaySpaceRental));
+
+        // The same contract WITHOUT a duration is a normal, legitimate record; so is a space-only occupant.
+        var signed = await workflow.CreateAccountAsync(KanmanggayContract(seed, start, null));
+        Assert.True(signed.IsSuccess, signed.Error);
+        Assert.Null(signed.Value!.ContractYears);
+        Assert.Equal("KM-2026", signed.Value.ContractReference);
+        var spaceOnly = await workflow.CreateAccountAsync(new CreateObligationAccountRequest(
+            ObligationKind.KanmanggaySpaceRental, seed.PayorId, null, "", null, null, start, 1200m,
+            OccupancyArrangement.SpaceOnly, null, "Space only occupant"));
+        Assert.True(spaceOnly.IsSuccess, spaceOnly.Error);
+
+        // Other space operations have no duration rule and are untouched.
+        var vegetable = await workflow.CreateAccountAsync(new CreateObligationAccountRequest(
+            ObligationKind.VegetableFruitSpaceRental, seed.PayorId, null, "", null, null, start, 900m,
+            OccupancyArrangement.SignedContract, "VF-1", "Vegetable seller", "Signed", start.AddDays(2), null, null, null));
+        Assert.True(vegetable.IsSuccess, vegetable.Error);
+
+        // Correcting the holder cannot introduce a duration either.
+        var correction = await workflow.CorrectHolderAsync(signed.Value.Id, new CorrectObligationHolderRequest(
+            "Actual occupant", OccupancyArrangement.SignedContract, "KM-2026", "Signed lessee", start.AddDays(3), 3, 4.80m, "Extension"));
+        Assert.False(correction.IsSuccess);
+        Assert.Equal(ResultStatus.Conflict, correction.Status);
+    }
+
+    [SkippableFact]
+    public async Task AnExistingRecordedDuration_IsPreservedAndStaysEditable_WhereItIsNotChanged()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync(defaultOffice: false);
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+
+        // A record that already carries three years (made before this rule existed) - written directly, as history is.
+        Guid accountId;
+        await using (var setup = db.CreateContext(seed.TenantId))
+        {
+            var account = ObligationAccount.Create(seed.TenantId, ObligationKind.KanmanggaySpaceRental, seed.PayorId, null, "KM-9",
+                null, null, start, "test", actualOccupant: "Existing holder");
+            account.SetOccupancyBasis(OccupancyArrangement.SignedContract, "KM-OLD");
+            account.SetLeaseDetails("Existing lessee", start.AddDays(2), 3, null, null);
+            setup.ObligationAccounts.Add(account);
+            setup.ObligationRates.Add(ObligationRate.Create(seed.TenantId, account.Id, start, 1200m, "test"));
+            await setup.SaveChangesAsync();
+            accountId = account.Id;
+        }
+
+        await using var context = db.CreateContext(seed.TenantId);
+        var workflow = Setup(context, seed);
+        var sameYears = await workflow.CorrectHolderAsync(accountId, new CorrectObligationHolderRequest(
+            "Existing holder", OccupancyArrangement.SignedContract, "KM-OLD", "Existing lessee", start.AddDays(2), 3, 9.5m, "Corner"));
+        Assert.True(sameYears.IsSuccess, sameYears.Error);          // a descriptive correction; the duration is not touched
+
+        var changed = await workflow.CorrectHolderAsync(accountId, new CorrectObligationHolderRequest(
+            "Existing holder", OccupancyArrangement.SignedContract, "KM-OLD", "Existing lessee", start.AddDays(2), 5, 9.5m, "Corner"));
+        Assert.False(changed.IsSuccess);                              // a different duration would be an unconfirmed policy value
+
+        Assert.Equal(3, (await context.ObligationAccounts.AsNoTracking().SingleAsync(a => a.Id == accountId)).ContractYears);
+    }
+
+    [SkippableFact]
+    public async Task TheDefaultOffice_AcceptsActualContractTerms_WithoutChangingTheApprovedRate()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync(defaultOffice: true);
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+        await using var context = db.CreateContext(seed.TenantId);
+        var workflow = Setup(context, seed);
+
+        var three = await workflow.CreateAccountAsync(KanmanggayContract(seed, start, 3));
+        Assert.True(three.IsSuccess, three.Error);
+        Assert.Equal(3, three.Value!.ContractYears);
+        foreach (var years in new[] { 1, 2, 5, 7 })
+        {
+            var actual = await workflow.CreateAccountAsync(KanmanggayContract(seed, start, years));
+            Assert.True(actual.IsSuccess, actual.Error);
+            Assert.Equal(years, actual.Value!.ContractYears);
+            Assert.Equal(1200m, actual.Value.CurrentAmount);
+        }
+    }
+
+    [SkippableTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task BulkContractTermsFollowConfirmedTenantPolicy_AndNeverCreateAssessments(bool defaultOffice)
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync(defaultOffice);
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+        await using var context = db.CreateContext(seed.TenantId);
+        var workflow = Setup(context, seed);
+        var request = new ImportSpaceHoldersRequest(new[] { 1, 3, 7 }.Select(years => new ImportSpaceHolderRow(
+            KanmanggayContract(seed, start, years))).ToList());
+        var preview = await workflow.PreviewSpaceHoldersAsync(request);
+        Assert.True(preview.IsSuccess, preview.Error);
+        Assert.Equal(defaultOffice, preview.Value!.CanSave);
+        var imported = await workflow.ImportSpaceHoldersAsync(request);
+        Assert.True(imported.IsSuccess, imported.Error);
+        Assert.Equal(defaultOffice ? 3 : 0, imported.Value!.Imported);
+        Assert.Empty(await context.ObligationPeriods.ToListAsync());
+        if (defaultOffice)
+            Assert.Equal(new int?[] { 1, 3, 7 }, await context.ObligationAccounts.OrderBy(a => a.ContractYears).Select(a => a.ContractYears).ToArrayAsync());
+        else
+            Assert.All(preview.Value.Rows, row => Assert.Contains("No duration policy has been confirmed", row.Message));
+    }
+
+    [SkippableFact]
+    public async Task ContractMonthlyRate_IsEvidenceOnly_NeverPricesTheAccount_AndIsValidated()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync();
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+        await using var context = db.CreateContext(seed.TenantId);
+        var head = Setup(context, seed);
+        var signed = new CreateObligationAccountRequest(ObligationKind.KanmanggaySpaceRental, seed.PayorId, null, "", null, null, start, 900m,
+            OccupancyArrangement.SignedContract, "KM-1", "Actual Occupant", "Contract Lessee", start.AddDays(2), 3, 9.5m, "Row A", ContractMonthlyRate: 1000m);
+
+        // The signed contract states 1,000; the approved (assessed) amount is 900. Both are kept and neither prices the other.
+        var created = await head.CreateAccountAsync(signed);
+        Assert.True(created.IsSuccess, created.Error);
+        Assert.Equal((900m, 1000m), (created.Value!.CurrentAmount, created.Value.ContractMonthlyRate));
+        Assert.Equal(900m, Assert.Single((await head.GetRegisterAsync(created.Value.Id)).Value!).AssessedAmount);
+        Assert.Equal(900m, Assert.Single(await context.ObligationRates.ToListAsync()).Amount);
+
+        // A contract rate is only meaningful behind a signed contract, and must be a sane amount.
+        Assert.False((await head.CreateAccountAsync(signed with
+            { SubjectLabel = "", Arrangement = OccupancyArrangement.SpaceOnly, ContractReference = null, ContractName = null, ContractEffectiveDate = null, ContractYears = null })).IsSuccess);
+        Assert.False((await head.CreateAccountAsync(signed with { ContractMonthlyRate = -1m })).IsSuccess);
+        Assert.False((await head.CreateAccountAsync(signed with { ContractMonthlyRate = 1000.555m })).IsSuccess);
+
+        // Correcting the stated rate is audited descriptive evidence: the approved amount and the assessed period do not move.
+        var corrected = await head.CorrectHolderAsync(created.Value.Id, new("Actual Occupant", OccupancyArrangement.SignedContract, "KM-1", "Contract Lessee",
+            start.AddDays(2), 3, 9.5m, "Row A", 1200m));
+        Assert.True(corrected.IsSuccess, corrected.Error);
+        var reloaded = Assert.Single((await head.GetAccountsAsync(ObligationKind.KanmanggaySpaceRental)).Value!);
+        Assert.Equal((900m, 1200m), (reloaded.CurrentAmount, reloaded.ContractMonthlyRate));
+        Assert.Equal(900m, Assert.Single((await head.GetRegisterAsync(created.Value.Id)).Value!).AssessedAmount);
+    }
+
+    [SkippableFact]
+    public async Task PaymentHistory_IsOneAccountsCanonicalAllocations_NotItsOwnersOtherAccounts_AndIsTenantScoped()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync();
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+        await using var context = db.CreateContext(seed.TenantId);
+        var head = Setup(context, seed);
+        // The SAME person (one Business Payor) holds two spaces.
+        async Task<Guid> Open(string actual) => (await head.CreateAccountAsync(new CreateObligationAccountRequest(
+            ObligationKind.KanmanggaySpaceRental, seed.PayorId, null, "", null, null, start, 400m, OccupancyArrangement.SpaceOnly, null, actual))).Value!.Id;
+        var first = await Open("Same Person"); var second = await Open("Same Person");
+        var composer = Composer(context, seed);
+
+        Assert.Empty((await head.GetPaymentsAsync(first)).Value!);                                           // an honest empty history
+        var draft = await composer.AddObligationAllocationAsync(new AddObligationDraftAllocationRequest(first, seed.Today.Year, seed.Today.Month, 250m, null));
+        Assert.True(draft.IsSuccess, draft.Error);
+        await PostAsync(composer, draft.Value!, seed.OrIds[0]);
+
+        var payment = Assert.Single((await head.GetPaymentsAsync(first)).Value!);
+        Assert.Equal((250m, 0m, 250m, "Posted", start), (payment.Amount, payment.CorrectionEffect, payment.NetAmount, payment.Disposition, payment.PeriodStart));
+        Assert.StartsWith("SRC-", payment.ReferenceCode);
+        Assert.Equal(RevenueInstrumentType.OfficialReceipt, payment.Instrument);
+        Assert.Equal("obligation-test", payment.RecordedBy);
+        Assert.Empty((await head.GetPaymentsAsync(second)).Value!);                                          // the same person's other space shows nothing
+
+        // Authority and tenancy: a Head or Admin of this tenant may read; a Collector may not; another tenant cannot see the account at all.
+        Assert.True((await Setup(context, seed, "Admin").GetPaymentsAsync(first)).IsSuccess);
+        Assert.Equal(ResultStatus.Forbidden, (await Setup(context, seed, "Collector").GetPaymentsAsync(first)).Status);
+        var foreignSeed = seed with { TenantId = Guid.NewGuid() };
+        await using var foreign = db.CreateContext(foreignSeed.TenantId);
+        Assert.Equal(ResultStatus.NotFound, (await Setup(foreign, foreignSeed).GetPaymentsAsync(first)).Status);
+    }
+
+    [SkippableFact]
+    public async Task ImportRuns_AreRecordedOnlyForSavedImports_AndSeparatePreviewsFailuresAndReplays()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync();
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+        await using var context = db.CreateContext(seed.TenantId);
+        var head = Setup(context, seed);
+        ImportSpaceHolderRow Row(string subject, decimal rate = 100m) => new(new(ObligationKind.KanmanggaySpaceRental, seed.PayorId, null, subject, null, null, start, rate,
+            OccupancyArrangement.SignedContract, null, "Occupant " + subject, "Contract " + subject, start.AddDays(1), 3, 5m, null, ContractMonthlyRate: 120m));
+
+        // A preview and a refused list leave nothing behind.
+        Assert.True((await head.PreviewSpaceHoldersAsync(new([Row("K-1")]))).IsSuccess);
+        Assert.Empty((await head.GetImportRunsAsync(ObligationKind.KanmanggaySpaceRental)).Value!);
+        var refused = await head.ImportSpaceHoldersAsync(new([Row("K-1"), Row("K-2") with { Account = Row("K-2").Account with { PayorId = Guid.NewGuid() } }]));
+        Assert.Single(refused.Value!.NeedsReview);
+        Assert.Empty((await head.GetImportRunsAsync(ObligationKind.KanmanggaySpaceRental)).Value!);
+
+        // A saved import records one run with the real counts; the contract rate arrived with the account.
+        var saved = await head.ImportSpaceHoldersAsync(new([Row("K-1"), Row("K-2")]));
+        Assert.Equal(2, saved.Value!.Imported);
+        var run = Assert.Single((await head.GetImportRunsAsync(ObligationKind.KanmanggaySpaceRental)).Value!);
+        Assert.Equal((2, 2, 0, "obligation-test"), (run.RowCount, run.ImportedCount, run.SkippedCount, run.ImportedBy));
+        Assert.All((await head.GetAccountsAsync(ObligationKind.KanmanggaySpaceRental)).Value!, a => Assert.Equal(120m, a.ContractMonthlyRate));
+
+        // Replaying the same list adds nothing (existing spaces are skipped, never renumbered or overwritten), so it records no new run.
+        var replay = await head.ImportSpaceHoldersAsync(new([Row("K-1")]));
+        Assert.Equal((0, 1), (replay.Value!.Imported, replay.Value.Skipped));
+        Assert.Single((await head.GetImportRunsAsync(ObligationKind.KanmanggaySpaceRental)).Value!);
+        Assert.Equal(2, await context.ObligationAccounts.CountAsync());
+
+        // Head only; another tenant sees none; the run is for the line asked about.
+        Assert.Equal(ResultStatus.Forbidden, (await Setup(context, seed, "Admin").GetImportRunsAsync(ObligationKind.KanmanggaySpaceRental)).Status);
+        Assert.Empty((await head.GetImportRunsAsync(ObligationKind.FiestaArawLotRental)).Value!);
+        var foreignSeed = seed with { TenantId = Guid.NewGuid() };
+        await using var foreign = db.CreateContext(foreignSeed.TenantId);
+        Assert.Empty((await Setup(foreign, foreignSeed).GetImportRunsAsync(ObligationKind.KanmanggaySpaceRental)).Value!);
     }
 }

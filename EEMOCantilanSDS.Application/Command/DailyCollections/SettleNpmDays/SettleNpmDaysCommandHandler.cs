@@ -25,7 +25,8 @@ public class SettleNpmDaysCommandHandler(
     IFeeRateResolver feeRateResolver,
     INpmMonthSettlementService monthSettlement,
     ITenantContext tenantContext, IClock clock,
-    Common.Revenue.NpmDailyCanonicalPoster? canonical = null) : IRequestHandler<SettleNpmDaysCommand, Result<bool>>
+    Common.Revenue.NpmDailyCanonicalPoster? canonical = null,
+    NpmRentMonthWorkflow? monthly = null) : IRequestHandler<SettleNpmDaysCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(SettleNpmDaysCommand request, CancellationToken ct)
     {
@@ -34,13 +35,18 @@ public class SettleNpmDaysCommandHandler(
             return Result<bool>.NotFound();
 
         // Daily settlement is NPM-only; every other facility is monthly and uses RecordPayment.
-        if (stall.Facility?.Code != FacilityCode.NPM)
+        if (stall.Facility?.Code != FacilityCode.NPM || stall.Facility.IsMonthlyRentMarket)
             return Result<bool>.Failure("Only New Public Market (daily) accounts are settled by day here.", ResultStatus.Invalid);
 
         // Collectors may only act on an assigned facility (same rule as recording a single daily collection). One rule for both
         // settle paths - see NpmSettlementAccess for why it is not written out here.
         if (!await NpmSettlementAccess.MaySettleMarketCollectionsAsync(currentUser, collectorRepository, ct))
             return Result<bool>.Forbidden();
+
+        if (monthly is not null)
+            foreach (var period in request.Dates.Select(d => new DateOnly(d.Year, d.Month, 1)).Distinct())
+                if (await monthly.IsMonthActivatedAsync(stall.Id, period, ct))
+                    return Result<bool>.Failure("Refresh the reviewed month-source quote and use its canonical payment action.", ResultStatus.Conflict);
 
         var dates = request.Dates.Distinct().OrderBy(d => d).ToList();
         if (dates.Count == 0)

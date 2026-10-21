@@ -21,19 +21,20 @@
     else if (_data is not null)
     {
         <h2 class="cpp-title">Your position</h2>
-        <dl class="cpp-rows">
-            <div class="cpp-row"><dt>Collected</dt><dd>@Peso(_data.Collected)</dd></div>
-            <div class="cpp-row"><dt>Remitted</dt><dd>@Peso(_data.Remitted)</dd></div>
-            <div class="cpp-row strong"><dt>Unremitted</dt><dd>@Peso(_data.Unremitted)</dd></div>
+        @* Cash only. Unremitted is collected money not yet turned over; the office records remittance, so the collector has no action here. *@
+        <dl class="cpp-figures">
+            <div class="cpp-fig"><dt>Collected</dt><dd>@Peso(_data.Collected)</dd></div>
+            <div class="cpp-fig"><dt>Remitted</dt><dd>@Peso(_data.Remitted)</dd></div>
+            <div class="cpp-fig strong" title="Collected money not yet turned over to the office. The office records remittance."><dt>Unremitted</dt><dd>@Peso(_data.Unremitted)</dd></div>
         </dl>
-        <p class="cpp-note">Collected money not yet turned over to the office. Remittance is recorded by the office.</p>
+        <p class="cpp-cash-note">Unremitted is collected money not yet turned over to the office.</p>
 
         @if (_data.LegacyCollectionsOutsideRemittance > 0m)
         {
             <dl class="cpp-rows">
-                <div class="cpp-row"><dt>Recorded before activation</dt><dd>@Peso(_data.LegacyCollectionsOutsideRemittance)</dd></div>
+                <div class="cpp-row" title="Not yet tracked for remittance."><dt>Recorded before activation</dt><dd>@Peso(_data.LegacyCollectionsOutsideRemittance)</dd></div>
             </dl>
-            <p class="cpp-note">Not yet tracked for remittance.</p>
+            <p class="cpp-note">Historical collections outside remittance tracking; separate from the cash position above.</p>
         }
 
         @if (_data.NeedsReviewCount > 0)
@@ -41,6 +42,7 @@
             <p class="cpp-note warn" role="status">@_data.NeedsReviewCount need@(_data.NeedsReviewCount == 1 ? "s" : "") office review.</p>
         }
 
+        @* Accountable forms are paper counts held apart from the cash above: holding unused tickets never blocks remittance and is never money owed. *@
         <h2 class="cpp-title">Forms on hand</h2>
         @if (_data.Forms.Count == 0)
         {
@@ -51,7 +53,7 @@
             <dl class="cpp-rows">
                 @foreach (var form in _data.Forms)
                 {
-                    <div class="cpp-row"><dt>@InstrumentName(form.Instrument) available</dt><dd>@form.OnHand</dd></div>
+                    <div class="cpp-row"><dt>@InstrumentName(form.Instrument)</dt><dd class="cpp-count">@form.OnHand on hand</dd></div>
                     @if (form.Issued + form.Spoiled + form.Returned + form.NeedsReview > 0)
                     {
                         <div class="cpp-row sub">
@@ -61,7 +63,6 @@
                     }
                 }
             </dl>
-            <p class="cpp-note">Forms are counts of paper, never pesos. Remaining tickets are not money owed.</p>
         }
 
         @if (Sync.PendingCount > 0)

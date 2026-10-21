@@ -6,6 +6,8 @@
 @using EEMOCantilanSDS.Domain.Entities.Revenue
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Mobile.Models
+@using Microsoft.AspNetCore.Components.Routing
+@implements IDisposable
 @inject IMobileApiClient Api
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSyncService Sync
@@ -106,13 +108,37 @@ else
                         <button class="collection-option payer-option" type="button" @onclick="() => StartDirectAsync(_search)">
                             <span class="payer-option-text"><strong>Continue with payer name</strong><small>@_search.Trim()</small></span><span aria-hidden="true">›</span></button>
                     }
+                    @if (CanRequestRegistration && !_searching && _searched && _search.Trim().Length >= 2 && VisibleSources.Count == 0)
+                    {
+                        @* No eligible registered vendor: the Collector may ask the office to register one. A separate request, never a source or a payer. *@
+                        <button class="collection-option payer-option" type="button" @onclick="OpenRequest">
+                            <span class="payer-option-text"><strong>Request registration</strong><small>Ask the office to register “@_search.Trim()”</small></span><span aria-hidden="true">›</span></button>
+                    }
                 </div>
             }
         }
     </section>
     }
+    @if (_requestOpen)
+    {
+        <section class="collection-entry" aria-label="Request vendor registration">
+            <h2>Request registration</h2>
+            <FishMeatRegistrationRequestForm InitialName="@_requestName" OnSubmitted="RequestSubmitted" OnCancel="CloseRequest" />
+        </section>
+    }
+    else if (_requestSaved is { } requested)
+    {
+        <section class="collection-entry" aria-live="polite">
+            <h2>Request submitted</h2>
+            <p>@requested.VendorName is with the office. No cash or SRC is created. Once registered, search the vendor again.</p>
+            <div class="collection-source-actions">
+                <button class="collection-small" type="button" @onclick="SearchAfterRequestAsync">Search again</button>
+                <button class="collection-small" type="button" @onclick='() => Navigation.NavigateTo("/fish-meat-requests")'>My registration requests</button>
+            </div>
+        </section>
+    }
     @* The empty space under the finder: today's own collections, until a source is chosen or the finder's list needs the room. *@
-    @if (OnlyOperation == CollectorOperationCodes.FishMeatVendorFee && Correction is null)
+    @if (OnlyOperation == CollectorOperationCodes.FishMeatVendorFee && Correction is null && _source is null && !_direct)
     {
         <section class="collection-entry" aria-label="Other collection sources">
             <h2>Other collections this visit</h2>
@@ -120,6 +146,8 @@ else
             <div class="collection-source-actions">
                 <button class="collection-small" type="button" disabled="@(_items.Count > 0 || _busy || _picker)" @onclick='() => Navigation.NavigateTo("/ecf")'>Choose electricity / ECF account</button>
                 <button class="collection-small" type="button" disabled="@(_items.Count > 0 || _busy || _picker)" @onclick='() => Navigation.NavigateTo("/market")'>Choose NPM stall</button>
+                <button class="collection-small" type="button" disabled="@(_items.Count > 0 || _busy || _picker)" @onclick='() => Navigation.NavigateTo("/npm-requests")'>My NPM requests</button>
+                <button class="collection-small" type="button" disabled="@(_items.Count > 0 || _busy || _picker)" @onclick='() => Navigation.NavigateTo("/fish-meat-requests")'>My registration requests</button>
             </div>
             @if (_items.Count > 0) { <p>Record or remove current items before switching sources.</p> }
         </section>
@@ -131,27 +159,40 @@ else
             <div class="collection-row"><h2>Items</h2><button class="collection-small" type="button" disabled="@(_busy || (Correction is not null && _items.Count > 0))" @onclick="OpenPickerAsync">+ Add item</button></div>
             @if (_items.Count == 0)
             {
-                <p>@(NothingDue ? "No linked collection is due for this source." : "No items added.")</p>
+                <p>@(NothingDue && MonthlyFacilityCode is not null ? "No collectible monthly rent is prepared for this stall in New Collection." : NothingDue ? "No linked collection is due for this source." : "No items added.")</p>
+                @if (_source is not null && Selectable.Count > 0)
+                {
+                    <div class="collection-available-fees" role="group" aria-label="Available charges">
+                        <span class="collection-available-caption">Available charges</span>
+                        @foreach (var offered in Selectable)
+                        {
+                            <button type="button" class="collection-option" disabled="@_busy" @onclick="() => OpenOfferedAsync(offered.OperationCode)">
+                                <span class="option-text"><strong>@OperationLabel(offered)</strong><small>@(OperationDetail(offered) ?? (offered.Choices?.Count > 1 ? offered.Choices.Count + " approved options" : "Review office-approved charge"))</small></span>
+                                <span aria-hidden="true">›</span>
+                            </button>
+                        }
+                    </div>
+                }
+                @if (NothingDue && MonthlyFacilityCode is { } monthly)
+                {
+                    <div class="collection-monthly-route">
+                        <strong>Monthly stall rental</strong>
+                        <p>No canonical rental balance is available in New Collection. Review rental dues and authorized collection options in this facility's existing monthly operation.</p>
+                        <button type="button" class="collection-small" @onclick='() => Navigation.NavigateTo("/collect/" + monthly)'>Open @monthly collections</button>
+                    </div>
+                }
                 @if (NothingDue && OnlyOperation == CollectorOperationCodes.VegetableFruitSpaceRental)
                 {
                     <p role="status">No collectible Monthly periods are available. Ask the office to check the account and OR collection setup.</p>
                     @foreach (var unavailable in _discovery!.Operations.Where(x => Allows(x.OperationCode) && !x.CanAdd && !string.IsNullOrWhiteSpace(x.Reason)))
                     { <p>@unavailable.Reason</p> }
                 }
-                @* An office-confirmed link only opens that stall as its own, separate collection: nothing is shared or merged with this source. *@
-                @if (_discovery?.LinkedSources is { Count: > 0 } linkedSources && Correction is null)
+                @* The linked stall's rent and utilities are listed with the vendor's own charges (see Available charges / Add item); the request form shows only once the server has answered that there is no link. *@
+                @if (!_picker && _source?.Identity.Kind == SourceIdentityKind.FishMeatVendorRegistration && Correction is null && _discovery is not null && (_discovery.LinkedSources?.Count ?? 0) == 0)
                 {
-                    <div class="linked-sources" role="group" aria-label="Linked NPM stall">
-                        <span class="linked-label">Linked NPM stall</span>
-                        @foreach (var link in linkedSources)
-                        {
-                            <button class="collection-option payer-option" type="button" disabled="@_busy" @onclick="() => SelectBrowsedAsync(link)">
-                                <span class="payer-option-text"><strong>@link.DisplayName</strong><small>@link.Context</small></span><span aria-hidden="true">›</span></button>
-                        }
-                        <small class="linked-note">Collected as a separate payment from this vendor's fees.</small>
-                    </div>
+                    <NpmRegistrationRequestForm VendorId="_source.Identity.Id" />
                 }
-                @if (NothingDue && DirectAllowed)
+                @if (NothingDue && DirectAllowed && MonthlyFacilityCode is null)
                 {
                     <button class="collection-small" type="button" @onclick="() => StartDirectAsync(_source!.DisplayName)">Continue as direct collection</button>
                 }
@@ -162,7 +203,7 @@ else
                 var problem = _quote?.Problems.Any(x => x.ClientItemId == item.ClientItemId) == true;
                 var shown = _shown.GetValueOrDefault(item.ClientItemId);
                 @* A Terminal row always reads as the official section with how it was entered, never as the server's repeated operation name. *@
-                var own = item.Native?.OperationCode == CollectorOperationCodes.Terminal && shown is not null;
+                var own = (item.Native?.OperationCode == CollectorOperationCodes.Terminal || item.Kind is CollectionSessionItemKind.Electricity or CollectionSessionItemKind.Water) && shown is not null;
                 <div class="item-row @(problem ? "item-row-problem" : "")">
                     <div class="item-main">
                         <strong class="item-name">@(own ? shown!.Name : quote?.DisplayName ?? shown?.Name ?? "Collection item")</strong>
@@ -213,6 +254,24 @@ else
 }
 @if (!string.IsNullOrWhiteSpace(_message)) { <p class="collection-message" role="status">@_message</p> }
 
+@* Leaving with items that are not yet recorded asks first, so a slip of the back button never loses the collector's progress. *@
+@if (_leaveTarget is not null)
+{
+    <div class="sheet-overlay" @onclick="StayOnCollection">
+        <section class="sheet" role="alertdialog" aria-modal="true" aria-labelledby="leave-title" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <header class="sheet-head">
+                <h2 id="leave-title" class="sheet-title">Leave this collection?</h2>
+                <div class="sheet-context">The items you added have not been recorded and will be lost.</div>
+            </header>
+            <div class="sheet-actions">
+                <button class="btn-cancel" type="button" @onclick="StayOnCollection">Cancel</button>
+                <button class="btn-primary" type="button" @onclick="LeaveCollection">OK</button>
+            </div>
+        </section>
+    </div>
+}
+
 @if (_picker)
 {
     <div class="sheet-overlay" @onclick="ClosePicker">
@@ -225,6 +284,10 @@ else
             <div class="sheet-body">
             @if (_operation is null)
             {
+                @if (_source?.Identity.Kind == SourceIdentityKind.FishMeatVendorRegistration && Correction is null && _discovery is not null && (_discovery.LinkedSources?.Count ?? 0) == 0)
+                {
+                    <NpmRegistrationRequestForm VendorId="_source.Identity.Id" />
+                }
                 @foreach (var section in PickerSections)
                 {
                     <div class="sheet-group">@section.Name</div>
@@ -233,7 +296,7 @@ else
                         <button class="collection-option" type="button" @onclick="() => Choose(row.OperationCode!)"><span class="option-text"><strong>@OperationLabel(row)</strong>@if (OperationDetail(row) is { } detail) { <small>@detail</small> }</span> <span aria-hidden="true">›</span></button>
                     }
                 }
-                @if (!PickerSections.Any()) { <div class="sheet-note">Nothing available for this source.</div> }
+                @if (!PickerSections.Any()) { <div class="sheet-note">@(Offered.Count > 0 ? "Everything available for this source is already in this collection." : "Nothing available for this source.")</div> }
             }
             else
             {
@@ -290,6 +353,16 @@ else
                 }
                 @if (_choice is not null)
                 {
+                    @if (UtilityChoice is { } utility)
+                    {
+                        <RecentUtilityNotice StallId="utility.StallId" Utility="@utility.Code" Year="utility.Year" Month="utility.Month" Resolved="OnRecentResolved" />
+                        @if (_confirmRepeat)
+                        {
+                            <StateNotice Tone="StateNotice.NoticeTone.Warning" Title="Record another payment?">
+                                A previous @utility.Code collection exists for this source. Confirm that a separate payment was actually received.
+                            </StateNotice>
+                        }
+                    }
                     @if (_choice.AmountRule == CollectionSessionAmountRule.FixedAmount && _choice.ServerAmount is { } fixedAmount)
                     { <div class="sheet-meta"><span>Amount</span><strong>@Money(fixedAmount)</strong></div> }
                     @if (IsWeighing)
@@ -303,9 +376,26 @@ else
                         <label class="form-field"><span class="form-label">Heads</span><input class="form-input" type="number" inputmode="numeric" min="1" step="1" @bind="_heads" @bind:event="oninput" /></label>
                         @if (_source is null && string.IsNullOrWhiteSpace(_snapshot))
                         { <label class="form-field"><span class="form-label">Owner</span><input class="form-input" @bind="_owner" /></label> }
+                        @if (_slhTerms is { Itemized: true })
+                        {
+                            <div class="form-label">Approved charges</div>
+                            @if (SlhCharges.Count == 0) { <div class="sheet-note">No approved charge applies to this animal. Ask the office.</div> }
+                            @foreach (var charge in SlhCharges)
+                            {
+                                <label class="form-field">
+                                    <span class="form-label"><input type="checkbox" checked="@_slhPicked.ContainsKey(charge.Id)" @onchange="e => SlhToggle(charge, e.Value is true)" /> @charge.Name · @Money(charge.Amount ?? 0m) / @(SlhPerHead(charge) ? "head" : "unit")</span>
+                                    @if (_slhPicked.ContainsKey(charge.Id) && !SlhPerHead(charge))
+                                    { <input class="form-input" type="number" inputmode="numeric" min="1" max="100000" step="1" value="@_slhPicked[charge.Id]" @onchange="e => SlhQuantity(charge, e.Value?.ToString())" /> }
+                                </label>
+                            }
+                        }
                         <div class="sheet-note">Approved amount confirmed on review</div>
                     }
                     @if (_choice.Kind == CollectionSessionItemKind.NpmWholePayment) { <div class="sheet-note">Remaining monthly rent is confirmed on review</div> }
+                    @if (_choice.Kind == CollectionSessionItemKind.NpmDaily)
+                    {
+                        <label class="form-field"><span class="form-label">Official Receipt No. (Optional)</span><input class="form-input" type="text" maxlength="100" @bind="_npmReceipt" /></label>
+                    }
                     @if (_choice.Kind == CollectionSessionItemKind.NpmPartPayment) { <div class="sheet-note">Applied to the oldest unpaid day first. The server shows how it is applied on review@(_choice.MaximumAmount is { } most ? $" · up to {Money(most)} is payable now" : "").</div> }
                     @if (TakesTypedAmount)
                     {
@@ -316,10 +406,10 @@ else
             }
             </div>
             <div class="sheet-actions">
-                <button class="btn-cancel" type="button" @onclick="ClosePicker">Close</button>
+                <button class="btn-cancel" type="button" @onclick="CancelPicker">@(_confirmRepeat ? "Cancel" : "Close")</button>
                 @if (_operation is not null)
                 {
-                    <button class="btn-primary" type="button" disabled="@(!CanAddItem)" @onclick="AddItem">Add item</button>
+                    <button class="btn-primary" type="button" disabled="@(!CanAddItem)" @onclick="AddItem">@(_confirmRepeat ? "Continue" : "Add item")</button>
                 }
             </div>
         </section>
@@ -339,7 +429,11 @@ else
     /// under a new SRC. The original is never changed, and a correction is made online.</summary>
     [Parameter] public MobileRecentCollection? Correction { get; set; }
 
-    private bool Allows(string? code) => OnlyOperation is null || code == OnlyOperation || (AlsoOperations?.Contains(code ?? "") ?? false);
+    private bool _linkedNpmContext;
+    // A registered vendor the office has linked to an NPM stall is collected with that stall's own rent and utilities in one list: the server lists them
+    // under the vendor's source, so the page's single-operation filter stands aside for them.
+    private bool VendorHasLinkedStall => _source?.Identity.Kind == SourceIdentityKind.FishMeatVendorRegistration && (_discovery?.LinkedSources?.Count ?? 0) > 0;
+    private bool Allows(string? code) => _linkedNpmContext || OnlyOperation is null || code == OnlyOperation || (AlsoOperations?.Contains(code ?? "") ?? false) || VendorHasLinkedStall;
 
     private sealed record Shown(string Name, string Context);
 
@@ -365,7 +459,28 @@ else
     private TerminalSection? _termSection;
     private bool _byVehicle;
     private Guid? _editingId;
-    private sealed record Draft(string OperationCode, string ChoiceKey, decimal Amount, decimal Quantity, int Heads, string Owner, TerminalSection? Section, bool ByVehicle);
+    private sealed record Draft(string OperationCode, string ChoiceKey, decimal Amount, decimal Quantity, int Heads, string Owner, TerminalSection? Section, bool ByVehicle,
+        IReadOnlyDictionary<Guid, int>? Charges = null);
+
+    // Slaughterhouse on approved charges: the collector selects charges (and counts per-unit ones); the server prices them on review.
+    private SlaughterTermsDto? _slhTerms;
+    private readonly Dictionary<Guid, int> _slhPicked = [];
+    private static bool SlhPerHead(FeeOptionTermDto c) => (c.QuantityBasis ?? FeeQuantityBasis.PerHead) == FeeQuantityBasis.PerHead;
+    private IReadOnlyList<FeeOptionTermDto> SlhCharges => _slhTerms is null || _choice?.Identity.Animal is not { } animal ? []
+        : _slhTerms.Charges.Where(c => c.Amount is > 0 && SlaughterAnimalScopes.Includes(c.ApplicableAnimals, animal)).ToList();
+    private void SlhToggle(FeeOptionTermDto c, bool on) { if (on) _slhPicked[c.Id] = 1; else _slhPicked.Remove(c.Id); }
+    private void SlhQuantity(FeeOptionTermDto c, string? raw) => _slhPicked[c.Id] = int.TryParse(raw, out var n) ? Math.Clamp(n, 1, 100_000) : 1;
+    private IReadOnlyList<SlaughterChargeSelectionDto>? SlhSelected() => _slhTerms is not { Itemized: true } ? null
+        : SlhCharges.Where(c => _slhPicked.ContainsKey(c.Id)).Select(c => new SlaughterChargeSelectionDto(c.Id, SlhPerHead(c) ? _heads : _slhPicked[c.Id])).ToList();
+    private async Task LoadSlhTermsAsync()
+    {
+        _slhTerms = null;
+        try { var r = await Api.GetSlaughterTermsAsync(BusinessDate); _slhTerms = r.IsSuccess ? r.Value : null; }
+        catch { _slhTerms = null; }
+        if (_slhPicked.Count == 0 && _slhTerms is { Itemized: true } && _choice?.Identity.Animal != AnimalType.Other)
+            foreach (var c in SlhCharges.Where(SlhPerHead)) _slhPicked[c.Id] = 1;
+        await InvokeAsync(StateHasChanged);
+    }
     private readonly Dictionary<Guid, Draft> _drafts = [];
     private IReadOnlyList<CollectionSessionSourceChoice> SectionChoices => Choices.Where(x => x.Identity.VehicleClassId is null).ToList();
     private IReadOnlyList<CollectionSessionSourceChoice> VehicleChoices => Choices.Where(x => x.Identity.VehicleClassId is not null && x.Identity.TerminalSection == _termSection).ToList();
@@ -415,6 +530,10 @@ else
 
     // A source with nothing collectible says so; the collector may then start a separate direct collection.
     private bool NothingDue => _source is not null && _discovery is not null && !_discovery.Operations.Any(x => x.CanAdd && Allows(x.OperationCode));
+    // A facility-only rental authority cannot become a direct collection when no canonical period is prepared.
+    private string? MonthlyFacilityCode => _source?.Identity.Kind == SourceIdentityKind.Occupancy
+        && _source.OperationCode is "FACILITY_TCC" or "FACILITY_NCC" or "FACILITY_BBQ" or "FACILITY_ICE"
+        ? _source.OperationCode["FACILITY_".Length..] : null;
 
     private IReadOnlyList<CollectionSessionCapability> Offered => (_discovery?.Operations ?? [])
         .Where(x => x.Supported && x.CanAdd && Allows(x.OperationCode)).ToList();
@@ -428,10 +547,26 @@ else
         _ => "Income from Market"
     };
 
-    // Display groups only: what is offered at all is the server's answer; the family is just where its row sits.
+    // What this collection already holds is not offered again: a charge whose every choice is already an item here is hidden (editing an item keeps its own
+    // choice visible). Only the walk-up services (Terminal sections, Slaughterhouse animals) repeat by nature; a vendor's fee and weighing are taken once per collection.
+    private static bool Repeatable(string code) => code is CollectorOperationCodes.Terminal or CollectorOperationCodes.Slaughterhouse;
+    private HashSet<(string Operation, string Choice)> UsedChoices => _drafts.Where(d => d.Key != _editingId).Select(d => (d.Value.OperationCode, d.Value.ChoiceKey)).ToHashSet();
+    private bool Used(string operation, string choiceKey) => !Repeatable(operation) && UsedChoices.Contains((operation, choiceKey));
+    // A utility is one source and period however its choice is keyed after the server re-reads it: the same stall and month already in this collection is taken.
+    private bool UsedSource(CollectionSessionSourceChoice c) => c.Kind is CollectionSessionItemKind.Electricity or CollectionSessionItemKind.Water && c.Identity.StallId is { } stall
+        && _items.Any(x => x.ClientItemId != _editingId && x.Kind == c.Kind
+            && (c.Kind == CollectionSessionItemKind.Electricity ? x.Electricity is { } e && (e.StallId ?? stall) == stall && e.Year == (c.Identity.Year ?? c.Identity.PeriodStart?.Year ?? BusinessDate.Year) && e.Month == (c.Identity.Month ?? c.Identity.PeriodStart?.Month ?? BusinessDate.Month)
+                : x.Water is { } w && w.StallId == stall && w.Year == (c.Identity.Year ?? c.Identity.PeriodStart?.Year ?? BusinessDate.Year) && w.Month == (c.Identity.Month ?? c.Identity.PeriodStart?.Month ?? BusinessDate.Month)));
+    private bool Taken(CollectionSessionCapability o, CollectionSessionSourceChoice c) => Used(o.OperationCode, c.SelectionKey) || !Repeatable(o.OperationCode) && UsedSource(c);
+    private IReadOnlyList<CollectionSessionCapability> Selectable => Offered
+        .Where(o => Repeatable(o.OperationCode) || o.Choices is not { Count: > 0 } || o.Choices.Any(c => !Taken(o, c))).ToList();
+
+    // Display groups only: what is offered at all is the server's answer; the family is just where its row sits. Utilities are their own group.
+    private static (int Order, string Name) SectionOf(CollectionSessionCapability x) =>
+        x.OperationCode is "ECF" or "WCF" ? (100, "Utilities") : ((int)(x.Family ?? CollectionFamily.Market), FamilyName(x.Family ?? CollectionFamily.Market));
     private IReadOnlyList<(string Name, IReadOnlyList<CollectionSessionCapability> Items)> PickerSections =>
-        Offered.GroupBy(x => x.Family ?? CollectionFamily.Market).OrderBy(g => (int)g.Key)
-            .Select(g => (FamilyName(g.Key), (IReadOnlyList<CollectionSessionCapability>)g.ToList())).ToList();
+        Selectable.GroupBy(SectionOf).OrderBy(g => g.Key.Order)
+            .Select(g => (g.Key.Name, (IReadOnlyList<CollectionSessionCapability>)g.ToList())).ToList();
 
     // The source header already says New Public Market and the stall, so the NPM items read as what they are. The names are by operation code; the amounts are the server's.
     private string OperationLabel(CollectionSessionCapability row) => row.OperationCode switch
@@ -449,7 +584,7 @@ else
         _ => null
     };
 
-    private IReadOnlyList<CollectionSessionSourceChoice> Choices => _operation?.Choices ?? [];
+    private IReadOnlyList<CollectionSessionSourceChoice> Choices => (_operation?.Choices ?? []).Where(c => _operation is null || !Taken(_operation, c)).ToList();
     private string ChoiceLabel => _operation?.OperationCode switch
     {
         CollectorOperationCodes.Terminal => "Section",
@@ -466,13 +601,36 @@ else
 
     private bool CanAddItem => _choice is { } c && (IsWeighing ? _quantity > 0 && _serverAmount is > 0m
         : c.Kind == CollectionSessionItemKind.Slaughter ? _heads > 0 && (_source is not null || !string.IsNullOrWhiteSpace(_snapshot) || !string.IsNullOrWhiteSpace(_owner))
+            && (_slhTerms is not { Itemized: true } || _slhPicked.Count > 0)
         : c.Kind == CollectionSessionItemKind.NpmWholePayment ? true
         : c.Kind == CollectionSessionItemKind.NpmPartPayment ? _amount > 0m && (c.MaximumAmount is not { } cap || _amount <= cap)
         : (c.AmountRule == CollectionSessionAmountRule.FixedAmount ? c.ServerAmount ?? 0m : _amount) > 0m)
-        && (!NeedsPayerName || !string.IsNullOrWhiteSpace(_snapshot));
+        && (!NeedsPayerName || !string.IsNullOrWhiteSpace(_snapshot))
+        && !(UtilityChoice is not null && _recent == RecentUtilityNotice.Check.Loading);   // never before the earlier-collections check has answered
+
+    private IDisposable? _leaveGuard;
+    private string? _leaveTarget;
+    private bool _leaveAllowed;
+
+    private ValueTask OnLocationChanging(LocationChangingContext context)
+    {
+        if (_leaveAllowed || _items.Count == 0 || _queued || _correctionResult is not null) return ValueTask.CompletedTask;
+        context.PreventNavigation();
+        _leaveTarget = context.TargetLocation;
+        _ = InvokeAsync(StateHasChanged);
+        return ValueTask.CompletedTask;
+    }
+    private void StayOnCollection() => _leaveTarget = null;
+    private void LeaveCollection()
+    {
+        var target = _leaveTarget; _leaveTarget = null; _leaveAllowed = true;
+        if (target is not null) Navigation.NavigateTo(target);
+    }
+    public void Dispose() => _leaveGuard?.Dispose();
 
     protected override async Task OnInitializedAsync()
     {
+        _leaveGuard = Navigation.RegisterLocationChangingHandler(OnLocationChanging);
         if (ResumeSessionId is { } id && (await Sync.GetAllAsync()).FirstOrDefault(x => x.ClientOperationId == id)?.CollectionSession?.Intent is { } saved)
         {
             _sessionId = id; BusinessDate = saved.BusinessDate; _items.AddRange(saved.Items);
@@ -575,6 +733,17 @@ else
         await RunSearchAsync(_search, announceFailure: false);
     }
 
+    // Fish / Meat registration request: offered when the vendor search finds no eligible registered vendor.
+    private bool CanRequestRegistration => Correction is null && OnlyOperation is CollectorOperationCodes.FishMeatVendorFee or CollectorOperationCodes.WeightAndMeasure;
+    private bool _requestOpen;
+    private string? _requestName;
+    private FishMeatRegistrationRequestDto? _requestSaved;
+    private void OpenRequest() { _requestName = _search.Trim(); _requestSaved = null; _requestOpen = true; _suggestOpen = false; }
+    private void CloseRequest() => _requestOpen = false;
+    private Task RequestSubmitted(FishMeatRegistrationRequestDto saved) { _requestSaved = saved; _requestOpen = false; return Task.CompletedTask; }
+    // The source list is read from the office again, so a vendor the Head has just registered appears for selection.
+    private async Task SearchAfterRequestAsync() { _requestSaved = null; _suggestOpen = true; await SearchAsync(); }
+
     private void OnSearchChanged()
     {
         _searchDelay?.Cancel();
@@ -617,6 +786,8 @@ else
 
     // A source chosen from the browser goes straight to what the server says it can be collected for: the Add item sheet opens on the eligible
     // charges instead of leaving the collector at an empty items list. Nothing is opened when the server offers nothing.
+    // The utilities a vendor's office-linked NPM stall offers this collector, by the stall's own identity. Choosing one opens the stall as its own source
+    // and its own checkout: the instrument, amount and eligibility are the stall's, exactly as if the stall had been picked directly.
     private async Task SelectBrowsedAsync(CollectionSourceSearchResult found)
     {
         await SelectSourceAsync(found);
@@ -625,6 +796,7 @@ else
 
     private async Task SelectSourceAsync(CollectionSourceSearchResult found)
     {
+        _linkedNpmContext = false;
         _source = found; _found = []; _suggestOpen = false; _searched = false; _quote = null; _direct = false;
         await LoadAsync();
     }
@@ -632,45 +804,69 @@ else
     // A direct collection has no Source Identity; the typed name is only the payer's name on the receipt.
     private async Task StartDirectAsync(string name)
     {
+        _linkedNpmContext = false;
         _source = null; _direct = true; _snapshot = name.Trim(); _found = []; _suggestOpen = false; _searched = false; _quote = null;
         await LoadAsync();
     }
 
     private async Task ClearSourceAsync()
     {
+        _linkedNpmContext = false;
         _source = null; _direct = false; _snapshot = ""; _quote = null; _search = ""; _found = []; _searched = false; _browsed = false; _suggestOpen = false;
         _discovery = null; _message = null;
         await Task.CompletedTask;
     }
 
     // ── Adding an item ──────────────────────────────────────────────────────────────────────────────
+    private async Task OpenOfferedAsync(string operationCode)
+    {
+        if (_busy || _items.Count > 0 || _source is null) return;
+        await OpenPickerAsync();
+        if (_picker && Offered.Any(x => x.OperationCode == operationCode)) { Choose(operationCode); _pickerFromList = false; }
+    }
+
     private async Task OpenPickerAsync()
     {
-        _message = null; _editingId = null; await LoadAsync(); _operation = null; _choice = null; _choiceKey = "";
+        _message = null; _editingId = null; await LoadAsync(); _operation = null; _choice = null; _choiceKey = ""; _pickerFromList = false;
         // A dedicated page with a single thing on offer goes straight to it; one with several (Fish / Meat: Vendor Fee and Weight & Measure) lists them.
-        if (OnlyOperation is not null && Offered is [{ } only]) Choose(only.OperationCode);
+        if (OnlyOperation is not null && Selectable is [{ } only] && !VendorHasLinkedStall) Choose(only.OperationCode);
         // Never open a sheet with nothing to choose: say why, in the page, where the collector is looking.
         if (_operation is null && !PickerSections.Any())
         {
-            _message ??= "Nothing available for this source.";
+            _message ??= Offered.Count > 0 ? "Everything available for this source is already in this collection." : "Nothing available for this source.";
             return;
         }
+        _pickerFromList = _operation is null;
         _picker = true;
     }
 
     private void Choose(string code)
     {
+        _pickerFromList = _operation is null && _picker;
         _operation = Offered.FirstOrDefault(x => x.OperationCode == code);
         _choice = null; _choiceKey = ""; _amount = _quantity = 0; _serverAmount = null; _heads = 1; _owner = ""; _termSection = null; _byVehicle = false;
+        _slhPicked.Clear(); _slhTerms = null;
         if (_operation?.Choices is { Count: 1 } only) ChooseChoice(only[0].SelectionKey);
     }
 
+    private string _npmReceipt = "";
     private void ChooseChoice(string key)
     {
-        _choiceKey = key;
+        _choiceKey = key; _confirmRepeat = false; _recent = RecentUtilityNotice.Check.Loading;
+        _npmReceipt = "";
         _choice = Choices.FirstOrDefault(x => x.SelectionKey == key);
-        _amount = _choice is { AmountRule: CollectionSessionAmountRule.PreparedBalance, ServerAmount: { } balance } ? balance : 0m;
+        if (Correction is null && _items.Count == 0 && _choice is { Kind: CollectionSessionItemKind.NpmWholePayment,
+                Identity.StallId: { } rentStall, Identity.OccupancyId: { } rentContract })
+        {
+            Navigation.NavigateTo($"/npm/whole-payment/{rentStall}?contractId={rentContract}");
+            return;
+        }
+        // A prepared balance pre-fills its balance; a choice with an approved rate (a vehicle type at the terminal) pre-fills that rate. Either way the
+        // collector can still edit what was actually received, and the server revalidates the amount.
+        _amount = _choice is { AmountRule: CollectionSessionAmountRule.PreparedBalance, ServerAmount: { } balance } ? balance
+            : _choice is { Rate: { } rate and > 0m } && TakesTypedAmount ? rate : 0m;
         _quantity = 0; _serverAmount = null;
+        if (_choice?.Kind == CollectionSessionItemKind.Slaughter) _ = LoadSlhTermsAsync();   // per-head charges start ticked once loaded
     }
 
     // The amount of a weighing is the server's: kilograms are quoted there, never multiplied here.
@@ -687,25 +883,64 @@ else
         catch { _serverAmount = null; }
     }
 
-    private void ClosePicker() { _picker = false; _editingId = null; }
+    private void ClosePicker() { _picker = false; _editingId = null; _confirmRepeat = false; }
 
     // Editing re-opens the same sheet with what was entered; the original row stays until the changed one is added, so closing loses nothing.
     private async Task EditAsync(CollectionSessionItemIntent item)
     {
         if (!_drafts.TryGetValue(item.ClientItemId, out var draft)) return;
-        _message = null; await LoadAsync();
+        _message = null; _editingId = item.ClientItemId;      // before the choice is looked up: the item's own choice must not count as already taken
+        await LoadAsync();
         Choose(draft.OperationCode);
         _termSection = draft.Section; _byVehicle = draft.ByVehicle;
         ChooseChoice(draft.ChoiceKey);
-        if (_choice is null) { _message = "This item is no longer available. Remove it and add it again."; return; }
+        if (_choice is null) { _editingId = null; _message = "This item is no longer available. Remove it and add it again."; return; }
         _amount = draft.Amount; _quantity = draft.Quantity; _heads = draft.Heads; _owner = draft.Owner;
+        _slhPicked.Clear(); foreach (var (id, qty) in draft.Charges ?? new Dictionary<Guid, int>()) _slhPicked[id] = qty;
         if (IsWeighing) await QuoteWeighingAsync();
         _editingId = item.ClientItemId; _picker = true;
     }
 
+    // What a Collector is told before taking a second utility payment for one source and period: the server shows what was already
+    // posted, and a repeat is a separate payment they confirm, never a silent second tap. A reversed collection does not count, and an
+    // answer that could not be had never blocks (the server still decides what posts).
+    private sealed record UtilityContext(string Code, Guid StallId, int Year, int Month);
+    private UtilityContext? UtilityChoice => _choice is { Identity.StallId: { } stall } c && c.Kind is CollectionSessionItemKind.Electricity or CollectionSessionItemKind.Water
+        ? new(c.Kind == CollectionSessionItemKind.Electricity ? "ECF" : "WCF", stall, c.Identity.Year ?? c.Identity.PeriodStart?.Year ?? BusinessDate.Year, c.Identity.Month ?? c.Identity.PeriodStart?.Month ?? BusinessDate.Month)
+        : null;
+    private RecentUtilityNotice.Check _recent = RecentUtilityNotice.Check.Loading;
+    private bool _confirmRepeat;
+    private void OnRecentResolved(RecentUtilityNotice.Check state) { _recent = state; StateHasChanged(); }
+    // Close steps back one view: from a charge's entry to the list it was chosen from, and from the list to the collection. Cancel on the repeat notice
+    // returns to the entry. Nothing entered in the collection itself is lost by any of them.
+    private void CancelPicker()
+    {
+        if (_confirmRepeat) { _confirmRepeat = false; return; }
+        if (_operation is not null && _pickerFromList && _editingId is null)
+        { _operation = null; _choice = null; _choiceKey = ""; _amount = _quantity = 0; _serverAmount = null; return; }
+        ClosePicker();
+    }
+    private bool _pickerFromList;
+
     private void AddItem()
     {
         if (!CanAddItem || _choice is not { } c) return;
+        if (UtilityChoice is { } repeat)
+        {
+            // The same source and period already in this unsent collection is one line: edit it, never add a twin.
+            // Only the SAME utility: Water on a stall and month never blocks Electricity on it (they are different charges).
+            var repeatKind = repeat.Code == "ECF" ? CollectionSessionItemKind.Electricity : CollectionSessionItemKind.Water;
+            var already = _items.FirstOrDefault(x => x.ClientItemId != _editingId && x.Kind == repeatKind && (repeatKind == CollectionSessionItemKind.Electricity
+                ? x.Electricity is { } e && e.StallId == repeat.StallId && e.Year == repeat.Year && e.Month == repeat.Month
+                : x.Water is { } w && w.StallId == repeat.StallId && w.Year == repeat.Year && w.Month == repeat.Month));
+            if (already is not null)
+            {
+                _message = $"{repeat.Code} for this source is already in this collection. Edit that item instead of adding another.";
+                _picker = false; _confirmRepeat = false; return;
+            }
+            if (_recent == RecentUtilityNotice.Check.Prior && !_confirmRepeat) { _confirmRepeat = true; return; }
+        }
+        _confirmRepeat = false;
         var id = Guid.NewGuid(); var identity = c.Identity;
         SessionWaterIntent? water = null; SessionElectricityIntent? electricity = null; SessionObligationIntent? obligation = null;
         SessionGovernedIntent? service = null; SessionSlaughterIntent? slaughter = null; SessionNpmWholeIntent? npmWhole = null; SessionNpmDailyIntent? npmDaily = null; SessionNpmPartIntent? npmPart = null;
@@ -718,12 +953,12 @@ else
             case CollectionSessionItemKind.Electricity: electricity = new(identity.UtilityBillId!.Value, identity.SourceVersion, identity.StallId, year, month); break;
             case CollectionSessionItemKind.Obligation: obligation = new(identity.AccountId!.Value, year, month); break;
             case CollectionSessionItemKind.NpmWholePayment: npmWhole = new(identity.StallId!.Value, year, month); break;
-            case CollectionSessionItemKind.NpmDaily: npmDaily = new(identity.StallId!.Value); break;
+            case CollectionSessionItemKind.NpmDaily: npmDaily = new(identity.StallId!.Value, string.IsNullOrWhiteSpace(_npmReceipt) ? null : _npmReceipt.Trim()); break;
             case CollectionSessionItemKind.NpmPartPayment: npmPart = new(identity.StallId!.Value, year, month); break;
             case CollectionSessionItemKind.MonthlyRent: rent = new(identity.StallId!.Value, year, month, identity.SourceVersion); break;
             case CollectionSessionItemKind.GovernedService: service = new(c.OperationCode, identity.Mode, identity.FeeOptionId, identity.VehicleClassCode); break;
             case CollectionSessionItemKind.Slaughter:
-                slaughter = new(identity.Animal!.Value, _heads, identity.CustomAnimalName, _source is null && string.IsNullOrWhiteSpace(_snapshot) ? _owner.Trim() : null); break;
+                slaughter = new(identity.Animal!.Value, _heads, identity.CustomAnimalName, _source is null && string.IsNullOrWhiteSpace(_snapshot) ? _owner.Trim() : null, SlhSelected()); break;
             case CollectionSessionItemKind.SourceNative:
                 native = new(c.OperationCode, identity.VendorRegistrationId, identity.TerminalSection, identity.VehicleClassId,
                     null, IsWeighing ? _quantity : null); break;
@@ -735,12 +970,19 @@ else
         var at = _editingId is { } editing ? _items.FindIndex(x => x.ClientItemId == editing) : -1;
         if (at >= 0) { _items[at] = added; _shown.Remove(_editingId!.Value); _drafts.Remove(_editingId.Value); }
         else _items.Add(added);
+        // A utility reads as the charge ("Electricity"), with who and which stall as its context; the payer's name is never the row's title.
         _shown[id] = IsTerminal ? new(TerminalDraftName(c), TerminalDraftContext(c))
-            : new(c.DisplayName, string.Join(" · ", new[] { SourceName, c.Context }.Where(x => !string.IsNullOrWhiteSpace(x))));
-        _drafts[id] = new(c.OperationCode, c.SelectionKey, _amount, _quantity, _heads, _owner, _termSection, _byVehicle);
+            : c.Kind is CollectionSessionItemKind.Electricity or CollectionSessionItemKind.Water
+                ? new(_operation?.DisplayName ?? c.DisplayName, CleanContext(SourceName, c.DisplayName, c.Context))
+            : new(c.DisplayName, CleanContext(SourceName, c.Context));
+        _drafts[id] = new(c.OperationCode, c.SelectionKey, _amount, _quantity, _heads, _owner, _termSection, _byVehicle, _slhPicked.Count > 0 ? new Dictionary<Guid, int>(_slhPicked) : null);
         if (Correction is not null) _sessionId = Guid.NewGuid();
         _quote = null; _picker = false; _editingId = null;
     }
+
+    // Context parts joined by a single separator: empty parts dropped, repeats (the vendor named twice) shown once.
+    private static string CleanContext(params string?[] parts) => string.Join(" · ", parts.SelectMany(p => (p ?? "").Split('·'))
+        .Select(p => p.Trim()).Where(p => p.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase));
 
     private void Remove(CollectionSessionItemIntent item) { if (Correction is not null) _sessionId = Guid.NewGuid(); _items.Remove(item); _shown.Remove(item.ClientItemId); _drafts.Remove(item.ClientItemId); _quote = null; }
 
@@ -800,6 +1042,7 @@ else
 
     private async Task StartAnotherAsync()
     {
+        _linkedNpmContext = false;
         _sessionId = Guid.NewGuid(); _items.Clear(); _shown.Clear(); _drafts.Clear(); _result = null; _quote = null; _queued = _needsReview = false;
         _source = null; _snapshot = ""; _search = ""; _found = []; _searched = _browsed = _suggestOpen = false; _discovery = null;
         _direct = OnlyOperation == CollectorOperationCodes.Terminal;

@@ -623,7 +623,7 @@
     // here. NPM opens the daily calendar; monthly facilities open the month grid — both in PayBillModal.
     private static bool CanPay(FollowUpItemDto r) =>
         r.StallId.HasValue
-        && r.ReasonKind is "contract" or "current" or "delinquent";
+        && r.ReasonKind is "contract" or "current" or "delinquent" or "arrears";
 
     private string PayStallNo => _payItem is null
         ? string.Empty
@@ -885,14 +885,13 @@
     private bool _allTime;
 
     /// <summary>
-    /// The reason filters. An INSTANCE property rather than a static array, because one label names the LGU's own daily
-    /// market - it read "NPM Daily" for every tenant, which is Cantilan's acronym on another municipality's queue.
+    /// Visible history shortcuts only. Missing-OR and NPM-daily records remain in the full snapshot,
+    /// including All, counts and search; removing their shortcuts does not suppress source records.
     /// </summary>
     private (string Key, string Label)[] ReasonFilters =>
     [
-        ("all", "All"), ("delinquent", "Delinquent"), ("missingor", "Missing OR"),
-        ("current", "Current-period"), ("contract", "Contract"),
-        ("npm", $"{FacilityCatalog.ShortNameOf(FacilityCode.NPM)} Daily"), ("excused", "Excused"),
+        ("all", "All"), ("delinquent", "Delinquent"), ("arrears", "Arrears"),
+        ("current", "Current-period"), ("contract", "Contract"), ("excused", "Excused"),
         ("misc", "Miscellaneous"),
         // The register of closed and expired accounts, whole time. It answers a question no period can — "which
         // accounts are inactive, and what did they leave behind" — so it deliberately ignores the year and month

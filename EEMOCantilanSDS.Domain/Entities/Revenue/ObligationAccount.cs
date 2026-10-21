@@ -41,10 +41,56 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
     public int? ContractYears { get; private set; }
     public decimal? AreaSqm { get; private set; }
     public string? AreaLocation { get; private set; }
+    /// <summary>
+    /// The monthly rental the signed contract itself states (the office register's "Monthly Rentals per Contract"). It is descriptive
+    /// evidence only: what the account is assessed is its approved <see cref="ObligationRate"/>, which may differ, and this figure never
+    /// prices, assesses or settles anything. Null means the contract rate was not recorded.
+    /// </summary>
+    public decimal? ContractMonthlyRate { get; private set; }
     public DateTime CreatedAtUtc { get; private set; }
     public string CreatedBy { get; private set; } = string.Empty;
 
+    /// <summary>The physical space this occupancy is on (monthly space kinds only). Null until the unambiguous backfill or a lifecycle action links it.</summary>
+    public Guid? SpaceRegistrationId { get; private set; }
+
+    /// <summary>The previous occupancy of the same space this one follows. Set once, at creation, by an authorized lifecycle action; never inferred.</summary>
+    public Guid? PredecessorAccountId { get; private set; }
+
+    /// <summary>When the office retired this closed, fully settled occupancy. A retired account is not deleted and keeps all its history.</summary>
+    public DateTime? RetiredAtUtc { get; private set; }
+
     private ObligationAccount() { }
+
+    /// <summary>Gives a monthly space account its physical-space identity. Allowed once; the identity never changes.</summary>
+    public void LinkRegistration(Guid registrationId)
+    {
+        if (!IsMonthlySpaceKind(Kind)) throw new ArgumentException("Only a monthly space has a physical-space registration.");
+        if (registrationId == Guid.Empty) throw new ArgumentException("A registration is required.", nameof(registrationId));
+        if (SpaceRegistrationId is { } existing && existing != registrationId) throw new InvalidOperationException("This account is already on another space.");
+        SpaceRegistrationId = registrationId;
+    }
+
+    /// <summary>
+    /// Marks this new account as the next occupancy of the predecessor's space. The predecessor must be closed and on a registration, and this
+    /// occupancy must begin strictly after the predecessor's last day, so the two never share a day.
+    /// </summary>
+    public void FollowOccupancy(ObligationAccount predecessor)
+    {
+        if (predecessor.MunicipalityId != MunicipalityId || predecessor.Kind != Kind) throw new ArgumentException("A successor is the same tenant and source kind.");
+        if (predecessor.SpaceRegistrationId is not { } registration) throw new InvalidOperationException("The predecessor has no physical-space registration.");
+        if (predecessor.ActiveTo is not { } closed) throw new InvalidOperationException("The predecessor occupancy is still open.");
+        if (ActiveFrom <= closed) throw new ArgumentException("A successor occupancy begins after the predecessor's last day.");
+        if (PredecessorAccountId is not null) throw new InvalidOperationException("The predecessor link is set once.");
+        SpaceRegistrationId = registration;
+        PredecessorAccountId = predecessor.Id;
+    }
+
+    public void Retire(DateTime retiredAtUtc)
+    {
+        if (ActiveTo is null) throw new InvalidOperationException("Only a closed account can be retired.");
+        if (retiredAtUtc.Kind != DateTimeKind.Utc) throw new ArgumentException("The time must be UTC.", nameof(retiredAtUtc));
+        RetiredAtUtc ??= retiredAtUtc;
+    }
 
     public bool IsMonthly => Kind != ObligationKind.FiestaArawLotRental;
 
@@ -123,10 +169,15 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
     }
 
     /// <summary>Stores source-native descriptive evidence; never changes assessment or account lifecycle.</summary>
-    public void SetLeaseDetails(string? contractName, DateOnly? contractDate, int? years, decimal? area, string? location)
+    public void SetLeaseDetails(string? contractName, DateOnly? contractDate, int? years, decimal? area, string? location,
+        decimal? contractMonthlyRate = null)
     {
         if (!IsMonthlySpaceKind(Kind))
             throw new ArgumentException("Lease details apply only to monthly space accounts.");
+        if (contractMonthlyRate is < 0m or > 1000000m || contractMonthlyRate is { } stated && decimal.Round(stated, 2) != stated)
+            throw new ArgumentException("The contract monthly rental must be a nonnegative amount with up to two decimals.");
+        if (Arrangement != OccupancyArrangement.SignedContract && contractMonthlyRate is > 0m)
+            throw new ArgumentException("A contract monthly rental requires signed contract occupancy.");
         var name = string.IsNullOrWhiteSpace(contractName) ? null : contractName.Trim();
         var note = string.IsNullOrWhiteSpace(location) ? null : location.Trim();
         if (name?.Length > 200 || note?.Length > 250)
@@ -137,8 +188,6 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
             throw new ArgumentException("Signed contract evidence requires signed contract occupancy.");
         if (years is not null && years is < 1 or > 50)
             throw new ArgumentException("Contract duration must be between 1 and 50 years.");
-        if (Kind == ObligationKind.KanmanggaySpaceRental && Arrangement == OccupancyArrangement.SignedContract && years is not null && years != 3)
-            throw new ArgumentException("Kanmanggay's recorded signed contract duration must follow the MEEDO three-year standard.");
         if (contractDate is { } date && (date.Year != ActiveFrom.Year || date.Month != ActiveFrom.Month))
             throw new ArgumentException("Contract effective date and billing start must be within the same month.");
         ContractName = name;
@@ -146,13 +195,14 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
         ContractYears = years;
         AreaSqm = area is 0m ? null : area;
         AreaLocation = note;
+        ContractMonthlyRate = contractMonthlyRate is 0m ? null : contractMonthlyRate;
     }
 
     /// <summary>Corrects source-native holder evidence. A financial period fixes the occupant and lease term;
     /// moving occupancy to another person requires closure and a new accountable term instead.</summary>
     public void CorrectHolderEvidence(string actualOccupant, OccupancyArrangement arrangement, string? reference,
         string? contractName, DateOnly? contractDate, int? years, decimal? area, string? location,
-        bool hasAssessedPeriods)
+        bool hasAssessedPeriods, decimal? contractMonthlyRate = null)
     {
         if (!IsMonthlySpaceKind(Kind) || ActiveTo is not null)
             throw new ArgumentException("Only active monthly space accounts may correct holder details.");
@@ -164,7 +214,7 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
         if (hasAssessedPeriods && (arrangement != Arrangement || contractDate != ContractEffectiveDate || years != ContractYears))
             throw new ArgumentException("Recorded lease basis, start and term are locked after assessment. Correct descriptive notes only.");
         SetOccupancyBasis(arrangement, reference);
-        SetLeaseDetails(contractName, contractDate, years, area, location);
+        SetLeaseDetails(contractName, contractDate, years, area, location, contractMonthlyRate);
         ActualOccupant = holder;
     }
 

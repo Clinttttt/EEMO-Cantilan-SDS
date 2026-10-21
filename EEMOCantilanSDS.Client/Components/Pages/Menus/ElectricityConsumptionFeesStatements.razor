@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
 @using System.Globalization
+@using EEMOCantilanSDS.Application.Common
 @using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Common
@@ -9,44 +10,12 @@
 
 <PageTitle>StallTrack — Electricity Consumption Fees Statements</PageTitle>
 
-@* Statements of account for ECF, owned by the ECF workspace (no dependency on the NPM utility view). Read from the
+@* Official register for ECF, owned by the ECF workspace (no dependency on the NPM utility view). Read from the
    same server obligation read as the ECF workspace; nothing here is calculated, recorded or collected. The layout
    owns the <main> landmark. *@
-<div class="v3-page">
-    @* The hero is screen-only (no-print): the printed statements carry the government letterhead, never this band. *@
-    <div class="no-print">
-        <V3Hero Compact="true" Eyebrow="Operations · ECF" Title="ECF Statements" FiguresLabel="ECF statement totals">
-            <Meta><span>@PeriodLabel</span><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
-            <Figures>
-                <V3HeroFigure Label="Statements" Value="@(Ready ? _lines.Select(l => (l.StallId, l.Payor)).Distinct().Count().ToString() : "—")" />
-                <V3HeroFigure Label="Assessed" Value="@(Ready ? Money(_lines.Sum(l => l.Assessed)) : "—")" />
-                <V3HeroFigure Label="Paid" Value="@(Ready ? Money(_lines.Sum(l => l.Settled)) : "—")" />
-                <V3HeroFigure Label="Balance" Value="@(Ready ? Money(_lines.Sum(l => l.Outstanding)) : "—")" />
-            </Figures>
-            <Actions><a href="/operations/ecf">ECF workspace</a></Actions>
-        </V3Hero>
-    </div>
-
-    @if (!string.IsNullOrWhiteSpace(_error))
-    {
-        <div class="no-print" role="alert">
-            <p class="v3-notice v3-notice-error v3-notice-row"><span>@_error</span> <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadAsync">Try again</button></p>
-            <div class="v3-toolbar">@MonthPicker</div>
-        </div>
-    }
-    else if (_loading)
-    {
-        <div class="no-print">
-            <div class="v3-toolbar">@MonthPicker</div>
-            <p role="status">Loading statements…</p>
-        </div>
-    }
-    else
-    {
-        <UtilityStatements UtilityCode="ECF" UtilityName="Electricity Consumption Fee (ECF)" InstrumentName="Official Receipt"
-                           PeriodLabel="@PeriodLabel" Lines="@_lines" ShowSummary="false" Toolbar="MonthPicker" />
-    }
-</div>
+<UtilityStatements UtilityCode="ECF" UtilityName="Electricity Consumption Fees" PeriodLabel="@PeriodLabel" Lines="@_lines"
+                   BackHref="/operations/ecf" BackName="Electricity Consumption Fees" MonthValue="@_monthInput" OnMonthChanged="ChangeMonthAsync"
+                   Loading="_loading" Error="@_error" SetupRequired="_setupRequired" OnRetry="LoadAsync" />
 
 @code {
     private DateOnly _period = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
@@ -54,18 +23,9 @@
     private List<UtilityStatements.StatementLine> _lines = [];
     private bool _loading = true;
     private string? _error;
+    private bool _setupRequired;
 
     private string PeriodLabel => _period.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
-    private bool Ready => !_loading && _error is null;
-    private static string Money(decimal amount) => $"₱{amount.ToString("N2", CultureInfo.InvariantCulture)}";
-
-    private RenderFragment MonthPicker => __builder =>
-    {
-        <label class="v3-period">
-            <span>Billing month</span>
-            <input class="v3-input" type="month" aria-label="Billing month" value="@_monthInput" @onchange="ChangeMonthAsync" />
-        </label>
-    };
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -83,13 +43,22 @@
     {
         _loading = true;
         _error = null;
+        _setupRequired = false;
         try
         {
             var result = await Api.GetObligationsAsync(_period.Year, _period.Month);
-            if (!result.IsSuccess) { _lines = []; _error = "The statements couldn't be loaded."; return; }
+            if (!result.IsSuccess)
+            {
+                _lines = [];
+                // The server refuses with a Conflict only when the office has not finished this utility's setup (its revenue
+                // classification or approved instrument); say that, in the server's words, instead of a generic load failure.
+                _setupRequired = result.Status == ResultStatus.Conflict && !string.IsNullOrWhiteSpace(result.Error);
+                _error = _setupRequired ? result.Error : "The statements couldn't be loaded.";
+                return;
+            }
             _lines = (result.Value ?? []).Select(q => new UtilityStatements.StatementLine(
                 q.StallId, q.StallNo, q.Section, q.PayerNameSnapshot ?? "Payer snapshot unavailable",
-                q.BillingYear, q.BillingMonth, q.AssessedAmount, q.CumulativeSettledEvidence, q.OutstandingAmount)).ToList();
+                q.BillingYear, q.BillingMonth, q.AssessedAmount, q.CumulativeSettledEvidence, q.OutstandingAmount, q.FacilityName)).ToList();
         }
         catch { _lines = []; _error = "The statements couldn't be loaded."; }
         finally { _loading = false; }

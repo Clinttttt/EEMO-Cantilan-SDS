@@ -28,6 +28,9 @@ public interface IClosedStallAccountQueries
     /// </summary>
     Task<IReadOnlyList<ClosedStallAccountDto>> GetClosedStallAccountsAsync(CancellationToken ct);
 
+    /// <summary>Historical whole-account register as of a given business day. An occupancy that ends later is not an ended account yet.</summary>
+    Task<IReadOnlyList<ClosedStallAccountDto>> GetClosedStallAccountsAsOfAsync(DateOnly asOf, CancellationToken ct);
+
     /// <summary>
     /// The same register bounded to a period: each figure is what that ended occupancy owed and paid FOR
     /// [<paramref name="from"/>, <paramref name="to"/>], and an occupancy that did not exist in the period is omitted.

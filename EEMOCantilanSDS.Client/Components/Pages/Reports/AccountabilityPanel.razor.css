@@ -17,26 +17,197 @@
 
 .ap-head h2 {
     margin: 0;
+    color: var(--navy);
     font-size: 1rem;
+    font-weight: 700;
+}
+
+/* ── Trace first: a larger, plainly labelled search above every total ── */
+.ap-trace {
+    display: grid;
+    gap: 6px;
+    padding: 16px 20px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+}
+
+.ap-trace-label {
+    color: var(--navy);
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.ap-trace-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ap-trace-input {
+    box-sizing: border-box;
+    flex: 1 1 22rem;
+    max-width: 36rem;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0 14px;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.9375rem;
+}
+
+.ap-trace-input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
+.ap-trace-row .v3-btn {
+    min-height: 44px;
+    padding: 0 22px;
+}
+
+/* ── Trace result ── */
+.ap-card {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+}
+
+.ap-card-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-muted);
+}
+
+.ap-card-kicker {
+    margin: 0;
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+}
+
+.ap-card-head h3 {
+    margin: 2px 0 0;
+    color: var(--navy);
+    font-size: 1rem;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.ap-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
     font-weight: 600;
 }
 
-.ap-tools {
-    display: flex;
-    gap: 8px;
+.ap-pill-on {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
 }
 
-.ap-note {
+.ap-facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: 12px 24px;
     margin: 0;
-    color: var(--text-secondary);
-    font-size: 0.75rem;
-    line-height: 1.45;
+    padding: 16px 20px;
 }
 
-.ap-trace {
-    display: flex;
-    align-items: flex-end;
-    gap: 8px;
+.ap-facts dt {
+    color: var(--text-tertiary);
+    font-size: 0.75rem;
+}
+
+.ap-facts dd {
+    margin: 2px 0 0;
+    color: var(--text);
+    font-size: 0.875rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.ap-facts a {
+    margin-left: 8px;
+    font-weight: 600;
+}
+
+.ap-lines {
+    width: calc(100% - 40px);
+    margin: 0 20px 16px;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.ap-lines th,
+.ap-lines td {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+}
+
+.ap-lines thead th {
+    color: var(--text-tertiary);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.ap-lines .v3-num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.ap-lines tfoot th,
+.ap-lines tfoot td {
+    border-bottom: 0;
+    color: var(--navy);
+    font-weight: 700;
+}
+
+/* ── Position ── */
+.ap-cash-panel ::deep .ss {
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.ap-panel {
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
+}
+
+.ap-panel h3 {
+    margin: 0;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    color: var(--navy);
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.ap-panel .v3-num {
+    font-variant-numeric: tabular-nums;
 }
 
 .ap-print-head {
@@ -48,7 +219,7 @@
         display: block;
     }
 
-    .ap-tools,
+    .ap-head .v3-btn-group,
     .ap-trace {
         display: none;
     }

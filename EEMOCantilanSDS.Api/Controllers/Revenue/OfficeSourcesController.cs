@@ -9,6 +9,26 @@ namespace EEMOCantilanSDS.Api.Controllers;
 [ApiController, Authorize, Route("api/office-sources")]
 public sealed class OfficeSourcesController(ISender sender, OfficeCollectionWorkflow workflow) : ApiBaseController(sender)
 {
+    [HttpGet("npm-requests/stall-suggestion"), Authorize(Roles = "Collector")]
+    public async Task<ActionResult<NpmStallNumberSuggestionDto>> SuggestNpmStall([FromQuery] EEMOCantilanSDS.Domain.Enums.MarketSection section, CancellationToken ct) =>
+        HandleResponse(await workflow.SuggestNpmStallAsync(section, ct));
+
+    [HttpGet("npm-requests/pending/{vendorRegistrationId:guid}"), Authorize(Roles = "Collector")]
+    public async Task<ActionResult<NpmRegistrationRequestDto>> PendingNpmRequest(Guid vendorRegistrationId, CancellationToken ct) =>
+        HandleResponse(await workflow.PendingNpmRequestAsync(vendorRegistrationId, ct));
+
+    [HttpGet("npm-requests"), Authorize(Roles = "SuperAdmin,Admin,Collector")]
+    public async Task<ActionResult<NpmRegistrationRequestPage>> NpmRequests(int page = 1, int pageSize = 25, CancellationToken ct = default) => HandleResponse(await workflow.NpmRequestsAsync(page, pageSize, ct));
+    [HttpPost("npm-requests"), Authorize(Roles = "Collector")]
+    public async Task<ActionResult<NpmRegistrationRequestDto>> SubmitNpmRequest(SubmitNpmRegistrationRequest request, CancellationToken ct) => HandleResponse(await workflow.SubmitNpmRequestAsync(request, ct));
+    [HttpPost("npm-requests/{id:guid}/cancel"), Authorize(Roles = "Collector")]
+    public async Task<ActionResult<NpmRegistrationRequestDto>> CancelNpmRequest(Guid id, CancelNpmRegistrationRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.CancelNpmRequestAsync(id, request, ct));
+    [HttpPost("npm-requests/{id:guid}/review"), Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<NpmRegistrationRequestDto>> ReviewNpmRequest(Guid id, ReviewNpmRegistrationRequest request, CancellationToken ct) => HandleResponse(await workflow.ReviewNpmRequestAsync(id, request, ct));
+    [HttpPost("fish-meat/npm-occupancies"), Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<NpmVendorOccupancyResult>> CreateNpmOccupancy(CreateNpmVendorOccupancyRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.CreateNpmVendorOccupancyAsync(request, sender, ct));
     [HttpGet("fish-meat/npm-candidates"), Authorize(Roles = "SuperAdmin,Admin")]
     public async Task<ActionResult<NpmVendorCandidates>> NpmCandidates(int taxYear, bool historical, bool exceptions, CancellationToken ct) =>
         HandleResponse(await workflow.NpmVendorCandidatesAsync(taxYear, historical, exceptions, ct));
@@ -32,6 +52,9 @@ public sealed class OfficeSourcesController(ISender sender, OfficeCollectionWork
     [HttpGet("fish-meat/manage"), Authorize(Roles = "SuperAdmin,Admin")]
     public async Task<ActionResult<VendorRegistryManagement>> Manage(int taxYear, int month, EEMOCantilanSDS.Domain.Entities.Revenue.VendorRegistrationStatus? status,
         int? year, CancellationToken ct) => HandleResponse(await workflow.ManageRegistrationsAsync(taxYear, month, status, year, ct));
+    [HttpPut("fish-meat/registrations/{id:guid}/office-details"), Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<VendorRegistrationMutationResult>> CorrectOfficeDetails(Guid id, CorrectVendorOfficeDetailsRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.CorrectOfficeDetailsAsync(id, request, ct));
     [HttpPost("fish-meat/registrations/{id:guid}/close"), Authorize(Roles = "SuperAdmin")]
     public async Task<ActionResult<VendorRegistrationMutationResult>> Close(Guid id, CloseVendorRegistrationRequest request, CancellationToken ct) => HandleResponse(await workflow.CloseRegistrationAsync(id, request, ct));
     [HttpPost("fish-meat/registrations/{id:guid}/renew"), Authorize(Roles = "SuperAdmin")]

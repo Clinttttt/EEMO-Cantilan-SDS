@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
+using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
@@ -106,7 +107,10 @@ public partial class StallRepository
             //
             // TODAY IS EXCLUDED. The daily round answers for today and every screen before this one already states it; a day in
             // hand is not an arrear, and listing it asked the collector to chase what he was standing there to collect.
-            var daysThisMonth = UncollectedDays(stall, monthStart, effectiveEnd, closures)
+            var authoritativeDays = _npmRentMonths is not null && await _npmRentMonths.IsMonthActivatedAsync(stall.Id, monthStart, ct)
+                ? await NpmMonthSettlement.GetPayableDaysAsync(stall, year, month, ct)
+                : UncollectedDays(stall, monthStart, effectiveEnd, closures);
+            var daysThisMonth = authoritativeDays
                 .Where(d => d < collectionDate)
                 .ToList();
 
@@ -124,8 +128,12 @@ public partial class StallRepository
             }
 
             // The rest of any day a part payment has started: still owed, and counted so the balance reads true.
+            var activatedPeriods = _npmRentMonths is null ? new HashSet<DateOnly>() : (await _context.NpmRentMonths.AsNoTracking()
+                .Where(x => x.StallId == stall.Id && x.Status == NpmRentMonthPreparationStatus.FinanciallyActivated)
+                .Select(x => x.PeriodStart).ToListAsync(ct)).ToHashSet();
             var partPaidBalance = sitting is null ? 0m : stall.DailyCollections
                 .Where(d => d.IsPartlyPaid && d.CollectionDate >= lookbackStart && d.CollectionDate <= effectiveEnd
+                    && !activatedPeriods.Contains(new(d.CollectionDate.Year, d.CollectionDate.Month, 1))
                     && StallOccupancy.AnsweringForMonth(occupancies, d.CollectionDate.Year, d.CollectionDate.Month)?.Contract.Id == sitting.Contract.Id)
                 .Sum(d => d.RemainingBaseFee);
 

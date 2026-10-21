@@ -184,8 +184,9 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
                 join line in db.CollectionLines.AsNoTracking() on new { allocation.MunicipalityId, Id = allocation.CollectionLineId } equals new { line.MunicipalityId, line.Id }
                 join collection in db.Collections.AsNoTracking() on new { line.MunicipalityId, Id = line.CollectionId } equals new { collection.MunicipalityId, collection.Id }
                 where allocation.MunicipalityId == tenantId && collection.BusinessDate >= first && collection.BusinessDate <= last
-                    && (allocation.SourceKind == CollectionSourceKind.PaymentRecord || allocation.SourceKind == CollectionSourceKind.DailyCollection)
-                select new { allocation.Id, allocation.SourceId, collection.BusinessDate, allocation.Amount, line.RevenueClassificationId }).ToListAsync(ct);
+                    && (allocation.SourceKind == CollectionSourceKind.PaymentRecord || allocation.SourceKind == CollectionSourceKind.DailyCollection
+                        || allocation.SourceKind == CollectionSourceKind.NpmRentMonth)
+                select new { allocation.Id, allocation.SourceId, allocation.SourceKind, collection.BusinessDate, allocation.Amount, line.RevenueClassificationId }).ToListAsync(ct);
             var rentAllocations = allocations.Where(x => rentIds.Contains(x.RevenueClassificationId)).ToList();
             var recordIds = rentAllocations.Select(x => x.SourceId).Distinct().ToList();
             var facilityOf = await (
@@ -203,16 +204,24 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
                 select new { daily.Id, facility.Code }).ToListAsync(ct))
                 facilityOf[day.Id] = day.Code;
             var allocationIds = rentAllocations.Select(x => x.Id).ToList();
+            var monthIds = rentAllocations.Where(x => x.SourceKind == CollectionSourceKind.NpmRentMonth).Select(x => x.SourceId).ToArray();
+            var monthFacility = await (from source in db.NpmRentMonths.AsNoTracking()
+                join facility in db.Facilities.AsNoTracking() on new { source.MunicipalityId, Id = source.FacilityId }
+                    equals new { facility.MunicipalityId, facility.Id }
+                where source.MunicipalityId == tenantId && monthIds.Contains(source.Id)
+                select new { source.Id, facility.Code }).ToDictionaryAsync(x => x.Id, x => x.Code, ct);
             var allocationCorrections = allocationIds.Count == 0 ? [] : await db.CollectionCorrectionAllocations.AsNoTracking()
                 .Where(x => x.MunicipalityId == tenantId && allocationIds.Contains(x.OriginalAllocationId))
                 .Select(x => new { x.OriginalAllocationId, x.FinancialEffectAmount }).ToListAsync(ct);
             var byId = rentAllocations.ToDictionary(x => x.Id);
             foreach (var a in rentAllocations)
-                facts.Add(new(a.BusinessDate.Month, RevenueClassificationCodes.PermanentStallRent, facilityOf.GetValueOrDefault(a.SourceId), a.Amount, true));
+                facts.Add(new(a.BusinessDate.Month, RevenueClassificationCodes.PermanentStallRent,
+                    (a.SourceKind == CollectionSourceKind.NpmRentMonth ? monthFacility : facilityOf).GetValueOrDefault(a.SourceId), a.Amount, true));
             foreach (var c in allocationCorrections)
             {
                 var a = byId[c.OriginalAllocationId];
-                facts.Add(new(a.BusinessDate.Month, RevenueClassificationCodes.PermanentStallRent, facilityOf.GetValueOrDefault(a.SourceId), c.FinancialEffectAmount, true));
+                facts.Add(new(a.BusinessDate.Month, RevenueClassificationCodes.PermanentStallRent,
+                    (a.SourceKind == CollectionSourceKind.NpmRentMonth ? monthFacility : facilityOf).GetValueOrDefault(a.SourceId), c.FinancialEffectAmount, true));
             }
         }
         return facts;

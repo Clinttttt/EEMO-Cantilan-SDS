@@ -1,0 +1,8 @@
+.vendor-form-section { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 0; margin: 0; border: 0; min-width: 0; }
+.vendor-form-section + .vendor-form-section { margin-top: 20px; }
+.vendor-form-section legend { padding: 0; margin-bottom: 10px; color: var(--navy); font-size: 12px; font-weight: 700; letter-spacing: .04em; }
+.vendor-form-section .avm-group { min-width: 0; margin: 0; }
+.vendor-form-section input, .vendor-form-section select { width: 100%; box-sizing: border-box; min-width: 0; }
+.vendor-form-note { grid-column: 1 / -1; margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.4; }
+.vendor-field-wide { grid-column: 1 / -1; }
+@media (max-width: 560px) { .vendor-form-section { grid-template-columns: minmax(0, 1fr); } }

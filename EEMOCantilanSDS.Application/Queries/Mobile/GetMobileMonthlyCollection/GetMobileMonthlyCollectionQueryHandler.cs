@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 
 namespace EEMOCantilanSDS.Application.Queries.Mobile.GetMobileMonthlyCollection;
@@ -10,11 +11,16 @@ namespace EEMOCantilanSDS.Application.Queries.Mobile.GetMobileMonthlyCollection;
 public sealed class GetMobileMonthlyCollectionQueryHandler(
     ICollectorRepository collectorRepository,
     IStallMobileQueries mobileQueries,
-    ICurrentUserService currentUser, IClock clock) : IRequestHandler<GetMobileMonthlyCollectionQuery, Result<MobileMonthlyCollectionDto>>
+    ICurrentUserService currentUser, IClock clock,
+    IFacilityRepository? facilities = null) : IRequestHandler<GetMobileMonthlyCollectionQuery, Result<MobileMonthlyCollectionDto>>
 {
     public async Task<Result<MobileMonthlyCollectionDto>> Handle(GetMobileMonthlyCollectionQuery request, CancellationToken ct)
     {
-        if (!MonthlyRentalFacilities.Codes.Contains(request.Facility))
+        // A Public Market is monthly only where its LGU declared standard monthly rental; its stored archetype says so, nothing else does.
+        var monthly = MonthlyRentalFacilities.Codes.Contains(request.Facility)
+            || (request.Facility == FacilityCode.NPM && facilities is not null
+                && await facilities.GetByCodeAsync(request.Facility, ct) is { IsMonthlyRentMarket: true });
+        if (!monthly)
             return Result<MobileMonthlyCollectionDto>.Forbidden();
 
         if (currentUser.CollectorId is not { } collectorId)

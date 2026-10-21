@@ -17,6 +17,13 @@ public class GetFacilityReportsQueryHandler(
 {
     public async Task<Result<FacilityReportsDto>> Handle(GetFacilityReportsQuery request, CancellationToken ct)
     {
+        try { return await ReadReport(request, ct); }
+        catch (EEMOCantilanSDS.Application.Common.Payments.NpmMonthReportScopeException ex)
+        { return Result<FacilityReportsDto>.Failure(ex.Message, ResultStatus.Invalid); }
+    }
+
+    private async Task<Result<FacilityReportsDto>> ReadReport(GetFacilityReportsQuery request, CancellationToken ct)
+    {
         // Verify facility exists
         var facility = await facilityRepository.GetByCodeAsync(request.FacilityCode, ct);
         if (facility == null)

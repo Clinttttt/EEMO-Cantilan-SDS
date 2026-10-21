@@ -13,10 +13,6 @@
     list-style: none;
     margin: 0;
     padding: 0;
-    background: var(--mobile-surface);
-    border: 1px solid var(--mobile-border);
-    border-radius: 10px;
-    overflow: hidden;
 }
 
 .ors-row {
@@ -48,6 +44,19 @@
     color: var(--mobile-text-secondary);
 }
 
+.ors-what {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+}
+
+.ors-line {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding-top: 4px;
+    font-variant-numeric: tabular-nums;
+}
+
 .ors-amt {
     text-align: right;
     font-size: 15px;
@@ -67,4 +76,35 @@
     font-size: 12px;
     color: var(--mobile-text-secondary);
     margin: 0 0 12px;
+}
+
+/* Correcting today's collection reuses the recent-collections list; here it is a bounded list, not a page-filling register. */
+.ors-correct {
+    min-height: 40px;
+    margin: 0 0 8px;
+    padding: 0 14px;
+    border: 1px solid var(--mobile-border);
+    border-radius: 10px;
+    background: var(--mobile-surface);
+    color: var(--mobile-blue);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.ors-correct:focus-visible {
+    outline: 2px solid var(--mobile-blue);
+    outline-offset: 2px;
+}
+
+.ors-today {
+    margin-bottom: 10px;
+}
+
+.ors-today ::deep .rc {
+    min-height: 0;
+}
+
+.ors-today ::deep .rc-list {
+    flex: 0 1 auto;
+    max-height: 22rem;
 }

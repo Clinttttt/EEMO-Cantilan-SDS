@@ -323,8 +323,10 @@ public sealed class FineAssessmentWorkflow(IAppDbContext db, ICurrentUserService
                     if (!read.IsSuccess || read.Value is null) return Result<IReadOnlyList<FinePeriodOption>>.Failure("Eligible day evidence is unavailable.",ResultStatus.Conflict);
                     days.AddRange(read.Value.Select(x=>x.Date));
                 }
-            result.AddRange(days.Where(x=>x<=clock.PhilippineToday && x>=own.Start && x<=own.BillableEnd).Distinct().Order()
-                .Select(x=>new FinePeriodOption(new(FineAffectedPeriodKind.NpmDay,x,x),$"Daily charge · {x:MMM d, yyyy}")));
+            // Cantilan NPM is billed by the day and stays that way: a fine is related to a calendar month that has verified daily-charge evidence, never to one
+            // day and never to a monthly obligation. The month window is evidence only (the label says so); no amount, balance or daily charge is changed or linked.
+            result.AddRange(days.Where(x=>x<=clock.PhilippineToday && x>=own.Start && x<=own.BillableEnd).Select(x=>new DateOnly(x.Year,x.Month,1)).Distinct().Order()
+                .Select(start=>new FinePeriodOption(new(FineAffectedPeriodKind.FacilityMonth,start,start.AddMonths(1).AddDays(-1)),$"{start:MMMM yyyy} · daily charges")));
         }
         else
         {

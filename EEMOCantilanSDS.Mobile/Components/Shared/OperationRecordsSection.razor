@@ -14,22 +14,40 @@ else if (_records.Count > 0)
 {
     <section class="ors" aria-labelledby="ors-title">
         <h2 id="ors-title" class="ors-title">Operation collections</h2>
-        <ul class="ors-list">
-            @foreach (var record in _records)
+        @* A mistake in today's own collection is corrected where the server decides who may: the recent-collections sheet (replacement under a new SRC or an
+           audited reversal, never an in-place edit). It is offered only while the range includes today, and a closed window shows the server's reason. *@
+        @if (IncludesToday)
+        {
+            <button type="button" class="ors-correct" aria-expanded="@(_correcting ? "true" : "false")" @onclick="() => _correcting = !_correcting">
+                @(_correcting ? "Hide today's collections" : "Correct a collection recorded today")
+            </button>
+            @if (_correcting)
             {
-                <li class="ors-row">
-                    <div class="ors-main">
-                        <div class="ors-name">@record.ReferenceCode</div>
-                        <div class="ors-sub">@record.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)@(string.IsNullOrWhiteSpace(record.PayorName) ? "" : " · " + record.PayorName)</div>
-                        @foreach (var line in record.Lines)
-                        {
-                            <div class="ors-line">@line.ClassificationName · @Peso(line.Amount)</div>
-                        }
-                    </div>
-                    <div class="ors-amt">
-                        <div>@Peso(record.Total)</div>
-                        @if (record.Status != "Posted") { <div class="ors-status">@record.Status</div> }
-                    </div>
+                <div class="ors-today"><RecentCollections Heading="Today's collections" OnChanged="LoadAsync" /></div>
+            }
+        }
+        <ul class="ors-list">
+            @foreach (var record in VisibleRecords)
+            {
+                <li>
+                    @* One clean row per SRC: what it was (the operation once, with the animal and the number of charges), and the itemized
+                       charges only when the row is opened - never one repeated line per charge. *@
+                    <CollectionRecordRow Identity="@(string.IsNullOrWhiteSpace(record.DocumentNumber) ? "None recorded" : Kind(record.Instrument) + " " + record.DocumentNumber)" Amount="record.Total"
+                        DateText="@(record.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture) + (string.IsNullOrWhiteSpace(record.PayorName) ? "" : " · " + record.PayorName))"
+                        Status="@(record.Status == "Posted" ? null : record.Status)"
+                        OnOpen="@OpenFor(record)">
+                        <Details>
+                            <div class="ors-what">@Summary(record)</div>
+                            @if (_open.Contains(record.CollectionId))
+                            {
+                                <div class="ors-line"><span>StallTrack reference</span><span>@record.ReferenceCode</span></div>
+                                @foreach (var line in record.Lines)
+                                {
+                                    <div class="ors-line"><span>@(line.ItemLabel ?? line.ClassificationName)</span><span>@Peso(line.Amount)</span></div>
+                                }
+                            }
+                        </Details>
+                    </CollectionRecordRow>
                 </li>
             }
         </ul>
@@ -39,17 +57,42 @@ else if (_records.Count > 0)
 @code {
     [Parameter, EditorRequired] public DateOnly From { get; set; }
     [Parameter, EditorRequired] public DateOnly To { get; set; }
+    [Parameter] public string? Search { get; set; }
+    private IEnumerable<OperationRecord> VisibleRecords => string.IsNullOrWhiteSpace(Search) ? _records : _records.Where(x =>
+        (x.ReferenceCode + " " + x.PayorName + " " + string.Join(" ", x.Lines.Select(l => l.ClassificationName + " " + l.SourceLabel)))
+        .Contains(Search.Trim(), StringComparison.OrdinalIgnoreCase));
 
     private IReadOnlyList<OperationRecord> _records = Array.Empty<OperationRecord>();
-    private bool _failed;
+    private readonly HashSet<Guid> _open = [];
+    private void Toggle(Guid id) { if (!_open.Remove(id)) _open.Add(id); }
+
+    // Only a record with something more to show (several charges, or the animal it was for) opens; a plain single-line record stays a static row.
+    private EventCallback OpenFor(OperationRecord record) =>
+        EventCallback.Factory.Create(this, () => Toggle(record.CollectionId));
+
+    // "Slaughterhouse · Carabao × 2 · 6 charges": the operation once, what it was for, and how many charges it itemizes.
+    private static string Summary(OperationRecord record)
+    {
+        var parts = record.Lines.Select(l => l.ClassificationName).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
+        if (!string.IsNullOrWhiteSpace(record.Subject)) parts.Add(record.Subject!);
+        if (record.Lines.Count > 1) parts.Add($"{record.Lines.Count} charges");
+        return string.Join(" · ", parts);
+    }
+    private bool _failed, _correcting;
     private DateOnly _loadedFrom;
     private DateOnly _loadedTo;
+    private bool IncludesToday => From <= EEMOCantilanSDS.Domain.Common.PhilippineTime.Today && To >= EEMOCantilanSDS.Domain.Common.PhilippineTime.Today;
 
     protected override async Task OnParametersSetAsync()
     {
         if (_loadedFrom == From && _loadedTo == To) return;
         _loadedFrom = From;
         _loadedTo = To;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
         _failed = false;
         try
         {

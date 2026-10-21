@@ -6,6 +6,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
+using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,6 +19,14 @@ namespace EEMOCantilanSDS.Application.Command.Rates.SetFacilityRate
     {
         public async Task<Result<bool>> Handle(SetFacilityRateCommand request, CancellationToken ct)
         {
+            // A Public Market declared as standard monthly rental is let at each stall's own contract rent and has no daily or
+            // fixed monthly stall rate: filing one would show the office a figure no collection or report ever reads.
+            if (request.FacilityCode == FacilityCode.NPM
+                && request.Key is FeeRateKey.NpmDailyStall or FeeRateKey.NpmMonthlyStall or FeeRateKey.NpmDailyStallVegetable
+                    or FeeRateKey.NpmDailyStallFish or FeeRateKey.NpmDailyStallMeat
+                && await context.Facilities.AnyAsync(f => f.Code == FacilityCode.NPM && f.Archetype == BillingArchetype.MonthlyRental, ct))
+                return Result<bool>.Failure("This market is rented by the month; its rent is set for each stall, not as a daily or market-wide rate.", ResultStatus.Invalid);
+
             // Effective today forward — never retroactive, so elapsed periods stay exactly as billed.
             var effective = clock.PhilippineToday;
 

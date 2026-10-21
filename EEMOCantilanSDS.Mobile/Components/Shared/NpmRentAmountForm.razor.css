@@ -1,0 +1,88 @@
+/* Shared NPM Daily / Outstanding / Whole amount entry.
+   Explicit colors are essential in the Windows WebView: inherited text may be light
+   from the surrounding facility header despite the white sheet surface. */
+.rent-amount-form {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+    color: var(--mobile-navy, #0d2137);
+    font-size: 14px;
+}
+.rent-payor { display: grid; gap: 3px; padding-bottom: 4px; }
+.rent-payor strong { color: var(--mobile-navy, #0d2137); font-size: 16px; }
+.rent-payor span { color: var(--mobile-text-secondary, #526579); font-size: 12px; }
+.rent-position { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; min-width: 0; }
+.rent-position > span { color: var(--mobile-text-secondary, #526579); line-height: 1.45; }
+.rent-position > strong {
+    color: var(--mobile-navy, #0d2137);
+    font-size: 15px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    text-align: right;
+}
+.rent-amount-form label {
+    display: block;
+    margin: 3px 0 -5px;
+    color: var(--mobile-navy, #0d2137);
+    font-size: 13px;
+    font-weight: 700;
+}
+.rent-amount-input {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: 52px;
+    padding: 11px 14px;
+    border: 1px solid var(--mobile-border, #dfe5ec);
+    border-radius: 12px;
+    background: #fff;
+    color: var(--mobile-navy, #0d2137);
+    -webkit-text-fill-color: var(--mobile-navy, #0d2137);
+    font: inherit;
+    font-size: 20px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.rent-amount-input:focus-visible {
+    outline: 2px solid var(--mobile-focus, #1f5fa8);
+    outline-offset: 2px;
+}
+.rent-amount-input:disabled {
+    background: #f5f7fa;
+    color: #526579;
+    -webkit-text-fill-color: #526579;
+    opacity: 1;
+}
+.rent-amount-input::placeholder { color: #65788d; opacity: 1; }
+.rent-payment-method {
+    padding: 10px 12px;
+    border: 1px solid var(--mobile-border, #dfe5ec);
+    border-radius: 10px;
+    background: var(--mobile-surface-subtle, #f8fafc);
+    color: var(--mobile-text-secondary, #526579);
+    line-height: 1.4;
+}
+.rent-confirm {
+    width: 100%;
+    min-height: 48px;
+    margin-top: 2px;
+    border: 0;
+    border-radius: 11px;
+    background: var(--mobile-blue, #1f5fa8);
+    color: #fff;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+}
+.rent-confirm:disabled { background: #dce4ee; color: #41556b; opacity: 1; }
+.rent-allocation {
+    padding: 11px 0;
+    border-block: 1px solid var(--mobile-border, #dfe5ec);
+}
+.rent-allocation summary { cursor: pointer; color: var(--mobile-blue-deep, #174a86); font-size: 13px; font-weight: 600; }
+.rent-allocation .rent-position { margin-top: 10px; }
+.rent-note, .form-error { margin: 0; font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
+.rent-note { color: var(--mobile-text-secondary, #526579); }
+.form-error { color: var(--mobile-danger, #a12b2b); }
+.rent-retry { min-height: 44px; border: 1px solid var(--mobile-border, #dfe5ec); border-radius: 10px; background: #fff; color: var(--mobile-navy, #0d2137); font-weight: 600; }

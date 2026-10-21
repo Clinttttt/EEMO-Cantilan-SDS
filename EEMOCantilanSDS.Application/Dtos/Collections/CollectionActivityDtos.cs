@@ -54,7 +54,9 @@ public sealed record CollectionActivityEventDto(
     string Disposition,
     Guid? ReplacesCollectionId,
     IReadOnlyList<CollectionActivityLineDto> Lines,
-    IReadOnlyList<CollectionActivityCorrectionDto> Corrections);
+    IReadOnlyList<CollectionActivityCorrectionDto> Corrections,
+    // Only for Collector direct collections: the verification state of the cash (null for every source this does not govern).
+    string? Verification = null);
 
 /// <summary>One classified line of an event: what the money was for, and the source it settled.</summary>
 public sealed record CollectionActivityLineDto(
@@ -66,7 +68,8 @@ public sealed record CollectionActivityLineDto(
     Guid? SourceId,
     int? PeriodYear,
     int? PeriodMonth,
-    string? Description);
+    string? Description,
+    string? ParentSourceName = null);
 
 /// <summary>A correction linked to a canonical event, with its own effective and recorded moments.</summary>
 public sealed record CollectionActivityCorrectionDto(

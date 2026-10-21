@@ -1,0 +1,368 @@
+@page "/monitoring/npm-requests"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@using EEMOCantilanSDS.Domain.Enums
+@inject IOfficeSourcesApiClient OfficeApi
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
+<PageTitle>StallTrack — NPM Registration Requests</PageTitle>
+<OperationTopbar Title="NPM Registration Requests" Crumb="NPM requests" ParentHref="/monitoring/review" ParentTitle="Collection &amp; Registration Review" />
+<div class="content-area pnr-page">
+    <V3Hero Eyebrow="MEEDO · MONITORING" Title="NPM Registration Requests"
+            Subtitle="Review stall registration requests from field collectors.">
+        <Icon>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3h6M8 10h8M8 14h8M8 18h5"/>
+            </svg>
+        </Icon>
+        <Figures>
+            <V3HeroFigure Label="Total requests" Value="@(_data?.Total.ToString() ?? "—")" />
+        </Figures>
+    </V3Hero>
+
+    <MonitoringTabs Current="review" />
+
+    <div class="pnr-toolbar">
+        <div class="pnr-toolbar-copy">
+            <strong>Registration review</strong>
+            <span>Registration only — no payment or SRC is recorded.</span>
+        </div>
+        <div class="pnr-toolbar-actions">
+            <a href="/npm" class="v3-btn v3-btn-sm">NPM register</a>
+            <button type="button" class="v3-btn v3-btn-sm" disabled="@_loading" @onclick="Load">Refresh</button>
+        </div>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="v3-notice v3-notice-error" role="alert">@_error
+            <button type="button" class="v3-btn v3-btn-sm" @onclick="Load">Try again</button>
+        </div>
+    }
+    <section class="pnr-register" aria-label="NPM registration requests">
+        <div class="pnr-register-head">
+            <strong>Requests</strong>
+            <span>@(_data?.Total is { } total ? $"{total} total" : "Loading")</span>
+        </div>
+        <div class="v3-table-wrap pnr-table-wrap" role="region" aria-label="Requests table" tabindex="0" aria-busy="@_loading">
+            <table class="v3-table pnr-table">
+                <thead><tr>
+                    <th scope="col">Vendor</th>
+                    <th scope="col">Proposed stall</th>
+                    <th scope="col">Collector</th>
+                    <th scope="col">Submitted</th>
+                    <th scope="col">Status</th>
+                    <th scope="col"><span class="v3-sr-only">Action</span></th>
+                </tr></thead>
+                <tbody>
+                @foreach (var row in _data?.Rows ?? [])
+                {
+                    <tr @key="row.Id">
+                        <td><strong>@row.VendorName</strong><span class="pnr-secondary">Tax year @row.TaxYear</span></td>
+                        <td><strong>@Stall(row)</strong><span class="pnr-secondary">@SectionName(row.ProposedSection)</span></td>
+                        <td>@row.CollectorName</td>
+                        <td>@When(row.SubmittedAtUtc)</td>
+                        <td><span class="pnr-status @StatusClass(row.Status)">@StatusName(row.Status)</span></td>
+                        <td><button type="button" class="v3-btn v3-btn-sm" @onclick="() => Open(row)">Review</button></td>
+                    </tr>
+                }
+                @if (!_loading && _error is null && _data is { Total: 0 })
+                {
+                    <tr><td colspan="6" class="pnr-empty">No registration requests recorded.</td></tr>
+                }
+                </tbody>
+            </table>
+        </div>
+        @if (_loading && _data is null) { <p class="pnr-empty" role="status">Loading registration requests…</p> }
+        @if (_data is { Total: > 25 })
+        {
+            <nav class="pnr-pagination" aria-label="Request pages">
+                <button class="v3-btn v3-btn-sm" type="button" disabled="@(_page == 1 || _loading)" @onclick="Previous">Previous</button>
+                <span>Page @_page</span>
+                <button class="v3-btn v3-btn-sm" type="button" disabled="@(_page * 25 >= _data.Total || _loading)" @onclick="Next">Next</button>
+            </nav>
+        }
+    </section>
+</div>
+
+<VendorDrawerShell Show="@(_selected is not null)" AnimateEntry="true" Title="Review NPM request"
+                   Subtitle="@(_selected?.VendorName ?? "Registration review")" OnClose="Close">
+    <Icon>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 10h6M9 14h6M9 18h4"/></svg>
+    </Icon>
+    <ChildContent>
+        @if (_selected is { } row)
+        {
+            <div class="pnr-drawer-content">
+                <div class="pnr-request-summary">
+                    <div class="pnr-request-main">
+                        <strong>@row.VendorName</strong>
+                        <span class="pnr-status @StatusClass(row.Status)">@StatusName(row.Status)</span>
+                    </div>
+                    <span class="pnr-request-meta">Tax year @row.TaxYear · @When(row.SubmittedAtUtc)</span>
+                    <div class="pnr-request-stall"><strong>Stall @Stall(row)</strong><span>@SectionName(row.ProposedSection)</span></div>
+                </div>
+
+                <section class="pnr-section" aria-label="Submitted details">
+                    <h3>Request details</h3>
+                    <dl class="pnr-facts">
+                        <dt>Collector</dt><dd>@row.CollectorName</dd>
+                        <dt>Office reference</dt><dd>@(string.IsNullOrWhiteSpace(row.Note) ? "Not provided" : row.Note)</dd>
+                    </dl>
+                </section>
+
+                <p class="pnr-financial">No cash received. This request does not issue an SRC.</p>
+                @if (row.ReviewReason is { } reviewed)
+                {
+                    <div class="pnr-reviewed"><strong>Review outcome</strong><span>@reviewed</span><small>@row.ReviewedBy</small></div>
+                }
+                @if (row.Status == NpmRegistrationRequestStatus.Submitted)
+                {
+                    <AuthorizeView Roles="SuperAdmin"><Authorized>
+                        <section class="pnr-section pnr-decision" aria-label="Office review">
+                            <h3>Office review</h3>
+                            @if (_warnings.Count > 0)
+                            {
+                                <div class="pnr-verification" role="status">
+                                    <strong>Check existing occupancies</strong>
+                                    <span>@_warnings.Count possible matching record(s) need verification before approval.</span>
+                                    <details><summary>View records to verify</summary>
+                                        @foreach (var warning in _warnings) { <p>@warning</p> }
+                                    </details>
+                                </div>
+                            }
+                            @if (_checkingAssociations)
+                            {
+                                <p class="pnr-link-loading" role="status">Checking verified NPM occupancies…</p>
+                            }
+                            else if (_detailError is null && _links.Count > 1)
+                            {
+                                <label class="pnr-field-label">Verified occupancy
+                                    <FhSelect Block="true" AriaLabel="Verified NPM association" Options="_links"
+                                              Value="@_association" ValueChanged="v => _association = v" />
+                                </label>
+                            }
+                            else if (_detailError is null && _existing is { } existing)
+                            {
+                                @* The stall already exists and its occupant is this vendor: link them (no second stall is created); the link answers this request. *@
+                                <div class="pnr-link-empty" role="status">
+                                    <strong>Stall @existing.StallNo is already registered to @existing.Occupant</strong>
+                                    <p>Link this vendor to that stall. No new stall is created, and this request is closed by the link. Enter the office verification reason below first.</p>
+                                    <div class="pnr-link-actions">
+                                        <button type="button" class="v3-btn v3-btn-primary v3-btn-sm" disabled="@(string.IsNullOrWhiteSpace(_reason) || _saving)" @onclick="() => LinkExistingAsync(row, existing)">Link to Stall @existing.StallNo</button>
+                                        <button type="button" class="v3-btn v3-btn-sm" @onclick="() => LoadAssociations(row)">Check again</button>
+                                    </div>
+                                </div>
+                            }
+                            else if (_detailError is null)
+                            {
+                                <div class="pnr-link-empty" role="status">
+                                    <strong>No verified NPM occupancy linked</strong>
+                                    <p>Check the stall and link this vendor in the NPM register before approval.</p>
+                                    <div class="pnr-link-actions">
+                                        <a href="@NpmVendorRegistrationUrl(row)" target="_blank" rel="noopener" class="v3-btn v3-btn-sm">Register NPM occupancy</a>
+                                        <button type="button" class="v3-btn v3-btn-sm" @onclick="() => LoadAssociations(row)">Check again</button>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <button type="button" class="v3-btn v3-btn-sm" @onclick="() => LoadAssociations(row)">Retry verification</button>
+                            }
+                            <label class="pnr-field-label" for="pnr-reason">Review reason / evidence</label>
+                            <textarea id="pnr-reason" class="avm-input pnr-reason" maxlength="1000" rows="3"
+                                      placeholder="Enter the office verification or correction reason"
+                                      @bind="_reason" @bind:event="oninput"></textarea>
+                            @if (_confirm is { } decision)
+                            {
+                                <p class="pnr-confirm" role="alert">Confirm <strong>@DecisionName(decision)</strong> for @row.VendorName? No collection or receipt will be recorded.</p>
+                            }
+                        </section>
+                    </Authorized></AuthorizeView>
+                }
+                @if (_detailError is not null) { <p class="v3-notice v3-notice-error" role="alert">@_detailError</p> }
+            </div>
+        }
+    </ChildContent>
+    <Footer>
+        <div class="pnr-actions">
+            <button class="btn-ghost" type="button" disabled="@_saving" @onclick="Close">Back</button>
+            @if (_selected?.Status == NpmRegistrationRequestStatus.Submitted)
+            {
+                <AuthorizeView Roles="SuperAdmin"><Authorized>
+                    @if (_confirm is not null)
+                    {
+                        <button class="btn-ghost" type="button" disabled="@_saving" @onclick="() => _confirm = null">Keep reviewing</button>
+                        <button class="btn-primary" type="button" disabled="@_saving" @onclick="Save">Confirm decision</button>
+                    }
+                    else
+                    {
+                        <button class="btn-ghost" type="button" disabled="@(string.IsNullOrWhiteSpace(_reason) || _saving)" @onclick="() => _confirm = NpmRegistrationRequestStatus.Returned">Return for correction</button>
+                        <button class="btn-ghost" type="button" disabled="@(string.IsNullOrWhiteSpace(_reason) || _saving)" @onclick="() => _confirm = NpmRegistrationRequestStatus.Rejected">Reject</button>
+                        <button class="btn-primary" type="button" disabled="@(string.IsNullOrWhiteSpace(_reason) || !Guid.TryParse(_association, out _) || _saving)" @onclick="() => _confirm = NpmRegistrationRequestStatus.Approved">Approve registration</button>
+                    }
+                </Authorized></AuthorizeView>
+            }
+        </div>
+    </Footer>
+</VendorDrawerShell>
+
+@code {
+    private NpmRegistrationRequestPage? _data;
+    private NpmRegistrationRequestDto? _selected;
+    private NpmRegistrationRequestStatus? _confirm;
+    private string? _error, _detailError;
+    private string _reason = "", _association = "";
+    private Guid _operation;
+    private bool _saving, _loading, _checkingAssociations;
+    private int _page = 1;
+    private NpmVendorCandidate? _existing;
+    private IReadOnlyList<(string Value, string Label)> _links = [];
+    private IReadOnlyList<string> _warnings = [];
+    private static string When(DateTime utc) => PhilippineTime.ToPhilippineTime(utc).ToString("MMM d, yyyy h:mm tt");
+    private static string Stall(NpmRegistrationRequestDto row) => string.IsNullOrWhiteSpace(row.ProposedStall) ? "Not specified" : row.ProposedStall;
+    private static string NpmVendorRegistrationUrl(NpmRegistrationRequestDto row) =>
+        $"/npm?registerVendor={row.VendorRegistrationId:D}&registrationYear={row.TaxYear}" +
+        $"&proposedStall={Uri.EscapeDataString((row.ProposedStall ?? string.Empty).Trim())}" +
+        (row.ProposedSection is { } section ? $"&proposedSection={section}" : string.Empty);
+    // Display the current LGU's market-area name; the enum remains the stable registration key.
+    private string SectionName(MarketSection? section) => section is { } area
+        ? FacilityCatalog.SectionLabelOf(FacilityCode.NPM, area)
+        : "Section to verify";
+    private static string StatusName(NpmRegistrationRequestStatus status) => status switch
+    {
+        NpmRegistrationRequestStatus.Submitted => "Pending review",
+        NpmRegistrationRequestStatus.Approved => "Approved",
+        NpmRegistrationRequestStatus.Returned => "For correction",
+        NpmRegistrationRequestStatus.Rejected => "Rejected",
+        NpmRegistrationRequestStatus.Cancelled => "Cancelled",
+        _ => "Unknown"
+    };
+    private static string StatusClass(NpmRegistrationRequestStatus status) => status switch
+    {
+        NpmRegistrationRequestStatus.Submitted => "pnr-status-pending",
+        NpmRegistrationRequestStatus.Approved => "pnr-status-approved",
+        NpmRegistrationRequestStatus.Returned => "pnr-status-returned",
+        NpmRegistrationRequestStatus.Rejected => "pnr-status-closed",
+        NpmRegistrationRequestStatus.Cancelled => "pnr-status-closed",
+        _ => ""
+    };
+    private static string DecisionName(NpmRegistrationRequestStatus status) => status switch
+    {
+        NpmRegistrationRequestStatus.Approved => "approval",
+        NpmRegistrationRequestStatus.Returned => "return for correction",
+        NpmRegistrationRequestStatus.Rejected => "rejection",
+        _ => "review"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await FacilityCatalog.EnsureLoadedAsync();
+        await Load();
+    }
+    private async Task Load()
+    {
+        _loading = true; _error = null;
+        try
+        {
+            var result = await OfficeApi.NpmRequestsAsync(_page);
+            if (result.IsSuccess && result.Value is { } page) _data = page;
+            else { _data = null; _error = result.Error ?? "Could not load registration requests."; }
+        }
+        catch { _data = null; _error = "Could not load registration requests."; }
+        finally { _loading = false; }
+    }
+    private async Task Open(NpmRegistrationRequestDto row)
+    {
+        _selected = row; _confirm = null; _reason = _association = ""; _detailError = null;
+        _operation = Guid.NewGuid(); _links = []; _warnings = [];
+        if (row.Status != NpmRegistrationRequestStatus.Submitted) return;
+        await LoadAssociations(row);
+    }
+    private async Task LoadAssociations(NpmRegistrationRequestDto row)
+    {
+        if (_selected?.Id != row.Id) return;
+        _checkingAssociations = true;
+        _detailError = null;
+        _association = "";
+        _links = [];
+        _warnings = [];
+        _existing = null;
+        try
+        {
+            var result = await OfficeApi.NpmVendorCandidatesAsync(row.TaxYear, true, true);
+            if (_selected?.Id != row.Id) return;
+            if (!result.IsSuccess || result.Value is null)
+            {
+                _detailError = "Could not verify NPM associations. Approval is unavailable.";
+                return;
+            }
+            // Stall numbers repeat across sections. Only flag a same-number occupancy in the
+            // *proposed section*, or a potential identity match in any section.
+            var proposedSection = SectionName(row.ProposedSection);
+            _warnings = result.Value.Rows.Where(x => x.Active
+                && ((row.ProposedSection is not null
+                        && string.Equals(x.Area, proposedSection, StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(x.StallNo.Trim(), row.ProposedStall.Trim(), StringComparison.OrdinalIgnoreCase))
+                    || x.PossibleMatches.Any(v => v.Id == row.VendorRegistrationId)))
+                .Select(x => $"{x.Area} · Stall {x.StallNo} · {x.Occupant}").ToArray();
+            // The proposed stall already exists in the proposed area, is occupied by a name matching this vendor, and is not yet linked to them: offer to link it
+            // rather than a second registration. The Head still confirms with a reason; nothing is linked by the name alone.
+            if (row.ProposedSection is not null)
+                _existing = result.Value.Rows.SingleOrDefault(x => x.Active
+                    && string.Equals(x.Area, proposedSection, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(x.StallNo.Trim(), row.ProposedStall.Trim(), StringComparison.OrdinalIgnoreCase)
+                    && x.PossibleMatches.Any(v => v.Id == row.VendorRegistrationId)
+                    && !x.Links.Any(l => l.VendorRegistrationId == row.VendorRegistrationId && l.CorrectedAtUtc is null));
+            _links = new[] { ("", "Select a verified NPM occupancy") }.Concat(result.Value.Rows.Where(x => x.Active)
+                .SelectMany(x => x.Links.Where(l => l.VendorRegistrationId == row.VendorRegistrationId && l.CorrectedAtUtc is null)
+                    .Select(l => (l.Id.ToString(), $"{x.Area} · Stall {x.StallNo} · {x.Occupant}")))).ToArray();
+        }
+        catch
+        {
+            if (_selected?.Id == row.Id)
+                _detailError = "Could not verify NPM associations. Approval is unavailable.";
+        }
+        finally
+        {
+            if (_selected?.Id == row.Id) _checkingAssociations = false;
+        }
+    }
+    private void Close() { if (!_saving) _selected = null; }
+    private async Task LinkExistingAsync(NpmRegistrationRequestDto row, NpmVendorCandidate existing)
+    {
+        if (_saving || string.IsNullOrWhiteSpace(_reason)) return;
+        _saving = true; _detailError = null;
+        try
+        {
+            var result = await OfficeApi.LinkNpmVendorAsync(row.VendorRegistrationId,
+                new(Guid.NewGuid(), existing.ContractId, existing.StallId, existing.SourceVersion, _reason.Trim()));
+            if (result.IsSuccess) { _selected = null; await Load(); }   // the link closes the request on the server
+            else _detailError = result.Error switch
+            {
+                "NpmOccupancyChanged" => "The stall changed while you were reviewing. Check again.",
+                "AssociationAlreadyExists" => "This vendor is already linked to that stall. Check again.",
+                _ => "The link could not be saved. Check again before retrying."
+            };
+        }
+        catch { _detailError = "The link could not be confirmed. Check again before retrying."; }
+        finally { _saving = false; }
+    }
+    private async Task Save()
+    {
+        if (_saving || _selected is null || _confirm is null) return;
+        _saving = true; _detailError = null;
+        try
+        {
+            Guid? association = _confirm == NpmRegistrationRequestStatus.Approved && Guid.TryParse(_association, out var id) ? id : null;
+            var result = await OfficeApi.ReviewNpmRequestAsync(_selected.Id, new(_operation, _selected.Version, _confirm.Value, _reason, association));
+            if (result.IsSuccess) { _selected = null; await Load(); }
+            else _detailError = result.Error ?? "Request changed. Refresh before reviewing.";
+        }
+        catch { _detailError = "Decision could not be confirmed. Retry the same decision before changing it."; }
+        finally { _saving = false; }
+    }
+    private async Task Previous() { _page--; await Load(); }
+    private async Task Next() { _page++; await Load(); }
+}

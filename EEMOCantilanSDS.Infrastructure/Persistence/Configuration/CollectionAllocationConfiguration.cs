@@ -26,6 +26,8 @@ public sealed class CollectionAllocationConfiguration : IEntityTypeConfiguration
         builder.Property(x => x.CollectionLineId).IsRequired();
         builder.Property(x => x.SourceKind).HasConversion<int>().IsRequired();
         builder.Property(x => x.SourceId).IsRequired();
+        // Financial source mapping is promoted only with its separately reviewed schema, never by an enum alone.
+        builder.Ignore(x => x.NpmRentMonthId);
         builder.HasOne<FineAssessment>().WithMany().HasForeignKey(x => new { x.MunicipalityId, x.FineAssessmentId })
             .HasPrincipalKey(x => new { x.MunicipalityId, x.Id }).OnDelete(DeleteBehavior.Restrict);
         builder.Property(x => x.SourcePart).HasConversion<int?>();

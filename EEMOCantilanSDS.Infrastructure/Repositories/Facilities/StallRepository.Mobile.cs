@@ -129,6 +129,31 @@ public partial class StallRepository
                 todayCollection?.MeatFeeRateEffectiveDate);
         }).ToList();
 
+        if (_npmRentMonths is not null)
+        {
+            for (var i = 0; i < rows.Count; i++)
+            {
+                var row = rows[i];
+                var position = await _npmRentMonths.ReadPositionAsync(row.StallId, monthStart, ct);
+                if (position is null) continue;
+                var quoted = await _npmRentMonths.QuoteAsync(row.StallId, monthStart, collectionDate,
+                    EEMOCantilanSDS.Application.Common.Payments.NpmRentPaymentScope.DailyInstallment, ct, collectionDate);
+                if (!quoted.IsSuccess) throw new InvalidOperationException(quoted.Error ?? "Authoritative NPM daily quote is unavailable.");
+                var available = await NpmMonthSettlement.GetPayableDaysAsync(stalls.Single(x => x.Id == row.StallId), year, month, ct);
+                var events = await _npmRentMonths.ReadCashEventsAsync(row.StallId, monthStart, ct);
+                var dailyEvents = events.Where(x => x.InstallmentDate.HasValue && x.Net > 0).ToArray();
+                var collectedOnDate = dailyEvents.Where(x => x.InstallmentDate == collectionDate && x.BusinessDate == collectionDate).Sum(x => x.Net);
+                var weighing = stalls.Single(x => x.Id == row.StallId).DailyCollections
+                    .Where(d => d.CollectionDate >= monthStart && d.CollectionDate <= effectiveEnd && d.IsPaid)
+                    .Sum(d => d.FishKilos.GetValueOrDefault() * npmFishRate + d.MeatFeeAmount);
+                rows[i] = row with { MonthlyRentQuote = quoted.Value, UncollectedDays = available,
+                    MonthlyRentCollectedToday = collectedOnDate, IsCollectedToday = row.IsCollectedToday || collectedOnDate > 0,
+                    IsMarkedToday = row.IsMarkedToday || collectedOnDate > 0,
+                    DaysCollected = row.DaysCollected + dailyEvents.Select(x => x.InstallmentDate).Distinct().Count(),
+                    DaysMissed = available.Count, IsCollectableToday = quoted.Value!.EligibleAmount > 0,
+                    MonthCollectedAmount = position.LegacyCash + position.CanonicalCash + weighing };
+            }
+        }
         var collectedToday = rows.Where(r => r.IsCollectedToday).ToList();
         // "Pending today" = a stall whose contract covers TODAY and hasn't been collected/excused yet —
         // not merely one that has an unpaid day earlier in the month.
@@ -141,8 +166,9 @@ public partial class StallRepository
             rows.Count,
             collectedToday.Count,
             pendingToday.Count,
-            collectedToday.Sum(r => r.DailyRate + (r.FishKilosToday.GetValueOrDefault() * npmFishRate) + r.MeatFeeToday),
-            pendingToday.Sum(r => r.DailyRate),
+            collectedToday.Sum(r => (r.MonthlyRentCollectedToday is > 0 ? r.MonthlyRentCollectedToday.Value : r.DailyRate)
+                + (r.FishKilosToday.GetValueOrDefault() * npmFishRate) + r.MeatFeeToday),
+            pendingToday.Sum(r => r.MonthlyRentQuote?.EligibleAmount ?? r.DailyRate),
             rows.Sum(r => r.DaysCollected),
             rows.Sum(r => r.DaysMissed),
             rows);

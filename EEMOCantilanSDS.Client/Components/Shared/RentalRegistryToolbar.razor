@@ -32,7 +32,7 @@
         }
     </div>
     <div class="filter-tabs-inline" role="group" aria-label="Payment status">
-        @foreach (var filter in Filters)
+        @foreach (var filter in FilterChoices)
         {
             <button type="button" class="filter-tab @(ActiveFilter == filter ? "active" : "")" aria-pressed="@(ActiveFilter == filter ? "true" : "false")" @onclick="() => OnFilterChanged.InvokeAsync(filter)">@filter</button>
         }
@@ -58,7 +58,10 @@
     [Parameter] public string CountLabel { get; set; } = string.Empty;
     [Parameter] public RenderFragment? PrimaryAction { get; set; }
     [Parameter] public RenderFragment? SecondaryAction { get; set; }
-    private static readonly string[] Filters = ["All", "Paid", "Partial", "Unpaid", "Closed"];
+    /// <summary>The status chips; the stall registers' payment statuses unless the host has its own (a roster's Active / Closed).</summary>
+    [Parameter] public IReadOnlyList<string>? Filters { get; set; }
+    private static readonly string[] DefaultFilters = ["All", "Paid", "Partial", "Unpaid", "Closed"];
+    private IReadOnlyList<string> FilterChoices => Filters ?? DefaultFilters;
     private bool _open;
     private readonly List<Choice> _discovered = [];
     private IEnumerable<Choice> Entries => Choices ?? _discovered;

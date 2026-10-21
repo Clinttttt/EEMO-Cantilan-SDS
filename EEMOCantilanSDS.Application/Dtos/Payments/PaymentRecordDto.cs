@@ -11,5 +11,7 @@ public record PaymentRecordDto(
     decimal? WaterAmount,
     decimal? FishFeeAmount,
     decimal TotalPaid,
-    decimal BalanceDue
+    decimal BalanceDue,
+    // Which writer owns this month. Legacy keeps the status editor; Canonical months are paid by receipt only.
+    SettlementAuthority SettlementAuthority = SettlementAuthority.Legacy
 );

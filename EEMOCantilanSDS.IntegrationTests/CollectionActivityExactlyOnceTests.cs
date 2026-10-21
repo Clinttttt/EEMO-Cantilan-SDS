@@ -57,6 +57,77 @@ public sealed class CollectionActivityExactlyOnceTests(PostgresFixture db)
     private static readonly DateOnly Today = PhilippineTime.Today;
     private static readonly DateOnly Period = new(Today.Year, Today.Month, 1);
 
+    [SkippableFact]
+    public async Task October_900_reconciliation_preserves_original_SRC_and_separates_November_effect()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "Docker unavailable");
+        await db.ResetAsync(); var w = await SeedAsync("RCD"); var foreign = await SeedAsync("FOREIGN");
+        var oct = new DateOnly(2026, 10, 15); var recorded = new DateTime(2026, 10, 15, 4, 0, 0, DateTimeKind.Utc);
+        Guid originalId; string originalSrc;
+        await using (var setup = db.CreateContext(w.Tenant.Id))
+        {
+            var classification = await setup.RevenueClassifications.SingleAsync(x => x.SemanticCode == RevenueClassificationCodes.MarketFees);
+            var policy = await setup.RevenueClassificationPolicies.SingleAsync(x => x.RevenueClassificationId == classification.Id);
+            var original = Collection.Post(oct, recorded, "head", "Synthetic Head", "SuperAdmin", [new CollectionLineDraft(classification, policy, 900, null, null, null)]);
+            setup.Add(original); await setup.SaveChangesAsync(); originalId = original.Id; originalSrc = original.ReferenceCode;
+            setup.Add(CollectionCorrection.Record(w.Tenant.Id, original.Id, null, null, null, CollectionCorrectionType.Reversal,
+                new(2026, 11, 1), new(2026, 11, 2, 4, 0, 0, DateTimeKind.Utc), -900, "Verified November reversal", "head", "Head",
+                [new CollectionCorrectionLineDraft(original.Lines.Single().Id, -900, [])]));
+            await setup.SaveChangesAsync();
+        }
+        await using var read = db.CreateContext(w.Tenant.Id);
+        var reader = new CollectionActivityReader(read);
+        var known = Assert.Single(await reader.GetReconciliationAsync(w.Tenant.Id, new(2026, 10, 1), new(2026, 10, 31),
+            new(2026, 10, 31, 15, 59, 59, DateTimeKind.Utc), false));
+        Assert.Equal(900, known.NetAmount); Assert.Empty(known.Corrections);
+        var latest = Assert.Single(await reader.GetReconciliationAsync(w.Tenant.Id, new(2026, 10, 1), new(2026, 10, 31),
+            new(2026, 12, 1, 0, 0, 0, DateTimeKind.Utc), false));
+        Assert.Equal(0, latest.NetAmount); Assert.Equal(-900, latest.CorrectionEffect);
+        var activity = Assert.Single(await reader.GetReconciliationAsync(w.Tenant.Id, new(2026, 11, 1), new(2026, 11, 30),
+            new(2026, 12, 1, 0, 0, 0, DateTimeKind.Utc), true));
+        Assert.Equal(oct, activity.BusinessDate); Assert.Equal(-900, Assert.Single(activity.Corrections).FinancialEffect);
+        Assert.Equal(new DateOnly(2026, 11, 1), activity.Corrections.Single().EffectiveDate);
+        Assert.Equal(originalSrc, latest.ReferenceCode); Assert.Equal(originalSrc, activity.ReferenceCode);
+        Assert.Empty(await reader.GetReconciliationAsync(foreign.Tenant.Id, new(2026, 10, 1), new(2026, 10, 31), DateTime.UtcNow.AddYears(1), false));
+        Assert.Single(await read.Collections.ToListAsync()); Assert.Empty(await read.CollectionRemittances.ToListAsync());
+        Assert.Equal(originalId, (await read.Collections.SingleAsync()).Id); Assert.Equal(900, (await read.Collections.SingleAsync()).TotalAmount);
+        Assert.Empty(await reader.GetReconciliationAsync(w.Tenant.Id, new(2026, 11, 1), new(2026, 11, 30),
+            new(2026, 11, 1, 15, 59, 59, DateTimeKind.Utc), true)); // Effective day alone cannot predate recorded knowledge.
+    }
+
+    [SkippableFact]
+    public async Task Frozen_slaughterhouse_charge_names_appear_in_collection_activity()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "Docker unavailable");
+        await db.ResetAsync();
+        var world = await SeedAsync("SLH-LABELS");
+        Collection saved;
+        await using (var write = db.CreateContext(world.Tenant.Id))
+        {
+            var classification = RevenueClassification.Create(RevenueClassificationCodes.Slaughterhouse, world.Tenant.Id);
+            var policy = RevenueClassificationPolicy.Create(classification.Id, new DateOnly(2000, 1, 1),
+                "Municipal Abattoir", RevenueInstrumentType.OfficialReceipt, world.Tenant.Id);
+            write.AddRange(classification, policy);
+            var drafts = new[] { ("Ante-mortem Inspection", 20m), ("Slaughter Permit", 100m), ("Slaughter Fee", 50m) }
+                .Select(x => new CollectionLineDraft(classification, policy, x.Item2, CollectionSourceKind.GovernedService,
+                    Guid.NewGuid(), CalculationSnapshot: System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        feeOptionName = x.Item1, quantity = 1, unitAmount = x.Item2
+                    }))).ToList();
+            saved = Collection.Post(Today, DateTime.UtcNow, "collector", "Collector", "Collector", drafts, collectorId: world.Collector.Id, payerName: "Ana Reyes");
+            write.Add(saved);
+            await write.SaveChangesAsync();
+        }
+        await using var read = db.CreateContext(world.Tenant.Id);
+        var events = await new CollectionActivityReader(read).GetAsync(world.Tenant.Id, Today, Today);
+        var recorded = Assert.Single(events, x => x.CollectionId == saved.Id);
+        Assert.Equal(170m, recorded.Amount);
+        Assert.Equal(saved.ReferenceCode, recorded.ReferenceCode);
+        Assert.All(recorded.Lines, line => Assert.Equal("Municipal Abattoir", line.ParentSourceName));
+        Assert.Equal(new[] { ("Ante-mortem Inspection", 20m), ("Slaughter Fee", 50m), ("Slaughter Permit", 100m) },
+            recorded.Lines.Select(x => (x.ClassificationName, x.Amount))
+                .OrderBy(x => x.ClassificationName, StringComparer.Ordinal).ToArray());
+    }
     private sealed record World(Municipality Tenant, CollectorUser Collector, Guid HeadId, Guid IceStallId,
         Guid IceRecordId, Guid TccRecordId, Guid[] OrIds, AccountableDocument[] CtDocuments);
 

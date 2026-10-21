@@ -30,14 +30,16 @@ public sealed class KanmanggayLeaseEvidenceTests
     }
 
     [Fact]
-    public void SignedKanmanggay_RejectsIncorrectTermAndDateOutsideBillingMonth()
+    public void SignedKanmanggay_AcceptsRecordedTerms_RejectsInvalidBoundsAndDateOutsideBillingMonth()
     {
         var account = NewSpace();
         account.SetOccupancyBasis(OccupancyArrangement.SignedContract, null);
-        Assert.Throws<ArgumentException>(() => account.SetLeaseDetails("A", new DateOnly(2026, 10, 9), 2, null, null));
+        account.SetLeaseDetails("A", new DateOnly(2026, 10, 9), 2, null, null);
+        Assert.Equal(2, account.ContractYears);
+        Assert.Throws<ArgumentException>(() => account.SetLeaseDetails("A", new DateOnly(2026, 10, 9), 0, null, null));
         Assert.Throws<ArgumentException>(() => account.SetLeaseDetails("A", new DateOnly(2026, 9, 9), 3, null, null));
         Assert.Throws<ArgumentException>(() => account.SetLeaseDetails("A", new DateOnly(2026, 10, 9), 3, -1, null));
-        Assert.Null(account.ContractYears);
+        Assert.Equal(2, account.ContractYears); // Rejected edits preserve the recorded term.
     }
 
     [Fact]

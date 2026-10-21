@@ -1,0 +1,122 @@
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Constants
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IGovernedServicesApiClient GovernedApi
+
+@* Slaughterhouse approved charges (IA-050): the Head or an Admin defines each charge, the animals it applies to, its fixed rate and effective dates;
+   collectors only select them and count the quantity. The Head decides when the office collects by approved charges instead of the per-head
+   total: that switch only changes an already-enabled Slaughterhouse setup, it never enables canonical collection itself. *@
+<section class="slc" aria-label="Approved charges">
+    <div class="slc-main">
+        <FeeOptionDefinitions OperationCode="@CollectorOperationCodes.Slaughterhouse" Title="Approved charges" Month="@Month" ManageRoles="SuperAdmin,Admin"
+                              SlaughterCharges="true" ShowTotals="false" AnimalLabels="@AnimalLabels" Changed="ChargesChangedAsync" />
+    </div>
+    <aside class="slc-aside">
+    <section class="v3-panel slc-basis" aria-labelledby="slc-basis-title">
+        <header class="v3-panel-header"><h2 id="slc-basis-title">Collection basis</h2></header>
+    @if (_definition is { Basis: { } basis } def)
+    {
+        <div class="slc-mode">
+            <span class="slc-state @(basis == GovernedServiceBasis.ApprovedFeeOption ? "is-on" : null)">@(basis == GovernedServiceBasis.ApprovedFeeOption ? "Approved charges" : "Per-head total")</span>
+            <p class="slc-desc">@(basis == GovernedServiceBasis.ApprovedFeeOption
+                ? "Each transaction is the sum of the approved charges selected for the animal."
+                : "Each transaction is the animal's per-head total.")</p>
+            @if (basis == GovernedServiceBasis.ApprovedFeeOption && def.State == GovernedServiceSetupState.SetupRequired && def.SetupIssues.Count > 0)
+            {
+                <span class="slc-issue" role="status">@def.SetupIssues[0]</span>
+            }
+            <AuthorizeView Roles="SuperAdmin">
+                <Authorized>
+                    <button class="v3-btn v3-btn-sm" type="button" @onclick="RequestSwitch" disabled="@(_saving || _confirming)">
+                        @(basis == GovernedServiceBasis.ApprovedFeeOption ? "Use per-head total" : "Collect by approved charges")
+                    </button>
+                </Authorized>
+            </AuthorizeView>
+        </div>
+    }
+    @if (_confirming)
+    {
+        <div class="slc-confirm" role="alertdialog" aria-label="Confirm collection by approved charges">
+            <span>Collectors need the current Collector app. Older versions can't record Slaughterhouse once this is on.</span>
+            <button class="v3-btn v3-btn-primary v3-btn-sm" type="button" @onclick="SwitchAsync" disabled="@_saving">Collect by approved charges</button>
+            <button class="v3-btn v3-btn-sm" type="button" @onclick="CancelSwitch" disabled="@_saving">Cancel</button>
+        </div>
+    }
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <p class="v3-notice v3-notice-error" role="alert">@_error</p>
+    }
+    </section>
+    @Aside
+    <SlaughterChargeBreakdown Month="@Month" Version="_totalsVersion" />
+    </aside>
+</section>
+
+@code {
+    /// <summary>The month the by-charge totals cover.</summary>
+    [Parameter, EditorRequired] public DateOnly Month { get; set; }
+    [Parameter] public EEMOCantilanSDS.Application.Dtos.Slaughterhouse.SlaughterAnimalLabelsDto? AnimalLabels { get; set; }
+
+    /// <summary>Shown under the collection basis (the page puts the approved animals there).</summary>
+    [Parameter] public RenderFragment? Aside { get; set; }
+
+    /// <summary>Raised after a charge or the collection basis changes, so the page can reload what it shows.</summary>
+    [Parameter] public EventCallback Changed { get; set; }
+
+    private GovernedServiceDefinitionDto? _definition;
+    private string? _error;
+    private bool _saving;
+    private bool _confirming;
+
+    // Turning approved charges on is the one step an older Collector app cannot follow, so it is confirmed; turning it off is not.
+    private void RequestSwitch()
+    {
+        if (_definition is { Basis: GovernedServiceBasis.ApprovedFeeOption }) _ = SwitchAsync();
+        else _confirming = true;
+    }
+
+    private void CancelSwitch() => _confirming = false;
+
+    protected override Task OnInitializedAsync() => LoadDefinitionAsync();
+
+    private async Task LoadDefinitionAsync()
+    {
+        try
+        {
+            var result = await GovernedApi.GetDefinitionsAsync();
+            _definition = result.IsSuccess ? result.Value?.FirstOrDefault(x => x.OperationCode == CollectorOperationCodes.Slaughterhouse) : null;
+        }
+        catch { _definition = null; }
+    }
+
+    private int _totalsVersion;
+
+    private async Task ChargesChangedAsync()
+    {
+        _totalsVersion++;
+        await LoadDefinitionAsync();
+        await Changed.InvokeAsync();
+    }
+
+    // The same setup, from today, on the other basis: enabled and Collector Mobile flags are kept exactly as they are.
+    private async Task SwitchAsync()
+    {
+        if (_saving || _definition is not { Basis: { } basis } def) return;
+        _saving = true;
+        _confirming = false;
+        _error = null;
+        try
+        {
+            var target = basis == GovernedServiceBasis.ApprovedFeeOption ? GovernedServiceBasis.DirectApprovedAmount : GovernedServiceBasis.ApprovedFeeOption;
+            var result = await GovernedApi.ConfigureAsync(CollectorOperationCodes.Slaughterhouse, new ConfigureGovernedServiceRequest(
+                PhilippineTime.Today, target, null, null, def.State != GovernedServiceSetupState.Disabled, def.MobileEnabled));
+            if (result.IsSuccess) _definition = result.Value;
+            else _error = result.Error ?? "The collection basis couldn't be changed.";
+        }
+        catch { _error = "The collection basis couldn't be changed."; }
+        finally { _saving = false; }
+        await Changed.InvokeAsync();
+    }
+}

@@ -22,7 +22,7 @@ public sealed partial class FineAssessmentComponentTests
         Assert.Equal("number",cut.Find("input").GetAttribute("type"));
         Assert.Contains("Fine amount (₱)",cut.Markup); Assert.DoesNotContain("Search account",cut.Markup);
         // Receipt particulars and reference are offered but optional when the authority does not require them.
-        Assert.Contains("Payer name / receipt particulars (optional)",cut.Markup); Assert.Contains("Supporting reference (optional)",cut.Markup);
+        Assert.Contains("Payer name / receipt particulars (optional)",cut.Markup); Assert.DoesNotContain("Supporting reference",cut.Markup);   // shown only for a category that requires one
         Assert.Single(cut.FindAll("input[required]")); Assert.DoesNotContain("Contract",cut.Markup);
         Assert.True(cut.Markup.IndexOf("Fine category",StringComparison.Ordinal) < cut.Markup.IndexOf("Fine amount",StringComparison.Ordinal));
         ExportFixture("direct-fine-form",cut.Markup);

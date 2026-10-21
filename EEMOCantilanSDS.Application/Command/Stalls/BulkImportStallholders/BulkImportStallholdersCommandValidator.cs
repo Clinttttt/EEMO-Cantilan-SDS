@@ -11,7 +11,7 @@ public class BulkImportStallholdersCommandValidator : AbstractValidator<BulkImpo
         FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE
     };
 
-    public BulkImportStallholdersCommandValidator()
+    public BulkImportStallholdersCommandValidator(Common.Interface.Persistence.IFacilityRepository? facilities = null)
     {
         RuleFor(x => x.FacilityCode)
             .Must(code => Supported.Contains(code))
@@ -25,9 +25,13 @@ public class BulkImportStallholdersCommandValidator : AbstractValidator<BulkImpo
             .WithMessage("A single import is limited to 1000 rows.");
 
         // NPM is collected per section, so the chosen section is mandatory for it.
-        RuleFor(x => x.Section)
-            .NotNull().WithMessage("A section (Vegetable, Fish or Meat) is required for NPM imports.")
-            .When(x => x.FacilityCode == FacilityCode.NPM);
+        // Required for NPM, except for a market its LGU rents by the month (it imports as one monthly list). The monthly check needs the
+        // facility, so it is an async rule only where a repository was supplied (the API); a bare validator keeps the plain synchronous rule.
+        var sectionRule = RuleFor(x => x.Section)
+            .NotNull().WithMessage("A section (Vegetable, Fish or Meat) is required for NPM imports.");
+        if (facilities is null) sectionRule.When(x => x.FacilityCode == FacilityCode.NPM);
+        else sectionRule.WhenAsync(async (x, ct) => x.FacilityCode == FacilityCode.NPM
+            && !(await facilities.GetByCodeAsync(FacilityCode.NPM, ct) is { IsMonthlyRentMarket: true }));
 
         // When a section is supplied it must be a defined value (guards direct API calls).
         RuleFor(x => x.Section)

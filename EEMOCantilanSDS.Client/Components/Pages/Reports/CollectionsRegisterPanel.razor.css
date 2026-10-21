@@ -7,7 +7,7 @@
     margin-bottom: 20px;
 }
 
-/* Title and filters share one line: each filter's label sits beside its select, so the heading row is one control tall. */
+/* Title left; the instrument, revenue line and print controls are one joined group on the right. */
 .cr-head {
     display: flex;
     flex-wrap: wrap;
@@ -18,26 +18,51 @@
 
 .cr-head h2 {
     margin: 0;
+    color: var(--navy);
     font-size: 1rem;
-    font-weight: 600;
+    font-weight: 700;
 }
 
 .cr-tools {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px 16px;
+    display: inline-flex;
+    max-width: 100%;
+    margin-left: auto;
+    overflow: hidden;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: var(--elevation-1);
 }
 
-    .cr-tools .v3-field {
-        flex-direction: row;
-        align-items: center;
-        gap: 8px;
-    }
+.cr-tools select,
+.cr-print {
+    min-height: 36px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+}
 
-    .cr-tools .v3-field > span:first-child {
-        white-space: nowrap;
-    }
+.cr-tools > * + * {
+    border-left: 1px solid var(--border);
+}
+
+.cr-tools select:hover,
+.cr-print:hover {
+    background: var(--surface-hover);
+    color: var(--accent);
+}
+
+.cr-tools select:focus-visible,
+.cr-print:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -3px;
+}
 
 /* A panel is a header band and a full-bleed table, as on the other V3 registers: no inner frame around the rows. */
 .cr-panel {
@@ -57,6 +82,46 @@
     font-weight: 700;
 }
 
+/* Transactions: the heading, a count, then the search pushed to the right edge. */
+.cr-panel-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    padding-right: 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+.cr-panel-head h3 {
+    border-bottom: 0;
+}
+
+.cr-count {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.cr-search {
+    box-sizing: border-box;
+    width: min(100%, 20rem);
+    min-height: 36px;
+    margin: 6px 0;
+    margin-left: auto;
+    padding: 0 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 0.8125rem;
+}
+
+.cr-search:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
 .cr-panel > .cr-note {
     margin: 0;
     padding: 10px 20px 12px;
@@ -69,9 +134,17 @@
     white-space: nowrap;
 }
 
+.cr-panel .v3-num {
+    font-variant-numeric: tabular-nums;
+}
+
 .cr-panel tfoot td {
     border-top: 1px solid var(--border);
     background: var(--surface-muted);
+}
+
+.cr-table tbody tr:hover td {
+    background: var(--accent-soft);
 }
 
 .cr-note {
@@ -97,23 +170,26 @@
     outline-offset: 2px;
 }
 
-.cr-doc-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding-right: 20px;
-    border-bottom: 1px solid var(--border);
+/* Status is text first; the tint only supports it. */
+.cr-status {
+    display: inline-block;
+    padding: 2px 8px;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
 }
 
-    .cr-doc-head h3 {
-        border-bottom: 0;
-    }
+.cr-status-corrected {
+    border-color: #d4b25a;
+    background: #fdf7e6;
+    color: #7a5a06;
+}
 
-.cr-doc > .cr-note {
-    margin: 0;
-    padding: 10px 20px;
-    border-top: 0;
+.cr-status-reversed {
+    border-color: #e5bcbc;
+    background: #fff5f5;
+    color: #9b2c2c;
 }
 
 .cr-print-head {
@@ -126,31 +202,17 @@
     }
 
     .cr-tools,
-    .cr-doc-head button {
+    .cr-search {
         display: none;
     }
 }
 
-/* Itemized documents: the first line carries the document; following lines of the same document sit indented under it. */
-.cr-cont td {
-    border-top: 0;
-}
+@media (max-width: 560px) {
+    .cr-tools {
+        width: 100%;
+    }
 
-.cr-cont td:not(.cr-cont-cell):first-of-type {
-    padding-left: 28px;
-}
-
-.cr-cont-cell {
-    position: relative;
-}
-
-.cr-cont-cell::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    bottom: 50%;
-    left: 20px;
-    width: 10px;
-    border-left: 1px solid var(--border-strong);
-    border-bottom: 1px solid var(--border-strong);
+    .cr-tools > * {
+        flex: 1 1 auto;
+    }
 }

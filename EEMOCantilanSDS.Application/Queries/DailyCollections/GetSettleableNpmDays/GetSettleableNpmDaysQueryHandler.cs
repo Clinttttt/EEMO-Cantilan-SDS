@@ -21,7 +21,7 @@ public class GetSettleableNpmDaysQueryHandler(
         if (stall is null)
             return Result<IReadOnlyList<SettleableNpmDayDto>>.NotFound();
 
-        if (stall.Facility?.Code != FacilityCode.NPM)
+        if (stall.Facility?.Code != FacilityCode.NPM || stall.Facility.IsMonthlyRentMarket)
             return Result<IReadOnlyList<SettleableNpmDayDto>>.Success(Array.Empty<SettleableNpmDayDto>());
 
         var today = clock.PhilippineToday;

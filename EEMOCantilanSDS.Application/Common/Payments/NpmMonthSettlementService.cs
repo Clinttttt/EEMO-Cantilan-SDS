@@ -22,6 +22,30 @@ public sealed partial class NpmMonthSettlementService(
     INpmMarketClosureRepository marketClosureRepository,
     IFeeRateResolver feeRateResolver, IClock clock) : INpmMonthSettlementService
 {
+    /// <summary>Existing assessment/credit rule before day-quantized payment planning. No mutation or source conversion.</summary>
+    public async Task<NpmMonthPosition> ResolveAssessmentAsync(Stall stall, int year, int month, bool wholeMonth, CancellationToken ct)
+    {
+        NpmMonthPosition position = default;
+        await ResolveMonthAsync(stall, year, month, ct, wholeMonth, capturePosition: value => position = value);
+        return position;
+    }
+
+    public async Task<NpmMonthPosition> ResolveAssessmentAsOfAsync(Stall stall, int year, int month, DateOnly asOf, CancellationToken ct)
+    {
+        NpmMonthPosition position = default;
+        await ResolveMonthAsync(stall, year, month, ct, capturePosition: value => position = value, asOf: asOf);
+        return position;
+    }
+
+    /// <summary>Unquantized collection capacity; retains the established earned-day and month-end top-up cutover.</summary>
+    public async Task<decimal> ResolveEarnedCollectionLimitAsync(Stall stall, int year, int month, CancellationToken ct)
+    {
+        NpmMonthPosition position = default;
+        NpmPartPaidPosition partial = new([], 0);
+        var (days, remaining, adjustment, _) = await ResolveMonthAsync(stall, year, month, ct,
+            capturePosition: value => position = value, capturePartial: value => partial = value);
+        return position.Collected + Math.Min(remaining, days.Sum(x => x.Fee) + partial.Leftover + adjustment);
+    }
     public async Task<NpmMonthPayable> ComputePayableAsync(Stall stall, int year, int month, CancellationToken ct)
     {
         var (days, remaining, adjustment, _) = await ResolveMonthAsync(stall, year, month, ct);
@@ -243,12 +267,12 @@ public sealed partial class NpmMonthSettlementService(
     // The day-set, and what the month still owes. Kept private so the quote and the settlement can never compute
     // them differently: one walk of the month answers both.
     private async Task<(List<(DateOnly Day, decimal Fee)> Days, decimal Remaining, decimal Adjustment, DailyCollection? LastCollected)> ResolveMonthAsync(
-        Stall stall, int year, int month, CancellationToken ct, bool wholeMonth = false, Action<NpmMonthPosition>? capturePosition = null, Action<NpmPartPaidPosition>? capturePartial = null)
+        Stall stall, int year, int month, CancellationToken ct, bool wholeMonth = false, Action<NpmMonthPosition>? capturePosition = null, Action<NpmPartPaidPosition>? capturePartial = null, DateOnly? asOf = null)
     {
         var daysInMonth = DateTime.DaysInMonth(year, month);
         var monthStart = new DateOnly(year, month, 1);
         var monthEnd = new DateOnly(year, month, daysInMonth);
-        var today = clock.PhilippineToday;
+        var today = asOf ?? clock.PhilippineToday;
 
         // The occupancy that answers for this month — the same rule the staff path and every read use — so a month
         // on a stall since re-let is settled for the lessee who held it then, not for whoever holds it now.
@@ -345,7 +369,7 @@ public sealed partial class NpmMonthSettlementService(
 /// installments plus, once the month has closed, its <paramref name="Adjustment"/> — the part of the month's rent
 /// its calendar could not reach in daily installments. <paramref name="Amount"/> is the whole figure charged.
 /// </summary>
-public readonly record struct NpmMonthPayable(int Days, decimal Amount, decimal Adjustment = 0m, decimal? Obligation = null, decimal? Collected = null, decimal? Credits = null);
+public readonly record struct NpmMonthPayable(int Days, decimal Amount, decimal Adjustment = 0m, decimal? Obligation = null, decimal? Collected = null, decimal? Credits = null, Guid? MonthSourceId = null, decimal? EarnedLiability = null);
 public readonly record struct NpmMonthPosition(decimal Obligation, decimal Collected, decimal Credits);
 
 /// <summary>

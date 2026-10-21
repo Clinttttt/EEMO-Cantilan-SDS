@@ -49,7 +49,9 @@ public class DashboardRepositoryTests : RepositoryTestBase
         // is why a long-standing account reads 37 months there and twelve here; each screen says which it means.
         Assert.Equal(2, overview.DelinquentVendors.Count);
         var delinquent = Assert.Single(overview.DelinquentVendors, d => d.Name == "Maria Santos");
-        Assert.Equal(12, delinquent.MonthsUnpaid);
+        // IA-069: of those twelve unpaid months, June-December 2025 are previous-calendar-year rent (Arrears) and January-May 2026 are the
+        // current-year elapsed months, so only the five are Delinquent on the dashboard.
+        Assert.Equal(5, delinquent.MonthsUnpaid);
     }
 
     [Fact]

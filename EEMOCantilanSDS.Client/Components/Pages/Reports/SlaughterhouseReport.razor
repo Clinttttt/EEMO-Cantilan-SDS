@@ -313,7 +313,7 @@
                                    number to print: the column is dropped rather than filled with a dash. *@
                                 @if (!IsGroupedView)
                                 {
-                                    <th class="col-or">OR No.</th>
+                                    <th class="col-or">OR / SRC</th>
                                 }
                             </tr>
                         </thead>
@@ -349,8 +349,23 @@
                                         <td class="c">@t.NumberOfHeads</td>
                                         <td class="r">₱@t.RatePerHead.ToString("N2")</td>
                                         <td class="r">₱@t.TotalAmount.ToString("N2")</td>
-                                        <td class="c mono">@t.ORNumber</td>
+                                        <td class="c mono">@(string.IsNullOrEmpty(t.ORNumber) ? t.ReferenceCode : t.ORNumber)</td>
                                     </tr>
+                                    @if (t.Items is { Count: > 0 } items)
+                                    {
+                                        @foreach (var item in items)
+                                        {
+                                            <tr class="slr-item-row">
+                                                <td></td>
+                                                <td></td>
+                                                <td class="tl" colspan="2">↳ @item.Label</td>
+                                                <td class="c">@item.Quantity.ToString("N0")</td>
+                                                <td class="r">₱@item.UnitAmount.ToString("N2")</td>
+                                                <td class="r">₱@item.Amount.ToString("N2")</td>
+                                                <td></td>
+                                            </tr>
+                                        }
+                                    }
                                     rowNum++;
                                 }
                             }
@@ -376,6 +391,12 @@
                     </table>
                 </div>
             }
+            }
+
+            @if (!IsGroupedView)
+            {
+                <SlaughterChargeTotals From="@(new DateOnly(CurrentMonth.Year, CurrentMonth.Month, 1))"
+                                       To="@(new DateOnly(CurrentMonth.Year, CurrentMonth.Month, 1).AddMonths(1).AddDays(-1))" HeadingId="slr-by-charge" />
             }
 
             @if (ActiveFilter == "All")

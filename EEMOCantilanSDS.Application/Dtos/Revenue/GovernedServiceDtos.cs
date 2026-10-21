@@ -57,7 +57,28 @@ public sealed record ConfigureGovernedServiceRequest(
 public sealed record FeeSchedulePostRequest(
     Guid ClientOperationId, string OperationCode, DateOnly BusinessDate, decimal ReceivedAmount,
     Guid? VendorId = null, string? VendorName = null, string? Goods = null,
-    EEMOCantilanSDS.Domain.Enums.AnimalType? Animal = null, string? CustomAnimalName = null, int? Heads = null, string? OwnerName = null);
+    EEMOCantilanSDS.Domain.Enums.AnimalType? Animal = null, string? CustomAnimalName = null, int? Heads = null, string? OwnerName = null,
+    // Slaughterhouse in itemized mode: the approved charges the collector selected, each with its quantity (never a rate).
+    IReadOnlyList<SlaughterChargeSelectionDto>? Charges = null);
+
+/// <summary>One approved Slaughterhouse charge a collector selected. A per-head charge always takes the head count; a per-unit charge takes the counted quantity.</summary>
+public sealed record SlaughterChargeSelectionDto(Guid FeeOptionId, int Quantity);
+
+/// <summary>
+/// What a facility-assigned collector may select at the slaughterhouse today. <see cref="Itemized"/> is true when the Head has the
+/// service on approved charges: the amount is then the sum of the selected charges' approved rates, never a per-head total.
+/// </summary>
+/// <summary>
+/// A documented reference charge offered as a starting point in Add Charge (the reference tenant's historical per-head breakdown). It
+/// prefills the form only: nothing is created, rated or collectable until the Head/Admin reviews and adds it with an effective date.
+/// </summary>
+public sealed record SlaughterChargePresetDto(string Name, string Group, int ApplicableAnimals, FeeQuantityBasis QuantityBasis, decimal ReferenceAmount);
+
+public sealed record SlaughterTermsDto(bool Itemized, IReadOnlyList<FeeOptionTermDto> Charges);
+
+/// <summary>One itemized line of a collection: the approved charge, its quantity and the approved rate frozen on the receipt.</summary>
+public sealed record GovernedActivityItemDto(Guid? FeeOptionId, string Label, decimal? Quantity, decimal? UnitAmount, decimal Amount,
+    DateOnly? RateEffectiveDate = null);
 
 public sealed record GovernedServicePostRequest(
     int SchemaVersion, Guid ClientOperationId, string OperationCode, DateOnly BusinessDate,
@@ -80,7 +101,9 @@ public sealed record GovernedServiceActivityDto(
     decimal Amount, string? CollectorName, string Disposition, string? FeeOptionName = null,
     Guid? CollectorId = null, Guid? PayorId = null, string? VehicleClassCode = null, string? VehicleClassName = null,
     Guid? VehicleClassRateId = null, DateOnly? VehicleClassRateEffectiveDate = null, decimal? FrozenVehicleRate = null,
-    decimal? NetAmount = null, GovernedCollectionState? State = null);
+    decimal? NetAmount = null, GovernedCollectionState? State = null,
+    // Itemized collections (Slaughterhouse charges): each approved charge with its quantity and frozen rate; null for single-line collections.
+    IReadOnlyList<GovernedActivityItemDto>? Items = null);
 
 public enum GovernedCollectionState { Posted = 1, DocumentCorrected = 2, Reversed = 3 }
 
@@ -112,7 +135,8 @@ public sealed record GovernedServiceTermsDto(
 /// the collector enters (optionally up to an approved ceiling).
 /// </summary>
 public sealed record FeeOptionTermDto(Guid Id, string Name, string? Location, GovernedServiceBasis Basis, decimal? Amount, decimal? MaximumAmount,
-    string? Code = null, Guid? RateId = null, DateOnly? EffectiveDate = null);
+    string? Code = null, Guid? RateId = null, DateOnly? EffectiveDate = null,
+    int? ApplicableAnimals = null, FeeQuantityBasis? QuantityBasis = null);
 
 /// <summary>One approved vehicle class and the rate in force today, for a collector to select. Display only; posting revalidates.</summary>
 public sealed record VehicleClassTermDto(string Code, string Name, decimal Amount);
@@ -132,7 +156,8 @@ public sealed record GovernedServiceFeeOptionDto(
     GovernedServiceBasis? Basis, decimal? Amount, decimal? MaximumAmount, DateOnly? EffectiveDate,
     string Status, DateOnly? RetiredFrom, IReadOnlyList<FeeOptionRateVersionDto> History, string? RetiredBy = null,
     FeeOptionAvailability? Availability = null, bool CanCollect = false, string? ReasonCode = null,
-    Guid? RateId = null, RevenueInstrumentType? Instrument = null);
+    Guid? RateId = null, RevenueInstrumentType? Instrument = null,
+    int? ApplicableAnimals = null, FeeQuantityBasis? QuantityBasis = null);
 
 public enum FeeOptionAvailability { Active = 1, Scheduled = 2, Retiring = 3, Retired = 4, NeedsApprovedRule = 5 }
 
@@ -143,7 +168,11 @@ public sealed record FeeOptionRateVersionDto(
 /// <summary>Head request to add an approved fee option with its first amount rule (Fixed or Direct amount).</summary>
 public sealed record AddFeeOptionRequest(
     string DisplayName, string? Code, string? Location, string? Description,
-    DateOnly EffectiveDate, GovernedServiceBasis Basis, decimal? FixedAmount, decimal? MaximumAmount);
+    DateOnly EffectiveDate, GovernedServiceBasis Basis, decimal? FixedAmount, decimal? MaximumAmount,
+    int? ApplicableAnimals = null, FeeQuantityBasis? QuantityBasis = null);
+
+/// <summary>Head / Admin request to change a Slaughterhouse charge's label and scope. Rates are never edited here: they are scheduled.</summary>
+public sealed record UpdateFeeOptionRequest(string DisplayName, int? ApplicableAnimals, FeeQuantityBasis? QuantityBasis);
 
 /// <summary>Head request to schedule a new effective-dated amount rule for an existing option. History is never edited.</summary>
 public sealed record ScheduleFeeOptionRateRequest(
@@ -153,4 +182,5 @@ public sealed record ScheduleFeeOptionRateRequest(
 public sealed record RetireFeeOptionRequest(DateOnly FromDate);
 
 /// <summary>Drill-down of one governed service's posted money by the fee option collected (null id = no option recorded).</summary>
-public sealed record FeeOptionTotalDto(Guid? FeeOptionId, string Name, int Collections, decimal Amount);
+/// <param name="Quantity">The total quantity charged (heads or counted units) when every line states one - itemized Slaughterhouse charges; null otherwise.</param>
+public sealed record FeeOptionTotalDto(Guid? FeeOptionId, string Name, int Collections, decimal Amount, decimal? Quantity = null);

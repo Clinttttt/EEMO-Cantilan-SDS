@@ -144,6 +144,20 @@ public class GetMonthEndReportQueryHandlerTests
     }
 
     [Fact]
+    public async Task Activated_month_coverage_uses_approved_net_month_instead_of_daily_rate_fallback()
+    {
+        var (handler, repository) = Build();
+        var row = Payor("1", "Synthetic occupant", 900, "Partial", 875, 0, null)
+            with { FullPeriodRentObligation = 875 };
+        repository.Setup(r => r.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, 2026, 6, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Report(875, 0, 100, 1, 0, 0, [row]));
+        var report = (await handler.Handle(new GetMonthEndReportQuery(2026, 6), default)).Value!;
+        var payor = Assert.Single(report.Facilities.Single(x => x.Code == FacilityCode.NPM).Payors);
+        Assert.Equal(875, payor.MonthlyCoverage);
+        Assert.Equal(0, payor.MonthlyCoverageBalance);
+    }
+
+    [Fact]
     public async Task ReturnsAllEightFacilities_InEnumOrder()
     {
         var (handler, _) = Build();

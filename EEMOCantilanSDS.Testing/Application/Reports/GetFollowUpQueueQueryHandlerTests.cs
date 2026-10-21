@@ -35,7 +35,7 @@ public class GetFollowUpQueueQueryHandlerTests
     }
 
     [Fact]
-    public async Task OneElapsedMonthOnEndedOccupancyIsNotClassifiedAsArrears()
+    public async Task OneElapsedMonthOnEndedOccupancyIsArrears_NotDelinquent()
     {
         var today = FixtureToday;
         var ended = new ClosedStallAccountDto(
@@ -55,8 +55,8 @@ public class GetFollowUpQueueQueryHandlerTests
         Assert.Equal(1, row.Section);
         Assert.Equal("High", row.Priority);
         Assert.Equal("Past occupancy balance", row.Reason);
-        Assert.Equal("delinquent", row.ReasonKind);
-        Assert.NotEqual("arrears", row.ReasonKind);
+        Assert.Equal("arrears", row.ReasonKind);
+        Assert.NotEqual("delinquent", row.ReasonKind);
     }
 
     [Theory]
@@ -142,8 +142,9 @@ public class GetFollowUpQueueQueryHandlerTests
             .ReturnsAsync((FacilityCode code, ReportPeriod _, int _, int? _, int? _, CancellationToken _) =>
                 code == FacilityCode.NPM ? npm : empty);
 
+        // The live queue reads each account WHOLE (IA-069), so previous-year Arrears is stated in full.
         reports.Setup(r => r.GetDelinquentStallsAsync(
-                It.IsAny<FacilityCode?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                It.IsAny<FacilityCode?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(delinquency ?? new List<DelinquentStallDto>
             {
                 new(FacilityCode.TCC, "04", "Rosa Magbanua", 3, 12_000m),  // delinquent (3 mo)
@@ -374,18 +375,15 @@ public class GetFollowUpQueueQueryHandlerTests
     }
 
     [Theory]
-    [InlineData(12, "delinquent")]   // a former lessee owing twelve months
-    [InlineData(3, "delinquent")]    // three months owing
-    [InlineData(2, "delinquent")]    // two fully elapsed months
-    [InlineData(1, "delinquent")]    // one fully elapsed month meets the rule
-    public async Task AnEndedAccount_IsCountedAsDelinquentByTheSameThresholdAsALiveOne(int monthsUnpaid, string expectedKind)
+    [InlineData(12, "arrears")]   // a former lessee owing twelve months
+    [InlineData(3, "arrears")]    // three months owing
+    [InlineData(2, "arrears")]    // two fully elapsed months
+    [InlineData(1, "arrears")]    // even one month: the debt of an ended occupancy is Arrears whatever its age
+    public async Task AnEndedAccountsUnpaidRent_IsArrears_WhateverItsAge(int monthsUnpaid, string expectedKind)
     {
-        // The follow-up queue read 0 delinquent accounts while a former lessee of NPM stall 6 owed twelve months: a past
-        // occupancy had no month count to be judged by, so every one of them was filed under "contract" whatever it owed.
-        // The office's rule is one or more fully elapsed unpaid months, and an ended occupancy is judged by it too,
-        // occupancy is judged by it now, because the debt is no smaller for the lessee having moved on.
-        //
-        // The money is deliberately NOT the test: classification follows elapsed unpaid months, not the balance amount.
+        // IA-020 / IA-069: unpaid rent of an ended occupancy or expired contract is Arrears, including debt incurred in the current year,
+        // and stays with the former lessee and period. It is NOT Delinquent (that is a live account's current-year elapsed months), and the
+        // row still says it is a past occupancy so nobody mistakes it for the lessee sitting in the stall today.
         var today = FixtureToday;
         var ended = new ClosedStallAccountDto(
             Guid.NewGuid(), InactiveAccountState.Superseded, FacilityCode.NPM, "New Public Market", "6",

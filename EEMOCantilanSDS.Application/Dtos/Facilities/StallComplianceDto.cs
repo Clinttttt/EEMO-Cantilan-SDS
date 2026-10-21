@@ -27,5 +27,14 @@ public record StallComplianceDto(
     // Fish kilos weighed for this stall over the period (NPM only; 0 elsewhere). Recorded on the daily collection
     // whichever way the stall settled, so it is summed independently of how the money was counted.
     decimal FishKilos = 0m,
-    decimal? AccountAssessment = null
+    decimal? AccountAssessment = null,
+    // Activated NPM month authority, net of approved as-of credits; distinct from earned ExpectedBill.
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    decimal? FullPeriodRentObligation = null,
+    // The fully elapsed unpaid months behind MissedMonths with what each still owes, in billing order. Filled only where the caller counts
+    // a missed-month span (the delinquency source); null elsewhere. This is what lets each obligation be classified on its own.
+    IReadOnlyList<UnpaidMonthDto>? UnpaidMonths = null
 );
+
+/// <summary>One fully elapsed unpaid billing month of a stall account and what is still owed on it (partial payments already deducted).</summary>
+public sealed record UnpaidMonthDto(int Year, int Month, decimal Unpaid);

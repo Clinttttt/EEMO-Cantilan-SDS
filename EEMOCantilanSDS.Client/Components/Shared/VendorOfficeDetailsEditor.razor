@@ -1,0 +1,87 @@
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Domain.Common
+@inject IOfficeSourcesApiClient OfficeApi
+
+<VendorDrawerShell Show="@(Row is not null)" AnimateEntry="true" Title="Edit office details"
+                   Subtitle="Update the existing Fish / Meat registration" OnClose="Close">
+    <Icon><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 20h9M16 4l4 4-11 11-4 1 1-4L16 4z"/></svg></Icon>
+    <ChildContent>
+        @if (Row is { } row)
+        {
+            <div class="vod-summary">
+                <strong>@row.Registration.DisplayName</strong>
+                <span>@row.Registration.VendorType vendor fee registration · @row.Registration.TaxYear</span>
+            </div>
+            <p class="vod-hint">Correct office-record information only. The registration, linked collections and NPM tenancy remain unchanged.</p>
+            <form id="vod-form" class="vod-form" @onsubmit="SaveAsync" @onsubmit:preventDefault="true">
+                <div class="vod-field vod-wide"><label for="vod-business">Business name</label>
+                    <input id="vod-business" class="avm-input" maxlength="200" @bind="_business" @bind:event="oninput" /></div>
+                <div class="vod-field vod-wide"><label for="vod-address">Address</label>
+                    <input id="vod-address" class="avm-input" maxlength="300" @bind="_address" @bind:event="oninput" /></div>
+                <div class="vod-field"><label for="vod-last">Last name</label>
+                    <input id="vod-last" class="avm-input" maxlength="100" @bind="_last" @bind:event="oninput" /></div>
+                <div class="vod-field"><label for="vod-first">First name</label>
+                    <input id="vod-first" class="avm-input" maxlength="100" @bind="_first" @bind:event="oninput" /></div>
+                <div class="vod-field"><label for="vod-middle">Middle name</label>
+                    <input id="vod-middle" class="avm-input" maxlength="100" @bind="_middle" @bind:event="oninput" /></div>
+                <div class="vod-field"><label for="vod-extension">Name extension</label>
+                    <input id="vod-extension" class="avm-input" maxlength="30" @bind="_extension" @bind:event="oninput" /></div>
+                <div class="vod-field"><label for="vod-sex">Sex (office record)</label>
+                    <select id="vod-sex" class="avm-input" @bind="_sex"><option value="">Not recorded</option><option>Male</option><option>Female</option><option>Other / unspecified</option></select></div>
+                <div class="vod-field vod-wide"><label for="vod-nature">Nature of business</label>
+                    <input id="vod-nature" class="avm-input" maxlength="300" @bind="_nature" @bind:event="oninput" /></div>
+            </form>
+            @if (_error is not null) { <p class="v3-notice v3-notice-error" role="alert">@_error</p> }
+        }
+    </ChildContent>
+    <Footer>
+        <button type="button" class="btn-ghost" disabled="@_saving" @onclick="Close">Cancel</button>
+        <button type="submit" class="btn-primary" form="vod-form" disabled="@_saving">Save office details</button>
+    </Footer>
+</VendorDrawerShell>
+
+@code {
+    [Parameter] public VendorRegistrationManagementRow? Row { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+    private Guid? _openedId;
+    private bool _saving;
+    private string? _error;
+    private string _business = "", _address = "", _last = "", _first = "", _middle = "", _extension = "", _sex = "", _nature = "";
+    protected override void OnParametersSet()
+    {
+        if (Row is not { } row) { _openedId = null; return; }
+        if (_openedId == row.Registration.Id) return;
+        var v = row.Registration;
+        _openedId = v.Id; _error = null;
+        _business = v.BusinessName ?? ""; _address = v.Address ?? "";
+        _last = v.LastName ?? ""; _first = v.FirstName ?? ""; _middle = v.MiddleName ?? "";
+        _extension = v.NameExtension ?? ""; _sex = v.Sex ?? ""; _nature = v.NatureOfBusiness ?? "";
+    }
+    private Task Close() => OnClose.InvokeAsync();
+    private async Task SaveAsync()
+    {
+        if (_saving || Row is not { } row) return;
+        _saving = true; _error = null;
+        try
+        {
+            var request = new CorrectVendorOfficeDetailsRequest(row.Registration,
+                VendorRegistrationForm.Blank(_business), VendorRegistrationForm.Blank(_address),
+                VendorRegistrationForm.Blank(_last), VendorRegistrationForm.Blank(_first),
+                VendorRegistrationForm.Blank(_middle), VendorRegistrationForm.Blank(_extension),
+                VendorRegistrationForm.Blank(_sex), VendorRegistrationForm.Blank(_nature));
+            var result = await OfficeApi.CorrectOfficeDetailsAsync(row.Registration.Id, request);
+            if (!result.IsSuccess)
+            {
+                _error = result.Error == "RegistryConcurrencyConflict"
+                    ? "This registration changed while you were editing. Close, refresh, and review the latest details."
+                    : "Office details could not be saved. Review the fields and try again.";
+                return;
+            }
+            await OnSaved.InvokeAsync();
+        }
+        catch { _error = "Office details could not be saved. Try again."; }
+        finally { _saving = false; }
+    }
+}

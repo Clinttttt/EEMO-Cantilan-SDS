@@ -1,0 +1,30 @@
+[
+  {
+    "kind": "AddUniqueConstraintOperation",
+    "destructive": false
+  },
+  {
+    "kind": "AddUniqueConstraintOperation",
+    "destructive": false
+  },
+  {
+    "kind": "CreateTableOperation",
+    "destructive": false
+  },
+  {
+    "kind": "CreateIndexOperation",
+    "destructive": false
+  },
+  {
+    "kind": "CreateIndexOperation",
+    "destructive": false
+  },
+  {
+    "kind": "CreateIndexOperation",
+    "destructive": false
+  },
+  {
+    "kind": "CreateIndexOperation",
+    "destructive": false
+  }
+]

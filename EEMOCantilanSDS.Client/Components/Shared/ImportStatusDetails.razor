@@ -1,0 +1,56 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<span class="is-status">
+    @if (Ready)
+    {
+        <span class="shi-chip-status is-ready">@Label</span>
+    }
+    else
+    {
+        <button class="is-trigger" type="button" @ref="_trigger" popovertarget="@_id" aria-controls="@_id"
+                aria-describedby="@_id" aria-expanded="false" aria-label="@($"{Label}: validation details for row {RowNumber}")">
+            <span class="shi-chip-status is-review">@Label</span>
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9" /><path d="M12 11v6M12 7v1" /></svg>
+        </button>
+        <div class="is-popup" id="@_id" popover="auto" role="tooltip" @ref="_popup">
+            <strong>@Heading</strong>
+            <p>@Message</p>
+            <span>Use Review to edit this row before importing.</span>
+        </div>
+    }
+</span>
+
+@code {
+    [Parameter] public string Label { get; set; } = "Invalid";
+    [Parameter] public bool Ready { get; set; }
+    [Parameter] public int RowNumber { get; set; }
+    [Parameter] public string Heading { get; set; } = "Review required";
+    [Parameter] public string Message { get; set; } = string.Empty;
+    private readonly string _id = $"import-status-{Guid.NewGuid():N}";
+    private ElementReference _trigger, _popup;
+    private IJSObjectReference? _module;
+    private bool _attached;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!Ready)
+        {
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/import-status.js");
+            await _module.InvokeVoidAsync(_attached ? "refresh" : "attach", _trigger, _popup);
+            _attached = true;
+        }
+        else if (_attached && _module is not null)
+        {
+            await _module.InvokeVoidAsync("detach", _trigger);
+            _attached = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is null) return;
+        try { if (_attached) await _module.InvokeVoidAsync("detach", _trigger); await _module.DisposeAsync(); }
+        catch (JSDisconnectedException) { }
+    }
+}

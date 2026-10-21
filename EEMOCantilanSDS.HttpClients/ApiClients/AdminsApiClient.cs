@@ -1,4 +1,5 @@
 ﻿using EEMOCantilanSDS.Application.Command.Admins.CreateAdmin;
+using EEMOCantilanSDS.Application.Command.Admins.InviteAdmin;
 using EEMOCantilanSDS.Application.Command.Admins.UpdateAdmin;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos;
@@ -11,6 +12,15 @@ public class AdminsApiClient(HttpClient http) : HandleResponse(http), IAdminsApi
 {
     public async Task<Result<IReadOnlyList<AdminListDto>>> GetAllAdminsAsync() =>
         await GetAsync<IReadOnlyList<AdminListDto>>("api/Admins");
+
+    public async Task<Result<AdminInvitationDto>> InviteAdminAsync(InviteAdminCommand command) =>
+        await PostAsync<InviteAdminCommand, AdminInvitationDto>("api/Admins/invitations", command);
+
+    public async Task<Result<AdminInvitationDto>> ResendAdminInvitationAsync(Guid id) =>
+        await PostAsync<AdminInvitationDto>($"api/Admins/{id}/invitation/resend");
+
+    public async Task<Result<bool>> RevokeAdminInvitationAsync(Guid id) =>
+        await PostAsync<bool>($"api/Admins/{id}/invitation/revoke");
 
     public async Task<Result<AdminDto>> CreateAdminAsync(CreateAdminCommand command) =>
         await PostAsync<CreateAdminCommand, AdminDto>("api/Admins", command);

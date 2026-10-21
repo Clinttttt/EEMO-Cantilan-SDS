@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Tenancy;
+using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
@@ -15,7 +16,8 @@ namespace EEMOCantilanSDS.Application.Common.Revenue;
 /// <summary>Collector-only, current-day audited reversal/replacement. Source writers still own all replacement money.</summary>
 public sealed class MobileCollectionCorrectionWorkflow(IAppDbContext db, ICollectionSessionStore store,
     ICollectionSessionSources sources, CollectionSessionWorkflow sessions, ICollectionActivityReader activity,
-    OfficeCollectionWorkflow office, ICurrentUserService user, ICurrentMunicipalityAccessor tenant, IClock clock)
+    OfficeCollectionWorkflow office, ICurrentUserService user, ICurrentMunicipalityAccessor tenant, IClock clock,
+    NpmRentMonthWorkflow? monthly = null)
 {
     private const string Origin = "MobileSelfCorrection";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -25,6 +27,12 @@ public sealed class MobileCollectionCorrectionWorkflow(IAppDbContext db, ICollec
         && Tenant != Guid.Empty && (!user.MunicipalityId.HasValue || user.MunicipalityId == Tenant)
         && user.CollectorId is { } collector && await store.IsActiveCollectorAsync(Tenant, collector, ct);
     private sealed class Rejected(string code) : Exception(code);
+    // An itemized Slaughterhouse collection (one line per approved charge) is corrected by remove-and-record-again, never edited in place.
+    private static bool IsItemizedSlaughter(Collection c) => c.Lines.Any(l => l.SourceKind == CollectionSourceKind.GovernedService
+        && l.CalculationSnapshot != null && l.CalculationSnapshot.Contains("\"" + CollectorOperationCodes.Slaughterhouse + "\"")
+        && l.CalculationSnapshot.Contains("\"unitAmount\":"));
+    private static bool IsMonthlyRent(Collection c) => c.Lines.Any(l => l.SourceKind == CollectionSourceKind.PaymentRecord
+        || l.Allocations.Any(a => a.SourceKind == CollectionSourceKind.PaymentRecord));
     private static string Reason(MobileCorrectionReasonIntent? reason)
     {
         if (reason is null || !Enum.IsDefined(reason.Code) || reason.Note?.Trim().Length > 300
@@ -59,6 +67,9 @@ public sealed class MobileCollectionCorrectionWorkflow(IAppDbContext db, ICollec
     private async Task<string?> BlockAsync(Collection c, CancellationToken ct) => Block(c, await LocksAsync([c], ct));
     private string? Block(Collection c, CorrectionLocks locks)
     {
+        if (c.Lines.Any(l => l.SourceKind == CollectionSourceKind.NpmRentMonth
+            || l.Allocations.Any(a => a.SourceKind == CollectionSourceKind.NpmRentMonth)) && monthly?.Enabled != true)
+            return "SourceCorrectionUnavailable";
         if (c.CollectorId != user.CollectorId) return "DifferentCollector";
         if (c.BusinessDate != clock.PhilippineToday) return "OutsideCurrentBusinessDate";
         if (locks.Remitted.Contains(c.Id)) return "Remitted";
@@ -67,7 +78,7 @@ public sealed class MobileCollectionCorrectionWorkflow(IAppDbContext db, ICollec
         if (c.Lines.Count == 0 || c.Lines.Any(l => l.SourceKind is CollectionSourceKind.OnlinePaymentTransaction or CollectionSourceKind.TrmTrip
             or CollectionSourceKind.TpmAttendance or CollectionSourceKind.PenaltyDefinition or CollectionSourceKind.FineAssessment)) return "SourceCorrectionUnavailable";
         if (c.Lines.Any(l => l.SourceKind is null && (l.Allocations.Count == 0 || l.Allocations.Any(a => a.SourceKind is not
-            (CollectionSourceKind.DailyCollection or CollectionSourceKind.PaymentRecord or CollectionSourceKind.UtilityBill or CollectionSourceKind.ObligationPeriod))))
+            (CollectionSourceKind.DailyCollection or CollectionSourceKind.PaymentRecord or CollectionSourceKind.UtilityBill or CollectionSourceKind.ObligationPeriod or CollectionSourceKind.NpmRentMonth))))
             && !locks.Native.Contains(c.Id))
             return "SourceCorrectionUnavailable";
         // A part payment applied only part of a day: re-posting it as a whole-day replacement would misstate what was received, so the office corrects it (void), not the device.
@@ -85,6 +96,9 @@ public sealed class MobileCollectionCorrectionWorkflow(IAppDbContext db, ICollec
     }
     private async Task<CollectionCorrection> ReverseAsync(Collection c, MobileCorrectionReasonIntent reason, CancellationToken ct)
     {
+        if (monthly?.Enabled == true)
+            await monthly.TouchCorrectionMonthsAsync(c.Lines.SelectMany(l => l.Allocations).ToArray(),
+                "Existing collector correction of Collection " + c.Id + ": " + Reason(reason), ct);
         var correction = CollectionCorrection.Record(Tenant, c.Id, null, null, null, CollectionCorrectionType.Reversal,
             clock.PhilippineToday, DateTime.UtcNow, -c.TotalAmount, Reason(reason), Actor, user.Username ?? "Collector",
             c.Lines.Select(l => new CollectionCorrectionLineDraft(l.Id, -l.Amount,
@@ -95,6 +109,15 @@ public sealed class MobileCollectionCorrectionWorkflow(IAppDbContext db, ICollec
         {
             if (day.CanonicalCollectionId == c.Id) day.ApplyCanonicalVoid(user.Username ?? "Collector");
             if (day.CanonicalAdjustmentCollectionId == c.Id) day.ApplyCanonicalAdjustmentVoid();
+        }
+        foreach (var rent in c.Lines.SelectMany(x => x.Allocations).Where(x => x.SourceKind == CollectionSourceKind.PaymentRecord).GroupBy(x => x.SourceId))
+        {
+            var facts = await new MonthlyRentCollectionSourceAdapter(db).LoadByRecordIdAsync(Tenant, rent.Key, clock.PhilippineToday, true, ct);
+            if (facts?.Record is not { } record || facts.Quote.RequiresLegacyReconciliation
+                || record.SettlementAuthorityState != SettlementAuthority.Canonical)
+                throw new Rejected("RentSourceReconciliationRequired");
+            record.ApplyCanonicalRentProjection(facts.Quote.CumulativeSettledEvidence - rent.Sum(x => x.Amount),
+                correction.RecordedAtUtc, user.Username ?? "Collector");
         }
         await db.SaveChangesAsync(ct);
         return correction;
@@ -123,8 +146,8 @@ public sealed class MobileCollectionCorrectionWorkflow(IAppDbContext db, ICollec
         {
             var block = Block(originals[e.CollectionId!.Value], locks);
             var editSource = editSources.GetValueOrDefault(e.CollectionId.Value);
-            var edit = block is null && e.Lines.Count == 1 && editSource is not null;
-            rows.Add(new(e, edit, block is null, block ?? (edit ? null : e.Lines.Count != 1 ? "MultipleSourceBoundaries" : "SourceCorrectionUnavailable"),
+            var edit = block is null && e.Lines.Count == 1 && editSource is not null && !IsMonthlyRent(originals[e.CollectionId.Value]);
+            rows.Add(new(e, edit, block is null, block ?? (edit ? null : IsItemizedSlaughter(originals[e.CollectionId.Value]) ? "ItemizedRemoveAndRecord" : e.Lines.Count != 1 ? "MultipleSourceBoundaries" : "SourceCorrectionUnavailable"),
                 block is null && edit ? null : "This collection is locked or requires source review.", native.FirstOrDefault(x => x.CollectionId == e.CollectionId), editSource));
         }
         return Result<MobileRecentCollections>.Success(new(today, rows, events.Length > 100));
@@ -168,6 +191,9 @@ public sealed class MobileCollectionCorrectionWorkflow(IAppDbContext db, ICollec
             CollectionSessionItemKind kind; string code;
             if (days.TryGetValue(id.Value, out var day))
             {
+                // An amount spanning periods must not be offered as a replacement for its first daily installment.
+                if (operations[c.Id].Any(x => JsonSerializer.Deserialize<DailyOperation>(x.NormalizedIntent, Json)?.OperationType == "NpmOutstandingRent"))
+                    continue;
                 stallId = day.StallId; year = day.CollectionDate.Year; month = day.CollectionDate.Month;
                 var whole = operations[c.Id].Any(x => JsonSerializer.Deserialize<DailyOperation>(x.NormalizedIntent, Json)?.OperationType == "NpmWholePayment");
                 kind = whole ? CollectionSessionItemKind.NpmWholePayment : CollectionSessionItemKind.NpmDaily;
@@ -197,6 +223,7 @@ public sealed class MobileCollectionCorrectionWorkflow(IAppDbContext db, ICollec
             {
                 var facts = JsonSerializer.Deserialize<GovernedEditFacts>(snapshot, Json);
                 if (facts?.OperationCode is null) continue;
+                if (facts.OperationCode == CollectorOperationCodes.Slaughterhouse && IsItemizedSlaughter(c)) continue;
                 SessionSlaughterIntent? slaughter = null;
                 if (facts.OperationCode == CollectorOperationCodes.Slaughterhouse)
                 {
@@ -230,7 +257,9 @@ public sealed class MobileCollectionCorrectionWorkflow(IAppDbContext db, ICollec
             ValidateEdit(edit, clock.PhilippineToday);
             await using var tx = await db.BeginSerializableTransactionAsync(ct);
             var original = await OriginalAsync(edit.CollectionId, ct);
+            if (IsItemizedSlaughter(original)) throw new Rejected("ItemizedRemoveAndRecord");
             if (original.Lines.Count != 1) throw new Rejected("MultipleSourceBoundaries");
+            if (IsMonthlyRent(original)) throw new Rejected("RentReplacementRequiresReview");
             await ReverseAsync(original, edit.Reason, ct);
             // A preview releases the original's settlement only inside an uncommitted transaction. No SRC is allocated.
             return await sessions.QuoteAsync(edit.Replacement, ct);
@@ -265,7 +294,9 @@ public sealed class MobileCollectionCorrectionWorkflow(IAppDbContext db, ICollec
                 if (await store.FindAsync(Tenant, operation, ct) is not null) throw new Rejected("CorrectionIntentConflict");
                 if (edit is not null) ValidateEdit(edit, clock.PhilippineToday);
                 var original = await OriginalAsync(originalId, ct);
+                if (edit is not null && IsItemizedSlaughter(original)) throw new Rejected("ItemizedRemoveAndRecord");
                 if (edit is not null && original.Lines.Count != 1) throw new Rejected("MultipleSourceBoundaries");
+                if (edit is not null && IsMonthlyRent(original)) throw new Rejected("RentReplacementRequiresReview");
                 var reversal = await ReverseAsync(original, reason, ct);
                 CollectionSessionCollection? replacement = null;
                 if (edit is not null)

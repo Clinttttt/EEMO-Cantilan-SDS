@@ -36,6 +36,8 @@ public class SetNpmMonthBasisCommandHandler(
 
         var npm = await facilityRepo.GetByCodeAsync(FacilityCode.NPM, ct);
         if (npm is null) return Result<bool>.NotFound();
+        if (npm.IsMonthlyRentMarket)
+            return Result<bool>.Failure("This market is rented by the month, so it has no daily month basis to choose.", ResultStatus.Invalid);
 
         npm.SetMonthBasis(request.Basis, "MonthBasis");
         await unitOfWork.SaveChangesAsync(ct);

@@ -2,6 +2,8 @@
 using Bunit.TestDoubles;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.StallHolders;
+using EEMOCantilanSDS.Application.Dtos.Stalls;
+using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.AspNetCore.Components.Forms;
@@ -36,9 +38,13 @@ public class ImportStallholdersColumnAlignmentTests : TestContext
         var stalls = new Mock<IStallsApiClient>();
         stalls.Setup(s => s.GetStallHoldersListAsync(It.IsAny<FacilityCode>(), It.IsAny<MarketSection?>(), It.IsAny<string?>()))
               .ReturnsAsync(Result<StallHoldersListDto>.Success(new StallHoldersListDto()));
+        stalls.Setup(s => s.GetNpmRatesAsync()).ReturnsAsync(Result<NpmRatesDto>.Success(new NpmRatesDto(30m, 1m)));
+        var facilities = new Mock<IFacilitiesApiClient>();
+        facilities.Setup(f => f.GetNpmCustomSectionsAsync())
+            .ReturnsAsync(Result<IReadOnlyList<NpmCustomSectionDto>>.Success(Array.Empty<NpmCustomSectionDto>()));
 
         Services.AddSingleton(stalls.Object);
-        Services.AddSingleton(Mock.Of<IFacilitiesApiClient>());
+        Services.AddSingleton(facilities.Object);
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
@@ -61,6 +67,19 @@ public class ImportStallholdersColumnAlignmentTests : TestContext
     {
         var selector = key == "stallNo" ? "input.imp-stallno" : "input.imp-col-" + key.ToLowerInvariant();
         return cut.Find(selector).GetAttribute("value") ?? string.Empty;
+    }
+
+    [Theory]
+    [InlineData("tcc")]
+    [InlineData("ncc")]
+    [InlineData("npm")]
+    [InlineData("bbq")]
+    [InlineData("ice")]
+    public void FacilityImportReusesBlueHeroAndThreeStepWorkflow(string facility)
+    {
+        var cut = Render(facility);
+        Assert.NotNull(cut.Find(".imp-hero.imp-hero-blue"));
+        Assert.Equal(3, cut.FindAll(".imp-step").Count);
     }
 
     [Fact]

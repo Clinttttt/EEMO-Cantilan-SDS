@@ -29,7 +29,8 @@ public class RecordPaymentCommandHandler(
         // a monthly partial (e.g. ₱500) cannot be expressed as whole ₱30 days (16 × ₱30 = ₱480) and
         // ends up double-recorded against the daily ledger, so the history/calendar (daily-truth) and
         // the reports (monthly-record) disagree. NPM payments must go through daily collections.
-        if (stall.Facility?.Code == FacilityCode.NPM)
+        // A Public Market whose LGU declared standard monthly rental is exactly the case this guard is NOT about: it has no daily ledger.
+        if (stall.Facility?.Code == FacilityCode.NPM && !stall.Facility.IsMonthlyRentMarket)
             return Result<bool>.Failure(
                 "New Public Market is collected daily — record payments via the daily collection calendar, not a monthly payment.",
                 ResultStatus.Invalid);
@@ -100,6 +101,9 @@ public class RecordPaymentCommandHandler(
             var existingPayment = await paymentRepository.GetByIdAsync(existingPaymentDto.Id, ct);
             if (existingPayment == null)
                 return Result<bool>.NotFound();
+
+            if (existingPayment.SettlementAuthorityState != SettlementAuthority.Legacy)
+                return Result<bool>.Failure("RECONCILIATION_REQUIRED: This monthly source is transitioning or canonical. Refresh and use its reviewed rent receipt; legacy status changes are disabled.", ResultStatus.Conflict);
 
             // Stamp the offline idempotency key on the UPDATE path too (not just create), so a lost-ack
             // retry of the same queued op is caught by the sync pre-check instead of re-applying the write.

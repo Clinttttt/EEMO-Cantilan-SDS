@@ -34,6 +34,8 @@ public class SetNpmSectionRateCommandHandler(
         // typo would create a rate row that prices nothing, sitting in the office's own records for ever.
         var npm = await facilityRepo.GetByCodeAsync(FacilityCode.NPM, ct);
         if (npm is null) return Result<bool>.NotFound();
+        if (npm.IsMonthlyRentMarket)
+            return Result<bool>.Failure("This market is rented by the month, so its sections carry no daily fee; each stall's monthly rent is set on its contract.", ResultStatus.Invalid);
 
         var registered = npm.CustomSectionNames
             .FirstOrDefault(n => string.Equals(n, section, StringComparison.OrdinalIgnoreCase));

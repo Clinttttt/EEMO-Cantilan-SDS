@@ -1,0 +1,68 @@
+.recent-list {
+    display: grid;
+    gap: 6px;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.recent-list li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 10px;
+}
+
+.recent-amount {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.recent-when,
+.recent-src {
+    font-size: 13px;
+}
+
+.recent-src {
+    font-variant-numeric: tabular-nums;
+}
+
+.recent-list li.is-reversed {
+    opacity: 0.75;
+}
+
+.recent-list li.is-reversed .recent-amount {
+    text-decoration: line-through;
+}
+
+.recent-tag {
+    padding: 1px 8px;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.recent-retry {
+    display: block;
+    min-height: 44px;
+    margin-top: 8px;
+    padding: 0 14px;
+    border: 1px solid var(--mobile-border);
+    border-radius: 12px;
+    background: var(--mobile-surface);
+    color: var(--mobile-navy);
+    font: inherit;
+    font-weight: 600;
+}
+
+.recent-more {
+    margin: 6px 0 0;
+    font-size: 13px;
+}
+
+.recent-checking {
+    margin: 0 0 12px;
+    color: var(--mobile-text);
+    font-size: 13px;
+}

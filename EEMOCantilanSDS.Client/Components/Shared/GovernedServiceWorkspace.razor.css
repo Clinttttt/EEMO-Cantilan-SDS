@@ -1,10 +1,17 @@
 /* Governed service workspace — V3. Panels, tables, facts and buttons come from the v3- layer in app.css. */
 
+/* Collections and Setup share one row height; the Collections body takes the slack and its total stays at the card foot. */
 .gsw-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
-    align-items: start;
+    align-items: stretch;
     gap: 20px;
+}
+
+.gsw-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .gsw-period {
@@ -67,10 +74,73 @@
     padding-top: 0;
 }
 
-.gsw-edit {
-    width: 100%;
-    justify-content: center;
+/* Setup actions sit together under the facts, divided from them, not as full-width bars. */
+.gsw-setup-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
     margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+}
+
+/* Rule choice in the drawer: one joined control, the selected option in civic blue (same pattern as the fee type rule). */
+.gsw-rule {
+    margin: 0 0 12px;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+}
+
+.gsw-rule legend {
+    margin-bottom: 6px;
+    padding: 0;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.gsw-segmented {
+    display: flex;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--surface);
+}
+
+.gsw-segmented label {
+    position: relative;
+    display: flex;
+    flex: 1 1 0;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 10px;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.25;
+    text-align: center;
+    cursor: pointer;
+}
+
+.gsw-segmented label + label {
+    border-left: 1px solid var(--border-strong);
+}
+
+.gsw-segmented input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.gsw-segmented label.is-selected {
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.gsw-segmented label:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
 }
 
 /* Edit form: tight vertical rhythm, full-width fields, actions on one line. */
@@ -174,12 +244,20 @@
     }
 }
 
+/* One short bar above the fee types it concerns (spaced like the cards around it); the amount rule itself is read in Setup. */
 .gsw-fee-rule {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     flex-wrap: wrap;
-    gap: 8px 12px;
-    margin: 0 0 12px;
+    gap: 8px 16px;
+    margin: 20px 0 0;
+    padding: 10px 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
 }
 
 .gsw-period .v3-input { min-height: 36px; padding-block: 4px; }
@@ -199,3 +277,25 @@
     font-size: 0.8125rem;
 }
 .gsw-total strong:last-child { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.gsw-layout > .v3-panel {
+    display: flex;
+    flex-direction: column;
+}
+
+.gsw-layout > .v3-panel > .gsw-scroll {
+    flex: 1 1 auto;
+}
+
+.gsw-layout > .v3-panel > .gsw-total {
+    margin-top: auto;
+}
+
+/* Past five rows the register scrolls inside the card; the scrollbar itself stays hidden. */
+.gsw-scroll {
+    scrollbar-width: none;
+}
+
+.gsw-scroll::-webkit-scrollbar {
+    display: none;
+}

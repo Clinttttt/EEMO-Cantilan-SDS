@@ -10,6 +10,8 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence;
 /// </summary>
 public interface ICollectionActivityReader
 {
+    Task<IReadOnlyList<CollectionActivityEventDto>> GetReconciliationAsync(Guid tenantId, DateOnly from, DateOnly to,
+        DateTime cutoffUtc, bool correctionActivity, CancellationToken ct = default);
     Task<IReadOnlyList<CollectionActivityEventDto>> GetAsync(Guid tenantId, DateOnly from, DateOnly to, CancellationToken ct = default);
 
     /// <summary>The business date of the canonical Collection carrying this exact SRC in the tenant, or null.</summary>

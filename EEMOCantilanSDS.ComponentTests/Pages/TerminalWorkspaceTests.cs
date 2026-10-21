@@ -54,15 +54,37 @@ public sealed class TerminalWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.Equal("Income From Terminal", Assert.Single(cut.FindAll("h1")).TextContent.Trim());
-            var sections = cut.FindAll("section[aria-labelledby='trm2-sections-title'] tbody tr").Select(r => r.TextContent).ToList();
+            var sections = cut.FindAll("section[aria-labelledby='trm2-sections-title'] .trm2-card").Select(r => r.TextContent).ToList();
             Assert.Contains(sections, r => r.Contains("COMFORT ROOM") && r.Contains("₱400.00") && r.Contains("5.6%"));
             Assert.Contains(sections, r => r.Contains("PULL PUL VANS, CARGO VANS") && r.Contains("₱5,800.00"));
             Assert.Contains(sections, r => r.Contains("TRICYCAD") && r.Contains("₱900.00") && r.Contains("12.7%"));
-            Assert.Equal(["Section", "Today", "This month", "Contribution"], cut.FindAll("[aria-label='Terminal sections'] thead th").Select(x => x.TextContent.Trim()).ToArray());
             Assert.Equal(["Date", "SRC", "Section", "Collector", "Amount"], cut.FindAll("[aria-label='Recent Terminal collections'] thead th").Select(x => x.TextContent.Trim()).ToArray());
             Assert.Contains("SRC-2026-000022", cut.Markup);
             Assert.DoesNotContain("Transportation", cut.Markup);
             Assert.DoesNotContain("TRM", cut.Markup);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void TheTerminalReport_StatesTheSectionsAndTheRegister_FromTheServersNetAmounts()
+    {
+        Services.AddSingleton(Mock.Of<IOfficialReportsApiClient>());
+        _office.Setup(x => x.ActivityAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), CollectorOperationCodes.Terminal)).ReturnsAsync(
+            Result<IReadOnlyList<SourceNativeActivityDto>>.Success([
+                Row(TerminalSection.ComfortRoom, "SRC-2026-000021", 400m, 40),
+                Row(TerminalSection.Tricycad, "SRC-2026-000023", 900m, 30)]));
+
+        var cut = RenderComponent<TerminalReport>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Empty(cut.FindAll("main"));
+            var sheet = cut.Find("article.print-report-sheet").TextContent;
+            Assert.Contains("Republic of the Philippines", sheet);
+            Assert.Contains("₱1,300.00", sheet);                      // total of the two sections
+            Assert.Contains("SRC-2026-000023", sheet);
+            Assert.Contains("69.2%", sheet);                          // Tricycad's share of the month
+            Assert.Contains(cut.FindAll("a"), a => a.HasAttribute("download"));
         }, Timeout);
     }
 
@@ -83,11 +105,28 @@ public sealed class TerminalWorkspaceTests : TestContext
         _classes.Setup(x => x.GetAsync()).ReturnsAsync(Result<IReadOnlyList<VehicleClassDto>>.Success([]));
         var cut = RenderComponent<Terminal>();
         cut.WaitForAssertion(() => {
-            var shares = cut.FindAll("[aria-label='Terminal sections'] tbody tr td:last-child").Select(x => x.TextContent.Trim()).ToArray();
+            var shares = cut.FindAll("[aria-label='Terminal sections'] .trm2-share").Select(x => x.TextContent.Trim()).ToArray();
             Assert.Equal(new[] { comfortShare, vansShare, tricycadShare }, shares);
             if (comfort + vans + tricycad != 0)
                 Assert.Equal(100m, shares.Sum(x => decimal.Parse(x.TrimEnd('%'), System.Globalization.CultureInfo.InvariantCulture)));
             Assert.DoesNotContain("Cash Tickets", cut.Markup);
+        }, Timeout);
+    }
+
+
+    [Fact]
+    public void TerminalShowsTheSectionTotalsAsDirectAmounts_WithTheRatesPanelBelow()
+    {
+        _office.Setup(x => x.ActivityAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), CollectorOperationCodes.Terminal)).ReturnsAsync(
+            Result<IReadOnlyList<SourceNativeActivityDto>>.Success([Row(TerminalSection.Tricycad, "SRC-2026-000023", 543m, null)]));
+        _classes.Setup(x => x.GetAsync()).ReturnsAsync(Result<IReadOnlyList<VehicleClassDto>>.Success([]));
+
+        var cut = RenderComponent<Terminal>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Vehicle classes and rates", cut.Markup);        // the rates panel stays below the collections
+            Assert.Empty(cut.FindAll("[aria-label='Terminal collection setup']"));   // no static label card
         }, Timeout);
     }
 
@@ -118,6 +157,24 @@ public sealed class TerminalWorkspaceTests : TestContext
         {
             Assert.NotNull(mapped);
             Assert.Equal((pedicab.Id, TerminalSection.Tricycad), (mapped!.VehicleClassId, mapped.Section));
+        }, Timeout);
+    }
+    [Fact]
+    public void ChoosingAnotherMonth_ReadsThatWholeMonth_AndTodaysFiguresAreNotShown()
+    {
+        _office.Setup(x => x.ActivityAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), CollectorOperationCodes.Terminal))
+            .ReturnsAsync(Result<IReadOnlyList<SourceNativeActivityDto>>.Success([]));
+        _office.Setup(x => x.VehicleChoicesAsync(It.IsAny<DateOnly>())).ReturnsAsync(Result<IReadOnlyList<TerminalVehicleChoice>>.Success([]));
+        _classes.Setup(x => x.GetAsync()).ReturnsAsync(Result<IReadOnlyList<VehicleClassDto>>.Success([]));
+        var cut = RenderComponent<Terminal>();
+        cut.WaitForAssertion(() => cut.Find("input[type='month']"), Timeout);
+
+        cut.Find("input[type='month']").Change("2026-08");
+
+        cut.WaitForAssertion(() =>
+        {
+            _office.Verify(x => x.ActivityAsync(new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 31), CollectorOperationCodes.Terminal), Times.AtLeastOnce);
+            Assert.Contains("Collected in August 2026", cut.Find(".v3h-figures").TextContent);
         }, Timeout);
     }
 

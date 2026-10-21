@@ -1,4 +1,6 @@
 @using EEMOCantilanSDS.Domain.Entities.Revenue
+@using Microsoft.AspNetCore.Components.Routing
+@inject NavigationManager Navigation
 
 @* The Fish / Meat registration drawer: the shared right-hand drawer shell (kept mounted so it slides in and out like the stallholder drawer) around
    full-width fields and stacked registration choices. Registering a vendor and renewing a registration are the same drawer; a renewal fixes the vendor's type and asks for the
@@ -17,53 +19,40 @@
     <ChildContent>
         <form class="vendor-registration-form" id="@FormId" aria-label="@FormLabel" @onsubmit="OnSubmit" @onsubmit:preventDefault="true">
             @SourceContext
-                <div class="avm-group">
-                    <label class="avm-label" for="@($"{FormId}-name")">Vendor name <span class="avm-req">*</span></label>
-                    <input id="@($"{FormId}-name")" class="avm-input" type="text" maxlength="200" autocomplete="off" @bind="Model.Name" @bind:event="oninput" />
-                </div>
-                <div class="avm-group">
-                    <label class="avm-label" for="@($"{FormId}-business")">Business name</label>
-                    <input id="@($"{FormId}-business")" class="avm-input" type="text" maxlength="200" autocomplete="off" @bind="Model.Business" @bind:event="oninput" />
-                </div>
-            @if (IsRenew)
-            {
-                    <div class="avm-group">
-                        <label class="avm-label">Renew for tax year <span class="avm-req">*</span></label>
-                        <FhSelect Block="true" AriaLabel="Renew for tax year" Options="YearOptions" Value="@Model.TaxYear.ToString()" ValueChanged="v => Model.TaxYear = int.Parse(v)" />
-                    </div>
-                    <div class="avm-group">
-                        <label class="avm-label">Type</label>
-                        <div class="avm-input avm-input-locked">@Model.Type</div>
-                    </div>
-            }
-            else
-            {
-                    <div class="avm-group">
-                        <label class="avm-label">Type <span class="avm-req">*</span></label>
-                        <ChoiceCards Label="Vendor type" Items="TypeChoices" Value="@(((int)Model.Type).ToString())" ValueChanged="v => Model.Type = (FishMeatVendorType)int.Parse(v)" />
-                    </div>
-                    <div class="avm-group">
-                        <label class="avm-label">Registration <span class="avm-req">*</span></label>
-                        <ChoiceCards Label="Registration" Items="KindChoices" Value="@(((int)Model.Kind).ToString())" ValueChanged="v => Model.Kind = (VendorRegistrationKind)int.Parse(v)" />
-                    </div>
-            }
-
-                <div class="avm-group">
-                    <label class="avm-label" for="@($"{FormId}-address")">Address</label>
-                    <input id="@($"{FormId}-address")" class="avm-input" type="text" maxlength="300" autocomplete="off" @bind="Model.Address" @bind:event="oninput" />
-                </div>
-
+            <VendorRegistrationFields Model="Model" FormId="@FormId" IsRenew="IsRenew" TaxYears="TaxYears" />
             @if (!string.IsNullOrWhiteSpace(Error))
             {
                 <div class="avm-error" role="alert">@Error</div>
             }
+            @if (_pendingNavigation is not null)
+            {
+                <div class="avm-error" role="alertdialog" aria-label="Leave registration">You have unsaved registration details. Leave this form?</div>
+            }
         </form>
     </ChildContent>
     <Footer>
+        @if (_pendingNavigation is not null)
+        {
+            <button type="button" class="btn-ghost" @onclick="() => _pendingNavigation = null">Keep editing</button>
+            <button type="button" class="btn-primary" @onclick="ContinueNavigation">Continue</button>
+        }
+        else
+        {
+        @if (ImportEnabled)
+        {
+            <AuthorizeView Roles="SuperAdmin"><Authorized>
+                <div class="vendor-import-action"><button type="button" class="btn-ghost" disabled="@Saving" title="Import vendor registrations from a file" @onclick="RequestImport">Import list</button></div>
+            </Authorized></AuthorizeView>
+        }
         <button type="button" class="btn-ghost" @onclick="OnCancel">Cancel</button>
-        <button type="submit" class="btn-primary" form="@FormId" disabled="@Saving">@SubmitText</button>
+        <button type="submit" class="btn-primary" form="@FormId" disabled="@(Saving || !CanSubmit)">@SubmitText</button>
+        }
     </Footer>
 </VendorDrawerShell>
+@if (ImportEnabled)
+{
+    <NavigationLock ConfirmExternalNavigation="@(Dirty && !_allowNavigation)" OnBeforeInternalNavigation="BeforeNavigation" />
+}
 
 @code {
     private static readonly IReadOnlyList<ChoiceCards.Choice> TypeChoices = [new("1", "Fish"), new("2", "Meat")];
@@ -78,6 +67,9 @@
     [Parameter] public string? Subtitle { get; set; }
     [Parameter] public string SubmitText { get; set; } = "Register";
     [Parameter] public bool Saving { get; set; }
+    [Parameter] public bool CanSubmit { get; set; } = true;
+    /// <summary>Ordinary Head registration only. NPM association and renewal do not offer import navigation.</summary>
+    [Parameter] public bool ShowImport { get; set; }
     [Parameter] public string? Error { get; set; }
 
     /// <summary>A renewal: the type is the registration's own and the tax year is chosen from <see cref="TaxYears"/>.</summary>
@@ -87,4 +79,33 @@
     [Parameter] public EventCallback OnCancel { get; set; }
 
     private IReadOnlyList<(string Value, string Label)> YearOptions => TaxYears.Select(y => (y.ToString(), y.ToString())).ToList();
+    private bool ImportEnabled => Show && ShowImport && !IsRenew && SourceContext is null;
+    private bool Dirty => _openingFingerprint is not null && _openingFingerprint != Model.Fingerprint;
+    private bool _wasShown, _allowNavigation;
+    private string? _openingFingerprint, _pendingNavigation;
+    protected override void OnParametersSet()
+    {
+        if (Show && !_wasShown) { _openingFingerprint = Model.Fingerprint; _pendingNavigation = null; _allowNavigation = false; }
+        _wasShown = Show;
+    }
+    private void RequestImport()
+    {
+        if (Saving || !ImportEnabled) return;
+        var target = "/operations/fish-meat-vendor-fees/import";
+        if (Dirty) _pendingNavigation = target;
+        else Navigation.NavigateTo(target);
+    }
+    private void BeforeNavigation(LocationChangingContext context)
+    {
+        if (!Dirty || _allowNavigation) return;
+        context.PreventNavigation();
+        _pendingNavigation = context.TargetLocation;
+        StateHasChanged();
+    }
+    private void ContinueNavigation()
+    {
+        if (_pendingNavigation is not { } target || Saving) return;
+        _allowNavigation = true; _pendingNavigation = null;
+        Navigation.NavigateTo(target);
+    }
 }

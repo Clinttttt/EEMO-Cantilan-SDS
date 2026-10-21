@@ -53,13 +53,19 @@
                     <div class="avm-row-2">
                         <label class="v3-field"><span>Fine category</span><select required value="@_policyId" @onchange="PolicyChanged"><option value="@Guid.Empty">Select fine category</option>@foreach(var p in EligiblePolicies) { <option value="@p.Id">@PenaltyName(p)</option> }</select></label>
                         <label class="v3-field"><span>Violation date</span><input type="date" required @bind="_violation" /></label>
-                        <label class="v3-field fine-wide"><span>Related billing period (optional)</span><select aria-label="Related billing period" @bind="_periodIndex"><option value="-1">Not related to a billing period</option>@for(var i=0;i<_periods.Count;i++) { <option value="@i">@_periods[i].Label</option> }</select></label>
+                        <label class="v3-field fine-wide"><span>Related billing period (optional)</span><select aria-label="Related billing period" @bind="_periodIndex"><option value="-1">Not related to a billing period</option>@for(var i=0;i<_periods.Count;i++) { <option value="@i">@PeriodText(_periods[i])</option> }</select></label>
                         @if (_selected.Facility==FacilityCode.NPM) { <label class="v3-field"><span>Daily charge year</span><input type="number" min="1900" max="9998" @bind="_periodYear" @bind:after="LoadPeriods" /></label> }
                         @if (_periodLoading) { <p class="fine-wide" role="status">Loading source periods…</p> }
                         @if (_periodError is not null) { <p class="fine-wide" role="status">@_periodError <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadPeriods">Retry</button></p> }
                         <label class="v3-field"><span>Fine amount (₱)</span><input aria-label="Fine amount" type="number" required min="0.01" step="0.01" readonly="@(SelectedPenalty?.Basis==GovernedServiceBasis.FixedAmount)" @bind="_amount" /></label>
-                        @if (SelectedPenalty is { } penalty) { <p class="fine-amount-rule">@(penalty.Basis==GovernedServiceBasis.FixedAmount ? $"Fixed approved amount: ₱{penalty.FixedAmount:N2}" : penalty.MaximumAmount is { } ceiling ? $"Maximum ₱{ceiling:N2}" : "Head-entered amount · authorized without a ceiling")</p> }
-                        <label class="v3-field fine-wide"><span>Reason / description</span><textarea class="avm-input" rows="3" required maxlength="1000" @bind="_reason"></textarea></label>
+                        @if (UncappedUnauthorized) { <p class="fine-amount-rule fine-wide fine-warn" role="alert">This category has no ceiling and its policy carries no uncapped authorization, so it cannot be assessed. <AuthorizeView Roles="SuperAdmin"><Authorized><a href="/operations/fines?view=settings">Authorize it in Penalty settings</a></Authorized><NotAuthorized>Ask the Head to authorize it.</NotAuthorized></AuthorizeView></p> }
+                        else if (SelectedPenalty is { } penalty && (penalty.Basis==GovernedServiceBasis.FixedAmount || penalty.MaximumAmount is not null)) { <p class="fine-amount-rule">@(penalty.Basis==GovernedServiceBasis.FixedAmount ? $"Fixed approved amount: ₱{penalty.FixedAmount:N2}" : $"Maximum ₱{penalty.MaximumAmount:N2}")</p> }
+                        <div class="fine-wide fine-field"><span id="fine-reason-label">Reason</span>
+                            <div class="fine-choices" role="radiogroup" aria-labelledby="fine-reason-label">
+                                @foreach (var option in ReasonOptions) { <label class="@(_choice==option ? "is-on" : null)"><input type="radio" name="fine-reason" checked="@(_choice==option)" @onchange="() => _choice=option" />@option</label> }
+                                <label class="@(_choice==OtherReason ? "is-on" : null)"><input type="radio" name="fine-reason" checked="@(_choice==OtherReason)" @onchange="() => _choice=OtherReason" />Other</label>
+                            </div></div>
+                        @if (_choice==OtherReason) { <label class="v3-field fine-wide"><span>Description</span><textarea class="avm-input" rows="3" required maxlength="1000" @bind="_other"></textarea></label> }
                         <label class="v3-field fine-wide"><span>Incident / reference (optional)</span><input maxlength="200" @bind="_incident" placeholder="Recorded case or notice reference" /></label>
                     </div>
                 }
@@ -84,12 +90,21 @@
     public async ValueTask DisposeAsync() { if(_focus is null) return;try {await _focus.InvokeVoidAsync("release",_root);await _focus.DisposeAsync();}catch(JSDisconnectedException) { } }
     private List<FineAccountOption> _options=[]; private List<FinePolicyDto> _policies=[]; private List<PenaltyDefinitionDto> _definitions=[]; private List<FinePeriodOption> _periods=[];
     private FineAccountOption? _selected;
-    private string _search="",_incident="",_reason=""; private Guid _policyId,_operation;
+    private string _search="",_incident="",_other=""; private Guid _policyId,_operation;
+    // The saved reason is an approved category's own name, or the custom description under Other; no violation list is invented here.
+    private const string OtherReason="\0other";
+    private string? _choice;
+    private IEnumerable<string> ReasonOptions => SelectedPenalty is { } p ? [p.DisplayName] : [];
+    private string _reason => _choice is null ? "" : _choice==OtherReason ? _other.Trim() : _choice;
     private DateOnly _violation=EEMOCantilanSDS.Domain.Common.PhilippineTime.Today;
     private int _periodIndex=-1,_periodYear=EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year; private decimal _amount;
     private bool _loading=true,_searching,_searched,_saving,_review,_duplicate,_confirmDuplicate,_periodLoading; private string? _error,_periodError;
     private FinePeriodOption? SelectedPeriod => _periodIndex>=0 && _periodIndex<_periods.Count ? _periods[_periodIndex] : null;
-    private IEnumerable<FinePolicyDto> EligiblePolicies => _policies.Where(p=>_selected is not null && p.Evidence.AccountKind==_selected.Account.Kind && p.Evidence.Facility==_selected.Facility && (!_selected.Closed||p.Evidence.AllowsClosedAccount) && _definitions.Any(d=>d.VersionId==p.Evidence.PenaltyVersionId&&d.IsActive));
+    // A category with a ceiling-less manual amount can be assessed only under a policy that carries explicit uncapped authorization.
+    private bool UncappedUnauthorized => SelectedPenalty is { Basis: GovernedServiceBasis.DirectApprovedAmount, MaximumAmount: null } && SelectedPolicy?.Evidence.AllowsUncappedAmount != true;
+    // One entry per category: where a source has an older policy and a newer authorized one, the authorized policy is the one offered.
+    private IEnumerable<FinePolicyDto> EligiblePolicies => _eligible.GroupBy(p=>p.Evidence.PenaltyVersionId).Select(g=>g.OrderByDescending(p=>p.Evidence.AllowsUncappedAmount).First());
+    private IEnumerable<FinePolicyDto> _eligible => _policies.Where(p=>_selected is not null && p.Evidence.AccountKind==_selected.Account.Kind && p.Evidence.Facility==_selected.Facility && (!_selected.Closed||p.Evidence.AllowsClosedAccount) && _definitions.Any(d=>d.VersionId==p.Evidence.PenaltyVersionId&&d.IsActive));
     private FinePolicyDto? SelectedPolicy => EligiblePolicies.SingleOrDefault(p=>p.Id==_policyId);
     private PenaltyDefinitionDto? SelectedPenalty => _definitions.SingleOrDefault(d=>d.VersionId==SelectedPolicy?.Evidence.PenaltyVersionId);
     private string PenaltyName(FinePolicyDto p)=>_definitions.SingleOrDefault(d=>d.VersionId==p.Evidence.PenaltyVersionId)?.DisplayName ?? "Unavailable category";
@@ -98,6 +113,7 @@
     private static string AccountStatus(FineAccountOption a)=>a.Lifecycle ?? (a.Closed ? "Closed" : "Active");
     private static string AccountPill(FineAccountOption a)=>a.Closed ? "pill-inactive" : "pill-active";
     private static string KindLabel(FineAccountKind kind)=>System.Text.RegularExpressions.Regex.Replace(kind.ToString(),"(?<=[a-z])(?=[A-Z])"," ");
+    private static string PeriodText(FinePeriodOption p)=>p.Label.EndsWith(" · daily charges",StringComparison.Ordinal) ? p.Label[..^" · daily charges".Length] : p.Label;
     private int CurrentStep => _review ? 3 : _selected is null ? 1 : 2;
     private static readonly (int Number,string Label)[] StepLabels=[(1,"Account"),(2,"Fine details"),(3,"Review")];
     private RenderFragment Steps => @<ol class="fine-steps" aria-label="Assessment steps">
@@ -135,7 +151,7 @@
             if(_selected?.Account!=account || request!=_periodRequest) return;
             if(result is {IsSuccess:true,Value:not null}) _periods=result.Value.ToList(); else _periodError="Related period evidence is unavailable. Leave unselected or retry."; }
         catch { if(request==_periodRequest) _periodError="Related period evidence is unavailable. Leave unselected or retry."; } finally { if(request==_periodRequest) _periodLoading=false; } }
-    private void PolicyChanged(ChangeEventArgs args) { _policyId=Guid.TryParse(args.Value?.ToString(),out var id)?id:Guid.Empty; if(SelectedPenalty?.Basis==GovernedServiceBasis.FixedAmount) _amount=SelectedPenalty.FixedAmount??0; }
+    private void PolicyChanged(ChangeEventArgs args) { _choice=null; _policyId=Guid.TryParse(args.Value?.ToString(),out var id)?id:Guid.Empty; if(SelectedPenalty?.Basis==GovernedServiceBasis.FixedAmount) _amount=SelectedPenalty.FixedAmount??0; _choice=SelectedPenalty?.DisplayName; }
     private Task Cancel()=>_saving?Task.CompletedTask:OnClose.InvokeAsync();
     private Task BackOrCancel() { if(_saving) return Task.CompletedTask;if(_review) {_review=false;return Task.CompletedTask;}return Cancel(); }
     private async Task Submit()
@@ -143,7 +159,8 @@
         if(_saving||_loading) return;
         if(_selected is null) { _error="Select a verified account first.";return; }
         if(SelectedPolicy is null) { _error="Select an applicable approved fine category.";return; }
-        if(string.IsNullOrWhiteSpace(_reason)) { _error="Enter the incident description.";return; }
+        if(string.IsNullOrWhiteSpace(_reason)) { _error=_choice==OtherReason ? "Describe the incident." : "Select the reason.";return; }
+        if(UncappedUnauthorized) { _error="Uncapped amounts need explicit authorization. Authorize this category under Penalty settings, Where fines apply.";return; }
         if(_amount<=0 || decimal.Round(_amount,2)!=_amount) { _error="Enter a positive fine amount in centavos.";return; }
         if(SelectedPenalty?.FixedAmount is { } fixedAmount && SelectedPenalty.Basis==GovernedServiceBasis.FixedAmount && _amount!=fixedAmount) { _error="Use the approved fixed amount.";return; }
         if(SelectedPenalty?.MaximumAmount is { } maximum && _amount>maximum) { _error=$"The approved maximum is ₱{maximum:N2}.";return; }

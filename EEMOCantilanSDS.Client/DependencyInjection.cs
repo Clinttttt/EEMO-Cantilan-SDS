@@ -74,6 +74,9 @@ namespace EEMOCantilanSDS.Client
             service.AddScoped<AuthService>();
             service.AddScoped<EEMOCantilanSDS.Client.Services.BrandingState>();
             service.AddScoped<EEMOCantilanSDS.Client.Services.FacilityState>();
+            service.AddScoped<EEMOCantilanSDS.Client.Services.OperationNameService>();
+            // Contracts Monitoring reads the monitoring API through the existing Reports client.
+            service.AddScoped<EEMOCantilanSDS.Client.Services.IContractsMonitoringSource, EEMOCantilanSDS.Client.Services.ReportsContractsMonitoringSource>();
             service.AddScoped<PayorAuthService>();
             service.AddScoped<PayorRealtimeNotifier>();
             service.AddScoped<AuthorizationDelegatingHandler>();
@@ -99,6 +102,15 @@ namespace EEMOCantilanSDS.Client
         /// </remarks>
         public static IServiceCollection AddApiHttpClients(this IServiceCollection service, IConfiguration configuration)
         {
+            // One logger for every outbound API call, in place of the framework default that prints the full request URI.
+            // An activation, reset or verification lookup carries its one-time credential in that URI (see SensitiveRoutes).
+            service.AddTransient<EEMOCantilanSDS.Client.Securities.RedactedHttpLoggingHandler>();
+            service.ConfigureHttpClientDefaults(builder =>
+            {
+                builder.RemoveAllLoggers();
+                builder.AddHttpMessageHandler<EEMOCantilanSDS.Client.Securities.RedactedHttpLoggingHandler>();
+            });
+
             service.AddHttpClient<IAuthApiClient, AuthApiClient>("AuthClient", client =>
             {
                 client.BaseAddress = new Uri(configuration["ApiBaseUrl"]!);
@@ -131,20 +143,26 @@ namespace EEMOCantilanSDS.Client
             service.AddApiHttpClient<ITpmApiClient, TpmApiClient>(configuration);
             service.AddApiHttpClient<ITrmApiClient, TrmApiClient>(configuration);
             service.AddApiHttpClient<ISlaughterApiClient, SlaughterApiClient>(configuration);
+            service.AddApiHttpClient<ILifecycleApiClient, LifecycleApiClient>(configuration);
             service.AddApiHttpClient<IDailyCollectionApiClient, DailyCollectionApiClient>(configuration);
             service.AddApiHttpClient<IUtilitiesApiClient, UtilitiesApiClient>(configuration);
             service.AddApiHttpClient<IEcfCollectionsApiClient, EcfCollectionsApiClient>(configuration);
             service.AddApiHttpClient<IBusinessPayorsApiClient, BusinessPayorsApiClient>(configuration);
             service.AddApiHttpClient<IWcfCollectionsApiClient, WcfCollectionsApiClient>(configuration);
+            service.AddApiHttpClient<IUtilityRegisterApiClient, UtilityRegisterApiClient>(configuration);
+            service.AddApiHttpClient<IDirectCollectionReviewApiClient, DirectCollectionReviewApiClient>(configuration);
+            service.AddApiHttpClient<IFishMeatPayorFollowUpApiClient, FishMeatPayorFollowUpApiClient>(configuration);
             service.AddApiHttpClient<IFacilitiesApiClient, FacilitiesApiClient>(configuration);
             service.AddApiHttpClient<IDashboardApiClient, DashboardApiClient>(configuration);
             service.AddApiHttpClient<ITransactionsApiClient, TransactionsApiClient>(configuration);
             service.AddApiHttpClient<ICollectionActivityApiClient, CollectionActivityApiClient>(configuration);
+            service.AddApiHttpClient<IOfficeCashTurnoverApiClient, OfficeCashTurnoverApiClient>(configuration);
             service.AddApiHttpClient<IPayorApiClient, PayorApiClient>(configuration);
             service.AddApiHttpClient<IOnlinePaymentsApiClient, OnlinePaymentsApiClient>(configuration);
             service.AddApiHttpClient<IAuditApiClient, AuditApiClient>(configuration);
             service.AddApiHttpClient<IReportsApiClient, ReportsApiClient>(configuration);
             service.AddApiHttpClient<IRevenueClassificationsApiClient, RevenueClassificationsApiClient>(configuration);
+            service.AddApiHttpClient<IOperationSettingsApiClient, OperationSettingsApiClient>(configuration);
             service.AddApiHttpClient<IGovernedServicesApiClient, GovernedServicesApiClient>(configuration);
             service.AddApiHttpClient<IPenaltiesApiClient, PenaltiesApiClient>(configuration);
             service.AddApiHttpClient<IObligationsApiClient, ObligationsApiClient>(configuration);

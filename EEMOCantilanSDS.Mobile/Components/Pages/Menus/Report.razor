@@ -17,25 +17,24 @@
     <div class="content">
 
         <div class="period-selector">
-            <div class="period-arrow" @onclick="PrevPeriod">
+            <button type="button" class="period-arrow" aria-label="Previous period" @onclick="PrevPeriod">
                 <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
-            </div>
+            </button>
             <div class="period-label-block">
                 <div class="period-title">@PeriodTitle</div>
                 <div class="period-sub">@PeriodSubtitle</div>
             </div>
-            <div class="period-arrow @(CanGoNext ? "" : "disabled")" @onclick="NextPeriod">
+            <button type="button" class="period-arrow" aria-label="Next period" disabled="@(!CanGoNext)" @onclick="NextPeriod">
                 <svg viewBox="0 0 24 24"><polyline points="9 6 15 12 9 18" /></svg>
-            </div>
+            </button>
         </div>
 
-        <div class="report-type-tabs">
+        <div class="report-type-tabs" role="group" aria-label="Report view">
             @foreach (var tab in ReportTypes)
             {
-                <div class="report-type-tab @(ActiveReportType == tab ? "active" : "")"
-                     @onclick="() => SetReportType(tab)">
-                    @tab
-                </div>
+                <button type="button" class="report-type-tab @(ActiveReportType == tab ? "active" : "")"
+                        aria-pressed="@(ActiveReportType == tab ? "true" : "false")"
+                        @onclick="() => SetReportType(tab)">@tab</button>
             }
         </div>
 
@@ -183,10 +182,7 @@
                            @bind:event="oninput" />
                     @if (!string.IsNullOrEmpty(PayeeSearch))
                     {
-                        <div style="cursor:pointer;padding:0 4px;color:var(--text-muted);font-size:16px;"
-                             @onclick="() => PayeeSearch = string.Empty">
-                            x
-                        </div>
+                        <button type="button" class="search-clear" aria-label="Clear search" @onclick="() => PayeeSearch = string.Empty">×</button>
                     }
                 </div>
 
@@ -652,10 +648,16 @@
 </div>
 
 @code {
-    static readonly HashSet<FacilityCode> DailyFacilities = new()
+    static readonly HashSet<FacilityCode> DailyWithMarket = new()
     {
         FacilityCode.NPM, FacilityCode.SLH, FacilityCode.TRM, FacilityCode.TPM
     };
+    static readonly HashSet<FacilityCode> DailyWithoutMarket = new() { FacilityCode.SLH, FacilityCode.TRM, FacilityCode.TPM };
+
+    // A Public Market its LGU rents by the month is a monthly rental on the device: it reads month chips, not daily ones.
+    HashSet<FacilityCode> DailyFacilities =>
+        Session.Menu?.Facilities.Any(f => f.Code == FacilityCode.NPM && f.Archetype == BillingArchetype.MonthlyRental) == true
+            ? DailyWithoutMarket : DailyWithMarket;
 
     bool IsLoading = true;
     string ErrorMessage = string.Empty;

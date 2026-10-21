@@ -24,18 +24,21 @@ public static class TenantDataTables
     /// </summary>
     public static readonly IReadOnlySet<string> Restorable = new HashSet<string>(StringComparer.Ordinal)
     {
-        "MobileCollectionSessions", "FishMeatVendorRegistrations", "FishMeatNpmAssociations",
+        "MobileCollectionSessions", "FishMeatVendorRegistrations", "FishMeatNpmAssociations", "DirectCollectionReviewEvents", "SpaceHolderImportRuns", "FishMeatDirectCollectionLinks",
+        // Nonfinancial registration proposals and immutable Head decisions are tenant-owned audit evidence.
+        "NpmRegistrationRequests", "FishMeatRegistrationRequests",
+        "NpmRentMonths", // preparation-only month identity/evidence; audit remains export-only and no cash is created
         "FineAssessmentPolicies", "FineAssessments", "FineAssessmentEvents", // source-owned non-cash liability and its immutable governing/audit evidence
         "DirectFineAuthorities", // reviewed no-registration fine authority; posted CollectionLines reference it, so a restore must carry it
         "OfficialReportRevisions", // approved targets and report deltas are the tenant's revision-safe official statement evidence
-        "Facilities", "FacilityRates", "FacilitySectionRates", "FacilitySectionUtilities", "FacilitySectionClosures", "OrSeriesConfigs", "RevenueClassifications", "RevenueClassificationPolicies", "Collections", "CollectionLines", "Payors", "CollectionAllocations", "WebCollectionDrafts", "WebCollectionDraftLines", "WebCollectionDraftAllocations", "PostingOperations", "CollectionSettlementCutovers", "AccountableFormBooks", "AccountableDocuments", "AccountableFormAssignments", "CollectionCorrections", "CollectionCorrectionLines", "CollectionCorrectionAllocations", "Stalls", "Contracts", "PaymentRecords",
+        "Facilities", "FacilityRates", "FacilitySectionRates", "FacilitySectionUtilities", "FacilitySectionClosures", "OrSeriesConfigs", "TenantOperationSettings", "RevenueClassifications", "RevenueClassificationPolicies", "Collections", "CollectionLines", "Payors", "CollectionAllocations", "WebCollectionDrafts", "WebCollectionDraftLines", "WebCollectionDraftAllocations", "PostingOperations", "CollectionSettlementCutovers", "AccountableFormBooks", "AccountableDocuments", "AccountableFormAssignments", "CollectionCorrections", "CollectionCorrectionLines", "CollectionCorrectionAllocations", "Stalls", "Contracts", "PaymentRecords",
         "DailyCollections", "UtilityBills", "StallMonthlyExceptions", "NpmMarketClosures", "NpmOperatingSchedules",
         "OnlinePaymentTransactions", "SlaughterTransactions", "SlaughterAnimalRates", "SlaughterAnimalLabels", "TpmVendors",
         "TpmAttendances", "TrmTransporters", "TrmTrips", "PayorStallLinks", "CollectorFacilityAssignments",
         // The office's own record of which weekday it has held its weekly market on, and from when. Restorable
         // because it decides which dates were market days: restoring the attendances without it would leave the
         // office's own collections falling on days its schedule says were not market days.
-        "TpmMarketDaySchedules", "CollectorOperationAssignments", "CollectorOperationActivations", "GovernedServices", "GovernedServiceSettings", "PenaltyDefinitions", "ObligationAccounts", "ObligationRates", "ObligationPeriods", "VehicleClasses", "VehicleClassRates", "GovernedServiceFeeOptions", "GovernedServiceFeeOptionRates", "CollectionRemittances", "CollectionRemittanceCoverages", "AccountableFormSpoilages", "AccountableFormLossReports", "AccountableFormReferences",
+        "TpmMarketDaySchedules", "CollectorOperationAssignments", "CollectorOperationActivations", "GovernedServices", "GovernedServiceSettings", "PenaltyDefinitions", "ObligationAccounts", "SpaceRegistrations", "SpaceContractTerms", "SpaceLifecycleEvents", "ObligationRates", "ObligationPeriods", "VehicleClasses", "VehicleClassRates", "GovernedServiceFeeOptions", "GovernedServiceFeeOptionRates", "CollectionRemittances", "CollectionRemittanceCoverages", "OfficeCashTurnovers", "OfficeCashTurnoverCoverages", "AccountableFormSpoilages", "AccountableFormLossReports", "AccountableFormReferences",
     };
 
     /// <summary>

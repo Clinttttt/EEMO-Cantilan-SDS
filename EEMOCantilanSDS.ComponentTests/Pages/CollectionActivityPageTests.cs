@@ -19,6 +19,24 @@ namespace EEMOCantilanSDS.ComponentTests.Pages;
 public sealed class CollectionActivityPageTests : TestContext
 {
     private readonly Mock<ICollectionActivityApiClient> _activity = new();
+    private readonly Mock<EEMOCantilanSDS.Application.Common.Interface.ApiClients.IDirectCollectionReviewApiClient> _review = new();
+
+    [Theory]
+    [InlineData(null, RevenueInstrumentType.OfficialReceipt)]
+    [InlineData("OR-123", RevenueInstrumentType.OfficialReceipt)]
+    [InlineData("CT-123", RevenueInstrumentType.CashTicket)]
+    public void Receipt_is_the_recorded_document_and_SRC_stays_a_separate_audit_reference(string? number, RevenueInstrumentType instrument)
+    {
+        var page = RenderPage(Event("receipt", "Canonical", "PERMANENT_STALL_RENT", "Rent", 30m,
+            instrument: instrument, document: number));
+        page.WaitForAssertion(() => Assert.Contains(number ?? "None recorded", page.Find(".txn-or").TextContent));
+        Assert.DoesNotContain("SRC-", page.Find(".txn-or").TextContent);
+        page.Find(".txn-row").Click();
+        Assert.Contains("Receipt", page.Find(".txr-meta").TextContent);
+        Assert.Contains(number ?? "None recorded", page.Find(".txr-meta").TextContent);
+        Assert.Contains("StallTrack reference", page.Find(".txr-meta").TextContent);
+        Assert.Contains("SRC-2026-000127", page.Find(".txr-meta").TextContent);
+    }
 
     private static CollectionActivityEventDto Event(string key, string authority, string code, string name, decimal amount,
         FacilityCode? facility = null, RevenueInstrumentType? instrument = null, string? document = null,
@@ -44,9 +62,13 @@ public sealed class CollectionActivityPageTests : TestContext
                 Array.Empty<FacilitySidebarSummaryDto>()));
 
         Services.AddSingleton(_activity.Object);
+        _review.Setup(x => x.GetAsync(It.IsAny<EEMOCantilanSDS.Application.Dtos.Revenue.DirectCollectionReviewRequest>()))
+            .ReturnsAsync(Result<EEMOCantilanSDS.Application.Dtos.Revenue.DirectCollectionReviewPageDto>.Success(new([], 0, 2)));
+        Services.AddSingleton(_review.Object);
         Services.AddSingleton(new FacilityState(facilities.Object));
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
+        Services.AddSingleton(Mock.Of<IOfficeSourcesApiClient>());
         Services.AddSingleton(Mock.Of<IStallsApiClient>());
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
         Services.AddSingleton<BrandingState>();
@@ -87,8 +109,12 @@ public sealed class CollectionActivityPageTests : TestContext
         Assert.NotNull(row.QuerySelector(".txn-search"));                                           // search, in the same row rather than on a line of its own
         Assert.NotNull(row.QuerySelector(".txn-nav .txn-daynav"));
         Assert.NotNull(row.QuerySelector(".txn-nav .txn-refresh"));
-        Assert.Equal(new[] { "txn-segment", "txn-source", "txn-nav", "txn-search" },
+        Assert.Equal(new[] { "txn-segment", "txn-source", "txn-nav", "txn-search-row" },
             row.Children.Select(child => child.ClassName));
+        // The compact review control sits immediately after the search, in the same row, as an icon with an accessible name.
+        var searchRow = row.QuerySelector(".txn-search-row")!;
+        Assert.Equal(new[] { "txn-search", "v3-btn dcr-trigger" }, searchRow.Children.Select(c => c.ClassName));
+        Assert.StartsWith("Collection Review", searchRow.QuerySelector(".dcr-trigger")!.GetAttribute("aria-label"));
         Assert.NotNull(page.Find(".txn-nav .txn-daynav"));
         Assert.NotNull(page.Find(".txn-search .txn-search-icon"));
         Assert.Equal("Search SRC or payer", page.Find("input.txn-search-input").GetAttribute("placeholder"));
@@ -120,7 +146,8 @@ public sealed class CollectionActivityPageTests : TestContext
 
         page.WaitForAssertion(() =>
         {
-            Assert.Contains("SRC-2026-000127", page.Find("table.txn-table tbody").TextContent);
+            Assert.Contains("None recorded", page.Find("table.txn-table tbody").TextContent);
+            Assert.Contains("SRC-2026-000127", page.Find(".txn-row").GetAttribute("aria-label"));
             Assert.Contains(other.ToString("MMMM d, yyyy"), page.Find(".txn-datebox-sub").TextContent);
         }, TimeSpan.FromSeconds(5));
     }
@@ -168,8 +195,48 @@ public sealed class CollectionActivityPageTests : TestContext
         Assert.Equal(2, page.FindAll(".txn-table tbody tr").Count);
     }
 
+    [Theory]
+    [InlineData(false, "Slaughterhouse")]
+    [InlineData(true, "Municipal Abattoir")]
+    public void SlaughterhouseSourceIsSeparateFromFrozenChargeNames(bool tenantNamed, string sourceName)
+    {
+        var receipt = Event("Collection:21", "Canonical", "SLAUGHTERHOUSE", "Slaughterhouse", 170m,
+            lines:
+            [
+                new("SLAUGHTERHOUSE", "Ante-mortem Inspection", 20m, "GovernedService", null, null, null, null, null, tenantNamed ? sourceName : null),
+                new("SLAUGHTERHOUSE", "Slaughter Permit", 100m, "GovernedService", null, null, null, null, null, tenantNamed ? sourceName : null),
+                new("SLAUGHTERHOUSE", "Slaughter Fee", 50m, "GovernedService", null, null, null, null, null, tenantNamed ? sourceName : null)
+            ]) with { ReferenceCode = "SRC-2026-000021", PayerName = "Ana Reyes" };
+        var page = RenderPage(receipt);
+        page.WaitForAssertion(() => Assert.Equal(sourceName, page.Find(".txn-source-name").TextContent));
+        Assert.Contains("3 items", page.Find(".txn-table tbody").TextContent);
+        Assert.Contains("None recorded", page.Find(".txn-table tbody").TextContent);
+        page.Find(".txn-source .fh-dd-trigger").Click();
+        Assert.Contains(sourceName, page.Find(".txn-source").TextContent);
+        Assert.DoesNotContain("Ante-mortem Inspection", page.Find(".txn-source").TextContent);
+        page.Find(".txn-row").Click();
+        Assert.Contains("SRC-2026-000021", page.Find(".txr-meta").TextContent);
+        var items = page.FindAll(".txr-items tbody tr");
+        Assert.Equal(new[] { "Ante-mortem Inspection", "Slaughter Permit", "Slaughter Fee" },
+            items.Select(row => row.QuerySelector("td")!.TextContent));
+        Assert.Equal(new[] { "₱20.00", "₱100.00", "₱50.00" },
+            items.Select(row => row.QuerySelector("td.txn-num")!.TextContent));
+        Assert.Contains("₱170.00", page.Find(".txr-items tfoot").TextContent);
+        Assert.Equal(sourceName, page.FindAll(".txr-meta dd")[1].TextContent);
+    }
+
     [Fact]
-    public void AnItemizedReceipt_IsOneRow_ThatExpandsToItsLines()
+    public void LegacySlaughterhouseKeepsItsRecordedAnimalDescription()
+    {
+        var page = RenderPage(Event("SlaughterTransaction:1", "Legacy", "SLAUGHTERHOUSE", "Slaughterhouse", 50m,
+            lines: [new("SLAUGHTERHOUSE", "Slaughterhouse", 50m, "SlaughterTransaction", null, null, null, null, "Cattle · 1 head")]));
+        page.WaitForAssertion(() => Assert.Equal("Slaughterhouse", page.Find(".txn-source-name").TextContent));
+        page.Find(".txn-row").Click();
+        Assert.Equal("Cattle · 1 head", page.Find(".txr-items tbody td").TextContent);
+    }
+
+    [Fact]
+    public void AnItemizedReceipt_IsOneRow_ThatOpensItsItemizedDetails()
     {
         var page = RenderPage(Event("Collection:9", "Canonical", "ICE_PLANT", "Ice Plant", 550m, FacilityCode.ICE,
             RevenueInstrumentType.OfficialReceipt, "OR-0001",
@@ -179,8 +246,8 @@ public sealed class CollectionActivityPageTests : TestContext
             ]));
 
         page.WaitForAssertion(() => Assert.Single(page.FindAll(".txn-table tbody tr")), TimeSpan.FromSeconds(5));
-        page.Find("button.txn-expand").Click();
-        Assert.Equal(2, page.FindAll("tr.txn-subrow").Count);
+        page.Find(".txn-row").Click();
+        page.WaitForAssertion(() => Assert.Equal(2, page.FindAll(".txr-items tbody tr").Count));
         Assert.Contains("Sep 2026", page.Markup);
     }
 }

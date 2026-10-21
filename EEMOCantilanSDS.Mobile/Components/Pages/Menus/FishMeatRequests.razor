@@ -1,0 +1,197 @@
+@page "/fish-meat-requests"
+@using EEMOCantilanSDS.Application.Common
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@inject EEMOCantilanSDS.Application.Common.Interface.ApiClients.IMobileApiClient Api
+@inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
+@inject NavigationManager Navigation
+
+@* The Collector's own Fish / Meat registration requests and the office's decisions. A request is an identity proposal: no cash, amount or SRC. Once
+   the Head registers the vendor, that vendor is found in the vendor search like any registered vendor; the proposed name here is never collectible. *@
+<div class="page-shell">
+    <AppHeader CollectorName="@Session.CollectorName" />
+    <main class="content fmq">
+        <header class="fmq-head">
+            <button class="back-btn" type="button" aria-label="Back" @onclick='() => Navigation.NavigateTo("/vendor-fee")'><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg></button>
+            <div>
+                <h1>Registration requests</h1>
+                <p>Fish / Meat vendors · no cash or SRC</p>
+            </div>
+            <button class="fmq-small" type="button" disabled="@_loading" @onclick="Load">Refresh</button>
+        </header>
+
+        @if (_loading && _data is null)
+        {
+            <p class="fmq-state" role="status">Loading requests…</p>
+        }
+        else if (_error is not null)
+        {
+            <section class="fmq-state fmq-error" role="alert">
+                <strong>Requests unavailable</strong>
+                <p>@_error</p>
+                <button class="fmq-small" type="button" @onclick="Load">Try again</button>
+            </section>
+        }
+        else if (_data is { Total: 0 })
+        {
+            <p class="fmq-state">No requests yet. Search for a vendor in Vendor Fee and choose Request registration if none is registered.</p>
+        }
+        else if (_data is { } history)
+        {
+            <div class="fmq-list">
+                @foreach (var row in history.Rows)
+                {
+                    <article class="fmq-card" @key="row.Id">
+                        <div class="fmq-top">
+                            <strong>@row.VendorName</strong>
+                            <span class="fmq-status @StatusClass(row.Status)">@StatusText(row.Status)</span>
+                        </div>
+                        <div class="fmq-meta">@(row.VendorType == FishMeatVendorType.Fish ? "Fish" : "Meat") · @row.TaxYear · @PhilippineTime.ToPhilippineTime(row.SubmittedAtUtc).ToString("MMM d, h:mm tt")</div>
+                        @if (!string.IsNullOrWhiteSpace(row.Reason) && row.Status is FishMeatRequestStatus.Returned or FishMeatRequestStatus.Rejected)
+                        {
+                            <p class="fmq-feedback">@row.Reason</p>
+                        }
+                        @if (row.Status == FishMeatRequestStatus.Approved)
+                        {
+                            <p class="fmq-feedback">Registered by the office. Search the vendor to collect.</p>
+                            <button class="fmq-primary" type="button" @onclick='() => Navigation.NavigateTo("/vendor-fee")'>Find vendor</button>
+                        }
+                        else if (row.Status == FishMeatRequestStatus.Submitted)
+                        {
+                            @if (_confirmCancel == row.Id)
+                            {
+                                @if (_cancelError is not null) { <p class="fmq-feedback fmq-bad" role="alert">@_cancelError</p> }
+                                <div class="fmq-row">
+                                    <button class="fmq-primary" type="button" disabled="@_cancelling" @onclick="() => CancelRequest(row)">@(_cancelling ? "Cancelling…" : "Cancel request")</button>
+                                    <button class="fmq-small" type="button" disabled="@_cancelling" @onclick="ResetCancel">Keep</button>
+                                </div>
+                            }
+                            else
+                            {
+                                <button class="fmq-small" type="button" @onclick="() => AskCancel(row.Id)">Cancel request</button>
+                            }
+                        }
+                        else if (row.Status == FishMeatRequestStatus.Returned && !HasSuccessor(history, row))
+                        {
+                            @if (_resubmit == row.Id)
+                            {
+                                <FishMeatRegistrationRequestForm InitialName="@row.VendorName" InitialType="row.VendorType" InitialContact="@row.Contact" InitialNote="@row.Note"
+                                                                 ReplacesRequestId="row.Id" OnSubmitted="Submitted" OnCancel="CloseResubmit" />
+                            }
+                            else
+                            {
+                                <button class="fmq-primary" type="button" @onclick="() => _resubmit = row.Id">Correct and resubmit</button>
+                            }
+                        }
+                    </article>
+                }
+            </div>
+            @if (history.Total > history.PageSize)
+            {
+                <nav class="fmq-paging" aria-label="Request pages">
+                    <button class="fmq-small" type="button" disabled="@(_loading || _page <= 1)" @onclick="Previous">Previous</button>
+                    <span>Page @_page of @Math.Max(1, (int)Math.Ceiling(history.Total / (double)history.PageSize))</span>
+                    <button class="fmq-small" type="button" disabled="@(_loading || _page * history.PageSize >= history.Total)" @onclick="Next">Next</button>
+                </nav>
+            }
+        }
+    </main>
+    <BottomNav ActiveTab="menu" />
+</div>
+
+@code {
+    private FishMeatRegistrationRequestPage? _data;
+    private string? _error, _cancelError;
+    private bool _loading, _cancelling;
+    private int _page = 1;
+    private Guid? _confirmCancel, _resubmit;
+    // One cancel identity per request, kept across retries so a dropped response replays the same cancellation.
+    private readonly Dictionary<Guid, Guid> _cancelOperations = new();
+
+    // A returned request has at most one successor; once one exists the correction is already with the office.
+    private static bool HasSuccessor(FishMeatRegistrationRequestPage page, FishMeatRegistrationRequestDto row) =>
+        page.Rows.Any(x => x.ReplacesRequestId == row.Id);
+
+    protected override Task OnInitializedAsync() => Load();
+
+    private void CloseResubmit() => _resubmit = null;
+
+    private async Task Load()
+    {
+        if (_loading) return;
+        _loading = true;
+        _error = null;
+        try
+        {
+            var result = await Api.GetFishMeatRequestsAsync(_page);
+            if (result.IsSuccess && result.Value is not null) _data = result.Value;
+            else
+            {
+                _data = null;
+                _error = result.Error?.Contains("VendorRequestSchemaNotEnabled", StringComparison.Ordinal) == true || result.Status == ResultStatus.NotFound
+                    ? "Registration requests are not available yet. Ask the office."
+                    : result.Error ?? "The office could not respond. Check your connection and try again.";
+            }
+        }
+        catch { _data = null; _error = "Could not reach the office. Check your connection and try again."; }
+        finally { _loading = false; }
+    }
+
+    private async Task Submitted(FishMeatRegistrationRequestDto _)
+    {
+        _resubmit = null;
+        _page = 1;
+        await Load();
+    }
+
+    private void AskCancel(Guid id) { _confirmCancel = id; _cancelError = null; }
+    private void ResetCancel() { _confirmCancel = null; _cancelError = null; }
+
+    private async Task CancelRequest(FishMeatRegistrationRequestDto row)
+    {
+        if (_cancelling || _confirmCancel != row.Id || row.Status != FishMeatRequestStatus.Submitted) return;
+        _cancelling = true;
+        _cancelError = null;
+        try
+        {
+            if (!_cancelOperations.TryGetValue(row.Id, out var operation)) _cancelOperations[row.Id] = operation = Guid.NewGuid();
+            var result = await Api.CancelFishMeatRequestAsync(row.Id, new(operation, row.Version));
+            if (result.IsSuccess)
+            {
+                _cancelOperations.Remove(row.Id);
+                ResetCancel();
+                await Load();
+            }
+            else
+            {
+                _cancelError = result.Error ?? "Could not cancel. Refresh to see the latest status.";
+                if (result.Status == ResultStatus.Conflict) { ResetCancel(); await Load(); }
+            }
+        }
+        catch { _cancelError = "The cancellation could not be confirmed. Check your connection and try again."; }
+        finally { _cancelling = false; }
+    }
+
+    private async Task Previous() { if (_page > 1) { _page--; await Load(); } }
+    private async Task Next() { if (_data is { } d && _page * d.PageSize < d.Total) { _page++; await Load(); } }
+
+    private static string StatusClass(FishMeatRequestStatus status) => status switch
+    {
+        FishMeatRequestStatus.Approved => "is-approved",
+        FishMeatRequestStatus.Returned => "is-returned",
+        FishMeatRequestStatus.Rejected => "is-rejected",
+        FishMeatRequestStatus.Cancelled => "is-cancelled",
+        _ => "is-pending"
+    };
+
+    private static string StatusText(FishMeatRequestStatus status) => status switch
+    {
+        FishMeatRequestStatus.Submitted => "Pending review",
+        FishMeatRequestStatus.Approved => "Registered",
+        FishMeatRequestStatus.Returned => "Returned",
+        FishMeatRequestStatus.Rejected => "Rejected",
+        FishMeatRequestStatus.Cancelled => "Cancelled",
+        _ => status.ToString()
+    };
+}

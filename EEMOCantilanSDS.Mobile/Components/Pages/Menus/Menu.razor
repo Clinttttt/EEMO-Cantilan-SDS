@@ -24,11 +24,29 @@
         }
         @if (IsLoading)
         {
-            <div class="menu-skeleton" aria-busy="true" aria-label="Loading today's work">
-                <div class="sk-line sk-title"></div>
-                <div class="sk-line"></div>
-                <div class="sk-line"></div>
-                <div class="sk-line"></div>
+            <div class="menu-skeleton" role="status" aria-busy="true" aria-label="Loading today's work">
+                <div aria-hidden="true">
+                    <div class="menu-hero">
+                        <div class="menu-hero-text"><div class="sk-line sk-title"></div><div class="sk-line sk-date"></div></div>
+                        <div class="menu-summary">
+                            @for (var i = 0; i < 3; i++)
+                            {
+                                <div class="menu-summary-item"><span class="menu-summary-dot"></span><div class="sk-line sk-number"></div><div class="sk-line sk-caption"></div></div>
+                            }
+                        </div>
+                    </div>
+                    <div class="menu-group">
+                        <div class="sk-line sk-section"></div>
+                        <div class="sk-line sk-action"></div>
+                        <div class="sk-line sk-section"></div>
+                        <div class="menu-list">
+                            @for (var i = 0; i < 3; i++)
+                            {
+                                <div class="menu-row plain"><span class="sk-icon"></span><div class="menu-row-main"><div class="sk-line sk-name"></div><div class="sk-line sk-chip"></div></div></div>
+                            }
+                        </div>
+                    </div>
+                </div>
             </div>
         }
         else if (!string.IsNullOrWhiteSpace(ErrorMessage))

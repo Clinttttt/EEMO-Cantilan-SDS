@@ -615,7 +615,7 @@
             // of their own event date, so they answer for any year.
             .Where(s => IsEvent(s.Kind) || AsOfYear is null)
             .Select(s => new SpaceGroup(s, _spaces.TryGetValue(s.Kind, out var accounts)
-                ? accounts.Where(a => (IsEvent(s.Kind) ? EventYear(a) == _year : a.ActiveTo is null) && MatchSpaceSearch(a))
+                ? accounts.Where(a => (IsEvent(s.Kind) ? EventYear(a) == _year : RentalAccountStatus.IsOpen(a)) && MatchSpaceSearch(a))
                     .OrderBy(a => IsEvent(s.Kind) ? (a.EventDate ?? a.ActiveFrom).DayNumber : 0)
                     .ThenBy(a => int.TryParse(a.SubjectLabel, out var number) ? number : int.MaxValue)
                     .ThenBy(a => a.SubjectLabel, StringComparer.OrdinalIgnoreCase)
@@ -628,7 +628,7 @@
 
     private static string EventName(ObligationAccountDto a) => a.Event?.ToString() ?? "Event";
 
-    private static string LotStatus(ObligationAccountDto a) => a.ActiveTo is null ? "Active" : $"Closed {a.ActiveTo:MMM d, yyyy}";
+    private static string LotStatus(ObligationAccountDto a) => RentalAccountStatus.LabelWithDate(a);
 
     private bool MatchSpaceSearch(ObligationAccountDto a)
     {
@@ -1095,7 +1095,7 @@
                 @foreach (var a in rows)
                 {
                     var signed = a.Arrangement == OccupancyArrangement.SignedContract;
-                    <tr class="@(a.ActiveTo is not null ? "sh-row-closed" : "")">
+                    <tr class="@(!RentalAccountStatus.IsOpen(a) ? "sh-row-closed" : "")">
                         <td class="sh-c">@n</td>
                         <td>@SpaceAccountPresentation.Occupant(a)</td>
                         <td class="sh-c">@a.SubjectLabel</td>

@@ -1,0 +1,106 @@
+{
+  "candidateId": "20261018040000_AddNpmRentMonthFinancialSource",
+  "activeFoundation": "20261017040000_AddNpmRentMonthFoundation",
+  "activeCompiledCount": 131,
+  "operations": [
+    {
+      "type": "DropCheckConstraintOperation",
+      "table": "NpmRentMonths",
+      "name": "CK_NpmRentMonths_Review"
+    },
+    {
+      "type": "DropCheckConstraintOperation",
+      "table": "CollectionLines",
+      "name": "CK_CollectionLines_SourceShape"
+    },
+    {
+      "type": "DropCheckConstraintOperation",
+      "table": "CollectionAllocations",
+      "name": "CK_CollectionAllocations_SourceShape"
+    },
+    {
+      "type": "AddColumnOperation",
+      "table": "NpmRentMonths",
+      "name": "SettlementActivatedAtUtc"
+    },
+    {
+      "type": "AddColumnOperation",
+      "table": "NpmRentMonths",
+      "name": "SettlementActivatedByUserId"
+    },
+    {
+      "type": "AddColumnOperation",
+      "table": "NpmRentMonths",
+      "name": "SettlementSealedAtUtc"
+    },
+    {
+      "type": "AddColumnOperation",
+      "table": "CollectionAllocations",
+      "name": "NpmRentMonthId"
+    },
+    {
+      "type": "AddCheckConstraintOperation",
+      "table": "NpmRentMonths",
+      "name": "CK_NpmRentMonths_Activation"
+    },
+    {
+      "type": "AddCheckConstraintOperation",
+      "table": "NpmRentMonths",
+      "name": "CK_NpmRentMonths_Review"
+    },
+    {
+      "type": "AddCheckConstraintOperation",
+      "table": "NpmRentMonths",
+      "name": "CK_NpmRentMonths_Sealed"
+    },
+    {
+      "type": "AddCheckConstraintOperation",
+      "table": "CollectionLines",
+      "name": "CK_CollectionLines_SourceShape"
+    },
+    {
+      "type": "CreateIndexOperation",
+      "table": "CollectionAllocations",
+      "name": "IX_CollectionAllocations_MunicipalityId_NpmRentMonthId"
+    },
+    {
+      "type": "AddCheckConstraintOperation",
+      "table": "CollectionAllocations",
+      "name": "CK_CollectionAllocations_NpmMonthIdentity"
+    },
+    {
+      "type": "AddCheckConstraintOperation",
+      "table": "CollectionAllocations",
+      "name": "CK_CollectionAllocations_SourceShape"
+    },
+    {
+      "type": "AddForeignKeyOperation",
+      "table": "CollectionAllocations",
+      "name": "FK_CollectionAllocations_NpmRentMonths_MunicipalityId_NpmRentM~"
+    }
+  ],
+  "files": [
+    {
+      "file": "20261018040000_AddNpmRentMonthFinancialSource.cs.review",
+      "sha256": "51acf9db837d8ca30b97faf3b52e64a400ed4dd84c2e717bca3e791c519c8b74"
+    },
+    {
+      "file": "20261018040000_AddNpmRentMonthFinancialSource.Designer.cs.review",
+      "sha256": "6306fdd9ddbb7c2a65bafbe25fe719f0589ace24e9bdc7e7329fc1229fac37f4"
+    },
+    {
+      "file": "20261018040000_AddNpmRentMonthFinancialSource.Up.sql.review",
+      "sha256": "11747d8d597589b679bfc6aabd6342c4b93dae2906f22486745d98e41c7f0180"
+    },
+    {
+      "file": "AppDbContextModelSnapshot.cs.review",
+      "sha256": "0f829ce15dad0c947d6e90ca74b5409c99c466845dbc67ef9bda4007ee7342f7"
+    },
+    {
+      "file": "Preflight.sql.review",
+      "sha256": "a0df011cec9059afeae0bdaf1b19679eb88b8cbba44b5c6fcde896b669e6c8e2"
+    }
+  ],
+  "databaseConnectionsOpened": 0,
+  "appliesMigration": false
+}

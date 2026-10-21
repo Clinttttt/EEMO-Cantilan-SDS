@@ -6,13 +6,19 @@ namespace EEMOCantilanSDS.Application.Dtos.Mobile;
 public enum SourceIdentityKind { Occupancy = 1, SpaceAccount = 2, FishMeatVendorRegistration = 3 }
 public sealed record CollectionSourceIdentity(SourceIdentityKind Kind, Guid Id);
 public sealed record CollectionSourceSearchResult(CollectionSourceIdentity Identity, string DisplayName, string Context,
-    string OperationCode, int? TaxYear = null, FishMeatVendorType? VendorType = null);
+    string OperationCode, int? TaxYear = null, FishMeatVendorType? VendorType = null,
+    /// <summary>Only on a source linked from a registered vendor: the utilities (ECF, WCF) that linked stall actually offers this Collector now. Navigation only - a utility is collected as its own payment under the stall.</summary>
+    IReadOnlyList<string>? Utilities = null);
 public enum CollectionFamily { Market = 1, Rent = 2, Space = 3, Terminal = 4, Slaughterhouse = 5 }
 public sealed record RegisterFishMeatVendorRequest(Guid ClientOperationId, int TaxYear, FishMeatVendorType VendorType,
     VendorRegistrationKind RegistrationKind, string DisplayName, string? BusinessName = null, string? Address = null, string? Reference = null,
-    ConfirmNpmVendorAssociationRequest? NpmAssociation = null);
+    ConfirmNpmVendorAssociationRequest? NpmAssociation = null,
+    string? LastName = null, string? FirstName = null, string? MiddleName = null,
+    string? NameExtension = null, string? Sex = null, string? NatureOfBusiness = null);
 public sealed record FishMeatVendorRegistrationDto(Guid Id, int TaxYear, FishMeatVendorType VendorType,
-    VendorRegistrationKind RegistrationKind, string DisplayName, string? BusinessName, string? Address, string? Reference);
+    VendorRegistrationKind RegistrationKind, string DisplayName, string? BusinessName, string? Address, string? Reference,
+    string? LastName = null, string? FirstName = null, string? MiddleName = null,
+    string? NameExtension = null, string? Sex = null, string? NatureOfBusiness = null);
 public sealed record SourceNativeChargeIntent(string OperationCode, Guid? VendorRegistrationId = null,
     TerminalSection? Section = null, Guid? VehicleClassId = null, int? CashTicketCount = null, decimal? Kilograms = null);
 public sealed record SourceNativeCollectionRequest(Guid ClientOperationId, DateOnly BusinessDate, decimal AmountReceived,
@@ -44,5 +50,7 @@ public sealed record CollectionSourcePage(IReadOnlyList<CollectionSourceSearchRe
 public static class CollectionSourceCategories
 {
     public const string FishMeat = "fishmeat", Npm = "npm", Rentals = "rentals", Spaces = "spaces";
+    public const string Tcc = "tcc", Ncc = "ncc", Bbq = "bbq", Ice = "ice",
+        Kanmanggay = "kanmanggay", VegetableFruit = "vegetablefruit", FiestaAraw = "fiestaaraw";
     public const int MaxPage = 50;
 }

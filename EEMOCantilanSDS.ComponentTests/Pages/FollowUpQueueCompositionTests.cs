@@ -89,7 +89,7 @@ public sealed class FollowUpQueueCompositionTests : TestContext
     }
 
     [Fact]
-    public void PreservesInlineActionsAndDoesNotInferArrears()
+    public void PreservesInlineActionsAndDoesNotInferArrearsFromAFilterShortcut()
     {
         var (cut, _) = RenderQueue();
 
@@ -99,7 +99,8 @@ public sealed class FollowUpQueueCompositionTests : TestContext
             Assert.Contains(cut.FindAll("button"), button => button.TextContent.Contains("Review item", StringComparison.Ordinal));
             Assert.Contains(cut.FindAll("button"), button => button.TextContent.Contains("Hide locally", StringComparison.Ordinal));
             Assert.Contains("Past-period view", cut.Markup);
-            Assert.False(cut.Markup.Contains("Arrears", StringComparison.OrdinalIgnoreCase));
+            // The Arrears shortcut exists, but no sample row is Arrears: a row is never labelled Arrears by the page itself.
+            Assert.DoesNotContain(cut.FindAll(".fh-row, .fq-row, .fq-reason"), x => x.TextContent.Contains("Arrears", StringComparison.OrdinalIgnoreCase));
             Assert.Contains("not recorded as follow-up history", cut.Markup);
         }, RenderTimeout);
     }
@@ -123,8 +124,9 @@ public sealed class FollowUpQueueCompositionTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Contains(cut.FindAll(".fq-chip"), c => c.TextContent.Trim() == "All sources");
-            Assert.DoesNotContain(cut.FindAll(".fq-chip"), c => c.TextContent.Trim() == "All Facilities");
+            Assert.Contains("All sources", cut.Find(".fq-source-select .fh-dd-trigger").TextContent);
+            Assert.Empty(cut.FindAll("[aria-label='Filter by source'] .fq-chip"));
+            Assert.Single(cut.FindAll(".fq-source-select .fh-dd-trigger"));
             Assert.Contains("Unpaid and partial periods", cut.Markup);
             Assert.Contains("August 2026", cut.Markup);                       // monthly period
             Assert.Contains("Fiesta · Aug 15, 2026", cut.Markup);             // event period
@@ -133,13 +135,99 @@ public sealed class FollowUpQueueCompositionTests : TestContext
             Assert.Null(cut.FindAll(".fq-priority").FirstOrDefault(p => p.TextContent.Contains("Critical")));
         }, RenderTimeout);
 
-        cut.FindAll(".fq-chip").Single(c => c.TextContent.Trim() == "Kanmanggay").Click();
+        cut.Find(".fq-source-select .fh-dd-trigger").Click();
+        cut.FindAll(".fq-source-select [role='option']").Single(c => c.TextContent.Contains("Kanmanggay")).Click();
         Assert.Contains("Lisa Ilogans", cut.Markup);
         Assert.DoesNotContain("Ben Cruz", cut.Markup);
         Assert.DoesNotContain("Lower-age delinquent", cut.Markup);            // classic rows are not mixed into a space scope
 
-        cut.FindAll(".fq-chip").Single(c => c.TextContent.Trim().StartsWith("TCC") || c.GetAttribute("title") == "TCC").Click();
+        cut.Find(".fq-source-select .fh-dd-trigger").Click();
+        cut.FindAll(".fq-source-select [role='option']").Single(c => c.TextContent.Trim() == "TCC" || c.TextContent.Contains("Tampak Commercial Center")).Click();
         Assert.DoesNotContain("Lisa Ilogans", cut.Markup);
+    }
+
+    [Fact]
+    public void FilterToolbarKeepsReasonShortcutsAndSourcePickerWithoutRemovingFollowUpRecords()
+    {
+        var (cut, _) = RenderQueue();
+        cut.WaitForAssertion(() => Assert.NotNull(RowFor(cut, "Lower-age delinquent")), RenderTimeout);
+        Assert.Single(cut.FindAll(".fq-filterbar"));
+        Assert.Single(cut.FindAll(".fq-filterbar > .fq-reasons"));
+        Assert.Single(cut.FindAll(".fq-navrow"));
+        Assert.Single(cut.FindAll(".fq-navrow nav[aria-label='Monitoring registers']"));
+        Assert.Single(cut.FindAll(".fq-navrow .fq-search"));
+        Assert.Single(cut.FindAll(".fq-navrow .fq-history-link"));
+        Assert.Single(cut.FindAll(".fq-filterbar > .fq-source-select"));
+        Assert.Empty(cut.FindAll(".fq-filterbar .fq-search, .fq-filterbar .fq-history-link"));
+        Assert.Single(cut.FindAll(".fq-source-select .fh-dd-trigger"));
+        Assert.Collection(cut.FindAll(".fq-reasons .fq-chip"),
+            x => Assert.StartsWith("All", x.TextContent.Trim()),
+            x => Assert.StartsWith("Delinquent", x.TextContent.Trim()),
+            x => Assert.StartsWith("Arrears", x.TextContent.Trim()),
+            x => Assert.StartsWith("Current-period", x.TextContent.Trim()),
+            x => Assert.StartsWith("Contract", x.TextContent.Trim()),
+            x => Assert.StartsWith("Excused Review", x.TextContent.Trim()),
+            x => Assert.StartsWith("Miscellaneous", x.TextContent.Trim()));
+        Assert.DoesNotContain(cut.FindAll(".fq-reasons .fq-chip"),
+            x => x.TextContent.Contains("Missing OR") || x.TextContent.Contains("NPM Daily"));
+        Assert.NotNull(RowFor(cut, "Lower-age delinquent"));
+        Assert.Contains("Past-period view", cut.Find(".fq-history-link").TextContent);
+    }
+
+    [Fact]
+    public void WholeTimeHistoryHidesTwoReasonShortcutsButKeepsTheirSourceRowsInAll()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var sample = SampleQueue();
+        var npmDaily = new FollowUpItemDto(
+            4, "Normal", "NPM missed collection", "npm", FacilityCode.NPM, "Daily stall",
+            "NPM daily coverage", "1 missed day", null, false, "September 2026",
+            "Daily coverage gap", "Open daily calendar", "/npm");
+        var history = sample with { Items = sample.Items.Append(npmDaily).ToArray() };
+        var reports = new Mock<IReportsApiClient>();
+        reports.Setup(a => a.GetFollowUpHistoryYearsAsync())
+            .ReturnsAsync(Result<IReadOnlyList<int>>.Success([2026]));
+        reports.Setup(a => a.GetFollowUpHistoryAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>()))
+            .ReturnsAsync(Result<FollowUpQueueDto>.Success(history));
+        Services.AddSingleton(reports.Object);
+
+        var stalls = new Mock<IStallsApiClient>();
+        stalls.Setup(a => a.GetClosedStallAccountsAsync())
+            .ReturnsAsync(Result<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Stalls.ClosedStallAccountDto>>.Success([]));
+        Services.AddSingleton(stalls.Object);
+
+        var facilities = new Mock<IFacilitiesApiClient>();
+        facilities.Setup(a => a.GetFacilitySummariesAsync(It.IsAny<int>(), It.IsAny<int>()))
+            .ReturnsAsync(Result<IReadOnlyList<FacilitySidebarSummaryDto>>.Failure("Unavailable", 500));
+        Services.AddSingleton(facilities.Object);
+        Services.AddSingleton(new FacilityState(facilities.Object));
+
+        var branding = new Mock<IMunicipalitiesApiClient>();
+        branding.Setup(a => a.GetCurrentBrandingAsync())
+            .ReturnsAsync(Result<MunicipalityBrandingDto>.Failure("Unavailable", 500));
+        Services.AddSingleton(new BrandingState(branding.Object));
+        Services.AddSingleton(Mock.Of<ISetupApiClient>());
+        Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
+        Services.AddSingleton(Mock.Of<IObligationsApiClient>());
+        Services.AddSingleton(Mock.Of<IPenaltiesApiClient>());
+        Services.AddSingleton(Mock.Of<IDailyCollectionApiClient>());
+        Services.AddSingleton(Mock.Of<ITrmApiClient>());
+        Services.AddSingleton(Mock.Of<ITpmApiClient>());
+        Services.AddSingleton(Mock.Of<ISlaughterApiClient>());
+        this.AddTestAuthorization().SetAuthorized("SuperAdmin");
+
+        var cut = RenderComponent<EEMOCantilanSDS.Client.Components.Pages.Reports.PastFollowUpQueue>();
+        cut.WaitForAssertion(() =>
+        {
+            var chips = cut.FindAll(".fh-reasonrow .fh-chip").Select(x => x.TextContent).ToArray();
+            Assert.Equal(8, chips.Length);
+            Assert.DoesNotContain(chips, x => x.Contains("Missing OR") || x.Contains("NPM Daily"));
+            Assert.Contains(chips, x => x.Contains("Closed"));
+            Assert.Contains(cut.FindAll(".fh-row"), x => x.TextContent.Contains("Receipt follow-up"));
+            Assert.Contains(cut.FindAll(".fh-row"), x => x.TextContent.Contains("NPM daily coverage"));
+            Assert.Contains("9", chips[0]); // All includes all nine source rows.
+        }, RenderTimeout);
+        reports.Verify(a => a.GetFollowUpHistoryAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), true), Times.Once);
     }
 
     [Fact]
@@ -157,6 +245,11 @@ public sealed class FollowUpQueueCompositionTests : TestContext
         cut.WaitForAssertion(()=>Assert.Single(cut.FindComponents<FollowUpAccountReview>()),RenderTimeout);
         var review=cut.FindComponent<FollowUpAccountReview>();
         Assert.Single(review.FindAll(".review-footer-actions"));
+        Assert.Contains("Queue follow-up amount", review.Find(".review-queue-position").TextContent);
+        Assert.Contains("₱4,800.00", review.Find(".review-queue-position").TextContent);
+        Assert.Contains("12 months to August 2026", review.Find(".review-queue-position").TextContent);
+        Assert.Contains("Total outstanding balance · all periods", review.Find(".review-summary").TextContent);
+        Assert.Contains("₱800.00", review.Find(".review-summary").TextContent);
         SpaceHolderWorkspaceTests.SaveVisualArtifact("account-review-payment",review.Markup);
         review.Find(".review-period-toggle").Click();
         review.Find(".btn-primary").Click();
@@ -164,6 +257,32 @@ public sealed class FollowUpQueueCompositionTests : TestContext
         var form=cut.FindComponent<PayBillModal>().Instance;
         Assert.True(form.Show); Assert.Equal(account.StallId,form.StallId);
         Assert.Equal(account.ContractId,form.ContractId); Assert.Equal(2026,form.PeriodYear); Assert.Equal(8,form.PeriodMonth);
+    }
+
+    [Fact]
+    public void AccountReviewLabelsCurrentAndPastYearsWithoutChangingPeriodBalances()
+    {
+        var queue = SampleQueue();
+        var account = queue.Items.First();
+        var currentYear = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year;
+        var payments = new Mock<IPaymentsApiClient>();
+        payments.Setup(x => x.GetOutstandingMonthsAsync(account.StallId!.Value, account.ContractId, null, null))
+            .ReturnsAsync(Result<IReadOnlyList<PaymentHistoryDto>>.Success([
+                new($"{currentYear - 1}-08", PaymentStatus.Unpaid, 900, 0, 900, null, null),
+                new($"{currentYear}-08", PaymentStatus.Partial, 1000, 200, 800, null, null)
+            ]));
+        var (cut, _) = RenderQueue(queue, payments.Object);
+        cut.WaitForAssertion(() => Assert.NotNull(RowFor(cut, account.Person)), RenderTimeout);
+        RowFor(cut, account.Person).QuerySelector("button")!.Click();
+        cut.WaitForAssertion(() =>
+        {
+            var review = cut.FindComponent<FollowUpAccountReview>();
+            Assert.Equal(2, review.FindAll(".review-year-badge").Count);
+            Assert.Contains("Past year", review.FindAll(".review-year-badge")[0].TextContent);
+            Assert.Contains("Current year", review.FindAll(".review-year-badge")[1].TextContent);
+            Assert.Contains("₱1,700.00", review.Find(".review-summary").TextContent);
+            Assert.Contains("₱4,800.00", review.Find(".review-queue-position").TextContent);
+        }, RenderTimeout);
     }
 
     private (IRenderedComponent<FollowUpPage> Cut, Mock<IReportsApiClient> Api) RenderQueue(FollowUpQueueDto? queue = null, IPaymentsApiClient? payments = null)

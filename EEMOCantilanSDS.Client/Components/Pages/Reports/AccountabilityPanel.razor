@@ -1,10 +1,12 @@
 @using System.Globalization
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Application.Dtos.Collections
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Enums
 @inject IRemittancesApiClient Remittances
 @inject IOfficialReportsApiClient Reports
+@inject ICollectionActivityApiClient Activity
 @inject IJSRuntime JS
 
 @* The reporting counterpart of Remittance and Liquidation (IA-052): each collector's collected, remitted and unremitted pesos,
@@ -14,11 +16,36 @@
     <div class="ap-print-head" aria-hidden="true"><ReportLetterhead Title="Accountability Statement" Period="@PeriodLabel" /></div>
     <header class="ap-head">
         <h2 id="@_titleId">Accountability · @PeriodLabel</h2>
-        <div class="ap-tools no-print">
+        <div class="v3-btn-group no-print" role="group" aria-label="Accountability actions">
             <a class="v3-btn v3-btn-sm" href="/remittances">Remittance &amp; Liquidation</a>
             <button class="v3-btn v3-btn-sm" type="button" @onclick="PrintAsync">Print</button>
         </div>
     </header>
+
+    @* Tracing comes first: the question an auditor arrives with is "where did this receipt go", before any total. *@
+    <form class="ap-trace no-print" aria-label="Trace a document" @onsubmit="TraceAsync" @onsubmit:preventDefault="true">
+        <label class="ap-trace-label" for="@_traceId">Trace an OR or SRC</label>
+        <div class="ap-trace-row">
+            <input id="@_traceId" type="search" class="ap-trace-input" @bind="_serial" maxlength="50" placeholder="Enter OR number or SRC" autocomplete="off" />
+            <button class="v3-btn v3-btn-primary" type="submit" disabled="@(_tracing || string.IsNullOrWhiteSpace(_serial))">@(_tracing ? "Tracing…" : "Trace")</button>
+        </div>
+    </form>
+    @if (!string.IsNullOrWhiteSpace(_traceError))
+    {
+        <p class="v3-notice v3-notice-error" role="alert">@_traceError</p>
+    }
+    @if (_srcTrace is { } src)
+    {
+        <div class="ap-card no-print">
+            @TraceCard(src, null, "Collection reference trace")
+        </div>
+    }
+    @if (_trace is { } trace)
+    {
+        <div class="ap-card no-print">
+            @TraceCard(trace.Collection, trace, "Document trace")
+        </div>
+    }
 
     @if (!string.IsNullOrWhiteSpace(_error))
     {
@@ -30,93 +57,82 @@
     }
     else
     {
-        <SummaryStrip Label="Cash position" Items="Items" />
-        <div class="v3-table-wrap" role="region" aria-label="Collector accountability" tabindex="0">
-            <table class="v3-table">
-                <thead>
-                    <tr>
-                        <th scope="col">Collector</th>
-                        <th scope="col">Instrument</th>
-                        <th scope="col" class="v3-num">Assigned</th>
-                        <th scope="col" class="v3-num">Issued</th>
-                        <th scope="col" class="v3-num">Spoiled</th>
-                        <th scope="col" class="v3-num">Returned</th>
-                        <th scope="col" class="v3-num">On hand</th>
-                        <th scope="col" class="v3-num">Review</th>
-                        <th scope="col" class="v3-num">Collected</th>
-                        <th scope="col" class="v3-num">Remitted</th>
-                        <th scope="col" class="v3-num">Unremitted</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var collector in _data.Collectors)
-                    {
-                        var first = true;
-                        @if (collector.Forms.Count == 0)
+        <section class="ap-panel ap-cash-panel" aria-labelledby="ap-cash-title">
+            <SummaryStrip Label="Cash position" Items="Items" />
+            <h3 id="ap-cash-title">Cash accountability</h3>
+            <div class="v3-table-wrap" role="region" aria-label="Collector accountability" tabindex="0">
+                <table class="v3-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Collector</th>
+                            <th scope="col" class="v3-num">Collected</th>
+                            <th scope="col" class="v3-num">Remitted</th>
+                            <th scope="col" class="v3-num">Unremitted</th>
+                            <th scope="col" class="v3-num">Review</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var collector in _data.Collectors)
                         {
-                            <tr>
-                                <td class="v3-strong">@collector.CollectorName</td><td>—</td>
-                                <td class="v3-num" colspan="6"></td>
-                                <td class="v3-num">@Money(collector.Collected)</td><td class="v3-num">@Money(collector.Remitted)</td>
+                            <tr @key="collector.CollectorId">
+                                <td class="v3-strong">@collector.CollectorName</td>
+                                <td class="v3-num">@Money(collector.Collected)</td>
+                                <td class="v3-num">@Money(collector.Remitted)</td>
                                 <td class="v3-num v3-strong">@Money(collector.Unremitted)</td>
+                                <td class="v3-num">@(collector.NeedsReviewCount == 0 ? "—" : collector.NeedsReviewCount.ToString(CultureInfo.InvariantCulture))</td>
                             </tr>
                         }
-                        @foreach (var forms in collector.Forms)
+                        @if (_data.Collectors.Count == 0)
                         {
-                            <tr>
-                                <td class="v3-strong">@(first ? collector.CollectorName : "")</td>
-                                <td>@(forms.Instrument == RevenueInstrumentType.OfficialReceipt ? "OR" : "CT")</td>
-                                <td class="v3-num">@forms.Assigned</td><td class="v3-num">@forms.Issued</td><td class="v3-num">@forms.Spoiled</td>
-                                <td class="v3-num">@forms.Returned</td><td class="v3-num">@forms.OnHand</td><td class="v3-num">@forms.NeedsReview</td>
-                                @if (first)
-                                {
-                                    <td class="v3-num">@Money(collector.Collected)</td><td class="v3-num">@Money(collector.Remitted)</td>
-                                    <td class="v3-num v3-strong">@Money(collector.Unremitted)</td>
-                                }
-                                else
-                                {
-                                    <td></td><td></td><td></td>
-                                }
-                            </tr>
-                            first = false;
+                            <tr><td class="v3-empty" colspan="5">No collector has collections in this period.</td></tr>
                         }
-                    }
-                    @if (_data.Collectors.Count == 0)
-                    {
-                        <tr><td class="v3-empty" colspan="11">No collector has collections or assigned forms in this period.</td></tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-        <p class="ap-note">Forms are counts, not money: remaining tickets are never an amount, and remittance does not wait for them to be used. Legacy-source collections that cannot yet be covered by a remittance are listed on the Remittance &amp; Liquidation page.</p>
-    }
+                    </tbody>
+                </table>
+            </div>
+        </section>
 
-    <form class="ap-trace no-print" aria-label="Trace a document" @onsubmit="TraceAsync" @onsubmit:preventDefault="true">
-        <label class="v3-field"><span>Trace a serial</span><input @bind="_serial" maxlength="50" placeholder="e.g. CT-000101" /></label>
-        <button class="v3-btn" type="submit" disabled="@string.IsNullOrWhiteSpace(_serial)">Trace</button>
-    </form>
-    @if (!string.IsNullOrWhiteSpace(_traceError))
-    {
-        <p class="v3-notice v3-notice-error" role="alert">@_traceError</p>
-    }
-    @if (_trace is { } trace)
-    {
-        <dl class="v3-facts" aria-label="Document trace">
-            <div><dt>Document</dt><dd>@trace.DocumentNumber (@(trace.Instrument == RevenueInstrumentType.OfficialReceipt ? "Official Receipt" : "Cash Ticket"))</dd></div>
-            <div><dt>Disposition</dt><dd>@trace.State@(trace.SpoiledReason is null ? "" : $" · {trace.SpoiledReason}")</dd></div>
-            <div><dt>Custody</dt><dd>@(trace.Custodian ?? "—")</dd></div>
-            @if (trace.Collection is { } collection)
-            {
-                <div><dt>Collection</dt><dd>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) · @Money(collection.Total) · @(collection.CollectorName ?? "Office")</dd></div>
-                <div><dt>Revenue lines</dt><dd>@string.Join(" · ", collection.Lines.Select(l => $"{l.ClassificationName} {Money(l.Amount)}"))</dd></div>
-                <div><dt>Remittance</dt><dd>@(collection.RemittanceId is { } id ? $"Covered ({collection.RemittanceStatus})" : "Not yet remitted")
-                    @if (collection.RemittanceId is { } rid) { <a href="@($"/remittances/{rid}")">Open remittance</a> }</dd></div>
-            }
-        </dl>
+        @* Form custody is counted from the accountable-form records, apart from the pesos above; it is shown only where such records exist. *@
+        @if (FormRows.Count > 0)
+        {
+            <section class="ap-panel" aria-labelledby="ap-forms-title">
+                <h3 id="ap-forms-title">Accountable forms</h3>
+                <div class="v3-table-wrap" role="region" aria-label="Accountable forms" tabindex="0">
+                    <table class="v3-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Collector</th>
+                                <th scope="col">Instrument</th>
+                                <th scope="col" class="v3-num">Assigned</th>
+                                <th scope="col" class="v3-num">Issued</th>
+                                <th scope="col" class="v3-num">Spoiled</th>
+                                <th scope="col" class="v3-num">Returned</th>
+                                <th scope="col" class="v3-num">On hand</th>
+                                @if (FormRows.Any(r => r.Forms.Lost > 0)) { <th scope="col" class="v3-num">Lost</th> }
+                                <th scope="col" class="v3-num">Needs review</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in FormRows)
+                            {
+                                <tr>
+                                    <td class="v3-strong">@row.Collector</td>
+                                    <td>@(row.Forms.Instrument == RevenueInstrumentType.OfficialReceipt ? "OR" : "CT")</td>
+                                    <td class="v3-num">@row.Forms.Assigned</td><td class="v3-num">@row.Forms.Issued</td><td class="v3-num">@row.Forms.Spoiled</td>
+                                    <td class="v3-num">@row.Forms.Returned</td><td class="v3-num">@row.Forms.OnHand</td>
+                                    @if (FormRows.Any(r => r.Forms.Lost > 0)) { <td class="v3-num">@row.Forms.Lost</td> }
+                                    <td class="v3-num">@row.Forms.NeedsReview</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        }
     }
 </section>
 
 @code {
+    private readonly string _traceId = $"ap-trace-{Guid.NewGuid():N}";
     private readonly string _titleId = $"ap-{Guid.NewGuid():N}";
 
     [Parameter, EditorRequired] public DateOnly From { get; set; }
@@ -125,12 +141,75 @@
 
     private AccountabilityPositionDto? _data;
     private DocumentTraceDto? _trace;
+    private CollectionDocumentDto? _srcTrace;
+    private bool _tracing;
+    private static readonly System.Text.RegularExpressions.Regex SrcFormat = new("^SRC-[0-9]{4}-[0-9]{6,}$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
     private string? _error;
     private string? _traceError;
     private bool _loading;
     private string _serial = string.Empty;
     private DateOnly _loadedFrom;
     private DateOnly _loadedTo;
+
+
+    // One layout for an SRC trace and a serial trace: the serial adds its own document and custody facts above the same collection evidence.
+    private RenderFragment TraceCard(CollectionDocumentDto? collection, DocumentTraceDto? trace, string label) => __builder =>
+    {
+        <header class="ap-card-head">
+            <div>
+                <p class="ap-card-kicker">@(trace is null ? "Collection reference (SRC)" : "Document")</p>
+                <h3>@(trace is null ? collection!.ReferenceCode : $"{trace.DocumentNumber} · {(trace.Instrument == RevenueInstrumentType.OfficialReceipt ? "Official Receipt" : "Cash Ticket")}")</h3>
+            </div>
+            @if (collection is not null)
+            {
+                <span class="ap-pill @(collection.RemittanceId is null ? "" : "ap-pill-on")">@(collection.RemittanceId is not null ? $"Covered ({collection.RemittanceStatus})" : "Not yet covered by a remittance")</span>
+            }
+            else
+            {
+                <span class="ap-pill">No collection recorded</span>
+            }
+        </header>
+        <dl class="ap-facts" aria-label="@label">
+            @if (trace is not null)
+            {
+                <div><dt>Disposition</dt><dd>@trace.State@(trace.SpoiledReason is null ? "" : $" · {trace.SpoiledReason}")</dd></div>
+                <div><dt>Custody</dt><dd>@(trace.Custodian ?? "—")</dd></div>
+            }
+            @if (collection is not null)
+            {
+                <div><dt>Collection (SRC)</dt><dd>@collection.ReferenceCode</dd></div>
+                <div><dt>Collection date</dt><dd>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</dd></div>
+                <div><dt>Payor</dt><dd>@(string.IsNullOrWhiteSpace(collection.PayorName) ? "—" : collection.PayorName)</dd></div>
+                <div><dt>Collector</dt><dd>@(collection.CollectorName ?? "Office")</dd></div>
+                <div><dt>Physical OR / CT</dt><dd>@(string.IsNullOrWhiteSpace(collection.DocumentNumber) ? "No linked physical document" : collection.DocumentNumber)</dd></div>
+                <div><dt>Remittance coverage</dt><dd>@(collection.RemittanceId is not null ? $"Covered ({collection.RemittanceStatus})" : "Not yet covered by a remittance")
+                    @if (collection.RemittanceId is { } remittanceId) { <a href="@($"/remittances/{remittanceId}")">Open remittance</a> }
+                </dd></div>
+            }
+        </dl>
+        @if (collection is not null)
+        {
+            <table class="ap-lines" aria-label="Revenue lines">
+                <thead><tr><th scope="col">Revenue line</th><th scope="col" class="v3-num">Amount</th></tr></thead>
+                <tbody>
+                    @foreach (var line in collection.Lines)
+                    {
+                        <tr><td>@line.ClassificationName</td><td class="v3-num">@Money(line.Amount)</td></tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr><th scope="row">Collection total</th><td class="v3-num">@Money(collection.Total)</td></tr>
+                    @if (collection.CorrectionEffect != 0m)
+                    {
+                        <tr><th scope="row">Net after corrections</th><td class="v3-num">@Money(collection.Total + collection.CorrectionEffect)</td></tr>
+                    }
+                </tfoot>
+            </table>
+        }
+    };
+
+    private List<(string Collector, FormAccountabilityDto Forms)> FormRows =>
+        _data?.Collectors.SelectMany(c => c.Forms.Select(f => (c.CollectorName, f))).ToList() ?? [];
 
     private IReadOnlyList<SummaryStrip.SummaryItem> Items => _data is null ? [] :
     [
@@ -159,12 +238,61 @@
 
     private async Task TraceAsync()
     {
+        if (_tracing) return;
         _traceError = null;
         _trace = null;
-        var result = await Reports.TraceDocumentAsync(_serial.Trim());
-        if (result.IsSuccess) _trace = result.Value;
-        else _traceError = result.Status == EEMOCantilanSDS.Application.Common.ResultStatus.NotFound
-            ? "No document with that number exists in this office." : "The document could not be traced.";
+        _srcTrace = null;
+        var input = _serial.Trim();
+        if (input.Length == 0) return;
+        _tracing = true;
+        try
+        {
+            if (input.StartsWith("SRC", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!SrcFormat.IsMatch(input))
+                {
+                    _traceError = "Enter the full collection reference, for example SRC-2026-000016.";
+                    return;
+                }
+
+                // An SRC is a Collection identifier, not an accountable-form OR/CT serial. The exact
+                // tenant-scoped reference lookup works across dates, then the existing official document
+                // reader supplies authoritative remittance coverage for that collection.
+                var feed = await Activity.GetAsync(From, To, reference: input.ToUpperInvariant());
+                if (!feed.IsSuccess)
+                {
+                    _traceError = "The collection reference could not be traced. Please try again.";
+                    return;
+                }
+
+                var match = feed.Value?.Events.SingleOrDefault(e =>
+                    e.Authority == "Canonical" &&
+                    string.Equals(e.ReferenceCode, input, StringComparison.OrdinalIgnoreCase));
+                if (match?.CollectionId is not { } collectionId)
+                {
+                    _traceError = "No collection with that SRC exists in this office.";
+                    return;
+                }
+
+                var collection = await Reports.GetCollectionAsync(collectionId);
+                if (collection.IsSuccess && collection.Value is { } found &&
+                    string.Equals(found.ReferenceCode, input, StringComparison.OrdinalIgnoreCase))
+                    _srcTrace = found;
+                else
+                    _traceError = "The collection details could not be traced. Please try again.";
+                return;
+            }
+
+            var document = await Reports.TraceDocumentAsync(input);
+            if (document.IsSuccess) _trace = document.Value;
+            else _traceError = document.Status == EEMOCantilanSDS.Application.Common.ResultStatus.NotFound
+                ? "No OR/CT document with that serial exists in this office." : "The document could not be traced.";
+        }
+        catch
+        {
+            _traceError = "The reference could not be traced. Please try again.";
+        }
+        finally { _tracing = false; }
     }
 
     private async Task PrintAsync() => await JS.InvokeVoidAsync("print");

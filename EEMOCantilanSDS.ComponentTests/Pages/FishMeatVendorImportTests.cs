@@ -62,7 +62,7 @@ public sealed class FishMeatVendorImportTests : TestContext
 
         Assert.Contains("CSV or Excel", cut.Markup);
         var template = cut.Find("a[download]").GetAttribute("href")!;
-        Assert.Equal("Vendor name,Business name,Type,Registration,Address,Reference\r\n", Uri.UnescapeDataString(template.Replace("data:text/csv;charset=utf-8,", "")));
+        Assert.Equal("Vendor name,Business name,Last name,First name,Middle name,Extname,Sex,Type,Registration,Address,Nature of business,Reference\r\n", Uri.UnescapeDataString(template.Replace("data:text/csv;charset=utf-8,", "")));
         Assert.Contains("never guessed", cut.Markup);
         Assert.Contains("this list registers vendors, it does not record collections", cut.Markup);
         Assert.Empty(cut.FindAll("select"));                                                       // tax year is a styled selector
@@ -141,6 +141,110 @@ public sealed class FishMeatVendorImportTests : TestContext
             Assert.Contains("2 vendors imported", cut.Markup);
             Assert.Equal("/operations/fish-meat-vendor-fees/manage", cut.FindAll("a").Single(a => a.TextContent.Contains("Open Manage")).GetAttribute("href"));
         }, Timeout);
+    }
+
+    [Fact]
+    public void OldHeaderlessSixColumnUploadRetainsItsOriginalMapping()
+    {
+        var cut = UploadCsv("Lisa Ilogans,Ilogans Fish Stall,Fish,New,Purok 3,REG-1\r\n");
+        cut.WaitForAssertion(() => Assert.NotNull(_previewed), Timeout);
+        var registration = Assert.Single(_previewed!.Rows).Registration;
+        Assert.Equal(FishMeatVendorType.Fish, registration.VendorType);
+        Assert.Equal(VendorRegistrationKind.New, registration.RegistrationKind);
+        Assert.Equal("Purok 3", registration.Address);
+        Assert.Equal("REG-1", registration.Reference);
+        Assert.Null(registration.NatureOfBusiness);
+    }
+
+    [Fact]
+    public void OfficePaperColumnsPreserveNameAndBusinessNatureButNeverImportHandwrittenMoney()
+    {
+        var csv = $"Business Name,Last Name,First Name,Middle Name,Extname,Sex,Type,Type of,Tax Year,Address,Nature of Business,Amount\r\n" +
+                  $"LEMUEL FISH RETAILING,LORCHANO,LEMUEL,ALFANTA,,Male,Fish,Renew,{Year},Purok 5,Retail sale of fish and other seafood (fresh and dried),16621\r\n";
+        var cut = UploadCsv(csv);
+        cut.WaitForAssertion(() => Assert.NotNull(_previewed), Timeout);
+        var entry = Assert.Single(_previewed!.Rows).Registration;
+        Assert.Equal("LEMUEL ALFANTA LORCHANO", entry.DisplayName);
+        Assert.Equal("LEMUEL FISH RETAILING", entry.BusinessName);
+        Assert.Equal("LORCHANO", entry.LastName);
+        Assert.Equal("LEMUEL", entry.FirstName);
+        Assert.Equal("ALFANTA", entry.MiddleName);
+        Assert.Equal("Male", entry.Sex);
+        Assert.Equal("Retail sale of fish and other seafood (fresh and dried)", entry.NatureOfBusiness);
+        Assert.Equal(FishMeatVendorType.Fish, entry.VendorType);
+        Assert.DoesNotContain("16621", System.Text.Json.JsonSerializer.Serialize(_previewed));
+        Assert.Contains("imp-hero-blue", cut.Markup);
+    }
+
+    [Fact]
+    public void OfficeRegisterShowsSeparateVendorFeeAndWeightMeasureWithoutCountingWalkupTwice()
+    {
+        var year = Year;
+        var month = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Month;
+        var vendor = new FishMeatVendorRegistrationDto(Guid.NewGuid(), year,
+            FishMeatVendorType.Fish, VendorRegistrationKind.Renew, "LEMUEL ALFANTA LORCHANO",
+            "LEMUEL FISH RETAILING", "Purok 5", null, "LORCHANO", "LEMUEL", "ALFANTA",
+            null, "Male", "Retail sale of fish and other seafood (fresh and dried)");
+        var row = new VendorRegistrationManagementRow(vendor, VendorRegistrationStatus.Active, "Head",
+            DateTime.UtcNow, null, null, null, null, null, 250m, 45m);
+        _office.Setup(x => x.ManageRegistrationsAsync(year, month, null, year))
+            .ReturnsAsync(Result<VendorRegistryManagement>.Success(new VendorRegistryManagement(year, year, month, [row], 20m)));
+
+        var cut = RenderComponent<FishMeatVendorOfficeRegister>();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("LEMUEL FISH RETAILING", cut.Find(".fmo-scroll").TextContent);
+            Assert.Contains("LORCHANO", cut.Find(".fmo-scroll").TextContent);
+            Assert.Contains("Retail sale of fish and other seafood", cut.Find(".fmo-scroll").TextContent);
+            Assert.Contains("₱250.00", cut.Find(".fmo-scroll").TextContent);
+            Assert.Contains("₱45.00", cut.Find(".fmo-scroll").TextContent);
+            Assert.Contains("₱20.00", cut.Find(".fmo-note").TextContent);
+            Assert.Contains("₱270.00", cut.Find(".facility-hero").TextContent);
+            Assert.NotNull(cut.Find("#fmo-month"));
+            var selectors = cut.FindComponents<EEMOCantilanSDS.Client.Components.Shared.FhSelect>();
+            Assert.Equal(2, selectors.Count);
+            Assert.Equal("Registration tax year", selectors[0].Instance.AriaLabel);
+            Assert.Equal("Vendor type", selectors[1].Instance.AriaLabel);
+            Assert.Contains("About the figures", cut.Markup);
+            Assert.Single(cut.FindAll(".fmo-note"));
+            Assert.Single(cut.FindAll(".fmo-method summary"));
+        }, Timeout);
+        var fullViewButton = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Full register");
+        fullViewButton.Click();
+        Assert.Contains("is-visible", cut.Find(".fmo-paper").ClassList);
+        Assert.Contains("is-hidden", cut.Find(".fmo-overview").ClassList);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Compact view").Click();
+        Assert.DoesNotContain("is-visible", cut.Find(".fmo-paper").ClassList);
+        Assert.DoesNotContain("is-hidden", cut.Find(".fmo-overview").ClassList);
+        var typeSelector = cut.FindComponents<EEMOCantilanSDS.Client.Components.Shared.FhSelect>()[1];
+        typeSelector.Find(".fh-dd-trigger").Click();
+        typeSelector.FindAll(".fh-dd-item").Single(x => x.TextContent.Trim() == "Meat").Click();
+        Assert.Contains("No registrations match this view.", cut.Markup);
+        typeSelector.Find(".fh-dd-trigger").Click();
+        typeSelector.FindAll(".fh-dd-item").Single(x => x.TextContent.Trim() == "Fish").Click();
+        Assert.Contains("LEMUEL FISH RETAILING", cut.Find(".fmo-scroll").TextContent);
+
+        _office.Setup(x => x.ManageRegistrationsAsync(year + 1, month, null, year))
+            .ReturnsAsync(Result<VendorRegistryManagement>.Success(new VendorRegistryManagement(year + 1, year, month, [], 0m)));
+        var yearSelector = cut.FindComponents<EEMOCantilanSDS.Client.Components.Shared.FhSelect>()[0];
+        yearSelector.Find(".fh-dd-trigger").Click();
+        yearSelector.FindAll(".fh-dd-item").Single(x => x.TextContent.Trim() == (year + 1).ToString()).Click();
+        cut.WaitForAssertion(() => Assert.Contains("No registrations match this view.", cut.Markup), Timeout);
+
+        _office.Verify(x => x.ManageRegistrationsAsync(year, month, null, year), Times.Once);
+        _office.Verify(x => x.ManageRegistrationsAsync(year + 1, month, null, year), Times.Once);
+    }
+
+    [Fact]
+    public void OfficePaperWithNoExplicitVendorTypeDoesNotInferFishFromNatureText()
+    {
+        var cut = UploadCsv($"Business Name,Last Name,First Name,Type of,Tax Year,Nature of Business\r\nFish shop,Lopez,Ana,Renew,{Year},Retail sale of fish and other seafood\r\n");
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Choose Fish or Meat", cut.Markup);
+            Assert.Contains("Invalid", cut.Markup);
+        }, Timeout);
+        _office.Verify(x => x.PreviewImportAsync(It.IsAny<VendorRegistryImportRequest>()), Times.Never);
     }
 
     [Fact]

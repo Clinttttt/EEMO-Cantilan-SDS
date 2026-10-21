@@ -1,0 +1,793 @@
+{
+  "task": "2D.2",
+  "mode": "preflight",
+  "startedAtUtc": "2026-10-17T03:08:45.867Z",
+  "ddlSha256": "1cfc71caaaf302042e4c2fac66c74f5b24ea9fecb499f4a22d0ebc5ec4120a31",
+  "preflight": {
+    "server": {
+      "database": "EEMOCantilanSDS.DB",
+      "address": "::1",
+      "port": 5432,
+      "pid": 5564,
+      "read_only": "on"
+    },
+    "tables": 95,
+    "migrations": 143,
+    "dataHash": "ec22390fe31353fd542a43cca3dc018ee10725a2de1499f8e22cd034eb33edad",
+    "schemaHash": "6af7382bf3babb0910aad1476f60f12d6352720b4a63c09fe03482164fe2978d",
+    "extraSchemaHash": "7fa5b5f5088234d40bb8a444cb0839010df17243049df933348a33cde6498573",
+    "historyHash": "e310e9cd9bee20f9703aba284268c2a1b13f394b38b855c3d45fa1ae110e3445",
+    "retainedTables": [
+      {
+        "table": "ConfigurableServiceAssessments",
+        "rows": "1",
+        "fingerprint": "94851f11b7043ca20bcba76eae8a8c36"
+      },
+      {
+        "table": "ConfigurableServiceDefinitions",
+        "rows": "6",
+        "fingerprint": "24124279613188d2aad9a298af5bdc65"
+      },
+      {
+        "table": "ConfigurableServicePolicies",
+        "rows": "5",
+        "fingerprint": "c37ac06f354a7556202da0e21a6bbdf7"
+      },
+      {
+        "table": "EcfApprovedAssessments",
+        "rows": "1",
+        "fingerprint": "0e859277fe4212af595b8aaa5024d981"
+      },
+      {
+        "table": "FishMeatVendorFeeObligations",
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "table": "FishMeatVendorFeePolicies",
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "table": "KanmanggayMonthlyObligations",
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "table": "KanmanggayMonthlyPolicies",
+        "rows": "1",
+        "fingerprint": "6141880d28c9a1b60e272fb745e3bafb"
+      },
+      {
+        "table": "KanmanggayRentalAccounts",
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "table": "LandingBerthingActivities",
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "table": "VegetableSpaceRentalAssessments",
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "table": "VegetableSpaceRentalPolicies",
+        "rows": "1",
+        "fingerprint": "13724bbccb183adfb051ba49984d34b7"
+      },
+      {
+        "table": "WcfApprovedChargePolicies",
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      }
+    ],
+    "srcSequence": {
+      "name": "CollectionReferenceNumberSeq",
+      "last_value": "17",
+      "is_called": true
+    },
+    "allocationIndexes": [
+      {
+        "name": "IX_CollectionAllocations_MunicipalityId_SourceId",
+        "definition": "CREATE UNIQUE INDEX \"IX_CollectionAllocations_MunicipalityId_SourceId\" ON public.\"CollectionAllocations\" USING btree (\"MunicipalityId\", \"SourceId\") WHERE (\"SourceKind\" = 8)",
+        "valid": true,
+        "ready": true
+      },
+      {
+        "name": "IX_CollectionAllocations_MunicipalityId_SourceKind_SourceId_So~",
+        "definition": "CREATE INDEX \"IX_CollectionAllocations_MunicipalityId_SourceKind_SourceId_So~\" ON public.\"CollectionAllocations\" USING btree (\"MunicipalityId\", \"SourceKind\", \"SourceId\", \"SourcePart\")",
+        "valid": true,
+        "ready": true
+      }
+    ],
+    "parentKeys": [
+      {
+        "kind": "constraint",
+        "name": "AK_Contracts_MunicipalityId_Id",
+        "definition": "UNIQUE (\"MunicipalityId\", \"Id\")"
+      },
+      {
+        "kind": "constraint",
+        "name": "AK_Contracts_MunicipalityId_Id_StallId",
+        "definition": "UNIQUE (\"MunicipalityId\", \"Id\", \"StallId\")"
+      },
+      {
+        "kind": "constraint",
+        "name": "AK_Stalls_MunicipalityId_Id",
+        "definition": "UNIQUE (\"MunicipalityId\", \"Id\")"
+      },
+      {
+        "kind": "constraint",
+        "name": "PK_Contracts",
+        "definition": "PRIMARY KEY (\"Id\")"
+      },
+      {
+        "kind": "constraint",
+        "name": "PK_Facilities",
+        "definition": "PRIMARY KEY (\"Id\")"
+      },
+      {
+        "kind": "constraint",
+        "name": "PK_Stalls",
+        "definition": "PRIMARY KEY (\"Id\")"
+      }
+    ]
+  },
+  "apiInactive": true,
+  "parentColumns": [
+    {
+      "table_name": "Contracts",
+      "column_name": "Id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Contracts",
+      "column_name": "StallId",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Contracts",
+      "column_name": "ORNumber",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Contracts",
+      "column_name": "ActualOccupant",
+      "data_type": "character varying",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Contracts",
+      "column_name": "NameOnContract",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Contracts",
+      "column_name": "EffectivityDate",
+      "data_type": "date",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Contracts",
+      "column_name": "DurationYears",
+      "data_type": "integer",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Contracts",
+      "column_name": "MonthlyRentalRate",
+      "data_type": "numeric",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Contracts",
+      "column_name": "ActualMonthlyRental",
+      "data_type": "numeric",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Contracts",
+      "column_name": "IsActive",
+      "data_type": "boolean",
+      "is_nullable": "NO",
+      "column_default": "true"
+    },
+    {
+      "table_name": "Contracts",
+      "column_name": "Remarks",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Contracts",
+      "column_name": "CreatedAt",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Contracts",
+      "column_name": "CreatedBy",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Contracts",
+      "column_name": "UpdatedAt",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Contracts",
+      "column_name": "UpdatedBy",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Contracts",
+      "column_name": "IsDeleted",
+      "data_type": "boolean",
+      "is_nullable": "NO",
+      "column_default": "false"
+    },
+    {
+      "table_name": "Contracts",
+      "column_name": "DeletedAt",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Contracts",
+      "column_name": "DeletedBy",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Contracts",
+      "column_name": "MunicipalityId",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": "'00000000-0000-0000-0000-000000000000'::uuid"
+    },
+    {
+      "table_name": "Contracts",
+      "column_name": "EndedOn",
+      "data_type": "date",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Contracts",
+      "column_name": "Arrangement",
+      "data_type": "integer",
+      "is_nullable": "NO",
+      "column_default": "1"
+    },
+    {
+      "table_name": "Contracts",
+      "column_name": "PayorId",
+      "data_type": "uuid",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Facilities",
+      "column_name": "Id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Facilities",
+      "column_name": "Code",
+      "data_type": "integer",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Facilities",
+      "column_name": "Name",
+      "data_type": "character varying",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Facilities",
+      "column_name": "ShortName",
+      "data_type": "character varying",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Facilities",
+      "column_name": "Description",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Facilities",
+      "column_name": "IsActive",
+      "data_type": "boolean",
+      "is_nullable": "NO",
+      "column_default": "true"
+    },
+    {
+      "table_name": "Facilities",
+      "column_name": "CreatedAt",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Facilities",
+      "column_name": "CreatedBy",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Facilities",
+      "column_name": "UpdatedAt",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Facilities",
+      "column_name": "UpdatedBy",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Facilities",
+      "column_name": "IsDeleted",
+      "data_type": "boolean",
+      "is_nullable": "NO",
+      "column_default": "false"
+    },
+    {
+      "table_name": "Facilities",
+      "column_name": "DeletedAt",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Facilities",
+      "column_name": "DeletedBy",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Facilities",
+      "column_name": "MunicipalityId",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": "'00000000-0000-0000-0000-000000000000'::uuid"
+    },
+    {
+      "table_name": "Facilities",
+      "column_name": "Archetype",
+      "data_type": "integer",
+      "is_nullable": "NO",
+      "column_default": "0"
+    },
+    {
+      "table_name": "Facilities",
+      "column_name": "FishSectionLabel",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Facilities",
+      "column_name": "MeatSectionLabel",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Facilities",
+      "column_name": "VegetableSectionLabel",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Facilities",
+      "column_name": "CustomSectionNames",
+      "data_type": "ARRAY",
+      "is_nullable": "NO",
+      "column_default": "'{}'::text[]"
+    },
+    {
+      "table_name": "Facilities",
+      "column_name": "MonthBasis",
+      "data_type": "integer",
+      "is_nullable": "NO",
+      "column_default": "1"
+    },
+    {
+      "table_name": "Facilities",
+      "column_name": "MonthBasisStatedAt",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "Id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "Code",
+      "data_type": "character varying",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "Name",
+      "data_type": "character varying",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "Province",
+      "data_type": "character varying",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "Address",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "SealPath",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "OfficeName",
+      "data_type": "character varying",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "Status",
+      "data_type": "integer",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "IsDefault",
+      "data_type": "boolean",
+      "is_nullable": "NO",
+      "column_default": "false"
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "IsActive",
+      "data_type": "boolean",
+      "is_nullable": "NO",
+      "column_default": "true"
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "CreatedAt",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "CreatedBy",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "UpdatedAt",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "UpdatedBy",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "IsDeleted",
+      "data_type": "boolean",
+      "is_nullable": "NO",
+      "column_default": "false"
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "DeletedAt",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "DeletedBy",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "TenantCode",
+      "data_type": "character varying",
+      "is_nullable": "NO",
+      "column_default": "''::character varying"
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "OfficeAcronym",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "TpmMarketDay",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "PayMongoPublicKey",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "PayMongoSecretKeyEnc",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "PayMongoWebhookSecretEnc",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "MobileBindToken",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "ReportSignatories",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "PayMongoLastVerifiedAtUtc",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Municipalities",
+      "column_name": "PayMongoWebhookId",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Stalls",
+      "column_name": "Id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Stalls",
+      "column_name": "FacilityId",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Stalls",
+      "column_name": "StallNo",
+      "data_type": "character varying",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Stalls",
+      "column_name": "Status",
+      "data_type": "integer",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Stalls",
+      "column_name": "Fees",
+      "data_type": "integer",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Stalls",
+      "column_name": "Section",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Stalls",
+      "column_name": "AreaLocation",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Stalls",
+      "column_name": "AreaSqm",
+      "data_type": "double precision",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Stalls",
+      "column_name": "AreaNote",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Stalls",
+      "column_name": "MonthlyRate",
+      "data_type": "numeric",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Stalls",
+      "column_name": "DailyRate",
+      "data_type": "numeric",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Stalls",
+      "column_name": "CreatedAt",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "Stalls",
+      "column_name": "CreatedBy",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Stalls",
+      "column_name": "UpdatedAt",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Stalls",
+      "column_name": "UpdatedBy",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Stalls",
+      "column_name": "IsDeleted",
+      "data_type": "boolean",
+      "is_nullable": "NO",
+      "column_default": "false"
+    },
+    {
+      "table_name": "Stalls",
+      "column_name": "DeletedAt",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Stalls",
+      "column_name": "DeletedBy",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Stalls",
+      "column_name": "Remarks",
+      "data_type": "text",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Stalls",
+      "column_name": "Type",
+      "data_type": "integer",
+      "is_nullable": "NO",
+      "column_default": "1"
+    },
+    {
+      "table_name": "Stalls",
+      "column_name": "ClosedAt",
+      "data_type": "date",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "Stalls",
+      "column_name": "MunicipalityId",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": "'00000000-0000-0000-0000-000000000000'::uuid"
+    },
+    {
+      "table_name": "Stalls",
+      "column_name": "CustomSectionName",
+      "data_type": "character varying",
+      "is_nullable": "YES",
+      "column_default": null
+    }
+  ]
+}

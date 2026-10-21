@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Common.Interface.Security;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using System;
 using System.Linq;
 using System.Security.Cryptography;
@@ -11,6 +12,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Onboarding;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Onboarding;
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
@@ -81,7 +83,9 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                     // The office's own rule for what a market month owes, as it declared at onboarding, so its first month
                     // is measured by its own convention rather than by somebody else's. Recorded as a STATEMENT, which is
                     // also what stops the console asking the question the office has just answered.
-                    facility.SetMonthBasis(f.MonthBasis, "Activation");
+                    // Only a daily-collected market has a month basis: a market declared as standard monthly rental owes its stated
+                    // rent by the month and has nothing to choose, so none is recorded for it.
+                    if (f.Archetype == BillingArchetype.DailyStall) facility.SetMonthBasis(f.MonthBasis, "Activation");
                 }
             }
 
@@ -150,6 +154,35 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                     AnimalType.Cow, labels.Cow, municipality.Id, "Activation"));
             }
 
+            // 3c-2) The operations the LGU declared at onboarding, as its tenant operation configuration. Written in this same
+            //       transaction, so a municipality can never go live with its Head and facilities but not its configuration.
+            //
+            //       A row is stored for EVERY catalog operation: a selected one is listed (under the LGU's own name, if it gave
+            //       one) and an unselected one is explicitly NOT listed. That keeps "chose not to use it" distinct from "was
+            //       never asked" (no declarations at all, an older onboarding), which stays on the legacy fallback. Nothing here
+            //       enables posting, assigns a Collector, files a rate or registers a source.
+            if (request.OperationDeclarations is { } declared)
+            {
+                var chosen = declared.ToDictionary(d => d.OperationCode, StringComparer.Ordinal);
+                foreach (var entry in TenantOperationCatalog.All)
+                {
+                    chosen.TryGetValue(entry.Code, out var d);
+                    var selected = d?.Selected == true;
+                    context.TenantOperationSettings.Add(TenantOperationSetting.Create(
+                        entry.Code, selected, selected ? d!.LocalDisplayName : null, "Onboarding", municipality.Id, "Activation"));
+
+                    // ECF and WCF cannot be collected until the office has a revenue classification AND an approved accountable
+                    // instrument for them, and an office has neither at activation (the platform seeds classifications for no
+                    // tenant but the one whose rulings they are). For an operation the LGU SELECTED, create the classification
+                    // itself and nothing else: no policy version, so no instrument is chosen for the office, nothing is
+                    // authorized, and the utility workflows keep refusing until the Head approves an instrument in Revenue Setup.
+                    // It exists so Revenue Setup lists the source (with its Setup-required state) instead of the Head having to
+                    // know and type an internal code. An unselected operation gets nothing.
+                    if (selected && entry.Code is "ECF" or "WCF")
+                        context.RevenueClassifications.Add(RevenueClassification.Create(entry.ClassificationCode, municipality.Id, "Activation"));
+                }
+            }
+
             // 3d) Optional OR-series suggestion config (one per LGU). OR numbers stay manually entered; this
             //     only seeds the suggested format the portal pre-fills.
             var orSeriesConfigured = false;
@@ -207,7 +240,9 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                 ratesToSeed.Count,
                 stallsCreated,
                 customAnimalsCreated,
-                orSeriesConfigured));
+                orSeriesConfigured,
+                // The environment's own link (ACTIVATION_LINK_BASE), so a console never rebuilds a host from the token.
+                activationLink));
         }
 
         // Names the daily market's three collection areas as the LGU named them.

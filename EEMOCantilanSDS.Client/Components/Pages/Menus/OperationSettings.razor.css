@@ -1,0 +1,30 @@
+.os-page { width: 100%; max-width: none; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.os-page > .v3-panel { min-width: 0; }
+.os-intro { padding: 12px 20px 16px; font-size: .875rem; line-height: 1.5; color: var(--text-secondary, #475569); }
+.os-intro p { margin: 0; }
+.os-intro p + p { margin-top: 6px; }
+.os-legacy { color: var(--text-secondary, #475569); }
+.os-rows { list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 16px 20px 20px; margin: 0; }
+.os-row { padding: 16px; min-width: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.os-form { display: flex; flex-direction: column; gap: 12px; height: 100%; min-width: 0; }
+.os-head { display: flex; align-items: start; justify-content: space-between; gap: 12px; min-width: 0; }
+.os-listed { display: inline-flex; align-items: flex-start; gap: 10px; cursor: pointer; min-width: 0; }
+.os-listed input { flex-shrink: 0; margin-top: 3px; }
+.os-standard { font-weight: 700; color: var(--navy); min-width: 0; }
+.os-status { font-size: .75rem; font-weight: 700; color: var(--text-secondary, #475569); white-space: nowrap; flex-shrink: 0; }
+.os-name { max-width: none; min-width: 0; }
+.os-name input { width: 100%; min-width: 0; box-sizing: border-box; }
+.os-hint, .os-facts { margin: 0; font-size: .8125rem; color: var(--text-secondary, #475569); }
+.os-policy { margin: 0; padding: 8px 10px; border: 1px solid var(--border); border-left: 3px solid var(--gold, #b8962e); border-radius: 6px; font-size: .8125rem; color: var(--text-secondary, #475569); background: var(--surface-muted, #f8fafc); }
+.os-error { margin: 0; font-size: .8125rem; font-weight: 600; color: var(--danger, #b91c1c); }
+.os-actions { display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: 8px; margin-top: auto; }
+.os-actions .v3-btn { white-space: nowrap; }
+.os-footer { display: flex; justify-content: flex-end; }
+@media (max-width: 1050px) { .os-rows { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 640px) {
+ .os-rows { padding: 12px; gap: 12px; }
+ .os-row { padding: 12px; }
+ .os-head { align-items: flex-start; }
+ .os-status { font-size: .6875rem; }
+ .os-actions .v3-btn { flex: 1; min-width: 0; }
+}

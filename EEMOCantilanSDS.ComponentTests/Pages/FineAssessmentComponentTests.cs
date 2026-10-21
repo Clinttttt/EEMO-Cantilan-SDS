@@ -75,12 +75,12 @@ public sealed partial class FineAssessmentComponentTests : TestContext
         _api.Setup(x=>x.CreateAssessmentAsync(It.IsAny<CreateFineAssessmentRequest>())).ReturnsAsync(Result<FineAssessmentDto>.Success(Row()));
         var cut=RenderComponent<FineAssessmentDrawer>(p=>p.Add(x=>x.Account,_account).Add(x=>x.OnSaved,()=>saved++));
         cut.WaitForAssertion(()=>Assert.Contains("Liable holder",cut.Markup));
-        cut.Find("select").Change(policy.Id.ToString()); cut.Find("textarea").Change("Actual incident"); cut.Find("input[type='number']").Change("120");
+        cut.Find("select").Change(policy.Id.ToString()); ChooseOther(cut,"Actual incident"); cut.Find("input[type='number']").Change("120");
         Assert.Contains("Maximum ₱200.00",cut.Markup); ExportFixture("fine-drawer",cut.Markup); cut.Find("form").Submit();
         _api.Verify(x=>x.CreateAssessmentAsync(It.IsAny<CreateFineAssessmentRequest>()),Times.Never);
         Assert.Contains("Confirm assessment",cut.Markup); ExportFixture("fine-review",cut.Markup); cut.Find("form").Submit();
         cut.WaitForAssertion(()=>Assert.Equal(1,saved));
-        _api.Verify(x=>x.CreateAssessmentAsync(It.Is<CreateFineAssessmentRequest>(r=>r.Account==_account&&r.Amount==120m&&r.PolicyId==policy.Id)),Times.Once);
+        _api.Verify(x=>x.CreateAssessmentAsync(It.Is<CreateFineAssessmentRequest>(r=>r.Account==_account&&r.Amount==120m&&r.PolicyId==policy.Id&&r.Description=="Actual incident")),Times.Once);
     }
     [Fact] public void DrawerCancelNeverCreatesLiability() {
         var closed=0; var cut=RenderComponent<FineAssessmentDrawer>(p=>p.Add(x=>x.OnClose,()=>closed++));

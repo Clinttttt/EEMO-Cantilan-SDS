@@ -15,6 +15,35 @@ namespace EEMOCantilanSDS.Mobile.ComponentTests;
 
 public sealed class TodaysWorkMenuTests : TestContext
 {
+    [Fact]
+    public void LoadingSkeletonMatchesTheSummaryAndRows_WithoutOfferingCollectionActions()
+    {
+        var api = new Mock<IMobileApiClient>();
+        var session = new MobileSessionService();
+        var pending = new TaskCompletionSource<Result<CollectorOperationCapabilitiesDto>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        api.Setup(x => x.GetOperationCapabilitiesAsync()).Returns(pending.Task);
+        api.Setup(x => x.GetCollectionSessionDiscoveryAsync(null)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(new(null, session.Menu.Today, [])));
+        var store = new Mock<IPendingOperationStore>();
+        store.Setup(x => x.GetAllAsync()).ReturnsAsync(Array.Empty<PendingOperation>());
+        Services.AddSingleton(session);
+        Services.AddSingleton(api.Object);
+        Services.AddSingleton(new MobileSyncService(store.Object, api.Object, Mock.Of<IConnectivityMonitor>(), Mock.Of<ICurrentCollectorProvider>()));
+
+        var view = RenderComponent<Menu>();
+        Assert.Equal("status", view.Find(".menu-skeleton").GetAttribute("role"));
+        Assert.Equal("true", view.Find(".menu-skeleton").GetAttribute("aria-busy"));
+        Assert.Equal(3, view.FindAll(".menu-skeleton .menu-summary-item").Count);
+        Assert.Equal(3, view.FindAll(".menu-skeleton .menu-row").Count);
+        Assert.Empty(view.FindAll(".menu-skeleton button, .menu-skeleton a"));
+
+        pending.SetResult(Result<CollectorOperationCapabilitiesDto>.Success(new(session.Menu.CollectorId, session.Menu.Today, [])));
+        view.WaitForAssertion(() =>
+        {
+            Assert.Empty(view.FindAll(".menu-skeleton"));
+            Assert.Equal("Today's work", view.Find("h1").TextContent);
+        });
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

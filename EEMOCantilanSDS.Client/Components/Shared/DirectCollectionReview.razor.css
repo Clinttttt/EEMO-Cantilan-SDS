@@ -1,0 +1,519 @@
+/* Direct collection review — V3. Modal, table, buttons and notices come from the shared v3- layer; this file holds only the review layout. */
+
+.dcr-trigger {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 40px;
+    min-height: 40px;
+    padding: 0;
+    cursor: pointer;
+}
+
+.dcr-trigger svg,
+.dcr-icon svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.dcr-trigger:focus-visible,
+.dcr-icon:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.dcr-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.dcr-modal {
+    width: min(72rem, 96vw);
+    max-width: 96vw;
+    /* One steady size whether the list is full, empty or loading, so the dialog never jumps. */
+    height: min(46rem, calc(100vh - 32px));
+}
+
+.dcr-body {
+    display: grid;
+    flex: 1 1 auto;
+    align-content: start;
+    gap: 12px;
+}
+
+/* Header: the same navy band, icon tile, title and one line the drawers carry, flat. */
+.dcr-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 20px;
+    background: var(--civic-panel);
+    color: var(--bg-card);
+}
+
+.dcr-head-icon {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 auto;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.dcr-head-icon svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: var(--gold);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.dcr-head-text {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.dcr-head-text h2 {
+    margin: 0;
+    color: var(--bg-card);
+    font-size: 1rem;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.dcr-head-text p {
+    margin: 2px 0 0;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.75rem;
+}
+
+.dcr-head-btn {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 auto;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+}
+
+.dcr-head-btn:hover {
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.dcr-head-btn:focus-visible {
+    outline: 2px solid var(--bg-card);
+    outline-offset: 2px;
+}
+
+.dcr-head-btn svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: var(--bg-card);
+    stroke-width: 2;
+    stroke-linecap: round;
+}
+
+.dcr-back {
+    justify-self: start;
+}
+
+.dcr-detail {
+    display: grid;
+    gap: 14px;
+}
+
+.dcr-facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+    gap: 12px 24px;
+    margin: 0;
+}
+
+.dcr-facts dt {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.dcr-facts dd {
+    margin: 2px 0 0;
+    font-size: 0.875rem;
+}
+
+.dcr-sub-title {
+    margin: 4px 0 0;
+    color: var(--navy);
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.dcr-lines {
+    max-width: 32rem;
+}
+
+.dcr-history-title {
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+}
+
+.dcr-history {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding-left: 18px;
+    font-size: 0.875rem;
+}
+
+.dcr-detail-actions {
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.dcr-detail-actions .v3-btn-group {
+    flex-wrap: wrap;
+}
+
+.dcr-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.dcr-tab {
+    min-height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.dcr-tab.is-active {
+    border-color: var(--accent);
+    background: var(--surface-muted);
+    color: var(--navy);
+}
+
+.dcr-tab:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.dcr-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.dcr-filters .v3-input {
+    min-width: 0;
+}
+
+.dcr-filters .dcr-grow {
+    flex: 1 1 14rem;
+}
+
+.dcr-filters .dcr-date {
+    flex: 0 0 9.5rem;
+}
+
+.dcr-filters .dcr-narrow {
+    flex: 0 1 8rem;
+}
+
+.dcr-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    min-height: 40px;
+    padding: 0;
+}
+
+.dcr-bulk {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-muted);
+    font-size: 0.8125rem;
+}
+
+.dcr-table td,
+.dcr-table th {
+    vertical-align: top;
+}
+
+.dcr-table tr.has-attention {
+    box-shadow: inset 3px 0 0 var(--gold, #8a5a00);
+}
+
+.dcr-sub {
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+}
+
+.dcr-wrap {
+    overflow-wrap: anywhere;
+}
+
+.dcr-attention {
+    color: var(--gold, #8a5a00);
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.dcr-state {
+    display: inline-block;
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.dcr-state-confirmed,
+.dcr-state-resolved {
+    color: var(--green, #17663a);
+    border-color: currentColor;
+}
+
+.dcr-state-flagged,
+.dcr-state-reversed {
+    color: var(--red, #b42318);
+    border-color: currentColor;
+}
+
+/* An info icon whose details float beside the row on hover or focus, so a status cell stays one chip tall. */
+.dcr-info {
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    margin-left: 4px;
+    vertical-align: middle;
+    border-radius: 999px;
+    color: var(--text-secondary);
+    cursor: help;
+}
+
+.dcr-info svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+}
+
+.dcr-info:hover,
+.dcr-info:focus-visible {
+    color: var(--accent);
+}
+
+.dcr-info:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.dcr-tip {
+    position: absolute;
+    top: -6px;
+    right: calc(100% + 8px);
+    z-index: 5;
+    display: none;
+    width: 15rem;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: 0 8px 20px -8px rgba(13, 33, 55, .32);
+    color: var(--text-primary, inherit);
+    font-size: 0.8125rem;
+    font-weight: 400;
+    line-height: 1.4;
+    text-align: left;
+    white-space: normal;
+}
+
+.dcr-tip span {
+    display: block;
+}
+
+.dcr-tip span + span {
+    margin-top: 4px;
+}
+
+.dcr-info:hover .dcr-tip,
+.dcr-info:focus .dcr-tip,
+.dcr-info:focus-within .dcr-tip {
+    display: block;
+}
+
+/* Identity (registration) is its own dimension, never folded into the financial review chip. */
+.dcr-state-identity {
+    margin-left: 4px;
+    color: var(--accent);
+    border-color: currentColor;
+}
+
+.dcr-state-identity.is-open {
+    color: var(--gold, #8a5a00);
+}
+
+.dcr-actions {
+    min-width: 12rem;
+}
+
+/* Confirm | Needs correction | View stay on one line at ordinary widths; only a narrow screen wraps them. */
+.dcr-actions {
+    white-space: nowrap;
+}
+
+.dcr-actions .v3-btn-group {
+    flex-wrap: nowrap;
+}
+
+@media (max-width: 900px) {
+    .dcr-actions .v3-btn-group {
+        flex-wrap: wrap;
+    }
+}
+
+.dcr-note textarea {
+    width: 100%;
+    margin-bottom: 6px;
+    resize: vertical;
+}
+
+.dcr-pager {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+    /* Search takes the row; the two dates and the two text filters pair up so the filters do not fill the screen. */
+    .dcr-filters .dcr-grow {
+        flex: 1 1 100%;
+    }
+
+    .dcr-filters .dcr-date,
+    .dcr-filters .dcr-narrow {
+        flex: 1 1 calc(50% - 8px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dcr-tab {
+        transition: none;
+    }
+}
+
+/* Recorded, verified and pending-verification cash: three figures that add up, never a replacement for the cash itself. */
+.dcr-position {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+    margin: 0 0 4px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-muted);
+}
+
+    .dcr-position > div {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .dcr-position dt {
+        font-size: 11.5px;
+        color: var(--text-secondary);
+    }
+
+    .dcr-position dd {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--navy);
+        font-variant-numeric: tabular-nums;
+    }
+
+    .dcr-position .is-open dd {
+        color: var(--gold);
+    }
+
+.dcr-position-note {
+    margin: 0 0 12px;
+}
+
+/* One toolbar row: the review states on the left, search and dates beside them, never wrapped under the "All" button at ordinary widths. */
+.dcr-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.dcr-toolbar .dcr-tabs { flex: 0 0 auto; flex-wrap: nowrap; }
+.dcr-toolbar .dcr-filters { flex: 1 1 auto; flex-wrap: nowrap; min-width: 0; }
+.dcr-toolbar .dcr-filters .dcr-grow { flex: 1 1 8rem; min-width: 6rem; }
+.dcr-toolbar .dcr-tab { white-space: nowrap; }
+
+@media (max-width: 1100px) {
+    .dcr-toolbar { flex-wrap: wrap; }
+    .dcr-toolbar .dcr-tabs { flex-wrap: wrap; }
+    .dcr-toolbar .dcr-filters { flex: 1 1 100%; flex-wrap: wrap; }
+}
+
+.dcr-requests { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* A correction note takes its own full-width row under the collection, so the table never grows past the dialog. */
+.dcr-note-row td { background: var(--surface-muted); }
+.dcr-note-editor { display: grid; gap: 10px; width: 100%; min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.dcr-note-field { display: grid; gap: 6px; min-width: 0; margin: 0; }
+.dcr-note-label { font-size: .8125rem; font-weight: 600; color: var(--text-secondary); }
+.dcr-note-field textarea { display: block; box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; min-height: 4.5rem; max-height: 12rem; margin: 0; line-height: 1.45; overflow: auto; resize: vertical; }
+.dcr-note-actions { justify-self: end; flex-wrap: wrap; }

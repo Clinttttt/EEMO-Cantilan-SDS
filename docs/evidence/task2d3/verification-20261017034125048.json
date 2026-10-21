@@ -1,0 +1,77 @@
+{
+  "task": "2D.3",
+  "checkedAtUtc": "2026-10-17T03:41:25.0448638Z",
+  "migrationId": "20261017040000_AddNpmRentMonthFoundation",
+  "latestCompiled": "20261015234000_NpmRegistrationRequestCancellation20261015",
+  "activeCompiledCount": 130,
+  "acceptedAppliedCount": 143,
+  "baselineSource": "EEMOCantilanSDS.Infrastructure.Migrations.AppDbContextModelSnapshot",
+  "latestCompiledMigrationHasTargetModel": false,
+  "retainedExtraIds": [
+    "20260523083934_FixStallUniqueConstraintIncludeSection",
+    "20260928045651_AddGovernedConfigurableServiceFoundation",
+    "20260928085335_AddFishMeatVendorFeeSource",
+    "20260928091416_AllowFishMeatVendorFeeCanonicalAllocations",
+    "20260928100950_AddVegetableSpaceRentalSource",
+    "20260928120100_AddVegetableCanonicalAllocationShape",
+    "20260928121210_AddEcfApprovedAssessmentSource",
+    "20260928123136_AddWcfApprovedChargePolicy",
+    "20260928124319_AddLandingBerthingActivitySource",
+    "20260928135259_AddEcfAssessmentSubjectKey",
+    "20260928202017_AddServiceCollectionGroups",
+    "20260929015219_AddKanmanggayMonthlySource",
+    "20260929034147_AddNpmOccupancySourceToEcf"
+  ],
+  "proposedCompiledCount": 131,
+  "pending": [
+    "20261017040000_AddNpmRentMonthFoundation"
+  ],
+  "historyInsert": "INSERT INTO \u0022__EFMigrationsHistory\u0022 (\u0022MigrationId\u0022, \u0022ProductVersion\u0022)\r\nVALUES (\u002720261017040000_AddNpmRentMonthFoundation\u0027, \u00279.0.4\u0027);\r\n",
+  "operations": [
+    "AddUniqueConstraintOperation",
+    "AddUniqueConstraintOperation",
+    "CreateTableOperation",
+    "CreateIndexOperation",
+    "CreateIndexOperation",
+    "CreateIndexOperation",
+    "CreateIndexOperation"
+  ],
+  "rehearsedSqlMatches": true,
+  "designerMatchesCurrentModel": true,
+  "snapshotMatchesDesigner": true,
+  "snapshotDeltaOperations": [
+    "AddUniqueConstraintOperation",
+    "AddUniqueConstraintOperation",
+    "CreateTableOperation",
+    "CreateIndexOperation",
+    "CreateIndexOperation",
+    "CreateIndexOperation",
+    "CreateIndexOperation"
+  ],
+  "snapshotDeltaSqlByteIdentical": false,
+  "downBlocked": true,
+  "databaseConnectionsOpened": 0,
+  "activeSnapshotUnchanged": true,
+  "files": [
+    {
+      "file": "20261017040000_AddNpmRentMonthFoundation.cs.review",
+      "sha256": "5a4df8d065aac62b858748a9aedc0e951435f969bcbe34c7aed84a730feb2346"
+    },
+    {
+      "file": "20261017040000_AddNpmRentMonthFoundation.Designer.cs.review",
+      "sha256": "01eeca24f4797404ad2d846ee808d588f932d10baaffae14f2f23c34f5516ef7"
+    },
+    {
+      "file": "20261017040000_AddNpmRentMonthFoundation.Up.sql.review",
+      "sha256": "f65f63121fe7d439f549ebb5b8a96ab0774a302d207a8558e04b6391ed2722c7"
+    },
+    {
+      "file": "AppDbContextModelSnapshot.cs.review",
+      "sha256": "15129f5b2e9aa7c19cfb2005f2feb92297178c7be48dcbd33942d776a519796f"
+    },
+    {
+      "file": "ReadinessTestBaseline.patch.review",
+      "sha256": "7ceef4db41d82e9443846a96b8d56cd7473fb52e1a647fd8bc36dda51fbbf476"
+    }
+  ]
+}

@@ -4,8 +4,8 @@ namespace EEMOCantilanSDS.Mobile.Services;
 
 public sealed class MobileTokenStore
 {
-    private const string AccessTokenKey = "collector_access_token";
-    private const string RefreshTokenKey = "collector_refresh_token";
+    private static string AccessTokenKey => LocalAcceptanceProfile.Key("collector_access_token");
+    private static string RefreshTokenKey => LocalAcceptanceProfile.Key("collector_refresh_token");
 
     public string? AccessToken { get; private set; }
     public string? RefreshToken { get; private set; }

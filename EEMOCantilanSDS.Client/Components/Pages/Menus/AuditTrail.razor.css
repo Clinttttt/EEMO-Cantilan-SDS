@@ -1,102 +1,67 @@
-/* ══════════════════════════════════════════════════════════════
-   Audit Trail — professional admin layout (scoped)
-══════════════════════════════════════════════════════════════ */
-
-/* The page opens with the shell's hero banner, like the Dashboard and Settings, so the audit record reads as
-   part of the portal rather than a loose grid of coloured tiles. */
+/* Audit Trail — presentation scoped to this page. The hero shell, icon and responsive layout come
+   directly from the same V3Hero used by Occupancy Registry. */
 .content-area {
     padding-top: 14px;
 }
 
-/* ── Hero banner (same treatment as the other menu pages) ── */
-.vs-hero {
-    position: relative;
-    background: var(--navy);
-    border-radius: 14px;
-    padding: 24px 28px 18px;
-    margin-bottom: 18px;
-    display: flex;
-    align-items: center;
-    gap: 28px;
-    overflow: hidden;
-    flex-wrap: wrap;
+/* Audit counts are action filters inside the shared civic-blue hero. */
+.audit-hero-metric {
+    min-width: 110px;
 }
 
-.vs-hero::before {
-    content: "";
-    position: absolute;
-    top: -40px;
-    right: -40px;
-    width: 220px;
-    height: 220px;
-    background: radial-gradient(circle, rgba(200, 168, 75, .15) 0%, transparent 70%);
-    pointer-events: none;
-}
+.audit-hero-metric-content { margin: 0; }
 
-.vs-hero-left { display: flex; align-items: center; gap: 18px; flex: 0 0 auto; min-width: 240px; }
-.vs-hero-stats { flex: 1; display: flex; align-items: center; gap: 0; flex-wrap: wrap; }
-
-.vs-hero-icon {
-    width: 54px;
-    height: 54px;
-    border-radius: 12px;
-    background: rgba(200, 168, 75, .18);
+.audit-hero-stat {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
-}
-
-    .vs-hero-icon svg {
-        width: 26px;
-        height: 26px;
-        stroke: var(--gold);
-        fill: none;
-        stroke-width: 2;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-    }
-
-.vs-hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
-.vs-hero-title { font-size: 22px; font-weight: 700; color: #fff; line-height: 1.2; }
-.vs-hero-sub { font-size: 13px; color: rgba(255, 255, 255, .55); margin-top: 3px; max-width: 340px; }
-.vs-hero-val { font-size: 20px; font-weight: 700; color: #fff; line-height: 1.1; }
-.vs-hero-key { font-size: 11px; color: rgba(255, 255, 255, .5); margin-top: 2px; text-transform: uppercase; letter-spacing: .05em; line-height: 1.2; }
-.vs-hero-sub2 { font-size: 11px; color: rgba(255, 255, 255, .35); margin-top: 1px; line-height: 1.2; }
-.vs-hero-divider { width: 1px; height: 50px; background: rgba(255, 255, 255, .12); flex-shrink: 0; margin: 0 6px; }
-
-/* Each count is also the action filter. It is a button, so it is styled as one — quietly: an underline and a
-   brighter label when active, no colour coding. */
-.audit-hero-stat {
-    padding: 4px 18px;
-    text-align: center;
-    flex: 1;
-    min-width: 132px;
-    background: none;
-    border: none;
+    width: 100%;
+    min-height: 68px;
+    padding: 5px 8px;
+    border: 0;
     border-bottom: 2px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: #fff;
     font: inherit;
+    text-align: center;
     cursor: pointer;
 }
 
-    .audit-hero-stat:first-child { padding-left: 0; }
+.audit-hero-stat:hover { background: rgba(255, 255, 255, 0.10); }
+.audit-hero-stat.is-active { border-bottom-color: #fff; }
+.audit-hero-stat:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 
-    .audit-hero-stat:hover .vs-hero-key { color: rgba(255, 255, 255, .75); }
-
-    .audit-hero-stat.is-active {
-        border-bottom-color: var(--gold);
-    }
-
-        .audit-hero-stat.is-active .vs-hero-key { color: var(--accent); }
-
-@media (max-width: 1100px) {
-    .vs-hero-title { font-size: 18px; }
-    .vs-hero-val { font-size: 18px; }
-    .audit-hero-stat { padding: 4px 14px; }
+.audit-hero-val {
+    font-size: 1.375rem;
+    font-weight: 700;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
 }
 
-@media (max-width: 900px) { .vs-hero { padding: 20px; gap: 16px; } }
-@media (max-width: 600px) { .vs-hero { padding: 16px; gap: 12px; } .vs-hero-title { font-size: 16px; } }
+.audit-hero-key {
+    margin-top: 2px;
+    color: rgba(255, 255, 255, 0.88);
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.audit-hero-note {
+    margin-top: 2px;
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 0.6875rem;
+    line-height: 1.25;
+}
+
+@media (max-width: 1100px) {
+    .audit-hero-val { font-size: 1.125rem; }
+}
+
+@media (max-width: 700px) {
+    .audit-hero-metric { min-width: 0; }
+    .audit-hero-stat { padding: 7px 4px; }
+}
 
 /* ── Filter bar ── */
 .audit-filters {
@@ -485,70 +450,4 @@ select.af-input::-ms-expand { display: none; }
     .audit-row { grid-template-columns: 1fr 1fr; row-gap: 0.5rem; }
     .audit-row-head { display: none; }
     .ac-details { grid-column: 1 / -1; }
-}
-
-
-/* ══════════════════════════════════════════════════════════════
-   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
-   Light identity band / drawer headers; civic-blue interaction; readable secondary text.
-   ══════════════════════════════════════════════════════════════ */
-.vs-hero {
-    padding: 20px 24px 22px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--surface);
-    box-shadow: var(--elevation-1);
-}
-
-    .vs-hero::before,
-    .vs-hero::after {
-        display: none;
-    }
-
-.vs-hero-icon {
-    border-color: transparent;
-    background: var(--accent-soft);
-}
-
-    .vs-hero-icon svg {
-        stroke: var(--navy) !important;
-    }
-
-.vs-hero-eyebrow {
-    color: var(--text-tertiary);
-}
-
-.vs-hero-title,
-.vs-hero-val {
-    color: var(--navy);
-}
-
-.vs-hero-val {
-    font-variant-numeric: tabular-nums;
-}
-
-.vs-hero-sub,
-.vs-hero-sub2 {
-    color: var(--text-tertiary);
-}
-
-.vs-hero-key {
-    color: var(--text-tertiary);
-    font-size: 12px;
-    font-weight: 500;
-    letter-spacing: 0;
-    text-transform: none;
-}
-
-.vs-hero-divider {
-    background: var(--border);
-}
-
-.vs-hero-progress {
-    height: 3px;
-    background: var(--surface-muted);
-}
-
-.vs-hero-progress-fill {
-    background: var(--accent);
 }

@@ -1,0 +1,234 @@
+@page "/operations/fish-meat-vendor-fees/office-register"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
+@inject IOfficeSourcesApiClient OfficeApi
+@inject IJSRuntime JS
+
+<PageTitle>StallTrack — Fish / Meat Office Register</PageTitle>
+<OperationTopbar OperationCode="FISH_MEAT_VENDOR_FEE" Title="Fish / Meat Office Register" Crumb="Monthly register" ParentHref="@RegistryHref" ParentTitle="Fish / Meat Vendors" />
+<div class="content-area">
+    <div class="fmo">
+        <FacilityHero Eyebrow="FISH / MEAT · OFFICE REGISTER" Title="Fish / Meat Vendor Register"
+                      Subtitle="Registered business details and recorded collections, by month" Stats="HeroStats">
+            <Icon><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12c3-5 8-6 12-3l4-3v12l-4-3c-4 3-9 2-12-3z" /><circle cx="8" cy="11" r="1" /></svg></Icon>
+        </FacilityHero>
+
+        <div class="fmo-toolbar no-print" role="region" aria-label="Office register filters">
+            <div class="fmo-period">
+                <label for="fmo-month">Month</label>
+                <input id="fmo-month" type="month" value="@_period.ToString("yyyy-MM", CultureInfo.InvariantCulture)" max="@PhilippineTime.Today.ToString("yyyy-MM", CultureInfo.InvariantCulture)" @onchange="ChangeMonth" />
+            </div>
+            <div class="fmo-period fmo-year">
+                <span class="fmo-control-label">Tax year</span>
+                <FhSelect AriaLabel="Registration tax year" Block="true"
+                          Options="TaxYearOptions" Value="@_taxYear.ToString(CultureInfo.InvariantCulture)" ValueChanged="ChangeYearValue" />
+            </div>
+            <div class="fmo-filter">
+                <span class="fmo-control-label">Type</span>
+                <FhSelect AriaLabel="Vendor type" Block="true"
+                          Options="VendorTypeOptions" Value="@_type" ValueChanged="v => _type = v" />
+            </div>
+            <div class="fmo-search">
+                <label for="fmo-search">Search</label>
+                <input id="fmo-search" type="search" placeholder="Vendor or business" @bind="_search" @bind:event="oninput" />
+            </div>
+            <div class="fmo-actions">
+                <a class="v3-btn" href="/operations/fish-meat-vendor-fees/holder-list">Holder List</a>
+                <button type="button" class="v3-btn" @onclick="PrintAsync">Print</button>
+                <a class="v3-btn" href="/operations/fish-meat-vendor-fees">Back</a>
+            </div>
+        </div>
+
+        @if (_error is not null)
+        {
+            <div class="v3-notice v3-notice-error" role="alert">@_error <button class="v3-btn v3-btn-sm" @onclick="LoadAsync">Retry</button></div>
+        }
+        <section class="v3-panel" aria-label="Office vendor register" aria-busy="@_loading">
+            <header class="v3-panel-header">
+                <h2>Office vendor list · @_period.ToString("MMMM yyyy", CultureInfo.InvariantCulture)</h2>
+                <div class="fmo-panel-actions no-print">
+                    <span class="v3-panel-meta">@VisibleRows.Count rows</span>
+                    <button type="button" class="v3-btn v3-btn-sm" aria-pressed="@_showPaperView"
+                            @onclick="() => _showPaperView = !_showPaperView">
+                        @(_showPaperView ? "Compact view" : "Full register")
+                    </button>
+                </div>
+            </header>
+            <div class="v3-table-wrap fmo-overview @(_showPaperView ? "is-hidden" : "")" role="region" aria-label="Summary of registered Fish and Meat vendors" tabindex="0">
+                <table class="v3-table fmo-compact-table">
+                    <thead><tr>
+                        <th scope="col">Vendor / business</th>
+                        <th scope="col">Registration</th>
+                        <th scope="col">Address</th>
+                        <th scope="col">Business activity</th>
+                        <th scope="col" class="v3-num">Vendor fee</th>
+                        <th scope="col" class="v3-num">Weight &amp; Measure</th>
+                        <th scope="col" class="no-print fmo-edit-header">Action</th>
+                    </tr></thead>
+                    <tbody>
+                        @foreach (var row in VisibleRows)
+                        {
+                            var v = row.Registration;
+                            <tr @key="v.Id">
+                                <td class="fmo-identity"><strong>@v.DisplayName</strong>
+                                    @if (!string.IsNullOrWhiteSpace(v.BusinessName)) { <span class="fmo-sub">@v.BusinessName</span> }
+                                </td>
+                                <td>@v.VendorType <span class="fmo-sub">@v.RegistrationKind · @v.TaxYear</span></td>
+                                <td class="fmo-address" title="@v.Address">@VendorAddressDisplay.Clean(v.Address)</td>
+                                <td class="fmo-activity" title="@v.NatureOfBusiness">@(string.IsNullOrWhiteSpace(v.NatureOfBusiness) ? "—" : v.NatureOfBusiness)</td>
+                                <td class="v3-num">@Money(row.VendorFeeCollected)</td>
+                                <td class="v3-num">@Money(row.WeightMeasureCollected)</td>
+                                <td class="no-print fmo-edit-cell">
+                                    <AuthorizeView Roles="SuperAdmin"><Authorized>
+                                        <button type="button" class="v3-btn v3-btn-sm" aria-label="@($"Edit office details for {v.DisplayName}")" @onclick="() => OpenEdit(row)">Edit details</button>
+                                    </Authorized></AuthorizeView>
+                                </td>
+                            </tr>
+                        }
+                        @if (VisibleRows.Count == 0)
+                        {
+                            <tr><td colspan="7" class="v3-empty">@(_loading ? "Loading office register…" : _error is not null ? "Register unavailable." : "No registrations match this view.")</td></tr>
+                        }
+                    </tbody>
+                    @if (!_loading && _error is null)
+                    {
+                        <tfoot><tr>
+                            <th scope="row" colspan="4">Visible total</th>
+                            <td class="v3-num v3-strong">@Money(VisibleRows.Sum(x => x.VendorFeeCollected))</td>
+                            <td class="v3-num v3-strong">@Money(VisibleRows.Sum(x => x.WeightMeasureCollected))</td><td class="no-print"></td>
+                        </tr></tfoot>
+                    }
+                </table>
+            </div>
+            <div class="v3-table-wrap fmo-scroll fmo-paper @(_showPaperView ? "is-visible" : "")" role="region" aria-label="Full monthly fish and meat vendor register" tabindex="0">
+                <table class="v3-table">
+                    <thead><tr>
+                        <th scope="col">#</th><th scope="col">Business name</th><th scope="col">Last name</th><th scope="col">First name</th>
+                        <th scope="col">Middle name</th><th scope="col">Extname</th><th scope="col">Sex</th>
+                        <th scope="col">Vendor / type</th><th scope="col">Address</th><th scope="col">Registration</th>
+                        <th scope="col">Tax year</th><th scope="col">Nature of business</th>
+                        <th scope="col" class="v3-num">Vendor fee collected</th>
+                        <th scope="col" class="v3-num">Weight &amp; Measure collected</th><th scope="col" class="no-print fmo-edit-header">Action</th>
+                    </tr></thead>
+                    <tbody>
+                        @foreach (var (row, idx) in VisibleRows.Select((r, i) => (r, i)))
+                        {
+                            var v = row.Registration;
+                            <tr @key="v.Id">
+                                <td>@(idx+1)</td><td class="v3-strong">@(v.BusinessName ?? "—")</td>
+                                <td>@(v.LastName ?? "—")</td><td>@(v.FirstName ?? "—")</td>
+                                <td>@(v.MiddleName ?? "—")</td><td>@(v.NameExtension ?? "—")</td><td>@(v.Sex ?? "—")</td>
+                                <td>@v.DisplayName <span class="fmo-sub">@v.VendorType</span></td>
+                                <td class="fmo-address" title="@v.Address">@VendorAddressDisplay.Clean(v.Address)</td><td>@v.RegistrationKind</td><td>@v.TaxYear</td>
+                                <td>@(v.NatureOfBusiness ?? "—")</td>
+                                <td class="v3-num">@Money(row.VendorFeeCollected)</td>
+                                <td class="v3-num">@Money(row.WeightMeasureCollected)</td>
+                                <td class="no-print fmo-edit-cell">
+                                    <AuthorizeView Roles="SuperAdmin"><Authorized>
+                                        <button type="button" class="v3-btn v3-btn-sm" aria-label="@($"Edit office details for {v.DisplayName}")" @onclick="() => OpenEdit(row)">Edit details</button>
+                                    </Authorized></AuthorizeView>
+                                </td>
+                            </tr>
+                        }
+                        @if (VisibleRows.Count == 0)
+                        {
+                            <tr><td colspan="15" class="v3-empty">@(_loading ? "Loading office register…" : _error is not null ? "Register unavailable." : "No registrations match this view.")</td></tr>
+                        }
+                    </tbody>
+                    @if (!_loading && _error is null)
+                    {
+                        <tfoot><tr>
+                            <th scope="row" colspan="12">Visible registered vendors</th>
+                            <td class="v3-num v3-strong">@Money(VisibleRows.Sum(x => x.VendorFeeCollected))</td>
+                            <td class="v3-num v3-strong">@Money(VisibleRows.Sum(x => x.WeightMeasureCollected))</td><td class="no-print"></td>
+                        </tr></tfoot>
+                    }
+                </table>
+            </div>
+        </section>
+        @if (_saved is not null) { <p role="status" class="v3-notice">@_saved</p> }
+        @if (_data is not null)
+        {
+            <div class="fmo-footnotes">
+                <p class="fmo-note">Recorded collections · Walk-up fees: <strong>@Money(_data.WalkUpVendorFeeCollected)</strong> (separate)</p>
+                <details class="fmo-method">
+                    <summary>About the figures</summary>
+                    <p>Amounts reflect @_period.ToString("MMMM yyyy", CultureInfo.InvariantCulture) collections for registrations in tax year @_taxYear. Vendor fees and Weight &amp; Measure are separate revenue sources. Historical paper totals are reference evidence, not newly entered collections. See Financial Reports for full monthly revenue.</p>
+                </details>
+            </div>
+        }
+    </div>
+</div>
+<VendorOfficeDetailsEditor Row="_editing" OnClose="CloseEdit" OnSaved="SavedEditAsync" />
+
+@code {
+    private DateOnly _period = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
+    private int _taxYear = PhilippineTime.Today.Year;
+    private string RegistryHref => _taxYear == PhilippineTime.Today.Year ? "/operations/fish-meat-vendor-fees" : $"/operations/fish-meat-vendor-fees?taxYear={_taxYear}";
+    private string _type = "All", _search = "";
+    private VendorRegistryManagement? _data;
+    private bool _loading, _showPaperView;
+    private string? _error, _saved;
+    private VendorRegistrationManagementRow? _editing;
+    private void OpenEdit(VendorRegistrationManagementRow row) => _editing = row;
+    private void CloseEdit() => _editing = null;
+    private async Task SavedEditAsync()
+    {
+        _editing = null;
+        _saved = "Office details updated.";
+        await LoadAsync();
+    }
+    private IReadOnlyList<int> YearOptions => Enumerable.Range(0, 7).Select(i => PhilippineTime.Today.Year + 1 - i)
+        .Append(_taxYear).Distinct().OrderByDescending(x => x).ToArray();
+    private IReadOnlyList<(string Value, string Label)> TaxYearOptions => YearOptions
+        .Select(year => (year.ToString(CultureInfo.InvariantCulture), year.ToString(CultureInfo.InvariantCulture))).ToArray();
+    private static readonly IReadOnlyList<(string Value, string Label)> VendorTypeOptions =
+        [("All", "All types"), ("Fish", "Fish"), ("Meat", "Meat")];
+    private List<VendorRegistrationManagementRow> VisibleRows => (_data?.Rows ?? [])
+        .Where(r => _type == "All" || r.Registration.VendorType.ToString() == _type)
+        .Where(r => string.IsNullOrWhiteSpace(_search) || $"{r.Registration.DisplayName} {r.Registration.BusinessName} {r.Registration.LastName} {r.Registration.FirstName} {r.Registration.NatureOfBusiness}"
+            .Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
+    private List<FacilityHero.HeroStat> HeroStats =>
+    [
+        new() { Label = "Registered", Value = (_data?.Rows.Count ?? 0).ToString("N0", CultureInfo.InvariantCulture) },
+        new() { Label = "Vendor fee · recorded", Value = _data is null ? "—" : Money(_data.Rows.Sum(x => x.VendorFeeCollected) + _data.WalkUpVendorFeeCollected) },
+        new() { Label = "Weight & Measure · recorded", Value = _data is null ? "—" : Money(_data.Rows.Sum(x => x.WeightMeasureCollected)) }
+    ];
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private async Task ChangeMonth(ChangeEventArgs args)
+    {
+        if (DateOnly.TryParseExact($"{args.Value}-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var period)
+            && period <= PhilippineTime.Today && period.Year is >= 2000 and <= 2200)
+        {
+            _period = period;
+            await LoadAsync();
+        }
+    }
+    private async Task ChangeYearValue(string value)
+    {
+        if (int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var year) && year is >= 2000 and <= 2200)
+        {
+            _taxYear = year;
+            await LoadAsync();
+        }
+    }
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = null; _data = null;
+        try
+        {
+            var result = await OfficeApi.ManageRegistrationsAsync(_taxYear, _period.Month, status: null, year: _period.Year);
+            if (result.IsSuccess) _data = result.Value;
+            else _error = "The monthly vendor register could not be loaded. No totals are shown.";
+        }
+        catch { _error = "The monthly vendor register could not be loaded. No totals are shown."; }
+        finally { _loading = false; }
+    }
+    private Task PrintAsync() => JS.InvokeVoidAsync("print").AsTask();
+    private static string Money(decimal amount) => $"₱{amount:N2}";
+}

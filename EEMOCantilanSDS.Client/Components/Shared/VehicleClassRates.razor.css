@@ -11,3 +11,34 @@
 .vcr-actions-cell .v3-btn + .v3-btn { margin-left: 6px; }
 
 .vcr-note { margin: 0; color: var(--text-secondary); font-size: .8125rem; line-height: 1.45; }
+
+/* Terminal section choice in the Add class drawer: one joined control, the selected option in civic blue. */
+.vcr-sections { margin: 0; padding: 0; border: 0; min-width: 0; }
+
+.vcr-segmented {
+    display: flex;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--surface);
+}
+
+.vcr-segmented label {
+    position: relative;
+    display: flex;
+    flex: 1 1 0;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.25;
+    text-align: center;
+    cursor: pointer;
+}
+
+.vcr-segmented label + label { border-left: 1px solid var(--border-strong); }
+.vcr-segmented input { position: absolute; opacity: 0; pointer-events: none; }
+.vcr-segmented label.is-selected { background: var(--accent-soft); color: var(--accent); }
+.vcr-segmented label:focus-within { outline: 2px solid var(--accent); outline-offset: -2px; }

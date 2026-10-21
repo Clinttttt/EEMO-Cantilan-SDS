@@ -22,6 +22,19 @@ namespace EEMOCantilanSDS.Testing.Application.Reports;
 public class GetFinancialReportQueryHandlerTests
 {
     [Fact]
+    public async Task Unsupported_month_source_weekly_compliance_returns_an_actionable_validation_failure()
+    {
+        var (handler, reports, _) = Build();
+        reports.Setup(x => x.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Weekly,
+            It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new EEMOCantilanSDS.Application.Common.Payments.NpmMonthReportScopeException());
+        var result = await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Weekly, 2026, 3, FacilityCode.NPM), default);
+        Assert.False(result.IsSuccess);
+        Assert.Equal(EEMOCantilanSDS.Application.Common.ResultStatus.Invalid, result.Status);
+        Assert.Contains("monthly or yearly", result.Error);
+    }
+
+    [Fact]
     public async Task OneElapsedMonthIsDelinquent_AndArrearsIsNotDerivedFromMonthAge()
     {
         var (handler, reports, _) = Build();
@@ -42,9 +55,9 @@ public class GetFinancialReportQueryHandlerTests
         Assert.Equal(1, DomainRules.DelinquentThresholdMonths);
         Assert.Equal(rows.Length, report.DelinquentAccountsTotal);
         Assert.Equal(rows.Sum(row => row.OutstandingBalance), report.DelinquentOutstandingTotal);
-        Assert.Null(report.Arrears);
-        Assert.Null(report.ArrearsAccountsTotal);
-        Assert.Null(report.ArrearsOutstandingTotal);
+        Assert.NotNull(report.Arrears);   // only ended occupancies are Arrears here; an unclassified row is never promoted by its age
+        Assert.Equal(report.EndedArrearsAccountsTotal, report.ArrearsAccountsTotal);
+        Assert.Equal(report.EndedArrearsOutstandingTotal, report.ArrearsOutstandingTotal);
     }
 
     private static StallComplianceDto Payor(string stallNo, string occupant, decimal paid, decimal balance, int missedMonths) =>
@@ -149,7 +162,7 @@ public class GetFinancialReportQueryHandlerTests
 
         // Two ended NPM accounts (handed over), each with a ₱32,910 historical uncollected balance.
         var stalls = new Mock<IClosedStallAccountQueries>();
-        stalls.Setup(s => s.GetClosedStallAccountsAsync(It.IsAny<CancellationToken>()))
+        stalls.Setup(s => s.GetClosedStallAccountsAsOfAsync(It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new[] { Closed("91", 32_910m), Closed("92", 32_910m) });
         _lastStalls = stalls;
 
@@ -197,13 +210,13 @@ public class GetFinancialReportQueryHandlerTests
 
         // The lists are capped …
         Assert.Equal(50, r.Delinquent.Count);
-        Assert.Null(r.Arrears);
+        Assert.NotNull(r.Arrears);   // only ended occupancies are Arrears here; an unclassified row is never promoted by its age
 
         // … and the totals are not.
         Assert.Equal(120, r.DelinquentAccountsTotal);
         Assert.Equal(66_000m, r.DelinquentOutstandingTotal);   // 60 × ₱1,000 + 60 × ₱100
-        Assert.Null(r.ArrearsAccountsTotal);
-        Assert.Null(r.ArrearsOutstandingTotal);
+        Assert.Equal(r.EndedArrearsAccountsTotal, r.ArrearsAccountsTotal);
+        Assert.Equal(r.EndedArrearsOutstandingTotal, r.ArrearsOutstandingTotal);
 
         // Stated as the office reads it: what the header would show is the whole debt, not the visible part.
         Assert.NotEqual(r.Delinquent.Sum(d => d.Balance), r.DelinquentOutstandingTotal);
@@ -234,9 +247,9 @@ public class GetFinancialReportQueryHandlerTests
         Assert.Equal(rows.Count, rep.DelinquentAccountsTotal);
         Assert.Equal(1_400m, rep.DelinquentOutstandingTotal);
         Assert.Equal(1, DomainRules.DelinquentThresholdMonths);
-        Assert.Null(rep.Arrears);
-        Assert.Null(rep.ArrearsAccountsTotal);
-        Assert.Null(rep.ArrearsOutstandingTotal);
+        Assert.NotNull(rep.Arrears);   // only ended occupancies are Arrears here; an unclassified row is never promoted by its age
+        Assert.Equal(rep.EndedArrearsAccountsTotal, rep.ArrearsAccountsTotal);
+        Assert.Equal(rep.EndedArrearsOutstandingTotal, rep.ArrearsOutstandingTotal);
     }
 
     [Theory]
@@ -301,7 +314,7 @@ public class GetFinancialReportQueryHandlerTests
         // All rows meet the delinquency boundary; the age schedule remains an independent severity view.
         Assert.Equal(aged.DelinquentAccountsTotal, aged.Aging.Sum(b => b.Accounts));
         Assert.Equal(aged.DelinquentOutstandingTotal, aged.Aging.Sum(b => b.Outstanding));
-        Assert.Null(aged.Arrears);
+        Assert.NotNull(aged.Arrears);   // only ended occupancies are Arrears here; an unclassified row is never promoted by its age
 
         Assert.Equal(900m, aged.Aging[0].Outstanding);      // ages 1–2
         Assert.Equal(2_500m, aged.Aging[1].Outstanding);    // ages 3 and 5
@@ -378,8 +391,8 @@ public class GetFinancialReportQueryHandlerTests
         var r = result.Value!;
 
         Assert.Equal(r.Delinquent.Count, r.DelinquentAccountsTotal);
-        Assert.Null(r.Arrears);
-        Assert.Null(r.ArrearsAccountsTotal);
+        Assert.NotNull(r.Arrears);   // only ended occupancies are Arrears here; an unclassified row is never promoted by its age
+        Assert.Equal(r.EndedArrearsAccountsTotal, r.ArrearsAccountsTotal);
         Assert.Equal(r.Delinquent.Sum(d => d.Balance), r.DelinquentOutstandingTotal);
     }
 
@@ -397,8 +410,8 @@ public class GetFinancialReportQueryHandlerTests
         var r = result.Value!;
 
         Assert.Equal(r.Delinquent.Count, r.DelinquentAccountsTotal);
-        Assert.Null(r.Arrears);
-        Assert.Null(r.ArrearsAccountsTotal);
+        Assert.NotNull(r.Arrears);   // only ended occupancies are Arrears here; an unclassified row is never promoted by its age
+        Assert.Equal(r.EndedArrearsAccountsTotal, r.ArrearsAccountsTotal);
         Assert.Equal(r.Delinquent.Sum(d => d.Balance), r.DelinquentOutstandingTotal);
     }
 
@@ -528,7 +541,7 @@ public class GetFinancialReportQueryHandlerTests
 
         // ...but NOT folded into the record-based current delinquency list.
         Assert.DoesNotContain(r.Delinquent, d => d.StallNo is "91" or "92");
-        Assert.Null(r.Arrears);
+        Assert.NotNull(r.Arrears);   // only ended occupancies are Arrears here; an unclassified row is never promoted by its age
     }
 
     [Fact]
@@ -540,7 +553,7 @@ public class GetFinancialReportQueryHandlerTests
         // trading and the delinquent figures already carry the debt. Counting it under closed balances as well stated
         // the same money twice: Cantilan read ₱1,905,300 of "closed / expired" beside a ₱519,880 follow-up total,
         // and 57 of those 58 accounts were the same live receivables over a longer span.
-        _lastStalls!.Setup(s => s.GetClosedStallAccountsAsync(It.IsAny<CancellationToken>()))
+        _lastStalls!.Setup(s => s.GetClosedStallAccountsAsOfAsync(It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new[]
             {
                 Closed("91", 32_910m, InactiveAccountState.Superseded),
@@ -565,9 +578,9 @@ public class GetFinancialReportQueryHandlerTests
         Assert.Equal(2, r.Delinquent.Count);
         Assert.Contains(r.Delinquent, item => item.Name == "Rosa Magbanua" && item.UnpaidMonths == 3 && item.Balance == 12_000m);
         Assert.Contains(r.Delinquent, item => item.Name == "Maria Velasco" && item.UnpaidMonths == 1 && item.Balance == 3_000m);
-        Assert.Null(r.Arrears);
-        Assert.Null(r.ArrearsAccountsTotal);
-        Assert.Null(r.ArrearsOutstandingTotal);
+        Assert.NotNull(r.Arrears);   // only ended occupancies are Arrears here; an unclassified row is never promoted by its age
+        Assert.Equal(r.EndedArrearsAccountsTotal, r.ArrearsAccountsTotal);
+        Assert.Equal(r.EndedArrearsOutstandingTotal, r.ArrearsOutstandingTotal);
     }
 
     [Fact]
@@ -873,5 +886,59 @@ public class GetFinancialReportQueryHandlerTests
         Assert.Equal("Luz Cano", rec.Payor);
         Assert.Equal("Daily Fee", rec.Method);
         Assert.Equal(930m, rec.Amount);
+    }
+
+    private static DelinquentStallDto Classified(string stallNo, string occupant, int arrearsMonths, decimal arrears, int delinquentMonths, decimal delinquent, bool lapsed = false) =>
+        new(FacilityCode.TCC, stallNo, occupant, arrearsMonths + delinquentMonths, arrears + delinquent, Guid.NewGuid(), lapsed, "",
+            Classified: true, ArrearsMonths: arrearsMonths, ArrearsAmount: arrears, DelinquentMonths: delinquentMonths, DelinquentAmount: delinquent);
+
+    [Fact]
+    public async Task Receivables_AreSplitIntoArrearsAndDelinquent_PerObligation_WithNoPesoCountedTwice()
+    {
+        // IA-019 / IA-020 / IA-069. Five live accounts and two ended occupancies (one lapsed, which is the live account and must not be added again):
+        //   A: previous-year AND current-year months  -> in both categories, each with its own money
+        //   B: only current-year elapsed months       -> Delinquent only
+        //   C: previous-year only                     -> Arrears only
+        //   D: expired contract (every month Arrears) -> Arrears only
+        //   E: owes nothing past the current month    -> neither
+        var (handler, reports, _) = Build();
+        reports.Setup(r => r.GetDelinquentStallsAsync(
+                It.IsAny<FacilityCode?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<DelinquentStallDto>
+            {
+                Classified("A", "Both", 2, 3_000m, 3, 4_500m),
+                Classified("B", "Delinquent only", 0, 0m, 2, 3_000m),
+                Classified("C", "Last year only", 4, 6_000m, 0, 0m),
+                Classified("D", "Expired contract", 5, 7_500m, 0, 0m, lapsed: true),
+                Classified("E", "Nothing elapsed", 0, 0m, 0, 0m),
+            });
+        _lastStalls!.Setup(s => s.GetClosedStallAccountsAsOfAsync(It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[]
+            {
+                Closed("91", 32_910m, InactiveAccountState.Superseded),   // a former lessee's own debt: Arrears
+                Closed("93", 33_300m, InactiveAccountState.Lapsed),       // the live account again: not added
+            });
+
+        var r = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 10, null), CancellationToken.None)).Value!;
+
+        // Delinquent: accounts A and B, current-year money only.
+        Assert.Equal(2, r.DelinquentAccountsTotal);
+        Assert.Equal(7_500m, r.DelinquentOutstandingTotal);
+        Assert.Equal(new[] { "Both", "Delinquent only" }, r.Delinquent.Select(d => d.Name).OrderBy(n => n).ToArray());
+        Assert.Equal(new[] { 3_000m, 4_500m }, r.Delinquent.Select(d => d.Balance).OrderBy(x => x).ToArray());
+
+        // Arrears: A, C and D (live) plus the ended occupancy.
+        Assert.Equal(4, r.ArrearsAccountsTotal);
+        Assert.Equal(3_000m + 6_000m + 7_500m + 32_910m, r.ArrearsOutstandingTotal);
+        Assert.Equal((1, 32_910m), (r.EndedArrearsAccountsTotal, r.EndedArrearsOutstandingTotal));
+        Assert.Equal(4, r.Arrears!.Count);
+        Assert.Contains(r.Arrears, a => a.ArrearsBasis == "Expired contract" && a.Balance == 7_500m);
+        Assert.Contains(r.Arrears, a => a.ArrearsBasis == "Previous year" && a.Balance == 6_000m);
+        Assert.Contains(r.Arrears, a => a.ArrearsBasis == "Ended occupancy" && a.Balance == 32_910m);
+
+        // Accounts and money are stated once each: A is in both lists but is one account; no peso is in both totals.
+        Assert.Equal(2 + 4 - 1, r.ReceivableAccountsTotal);
+        Assert.Equal(r.DelinquentOutstandingTotal + r.ArrearsOutstandingTotal, r.ReceivableOutstandingTotal);
+        Assert.Equal(4_500m + 3_000m + 3_000m + 6_000m + 7_500m + 32_910m, r.ReceivableOutstandingTotal);
     }
 }

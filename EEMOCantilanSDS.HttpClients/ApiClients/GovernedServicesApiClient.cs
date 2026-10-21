@@ -35,10 +35,22 @@ public sealed class GovernedServicesApiClient(HttpClient http) : HandleResponse(
         PostAsync<ScheduleFeeOptionRateRequest, IReadOnlyList<GovernedServiceFeeOptionDto>>(
             $"api/governed-services/{Uri.EscapeDataString(operationCode)}/fee-options/{feeOptionId}/rates", request);
 
+    public Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> UpdateFeeOptionAsync(
+        string operationCode, Guid feeOptionId, UpdateFeeOptionRequest request) =>
+        PutAsync<UpdateFeeOptionRequest, IReadOnlyList<GovernedServiceFeeOptionDto>>(
+            $"api/governed-services/{Uri.EscapeDataString(operationCode)}/fee-options/{feeOptionId}", request);
+
+    public Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> ReinstateFeeOptionAsync(string operationCode, Guid feeOptionId) =>
+        PostAsync<object, IReadOnlyList<GovernedServiceFeeOptionDto>>(
+            $"api/governed-services/{Uri.EscapeDataString(operationCode)}/fee-options/{feeOptionId}/reinstate", new { });
+
     public Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> RetireFeeOptionAsync(
         string operationCode, Guid feeOptionId, RetireFeeOptionRequest request) =>
         PostAsync<RetireFeeOptionRequest, IReadOnlyList<GovernedServiceFeeOptionDto>>(
             $"api/governed-services/{Uri.EscapeDataString(operationCode)}/fee-options/{feeOptionId}/retire", request);
+
+    public Task<Result<IReadOnlyList<SlaughterChargePresetDto>>> GetSlaughterChargePresetsAsync() =>
+        GetAsync<IReadOnlyList<SlaughterChargePresetDto>>("api/governed-services/slaughterhouse/charge-presets");
 
     public Task<Result<IReadOnlyList<FeeOptionTotalDto>>> GetFeeOptionTotalsAsync(string operationCode, DateOnly from, DateOnly to) =>
         GetAsync<IReadOnlyList<FeeOptionTotalDto>>(

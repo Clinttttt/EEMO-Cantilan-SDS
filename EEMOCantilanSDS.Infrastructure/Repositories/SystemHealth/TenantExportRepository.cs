@@ -14,7 +14,7 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories.SystemHealth;
 /// the reason for each, is stated once in <see cref="TenantDataTables"/>; the tables listed here must match
 /// it, which <c>TenantBackupCoverageTests</c> asserts rather than trusting a comment to be obeyed.
 /// </summary>
-public class TenantExportRepository(AppDbContext context) : ITenantExportRepository
+public class TenantExportRepository(AppDbContext context, ITenantRestoreSchemaReader? schemaReader = null) : ITenantExportRepository
 {
     public async Task<TenantExportPayload> ExportAsync(CancellationToken ct)
     {
@@ -25,6 +25,18 @@ public class TenantExportRepository(AppDbContext context) : ITenantExportReposit
         if (mid == Guid.Empty)
             return new TenantExportPayload("tenant", "Municipality", mid, now,
                 new Dictionary<string, object>());
+
+        // Logical export stays available on the pre-foundation schema. Never query a table that
+        // exists only in the preparation model, or claim an omitted table is an empty one.
+        var schema = schemaReader is not null ? await schemaReader.ReadAsync(ct)
+            : context.Database.IsRelational() ? await new TenantRestoreSchemaReader(context).ReadAsync(ct) : null;
+        var warnings = new List<string>();
+        if (schema is not null && !schema.Tables.ContainsKey("NpmRentMonths"))
+            warnings.Add("NpmRentMonths is not migrated and is omitted. This logical export is not a restore-v2 snapshot.");
+        if (schema is not null && !schema.Tables.ContainsKey("FishMeatRegistrationRequests"))
+            warnings.Add("FishMeatRegistrationRequests is not migrated and is omitted. This logical export is not a restore-v2 snapshot.");
+        if (schema?.UnmanagedTables.Count > 0)
+            warnings.Add("Retained historical tables are outside this model-only export. Scoped restore is blocked; full-database recovery requires separate approval.");
 
         var muni = await context.Municipalities.IgnoreQueryFilters().AsNoTracking()
             .FirstOrDefaultAsync(m => m.Id == mid, ct);
@@ -37,6 +49,7 @@ public class TenantExportRepository(AppDbContext context) : ITenantExportReposit
             ["FacilitySectionUtilities"] = await context.FacilitySectionUtilities.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["FacilitySectionClosures"] = await context.FacilitySectionClosures.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["OrSeriesConfigs"] = await context.OrSeriesConfigs.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
+            ["TenantOperationSettings"] = await context.TenantOperationSettings.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["RevenueClassifications"] = await context.RevenueClassifications.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["RevenueClassificationPolicies"] = await context.RevenueClassificationPolicies.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["Collections"] = await context.Collections.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
@@ -50,6 +63,10 @@ public class TenantExportRepository(AppDbContext context) : ITenantExportReposit
             ["MobileCollectionSessions"] = await context.MobileCollectionSessions.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["FishMeatVendorRegistrations"] = await context.FishMeatVendorRegistrations.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["FishMeatNpmAssociations"] = await context.FishMeatNpmAssociations.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
+            ["NpmRegistrationRequests"] = await context.NpmRegistrationRequests.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
+            ["DirectCollectionReviewEvents"] = await context.DirectCollectionReviewEvents.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
+            ["SpaceHolderImportRuns"] = await context.SpaceHolderImportRuns.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
+            ["FishMeatDirectCollectionLinks"] = await context.FishMeatDirectCollectionLinks.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["OfficialReportRevisions"] = await context.OfficialReportRevisions.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["CollectionSettlementCutovers"] = await context.CollectionSettlementCutovers.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["AccountableFormBooks"] = await context.AccountableFormBooks.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
@@ -86,6 +103,9 @@ public class TenantExportRepository(AppDbContext context) : ITenantExportReposit
             ["FineAssessments"] = await context.FineAssessments.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["FineAssessmentEvents"] = await context.FineAssessmentEvents.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["ObligationAccounts"] = await context.ObligationAccounts.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
+            ["SpaceRegistrations"] = await context.SpaceRegistrations.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
+            ["SpaceContractTerms"] = await context.SpaceContractTerms.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
+            ["SpaceLifecycleEvents"] = await context.SpaceLifecycleEvents.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["ObligationRates"] = await context.ObligationRates.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["ObligationPeriods"] = await context.ObligationPeriods.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["VehicleClasses"] = await context.VehicleClasses.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
@@ -94,6 +114,8 @@ public class TenantExportRepository(AppDbContext context) : ITenantExportReposit
             ["GovernedServiceFeeOptionRates"] = await context.GovernedServiceFeeOptionRates.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["CollectionRemittances"] = await context.CollectionRemittances.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["CollectionRemittanceCoverages"] = await context.CollectionRemittanceCoverages.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
+            ["OfficeCashTurnovers"] = await context.OfficeCashTurnovers.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
+            ["OfficeCashTurnoverCoverages"] = await context.OfficeCashTurnoverCoverages.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["AccountableFormSpoilages"] = await context.AccountableFormSpoilages.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["AccountableFormLossReports"] = await context.AccountableFormLossReports.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["AccountableFormReferences"] = await context.AccountableFormReferences.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
@@ -101,11 +123,19 @@ public class TenantExportRepository(AppDbContext context) : ITenantExportReposit
             ["AuditLogs"] = await context.AuditLogs.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
         };
 
+        if (schema is null || schema.Tables.ContainsKey("NpmRentMonths"))
+            tables["NpmRentMonths"] = await context.NpmRentMonths.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct);
+        // An old pre-install office remains exportable, but cannot claim a complete restore-v2 snapshot.
+        if (schema is null || schema.Tables.ContainsKey("FishMeatRegistrationRequests"))
+            tables["FishMeatRegistrationRequests"] = await context.FishMeatRegistrationRequests.AsNoTracking()
+                .Where(x => x.MunicipalityId == mid).ToListAsync(ct);
+
         return new TenantExportPayload(
             muni?.TenantCode ?? "tenant",
             muni?.Name ?? "Municipality",
             mid,
             now,
-            tables);
+            tables,
+            warnings);
     }
 }

@@ -2,6 +2,13 @@
  * Reports.razor.css
  * Page-local refinements for the real collector-scoped reports screen.
  */
+.period-selector { padding: 10px 12px; margin-bottom: 10px; }
+.period-arrow { min-width: 40px; min-height: 40px; padding: 0; }
+.period-arrow:disabled { opacity: .4; cursor: default; }
+.period-arrow:focus-visible, .report-type-tab:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2px; }
+.report-type-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; }
+.report-type-tab { min-width: 0; border: 0; font: inherit; font-size: 12px; padding: 9px 3px; }
+.total-banner-amount, .rpt-primary-value, .rpt-tile-value, .day-amount, .payee-amount { white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 /* ── Collection summary ──
  *
@@ -534,4 +541,34 @@
     margin: 4px 0 6px;
     font-size: 12px;
     color: var(--text-muted);
+}
+
+/* The report views are buttons now: reset the native look, never wrap a label, and keep a visible focus ring. */
+.report-type-tab {
+    border: 0;
+    font-family: inherit;
+    white-space: nowrap;
+    min-height: 40px;
+}
+
+.report-type-tab:not(.active) {
+    background: transparent;
+}
+
+.report-type-tab:focus-visible,
+.search-clear:focus-visible {
+    outline: 2px solid var(--mobile-blue);
+    outline-offset: 2px;
+}
+
+.search-clear {
+    min-width: 32px;
+    min-height: 32px;
+    padding: 0 4px;
+    border: 0;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
 }

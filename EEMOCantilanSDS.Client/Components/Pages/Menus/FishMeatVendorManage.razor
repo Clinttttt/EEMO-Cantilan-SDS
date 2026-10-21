@@ -15,12 +15,12 @@
 @* Registry administration: any tax year, any month's collections, closed registrations, and the lifecycle (Renew, Close). There is no delete: a
    registration is closed, never removed, and its Collections and SRCs stay as they were. Every figure, status and rule is the server's; this page
    shows them and sends the Head's explicit choices. The layout owns the <main> landmark. *@
-<OperationTopbar Title="Manage Fish / Meat Vendors" Crumb="Operation" />
+<OperationTopbar Title="Manage Fish / Meat Vendors" Crumb="Manage" ParentHref="@RegistryHref" ParentTitle="Fish / Meat Vendors" />
 <div class="content-area">
-    <header class="fmm-head">
-        <a class="fmm-back" href="/operations/fish-meat-vendor-fees">← Fish / Meat Vendors</a>
-        <h1 class="fmm-title">Manage Fish / Meat Vendors</h1>
-    </header>
+    <FacilityHero Title="Manage Fish / Meat Vendors" Eyebrow="FISH / MEAT · REGISTRY"
+        Subtitle="Review registrations, renew vendor records, and close inactive registrations.">
+        <Icon><svg viewBox="0 0 24 24"><path d="M3 12c3-5 8-6 12-3l4-3v12l-4-3c-4 3-9 2-12-3z" /></svg></Icon>
+    </FacilityHero>
 
     <Toolbar SearchQuery="@_search"
              OnSearch="v => _search = v"
@@ -72,10 +72,11 @@
                             </td>
                             <td>@vendor.VendorType</td>
                             <td>@vendor.RegistrationKind</td>
-                            <td>@(string.IsNullOrWhiteSpace(vendor.Address) ? "—" : vendor.Address)</td>
+                            <td title="@vendor.Address">@VendorAddressDisplay.Clean(vendor.Address)</td>
                             <td><span class="fmm-status @(row.Status == VendorRegistrationStatus.Closed ? "fmm-status-closed" : "")">@row.Status</span></td>
                             <td class="v3-num">@Money(row.TotalCollected)</td>
                             <td class="fmm-actions">
+                                <div class="fmm-action-group" role="group" aria-label="@($"Actions for {vendor.DisplayName}")">
                                 <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenDetails(row)">Details</button>
                                 <AuthorizeView Roles="SuperAdmin">
                                     <Authorized>
@@ -86,6 +87,7 @@
                                         }
                                     </Authorized>
                                 </AuthorizeView>
+                                </div>
                             </td>
                         </tr>
                     }
@@ -113,7 +115,7 @@
             <dl class="fmm-facts" aria-label="Registration details">
                 <dt>Vendor</dt><dd>@vendor.DisplayName</dd>
                 <dt>Business</dt><dd>@(vendor.BusinessName ?? "—")</dd>
-                <dt>Address</dt><dd>@(vendor.Address ?? "—")</dd>
+                <dt>Address</dt><dd>@VendorAddressDisplay.Clean(vendor.Address)</dd>
                 <dt>Type</dt><dd>@vendor.VendorType</dd>
                 <dt>Tax year</dt><dd>@vendor.TaxYear</dd>
                 <dt>Registration</dt><dd>@vendor.RegistrationKind@(d.PriorRegistrationId is not null ? " · follows an earlier registration" : "")</dd>
@@ -121,6 +123,18 @@
                 <dt>Status</dt><dd>@d.Status@(d.ClosedOn is { } closed ? $" on {closed.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}" : "")</dd>
                 @if (!string.IsNullOrWhiteSpace(d.CloseNote)) { <dt>Close note</dt><dd>@d.CloseNote</dd> }
             </dl>
+            @if (HasOfficeDetails(vendor))
+            {
+                <h3 class="fmm-facts-title">Office information</h3>
+                <dl class="fmm-facts" aria-label="Office information">
+                    @if (!string.IsNullOrWhiteSpace(vendor.LastName)) { <dt>Last name</dt><dd>@vendor.LastName</dd> }
+                    @if (!string.IsNullOrWhiteSpace(vendor.FirstName)) { <dt>First name</dt><dd>@vendor.FirstName</dd> }
+                    @if (!string.IsNullOrWhiteSpace(vendor.MiddleName)) { <dt>Middle name</dt><dd>@vendor.MiddleName</dd> }
+                    @if (!string.IsNullOrWhiteSpace(vendor.NameExtension)) { <dt>Name extension</dt><dd>@vendor.NameExtension</dd> }
+                    @if (!string.IsNullOrWhiteSpace(vendor.Sex)) { <dt>Sex (office record)</dt><dd>@vendor.Sex</dd> }
+                    @if (!string.IsNullOrWhiteSpace(vendor.NatureOfBusiness)) { <dt>Nature of business</dt><dd>@vendor.NatureOfBusiness</dd> }
+                </dl>
+            }
             <NpmVendorLinkedContext VendorId="vendor.Id" TaxYear="vendor.TaxYear" />
             <h3 class="fmm-facts-title">Collected in @MonthLabel</h3>
             <dl class="fmm-facts" aria-label="Monthly collections">
@@ -164,6 +178,7 @@
     private static readonly string[] Months = CultureInfo.InvariantCulture.DateTimeFormat.MonthNames.Take(12).ToArray();
 
     private int _taxYear = PhilippineTime.Today.Year;
+    private string RegistryHref => _taxYear == PhilippineTime.Today.Year ? "/operations/fish-meat-vendor-fees" : $"/operations/fish-meat-vendor-fees?taxYear={_taxYear}";
     private int _month = PhilippineTime.Today.Month;
     private string _status = "All", _search = string.Empty, _filter = "All";
     private List<VendorRegistrationManagementRow> _rows = [];
@@ -228,8 +243,9 @@
     private Task ChangeMonthAsync(string value) { _month = int.Parse(value); return LoadAsync(); }
     private Task ChangeStatusAsync(string value) { _status = value; return LoadAsync(); }
 
-    private static string? SecondLine(FishMeatVendorRegistrationDto vendor) =>
-        string.Join(" · ", new[] { vendor.BusinessName, vendor.Address }.Where(x => !string.IsNullOrWhiteSpace(x))) is { Length: > 0 } line ? line : null;
+    private static string? SecondLine(FishMeatVendorRegistrationDto vendor) => string.IsNullOrWhiteSpace(vendor.BusinessName) ? null : vendor.BusinessName;
+    private static bool HasOfficeDetails(FishMeatVendorRegistrationDto vendor) =>
+        new[] { vendor.LastName, vendor.FirstName, vendor.MiddleName, vendor.NameExtension, vendor.Sex, vendor.NatureOfBusiness }.Any(x => !string.IsNullOrWhiteSpace(x));
 
     // ── Details ──
     private void OpenDetails(VendorRegistrationManagementRow row) => _detail = row;

@@ -21,4 +21,8 @@ public sealed record RecordMobileNpmCollectionRequest(
     // Excused/absent day: the payor was not operating. ₱0 owed, mutually exclusive with IsPaid.
     bool IsAbsent = false,
     DateOnly? CollectionDate = null,
-    decimal? MeatKilos = null);
+    decimal? MeatKilos = null,
+    Guid? ClientOperationId = null,
+    decimal? ReviewedMonthAmount = null,
+    string? MonthQuoteToken = null,
+    DateOnly? PaymentBusinessDate = null);

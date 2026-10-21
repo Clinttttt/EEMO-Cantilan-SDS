@@ -69,6 +69,8 @@ public sealed class PendingOperation
     public string? CustomAnimalType { get; set; }
     public int? NumberOfHeads { get; set; }
     public decimal? CustomRate { get; set; }
+    // Itemized Slaughterhouse: the approved charges and quantities selected. No rate is stored; the server prices them on sync.
+    public IReadOnlyList<SlaughterChargeSelectionDto>? SlaughterCharges { get; set; }
 
     // ── Transport terminal trip ──
     public Guid? TransporterId { get; set; }
@@ -124,6 +126,8 @@ public sealed class PendingOperation
     public long? ElectricitySourceVersion { get; set; }
     public long? RentSourceVersion { get; set; }
     public string? NpmQuoteToken { get; set; }
+    public Guid? NpmContractId { get; set; }
+    public DateOnly? NpmInstallmentDate { get; set; }
     public RecordCollectionSessionRequest? CollectionSession { get; set; }
     public CollectionSessionResult? CollectionSessionResult { get; set; }
 
@@ -212,5 +216,8 @@ public sealed class PendingOperation
         RentSourceVersion,
         ObligationAccountId,
         NpmQuoteToken,
-        CollectionSession);
+        CollectionSession,
+        NpmInstallmentDate,
+        SlaughterCharges,
+        NpmContractId);
 }

@@ -47,6 +47,16 @@ public sealed class ObligationsController(ISender sender, ObligationWorkflow wor
     public async Task<ActionResult<IReadOnlyList<ObligationQuoteDto>>> RegisterAsync(Guid accountId, CancellationToken ct) =>
         HandleResponse(await workflow.GetRegisterAsync(accountId, ct));
 
+    /// <summary>Every posted Collection that allocated to this one account's periods (Head/Admin; this account only).</summary>
+    [HttpGet("accounts/{accountId:guid}/payments")]
+    public async Task<ActionResult<IReadOnlyList<ObligationPaymentDto>>> PaymentsAsync(Guid accountId, CancellationToken ct) =>
+        HandleResponse(await workflow.GetPaymentsAsync(accountId, ct));
+
+    /// <summary>The saved bulk imports of one space-rental line (SuperAdmin).</summary>
+    [HttpGet("import-runs")]
+    public async Task<ActionResult<IReadOnlyList<SpaceHolderImportRunDto>>> ImportRunsAsync([FromQuery] ObligationKind kind, CancellationToken ct) =>
+        HandleResponse(await workflow.GetImportRunsAsync(kind, ct));
+
     [HttpGet("vendor-stalls")]
     public async Task<ActionResult<IReadOnlyList<VendorFeeStallDto>>> VendorStallsAsync(CancellationToken ct) =>
         HandleResponse(await workflow.GetVendorStallsAsync(ct));

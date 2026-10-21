@@ -81,7 +81,7 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.Equal("Market Fees", Assert.Single(cut.FindAll("h1.v3h-title")).TextContent.Trim());
-            Assert.Contains("Cash Ticket collection workspace", cut.Find(".v3h").TextContent);
+            Assert.Contains("Cash Ticket", cut.Find(".v3h-sub").TextContent);
             Assert.Empty(cut.FindAll(".wh"));
             Assert.Equal("/operations/market-fees/report", cut.Find(".v3h-actions a").GetAttribute("href"));
             var history = cut.Find(".gsw-measured-scroll");
@@ -101,7 +101,7 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
     public void OtherGovernedWorkspaces_KeepTheirExistingHistoryLimit()
     {
         Serve(All(GovernedServiceSetupState.Active));
-        var cut = RenderComponent<LandingBerthing>();
+        var cut = RenderComponent<TransferLargeCattle>();
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".gsw-scroll")), Timeout);
         Assert.Empty(cut.FindAll(".gsw-measured-scroll"));
         Assert.Equal(0, cut.FindComponent<EEMOCantilanSDS.Client.Components.Shared.GovernedServiceWorkspace>().Instance.VisibleCollectionRows);
@@ -181,7 +181,7 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
             [Row(300m, "SRC-2026-000005", GovernedServiceMode.WholePayment, RevenueInstrumentType.OfficialReceipt),
              Row(20m, "SRC-2026-000006", GovernedServiceMode.DailyTransaction)]);
 
-        var cut = RenderComponent<VegetableFruitDailySetup>();
+        var cut = RenderComponent<EEMOCantilanSDS.Client.Components.Shared.GovernedServiceWorkspace>(p => p.Add(x => x.OperationCode, CollectorOperationCodes.VegetableFruitSpaceRental).Add(x => x.Name, "Vegetable / Fruits Daily"));
 
         cut.WaitForAssertion(() =>
         {
@@ -212,7 +212,7 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
         cut.WaitForAssertion(() => cut.Find("aside button.gsw-edit"), Timeout);
         cut.Find("aside button.gsw-edit").Click();
 
-        cut.Find("[role='dialog'] select").Change(GovernedServiceBasis.FixedAmount.ToString());
+        cut.FindAll("[role='dialog'] .gsw-segmented label").Single(l => l.TextContent.Trim() == "Fixed approved amount").QuerySelector("input")!.Change(true);
         cut.Find("[role='dialog'] input[type='number']").Change("25");
         cut.Find("[role=dialog] form").Submit();
 
@@ -423,7 +423,7 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
             .Callback<string, ConfigureGovernedServiceRequest>((_, r) => sent = r)
             .ReturnsAsync(Result<GovernedServiceDefinitionDto>.Success(disabled with { State = GovernedServiceSetupState.Active }));
 
-        var cut = RenderComponent<VegetableFruitDailySetup>();
+        var cut = RenderComponent<EEMOCantilanSDS.Client.Components.Shared.GovernedServiceWorkspace>(p => p.Add(x => x.OperationCode, CollectorOperationCodes.VegetableFruitSpaceRental).Add(x => x.Name, "Vegetable / Fruits Daily"));
 
         cut.WaitForAssertion(() =>
         {
@@ -459,7 +459,7 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
 
         var cut = RenderComponent<MarketFees>();
 
-        cut.WaitForAssertion(() => Assert.Contains("only when the amount rule is", cut.Find(".gsw-fee-rule").TextContent), Timeout);
+        cut.WaitForAssertion(() => { Assert.Contains("Not offered to Collectors yet", cut.Find(".gsw-fee-rule").TextContent); Assert.DoesNotContain("Direct approved amount", cut.Find(".gsw-fee-rule").TextContent); }, Timeout);
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Collect by fee type").Click();
 
         cut.WaitForAssertion(() =>

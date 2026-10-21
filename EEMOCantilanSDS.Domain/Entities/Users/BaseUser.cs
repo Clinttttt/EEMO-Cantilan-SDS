@@ -147,6 +147,20 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
             ActivationTokenExpiry = expiry;
         }
 
+        /// <summary>
+        /// An account created by an invitation that has not been accepted: inactive, with an activation token outstanding. Becomes
+        /// false the moment the invitation is accepted (<see cref="CompleteActivation"/> activates it and clears the token) or
+        /// revoked. An expired-but-unaccepted invitation is still "pending" - the Head can see it and re-issue it.
+        /// </summary>
+        public bool HasPendingInvitation => !IsActive && !string.IsNullOrEmpty(ActivationTokenHash);
+
+        /// <summary>Withdraws any outstanding activation token, so a link already sent can no longer be used.</summary>
+        public void RevokeActivationToken()
+        {
+            ActivationTokenHash = null;
+            ActivationTokenExpiry = null;
+        }
+
         /// <summary>True when the supplied token hash matches an unexpired activation token.</summary>
         public bool IsActivationTokenValid(string tokenHash, DateTime asOf)
             => !string.IsNullOrEmpty(ActivationTokenHash)

@@ -29,6 +29,11 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
     {
         public DbSet<FishMeatVendorRegistration> FishMeatVendorRegistrations => Set<FishMeatVendorRegistration>();
         public DbSet<FishMeatNpmAssociation> FishMeatNpmAssociations => Set<FishMeatNpmAssociation>();
+        public DbSet<NpmRegistrationRequest> NpmRegistrationRequests => Set<NpmRegistrationRequest>();
+        public DbSet<FishMeatRegistrationRequest> FishMeatRegistrationRequests => Set<FishMeatRegistrationRequest>();
+        public DbSet<DirectCollectionReviewEvent> DirectCollectionReviewEvents => Set<DirectCollectionReviewEvent>();
+        public DbSet<SpaceHolderImportRun> SpaceHolderImportRuns => Set<SpaceHolderImportRun>();
+        public DbSet<FishMeatDirectCollectionLink> FishMeatDirectCollectionLinks => Set<FishMeatDirectCollectionLink>();
         private readonly ICurrentMunicipalityAccessor? _municipality;
 
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
@@ -108,6 +113,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         public DbSet<Municipality> Municipalities { get; set; }
         public DbSet<TenantBackup> TenantBackups { get; set; }
         public DbSet<OrSeriesConfig> OrSeriesConfigs { get; set; }
+        public DbSet<TenantOperationSetting> TenantOperationSettings { get; set; }
         public DbSet<FacilityRate> FacilityRates { get; set; }
         public DbSet<RevenueClassification> RevenueClassifications { get; set; }
         public DbSet<RevenueClassificationPolicy> RevenueClassificationPolicies { get; set; }
@@ -136,6 +142,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
  
         public DbSet<PaymentRecord> PaymentRecords { get; set; }
         public DbSet<DailyCollection> DailyCollections { get; set; }
+        public DbSet<NpmRentMonth> NpmRentMonths => Set<NpmRentMonth>();
         public DbSet<UtilityBill> UtilityBills { get; set; }
         public DbSet<StallMonthlyException> StallMonthlyExceptions { get; set; }
         public DbSet<NpmMarketClosure> NpmMarketClosures { get; set; }
@@ -177,12 +184,17 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         public DbSet<ObligationAccount> ObligationAccounts { get; set; }
         public DbSet<ObligationRate> ObligationRates { get; set; }
         public DbSet<ObligationPeriod> ObligationPeriods { get; set; }
+        public DbSet<SpaceRegistration> SpaceRegistrations { get; set; }
+        public DbSet<SpaceContractTerm> SpaceContractTerms { get; set; }
+        public DbSet<SpaceLifecycleEvent> SpaceLifecycleEvents { get; set; }
         public DbSet<VehicleClass> VehicleClasses { get; set; }
         public DbSet<VehicleClassRate> VehicleClassRates { get; set; }
         public DbSet<GovernedServiceFeeOption> GovernedServiceFeeOptions { get; set; }
         public DbSet<GovernedServiceFeeOptionRate> GovernedServiceFeeOptionRates { get; set; }
         public DbSet<CollectionRemittance> CollectionRemittances { get; set; }
         public DbSet<CollectionRemittanceCoverage> CollectionRemittanceCoverages { get; set; }
+        public DbSet<OfficeCashTurnover> OfficeCashTurnovers { get; set; }
+        public DbSet<OfficeCashTurnoverCoverage> OfficeCashTurnoverCoverages { get; set; }
         public DbSet<AccountableFormSpoilage> AccountableFormSpoilages { get; set; }
         public DbSet<AccountableFormLossReport> AccountableFormLossReports { get; set; }
         public DbSet<AccountableFormReference> AccountableFormReferences { get; set; }
@@ -202,6 +214,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+            Configuration.NpmRentMonthFinancialSchema.Configure(modelBuilder);
             ApplyQueryFilters(modelBuilder);
         }
 

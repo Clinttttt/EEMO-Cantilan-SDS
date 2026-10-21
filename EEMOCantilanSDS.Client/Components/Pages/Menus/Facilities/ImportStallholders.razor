@@ -30,13 +30,15 @@
 
 <header class="topbar">
     <div class="topbar-left flex gap-2">
-        <a href="@BackUrl" class="imp-back-btn" title="Back to @(_facility?.Name ?? "facility")">
+        <a href="@BackUrl" class="imp-back-btn" title="Back to @(_facility?.Name ?? "Operations")" aria-label="Back to @(_facility?.Name ?? "Operations")">
             <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
         </a>
         <div>
             <div class="topbar-title">Import Stallholders</div>
             <div class="topbar-breadcrumb">
                 <a href="/menu" class="breadcrumb-link">Dashboard</a>
+                <span class="breadcrumb-sep">/</span>
+                <a href="/operations" class="breadcrumb-link">Operations</a>
                 <span class="breadcrumb-sep">/</span>
                 @if (_facility is not null)
                 {
@@ -63,13 +65,13 @@
         <div class="imp-state">
             <div class="imp-state-title">Import not available</div>
             <div class="imp-state-text">Bulk import is only supported for @ImportableFacilityList.</div>
-            <a class="imp-btn imp-btn-primary" href="/menu">Back to dashboard</a>
+            <a class="imp-btn imp-btn-primary" href="/operations">Back to Operations</a>
         </div>
     }
     else
     {
         <!-- ── Hero ── -->
-        <ImportHero Eyebrow="@(_facility.ShortCode + SectionSuffix + " · Bulk Import")" Title="@($"Import {_facility.Name} Stallholders")" Step="@(_saved ? 3 : _loaded ? 2 : 1)" />
+        <ImportHero Blue="true" Eyebrow="@(_facility.ShortCode + SectionSuffix + " · Bulk Import")" Title="@($"Import {_facility.Name} Stallholders")" Step="@(_saved ? 3 : _loaded ? 2 : 1)" />
 
         @if (_saved && _result is not null)
         {
@@ -162,19 +164,6 @@
                         }
 
                         <div class="imp-setup-divider"></div>
-                        <div class="imp-setup-group">
-                            <span class="imp-setup-key">Utilities</span>
-                            <label class="imp-util @(_applyElectricity ? "on" : "")">
-                                <input type="checkbox" @bind="_applyElectricity" />
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
-                                <span>Electricity</span>
-                            </label>
-                            <label class="imp-util @(_applyWater ? "on" : "")">
-                                <input type="checkbox" @bind="_applyWater" />
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.7s6.2 6.6 6.2 11.1a6.2 6.2 0 0 1-12.4 0C5.8 9.3 12 2.7 12 2.7z" /></svg>
-                                <span>Water</span>
-                            </label>
-                        </div>
                     </div>
                 }
                 </Setup>
@@ -419,7 +408,7 @@
     // The facility's own page, by its canonical route — the one the sidebar links to and the browser shows. Cancel
     // and the back arrow both land there rather than on whatever page happened to come before, so leaving an import
     // always returns to the facility being imported into.
-    private string BackUrl => _facility is null ? "/menu" : $"/facility/{_facility.ShortCode.ToLower()}";
+    private string BackUrl => _facility is null ? "/operations" : $"/facility/{_facility.ShortCode.ToLowerInvariant()}";
 
     protected override async Task OnParametersSetAsync()
     {
@@ -558,7 +547,8 @@
     }
 
     // NPM imports one section at a time (each section is a separate physical list).
-    private bool RequiresSection => _facility?.ShortCode == "NPM";
+    // A Public Market its LGU rents by the month imports like a monthly facility: one list, one monthly rent per stall, no section sheets.
+    private bool RequiresSection => _facility?.ShortCode == "NPM" && !FacilityCatalog.IsMonthlyRentMarket;
     private bool IsPureDays => RequiresSection && _npmMonthBasis == NpmMonthBasis.PureDays;
     private IReadOnlyList<ImportColumn> VisibleColumns => _facility is null
         ? Array.Empty<ImportColumn>()
@@ -570,10 +560,6 @@
     private bool IsCustomSectionChosen => RequiresSection && !string.IsNullOrEmpty(_section) && MapSection(_section) is null;
     // Daily fee rate for a custom-section import (0 = let the server use the section's existing rate or ₱30).
     private decimal _customDailyRate = 0m;
-    // Utility applicability chosen for the whole import batch (NPM only) — stamps Electricity/Water onto
-    // every newly created stall in this import.
-    private bool _applyElectricity;
-    private bool _applyWater;
     private string SectionSuffix => string.IsNullOrEmpty(_section) ? string.Empty : $" · {SectionOptionLabel(_section)}";
 
     private void ChooseSection(string section) => _section = section;
@@ -1262,8 +1248,8 @@
                     ? _section : null,
                 CustomDailyRate: IsCustomSectionChosen && _customDailyRate > 0m ? _customDailyRate : null,
                 // Utilities apply to NPM stalls only; the batch flags stamp them onto every new stall.
-                ApplyElectricity: RequiresSection && _applyElectricity,
-                ApplyWater: RequiresSection && _applyWater);
+                ApplyElectricity: false,
+                ApplyWater: false);
 
             var result = await StallsApi.BulkImportStallholdersAsync(command);
             if (result.IsSuccess && result.Value is not null)
@@ -1364,8 +1350,6 @@
         _numberedBlank = 0;
         _existingMax = 0;
         _existingSpaceMax = 0;
-        _applyElectricity = false;
-        _applyWater = false;
         _existingOccupants.Clear();
     }
 
@@ -1418,16 +1402,16 @@
         return d;
     }
 
-    private static readonly ImportColumn Occupant = new("occupant", "Actual Occupant (Leasee)", MinWidth: 200, Placeholder: "Full name");
-    private static readonly ImportColumn ContractName = new("contractName", "Name on Contract", MinWidth: 200, Placeholder: "Per signed contract");
-    private static readonly ImportColumn StallNo = new("stallNo", "Stall / Space No.", MinWidth: 110, Placeholder: "e.g. 1");
-    private static readonly ImportColumn Effectivity = new("effectivity", "Effectivity Date", "date", MinWidth: 150);
-    private static readonly ImportColumn Years = new("years", "No. of Years", "number", MinWidth: 110, Placeholder: "3");
-    private static readonly ImportColumn Area = new("area", "Area (sqm)", "number", MinWidth: 110, Placeholder: "0");
-    private static readonly ImportColumn Monthly = new("monthly", "Monthly Rental / Contract", "number", MinWidth: 160, Placeholder: "0.00");
-    private static readonly ImportColumn ActualMonthly = new("actualMonthly", "Actual Mo. Rental", "number", MinWidth: 150, Placeholder: "0.00");
-    private static readonly ImportColumn WholeYear = new("wholeYear", "Whole Year Rental", "number", MinWidth: 150, Placeholder: "0.00");
-    private static readonly ImportColumn Delinquent = new("delinquent", "Delinquent (₱)", "number", MinWidth: 130, Placeholder: "0.00");
+    private static readonly ImportColumn Occupant = RentalImportColumns.Occupant;
+    private static readonly ImportColumn ContractName = RentalImportColumns.ContractName;
+    private static readonly ImportColumn StallNo = RentalImportColumns.Number;
+    private static readonly ImportColumn Effectivity = RentalImportColumns.Effectivity;
+    private static readonly ImportColumn Years = RentalImportColumns.Years;
+    private static readonly ImportColumn Area = RentalImportColumns.Area;
+    private static readonly ImportColumn Monthly = RentalImportColumns.ContractMonthly;
+    private static readonly ImportColumn ActualMonthly = RentalImportColumns.ActualMonthly;
+    private static readonly ImportColumn WholeYear = RentalImportColumns.WholeYear;
+    private static readonly ImportColumn Delinquent = RentalImportColumns.Delinquent;
 
     private static readonly Dictionary<string, FacilityImportConfig> Configs = BuildConfigs();
 

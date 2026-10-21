@@ -583,7 +583,7 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
     }
 
     [SkippableFact]
-    public async Task MonthlyRentCutoverFreezesOnlyBaseRentalSettlementEvidence()
+    public async Task MonthlyRentCutoverFreezesAnUnpaidMonth_AndRefusesLegacyCashWithoutDatedReceiptEvidence()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
         await db.ResetAsync();
@@ -592,40 +592,58 @@ public sealed class WcfCollectionWorkflowTests(PostgresFixture db)
             municipalityId: seed.TenantId);
         var stall = Stall.Create(facility.Id, "RENT-01", 900m, ApplicableFees.BaseRental,
             createdBy: "test", municipalityId: seed.TenantId);
-        var rent = PaymentRecord.Create(stall.Id, seed.Period.Year, seed.Period.Month, 900m, "test");
-        rent.UpdateStatus(PaymentStatus.Partial, 200m, updatedBy: "test");
+        // A month with legacy cash (200 received) and a NEW unpaid month of the same stall.
+        var legacy = PaymentRecord.Create(stall.Id, seed.Period.Year, seed.Period.Month, 900m, "test");
+        legacy.UpdateStatus(PaymentStatus.Partial, 200m, updatedBy: "test");
+        var next = seed.Period.AddMonths(1);
+        var unpaid = PaymentRecord.Create(stall.Id, next.Year, next.Month, 900m, "test");
         var classification = RevenueClassification.Create(RevenueClassificationCodes.PermanentStallRent, seed.TenantId);
         var policy = RevenueClassificationPolicy.Create(classification.Id, new DateOnly(2000, 1, 1),
             "Stall Rental", RevenueInstrumentType.OfficialReceipt, seed.TenantId);
         await using (var setup = db.CreateContext(seed.TenantId))
         {
-            setup.AddRange(facility, stall, rent, classification, policy);
+            setup.AddRange(facility, stall, legacy, unpaid, classification, policy);
             await setup.SaveChangesAsync();
         }
 
         await using var context = db.CreateContext(seed.TenantId);
-        var scope = new SettlementCutoverScope(CollectionSourceKind.PaymentRecord, rent.Id, null);
         var workflow = new SettlementCutoverWorkflow(context,
             new TestActor(seed.AdminId, seed.TenantId, "Admin"), new FixedTenant(seed.TenantId));
-        Assert.True((await workflow.BeginPendingCutoverAsync(scope)).IsSuccess);
         var evidence = new SettlementCutoverReconciliationEvidence(true, true, true, true, true, true,
             "isolated-integration-test:monthly-rent", []);
+
+        // Legacy monthly cash is never turned into an opening balance: an opening balance is not a dated receipt ledger.
+        var legacyScope = new SettlementCutoverScope(CollectionSourceKind.PaymentRecord, legacy.Id, null);
+        Assert.True((await workflow.BeginPendingCutoverAsync(legacyScope)).IsSuccess);
+        var blocked = await workflow.EvaluateReadinessAsync(new SettlementCutoverReadinessRequest(legacyScope, evidence));
+        Assert.True(blocked.IsSuccess, blocked.Error);
+        Assert.False(blocked.Value!.Ready);
+        Assert.Contains(blocked.Value.BlockingReasons, r => r.Contains("preserved dated receipt/report evidence"));
+        var refused = await workflow.FreezeOpeningPositionAsync(new SettlementCutoverFreezeRequest(
+            legacyScope, blocked.Value.SourceVersion, blocked.Value.ReadinessFingerprint, evidence));
+        Assert.False(refused.IsSuccess);
+        Assert.Empty(await context.CollectionSettlementCutovers.ToListAsync());
+
+        // A new unpaid month has no legacy cash to preserve and freezes exactly its base rental.
+        var scope = new SettlementCutoverScope(CollectionSourceKind.PaymentRecord, unpaid.Id, null);
+        Assert.True((await workflow.BeginPendingCutoverAsync(scope)).IsSuccess);
         var readiness = await workflow.EvaluateReadinessAsync(new SettlementCutoverReadinessRequest(scope, evidence));
         Assert.True(readiness.IsSuccess, readiness.Error);
         Assert.True(readiness.Value!.Ready, string.Join(" | ", readiness.Value.BlockingReasons));
         Assert.Equal(900m, readiness.Value.AssessmentAmount);
-        Assert.Equal(200m, readiness.Value.LegacySettledEvidence);
-        Assert.Equal(700m, readiness.Value.OutstandingAmount);
+        Assert.Equal(0m, readiness.Value.LegacySettledEvidence);
+        Assert.Equal(900m, readiness.Value.OutstandingAmount);
         Assert.Equal(RevenueInstrumentType.OfficialReceipt, readiness.Value.RequiredInstrument);
 
         var frozen = await workflow.FreezeOpeningPositionAsync(new SettlementCutoverFreezeRequest(
             scope, readiness.Value.SourceVersion, readiness.Value.ReadinessFingerprint, evidence));
         Assert.True(frozen.IsSuccess, frozen.Error);
         Assert.Empty(await context.Collections.ToListAsync());
-        var persisted = await context.PaymentRecords.AsNoTracking().SingleAsync(x => x.Id == rent.Id);
+        var persisted = await context.PaymentRecords.AsNoTracking().SingleAsync(x => x.Id == unpaid.Id);
         Assert.Equal(SettlementAuthority.PendingCutover, persisted.SettlementAuthorityState);
-        Assert.Equal(200m, persisted.PartialAmount);
-        Assert.Equal(700m, persisted.BaseRentalAmount - persisted.PartialAmount);
+        Assert.Equal(900m, persisted.BaseRentalAmount - persisted.PartialAmount);
+        var untouched = await context.PaymentRecords.AsNoTracking().SingleAsync(x => x.Id == legacy.Id);
+        Assert.Equal(200m, untouched.PartialAmount);                                       // the legacy month keeps its cash exactly
     }
 
     [SkippableFact]

@@ -25,6 +25,7 @@ public static class TenantBackupTableNames
         ["Facilities"] = "Facilities",
         ["FacilityRates"] = "Facility rates",
         ["OrSeriesConfigs"] = "OR series configuration",
+        ["TenantOperationSettings"] = "Operation settings (listing and local names)",
         ["Stalls"] = "Stalls",
         ["Contracts"] = "Contracts",
         ["PaymentRecords"] = "Payment records",

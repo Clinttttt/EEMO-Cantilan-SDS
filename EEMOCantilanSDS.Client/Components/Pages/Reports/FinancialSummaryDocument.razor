@@ -344,19 +344,20 @@ else
                         </table>
                     </section>
 
-                    @* 7 — delinquent accounts based on the confirmed one-month rule. Arrears is not classified by age. *@
+                    @* 7 — receivables classified per obligation (IA-019, IA-020, IA-069): Delinquent = current-year elapsed unpaid months; Arrears = previous-year rent, expired contracts and ended occupancies. *@
                     <section class="doc-sec doc-sec-break">
                         <h2 class="doc-sec-title">VIII. Accounts needing follow-up</h2>
                         <table class="doc-table">
                             <tbody>
                                 <tr>
-                                    <th scope="row">Delinquent — at least one fully elapsed unpaid month</th>
+                                    <th scope="row">Delinquent — fully elapsed unpaid months of the current year</th>
                                     <td class="doc-num">@Model.DelinquentAccountsTotal accounts</td>
                                     <td class="doc-num doc-owed">@Money(Model.DelinquentOutstandingTotal)</td>
                                 </tr>
                                 <tr>
-                                    <th scope="row">Arrears qualification</th>
-                                    <td colspan="2">Not defined. No age-based total is reported; this does not mean qualifying old/lapsed debt is absent.</td>
+                                    <th scope="row">Arrears — previous-year rent, expired contracts and ended occupancies</th>
+                                    <td class="doc-num">@(Model.ArrearsAccountsTotal ?? 0) accounts</td>
+                                    <td class="doc-num doc-owed">@Money(Model.ArrearsOutstandingTotal ?? 0m)</td>
                                 </tr>
                             </tbody>
                         </table>

@@ -3,7 +3,7 @@
 /* The links and actions inside the shared Toolbar: the same size and rhythm as the Kanmanggay bar. */
 .fmv-actions-bar {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     gap: 8px;
 }
@@ -31,3 +31,45 @@
 /* Both lists are bounded: about five rows show, the rest scroll inside the panel under a held heading. */
 .fmv-scroll { max-height: 21rem; overflow-y: auto; overscroll-behavior: contain; }
 .fmv-scroll thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-muted); }
+
+/* The two lists of the workspace: the registry, and the payors a Collector named who are not registered yet. */
+.fmv-views { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.fmv-view { min-height: 34px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-secondary); font: inherit; font-size: 0.8125rem; font-weight: 600; cursor: pointer; }
+.fmv-view.is-active { border-color: var(--accent); background: var(--surface-muted); color: var(--navy); }
+.fmv-view:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fmv-chip { display: inline-block; padding: 2px 8px; border: 1px solid currentColor; border-radius: 999px; color: var(--gold, #8a5a00); font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+.fmv-row-action { text-align: right; white-space: nowrap; }
+.fmv-more { padding: 12px 20px; }
+.fmv-toolbar { position: sticky; top: var(--topbar-h, 60px); z-index: 10; min-width: 0; margin-bottom: 14px; background: var(--surface); border-radius: 10px; }
+.fmv-toolbar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fmv-toolbar ::deep .toolbar-unified { flex-direction: row; flex-wrap: wrap; align-items: center; margin: 0; gap: 8px; padding: 8px; }
+.fmv-toolbar ::deep .search-box { flex: 1 0 260px; width: auto; min-width: min(260px, 100%); max-width: none; height: 36px; }
+.fmv-toolbar ::deep .toolbar-actions { display: none; }
+.fmv-actions-bar { flex: 0 0 auto; gap: 6px; }
+.fmv-actions-bar .btn-outline, .fmv-actions-bar .btn-primary { white-space: nowrap; min-height: 34px; padding: 7px 9px; font-size: 12px; }
+.fmv-actions-bar .fmv-views { flex-wrap: nowrap; gap: 3px; }
+.fmv-types { display: flex; flex-wrap: nowrap; gap: 3px; }
+.fmv-actions-bar .fmv-view { white-space: nowrap; padding: 0 8px; font-size: 12px; }
+.fmv-view:disabled { opacity: .55; cursor: default; }
+/* The civic-blue operation hero shares the compact V3 style used by Transportation / Parking. */
+.fmv-hero-meta { color:rgba(255,255,255,.85); font-size:.8125rem; }
+.fmv-toolbar ::deep .toolbar-unified { border:1px solid var(--border); }
+.fmv-actions-bar { gap:0; }
+.fmv-types, .fmv-views { display:inline-flex; flex-wrap:nowrap; gap:0; align-items:stretch; }
+.fmv-types { margin-right:8px; }
+.fmv-views { margin-right:8px; }
+.fmv-actions-bar .fmv-view { border-radius:0; margin-left:-1px; }
+.fmv-types .fmv-view:first-child, .fmv-views .fmv-view:first-child { border-radius:8px 0 0 8px; margin-left:0; }
+.fmv-types .fmv-view:last-child, .fmv-views .fmv-view:last-child { border-radius:0 8px 8px 0; }
+.fmv-primary-actions { display:inline-flex; flex-wrap:nowrap; gap:0; align-items:center; }
+.fmv-primary-actions > .btn-outline, .fmv-primary-actions > .btn-primary { border-radius:0; margin-left:-1px; }
+.fmv-primary-actions > :first-child { border-radius:8px 0 0 8px; margin-left:0; }
+.fmv-primary-actions > :last-child { border-radius:0 8px 8px 0; }
+.fmv-address { min-width:180px; max-width:300px; line-height:1.45; overflow-wrap:break-word; }
+.fmv-actions-bar { margin-left:auto; max-width:100%; flex-wrap:wrap; justify-content:flex-end; row-gap:6px; }
+@media (max-width:600px) {
+    .fmv-toolbar ::deep .search-box { flex-basis:100%; }
+    .fmv-actions-bar { width:100%; justify-content:flex-start; }
+    .fmv-primary-actions { flex-wrap:wrap; gap:4px; }
+    .fmv-primary-actions > .btn-outline, .fmv-primary-actions > .btn-primary { border-radius:8px; margin-left:0; }
+}

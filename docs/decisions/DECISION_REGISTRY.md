@@ -37,7 +37,7 @@ Only these values are used:
 Two cross-document distinctions are explicit at this baseline:
 
 1. [REVENUE_ARCHITECTURE.md](../business/REVENUE_ARCHITECTURE.md) names the target landing workspace `Dashboard`. The current interface architecture ruling names it `Overview`. This registry treats Overview as the target interface label while preserving the same portfolio-summary purpose. This is an interface wording refinement, not a financial/domain change.
-2. Baseline code, tests, and the accepted MEEDO ruling agree that `DomainRules.DelinquentThresholdMonths = 1`: every active account with at least one fully elapsed unpaid month is delinquent, while Arrears is reserved for old/lapsed-year stall debt that remains owed. Three months is only an urgency/severity boundary.
+2. Baseline code, tests, and the accepted MEEDO ruling agree that `DomainRules.DelinquentThresholdMonths = 1`: every active account with at least one fully elapsed unpaid month is delinquent, while Arrears is reserved for old/lapsed-year stall debt that remains owed. Three months is only an urgency/severity boundary. **IA-069 clarifies that any unpaid prior-calendar-year rental obligation is Arrears even for an active tenant; qualifying ended-occupancy/contract debt remains Arrears.**
 
 ## 3. Decisions
 
@@ -280,6 +280,7 @@ Two cross-document distinctions are explicit at this baseline:
 - **EVIDENCE / SOURCE:** Direct EEMO Head clarification consolidated in [EEMO_OPERATIONAL_RULEBOOK.md](../business/EEMO_OPERATIONAL_RULEBOOK.md), sections 1 and 15; [REVENUE_ARCHITECTURE.md](../business/REVENUE_ARCHITECTURE.md).
 - **IMPACT:** Active 1+ elapsed unpaid months remain Delinquent; do not relabel them Arrears. Old/lapsed owed stall debt may be presented as Arrears. When qualifying Arrears are paid, the cash reports under the dedicated Arrears revenue line while the originating facility/obligation remains linked for traceability.
 - **REVISIT CONDITION:** Revisit only if EEMO changes the old/lapsed-debt rule or supplies a more specific formal qualification test.
+- **LATER CLARIFICATION:** IA-069 (2026-10-19) resolves the previous-year boundary: unpaid prior-calendar-year rent qualifies as Arrears regardless of whether the current tenant/contract remains active. Ended-occupancy or ended-contract debt also qualifies independently. The older wording must not be read as requiring contract lapse for previous-year debt.
 
 ### IA-021 — Current correction authority
 
@@ -945,6 +946,7 @@ Two cross-document distinctions are explicit at this baseline:
 ### IA-068 - Independent Fish/Meat vendor registry, source-native collection identity, and NPM Daily Collect All (MEEDO office, 2026-10-06)
 
 - **ID:** IA-068
+- **2026-10-19 prospective owner revision (Office confirmation pending; NOT a deployed supersession):** prepare Collector-submitted, nonfinancial Fish/Meat registration requests and tenant/effective-business-date registration-first Vendor Fee eligibility. Default policy remains off, preserving the confirmed walk-up rule below for existing tenants/history. Enabling requires Office confirmation, approved request-schema installation and coordinated Mobile/Head acceptance. Posted retries retain their original SRC; no retrospective registration, collection or name-based linkage is created. See [backend contract and activation gates](../planning/FISH_MEAT_REGISTRY_MANAGEMENT_HANDOFF_20261007.md#2026-10-19-collector-registration-request-backend).
 - **STATUS:** CONFIRMED by direct MEEDO office clarification.
 - **TYPE:** BUSINESS DECISION + ARCHITECTURE DIRECTION.
 - **FISH/MEAT REGISTRY:** Fish/Meat Vendor Fee is independent from NPM. StallTrack shall maintain a source-owned Fish/Meat vendor-registration context with one vendor type (**Fish** or **Meat**), annual/tax-year context and office registration status such as **New** / **Renew**. Do not silently create a dual Fish+Meat registration.
@@ -959,6 +961,21 @@ Two cross-document distinctions are explicit at this baseline:
 - **SUPERSESSION:** IA-064's requirement for an eligible NPM Fish/Meat stall and explicitly linked Business Payor is superseded prospectively. IA-063's NPM-linked Weight & Measure source assumption is superseded prospectively. Existing posted history is not rewritten.
 - **EVIDENCE:** [2026-10-06 office clarification](../evidence/2026-10-06_meedo_office_terminal_fish_vendor_monthly_income_clarification.md), `2026-10-06_fish_retailing_business_table.png`, [ADR-007](ADR_007_SOURCE_NATIVE_COLLECTION_IDENTITY.md).
 - **NON-GOALS:** No automatic vendor/name merge, no historical backfill by text similarity, no monthly-rental Collect All, and no destructive BusinessPayor table removal before dependency proof.
+
+### IA-069 - Arrears qualification for previous-year rent and ended occupancy (program clarification, 2026-10-19)
+
+- **ID:** IA-069
+- **STATUS:** CONFIRMED business rule by the project owner on 2026-10-19; **documentation only, not a claim of implemented financial behavior**.
+- **TYPE:** BUSINESS DECISION + FINANCIAL QUALIFICATION BOUNDARY.
+- **DECISION:**
+  - **Previous calendar year:** Any unpaid stall-rental obligation whose original billing year precedes the current Philippine business calendar year qualifies as **Arrears**, even when the same tenant remains active under an unexpired contract. For example, unpaid December 2025 rent is Arrears during 2026. The boundary is the original billing year, not the payment date or whether the tenant has left.
+  - **Ended tenancy or contract:** Qualifying unpaid rental debt from a former/ended occupancy or an expired/ended contract also belongs to **Arrears**, including debt incurred in the current calendar year. Preserve the original liable occupant and rental period; do not transfer the old debt to the next occupant.
+  - **Active current-year debt:** For an ongoing active account, an unpaid **current** month is current-period unpaid, not delinquent. An unpaid **fully elapsed** month from the current calendar year is **Delinquent** (one or more elapsed months; 1-2 Normal, 3+ Critical), not Arrears merely because several months were missed.
+  - **Separate amounts:** One account may simultaneously owe Arrears for a prior year, Delinquent rent for elapsed months in the current year, and current-period unpaid rent. Classify each original obligation independently; never double-count a period or debt in the totals.
+- **REPORTING / COLLECTION:** Recovered qualifying Arrears use the existing dedicated Arrears revenue classification under IA-020 while retaining original facility, payer, occupancy/contract, obligation month and collection evidence. The initial debt classification is not itself a new cash Collection or SRC.
+- **SUPERSESSION / CONSISTENCY:** This clarifies the ambiguous conjunctive wording in IA-020: **prior-calendar-year unpaid rent OR qualifying ended occupancy/contract debt** is sufficient; contract lapse is *not* required for prior-year rent. IA-019's fully elapsed-month delinquency threshold and follow-up severity are unchanged, as is the distinction between debt qualification and collection/report cutover.
+- **EVIDENCE:** Direct project-owner clarification in the StallTrack Core Brain conversation on 2026-10-19, interpreting the prior EEMO Head old/lapsed-debt ruling recorded in IA-020. This is not represented as a newly obtained EEMO-office or Treasury document.
+- **IMPLEMENTATION BOUNDARY:** No historical posting, classification backfill, SRC change, migration, official report cutover or retained-database mutation is authorized merely by recording this decision. Any implementation must use authoritative rental-period/occupancy facts, preserve correction/cutover authority, and be verified and reconciled separately.
 
 ## 4. Decision-gate summary
 

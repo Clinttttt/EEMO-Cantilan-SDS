@@ -7,12 +7,63 @@
    ══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Filter choices header (chips) + search ── */
+/* Follow-up actions occupy the same navigation row as Follow-ups / Contracts.
+   The search sits on the right; narrow widths let it wrap rather than clip. */
+.fq-navrow {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+}
+.fq-navrow ::deep .mt-tabs {
+    margin: 0;
+    border-bottom: 0;
+    flex: 0 0 auto;
+}
+.fq-navrow .fq-search {
+    flex: 0 1 340px;
+    max-width: 360px;
+    min-width: 175px;
+    margin-left: auto;
+    align-self: center;
+}
+
+/* With search and history out of the filter bar, reasons gain the available width. */
 .fq-filterbar {
     display: flex;
-    flex-direction: column;
+    align-items: center;
+    flex-wrap: nowrap;
     gap: 10px;
+    min-width: 0;
     margin-bottom: 20px;
 }
+.fq-reasons {
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-wrap: nowrap !important;
+    white-space: nowrap;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+.fq-reasons .fq-chip { white-space: nowrap; flex-shrink: 0; }
+.fq-source-select { flex: 0 0 215px; min-width: 0; }
+.fq-source-select ::deep .fh-dd-trigger { height: 42px; border-radius: 10px; }
+.fq-source-select ::deep .fh-dd-menu { min-width: 235px; }
+.fq-source-select ::deep .fh-dd-val { overflow: hidden; text-overflow: ellipsis; max-width: 175px; }
+
+@media (max-width: 800px) {
+    .fq-navrow { flex-wrap: wrap; padding-bottom: 10px; }
+    .fq-navrow .fq-search { order: 3; margin-left: 0; flex: 1 1 100%; max-width: none; }
+}
+@media (max-width: 560px) {
+    .fq-navrow ::deep .mt-tabs { flex: 1 1 100%; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
+    .fq-navrow ::deep .mt-tab { flex-shrink: 0; white-space: nowrap; padding-inline: 10px; }
+    .fq-source-select { flex: 0 0 145px; }
+}
+
 .fq-context-note {
     display: flex;
     flex-direction: column;
@@ -28,12 +79,6 @@
     line-height: 1.55;
 }
 .fq-context-note strong { color: var(--text); font-size: 12px; }
-.fq-toolrow {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-}
 .fq-filters {
     display: inline-flex; flex-wrap: wrap; gap: 5px; align-items: center;
     background: var(--bg);
@@ -64,19 +109,20 @@
 .fq-chip-active .fq-chip-count { background: rgba(255, 255, 255, .22); color: #fff; }
 
 .fq-search {
+    max-width: 245px;
     display: flex;
     align-items: center;
     gap: 9px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 10px;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
     height: 42px;
-    padding: 0 14px;
-    flex: 1 1 240px;
+    padding: 0 2px;
     min-width: 0;
-    transition: border-color .12s ease, box-shadow .12s ease;
+    transition: border-color .12s ease;
 }
-.fq-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(200, 168, 75, .15); }
+.fq-search:focus-within { border-bottom-color: var(--accent); }
 .fq-search svg { width: 16px; height: 16px; stroke: var(--text-muted); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
 .fq-search input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-size: 13.5px; color: var(--navy); }
 .fq-search input::placeholder { color: var(--text-muted); }
@@ -110,7 +156,7 @@
 .fq-r { text-align: center; }
 
 .fq-person { font-size: 13.5px; font-weight: 700; color: var(--text); white-space: nowrap; }
-.fq-period { font-size: 13px; color: var(--text); white-space: nowrap; }
+.fq-period { font-size: 13.5px; font-weight: 700; color: var(--text); white-space: nowrap; }
 .fq-note { font-size: 13px; color: var(--text); }
 .fq-sub { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
 
@@ -173,7 +219,7 @@
 
 /* ── Responsive ── */
 @media screen and (max-width: 640px) {
-    .fq-search { flex-basis: 100%; }
+
     .fq-table { font-size: 12px; }
     .fq-sec-sub { display: none; }
 }
@@ -375,9 +421,6 @@
 }
 .fq-hideall:hover { background: var(--bg-icon); border-color: var(--accent); color: var(--accent); }
 .fq-hideall svg { width: 14px; height: 14px; }
-
-/* Past follow-up button — standard app button (btn-outline), right-aligned in the filter bar. */
-.fq-history-link { margin-left: auto; flex-shrink: 0; }
 
 /* ── Hero + queue summary stat strip (matches the facility pages) ── */
 

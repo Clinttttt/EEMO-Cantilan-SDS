@@ -131,7 +131,7 @@ Consequences the whole system holds to:
 
 ## 3. Core business rules
 
-- **MEEDO three-year contract standard (2026-10-09):** Kanmanggay, NPM, NCC and TCC are explicitly covered by the [office clarification and contract audit](MEEDO_CONTRACT_CLARIFICATION_20261009.md). Contract term is distinct from payment frequency. Exceptions, historical compatibility and expiry/billing consequences remain to be clarified; no backfill or new lifecycle automation is authorized. Existing rules below describe current behavior, not proof that this new standard is enforced across every source.
+- **MEEDO contract-duration default (2026-10-14 supersedes the three-year-only interpretation):** Kanmanggay, NPM, NCC and TCC default new contracts to three years but record the actual signed term, including other permitted whole-year and custom durations. See the [office clarification and contract audit](MEEDO_CONTRACT_CLARIFICATION_20261009.md). Contract term is distinct from payment frequency; no historical backfill, assessment change, or new expiry/lifecycle automation is authorized. Other municipalities require their own confirmed policy.
 
 - **Delinquency / Arrears:** Current production defines Delinquent as at least one fully elapsed unpaid month. Active 1–2 month balances are lower-age/Normal follow-up; active 3+ month balances are higher-age/Critical follow-up. Arrears remains qualifying old/lapsed debt and its exact qualification boundary is unresolved. The former 3+-month / 1–2-month classification split is superseded; see `REVENUE_ARCHITECTURE.md`. The deployed delinquency rule does not complete the separate Arrears qualification/recovery/reporting work.
 - **Contract expiry:** flagged when within 3 months; an expired contract drops off the current-holder roster
@@ -317,3 +317,27 @@ collector app's bind link.
 - **Billable** — a stall that owes for the period (active, in term, not excused).
 - **Settlement** — converting a month of NPM daily marks into the month's payment record.
 - **Head** — the LGU's SuperAdmin, the office's own authority. Not the platform operator.
+
+## 11. Owner-requested prospective NPM opening-month rule (2026-10-20; not live activation)
+
+For an explicitly approved new `DailyStall` / `RentGoal` occupancy and a reviewed month source,
+the opening calendar month's **gross obligation is the approved monthly rent**, including a mid-month start.
+Daily installments, authorized Part payments and Whole settlement reduce that same source-owned balance;
+they are not additional rent. Whole settlement may include a genuine terminal remainder without creating
+an extra occupied day or DailyCollection. Gross assessment, credits, net received, full-period outstanding
+and earned/as-of liability remain distinct. This rule does not make the entire opening month delinquent
+on the first occupancy day, and introduces no penalty or new due date.
+
+Implementation is prospective and disabled by default. It requires tenant/facility-specific approval,
+an effective date and approval evidence preceding registration, an explicit tenant-owned monthly rate
+record, an unassessed opening period and unambiguous occupancy ownership. A descriptive registration or
+contract amount, or thirty times a daily rate, is not sufficient monthly approval. Missing authority,
+custom-section monthly terms without approval, existing assessment/payment evidence, shared months and
+early termination require Office review. Rates/assessment provenance are frozen on the month source;
+approved credits and immutable cash evidence remain separate.
+
+Historical RentGoal proration, PureDays, NPM's separate `MonthlyRental` archetype and other facilities retain
+their existing interpretation. There is no automatic municipal activation, historical reassessment or
+conversion of earlier receipts. Financial-schema installation and real-LGU cutover require separate approval.
+See the [consolidated implementation handoff](../planning/NPM_MONTHLY_SETTLEMENT_CONSOLIDATED_IMPLEMENTATION_20261017.md)
+for the executable scope, tests and remaining acceptance limits.

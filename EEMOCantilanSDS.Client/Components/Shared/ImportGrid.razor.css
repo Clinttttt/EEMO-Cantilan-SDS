@@ -67,3 +67,41 @@
     color: var(--red, #8b3a3a) !important;
 }
 .imp-th-status, .imp-td-status { text-align: left; }
+
+/* Opt-in for Space imports only. Other import workspaces retain the editable register above. */
+.imp-grid-compact { container-type: inline-size; min-width: 0; }
+.imp-grid-compact .imp-table { table-layout: fixed; }
+.imp-grid-compact.imp-grid-register .imp-table { table-layout: auto; }
+.imp-grid-compact.imp-grid-register .imp-table th { white-space: nowrap; }
+.imp-grid-compact .imp-th-num, .imp-grid-compact .imp-td-num { width: 28px; }
+.imp-grid-compact .imp-th-act, .imp-grid-compact .imp-td-act { width: 112px; }
+.imp-grid-compact .imp-th-act, .imp-grid-compact .imp-td-act { min-width: 112px; white-space: nowrap; }
+.imp-grid-compact .imp-th-status { width: 115px; }
+.imp-grid-compact .imp-th-status, .imp-grid-compact .imp-td-status { min-width: 115px; }
+.imp-grid-compact .imp-table th { white-space: normal; padding: 10px 6px; }
+.imp-grid-compact .imp-cell { min-width: 0; padding-left: 5px; padding-right: 5px; }
+.imp-grid-compact .imp-cell-select { padding-right: 23px; }
+.imp-grid-compact .imp-cell { min-height: 34px; }
+.imp-grid-compact .imp-cell-select { border: 1px solid var(--border); background: var(--bg-card); padding: 6px 28px 6px 10px; text-align: left; text-align-last: left; }
+.imp-grid-compact .imp-cell-select:hover { background: var(--accent-soft); border-color: var(--accent); }
+.imp-grid-compact .imp-cell-select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.imp-grid-compact .imp-cell-select:disabled { background: var(--bg); color: var(--text-muted); cursor: not-allowed; }
+.imp-grid-compact .imp-table td { overflow-wrap: anywhere; }
+.imp-grid-compact .imp-row-del:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@container (max-width: 850px) {
+    .imp-grid-compact .imp-table, .imp-grid-compact tbody { display: block; }
+    /* Standard visually-hidden headers remain available to screen readers; each card repeats the labels visibly. */
+    .imp-grid-compact thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    .imp-grid-compact tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding: 12px; gap: 8px 14px; border-bottom: 1px solid var(--border); }
+    .imp-grid-compact tbody tr:last-child { border-bottom: 0; }
+    .imp-grid-compact .imp-table tbody td { display: block; width: auto; min-width: 0; padding: 0; border: 0; text-align: left; }
+    .imp-grid-compact td::before { content: attr(data-label); display: block; color: var(--text-secondary); font-size: 11px; font-weight: 600; margin-bottom: 4px; }
+    .imp-grid-compact td.imp-td-num { grid-column: 1 / -1; }
+    .imp-grid-compact .imp-cell { text-align: left; background: var(--bg); border-color: var(--border); }
+    .imp-grid-compact .imp-cell-select { text-align-last: left; }
+    .imp-grid-compact .imp-td-act { align-self: end; }
+}
+@container (max-width: 420px) {
+    .imp-grid-compact tbody tr { grid-template-columns: minmax(0, 1fr); }
+}

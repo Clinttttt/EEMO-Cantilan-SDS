@@ -3,6 +3,7 @@
 @using global::EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Mobile.Models
 @using EEMOCantilanSDS.Mobile.Records
+@using System.Globalization
 @using RecordRow = EEMOCantilanSDS.Mobile.Records.CollectorRecordEntry
 @using EEMOCantilanSDS.Mobile.Services
 @inject NavigationManager Navigation
@@ -86,7 +87,7 @@
 
         @if (ActiveFacility is null && !IsLoading)
         {
-            <OperationRecordsSection From="CurrentRange().From" To="CurrentRange().To" />
+            <OperationRecordsSection From="CurrentRange().From" To="CurrentRange().To" Search="@SearchQuery" />
         }
 
         @if (IsLoading)
@@ -130,36 +131,14 @@
                     @foreach (var row in band.Rows)
                     {
                         var rec = row.Primary;
-                        <div class="record-card @RowCardClass(row)" @onclick="() => OpenDetail(row)">
-                            <div class="record-info">
-                                <div class="record-name">@rec.PayorName</div>
-                                <div class="record-meta">
-                                    @* The area is not repeated here: the band above says it. The facility is stated only when the
-                                       band is an area rather than the facility itself, so it is never said twice either. *@
-                                    @if (AssignedFacilities.Count > 1 && !BandNamesTheFacility(row))
-                                    {
-                                        <span class="record-facility">@rec.FacilityCode</span>
-                                    }
-                                    @if (rec.IsAdminRecorded)
-                                    {
-                                        <span class="record-admin-tag">Office</span>
-                                    }
-                                    @if (row.IsMerged)
-                                    {
-                                        <span class="record-section">@MergedLabel(row)</span>
-                                    }
-                                    else if (rec.SlaughterLines is { Count: > 1 })
-                                    {
-                                        <span class="record-section">@rec.SlaughterLines.Count animal types</span>
-                                    }
-                                    <span class="record-time">@RowTimeLine(row)</span>
-                                </div>
-                            </div>
-                            <div class="record-amount-col">
-                                <div class="record-amount">@(rec.IsAbsent ? "—" : "₱" + row.TotalAmount.ToString("N0"))</div>
-                                <span class="record-status-pill @RowPillClass(row)">@RowStatusLabel(row)</span>
-                            </div>
-                        </div>
+                        <CollectionRecordRow Identity="@rec.PayorName" Amount="@(rec.IsAbsent ? (decimal?)null : row.TotalPaid)"
+                            Assessed="@(row.AnyPartial && !rec.IsAbsent ? row.TotalAmount : (decimal?)null)" DateText="@rec.CollectedAt.ToString("MMM d", CultureInfo.InvariantCulture)"
+                            Status="@(rec.IsAbsent ? "Excused" : row.AnyPartial ? "Partial" : null)"
+                            OnOpen="() => OpenDetail(row)">
+                            <Details>
+                                <span>@rec.FacilityCode · @(rec.IsAbsent ? "Excused" : row.SharesOneNature ? rec.Nature : "Multiple charges")@if (!rec.IsAbsent) { <text> · ₱@row.TotalPaid.ToString("N2", CultureInfo.InvariantCulture)</text> }</span>
+                            </Details>
+                        </CollectionRecordRow>
                     }
                 }
 
@@ -188,7 +167,14 @@
                 }
                 else
                 {
-                    <div class="detail-row"><span class="detail-key">OR Number</span><span class="detail-val">#@SelectedRecord.ORNumber</span></div>
+                    @if (HasReceiptNumber(SelectedRecord.ORNumber))
+                    {
+                        <div class="detail-row"><span class="detail-key">Receipt</span><span class="detail-val">@SelectedRecord.ORNumber</span></div>
+                    }
+                    else
+                    {
+                        <div class="detail-row"><span class="detail-key">Receipt</span><span class="detail-val">None recorded</span></div>
+                    }
                 }
             }
             <div class="detail-row"><span class="detail-key">Facility</span><span class="detail-val">@SelectedRecord.FacilityName</span></div>
@@ -222,7 +208,7 @@
                 }
             }
             <div class="detail-row"><span class="detail-key">Recorded by</span><span class="detail-val">@(SelectedRecord.IsAdminRecorded ? "Office / Admin" : Session.CollectorName)</span></div>
-            <div class="detail-row"><span class="detail-key">Date@(SelectedRow is { ReceiptCount: > 1 } ? "" : " &amp; Time")</span><span class="detail-val">@(SelectedRow is { ReceiptCount: > 1 } ? SelectedRecord.CollectedAt.ToString("MMM d, yyyy") : SelectedRecord.CollectedAt.ToString("MMM d, yyyy · hh:mm tt"))</span></div>
+            <div class="detail-row"><span class="detail-key">@(SelectedRow is { ReceiptCount: > 1 } ? "Date" : "Date & Time")</span><span class="detail-val">@(SelectedRow is { ReceiptCount: > 1 } ? SelectedRecord.CollectedAt.ToString("MMM d, yyyy") : SelectedRecord.CollectedAt.ToString("MMM d, yyyy · hh:mm tt"))</span></div>
             @if (SelectedRow is { IsMerged: false } && SelectedRecord.FeeDate is { } feeDay && feeDay != DateOnly.FromDateTime(SelectedRecord.CollectedAt))
             {
                 <div class="detail-row"><span class="detail-key">Fee for</span><span class="detail-val">@feeDay.ToString("MMM d, yyyy")</span></div>
@@ -236,15 +222,21 @@
             {
                 @* Every receipt behind this entry, with its own number, the time it was taken and what it covered. The
                    entry collapses a payor's cards; it does not collapse the receipts the office answers for. *@
-                <div class="detail-util-head">@(merged.ReceiptCount == 1 ? "This receipt" : "Receipts")</div>
+                <div class="detail-util-head">@(merged.Primary.IsAbsent ? "Excused dates" : merged.ReceiptCount > 1 ? "Receipts" : HasReceiptNumber(merged.Primary.ORNumber) ? "This receipt" : "Collection breakdown")</div>
                 @foreach (var receipt in merged.Receipts)
                 {
                     var receiptTotal = receipt.Sum(i => i.Amount);
                     var receiptTime = receipt.Min(i => i.CollectedAt);
                     <div class="detail-row">
-                        <span class="detail-key">#@receipt.Key · @receiptTime.ToString("hh:mm tt")</span>
+                        <span class="detail-key">@(merged.Primary.IsAbsent ? "Excused period" : HasReceiptNumber(receipt.Key) ? $"Receipt {receipt.Key}" : "Recorded collection") · @receiptTime.ToString("hh:mm tt")</span>
                         <span class="detail-val amount-val">₱@receiptTotal.ToString("N0")</span>
                     </div>
+                    @if (!merged.Primary.IsAbsent && receipt.Count() >= 4 && receipt.All(i => i.FeeDate.HasValue && i.SlaughterLines is not { Count: > 0 }))
+                    {
+                        <DailyReceiptBreakdown Items="@receipt.ToList()" />
+                    }
+                    else
+                    {
                     @foreach (var it in receipt.OrderBy(i => i.FeeDate ?? DateOnly.MaxValue).ThenBy(i => i.CollectedAt))
                     {
                         @if (it.SlaughterLines is { Count: > 0 } lines)
@@ -262,8 +254,12 @@
                             </div>
                         }
                     }
+                    }
                 }
-                <div class="detail-row"><span class="detail-key">Total Amount</span><span class="detail-val amount-val">₱@merged.TotalAmount.ToString("N0")</span></div>
+                @if (merged.ReceiptCount > 1 || merged.AnyPartial)
+                {
+                    <div class="detail-row"><span class="detail-key">Total Amount</span><span class="detail-val amount-val">₱@merged.TotalAmount.ToString("N0")</span></div>
+                }
                 @if (merged.AnyPartial)
                 {
                     <div class="detail-row"><span class="detail-key">Collected</span><span class="detail-val" style="color:var(--paid-green);font-weight:600;">₱@merged.TotalPaid.ToString("N0")</span></div>
@@ -309,7 +305,7 @@
     <div class="sheet-overlay" @onclick="ClosePendingSheet">
         <div class="sheet" @onclick:stopPropagation="true">
             <div class="sheet-handle"></div>
-            <div class="sheet-title">Offline &amp; Cash Ticket history</div>
+            <div class="sheet-title">Offline collection history</div>
             <div class="sheet-sub">
                 @if (Sync.HasStorageFault)
                 {
@@ -319,13 +315,17 @@
                         This device could not read or write its offline queue@(PendingOps.Count > 0 ? $", and {PendingOps.Count} collection{(PendingOps.Count == 1 ? "" : "s")} are held in memory only" : ""). Sync while you have signal, and report this device.
                     </text>
                 }
+                else if (PendingOps.Count == 0)
+                {
+                    <text>No offline collections are waiting to sync. Confirmed collections are listed in Records.</text>
+                }
                 else if (WaitingOperationCount == 0 && RetainedTicketCount == 0)
                 {
-                    <text>No offline collections are waiting to sync.</text>
+                    <text>Synced local history retained for verification. Check Records for the server copy.</text>
                 }
                 else
                 {
-                    <text>@WaitingOperationCount operation@(WaitingOperationCount == 1 ? "" : "s") need sync or review; @RetainedTicketCount physically issued Cash Ticket record@(RetainedTicketCount == 1 ? "" : "s") retained on this device.</text>
+                    <text>@WaitingOperationCount collection@(WaitingOperationCount == 1 ? "" : "s") need sync or review. @if (RetainedTicketCount > 0) { <span>@RetainedTicketCount issued document record@(RetainedTicketCount == 1 ? "" : "s") retained on this device.</span> } Synced collections with confirmed SRCs appear in Records.</text>
                 }
             </div>
 
@@ -342,7 +342,7 @@
                         var orphaned = op.OwnerKey is null;
                         <div class="pending-item @(orphaned ? "rejected" : PendingItemClass(op))" @key="op.ClientOperationId">
                             <div class="pending-item-main">
-                                <div class="pending-item-title">@op.Title</div>
+                                <div class="pending-item-title">@OfflineCollectionHistory.Title(op)</div>
                                 <div class="pending-item-detail">
                                     @op.FacilityLabel@(string.IsNullOrWhiteSpace(op.Detail) ? "" : " · " + op.Detail)@(string.IsNullOrWhiteSpace(op.ORNumber) ? "" : " · OR " + op.ORNumber)
                                 </div>
@@ -360,7 +360,7 @@
                                 }
                                 else if (op.IssuedDocumentState == IssuedDocumentLocalState.SyncedAcknowledged)
                                 {
-                                    <div class="pending-item-msg">@(string.IsNullOrWhiteSpace(op.ReferenceCode) ? "Collection recorded." : $"Collection recorded · {op.ReferenceCode}")</div>
+                                    <div class="pending-item-msg pending-item-confirmed">@(OfflineCollectionHistory.ServerReferences(op) is { } refs ? $"Recorded · {refs}" : "Synced acknowledgement; reference unavailable. Verify in Records.")</div>
                                 }
                                 else if (op.LocalStatus == PendingLocalStatus.Failed)
                                 {
@@ -373,7 +373,7 @@
                                 }
                             </div>
                             <div class="pending-item-right">
-                                <div class="pending-item-amount">₱@op.Amount.ToString("N0")</div>
+                                <div class="pending-item-amount">@(OfflineCollectionHistory.DisplayAmount(op) is { } amount ? $"₱{amount:N2}" : "Amount unconfirmed")</div>
                                 <span class="pending-status @(orphaned ? "rejected" : PendingItemClass(op))">@(orphaned ? "Unassigned" : PendingStatusLabel(op))</span>
                                 @if (!orphaned && MobileSyncService.CanReviewUnpostedSession(op))
                                 { <button class="pending-discard" type="button" @onclick='() => Navigation.NavigateTo("/collections/new?sessionId=" + op.ClientOperationId)'>Review</button> }
@@ -403,10 +403,16 @@
 
 @code {
     // ── Daily-context facilities (per-transaction / per-day). The rest are monthly rentals. ──
-    static readonly HashSet<FacilityCode> DailyFacilities = new()
+    static readonly HashSet<FacilityCode> DailyWithMarket = new()
     {
         FacilityCode.NPM, FacilityCode.SLH, FacilityCode.TRM, FacilityCode.TPM
     };
+    static readonly HashSet<FacilityCode> DailyWithoutMarket = new() { FacilityCode.SLH, FacilityCode.TRM, FacilityCode.TPM };
+
+    // A Public Market its LGU rents by the month is a monthly rental on the device: it reads month chips, not daily ones.
+    HashSet<FacilityCode> DailyFacilities =>
+        Session.Menu?.Facilities.Any(f => f.Code == FacilityCode.NPM && f.Archetype == BillingArchetype.MonthlyRental) == true
+            ? DailyWithoutMarket : DailyWithMarket;
 
     // Tabo-an Public Market trades only on Fridays (₱100/vendor/market day), so its Records show
     // market-day (Friday) chips instead of consecutive-day chips.
@@ -718,7 +724,7 @@
 
     static string RowStatusLabel(RecordRow row) =>
         row.Primary.IsAbsent ? "Excused"
-        : row.AnyPartial ? $"₱{row.TotalPaid:N0} paid"
+        : row.AnyPartial ? "Partial"
         : "Paid";
 
     // The line under the name: the time the last money came in, and the receipt number while there is only one to name.
@@ -728,12 +734,13 @@
     // An absence names the DAY it excuses, not the moment it was written. A section closure excuses a whole frozen span in
     // one act, so every day of it shares one written-at time; stating that time told the office nothing and put the excusal
     // on a day nobody had touched the section.
+    static bool HasReceiptNumber(string? number) =>
+        !string.IsNullOrWhiteSpace(number) && number.Trim() is not ("—" or "-" or "0");
+
     static string RowTimeLine(RecordRow row) =>
         row.Primary.IsAbsent
             ? (row.FeeDayLabel.Length > 0 ? row.FeeDayLabel + " · excused" : "excused")
-            : row.ReceiptCount == 1
-                ? row.LatestAt.ToString("hh:mm tt") + " · OR #" + row.Primary.ORNumber
-                : row.LatestAt.ToString("hh:mm tt") + " · last of " + row.ReceiptCount + " receipts";
+            : row.LatestAt.ToString("MMM d · h:mm tt");
 
     // Tag on a collapsed entry. Several receipts are counted as receipts, because that is what the office answers for; one
     // receipt covering several owed days states the days; anything else states plain entries.
@@ -751,14 +758,13 @@
     IReadOnlyList<PendingOperation> PendingOps = Array.Empty<PendingOperation>();
 
     int WaitingOperationCount => PendingOps.Count(op => op.LocalStatus != PendingLocalStatus.Synced);
-    int RetainedTicketCount => PendingOps.Count(op => op.AccountableDocumentId is not null
-        || op.IssuedDocumentState is not null);
+    int RetainedTicketCount => OfflineCollectionHistory.IssuedDocumentCount(PendingOps);
 
     bool HasRetryable => PendingOps.Any(o => o.OwnerKey is not null && o.LocalStatus is PendingLocalStatus.Pending or PendingLocalStatus.Failed);
 
     async Task OpenPendingSheetAsync()
     {
-        PendingOps = await Sync.GetAllAsync();
+        PendingOps = OfflineCollectionHistory.Display(await Sync.GetAllAsync());
         ShowPendingSheet = true;
     }
 
@@ -767,7 +773,7 @@
     async Task SyncPendingNowAsync()
     {
         var summary = await Sync.SyncNowAsync();
-        PendingOps = await Sync.GetAllAsync();
+        PendingOps = OfflineCollectionHistory.Display(await Sync.GetAllAsync());
         if (summary.Synced > 0)
             await RefreshRecordsAsync();
     }
@@ -775,7 +781,7 @@
     async Task DiscardPendingAsync(Guid clientOperationId)
     {
         await Sync.DiscardAsync(clientOperationId);
-        PendingOps = await Sync.GetAllAsync();
+        PendingOps = OfflineCollectionHistory.Display(await Sync.GetAllAsync());
     }
 
     static string PendingStatusLabel(PendingOperation op) => op.LocalStatus switch
@@ -793,6 +799,7 @@
         PendingLocalStatus.Rejected => "rejected",
         PendingLocalStatus.ReconciliationRequired => "rejected",
         PendingLocalStatus.Failed => "failed",
+        PendingLocalStatus.Synced => "synced",
         _ => "pending"
     };
 
@@ -821,7 +828,7 @@
                 if (_disposed)
                     return;
                 if (ShowPendingSheet)
-                    PendingOps = await Sync.GetAllAsync();
+                    PendingOps = OfflineCollectionHistory.Display(await Sync.GetAllAsync());
 
                 if (queueDrained)
                     await RefreshRecordsAsync();

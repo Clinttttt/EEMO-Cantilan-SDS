@@ -10,9 +10,9 @@
     @if(_saved is { } saved) { <div class="far-saved" role="status"><span>Assessment saved · <strong>@Money(saved.Remaining)</strong> outstanding. Nothing has been collected yet.</span>
         <button class="v3-btn v3-btn-sm" type="button" @onclick="() => { _payment=saved.Id; _saved=null; }">Record payment now</button>
     </div> }
-    <div class="v3-toolbar"><label class="v3-field far-search"><span>Search</span><input @bind="_search" placeholder="Occupant, unit or description" /></label>
+    <div class="v3-toolbar"><label class="v3-field far-search"><span class="v3-sr-only">Search</span><input @bind="_search" placeholder="Occupant, unit or description" /></label>
         <button class="v3-btn far-search-btn" type="button" @onclick="Load">Search</button>
-        <label class="v3-field"><span>Status</span><select @bind="_status"><option>All</option><option>Outstanding</option><option>Settled</option></select></label>
+        <label class="v3-field"><span class="v3-sr-only">Status</span><select @bind="_status"><option>All</option><option>Outstanding</option><option>Settled</option></select></label>
     </div>
     @if (_error is not null) { <p class="v3-notice v3-notice-error" role="alert">@_error <button type="button" class="v3-btn" @onclick="Load">Retry</button></p> }
     <div class="v3-table-wrap" tabindex="0"><table class="v3-table far-table"><thead><tr><th>Payor / account</th><th>Fine</th><th>Related period</th><th class="v3-num">Assessed</th><th class="v3-num">Collected</th><th class="v3-num">Remaining</th><th>Status</th><th><span class="v3-sr-only">Actions</span></th></tr></thead><tbody>
@@ -31,7 +31,6 @@
         }
         @if (!VisibleRows.Any()) { <tr><td colspan="8" class="v3-empty">@if (_loading) { <span role="status">Loading assessments…</span> } else if (_error is not null) { <span>Assessments unavailable.</span> } else { <span class="v3-empty-block">@EmptyIcon<span>No saved assessments match.</span></span> }</td></tr> }
     </tbody></table></div>
-    <p class="v3-panel-note">Saved assessments are amounts owed. Collected amounts come from canonical payment allocations.</p>
 </section>
 @if (_adding) { <AuthorizeView Roles="SuperAdmin"><Authorized><FineAssessmentDrawer Account="InitialAccount" OnClose="CancelAssessment" OnCreated="Created" /></Authorized></AuthorizeView> }
 @if (_payment is { } payment) { <FinePaymentDrawer AssessmentId="payment" OnClose="() => _payment=null" OnPaid="Paid" /> }

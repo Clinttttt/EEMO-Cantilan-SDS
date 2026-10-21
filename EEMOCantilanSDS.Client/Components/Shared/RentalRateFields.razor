@@ -2,41 +2,55 @@
 
 @if (!ChargeCard)
 {
-    <div class="avm-row-2">
+    <div class="avm-row-2" style="@(ShowContractRate ? "" : "grid-template-columns: minmax(0, 1fr);")">
         <div class="avm-group">
             <label class="avm-label" for="@InputId">@Label <span class="avm-req">*</span></label>
             <input id="@InputId" class="avm-input" type="number" min="@Minimum" step="@Step" placeholder="e.g. 900"
                    @bind="Form.MonthlyRate" @bind:after="NotifyEntered" />
-            <div class="avm-hint-muted">Whole Year: ₱@((Form.MonthlyRate * 12m).ToString("N0"))</div>
+            @if (!OneTime) { <div class="avm-hint-muted">Whole Year: ₱@((Form.MonthlyRate * 12m).ToString("N0"))</div> }
+            else { <div class="avm-hint-muted">Charged once for the selected event.</div> }
             @RateNote
         </div>
-        <div class="avm-group" style="visibility:hidden;"></div>
+        @if (ShowContractRate)
+        {
+            @* The monthly rental the signed contract itself states. It is evidence on the account (the office register's "Monthly Rentals per
+               Contract"); what is billed is the figure beside it. *@
+            <div class="avm-group">
+                <label class="avm-label" for="@(InputId + "-contract")">@ContractRateLabel</label>
+                <input id="@(InputId + "-contract")" class="avm-input" type="number" min="0" step="0.01" placeholder="Per signed contract"
+                       value="@ContractRate" @onchange="OnContractRate" />
+                <div class="avm-hint-muted">Evidence only; not billed.</div>
+            </div>
+        }
+        @* No empty column when contract-rate evidence is not being requested. *@
     </div>
 }
 else
 {
-    <div class="avm-sublabel">Base Rental</div>
+    <div class="avm-sublabel">@(OneTime ? "Event Rental" : "Base Rental")</div>
     <div class="avm-rental-card">
         <div class="avm-rental-info">
             <div class="avm-rental-icon">@Icon</div>
-            <div><div class="avm-rental-title">Monthly Rental</div><div class="avm-rental-sub">@SourceName</div></div>
+            <div><div class="avm-rental-title">@(OneTime ? "Approved Event Amount" : "Monthly Rental")</div><div class="avm-rental-sub">@SourceName</div></div>
         </div>
         <div class="avm-spinner">
-            <button type="button" class="avm-spin-btn avm-spin-left" aria-label="Decrease monthly rental" @onclick="Decrease">−</button>
+            <button type="button" class="avm-spin-btn avm-spin-left" aria-label="@(OneTime ? "Decrease event amount" : "Decrease monthly rental")" @onclick="Decrease">−</button>
             <div class="avm-spin-inner">
                 <span class="avm-spin-currency">₱</span>
                 <input type="number" min="@Minimum" step="@Step" class="avm-spin-input" @bind="Form.MonthlyRate" @bind:after="NotifyEntered" />
-                <span class="avm-spin-freq">/mo</span>
+                @if (!OneTime) { <span class="avm-spin-freq">/mo</span> }
             </div>
-            <button type="button" class="avm-spin-btn avm-spin-right" aria-label="Increase monthly rental" @onclick="Increase">+</button>
+            <button type="button" class="avm-spin-btn avm-spin-right" aria-label="@(OneTime ? "Increase event amount" : "Increase monthly rental")" @onclick="Increase">+</button>
         </div>
     </div>
-    <div class="avm-yearly-hint"><span class="avm-yearly-label">Whole-year equivalent</span><strong class="avm-yearly-value">₱@((Form.MonthlyRate * 12m).ToString("N2"))</strong></div>
+    @if (!OneTime) { <div class="avm-yearly-hint"><span class="avm-yearly-label">Whole-year equivalent</span><strong class="avm-yearly-value">₱@((Form.MonthlyRate * 12m).ToString("N2"))</strong></div> }
+    else { <div class="avm-hint-muted">One approved charge; no monthly or whole-year rental.</div> }
 }
 
 @code {
     [Parameter, EditorRequired] public IRentalRegistrationState Form { get; set; } = null!;
     [Parameter] public bool ChargeCard { get; set; }
+    [Parameter] public bool OneTime { get; set; }
     [Parameter] public string? InputId { get; set; }
     [Parameter] public string Label { get; set; } = "Monthly Rental / Rate (₱)";
     [Parameter] public decimal Minimum { get; set; }
@@ -44,6 +58,18 @@ else
     [Parameter] public string SourceName { get; set; } = "";
     [Parameter] public RenderFragment? Icon { get; set; }
     [Parameter] public RenderFragment? RateNote { get; set; }
+    /// <summary>Offers the second field: what the signed contract states per month (only for an account that has a signed contract).</summary>
+    [Parameter] public bool ShowContractRate { get; set; }
+    [Parameter] public string ContractRateLabel { get; set; } = "Monthly Rental per Contract (₱)";
+    [Parameter] public decimal? ContractRate { get; set; }
+    [Parameter] public EventCallback<decimal?> ContractRateChanged { get; set; }
+    private Task OnContractRate(ChangeEventArgs args)
+    {
+        var text = args.Value?.ToString();
+        decimal? value = decimal.TryParse(text, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var parsed) && parsed > 0m ? parsed : null;
+        ContractRate = value;
+        return ContractRateChanged.InvokeAsync(value);
+    }
     [Parameter] public EventCallback Entered { get; set; }
     [Parameter] public EventCallback Changed { get; set; }
     private Task NotifyEntered() => Entered.InvokeAsync();

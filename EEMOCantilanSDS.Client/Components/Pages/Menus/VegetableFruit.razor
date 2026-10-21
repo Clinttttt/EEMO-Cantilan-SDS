@@ -3,18 +3,15 @@
 @rendermode InteractiveServer
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Constants
-@using System.Globalization
-@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
-@using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Domain.Enums
-@using EEMOCantilanSDS.Domain.Common
-@inject IGovernedServicesApiClient GovernedApi
+@using EEMOCantilanSDS.Application.Dtos.Revenue
 
 <PageTitle>StallTrack — Vegetable / Fruits</PageTitle>
 
-<OperationTopbar Title="Vegetable / Fruits" Crumb="Space rental" />
+<OperationTopbar OperationCode="VEGETABLE_FRUIT_SPACE_RENTAL" Title="Vegetable / Fruits" Crumb="Space rental" />
 <div class="content-area">
-    @* Keep both views mounted so register filters and the daily period survive mode switches. *@
+    @* Keep both views mounted so register filters and the daily period survive mode switches. The daily view is the governed-service
+       workspace (collections beside setup) limited to Daily transactions, so walk-in vendors are collected and set up in one place. *@
     <div hidden="@_daily" role="region" id="vf-monthly" aria-label="Monthly space register">
         <ObligationWorkspace Kind="ObligationKind.VegetableFruitSpaceRental" Name="Vegetable / Fruits" SubjectNoun="Space"
                              SpaceExperience="true" Overview="true" Presentation="EEMOCantilanSDS.Client.Services.SpaceAccountPresentation.VegetableFruit" ServerAssignedNumber="true" EffectiveMonthLabel="Effective month"
@@ -24,71 +21,27 @@
         </ObligationWorkspace>
     </div>
     <div hidden="@(!_daily)" role="region" id="vf-daily" aria-label="Daily collections">
-        <FacilityHero Title="Vegetable / Fruits" Eyebrow="OPERATION · DAILY SPACE RENTAL" Stats="DailyStats">
-            <Icon><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></svg></Icon>
-        </FacilityHero>
-        <div class="vf-daily-toolbar">
-            <label class="vf-search"><span class="v3-sr-only">Search daily collections</span><input class="v3-input" type="search" placeholder="Search name or SRC…" @bind="_search" @bind:event="oninput" /></label>
-            @ModeSwitch
-            <label class="v3-period"><span>Month</span><input class="v3-input" type="month" aria-label="Daily collection month" value="@_month" @onchange="ChangeMonth" /></label>
-            <a class="btn-outline" href="/operations/vegetable-fruit/daily-report">Reports</a>
-            <AuthorizeView Roles="SuperAdmin"><Authorized><a class="btn-outline" href="/operations/vegetable-fruit/daily-setup">Daily setup</a></Authorized></AuthorizeView>
-            <InstrumentChip Instrument="CT" ShowName="true" />
-        </div>
-        @if (_error is not null) { <div class="v3-notice v3-notice-error" role="alert">@_error <button type="button" class="v3-btn v3-btn-sm" @onclick="LoadDaily">Try again</button></div> }
-        <section class="v3-panel" aria-labelledby="vf-daily-title" aria-busy="@_loading.ToString().ToLowerInvariant()">
-            <header class="v3-panel-header"><h2 id="vf-daily-title">Daily collections</h2></header>
-            <div class="v3-table-wrap"><table class="v3-table">
-                <thead><tr><th scope="col">Date</th><th scope="col">Name / payer</th><th scope="col">SRC</th><th scope="col">Collector</th><th scope="col" class="v3-num">Amount</th></tr></thead>
-                <tbody>
-                    @foreach (var row in VisibleDaily)
-                    {
-                        <tr><td>@row.BusinessDate.ToString("MMM d, yyyy")</td><td>@(row.PayerName ?? "—")</td><td>@row.ReferenceCode</td><td>@(row.CollectorName ?? "Office")</td><td class="v3-num">@Money(row.NetAmount ?? row.Amount)</td></tr>
-                    }
-                    @if (!VisibleDaily.Any()) { <tr><td colspan="5" class="v3-table-empty">@(_loading ? "Loading collections…" : "No daily collections in this period.")</td></tr> }
-                </tbody>
-            </table></div>
-        </section>
+        <GovernedServiceWorkspace OperationCode="@CollectorOperationCodes.VegetableFruitSpaceRental" Name="Vegetable / Fruits" FeeOptionsTitle="Vegetable / Fruits fees"
+                                  ActivityMode="GovernedServiceMode.DailyTransaction" VisibleCollectionRows="5" HeroEyebrow="Operations · Walk-in vendors">
+            <HeroIcon>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></svg>
+            </HeroIcon>
+            <HeroActions>
+                @ModeSwitch
+                <a class="v3-btn" href="/operations/vegetable-fruit/daily-report">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17" x2="13" y2="17" /></svg>
+                    Report
+                </a>
+            </HeroActions>
+        </GovernedServiceWorkspace>
     </div>
 </div>
 
 @code {
-    private bool _daily, _loading = true;
-    private string _search = "", _month = PhilippineTime.Today.ToString("yyyy-MM", CultureInfo.InvariantCulture);
-    private string? _error;
-    private IReadOnlyList<GovernedServiceActivityDto> _activity = [], _todayActivity = [];
-    private IEnumerable<GovernedServiceActivityDto> Daily => _activity.Where(x => x.Mode == GovernedServiceMode.DailyTransaction);
-    private IEnumerable<GovernedServiceActivityDto> VisibleDaily => Daily.Where(x => string.IsNullOrWhiteSpace(_search)
-        || (x.PayerName?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false)
-        || (x.ReferenceCode?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false));
-    private List<FacilityHero.HeroStat> DailyStats => [
-        new() { Label = "Collected today", Value = _loading || _error is not null ? "—" : Money(_todayActivity.Sum(x => x.NetAmount ?? x.Amount)) },
-        new() { Label = "Collections today", Value = _loading || _error is not null ? "—" : _todayActivity.Count(x => x.State != GovernedCollectionState.Reversed).ToString() },
-        new() { Label = "Collected in selected month", Value = _loading || _error is not null ? "—" : Money(Daily.Sum(x => x.NetAmount ?? x.Amount)) }];
+    private bool _daily;
+
     private RenderFragment ModeSwitch => @<div class="vf-mode" role="group" aria-label="Collection mode">
         <button type="button" aria-controls="vf-monthly" aria-pressed="@(!_daily ? "true" : "false")" class="@(!_daily ? "selected" : "")" @onclick="() => _daily = false">Monthly</button>
         <button type="button" aria-controls="vf-daily" aria-pressed="@(_daily ? "true" : "false")" class="@(_daily ? "selected" : "")" @onclick="() => _daily = true">Daily</button>
     </div>;
-    protected override Task OnInitializedAsync() => LoadDaily();
-    private async Task ChangeMonth(ChangeEventArgs e) { _month = e.Value?.ToString() ?? _month; await LoadDaily(); }
-    private async Task LoadDaily()
-    {
-        if (!DateOnly.TryParseExact(_month + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start)) return;
-        _loading = true; _error = null;
-        try {
-            var result = await GovernedApi.GetActivityAsync(CollectorOperationCodes.VegetableFruitSpaceRental, start, start.AddMonths(1).AddDays(-1));
-            _activity = result.IsSuccess ? result.Value ?? [] : [];
-            if (!result.IsSuccess) _error = result.Error ?? "Daily collections could not be loaded.";
-            var today = PhilippineTime.Today;
-            if (today >= start && today < start.AddMonths(1))
-                _todayActivity = Daily.Where(x => x.BusinessDate == today).ToArray();
-            else {
-                var todayResult = await GovernedApi.GetActivityAsync(CollectorOperationCodes.VegetableFruitSpaceRental, today, today);
-                _todayActivity = todayResult.IsSuccess ? (todayResult.Value ?? []).Where(x => x.Mode == GovernedServiceMode.DailyTransaction).ToArray() : [];
-                if (!todayResult.IsSuccess) _error = todayResult.Error ?? "Today's collections could not be loaded.";
-            }
-        } catch { _activity = []; _error = "Daily collections could not be loaded."; }
-        finally { _loading = false; }
-    }
-    private static string Money(decimal amount) => $"₱{amount:N2}";
 }

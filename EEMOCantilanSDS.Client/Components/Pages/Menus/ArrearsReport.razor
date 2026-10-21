@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
 @using System.Globalization
+@using EEMOCantilanSDS.Application.Dtos.Reports
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Common
 @inject IReportsApiClient Reports
@@ -9,14 +10,13 @@
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @inject IJSRuntime JS
 
-<PageTitle>StallTrack — Arrears Report</PageTitle>
+<PageTitle>StallTrack — Arrears &amp; Delinquency Report</PageTitle>
 
-@* Arrears report: the standard operation-report shell over the same existing receivables the Arrears workspace reads
-   (ArrearsReads). No fixed instrument is stated — recovery takes the instrument of the source it settles — and no target,
-   Arrears-qualified count or write-off is invented. The layout owns the <main> landmark. *@
+@* Arrears & Delinquency report: the standard operation-report shell over the same existing receivables the workspace reads (ArrearsReads).
+   Every figure is the server's; the register lists each account under the kind it is (Delinquent or Arrears). The layout owns the <main> landmark. *@
 <div class="v3-page">
     <div class="no-print">
-        <WorkspaceHeader Parent="Arrears" ParentHref="/operations/arrears" Title="Arrears Report">
+        <WorkspaceHeader Parent="Arrears &amp; Delinquency" ParentHref="/operations/arrears" Title="Arrears &amp; Delinquency Report">
             <Actions>
                 <label class="v3-period">
                     <span>As of month</span>
@@ -31,65 +31,69 @@
     </div>
 
     <article class="v3-report-sheet print-report-sheet" aria-labelledby="arrr-title" aria-busy="@(_loading ? "true" : "false")">
-        <ReportLetterhead Title="Arrears Report" Period="@($"As of {MonthLabel}")">
+        <ReportLetterhead Title="Arrears &amp; Delinquency Report" Period="@($"As of {MonthLabel}")">
             <Facts>
-                <div><dt>Classification</dt><dd>Arrears</dd></div>
-                <div><dt>Basis</dt><dd>One or more fully elapsed unpaid months</dd></div>
+                <div><dt>Classification</dt><dd>Arrears &amp; Delinquency</dd></div>
             </Facts>
         </ReportLetterhead>
-        <h2 id="arrr-title" class="v3-sr-only">Arrears report as of @MonthLabel</h2>
+        <h2 id="arrr-title" class="v3-sr-only">Arrears and delinquency report as of @MonthLabel</h2>
 
         <section class="v3-report-section" aria-labelledby="arrr-position">
-            <h3 id="arrr-position">Arrears position — @MonthLabel</h3>
+            <h3 id="arrr-position">Position</h3>
             <div class="v3-table-wrap">
                 <table class="v3-report-table">
                     <thead>
                         <tr>
-                            <th scope="col" class="v3-num">Accounts</th>
-                            <th scope="col" class="v3-num">Outstanding</th>
-                            <th scope="col" class="v3-num">Critical (3+ months)</th>
+                            <th scope="col" class="v3-num">Delinquent accounts</th>
+                            <th scope="col" class="v3-num">Delinquent outstanding</th>
+                            <th scope="col" class="v3-num">Arrears accounts</th>
+                            <th scope="col" class="v3-num">Arrears outstanding</th>
+                            <th scope="col" class="v3-num">Total outstanding</th>
                             <th scope="col" class="v3-num">Recovered this month</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td class="v3-num">@(_data?.AccountsTotal is { } n ? n.ToString(CultureInfo.InvariantCulture) : "—")</td>
-                            <td class="v3-num v3-strong">@(_data?.OutstandingTotal is { } o ? Money(o) : "—")</td>
-                            <td class="v3-num">@(_data?.Accounts is { } rows ? rows.Count(r => r.Priority == "Critical").ToString(CultureInfo.InvariantCulture) : "—")</td>
-                            <td class="v3-num">@(_data?.RecoveredThisMonth is { } r ? Money(r) : "—")</td>
+                            <td class="v3-num">@Count(_data?.AccountsTotal)</td>
+                            <td class="v3-num">@Amount(_data?.OutstandingTotal)</td>
+                            <td class="v3-num">@Count(_data?.ArrearsQualifiedAccounts)</td>
+                            <td class="v3-num">@Amount(_data?.ArrearsOutstanding)</td>
+                            <td class="v3-num v3-strong">@Amount(_data?.OutstandingTotal is { } d && _data.ArrearsOutstanding is { } a ? d + a : null)</td>
+                            <td class="v3-num">@Amount(_data?.RecoveredThisMonth)</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
-            <p class="v3-report-note">Accounts and outstanding are counted by the server over every delinquent account. Recovered is the official Monthly Income “Arrears” line for the month. The age-based Arrears qualification is not yet decided, so no Arrears-qualified count is stated.</p>
         </section>
 
         <OperationMonthlyIncome Classification="Arrears (recovered)" RowKey="ARREARS" Year="_month.Year" HeadingId="arrr-official" />
 
         <section class="v3-report-section" aria-labelledby="arrr-by-source">
-            <h3 id="arrr-by-source">By facility / source</h3>
+            <h3 id="arrr-by-source">By facility</h3>
             <div class="v3-table-wrap">
                 <table class="v3-report-table">
                     <thead>
                         <tr>
-                            <th scope="col">Facility / source</th>
-                            <th scope="col" class="v3-num">Accounts</th>
-                            <th scope="col" class="v3-num">Listed outstanding</th>
+                            <th scope="col">Facility</th>
+                            <th scope="col" class="v3-num">Delinquent</th>
+                            <th scope="col" class="v3-num">Arrears</th>
+                            <th scope="col" class="v3-num">Outstanding</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @if (_data?.Accounts is not { Count: > 0 } accounts)
+                        @if (Register.Count == 0)
                         {
-                            <tr><td colspan="3" class="v3-report-note">@(_loading ? "Loading…" : _data?.Accounts is null ? "Accounts are unavailable." : "No account has a fully elapsed unpaid month.")</td></tr>
+                            <tr><td colspan="4" class="v3-report-note">@(_loading ? "Loading…" : _data is null ? "Accounts are unavailable." : "No delinquent or arrears account.")</td></tr>
                         }
                         else
                         {
-                            @foreach (var group in accounts.GroupBy(a => a.Facility).OrderBy(g => g.Key))
+                            @foreach (var group in Register.GroupBy(r => r.Item.Facility).OrderBy(g => g.Key))
                             {
                                 <tr>
                                     <th scope="row">@FacilityCatalog.NameOf(group.Key)</th>
-                                    <td class="v3-num">@group.Count()</td>
-                                    <td class="v3-num">@Money(group.Sum(a => a.Amount ?? 0m))</td>
+                                    <td class="v3-num">@group.Count(r => r.Kind == "Delinquent")</td>
+                                    <td class="v3-num">@group.Count(r => r.Kind == "Arrears")</td>
+                                    <td class="v3-num">@Money(group.Sum(r => r.Item.Amount ?? 0m))</td>
                                 </tr>
                             }
                         }
@@ -109,30 +113,31 @@
                             <th scope="col">Unpaid periods</th>
                             <th scope="col" class="v3-num">Outstanding</th>
                             <th scope="col">Status</th>
+                            <th scope="col">Classification</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @if (_data?.Accounts is not { Count: > 0 } list)
+                        @if (Register.Count == 0)
                         {
-                            <tr><td colspan="5" class="v3-report-note">No accounts to list.</td></tr>
+                            <tr><td colspan="6" class="v3-report-note">No accounts to list.</td></tr>
                         }
                         else
                         {
-                            @foreach (var item in list)
+                            @foreach (var row in Register)
                             {
                                 <tr>
-                                    <td>@item.Person</td>
-                                    <td>@FacilityCatalog.NameOf(item.Facility) · @item.Identifier</td>
-                                    <td>@item.Period</td>
-                                    <td class="v3-num">@(item.Amount is { } a ? Money(a) : "—")</td>
-                                    <td>@item.Status</td>
+                                    <td>@row.Item.Person</td>
+                                    <td>@FacilityCatalog.NameOf(row.Item.Facility)</td>
+                                    <td>@row.Item.Period</td>
+                                    <td class="v3-num">@Amount(row.Item.Amount)</td>
+                                    <td>@ArrearsReads.StatusLabel(row.Item)</td>
+                                    <td>@row.Kind</td>
                                 </tr>
                             }
                         }
                     </tbody>
                 </table>
             </div>
-            <p class="v3-report-note">A recovery register (document, collector and amount per recovered payment) is not yet available: recovered arrears are posted under their source's own collection and are stated above only as the Monthly Income total.</p>
         </section>
     </article>
 </div>
@@ -144,6 +149,13 @@
     private bool _loading;
 
     private string MonthLabel => _month.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+
+    // Delinquent accounts first, then Arrears, each by facility and payor; one account can appear under both, each with its own money.
+    private sealed record RegisterRow(FollowUpItemDto Item, string Kind);
+
+    private List<RegisterRow> Register => (_data?.Accounts ?? []).Select(a => new RegisterRow(a, "Delinquent"))
+        .Concat((_data?.ArrearsAccounts ?? []).Select(a => new RegisterRow(a, "Arrears")))
+        .OrderBy(r => r.Kind == "Delinquent" ? 0 : 1).ThenBy(r => r.Item.Facility).ThenBy(r => r.Item.Person, StringComparer.OrdinalIgnoreCase).ToList();
 
     protected override async Task OnInitializedAsync()
     {
@@ -170,5 +182,7 @@
 
     private async Task PrintAsync() => await JS.InvokeVoidAsync("stalltrackPrint.reportDocument");
 
+    private static string Count(int? value) => value is { } n ? n.ToString("N0", CultureInfo.InvariantCulture) : "—";
+    private static string Amount(decimal? value) => value is { } a ? Money(a) : "—";
     private static string Money(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
 }

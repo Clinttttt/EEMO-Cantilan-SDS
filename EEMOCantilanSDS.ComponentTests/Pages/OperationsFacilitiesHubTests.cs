@@ -3,6 +3,7 @@ using Bunit;
 using EEMOCantilanSDS.Application.Common;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
+using EEMOCantilanSDS.Application.Dtos.Settings;
 using EEMOCantilanSDS.Client.Components.Pages.Menus;
 using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -30,6 +31,9 @@ public sealed class OperationsFacilitiesHubTests : TestContext
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
+        // An office that has not adopted tenant operation configuration (Cantilan and every office activated before it) reads as
+        // everything listed under its established names, so the assertions below describe that unchanged behaviour.
+        Services.AddSingleton(OperationsTenantConfigurationTests.SettingsApi(adopted: false, listed: []).Object);
     }
 
     [Fact]
@@ -291,7 +295,7 @@ public sealed class OperationsFacilitiesHubTests : TestContext
 
             // The detail card offers only existing related pages.
             var ecfLinks = Row(cut, "Electricity Consumption Fees").QuerySelectorAll(".ops-card a").Select(a => a.GetAttribute("href"));
-            Assert.Equal(new[] { "/operations/ecf", "/operations/ecf/accounts", "/operations/ecf/report" }, ecfLinks);
+            Assert.Equal(new[] { "/operations/ecf", "/operations/ecf/statements", "/operations/ecf/report" }, ecfLinks);
         }, Timeout);
     }
 

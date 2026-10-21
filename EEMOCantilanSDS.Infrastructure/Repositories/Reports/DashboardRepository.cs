@@ -260,9 +260,12 @@ public class DashboardRepository(AppDbContext context, IFacilityReportsRepositor
 
         // Delinquents come from the shared rolling-window computation (excludes the current month),
         // so the dashboard and the Financial Reports attention list agree.
+        // Only the Delinquent part (current-year elapsed unpaid months, IA-019); previous-year and expired-contract debt is Arrears (IA-069).
         var delinquents = (await facilityReports.GetDelinquentStallsAsync(null, year, month, ct))
+            .Where(d => d.DelinquentMonthCount >= DomainRules.DelinquentThresholdMonths)
+            .OrderByDescending(d => d.DelinquentMonthCount).ThenByDescending(d => d.DelinquentOutstanding)
             .Take(5)
-            .Select(d => new DashboardDelinquentDto(d.Occupant, d.StallNo, d.FacilityCode, d.MonthsUnpaid, d.OutstandingBalance))
+            .Select(d => new DashboardDelinquentDto(d.Occupant, d.StallNo, d.FacilityCode, d.DelinquentMonthCount, d.DelinquentOutstanding))
             .ToList();
 
         // Hero collection rate is AMOUNT-based (collected ÷ billed), matching the Financial Reports

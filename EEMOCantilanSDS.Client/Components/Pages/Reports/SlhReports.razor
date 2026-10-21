@@ -109,7 +109,7 @@
                                 <th>Heads</th>
                                 <th>Fee / Head</th>
                                 <th>Total Fee</th>
-                                <th>OR No.</th>
+                                <th>OR / SRC</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -122,7 +122,7 @@
                                     <td>@grp.TotalHeads</td>
                                     <td>@(grp.Multi ? "—" : "₱" + grp.First.RatePerHead.ToString("N2"))</td>
                                     <td>&#8369;@grp.TotalAmount.ToString("N2")</td>
-                                    <td class="text-muted-cell">@(string.IsNullOrEmpty(grp.OrNumber) ? "—" : grp.OrNumber)</td>
+                                    <td class="text-muted-cell">@(string.IsNullOrEmpty(grp.OrNumber) ? (grp.First.ReferenceCode ?? "—") : grp.OrNumber)</td>
                                 </tr>
                                 @if (grp.Multi)
                                 {
@@ -139,11 +139,26 @@
                                         </tr>
                                     }
                                 }
+                                @* Approved charges of an itemized collection: each with its quantity and the rate frozen on the receipt. *@
+                                @foreach (var item in grp.Lines.Where(l => l.Items is { Count: > 0 }).SelectMany(l => l.Items!))
+                                {
+                                    <tr class="print-detail-row">
+                                        <td></td>
+                                        <td></td>
+                                        <td>↳ @item.Label</td>
+                                        <td>@item.Quantity.ToString("N0")</td>
+                                        <td>₱@item.UnitAmount.ToString("N2")</td>
+                                        <td>₱@item.Amount.ToString("N2")</td>
+                                        <td></td>
+                                    </tr>
+                                }
                             }
                         </tbody>
                     </table>
                 </div>
             }
+
+            <SlaughterChargeTotals From="@MonthStart" To="@MonthStart.AddMonths(1).AddDays(-1)" HeadingId="slh-status-by-charge" />
 
         </OfficeReportShell>
     </div>
@@ -500,7 +515,7 @@ else
             <!-- Monthly: transaction log -->
             <div class="rpt-compliance-table-wrap">
                 <table class="rpt-compliance-table">
-                    <thead><tr><th>Date</th><th>Owner</th><th>Animal Type</th><th>Heads</th><th>Fee / Head</th><th>Total Fee</th><th>OR Number</th></tr></thead>
+                    <thead><tr><th>Date</th><th>Owner</th><th>Animal Type</th><th>Heads</th><th>Fee / Head</th><th>Total Fee</th><th>OR / SRC</th></tr></thead>
                     <tbody>
                         @foreach (var grp in MonthGroups)
                         {
@@ -525,8 +540,20 @@ else
                                 <td class="stall-no">@grp.TotalHeads</td>
                                 <td>@(grp.Multi ? "—" : "₱" + grp.First.RatePerHead.ToString("N0"))</td>
                                 <td class="slh-total">&#8369;@grp.TotalAmount.ToString("N2")</td>
-                                <td class="text-muted">@(string.IsNullOrEmpty(grp.OrNumber) ? "—" : grp.OrNumber)</td>
+                                <td class="text-muted">@(string.IsNullOrEmpty(grp.OrNumber) ? (grp.First.ReferenceCode ?? "—") : grp.OrNumber)</td>
                             </tr>
+                            @foreach (var item in grp.Lines.Where(l => l.Items is { Count: > 0 }).SelectMany(l => l.Items!))
+                            {
+                                <tr class="slh-detail-row">
+                                    <td></td>
+                                    <td></td>
+                                    <td><span class="slh-detail-animal"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>@item.Label</span></td>
+                                    <td>@item.Quantity.ToString("N0")</td>
+                                    <td>₱@item.UnitAmount.ToString("N2")</td>
+                                    <td>₱@item.Amount.ToString("N2")</td>
+                                    <td></td>
+                                </tr>
+                            }
                             @if (grp.Multi && expanded)
                             {
                                 @foreach (var line in grp.Lines)
@@ -550,6 +577,10 @@ else
                     </tbody>
                 </table>
             </div>
+            @if (ActivePeriod == "Monthly")
+            {
+                <SlaughterChargeTotals From="@MonthStart" To="@MonthStart.AddMonths(1).AddDays(-1)" HeadingId="slh-month-by-charge" />
+            }
         }
                 </div>
             </div>
@@ -562,6 +593,7 @@ else
 
     // ── Period / view state ───────────────────────────────────────
     string ActivePeriod = "Monthly";
+    DateOnly MonthStart => new(CurrentDate.Year, CurrentDate.Month, 1);
     bool ShowPrintReport = false;
     bool ShowHistory = false;
     DateTime CurrentDate = PhilippineTime.Now;

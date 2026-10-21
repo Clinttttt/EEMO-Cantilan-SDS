@@ -1,18 +1,27 @@
 @* V3 workspace identity: optional breadcrumb, a compact title with its short code, one optional supporting line,
    and the page's actions aligned to the right. Replaces the dark FacilityHero on V3 workspaces. *@
+@implements IDisposable
+@using EEMOCantilanSDS.Client.Services
+@using Microsoft.Extensions.DependencyInjection
+@inject IServiceProvider Services
+
+@if (OperationCode is not null)
+{
+    <PageTitle>StallTrack — @ShownTitle</PageTitle>
+}
 <header class="wh">
     @if (!string.IsNullOrWhiteSpace(Parent))
     {
         <nav class="wh-crumbs" aria-label="Breadcrumb">
             <a href="@ParentHref">@Parent</a>
             <span aria-hidden="true">/</span>
-            <span aria-current="page">@Title</span>
+            <span aria-current="page">@ShownTitle</span>
         </nav>
     }
     <div class="wh-row">
         <div class="wh-identity">
             <h1 class="wh-title">
-                @Title
+                @ShownTitle
                 @if (!string.IsNullOrWhiteSpace(Code))
                 {
                     <span class="wh-code">@Code</span>
@@ -38,6 +47,32 @@
 
 @code {
     [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The stable operation code this page is the workspace of. When given, the title is the municipality's own name for the operation
+    /// (falling back to <see cref="Title"/>, the established wording, when none applies). Presentation only.
+    /// </summary>
+    [Parameter] public string? OperationCode { get; set; }
+
+    private OperationNameService? _names;
+    private string ShownTitle => _names is not null && OperationCode is not null ? _names.NameFor(OperationCode, Title) : Title;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (OperationCode is null) return;
+        // Resolved optionally so a page rendered without the service (a test, a preview) simply shows its own title.
+        _names = Services.GetService<OperationNameService>();
+        if (_names is null) return;
+        _names.Changed += OnNamesChanged;
+        await _names.EnsureLoadedAsync();
+    }
+
+    private void OnNamesChanged() => _ = InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        if (_names is not null) _names.Changed -= OnNamesChanged;
+    }
 
     /// <summary>Short secondary code shown after the title, e.g. "ECF".</summary>
     [Parameter] public string? Code { get; set; }

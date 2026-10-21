@@ -6,11 +6,27 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @inject IGovernedServicesApiClient GovernedApi
 @inject IJSRuntime JS
+@inject IServiceProvider Services
 @implements IAsyncDisposable
 
 @* The body of a governed configurable service (IA-044): its approved setup, and what has actually been collected.
    Collection itself happens on Collector Mobile; nothing here records money. Every figure is
    the server's; a service without an approved amount rule says so and produces no Collection. *@
+@* The same V3Hero composition as the ECF / WCF workspace: identity, period and instrument, then the figures of the selected
+   month from the collections below. A direct cash operation has no assessed or outstanding amount. *@
+@if (HeroEyebrow is not null)
+{
+    <V3Hero OperationCode="@OperationCode" Eyebrow="@HeroEyebrow" Title="@Name" Compact="true" Meta="@HeroMeta">
+        <Icon>@HeroIcon</Icon>
+        <Figures>
+            <V3HeroFigure Label="Collected" Value="@CollectedFigure" />
+            <V3HeroFigure Label="Transactions" Value="@TransactionsFigure" />
+            <V3HeroFigure Label="Fee types" Value="@FeeTypesFigure" />
+        </Figures>
+        <Actions>@HeroActions</Actions>
+    </V3Hero>
+}
+
 <div class="gsw-layout">
     <section class="v3-panel" aria-labelledby="@_activityTitleId" aria-busy="@(_loading ? "true" : "false")">
         <header class="v3-panel-header">
@@ -26,9 +42,9 @@
             <p class="v3-notice v3-notice-error gsw-notice" role="alert">@_activityError</p>
         }
 
-        <div class="v3-table-wrap gsw-scroll @(VisibleCollectionRows > 0 ? "gsw-measured-scroll" : null)" @ref="_history" role="region" aria-label="@($"{Name} collections")" tabindex="0">
+        <div class="v3-table-wrap gsw-scroll @(VisibleCollectionRows > 0 ? "gsw-measured-scroll" : null)" @ref="_history" role="region" aria-label="@($"{ShownName} collections")" tabindex="0">
             <table class="v3-table">
-                <caption class="v3-sr-only">@Name collections for @PeriodLabel</caption>
+                <caption class="v3-sr-only">@ShownName collections for @PeriodLabel</caption>
                 <thead>
                     <tr>
                         <th scope="col">Date</th>
@@ -59,9 +75,9 @@
                                 else if (_activityError is not null) { <span>Collections are unavailable.</span> }
                                 else if (_definition is { State: not GovernedServiceSetupState.Active })
                                 {
-                                    <span>Nothing has been collected: @Name is not active yet.</span>
+                                    <span>Nothing has been collected: @ShownName is not active yet.</span>
                                 }
-                                else { <span>No @Name collections were recorded in @PeriodLabel.</span> }
+                                else { <span>No @ShownName collections were recorded in @PeriodLabel.</span> }
                             </td>
                         </tr>
                     }
@@ -72,7 +88,7 @@
         {
             <footer class="gsw-total">
                 <strong>Total for @PeriodLabel</strong>
-                <strong>@Money(_activity.Sum(x => x.Amount))</strong>
+                <strong>@Money(_activity.Sum(x => x.NetAmount ?? x.Amount))</strong>
             </footer>
         }
     </section>
@@ -123,13 +139,15 @@
 
                 <AuthorizeView Roles="SuperAdmin">
                     <Authorized>
-                        @if (_definition is { State: GovernedServiceSetupState.Disabled, Basis: not null })
-                        {
-                            <button class="v3-btn v3-btn-primary gsw-edit" type="button" @onclick="EnableAsync" disabled="@_saving">Enable new transactions</button>
-                        }
-                        <button class="v3-btn gsw-edit" type="button" @onclick="OpenEditor">
-                            @(_definition.State == GovernedServiceSetupState.SetupRequired && _definition.Basis is null ? "Set up amount rule" : "Change amount rule")
-                        </button>
+                        <div class="gsw-setup-actions">
+                            @if (_definition is { State: GovernedServiceSetupState.Disabled, Basis: not null })
+                            {
+                                <button class="v3-btn v3-btn-sm v3-btn-primary gsw-edit" type="button" @onclick="EnableAsync" disabled="@_saving">Enable new transactions</button>
+                            }
+                            <button class="v3-btn v3-btn-sm gsw-edit" type="button" @onclick="OpenEditor">
+                                @(_definition.State == GovernedServiceSetupState.SetupRequired && _definition.Basis is null ? "Set up amount rule" : "Change amount rule")
+                            </button>
+                        </div>
                     </Authorized>
                 </AuthorizeView>
                 @if (!string.IsNullOrWhiteSpace(_saved))
@@ -155,15 +173,20 @@
                 <AddNewSection Title="Amount rule" Plain="true">
                     @if (def.AllowedBases.Count > 1)
                     {
-                        <div class="avm-group">
-                            <label class="avm-label" for="@($"{_formId}-rule")">Rule</label>
-                            <select id="@($"{_formId}-rule")" class="avm-input" @bind="_basis">
+                        @* A handful of mutually exclusive rules reads as one joined control, not a dropdown. *@
+                        <fieldset class="gsw-rule">
+                            <legend>Rule</legend>
+                            <div class="gsw-segmented">
                                 @foreach (var basis in def.AllowedBases)
                                 {
-                                    <option value="@basis">@BasisName(basis)</option>
+                                    var option = basis;
+                                    <label class="@(_basis == option ? "is-selected" : null)">
+                                        <input type="radio" name="@($"{_formId}-rule")" checked="@(_basis == option)" @onchange="() => _basis = option" />
+                                        @BasisName(option)
+                                    </label>
                                 }
-                            </select>
-                        </div>
+                            </div>
+                        </fieldset>
                     }
                     <div class="avm-row-2">
                         @if (_basis == GovernedServiceBasis.FixedAmount)
@@ -213,8 +236,8 @@
     {
         @* The collector is only offered fee types when the amount rule is "By approved fee type". Defining a type while another rule
            is in force would otherwise look saved and never reach Collector Mobile. *@
-        <p class="v3-notice gsw-fee-rule" role="status">
-            Collectors are offered these fee types only when the amount rule is <strong>By approved fee type</strong>. Today's rule is <strong>@BasisLabel(_definition)</strong>.
+        <p class="gsw-fee-rule" role="status" title="Fee types reach Collector Mobile only while the amount rule is By approved fee type.">
+            <span>Not offered to Collectors yet.</span>
             <AuthorizeView Roles="SuperAdmin">
                 <Authorized>
                     <button class="v3-btn v3-btn-sm" type="button" @onclick="UseFeeTypesAsync" disabled="@_saving">Collect by fee type</button>
@@ -241,6 +264,34 @@
     /// <summary>Heading of the approved fee options panel, shown when the service may be collected by fee type.</summary>
     [Parameter] public string FeeOptionsTitle { get; set; } = "Fee types";
 
+    /// <summary>When set, the workspace opens with the standard V3 hero (eyebrow, period · instrument, month figures); omitted, the page supplies its own.</summary>
+    [Parameter] public string? HeroEyebrow { get; set; }
+    [Parameter] public RenderFragment? HeroIcon { get; set; }
+    [Parameter] public RenderFragment? HeroActions { get; set; }
+
+    /// <summary>Limits the collections (and the figures drawn from them) to one transaction mode, e.g. Vegetable / Fruits Daily; omitted, every collection of the service shows.</summary>
+    [Parameter] public GovernedServiceMode? ActivityMode { get; set; }
+
+    private string CollectedFigure => Ready ? Money(_activity.Sum(x => x.NetAmount ?? x.Amount)) : "—";
+    private string TransactionsFigure => Ready ? _activity.Count.ToString("N0") : "—";
+    private string FeeTypesFigure => Ready ? _activity.Select(x => x.FeeOptionName).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct().Count().ToString("N0") : "—";
+    private bool Ready => !_loading && _activityError is null;
+    // A mode-aware service shows the instrument of the mode this workspace is limited to (Daily: Cash Ticket), else the first approved one.
+    private string? HeroInstrument => _definition?.Instruments.Where(x => ActivityMode is null || x.Mode == ActivityMode).Select(x => x.Instrument).FirstOrDefault(x => x is not null) is { } i
+        ? (i == RevenueInstrumentType.OfficialReceipt ? "OR" : "CT") : null;
+    private RenderFragment HeroMeta => __builder =>
+    {
+        <span class="gsw-meta">
+            <span>@PeriodLabel ·</span>
+            @if (HeroInstrument is not null)
+            {
+                <InstrumentChip Instrument="@HeroInstrument" />
+                <span>@InstrumentName(HeroInstrument)</span>
+            }
+        </span>
+    };
+    private static string InstrumentName(string code) => code == "OR" ? "Official Receipt" : "Cash Ticket";
+
     /// <summary>Opt-in exact data-row limit; zero preserves the existing history height.</summary>
     [Parameter] public int VisibleCollectionRows { get; set; }
 
@@ -257,6 +308,7 @@
 
     public async ValueTask DisposeAsync()
     {
+        if (_names is not null) _names.Changed -= OnNamesChanged;
         if (_historyModule is null) return;
         try
         {
@@ -290,8 +342,22 @@
     private bool _mobile = true;
     private bool _quick;
 
+    private EEMOCantilanSDS.Client.Services.OperationNameService? _names;
+
+    /// <summary>The municipality's own name for this operation, else the page's established <see cref="Name"/>. Presentation only.</summary>
+    private string ShownName => _names?.NameFor(OperationCode, Name) ?? Name;
+
+    private void OnNamesChanged() => _ = InvokeAsync(StateHasChanged);
+
     protected override async Task OnInitializedAsync()
     {
+        _names = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<EEMOCantilanSDS.Client.Services.OperationNameService>(Services);
+        if (_names is not null)
+        {
+            _names.Changed += OnNamesChanged;
+            _ = _names.EnsureLoadedAsync(); // not awaited: it never delays the workspace's own loads
+        }
+
         await LoadDefinitionAsync();
         await LoadActivityAsync();
     }
@@ -321,7 +387,7 @@
         {
             var to = _month.AddMonths(1).AddDays(-1);
             var result = await GovernedApi.GetActivityAsync(OperationCode, _month, to);
-            if (result.IsSuccess) _activity = result.Value?.ToList() ?? [];
+            if (result.IsSuccess) _activity = (result.Value ?? []).Where(x => ActivityMode is null || x.Mode == ActivityMode).ToList();
             else { _activity = []; _activityError = "Collections couldn't be loaded."; }
         }
         catch { _activity = []; _activityError = "Collections couldn't be loaded."; }

@@ -560,6 +560,57 @@ public sealed class RevenueSetupTests : TestContext
     }
 
     [Fact]
+    public void Settings_UsesTenantPayload_WithoutClaimingAnOpenCollectionPeriod()
+    {
+        var payload = new SystemSettingsDto(
+            new OfficeProfileDto("Coastal Enterprise Office", "Test Municipality", "Test Province", "StallTrack", "Coastal Office"),
+            new SecurityPolicyDto(20, 3, 4, 25, ["Head", "Admin", "Collector"]),
+            new CollectionRulesDto(2, 18, 4, "Philippine Standard Time (UTC+8)"),
+            new SystemInfoDto("StallTrack", "9.8.7", "Synthetic", "UTC+8", new DateTime(2027, 2, 15)),
+            [new FacilityRuleDto("Custom1", "Coastal Hall", "Monthly rental", "Per stall contract", "Monthly")]);
+        RegisterSettingsPageServices(Task.FromResult(Result<SystemSettingsDto>.Success(payload)));
+        this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
+        var cut = RenderComponent<Settings>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Coastal Enterprise Office", cut.Markup);
+            Assert.Contains("Test Municipality", cut.Markup);
+            Assert.Contains("Coastal Hall", cut.Markup);
+            var figures = cut.FindAll(".v3h-val").Select(v => v.TextContent).ToArray();
+            Assert.Equal(new[] { "1", "3", "Feb 2027", "v9.8.7" }, figures);
+            Assert.Contains("4 failed attempts · 25 minutes", cut.Find(".set-grid").TextContent);
+            Assert.DoesNotContain("System configuration · read-only", cut.FindComponent<EEMOCantilanSDS.Client.Components.Shared.V3Hero>().Markup);
+            Assert.DoesNotContain("Collection Period", cut.Markup);
+            Assert.Empty(cut.FindAll(".pill-ok"));
+            Assert.Contains("Validated against tenant, schema and retained records", cut.Markup);
+            Assert.DoesNotContain("Azure PITR", cut.Markup);
+            Assert.DoesNotContain("15 yours", cut.Markup);
+            Assert.Single(cut.FindAll("a[href='/settings/facilities']"));
+        }, RenderTimeout);
+    }
+
+    [Fact]
+    public void Settings_LoadingAndFailure_DoNotInventCountsDatesOrVersion()
+    {
+        var response = new TaskCompletionSource<Result<SystemSettingsDto>>();
+        RegisterSettingsPageServices(response.Task);
+        this.AddTestAuthorization().SetAuthorized("admin").SetRoles("Admin");
+        var cut = RenderComponent<Settings>();
+        cut.WaitForAssertion(() => Assert.Equal(new[] { "—", "—", "—", "—" },
+            cut.FindAll(".v3h-val").Select(v => v.TextContent).ToArray()), RenderTimeout);
+
+        response.SetResult(Result<SystemSettingsDto>.Failure("Unavailable", 500));
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Couldn't load settings", cut.Markup);
+            Assert.Equal(new[] { "—", "—", "—", "—" },
+                cut.FindAll(".v3h-val").Select(v => v.TextContent).ToArray());
+            Assert.Single(cut.FindAll(".set-retry"));
+        }, RenderTimeout);
+    }
+
+    [Fact]
     public async Task ApiClient_FormatsAsOfDateInvariantly()
     {
         var previousCulture = CultureInfo.CurrentCulture;
@@ -617,7 +668,7 @@ public sealed class RevenueSetupTests : TestContext
         Services.AddSingleton(new BrandingState(municipalities.Object));
     }
 
-    private void RegisterSettingsPageServices()
+    private void RegisterSettingsPageServices(Task<Result<SystemSettingsDto>>? settingsResponse = null)
     {
         RegisterGlobalPageServices();
         var facilities = new Mock<IFacilitiesApiClient>();
@@ -627,13 +678,13 @@ public sealed class RevenueSetupTests : TestContext
         Services.AddSingleton(new FacilityState(facilities.Object));
 
         var settings = new Mock<ISettingsApiClient>();
-        settings.Setup(api => api.GetSystemSettingsAsync()).ReturnsAsync(Result<SystemSettingsDto>.Success(
+        settings.Setup(api => api.GetSystemSettingsAsync()).Returns(settingsResponse ?? Task.FromResult(Result<SystemSettingsDto>.Success(
             new SystemSettingsDto(
                 new OfficeProfileDto("MEEDO", "Cantilan", "Surigao del Sur", "StallTrack", "MEEDO Head"),
                 new SecurityPolicyDto(15, 7, 5, 15, ["SuperAdmin", "Admin"]),
                 new CollectionRulesDto(1, 12, 3, "Asia/Manila"),
                 new SystemInfoDto("StallTrack", "1.0", "Test", "Asia/Manila", DateTime.UtcNow),
-                [])));
+                []))));
         Services.AddSingleton(settings.Object);
 
         var mfa = new Mock<IMfaApiClient>();
