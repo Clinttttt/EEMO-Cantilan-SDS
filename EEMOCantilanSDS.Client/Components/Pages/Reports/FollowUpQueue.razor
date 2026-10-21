@@ -215,11 +215,7 @@
                                                 <td>
                                                     <div class="fq-row-signals">
                                                         <span class="fq-reason">@it.Reason</span>
-                                                        @* The rail and amount tone carry urgency: Critical and Normal rows carry no pill; other priorities keep theirs. *@
-                                                        @if (!string.Equals(it.Priority, "Normal", StringComparison.OrdinalIgnoreCase) && !string.Equals(it.Priority, "Critical", StringComparison.OrdinalIgnoreCase))
-                                                        {
-                                                            <span class="fq-priority fq-rb-@PriClass(it.Priority)">@it.Priority</span>
-                                                        }
+                                                        @* Priority stays available in the row rail; no redundant High / Critical chip. *@
                                                     </div>
                                                 </td>
                                                 break;
@@ -554,7 +550,11 @@
 
     private DateOnly AsOf => _data?.AsOf ?? PhilippineTime.Today;
     private string PeriodLabel => _data?.PeriodLabel ?? PhilippineTime.Now.ToString("MMMM yyyy");
-    private IReadOnlyList<FollowUpItemDto> AllItems => _data?.Items ?? Array.Empty<FollowUpItemDto>();
+    // A physical OR number is supplementary evidence for these collected records.
+    // Do not present its absence as an actionable debt or alert; retain the server
+    // source unchanged for historical/audit views and existing receipt workflows.
+    private IReadOnlyList<FollowUpItemDto> AllItems =>
+        (_data?.Items ?? Array.Empty<FollowUpItemDto>()).Where(i => i.ReasonKind != "missingor").ToList();
 
     protected override async Task OnInitializedAsync()
     {
@@ -961,9 +961,8 @@
 
     private static bool CanRecordMonthlyPayment(FollowUpItemDto item) =>
         item.StallId.HasValue
-        && item.Facility != FacilityCode.NPM
         && item.Amount.GetValueOrDefault() > 0m
-        && item.ReasonKind is "delinquent" or "arrears" or "contract";
+        && item.ReasonKind is "delinquent" or "arrears" or "contract" or "current";
 
 
     private static string Currency(decimal value) => $"₱{value:N0}";
@@ -975,7 +974,7 @@
         new(1, "Action required",
                // Priority varies by row: this group includes Critical delinquency, High evidence attention, and
                // balances from ended occupancies. The row reason and priority are displayed separately.
-               "Higher-age delinquent accounts, missing receipt evidence, and outstanding balances from ended occupancies.",
+               "Higher-age delinquent accounts and outstanding balances from ended occupancies.",
                "normal", "alert"),
         new(2, "Needs follow-up this period",
                "Lower-age delinquent accounts, current-period unpaid or partial balances, and contracts expiring soon.",
