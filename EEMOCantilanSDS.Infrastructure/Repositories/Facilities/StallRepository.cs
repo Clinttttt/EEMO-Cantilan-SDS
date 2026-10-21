@@ -30,7 +30,8 @@ public partial class StallRepository(
     AppDbContext context,
     IFeeRateResolver feeRateResolver,
     IClock clock,
-    INpmMonthSettlementService? npmMonthSettlement = null)
+    INpmMonthSettlementService? npmMonthSettlement = null,
+    NpmRentMonthWorkflow? npmRentMonths = null)
     : IStallRepository, IStallMobileQueries, IClosedStallAccountQueries, IContractAttentionQueries, IStallRegisterQueries
 {
     // Test/non-DI convenience: resolves fees from the context (empty rate table => ordinance constants).
@@ -47,6 +48,7 @@ public partial class StallRepository(
     private readonly IClock _clock = clock;
 
     private INpmMonthSettlementService? _npmMonthSettlement = npmMonthSettlement;
+    private readonly NpmRentMonthWorkflow? _npmRentMonths = npmRentMonths;
 
     /// <summary>
     /// How the office settles one market month. Asked rather than reimplemented: what a month owes depends on whether the
@@ -216,6 +218,10 @@ public partial class StallRepository(
             .Include(s => s.Contracts)
             .FirstOrDefaultAsync(s => s.Id == id, ct);
     }
+
+    public async Task<IReadOnlyList<Stall>> GetNpmStallsWithContractsAsync(CancellationToken ct) =>
+        await _context.Stalls.Include(s => s.Facility).Include(s => s.Contracts)
+            .Where(s => s.Facility!.Code == FacilityCode.NPM).ToListAsync(ct);
 
     public async Task<IReadOnlyList<Stall>> GetStallsWithContractsByFacilityAsync(FacilityCode facilityCode, MarketSection? section, string? customSectionName, CancellationToken ct)
     {

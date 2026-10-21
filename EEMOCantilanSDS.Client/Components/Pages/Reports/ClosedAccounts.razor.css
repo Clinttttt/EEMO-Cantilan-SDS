@@ -433,3 +433,5 @@
     .ca-actions { flex-wrap: wrap; }
     .ca-actions .ca-search { flex: 1 1 100%; }
 }
+
+.ca-row-off { opacity: .45; cursor: not-allowed; }

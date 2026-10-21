@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Domain.Common;
 
@@ -6,6 +7,13 @@ public interface IOfficeSourcesApiClient
 {
     Task<Result<NpmVendorOccupancyResult>> CreateNpmVendorOccupancyAsync(CreateNpmVendorOccupancyRequest request);
     Task<Result<NpmRegistrationRequestPage>> NpmRequestsAsync(int page = 1, int pageSize = 25);
+    /// <summary>The Fish / Meat registration-request queue (identity proposals, no money). Head and Admin read; only the Head reviews or completes.</summary>
+    Task<Result<FishMeatRegistrationRequestPage>> FishMeatRequestsAsync(int page = 1, int pageSize = 25, FishMeatRequestStatus? status = null) =>
+        Task.FromResult(Result<FishMeatRegistrationRequestPage>.Failure("Registration requests unavailable."));
+    Task<Result<FishMeatRegistrationRequestDto>> ReviewFishMeatRequestAsync(Guid id, ReviewFishMeatRegistrationRequest request) =>
+        Task.FromResult(Result<FishMeatRegistrationRequestDto>.Failure("Registration requests unavailable."));
+    Task<Result<FishMeatRegistrationRequestDto>> CompleteFishMeatRequestAsync(Guid id, CompleteFishMeatRegistrationRequest request) =>
+        Task.FromResult(Result<FishMeatRegistrationRequestDto>.Failure("Registration requests unavailable."));
     Task<Result<NpmRegistrationRequestDto>> ReviewNpmRequestAsync(Guid id, ReviewNpmRegistrationRequest request);
     Task<Result<NpmVendorCandidates>> NpmVendorCandidatesAsync(int taxYear, bool historical = false, bool exceptions = false);
     Task<Result<IReadOnlyList<NpmVendorAssociationDto>>> NpmVendorLinksAsync(Guid vendorId);

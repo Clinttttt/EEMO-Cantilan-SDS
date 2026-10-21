@@ -235,13 +235,22 @@ public sealed class FishMeatVendorRegistryTests : TestContext
         Assert.Contains("₱43.00", drawer); Assert.Contains("already posted and counted", drawer);
         Assert.Equal("Giorgia Macapagal", cut.Find("#fmp-name").GetAttribute("value"));             // prefilled from what the Collector recorded
         Assert.True(cut.Find(".eemo-drawer-footer .btn-primary").HasAttribute("disabled"));         // the vendor type is never assumed
-        cut.FindAll(".fmp-seg button").Single(b => b.TextContent == "Meat").Click();
+        cut.FindAll(".eemo-drawer.show [role=radiogroup][aria-label='Vendor type'] button").Single(b => b.TextContent == "Meat").Click();
+        cut.Find("#fmp-last").Input("Macapagal");
+        cut.Find("#fmp-first").Input("Giorgia");
+        cut.Find("#fmp-middle").Input("E.");
+        cut.Find("#fmp-sex").Change("Female");
+        cut.Find("#fmp-nature").Input("Meat retailing");
         cut.Find("#fmp-address").Input("Stall 4");
         cut.Find(".eemo-drawer-footer .btn-primary").Click();
 
         cut.WaitForAssertion(() => Assert.NotNull(sent), Timeout);
         Assert.Equal(row.CollectionId, sent!.CollectionId); Assert.Null(sent.VendorRegistrationId);
         Assert.Equal((FishMeatVendorType.Meat, "Giorgia Macapagal", "Stall 4"), (sent.Register!.VendorType, sent.Register.DisplayName, sent.Register.Address));
+        Assert.Equal(("Macapagal", "Giorgia", "E.", "Female", "Meat retailing"),
+            (sent.Register.LastName, sent.Register.FirstName, sent.Register.MiddleName, sent.Register.Sex, sent.Register.NatureOfBusiness));
+        Assert.Equal(VendorRegistrationKind.New, sent.Register.RegistrationKind);
+        Assert.Empty(cut.FindAll("#fmp-search, .fmp-more"));
         cut.WaitForAssertion(() => Assert.Contains("registered for 2026. SRC-2026-000042 and its amount are unchanged", cut.Find(".fmv-saved").TextContent), Timeout);
     }
 

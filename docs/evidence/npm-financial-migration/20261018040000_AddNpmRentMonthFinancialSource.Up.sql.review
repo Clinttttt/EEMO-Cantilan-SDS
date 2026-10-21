@@ -1,0 +1,29 @@
+ALTER TABLE "NpmRentMonths" DROP CONSTRAINT "CK_NpmRentMonths_Review";
+
+ALTER TABLE "CollectionLines" DROP CONSTRAINT "CK_CollectionLines_SourceShape";
+
+ALTER TABLE "CollectionAllocations" DROP CONSTRAINT "CK_CollectionAllocations_SourceShape";
+
+ALTER TABLE "NpmRentMonths" ADD "SettlementActivatedAtUtc" timestamp with time zone;
+
+ALTER TABLE "NpmRentMonths" ADD "SettlementActivatedByUserId" uuid;
+
+ALTER TABLE "NpmRentMonths" ADD "SettlementSealedAtUtc" timestamp with time zone;
+
+ALTER TABLE "CollectionAllocations" ADD "NpmRentMonthId" uuid;
+
+ALTER TABLE "NpmRentMonths" ADD CONSTRAINT "CK_NpmRentMonths_Activation" CHECK (("Status" IN (1,2) AND "SettlementActivatedAtUtc" IS NULL AND "SettlementActivatedByUserId" IS NULL) OR ("Status" = 3 AND "SettlementActivatedAtUtc" IS NOT NULL AND "SettlementActivatedAtUtc" >= "ReconciledAtUtc" AND "SettlementActivatedByUserId" IS NOT NULL AND "SettlementActivatedByUserId" <> '00000000-0000-0000-0000-000000000000'::uuid));
+
+ALTER TABLE "NpmRentMonths" ADD CONSTRAINT "CK_NpmRentMonths_Review" CHECK (("Status" = 1 AND "ReconciledByUserId" IS NULL AND "ReconciledAtUtc" IS NULL AND "ReconciliationEvidence" IS NULL) OR ("Status" IN (2,3) AND "MonthBasis" IS NOT NULL AND "ReconciledByUserId" IS NOT NULL AND "ReconciledByUserId" <> '00000000-0000-0000-0000-000000000000'::uuid AND "ReconciledAtUtc" IS NOT NULL AND "ReconciledAtUtc" >= "CreatedAtUtc" AND "ReconciliationEvidence" IS NOT NULL AND length(btrim("ReconciliationEvidence")) > 0));
+
+ALTER TABLE "NpmRentMonths" ADD CONSTRAINT "CK_NpmRentMonths_Sealed" CHECK ("SettlementSealedAtUtc" IS NULL OR ("Status" = 3 AND "SettlementSealedAtUtc" >= "SettlementActivatedAtUtc" AND "SettlementActivatedAtUtc" IS NOT NULL));
+
+ALTER TABLE "CollectionLines" ADD CONSTRAINT "CK_CollectionLines_SourceShape" CHECK ((("SourceKind" IS NULL AND "SourceId" IS NULL AND "SourcePart" IS NULL) OR ("SourceKind" = 3 AND "SourceId" IS NOT NULL AND "SourcePart" IN (1, 2)) OR ("SourceKind" = 2 AND "SourceId" IS NOT NULL AND "SourcePart" IN (3, 4, 5)) OR ("SourceKind" IN (1, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) AND "SourceId" IS NOT NULL AND "SourcePart" IS NULL)));
+
+CREATE INDEX "IX_CollectionAllocations_MunicipalityId_NpmRentMonthId" ON "CollectionAllocations" ("MunicipalityId", "NpmRentMonthId");
+
+ALTER TABLE "CollectionAllocations" ADD CONSTRAINT "CK_CollectionAllocations_NpmMonthIdentity" CHECK (("SourceKind" = 17 AND "NpmRentMonthId" IS NOT NULL AND "NpmRentMonthId" = "SourceId") OR ("SourceKind" <> 17 AND "NpmRentMonthId" IS NULL));
+
+ALTER TABLE "CollectionAllocations" ADD CONSTRAINT "CK_CollectionAllocations_SourceShape" CHECK ((("SourceKind" = 3 AND "SourcePart" IN (1, 2)) OR ("SourceKind" = 2 AND "SourcePart" IN (3, 4, 5)) OR ("SourceKind" IN (1, 4, 5, 6, 7, 10, 15, 17) AND "SourcePart" IS NULL)));
+
+ALTER TABLE "CollectionAllocations" ADD CONSTRAINT "FK_CollectionAllocations_NpmRentMonths_MunicipalityId_NpmRentM~" FOREIGN KEY ("MunicipalityId", "NpmRentMonthId") REFERENCES "NpmRentMonths" ("MunicipalityId", "Id") ON DELETE RESTRICT;

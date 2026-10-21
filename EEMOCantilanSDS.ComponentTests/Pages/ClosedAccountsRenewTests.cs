@@ -50,36 +50,6 @@ public class ClosedAccountsRenewTests : TestContext
         AreaNote: "Extension",
         MonthBasis: monthBasis);
 
-    private (IRenderedComponent<ClosedAccounts> Cut, List<RenewStallContractRequest> Sent) Render(ClosedStallAccountDto row)
-    {
-        var sent = new List<RenewStallContractRequest>();
-        var stalls = new Mock<IStallsApiClient>();
-        stalls.Setup(a => a.GetClosedStallAccountsAsync())
-            .ReturnsAsync(Result<IReadOnlyList<ClosedStallAccountDto>>.Success(new[] { row }));
-        stalls.Setup(a => a.RenewStallContractAsync(It.IsAny<Guid>(), It.IsAny<RenewStallContractRequest>()))
-            .Callback<Guid, RenewStallContractRequest>((_, r) => sent.Add(r))
-            .ReturnsAsync(Result<bool>.Success(true));
-
-        JSInterop.Mode = JSRuntimeMode.Loose;   // the page prints and scrolls via JS
-        Services.AddSingleton(stalls.Object);
-        var obligations = new Mock<IObligationsApiClient>();
-        obligations.Setup(x => x.GetWorkspaceAsync(It.IsAny<ObligationKind>())).ReturnsAsync(Result<EEMOCantilanSDS.Application.Dtos.Revenue.ObligationWorkspaceDto>.Success(new([], 0m, 0m, 0m)));
-        Services.AddSingleton(obligations.Object);
-        // Injected into every component by _Imports.razor, plus the page's own facility catalogue.
-        Services.AddSingleton(Mock.Of<ISetupApiClient>());
-        Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
-        Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
-        Services.AddSingleton(Mock.Of<IFacilitiesApiClient>());
-        Services.AddSingleton(Mock.Of<ISettingsApiClient>());   // the print sheet's SignatureStrip
-        Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
-        Services.AddSingleton<EEMOCantilanSDS.Client.Services.FacilityState>();
-        this.AddTestAuthorization().SetAuthorized("Admin");
-
-        var cut = RenderComponent<ClosedAccounts>();
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".ca-row-renew")), RenderTimeout);
-        return (cut, sent);
-    }
-
     /// <summary>Renders the register with several accounts, for the summary figures rather than the renew dialog.</summary>
     private IRenderedComponent<ClosedAccounts> Render(params ClosedStallAccountDto[] accounts)
     {
@@ -92,6 +62,7 @@ public class ClosedAccountsRenewTests : TestContext
         var obligations = new Mock<IObligationsApiClient>();
         obligations.Setup(x => x.GetWorkspaceAsync(It.IsAny<ObligationKind>())).ReturnsAsync(Result<EEMOCantilanSDS.Application.Dtos.Revenue.ObligationWorkspaceDto>.Success(new([], 0m, 0m, 0m)));
         Services.AddSingleton(obligations.Object);
+        Services.AddSingleton(Mock.Of<ILifecycleApiClient>());
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
@@ -104,108 +75,11 @@ public class ClosedAccountsRenewTests : TestContext
         return RenderComponent<ClosedAccounts>();
     }
 
-    [Fact]
-    public void Proceed_StatesNoFigures_SoTheStallKeepsItsOwnRate()
-    {
-        var (cut, sent) = Render(ExpiredAccount());
 
-        cut.Find(".ca-row-renew").Click();
-        // The dialog renders asynchronously, so wait for its footer instead of assuming it is present: the click below
-        // used to fail intermittently under full-suite load and pass in isolation. Selected by class, never by position
-        // among the footer's buttons.
-        cut.WaitForElement(".eemo-modal-footer .btn-primary", RenderTimeout).Click();   // Proceed
 
-        cut.WaitForAssertion(() => Assert.NotEmpty(sent), RenderTimeout);
-        var req = Assert.Single(sent);
-        Assert.Null(req.MonthlyRate);
-        Assert.Null(req.AreaSqm);
-        Assert.Null(req.AreaNote);
-        Assert.Equal("Maria Santos", req.ActualOccupant);
-        Assert.Equal(3, req.DurationYears);
-    }
 
-    [Fact]
-    public void Edit_WithNothingChanged_StillStatesNoFigures()
-    {
-        // The regression: opening Edit used to send the register's derived rent back as a correction.
-        var (cut, sent) = Render(ExpiredAccount());
 
-        cut.Find(".ca-row-renew").Click();
-        // Waited for and selected by name rather than by position among the footer's ghost buttons. The positional
-        // form passed locally and failed on a slower CI runner where the re-render had not finished, blocking a
-        // deployment without having found anything wrong with the application.
-        cut.WaitForElement(".ca-renew-edit", RenderTimeout).Click();
-        cut.Find(".eemo-modal-footer .btn-primary").Click();       // Confirm Renew
 
-        var req = Assert.Single(sent);
-        Assert.Null(req.MonthlyRate);
-        Assert.Null(req.AreaSqm);
-        Assert.Null(req.AreaNote);
-    }
-
-    [Fact]
-    public void Edit_WithACorrectedRent_StatesOnlyThat()
-    {
-        var (cut, sent) = Render(ExpiredAccount());
-
-        cut.Find(".ca-row-renew").Click();
-        // Waited for and selected by name rather than by position among the footer's ghost buttons. The positional
-        // form passed locally and failed on a slower CI runner where the re-render had not finished, blocking a
-        // deployment without having found anything wrong with the application.
-        cut.WaitForElement(".ca-renew-edit", RenderTimeout).Click();
-        cut.Find(".ca-renew-rate").Change("1800");
-        cut.Find(".eemo-modal-footer .btn-primary").Click();
-
-        var req = Assert.Single(sent);
-        Assert.Equal(1800m, req.MonthlyRate);
-        Assert.Null(req.AreaSqm);      // untouched, so not stated
-        Assert.Null(req.AreaNote);
-    }
-
-    [Fact]
-    public void Edit_ShowsTheRecordItIsReLetOn()
-    {
-        var (cut, _) = Render(ExpiredAccount());
-
-        cut.Find(".ca-row-renew").Click();
-        // Waited for and selected by name rather than by position among the footer's ghost buttons. The positional
-        // form passed locally and failed on a slower CI runner where the re-render had not finished, blocking a
-        // deployment without having found anything wrong with the application.
-        cut.WaitForElement(".ca-renew-edit", RenderTimeout).Click();
-
-        // The facts that identify the space are stated, not offered as fields.
-        Assert.Contains("New Public Market", cut.Markup);
-        Assert.Contains("Vegetable Area", cut.Markup);
-        Assert.Contains("Jun 1, 2023", cut.Markup);
-        Assert.Contains("Whole year: ₱10,800", cut.Markup);
-    }
-
-    [Fact]
-    public void PureDaysRenewalShowsNoFixedMonthlyOrWholeYearRent()
-    {
-        var (cut, _) = Render(ExpiredAccount(NpmMonthBasis.PureDays));
-
-        cut.Find(".ca-row-renew").Click();
-        cut.WaitForElement(".ca-renew-edit", RenderTimeout).Click();
-
-        Assert.Empty(cut.FindAll(".ca-renew-rate"));
-        Assert.DoesNotContain("Whole year:", cut.Markup);
-        Assert.Contains("Calendar-day billing", cut.Markup);
-    }
-
-    [Fact]
-    public void PureDaysRenewalDoesNotSendTheDormantLegacyMonthlyRate()
-    {
-        var legacyRow = ExpiredAccount(NpmMonthBasis.PureDays) with { MonthlyRate = 5_000m };
-        var (cut, sent) = Render(legacyRow);
-
-        cut.Find(".ca-row-renew").Click();
-        cut.WaitForElement(".ca-renew-edit", RenderTimeout).Click();
-        cut.Find(".eemo-modal-footer .btn-primary").Click();
-
-        var request = Assert.Single(sent);
-        Assert.Null(request.MonthlyRate);
-    }
 
     [Fact]
     public void EndedAndLapsedBalances_AreNeverAddedIntoOneTotal()
@@ -278,5 +152,22 @@ public class ClosedAccountsRenewTests : TestContext
             Assert.Equal("Resume account", resume.GetAttribute("aria-label"));
             Assert.DoesNotContain("Assign new stall", cut.Markup);
         }, RenderTimeout);
+    }
+    [Fact]
+    public void StallRowActionsAreLinksToTheStallsOwnProfile_AndTheReportOpensNoDialogAndCallsNothing()
+    {
+        var closed = ExpiredAccount() with { State = InactiveAccountState.Closed, StallNo = "4", ClosedOn = new DateOnly(2026, 5, 1) };
+        var expired = ExpiredAccount() with { StallNo = "5" };
+        var reLet = ExpiredAccount() with { State = InactiveAccountState.Superseded, StallNo = "6", StallReLet = true };
+        var cut = Render(closed, expired, reLet);
+
+        cut.WaitForAssertion(() => Assert.Equal(3, cut.FindAll("tbody tr[data-account], .ca-act-icons").Count > 0 ? cut.FindAll(".ca-row-reopen, .ca-row-renew").Count : 0), RenderTimeout);
+        string Href(string css, ClosedStallAccountDto row) =>
+            cut.FindAll(css).Single(e => e.GetAttribute("href")!.Contains(row.StallId.ToString())).GetAttribute("href")!;
+        Assert.Equal($"/profile/npm/{closed.StallId}?action=resume&contract={closed.ContractId}", Href(".ca-row-reopen", closed));
+        Assert.Equal($"/profile/npm/{expired.StallId}?action=renew&contract={expired.ContractId}", Href(".ca-row-renew", expired));
+        Assert.Equal($"/profile/npm/{reLet.StallId}?action=assign&contract={reLet.ContractId}", Href(".ca-row-renew", reLet));
+        Assert.Empty(cut.FindAll(".ca-row-icon:is(button).ca-row-reopen, button.ca-row-renew, button.ca-row-remove"));   // links, not mutations
+        Assert.Empty(cut.FindAll(".eemo-modal"));                                                                          // the report hosts no dialog
     }
 }

@@ -24,7 +24,8 @@ public enum OfflineOperationKind
     /// <summary>A canonical Fish / Meat Vendor Fee collection against one period of an existing obligation account: facts only, no physical serial (IA-050/IA-062).</summary>
     ObligationCollection = 12,
     NpmWholePayment = 13,
-    ItemizedCollectionSession = 14
+    ItemizedCollectionSession = 14,
+    NpmOutstandingRent = 15
 }
 
 /// <summary>Outcome of replaying one offline operation. Synced = persisted; Rejected = a terminal
@@ -108,7 +109,13 @@ public sealed record SyncOfflineOperationDto(
     // Canonical Fish / Meat Vendor Fee (Kind = ObligationCollection): the obligation account; BillingYear/BillingMonth name the period.
     Guid? ObligationAccountId = null,
     string? NpmQuoteToken = null,
-    RecordCollectionSessionRequest? CollectionSession = null);
+    RecordCollectionSessionRequest? CollectionSession = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    DateOnly? NpmInstallmentDate = null,
+    // Slaughterhouse in itemized mode (Kind = FeeScheduleCollection): the approved charges and quantities selected; never a rate.
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<SlaughterChargeSelectionDto>? SlaughterCharges = null,
+    Guid? NpmContractId = null);
 
 public sealed record SyncOperationResultDto(
     Guid ClientOperationId,

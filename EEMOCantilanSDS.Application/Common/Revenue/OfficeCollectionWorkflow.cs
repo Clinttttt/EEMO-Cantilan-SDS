@@ -17,7 +17,7 @@ namespace EEMOCantilanSDS.Application.Common.Revenue;
 
 /// <summary>IA-067/068 source facts delegate money to the shared canonical coordinator. No legacy projections.</summary>
 public sealed partial class OfficeCollectionWorkflow(IAppDbContext db, ICurrentUserService user,
-    ICurrentMunicipalityAccessor tenant, IClock clock, IFeeRateResolver rates)
+    ICurrentMunicipalityAccessor tenant, IClock clock, IFeeRateResolver rates, FishMeatRegistrationOptions? registrationOptions = null)
 {
     public static readonly DateOnly EffectiveFrom = new(2026, 10, 6);
     private Guid Tenant => tenant.MunicipalityId;
@@ -127,6 +127,9 @@ public sealed partial class OfficeCollectionWorkflow(IAppDbContext db, ICurrentU
             if (vendor is not null) { source = vendor.Id; payer = vendor.DisplayName; vendorType = vendor.VendorType; }
             if (charge.OperationCode == CollectorOperationCodes.FishMeatVendorFee)
             {
+                if (registrationOptions?.RequiresRegistration(Tenant, request.BusinessDate) == true
+                    && (vendor is null || vendor.TaxYear != clock.PhilippineToday.Year))
+                    return (null, "RequiresRegisteredVendor");
                 if (charge.Kilograms.HasValue) return (null, "InvalidIntent");
                 if (string.IsNullOrWhiteSpace(payer)) return (null, "RequiresPayerSnapshot");
                 code = RevenueClassificationCodes.FishMeatVendorFee; label = "Fish / Meat Vendor Fee";

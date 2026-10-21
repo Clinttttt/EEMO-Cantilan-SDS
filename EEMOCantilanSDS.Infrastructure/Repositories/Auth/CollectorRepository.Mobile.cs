@@ -299,6 +299,8 @@ public partial class CollectorRepository
     {
         var selectedFacilities = facilities.Distinct().ToList();
         var selectedSet = selectedFacilities.ToHashSet();
+        // A Public Market its LGU rents by the month reports as a monthly-rental facility: no daily open items or coverage.
+        var npmMonthly = await _context.Facilities.AsNoTracking().AnyAsync(f => f.Code == FacilityCode.NPM && f.Archetype == BillingArchetype.MonthlyRental, cancellationToken);
         var year = fromDate.Year;
         var month = fromDate.Month;
         var dailyReportMode = selectedFacilities.Count > 0 && selectedFacilities.All(IsDailyReportFacility);
@@ -330,7 +332,7 @@ public partial class CollectorRepository
         var npmFish = _npmFishRate;
         var npmMonthlyRent = _npmMonthlyRent;
 
-        if (selectedSet.Contains(FacilityCode.NPM))
+        if (selectedSet.Contains(FacilityCode.NPM) && !npmMonthly)
         {
             var npmStalls = await _context.Stalls
                 .AsNoTracking()
@@ -521,12 +523,23 @@ public partial class CollectorRepository
                     0,
                     null,
                     stallPayments.OrderByDescending(p => p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt).Select(p => p.ORNumber).FirstOrDefault()
-                        ?? paidCollections.OrderByDescending(d => d.CollectionDate).Select(d => d.ORNumber).FirstOrDefault());
+                        ?? paidCollections.OrderByDescending(d => d.CollectionDate).Select(d => d.ORNumber).FirstOrDefault(),
+                    StallId: s.Id);
             }));
 
+            var monthOwned = await _context.NpmRentMonths.AsNoTracking().Where(x => x.PeriodStart == monthStart
+                && (x.Status == NpmRentMonthPreparationStatus.FinanciallyActivated || _context.CollectionAllocations.Any(a =>
+                    a.MunicipalityId == x.MunicipalityId && a.SourceKind == CollectionSourceKind.NpmRentMonth && a.SourceId == x.Id)))
+                .ToListAsync(cancellationToken);
+            if (monthOwned.Any(x => x.SettlementActivatedAtUtc is null))
+                throw new InvalidOperationException("Activated NPM open-item evidence is unavailable. Reconcile the month source; do not fall back to daily arrears.");
+            var monthlyFrom = monthOwned.ToDictionary(x => x.StallId,
+                x => DateOnly.FromDateTime(PhilippineTime.ToPhilippineTime(x.SettlementActivatedAtUtc!.Value)));
             for (var date = fromDate; date <= toDate; date = date.AddDays(1))
             {
-                var openItems = npmStalls.Count(s => IsStallCollectableOn(s, date)
+                // An activated month owes monthly rent, not an unpaid synthetic daily item. Its balance is in Payees.
+                var openItems = npmStalls.Count(s => (!monthlyFrom.TryGetValue(s.Id, out var activated) || date < activated)
+                    && IsStallCollectableOn(s, date)
                     && !s.DailyCollections.Any(d => d.IsPaid && d.CollectionDate == date)
                     && !periodNpmPaymentRecords.Any(p => p.StallId == s.Id && NpmPaymentCoversDate(p, date, s)));
 
@@ -535,7 +548,7 @@ public partial class CollectorRepository
             }
         }
 
-        var monthlyFacilities = selectedFacilities.Where(IsMonthlyRentalFacility).ToList();
+        var monthlyFacilities = selectedFacilities.Where(f => IsMonthlyRentalFacility(f) || (f == FacilityCode.NPM && npmMonthly)).ToList();
         if (monthlyFacilities.Count > 0)
         {
             var monthlyRows = await _context.PaymentRecords

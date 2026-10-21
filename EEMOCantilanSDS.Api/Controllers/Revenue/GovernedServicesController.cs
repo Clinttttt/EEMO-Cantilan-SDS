@@ -41,24 +41,44 @@ public sealed class GovernedServicesController(ISender sender, GovernedServiceWo
         HandleResponse(await workflow.GetFeeOptionsAsync(operationCode, ct, activeOnly));
 
     [HttpPost("{operationCode}/fee-options")]
-    [Authorize(Roles = "SuperAdmin")]
+    [Authorize(Roles = "SuperAdmin,Admin")] // the workflow limits Admin to Slaughterhouse charges
     public async Task<ActionResult<IReadOnlyList<GovernedServiceFeeOptionDto>>> AddFeeOptionAsync(
         string operationCode, [FromBody] AddFeeOptionRequest request, CancellationToken ct) =>
         HandleResponse(await workflow.AddFeeOptionAsync(operationCode, request, ct));
 
     /// <summary>Appends an effective-dated amount rule (today or later); earlier rules and posted amounts are untouched.</summary>
     [HttpPost("{operationCode}/fee-options/{feeOptionId:guid}/rates")]
-    [Authorize(Roles = "SuperAdmin")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
     public async Task<ActionResult<IReadOnlyList<GovernedServiceFeeOptionDto>>> ScheduleFeeOptionRateAsync(
         string operationCode, Guid feeOptionId, [FromBody] ScheduleFeeOptionRateRequest request, CancellationToken ct) =>
         HandleResponse(await workflow.ScheduleFeeOptionRateAsync(operationCode, feeOptionId, request, ct));
 
+    /// <summary>Changes a Slaughterhouse charge's label and the animals it applies to. Rates are scheduled, never edited.</summary>
+    [HttpPut("{operationCode}/fee-options/{feeOptionId:guid}")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<IReadOnlyList<GovernedServiceFeeOptionDto>>> UpdateFeeOptionAsync(
+        string operationCode, Guid feeOptionId, [FromBody] UpdateFeeOptionRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.UpdateFeeOptionAsync(operationCode, feeOptionId, request, ct));
+
+    /// <summary>Offers a retired or retiring option again. Rates, history and recorded collections are untouched.</summary>
+    [HttpPost("{operationCode}/fee-options/{feeOptionId:guid}/reinstate")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<IReadOnlyList<GovernedServiceFeeOptionDto>>> ReinstateFeeOptionAsync(
+        string operationCode, Guid feeOptionId, CancellationToken ct) =>
+        HandleResponse(await workflow.ReinstateFeeOptionAsync(operationCode, feeOptionId, ct));
+
     /// <summary>Stops offering an option from today or a later date. History is retained.</summary>
     [HttpPost("{operationCode}/fee-options/{feeOptionId:guid}/retire")]
-    [Authorize(Roles = "SuperAdmin")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
     public async Task<ActionResult<IReadOnlyList<GovernedServiceFeeOptionDto>>> RetireFeeOptionAsync(
         string operationCode, Guid feeOptionId, [FromBody] RetireFeeOptionRequest request, CancellationToken ct) =>
         HandleResponse(await workflow.RetireFeeOptionAsync(operationCode, feeOptionId, request, ct));
+
+    /// <summary>Slaughterhouse Add Charge presets: the reference tenant's documented breakdown, or none. Prefill only.</summary>
+    [HttpGet("slaughterhouse/charge-presets")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<IReadOnlyList<SlaughterChargePresetDto>>> ChargePresetsAsync(CancellationToken ct) =>
+        HandleResponse(await workflow.GetSlaughterChargePresetsAsync(ct));
 
     /// <summary>Posted money of the service in a period by the fee option frozen on each line (drill-down; each line once).</summary>
     [HttpGet("{operationCode}/fee-option-totals")]

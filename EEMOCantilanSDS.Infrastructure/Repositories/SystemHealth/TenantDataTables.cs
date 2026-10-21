@@ -26,7 +26,8 @@ public static class TenantDataTables
     {
         "MobileCollectionSessions", "FishMeatVendorRegistrations", "FishMeatNpmAssociations", "DirectCollectionReviewEvents", "SpaceHolderImportRuns", "FishMeatDirectCollectionLinks",
         // Nonfinancial registration proposals and immutable Head decisions are tenant-owned audit evidence.
-        "NpmRegistrationRequests",
+        "NpmRegistrationRequests", "FishMeatRegistrationRequests",
+        "NpmRentMonths", // preparation-only month identity/evidence; audit remains export-only and no cash is created
         "FineAssessmentPolicies", "FineAssessments", "FineAssessmentEvents", // source-owned non-cash liability and its immutable governing/audit evidence
         "DirectFineAuthorities", // reviewed no-registration fine authority; posted CollectionLines reference it, so a restore must carry it
         "OfficialReportRevisions", // approved targets and report deltas are the tenant's revision-safe official statement evidence
@@ -37,7 +38,7 @@ public static class TenantDataTables
         // The office's own record of which weekday it has held its weekly market on, and from when. Restorable
         // because it decides which dates were market days: restoring the attendances without it would leave the
         // office's own collections falling on days its schedule says were not market days.
-        "TpmMarketDaySchedules", "CollectorOperationAssignments", "CollectorOperationActivations", "GovernedServices", "GovernedServiceSettings", "PenaltyDefinitions", "ObligationAccounts", "ObligationRates", "ObligationPeriods", "VehicleClasses", "VehicleClassRates", "GovernedServiceFeeOptions", "GovernedServiceFeeOptionRates", "CollectionRemittances", "CollectionRemittanceCoverages", "AccountableFormSpoilages", "AccountableFormLossReports", "AccountableFormReferences",
+        "TpmMarketDaySchedules", "CollectorOperationAssignments", "CollectorOperationActivations", "GovernedServices", "GovernedServiceSettings", "PenaltyDefinitions", "ObligationAccounts", "SpaceRegistrations", "SpaceContractTerms", "SpaceLifecycleEvents", "ObligationRates", "ObligationPeriods", "VehicleClasses", "VehicleClassRates", "GovernedServiceFeeOptions", "GovernedServiceFeeOptionRates", "CollectionRemittances", "CollectionRemittanceCoverages", "OfficeCashTurnovers", "OfficeCashTurnoverCoverages", "AccountableFormSpoilages", "AccountableFormLossReports", "AccountableFormReferences",
     };
 
     /// <summary>

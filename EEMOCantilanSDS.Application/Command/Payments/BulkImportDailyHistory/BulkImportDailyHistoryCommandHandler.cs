@@ -28,7 +28,7 @@ public class BulkImportDailyHistoryCommandHandler(
     IFeeRateResolver feeRateResolver,
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
-    ITenantContext tenantContext, IClock clock)
+    ITenantContext tenantContext, IClock clock, Common.Payments.NpmRentMonthWorkflow? monthly = null)
     : IRequestHandler<BulkImportDailyHistoryCommand, Result<BulkImportDailyResultDto>>
 {
     /// <summary>
@@ -162,6 +162,11 @@ public class BulkImportDailyHistoryCommandHandler(
             }
 
             var stall = matches[0];
+            if (monthly is not null && await monthly.IsMonthActivatedAsync(stall.Id, new(row.BillingYear, row.BillingMonth, 1), ct))
+            {
+                Reject("This month has activated source authority. Historical cash cannot be imported or reclassified through daily rows.");
+                continue;
+            }
 
             // The count and the dates have to agree. A row claiming two days and naming five contradicts itself, and
             // honouring the dates settled all five while reporting "recorded in full" against a claim of two - more

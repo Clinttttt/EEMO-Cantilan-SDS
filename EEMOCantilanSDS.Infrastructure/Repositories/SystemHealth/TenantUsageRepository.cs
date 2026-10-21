@@ -68,6 +68,8 @@ public class TenantUsageRepository(AppDbContext context) : ITenantUsageRepositor
         ["GovernedServiceFeeOptionRates"] = "Fee option rates",
         ["CollectionRemittances"] = "Collection remittances",
         ["CollectionRemittanceCoverages"] = "Remittance coverage",
+        ["OfficeCashTurnovers"] = "Office cash turnovers",
+        ["OfficeCashTurnoverCoverages"] = "Office cash turnover coverage",
         ["AccountableFormSpoilages"] = "Spoiled form records",
         ["AccountableFormLossReports"] = "Lost form reports",
         ["AccountableFormReferences"] = "Form follow-up references",

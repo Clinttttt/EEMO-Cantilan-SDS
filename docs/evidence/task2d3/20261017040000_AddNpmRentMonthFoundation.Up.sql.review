@@ -1,0 +1,54 @@
+ALTER TABLE "Stalls" ADD CONSTRAINT "AK_Stalls_MunicipalityId_Id_FacilityId" UNIQUE ("MunicipalityId", "Id", "FacilityId");
+
+ALTER TABLE "Facilities" ADD CONSTRAINT "AK_Facilities_MunicipalityId_Id" UNIQUE ("MunicipalityId", "Id");
+
+CREATE TABLE "NpmRentMonths" (
+    "Id" uuid NOT NULL,
+    "MunicipalityId" uuid NOT NULL,
+    "FacilityId" uuid NOT NULL,
+    "StallId" uuid NOT NULL,
+    "ContractId" uuid NOT NULL,
+    "PeriodStart" date NOT NULL,
+    "OwnershipAsOf" date NOT NULL,
+    "AssessedAmount" numeric(18,2) NOT NULL,
+    "CreditedAmount" numeric(18,2) NOT NULL,
+    "MonthBasis" integer,
+    "RateAsOf" date NOT NULL,
+    "PolicyReference" character varying(1000) NOT NULL,
+    "RateEvidenceJson" jsonb NOT NULL,
+    "CreditEvidenceJson" jsonb NOT NULL,
+    "Status" integer NOT NULL,
+    "SettlementVersion" bigint NOT NULL,
+    "CreatedByUserId" uuid NOT NULL,
+    "CreatedBy" character varying(100) NOT NULL,
+    "CreatedAtUtc" timestamp with time zone NOT NULL,
+    "UpdatedByUserId" uuid,
+    "UpdatedBy" character varying(100),
+    "UpdatedAtUtc" timestamp with time zone,
+    "LastRevisionReason" character varying(4000),
+    "ReconciledByUserId" uuid,
+    "ReconciledAtUtc" timestamp with time zone,
+    "ReconciliationEvidence" character varying(4000),
+    CONSTRAINT "PK_NpmRentMonths" PRIMARY KEY ("Id"),
+    CONSTRAINT "AK_NpmRentMonths_MunicipalityId_Id" UNIQUE ("MunicipalityId", "Id"),
+    CONSTRAINT "CK_NpmRentMonths_Basis" CHECK ("MonthBasis" IS NULL OR "MonthBasis" IN (1, 2)),
+    CONSTRAINT "CK_NpmRentMonths_Evidence" CHECK (length(btrim("PolicyReference")) > 0 AND length(btrim("CreatedBy")) > 0 AND jsonb_typeof("RateEvidenceJson") = 'object' AND "RateEvidenceJson" <> '{}'::jsonb AND jsonb_typeof("CreditEvidenceJson") = 'object' AND "CreditEvidenceJson" <> '{}'::jsonb),
+    CONSTRAINT "CK_NpmRentMonths_Identity" CHECK ("MunicipalityId" <> '00000000-0000-0000-0000-000000000000'::uuid AND "FacilityId" <> '00000000-0000-0000-0000-000000000000'::uuid AND "StallId" <> '00000000-0000-0000-0000-000000000000'::uuid AND "ContractId" <> '00000000-0000-0000-0000-000000000000'::uuid AND "CreatedByUserId" <> '00000000-0000-0000-0000-000000000000'::uuid),
+    CONSTRAINT "CK_NpmRentMonths_Money" CHECK ("AssessedAmount" >= 0 AND "CreditedAmount" >= 0 AND "CreditedAmount" <= "AssessedAmount"),
+    CONSTRAINT "CK_NpmRentMonths_Period" CHECK (EXTRACT(DAY FROM "PeriodStart") = 1),
+    CONSTRAINT "CK_NpmRentMonths_Review" CHECK (("Status" = 1 AND "ReconciledByUserId" IS NULL AND "ReconciledAtUtc" IS NULL AND "ReconciliationEvidence" IS NULL) OR ("Status" = 2 AND "MonthBasis" IS NOT NULL AND "ReconciledByUserId" IS NOT NULL AND "ReconciledByUserId" <> '00000000-0000-0000-0000-000000000000'::uuid AND "ReconciledAtUtc" IS NOT NULL AND "ReconciledAtUtc" >= "CreatedAtUtc" AND "ReconciliationEvidence" IS NOT NULL AND length(btrim("ReconciliationEvidence")) > 0)),
+    CONSTRAINT "CK_NpmRentMonths_RevisionReason" CHECK (("UpdatedAtUtc" IS NULL AND "LastRevisionReason" IS NULL) OR ("UpdatedAtUtc" IS NOT NULL AND "LastRevisionReason" IS NOT NULL AND length(btrim("LastRevisionReason")) > 0)),
+    CONSTRAINT "CK_NpmRentMonths_Updated" CHECK (("UpdatedAtUtc" IS NULL AND "UpdatedByUserId" IS NULL AND "UpdatedBy" IS NULL) OR ("UpdatedAtUtc" IS NOT NULL AND "UpdatedAtUtc" >= "CreatedAtUtc" AND "UpdatedByUserId" IS NOT NULL AND "UpdatedByUserId" <> '00000000-0000-0000-0000-000000000000'::uuid AND "UpdatedBy" IS NOT NULL AND length(btrim("UpdatedBy")) > 0)),
+    CONSTRAINT "CK_NpmRentMonths_Version" CHECK ("SettlementVersion" > 0),
+    CONSTRAINT "FK_NpmRentMonths_Contracts_MunicipalityId_ContractId_StallId" FOREIGN KEY ("MunicipalityId", "ContractId", "StallId") REFERENCES "Contracts" ("MunicipalityId", "Id", "StallId") ON DELETE RESTRICT,
+    CONSTRAINT "FK_NpmRentMonths_Facilities_MunicipalityId_FacilityId" FOREIGN KEY ("MunicipalityId", "FacilityId") REFERENCES "Facilities" ("MunicipalityId", "Id") ON DELETE RESTRICT,
+    CONSTRAINT "FK_NpmRentMonths_Stalls_MunicipalityId_StallId_FacilityId" FOREIGN KEY ("MunicipalityId", "StallId", "FacilityId") REFERENCES "Stalls" ("MunicipalityId", "Id", "FacilityId") ON DELETE RESTRICT
+);
+
+CREATE INDEX "IX_NpmRentMonths_MunicipalityId_ContractId_StallId" ON "NpmRentMonths" ("MunicipalityId", "ContractId", "StallId");
+
+CREATE INDEX "IX_NpmRentMonths_MunicipalityId_FacilityId" ON "NpmRentMonths" ("MunicipalityId", "FacilityId");
+
+CREATE INDEX "IX_NpmRentMonths_MunicipalityId_StallId_FacilityId" ON "NpmRentMonths" ("MunicipalityId", "StallId", "FacilityId");
+
+CREATE UNIQUE INDEX "IX_NpmRentMonths_MunicipalityId_StallId_PeriodStart" ON "NpmRentMonths" ("MunicipalityId", "StallId", "PeriodStart");

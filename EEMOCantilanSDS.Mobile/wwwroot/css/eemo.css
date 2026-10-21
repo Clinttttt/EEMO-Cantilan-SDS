@@ -853,19 +853,20 @@ html, body, #app {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 14px;
-    background: var(--mobile-blue);
-    border-bottom: 2px solid var(--gold-primary);
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px;
+    background: var(--mobile-blue-deep);
+    border-bottom: 0;
 }
 
 .arrears-back {
     flex: 0 0 auto;
-    width: 34px;
-    height: 34px;
-    border-radius: 9px;
-    border: 1px solid var(--navy-accent);
-    background: rgba(255, 255, 255, 0.16);
-    color: var(--gold-primary);
+    width: 44px;
+    height: 44px;
+    margin-left: -10px;
+    border-radius: 10px;
+    border: 0;
+    background: transparent;
+    color: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -882,17 +883,16 @@ html, body, #app {
 }
 
 .arrears-title {
-    font-family: 'Playfair Display', serif;
-    font-size: 19px;
-    font-weight: 700;
+    font-size: 17px;
+    font-weight: 600;
     color: #ffffff;
     line-height: 1.2;
 }
 
 .arrears-sub {
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-top: 1px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.78);
+    margin-top: 2px;
 }
 
 .arrears-body {

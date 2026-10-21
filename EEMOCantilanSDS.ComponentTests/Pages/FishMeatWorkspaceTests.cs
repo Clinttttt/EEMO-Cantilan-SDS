@@ -104,6 +104,28 @@ public sealed class FishMeatWorkspaceTests : TestContext
     }
 
     [Fact]
+    public void WeightAndMeasureReport_StatesTheFrozenServerFigures_AndTheFishRows_InTheStandardReportShell()
+    {
+        Services.AddSingleton(Mock.Of<IOfficialReportsApiClient>());
+        _facilities.Setup(x => x.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>()))
+            .ReturnsAsync(Result<FacilityReportsDto>.Success(Report(fishFeeAmount: 37m, meatKilos: 4m, meatAmount: 120m, fishFrozen: 15m, fishUnfrozenKilos: 10m,
+                Stall(FishStallId, "F-12", "Juan Dela Cruz", "Fish Area", fishKilos: 25m))));
+
+        var cut = RenderComponent<WeightAndMeasureReport>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Empty(cut.FindAll("main"));
+            var sheet = cut.Find("article.print-report-sheet").TextContent;
+            Assert.Contains("₱120.00", sheet);          // Meat weighing, frozen
+            Assert.Contains("₱15.00", sheet);           // Fish weighing, frozen
+            Assert.DoesNotContain("₱37.00", sheet);     // kilos x today's rate is never shown as collected
+            Assert.Contains("Juan Dela Cruz", sheet);
+            Assert.Contains("25.00 kg", sheet);
+        }, Timeout);
+    }
+
+    [Fact]
     public void WeightAndMeasure_WithNoMeatWeighing_SaysSo()
     {
         _facilities.Setup(x => x.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>()))

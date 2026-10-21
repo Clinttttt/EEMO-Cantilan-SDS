@@ -66,6 +66,23 @@ public sealed class DashboardOverviewViewsTests : TestContext
         int? transactions = 1, FacilityCode? facility = null, bool awaiting = false) =>
         new(key, label, group, groupLabel, model, "OR", facility, collected, 0m, collected, transactions, transactions, 1, "Active", awaiting);
 
+    [Fact]
+    public void Dashboard_collected_keeps_1200_cash_and_official_revision_is_labeled_separately()
+    {
+        Dashboard();
+        var row = Row("RENT_NCC", "NCC", "RENT", "Rent income", RevenueSourceModel.RecurringObligation, 1200, facility: FacilityCode.NCC)
+            with { AdjustmentAmount = 54, AnnualTarget = 2000, Attainment = 62.7m };
+        var data = Source(row) with { TotalCollected = 1200, Groups = [new("RENT", "Rent income", 1200)] };
+        _official.Setup(x => x.GetSourcePerformanceAsync(It.IsAny<int>(), It.IsAny<int?>())).ReturnsAsync(Result<RevenueSourcePerformanceDto>.Success(data));
+        var cut = RenderComponent<Menu>();
+        cut.WaitForAssertion(() => Assert.Contains("1,200", cut.FindAll(".v3h-figure").Single(x => x.TextContent.Trim().StartsWith("Collected")).TextContent));
+        Assert.DoesNotContain("1,254", cut.FindAll(".v3h-figure").Single(x => x.TextContent.Trim().StartsWith("Collected")).TextContent);
+        var panel = RenderComponent<RevenueSourcePerformancePanel>(p => p.Add(x => x.Year, data.Year).Add(x => x.Month, data.Month));
+        panel.WaitForAssertion(() => Assert.Contains("Official", panel.Find(".rsp-collected").TextContent));
+        Assert.Contains("1,254", panel.Find(".rsp-collected").TextContent); Assert.Contains("report adjustment", panel.Markup);
+        Assert.Contains("62.7% official", panel.Markup);
+    }
+
     private RevenueSourcePerformanceDto Source(params RevenueSourcePerformanceRowDto[] rows) =>
         new(PhilippineTime.Today.Year, PhilippineTime.Today.Month,
             [new("MARKET", "Income From Market", 0m)], rows, 98765m, [], DateTime.UtcNow);
@@ -221,6 +238,7 @@ public sealed class DashboardOverviewViewsTests : TestContext
         Assert.Equal("IFT", terminal.QuerySelector("small")!.TextContent);
         Assert.Equal("/operations/terminal", terminal.QuerySelector("a")!.GetAttribute("href"));
         Assert.Equal(2, terminal.QuerySelectorAll("dd").Length);
+        Assert.Equal("Collected", terminal.QuerySelector("dt")!.TextContent.Trim());
         Assert.DoesNotContain("TRM", terminal.TextContent);
         // It rides in the facility grid beside the other pale cards, not as a separate white block.
         Assert.NotNull(terminal.ParentElement!.ClassList.Contains("facility-grid") ? terminal : null);
@@ -240,15 +258,15 @@ public sealed class DashboardOverviewViewsTests : TestContext
         var cut = RenderLoaded();
 
         var figures = cut.FindAll(".v3h-figure").ToDictionary(f => f.QuerySelector(".v3h-key")!.TextContent.Trim(), f => f);
-        Assert.Equal(["Collected", "Outstanding rent", "Facility payments", "Facility collection rate"], figures.Keys.ToArray());
+        Assert.Equal(["Collected", "Outstanding rent", "Facility payments", "Collection rate"], figures.Keys.ToArray());
         // The official total, not the facility sum (₱5,700).
         Assert.Equal("₱98,765", figures["Collected"].QuerySelector(".v3h-val")!.TextContent.Trim());
         Assert.Contains("all revenue sources", figures["Collected"].TextContent);
         Assert.Equal("₱1,200", figures["Outstanding rent"].QuerySelector(".v3h-val")!.TextContent.Trim());
-        Assert.Contains("facility rentals only", figures["Outstanding rent"].TextContent);
-        Assert.Contains("not every source", figures["Facility payments"].TextContent);
-        Assert.Equal("80%", figures["Facility collection rate"].QuerySelector(".v3h-val")!.TextContent.Trim());
-        Assert.Contains("stall rentals", figures["Facility collection rate"].TextContent);
+        Assert.Contains("rentals only", figures["Outstanding rent"].TextContent);
+        Assert.Contains("not all sources", figures["Facility payments"].TextContent);
+        Assert.Equal("80%", figures["Collection rate"].QuerySelector(".v3h-val")!.TextContent.Trim());
+        Assert.Contains("stall rentals", figures["Collection rate"].TextContent);
     }
 
     [Fact]
@@ -265,7 +283,7 @@ public sealed class DashboardOverviewViewsTests : TestContext
         Assert.Empty(cut.FindAll(".facility-card[data-source-key]"));
         var collected = cut.FindAll(".v3h-figure").Single(f => f.TextContent.Contains("Collected") && !f.TextContent.Contains("rate"));
         Assert.Equal("—", collected.QuerySelector(".v3h-val")!.TextContent.Trim());
-        Assert.Contains("Official total unavailable", collected.TextContent);
+        Assert.Contains("Actual collections unavailable", collected.TextContent);
         Assert.Contains("₱5,000", cut.Markup);   // the facility cards, whose own source loaded, are unaffected
 
         cut.Find(".dash-note-error button").Click();
@@ -393,7 +411,7 @@ public sealed class DashboardOverviewViewsTests : TestContext
 
         cut.WaitForAssertion(() => Assert.Single(cut.FindAll("table.rsp-table")), Timeout);
         Assert.Empty(cut.FindAll(".rsp-head-actions"));
-        Assert.Contains("Official collections and operating activity", cut.Find(".rsp-sub").TextContent);
+        Assert.Contains("Actual collections and operating activity", cut.Find(".rsp-sub").TextContent);
         Assert.DoesNotContain("v3-sr-only", cut.Find(".rsp-head-copy").ClassName);
     }
 }

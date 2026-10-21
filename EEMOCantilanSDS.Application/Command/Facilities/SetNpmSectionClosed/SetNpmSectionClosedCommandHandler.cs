@@ -53,6 +53,8 @@ public class SetNpmSectionClosedCommandHandler(
         // Only a section the office has actually registered, under the name it registered, exactly as pricing one is.
         var npm = await facilityRepo.GetByCodeAsync(FacilityCode.NPM, ct);
         if (npm is null) return Result<int>.NotFound();
+        if (npm.IsMonthlyRentMarket)
+            return Result<int>.Failure("This market is rented by the month and has no daily operating calendar to close a section on.", ResultStatus.Invalid);
 
         var registered = npm.CustomSectionNames
             .FirstOrDefault(n => string.Equals(n, section, StringComparison.OrdinalIgnoreCase));
@@ -61,6 +63,12 @@ public class SetNpmSectionClosedCommandHandler(
 
         var existing = await context.FacilitySectionClosures
             .FirstOrDefaultAsync(c => c.FacilityCode == FacilityCode.NPM && c.SectionName == registered, ct);
+
+        if (await (from source in context.NpmRentMonths
+            join stall in context.Stalls on source.StallId equals stall.Id
+            where source.Status == EEMOCantilanSDS.Domain.Entities.Payments.NpmRentMonthPreparationStatus.FinanciallyActivated
+                && stall.CustomSectionName == registered select source.Id).AnyAsync(ct))
+            return Result<int>.Failure("This section contains activated month sources. Review lifecycle and credit reconciliation before changing the section.", ResultStatus.Conflict);
 
         var affected = request.Closed
             ? await CloseAsync(registered, existing, ct)

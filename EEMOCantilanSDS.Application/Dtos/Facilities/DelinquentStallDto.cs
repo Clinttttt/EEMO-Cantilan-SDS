@@ -24,5 +24,28 @@ public record DelinquentStallDto(
     decimal OutstandingBalance,
     Guid? StallId = null,
     bool TermLapsed = false,
-    string Section = ""
-);
+    string Section = "",
+    // The account split by obligation (IA-019 / IA-020 / IA-069), set when the source classified it (Classified = true). MonthsUnpaid and
+    // OutstandingBalance stay the WHOLE account for every existing reader; these partition the unpaid elapsed months with no month in both:
+    // Arrears = previous-calendar-year months, plus every month of an expired contract; Delinquent = current-year months of a live account.
+    bool Classified = false,
+    int ArrearsMonths = 0,
+    decimal ArrearsAmount = 0m,
+    int DelinquentMonths = 0,
+    decimal DelinquentAmount = 0m,
+    // The oldest and newest billing month inside each category, so a row can name the periods it is about (yyyy-MM).
+    string? ArrearsFirstPeriod = null,
+    string? ArrearsLastPeriod = null,
+    string? DelinquentFirstPeriod = null,
+    string? DelinquentLastPeriod = null
+)
+{
+    /// <summary>Months counted as Delinquent: the classified count, or the whole age where a producer did not classify (every reader before IA-069).</summary>
+    public int DelinquentMonthCount => Classified ? DelinquentMonths : MonthsUnpaid;
+
+    /// <summary>Money counted as Delinquent, on the same rule as <see cref="DelinquentMonthCount"/>.</summary>
+    public decimal DelinquentOutstanding => Classified ? DelinquentAmount : OutstandingBalance;
+
+    /// <summary>Money counted as Arrears; zero where nothing was classified.</summary>
+    public decimal ArrearsOutstanding => Classified ? ArrearsAmount : 0m;
+}

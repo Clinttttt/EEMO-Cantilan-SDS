@@ -61,7 +61,9 @@ public sealed partial class OfficeCollectionWorkflow
             db.FishMeatNpmAssociations.Add(link);
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct); committed = true;
-            return Result<NpmVendorOccupancyResult>.Success(new(link.StallId, link.ContractId, link.Id, false));
+            var result = new NpmVendorOccupancyResult(link.StallId, link.ContractId, link.Id, false);
+            await ResolveRequestsAnsweredByLinkAsync(vendor.Id, link.StallId, link.Id, ct);
+            return Result<NpmVendorOccupancyResult>.Success(result);
         }
         catch (FluentValidation.ValidationException e)
         {

@@ -125,7 +125,9 @@ public sealed partial class OfficeCollectionWorkflow
                 fingerprint, validated.Source.Occupant, request.SourceVersion, request.ConfirmationNote, user.Username ?? "Head");
             db.FishMeatNpmAssociations.Add(link);
             await db.SaveChangesAsync(ct); await tx.CommitAsync(ct); committed = true;
-            return Result<NpmVendorAssociationDto>.Success(AssociationDto(link));
+            var linked = AssociationDto(link);
+            await ResolveRequestsAnsweredByLinkAsync(vendorId, link.StallId, link.Id, ct);
+            return Result<NpmVendorAssociationDto>.Success(linked);
         }
         catch (ArgumentException e) { return Result<NpmVendorAssociationDto>.Failure(e.Message, ResultStatus.Invalid); }
         catch (DbUpdateException) { return Result<NpmVendorAssociationDto>.Failure("RegistryConcurrencyConflict", ResultStatus.Conflict); }

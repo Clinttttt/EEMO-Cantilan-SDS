@@ -19,7 +19,7 @@ namespace EEMOCantilanSDS.IntegrationTests;
 /// nothing. Nothing here touches any database but the throwaway container.
 /// </summary>
 [Collection(PostgresCollection.Name)]
-public sealed class OnboardingActivationTests(PostgresFixture db)
+public sealed partial class OnboardingActivationTests(PostgresFixture db)
 {
     private static readonly DateOnly Rated = new(2020, 1, 1);
 

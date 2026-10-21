@@ -23,7 +23,7 @@
             </Meta>
             <Actions>
                 <label class="v3-period">
-                    <span>Reporting month</span>
+                    <span>Month</span>
                     <input class="v3-input" type="month" aria-label="Reporting month" value="@_monthInput" @onchange="ChangeMonthAsync" />
                 </label>
                 <div class="v3-btn-group" role="group" aria-label="Report actions">
@@ -63,42 +63,82 @@
         <OperationMonthlyIncome Classification="@Classification" RowKey="@RowKey" Year="_month.Year" HeadingId="@($"{IdPrefix}-official")" />
 
         <section class="v3-report-section" aria-labelledby="@($"{IdPrefix}-position")">
-            <h3 id="@($"{IdPrefix}-position")">Collection position — @MonthLabel</h3>
-            <div class="v3-table-wrap">
-                <table class="v3-report-table">
-                    <thead>
-                        <tr>
-                            <th scope="col" class="v3-num">Transactions</th>
-                            <th scope="col" class="v3-num">Official Receipts</th>
-                            <th scope="col" class="v3-num">Cash Tickets</th>
-                            <th scope="col" class="v3-num">Collectors</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td class="v3-num">@Count(_activity?.Count)</td>
-                            <td class="v3-num">@Count(_activity?.Count(x => x.Instrument == RevenueInstrumentType.OfficialReceipt))</td>
-                            <td class="v3-num">@Count(_activity?.Count(x => x.Instrument == RevenueInstrumentType.CashTicket))</td>
-                            <td class="v3-num">@Count(_activity?.Select(x => x.CollectorName ?? "Office").Distinct().Count())</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-            <p class="v3-report-note">Amounts are stated in the Monthly Income row above. Counts are documents and people, never pesos. Paid on service: this operation creates no outstanding obligation.</p>
+            <h3 id="@($"{IdPrefix}-position")">Summary</h3>
+            <dl class="v3-report-summary">
+                <div><dt>Transactions</dt><dd>@Count(_activity?.Count)</dd></div>
+                @if (Instruments.Count > 1)
+                {
+                    <div><dt>Official Receipts</dt><dd>@Count(_activity?.Count(x => x.Instrument == RevenueInstrumentType.OfficialReceipt))</dd></div>
+                    <div><dt>Cash Tickets</dt><dd>@Count(_activity?.Count(x => x.Instrument == RevenueInstrumentType.CashTicket))</dd></div>
+                }
+                <div><dt>Collectors</dt><dd>@Count(_activity?.Select(x => x.CollectorName ?? "Office").Distinct().Count())</dd></div>
+            </dl>
         </section>
 
+        @if (ByFeeType && (_totals is null || _totals.Count > 0))
+        {
+            <section class="v3-report-section" aria-labelledby="@($"{IdPrefix}-fees")">
+                <h3 id="@($"{IdPrefix}-fees")">By fee type</h3>
+                <div class="v3-table-wrap">
+                    <table class="v3-report-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Fee type</th>
+                                <th scope="col" class="v3-num">Transactions</th>
+                                <th scope="col" class="v3-num">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (_totals is null || _totals.Count == 0)
+                            {
+                                <tr><td colspan="3" class="v3-report-note">@(_loading ? "Loading…" : _totals is null ? "The breakdown by fee type is unavailable." : $"No fee type collections in {MonthLabel}.")</td></tr>
+                            }
+                            else
+                            {
+                                @foreach (var total in _totals)
+                                {
+                                    <tr>
+                                        <td>@total.Name</td>
+                                        <td class="v3-num">@total.Collections.ToString("N0", CultureInfo.InvariantCulture)</td>
+                                        <td class="v3-num">@Money(total.Amount)</td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                        @if (_totals is { Count: > 0 })
+                        {
+                            <tfoot>
+                                <tr>
+                                    <th scope="row">Total</th>
+                                    <td class="v3-num">@_totals.Sum(x => x.Collections).ToString("N0", CultureInfo.InvariantCulture)</td>
+                                    <td class="v3-num">@Money(_totals.Sum(x => x.Amount))</td>
+                                </tr>
+                            </tfoot>
+                        }
+                    </table>
+                </div>
+            </section>
+        }
+
         <section class="v3-report-section" aria-labelledby="@($"{IdPrefix}-register")">
-            <h3 id="@($"{IdPrefix}-register")">Collection register — @MonthLabel</h3>
+            <h3 id="@($"{IdPrefix}-register")">Collection register</h3>
             <div class="v3-table-wrap">
                 <table class="v3-report-table">
                     <thead>
                         <tr>
                             <th scope="col">Date</th>
                             <th scope="col">SRC</th>
-                            <th scope="col">Instrument</th>
+                            @if (ShowInstrument)
+                            {
+                                <th scope="col">Instrument</th>
+                            }
                             @if (ModeAware)
                             {
                                 <th scope="col">Mode</th>
+                            }
+                            @if (ShowFeeType)
+                            {
+                                <th scope="col">Fee type</th>
                             }
                             <th scope="col">Payer / reference</th>
                             <th scope="col">Collector</th>
@@ -109,7 +149,7 @@
                     <tbody>
                         @if (_activity is null || _activity.Count == 0)
                         {
-                            <tr><td colspan="@(ModeAware ? 8 : 7)" class="v3-report-note">@(_loading ? "Loading collections…" : _activity is null ? "Collections are unavailable." : $"No {Name} collections were recorded in {MonthLabel}.")</td></tr>
+                            <tr><td colspan="@ColumnCount" class="v3-report-note">@(_loading ? "Loading collections…" : _activity is null ? "Collections are unavailable." : $"No {Name} collections were recorded in {MonthLabel}.")</td></tr>
                         }
                         else
                         {
@@ -118,10 +158,17 @@
                                 <tr>
                                     <td>@row.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)</td>
                                     <td>@row.ReferenceCode</td>
-                                    <td>@InstrumentShort(row.Instrument)</td>
+                                    @if (ShowInstrument)
+                                    {
+                                        <td>@InstrumentShort(row.Instrument)</td>
+                                    }
                                     @if (ModeAware)
                                     {
                                         <td>@ModeLabel(row.Mode)</td>
+                                    }
+                                    @if (ShowFeeType)
+                                    {
+                                        <td>@(row.FeeOptionName ?? "—")</td>
                                     }
                                     <td>@(row.PayerName ?? "Walk-up")@(string.IsNullOrWhiteSpace(row.Reference) ? "" : $" · {row.Reference}")</td>
                                     <td>@(row.CollectorName ?? "Office")</td>
@@ -134,14 +181,6 @@
                 </table>
             </div>
         </section>
-
-        @if (Basis is not null)
-        {
-            <section class="v3-report-section" aria-labelledby="@($"{IdPrefix}-basis")">
-                <h3 id="@($"{IdPrefix}-basis")">Basis</h3>
-                <p class="v3-report-note">@Basis</p>
-            </section>
-        }
     </article>
 </div>
 
@@ -169,9 +208,16 @@
 
     [Parameter] public bool ModeAware { get; set; }
 
-    [Parameter] public string? Basis { get; set; }
-
     [Parameter, EditorRequired] public string IdPrefix { get; set; } = "gor";
+
+    /// <summary>Adds a "By fee type" breakdown and a Fee type column, for an operation collected by approved fee type (Market Fees).</summary>
+    [Parameter] public bool ByFeeType { get; set; }
+
+    // One instrument is already stated in the header and letterhead, so the register repeats it only when two can apply.
+    private bool ShowInstrument => Instruments.Count > 1;
+    private bool ShowFeeType => ByFeeType && (_activity?.Any(x => x.FeeOptionName is not null) ?? false);
+    private int ColumnCount => 6 + (ShowInstrument ? 1 : 0) + (ModeAware ? 1 : 0) + (ShowFeeType ? 1 : 0);
+    private IReadOnlyList<FeeOptionTotalDto>? _totals;
 
     private DateOnly _month = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
     private string _monthInput = PhilippineTime.Today.ToString("yyyy-MM");
@@ -203,10 +249,16 @@
             var result = await GovernedApi.GetActivityAsync(OperationCode, _month, _month.AddMonths(1).AddDays(-1));
             if (result is { IsSuccess: true, Value: { } rows }) _activity = rows;
             else { _activity = null; _error = $"The {Name} collections could not be loaded."; }
+            if (ByFeeType)
+            {
+                var totals = await GovernedApi.GetFeeOptionTotalsAsync(OperationCode, _month, _month.AddMonths(1).AddDays(-1));
+                _totals = totals is { IsSuccess: true, Value: { } list } ? list : null;
+            }
         }
         catch
         {
             _activity = null;
+            _totals = null;
             _error = $"The {Name} collections could not be loaded.";
         }
         finally
@@ -231,10 +283,10 @@
             Csv("Instrument", InstrumentFact),
             Csv("Date prepared", PhilippineTime.Now.ToString("yyyy-MM-dd")),
             string.Empty,
-            Csv("Date", "SRC", "Instrument", "Mode", "Payer", "Reference", "Collector", "Amount", "Status"),
+            Csv("Date", "SRC", "Instrument", "Mode", "Fee type", "Payer", "Reference", "Collector", "Amount", "Status"),
         };
         rows.AddRange((_activity ?? []).OrderBy(x => x.BusinessDate).Select(x => Csv(
-            x.BusinessDate.ToString("yyyy-MM-dd"), x.ReferenceCode, InstrumentShort(x.Instrument), ModeLabel(x.Mode),
+            x.BusinessDate.ToString("yyyy-MM-dd"), x.ReferenceCode, InstrumentShort(x.Instrument), ModeLabel(x.Mode), x.FeeOptionName,
             x.PayerName ?? "Walk-up", x.Reference ?? "", x.CollectorName ?? "Office",
             x.Amount.ToString("0.00", CultureInfo.InvariantCulture), x.Disposition)));
         return string.Join("\r\n", rows);

@@ -1,0 +1,89 @@
+{
+  "backup": {
+    "path": "C:\\dev\\stalltrack-v2-worktrees\\local-db-backups\\EEMOCantilanSDS.DB_task2c3_full_2026-10-17T00-57-38-716Z.dump",
+    "createdAtUtc": "2026-10-17T00:57:39.647Z",
+    "bytes": 1712039,
+    "sha256": "08c54731264fb352b3e6d40c10dc129cd3240873ae8c982df7d047bf9ba7de99",
+    "format": "PostgreSQL custom full-database archive",
+    "listExitCode": 0,
+    "fullDecodeToNullExitCode": 0,
+    "retainedTablesAndHistoryDataCovered": 14,
+    "target": {
+      "host": "localhost",
+      "port": 5432,
+      "database": "EEMOCantilanSDS.DB"
+    },
+    "sessions": [],
+    "triggers": []
+  },
+  "target": {
+    "host": "localhost",
+    "port": 5432,
+    "database": "EEMOCantilanSDS.DB"
+  },
+  "startedAtUtc": "2026-10-17T00:58:44.393Z",
+  "events": [
+    {
+      "label": "Second same-period installment with legacy index",
+      "sqlstate": "23505",
+      "constraint": "IX_CollectionAllocations_MunicipalityId_SourceKind_SourceId"
+    },
+    {
+      "label": "Duplicate client operation remains forbidden",
+      "sqlstate": "23505",
+      "constraint": "IX_Collections_MunicipalityId_ClientOperationId"
+    },
+    {
+      "label": "Cross-tenant allocation remains forbidden",
+      "sqlstate": "23503",
+      "constraint": "FK_CollectionAllocations_CollectionLines_MunicipalityId_Collec~"
+    }
+  ],
+  "before": {
+    "schemaHash": "ee67c77e6d7f74cfac2fcef3096f287721e205e3c5542fc838905c91d203b99f",
+    "dataHash": "ec22390fe31353fd542a43cca3dc018ee10725a2de1499f8e22cd034eb33edad",
+    "tables": 95,
+    "history": 143,
+    "index": {
+      "definition": "CREATE UNIQUE INDEX \"IX_CollectionAllocations_MunicipalityId_SourceKind_SourceId\" ON public.\"CollectionAllocations\" USING btree (\"MunicipalityId\", \"SourceKind\", \"SourceId\") WHERE (\"SourceKind\" = 10)",
+      "valid": true,
+      "ready": true
+    },
+    "sequence": {
+      "last_value": "17",
+      "is_called": true
+    }
+  },
+  "dependencies": 0,
+  "nonuniqueLookup": "CREATE INDEX \"IX_CollectionAllocations_MunicipalityId_SourceKind_SourceId_So~\" ON public.\"CollectionAllocations\" USING btree (\"MunicipalityId\", \"SourceKind\", \"SourceId\", \"SourcePart\")",
+  "position": {
+    "assessed": "900.00",
+    "allocations": 2,
+    "allocated": "60.00",
+    "remaining": "840.00",
+    "inconsistent": 0
+  },
+  "kind8Unmodified": {
+    "definition": "CREATE UNIQUE INDEX \"IX_CollectionAllocations_MunicipalityId_SourceId\" ON public.\"CollectionAllocations\" USING btree (\"MunicipalityId\", \"SourceId\") WHERE (\"SourceKind\" = 8)",
+    "valid": true
+  },
+  "after": {
+    "schemaHash": "ee67c77e6d7f74cfac2fcef3096f287721e205e3c5542fc838905c91d203b99f",
+    "dataHash": "ec22390fe31353fd542a43cca3dc018ee10725a2de1499f8e22cd034eb33edad",
+    "tables": 95,
+    "history": 143,
+    "index": {
+      "definition": "CREATE UNIQUE INDEX \"IX_CollectionAllocations_MunicipalityId_SourceKind_SourceId\" ON public.\"CollectionAllocations\" USING btree (\"MunicipalityId\", \"SourceKind\", \"SourceId\") WHERE (\"SourceKind\" = 10)",
+      "valid": true,
+      "ready": true
+    },
+    "sequence": {
+      "last_value": "17",
+      "is_called": true
+    },
+    "syntheticRows": 0
+  },
+  "allTableFingerprintsUnchanged": true,
+  "finishedAtUtc": "2026-10-17T00:58:45.234Z",
+  "outcome": "Rehearsal passed — additional baseline risks remain"
+}

@@ -30,6 +30,7 @@
     <a class="omi-back" href="/reports">← Back to Financial Reports</a>
     <div class="omi-actions-right">
         <FhSelect Caption="Year" Value="@Year.ToString(CultureInfo.InvariantCulture)" Options="@YearOptions" ValueChanged="ChangeYear" />
+        <a class="v3-btn v3-btn-sm no-print" href="@($"/reports/monthly-income/history?year={Year}")">Revision evidence</a>
         <button type="button" class="v3-btn v3-btn-sm v3-btn-primary omi-print" @onclick="PrintAsync" disabled="@(_data is null)">
             Print / Save as PDF
         </button>

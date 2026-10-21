@@ -10,7 +10,7 @@
 @inject IJSRuntime JS
 
 <PageTitle>StallTrack — Fish / Meat Office Register</PageTitle>
-<OperationTopbar OperationCode="FISH_MEAT_VENDOR_FEE" Title="Fish / Meat Office Register" Crumb="Monthly register" />
+<OperationTopbar OperationCode="FISH_MEAT_VENDOR_FEE" Title="Fish / Meat Office Register" Crumb="Monthly register" ParentHref="@RegistryHref" ParentTitle="Fish / Meat Vendors" />
 <div class="content-area">
     <div class="fmo">
         <FacilityHero Eyebrow="FISH / MEAT · OFFICE REGISTER" Title="Fish / Meat Vendor Register"
@@ -38,6 +38,7 @@
                 <input id="fmo-search" type="search" placeholder="Vendor or business" @bind="_search" @bind:event="oninput" />
             </div>
             <div class="fmo-actions">
+                <a class="v3-btn" href="/operations/fish-meat-vendor-fees/holder-list">Holder List</a>
                 <button type="button" class="v3-btn" @onclick="PrintAsync">Print</button>
                 <a class="v3-btn" href="/operations/fish-meat-vendor-fees">Back</a>
             </div>
@@ -168,6 +169,7 @@
 @code {
     private DateOnly _period = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
     private int _taxYear = PhilippineTime.Today.Year;
+    private string RegistryHref => _taxYear == PhilippineTime.Today.Year ? "/operations/fish-meat-vendor-fees" : $"/operations/fish-meat-vendor-fees?taxYear={_taxYear}";
     private string _type = "All", _search = "";
     private VendorRegistryManagement? _data;
     private bool _loading, _showPaperView;

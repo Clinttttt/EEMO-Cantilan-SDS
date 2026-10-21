@@ -1,0 +1,25 @@
+-- READ-ONLY REVIEW PLAN. No migration/application authority is conveyed by this file.
+-- Execute only on the separately approved local target after checking host/port/database and backup.
+BEGIN READ ONLY;
+SET LOCAL statement_timeout = '15s';
+SELECT current_database(), inet_server_addr(), inet_server_port();
+-- Expect the accepted 143 original IDs plus the installed foundation = 144, in the recorded order.
+SELECT "MigrationId", "ProductVersion" FROM "__EFMigrationsHistory" ORDER BY "MigrationId";
+-- Expect installed foundation, candidate columns absent, no existing source-17 allocations/lines.
+SELECT table_name, column_name, data_type, is_nullable, numeric_precision, numeric_scale
+FROM information_schema.columns
+WHERE table_schema = 'public' AND table_name IN ('NpmRentMonths', 'CollectionAllocations', 'CollectionLines')
+ORDER BY table_name, ordinal_position;
+SELECT "Status", count(*) FROM "NpmRentMonths" GROUP BY "Status" ORDER BY "Status";
+SELECT count(*) AS premature_month_allocations FROM "CollectionAllocations" WHERE "SourceKind" = 17;
+SELECT count(*) AS premature_month_lines FROM "CollectionLines" WHERE "SourceKind" = 17;
+SELECT c.conname, c.contype, pg_get_constraintdef(c.oid)
+FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid JOIN pg_namespace n ON n.oid = t.relnamespace
+WHERE n.nspname = 'public' AND t.relname IN ('NpmRentMonths', 'CollectionAllocations', 'CollectionLines', 'Stalls', 'Contracts', 'Facilities')
+ORDER BY t.relname, c.conname;
+SELECT tablename, indexname, indexdef FROM pg_indexes WHERE schemaname = 'public'
+AND tablename IN ('NpmRentMonths', 'CollectionAllocations') ORDER BY tablename, indexname;
+-- Compare ALL public objects and retained tables to the accepted baseline, not only these affected tables.
+SELECT c.relname, c.relkind FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public' ORDER BY c.relname;
+ROLLBACK;

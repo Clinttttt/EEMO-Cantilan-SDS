@@ -1,10 +1,10 @@
 /* Registered-source browser: compact rows in the same surface language as the rest of New Collection. */
-.sb { margin-bottom: 14px; }
-.sb-filter { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 10px; scrollbar-width: none; }
+.sb { margin-bottom: 14px; min-width: 0; max-width: 100%; }
+.sb-filter { display: flex; flex-wrap: nowrap; gap: 0; overflow-x: auto; overflow-y: hidden; max-width: 100%; border: 1px solid var(--mobile-border); border-radius: 10px; background: var(--mobile-surface); scrollbar-width: none; scroll-behavior: smooth; }
 .sb-filter::-webkit-scrollbar { display: none; }
-.sb-chip { flex: 0 0 auto; min-height: 40px; padding: 0 16px; border: 1px solid var(--mobile-border); border-radius: 999px; background: var(--mobile-surface); color: var(--mobile-text-secondary); font-size: 13px; font-weight: 600; }
+.sb-chip { flex: 0 0 auto; min-height: 42px; padding: 0 14px; border: 0; border-right: 1px solid var(--mobile-border); border-radius: 0; background: transparent; color: var(--mobile-text-secondary); font-size: 13px; font-weight: 600; white-space: nowrap; }
 .sb-chip.on { border-color: var(--mobile-blue); background: var(--mobile-blue); color: #ffffff; }
-.sb-list { border: 1px solid var(--mobile-border); border-radius: 14px; background: var(--mobile-surface); overflow: hidden; }
+.sb-list { margin-top: 12px; border: 1px solid var(--mobile-border); border-radius: 14px; background: var(--mobile-surface); overflow: hidden; }
 .sb-row { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; min-height: 58px; padding: 8px 14px; border: 0; border-bottom: 1px solid var(--mobile-border); background: transparent; color: var(--mobile-text); text-align: left; }
 .sb-row:last-child { border-bottom: 0; }
 .sb-row:active { background: var(--mobile-blue-subtle); }
@@ -17,6 +17,7 @@
 .sb-more { display: block; width: 100%; min-height: 44px; margin-top: 6px; border: 1px solid var(--mobile-blue); border-radius: 12px; background: transparent; color: var(--mobile-blue); font-size: 14px; font-weight: 600; }
 .sb-more:disabled { border-color: var(--mobile-border); color: var(--mobile-text-secondary); }
 .sb-chip:focus-visible, .sb-row:focus-visible, .sb-more:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2px; }
+.sb-chip:focus-visible { outline-color: var(--mobile-navy); outline-offset: -3px; }
 
 /* One search above the type filter: the same field language as the rest of New Collection. */
 .sb-search { display: block; margin-bottom: 10px; }

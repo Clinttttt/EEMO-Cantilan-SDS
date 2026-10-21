@@ -6,6 +6,19 @@ namespace EEMOCantilanSDS.UnitTest.Mobile;
 
 public sealed class CollectionSessionIdentityTests
 {
+    [Fact]
+    public void Optional_Npm_receipt_is_part_of_retry_identity_but_blank_preserves_the_old_intent()
+    {
+        var stall = Guid.NewGuid();
+        var intent = Intent() with { Items = [new(Guid.NewGuid(), CollectionSessionItemKind.NpmDaily, 30m, NpmDaily: new(stall))] };
+        var original = CollectionSessionWorkflow.IntentFingerprint(intent);
+        CollectionSessionIntent Receipt(string? number) => intent with { Items = [intent.Items[0] with { NpmDaily = new(stall, number) }] };
+        Assert.Equal(original, CollectionSessionWorkflow.IntentFingerprint(Receipt(" ")));
+        Assert.NotEqual(original, CollectionSessionWorkflow.IntentFingerprint(Receipt("OR-12")));
+        Assert.Equal(CollectionSessionWorkflow.IntentFingerprint(Receipt("or-12")), CollectionSessionWorkflow.IntentFingerprint(Receipt(" OR-12 ")));
+        Assert.NotEqual(CollectionSessionWorkflow.IntentFingerprint(Receipt("OR-12")), CollectionSessionWorkflow.IntentFingerprint(Receipt("OR-13")));
+    }
+
     private static CollectionSessionIntent Intent() => new(Guid.NewGuid(), new(2026, 10, 5), Guid.NewGuid(),
     [new(Guid.NewGuid(), CollectionSessionItemKind.GovernedService, 30m, Service: new(CollectorOperationCodes.MarketFees)),
      new(Guid.NewGuid(), CollectionSessionItemKind.GovernedService, 200m, Service: new(CollectorOperationCodes.LandingBerthing))]);

@@ -49,7 +49,7 @@ public partial class FacilityReportsRepository
     {
         var (startDate, endDate) = CalculateWeeklyDateRange(year, month, weekNumber);
         var trends = new List<RevenueTrendDto>();
-        var npmCollectableStalls = facilityCode == FacilityCode.NPM
+        var npmCollectableStalls = IsDailyMarket(facilityCode)
             ? await LoadNpmRevenueStallsAsync(facilityId, ct)
             : new List<Stall>();
         var npmStallsById = npmCollectableStalls.ToDictionary(s => s.Id);
@@ -65,7 +65,7 @@ public partial class FacilityReportsRepository
             decimal expectedRevenue = 0m;
             decimal fishRevenue = 0m;
 
-            if (facilityCode == FacilityCode.NPM)
+            if (IsDailyMarket(facilityCode))
             {
                 expectedRevenue = CalculateNpmExpectedDailyFeeRevenue(npmCollectableStalls, date, date);
 
@@ -105,7 +105,7 @@ public partial class FacilityReportsRepository
                         ? (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m)
                         : 0m);
 
-                revenue = monthlyRevenue + dailyRevenue;
+                revenue = monthlyRevenue + dailyRevenue + (await MonthCashAsync(facilityId, date, date, ct)).Sum(x => x.Amount);
             }
 
             trends.Add(new RevenueTrendDto(dayLabel, revenue, expectedRevenue, date == today, fishRevenue));
@@ -122,12 +122,12 @@ public partial class FacilityReportsRepository
         CancellationToken ct)
     {
         var trends = new List<RevenueTrendDto>();
-        var npmCollectableStalls = facilityCode == FacilityCode.NPM
+        var npmCollectableStalls = IsDailyMarket(facilityCode)
             ? await LoadNpmRevenueStallsAsync(facilityId, ct)
             : new List<Stall>();
         var npmStallsById = npmCollectableStalls.ToDictionary(s => s.Id);
         var npmStallIds = npmStallsById.Keys.ToList();
-        var occupiedStalls = facilityCode == FacilityCode.NPM
+        var occupiedStalls = IsDailyMarket(facilityCode)
             ? new List<Stall>()
             : await LoadOccupiedStallsAsync(facilityId, ct);
         var today = _clock.PhilippineToday;
@@ -144,11 +144,12 @@ public partial class FacilityReportsRepository
             decimal expectedRevenue = 0m;
             decimal fishRevenue = 0m;
 
-            if (facilityCode == FacilityCode.NPM)
+            if (IsDailyMarket(facilityCode))
             {
                 // NPM: Include daily collections + monthly payments (only Paid/Partial)
                 var (monthStart, monthEnd) = CalculateMonthlyDateRange(targetYear, targetMonth);
-                expectedRevenue = CalculateNpmExpectedDailyFeeRevenue(npmCollectableStalls, monthStart, monthEnd);
+                expectedRevenue = CalculateNpmExpectedDailyFeeRevenue(npmCollectableStalls, monthStart, monthEnd)
+                    + await MonthExpectedDeltaAsync(npmCollectableStalls, monthStart, monthEnd, ct);
 
                 var paymentRecords = await _context.PaymentRecords
                     .AsNoTracking()
@@ -189,7 +190,7 @@ public partial class FacilityReportsRepository
                         ? (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m)
                         : 0m);
 
-                revenue = dailyRevenue + monthlyRevenue;
+                revenue = dailyRevenue + monthlyRevenue + (await MonthCashAsync(facilityId, monthStart, monthEnd, ct)).Sum(x => x.Amount);
             }
             else
             {
@@ -222,12 +223,12 @@ public partial class FacilityReportsRepository
         CancellationToken ct)
     {
         var trends = new List<RevenueTrendDto>();
-        var npmCollectableStalls = facilityCode == FacilityCode.NPM
+        var npmCollectableStalls = IsDailyMarket(facilityCode)
             ? await LoadNpmRevenueStallsAsync(facilityId, ct)
             : new List<Stall>();
         var npmStallsById = npmCollectableStalls.ToDictionary(s => s.Id);
         var npmStallIds = npmStallsById.Keys.ToList();
-        var occupiedStalls = facilityCode == FacilityCode.NPM
+        var occupiedStalls = IsDailyMarket(facilityCode)
             ? new List<Stall>()
             : await LoadOccupiedStallsAsync(facilityId, ct);
         var today = _clock.PhilippineToday;
@@ -242,11 +243,12 @@ public partial class FacilityReportsRepository
             decimal expectedRevenue = 0m;
             decimal fishRevenue = 0m;
 
-            if (facilityCode == FacilityCode.NPM)
+            if (IsDailyMarket(facilityCode))
             {
                 // NPM: Include daily collections + monthly payments (only Paid/Partial)
                 var (yearStart, yearEnd) = CalculateYearlyDateRange(targetYear);
-                expectedRevenue = CalculateNpmExpectedDailyFeeRevenue(npmCollectableStalls, yearStart, yearEnd);
+                expectedRevenue = CalculateNpmExpectedDailyFeeRevenue(npmCollectableStalls, yearStart, yearEnd)
+                    + await MonthExpectedDeltaAsync(npmCollectableStalls, yearStart, yearEnd, ct);
 
                 var paymentRecords = await _context.PaymentRecords
                     .AsNoTracking()
@@ -286,7 +288,7 @@ public partial class FacilityReportsRepository
                         ? (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m)
                         : 0m);
 
-                revenue = dailyRevenue + monthlyRevenue;
+                revenue = dailyRevenue + monthlyRevenue + (await MonthCashAsync(facilityId, yearStart, yearEnd, ct)).Sum(x => x.Amount);
             }
             else
             {

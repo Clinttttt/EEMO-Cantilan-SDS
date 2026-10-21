@@ -55,34 +55,12 @@
                     </section>
                 }
 
-                <details class="fmp-more">
-                    <summary>Link to another registered vendor</summary>
-                    <div class="avm-group"><label class="avm-label" for="fmp-search">Search registered vendors, @_detail.TaxYear</label>
-                    <input id="fmp-search" class="avm-input" type="search" autocomplete="off" placeholder="Vendor or business" @bind="_search" @bind:event="oninput" @bind:after="LoadVendorsAsync" /></div>
-                    @if (_search.Trim().Length >= 2)
-                    {
-                        <div class="fmp-picks" role="group" aria-label="Search results">
-                            @foreach (var v in Matches) { <button type="button" class="fmp-pick @(_vendorId == v.Id ? "is-picked" : "")" aria-pressed="@(_vendorId == v.Id ? "true" : "false")" @onclick="() => Pick(v.Id)"><strong>@v.DisplayName</strong><span>@v.VendorType · @(v.BusinessName ?? "No business name recorded")</span></button> }
-                            @if (!Matches.Any()) { <p class="fmp-note">No registered vendor matches.</p> }
-                        </div>
-                    }
-                </details>
-
                 @if (_vendorId is null)
                 {
                     <section class="fmp-section" aria-label="Register vendor">
                         <h3>Register as a new vendor</h3>
-                        <div class="avm-group"><label class="avm-label" for="fmp-name">Vendor name <span class="avm-req">*</span></label>
-                        <input id="fmp-name" class="avm-input" maxlength="200" autocomplete="off" @bind="_form.Name" @bind:event="oninput" /></div>
-                        <div class="avm-group"><label class="avm-label">Type <span class="avm-req">*</span></label>
-                        <div class="fmp-seg" role="group" aria-label="Vendor type">
-                            <button type="button" class="@(_type == FishMeatVendorType.Fish ? "is-active" : "")" aria-pressed="@(_type == FishMeatVendorType.Fish ? "true" : "false")" @onclick="() => _type = FishMeatVendorType.Fish">Fish</button>
-                            <button type="button" class="@(_type == FishMeatVendorType.Meat ? "is-active" : "")" aria-pressed="@(_type == FishMeatVendorType.Meat ? "true" : "false")" @onclick="() => _type = FishMeatVendorType.Meat">Meat</button>
-                        </div></div>
-                        <div class="avm-group"><label class="avm-label" for="fmp-business">Business name</label>
-                        <input id="fmp-business" class="avm-input" maxlength="200" autocomplete="off" @bind="_form.Business" @bind:event="oninput" /></div>
-                        <div class="avm-group"><label class="avm-label" for="fmp-address">Address</label>
-                        <input id="fmp-address" class="avm-input" maxlength="300" autocomplete="off" @bind="_form.Address" @bind:event="oninput" /></div>
+                        <VendorRegistrationFields Model="_form" FormId="fmp" RequireTypeSelection="true"
+                                                  TypeSelected="_type.HasValue" OnTypeSelected="ChooseType" />
                     </section>
                 }
                 else if (PickedVendor is { } picked)
@@ -116,11 +94,10 @@
     [CascadingParameter] private Task<AuthenticationState>? Authentication { get; set; }
 
     private FishMeatPayorFollowUpDetailDto? _detail;
-    private IReadOnlyList<FishMeatVendorRegistrationDto> _vendors = [];
     private readonly VendorRegistrationForm _form = new();
     private FishMeatVendorType? _type;
     private Guid? _vendorId, _loadedFor;
-    private string _search = "", _note = "";
+    private string _note = "";
     private string? _error, _submittedIntent;
     private bool _head, _loading, _saving;
     private Guid _operation = Guid.NewGuid();
@@ -128,9 +105,7 @@
     private bool CanResolve => _head && _detail is { LinkedVendor: null };
     private bool CanSubmit => _vendorId is not null || (_form.Name.Trim().Length >= 2 && _type is not null);
     private FishMeatVendorRegistrationDto? PickedVendor =>
-        _vendorId is { } id ? _detail?.Suggestions.Select(s => s.Registration).Concat(_vendors).FirstOrDefault(x => x.Id == id) : null;
-    private IEnumerable<FishMeatVendorRegistrationDto> Matches => _vendors
-        .Where(x => $"{x.DisplayName} {x.BusinessName}".Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase)).Take(6);
+        _vendorId is { } id ? _detail?.Suggestions.Select(s => s.Registration).FirstOrDefault(x => x.Id == id) : null;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -138,7 +113,7 @@
         if (CollectionId is not { } id || _loadedFor == id) return;
         _loadedFor = id;
         _head = Authentication is not null && (await Authentication).User.IsInRole("SuperAdmin");
-        _loading = true; _error = null; _detail = null; _vendorId = null; _search = ""; _note = ""; _type = null; _vendors = [];
+        _loading = true; _error = null; _detail = null; _vendorId = null; _note = ""; _type = null;
         _submittedIntent = null; _operation = Guid.NewGuid();
         try
         {
@@ -148,7 +123,11 @@
             {
                 _detail = detail;
                 _form.Name = detail.Row.Payor == "No payer named" ? "" : detail.Row.Payor;
-                _form.Business = _form.Address = "";
+                _form.Business = _form.Address = _form.Reference = "";
+                _form.LastName = _form.FirstName = _form.MiddleName = _form.NameExtension = _form.Sex = _form.NatureOfBusiness = "";
+                _form.Type = FishMeatVendorType.Fish;
+                _form.Kind = VendorRegistrationKind.New;
+                _form.TaxYear = detail.TaxYear;
             }
             else _error = "This collection could not be loaded.";
         }
@@ -156,18 +135,9 @@
         finally { if (_loadedFor == id) _loading = false; }
     }
 
-    private async Task LoadVendorsAsync()
-    {
-        if (_vendors.Count > 0 || _detail is null || _search.Trim().Length < 2) return;
-        try
-        {
-            var result = await Office.RegistrationsAsync(_detail.TaxYear);
-            if (result.IsSuccess) _vendors = result.Value!;
-        }
-        catch { /* the search stays empty; the suggestions and the registration form still work */ }
-    }
 
     private void Pick(Guid id) { _vendorId = id; _error = null; }
+    private void ChooseType(FishMeatVendorType selected) { _type = selected; _error = null; }
 
     private async Task ResolveAsync()
     {
@@ -182,7 +152,10 @@
             var request = _vendorId is { } vendor
                 ? new FishMeatPayorResolveRequest(_operation, _detail.Row.CollectionId, vendor, null, VendorRegistrationForm.Blank(_note))
                 : new FishMeatPayorResolveRequest(_operation, _detail.Row.CollectionId, null,
-                    new(_type!.Value, _form.Name.Trim(), VendorRegistrationForm.Blank(_form.Business), VendorRegistrationForm.Blank(_form.Address)), VendorRegistrationForm.Blank(_note));
+                    new(_type!.Value, _form.Name.Trim(), VendorRegistrationForm.Blank(_form.Business), VendorRegistrationForm.Blank(_form.Address),
+                        _form.Kind, VendorRegistrationForm.Blank(_form.LastName), VendorRegistrationForm.Blank(_form.FirstName),
+                        VendorRegistrationForm.Blank(_form.MiddleName), VendorRegistrationForm.Blank(_form.NameExtension),
+                        VendorRegistrationForm.Blank(_form.Sex), VendorRegistrationForm.Blank(_form.NatureOfBusiness)), VendorRegistrationForm.Blank(_note));
             var result = await FollowUp.ResolveAsync(request);
             if (result is { IsSuccess: true, Value: { } done })
             {

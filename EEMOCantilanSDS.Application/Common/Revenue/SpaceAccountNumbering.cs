@@ -10,8 +10,7 @@ internal sealed class SpaceAccountNumbering(IEnumerable<(ObligationKind Kind, st
     private readonly HashSet<string> used = existing.Select(x => Key(x.Kind, x.Label, x.Event, x.Date)).ToHashSet();
 
     private static string Scope(ObligationKind kind, LotRentalEvent? ev, DateOnly? date) => $"{(int)kind}|{ev}|{date:yyyy-MM-dd}|";
-    private static string Normalize(string label) => BigInteger.TryParse(label.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var number) && number > 0
-        ? number.ToString(CultureInfo.InvariantCulture) : label.Trim().ToUpperInvariant();
+    private static string Normalize(string label) => Domain.Entities.Revenue.SpaceRegistration.Normalize(label); // one rule for the allocator and the registration
     private static string Key(ObligationKind kind, string label, LotRentalEvent? ev, DateOnly? date) => Scope(kind, ev, date) + Normalize(label);
 
     public string Next(ObligationKind kind, LotRentalEvent? ev, DateOnly? date)

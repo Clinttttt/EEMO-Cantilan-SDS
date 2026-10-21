@@ -116,6 +116,8 @@ public sealed class UtilityWorkspaceTests : TestContext
         Services.AddSingleton(api.Object);
 
         var cut = RenderComponent<ElectricityConsumptionFees>();
+        cut.WaitForAssertion(() => cut.Find("button[aria-label='Show collection activity']"), Timeout);
+        cut.Find("button[aria-label='Show collection activity']").Click();
 
         cut.WaitForAssertion(() =>
             Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/collections/activity?src=SRC-001"), Timeout);
@@ -489,6 +491,8 @@ public sealed class UtilityWorkspaceTests : TestContext
         Services.AddSingleton(api.Object);
 
         var cut = RenderComponent<WaterConsumptionFees>();
+        cut.WaitForAssertion(() => cut.Find("button[aria-label='Show collection activity']"), Timeout);
+        cut.Find("button[aria-label='Show collection activity']").Click();
 
         cut.WaitForAssertion(() =>
         {

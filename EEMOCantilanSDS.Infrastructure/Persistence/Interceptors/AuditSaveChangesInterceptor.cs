@@ -26,6 +26,8 @@ public class AuditSaveChangesInterceptor(ICurrentUserService currentUser) : Save
     [
         // Financial transactions
         typeof(PaymentRecord), typeof(DailyCollection), typeof(UtilityBill),
+        typeof(NpmRentMonth), // preparation/review evidence is audited even though it cannot post cash
+        typeof(FishMeatRegistrationRequest), // nonfinancial proposal and one terminal decision, never cash
         typeof(StallMonthlyException), typeof(NpmMarketClosure), typeof(NpmOperatingSchedule),
         typeof(TpmAttendance), typeof(TrmTrip), typeof(SlaughterTransaction),
         typeof(OnlinePaymentTransaction),
@@ -42,7 +44,7 @@ public class AuditSaveChangesInterceptor(ICurrentUserService currentUser) : Save
         typeof(CollectorOperationAssignment), typeof(GovernedService), typeof(GovernedServiceSetting), typeof(PenaltyDefinition),
         typeof(ObligationAccount), typeof(ObligationRate), typeof(ObligationPeriod),
         typeof(VehicleClass), typeof(VehicleClassRate), typeof(GovernedServiceFeeOption), typeof(GovernedServiceFeeOptionRate),
-        typeof(CollectionRemittance), typeof(CollectionRemittanceCoverage), typeof(AccountableFormSpoilage), typeof(AccountableFormLossReport), typeof(AccountableFormReference),
+        typeof(CollectionRemittance), typeof(CollectionRemittanceCoverage), typeof(OfficeCashTurnover), typeof(OfficeCashTurnoverCoverage), typeof(AccountableFormSpoilage), typeof(AccountableFormLossReport), typeof(AccountableFormReference),
         // The occupancy itself. Stall was audited but Contract was not, so the facts that DECIDE what a payor
         // owes - who the lessee is, the rent, the term, the effectivity date, whether it was terminated - could
         // be changed with nothing recorded. A register whose figures can move without a trace is not a record

@@ -36,11 +36,13 @@ namespace EEMOCantilanSDS.Domain.Entities.Audit
             string? newValues = null,
             string? ipAddress = null,
             string? notes = null,
-            Guid? municipalityId = null)
+            Guid? municipalityId = null,
+            Guid? eventId = null)
         {
+            if (eventId == Guid.Empty) throw new ArgumentException("An audit event identity must be nonempty.", nameof(eventId));
             return new AuditLog
             {
-                Id = Guid.NewGuid(),
+                Id = eventId ?? Guid.NewGuid(),
                 // The LGU whose record this is: the SUBJECT's municipality when it is known, not merely whoever
                 // was signed in. A platform operator editing another LGU's account, or an auth step running
                 // before a tenant is resolved, would otherwise file the entry under the default municipality and

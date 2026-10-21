@@ -22,6 +22,7 @@
         </div>
     </div>
     <div class="topbar-right">
+        <a class="v3-btn v3-btn-sm" href="/reports/collection-reconciliation">Reconciliation</a>
         <div class="topbar-date">
             <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
             @PhilippineTime.Now.ToString("MMMM d, yyyy")
@@ -39,6 +40,12 @@
         <Figures>
             <V3HeroFigure Label="Collections" Value="@Visible.Count.ToString("N0")" Note="@SelectedDate.ToString("MMM d, yyyy")" />
             <V3HeroFigure Label="Collected" Value="@($"₱{Visible.Sum(e => e.Amount):N2}")" Note="@ScopeLabel" />
+            @if (Visible.Any(e => e.Verification is not null))
+            {
+                @* Collector direct collections only. The cash above is counted whether or not it is verified; this is the part the Head has confirmed. *@
+                <V3HeroFigure Label="Direct, verified" Value="@($"₱{Visible.Where(e => e.Verification == "Verified").Sum(e => e.NetAmount):N2}")"
+                              Note="@($"of ₱{Visible.Where(e => e.Verification is not null and not "Reversed").Sum(e => e.NetAmount):N2} recorded")" />
+            }
             @if (Visible.Any(e => e.CorrectionEffect != 0m))
             {
                 <V3HeroFigure Label="Net after corrections" Value="@($"₱{Visible.Sum(e => e.NetAmount):N2}")" />
@@ -108,7 +115,7 @@
                     <button type="button" class="txn-search-clear" aria-label="Clear search" @onclick="ClearSearch">×</button>
                 }
             </div>
-            <DirectCollectionReview />
+            <DirectCollectionReview @ref="_directReview" />
         </div>
     </div>
 
@@ -124,7 +131,7 @@
                         <th>Payer</th>
                         <th>Details</th>
                         <th class="txn-num">Amount</th>
-                        <th>SRC</th>
+                        <th>Receipt</th>
                         <th>Status</th>
                         <th>Recorded by</th>
                     </tr>
@@ -176,7 +183,7 @@
                             <th scope="col">Payer</th>
                             <th scope="col">Details</th>
                             <th scope="col" class="txn-num">Amount</th>
-                            <th scope="col">SRC</th>
+                            <th scope="col">Receipt</th>
                             <th scope="col">Status</th>
                             <th scope="col">Recorded by</th>
                         </tr>
@@ -187,7 +194,8 @@
                             var expandable = e.Lines.Count > 1 || e.Corrections.Count > 0;
                             var expanded = _expanded.Contains(e.EventKey);
                             var at = e.RecordedAtUtc is { } utc ? PhilippineTime.ToPhilippineTime(utc) : (DateTime?)null;
-                            <tr @key="e.EventKey" class="@(expandable ? "txn-grouprow" : "")">
+                            <tr @key="e.EventKey" class="txn-row" tabindex="0" aria-label="@($"Open {e.ReferenceCode ?? e.DocumentNumber ?? SourceLabel(e)}")"
+                                @onclick="() => OpenReview(e)" @onkeydown="args => OnRowKey(args, e)">
                                 <td class="txn-when">
                                     <div class="txn-date">@e.BusinessDate.ToString("MMM d, yyyy")</div>
                                     @if (at is { } t)
@@ -205,14 +213,6 @@
                                 <td class="txn-party">@(string.IsNullOrWhiteSpace(e.PayerName) ? "—" : e.PayerName)</td>
                                 <td>
                                     <div class="txn-kind">
-                                        @if (expandable)
-                                        {
-                                            <button type="button" class="txn-expand" aria-expanded="@(expanded ? "true" : "false")"
-                                                    aria-label="@(expanded ? "Hide" : "Show") details for @(e.ReferenceCode ?? e.DocumentNumber ?? SourceLabel(e))"
-                                                    @onclick="() => Toggle(e.EventKey)">
-                                                <svg class="txn-chev @(expanded ? "open" : "")" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
-                                            </button>
-                                        }
                                         @Detail(e)
                                     </div>
                                     @if (e.Subject is { Length: > 0 } subject)
@@ -228,14 +228,6 @@
                                     }
                                 </td>
                                 <td class="txn-or">
-                                    @if (!string.IsNullOrWhiteSpace(e.ReferenceCode))
-                                    {
-                                        <span class="txn-src">@e.ReferenceCode</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="txn-src txn-src-none" title="Recorded before StallTrack reference codes">Legacy</span>
-                                    }
                                     @if (!string.IsNullOrWhiteSpace(e.DocumentNumber))
                                     {
                                         <span class="txn-physical">
@@ -246,40 +238,21 @@
                                             @e.DocumentNumber
                                         </span>
                                     }
+                                    else
+                                    {
+                                        <span class="txn-src-none">None recorded</span>
+                                    }
                                     @if (e.ReplacementReferenceCodes.Count > 0)
                                     {
                                         <span class="txn-physical">Replaced by @string.Join(", ", e.ReplacementReferenceCodes)</span>
                                     }
                                 </td>
-                                <td><span class="txn-status @StatusClass(e)">@StatusText(e)</span></td>
+                                <td>
+                                    <span class="txn-status @StatusClass(e)">@StatusText(e)</span>
+                                    @if (!string.IsNullOrEmpty(e.Verification)) { <div class="txn-verify">@e.Verification</div> }
+                                </td>
                                 <td class="txn-recorder">@e.RecordedBy</td>
                             </tr>
-
-                            @if (expandable && expanded)
-                            {
-                                @foreach (var line in e.Lines)
-                                {
-                                    <tr class="txn-subrow">
-                                        <td></td>
-                                        <td colspan="2"><div class="txn-subref">@SourceName(line.ClassificationCode, line.ClassificationName)</div></td>
-                                        <td>
-                                            <div class="txn-subref">@LineDetail(line)</div>
-                                        </td>
-                                        <td class="txn-num txn-subamount">&#8369;@line.Amount.ToString("N2")</td>
-                                        <td colspan="3"></td>
-                                    </tr>
-                                }
-                                @foreach (var c in e.Corrections)
-                                {
-                                    <tr class="txn-subrow txn-correction">
-                                        <td><div class="txn-subref">@c.EffectiveDate.ToString("MMM d, yyyy")</div></td>
-                                        <td colspan="2"><div class="txn-subref">@CorrectionLabel(c.CorrectionType)</div></td>
-                                        <td><div class="txn-subref">@c.Reason</div></td>
-                                        <td class="txn-num txn-subamount">@(c.FinancialEffect == 0m ? "—" : $"₱{c.FinancialEffect:N2}")</td>
-                                        <td colspan="3"></td>
-                                    </tr>
-                                }
-                            }
                         }
                     </tbody>
                 </table>
@@ -293,8 +266,232 @@
 
 </div>
 
+@if (_review is { } r)
+{
+    var isCanonical = !string.IsNullOrWhiteSpace(r.ReferenceCode) && r.CollectionId is not null;
+    var recordedAt = r.RecordedAtUtc is { } utc ? PhilippineTime.ToPhilippineTime(utc) : (DateTime?)null;
+    var groups = r.Lines.GroupBy(SourceName).ToList();
+    <div class="v3-modal-backdrop" role="presentation" @onclick="CloseReview">
+        <section class="v3-modal txr" role="dialog" aria-modal="true" aria-labelledby="txr-title" @onclick:stopPropagation="true" @onkeydown="OnReviewKey">
+            <header class="txr-head">
+                <div class="txr-head-text">
+                    <h2 id="txr-title">@(string.IsNullOrWhiteSpace(r.PayerName) ? SourceLabel(r) : r.PayerName)</h2>
+                    <p>@r.BusinessDate.ToString("MMM d, yyyy")@(recordedAt is { } at ? " · " + at.ToString("h:mm tt") : "")</p>
+                </div>
+                <button class="txr-close" type="button" aria-label="Close" @onclick="CloseReview"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
+            </header>
+            <div class="v3-modal-body txr-body">
+                <dl class="txr-meta">
+                    <div><dt>Status</dt><dd><span class="txn-status @StatusClass(r)">@StatusText(r)</span>@if (!string.IsNullOrEmpty(r.Verification)) {<span class="txr-sub">@r.Verification</span>}</dd></div>
+                    <div><dt>Source</dt><dd>@SourceLabel(r)@(r.Facility is { } f ? $" · {FacilityCatalog.ShortNameOf(f)}" : "")</dd></div>
+                    <div><dt>Recorded by</dt><dd>@r.RecordedBy</dd></div>
+                    <div><dt>StallTrack reference</dt><dd>@(r.ReferenceCode ?? "Legacy payment")</dd></div>
+                    <div><dt>Receipt</dt><dd>
+                        @if (!string.IsNullOrWhiteSpace(r.DocumentNumber))
+                        {
+                            @if (r.InstrumentType is { } instrument) { <InstrumentChip Instrument="@(instrument == RevenueInstrumentType.OfficialReceipt ? "OR" : "CT")" /> }
+                            @r.DocumentNumber
+                        }
+                        else { <span class="txn-muted">None recorded</span> }
+                    </dd></div>
+                </dl>
+                @if (!string.IsNullOrWhiteSpace(r.Subject))
+                {
+                    <p class="txr-subject">@r.Subject</p>
+                }
+
+                <table class="txr-items" aria-label="Itemized collection">
+                    <thead>
+                        <tr><th scope="col">Item</th><th scope="col">Period</th><th scope="col" class="txn-num">Amount</th></tr>
+                    </thead>
+                    <tbody>
+                        @if (groups.Count == 0)
+                        {
+                            <tr><td>@Detail(r)</td><td></td><td class="txn-num">&#8369;@r.Amount.ToString("N2")</td></tr>
+                        }
+                        @foreach (var group in groups)
+                        {
+                            @if (groups.Count > 1)
+                            {
+                                <tr class="txr-group"><th scope="rowgroup" colspan="2">@group.Key</th><td class="txn-num">@(group.Count() > 1 ? "₱" + group.Sum(l => l.Amount).ToString("N2") : "")</td></tr>
+                            }
+                            @foreach (var line in group)
+                            {
+                                <tr>
+                                    <td>@LineLabel(line)</td>
+                                    <td>@LinePeriod(line)</td>
+                                    <td class="txn-num">&#8369;@line.Amount.ToString("N2")</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr><th scope="row" colspan="2">Total collected</th><td class="txn-num">&#8369;@r.Amount.ToString("N2")</td></tr>
+                        @if (r.CorrectionEffect != 0m)
+                        {
+                            <tr><th scope="row" colspan="2">Correction</th><td class="txn-num">&#8369;@r.CorrectionEffect.ToString("N2")</td></tr>
+                            <tr class="txr-net"><th scope="row" colspan="2">Net after correction</th><td class="txn-num">&#8369;@r.NetAmount.ToString("N2")</td></tr>
+                        }
+                    </tfoot>
+                </table>
+
+        @if (r.Corrections.Count > 0)
+        {
+            <h3 class="txn-drawer-h">Correction history</h3>
+            <ul class="txn-corrections">
+                @foreach (var c in r.Corrections)
+                {
+                    <li>
+                        <strong>@CorrectionLabel(c.CorrectionType)</strong> · @c.EffectiveDate.ToString("MMM d, yyyy") · &#8369;@c.FinancialEffect.ToString("N2")
+                        @if (!string.IsNullOrWhiteSpace(c.Reason)) { <div class="txn-muted">@c.Reason</div> }
+                    </li>
+                }
+            </ul>
+        }
+
+        @if (!isCanonical)
+        {
+            <p class="txn-note" role="status">This is a legacy payment recorded before SRCs. Its history is shown as recorded; it has no SRC and no canonical correction.</p>
+        }
+        else
+        {
+            <h3 class="txn-drawer-h">Correction</h3>
+            @if (_reviewLoading) { <p class="txn-muted" role="status">Checking correction status…</p> }
+            else if (_reviewError is not null) { <p class="txn-error" role="alert">@_reviewError</p> }
+            else if (_reviewInfo is { } info)
+            {
+                @if (info.HasCorrection || _reversed is not null)
+                {
+                    @* The server is the authority: a corrected receipt shows only its status and evidence, never a reversal control. *@
+                    <p class="txn-status-line"><span class="txn-status corrected txn-status-reversed">Reversed</span> The original @r.ReferenceCode is kept; the linked correction is listed above.</p>
+                    @if (_reversed is { } done)
+                    {
+                        <p class="txn-success" role="status">&#8369;@done.ReopenedAmount.ToString("N2") reopened on the source.</p>
+                    }
+                }
+                else
+                {
+                    <p class="txn-note" role="status">@(info.Remitted ? "Remitted. " : info.Eligibility.BlockCode == "TurnedOver" ? "Office-origin receipt. " : info.OfficeOrigin ? "Office-origin receipt: its turnover status is not established by the current workflow. " : "Not remitted. ")@info.Eligibility.Explanation</p>
+                }
+                @if (!(info.HasCorrection || _reversed is not null) && info.Eligibility.CanCorrect && !_arming)
+                {
+                    <button type="button" class="v3-btn v3-btn-sm" @onclick="() => _arming = true">Reverse this collection…</button>
+                }
+                else if (!(info.HasCorrection || _reversed is not null) && info.Eligibility.CanCorrect)
+                {
+                    <label class="txn-field-label" for="txn-reason">Reason (required)</label>
+                    <textarea id="txn-reason" class="txn-reason" rows="3" maxlength="500" @bind="Reason" @bind:event="oninput"></textarea>
+                    <label class="txn-ack"><input type="checkbox" @bind="_ack" /> I confirm this reverses @r.ReferenceCode and reopens the month's balance.</label>
+                    @if (_reverseError is not null) { <p class="txn-error" role="alert">@_reverseError</p> }
+                    <button type="button" class="v3-btn v3-btn-primary" disabled="@(!_ack || string.IsNullOrWhiteSpace(_reason) || _working)" @onclick="ReverseAsync">@(_working ? "Reversing…" : "Reverse collection")</button>
+                    <button type="button" class="v3-btn v3-btn-sm" disabled="@_working" @onclick="CancelArming">Cancel</button>
+                }
+            }
+        }
+            </div>
+            <footer class="txr-foot">
+                @if (isCanonical)
+                {
+                    <a class="v3-btn" href="@ReconciliationHref(r)">View Reconciliation</a>
+                }
+                @if (r.Verification is not null && r.CollectionId is not null)
+                {
+                    <button type="button" class="v3-btn" @onclick="OpenCollectionReviewAsync">Review details</button>
+                }
+                <button type="button" class="v3-btn v3-btn-primary" @onclick="CloseReview">Close</button>
+            </footer>
+        </section>
+    </div>
+}
+
 @code {
     private const int Limit = 1000;
+
+    // ── Collection review ──
+    private CollectionActivityEventDto? _review;
+    private CollectionReviewDto? _reviewInfo;
+    private HeadCorrectionResultDto? _reversed;
+    private bool _reviewLoading, _working, _ack, _arming;
+    private string? _reviewError, _reverseError;
+    private string _reason = string.Empty;
+    private Guid _operationId = Guid.NewGuid();
+
+    // A different reason is a different intent, so it gets its own operation; the same reason retried after a lost reply replays.
+    private string Reason { get => _reason; set { if (_reason != value) { _reason = value; _operationId = Guid.NewGuid(); } } }
+
+    private static string ReconciliationHref(CollectionActivityEventDto e) =>
+        $"/reports/collection-reconciliation?from={e.BusinessDate:yyyy-MM-dd}&to={e.BusinessDate:yyyy-MM-dd}";
+
+    private async Task OpenReview(CollectionActivityEventDto e)
+    {
+        _review = e; _reviewInfo = null; _reversed = null; _reviewError = null; _reverseError = null;
+        _reason = string.Empty; _ack = false; _arming = false; _operationId = Guid.NewGuid();
+        if (e.CollectionId is not { } id || string.IsNullOrWhiteSpace(e.ReferenceCode)) return;
+        _reviewLoading = true;
+        var result = await ActivityApi.GetReviewAsync(id);
+        _reviewLoading = false;
+        if (_review?.CollectionId != id) return;
+        if (result.IsSuccess && result.Value is not null) _reviewInfo = result.Value;
+        else _reviewError = "Correction status could not be loaded. Close and try again.";
+    }
+
+    private void CloseReview() { _review = null; _reviewInfo = null; _arming = false; }
+
+    private void OnReviewKey(KeyboardEventArgs e) { if (e.Key == "Escape") CloseReview(); }
+    private void OnRowKey(KeyboardEventArgs args, CollectionActivityEventDto e) { if (args.Key is "Enter" or " ") _ = OpenReview(e); }
+
+    // The Head's verification review for this collection (direct collections only), opened on the same record.
+    private DirectCollectionReview? _directReview;
+    private async Task OpenCollectionReviewAsync()
+    {
+        if (_review?.CollectionId is not { } id || _directReview is null) return;
+        CloseReview();
+        await _directReview.OpenDetailAsync(id);
+    }
+
+    private static string LineLabel(CollectionActivityLineDto line)
+    {
+        var part = line.SourcePart switch { "Water" => "Water", "Electricity" => "Electricity", _ => null };
+        return !string.IsNullOrWhiteSpace(line.Description) ? line.Description! : part ?? line.ClassificationName;
+    }
+
+    private static string LinePeriod(CollectionActivityLineDto line) =>
+        line.PeriodYear is { } y && line.PeriodMonth is { } m ? new DateOnly(y, m, 1).ToString("MMM yyyy") : "";
+    private void CancelArming() { _arming = false; _ack = false; _reason = string.Empty; _reverseError = null; _operationId = Guid.NewGuid(); }
+
+    private static string ReverseMessage(string? code) => code switch
+    {
+        "AlreadyCorrected" => "A correction is already recorded for this collection.",
+        "Remitted" => "This cash is already part of a remittance.",
+        "OutsideCurrentBusinessDate" => "Only today's receipts can be reversed here.",
+        "ConcurrentCorrection" => "Another correction was in progress. Reload and check the status.",
+        "CorrectionIntentConflict" => "That operation was already used with a different reason. Reload and try again.",
+        "InvalidReason" => "Enter a reason of up to 500 characters.",
+        _ => "The correction was not recorded. Reload and check the status before trying again."
+    };
+
+    private async Task ReverseAsync()
+    {
+        if (_review?.CollectionId is not { } id || _working) return;
+        _working = true; _reverseError = null;
+        try
+        {
+            var result = await ActivityApi.ReverseAsync(new(_operationId, id, _reason.Trim()));
+            if (result.IsSuccess && result.Value is not null)
+            {
+                _reversed = result.Value;
+                _arming = false;
+                await ReloadAsync(paintLoading: false);
+                // Re-read the authoritative state so the drawer shows the correction, not the pre-reversal eligibility.
+                _review = _feed?.Events.FirstOrDefault(x => x.CollectionId == id) ?? _review;
+                var fresh = await ActivityApi.GetReviewAsync(id);
+                if (fresh.IsSuccess && fresh.Value is not null) _reviewInfo = fresh.Value;
+            }
+            else _reverseError = ReverseMessage(result.Error);
+        }
+        catch (HttpRequestException) { _reverseError = "The reply was lost. Retry to confirm: the same request is never recorded twice."; }
+        finally { _working = false; }
+    }
 
     private DateOnly SelectedDate = PhilippineTime.Today;
     private bool IsLoading = true;
@@ -390,9 +587,15 @@
         : _scope == "all" ? "All sources" : Scopes.First(s => s.Key == _scope).Label;
 
     /// <summary>The name this office uses for a source (its own operation name where it has set one); the established name otherwise.</summary>
-    private string SourceName(string? code, string? name) =>
-        Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<OperationNameService>(Services)?.NameForSource(code, name)
-        ?? SourceNames.For(code, name);
+    private string SourceName(CollectionActivityLineDto line)
+    {
+        var code = line.ClassificationCode;
+        string? name = line.ClassificationName;
+        // Slaughterhouse line names are frozen charges, not the parent operation's name.
+        if (code == "SLAUGHTERHOUSE" && line.SourceKind == "GovernedService") name = line.ParentSourceName;
+        return Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<OperationNameService>(Services)?.NameForSource(code, name)
+            ?? SourceNames.For(code, name);
+    }
 
     private string SourceLabel(CollectionActivityEventDto e)
     {
@@ -400,7 +603,7 @@
         // Rent is read by facility: "Permanent Stall Rent" alone would merge every facility's stalls into one source.
         if (code == "PERMANENT_STALL_RENT" && e.Facility is { } fac)
             return $"{FacilityCatalog.ShortNameOf(fac)} rent";
-        return e.Lines.Count == 0 ? "Collection" : SourceName(code, e.Lines[0].ClassificationName);
+        return e.Lines.Count == 0 ? "Collection" : SourceName(e.Lines[0]);
     }
 
     private static string Detail(CollectionActivityEventDto e) =>

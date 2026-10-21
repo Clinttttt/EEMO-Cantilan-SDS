@@ -89,7 +89,7 @@ public sealed class FollowUpQueueCompositionTests : TestContext
     }
 
     [Fact]
-    public void PreservesInlineActionsAndDoesNotInferArrears()
+    public void PreservesInlineActionsAndDoesNotInferArrearsFromAFilterShortcut()
     {
         var (cut, _) = RenderQueue();
 
@@ -99,7 +99,8 @@ public sealed class FollowUpQueueCompositionTests : TestContext
             Assert.Contains(cut.FindAll("button"), button => button.TextContent.Contains("Review item", StringComparison.Ordinal));
             Assert.Contains(cut.FindAll("button"), button => button.TextContent.Contains("Hide locally", StringComparison.Ordinal));
             Assert.Contains("Past-period view", cut.Markup);
-            Assert.False(cut.Markup.Contains("Arrears", StringComparison.OrdinalIgnoreCase));
+            // The Arrears shortcut exists, but no sample row is Arrears: a row is never labelled Arrears by the page itself.
+            Assert.DoesNotContain(cut.FindAll(".fh-row, .fq-row, .fq-reason"), x => x.TextContent.Contains("Arrears", StringComparison.OrdinalIgnoreCase));
             Assert.Contains("not recorded as follow-up history", cut.Markup);
         }, RenderTimeout);
     }
@@ -162,6 +163,7 @@ public sealed class FollowUpQueueCompositionTests : TestContext
         Assert.Collection(cut.FindAll(".fq-reasons .fq-chip"),
             x => Assert.StartsWith("All", x.TextContent.Trim()),
             x => Assert.StartsWith("Delinquent", x.TextContent.Trim()),
+            x => Assert.StartsWith("Arrears", x.TextContent.Trim()),
             x => Assert.StartsWith("Current-period", x.TextContent.Trim()),
             x => Assert.StartsWith("Contract", x.TextContent.Trim()),
             x => Assert.StartsWith("Excused Review", x.TextContent.Trim()),
@@ -218,7 +220,7 @@ public sealed class FollowUpQueueCompositionTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var chips = cut.FindAll(".fh-reasonrow .fh-chip").Select(x => x.TextContent).ToArray();
-            Assert.Equal(7, chips.Length);
+            Assert.Equal(8, chips.Length);
             Assert.DoesNotContain(chips, x => x.Contains("Missing OR") || x.Contains("NPM Daily"));
             Assert.Contains(chips, x => x.Contains("Closed"));
             Assert.Contains(cut.FindAll(".fh-row"), x => x.TextContent.Contains("Receipt follow-up"));

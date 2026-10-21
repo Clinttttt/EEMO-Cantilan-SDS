@@ -1,10 +1,12 @@
 using Bunit;
+using EEMOCantilanSDS.Application.Dtos.Collections;
 using Bunit.TestDoubles;
 using EEMOCantilanSDS.Application.Common;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Client.Components.Pages.Menus;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -83,6 +85,28 @@ public sealed class RemittanceWorkspaceTests : TestContext
         [new RemittanceBreakdownDto(Guid.NewGuid(), "Landing/Berthing", 50m), new RemittanceBreakdownDto(Guid.NewGuid(), "Market Fees", 30m)],
         "SRC-2026-000101", "SRC-2026-000102");
 
+    private static void OpenTab(IRenderedComponent<Remittances> cut, string name) =>
+        cut.FindAll("button.rm-tab").Single(b => b.TextContent.Trim() == name).Click();
+
+    [Fact]
+    public void EmptyRegistersKeepTheirPanelAcrossAllTabs_AndPrintIsInTheToolbar()
+    {
+        ServePosition(Position(0m, 0m) with { Collectors = [] });
+        var cut = RenderComponent<Remittances>();
+        cut.WaitForAssertion(() => Assert.Contains("No collections ready to remit.", cut.Markup), Timeout);
+        Assert.Single(cut.FindAll(".rm-workspace"));
+        Assert.Empty(cut.FindAll(".v3h .rm-ctl"));
+        Assert.Equal("Print", cut.Find(".rm-nav .rm-ctl button").TextContent.Trim());
+        foreach (var tab in new[] { "For remittance", "Collector position", "Remittance history" })
+        {
+            OpenTab(cut, tab);
+            var panel = Assert.Single(cut.FindAll(".rm-tab-panel"));
+            Assert.Equal(tab, panel.QuerySelector("h2")!.TextContent.Trim());
+            Assert.NotNull(panel.QuerySelector(".v3-table-wrap table thead"));
+            Assert.NotNull(panel.QuerySelector("tbody .v3-empty"));
+        }
+    }
+
     [Fact]
     public void Route_IsOfficeOnly_AndTheWorkspaceShowsMoney_NeverPhysicalForms()
     {
@@ -110,14 +134,24 @@ public sealed class RemittanceWorkspaceTests : TestContext
             Assert.Contains("For remittance", cut.Markup);
             Assert.Contains("View all", cut.Markup);
             Assert.Contains("Remittance history", cut.Markup);
-            var row = Assert.Single(cut.FindAll("[aria-label='Collector position'] tbody tr"));
-            Assert.Contains("Ana Reyes", row.TextContent);
+            // Only the selected section is shown: For remittance first, the others behind their tabs.
+            Assert.Equal("true", cut.Find("button.rm-tab.active").GetAttribute("aria-pressed"));
+            Assert.Equal("For remittance", cut.Find("button.rm-tab.active").TextContent.Trim());
+            Assert.Empty(cut.FindAll("[aria-label='Collector position']"));
+            Assert.Empty(cut.FindAll("[aria-label='Remittance history']"));
             // The position carries a form count (9,275 on hand); the money workspace never shows it, as a count or as pesos.
             Assert.DoesNotContain("9,275", cut.Markup);
             foreach (var retired in new[] { "on hand", "Register received book", "Stock", "custody", "Assign", "Transfer", "Return unused",
                          "cancellation", "lost form", "Needs review", "View accountability", "physical", "Accountable Forms" })
                 Assert.DoesNotContain(retired, cut.Markup, StringComparison.OrdinalIgnoreCase);
         }, Timeout);
+
+        OpenTab(cut, "Collector position");
+        var row = Assert.Single(cut.FindAll("[aria-label='Collector position'] tbody tr"));
+        Assert.Contains("Ana Reyes", row.TextContent);
+        Assert.Empty(cut.FindAll("[aria-label='Collections for remittance']"));
+        OpenTab(cut, "Remittance history");
+        Assert.NotEmpty(cut.FindAll("[aria-label='Remittance history']"));
     }
 
     [Fact]
@@ -248,6 +282,7 @@ public sealed class RemittanceWorkspaceTests : TestContext
         ServeHistory(HistoryRow("Needs review", ana));
 
         var cut = RenderComponent<Remittances>();
+        OpenTab(cut, "Remittance history");
 
         cut.WaitForAssertion(() =>
         {
@@ -271,6 +306,7 @@ public sealed class RemittanceWorkspaceTests : TestContext
         ServeHistory(one, two, three);
 
         var cut = RenderComponent<Remittances>();
+        OpenTab(cut, "Remittance history");
 
         cut.WaitForAssertion(() =>
         {
@@ -305,6 +341,7 @@ public sealed class RemittanceWorkspaceTests : TestContext
         ServeHistory(HistoryRow("Partly voided", Member("Bobby Mercado"), Member("Cian Consigna", status: RemittanceStatus.Voided)));
 
         var cut = RenderComponent<Remittances>();
+        OpenTab(cut, "Remittance history");
 
         cut.WaitForAssertion(() =>
             Assert.Contains("Partly voided", Assert.Single(cut.FindAll("[aria-label='Remittance history'] tbody tr")).TextContent), Timeout);
@@ -562,4 +599,101 @@ public sealed class RemittanceWorkspaceTests : TestContext
         }, Timeout);
     }
 
+    // ── Collection detail from the For remittance rows ──
+    private void ServeActivity(params CollectionActivityEventDto[] events)
+    {
+        var activity = new Mock<ICollectionActivityApiClient>();
+        activity.Setup(x => x.GetAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<FacilityCode?>(), It.IsAny<Guid?>(),
+                It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<string?>()))
+            .ReturnsAsync(Result<CollectionActivityFeedDto>.Success(new(new DateOnly(2026, 9, 3), new DateOnly(2026, 9, 3), "Business date", "Net",
+                DateTime.UtcNow, events, events.Length, false, 0m, events.Sum(e => e.Amount), 0m, events.Sum(e => e.NetAmount), [])));
+        Services.AddSingleton(activity.Object);
+        Services.AddSingleton(Mock.Of<IFacilitiesApiClient>());
+        Services.AddSingleton<EEMOCantilanSDS.Client.Services.FacilityState>();
+    }
+
+    private static CollectionActivityEventDto FishMeatEvent() => new("k", "Canonical", "Fish/Meat", CollectionA, new DateOnly(2026, 9, 3), DateTime.UtcNow,
+        "SRC-2026-000101", null, RevenueInstrumentType.CashTicket, [], [], "Aling Rosa", null, CollectorId, "Ana Reyes", "Ana Reyes", null,
+        "Fish/Meat vendor", null, 65m, 0m, 65m, "Posted", null,
+        [new CollectionActivityLineDto("FISH_MEAT", "Fish/Meat", 50m, "GovernedService", null, null, null, null, "Fish vending fee", "Fish/Meat"),
+         new CollectionActivityLineDto("FISH_MEAT", "Fish/Meat", 15m, "GovernedService", null, null, null, null, "Ice fee", "Fish/Meat")], []);
+
+    [Fact]
+    public void ARowOpensItsRecordedDetail_WithEnterOrClick_ClosesWithEscape_AndTheCheckboxNeverOpensIt()
+    {
+        ServePosition(Position(20000m, 19920m));
+        _api.Setup(x => x.GetScopeAsync(CollectorId, It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<RevenueInstrumentType?>()))
+            .ReturnsAsync(Result<RemittanceScopeDto>.Success(Scope()));
+        ServeActivity(FishMeatEvent());
+
+        var cut = RenderComponent<NewRemittance>();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[aria-label='Collections for remittance'] tbody tr").Count), Timeout);
+
+        // Ticking a row selects it and opens nothing.
+        cut.FindAll("[aria-label='Collections for remittance'] tbody tr")[0].QuerySelector("input[type='checkbox']")!.Change(true);
+        Assert.Empty(cut.FindAll("[role='dialog']"));
+        Assert.Contains("₱30.00", cut.Find("[aria-label='Selection summary']").TextContent);
+
+        var row = cut.FindAll("[aria-label='Collections for remittance'] tbody tr")[0];
+        Assert.Equal("0", row.GetAttribute("tabindex"));
+        row.KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Enter" });
+        cut.WaitForAssertion(() =>
+        {
+            var dialog = cut.Find("[role='dialog']");
+            Assert.Contains("SRC-2026-000101", dialog.TextContent);
+            Assert.Contains("Aling Rosa", dialog.TextContent);
+            Assert.Contains("Fish vending fee", dialog.TextContent);               // the recorded charge lines, not a reconstruction
+            Assert.Contains("Ice fee", dialog.TextContent);
+            Assert.Contains("₱65.00", dialog.TextContent);
+            Assert.Contains("Not yet remitted", dialog.TextContent);
+            Assert.Contains("not an official receipt", dialog.TextContent);
+        }, Timeout);
+        // Opening the detail did not change the selection.
+        Assert.Contains("₱30.00", cut.Find("[aria-label='Selection summary']").TextContent);
+
+        cut.Find("[role='dialog']").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Escape" });
+        Assert.Empty(cut.FindAll("[role='dialog']"));
+
+        cut.FindAll("[aria-label='Collections for remittance'] tbody tr")[1].Click();
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll("[role='dialog']")), Timeout);
+    }
+
+    [Fact]
+    public void WhenTheRecordedDetailCannotBeRead_OnlyTheClassificationTotalsAreShown_NeverInventedCharges()
+    {
+        ServePosition(Position(20000m, 19920m));
+        _api.Setup(x => x.GetScopeAsync(CollectorId, It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<RevenueInstrumentType?>()))
+            .ReturnsAsync(Result<RemittanceScopeDto>.Success(Scope()));
+        ServeActivity();
+
+        var cut = RenderComponent<NewRemittance>();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[aria-label='Collections for remittance'] tbody tr").Count), Timeout);
+        cut.FindAll("[aria-label='Collections for remittance'] tbody tr")[0].Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var dialog = cut.Find("[role='dialog']");
+            Assert.Contains("Market Fees", dialog.TextContent);
+            Assert.Contains("₱30.00", dialog.TextContent);
+            Assert.Contains("could not be read", dialog.TextContent);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void RepeatedParentNamesReadOnce_WhileEveryLineStillCountsInTheTotal()
+    {
+        ServePosition(Position(20000m, 19920m));
+        var slaughter = new RemittanceCollectionDto(CollectionA, new DateOnly(2026, 9, 3), "SRC-2026-000101", RevenueInstrumentType.CashTicket, "Pedro", 90m,
+            [new(Guid.NewGuid(), "Slaughterhouse", 30m), new(Guid.NewGuid(), "Slaughterhouse", 40m), new(Guid.NewGuid(), "Slaughterhouse", 20m)]);
+        _api.Setup(x => x.GetScopeAsync(CollectorId, It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<RevenueInstrumentType?>()))
+            .ReturnsAsync(Result<RemittanceScopeDto>.Success(Scope() with { Collections = [slaughter], ExpectedAmount = 90m }));
+
+        var cut = RenderComponent<NewRemittance>();
+        cut.WaitForAssertion(() =>
+        {
+            var row = Assert.Single(cut.FindAll("[aria-label='Collections for remittance'] tbody tr"));
+            Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(row.TextContent, "Slaughterhouse").Count);
+            Assert.Contains("₱90.00", row.TextContent);
+        }, Timeout);
+    }
 }

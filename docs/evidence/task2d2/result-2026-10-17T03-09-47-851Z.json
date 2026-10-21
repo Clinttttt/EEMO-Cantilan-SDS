@@ -1,0 +1,306 @@
+{
+  "task": "2D.2",
+  "mode": "rehearse",
+  "startedAtUtc": "2026-10-17T03:09:47.853Z",
+  "ddlSha256": "1cfc71caaaf302042e4c2fac66c74f5b24ea9fecb499f4a22d0ebc5ec4120a31",
+  "preflight": {
+    "server": {
+      "database": "EEMOCantilanSDS.DB",
+      "address": "::1",
+      "port": 5432,
+      "pid": 12876,
+      "read_only": "on"
+    },
+    "tables": 95,
+    "migrations": 143,
+    "dataHash": "ec22390fe31353fd542a43cca3dc018ee10725a2de1499f8e22cd034eb33edad",
+    "schemaHash": "6af7382bf3babb0910aad1476f60f12d6352720b4a63c09fe03482164fe2978d",
+    "extraSchemaHash": "9bf0e1bea6b418cd59a4e95b262c4f0e5cf220bc3fc94931fa101d9a31d9dba3",
+    "historyHash": "e310e9cd9bee20f9703aba284268c2a1b13f394b38b855c3d45fa1ae110e3445",
+    "retainedTables": [
+      {
+        "table": "ConfigurableServiceAssessments",
+        "rows": "1",
+        "fingerprint": "94851f11b7043ca20bcba76eae8a8c36"
+      },
+      {
+        "table": "ConfigurableServiceDefinitions",
+        "rows": "6",
+        "fingerprint": "24124279613188d2aad9a298af5bdc65"
+      },
+      {
+        "table": "ConfigurableServicePolicies",
+        "rows": "5",
+        "fingerprint": "c37ac06f354a7556202da0e21a6bbdf7"
+      },
+      {
+        "table": "EcfApprovedAssessments",
+        "rows": "1",
+        "fingerprint": "0e859277fe4212af595b8aaa5024d981"
+      },
+      {
+        "table": "FishMeatVendorFeeObligations",
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "table": "FishMeatVendorFeePolicies",
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "table": "KanmanggayMonthlyObligations",
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "table": "KanmanggayMonthlyPolicies",
+        "rows": "1",
+        "fingerprint": "6141880d28c9a1b60e272fb745e3bafb"
+      },
+      {
+        "table": "KanmanggayRentalAccounts",
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "table": "LandingBerthingActivities",
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "table": "VegetableSpaceRentalAssessments",
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "table": "VegetableSpaceRentalPolicies",
+        "rows": "1",
+        "fingerprint": "13724bbccb183adfb051ba49984d34b7"
+      },
+      {
+        "table": "WcfApprovedChargePolicies",
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      }
+    ],
+    "srcSequence": {
+      "name": "CollectionReferenceNumberSeq",
+      "last_value": "17",
+      "is_called": true
+    },
+    "allocationIndexes": [
+      {
+        "name": "IX_CollectionAllocations_MunicipalityId_SourceId",
+        "definition": "CREATE UNIQUE INDEX \"IX_CollectionAllocations_MunicipalityId_SourceId\" ON public.\"CollectionAllocations\" USING btree (\"MunicipalityId\", \"SourceId\") WHERE (\"SourceKind\" = 8)",
+        "valid": true,
+        "ready": true
+      },
+      {
+        "name": "IX_CollectionAllocations_MunicipalityId_SourceKind_SourceId_So~",
+        "definition": "CREATE INDEX \"IX_CollectionAllocations_MunicipalityId_SourceKind_SourceId_So~\" ON public.\"CollectionAllocations\" USING btree (\"MunicipalityId\", \"SourceKind\", \"SourceId\", \"SourcePart\")",
+        "valid": true,
+        "ready": true
+      }
+    ],
+    "parentKeys": [
+      {
+        "kind": "constraint",
+        "name": "AK_Contracts_MunicipalityId_Id",
+        "definition": "UNIQUE (\"MunicipalityId\", \"Id\")"
+      },
+      {
+        "kind": "constraint",
+        "name": "AK_Contracts_MunicipalityId_Id_StallId",
+        "definition": "UNIQUE (\"MunicipalityId\", \"Id\", \"StallId\")"
+      },
+      {
+        "kind": "constraint",
+        "name": "AK_Stalls_MunicipalityId_Id",
+        "definition": "UNIQUE (\"MunicipalityId\", \"Id\")"
+      },
+      {
+        "kind": "constraint",
+        "name": "PK_Contracts",
+        "definition": "PRIMARY KEY (\"Id\")"
+      },
+      {
+        "kind": "constraint",
+        "name": "PK_Facilities",
+        "definition": "PRIMARY KEY (\"Id\")"
+      },
+      {
+        "kind": "constraint",
+        "name": "PK_Stalls",
+        "definition": "PRIMARY KEY (\"Id\")"
+      }
+    ]
+  },
+  "apiInactive": true,
+  "backup": {
+    "path": "C:\\dev\\stalltrack-v2-worktrees\\local-db-backups\\EEMOCantilanSDS.DB_task2d2_full_2026-10-17T03-09-47-857Z.dump",
+    "createdAtUtc": "2026-10-17T03:09:48.940Z",
+    "bytes": 1711539,
+    "sha256": "162d601b530f87c5cbc38511e397b5d0029e07258e1ec364e42d75fee174bdd2",
+    "full": true,
+    "archiveListExitCode": 0,
+    "fullDecodeExitCode": 0,
+    "publicTableDataEntries": 95,
+    "retainedAndHistoryDataEntries": 14
+  },
+  "writer": {
+    "database": "EEMOCantilanSDS.DB",
+    "address": "::1",
+    "port": 5432,
+    "pid": 15304,
+    "read_only": "on"
+  },
+  "mutationServer": {
+    "database": "EEMOCantilanSDS.DB",
+    "address": "::1",
+    "port": 5432,
+    "pid": 15304,
+    "read_only": "off"
+  },
+  "stage": "seven_reviewed_operations",
+  "execution": {
+    "transaction": "rollback_acknowledged",
+    "verification": "independently_verified_unchanged",
+    "success": false,
+    "failure": "42501",
+    "postflight": {
+      "server": {
+        "database": "EEMOCantilanSDS.DB",
+        "address": "::1",
+        "port": 5432,
+        "pid": 18104,
+        "read_only": "on"
+      },
+      "tables": 95,
+      "migrations": 143,
+      "dataHash": "ec22390fe31353fd542a43cca3dc018ee10725a2de1499f8e22cd034eb33edad",
+      "schemaHash": "6af7382bf3babb0910aad1476f60f12d6352720b4a63c09fe03482164fe2978d",
+      "extraSchemaHash": "9bf0e1bea6b418cd59a4e95b262c4f0e5cf220bc3fc94931fa101d9a31d9dba3",
+      "historyHash": "e310e9cd9bee20f9703aba284268c2a1b13f394b38b855c3d45fa1ae110e3445",
+      "retainedTables": [
+        {
+          "table": "ConfigurableServiceAssessments",
+          "rows": "1",
+          "fingerprint": "94851f11b7043ca20bcba76eae8a8c36"
+        },
+        {
+          "table": "ConfigurableServiceDefinitions",
+          "rows": "6",
+          "fingerprint": "24124279613188d2aad9a298af5bdc65"
+        },
+        {
+          "table": "ConfigurableServicePolicies",
+          "rows": "5",
+          "fingerprint": "c37ac06f354a7556202da0e21a6bbdf7"
+        },
+        {
+          "table": "EcfApprovedAssessments",
+          "rows": "1",
+          "fingerprint": "0e859277fe4212af595b8aaa5024d981"
+        },
+        {
+          "table": "FishMeatVendorFeeObligations",
+          "rows": "0",
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "FishMeatVendorFeePolicies",
+          "rows": "0",
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "KanmanggayMonthlyObligations",
+          "rows": "0",
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "KanmanggayMonthlyPolicies",
+          "rows": "1",
+          "fingerprint": "6141880d28c9a1b60e272fb745e3bafb"
+        },
+        {
+          "table": "KanmanggayRentalAccounts",
+          "rows": "0",
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "LandingBerthingActivities",
+          "rows": "0",
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "VegetableSpaceRentalAssessments",
+          "rows": "0",
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "VegetableSpaceRentalPolicies",
+          "rows": "1",
+          "fingerprint": "13724bbccb183adfb051ba49984d34b7"
+        },
+        {
+          "table": "WcfApprovedChargePolicies",
+          "rows": "0",
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        }
+      ],
+      "srcSequence": {
+        "name": "CollectionReferenceNumberSeq",
+        "last_value": "17",
+        "is_called": true
+      },
+      "allocationIndexes": [
+        {
+          "name": "IX_CollectionAllocations_MunicipalityId_SourceId",
+          "definition": "CREATE UNIQUE INDEX \"IX_CollectionAllocations_MunicipalityId_SourceId\" ON public.\"CollectionAllocations\" USING btree (\"MunicipalityId\", \"SourceId\") WHERE (\"SourceKind\" = 8)",
+          "valid": true,
+          "ready": true
+        },
+        {
+          "name": "IX_CollectionAllocations_MunicipalityId_SourceKind_SourceId_So~",
+          "definition": "CREATE INDEX \"IX_CollectionAllocations_MunicipalityId_SourceKind_SourceId_So~\" ON public.\"CollectionAllocations\" USING btree (\"MunicipalityId\", \"SourceKind\", \"SourceId\", \"SourcePart\")",
+          "valid": true,
+          "ready": true
+        }
+      ],
+      "parentKeys": [
+        {
+          "kind": "constraint",
+          "name": "AK_Contracts_MunicipalityId_Id",
+          "definition": "UNIQUE (\"MunicipalityId\", \"Id\")"
+        },
+        {
+          "kind": "constraint",
+          "name": "AK_Contracts_MunicipalityId_Id_StallId",
+          "definition": "UNIQUE (\"MunicipalityId\", \"Id\", \"StallId\")"
+        },
+        {
+          "kind": "constraint",
+          "name": "AK_Stalls_MunicipalityId_Id",
+          "definition": "UNIQUE (\"MunicipalityId\", \"Id\")"
+        },
+        {
+          "kind": "constraint",
+          "name": "PK_Contracts",
+          "definition": "PRIMARY KEY (\"Id\")"
+        },
+        {
+          "kind": "constraint",
+          "name": "PK_Facilities",
+          "definition": "PRIMARY KEY (\"Id\")"
+        },
+        {
+          "kind": "constraint",
+          "name": "PK_Stalls",
+          "definition": "PRIMARY KEY (\"Id\")"
+        }
+      ]
+    }
+  },
+  "finishedAtUtc": "2026-10-17T03:09:59.390Z"
+}

@@ -10,10 +10,7 @@ namespace EEMOCantilanSDS.ComponentTests.Pages;
 using AddVendorModal = EEMOCantilanSDS.Client.Components.Pages.Shared.AddVendorModal;
 
 /// <summary>
-/// Adding a utility charge to a space that has none. The office installs a meter on a stall, adds the charge on
-/// the vendor form, and the meter-reading dialog then offers that utility — so what this form saves is what the
-/// rest of the system bills. These tests pin the form's side of that: the offer to add appears only for a space
-/// with no charges, opening it reveals the two controls, and the decision does not leak to the next space opened.
+/// Utility eligibility comes from the registered NPM source. Registration neither asks for utility flags nor clears existing flags.
 /// </summary>
 public class AddVendorModalUtilityChargeTests : TestContext
 {
@@ -46,25 +43,26 @@ public class AddVendorModalUtilityChargeTests : TestContext
     };
 
     [Fact]
-    public void ASpaceWithNoUtilities_SaysSo_AndOffersToAddOne()
+    public void Registration_has_no_manual_utility_step()
     {
         var cut = RenderForm(MarketSpace());
 
-        Assert.Single(cut.FindAll(".avm-util-none"));
-        Assert.Contains("No utility service recorded for this space.", cut.Markup);
+        Assert.Empty(cut.FindAll(".avm-util-none"));
+        Assert.DoesNotContain("Utility service", cut.Markup);
         Assert.Empty(cut.FindAll(".avm-fee-toggle"));      // no empty boxes offered
     }
 
     [Fact]
-    public void UtilityService_IsContextNotARentalCharge_AndHasNoMeterWording()
+    public void Existing_utility_associations_are_preserved_without_rendering_toggles()
     {
-        var cut = RenderForm(MarketSpace("Electricity", "Water"));
+        var form = MarketSpace("Electricity", "Water");
+        var cut = RenderForm(form);
+        Assert.Equal(new[] { "Electricity", "Water" }, form.FeeTypes);
 
         // Stated as its own utility operation through concise labels — never stall rent, never a reading-driven bill,
         // and no explanatory paragraph.
-        Assert.Contains("Utility service", cut.Markup);
-        Assert.Contains("ECF · Official Receipt", cut.Markup);
-        Assert.Contains("WCF · Cash Ticket", cut.Markup);
+        Assert.DoesNotContain("Utility service", cut.Markup);
+        Assert.Empty(cut.FindAll(".avm-fee-toggle"));
         Assert.DoesNotContain("assessed and collected apart from stall rental", cut.Markup);
         Assert.DoesNotContain("amount varies per reading", cut.Markup);
         Assert.DoesNotContain("Utility Charges", cut.Markup);
@@ -76,11 +74,10 @@ public class AddVendorModalUtilityChargeTests : TestContext
     {
         var cut = RenderForm(MarketSpace());
 
-        cut.Find(".avm-util-add").Click();
-
-        Assert.Equal(2, cut.FindAll(".avm-fee-toggle").Count);   // electricity and water
+        Assert.Empty(cut.FindAll(".avm-util-add"));
+        Assert.Empty(cut.FindAll(".avm-fee-toggle"));
         Assert.Empty(cut.FindAll(".avm-util-none"));
-        Assert.Contains("Mark the service this space uses, then save. No charge is created.", cut.Markup);
+        Assert.DoesNotContain("Mark the service this space uses", cut.Markup);
         // Nothing is ticked for them: the charge goes on the stall only when the office says which.
         Assert.Empty(cut.FindAll(".avm-fee-toggle.active"));
     }
@@ -91,7 +88,7 @@ public class AddVendorModalUtilityChargeTests : TestContext
         var cut = RenderForm(MarketSpace("Electricity"));
 
         Assert.Empty(cut.FindAll(".avm-util-none"));
-        Assert.Single(cut.FindAll(".avm-fee-toggle.active"));
+        Assert.Empty(cut.FindAll(".avm-fee-toggle.active"));
         Assert.DoesNotContain("Mark the service this space uses", cut.Markup);
     }
 
@@ -101,7 +98,7 @@ public class AddVendorModalUtilityChargeTests : TestContext
         // The leak: having opened the controls for one stall, every stall opened afterwards showed two empty
         // toggles instead of stating plainly that it carries no utility charges.
         var cut = RenderForm(MarketSpace());
-        cut.Find(".avm-util-add").Click();
+        Assert.Empty(cut.FindAll(".avm-util-add"));
         Assert.Empty(cut.FindAll(".avm-util-none"));
 
         cut.SetParametersAndRender(p => p.Add(c => c.Show, false));                     // form closed
@@ -109,7 +106,7 @@ public class AddVendorModalUtilityChargeTests : TestContext
             .Add(c => c.Show, true)
             .Add(c => c.Form, MarketSpace()));                                          // another space
 
-        Assert.Single(cut.FindAll(".avm-util-none"));
+        Assert.Empty(cut.FindAll(".avm-util-none"));
         Assert.Empty(cut.FindAll(".avm-fee-toggle"));
     }
 

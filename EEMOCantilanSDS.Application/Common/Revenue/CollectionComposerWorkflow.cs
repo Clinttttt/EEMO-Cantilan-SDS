@@ -29,7 +29,9 @@ public sealed partial class CollectionComposerWorkflow(
     ICurrentUserService currentUser,
     ICurrentMunicipalityAccessor municipality,
     IClock? clock = null,
-    Microsoft.Extensions.Logging.ILogger<CollectionComposerWorkflow>? logger = null)
+    Microsoft.Extensions.Logging.ILogger<CollectionComposerWorkflow>? logger = null,
+    EEMOCantilanSDS.Application.Common.Caching.IEemoCacheInvalidator? cache = null,
+    MonthlyRentReceiptOptions? rentOptions = null)
 {
     private const string WebOrigin = "Web";
     private const int IntentVersion = 1;
@@ -77,7 +79,8 @@ public sealed partial class CollectionComposerWorkflow(
             tracked: false, materializeMissingSource: false, actor: actor.Username, ct: ct);
         return facts is null
             ? Result<RentObligationQuoteDto>.NotFound()
-            : Result<RentObligationQuoteDto>.Success(facts.Quote);
+            : Result<RentObligationQuoteDto>.Success(facts.Quote with {
+                CanPostOfficeReceipt = facts.Quote.CanPostCanonical && rentOptions?.Allows(actor.MunicipalityId, facts.Stall.Facility!.Code) == true });
     }, ct);
 
     public Task<Result<IReadOnlyList<CollectionCandidateDto>>> GetPayorObligationsAsync(

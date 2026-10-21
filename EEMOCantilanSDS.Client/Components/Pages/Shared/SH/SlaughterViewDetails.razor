@@ -168,6 +168,23 @@
                                         <td>@(isFirstInGroup ? txn.ORNumber : "")</td>
                                         <td>@(isFirstInGroup ? txn.CollectorName : "")</td>
                                     </tr>
+                                    @if (txn.Items is { Count: > 0 } items)
+                                    {
+                                        <tr class="txn-items">
+                                            <td></td>
+                                            <td colspan="7">
+                                                <table class="txn-item-table" aria-label="@($"Charges for {txn.ORNumber}")">
+                                                    <thead><tr><th>Charge</th><th>Quantity</th><th>Rate</th><th>Amount</th></tr></thead>
+                                                    <tbody>
+                                                        @foreach (var item in items)
+                                                        {
+                                                            <tr><td>@item.Label</td><td>@item.Quantity.ToString("0.##")</td><td>₱@item.UnitAmount.ToString("N2")</td><td>₱@item.Amount.ToString("N2")</td></tr>
+                                                        }
+                                                    </tbody>
+                                                </table>
+                                            </td>
+                                        </tr>
+                                    }
                                     isFirstInGroup = false;
                                 }
                                 idx++;

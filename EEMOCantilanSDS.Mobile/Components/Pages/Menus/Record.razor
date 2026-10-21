@@ -169,11 +169,11 @@
                 {
                     @if (HasReceiptNumber(SelectedRecord.ORNumber))
                     {
-                        <div class="detail-row"><span class="detail-key">OR Number</span><span class="detail-val">@SelectedRecord.ORNumber</span></div>
+                        <div class="detail-row"><span class="detail-key">Receipt</span><span class="detail-val">@SelectedRecord.ORNumber</span></div>
                     }
                     else
                     {
-                        <div class="detail-row"><span class="detail-key">Receipt evidence</span><span class="detail-val">No linked OR / SRC</span></div>
+                        <div class="detail-row"><span class="detail-key">Receipt</span><span class="detail-val">None recorded</span></div>
                     }
                 }
             }
@@ -228,7 +228,7 @@
                     var receiptTotal = receipt.Sum(i => i.Amount);
                     var receiptTime = receipt.Min(i => i.CollectedAt);
                     <div class="detail-row">
-                        <span class="detail-key">@(merged.Primary.IsAbsent ? "Excused period" : HasReceiptNumber(receipt.Key) ? $"OR {receipt.Key}" : "Recorded collection") · @receiptTime.ToString("hh:mm tt")</span>
+                        <span class="detail-key">@(merged.Primary.IsAbsent ? "Excused period" : HasReceiptNumber(receipt.Key) ? $"Receipt {receipt.Key}" : "Recorded collection") · @receiptTime.ToString("hh:mm tt")</span>
                         <span class="detail-val amount-val">₱@receiptTotal.ToString("N0")</span>
                     </div>
                     @if (!merged.Primary.IsAbsent && receipt.Count() >= 4 && receipt.All(i => i.FeeDate.HasValue && i.SlaughterLines is not { Count: > 0 }))
@@ -403,10 +403,16 @@
 
 @code {
     // ── Daily-context facilities (per-transaction / per-day). The rest are monthly rentals. ──
-    static readonly HashSet<FacilityCode> DailyFacilities = new()
+    static readonly HashSet<FacilityCode> DailyWithMarket = new()
     {
         FacilityCode.NPM, FacilityCode.SLH, FacilityCode.TRM, FacilityCode.TPM
     };
+    static readonly HashSet<FacilityCode> DailyWithoutMarket = new() { FacilityCode.SLH, FacilityCode.TRM, FacilityCode.TPM };
+
+    // A Public Market its LGU rents by the month is a monthly rental on the device: it reads month chips, not daily ones.
+    HashSet<FacilityCode> DailyFacilities =>
+        Session.Menu?.Facilities.Any(f => f.Code == FacilityCode.NPM && f.Archetype == BillingArchetype.MonthlyRental) == true
+            ? DailyWithoutMarket : DailyWithMarket;
 
     // Tabo-an Public Market trades only on Fridays (₱100/vendor/market day), so its Records show
     // market-day (Friday) chips instead of consecutive-day chips.

@@ -1,0 +1,235 @@
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Common.Revenue
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Application.Dtos.Slaughterhouse
+@using EEMOCantilanSDS.Domain.Constants
+@using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Client.Components.Shared
+@inject ISlaughterApiClient SlaughterApi
+
+@* Office recording by approved charges. The office selects the animal, the head count and the approved charges (and counts a per-unit
+   charge); the server prices them with the same calculation the Collector uses, and the transaction posts as one canonical collection
+   with one SRC. No rate or total is typed here. *@
+<AddNewDrawer Show="Show" Title="Record slaughter" Subtitle="Approved charges" FormId="slh-office-record" FormLabel="Record a slaughter transaction"
+              SubmitText="@(_saving ? "Recording…" : "Record")" Saving="_saving" SubmitDisabled="@(!CanRecord)" Error="@_error"
+              OnSubmit="RecordAsync" OnCancel="CloseAsync">
+    <AddNewSection Title="Transaction">
+        <label class="v3-field"><span>Owner</span>
+            <input class="v3-input" type="text" maxlength="200" required autocomplete="off" @bind="_owner" @bind:event="oninput" /></label>
+        <label class="v3-field"><span>Date</span>
+            <input class="v3-input" type="date" max="@Today.ToString("yyyy-MM-dd")" value="@_date.ToString("yyyy-MM-dd")" @onchange="DateChangedAsync" /></label>
+    </AddNewSection>
+
+    <AddNewSection Title="Animal" Plain="true">
+        <div class="sor-chips" role="radiogroup" aria-label="Animal">
+            @foreach (var option in Animals)
+            {
+                <label class="@(_animal == option.Type && _custom == option.Custom ? "is-on" : null)">
+                    <input type="radio" name="sor-animal" checked="@(_animal == option.Type && _custom == option.Custom)" @onchange="() => PickAnimalAsync(option)" />
+                    @option.Label
+                </label>
+            }
+        </div>
+        @if (_animal is not null)
+        {
+            <label class="v3-field sor-heads"><span>Heads</span>
+                <input class="v3-input" type="number" min="1" max="1000" step="1" value="@_heads" @onchange="HeadsChangedAsync" /></label>
+        }
+    </AddNewSection>
+
+    <AddNewSection Title="Approved charges" Plain="true">
+        @if (_terms is null)
+        {
+            <p class="sor-note">Loading the approved charges…</p>
+        }
+        else if (_animal is null)
+        {
+            <p class="sor-note">Select the animal to see its charges.</p>
+        }
+        else if (Charges.Count == 0)
+        {
+            <p class="sor-note">No approved charge applies to this animal. Add one under Approved charges.</p>
+        }
+        else
+        {
+            <ul class="sor-charges">
+                @foreach (var charge in Charges)
+                {
+                    <li>
+                        <label class="sor-pick">
+                            <input type="checkbox" checked="@_picked.ContainsKey(charge.Id)" @onchange="e => ToggleAsync(charge, e.Value is true)" />
+                            <span>@charge.Name</span>
+                        </label>
+                        <span class="sor-rate">@Money(charge.Amount ?? 0m) / @(PerHead(charge) ? "head" : "unit")</span>
+                        @if (_picked.ContainsKey(charge.Id) && !PerHead(charge))
+                        {
+                            <input class="v3-input sor-qty" type="number" min="1" max="100000" step="1" aria-label="@($"{charge.Name} quantity")"
+                                   value="@_picked[charge.Id]" @onchange="e => QuantityAsync(charge, e.Value?.ToString())" />
+                        }
+                    </li>
+                }
+            </ul>
+        }
+
+        @if (_quote is { Items: { Count: > 0 } items } quote)
+        {
+            <table class="sor-breakdown">
+                <caption class="v3-sr-only">Itemized total</caption>
+                <tbody>
+                    @foreach (var item in items)
+                    {
+                        <tr><td>@item.Label</td><td>@($"{item.Quantity:N0} × {Money(item.UnitAmount ?? 0m)}")</td><td>@Money(item.Amount)</td></tr>
+                    }
+                </tbody>
+                <tfoot><tr><th colspan="2" scope="row">Total</th><td>@Money(quote.Amount)</td></tr></tfoot>
+            </table>
+        }
+        else if (_picked.Count > 0)
+        {
+            <p class="sor-note">@(_quoteError ?? "Pricing…")</p>
+        }
+    </AddNewSection>
+</AddNewDrawer>
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public SlaughterAnimalLabelsDto? Labels { get; set; }
+    [Parameter] public IReadOnlyList<SlaughterAnimalRateDto>? ApprovedAnimals { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<string?> OnRecorded { get; set; }
+
+    private sealed record AnimalOption(string Label, AnimalType Type, string? Custom);
+    private SlaughterTermsDto? _terms;
+    private string _owner = string.Empty;
+    private DateOnly _date;
+    private AnimalType? _animal;
+    private string? _custom;
+    private int _heads = 1;
+    private readonly Dictionary<Guid, int> _picked = new();
+    private FeeScheduleCollectionWorkflow.SlaughterQuote? _quote;
+    private string? _quoteError, _error;
+    private bool _saving, _wasShown;
+    // One identity per filling-in of the form: a retry after a dropped response replays the same posting instead of recording twice.
+    private Guid _operationId = Guid.NewGuid();
+
+    private static DateOnly Today => DateOnly.FromDateTime(PhilippineTime.Now);
+    private static string Money(decimal value) => "₱" + value.ToString("N2");
+    private static bool PerHead(FeeOptionTermDto c) => (c.QuantityBasis ?? FeeQuantityBasis.PerHead) == FeeQuantityBasis.PerHead;
+    private int Qty(FeeOptionTermDto c) => PerHead(c) ? _heads : _picked[c.Id];
+    private bool CanRecord => !_saving && !string.IsNullOrWhiteSpace(_owner) && _animal is not null && _heads > 0 && _picked.Count > 0 && _quote is not null;
+
+    private IEnumerable<AnimalOption> Animals
+    {
+        get
+        {
+            var labels = Labels ?? new("Hog", "Carabao", "Cow");
+            foreach (var type in new[] { AnimalType.Hog, AnimalType.Carabao, AnimalType.Cow })
+                yield return new(labels.For(type), type, null);
+            foreach (var approved in (ApprovedAnimals ?? []).Where(a => a.IsActive))
+                yield return new(approved.AnimalName, AnimalType.Other, approved.AnimalName);
+        }
+    }
+
+    private IReadOnlyList<FeeOptionTermDto> Charges => _animal is not { } animal ? [] : (_terms?.Charges ?? [])
+        .Where(c => c.Amount is > 0 && SlaughterAnimalScopes.Includes(c.ApplicableAnimals, animal)).ToList();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Show && !_wasShown) await ResetAsync();
+        _wasShown = Show;
+    }
+
+    private async Task ResetAsync()
+    {
+        _owner = string.Empty; _animal = null; _custom = null; _heads = 1; _picked.Clear();
+        _quote = null; _quoteError = null; _error = null; _saving = false; _terms = null;
+        _date = Today;
+        _operationId = Guid.NewGuid();
+        await LoadTermsAsync();
+    }
+
+    private async Task LoadTermsAsync()
+    {
+        var result = await SlaughterApi.GetOfficeTermsAsync(_date);
+        _terms = result.IsSuccess ? result.Value : null;
+        if (!result.IsSuccess) _error = result.Error ?? "The approved charges could not be loaded.";
+        else if (_terms is { Itemized: false }) _error = "Slaughterhouse is not collected by approved charges.";
+        else _error = null;
+        var offered = (_terms?.Charges ?? []).Select(c => c.Id).ToHashSet();
+        foreach (var gone in _picked.Keys.Where(k => !offered.Contains(k)).ToList()) _picked.Remove(gone);
+    }
+
+    private FeeSchedulePostRequest Build(decimal amount) => new(
+        _operationId, CollectorOperationCodes.Slaughterhouse, _date, amount, Animal: _animal, CustomAnimalName: _custom, Heads: _heads,
+        OwnerName: string.IsNullOrWhiteSpace(_owner) ? "Walk-in" : _owner.Trim(),
+        Charges: Charges.Where(c => _picked.ContainsKey(c.Id)).Select(c => new SlaughterChargeSelectionDto(c.Id, Qty(c))).ToList());
+
+    // The server prices the selection (the calculation posting uses). A refusal - a retired or not-applicable charge - is shown and the charges reload.
+    private async Task RequoteAsync()
+    {
+        _quote = null; _quoteError = null;
+        if (_animal is null || _picked.Count == 0 || _heads < 1) return;
+        var result = await SlaughterApi.QuoteOfficeAsync(Build(0m));
+        if (result.IsSuccess) _quote = result.Value;
+        else
+        {
+            _quoteError = result.Error ?? "These charges cannot be collected right now.";
+            await LoadTermsAsync();
+        }
+    }
+
+    private async Task PickAnimalAsync(AnimalOption option)
+    {
+        _animal = option.Type; _custom = option.Custom;
+        _picked.Clear();
+        if (option.Type != AnimalType.Other)   // a custom animal has no standard package: the office ticks what applies
+            foreach (var c in Charges.Where(PerHead)) _picked[c.Id] = 1;   // the animal's per-head package starts ticked; the office may untick one
+        await RequoteAsync();
+    }
+
+    private async Task HeadsChangedAsync(ChangeEventArgs e)
+    {
+        _heads = int.TryParse(e.Value?.ToString(), out var n) && n > 0 ? Math.Min(n, 1000) : 1;
+        await RequoteAsync();
+    }
+
+    private async Task DateChangedAsync(ChangeEventArgs e)
+    {
+        if (DateOnly.TryParse(e.Value?.ToString(), out var date) && date <= Today) _date = date;
+        await LoadTermsAsync();
+        await RequoteAsync();
+    }
+
+    private async Task ToggleAsync(FeeOptionTermDto charge, bool on)
+    {
+        if (on) _picked[charge.Id] = 1; else _picked.Remove(charge.Id);
+        await RequoteAsync();
+    }
+
+    private async Task QuantityAsync(FeeOptionTermDto charge, string? raw)
+    {
+        _picked[charge.Id] = int.TryParse(raw, out var n) ? Math.Clamp(n, 1, 100_000) : 1;
+        await RequoteAsync();
+    }
+
+    private async Task RecordAsync()
+    {
+        if (!CanRecord || _quote is null) return;
+        _saving = true; _error = null;
+        try
+        {
+            var result = await SlaughterApi.RecordOfficeAsync(Build(_quote.Amount));
+            if (!result.IsSuccess)
+            {
+                _error = result.Error ?? "The transaction could not be recorded.";
+                await LoadTermsAsync();
+                await RequoteAsync();
+                return;
+            }
+            await OnRecorded.InvokeAsync(result.Value?.ReferenceCode);
+        }
+        finally { _saving = false; }
+    }
+
+    private Task CloseAsync() => OnClose.InvokeAsync();
+}

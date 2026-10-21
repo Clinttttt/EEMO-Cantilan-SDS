@@ -18,7 +18,7 @@ using Microsoft.EntityFrameworkCore;
 namespace EEMOCantilanSDS.IntegrationTests;
 
 [Collection(PostgresCollection.Name)]
-public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
+public sealed partial class EcfCollectionWorkflowTests(PostgresFixture db)
 {
     private sealed record Seed(Guid TenantId, Guid UserId, Guid BillId, Guid PayorId, Guid OrDocumentId,
         Guid OtherOrDocumentId, Guid CtDocumentId, DateOnly Period);
@@ -1229,16 +1229,20 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
         decimal legacyFishKilos = 0m,
         Guid? payorId = null,
         Payor? additionalPayor = null,
-        FacilityCode facilityCode = FacilityCode.TCC)
+        FacilityCode facilityCode = FacilityCode.TCC, decimal monthlyRate = 900m, bool sourceOwned = false)
     {
-        var facility = Facility.Create(facilityCode, facilityCode.ToString(), facilityCode.ToString(),
-            municipalityId: seed.TenantId);
-        var stall = Stall.Create(facility.Id, "RENT-01", 900m, ApplicableFees.BaseRental,
-            municipalityId: seed.TenantId);
+        // The Public Market already exists in a seeded tenant (declared as standard monthly rental when this runs for NPM).
+        Facility facility;
+        await using (var lookup = db.CreateContext(seed.TenantId))
+            facility = facilityCode == FacilityCode.NPM
+                ? await lookup.Facilities.AsNoTracking().SingleAsync(x => x.Code == FacilityCode.NPM)
+                : Facility.Create(facilityCode, facilityCode.ToString(), facilityCode.ToString(), municipalityId: seed.TenantId);
+        var stall = Stall.Create(facility.Id, "RENT-01", monthlyRate, ApplicableFees.BaseRental,
+            facilityCode == FacilityCode.NPM ? MarketSection.VegetableArea : null, municipalityId: seed.TenantId);
         var contract = Contract.Create(stall.Id, "Lisa ECF", "Lisa ECF",
-            periods.Min(), 5, 900m, createdBy: "test");
+            periods.Min(), 5, monthlyRate, createdBy: "test");
         var linkedPayorId = payorId ?? seed.PayorId;
-        contract.AssociatePayor(linkedPayorId, "test");
+        if (!sourceOwned) contract.AssociatePayor(linkedPayorId, "test");
         var classification = RevenueClassification.Create(RevenueClassificationCodes.ForMonthlyRental(facilityCode),
             seed.TenantId);
         var policy = RevenueClassificationPolicy.Create(classification.Id, new DateOnly(2000, 1, 1),
@@ -1247,7 +1251,7 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
         var cutovers = new List<CollectionSettlementCutover>();
         foreach (var period in periods)
         {
-            var record = PaymentRecord.Create(stall.Id, period.Year, period.Month, 900m, "test");
+            var record = PaymentRecord.Create(stall.Id, period.Year, period.Month, monthlyRate, "test");
             if (!canonical && (partialAmount > 0m || legacyElectricityAmount > 0m || legacyFishKilos > 0m))
                 record.RecordPayment("LEGACY-RENT", seed.UserId, PaymentStatus.Partial,
                     partialAmount: partialAmount, elecAmount: legacyElectricityAmount,
@@ -1270,7 +1274,8 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
 
         await using var context = db.CreateContext(seed.TenantId);
         if (additionalPayor is not null) context.Payors.Add(additionalPayor);
-        context.AddRange(facility, stall, contract, classification, policy);
+        if (facilityCode != FacilityCode.NPM) context.Add(facility);
+        context.AddRange(stall, contract, classification, policy);
         context.PaymentRecords.AddRange(records.Values);
         context.CollectionSettlementCutovers.AddRange(cutovers);
         await context.SaveChangesAsync();
@@ -1278,7 +1283,7 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
             records.ToDictionary(x => x.Key, x => x.Value.Id));
     }
 
-    private async Task<Seed> SeedEcfAsync(bool canonical)
+    private async Task<Seed> SeedEcfAsync(bool canonical, BillingArchetype npmArchetype = BillingArchetype.DailyStall)
     {
         var tenant = Guid.NewGuid();
         var user = Guid.NewGuid();
@@ -1295,7 +1300,7 @@ public sealed class EcfCollectionWorkflowTests(PostgresFixture db)
         }
 
         var facility = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM",
-            archetype: BillingArchetype.DailyStall, municipalityId: tenant);
+            archetype: npmArchetype, municipalityId: tenant);
         var stall = Stall.Create(facility.Id, "ECF-01", 0m,
             ApplicableFees.Electricity | ApplicableFees.Water, MarketSection.FishSection,
             createdBy: "test", municipalityId: tenant);

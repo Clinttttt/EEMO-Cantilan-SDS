@@ -142,6 +142,7 @@ public sealed class GovernedServiceFeeOptionConfiguration : IEntityTypeConfigura
         builder.Property(x => x.Location).HasMaxLength(80);
         builder.Property(x => x.Description).HasMaxLength(300);
         builder.Property(x => x.RetiredBy).HasMaxLength(100);
+        builder.Property(x => x.QuantityBasis).HasConversion<int?>();
         builder.Property(x => x.CreatedAtUtc).IsRequired();
         builder.Property(x => x.CreatedBy).HasMaxLength(100).IsRequired();
         // An internal reference, when given, identifies one option of one service.

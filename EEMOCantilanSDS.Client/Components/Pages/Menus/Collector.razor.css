@@ -1165,3 +1165,10 @@
     color: var(--text-tertiary);
     font-weight: 500;
 }
+
+/* Assignments read as at most two lines of chips; the rest is a +N chip. */
+.facility-tags { max-width: 360px; }
+.facility-tags-compact { display: grid; grid-template-columns: repeat(7, minmax(0, max-content)); }
+.facility-tags-compact span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.facility-tags-compact .no-facility { grid-column: 1 / -1; }
+.facility-tags .tag-more { background: var(--accent-soft); color: var(--accent); font-weight: 700; cursor: default; }

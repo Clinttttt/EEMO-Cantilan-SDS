@@ -1,0 +1,327 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
+@inject IOfficialReportsApiClient Api
+
+@* REVENUE TREND — the official Monthly Income, period by period, stacked by its own revenue groups.
+   Every figure is read from the same official statement the Monthly Income tab prints (legacy cash before a source's cutover plus its posted
+   Collections after it, once, with report adjustments kept apart), so a bar here is the statement's own number. Nothing is estimated and no
+   history is invented: a period with no money is a genuine zero and a year that cannot be read says so. Annual targets are the office-approved
+   annual amounts and are never divided into monthly targets; where only some sources have a target, the coverage is stated. *@
+<section class="rtp pdf-include" aria-labelledby="@_titleId" aria-busy="@(_loading ? "true" : "false")">
+    <header class="rtp-head">
+        <div>
+            <h2 id="@_titleId">Revenue trend — @RangeLabel</h2>
+            <p class="rtp-sub">Official income by revenue group · amounts in ₱</p>
+        </div>
+        @if (_series.Count > 0)
+        {
+            <ul class="rtp-legend" aria-label="Revenue groups">
+                @foreach (var s in _series)
+                {
+                    <li><span class="rtp-swatch rtp-s@(s.Index % 6)" aria-hidden="true"></span>@s.Label</li>
+                }
+            </ul>
+        }
+    </header>
+
+    @if (_failed.Count > 0)
+    {
+        <p class="rtp-state" role="alert">The official income for @string.Join(", ", _failed) could not be loaded, so @(_failed.Count == 1 ? "that year is" : "those years are") not shown as zero.</p>
+    }
+
+    @if (_loading && _periods.Count == 0)
+    {
+        <p class="rtp-state" role="status">Loading the revenue trend…</p>
+    }
+    else if (_periods.Count == 0)
+    {
+        <p class="rtp-state" role="status">There is no elapsed period to show for @RangeLabel.</p>
+    }
+    else
+    {
+        <div class="rtp-summary"><SummaryStrip Label="Revenue trend summary" Items="Summary" /></div>
+
+        <div class="rtp-chart rpt-trend-plot">
+            <div class="rpt-yaxis" aria-hidden="true">
+                @foreach (var tick in _ticks.AsEnumerable().Reverse())
+                {
+                    <span>@Compact(tick)</span>
+                }
+            </div>
+            <div class="rpt-plot">
+                <div class="rpt-grid" aria-hidden="true">
+                    @foreach (var _ in _ticks)
+                    {
+                        <div class="rpt-grid-line"></div>
+                    }
+                </div>
+                <div class="bar-chart" role="list" aria-label="@(Annual ? "Official income by year" : "Official income by month")">
+                    @foreach (var p in _periods)
+                    {
+                        <div class="bar-group @(TipSide(p))" role="listitem" tabindex="0" aria-label="@ColumnLabel(p)">
+                            <div class="bar-wrap">
+                                @if (StackTotal(p) > 0m && _max > 0m)
+                                {
+                                    var stack = StackTotal(p);
+                                    <div class="bar" style="height:@Pct(stack)%">
+                                        <span class="bar-top" aria-hidden="true">@Compact(p.Official)</span>
+                                        <div class="bar-stack">
+                                            @foreach (var s in _series)
+                                            {
+                                                var part = p.Parts.GetValueOrDefault(s.Key);
+                                                if (part <= 0m) continue;
+                                                <div class="bar-seg rtp-s@(s.Index % 6)" style="height:@((part / stack * 100m).ToString("0.###", CultureInfo.InvariantCulture))%"></div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="bar-none" aria-hidden="true"></div>
+                                }
+                                <div class="bar-tip" aria-hidden="true">
+                                    <div class="bar-tip-title">@p.Label</div>
+                                    @foreach (var s in _series.Where(s => p.Parts.GetValueOrDefault(s.Key) != 0m))
+                                    {
+                                        <div class="bar-tip-row"><span class="bar-tip-dot rtp-s@(s.Index % 6)"></span><span class="bar-tip-key">@s.Label</span><span class="bar-tip-val">@Money(p.Parts[s.Key])</span></div>
+                                    }
+                                    @if (StackTotal(p) <= 0m) { <div class="bar-tip-row"><span class="bar-tip-key">No collections recorded</span></div> }
+                                    <div class="bar-tip-row bar-tip-total"><span class="bar-tip-key">Official income</span><span class="bar-tip-val">@Money(p.Official)</span></div>
+                                </div>
+                            </div>
+                            <div class="bar-month @(IsSelected(p) ? "is-selected" : "")">@p.Label@(IsSelected(p) ? " ●" : "")</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="v3-table-wrap" role="region" aria-label="@(Annual ? "Revenue by year" : "Revenue by month")" tabindex="0">
+            <table class="v3-table rtp-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Period</th>
+                        <th scope="col" class="v3-num">Collected</th>
+                        @if (_anyAdjustment)
+                        {
+                            <th scope="col" class="v3-num">Report adjustment</th>
+                            <th scope="col" class="v3-num">Official income</th>
+                        }
+                        <th scope="col" class="v3-num" title="@(Annual ? "Share of the official income of the years shown" : "Share of the official income of the months shown")">Contribution</th>
+                        @if (!Annual) { <th scope="col" class="v3-num">Year to date</th> }
+                        <th scope="col" class="v3-num">Annual target</th>
+                        @if (Annual) { <th scope="col" class="v3-num" title="Official income against the annual target; shown only when every source has a target">Attainment</th> }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in _periods)
+                    {
+                        <tr class="@(IsSelected(p) ? "is-selected" : "")">
+                            <th scope="row">@p.Label</th>
+                            <td class="v3-num">@Money(p.System)</td>
+                            @if (_anyAdjustment)
+                            {
+                                <td class="v3-num">@(p.Adjustment == 0m ? "—" : Money(p.Adjustment))</td>
+                                <td class="v3-num">@Money(p.Official)</td>
+                            }
+                            <td class="v3-num">@Share(p.Official)</td>
+                            @if (!Annual) { <td class="v3-num">@Money(p.CumulativeOfficial)</td> }
+                            <td class="v3-num">@TargetCell(p.Coverage)</td>
+                            @if (Annual) { <td class="v3-num">@AttainmentCell(p.Coverage)</td> }
+                        </tr>
+                    }
+                </tbody>
+                @if (!Annual)
+                {
+                    <tfoot>
+                        <tr>
+                            <th scope="row">Year to date</th>
+                            <td class="v3-num">@Money(_periods.Sum(p => p.System))</td>
+                            @if (_anyAdjustment)
+                            {
+                                <td class="v3-num">@(_periods.Sum(p => p.Adjustment) == 0m ? "—" : Money(_periods.Sum(p => p.Adjustment)))</td>
+                                <td class="v3-num">@Money(_periods.Sum(p => p.Official))</td>
+                            }
+                            <td class="v3-num">@Share(_periods.Sum(p => p.Official))</td>
+                            <td class="v3-num">@Money(_periods.Sum(p => p.Official))</td>
+                            <td class="v3-num">@TargetCell(_periods[^1].Coverage)</td>                        </tr>
+                    </tfoot>
+                }
+            </table>
+        </div>
+        <p class="rtp-note">Annual targets are office-approved yearly amounts and are not divided into monthly targets. Official income includes report adjustments where the office recorded any.</p>
+    }
+</section>
+
+@code {
+    private readonly string _titleId = $"rtp-{Guid.NewGuid():N}";
+
+    [Parameter, EditorRequired] public int Year { get; set; }
+
+    /// <summary>The selected month while a single year is read monthly; null in annual mode.</summary>
+    [Parameter] public int? Month { get; set; }
+
+    /// <summary>Annual compares the five years ending at <see cref="Year"/>; otherwise the months of <see cref="Year"/> are shown.</summary>
+    [Parameter] public bool Annual { get; set; }
+
+    private sealed record Series(string Key, string Label, int Index);
+
+    private sealed record Period(string Label, int Key, decimal System, decimal Adjustment, IReadOnlyDictionary<string, decimal> Parts,
+        TargetCoverageDto? Coverage)
+    {
+        public decimal Official => System + Adjustment;
+        public decimal CumulativeOfficial { get; init; }
+    }
+
+    private readonly List<Period> _periods = [];
+    private List<Series> _series = [];
+    private List<int> _failedYears = [];
+    private List<string> _failed => _failedYears.Select(y => y.ToString(CultureInfo.InvariantCulture)).ToList();
+    private List<decimal> _ticks = [];
+    private decimal _max;
+    private bool _anyAdjustment;
+    private bool _loading;
+    private int _loadedYear;
+    private bool _loadedAnnual;
+
+    private string RangeLabel => Annual ? $"{Math.Max(2000, Year - 4)}–{Year}" : Year.ToString(CultureInfo.InvariantCulture);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedYear == Year && _loadedAnnual == Annual && (_periods.Count > 0 || _failedYears.Count > 0)) return;
+        _loadedYear = Year;
+        _loadedAnnual = Annual;
+        _loading = true;
+        _failedYears = [];
+        try
+        {
+            var today = PhilippineTime.Today;
+            var years = Annual ? Enumerable.Range(Math.Max(2000, Year - 4), Year - Math.Max(2000, Year - 4) + 1).Where(y => y <= today.Year).ToList() : [Year];
+            var results = await Task.WhenAll(years.Select(async y =>
+            {
+                try { var r = await Api.GetMonthlyIncomeAsync(y, null); return (Year: y, Data: r is { IsSuccess: true } ? r.Value : null); }
+                catch (HttpRequestException) { return (Year: y, Data: (OfficialMonthlyIncomeDto?)null); }
+            }));
+            _failedYears = results.Where(r => r.Data is null).Select(r => r.Year).ToList();
+            Build(results.Where(r => r.Data is not null).Select(r => (r.Year, r.Data!)).ToList(), today);
+        }
+        finally { _loading = false; }
+    }
+
+    private void Build(List<(int Year, OfficialMonthlyIncomeDto Data)> statements, DateOnly today)
+    {
+        _periods.Clear();
+        // One legend across every period, in the statement's own group order; a group with money in no period is not listed.
+        var keys = new List<(string Key, string Label)>();
+        foreach (var (_, data) in statements)
+            foreach (var g in data.Groups)
+                if (!keys.Any(k => k.Key == g.Key) && g.Total.Total != 0m) keys.Add((g.Key, g.Label));
+        _series = keys.Select((k, i) => new Series(k.Key, k.Label, i)).ToList();
+
+        if (Annual)
+        {
+            foreach (var (year, data) in statements)
+                _periods.Add(new Period(year.ToString(CultureInfo.InvariantCulture), year, data.GrandTotal.SystemAmount, data.GrandTotal.AdjustmentAmount,
+                    data.Groups.ToDictionary(g => g.Key, g => g.Total.Total), data.TargetCoverage));
+        }
+        else if (statements.Count == 1)
+        {
+            var (year, data) = statements[0];
+            var through = year < today.Year ? 12 : year == today.Year ? today.Month : 0;
+            var running = 0m;
+            for (var m = 1; m <= through; m++)
+            {
+                var total = data.MonthTotals[m - 1];
+                running += total.OfficialAmount;
+                _periods.Add(new Period(new DateOnly(year, m, 1).ToString("MMM yyyy", CultureInfo.InvariantCulture), m, total.SystemAmount, total.AdjustmentAmount,
+                    data.Groups.ToDictionary(g => g.Key, g => g.MonthTotals[m - 1].Total), data.TargetCoverage) { CumulativeOfficial = running });
+            }
+        }
+
+        _anyAdjustment = _periods.Any(p => p.Adjustment != 0m);
+        _max = _periods.Count == 0 ? 0m : _periods.Max(StackTotal);
+        _ticks = Ticks(_max);
+        if (_ticks.Count > 0) _max = _ticks[^1];
+    }
+
+    // Four even steps up to a round ceiling, so the gridlines read as numbers a person would choose.
+    private static List<decimal> Ticks(decimal max)
+    {
+        if (max <= 0m) return [];
+        var magnitude = (decimal)Math.Pow(10, Math.Floor(Math.Log10((double)max)));
+        var ceiling = new[] { 1m, 1.2m, 1.5m, 2m, 2.5m, 3m, 4m, 5m, 6m, 8m, 10m }.Select(f => f * magnitude).First(c => c >= max);
+        return Enumerable.Range(0, 5).Select(i => ceiling / 4m * i).ToList();
+    }
+
+    // The drawn height of a period: its positive group amounts, which is also what the segments are split from.
+    private static decimal StackTotal(Period p) => p.Parts.Values.Where(v => v > 0m).Sum();
+
+    private string Share(decimal official)
+    {
+        var total = _periods.Sum(p => p.Official);
+        return total > 0m && official >= 0m ? (official / total * 100m).ToString("N1", CultureInfo.InvariantCulture) + "%" : "—";
+    }
+    private IReadOnlyList<SummaryStrip.SummaryItem> Summary
+    {
+        get
+        {
+            var unit = Annual ? "year" : "month";
+            var total = _periods.Sum(p => p.Official);
+            var best = _periods.OrderByDescending(p => p.Official).First();
+            var items = new List<SummaryStrip.SummaryItem>
+            {
+                new(Annual ? $"Total · {RangeLabel}" : $"Total · {Year}", Money(total)),
+                new($"Highest {unit}", best.Official > 0m ? $"{best.Label} · {Money(best.Official)}" : "—"),
+                new($"Average per {unit}", Money(total / _periods.Count)),
+            };
+            if (_periods.Count > 1)
+            {
+                var last = _periods[^1]; var before = _periods[^2];
+                items.Add(new($"{last.Label} vs {before.Label}", before.Official > 0m
+                    ? (last.Official >= before.Official ? "↑ " : "↓ ") + (Math.Abs(last.Official - before.Official) / before.Official * 100m).ToString("N1", CultureInfo.InvariantCulture) + "%"
+                    : "—"));
+            }
+            return items;
+        }
+    }
+
+    private string Pct(decimal part) => (part / _max * 100m).ToString("0.###", CultureInfo.InvariantCulture);
+
+    // The figures open beside the bar, toward the middle of the chart, so they are never cut off at an edge.
+    private string TipSide(Period p) => _periods.IndexOf(p) * 2 >= _periods.Count ? "tip-left" : "tip-right";
+
+    private bool IsSelected(Period p) => Annual ? p.Key == Year : p.Key == Month;
+
+    private string ColumnLabel(Period p)
+    {
+        var parts = _series.Where(s => p.Parts.GetValueOrDefault(s.Key) != 0m).Select(s => $"{s.Label} {Money(p.Parts[s.Key])}");
+        return p.Official == 0m && p.System == 0m
+            ? $"{p.Label}: no collections recorded"
+            : $"{p.Label}: official income {Money(p.Official)}. {string.Join(", ", parts)}";
+    }
+
+    private static string TargetCell(TargetCoverageDto? c) => c switch
+    {
+        null or { State: TargetCoverageState.None } => "—",
+        { State: TargetCoverageState.Complete } => Money(c.AnnualTarget),
+        _ => "—"
+    };
+
+    private static string AttainmentCell(TargetCoverageDto? c) => c is { State: TargetCoverageState.Complete, Attainment: { } a }
+        ? a.ToString("N1", CultureInfo.InvariantCulture) + "%" : "—";
+
+    private static string AttainmentNote(TargetCoverageDto? c) => c is { State: TargetCoverageState.Complete, Attainment: { } a }
+        ? $" · {a.ToString("N1", CultureInfo.InvariantCulture)}% attained" : string.Empty;
+
+    private static string Money(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
+
+    private static string Compact(decimal value) => value switch
+    {
+        >= 1_000_000m => "₱" + (value / 1_000_000m).ToString("0.##", CultureInfo.InvariantCulture) + "M",
+        >= 1_000m => "₱" + (value / 1_000m).ToString("0.##", CultureInfo.InvariantCulture) + "K",
+        _ => "₱" + value.ToString("0", CultureInfo.InvariantCulture)
+    };
+}

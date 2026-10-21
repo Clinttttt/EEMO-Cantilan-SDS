@@ -317,19 +317,23 @@
     text-align: left;
 }
 
+/* Highlight selection using its outline, not a large color-filled card. */
 .status-option-active.paid {
-    border-color: rgba(45, 122, 95, 0.35);
-    background: var(--paid-green-bg);
+    border-color: var(--mobile-success, #23684f);
+    border-width: 2px;
+    background: var(--mobile-surface, #ffffff);
 }
 
 .status-option-active.partial {
-    border-color: rgba(200, 168, 75, 0.4);
-    background: rgba(200, 168, 75, 0.1);
+    border-color: var(--mobile-gold, #b8942f);
+    border-width: 2px;
+    background: var(--mobile-surface, #ffffff);
 }
 
 .status-option-active.unpaid {
-    border-color: rgba(139, 58, 58, 0.24);
-    background: var(--error-red-bg);
+    border-color: var(--mobile-danger, #a12b2b);
+    border-width: 2px;
+    background: var(--mobile-surface, #ffffff);
 }
 
 .status-option-icon {
@@ -399,12 +403,40 @@
 }
 
 .or-number-wrap {
-    background: #f8fafc;
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 12px;
-    margin: -2px 0 12px;
+    background: var(--mobile-surface, #fff);
+    border: 1px solid var(--mobile-border, #dfe5ec);
+    border-radius: 12px;
+    padding: 14px;
+    margin: 3px 0 12px;
+    color: var(--mobile-navy, #0d2137);
 }
+.or-number-wrap summary {
+    min-height: 28px;
+    color: var(--mobile-blue-deep, #174a86);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.5;
+    cursor: pointer;
+}
+.or-number-wrap[open] summary { margin-bottom: 14px; }
+.or-number-wrap .form-label {
+    margin: 2px 0 7px;
+    color: var(--mobile-text-secondary, #526579);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+}
+.or-number-wrap .form-input {
+    min-height: 46px;
+    width: 100%;
+    background: #fff;
+    color: var(--mobile-navy, #0d2137);
+    font-size: 16px;
+    -webkit-text-fill-color: var(--mobile-navy, #0d2137);
+}
+.or-number-wrap .form-hint { color: var(--mobile-text-secondary, #526579); font-size: 12px; line-height: 1.45; margin-top: 7px; }
+.or-number-wrap .fish-input-row span { color: var(--mobile-navy, #0d2137); font-weight: 700; }
 
 .fish-input-row {
     display: flex;

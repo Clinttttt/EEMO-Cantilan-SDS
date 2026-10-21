@@ -1,0 +1,74 @@
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+            <fieldset class="vendor-form-section">
+                <legend>Vendor identity</legend>
+                <p class="vendor-form-note">Vendor name is required. Other identity and office fields are optional.</p>
+                <div class="avm-group">
+                    <label class="avm-label" for="@($"{FormId}-name")">Vendor name <span class="avm-req">*</span></label>
+                    <input id="@($"{FormId}-name")" class="avm-input" type="text" aria-required="true" maxlength="200" autocomplete="off" @bind="Model.Name" @bind:event="oninput" />
+                </div>
+                <div class="avm-group">
+                    <label class="avm-label" for="@($"{FormId}-business")">Business name</label>
+                    <input id="@($"{FormId}-business")" class="avm-input" type="text" maxlength="200" autocomplete="off" @bind="Model.Business" @bind:event="oninput" />
+                </div>
+            @if (!IsRenew)
+            {
+                    <div class="avm-group"><label class="avm-label" for="@($"{FormId}-last")">Last name</label><input class="avm-input" id="@($"{FormId}-last")" maxlength="100" @bind="Model.LastName" @bind:event="oninput" /></div>
+                    <div class="avm-group"><label class="avm-label" for="@($"{FormId}-first")">First name</label><input class="avm-input" id="@($"{FormId}-first")" maxlength="100" @bind="Model.FirstName" @bind:event="oninput" /></div>
+                    <div class="avm-group"><label class="avm-label" for="@($"{FormId}-middle")">Middle name</label><input class="avm-input" id="@($"{FormId}-middle")" maxlength="100" @bind="Model.MiddleName" @bind:event="oninput" /></div>
+                    <div class="avm-group"><label class="avm-label" for="@($"{FormId}-extension")">Name extension</label><input class="avm-input" id="@($"{FormId}-extension")" maxlength="30" @bind="Model.NameExtension" @bind:event="oninput" /></div>
+            }
+            </fieldset>
+            <fieldset class="vendor-form-section">
+                <legend>Office registration details</legend>
+                @if (!IsRenew)
+                {
+                    <div class="avm-group"><label class="avm-label" for="@($"{FormId}-sex")">Sex (office record)</label><select class="avm-input" id="@($"{FormId}-sex")" @bind="Model.Sex"><option value="">Not recorded</option><option>Male</option><option>Female</option><option>Other / unspecified</option></select></div>
+                    <div class="avm-group">
+                        <label class="avm-label">Registration <span class="avm-req">*</span></label>
+                        <ChoiceCards Label="Registration" Items="KindChoices" Value="@(((int)Model.Kind).ToString())" ValueChanged="v => Model.Kind = (VendorRegistrationKind)int.Parse(v)" />
+                    </div>
+                }
+            @if (IsRenew)
+            {
+                    <div class="avm-group">
+                        <label class="avm-label">Renew for tax year <span class="avm-req">*</span></label>
+                        <FhSelect Block="true" AriaLabel="Renew for tax year" Options="YearOptions" Value="@Model.TaxYear.ToString()" ValueChanged="v => Model.TaxYear = int.Parse(v)" />
+                    </div>
+                    <div class="avm-group">
+                        <label class="avm-label">Type</label>
+                        <div class="avm-input avm-input-locked">@Model.Type</div>
+                    </div>
+            }
+            else
+            {
+                    <div class="avm-group">
+                        <label class="avm-label">Type <span class="avm-req">*</span></label>
+                        <ChoiceCards Label="Vendor type" Items="TypeChoices" Value="@(RequireTypeSelection && !TypeSelected ? "" : ((int)Model.Type).ToString())" ValueChanged="ChooseType" />
+                    </div>
+                    <div class="avm-group"><span class="avm-label">Tax year</span><div class="avm-input avm-input-locked">@Model.TaxYear</div></div>
+                    <div class="avm-group vendor-field-wide"><label class="avm-label" for="@($"{FormId}-nature")">Nature of business</label><input class="avm-input" id="@($"{FormId}-nature")" list="@($"{FormId}-nature-options")" maxlength="300" @bind="Model.NatureOfBusiness" @bind:event="oninput" placeholder="Enter the registered business activity" /><datalist id="@($"{FormId}-nature-options")"><option value="Retail sale of fish and other seafood (fresh and dried)" /><option value="Fish retailing" /><option value="Fish retail" /><option value="Meat retailing" /></datalist></div>
+            }
+
+                <div class="avm-group vendor-field-wide">
+                    <label class="avm-label" for="@($"{FormId}-address")">Address</label>
+                    <input id="@($"{FormId}-address")" class="avm-input" type="text" maxlength="300" autocomplete="off" @bind="Model.Address" @bind:event="oninput" />
+                </div>
+            </fieldset>
+
+@code {
+    private static readonly IReadOnlyList<ChoiceCards.Choice> TypeChoices = [new("1", "Fish"), new("2", "Meat")];
+    private static readonly IReadOnlyList<ChoiceCards.Choice> KindChoices = [new("1", "New"), new("2", "Renew")];
+    [Parameter, EditorRequired] public VendorRegistrationForm Model { get; set; } = new();
+    [Parameter, EditorRequired] public string FormId { get; set; } = "";
+    [Parameter] public bool IsRenew { get; set; }
+    [Parameter] public IReadOnlyList<int> TaxYears { get; set; } = [];
+    [Parameter] public bool RequireTypeSelection { get; set; }
+    [Parameter] public bool TypeSelected { get; set; }
+    [Parameter] public EventCallback<FishMeatVendorType> OnTypeSelected { get; set; }
+    private IReadOnlyList<(string Value, string Label)> YearOptions => TaxYears.Select(y => (y.ToString(), y.ToString())).ToList();
+    private async Task ChooseType(string value)
+    {
+        Model.Type = (FishMeatVendorType)int.Parse(value);
+        await OnTypeSelected.InvokeAsync(Model.Type);
+    }
+}

@@ -59,18 +59,21 @@ public class GetCollectionReportQueryHandler(
         // Per-stall NPM fish kilos (₱1/kg) for the month — surfaced as a separate extra charge on the report.
         var npmFishByStall = await reportsRepository.GetNpmFishKilosByStallAsync(year, month, ct);
 
+        // A Public Market declared as standard monthly rental reads like TCC/NCC: its stall rate is the monthly rent and it has no daily coverage.
+        var npmMonthly = (await facilityRepository.GetByCodeAsync(FacilityCode.NPM, ct))?.IsMonthlyRentMarket == true;
         foreach (var code in StallFacilities.Where(tenantCodes.Contains))
         {
             var report = await reportsRepository.GetFacilityReportsAsync(code, ReportPeriod.Monthly, year, month, null, ct);
-            var isNpm = code == FacilityCode.NPM;
+            var isNpm = code == FacilityCode.NPM && !npmMonthly;
 
             var rentals = report.StallCompliance.Select(s =>
             {
                 // The fee THIS stall is billed at: the report carries it per stall, so an office that prices the areas of
                 // its market apart is measured area by area. Cantilan's every stall carries its ₱30, unchanged.
-                var stallDaily = isNpm ? (s.DailyRate > 0 ? s.DailyRate : npmDaily) : 0m;
-                // NPM full-month coverage (the month the space is let for, less excused days), same as Month-End.
-                var coverage = isNpm ? rateSnapshot.MonthRule.Coverage(stallDaily, npmMonthlyStated, asOf.Day, s.AbsentDays) : 0m;
+                var stallDaily = isNpm ? (s.FullPeriodRentObligation.HasValue ? s.DailyRate : s.DailyRate > 0 ? s.DailyRate : npmDaily) : 0m;
+                // Activated coverage already includes approved credits; a daily fallback would invent another obligation.
+                var coverage = isNpm ? s.FullPeriodRentObligation
+                    ?? rateSnapshot.MonthRule.Coverage(stallDaily, npmMonthlyStated, asOf.Day, s.AbsentDays) : 0m;
                 var coverageBalance = isNpm ? Math.Max(0m, coverage - s.AmountPaid) : 0m;
                 var rate = isNpm ? stallDaily : s.MonthlyRate;
                 var fishKilos = isNpm ? npmFishByStall.GetValueOrDefault(s.StallId) : 0m;
@@ -81,7 +84,7 @@ public class GetCollectionReportQueryHandler(
             }).ToList();
 
             facilities.Add(new CollectionFacilityDto(
-                code, ReportName(code, facilityNames), Model(code), IsRental: true,
+                code, ReportName(code, facilityNames), code == FacilityCode.NPM && npmMonthly ? "Monthly rental" : Model(code), IsRental: true,
                 report.TotalRevenue, report.PendingPaymentAmount,
                 rentals, Array.Empty<CollectionTxnRowDto>()));
         }

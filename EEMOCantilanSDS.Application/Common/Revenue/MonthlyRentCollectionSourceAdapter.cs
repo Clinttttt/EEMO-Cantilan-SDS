@@ -39,7 +39,7 @@ public sealed class MonthlyRentCollectionSourceAdapter(IAppDbContext db)
             .Include(x => x.Contracts).ThenInclude(x => x.Payor);
         if (!tracked) stalls = stalls.AsNoTracking();
         var stall = await stalls.SingleOrDefaultAsync(ct);
-        if (stall?.Facility is null || !MonthlyRentalFacilities.Codes.Contains(stall.Facility.Code))
+        if (stall?.Facility is null || !MonthlyRentalFacilities.Bills(stall.Facility))
             return null;
 
         var periodStart = new DateOnly(year, month, 1);
@@ -89,7 +89,7 @@ public sealed class MonthlyRentCollectionSourceAdapter(IAppDbContext db)
         if (!tracked) records = records.AsNoTracking();
         var record = await records.SingleOrDefaultAsync(ct);
         if (record?.Stall is null || record.Stall.Facility is null
-            || !MonthlyRentalFacilities.Codes.Contains(record.Stall.Facility.Code))
+            || !MonthlyRentalFacilities.Bills(record.Stall.Facility))
             return null;
 
         var periodStart = new DateOnly(record.BillingYear, record.BillingMonth, 1);
@@ -117,7 +117,7 @@ public sealed class MonthlyRentCollectionSourceAdapter(IAppDbContext db)
             .Include(x => x.Contracts).ThenInclude(x => x.Payor)
             .ToListAsync(ct);
         stalls = stalls.Where(x => x.Facility is not null
-            && MonthlyRentalFacilities.Codes.Contains(x.Facility.Code)).ToList();
+            && MonthlyRentalFacilities.Bills(x.Facility)).ToList();
         if (stalls.Count == 0) return [];
 
         var stallIds = stalls.Select(x => x.Id).ToArray();
@@ -242,6 +242,8 @@ public sealed class MonthlyRentCollectionSourceAdapter(IAppDbContext db)
                 && x.SourceId == record.Id && x.SourcePart == null, ct);
             if (cutover is null || cutover.OpeningAssessmentAmount != assessed)
                 throw new InvalidOperationException("Canonical rent cutover evidence does not match this PaymentRecord source.");
+            // An opening amount alone cannot replace the original dated cash evidence in reports.
+            if (cutover.OpeningLegacySettledAmount > 0m) ambiguousLegacySettlement = true;
             var allocations = db.CollectionAllocations.AsNoTracking().Where(x =>
                 x.MunicipalityId == tenantId && x.SourceKind == CollectionSourceKind.PaymentRecord
                 && x.SourceId == record.Id && x.SourcePart == null);

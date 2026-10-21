@@ -1,0 +1,1055 @@
+{
+  "auditDate": "2026-10-17",
+  "scope": "Read-only local catalog/history/aggregate audit and offline EF metadata; not migration or financial approval",
+  "repository": {
+    "path": "C:/dev/stalltrack/eemo",
+    "branch": "codex/local-unified-v8-v10-20261013",
+    "head": "17b9d100e8ddffdd747f5688a8e49818693d078a"
+  },
+  "database": {
+    "database": "EEMOCantilanSDS.DB",
+    "version": "18.4",
+    "read_only": "on",
+    "isolation": "repeatable read"
+  },
+  "compiledMigrationIds": [
+    "20260401084907_Initial_User",
+    "20260403105431_AddingCoreEntities_+_Configuration",
+    "20260406162506_Adding_Remarks_Properties",
+    "20260406164641_Updates",
+    "20260506121705_AddTpmTables",
+    "20260506124748_AddTrmTables",
+    "20260507073444_AddCustomAnimalTypeToSlaughterTransaction",
+    "20260507171603_AddPlateNumberToTrmTransporter",
+    "20260510025951_AddTrmAndTpmFacilityCodes",
+    "20260602045818_ChangeStallNoToString",
+    "20260606162140_AddStallType",
+    "20260610024205_MakeTrmTripTransporterOptional",
+    "20260610030259_AddOrganizationToTrmTrip",
+    "20260610133026_AddHiddenSuggestions",
+    "20260613031245_AddPayorUsersAndActivation",
+    "20260613034221_AddOnlinePaymentTransactions",
+    "20260613052444_AddCheckoutUrlToOnlinePaymentTransactions",
+    "20260615030134_AddOrNumberUniqueIndexes",
+    "20260619132147_AddClientOperationIdForOfflineSync",
+    "20260624134318_AddDailyCollectionIsAbsent",
+    "20260626153041_AddStallMonthlyException",
+    "20260626161739_AddNpmMarketClosure",
+    "20260627145946_AddStallClosedAt",
+    "20260702065757_AddMunicipalityRegistry",
+    "20260703153325_AddUtilityBills",
+    "20260703180108_UtilityBillPerUtilityStatus",
+    "20260704042808_UtilityBillPerUtilityOrNumbers",
+    "20260704044615_UtilityBillPerUtilityPaidAt",
+    "20260704065733_AddMunicipalityIdToOwnedEntities",
+    "20260704074343_ScopeUniqueConstraintsPerMunicipality",
+    "20260704075442_AddFacilityBillingArchetype",
+    "20260704080018_AddFacilityRatesTable",
+    "20260705112917_AddMunicipalityTenantCode",
+    "20260705161233_AddUserActivationToken",
+    "20260705165750_BackfillEmptyMunicipalityIds",
+    "20260706033905_AddSlaughterAnimalRates",
+    "20260706035229_AddOrSeriesConfig",
+    "20260706153949_AddMunicipalityOfficeAcronym",
+    "20260707160822_AddAssessmentRequests",
+    "20260707171653_AddOnboardingDrafts",
+    "20260708021327_AddIsPlatformOperator",
+    "20260708132135_WidenMunicipalitySealPathToText",
+    "20260708173329_AddMunicipalityTpmMarketDay",
+    "20260710135654_AddMunicipalityIdToHiddenSuggestions",
+    "20260712030005_RelaxDailyCollectionOrIndex",
+    "20260713063928_AddTenantBackups",
+    "20260714050022_RelaxPaymentRecordOrIndex",
+    "20260715062024_AddOnlinePaymentNpmTarget",
+    "20260715101452_AddNpmFishDayOnlineTarget",
+    "20260715184420_AddFacilitySectionLabels",
+    "20260717045218_AddCollectorDeviceTokens",
+    "20260717160029_AddMunicipalityPayMongoCredentials",
+    "20260718044818_AddMunicipalityMobileBindToken",
+    "20260721133720_AddStallCustomSectionName",
+    "20260721160511_AddFacilityCustomSectionNames",
+    "20260722024344_ReplaceNullSectionStallUniqueIndexPerCustomSection",
+    "20260725072053_AddUserPasswordResetToken",
+    "20260725143655_AddUserEmailVerificationToken",
+    "20260725175431_AddUserMfaEnrollment",
+    "20260726051733_AddUserMfaChallenge",
+    "20260729173015_AddMunicipalityReportSignatories",
+    "20260730041725_AddMfaReminderShownAt",
+    "20260731034426_AddContractEndedOn",
+    "20260801035400_AddContractArrangement",
+    "20260801171234_AddDailyCollectionMonthEndAdjustment",
+    "20260814080342_CanonicaliseSlaughterOwnerNames",
+    "20260819040006_AddMunicipalityPayMongoWebhookProvisioning",
+    "20260821072027_AddTpmMarketDaySchedules",
+    "20260825023847_AddCollectorRemittances",
+    "20260825120902_DropCollectorRemittances",
+    "20260828125001_AddOnlinePaymentFishDayDeclarations",
+    "20260828173203_AddFacilitySectionRates",
+    "20260829014240_AddFacilitySectionUtilities",
+    "20260830131709_AddFacilitySectionClosures",
+    "20260831044114_AddFacilityMonthBasis",
+    "20260831103611_AddFacilityMonthBasisStatedAt",
+    "20260905035410_AddTenantBackupIsAutomated",
+    "20260917073034_AddSlaughterAnimalLabels",
+    "20260918090000_EnforceSingleActiveOnboardingPipeline",
+    "20260923071501_AddRevenueClassificationFoundation",
+    "20260923155505_AddDormantCollectionLedger",
+    "20260926103240_AddItemizedCollectionCoreFoundation",
+    "20260926114400_Phase2EcfUtilitySourceVersions",
+    "20260926145100_AddPaymentRecordSettlementVersion",
+    "20260929051645_AddNpmMeatWeighingEvidence",
+    "20260929095118_AllowNpmMeatWeighingCollectionPart",
+    "20260929154642_AddCollectorOperationAssignments",
+    "20260929175649_AddContextualRevenueInstrumentPolicy",
+    "20260930064610_AddGovernedServices",
+    "20260930075145_FreezeNpmFishWeighingEvidence",
+    "20260930080537_AddPenaltyDefinitions",
+    "20260930090833_AddUtilityCalculationBasis",
+    "20260930101045_AddObligationAccounts",
+    "20260930112916_AddVehicleClassesAndTransportation",
+    "20260930120028_AddRemittancesAndFormSpoilage",
+    "20261001093601_AddCollectorOperationActivations",
+    "20261001123818_AddAccountableFormTransferAudit",
+    "20261001174745_AddGovernedServiceFeeOptions",
+    "20261002005706_AddRemittanceSubmissionGrouping",
+    "20261004015110_AddAf51SerialIdentityAndAccountabilityEvents",
+    "20261004060231_AddCollectionReferenceCode",
+    "20261004154453_NpmDailyCanonicalAuthority",
+    "20261004180430_NpmCanonicalMonthAdjustment",
+    "20261005031824_MobileCollectionSessions",
+    "20261005041933_DirectUtilityCollectionModes",
+    "20261005044439_CanonicalWeighingSource",
+    "20261005053155_DirectFishMeatVendorFeeSource",
+    "20261005115827_SpaceOccupancyBasis",
+    "20261005232530_ReportGovernanceAndTransportationQuickAmount",
+    "20261006173902_OfficeSourceNativeIdentity",
+    "20261007000912_NativeCollectionSourceShapeAndSpaceHolder",
+    "20261007072024_FishMeatRegistryLifecycle",
+    "20261008002733_VegetableFruitMonthlySpaceAccounts",
+    "20261009094640_KanmanggaySpaceLeaseEvidence20261009",
+    "20261010013040_GovernedFineAssessments20261010",
+    "20261010014548_FineAssessmentPolicyIntegrity20261010",
+    "20261010021751_FineAssessmentCanonicalSettlement20261010",
+    "20261010063119_FishMeatOptionalNpmAssociation20261010",
+    "20261010120750_FineAssessmentRelatedPeriodEvidence20261010",
+    "20261011005707_DirectFineCollectionAuthority20261011",
+    "20261011040007_NpmOperatingCalendar20261011",
+    "20261011144108_NpmPartialInstallments20261012",
+    "20261012074910_TenantOperationSettings20261012",
+    "20261012111213_DirectCollectionReviewEvents20261012",
+    "20261012145430_RentalAccountContractRateAndImportRuns20261012",
+    "20261012234909_FishMeatDirectCollectionLinks20261013",
+    "20261013043308_SpaceHolderImportRunOperationId20261013",
+    "20261014145610_FishMeatOfficeRegisterFields20261014",
+    "20261015030030_NpmRegistrationRequests20261015",
+    "20261015234000_NpmRegistrationRequestCancellation20261015"
+  ],
+  "appliedMigrations": [
+    {
+      "MigrationId": "20260401084907_Initial_User",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260403105431_AddingCoreEntities_+_Configuration",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260406162506_Adding_Remarks_Properties",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260406164641_Updates",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260506121705_AddTpmTables",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260506124748_AddTrmTables",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260507073444_AddCustomAnimalTypeToSlaughterTransaction",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260507171603_AddPlateNumberToTrmTransporter",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260510025951_AddTrmAndTpmFacilityCodes",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260523083934_FixStallUniqueConstraintIncludeSection",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260602045818_ChangeStallNoToString",
+      "ProductVersion": "9.0.1"
+    },
+    {
+      "MigrationId": "20260606162140_AddStallType",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260610024205_MakeTrmTripTransporterOptional",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260610030259_AddOrganizationToTrmTrip",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260610133026_AddHiddenSuggestions",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260613031245_AddPayorUsersAndActivation",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260613034221_AddOnlinePaymentTransactions",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260613052444_AddCheckoutUrlToOnlinePaymentTransactions",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260615030134_AddOrNumberUniqueIndexes",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260619132147_AddClientOperationIdForOfflineSync",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260624134318_AddDailyCollectionIsAbsent",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260626153041_AddStallMonthlyException",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260626161739_AddNpmMarketClosure",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260627145946_AddStallClosedAt",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260702065757_AddMunicipalityRegistry",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260703153325_AddUtilityBills",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260703180108_UtilityBillPerUtilityStatus",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260704042808_UtilityBillPerUtilityOrNumbers",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260704044615_UtilityBillPerUtilityPaidAt",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260704065733_AddMunicipalityIdToOwnedEntities",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260704074343_ScopeUniqueConstraintsPerMunicipality",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260704075442_AddFacilityBillingArchetype",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260704080018_AddFacilityRatesTable",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260705112917_AddMunicipalityTenantCode",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260705161233_AddUserActivationToken",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260705165750_BackfillEmptyMunicipalityIds",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260706033905_AddSlaughterAnimalRates",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260706035229_AddOrSeriesConfig",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260706153949_AddMunicipalityOfficeAcronym",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260707160822_AddAssessmentRequests",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260707171653_AddOnboardingDrafts",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260708021327_AddIsPlatformOperator",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260708132135_WidenMunicipalitySealPathToText",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260708173329_AddMunicipalityTpmMarketDay",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260710135654_AddMunicipalityIdToHiddenSuggestions",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260712030005_RelaxDailyCollectionOrIndex",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260713063928_AddTenantBackups",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260714050022_RelaxPaymentRecordOrIndex",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260715062024_AddOnlinePaymentNpmTarget",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260715101452_AddNpmFishDayOnlineTarget",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260715184420_AddFacilitySectionLabels",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260717045218_AddCollectorDeviceTokens",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260717160029_AddMunicipalityPayMongoCredentials",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260718044818_AddMunicipalityMobileBindToken",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260721133720_AddStallCustomSectionName",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260721160511_AddFacilityCustomSectionNames",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260722024344_ReplaceNullSectionStallUniqueIndexPerCustomSection",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260725072053_AddUserPasswordResetToken",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260725143655_AddUserEmailVerificationToken",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260725175431_AddUserMfaEnrollment",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260726051733_AddUserMfaChallenge",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260729173015_AddMunicipalityReportSignatories",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260730041725_AddMfaReminderShownAt",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260731034426_AddContractEndedOn",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260801035400_AddContractArrangement",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260801171234_AddDailyCollectionMonthEndAdjustment",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260814080342_CanonicaliseSlaughterOwnerNames",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260819040006_AddMunicipalityPayMongoWebhookProvisioning",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260821072027_AddTpmMarketDaySchedules",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260825023847_AddCollectorRemittances",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260825120902_DropCollectorRemittances",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260828125001_AddOnlinePaymentFishDayDeclarations",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260828173203_AddFacilitySectionRates",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260829014240_AddFacilitySectionUtilities",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260830131709_AddFacilitySectionClosures",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260831044114_AddFacilityMonthBasis",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260831103611_AddFacilityMonthBasisStatedAt",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260905035410_AddTenantBackupIsAutomated",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260917073034_AddSlaughterAnimalLabels",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260918090000_EnforceSingleActiveOnboardingPipeline",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260923071501_AddRevenueClassificationFoundation",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260923155505_AddDormantCollectionLedger",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260926103240_AddItemizedCollectionCoreFoundation",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260926114400_Phase2EcfUtilitySourceVersions",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260926145100_AddPaymentRecordSettlementVersion",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260928045651_AddGovernedConfigurableServiceFoundation",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260928085335_AddFishMeatVendorFeeSource",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260928091416_AllowFishMeatVendorFeeCanonicalAllocations",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260928100950_AddVegetableSpaceRentalSource",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260928120100_AddVegetableCanonicalAllocationShape",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260928121210_AddEcfApprovedAssessmentSource",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260928123136_AddWcfApprovedChargePolicy",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260928124319_AddLandingBerthingActivitySource",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260928135259_AddEcfAssessmentSubjectKey",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260928202017_AddServiceCollectionGroups",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260929015219_AddKanmanggayMonthlySource",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260929034147_AddNpmOccupancySourceToEcf",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260929051645_AddNpmMeatWeighingEvidence",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260929095118_AllowNpmMeatWeighingCollectionPart",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260929154642_AddCollectorOperationAssignments",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260929175649_AddContextualRevenueInstrumentPolicy",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260930064610_AddGovernedServices",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260930075145_FreezeNpmFishWeighingEvidence",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260930080537_AddPenaltyDefinitions",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260930090833_AddUtilityCalculationBasis",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260930101045_AddObligationAccounts",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260930112916_AddVehicleClassesAndTransportation",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20260930120028_AddRemittancesAndFormSpoilage",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261001093601_AddCollectorOperationActivations",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261001123818_AddAccountableFormTransferAudit",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261001174745_AddGovernedServiceFeeOptions",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261002005706_AddRemittanceSubmissionGrouping",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261004015110_AddAf51SerialIdentityAndAccountabilityEvents",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261004060231_AddCollectionReferenceCode",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261004154453_NpmDailyCanonicalAuthority",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261004180430_NpmCanonicalMonthAdjustment",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261005031824_MobileCollectionSessions",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261005041933_DirectUtilityCollectionModes",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261005044439_CanonicalWeighingSource",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261005053155_DirectFishMeatVendorFeeSource",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261005115827_SpaceOccupancyBasis",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261005232530_ReportGovernanceAndTransportationQuickAmount",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261006173902_OfficeSourceNativeIdentity",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261007000912_NativeCollectionSourceShapeAndSpaceHolder",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261007072024_FishMeatRegistryLifecycle",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261008002733_VegetableFruitMonthlySpaceAccounts",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261009094640_KanmanggaySpaceLeaseEvidence20261009",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261010013040_GovernedFineAssessments20261010",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261010014548_FineAssessmentPolicyIntegrity20261010",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261010021751_FineAssessmentCanonicalSettlement20261010",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261010063119_FishMeatOptionalNpmAssociation20261010",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261010120750_FineAssessmentRelatedPeriodEvidence20261010",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261011005707_DirectFineCollectionAuthority20261011",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261011040007_NpmOperatingCalendar20261011",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261011144108_NpmPartialInstallments20261012",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261012074910_TenantOperationSettings20261012",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261012111213_DirectCollectionReviewEvents20261012",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261012145430_RentalAccountContractRateAndImportRuns20261012",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261012234909_FishMeatDirectCollectionLinks20261013",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261013043308_SpaceHolderImportRunOperationId20261013",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261014145610_FishMeatOfficeRegisterFields20261014",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261015030030_NpmRegistrationRequests20261015",
+      "ProductVersion": "9.0.4"
+    },
+    {
+      "MigrationId": "20261015234000_NpmRegistrationRequestCancellation20261015",
+      "ProductVersion": "9.0.4"
+    }
+  ],
+  "sourceRecovery": [
+    {
+      "id": "20260928045651_AddGovernedConfigurableServiceFoundation",
+      "source": "C:\\dev\\stalltrack-v2-worktrees\\ui-completion\\EEMOCantilanSDS.Infrastructure\\Migrations\\20260928045651_AddGovernedConfigurableServiceFoundation.cs",
+      "sha256": "e150705f19a5cb755dfbbbcef04861fde7cd7fde2a59caad4c8851fad883d73f",
+      "designerSha256": "9d018f7aa7367737020825e939f7755141faf3a36abb16af44f8d6e992f177f8",
+      "workingBlob": "de1d741c8136757824e47e89878bba5f1eba297c",
+      "index": "100644 de1d741c8136757824e47e89878bba5f1eba297c 0\tEEMOCantilanSDS.Infrastructure/Migrations/20260928045651_AddGovernedConfigurableServiceFoundation.cs",
+      "introduced": "9405d715deab045ac63b50e878f3d96d3cf69592 2026-09-28T13:16:31+08:00 feat(revenue): add governed service assessment foundation",
+      "designerId": "20260928045651_AddGovernedConfigurableServiceFoundation"
+    },
+    {
+      "id": "20260928085335_AddFishMeatVendorFeeSource",
+      "source": "C:\\dev\\stalltrack-v2-worktrees\\ui-completion\\EEMOCantilanSDS.Infrastructure\\Migrations\\20260928085335_AddFishMeatVendorFeeSource.cs",
+      "sha256": "a36e2e0732a82d8cb20573c7e40cd02a2e086207b1cdcc9b9a4b8abe996edff0",
+      "designerSha256": "4bc4b3c75e84e93bbe05e4bae0b90b08009ea108bb09a3bad69b797bfc453e4d",
+      "workingBlob": "4b6e4cde9d1122cc156d0021a1d7e65b65a2fcc8",
+      "index": "100644 4b6e4cde9d1122cc156d0021a1d7e65b65a2fcc8 0\tEEMOCantilanSDS.Infrastructure/Migrations/20260928085335_AddFishMeatVendorFeeSource.cs",
+      "introduced": "74236d3ca20db8aa127bb73cd8e8c76f88ac4e66 2026-09-28T16:57:08+08:00 feat(revenue): add Fish Meat recurring obligation foundation",
+      "designerId": "20260928085335_AddFishMeatVendorFeeSource"
+    },
+    {
+      "id": "20260928091416_AllowFishMeatVendorFeeCanonicalAllocations",
+      "source": "C:\\dev\\stalltrack-v2-worktrees\\ui-completion\\EEMOCantilanSDS.Infrastructure\\Migrations\\20260928091416_AllowFishMeatVendorFeeCanonicalAllocations.cs",
+      "sha256": "6d10627207f7d8d8b510a8464ba6bc0bbe112f00b2ae1cc1ec8683669dd9f273",
+      "designerSha256": "ec663917e67e1f085acc2145048befd4332e0cf9ef125301a17464eb9ecc9206",
+      "workingBlob": "48c042472818c4ae1023293afd6637ff22853609",
+      "index": "100644 48c042472818c4ae1023293afd6637ff22853609 0\tEEMOCantilanSDS.Infrastructure/Migrations/20260928091416_AllowFishMeatVendorFeeCanonicalAllocations.cs",
+      "introduced": "29db4849567d3a87143313631139245608ef66c6 2026-09-28T17:32:58+08:00 feat(revenue): post Fish Meat vendor installments through canonical collections",
+      "designerId": "20260928091416_AllowFishMeatVendorFeeCanonicalAllocations"
+    },
+    {
+      "id": "20260928100950_AddVegetableSpaceRentalSource",
+      "source": "C:\\dev\\stalltrack-v2-worktrees\\ui-completion\\EEMOCantilanSDS.Infrastructure\\Migrations\\20260928100950_AddVegetableSpaceRentalSource.cs",
+      "sha256": "82d0b151af2b0b532463825d3c26503c8494f2c31481413bab5b76d4bb7532cd",
+      "designerSha256": "87649c691741b619622d2d2fc926f0c15b324f608767f84957a5be1ae9a0bb48",
+      "workingBlob": "74c447f52b380def54ebc121c424d34250b3facf",
+      "index": "100644 74c447f52b380def54ebc121c424d34250b3facf 0\tEEMOCantilanSDS.Infrastructure/Migrations/20260928100950_AddVegetableSpaceRentalSource.cs",
+      "introduced": "0a008d6a11608143fec9355b684b50ec54a67d5d 2026-09-28T18:14:36+08:00 feat(revenue): add Vegetable temporary space assessment source",
+      "designerId": "20260928100950_AddVegetableSpaceRentalSource"
+    },
+    {
+      "id": "20260928120100_AddVegetableCanonicalAllocationShape",
+      "source": "C:\\dev\\stalltrack-v2-worktrees\\ui-completion\\EEMOCantilanSDS.Infrastructure\\Migrations\\20260928120100_AddVegetableCanonicalAllocationShape.cs",
+      "sha256": "c55b5cd1e36abe2ee5fe91882dad74929d78c95eca2358efbc2324418482fb12",
+      "designerSha256": "14e3d87ad1bcc31e10a179a6adef3bce8a1f0489d8c3c67898cbb3b3c43b011a",
+      "workingBlob": "d46dccc718792d120eebff7ff6c799d1f474c7fd",
+      "index": "100644 d46dccc718792d120eebff7ff6c799d1f474c7fd 0\tEEMOCantilanSDS.Infrastructure/Migrations/20260928120100_AddVegetableCanonicalAllocationShape.cs",
+      "introduced": "ea3cd0da80f7c816f4fa6f9e58fbc7f0e0d79db9 2026-09-28T20:09:19+08:00 feat(revenue): post Vegetable rental through canonical collection",
+      "designerId": "20260928120100_AddVegetableCanonicalAllocationShape"
+    },
+    {
+      "id": "20260928121210_AddEcfApprovedAssessmentSource",
+      "source": "C:\\dev\\stalltrack-v2-worktrees\\ui-completion\\EEMOCantilanSDS.Infrastructure\\Migrations\\20260928121210_AddEcfApprovedAssessmentSource.cs",
+      "sha256": "8a3dcb5b28a6b95a67db82e6207d8e0ac2ab4f8c71edd7e7839f1bcebdf8f901",
+      "designerSha256": "eea57c18e34be6724feb8a2bdcb577f5bdddcc1203662a726950108885df9ca3",
+      "workingBlob": "bdf1e5209b2d811aba1c9b7f4491f49b6db955e9",
+      "index": "100644 bdf1e5209b2d811aba1c9b7f4491f49b6db955e9 0\tEEMOCantilanSDS.Infrastructure/Migrations/20260928121210_AddEcfApprovedAssessmentSource.cs",
+      "introduced": "4a06961750afdfb1269e6c9db620c6e31acae5cc 2026-09-28T20:26:50+08:00 feat(revenue): record direct office-approved ECF assessments",
+      "designerId": "20260928121210_AddEcfApprovedAssessmentSource"
+    },
+    {
+      "id": "20260928123136_AddWcfApprovedChargePolicy",
+      "source": "C:\\dev\\stalltrack-v2-worktrees\\ui-completion\\EEMOCantilanSDS.Infrastructure\\Migrations\\20260928123136_AddWcfApprovedChargePolicy.cs",
+      "sha256": "c6d5a6787e8b44fc87bc01978b0e4e27cf7452dded00bf29ef3d2a2fb3cb8902",
+      "designerSha256": "b4a2f141adcb42706e6a70e48b63d1dbe847c6f7a1d7d672c4e28d84aff13f31",
+      "workingBlob": "567235aa3d50ba7458c8f2fd1ae8d9aa12db3120",
+      "index": "100644 567235aa3d50ba7458c8f2fd1ae8d9aa12db3120 0\tEEMOCantilanSDS.Infrastructure/Migrations/20260928123136_AddWcfApprovedChargePolicy.cs",
+      "introduced": "6920044ab2119b3c629d104282efc61160439ed9 2026-09-28T20:40:13+08:00 feat(revenue): govern effective WCF service charge",
+      "designerId": "20260928123136_AddWcfApprovedChargePolicy"
+    },
+    {
+      "id": "20260928124319_AddLandingBerthingActivitySource",
+      "source": "C:\\dev\\stalltrack-v2-worktrees\\ui-completion\\EEMOCantilanSDS.Infrastructure\\Migrations\\20260928124319_AddLandingBerthingActivitySource.cs",
+      "sha256": "77ae8bf54e4b5feb18dadb7f910ec94dd27c6cb30510edaa19e1d33361bea40d",
+      "designerSha256": "cf811e42f473fdbdf3712b19e4719fa8ad3bf05931611470770be6eb13ec40ab",
+      "workingBlob": "307d6a5618e000ebad2753f107b1d4ff56dece3a",
+      "index": "100644 307d6a5618e000ebad2753f107b1d4ff56dece3a 0\tEEMOCantilanSDS.Infrastructure/Migrations/20260928124319_AddLandingBerthingActivitySource.cs",
+      "introduced": "93014c71a04c1466071fcd9b8ae79f5de0e4a955 2026-09-28T20:59:49+08:00 feat(revenue): record Landing and Berthing vessel activity",
+      "designerId": "20260928124319_AddLandingBerthingActivitySource"
+    },
+    {
+      "id": "20260928135259_AddEcfAssessmentSubjectKey",
+      "source": "C:\\dev\\stalltrack-v2-worktrees\\ui-completion\\EEMOCantilanSDS.Infrastructure\\Migrations\\20260928135259_AddEcfAssessmentSubjectKey.cs",
+      "sha256": "a91e6383e1f2678e5a278c4fb2de321f255abfb42ee4c68223709b620511c712",
+      "designerSha256": "c5552ae6c17db371e121b2cf2266ecfe7dd6cc3e9fbb85200a4e95fbbdbf2978",
+      "workingBlob": "6f1dc4c774b9aeee656ebcc9a47b7419d8f4473a",
+      "index": "100644 6f1dc4c774b9aeee656ebcc9a47b7419d8f4473a 0\tEEMOCantilanSDS.Infrastructure/Migrations/20260928135259_AddEcfAssessmentSubjectKey.cs",
+      "introduced": "db2ad8b7b4e11b8d087ff26354a7d95511802481 2026-09-28T21:55:51+08:00 fix(revenue): prevent duplicate ECF direct assessments",
+      "designerId": "20260928135259_AddEcfAssessmentSubjectKey"
+    },
+    {
+      "id": "20260928202017_AddServiceCollectionGroups",
+      "source": "C:\\dev\\stalltrack-v2-worktrees\\ui-completion\\EEMOCantilanSDS.Infrastructure\\Migrations\\20260928202017_AddServiceCollectionGroups.cs",
+      "sha256": "4fc57f362e60573cbb903f82620b5c9a1763cf00dbbecd837d6ed30c246250ea",
+      "designerSha256": "876c848721774fd95b665fc92170b045970911d890c23c0e1da0d7c1099c5d3f",
+      "workingBlob": "aee3258e9e59da766bebc52b7789eac66dde2450",
+      "index": "100644 aee3258e9e59da766bebc52b7789eac66dde2450 0\tEEMOCantilanSDS.Infrastructure/Migrations/20260928202017_AddServiceCollectionGroups.cs",
+      "introduced": "73889807bc06c2ece38015182d64fded7fbe9095 2026-09-29T04:27:13+08:00 feat(revenue): define tenant Market Fee collection points",
+      "designerId": "20260928202017_AddServiceCollectionGroups"
+    },
+    {
+      "id": "20260929015219_AddKanmanggayMonthlySource",
+      "source": "C:\\dev\\stalltrack-v2-worktrees\\ui-completion\\EEMOCantilanSDS.Infrastructure\\Migrations\\20260929015219_AddKanmanggayMonthlySource.cs",
+      "sha256": "d4e9d07dc7824839dfede637f1bb01fdedcb3984eafde31e233a961447365afa",
+      "designerSha256": "f3c0a45221c66c0715069718d051a28369760aa6043f22b730187a52cc5060d2",
+      "workingBlob": "a8443e55d8d7c64f3f1d1d8bdef3e3925ccc124b",
+      "index": "",
+      "introduced": "",
+      "designerId": "20260929015219_AddKanmanggayMonthlySource"
+    },
+    {
+      "id": "20260929034147_AddNpmOccupancySourceToEcf",
+      "source": "C:\\dev\\stalltrack-v2-worktrees\\ui-completion\\EEMOCantilanSDS.Infrastructure\\Migrations\\20260929034147_AddNpmOccupancySourceToEcf.cs",
+      "sha256": "0bddee4dc2afcc4c397220dcd5a114f15e193823250408795aa82e8a7f90eba8",
+      "designerSha256": "39118bc86ec5829831f51899dd406d90dde9a8ea594185a2d1cc431b971447af",
+      "workingBlob": "a36a13538969ab1e3684f550a81e2019779168d3",
+      "index": "",
+      "introduced": "",
+      "designerId": "20260929034147_AddNpmOccupancySourceToEcf"
+    }
+  ],
+  "schema": {
+    "catalog": {
+      "tables": 95,
+      "columns": 1430,
+      "indexes": 351
+    },
+    "snapshot": {
+      "tables": 81,
+      "columns": 1202,
+      "keys": 116,
+      "foreignKeys": 89,
+      "checks": 58,
+      "indexes": 163
+    },
+    "extraTables": [
+      "ConfigurableServiceAssessments",
+      "ConfigurableServiceDefinitions",
+      "ConfigurableServicePolicies",
+      "EcfApprovedAssessments",
+      "FishMeatVendorFeeObligations",
+      "FishMeatVendorFeePolicies",
+      "KanmanggayMonthlyObligations",
+      "KanmanggayMonthlyPolicies",
+      "KanmanggayRentalAccounts",
+      "LandingBerthingActivities",
+      "VegetableSpaceRentalAssessments",
+      "VegetableSpaceRentalPolicies",
+      "WcfApprovedChargePolicies"
+    ],
+    "extraConstraints": [
+      [
+        "Stalls",
+        "AK_Stalls_MunicipalityId_Id",
+        "UNIQUE (\"MunicipalityId\", \"Id\")"
+      ]
+    ],
+    "extraIndexes": [
+      [
+        "AssessmentRequests",
+        "UX_AssessmentRequests_ActiveMunicipality",
+        "CREATE UNIQUE INDEX \"UX_AssessmentRequests_ActiveMunicipality\" ON public.\"AssessmentRequests\" USING btree (lower(btrim((\"Municipality\")::text)), lower(btrim((\"Province\")::text))) WHERE ((NOT \"IsDeleted\") AND ((\"Status\" = 1) OR ((\"Status\" = 2) AND ((\"Stage\")::text = ANY ((ARRAY['Onboarding'::character varying, 'Validation'::character varying, 'Activation'::character varying])::text[])))))"
+      ],
+      [
+        "CollectionAllocations",
+        "IX_CollectionAllocations_MunicipalityId_SourceId",
+        "CREATE UNIQUE INDEX \"IX_CollectionAllocations_MunicipalityId_SourceId\" ON public.\"CollectionAllocations\" USING btree (\"MunicipalityId\", \"SourceId\") WHERE (\"SourceKind\" = 8)"
+      ],
+      [
+        "CollectionAllocations",
+        "IX_CollectionAllocations_MunicipalityId_SourceKind_SourceId",
+        "CREATE UNIQUE INDEX \"IX_CollectionAllocations_MunicipalityId_SourceKind_SourceId\" ON public.\"CollectionAllocations\" USING btree (\"MunicipalityId\", \"SourceKind\", \"SourceId\") WHERE (\"SourceKind\" = 10)"
+      ],
+      [
+        "SlaughterAnimalRates",
+        "UX_SlaughterAnimalRates_Municipality_NormalizedName",
+        "CREATE UNIQUE INDEX \"UX_SlaughterAnimalRates_Municipality_NormalizedName\" ON public.\"SlaughterAnimalRates\" USING btree (\"MunicipalityId\", lower(btrim((\"AnimalName\")::text)))"
+      ],
+      [
+        "Stalls",
+        "AK_Stalls_MunicipalityId_Id",
+        "CREATE UNIQUE INDEX \"AK_Stalls_MunicipalityId_Id\" ON public.\"Stalls\" USING btree (\"MunicipalityId\", \"Id\")"
+      ],
+      [
+        "Stalls",
+        "IX_Stalls_NullSection_Facility_CustomSection_StallNo",
+        "CREATE UNIQUE INDEX \"IX_Stalls_NullSection_Facility_CustomSection_StallNo\" ON public.\"Stalls\" USING btree (\"FacilityId\", COALESCE(\"CustomSectionName\", ''::character varying), \"StallNo\") WHERE (\"Section\" IS NULL)"
+      ]
+    ],
+    "sourceShapeEquivalence": [
+      {
+        "table": "CollectionAllocations",
+        "name": "CK_CollectionAllocations_SourceShape",
+        "cases": "378",
+        "differences": "0"
+      },
+      {
+        "table": "CollectionLines",
+        "name": "CK_CollectionLines_SourceShape",
+        "cases": "378",
+        "differences": "0"
+      },
+      {
+        "table": "WebCollectionDraftAllocations",
+        "name": "CK_WebCollectionDraftAllocations_SourceShape",
+        "cases": "378",
+        "differences": "0"
+      },
+      {
+        "table": "WebCollectionDraftLines",
+        "name": "CK_WebCollectionDraftLines_SourceShape",
+        "cases": "378",
+        "differences": "0"
+      }
+    ],
+    "retainedTableCounts": [
+      {
+        "table": "ConfigurableServiceAssessments",
+        "rows": "1"
+      },
+      {
+        "table": "ConfigurableServiceDefinitions",
+        "rows": "6"
+      },
+      {
+        "table": "ConfigurableServicePolicies",
+        "rows": "5"
+      },
+      {
+        "table": "EcfApprovedAssessments",
+        "rows": "1"
+      },
+      {
+        "table": "FishMeatVendorFeeObligations",
+        "rows": "0"
+      },
+      {
+        "table": "FishMeatVendorFeePolicies",
+        "rows": "0"
+      },
+      {
+        "table": "KanmanggayMonthlyObligations",
+        "rows": "0"
+      },
+      {
+        "table": "KanmanggayMonthlyPolicies",
+        "rows": "1"
+      },
+      {
+        "table": "KanmanggayRentalAccounts",
+        "rows": "0"
+      },
+      {
+        "table": "LandingBerthingActivities",
+        "rows": "0"
+      },
+      {
+        "table": "VegetableSpaceRentalAssessments",
+        "rows": "0"
+      },
+      {
+        "table": "VegetableSpaceRentalPolicies",
+        "rows": "1"
+      },
+      {
+        "table": "WcfApprovedChargePolicies",
+        "rows": "0"
+      }
+    ],
+    "formerSourceLineMatches": [
+      {
+        "former_kind": 8,
+        "source_table": "ConfigurableServiceAssessments",
+        "matched_lines": "0"
+      },
+      {
+        "former_kind": 9,
+        "source_table": "FishMeatVendorFeeObligations",
+        "matched_lines": "0"
+      },
+      {
+        "former_kind": 10,
+        "source_table": "VegetableSpaceRentalAssessments",
+        "matched_lines": "0"
+      },
+      {
+        "former_kind": 11,
+        "source_table": "EcfApprovedAssessments",
+        "matched_lines": "0"
+      },
+      {
+        "former_kind": 12,
+        "source_table": "KanmanggayMonthlyObligations",
+        "matched_lines": "0"
+      }
+    ],
+    "ecfNormalizationAggregate": [
+      {
+        "rows": "1",
+        "normalization_mismatches": "0"
+      }
+    ],
+    "parentHealth": [
+      {
+        "facilities": "13",
+        "stalls": "109",
+        "contracts": "111",
+        "invalid_stall_parent": "0",
+        "invalid_contract_parent": "0"
+      }
+    ],
+    "proposedKeyDuplicateGroups": [
+      {
+        "table": "Facilities",
+        "duplicate_groups": "0"
+      },
+      {
+        "table": "Stalls",
+        "duplicate_groups": "0"
+      },
+      {
+        "table": "Contracts",
+        "duplicate_groups": "0"
+      }
+    ]
+  },
+  "limits": [
+    "Original May migration not recovered",
+    "Two September source/designer pairs are untracked historical working copies; executing bytes cannot be established from history table",
+    "No PostgreSQL mutation, index conflict INSERT, migration replay or restoration executed",
+    "Retained unique SourceKind=10 allocation index conflicts with current installment contract",
+    "Snapshot/actual structure agreement is not full schema equality or financial acceptance"
+  ]
+}

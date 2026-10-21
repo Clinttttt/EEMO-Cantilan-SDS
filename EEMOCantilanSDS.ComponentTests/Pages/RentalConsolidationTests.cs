@@ -34,7 +34,7 @@ public sealed class RentalConsolidationTests : TestContext
         Services.AddSingleton(_payments.Object); Services.AddSingleton(_activity.Object); Services.AddSingleton(_vendors.Object);
         Services.AddSingleton(Mock.Of<IEcfCollectionsApiClient>());
         Services.AddSingleton(Mock.Of<IDailyCollectionApiClient>());
-        Services.AddSingleton(Mock.Of<ISetupApiClient>()); Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
+        Services.AddSingleton(Mock.Of<ILifecycleApiClient>()); Services.AddSingleton(Mock.Of<ISetupApiClient>()); Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton(Mock.Of<IFacilitiesApiClient>()); Services.AddSingleton(Mock.Of<ISettingsApiClient>());
         Services.AddSingleton<BrandingState>(); Services.AddSingleton<FacilityState>();
         _accounts.Setup(x => x.GetWorkspaceAsync(It.IsAny<ObligationKind>())).ReturnsAsync(Result<ObligationWorkspaceDto>.Success(new([], 0m, 0m, 0m)));
@@ -138,7 +138,9 @@ public sealed class RentalConsolidationTests : TestContext
             .ReturnsAsync(Result<ObligationWorkspaceDto>.Success(new([account], 1800m, 400m, 1400m)));
         var cut = RenderComponent<Kanmanggay>(); Click(cut, "+ Add New");
         cut.Find("#obw-occupant").Input("Source occupant");
-        cut.Find("input[placeholder='As written on the contract']").Change("LEASE-REF");
+        // Contract reference was deliberately removed from the simplified Space form;
+        // opening a new account must not synthesize the old reference.
+        Assert.Empty(cut.FindAll("input[placeholder='As written on the contract']"));
         cut.Find("#obw-contract-date").Change("2026-09-01");
         cut.Find("input[placeholder='As written on the signed contract']").Input("Named contract lessee");
         cut.Find("#obw-amount").Change("900");
@@ -149,7 +151,7 @@ public sealed class RentalConsolidationTests : TestContext
         cut.Find(".avm-spin-input").Change("1100.50");
         Assert.Equal("1100.50", cut.Find("#obw-amount").GetAttribute("value"));
         cut.Find("form[aria-label='Open account']").Submit();
-        Assert.NotNull(request); Assert.Equal(1100.50m, request!.Amount); Assert.Equal("LEASE-REF", request.ContractReference);
+        Assert.NotNull(request); Assert.Equal(1100.50m, request!.Amount); Assert.Null(request.ContractReference);
         Assert.Equal("Source occupant", request.ActualOccupant); Assert.Equal(new DateOnly(2026, 9, 1), request.ActiveFrom);
         Assert.Equal("Named contract lessee", request.ContractName);
         Assert.Equal(new DateOnly(2026, 9, 1), request.ContractEffectiveDate);
@@ -334,13 +336,15 @@ public sealed class RentalConsolidationTests : TestContext
         cut.Find("button[title='Edit Space Holder']").Click();
         cut.Find("#obw-occupant").Input("Corrected source occupant");
         cut.Find("input[placeholder='As written on the signed contract']").Input("Corrected signed lessee");
-        cut.Find("input[placeholder='As written on the contract']").Change("LEASE-REF-2");
+        // The reference is no longer editable in this drawer, but existing evidence
+        // must survive an unrelated holder/area correction unchanged.
+        Assert.Empty(cut.FindAll("input[placeholder='As written on the contract']"));
         cut.Find("#obw-area-note").Change("Corner A");
         cut.Find("form[aria-label='Edit Occupant & Space']").Submit();
         cut.WaitForAssertion(() => Assert.NotNull(sent));
         Assert.Equal("Corrected source occupant", sent!.ActualOccupant);
         Assert.Equal("Corrected signed lessee", sent.ContractName);
-        Assert.Equal("LEASE-REF-2", sent.ContractReference);
+        Assert.Equal(account.ContractReference, sent.ContractReference);
         Assert.Equal("Corner A", sent.AreaLocation);
         Assert.Contains("Review contract evidence", cut.Find("[role='dialog']").TextContent);
         _accounts.Verify(x => x.SetRateAsync(It.IsAny<Guid>(), It.IsAny<SetObligationRateRequest>()), Times.Never);
@@ -364,7 +368,7 @@ public sealed class RentalConsolidationTests : TestContext
         Assert.Equal(5, buttons.Count);
         Assert.True(buttons[2].HasAttribute("disabled"));
         Assert.True(buttons[4].HasAttribute("disabled"));
-        Assert.Contains("Reopen unavailable", buttons[4].GetAttribute("title"));
+        Assert.Contains("Open the account profile to resume, renew, reassign or retire", buttons[4].GetAttribute("title"));
         Assert.Empty(_stalls.Invocations);
         Assert.Empty(_payments.Invocations);
         _accounts.Verify(x => x.CloseAccountAsync(It.IsAny<Guid>(), It.IsAny<CloseObligationAccountRequest>()), Times.Never);
@@ -533,7 +537,7 @@ public sealed class RentalConsolidationTests : TestContext
         var template = Account(closed: true);
         Serve(Enumerable.Range(1, 90).Select(i => template with { Id = Guid.NewGuid(), SubjectLabel = i.ToString("000"), ActualOccupant = $"Audit holder {i:000}" }).ToArray());
         var cut = RenderComponent<ClosedAccounts>();
-        cut.WaitForAssertion(() => Assert.Equal(90, cut.FindAll("tr[data-account]").Count));
+        cut.WaitForAssertion(() => Assert.Equal(90, cut.FindAll("tr[data-account]").Count), TimeSpan.FromSeconds(10));
         Assert.DoesNotContain(cut.FindAll(".ca-obligation-source button"), x => x.TextContent.Contains("Renew"));
         SpaceHolderWorkspaceTests.SaveVisualArtifact("closed-rental-register-many", cut.Markup);
     }

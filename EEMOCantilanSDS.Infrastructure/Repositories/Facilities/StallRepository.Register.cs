@@ -1,6 +1,7 @@
 ﻿using EEMOCantilanSDS.Infrastructure.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Fees;
+using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.StallHolders;
@@ -108,6 +109,16 @@ public partial class StallRepository
         var rateAsOf = DateOnly.FromDateTime(_clock.PhilippineNow);
         var npmDailyRate = isDailyBilled ? rateSnapshot!.Resolve(FeeRateKey.NpmDailyStall, rateAsOf) : 0m;
         var npmMonthlyRent = isDailyBilled ? rateSnapshot!.Resolve(FeeRateKey.NpmMonthlyStall, rateAsOf) : 0m;
+        var sourceMonth = new DateOnly(asOf.Year, asOf.Month, 1);
+        IReadOnlyDictionary<Guid, NpmRentMonthReportPosition?> monthSources =
+            isDailyBilled && _npmRentMonths is not null && stalls.Count > 0
+                ? await _npmRentMonths.ReadReportPositionsAsync(stalls.Select(x => x.Id).ToArray(), sourceMonth, asOf, ct)
+                : new Dictionary<Guid, NpmRentMonthReportPosition?>();
+
+        NpmOpeningMonthRateEvidence? OpeningRate(Stall s) =>
+            monthSources.TryGetValue(s.Id, out var source) && source?.OpeningAuthority is { } authority
+                && source.Position.ContractId == s.OccupancyAnsweringForMonth(asOf.Year, asOf.Month, asOf)?.Contract.Id
+                    ? authority : null;
 
         // The monthly rent the space is let for: the LGU's own stated market month when it has stated one, else
         // thirty of the fee THIS stall is billed at — its own rate in an area of the market's own, its area's rate
@@ -117,15 +128,15 @@ public partial class StallRepository
         // NOUGHT where the office measures a market month by the DAYS it has. There is no monthly rent on that basis, and
         // thirty installments would be a figure no month actually owes: a 31-day month owes thirty-one and February
         // twenty-eight. The official roster states a dash for it rather than a rent the office never charges.
-        decimal MonthlyOf(Stall s) => isDailyBilled
+        decimal MonthlyOf(Stall s) => OpeningRate(s)?.ApprovedMonthlyAmount ?? (isDailyBilled
             ? (rateSnapshot!.MonthRule.HasMonthlyGoal
                 ? s.ResolveMonthlyRent(NpmDailyFee.ForStall(s, rateSnapshot!, rateAsOf), npmMonthlyRent)
                 : 0m)
-            : s.MonthlyRate;
+            : s.MonthlyRate);
 
-        decimal DailyOf(Stall s) => isDailyBilled
+        decimal DailyOf(Stall s) => OpeningRate(s)?.ApprovedDailyInstallment ?? (isDailyBilled
             ? NpmDailyFee.ForStall(s, rateSnapshot!, rateAsOf)
-            : 0m;
+            : 0m);
 
         // The occupancy whose name belongs on the row.
         //

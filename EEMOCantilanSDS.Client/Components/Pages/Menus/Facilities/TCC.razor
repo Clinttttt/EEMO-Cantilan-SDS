@@ -19,13 +19,15 @@
 <!-- Topbar -->
 <header class="topbar">
             <div class="topbar-left flex gap-2">
-                <a href="/menu" class="tcc-back-btn">
+                <a href="/operations" class="tcc-back-btn" aria-label="Back to Operations">
                     <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
                 </a>
                 <div>
                     <div class="topbar-title">@FacilityCatalog.NameOf(FacilityCode.TCC)</div>
                     <div class="topbar-breadcrumb">
                         <a href="/menu" class="breadcrumb-link">Dashboard</a>
+                        <span class="breadcrumb-sep">/</span>
+                        <a href="/operations" class="breadcrumb-link">Operations</a>
                         <span class="breadcrumb-sep">/</span>
                         <span class="breadcrumb-active">@FacilityCatalog.ShortNameOf(FacilityCode.TCC) — @PhilippineTime.Now.ToString("MMMM yyyy")</span>
                     </div>

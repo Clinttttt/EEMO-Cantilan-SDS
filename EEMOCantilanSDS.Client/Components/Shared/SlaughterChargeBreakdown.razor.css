@@ -1,0 +1,24 @@
+/* Collected by charge — a V3 panel in the setup column; table, header and notice come from the v3- layer. */
+
+.scb-period {
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-weight: 500;
+}
+
+.scb-note { margin: 12px 20px 0; }
+
+.scb-empty {
+    margin: 0;
+    padding: 20px;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+}
+
+/* Long lists scroll inside the panel (scrollbar hidden) under a held heading. */
+.scb-scroll { max-height: 24rem; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.scb-scroll::-webkit-scrollbar { display: none; }
+.scb-scroll thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-muted); }
+.scb-scroll tfoot th,
+.scb-scroll tfoot td { position: sticky; bottom: 0; background: var(--surface); border-top: 1px solid var(--border-strong); font-weight: 700; text-align: left; }
+.scb-scroll tfoot .v3-num { text-align: right; }

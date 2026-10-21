@@ -121,7 +121,8 @@ public sealed class CollectionSessionEditorTests : TestContext
         var editor = view.FindComponent<CollectionSessionEditor>();
         Assert.Equal(CollectorOperationCodes.FishMeatVendorFee, editor.Instance.OnlyOperation);
         Assert.Equal(new[] { CollectorOperationCodes.WeightAndMeasure }, editor.Instance.AlsoOperations);
-        Assert.Equal(3, view.FindAll(".collection-source-actions button").Count);
+        Assert.Equal(4, view.FindAll(".collection-source-actions button").Count);
+        Assert.Contains("My registration requests", view.Find(".collection-source-actions").TextContent);
         Assert.Contains("My NPM requests", view.Find(".collection-source-actions").TextContent);
         VegetableFruitModeTests.SaveVisual("mobile-fish-visit", view.Markup);
     }
@@ -172,14 +173,149 @@ public sealed class CollectionSessionEditorTests : TestContext
         view.Find("[role=dialog]").QuerySelectorAll(".collection-option").Single(x => x.TextContent.Contains("Fish / Meat Vendor Fee")).Click();
         view.Find("[role=dialog] input[type=number]").Input("50");
         Click(view, "Add item");
-        Assert.All(view.FindAll(".collection-source-actions button"), button => Assert.True(button.HasAttribute("disabled")));
-        Assert.Contains("Record or remove current items", view.Markup);
+        // Once a vendor is chosen there is no other source to hop to: the visit stays in this one checkout, so nothing can be discarded by switching.
+        Assert.Empty(view.FindAll(".collection-source-actions"));
         Assert.Single(view.FindAll(".item-row"));
         Assert.Empty(_queue);
         _api.Verify(x => x.GetSourceCollectionDiscoveryAsync(Occupancy), Times.Never);
     }
 
+    [Fact]
+    public void A_vendor_fee_already_in_the_collection_is_hidden_from_the_list_while_the_other_charges_stay()
+    {
+        ServeFishVendor();
+        var view = OpenFishMeatPage();
+        view.Find("input[type=search]").Focus();
+        ClickSource(view, "Pantom Dant");
+        Click(view, "+ Add item");
+        view.Find("[role=dialog]").QuerySelectorAll(".collection-option").Single(x => x.TextContent.Contains("Fish / Meat Vendor Fee")).Click();
+        view.Find("[role=dialog] input[type=number]").Input("50");
+        Click(view, "Add item");
+
+        Click(view, "+ Add item");
+        var sheet = view.Find("[role=dialog]").TextContent;
+        Assert.DoesNotContain("Fish / Meat Vendor Fee", sheet);                    // charged once: it is not offered again
+        Assert.Contains("Weight & Measure", sheet);
+    }
+
+    [Fact]
+    public void Close_steps_back_to_the_list_and_then_to_the_collection()
+    {
+        ServeFishVendor();
+        var view = OpenFishMeatPage();
+        view.Find("input[type=search]").Focus();
+        ClickSource(view, "Pantom Dant");
+        Click(view, "+ Add item");
+        view.Find("[role=dialog]").QuerySelectorAll(".collection-option").Single(x => x.TextContent.Contains("Fish / Meat Vendor Fee")).Click();
+
+        Click(view, "Close");
+        Assert.Contains("Weight & Measure", view.Find("[role=dialog]").TextContent);    // back on the list, not out of the dialog
+
+        Click(view, "Close");
+        Assert.Empty(view.FindAll("[role=dialog]"));                                  // then back on the collection
+    }
+    [Fact]
+    public void Edit_reopens_an_added_item_with_what_was_entered()
+    {
+        ServeFishVendor();
+        var view = OpenFishMeatPage();
+        view.Find("input[type=search]").Focus();
+        ClickSource(view, "Pantom Dant");
+        Click(view, "+ Add item");
+        view.Find("[role=dialog]").QuerySelectorAll(".collection-option").Single(x => x.TextContent.Contains("Fish / Meat Vendor Fee")).Click();
+        view.Find("[role=dialog] input[type=number]").Input("50");
+        Click(view, "Add item");
+
+        view.FindAll(".item-actions button").Single(b => b.TextContent.Trim() == "Edit").Click();     // its own choice is not "already taken"
+
+        Assert.Equal("50", view.Find("[role=dialog] input[type=number]").GetAttribute("value"));
+    }
+
+    [Fact]
+    public void A_utility_item_reads_as_the_charge_with_a_clean_context_not_as_the_payers_name()
+    {
+        _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(Occupancy)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(new(null, Today,
+            [Op(CollectionSessionItemKind.Electricity, "ECF", "Electricity", CollectionFamily.Market,
+                new CollectionSessionSourceChoice("ECF|stall|v2", CollectionSessionItemKind.Electricity, "ECF", "Ana Reyes", "Ana Reyes ·  · Stall 1",
+                    new(StallId: EcfStall, UtilityBillId: EcfBill, OccupancyId: Occupancy.Id, Year: Today.Year, Month: Today.Month),
+                    RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.DirectAmount, RequiredInputs: ["AmountReceived"]))],
+            SourceIdentity: Occupancy)));
+        ServeRecent();
+        var view = PickSource("Ana Reyes");
+        Click(view, "+ Add item");
+        view.Find("[role=dialog]").QuerySelectorAll(".collection-option").Single(b => b.TextContent.Contains("Electricity")).Click();
+        view.Find("[role=dialog] input[type=number]").Input("100");
+        Click(view, "Add item");
+
+        var row = Assert.Single(view.FindAll(".item-row"));
+        Assert.Equal("Electricity", row.QuerySelector(".item-name")!.TextContent.Trim());
+        Assert.Equal("Ana Reyes · Stall 1", row.QuerySelector(".item-context")!.TextContent.Trim());     // no empty separators, no repeats
+    }
+    [Fact]
+    public void Water_already_in_the_collection_never_blocks_adding_the_electricity_of_the_same_stall()
+    {
+        var water = Guid.NewGuid();
+        _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(Occupancy)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(new(null, Today,
+            [Op(CollectionSessionItemKind.Water, "WCF", "Water", CollectionFamily.Market,
+                new CollectionSessionSourceChoice("WCF|stall", CollectionSessionItemKind.Water, "WCF", "Water", "New Public Market · Stall 1",
+                    new(StallId: EcfStall, UtilityBillId: water, OccupancyId: Occupancy.Id, Year: Today.Year, Month: Today.Month),
+                    RevenueInstrumentType.CashTicket, CollectionSessionAmountRule.DirectAmount, RequiredInputs: ["AmountReceived"])),
+             Op(CollectionSessionItemKind.Electricity, "ECF", "Electricity", CollectionFamily.Market,
+                new CollectionSessionSourceChoice("ECF|stall", CollectionSessionItemKind.Electricity, "ECF", "Electricity", "New Public Market · Stall 1",
+                    new(StallId: EcfStall, UtilityBillId: EcfBill, OccupancyId: Occupancy.Id, Year: Today.Year, Month: Today.Month),
+                    RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.DirectAmount, RequiredInputs: ["AmountReceived"]))],
+            SourceIdentity: Occupancy)));
+        ServeRecent();
+        var view = PickSource("Ana Reyes");
+        Click(view, "+ Add item");
+        view.Find("[role=dialog]").QuerySelectorAll(".collection-option").Single(b => b.TextContent.Contains("Water")).Click();
+        view.Find("[role=dialog] input[type=number]").Input("542");
+        Click(view, "Add item");
+
+        Click(view, "+ Add item");
+        var sheet = view.Find("[role=dialog]");
+        Assert.DoesNotContain("Water", sheet.TextContent);                                    // taken
+        sheet.QuerySelectorAll(".collection-option").Single(b => b.TextContent.Contains("Electricity")).Click();
+        view.Find("[role=dialog] input[type=number]").Input("100");
+        Click(view, "Add item");
+
+        Assert.Equal(2, view.FindAll(".item-row").Count);
+        Assert.DoesNotContain("already in this collection", view.Markup);
+    }
+
+    [Fact]
+    public void A_weighing_already_in_the_collection_is_not_offered_again()
+    {
+        ServeFishVendor();
+        _api.Setup(x => x.QuoteOfficeCollectionAsync(It.Is<SourceNativeCollectionRequest>(r => r.Charge.Kilograms == 3m))).ReturnsAsync(Result<SourceNativeChargeQuote>.Success(
+            new(CollectorOperationCodes.WeightAndMeasure, "Weight & Measure", "Meat", RevenueInstrumentType.OfficialReceipt, 198m, "v1", new(CollectorOperationCodes.WeightAndMeasure), Rate: 66m, VendorType: FishMeatVendorType.Meat)));
+        var view = PickSource("Pantom Dant");
+        Click(view, "+ Add item"); Click(view, "Weight & Measure ›");
+        view.Find("[role=dialog] input[type=number]").Input("3");
+        view.WaitForAssertion(() => Assert.False(AddDisabled(view)));
+        Click(view, "Add item");
+        Assert.Single(view.FindAll(".item-row"));
+
+        Click(view, "+ Add item");
+        Assert.DoesNotContain("Weight & Measure", view.Find("[role=dialog]").TextContent);     // taken once: never a twin
+        Assert.Single(view.FindAll(".item-row"));
+    }
     private static readonly Guid DailyStall = Guid.NewGuid();
+    [Fact]
+    public void Whole_rent_entry_opens_the_shared_amount_screen_with_the_verified_contract()
+    {
+        var contract = Guid.NewGuid();
+        _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(Occupancy)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(new(null, Today,
+            [Op(CollectionSessionItemKind.NpmWholePayment, "NPM_WHOLE_PAYMENT", "NPM Whole payment", CollectionFamily.Rent,
+                new CollectionSessionSourceChoice("Whole|stall", CollectionSessionItemKind.NpmWholePayment, "NPM_WHOLE_PAYMENT", "NPM Whole payment", "Stall 2",
+                    new(StallId: DailyStall, OccupancyId: contract), RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.MonthlyRemaining))],
+            SourceIdentity: Occupancy)));
+        var view = PickSource("Ana Reyes"); Click(view, "+ Add item");
+        view.Find("[role=dialog]").QuerySelectorAll(".collection-option").Single(x => x.TextContent.Contains("Whole payment")).Click();
+        Assert.EndsWith($"/npm/whole-payment/{DailyStall}?contractId={contract}", Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().Uri);
+        Assert.Empty(_queue);
+    }
+
     private void ServeNpmOccupancy() => _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(Occupancy)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(new(null, Today,
         [new(CollectionSessionItemKind.NpmDaily, "NPM_DAILY", "Daily stall payment", true, true, null, null, false, [], true,
                 [new("Daily|stall", CollectionSessionItemKind.NpmDaily, "NPM_DAILY", "Daily stall payment", "Stall 2 · Oct 7, 2026", new(StallId: DailyStall, OccupancyId: Guid.NewGuid(), PeriodStart: Today),
@@ -683,31 +819,33 @@ public sealed class CollectionSessionEditorTests : TestContext
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void A_vendors_confirmed_npm_link_opens_that_stall_as_its_own_collection_and_never_adds_its_charges_here(bool dedicated)
+    public void A_vendors_linked_stall_rent_is_listed_with_the_vendors_own_charges_in_one_checkout(bool dedicated)
     {
         ServeFishVendor();
         var linked = new CollectionSourceSearchResult(Occupancy, "Ana Reyes", "New Public Market · Stall 1", "FACILITY_NPM");
-        var served = _api.Object.GetSourceCollectionDiscoveryAsync(FishVendor).GetAwaiter().GetResult().Value!;
-        _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(FishVendor)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(served with { LinkedSources = [linked] }));
         ServeNpmOccupancy();
+        var served = _api.Object.GetSourceCollectionDiscoveryAsync(FishVendor).GetAwaiter().GetResult().Value!;
+        var stall = _api.Object.GetSourceCollectionDiscoveryAsync(Occupancy).GetAwaiter().GetResult().Value!;
+        // The server lists the office-linked stall's own rent under the vendor's source: one list, each item its own Collection.
+        _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(FishVendor)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(
+            served with { LinkedSources = [linked], Operations = [.. served.Operations, .. stall.Operations] }));
         var view = dedicated ? OpenFishMeatPage() : Open();
         if (dedicated) view.Find("input[type=search]").Focus();
         view.WaitForAssertion(() => Assert.NotEmpty(view.FindAll(".payer-option")));
         ClickSource(view, "Pantom Dant");
 
-        Assert.Contains("Linked NPM stall", view.Markup);
-        Assert.Contains("Collected as a separate payment", view.Markup);
-        Assert.DoesNotContain("Daily stall payment", view.Markup);                  // no NPM charge is added to the vendor's own session
+        Assert.DoesNotContain("Linked NPM stall", view.Markup);                     // no separate hop to the stall
+        Click(view, "+ Add item");
+        var sheet = view.Find("[role=dialog]");
+        Assert.Contains("Fish / Meat Vendor Fee", sheet.TextContent);
+        Assert.Contains("Daily stall payment", sheet.TextContent);                  // the stall's rent sits in the same list
+        sheet.QuerySelectorAll(".collection-option").Single(x => x.TextContent.Contains("Daily stall payment")).Click();
+        Click(view, "Add item");
 
-        view.Find(".linked-sources button").Click();
-
-        view.WaitForAssertion(() => Assert.Equal("Ana Reyes", view.Find(".payer-selected strong").TextContent.Trim()), TimeSpan.FromSeconds(3));
-        _api.Verify(x => x.GetSourceCollectionDiscoveryAsync(Occupancy), Times.AtLeastOnce);
-        Assert.Empty(view.FindAll(".linked-sources"));                              // the stall's own session has no link back
-        Assert.Contains("Daily stall payment", view.Find("[role=dialog]").TextContent); // the vendor-page filter must not hide the linked stall's rent
-        Assert.Empty(_queue);                                                       // navigation recorded nothing
+        Assert.Equal("Pantom Dant", view.Find(".payer-selected strong").TextContent.Trim());     // still the vendor's checkout
+        Assert.Single(view.FindAll(".item-row"));
+        Assert.Empty(_queue);
     }
-
     [Fact]
     public void An_npm_part_payment_takes_an_amount_up_to_the_servers_maximum_and_goes_in_as_a_part_payment_item()
     {
@@ -1113,31 +1251,32 @@ public sealed class CollectionSessionEditorTests : TestContext
     }
 
     [Fact]
-    public void The_same_ECF_source_cannot_be_added_twice_to_one_unsent_collection()
+    public void A_charge_already_in_the_collection_is_not_offered_again()
     {
         ServeRecent();
         var view = OpenEcfChoice();
         Click(view, "Add item");
         Assert.Single(view.FindAll(".item-row"));
 
+        // What is already charged is no longer offered: the same source and period cannot be added twice.
         Click(view, "+ Add item");
-        view.Find("[role=dialog]").QuerySelectorAll(".collection-option").Single(b => b.TextContent.Contains("Electricity")).Click();
-        view.Find("[role=dialog] input[type=number]").Input("50");
-        Click(view, "Add item");
 
+        Assert.Empty(view.FindAll("[role=dialog]"));
         Assert.Single(view.FindAll(".item-row"));
         Assert.Contains("already in this collection", view.Markup);
     }
 
     [Fact]
-    public void A_vendors_linked_stall_utilities_are_listed_under_Utilities_and_open_the_stall_as_its_own_source()
+    public void A_vendors_linked_stall_utilities_are_listed_under_Utilities_in_the_same_checkout()
     {
         ServeFishVendor();
         var linked = new CollectionSourceSearchResult(Occupancy, "Ana Reyes", "New Public Market · Stall 1", "FACILITY_NPM", Utilities: ["ECF"]);
-        var served = _api.Object.GetSourceCollectionDiscoveryAsync(FishVendor).GetAwaiter().GetResult().Value!;
-        _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(FishVendor)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(served with { LinkedSources = [linked] }));
         ServeEcfSource();
         ServeRecent();
+        var served = _api.Object.GetSourceCollectionDiscoveryAsync(FishVendor).GetAwaiter().GetResult().Value!;
+        var stall = _api.Object.GetSourceCollectionDiscoveryAsync(Occupancy).GetAwaiter().GetResult().Value!;
+        _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(FishVendor)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(
+            served with { LinkedSources = [linked], Operations = [.. served.Operations, .. stall.Operations] }));
         var view = PickSource("Pantom Dant");
 
         Click(view, "+ Add item");
@@ -1145,20 +1284,19 @@ public sealed class CollectionSessionEditorTests : TestContext
         Assert.Contains("Income from Market", sheet.TextContent);                         // the vendor's own two fees stay where they were
         Assert.Contains("Fish / Meat Vendor Fee", sheet.TextContent);
         Assert.Contains("Utilities", sheet.TextContent);
-        Assert.Contains("Electricity Consumption Fees", sheet.TextContent);
-        Assert.DoesNotContain("Water Consumption Fees", sheet.TextContent);              // only what the stall really offers
-        Assert.Contains("separate payment", sheet.TextContent);
+        Assert.Contains("Electricity", sheet.TextContent);
+        Assert.DoesNotContain("Water", sheet.TextContent);                                // only what the stall really offers
+        Assert.DoesNotContain("separate payment", sheet.TextContent);
 
-        sheet.QuerySelectorAll(".collection-option").Single(b => b.TextContent.Contains("Electricity Consumption Fees")).Click();
+        sheet.QuerySelectorAll(".collection-option").Single(b => b.TextContent.Contains("Electricity")).Click();
 
         view.WaitForAssertion(() =>
         {
-            Assert.Equal("Ana Reyes", view.Find(".payer-selected strong").TextContent.Trim());           // the stall is now the source, by its own identity
+            Assert.Equal("Pantom Dant", view.Find(".payer-selected strong").TextContent.Trim());     // no source switch: the vendor's own checkout
             Assert.Contains("Electricity", view.Find("[role=dialog]").TextContent);
         }, TimeSpan.FromSeconds(3));
-        Assert.Empty(_queue);                                                                              // choosing a utility recorded nothing
+        Assert.Empty(_queue);
     }
-
     [Fact]
     public void A_vendor_without_a_linked_stall_utility_shows_no_Utilities_group()
     {

@@ -84,6 +84,11 @@ public sealed class PendingOperationStore : IPendingOperationStore
                 OfflineOperationKind.EcfCollection => operation.UtilityBillId is not null && operation.ElectricitySourceVersion is > 0,
                 OfflineOperationKind.RentCollection => operation.StallId is not null && operation.BillingYear is not null && operation.BillingMonth is not null && operation.RentSourceVersion is >= 0,
                 OfflineOperationKind.ObligationCollection => operation.ObligationAccountId is not null && operation.BillingYear is not null && operation.BillingMonth is not null,
+                OfflineOperationKind.NpmOutstandingRent => operation.StallId is { } stall && stall != Guid.Empty
+                    && operation.NpmContractId is { } contract && contract != Guid.Empty && operation.BusinessDate != default
+                    && operation.PayloadVersion == 1 && !string.IsNullOrWhiteSpace(operation.NpmQuoteToken)
+                    && operation.ReceivedAmount is { } received && decimal.Round(received, 2) == received
+                    && (operation.ORNumber?.Length ?? 0) <= 100 && operation.AccountableDocumentId is null,
                 OfflineOperationKind.NpmWholePayment => operation.StallId is not null && operation.BillingYear is >= 2000 and <= 2100
                     && operation.BillingMonth is >= 1 and <= 12 && !string.IsNullOrWhiteSpace(operation.NpmQuoteToken),
                 OfflineOperationKind.FeeScheduleCollection => operation.OperationCode switch
@@ -97,10 +102,9 @@ public sealed class PendingOperationStore : IPendingOperationStore
                     || (operation.UtilityBillId is null && operation.StallId is not null
                         && operation.BillingYear is not null && operation.BillingMonth is not null),
                 // A governed service records facts only: which operation, and (for Vegetable/Fruit) the mode.
-                // Transportation additionally carries the vehicle class: without it the server cannot resolve the approved rate.
-                OfflineOperationKind.GovernedService => !string.IsNullOrWhiteSpace(operation.OperationCode)
-                    && (operation.OperationCode != global::EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Transportation
-                        || !string.IsNullOrWhiteSpace(operation.VehicleClassCode)),
+                // The vehicle class is NOT required here: Transportation / Parking may be a direct "as charged" amount or an approved fee
+                // type, which carry no class. The screen requires a class only under the vehicle-class-rate basis and the server revalidates it.
+                OfflineOperationKind.GovernedService => !string.IsNullOrWhiteSpace(operation.OperationCode),
                 _ => false
             };
             if (!issuedShape || operation.ReceivedAmount is null or <= 0m)

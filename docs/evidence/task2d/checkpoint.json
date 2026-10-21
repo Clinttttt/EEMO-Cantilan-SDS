@@ -1,0 +1,147 @@
+{
+  "task": "2D",
+  "checkedAtUtc": "2026-10-17T02:23:53.693Z",
+  "target": {
+    "database": "EEMOCantilanSDS.DB",
+    "address": "::1",
+    "port": 5432,
+    "version": "18.4",
+    "read_only": "on"
+  },
+  "historyCount": 143,
+  "historyExactMatch": true,
+  "tableCount": 95,
+  "allTableDataHash": "ec22390fe31353fd542a43cca3dc018ee10725a2de1499f8e22cd034eb33edad",
+  "checkedSchemaHash": "6af7382bf3babb0910aad1476f60f12d6352720b4a63c09fe03482164fe2978d",
+  "matchesCorrectedCheckpoint": true,
+  "obsoleteIndexAbsent": true,
+  "indexes": [
+    {
+      "name": "IX_CollectionAllocations_MunicipalityId_SourceId",
+      "definition": "CREATE UNIQUE INDEX \"IX_CollectionAllocations_MunicipalityId_SourceId\" ON public.\"CollectionAllocations\" USING btree (\"MunicipalityId\", \"SourceId\") WHERE (\"SourceKind\" = 8)",
+      "valid": true,
+      "ready": true
+    },
+    {
+      "name": "IX_CollectionAllocations_MunicipalityId_SourceKind_SourceId_So~",
+      "definition": "CREATE INDEX \"IX_CollectionAllocations_MunicipalityId_SourceKind_SourceId_So~\" ON public.\"CollectionAllocations\" USING btree (\"MunicipalityId\", \"SourceKind\", \"SourceId\", \"SourcePart\")",
+      "valid": true,
+      "ready": true
+    }
+  ],
+  "parentKeys": [
+    {
+      "table": "Contracts",
+      "name": "AK_Contracts_MunicipalityId_Id",
+      "definition": "UNIQUE (\"MunicipalityId\", \"Id\")"
+    },
+    {
+      "table": "Contracts",
+      "name": "AK_Contracts_MunicipalityId_Id_StallId",
+      "definition": "UNIQUE (\"MunicipalityId\", \"Id\", \"StallId\")"
+    },
+    {
+      "table": "Contracts",
+      "name": "PK_Contracts",
+      "definition": "PRIMARY KEY (\"Id\")"
+    },
+    {
+      "table": "Facilities",
+      "name": "PK_Facilities",
+      "definition": "PRIMARY KEY (\"Id\")"
+    },
+    {
+      "table": "Stalls",
+      "name": "AK_Stalls_MunicipalityId_Id",
+      "definition": "UNIQUE (\"MunicipalityId\", \"Id\")"
+    },
+    {
+      "table": "Stalls",
+      "name": "PK_Stalls",
+      "definition": "PRIMARY KEY (\"Id\")"
+    }
+  ],
+  "parentDuplicateGroups": [
+    {
+      "table": "Facilities",
+      "groups": "0"
+    },
+    {
+      "table": "Stalls",
+      "groups": "0"
+    }
+  ],
+  "NpmRentMonthsPresent": false,
+  "retainedTables": [
+    {
+      "table": "ConfigurableServiceAssessments",
+      "rows": "1",
+      "fingerprint": "94851f11b7043ca20bcba76eae8a8c36"
+    },
+    {
+      "table": "ConfigurableServiceDefinitions",
+      "rows": "6",
+      "fingerprint": "24124279613188d2aad9a298af5bdc65"
+    },
+    {
+      "table": "ConfigurableServicePolicies",
+      "rows": "5",
+      "fingerprint": "c37ac06f354a7556202da0e21a6bbdf7"
+    },
+    {
+      "table": "EcfApprovedAssessments",
+      "rows": "1",
+      "fingerprint": "0e859277fe4212af595b8aaa5024d981"
+    },
+    {
+      "table": "FishMeatVendorFeeObligations",
+      "rows": "0",
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table": "FishMeatVendorFeePolicies",
+      "rows": "0",
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table": "KanmanggayMonthlyObligations",
+      "rows": "0",
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table": "KanmanggayMonthlyPolicies",
+      "rows": "1",
+      "fingerprint": "6141880d28c9a1b60e272fb745e3bafb"
+    },
+    {
+      "table": "KanmanggayRentalAccounts",
+      "rows": "0",
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table": "LandingBerthingActivities",
+      "rows": "0",
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table": "VegetableSpaceRentalAssessments",
+      "rows": "0",
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "table": "VegetableSpaceRentalPolicies",
+      "rows": "1",
+      "fingerprint": "13724bbccb183adfb051ba49984d34b7"
+    },
+    {
+      "table": "WcfApprovedChargePolicies",
+      "rows": "0",
+      "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+    }
+  ],
+  "srcSequence": {
+    "last_value": "17",
+    "is_called": true
+  },
+  "limits": "Read-only metadata/aggregate evidence. No DDL, migration or PostgreSQL constraint/concurrency/restore execution."
+}

@@ -1,0 +1,17 @@
+const fs=require('fs'),path=require('path'),cp=require('child_process'),crypto=require('crypto');const {cfg,client}=require('./config.cjs');
+(async()=>{const c=client();let stage='connect';try{await c.connect();await c.query('BEGIN READ ONLY');
+const sessions=(await c.query(`SELECT pid,application_name,state,backend_type,wait_event_type,query_start,xact_start FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()`)).rows;
+const triggers=(await c.query(`SELECT c.relname,t.tgname,pg_get_triggerdef(t.oid) AS definition FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND NOT t.tgisinternal`)).rows;
+await c.query('ROLLBACK');console.log(JSON.stringify({target:{host:cfg.host,port:cfg.port,database:cfg.database},sessions,triggers}));
+if(sessions.some(s=>s.state!=='idle'||s.xact_start))throw Error('Writer quiescence not established');
+stage='backup';const dir='C:/dev/stalltrack-v2-worktrees/local-db-backups';const stamp=new Date().toISOString().replace(/[:.]/g,'-');const file=path.join(dir,`EEMOCantilanSDS.DB_task2c3_full_${stamp}.dump`);if(fs.existsSync(file))throw Error('Backup exists');
+const env={...process.env,PGPASSWORD:cfg.password,PGCONNECT_TIMEOUT:'5',PGAPPNAME:'stalltrack_task2c3_backup'};
+const args=['--host',cfg.host,'--port',String(cfg.port),'--username',cfg.user,'--dbname',cfg.database,'--format=custom','--file',file,'--no-password','--lock-wait-timeout=1500ms'];
+const dump=cp.spawnSync('C:/Program Files/PostgreSQL/18/bin/pg_dump.exe',args,{env,encoding:'utf8',windowsHide:true,timeout:120000});if(dump.status!==0)throw Error('pg_dump failed');
+const restore='C:/Program Files/PostgreSQL/18/bin/pg_restore.exe';const list=cp.spawnSync(restore,['--list',file],{encoding:'utf8',windowsHide:true,timeout:30000});if(list.status!==0)throw Error('Archive listing failed');
+const verify=cp.spawnSync(restore,['--file','NUL',file],{windowsHide:true,timeout:120000});if(verify.status!==0)throw Error('Archive full decode failed');
+const names=['ConfigurableServiceAssessments','ConfigurableServiceDefinitions','ConfigurableServicePolicies','EcfApprovedAssessments','FishMeatVendorFeeObligations','FishMeatVendorFeePolicies','KanmanggayMonthlyObligations','KanmanggayMonthlyPolicies','KanmanggayRentalAccounts','LandingBerthingActivities','VegetableSpaceRentalAssessments','VegetableSpaceRentalPolicies','WcfApprovedChargePolicies','__EFMigrationsHistory'];
+const missing=names.filter(n=>!list.stdout.split(/\r?\n/).some(l=>l.includes('TABLE DATA public '+n+' ')));if(missing.length)throw Error('Archive data coverage incomplete');
+const evidence={path:file,createdAtUtc:new Date().toISOString(),bytes:fs.statSync(file).size,sha256:crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'),format:'PostgreSQL custom full-database archive',listExitCode:list.status,fullDecodeToNullExitCode:verify.status,retainedTablesAndHistoryDataCovered:names.length,target:{host:cfg.host,port:cfg.port,database:cfg.database},sessions,triggers};
+fs.writeFileSync(path.join(__dirname,'backup-evidence.json'),JSON.stringify(evidence,null,2));console.log(JSON.stringify(evidence));
+}catch(e){console.error(JSON.stringify({stage,error:e.message,code:e.code}));process.exitCode=1;}finally{await c.end();}})();

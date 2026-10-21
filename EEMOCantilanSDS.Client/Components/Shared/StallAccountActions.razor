@@ -1,0 +1,488 @@
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Application.Dtos.Stalls
+@using EEMOCantilanSDS.Application.Requests.Stalls
+@using EEMOCantilanSDS.Application.Command.Stalls.AssignPastOccupantStall
+@using EEMOCantilanSDS.Client.Services
+@inject IStallsApiClient StallsApi
+
+@* The four operational actions on a permanent stall's inactive account — Resume, Renew, Assign new stall and Remove — as the confirmation dialog each
+   one has always used. They moved here, unchanged, from the Closed Accounts report (a report is read-only, IA-006) so the stall's own profile hosts
+   them. Every call is the existing Stalls endpoint with the same arguments; nothing about who may do what, or what each one writes, is decided here.
+   The host chooses which one to open and refreshes itself when it is done. *@
+
+@* ── Reopen confirm modal ── *@
+@if (_reopenTarget is not null)
+{
+    <div class="eemo-modal-overlay" @onclick="CloseModals">
+        <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header"><div class="eemo-modal-title">Reopen Stall?</div></div>
+            <div class="eemo-modal-body">
+                <p class="confirm-text">
+                    @* Named by lessee where the office numbers nothing, so the sentence never reads "stall  (name)". *@
+                    Resume @(SpaceNumber.IsSpace(_reopenTarget.StallNo)
+                                ? $"the space held by {_reopenTarget.Occupant}"
+                                : $"stall {_reopenTarget.StallNo} ({_reopenTarget.Occupant})")? It resumes the same contract and
+                    the closed period is recorded as excused — it will not be back-billed.
+                </p>
+                @if (_actionError is not null)
+                {
+                    <p class="ca-form-err">@_actionError</p>
+                }
+            </div>
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="CloseModals" disabled="@_busy">Cancel</button>
+                <button class="btn-primary" @onclick="ConfirmReopen" disabled="@_busy">@(_busy ? "Working…" : "Yes, Reopen")</button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Renew modal (Proceed / Edit) ── *@
+@if (_assignTarget is not null)
+{
+    @* Placing a returning payor in a stall of their own. The account behind this dialog is NOT touched: its
+       balance, its receipts and its dates stay exactly where they are, and remain collectable under "Whole time".
+       The number offered is only a suggestion — the API decides, so two clerks cannot both take it. *@
+    <div class="eemo-modal-overlay" @onclick="CloseModals">
+        <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header">
+                <div class="eemo-modal-title">Assign @_assignTarget.Occupant a new stall</div>
+            </div>
+            <div class="eemo-modal-body">
+                @if (_assignLoadingPreview)
+                {
+                    <p class="confirm-text">Preparing the new stall…</p>
+                }
+                else if (_assignPreview is not null)
+                {
+                    <p class="confirm-text">
+                        @(SpaceNumber.IsSpace(_assignTarget.StallNo)
+                            ? "This space is held by another lessee"
+                            : $"Stall {_assignTarget.StallNo} is held by another lessee"), so a new stall is registered for
+                        <strong>@_assignPreview.Occupant</strong> in <strong>@_assignPreview.FacilityName</strong>@(string.IsNullOrWhiteSpace(_assignPreview.SectionLabel) ? "" : $" ({_assignPreview.SectionLabel})").
+                        Their closed account and its <strong>@Money(_assignTarget.Uncollected)</strong> balance are
+                        left as they are, and stay collectable.
+                    </p>
+
+                    <div class="ca-form">
+                        <label>Stall / space no.
+                            <input type="text" maxlength="20" @bind="_assignStallNo" />
+                        </label>
+                        <label>Start date
+                            <input type="date" @bind="_assignEffectivity" />
+                        </label>
+                        <label>Duration (years)
+                            <input type="number" min="1" max="10" @bind="_assignDuration" />
+                        </label>
+                        @if (_assignPreview.MonthBasis != NpmMonthBasis.PureDays)
+                        {
+                            <label>Monthly rental (₱)
+                                <input type="number" min="0" step="0.01" @bind="_assignMonthlyRate" />
+                            </label>
+                        }
+                        else
+                        {
+                            <p class="ca-renew-note">Calendar-day billing · no fixed monthly rent.</p>
+                        }
+                        <label>Name on contract
+                            <input type="text" @bind="_assignContractName" />
+                        </label>
+                    </div>
+                }
+
+                @if (_actionError is not null)
+                {
+                    <p class="ca-form-err">@_actionError</p>
+                }
+            </div>
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="CloseModals" disabled="@_busy">Cancel</button>
+                <button class="btn-primary" @onclick="ConfirmAssignNewStall" disabled="@(_busy || _assignPreview is null)">
+                    @(_busy ? "Working…" : "Register stall")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_renewTarget is not null)
+{
+    <div class="eemo-modal-overlay" @onclick="CloseModals">
+        <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header"><div class="eemo-modal-title">@(SpaceNumber.IsSpace(_renewTarget.StallNo) ? "Renew Space" : $"Renew Stall {_renewTarget.StallNo}")</div></div>
+            <div class="eemo-modal-body">
+                @if (!_renewEditing)
+                {
+                    <p class="confirm-text">
+                        Start a new contract term for <strong>@_renewTarget.Occupant</strong> — beginning
+                        <strong>@_renewEffectivity.ToString("MMM d, yyyy")</strong> for <strong>@_renewDuration year(s)</strong>,
+                        same details as before. The lapsed period is not back-billed.
+                    </p>
+                }
+                else
+                {
+                    @* Editing states the whole record the new term is let on, in the order the register form uses:
+                       who holds it, the space it is, the term, then the rent. The space it is (facility, number,
+                       section) is shown but not editable — moving a lessee to a different space is a transfer, not
+                       a renewal, and the register row is identified by it. *@
+                    <div class="ca-renew-facts">
+                        <div><span>Facility</span><strong>@_renewTarget.FacilityName</strong></div>
+                        @if (!SpaceNumber.IsSpace(_renewTarget.StallNo))
+                        {
+                            <div><span>Stall / space no.</span><strong>@_renewTarget.StallNo</strong></div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(_renewTarget.Section))
+                        {
+                            <div><span>Section</span><strong>@_renewTarget.Section</strong></div>
+                        }
+                        <div><span>Term that lapsed</span><strong>@_renewTarget.EffectivityDate.ToString("MMM d, yyyy") — @_renewTarget.ExpiryDate.ToString("MMM d, yyyy")</strong></div>
+                    </div>
+
+                    @* ── How the new term is held ──
+                       Renewal wrote a signed contract unconditionally, so an occupant whose term had lapsed and whom the office
+                       was letting stay could only be recorded by adding a NEW vendor — which took a fresh SP- identifier and left
+                       two records for one space, its real stall number detached from the arrangement describing it. Chosen here,
+                       on the row for the term that lapsed, which is where the office is already looking. *@
+                    <div class="ca-form-heading">Basis of occupancy</div>
+                    <div class="ca-basis">
+                        <button type="button" class="ca-basis-item @(_renewArrangement == OccupancyArrangement.SignedContract ? "is-selected" : "")"
+                                @onclick="() => SetRenewArrangement(OccupancyArrangement.SignedContract)">
+                            <span class="ca-basis-title">Signed lease contract</span>
+                            <span class="ca-basis-sub">A new term, with a name on the contract</span>
+                        </button>
+                        <button type="button" class="ca-basis-item @(_renewArrangement == OccupancyArrangement.Extension ? "is-selected" : "")"
+                                @onclick="() => SetRenewArrangement(OccupancyArrangement.Extension)">
+                            <span class="ca-basis-title">No contract (extension)</span>
+                            <span class="ca-basis-sub">Occupying past this lapsed contract</span>
+                        </button>
+                    </div>
+
+                    <div class="ca-form-heading">Lessee</div>
+                    <div class="ca-form">
+                        <label>Actual occupant
+                            <input type="text" @bind="_renewOccupant" />
+                        </label>
+                        @if (_renewArrangement == OccupancyArrangement.SignedContract)
+                        {
+                            <label>Name on contract
+                                <input type="text" @bind="_renewName" />
+                            </label>
+                        }
+                        else
+                        {
+                            @* There is no signed contract, so there is no name on one — the record discards it either way. Shown
+                               as the sheet will print it rather than as an empty box the clerk might try to fill. *@
+                            <label>Name on contract
+                                <div class="ca-readonly">No contract (extension)</div>
+                            </label>
+                        }
+                    </div>
+
+                    <div class="ca-form-heading">New term</div>
+                    <div class="ca-form">
+                        <label>Start date
+                            <input type="date" @bind="_renewEffectivity" />
+                        </label>
+                        @if (_renewArrangement == OccupancyArrangement.SignedContract)
+                        {
+                            <label>Duration (years)
+                                <input type="number" min="1" max="50" @bind="_renewDuration" />
+                            </label>
+                        }
+                        else
+                        {
+                            @* An extension has no term to state: the entity substitutes the open-ended length itself, which is
+                               what keeps the occupancy out of renewal and expiry work. Shown, not asked. *@
+                            <label>Duration
+                                <div class="ca-readonly">Open-ended</div>
+                            </label>
+                        }
+                    </div>
+
+                    <div class="ca-form-heading">Space and rent</div>
+                    <div class="ca-form">
+                        <label>Area (sq.m)
+                            <input type="number" min="0" step="0.01" @bind="_renewAreaSqm" />
+                        </label>
+                        <label>Area note
+                            <input type="text" @bind="_renewAreaNote" placeholder="e.g. Corner, Extension" />
+                        </label>
+                        @if (_renewTarget.MonthBasis != NpmMonthBasis.PureDays)
+                        {
+                            <label>Monthly rental (₱)
+                                <input class="ca-renew-rate" type="number" min="0" step="0.01" @bind="_renewMonthlyRate" />
+                            </label>
+                        }
+                    </div>
+                    <p class="ca-renew-note">@(_renewTarget.MonthBasis == NpmMonthBasis.PureDays
+                        ? "Calendar-day billing · the lapsed period is not back-billed."
+                        : $"Whole year: {Money(_renewMonthlyRate * 12)}. The lapsed period is not back-billed.")</p>
+                }
+                @if (_actionError is not null)
+                {
+                    <p class="ca-form-err">@_actionError</p>
+                }
+            </div>
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="CloseModals" disabled="@_busy">Cancel</button>
+                @if (!_renewEditing)
+                {
+                    @* Named so a test can reach it directly. It was found by position among the footer's ghost
+                       buttons, which passed locally and failed on a slower CI runner where the re-render had not
+                       finished - a brittle selector that blocked a deployment rather than catching a defect. *@
+                    <button class="btn-ghost ca-renew-edit" @onclick="() => _renewEditing = true" disabled="@_busy">Edit</button>
+                    <button class="btn-primary" @onclick="ConfirmRenew" disabled="@_busy">@(_busy ? "Working…" : "Proceed")</button>
+                }
+                else
+                {
+                    <button class="btn-primary" @onclick="ConfirmRenew" disabled="@_busy">@(_busy ? "Working…" : "Confirm Renew")</button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+
+@* ── Remove confirm modal (SuperAdmin) ── *@
+@if (_removeTarget is not null)
+{
+    <div class="eemo-modal-overlay" @onclick="CloseModals">
+        <div class="eemo-modal eemo-modal-sm" @onclick:stopPropagation="true">
+            <div class="eemo-modal-header"><div class="eemo-modal-title">Remove Account?</div></div>
+            <div class="eemo-modal-body">
+                <p class="confirm-text">
+                    Remove @(_removeTarget.State == InactiveAccountState.Closed ? "closed" : "expired")
+                    @(SpaceNumber.IsSpace(_removeTarget.StallNo) ? "space" : "stall")
+                    @if (!SpaceNumber.IsSpace(_removeTarget.StallNo))
+                    {
+                        <strong>@_removeTarget.StallNo</strong>
+                    }
+                    (@_removeTarget.Occupant) from the roster?
+                    @* A space the office does not number frees no number, so the sentence does not claim one. *@
+                    Its collection history is kept for audit@(SpaceNumber.IsSpace(_removeTarget.StallNo)
+                        ? "."
+                        : $", but the stall number {_removeTarget.StallNo} is freed for reuse.")
+                    Only closed/expired accounts can be removed — a currently active stall never can.
+                </p>
+                @if (_actionError is not null)
+                {
+                    <p class="ca-form-err">@_actionError</p>
+                }
+            </div>
+            <div class="eemo-modal-footer">
+                <button class="btn-ghost" @onclick="CloseModals" disabled="@_busy">Cancel</button>
+                <button class="btn-danger" @onclick="ConfirmRemove" disabled="@_busy">@(_busy ? "Working…" : "Yes, Remove")</button>
+            </div>
+        </div>
+    </div>
+}
+
+
+
+@code {
+    [Parameter, EditorRequired] public ClosedStallAccountDto Account { get; set; } = default!;
+    [Parameter, EditorRequired] public StallAccountAction Action { get; set; }
+    [Parameter] public EventCallback OnDone { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        switch (Action)
+        {
+            case StallAccountAction.Resume: OpenReopen(Account); break;
+            case StallAccountAction.Renew: OpenRenew(Account); break;
+            case StallAccountAction.Assign: await OpenAssignNewStall(Account); break;
+            case StallAccountAction.Remove: OpenRemove(Account); break;
+        }
+    }
+
+    private Task CloseModals() => OnCancel.InvokeAsync();
+
+    // ── Action state ──
+    private ClosedStallAccountDto? _reopenTarget;
+    private ClosedStallAccountDto? _renewTarget;
+    private ClosedStallAccountDto? _removeTarget;
+    private bool _renewEditing;
+    private DateOnly _renewEffectivity;
+    private int _renewDuration;
+    private string _renewOccupant = "";
+    private string? _renewName;
+
+    /// <summary>How the renewed occupancy is held. Signed unless the office says otherwise, so Proceed is unchanged.</summary>
+    private OccupancyArrangement _renewArrangement = OccupancyArrangement.SignedContract;
+    // The space and the money for the new term. Seeded from the record, and each kept alongside the figure it
+    // was seeded with so an untouched box is never sent back as a change.
+    private decimal _renewMonthlyRate, _renewSeedMonthlyRate;
+    private double? _renewAreaSqm, _renewSeedAreaSqm;
+    private string? _renewAreaNote, _renewSeedAreaNote;
+    private bool _busy;
+    private string? _actionError;
+
+
+    private ClosedStallAccountDto? _assignTarget;
+    private StallReassignmentPreviewDto? _assignPreview;
+    private string _assignStallNo = string.Empty;
+    private DateOnly _assignEffectivity;
+    private int _assignDuration = 3;
+    private decimal _assignMonthlyRate;
+    private string? _assignContractName;
+    private bool _assignLoadingPreview;
+
+
+    private async Task OpenAssignNewStall(ClosedStallAccountDto row)
+    {
+        _assignTarget = row;
+        _assignPreview = null;
+        _actionError = null;
+        _assignLoadingPreview = true;
+        _assignEffectivity = PhilippineTime.Today;
+        _assignDuration = Math.Clamp(row.DurationYears, 1, 10);
+        _assignMonthlyRate = row.MonthlyRate;
+        _assignContractName = row.ContractName ?? row.Occupant;
+        _assignStallNo = string.Empty;
+
+        var preview = await StallsApi.GetStallReassignmentPreviewAsync(row.StallId, row.ContractId);
+        _assignLoadingPreview = false;
+
+        if (!preview.IsSuccess || preview.Value is null)
+        {
+            _actionError = preview.Error ?? "Couldn't prepare the new stall. Close this and try again.";
+            return;
+        }
+
+        _assignPreview = preview.Value;
+        _assignStallNo = preview.Value.SuggestedStallNo;
+        _assignMonthlyRate = preview.Value.MonthlyRate;
+        _assignDuration = preview.Value.SuggestedDurationYears;
+        _assignContractName = preview.Value.NameOnContract ?? preview.Value.Occupant;
+    }
+
+    private async Task ConfirmAssignNewStall()
+    {
+        if (_assignTarget is null || _busy) return;
+
+        if (string.IsNullOrWhiteSpace(_assignStallNo))
+        {
+            _actionError = "Give the new stall a number.";
+            return;
+        }
+
+        _busy = true;
+        _actionError = null;
+
+        var result = await StallsApi.AssignPastOccupantStallAsync(new AssignPastOccupantStallCommand(
+            _assignTarget.StallId,
+            _assignStallNo.Trim(),
+            _assignEffectivity.ToDateTime(TimeOnly.MinValue),
+            _assignDuration,
+            _assignMonthlyRate,
+            string.IsNullOrWhiteSpace(_assignContractName) ? null : _assignContractName!.Trim(),
+            // The term this row is the record of — on a re-let stall the latest term is the sitting lessee's.
+            _assignTarget.ContractId));
+
+        _busy = false;
+
+        if (!result.IsSuccess)
+        {
+            _actionError = result.ValidationErrors?.Values.FirstOrDefault()?.FirstOrDefault()
+                ?? result.Error
+                ?? "Couldn't register the new stall.";
+            return;
+        }
+
+        await OnDone.InvokeAsync();
+    }
+
+    // ── Reopen ──
+    private void OpenReopen(ClosedStallAccountDto r) { _reopenTarget = r; _actionError = null; }
+
+    private async Task ConfirmReopen()
+    {
+        if (_reopenTarget is null) return;
+        _busy = true; _actionError = null;
+        var result = await StallsApi.ToggleStallStatusAsync(_reopenTarget.StallId, close: false);
+        _busy = false;
+        if (result.IsSuccess) { await OnDone.InvokeAsync(); }
+        else _actionError = result.Error ?? "Failed to reopen the stall.";
+    }
+
+    // ── Renew ──
+    private void OpenRenew(ClosedStallAccountDto r)
+    {
+        _renewTarget = r;
+        _renewEditing = false;
+        _renewEffectivity = PhilippineTime.Today;     // Proceed default: fresh start today (no back-billing of the gap)
+        _renewDuration = r.DurationYears > 0 ? r.DurationYears : 1;
+        _renewOccupant = r.Occupant;
+        _renewName = r.ContractName;
+        // Always a signed contract to begin with, whatever the last row was renewed as: an extension is a deliberate act per
+        // occupant, and a choice left over from the previous row would make it an accident.
+        _renewArrangement = OccupancyArrangement.SignedContract;
+        // The record as it stands. Editing starts from these, and each is sent only if the clerk actually
+        // changed it — the register states a DERIVED rent (a daily-collected space shows thirty of its daily
+        // fee; a monthly one shows the rate the LAPSED term was let at), so sending an untouched box back
+        // would write that display figure over the stall's own stored rate.
+        _renewMonthlyRate = _renewSeedMonthlyRate = r.MonthlyRate;
+        _renewAreaSqm = _renewSeedAreaSqm = r.AreaSqm;
+        _renewAreaNote = _renewSeedAreaNote = r.AreaNote;
+        _actionError = null;
+    }
+
+    private async Task ConfirmRenew()
+    {
+        if (_renewTarget is null) return;
+        if (string.IsNullOrWhiteSpace(_renewOccupant)) { _actionError = "Occupant is required."; return; }
+        if (_renewDuration < 1) { _actionError = "Duration must be at least 1 year."; return; }
+        if (_renewEditing && _renewMonthlyRate < 0) { _actionError = "Monthly rental cannot be negative."; return; }
+        if (_renewEditing && _renewAreaSqm is < 0) { _actionError = "Area cannot be negative."; return; }
+
+        _busy = true; _actionError = null;
+        // Only what the clerk actually changed is stated. Everything else is sent as null, which the server
+        // reads as "as it stands" — so both Proceed and an Edit that only fixed the occupant leave the stall's
+        // rate, area and note exactly where they were.
+        var rate = _renewEditing && _renewMonthlyRate != _renewSeedMonthlyRate ? (decimal?)_renewMonthlyRate : null;
+        var area = _renewEditing && _renewAreaSqm != _renewSeedAreaSqm ? _renewAreaSqm : null;
+        var note = _renewEditing && !string.Equals(_renewAreaNote ?? "", _renewSeedAreaNote ?? "", StringComparison.Ordinal)
+            ? (_renewAreaNote ?? string.Empty)
+            : null;
+        var req = new RenewStallContractRequest(_renewEffectivity, _renewDuration, _renewOccupant.Trim(), _renewName,
+                                                rate, area, note, _renewArrangement);
+        var result = await StallsApi.RenewStallContractAsync(_renewTarget.StallId, req);
+        _busy = false;
+        if (result.IsSuccess) { await OnDone.InvokeAsync(); }
+        else _actionError = result.Error ?? "Failed to renew the contract.";
+    }
+
+    /// <summary>
+    /// Chooses how the new term is held.
+    /// </summary>
+    /// <remarks>
+    /// Switching to an extension clears the name on contract, because the record discards it: leaving the previous value in the
+    /// field would show the clerk a name that will not be saved. Switching back restores nothing — the clerk retypes it, which is
+    /// safer than resurrecting a name the office may have changed its mind about.
+    /// </remarks>
+    private void SetRenewArrangement(OccupancyArrangement arrangement)
+    {
+        _renewArrangement = arrangement;
+
+        if (arrangement != OccupancyArrangement.SignedContract)
+            _renewName = null;
+    }
+
+
+    // ── Remove ──
+    private void OpenRemove(ClosedStallAccountDto r) { _removeTarget = r; _actionError = null; }
+
+    private async Task ConfirmRemove()
+    {
+        if (_removeTarget is null) return;
+        _busy = true; _actionError = null;
+        var result = await StallsApi.SoftDeleteStallAsync(_removeTarget.StallId);
+        _busy = false;
+        if (result.IsSuccess) { await OnDone.InvokeAsync(); }
+        else _actionError = result.Error ?? "Failed to remove the account.";
+    }
+
+    private static string Money(decimal v) => "₱" + v.ToString("N0");
+}

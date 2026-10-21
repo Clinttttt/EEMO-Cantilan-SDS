@@ -18,12 +18,17 @@ public class ClearNpmMarketClosureCommandHandler(
     IClock clock,
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
-    ITenantContext tenantContext) : IRequestHandler<ClearNpmMarketClosureCommand, Result<bool>>
+    ITenantContext tenantContext, IAppDbContext? context = null, NpmRentMonthWorkflow? monthly = null) : IRequestHandler<ClearNpmMarketClosureCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(ClearNpmMarketClosureCommand request, CancellationToken ct)
     {
         if (NpmOperatingDayAuthority.Check(currentUser, request.Date, clock.PhilippineToday, request.Remarks) is { } refused)
             return refused;
+
+        var coordinate = monthly is not null && await monthly.HasActivatedPeriodAsync(new(request.Date.Year, request.Date.Month, 1), ct);
+        if (coordinate && (monthly!.Enabled != true || context is null))
+            return Result<bool>.Failure("Activated NPM months require coordinated credit authority; no closure was changed.", ResultStatus.Conflict);
+        await using var transaction = coordinate && !context!.HasActiveTransaction ? await context.BeginSerializableTransactionAsync(ct) : null;
 
         var recordedBy = currentUser.Username ?? "Admin";
         var scheduled = NpmOperatingCalendar.ScheduledClosed(request.Date, await scheduleRepository.GetAllAsync(ct));
@@ -53,6 +58,13 @@ public class ClearNpmMarketClosureCommandHandler(
         if (changed)
         {
             await unitOfWork.SaveChangesAsync(ct);
+            if (coordinate)
+            {
+                await monthly!.SynchronizeOperatingCreditsAsync(new(request.Date.Year, request.Date.Month, 1),
+                    "Head reopening of market day: " + request.Remarks, ct);
+                await context!.SaveChangesAsync(ct);
+            }
+            if (transaction is not null) await transaction.CommitAsync(ct);
             await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
                 tenantContext.TenantCode, FacilityCode.NPM, request.Date.Year, request.Date.Month, ct);
         }

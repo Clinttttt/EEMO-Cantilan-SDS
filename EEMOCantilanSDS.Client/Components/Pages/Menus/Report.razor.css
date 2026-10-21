@@ -2788,6 +2788,29 @@
     max-width: none;
 }
 
+/* On the Overview tab the statement and accountability figures form one continuous
+   card, separated by a quiet hairline rather than two detached panels. */
+@media screen {
+    .rpt-overview-combined.is-joined > .kpi-row {
+        margin-bottom: 0;
+        border-bottom: 0;
+        border-radius: 10px 10px 0 0;
+    }
+
+    .rpt-overview-combined.is-joined ::deep .scp {
+        margin-bottom: 16px;
+    }
+
+    .rpt-overview-combined.is-joined ::deep .scp .ss {
+        border-radius: 0 0 10px 10px;
+        box-shadow: none;
+    }
+
+    .rpt-overview-combined.is-joined ::deep .scp .ss-item {
+        border-top: 1px solid var(--border);
+    }
+}
+
 /* Summary: the four headline figures as one statement strip — no icon tiles, hairline dividers, tabular figures. */
 .kpi-row {
     display: grid;
@@ -2971,3 +2994,44 @@
         position: static;
     }
 }
+
+/* ── Summary polish: panel headings, figures and spacing share the register language of the other V3 tabs ── */
+.kpi-row .kpi-card { padding: 16px 20px; }
+.kpi-row .kpi-value { font-size: 1.375rem; letter-spacing: -.01em; }
+.kpi-row .kpi-label { margin-top: 4px; }
+.kpi-row .kpi-sub { margin-top: 2px; }
+.rpt-panels { gap: 12px; margin: 0 0 16px; }
+.rpt-panel { padding: 16px 20px; border-radius: 10px; background: var(--surface); box-shadow: var(--elevation-1); }
+.rpt-panel-title { color: var(--navy); font-size: 0.875rem; letter-spacing: 0; text-transform: none; }
+.rpt-panel-note { margin-top: 2px; font-size: 0.75rem; }
+.rpt-split-val, .rpt-pos-val { font-variant-numeric: tabular-nums; }
+.rpt-split-val { font-size: 1.25rem; }
+.rpt-pos-label { font-size: 0.8125rem; }
+.rpt-pos-val { font-size: 0.875rem; }
+
+/* ── Receivables: one strip for the position, a hairline panel per list, quiet search ── */
+#rpt-followup > .section-header { margin-bottom: 0; }
+.rpt-attn-strip { padding: 16px 20px; }
+#rpt-followup .rpt-aging { margin: 0 20px 16px; background: var(--surface-muted); border-radius: 8px; }
+#rpt-followup .rpt-aging-label { color: var(--navy); font-size: 0.75rem; letter-spacing: 0; text-transform: none; }
+#rpt-followup .rpt-aging-band-val { font-variant-numeric: tabular-nums; }
+#rpt-followup .rpt-attention { margin: 0 20px 16px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+#rpt-followup .attn-col { padding: 4px 0 6px; }
+#rpt-followup .attn-col-head { padding: 12px 16px 2px; }
+#rpt-followup .attn-col-note { padding: 0 16px 8px; }
+#rpt-followup .attn-search { padding: 0 16px 10px; }
+#rpt-followup .attn-search input { min-height: 36px; padding: 0 12px; border-color: var(--border-strong); border-radius: 8px; }
+#rpt-followup .attn-search input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+#rpt-followup .delinq-item { padding: 12px 16px; }
+#rpt-followup .delinq-item:hover { background: var(--accent-soft); }
+#rpt-followup .delinq-amt-val { font-family: inherit; font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) {
+    #rpt-followup .rpt-attention { grid-template-columns: minmax(0, 1fr); }
+    #rpt-followup .attn-col:first-child { border-right: 0; border-bottom: 1px solid var(--border); }
+}
+
+/* ── Trends & Targets: the view switch and its enter animation ── */
+.rpt-view { animation: rpt-view-in 0.22s ease both; }
+.rpt-view-switch { align-self: flex-end; }
+@keyframes rpt-view-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .rpt-view { animation: none; } }

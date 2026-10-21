@@ -118,3 +118,199 @@ Tests cover lifecycle, replay, renewal identity/concurrency, tenant/role guards,
 - This handoff document.
 
 Frontend wiring remains Claude's lane. New management semantics are available through the typed DTO/client contracts above; no frontend styling or financial logic was changed here. NO production deploy, production data mutation, push, master merge or APK publication.
+
+## 2026-10-19 Collector registration-request backend
+
+### Authority and runtime boundary
+
+Owner-requested prospective revision to IA-068; **Office confirmation is still required before real deployment**. The confirmed 2026-10-06 walk-up Vendor Fee rule is not retrospectively withdrawn. No existing tenant is opted in. `FishMeatRegistrationOptions` defaults to `RequestsInstalled=false` and an empty tenant/effective-business-date map; DI registers those defaults without configuration binding. Source registration remains independent of NPM and a Business Payor master.
+
+The new nonfinancial table is a **separate schema candidate**, explicitly ignored by the active `AppDbContext`. Its configuration, generated [review DDL](../evidence/fish-meat-registration-requests/request-schema.sql) and [promotion/backup patch](../evidence/fish-meat-registration-requests/activation.patch) remain outside active migrations. The schema test verifies that its only changes are one table and seven indexes, with four restrictive tenant-composite FKs. No migration/snapshot was promoted or installed. EF's pending-model-change guard is preserved. `RequestsInstalled=true` alone is insufficient: the workflow also requires the mapped request entity, so accidental flag changes against the old model fail closed before a request-table query.
+
+### Contract for Claude: separate registration queue
+
+Base route: `/api/office-sources/fish-meat/registration-requests`. Existing authenticated transport must be used; do not add these to anonymous authentication clients.
+
+| Method / suffix | Role and operation | Contract |
+|---|---|---|
+| GET `?page=1&pageSize=25&status=1` | Head/Admin office queue; assigned Collector sees only own requests | `FishMeatRegistrationRequestPage`; bounded 1–100 page size; omit status for all history |
+| GET `/{id}` | Same roles; tenant and Collector ownership checked | `FishMeatRegistrationRequestDto` or NotFound |
+| POST base | Active Collector assigned Vendor Fee or Weight & Measure | `SubmitFishMeatRegistrationRequest` |
+| POST `/{id}/cancel` | Submitting Collector only | `CancelFishMeatRegistrationRequest` |
+| POST `/{id}/review` | SuperAdmin/Head only | `ReviewFishMeatRegistrationRequest`; approve existing verified registration, return or reject |
+| POST `/{id}/complete` | SuperAdmin/Head only | `CompleteFishMeatRegistrationRequest`; existing official registration fields plus request review, in one transaction |
+
+Submission fields: `ClientOperationId`, `VendorName` (required, max 200), `VendorType` (Fish=1, Meat=2), current `TaxYear`, optional `Contact` (200), `Note` (1000), `ReplacesRequestId`. These are proposed facts, not official registration evidence. The submitter/municipality are derived from authenticated context, never body claims. A current-year check occurs for new submissions after replay lookup; successful old requests can still be retrieved/replayed after a year transition.
+
+States: Submitted=1, Approved=2, Returned=3, Rejected=4, Cancelled=5. Submitted version=1; a terminal decision version=2. Return/reject/cancel never links a registration. Returned submissions remain intact; resubmit with a new operation ID and the returned request ID. A returned request has at most one successor; subsequent returns form an explicit chain. DTOs retain submitter/Collector identity, timestamps, version, registration ID, reviewer user ID/name, reason and predecessor. Decisions are terminal; use a successor rather than overwriting evidence. The existing AuditSaveChangesInterceptor also audits request creation/decisions.
+
+Review body: `ClientOperationId`, `ExpectedVersion`, `Outcome`, required `Reason`, optional `RegistrationId` (required for Approved and prohibited otherwise). Approval looks up the explicit same-tenant active registration and verifies current tax year and proposed type. Equal names never establish identity. Corrected names are permitted in the actual office record; a type/year mismatch must be returned for correction rather than silently reinterpreted.
+
+Completion body: `ClientOperationId`, `ExpectedVersion`, required `Reason`, `Registration` using **the existing `RegisterFishMeatVendorRequest`** (name/business, Fish/Meat, New/Renew, year, address, personal-name fields, sex, nature of business and reference). No NPM association is accepted here. Head reviews those fields; the server never invents them. The nested registration operation ID is replaced server-side with the request ID. Keep the entire completion body frozen on retry: the decision fingerprints the submitted intent, including its nested fields. The existing registration writer and the Approved decision commit in one serializable transaction. Invalid evidence, stale/concurrent review or registration failure leaves no new registration behind. A second click with a new decision ID cannot create a second vendor for a completed request.
+
+Submission replay: same tenant/Collector/operation ID and exact intent returns the stored request; conflicting intent is Conflict. Pending duplicate protection hashes normalized **submission evidence**, including contact/note, within one Collector/year/type; it neither identifies a person nor merges names across Collectors. Same-name proposals with distinct evidence remain separate and require manual office review. Identical proposed evidence must be clarified rather than linked automatically. Review replay binds actor, operation, version and decision intent. Concurrent submissions/decisions use serializable transactions, unique indexes and version tokens; a conflict requires refresh/retry of the original stable operation, not a fresh intent.
+
+An unavailable schema returns `VendorRequestSchemaNotEnabled` before mutation. Invalid evidence maps to Invalid; unauthorized calls to Forbidden; inaccessible IDs to NotFound; stale/conflicting operations to Conflict. Follow the repository's standard Result/HTTP response handling.
+
+### Prospective financial eligibility and offline integration
+
+`OfficeCollectionWorkflow.ResolveAsync` remains the single source-native quote/post rule holder. When a tenant's activation date covers the business date, Vendor Fee requires an explicit active same-tenant registration for both the transaction year and current tax year. Missing/nonexistent/closed/wrong-year IDs cannot be replaced with payer text. The amount is still **actual amount received**, with the existing money validation and OR classification; there is no fixed Vendor Fee rate. Weight & Measure retains its separate registered-vendor/quantity/effective-rate rules.
+
+`CollectionSessionSources` passes the same policy options to the shared Office workflow. Native discovery omits the walk-up capability under the new policy. Session quote/revalidation/post and itemized offline sync therefore use the same authoritative checks. Unsynced old-policy intent is revalidated when posted. Already posted operations and recorded sessions are replayed from their durable evidence before new eligibility is applied: closed/expired registrations or a later policy date cannot rewrite an original SRC or duplicate cash. Business dates before the accepted activation date retain the old policy; do not remove accepted dates as a casual feature rollback. Existing legacy Fish/Meat endpoints already refuse new source-era collection; historical replay paths stay intact. There is no new online/cash-intake writer.
+
+Claude should queue the submission endpoint with one stable operation ID and frozen request body, then poll the own-request list/detail. Do not display a submitted proposal as a collectible identity. After Approved, refresh the existing registered-source discovery and collect against the returned `RegistrationId`. Offline submission is idempotent at this endpoint; a new Mobile queue/UI operation is deliberately left to Claude. Collection-session offline operations continue through the existing sync route; local payer text or amounts are never identity authority.
+
+For unified Collection & Registration Review, compose **three distinct queues**: existing Direct Collection Review (money already posted), this request queue (identity proposal, no money), and existing NPM requests (nonfinancial tenancy review). Keep existing Fish/Meat payer follow-up linking for old walk-up Collections. None of these approvals creates Collections, SRCs, ORs, rent, remittance or NPM associations.
+
+### Installation and acceptance gates
+
+1. Review this policy revision with the Office; record the accepted tenant and effective business date. No supplied tenant/date defaults exist.
+2. Separately authorize installation. Apply the reviewed promotion/backup patch in source, generate an additive EF migration/designer/snapshot for exactly the candidate table/indexes, verify no unrelated model drift, and review its SQL against `request-schema.sql`. Do not install the SQL directly as a substitute for controlled EF bookkeeping.
+3. Complete and test tenant export/restore coverage with the promotion patch. The current active model/export is unchanged. An unexpectedly installed unmapped table is detected as unmanaged and keeps scoped restore fail-closed. After promotion, restore-v2 requires the new table manifest (`[]` is different from absent); old incomplete snapshots must not delete request/audit evidence. Retained historical table safeguards still apply.
+4. Approved schema installation, backup verification and startup controls precede enabling `RequestsInstalled`. The Head/Mobile interfaces, authenticated client registration and Mobile queue wiring are Claude's next integration work.
+5. Verify all UI/request/collection paths in a synthetic feature-on host, then separately approve the tenant/effective-date policy map. Runtime defaults stay off; this task changes no real tenant or municipal database.
+
+### Scoped files and verification checkpoint
+
+New source: `Domain/Entities/Revenue/FishMeatRegistrationRequest.cs`; `Application/Dtos/Mobile/FishMeatRegistrationRequestDtos.cs`; `Application/Common/Revenue/FishMeatRegistrationOptions.cs`; `Application/Common/Revenue/OfficeCollectionWorkflow.FishMeatRequests.cs`; `Api/Controllers/Revenue/FishMeatRegistrationRequestsController.cs`; `Infrastructure/Persistence/Configuration/FishMeatRegistrationRequestConfiguration.cs` (project prefixes are `EEMOCantilanSDS.`).
+
+Extended source: `OfficeCollectionWorkflow.cs` (shared eligibility); `CollectionSessionSources.cs` and `.Native.cs` (same policy propagation); `IAppDbContext.cs`/`AppDbContext.cs` (candidate persistence surface, ignored active entity); Application `DependencyInjection.cs` (default-off options); `AuditSaveChangesInterceptor.cs` (nonfinancial audit type). No frontend, existing NPM request record, posted-review workflow or historical linking workflow was changed.
+
+Tests: `CollectionSessionTests.FishMeatRequests.cs`, `Domain/FishMeatRegistrationRequestTests.cs`, `Infrastructure/Persistence/FishMeatRegistrationRequestSchemaTests.cs`; intentional addition to `Architecture/ApplicationEfBoundaryTests.cs` permits the new partial in the existing Office transaction seam. Evidence: candidate DDL plus offline promotion patch. Canonical documentation: prospective IA-068 annotation and Revenue Architecture boundary note; this existing handoff is the frontend integration contract.
+
+Initial checkpoint: branch `codex/local-unified-v8-v10-20261013`, HEAD `17b9d100`; `git status --short` counted 416 entries, while the full `--porcelain -uall` inventory recorded **457 individual pending paths**, none staged. Other frontend changes appeared during work; no other agent is visible through this thread's agent inventory. All existing work remains uncommitted; no reset/stash/worktree, municipal DB access, migration installation, API restart, deployment or push was performed.
+
+Executed verification and final counts are recorded below after the final regression pass. Initial checks: 14 focused unit/domain/schema/architecture/backup checks passed; six focused real PostgreSQL request/policy cases passed; full unit suite passed 2,983/2,983. One initial build failed on a shared intermediate DLL lock; subsequent runs use isolated build outputs. One initial PostgreSQL attempt failed before test execution because the candidate was initially in the active model; the explicit ignored-model boundary corrected that startup compatibility issue without suppressing EF warnings. No failed/skipped run is counted as a successful financial test.
+
+#### Final executed verification
+
+| Check | Actual result |
+|---|---|
+| Full unit suite, final run | **2,983 passed / 0 failed / 0 skipped** |
+| PostgreSQL CollectionSessionTests + FishMeatPayorFollowUpTests + DirectCollectionReviewTests | **129 passed / 0 failed / 0 skipped** |
+| Final focused request/registration PostgreSQL run, including latest SRC-sequence and cross-tenant assertions | **11 passed / 0 failed / 0 skipped** |
+| Eligibility regression counterfactual | Temporarily bypassing the new resolver gate produced **1 expected failure**: expected `RequiresRegisteredVendor`, actual `null`. Source restored, rebuilt and the focused 11-case run passed. No gate bypass remains. |
+| Offline schema artifact | Generated DDL matches the checked-in candidate; one table, seven indexes, four tenant-composite restrictive FKs; active model still excludes the table |
+| Promotion patch | `git apply --check --unidiff-zero` passed; patch **not applied** |
+| Backend build | Final API Release build **passed, 0 warnings / 0 errors** (incremental; earlier full compilation reported 22 pre-existing warnings) |
+
+The first broad PostgreSQL run had 126 passed / 1 failed: a real Npgsql serialization exception was wrapped in `InvalidOperationException` during concurrent submission. Submission now recognizes the nested `40001` / `40P01` concurrency failures and returns Conflict without automatic mutation retry. The concurrency case is executed with three repetitions, and the subsequent broad/focused runs passed. Terminal completion and review remain serializable and version guarded. The request lifecycle test verifies zero Collections, allocations, posting operations, accountable documents, remittances or NPM associations and identical SRC sequence `last_value`/`is_called` before and after. Completion failure after registration SaveChanges proves the outer transaction removes the attempted new registration.
+
+Reproducible commands (PowerShell; temporary build outputs avoid the running preview's DLL locks):
+
+```powershell
+dotnet test EEMOCantilanSDS.Testing/EEMOCantilanSDS.UnitTest.csproj -c Release --no-restore -p:OutputPath=bin/FishMeatRequests/net9.0/ -p:IntermediateOutputPath=obj/FishMeatRequests/
+dotnet test EEMOCantilanSDS.IntegrationTests/EEMOCantilanSDS.IntegrationTests.csproj -c Release --artifacts-path "$env:TEMP\fishmeat-request-verification" --filter 'FullyQualifiedName~CollectionSessionTests|FullyQualifiedName~FishMeatPayorFollowUpTests|FullyQualifiedName~DirectCollectionReviewTests'
+dotnet test EEMOCantilanSDS.IntegrationTests/EEMOCantilanSDS.IntegrationTests.csproj -c Release --no-restore --artifacts-path "$env:TEMP\fishmeat-request-verification" --filter 'FullyQualifiedName~Vendor_request|FullyQualifiedName~Vendor_registration'
+dotnet build EEMOCantilanSDS.Api/EEMOCantilanSDS.Api.csproj -c Release --no-restore --artifacts-path "$env:TEMP\fishmeat-request-verification"
+git apply --check --unidiff-zero docs/evidence/fish-meat-registration-requests/activation.patch
+```
+
+Docker Desktop Linux 29.5.3 was available. PostgreSQL verification used only the existing Testcontainers fixture: disposable `stalltrack_tests`, dynamically mapped **non-5432** port. No municipal connection was inspected or used, and no unrelated container was stopped. The schema installer in the new tests checks that isolated identity before DDL. Source/tenant/role checks, invalid/closed/expired registrations, rejection/return/cancel, decision and submission races, exact direct amounts, offline stale-eligibility rejection, recorded-session replay, same-name distinct evidence, Head-only API authorization and independent legacy follow-up/NPM request behavior are covered. These are backend tests; no Mobile/Head UI, physical device, real LGU activation or full unrelated integration suite is claimed.
+
+At final inventory verification: **474 individually enumerated pending paths**, **0 staged**, all **457** initially recorded pending paths still present in Git status, HEAD/branch unchanged. Concurrent frontend work also changed the checkout during this task; the inventory count is a checkpoint, not ownership of those files. No commit was made. Only the backend/contract/tests/evidence/documentation paths listed above belong to this task. No frontend changes were made by this workstream.
+
+## 2026-10-19 Frontend integration: registration requests (Claude 1.1)
+
+No backend, schema, migration, option or tenant policy was changed. Everything below uses the contracts above exactly; `RequestsInstalled=false` and the empty tenant/date map are untouched.
+
+**Typed clients.** `IMobileApiClient` (+ `MobileApiClient`, `CachingMobileApiClient` pass-through, never cached): `GetFishMeatRequestsAsync`, `SubmitFishMeatRequestAsync`, `CancelFishMeatRequestAsync`. `IOfficeSourcesApiClient`: `FishMeatRequestsAsync(page, pageSize, status)`, `ReviewFishMeatRequestAsync`, `CompleteFishMeatRequestAsync`. All default to "unavailable" in the interface so fakes are unaffected; they ride the existing authenticated clients.
+
+**Collector Mobile.** On `/vendor-fee` and `/weight-measure`, when the vendor search returns nothing, a separate **Request registration** row opens `FishMeatRegistrationRequestForm` (vendor name prefilled from the search, Fish/Meat, optional contact and note; tax year = current PH year). The body is frozen with one operation id for the life of the attempt (retry replays it; "Change details" mints a new identity; a definitive refusal clears it). It is online-only like the NPM request: there is no offline queue entry because the request has no money and the server answers replays by operation id. `/fish-meat-requests` (also "My registration requests" under Other collections) lists own requests with status, office reason, **Cancel** (one stable cancel id per request, `ExpectedVersion` from the row) and **Correct and resubmit** for Returned requests (`ReplacesRequestId`, hidden once a successor exists). An approved request offers **Find vendor**, which returns to the vendor search; the registered vendor appears there from the server, and the proposed name is never a source. "Search again" after submitting re-reads the source list.
+
+**Head Portal.** `/monitoring/review` (**Collection & Registration Review**) separates three areas: Collection verification (hosts the existing `DirectCollectionReview` unchanged: notes, corrections, historical follow-up), Fish / Meat registration (`/monitoring/fish-meat-requests`), NPM registration (existing `/monitoring/npm-requests`, unchanged). `MonitoringTabs` gained Review and Fish / Meat requests. The Fish / Meat queue filters by status, shows request facts, and for the Head (`SuperAdmin`) offers: **Register vendor** (the existing `VendorRegistrationDrawer` with the office's own fields, submitted through `/complete`; one atomic registration + approval), **Use existing** (a registered vendor of the same year and type chosen by id: `/review` Approved with `RegistrationId`), **Return** and **Reject** (reason required). Admin sees the queue and details only. Decision ids follow the Head registration page pattern: unchanged intent keeps its id, any edit gets a new one; Conflict refreshes the row. No decision path approves a typed name, and none creates a Collection, SRC, OR, rent, remittance or NPM link. Financial confirmation in Direct Collection Review stays separate.
+
+**Not installed / not run.** The request table is still not installed, so against the working-copy API the queue answers `VendorRequestSchemaNotEnabled` (shown as "not enabled for this office yet"); the endpoint is reachable (401 unauthenticated). End-to-end acceptance needs the gates in section 2026-10-19 step 2-5: apply `docs/evidence/fish-meat-registration-requests/activation.patch`, generate the additive EF migration for exactly the candidate table and seven indexes, review its SQL against `request-schema.sql`, complete export/restore coverage, then set `RequestsInstalled=true` plus a tenant/effective-date entry **only on an explicitly authorized disposable database** (never the retained municipal database or the working-copy tenant without approval). No component tests were written or run; Head, Mobile Core and Client builds pass.
+
+## 2026-10-19 Separate synthetic acceptance environment prepared
+
+**Status: prepared and API/restore verified; interactive Mobile/Head acceptance is OPEN.** This section supersedes "not installed" only for the new disposable environment below. The primary checkout and its existing accepted previews still have the original default-off policy and ignored request entity.
+
+### Isolation and review
+
+- Source snapshot: `C:\dev\stalltrack-v2-previews\fish-meat-requests-20261019` (3,447 copied source/assets files, including Claude 1.1 integration). This is not a new Git worktree. No existing checkout or preview was reset, merged, restarted or repointed.
+- Dedicated Docker container: `stalltrack-fishmeat-requests-20261019`, label `stalltrack.scope=fishmeat-synthetic-acceptance`, PostgreSQL 16 on **127.0.0.1:55495** only; database `stalltrack_fishmeat_requests_acceptance`. Existing containers on 55491/55493 and the retained Cantilan database were untouched. No municipal snapshot/data was copied.
+- `activation.patch` reviewed and applied **only in the snapshot**. It promotes the request mapping and adds tenant backup/export coverage. Claude's request-page Razor/CSS and Mobile request form were copied without edits; final hashes match current primary source.
+- Generated EF migration: `20261019100000_AddFishMeatRegistrationRequestsAcceptance`, designer and updated model snapshot, all under the isolated Infrastructure/Migrations directory. Review confirms exactly **one table + seven indexes**, four restrictive tenant-composite FKs, no unrelated operations, no model/snapshot drift, and generated DDL equal to the existing `request-schema.sql`.
+- EF initially generated `20261019052921`, which sorted before the existing manually dated `20261019090000_AddSlaughterChargeScope20261019`. The **new, unapplied isolated migration metadata/files** were renamed to 20261019100000 before installation. No existing migration/history entry was edited. The final migration sorts last.
+- Applied the current 134-migration baseline plus the approved request migration to this **empty disposable database**. Independently verified from a fresh read-only connection: **135 applied migrations**, request table initially empty, Collections initially empty. This is a current-line fresh baseline, not the retained municipal 143/144 historical baseline.
+- API startup migrations/seeders remain **disabled**. The isolated bootstrap refuses any database except the exact loopback name/port above, clears shared/user-secret configuration, and removes the scheduled backup worker. Payment-provider URL is an `.invalid` test target. NPM financial runtime was not activated.
+
+### Restore/export acceptance before enabling storage
+
+The promotion patch makes the request table part of the server-authoritative restorable manifest and logical export. An isolated harness exercised the real repositories against PostgreSQL before starting the feature-on API:
+
+- Rejected restore-v1, wrong-tenant, missing request-table manifest, `null` table and malformed object table: **five refusals, zero DELETEs and zero accepted-restore audit events**.
+- Explicit request-table `[]` accepted, then a Returned-parent/Submitted-successor chain restored with original IDs and relationship. Existing credential records stayed outside restore.
+- Audit history remained append-only; SRC sequence `last_value` and `is_called` remained unchanged. No Collections, accountable financial postings or remittances were created by request preparation/restore.
+- A transactional synthetic unmanaged-table probe was detected and blocked scoped restore; its DDL was rolled back. The retained-schema safeguard was not weakened or bypassed. This new database does not contain the thirteen retained historical municipal tables, and it is not evidence that scoped restore is safe for the retained municipal baseline.
+- Focused existing `TenantBackupCoverageTests` and `TenantRestoreV2SafetyTests`: **51 passed / 0 failed / 0 skipped** on the promoted isolated model.
+
+### Enabled tenant and real authenticated API checks
+
+Only **Synthetic Fish Meat Acceptance**, code `SYNFM`, tenant code `synthetic-fm`, ID `e0118d81-e954-4a44-9d3f-a0793b428427`, is enabled; effective business date **2026-10-19**. The isolated host replaces the default options with a request-scoped provider that sets `RequestsInstalled=true` and the effective-date map **only when the authenticated tenant matches this ID**. Synthetic control tenant `9914f18d-3c80-48c0-8b14-035be0c2fe65` remains request-storage-off and registration-policy-off. Nothing was enabled in a real LGU or in the primary source defaults.
+
+Actual HTTP authentication and production controllers/workflows verified:
+
+- New typed/unregistered Vendor Fee posting returns `RequiresRegisteredVendor`, creating no SRC.
+- Collector request submission/replay uses one identity; Collector and ordinary Admin cannot review.
+- Head `/complete` and replay yield one verified registration and **no Collection**.
+- Quote/post against that registration receives the entered **35**, with one SRC on replay.
+- Closing that synthetic registration blocks a new collection but preserves replay of its existing SRC.
+- The synthetic old-policy walk-up receipt also replays without changing its SRC.
+- Control tenant unregistered quote still follows old policy, and its request endpoint returns `VendorRequestSchemaNotEnabled`.
+
+The fixture currently starts with **two synthetic collections totaling 60**: old-policy 25 / `SRC-2026-000001`, and verified Vendor Fee 35 / `SRC-2026-000002`. These are disposable acceptance cash evidence, not municipal financial records. Active Fish/Meat vendors, a closed vendor, a prior-year vendor, a Submitted request, a Returned request and a Rejected request are available for UI testing. The proof vendor is intentionally closed after its replay test.
+
+### Exact preview access and accounts
+
+| Surface | URL / launch |
+|---|---|
+| Head sign-in | `http://127.0.0.2:7587/login?lgu=synthetic-fm` |
+| Fish/Meat requests | `http://127.0.0.2:7587/monitoring/fish-meat-requests` |
+| Collection & Registration Review | `http://127.0.0.2:7587/monitoring/review` |
+| API health / Swagger | `http://127.0.0.1:5137/health` / `http://127.0.0.1:5137/swagger` |
+| Separate Windows Collector | Run `C:\dev\stalltrack-v2-previews\fish-meat-requests-20261019\.acceptance\Open-Collector.ps1` |
+
+Synthetic accounts: **fm.head** (SuperAdmin), **fm.collector** (Collector), **fm.admin** (read-only review), all for `synthetic-fm`. Password: **FM!Preview2026-Only** — fixture-only, never reuse outside this environment. Control Collector: `fm.control` / same fixture password, municipality `synthetic-fm-control`.
+
+Windows executable: `EEMOCantilanSDS.Mobile\bin\Debug\net10.0-windows10.0.19041.0\win-x64\StallTrack.FishMeatAcceptance.exe` under the snapshot. Its title, ApplicationId and assembly identity are separate; only its copied Debug bootstrap points to API 5137. Original `PackageId` is retained so the existing scoped-CSS link resolves. The primary MAUI app and its normal endpoint were not modified. No APK was produced or published.
+
+Head uses the separate 127.0.0.2 loopback host, `.StallTrack.FishMeatAcceptance` auth cookie, separate Data Protection application/key directory and API 5137. Existing preview auth cookies are not replaced. Authenticated **HTTP** sign-in/queue rendering both returned 200, including the pending vendor and Register action; the scoped CSS bundle also returned 200. This is not browser-interaction acceptance.
+
+### Manual acceptance sequence and limits
+
+1. Open the separate Windows app and sign in as `fm.collector`; choose **Synthetic Fish Meat Acceptance** if prompted. In Vendor Fee search `Acceptance New UI Vendor` → Request registration → enter synthetic evidence → submit → My requests. Retry must not duplicate it, and no SRC exists yet.
+2. In the new Head preview, review that request → Register vendor → complete the existing official fields → submit. Verify one Approved request and one registered identity. `Acceptance Pending Vendor` is also available for review without first submitting.
+3. In Collector, Find vendor / search again → choose verified identity → enter synthetic received amount → review and record. Verify one SRC and stable replay; no typed-name fallback may collect.
+4. Confirm the receipt appears separately under Collection verification. Use the Returned fixture for correction/resubmission and the pending fixture for cancellation/return/reject tests. `fm.admin` may read only. Closed/prior-year vendors must not gain new eligibility; Weight & Measure remains separate.
+
+**No interactive UI acceptance is claimed.** Computer-use inventory reported no available browser; attempting the in-app browser returned `Browser is not available: iab`. Windows Debug was built but its screens were not driven or visually verified. Only the authenticated HTTP/render and API paths above were exercised. Finish Mobile and Head interaction, drawer, retry and collection checks before signing off end-to-end acceptance.
+
+Builds: API Release **passed, 4 warnings / 0 errors**; Head Release **passed, 85 warnings / 0 errors**; isolated Windows Debug **passed, 15 warnings / 0 errors**. Existing warnings remain. An initial Mobile command-line TargetFrameworks override leaked to referenced project restore targets; corrected by setting Windows-only targeting in the isolated MAUI project instead. No dependency-target changes were made in the primary checkout.
+
+Local evidence and quick-start: `.acceptance/README.md`, `schema-review.json`, `installation.json`, `restore-verification.json`, `api-verification.json`, logs and authenticated Head HTML in the snapshot. Generated EF SQL is `request-migration.sql`; EF migration/designer/snapshot are isolated source only. A full synthetic backup `acceptance-after-api.dump` was created and successfully listed with `pg_restore -l`; SHA256 **92CE06132627C3BFD7C3E08BD9D80ADA6CE161F2A0D138832CA65A1320C9AE2C**. Credentials/runtime secrets and dump remain outside Git. API/Head PIDs are recorded locally in `api.pid` / `head.pid`.
+
+Primary checkout remains branch `codex/local-unified-v8-v10-20261013`, HEAD `17b9d100`. Initial full inventory contained 502 individual pending paths; all remained pending at verification while other concurrent work continued. This task changes only this handoff in the primary checkout; schema promotion, host bootstrap changes, seeding and policy activation occurred in the separate disposable snapshot/database. No commit/push, retained database access, accepted-preview restart or production deployment occurred. Real-LGU Office confirmation and rollout approvals remain separate from synthetic acceptance.
+
+## 2026-10-20 Working-copy registration-request activation (authorized)
+
+The Head authorized installation and activation **only** for the isolated local working-copy database on 127.0.0.1:55491, database stalltrack_workcopy_main, Cantilan tenant 0ea98ba6-f7b1-4928-96f1-6177d45741bd. Production AWS and the original database on port 5432 were not accessed. Earlier candidate-phase sections above are historical; this update supersedes their pending-installation state for the working copy only.
+
+- Additive EF migration **20261020133853_AddFishMeatRegistrationRequestsWorkingCopy20261020** creates only FishMeatRegistrationRequests (23 columns, 4 tenant-scoped restrictive foreign keys, 3 check constraints and 7 secondary indexes), plus its EF migration-history marker. No existing financial tables are changed.
+- The mapped model, tenant backup/restore coverage, logical export (including old-schema warning), schema unit test and PostgreSQL test fixture were promoted together. The request table remains protected by the tenant query filter.
+- Activation requires Development mode, the exact loopback database/port, a named Cantilan tenant and the installed EF migration. The working-copy launcher sets the activation variables on next local restart. Without the named working-copy configuration the runtime still defaults to off.
+- No **registration-required cash-collection policy** was activated. FishMeatRegistrationOptions.RegistrationRequiredFrom stays empty. The request feature is nonfinancial; existing collection workflows/SRCs are unchanged.
+- A verified custom-format backup was created at %TEMP%\stalltrack-workcopy-main-20261018\stalltrack-fish-meat-requests-pre-install-20261020-213556.backup. It was restored to temporary scratch PostgreSQL, where the exact one-table migration succeeded before the identical script was installed into the working copy.
+- Focused validation: 11 unit/schema/tenant-backup tests, 8 PostgreSQL request/API checks and 3 PostgreSQL policy/replay checks all passed. API Release publish succeeded, isolated canary startup succeeded, health/ready probes returned 200 and anonymous request access correctly returned 401.
+- API-only working-copy cutover succeeded on https://localhost:7197 and http://localhost:5117; Portal at https://localhost:7267 kept its original Client PID. Startup confirms the previous approved TEST NPM monthly policy and the new TEST-only Fish/Meat request queue. The previous API binary remains under %TEMP%\stalltrack-workcopy-main-20261018\publish-api-main-backup-fmrequest-20261020-220516.
+- Scratch and working-copy counts matched after migration: 42 Collections, 5 vendor registrations and 7 NPM rent months; **zero registration requests** exist yet. The Pending queue should honestly display no requests until a Collector actually submits one.
+- Historical posted walk-up collections remain under Review payor, not Registration Review. Existing office vendor registrations are not themselves requests. Live end-to-end Head/Collector browser acceptance with authenticated sessions remains unverified; the PostgreSQL/API regression checks passed. No commit or push was made.
+### Final live tenant-isolation cutover (2026-10-20)
+
+A final review found that the isolated working-copy PostgreSQL contains other municipality identities as well as Cantilan. The API was hardened beyond merely verifying the database/tenant settings at startup. FishMeatRegistrationOptions now supplies a named RequestTenants allow-list, and every OfficeCollectionWorkflow.FishMeatRequests request entry point checks RequestsAvailable(Tenant) before it can read or write request records. The approved working-copy activation populates **Cantilan only**. Other municipalities in the same working-copy database remain disabled for this queue, even though the additive table exists globally. The mandatory-registration payment policy remains disabled.
+
+After this correction the API was rebuilt successfully in Release, and **12 focused unit/schema/backup tests passed (0 failed)**, including the newly added tenant allow-list test. The guarded API-only cutover completed successfully and preserved the existing Head Portal process (PID 22312). Live API PID **13332**, health 200, readiness 200, Head login page 200, unauthenticated request endpoint 401. Main API location remains https://localhost:7197; Head remains https://localhost:7267. The previous compiled API was preserved in %TEMP%\stalltrack-workcopy-main-20261018\publish-api-main-backup-fmrequest-20261020-221540. The temporary verification canary is stopped; scratch database was dropped after successful comparison.
+
+A full authenticated Collector-submit -> Head-review -> register/return browser walkthrough has not been executed on the real working-copy Portal. Tests verify the underlying PostgreSQL request workflow and API permissions; a human log-in and real UI submission are still the recommended final demonstration smoke test. No commit/push or production change.
+Final tenant-scoped PostgreSQL regression rerun after deployment: 11 passed, 0 failed, 0 skipped (exit code 0); the 12 tenant-guard unit tests passed. The deployed API and Head Portal health checks remain HTTP 200. Authenticated manual UI acceptance has not been performed.

@@ -12,9 +12,11 @@ public class CreateStallCommandValidator : AbstractValidator<CreateStallCommand>
     private readonly IStallRepository _stallRepo;
     private readonly IClock _clock;
     private readonly IFeeRateResolver _feeRateResolver;
+    private readonly IFacilityRepository? _facilities;
 
-    public CreateStallCommandValidator(IStallRepository stallRepo, IClock clock, IFeeRateResolver feeRateResolver)
+    public CreateStallCommandValidator(IStallRepository stallRepo, IClock clock, IFeeRateResolver feeRateResolver, IFacilityRepository? facilities = null)
     {
+        _facilities = facilities;
         _stallRepo = stallRepo;
         _clock = clock;
         _feeRateResolver = feeRateResolver;
@@ -54,16 +56,24 @@ public class CreateStallCommandValidator : AbstractValidator<CreateStallCommand>
         RuleFor(x => x)
             .Must(x => x.Section.HasValue ^ !string.IsNullOrWhiteSpace(x.CustomSectionName))
             .WithMessage("Choose a market section or enter a custom section name (not both).")
-            .When(x => x.FacilityCode == FacilityCode.NPM);
+            .WhenAsync(async (x, ct) => x.FacilityCode == FacilityCode.NPM && !await IsMonthlyRentMarketAsync(ct));
+
+        // A market rented by the month may file a stall under a section or under none (the shared monthly form names no section), never both.
+        RuleFor(x => x)
+            .Must(x => !(x.Section.HasValue && !string.IsNullOrWhiteSpace(x.CustomSectionName)))
+            .WithMessage("Choose a market section or enter a custom section name (not both).")
+            .WhenAsync(async (x, ct) => x.FacilityCode == FacilityCode.NPM && await IsMonthlyRentMarketAsync(ct));
 
         RuleFor(x => x.CustomSectionName)
             .MaximumLength(60).WithMessage("Custom section name cannot exceed 60 characters")
             .When(x => !string.IsNullOrWhiteSpace(x.CustomSectionName));
 
+        // A daily rate belongs to a daily-collected market. A market its LGU declared as standard monthly rental is let at the
+        // stall's monthly rent (required above) and has no daily rate to state.
         RuleFor(x => x.DailyRate)
             .NotNull().WithMessage("Daily rate is required for NPM")
             .GreaterThan(0).WithMessage("Daily rate must be greater than ₱0")
-            .When(x => x.FacilityCode == FacilityCode.NPM);
+            .WhenAsync(async (x, ct) => x.FacilityCode == FacilityCode.NPM && !await IsMonthlyRentMarketAsync(ct));
     }
 
     /// <summary>
@@ -79,11 +89,15 @@ public class CreateStallCommandValidator : AbstractValidator<CreateStallCommand>
     /// that basis, the vendor form does not ask for one, and requiring one refused every market stall such an office tried
     /// to record. Every other facility, and a market on the monthly goal, are unchanged.
     /// </remarks>
+    private async Task<bool> IsMonthlyRentMarketAsync(CancellationToken ct) =>
+        _facilities is not null && await _facilities.GetByCodeAsync(FacilityCode.NPM, ct) is { IsMonthlyRentMarket: true };
+
     private async Task<bool> BeStatedWhereAMonthIsARent(
         CreateStallCommand command, decimal monthlyRate, CancellationToken ct)
     {
         if (monthlyRate > 0m) return true;
         if (command.FacilityCode != FacilityCode.NPM) return false;
+        if (await IsMonthlyRentMarketAsync(ct)) return false;   // a monthly-rent market always states its rent
 
         var snapshot = await _feeRateResolver.GetSnapshotAsync(ct);
         return !snapshot.MonthRule.HasMonthlyGoal;

@@ -369,7 +369,7 @@ public partial class FacilityReportsRepository
                 ? (dc.IsPaid ? dc.DailyFee + (dc.FishKilos.HasValue ? dc.FishKilos.Value * _npmFishRate : 0m) + dc.MeatFeeAmount : dc.CanonicalSettledAmount)
                 : 0m);
 
-        return dailyRevenue + monthlyRevenue;
+        return dailyRevenue + monthlyRevenue + (await MonthCashAsync(facilityId, startDate, endDate, ct)).Sum(x => x.Amount);
     }
 
     /// <summary>
@@ -414,7 +414,7 @@ public partial class FacilityReportsRepository
     /// Rent obligation that has actually come DUE for a single stall within [start, end]: the
     /// stall's MonthlyRate for every month its active contract is effective AND that has already
     /// started (future months in the current period are not yet owed). This mirrors the month rule
-    /// in <see cref="CountMissedMonths"/>, so the compliance Balance, Outstanding KPI, Collection
+    /// in <see cref="CountMissedMonthsAsync"/>, so the compliance Balance, Outstanding KPI, Collection
     /// Rate and Missed-months all reconcile (e.g. Balance of an unpaid stall == MissedMonths × rate).
     /// </summary>
     private decimal CalculateStallRentObligationDue(Stall stall, DateOnly start, DateOnly end,

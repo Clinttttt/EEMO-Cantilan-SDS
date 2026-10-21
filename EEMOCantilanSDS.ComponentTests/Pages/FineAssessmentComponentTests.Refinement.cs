@@ -28,6 +28,12 @@ public sealed partial class FineAssessmentComponentTests
         Assert.Empty(cut.FindAll("input[type=number]"));
         ExportFixture("fine-no-policy",cut.Markup);
     }
+    // The reason is the approved category by default; a custom description is entered under Other.
+    private static void ChooseOther(IRenderedComponent<FineAssessmentDrawer> drawer,string description)
+    {
+        drawer.FindAll("input[name='fine-reason']").Last().Change(true);
+        drawer.Find("textarea").Change(description);
+    }
     [Fact] public void VerifiedPeriodPersistsThroughReviewBackAndAuthoritativeSave()
     {
         var policy=Policy();var period=new FinePeriodOption(new(FineAffectedPeriodKind.ObligationPeriod,new(2026,9,1),new(2026,9,1),Guid.NewGuid()),"September 2026");
@@ -35,7 +41,7 @@ public sealed partial class FineAssessmentComponentTests
         _api.Setup(x=>x.CreateAssessmentAsync(It.IsAny<CreateFineAssessmentRequest>())).ReturnsAsync(Result<FineAssessmentDto>.Success(Row() with {RelatedPeriod=period}));
         var cut=RenderComponent<FineAssessmentDrawer>(p=>p.Add(x=>x.Account,_account));
         cut.Find("select").Change(policy.Id.ToString());cut.Find("select[aria-label='Related billing period']").Change("0");
-        cut.Find("textarea").Change("Recorded offense");cut.Find("input[aria-label='Fine amount']").Change("120");
+        ChooseOther(cut,"Recorded offense");cut.Find("input[aria-label='Fine amount']").Change("120");
         ExportFixture("fine-period-details",cut.Markup);cut.Find("form").Submit();
         Assert.Contains("September 2026",cut.Markup);ExportFixture("fine-period-review",cut.Markup);
         cut.FindAll("footer button").Single(x=>x.TextContent.Trim()=="Back").Click();
@@ -43,6 +49,20 @@ public sealed partial class FineAssessmentComponentTests
         Assert.Equal("0",cut.Find("select[aria-label='Related billing period']").GetAttribute("value") ?? cut.Find("select[aria-label='Related billing period']").QuerySelector("option[selected]")?.GetAttribute("value"));
         cut.Find("form").Submit();cut.Find("form").Submit();
         _api.Verify(x=>x.CreateAssessmentAsync(It.Is<CreateFineAssessmentRequest>(r=>r.RelatedPeriod==period.Reference&&r.Account==_account)),Times.Once);
+    }
+    [Fact] public void TheApprovedCategoryIsTheDefaultReason_AndOtherRevealsACustomDescription()
+    {
+        var policy=Policy();
+        _api.Setup(x=>x.CreateAssessmentAsync(It.IsAny<CreateFineAssessmentRequest>())).ReturnsAsync(Result<FineAssessmentDto>.Success(Row()));
+        var cut=RenderComponent<FineAssessmentDrawer>(p=>p.Add(x=>x.Account,_account));
+        cut.Find("select").Change(policy.Id.ToString());
+        Assert.Empty(cut.FindAll("textarea"));                                                  // no free text until Other is chosen
+        cut.FindAll("input[name='fine-reason']").Last().Change(true);
+        Assert.Single(cut.FindAll("textarea"));                                                 // Other reveals the description
+        cut.FindAll("input[name='fine-reason']").First().Change(true);
+        Assert.Empty(cut.FindAll("textarea"));
+        cut.Find("input[aria-label='Fine amount']").Change("120");cut.Find("form").Submit();cut.Find("form").Submit();
+        _api.Verify(x=>x.CreateAssessmentAsync(It.Is<CreateFineAssessmentRequest>(r=>r.Description==policy.Definition!.DisplayName)),Times.Once);
     }
     [Fact] public void FixedAmountUsesApprovedValueAndLocksInput()
     {
@@ -56,7 +76,7 @@ public sealed partial class FineAssessmentComponentTests
         var policy=Policy();_api.Setup(x=>x.GetFinePeriodsAsync(_account,null)).ReturnsAsync(Result<IReadOnlyList<FinePeriodOption>>.Failure("offline"));
         var cut=RenderComponent<FineAssessmentDrawer>(p=>p.Add(x=>x.Account,_account));
         Assert.Single(cut.FindAll("select[aria-label='Related billing period'] option"));Assert.Contains("Related period evidence is unavailable",cut.Markup);
-        cut.Find("select").Change(policy.Id.ToString());cut.Find("textarea").Change("Contract offense");cut.Find("input[aria-label='Fine amount']").Change("120");cut.Find("form").Submit();
+        cut.Find("select").Change(policy.Id.ToString());ChooseOther(cut,"Contract offense");cut.Find("input[aria-label='Fine amount']").Change("120");cut.Find("form").Submit();
         Assert.Contains("Not related to a billing period",cut.Markup);
     }
     [Fact] public void ExistingAssessmentsStayVisibleWhenNewPolicyIsUnavailable()

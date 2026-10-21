@@ -12,6 +12,14 @@ namespace EEMOCantilanSDS.HttpClients.ApiClients;
 
 public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApiClient
 {
+    public Task<Result<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmOutstandingRentAccountsPage>> GetNpmOutstandingAccountsPageAsync(int offset, int pageSize) =>
+        GetAsync<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmOutstandingRentAccountsPage>($"api/Mobile/npm/outstanding/accounts/page?offset={offset}&pageSize={pageSize}");
+    public Task<Result<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmOutstandingRentAccount>>> GetNpmOutstandingAccountsAsync() =>
+        GetAsync<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmOutstandingRentAccount>>("api/Mobile/npm/outstanding/accounts");
+    public Task<Result<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmOutstandingRentQuote>> GetNpmOutstandingQuoteAsync(Guid stallId, Guid? contractId = null, decimal? amount = null) =>
+        GetAsync<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmOutstandingRentQuote>($"api/Mobile/npm/outstanding/quote?stallId={stallId}&contractId={contractId}&amount={amount?.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+    public Task<Result<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmPartPaymentOutcomeDto>> RecordNpmOutstandingRentAsync(EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmOutstandingRentPayment request) =>
+        PostAsync<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmOutstandingRentPayment, EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmPartPaymentOutcomeDto>("api/Mobile/npm/outstanding/payment", request);
     public Task<Result<NpmRegistrationRequestDto>> SubmitNpmRequestAsync(SubmitNpmRegistrationRequest request) => PostAsync<SubmitNpmRegistrationRequest, NpmRegistrationRequestDto>("api/office-sources/npm-requests", request);
     public Task<Result<NpmStallNumberSuggestionDto>> SuggestNpmStallAsync(EEMOCantilanSDS.Domain.Enums.MarketSection section) =>
         GetAsync<NpmStallNumberSuggestionDto>($"api/office-sources/npm-requests/stall-suggestion?section={Uri.EscapeDataString(section.ToString())}");
@@ -19,6 +27,12 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
         PostAsync<CancelNpmRegistrationRequest, NpmRegistrationRequestDto>($"api/office-sources/npm-requests/{requestId:D}/cancel", request);
     public Task<Result<NpmRegistrationRequestDto>> GetPendingNpmRequestAsync(Guid vendorRegistrationId) =>
         GetAsync<NpmRegistrationRequestDto>($"api/office-sources/npm-requests/pending/{vendorRegistrationId:D}");
+    public Task<Result<FishMeatRegistrationRequestPage>> GetFishMeatRequestsAsync(int page = 1, int pageSize = 25) =>
+        GetAsync<FishMeatRegistrationRequestPage>($"api/office-sources/fish-meat/registration-requests?page={page}&pageSize={pageSize}");
+    public Task<Result<FishMeatRegistrationRequestDto>> SubmitFishMeatRequestAsync(SubmitFishMeatRegistrationRequest request) =>
+        PostAsync<SubmitFishMeatRegistrationRequest, FishMeatRegistrationRequestDto>("api/office-sources/fish-meat/registration-requests", request);
+    public Task<Result<FishMeatRegistrationRequestDto>> CancelFishMeatRequestAsync(Guid requestId, CancelFishMeatRegistrationRequest request) =>
+        PostAsync<CancelFishMeatRegistrationRequest, FishMeatRegistrationRequestDto>($"api/office-sources/fish-meat/registration-requests/{requestId}/cancel", request);
     public Task<Result<NpmRegistrationRequestPage>> GetNpmRequestsAsync(int page = 1, int pageSize = 25) => GetAsync<NpmRegistrationRequestPage>($"api/office-sources/npm-requests?page={page}&pageSize={pageSize}");
     public Task<Result<CollectionSourcePage>> BrowseCollectionSourcesAsync(string? category, string? search, int skip, int take) => GetAsync<CollectionSourcePage>($"api/mobile/collection-session/sources/browse?category={Uri.EscapeDataString(category ?? "")}&search={Uri.EscapeDataString(search ?? "")}&skip={skip}&take={take}");
     public Task<Result<IReadOnlyList<CollectionSourceSearchResult>>> SearchCollectionSourcesAsync(string? search) => GetAsync<IReadOnlyList<CollectionSourceSearchResult>>($"api/mobile/collection-session/sources?search={Uri.EscapeDataString(search ?? "")}");
@@ -160,6 +174,12 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
 
     public async Task<Result<bool>> UpdateSlaughterAsync(UpdateMobileSlaughterRequest request) =>
         await UpdateAsync<UpdateMobileSlaughterRequest, bool>("api/Mobile/slaughter/update", request);
+
+    public Task<Result<SlaughterTermsDto>> GetSlaughterTermsAsync(DateOnly date) =>
+        GetAsync<SlaughterTermsDto>($"api/mobile/fast-collections/slaughter/terms?date={date:yyyy-MM-dd}");
+
+    public Task<Result<EEMOCantilanSDS.Application.Common.Revenue.FeeScheduleCollectionWorkflow.SlaughterQuote>> QuoteSlaughterAsync(FeeSchedulePostRequest request) =>
+        PostAsync<FeeSchedulePostRequest, EEMOCantilanSDS.Application.Common.Revenue.FeeScheduleCollectionWorkflow.SlaughterQuote>("api/mobile/fast-collections/slaughter/quote", request);
 
     public async Task<Result<MobileTrmCollectionDto>> GetTrmCollectionAsync() =>
         await GetAsync<MobileTrmCollectionDto>("api/Mobile/trm/collections");

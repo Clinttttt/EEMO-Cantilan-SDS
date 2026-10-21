@@ -1,0 +1,24 @@
+{
+  "task": "2C.4",
+  "action": "Retire only obsolete kind-10 unique allocation index",
+  "authorization": "explicit owner 2026-10-17",
+  "target": {
+    "host": "localhost",
+    "port": 5432,
+    "database": "EEMOCantilanSDS.DB"
+  },
+  "startedAtUtc": "2026-10-17T01:37:53.805Z",
+  "journal": "C:/dev/stalltrack-v2-worktrees/local-db-backups/kind10-correction-2026-10-17T01-37-53-805Z.journal.jsonl",
+  "scriptSha256": "57158b720303f60c5dae5e7a7d0a8756095769fecde0d1ece474e088dc2dc50d",
+  "execution": {
+    "commit": "not_attempted",
+    "verification": "not_run",
+    "outcome": "not_committed_aborted",
+    "evidenceWriteFailed": false,
+    "error": {
+      "stage": "preflight",
+      "code": "ERR_ASSERTION"
+    }
+  },
+  "finishedAtUtc": "2026-10-17T01:37:57.154Z"
+}

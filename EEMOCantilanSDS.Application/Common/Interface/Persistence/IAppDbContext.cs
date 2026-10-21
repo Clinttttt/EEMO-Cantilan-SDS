@@ -36,6 +36,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<FishMeatVendorRegistration> FishMeatVendorRegistrations { get; }
         DbSet<FishMeatNpmAssociation> FishMeatNpmAssociations { get; }
         DbSet<NpmRegistrationRequest> NpmRegistrationRequests { get; }
+        DbSet<FishMeatRegistrationRequest> FishMeatRegistrationRequests { get; }
         DbSet<DirectCollectionReviewEvent> DirectCollectionReviewEvents { get; }
         DbSet<SpaceHolderImportRun> SpaceHolderImportRuns { get; }
         DbSet<FishMeatDirectCollectionLink> FishMeatDirectCollectionLinks { get; }
@@ -66,6 +67,8 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<Contract> Contracts { get; }
         DbSet<PaymentRecord> PaymentRecords { get; }
         DbSet<DailyCollection> DailyCollections { get; }
+        /// <summary>Preparation/evidence only; not an activated collection source.</summary>
+        DbSet<NpmRentMonth> NpmRentMonths { get; }
         DbSet<UtilityBill> UtilityBills { get; }
         DbSet<StallMonthlyException> StallMonthlyExceptions { get; }
         DbSet<NpmMarketClosure> NpmMarketClosures { get; }
@@ -98,12 +101,17 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<ObligationAccount> ObligationAccounts { get; }
         DbSet<ObligationRate> ObligationRates { get; }
         DbSet<ObligationPeriod> ObligationPeriods { get; }
+        DbSet<SpaceRegistration> SpaceRegistrations { get; }
+        DbSet<SpaceContractTerm> SpaceContractTerms { get; }
+        DbSet<SpaceLifecycleEvent> SpaceLifecycleEvents { get; }
         DbSet<VehicleClass> VehicleClasses { get; }
         DbSet<VehicleClassRate> VehicleClassRates { get; }
         DbSet<GovernedServiceFeeOption> GovernedServiceFeeOptions { get; }
         DbSet<GovernedServiceFeeOptionRate> GovernedServiceFeeOptionRates { get; }
         DbSet<CollectionRemittance> CollectionRemittances { get; }
         DbSet<CollectionRemittanceCoverage> CollectionRemittanceCoverages { get; }
+        DbSet<OfficeCashTurnover> OfficeCashTurnovers { get; }
+        DbSet<OfficeCashTurnoverCoverage> OfficeCashTurnoverCoverages { get; }
         DbSet<AccountableFormSpoilage> AccountableFormSpoilages { get; }
         DbSet<AccountableFormLossReport> AccountableFormLossReports { get; }
         DbSet<AccountableFormReference> AccountableFormReferences { get; }

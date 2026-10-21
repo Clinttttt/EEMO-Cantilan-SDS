@@ -3,6 +3,8 @@
 @using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Domain.Common
 @using Microsoft.AspNetCore.Components.Authorization
+@using EEMOCantilanSDS.Application.Common.Revenue
+@using EEMOCantilanSDS.Domain.Entities.Revenue
 @inject IVehicleClassesApiClient VehicleClassesApi
 
 @* The vehicle classes Transportation / Parking is collected by, and each class's approved rate (IA-030, IA-050). The Head
@@ -79,6 +81,28 @@
                     </div>
                 </div>
             </AddNewSection>
+            @if (ChooseSection && !_editing)
+            {
+                <AddNewSection Title="Terminal section" Plain="true">
+                    <fieldset class="vcr-sections">
+                        <legend class="v3-sr-only">Terminal section this class belongs to</legend>
+                        <div class="vcr-segmented">
+                            <label class="@(_section == TerminalSection.PullPulVansCargoVans ? "is-selected" : null)">
+                                <input type="radio" name="vcr-section" checked="@(_section == TerminalSection.PullPulVansCargoVans)" @onchange="() => _section = TerminalSection.PullPulVansCargoVans" />
+                                @OfficeCollectionWorkflow.SectionName(TerminalSection.PullPulVansCargoVans)
+                            </label>
+                            <label class="@(_section == TerminalSection.Tricycad ? "is-selected" : null)">
+                                <input type="radio" name="vcr-section" checked="@(_section == TerminalSection.Tricycad)" @onchange="() => _section = TerminalSection.Tricycad" />
+                                @OfficeCollectionWorkflow.SectionName(TerminalSection.Tricycad)
+                            </label>
+                            <label class="@(_section is null ? "is-selected" : null)">
+                                <input type="radio" name="vcr-section" checked="@(_section is null)" @onchange="() => _section = null" />
+                                Custom
+                            </label>
+                        </div>
+                    </fieldset>
+                </AddNewSection>
+            }
             <AddNewSection Title="Approved rate" Plain="true">
                 <div class="avm-row-2">
                     <div class="avm-group">
@@ -108,6 +132,13 @@
     private string _code = string.Empty;
     private string _name = string.Empty;
     private DateOnly _effective = PhilippineTime.Today;
+    private TerminalSection? _section;
+
+    /// <summary>Terminal only: asks which office section a new class belongs to (Custom leaves it for the Head to assign later).</summary>
+    [Parameter] public bool ChooseSection { get; set; }
+
+    /// <summary>Raised after a new class is saved, with the section chosen for it (null: custom), so the page can map it and reload.</summary>
+    [Parameter] public EventCallback<(Guid Id, TerminalSection? Section)> OnClassAdded { get; set; }
     private decimal? _amount;
 
     protected override Task OnInitializedAsync() => LoadAsync();
@@ -147,6 +178,7 @@
         _code = _name = string.Empty;
         _amount = null;
         _effective = PhilippineTime.Today;
+        _section = null;
     }
 
     private async Task SaveAsync()
@@ -158,8 +190,10 @@
         {
             var result = await VehicleClassesApi.SaveAsync(new SaveVehicleClassRequest(_code, _name, _effective, _amount.Value));
             if (!result.IsSuccess) { _formError = result.Error ?? "The rate could not be saved."; return; }
+            var added = !_editing && ChooseSection && result.Value is { } saved ? (saved.Id, _section) : ((Guid, TerminalSection?)?)null;
             Reset();
             await LoadAsync();
+            if (added is { } a) await OnClassAdded.InvokeAsync(a);
         }
         catch (Exception ex) { _formError = ex.Message; }
         finally { _saving = false; }

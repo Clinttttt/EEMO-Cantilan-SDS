@@ -31,6 +31,8 @@ public sealed class NpmCancellationHistoryTests : TestContext
         Services.AddSingleton(new MobileSessionService());
         var cut = RenderComponent<NpmRequests>();
         cut.WaitForAssertion(() => Assert.Contains("Pending review", cut.Markup));
+        Assert.Empty(cut.FindAll(".npm-history a[href='/records'], .npm-history-safeguard, .npm-history-list-head h2"));
+        Assert.Contains("1 total", cut.Find(".npm-history-list-head").TextContent);
         Assert.Contains("Fish Area", cut.Markup);
         cut.Find(".npm-history-cancel-trigger").Click();
         Assert.Contains("Cancel this pending request?", cut.Markup);

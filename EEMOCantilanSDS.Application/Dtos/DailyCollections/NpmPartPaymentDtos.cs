@@ -12,7 +12,9 @@ public sealed record NpmPartPaymentLineDto(DateOnly Day, decimal Fee, decimal Se
 /// </summary>
 public sealed record NpmPartPaymentQuoteDto(Guid StallId, int Year, int Month, DateOnly BusinessDate, string Outcome, string? Message,
     decimal Amount, decimal Applied, decimal Payable, decimal RemainingAfter, decimal Adjustment, decimal Unallocated,
-    IReadOnlyList<NpmPartPaymentLineDto> Lines, string QuoteToken, RevenueInstrumentType? Instrument);
+    IReadOnlyList<NpmPartPaymentLineDto> Lines, string QuoteToken, RevenueInstrumentType? Instrument,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    CollectionSourceKind? SettlementSourceKind = null);
 
 /// <summary>Records the amount a reviewed quote previewed. The token and amount must still describe the month.</summary>
 public sealed record NpmPartPaymentRequest(Guid ClientOperationId, Guid StallId, int Year, int Month,

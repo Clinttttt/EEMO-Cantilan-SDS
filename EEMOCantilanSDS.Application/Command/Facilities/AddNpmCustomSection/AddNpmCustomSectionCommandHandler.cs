@@ -25,6 +25,8 @@ public class AddNpmCustomSectionCommandHandler(
         var npm = await facilityRepo.GetByCodeAsync(FacilityCode.NPM, ct);
         if (npm is null) return Result<bool>.NotFound();
 
+        if (npm.IsMonthlyRentMarket && request.DailyRate is > 0m)
+            return Result<bool>.Failure("This market is rented by the month, so its sections carry no daily fee; each stall's monthly rent is set on its contract.", ResultStatus.Invalid);
         if (request.DailyRate is { } rate && rate < 0m)
             return Result<bool>.Failure("A daily fee cannot be negative.", ResultStatus.Invalid);
 

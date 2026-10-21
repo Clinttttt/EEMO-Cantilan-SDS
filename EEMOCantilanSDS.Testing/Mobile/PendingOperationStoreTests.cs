@@ -31,6 +31,22 @@ public class PendingOperationStoreTests : IDisposable
     };
 
     [Fact]
+    public async Task Outstanding_rent_survives_restart_and_rejects_missing_occupancy_evidence()
+    {
+        var store = new PendingOperationStore(_dir);
+        var operation = new PendingOperation { Kind = OfflineOperationKind.NpmOutstandingRent,
+            ClientOperationId = Guid.NewGuid(), StallId = Guid.NewGuid(), BusinessDate = new(2026, 10, 20),
+            NpmQuoteToken = "reviewed-allocation", ReceivedAmount = 1000, PayloadVersion = 1, OwnerKey = "collector-A" };
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.AddIssuedDocumentOperationAsync(operation));
+        operation.NpmContractId = Guid.NewGuid();
+        await store.AddIssuedDocumentOperationAsync(operation);
+        var restored = Assert.Single(await new PendingOperationStore(_dir).GetAllAsync());
+        Assert.Equal(operation.NpmContractId, restored.ToDto().NpmContractId);
+        Assert.Equal(operation.ClientOperationId, restored.ClientOperationId);
+        Assert.Equal(1000, restored.ReceivedAmount); Assert.Null(restored.ORNumber);
+    }
+
+    [Fact]
     public async Task Whole_payment_survives_restart_with_the_same_intent_and_no_typed_receipt()
     {
         var store = new PendingOperationStore(_dir);
@@ -229,12 +245,14 @@ public class PendingOperationStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task Transportation_issue_needs_a_vehicle_class_and_carries_it_to_the_wire_without_a_rate()
+    public async Task Transportation_issue_carries_an_optional_vehicle_class_to_the_wire_without_a_rate()
     {
         var store = new PendingOperationStore(_dir);
-        var missing = IssuedGovernedOp("TRANSPORTATION");
-        await Assert.ThrowsAsync<InvalidOperationException>(() => store.AddIssuedDocumentOperationAsync(missing));
-        Assert.Empty(await store.GetAllAsync());
+        // A direct "as charged" Transportation / Parking amount (or an approved fee type) carries no vehicle class and must still queue.
+        var direct = IssuedGovernedOp("TRANSPORTATION");
+        await store.AddIssuedDocumentOperationAsync(direct);
+        Assert.Null(Assert.Single(await store.GetAllAsync()).VehicleClassCode);
+        await store.RemoveAsync(direct.ClientOperationId);
 
         var op = IssuedGovernedOp("TRANSPORTATION");
         op.VehicleClassCode = "TRICYCLE";

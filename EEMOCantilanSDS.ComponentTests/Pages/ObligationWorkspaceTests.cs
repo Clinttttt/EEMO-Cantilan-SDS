@@ -28,6 +28,29 @@ public sealed class ObligationWorkspaceSerialCollection { }
 public sealed class ObligationWorkspaceTests : TestContext
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
+
+    [Fact]
+    public void Holder_editor_submits_a_future_approved_amount_with_the_same_holder_request()
+    {
+        var account = Space() with { Arrangement = OccupancyArrangement.SpaceOnly, ActualOccupant = "Ana Reyes" };
+        Serve(ObligationKind.KanmanggaySpaceRental, account);
+        CorrectObligationHolderRequest? sent = null;
+        _api.Setup(x => x.CorrectHolderAsync(account.Id, It.IsAny<CorrectObligationHolderRequest>()))
+            .Callback<Guid, CorrectObligationHolderRequest>((_, request) => sent = request)
+            .ReturnsAsync(Result<bool>.Success(true));
+        var cut = RenderComponent<KanmanggayManageSpaceHolders>();
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll("button[aria-label='Edit Space Holder']")), Timeout);
+        cut.Find("button[aria-label='Edit Space Holder']").Click();
+        cut.Find(".obw-actions input[type='checkbox']").Change(true);
+        var month = PhilippineTime.Today.AddMonths(1);
+        cut.Find("#obw-holder-rate-month").Change(month.ToString("yyyy-MM"));
+        cut.Find("#obw-holder-rate-amount").Change("1400");
+        cut.Find("form[aria-label='Edit Occupant & Space']").Submit();
+        cut.WaitForAssertion(() => Assert.NotNull(sent), Timeout);
+        Assert.Equal("Ana Reyes", sent!.ActualOccupant);
+        Assert.Equal(new SetObligationRateRequest(new(month.Year, month.Month, 1), 1400), sent.RateChange);
+        _api.Verify(x => x.SetRateAsync(It.IsAny<Guid>(), It.IsAny<SetObligationRateRequest>()), Times.Never);
+    }
     private static readonly Guid PayorId = Guid.NewGuid();
     private readonly Mock<IObligationsApiClient> _api = new();
     private readonly Mock<IEcfCollectionsApiClient> _collections = new();
@@ -65,6 +88,21 @@ public sealed class ObligationWorkspaceTests : TestContext
         assessed, collected, assessed - collected);
 
     [Fact]
+    public void MonthlySpace_WithFutureEnd_RemainsOpenAndDisplaysEnding_NotClosed()
+    {
+        var future = Space() with { ActiveTo = PhilippineTime.Today.AddDays(2) };
+        var ended = Space() with { ActiveTo = PhilippineTime.Today.AddDays(-2) };
+        Assert.True(EEMOCantilanSDS.Client.Services.RentalAccountStatus.IsOpen(future));
+        Assert.Equal("Ending", EEMOCantilanSDS.Client.Services.RentalAccountStatus.Label(future));
+        Assert.StartsWith("Ends ", EEMOCantilanSDS.Client.Services.RentalAccountStatus.LabelWithDate(future));
+        Assert.False(EEMOCantilanSDS.Client.Services.RentalAccountStatus.IsOpen(ended));
+        Assert.Equal("Closed", EEMOCantilanSDS.Client.Services.RentalAccountStatus.Label(ended));
+        Assert.StartsWith("Closed ", EEMOCantilanSDS.Client.Services.RentalAccountStatus.LabelWithDate(ended));
+        Assert.Equal("Retired", EEMOCantilanSDS.Client.Services.RentalAccountStatus.LabelWithDate(
+            future with { Retired = true }));
+    }
+
+    [Fact]
     public void VegetableFruit_ModesKeepState_AndDailyExcludesMonthlyReceipts()
     {
         var space = Space() with { Kind = ObligationKind.VegetableFruitSpaceRental, SubjectLabel = "1" };
@@ -92,10 +130,9 @@ public sealed class ObligationWorkspaceTests : TestContext
         Assert.DoesNotContain("Historical holder", daily.TextContent);
         Assert.Contains("Daily holder", daily.TextContent);
         Assert.Contains("₱40.00", daily.TextContent);
-        cut.Find("#vf-daily input[type='search']").Input("SRC-DAILY");
         var month = PhilippineTime.Today.AddMonths(-1).ToString("yyyy-MM");
         cut.Find("#vf-daily input[type='month']").Change(month);
-        Assert.NotNull(cut.Find("#vf-daily .vf-daily-toolbar .vf-mode"));
+        Assert.NotNull(cut.Find("#vf-daily .vf-mode"));
         Assert.Single(cut.FindAll("#vf-daily .vf-mode [aria-pressed='true']"));
         SpaceHolderWorkspaceTests.SaveVisualArtifact("vegetable-fruit-daily", cut.Markup);
         var calls = _governed.Invocations.Count;
@@ -104,7 +141,6 @@ public sealed class ObligationWorkspaceTests : TestContext
         Assert.Equal("Partial", cut.Find("#vf-monthly .filter-tab.active").TextContent);
         Assert.Single(cut.FindAll("#vf-monthly .vf-mode [aria-pressed='true']"));
         cut.FindAll("#vf-monthly .vf-mode button").Single(x => x.TextContent == "Daily").Click();
-        Assert.Equal("SRC-DAILY", cut.Find("#vf-daily input[type='search']").GetAttribute("value"));
         Assert.Equal(month, cut.Find("#vf-daily input[type='month']").GetAttribute("value"));
         Assert.Equal(calls, _governed.Invocations.Count);
     }
@@ -230,7 +266,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New").Click();
         cut.Find("#obw-occupant").Input("ana");
         Assert.Empty(cut.FindAll("#obw-subject"));
-        cut.Find("input[placeholder='As written on the contract']").Change("LC-2026-014");
+        Assert.Empty(cut.FindAll("input[placeholder='As written on the contract']")); // deliberately removed from simplified registration
         cut.Find("#obw-amount").Change("1200");
         cut.Find("form[aria-label='Open account']").Submit();
 
@@ -240,7 +276,8 @@ public sealed class ObligationWorkspaceTests : TestContext
             Assert.Equal((ObligationKind.KanmanggaySpaceRental, Guid.Empty, "", 1200m),
                 (sent!.Kind, sent.PayorId, sent.SubjectLabel, sent.Amount));
             Assert.Null(sent.StallId);
-            Assert.Equal((OccupancyArrangement.SignedContract, "LC-2026-014"), (sent.Arrangement, sent.ContractReference));
+            Assert.Equal(OccupancyArrangement.SignedContract, sent.Arrangement);
+            Assert.Null(sent.ContractReference); // no fabricated contract reference after removing the input
             Assert.Contains("account opened", cut.Markup);
         }, Timeout);
     }
@@ -335,7 +372,8 @@ public sealed class ObligationWorkspaceTests : TestContext
             Assert.Contains("Contract Duration (No. of Years)", drawer.TextContent);
             Assert.NotNull(drawer.QuerySelector("#obw-contract-date"));
             Assert.NotNull(drawer.QuerySelector("input[placeholder='As written on the signed contract']"));
-            Assert.NotNull(drawer.QuerySelector("input[placeholder='As written on the contract']"));
+            Assert.Null(drawer.QuerySelector("input[placeholder='As written on the contract']")); // single approved-rent input, no redundant reference
+            Assert.NotNull(drawer.QuerySelector("#obw-amount"));
             Assert.Contains(drawer.QuerySelectorAll(".avm-input-locked"), x => x.TextContent.Trim() == "Kanmanggay");   // the operation is context, not a choice
             Assert.NotNull(drawer.QuerySelector(".eemo-drawer-header-icon svg"));                        // the stallholder drawer's own header
         }, Timeout);
@@ -934,7 +972,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         var cut = RenderComponent<KanmanggayImport>();
         cut.Find(".imp-use-sample").Click();
         cut.Find("button[aria-label='Edit row details 1']").Click();
-        Assert.Contains("Row 1", cut.Find(".eemo-drawer-header-title").TextContent);
+        cut.WaitForAssertion(() => Assert.Contains("Row 1", cut.Find(".eemo-drawer-header-title").TextContent), Timeout);
         cut.Find("input[aria-label='Contract reference of row 1']").Input("LC-EDITED");
         cut.Find(".shi-editor input[aria-label='Actual Mo. Rental of row 1']").Input("1700");
         Assert.Equal("20400.00", cut.Find("input[aria-label='Whole Year Rental of row 1']").GetAttribute("value"));
@@ -942,15 +980,15 @@ public sealed class ObligationWorkspaceTests : TestContext
         Assert.True(cut.Find("input[aria-label='Delinquent (₱) of row 1']").HasAttribute("readonly"));
         Assert.Equal(string.Empty, cut.Find("input[aria-label='Delinquent (₱) of row 1']").GetAttribute("value"));
         cut.FindAll("footer button").Single(x => x.TextContent == "Next row").Click();
-        Assert.Contains("Jose Ramirez", cut.Find(".eemo-drawer-header-title").TextContent);
+        cut.WaitForAssertion(() => Assert.Contains("Jose Ramirez", cut.Find(".eemo-drawer-header-title").TextContent), Timeout);
         Assert.False(cut.Find("input[aria-label='Contract reference of row 2']").HasAttribute("readonly"));
         cut.Find(".shi-editor input[aria-label='Actual Occupant (Leasee) of row 2']").Input("Jose Edited");
         cut.FindAll("footer button").Single(x => x.TextContent == "Previous row").Click();
-        Assert.Equal("LC-EDITED", cut.Find("input[aria-label='Contract reference of row 1']").GetAttribute("value"));
+        cut.WaitForAssertion(() => Assert.Equal("LC-EDITED", cut.Find("input[aria-label='Contract reference of row 1']").GetAttribute("value")), Timeout);
         cut.FindAll("footer button").Single(x => x.TextContent == "Back to review").Click();
-        Assert.Empty(cut.FindAll("[role='dialog']"));
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll("[role='dialog']")), Timeout);
         cut.Find("button[aria-label='Remove row 1']").Click();
-        Assert.Equal(2, cut.FindAll(".imp-table tbody tr").Count);
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll(".imp-table tbody tr").Count), Timeout);
         Assert.Equal("Jose Edited", cut.Find("input[aria-label='Actual Occupant (Leasee) of row 1']").GetAttribute("value"));
         Assert.Equal("Ana Lopez", cut.Find("input[aria-label='Actual Occupant (Leasee) of row 2']").GetAttribute("value"));
     }
@@ -1211,8 +1249,10 @@ public sealed class ObligationWorkspaceTests : TestContext
 
         cut.Find("input[aria-label='Actual Occupant (Leasee) of row 1']").Input("Ana Reyes");
         cut.Find("button[aria-label='Edit row details 1']").Click();
-        Assert.False(cut.Find("input[aria-label='Contract reference of row 1']").HasAttribute("readonly"));
-        Assert.Equal("", cut.Find("input[aria-label='Contract reference of row 1']").GetAttribute("value"));
+        // The details row renders after the click, so it is waited for (a synchronous Find raced the render and failed only under load).
+        var contractReference = cut.WaitForElement("input[aria-label='Contract reference of row 1']", Timeout);
+        Assert.False(contractReference.HasAttribute("readonly"));
+        Assert.Equal("", contractReference.GetAttribute("value"));
         Assert.Empty(cut.FindAll("select[aria-label^='Lease type']"));
         cut.Find("input[aria-label='Contract reference of row 1']").Input("LC-2026-014");
         cut.WaitForAssertion(() =>

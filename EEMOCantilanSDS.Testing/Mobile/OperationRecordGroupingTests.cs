@@ -23,6 +23,16 @@ public class OperationRecordGroupingTests
     }
 
     [Fact]
+    public void The_newest_collection_of_the_day_is_listed_first()
+    {
+        var records = OperationRecordGrouping.Group([
+            Row(Guid.NewGuid(), "SRC-2026-000026", "Slaughterhouse", 730m), Row(Guid.NewGuid(), "SRC-2026-000027", "Slaughterhouse", 365m),
+            Row(Guid.NewGuid(), "SRC-2026-000009", "Slaughterhouse", 50m)]);
+
+        Assert.Equal(["SRC-2026-000027", "SRC-2026-000026", "SRC-2026-000009"], records.Select(x => x.ReferenceCode));
+    }
+
+    [Fact]
     public void Each_collection_appears_once_and_a_correction_is_shown_not_hidden()
     {
         var a = Guid.NewGuid();

@@ -16,7 +16,7 @@ public sealed partial class CollectionSessionSources
         (CollectionSessionItemQuote?, CollectionSessionProblem?) Fail(string code, string message) => (null, new(item.ClientItemId, code, message));
         var part = item.NpmPart!;
         // This month only, under the one occupancy source: a part payment is never an advance and never another month's money.
-        if (npmPart is null || item.Kind != CollectionSessionItemKind.NpmPartPayment || session.SourceIdentity?.Kind != SourceIdentityKind.Occupancy
+        if (npmPart is null || item.Kind != CollectionSessionItemKind.NpmPartPayment || session.SourceIdentity is null
             || part.Year != session.BusinessDate.Year || part.Month != session.BusinessDate.Month)
             return Fail("InvalidIntent", "Choose this month's part payment.");
         var result = await npmPart.QuoteAsync(part.StallId, part.Year, part.Month, item.ConfirmedAmount, ct, session.BusinessDate);

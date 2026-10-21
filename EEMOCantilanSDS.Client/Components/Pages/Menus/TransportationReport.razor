@@ -10,4 +10,4 @@
    month's governed collections, all read from the server. The layout owns the <main> landmark. *@
 <GovernedOperationReport OperationCode="@CollectorOperationCodes.Transportation" Name="Transportation Fees" ParentHref="/operations/transportation"
                          RowKey="TRANSPORTATION_PARKING" Classification="Transportation Fees" Instruments="@(new[] { "CT" })"
-                         InstrumentFact="Cash Ticket" IdPrefix="trr" Code="TRM" Basis="Canonical Transportation is a Cash Ticket at the approved vehicle-class rate. Legacy terminal trips recorded before the source's cutover stay in the TRM facility report." />
+                         InstrumentFact="Cash Ticket" IdPrefix="trr" Code="TRM" ByFeeType="true" />

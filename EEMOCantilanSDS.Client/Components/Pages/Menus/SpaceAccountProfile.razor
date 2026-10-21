@@ -4,6 +4,7 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Common.Lifecycle
 @using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Client.Services
@@ -28,7 +29,7 @@
     {
         <div class="v3-notice v3-notice-error v3-notice-row" role="alert">
             <span>@_error</span>
-            <button class="btn-outline" type="button" @onclick="LoadAsync">Try again</button>
+            <button class="btn-outline" type="button" @onclick="() => LoadAsync()">Try again</button>
         </div>
     }
     else if (_account is null)
@@ -48,7 +49,15 @@
                            HistoryTitle="@(IsLot ? "Event Settlement" : "12-Month Payment History")" ShowYearNav="@(!IsLot)"
                            Year="_year" CanNextYear="@(_year < PhilippineTime.Today.Year)" OnYear="ShiftYear"
                            Tiles="Tiles" Stats="Stats"
-                           PaymentsLoading="false" PaymentsError="@_paymentsError" Payments="PaymentRows" OnRetry="LoadAsync" />
+                           PaymentsLoading="false" PaymentsError="@_paymentsError" Payments="PaymentRows" OnRetry="() => LoadAsync()">
+            <AfterHero>
+                @if (!IsLot)
+                {
+                    <AccountLifecycleBar Source="LifecycleSource.SpaceRental" AccountId="AccountId" ProfileHref="Presentation.ProfileHref"
+                                         InitialAction="LifecyclePresentation.FromQuery(ActionName)" OnChanged="() => LoadAsync(quiet: true)" OnLoaded="v => _lifecycle = v" />
+                }
+            </AfterHero>
+        </RentalProfileView>
     }
 </div>
 
@@ -59,8 +68,11 @@
 
 @code {
     [Parameter] public Guid AccountId { get; set; }
+    /// <summary>A deep link from another page (for example Closed Accounts): opens this lifecycle action if the server offers it.</summary>
+    [SupplyParameterFromQuery(Name = "action")] public string? ActionName { get; set; }
 
     private ObligationAccountDto? _account;
+    private AccountLifecycleDto? _lifecycle;
     private IReadOnlyList<ObligationQuoteDto> _periods = [];
     private IReadOnlyList<ObligationPaymentDto> _payments = [];
     private bool _loading = true, _history;
@@ -76,9 +88,11 @@
 
     protected override Task OnParametersSetAsync() => LoadAsync();
 
-    private async Task LoadAsync()
+    // A quiet reload (after a lifecycle action) refreshes the figures without blanking the page, so the lifecycle panel keeps its own message.
+    private async Task LoadAsync(bool quiet = false)
     {
-        _loading = true; _error = null; _paymentsError = null; _account = null; _periods = []; _payments = [];
+        if (!quiet) { _loading = true; _account = null; _periods = []; _payments = []; }
+        _error = null; _paymentsError = null;
         try
         {
             var accounts = await AccountsApi.GetAccountsAsync(Presentation.Kind);
@@ -106,6 +120,16 @@
     private string? LocationText => _account is null ? null
         : string.Join(" · ", new[] { Presentation.Name, IsLot ? null : _account.AreaLocation }.Where(x => !string.IsNullOrWhiteSpace(x)));
 
+    // One classification for every screen: an end date that has not passed is still an active account.
+    private static RentalProfileView.ProfilePill StatusPill(ObligationAccountDto a) => RentalAccountStatus.Of(a) switch
+    {
+        RentalAccountState.Active => new("Active", "active"),
+        RentalAccountState.Ending => new(a.ActiveTo == PhilippineTime.Today ? "Ends today" : $"Ends {a.ActiveTo:MMM d, yyyy}", "partial"),
+        RentalAccountState.TermExpired => new("Term ended", "partial"),
+        RentalAccountState.Retired => new("Retired", "inactive"),
+        _ => new("Closed", "inactive")
+    };
+
     private DateOnly CurrentMonth => new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
 
     private IReadOnlyList<RentalProfileView.ProfilePill> Pills
@@ -117,7 +141,7 @@
             var now = _periods.FirstOrDefault(p => p.PeriodStart == CurrentMonth) ?? (IsLot ? _periods.FirstOrDefault() : null);
             if (now is { AssessedAmount: > 0 })
                 pills.Add(now.OutstandingAmount == 0 ? new("Paid", "paid") : now.SettledAmount > 0 ? new("Partial", "partial") : new("Unpaid", "unpaid"));
-            pills.Add(_account.ActiveTo is null ? new("Active", "active") : new("Closed", "inactive"));
+            pills.Add(StatusPill(_account));
             return pills;
         }
     }
@@ -136,7 +160,7 @@
             const string home = "M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z";
             const string person = "M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2 M12 3a4 4 0 100 8 4 4 0 000-8z";
             var occupant = SpaceAccountPresentation.Occupant(a);
-            var status = a.ActiveTo is null ? new RentalProfileView.ProfilePill("Active", "active") : new("Closed", "inactive");
+            var status = StatusPill(a);
             if (IsLot)
                 return
                 [
@@ -181,9 +205,18 @@
                     new("Contract Effectivity Date", a.ContractEffectiveDate?.ToString("MMMM d, yyyy") ?? "—"),
                     new("Contract Duration", a.ContractYears is { } n ? $"{n} years" : "—"),
                     new("Contract Expiry", expiry?.ToString("MMMM d, yyyy") ?? "—")
-                ])
+                ]),
+                ..HistorySection()
             ];
         }
+    }
+
+    // The account's own lifecycle history (closure, renewals, a successor), newest first, in the same card style as the rest of the profile.
+    private IEnumerable<RentalProfileView.ProfileSection> HistorySection()
+    {
+        var rows = (_lifecycle?.History ?? []).Where(h => h.Kind != "AccountOpened").OrderByDescending(h => h.Date).Take(8).ToList();
+        if (rows.Count == 0) yield break;
+        yield return new("History", "M12 8v4l3 3 M3 12a9 9 0 1 0 3-6.7 M3 4v5h5", rows.Select(h => new RentalProfileView.ProfileFact(h.Date.ToString("MMM d, yyyy"), h.Description)).ToList());
     }
 
     private IReadOnlyList<RentalProfileView.ProfileTile> Tiles

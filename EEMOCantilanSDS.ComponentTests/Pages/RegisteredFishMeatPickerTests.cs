@@ -215,6 +215,35 @@ public sealed class RegisteredFishMeatPickerTests : TestContext
     }
 
     [Fact]
+    public void An_existing_stall_occupied_by_the_vendor_is_linked_in_one_step_instead_of_registering_a_second_stall()
+    {
+        var vendor = Guid.NewGuid(); var contract = Guid.NewGuid(); var stall = Guid.NewGuid();
+        var row = new NpmRegistrationRequestDto(Guid.NewGuid(), vendor, PhilippineTime.Today.Year, "Morloc Reyes", Guid.NewGuid(), "Collector",
+            "3", EEMOCantilanSDS.Domain.Enums.MarketSection.FishSection, "Office reference", DateTime.UtcNow, NpmRegistrationRequestStatus.Submitted, 1, null, null, null, null, null);
+        var registered = new FishMeatVendorRegistrationDto(vendor, row.TaxYear, FishMeatVendorType.Fish, VendorRegistrationKind.New, "Morloc Reyes", null, null, null);
+        var candidate = new NpmVendorCandidate(contract, stall, "3", "Morloc Reyes", "Fish Area", true, DateOnly.FromDateTime(DateTime.Today),
+            FishMeatVendorType.Fish, "current", [], [registered]);
+        _api.Setup(x => x.NpmRequestsAsync(1, 25)).ReturnsAsync(Result<NpmRegistrationRequestPage>.Success(new([row], 1, 1, 25)));
+        _api.Setup(x => x.NpmVendorCandidatesAsync(row.TaxYear, true, true)).ReturnsAsync(Result<NpmVendorCandidates>.Success(new(row.TaxYear, 1, [candidate])));
+        ConfirmNpmVendorAssociationRequest? sent = null;
+        _api.Setup(x => x.LinkNpmVendorAsync(vendor, It.IsAny<ConfirmNpmVendorAssociationRequest>()))
+            .Callback<Guid, ConfirmNpmVendorAssociationRequest>((_, r) => sent = r)
+            .ReturnsAsync(Result<NpmVendorAssociationDto>.Success(new(Guid.NewGuid(), vendor, contract, stall, "Morloc Reyes", "Head", DateTime.UtcNow, "ok", null, null, null)));
+
+        var view = RenderComponent<EEMOCantilanSDS.Client.Components.Pages.Menus.PendingNpmRequests>();
+        view.FindAll("button").Single(x => x.TextContent == "Review").Click();
+
+        Assert.Contains("Stall 3 is already registered to Morloc Reyes", view.Markup);
+        Assert.DoesNotContain("Register NPM occupancy", view.Markup);                        // no second stall is offered
+        var link = view.FindAll("button").Single(x => x.TextContent.Contains("Link to Stall 3"));
+        Assert.True(link.HasAttribute("disabled"));                                           // the office reason comes first
+        view.Find("#pnr-reason").Input("Office checked the stall holder list");
+        view.FindAll("button").Single(x => x.TextContent.Contains("Link to Stall 3")).Click();
+
+        view.WaitForAssertion(() => Assert.NotNull(sent));
+        Assert.Equal((contract, stall, "current", "Office checked the stall holder list"), (sent!.ContractId, sent.StallId, sent.SourceVersion, sent.ConfirmationNote));
+    }
+    [Fact]
     public void A_failed_evidence_read_never_offers_unverified_candidates()
     {
         _api.Setup(x => x.ManageRegistrationsAsync(It.IsAny<int>(), It.IsAny<int>(), null, null)).ReturnsAsync(Result<VendorRegistryManagement>.Failure("Offline"));

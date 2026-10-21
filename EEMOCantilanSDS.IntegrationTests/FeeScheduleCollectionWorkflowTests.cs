@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Application.Common.Tenancy;
+using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Application.Queries.Auth.GetCurrentUser;
 using EEMOCantilanSDS.Domain.Common;
@@ -16,6 +17,8 @@ using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Fees;
 using EEMOCantilanSDS.Infrastructure.Persistence;
+using EEMOCantilanSDS.Infrastructure.Repositories;
+using EEMOCantilanSDS.Infrastructure.Repositories.Revenue;
 using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.IntegrationTests;
@@ -154,10 +157,10 @@ public sealed class FeeScheduleCollectionWorkflowTests(PostgresFixture db)
             new FeeRateResolver(ctx), new MarketDay(marketDay ?? Today.DayOfWeek), new Clock());
 
     /// <summary>A tenant with TPM/SLH, rates, TABO/SLAUGHTERHOUSE classification policies, an assigned collector, and (optionally) the services enabled.</summary>
-    private async Task<World> SeedAsync(bool enabled, bool taboRate = true, bool hogRate = true)
+    private async Task<World> SeedAsync(bool enabled, bool taboRate = true, bool hogRate = true, bool referenceTenant = false)
     {
         var tenant = Municipality.Create($"fs-{Guid.NewGuid():N}"[..12], "Fee Schedule", "Province", MunicipalityStatus.Active,
-            tenantCode: $"feesched-{Guid.NewGuid():N}"[..28].ToLowerInvariant());
+            tenantCode: $"feesched-{Guid.NewGuid():N}"[..28].ToLowerInvariant(), isDefault: referenceTenant);
         var collector = CollectorUser.Create("Mobile Collector", "MC-01", $"fs-{Guid.NewGuid():N}"[..14], null, null, new HashedPassword("h"), tenant.Id);
         await using (var setup = db.CreateContext(Guid.Empty))
         {
@@ -525,5 +528,419 @@ public sealed class FeeScheduleCollectionWorkflowTests(PostgresFixture db)
         Assert.Equal((amount, amount, 0m), (after.Collected, after.Remitted, after.Unremitted));
         Assert.Equal((collections, lines), (await ctx.Collections.CountAsync(), await ctx.CollectionLines.CountAsync()));
         Assert.Equal(amount, Income(await StatementAsync()));
+    }
+
+    // ── Slaughterhouse itemized approved charges ─────────────────────────────────────────────────────────
+
+    private GovernedServiceWorkflow Governed(AppDbContext ctx, Guid tenantId, string role) =>
+        new(ctx, new Actor(Guid.NewGuid(), tenantId, role, collector: false), new FixedTenant(tenantId), new Clock());
+
+    private sealed record Charges(Guid SlaughterFee, Guid AnteMortem, Guid PostMortem, Guid Kilos);
+
+    /// <summary>Seeds an enabled Slaughterhouse, switches it to approved charges as the Head, and has an Admin define the charges.</summary>
+    private async Task<(World World, Charges Charges)> SeedItemizedAsync()
+    {
+        var w = await SeedAsync(enabled: true);
+        Guid slaughterFee, ante, post, kilos;
+        await using (var ctx = db.CreateContext(w.TenantId))
+        {
+            // Readiness: nothing can be collected by approved charges until at least one charge has a rate in force.
+            var head = Governed(ctx, w.TenantId, "SuperAdmin");
+            var early = await head.ConfigureAsync(CollectorOperationCodes.Slaughterhouse, new ConfigureGovernedServiceRequest(
+                Today.AddDays(-30), GovernedServiceBasis.ApprovedFeeOption, null, null, true, true));
+            Assert.False(early.IsSuccess);
+            Assert.Equal(ResultStatus.Invalid, early.Status);
+        }
+        await using (var ctx = db.CreateContext(w.TenantId))
+        {
+            var admin = Governed(ctx, w.TenantId, "Admin");   // Head or Admin approve Slaughterhouse charges (IA-050)
+            async Task<Guid> Add(string name, int? scope, FeeQuantityBasis basis, decimal amount)
+            {
+                var added = await admin.AddFeeOptionAsync(CollectorOperationCodes.Slaughterhouse, new AddFeeOptionRequest(
+                    name, null, null, null, Today.AddDays(-30), GovernedServiceBasis.FixedAmount, amount, null, scope, basis));
+                Assert.True(added.IsSuccess, added.Error);
+                return added.Value!.Single(x => x.DisplayName == name).Id;
+            }
+            slaughterFee = await Add("Slaughter fee", (int)SlaughterAnimalScope.All, FeeQuantityBasis.PerHead, 50m);
+            ante = await Add("Ante-mortem inspection", null, FeeQuantityBasis.PerHead, 20m);
+            post = await Add("Post-mortem inspection", (int)(SlaughterAnimalScope.Carabao | SlaughterAnimalScope.Cow), FeeQuantityBasis.PerHead, 25m);
+            kilos = await Add("Weighing (per kilo)", (int)SlaughterAnimalScope.All, FeeQuantityBasis.PerUnit, 2m);
+        }
+        await using (var ctx = db.CreateContext(w.TenantId))
+        {
+            var head = Governed(ctx, w.TenantId, "SuperAdmin");
+            var switched = await head.ConfigureAsync(CollectorOperationCodes.Slaughterhouse, new ConfigureGovernedServiceRequest(
+                Today.AddDays(-30), GovernedServiceBasis.ApprovedFeeOption, null, null, true, true));
+            Assert.True(switched.IsSuccess, switched.Error);
+        }
+        return (w, new Charges(slaughterFee, ante, post, kilos));
+    }
+
+    private static FeeSchedulePostRequest Itemized(decimal amount, AnimalType animal, int heads, params (Guid Id, int Quantity)[] charges) =>
+        new(Guid.NewGuid(), CollectorOperationCodes.Slaughterhouse, Today, amount, Animal: animal, Heads: heads, OwnerName: "Juan Owner",
+            Charges: charges.Select(x => new SlaughterChargeSelectionDto(x.Id, x.Quantity)).ToList());
+
+    [SkippableFact]
+    public async Task Slaughter_Itemized_TotalsTheSelectedApprovedCharges_OnOneSrc_WithAFrozenBreakdown()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var (w, c) = await SeedItemizedAsync();
+        string src;
+        // 3 hogs: slaughter fee 3 x 50 + ante-mortem 3 x 20 + 40 kg weighed x 2 = 290. Post-mortem is not selected: no fee is assumed mandatory.
+        await using (var ctx = db.CreateContext(w.TenantId))
+        {
+            var workflow = Workflow(ctx, w.TenantId, w.CollectorId);
+            var terms = (await workflow.GetSlaughterTermsAsync(null)).Value!;
+            Assert.True(terms.Itemized);
+            Assert.Equal(4, terms.Charges.Count);
+            Assert.All(terms.Charges, x => Assert.Equal(GovernedServiceBasis.FixedAmount, x.Basis));   // a collector is never offered a rate to type
+
+            var request = Itemized(290m, AnimalType.Hog, 3, (c.SlaughterFee, 3), (c.AnteMortem, 3), (c.Kilos, 40));
+            var quote = await workflow.QuoteSlaughterAsync(request);
+            Assert.True(quote.IsSuccess, quote.Error);
+            Assert.Equal(290m, quote.Value!.Amount);
+            Assert.Equal(3, quote.Value.Items!.Count);
+
+            var posted = await workflow.PostMobileAsync(request);
+            Assert.True(posted.IsSuccess, posted.Error);
+            src = posted.Value!.ReferenceCode;
+            Assert.Equal(290m, posted.Value.Amount);
+            Assert.Equal(src, (await workflow.PostMobileAsync(request)).Value!.ReferenceCode);   // a replay is the same collection
+        }
+        await using var verify = db.CreateContext(w.TenantId);
+        var collection = Assert.Single(await verify.Collections.ToListAsync());
+        var lines = await verify.CollectionLines.Where(x => x.CollectionId == collection.Id).ToListAsync();
+        Assert.Equal((3, 290m), (lines.Count, lines.Sum(x => x.Amount)));                            // one SRC, one line per charge
+        Assert.Empty(await verify.SlaughterTransactions.ToListAsync());                              // no legacy twin
+        Assert.Contains(lines, x => x.Amount == 80m && x.CalculationSnapshot!.Contains("\"quantity\":40"));
+
+        // The office reads one transaction with its itemized breakdown; heads and money are counted once.
+        var repo = new EEMOCantilanSDS.Infrastructure.Repositories.SlaughterRepository(verify);
+        var overview = await repo.GetOverviewAsync(Today.Year, Today.Month);
+        Assert.Equal((1, 3, 290m, 3), (overview.TotalTransactions, overview.TotalHeads, overview.TotalCollected, overview.HogCount));
+        var row = Assert.Single(Assert.Single(await repo.GetGroupedTransactionsByMonthAsync(Today.Year, Today.Month)).LatestTransactions);
+        Assert.Equal((src, 290m), (row.ReferenceCode, row.TotalAmount));
+        Assert.Equal(3, row.Items!.Count);
+        Assert.Contains(row.Items, i => i.Label == "Weighing (per kilo)" && i.Quantity == 40m && i.UnitAmount == 2m && i.Amount == 80m);
+        var profile = (await repo.GetClientProfileAsync("Juan Owner"))!;                              // the client record carries the SRC and its breakdown
+        Assert.Equal((1, 3, 290m), (profile.TotalTransactions, profile.TotalHeads, profile.TotalCollected));
+        Assert.Equal((src, 3), (profile.Transactions.Single().ORNumber, profile.Transactions.Single().Items!.Count));
+
+        var activity = Assert.Single((await Governed(verify, w.TenantId, "Admin").GetActivityAsync(
+            CollectorOperationCodes.Slaughterhouse, Today, Today)).Value!);
+        Assert.Equal(290m, activity.Amount);
+        Assert.Equal(3, activity.Items!.Count);
+        var totals = (await Governed(verify, w.TenantId, "Admin").GetFeeOptionTotalsAsync(CollectorOperationCodes.Slaughterhouse, Today, Today)).Value!;
+        Assert.Equal(290m, totals.Sum(x => x.Amount));                                               // the by-charge breakdown adds up to the collection
+
+        // Remittance moves only collected / remitted / unremitted; an itemized collection is counted once.
+        var remit = new RemittanceWorkflow(verify, new Actor(w.AdminId, w.TenantId, "Admin", collector: false), new FixedTenant(w.TenantId));
+        var position = (await remit.GetPositionAsync(Today.AddDays(-1), Today)).Value!.Collectors.Single(x => x.CollectorId == w.CollectorId);
+        Assert.Equal((290m, 0m, 290m), (position.Collected, position.Remitted, position.Unremitted));
+    }
+
+    [SkippableFact]
+    public async Task Slaughter_Itemized_RefusesEverythingTheHeadHasNotApproved_AndNeverPricesByCollector()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var (w, c) = await SeedItemizedAsync();
+        await using var ctx = db.CreateContext(w.TenantId);
+        var workflow = Workflow(ctx, w.TenantId, w.CollectorId);
+
+        Assert.False((await workflow.PostMobileAsync(Slaughter(240m))).IsSuccess);                                          // per-head total: itemized required
+        Assert.False((await workflow.PostMobileAsync(Itemized(250m, AnimalType.Hog, 3, (c.SlaughterFee, 3)))).IsSuccess);  // 150 is the total; amount must match
+        Assert.False((await workflow.PostMobileAsync(Itemized(75m, AnimalType.Hog, 3, (c.PostMortem, 3)))).IsSuccess);     // post-mortem applies to carabao / cow only
+        Assert.False((await workflow.PostMobileAsync(Itemized(100m, AnimalType.Hog, 3, (c.SlaughterFee, 2)))).IsSuccess);  // per-head quantity is the head count
+        Assert.False((await workflow.PostMobileAsync(Itemized(50m, AnimalType.Hog, 3, (Guid.NewGuid(), 3)))).IsSuccess);   // not an approved charge
+        Assert.False((await workflow.PostMobileAsync(Itemized(1m, AnimalType.Hog, 3, (c.Kilos, 0)))).IsSuccess);           // a counted quantity is required
+        Assert.False((await workflow.PostMobileAsync(Itemized(300m, AnimalType.Hog, 3,
+            (c.SlaughterFee, 3), (c.SlaughterFee, 3)))).IsSuccess);                                                         // a charge once per transaction
+        Assert.Empty(await ctx.Collections.ToListAsync());
+        Assert.Empty(await ctx.CollectionLines.ToListAsync());
+
+        // A large animal does take the post-mortem charge, at its approved rate.
+        var cow = await workflow.PostMobileAsync(Itemized(2 * (50m + 20m + 25m), AnimalType.Cow, 2,
+            (c.SlaughterFee, 2), (c.AnteMortem, 2), (c.PostMortem, 2)));
+        Assert.True(cow.IsSuccess, cow.Error);
+        Assert.Equal(190m, cow.Value!.Amount);
+    }
+
+    [SkippableFact]
+    public async Task Slaughter_Itemized_AChangedRateAppliesFromItsDateOnly_AndNeverReprices_APostedReceipt()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var (w, c) = await SeedItemizedAsync();
+        await using (var ctx = db.CreateContext(w.TenantId))
+            Assert.True((await Workflow(ctx, w.TenantId, w.CollectorId).PostMobileAsync(Itemized(150m, AnimalType.Hog, 3, (c.SlaughterFee, 3)))).IsSuccess);
+        await using (var ctx = db.CreateContext(w.TenantId))
+        {
+            var admin = Governed(ctx, w.TenantId, "Admin");
+            Assert.True((await admin.ScheduleFeeOptionRateAsync(CollectorOperationCodes.Slaughterhouse, c.SlaughterFee,
+                new ScheduleFeeOptionRateRequest(Today.AddDays(1), GovernedServiceBasis.FixedAmount, 60m, null))).IsSuccess);
+            // A rate a collector would type is refused outright: Slaughterhouse charges are fixed approved rates.
+            Assert.False((await admin.ScheduleFeeOptionRateAsync(CollectorOperationCodes.Slaughterhouse, c.SlaughterFee,
+                new ScheduleFeeOptionRateRequest(Today.AddDays(2), GovernedServiceBasis.DirectApprovedAmount, null, 100m))).IsSuccess);
+        }
+        await using var verify = db.CreateContext(w.TenantId);
+        var workflow = Workflow(verify, w.TenantId, w.CollectorId);
+        Assert.Equal(150m, (await workflow.QuoteSlaughterAsync(Itemized(0m, AnimalType.Hog, 3, (c.SlaughterFee, 3)))).Value!.Amount);   // today still 50 x 3
+        Assert.Equal(150m, (await verify.CollectionLines.SingleAsync()).Amount);                                                        // the posted receipt is untouched
+    }
+
+    private FeeScheduleCollectionWorkflow Office(AppDbContext ctx, Guid tenantId, string role = "Admin") =>
+        new(ctx, new Actor(Guid.NewGuid(), tenantId, role, collector: false), new FixedTenant(tenantId),
+            new FeeRateResolver(ctx), new MarketDay(Today.DayOfWeek), new Clock());
+
+    [SkippableFact]
+    public async Task Slaughter_Itemized_OfficeRecordsWithTheServersPricing_OnOneSrc_AndOnlyTheOffice()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var (w, c) = await SeedItemizedAsync();
+        await using var ctx = db.CreateContext(w.TenantId);
+        var office = Office(ctx, w.TenantId);
+        var terms = (await office.GetOfficeSlaughterTermsAsync(null)).Value!;
+        Assert.True(terms.Itemized);
+        Assert.Equal(4, terms.Charges.Count);
+        Assert.True(await office.IsSlaughterItemizedAsync(Today));
+        Assert.False(await office.IsSlaughterItemizedAsync(Today.AddDays(-60)));   // before the switch the earlier basis (and its office writer) applies
+
+        // A collector never reaches the office endpoints, and the office never reaches the collector ones.
+        var collector = Workflow(ctx, w.TenantId, w.CollectorId);
+        var request = Itemized(0m, AnimalType.Carabao, 2, (c.SlaughterFee, 2), (c.PostMortem, 2));
+        Assert.Equal(ResultStatus.Forbidden, (await collector.QuoteOfficeSlaughterAsync(request)).Status);
+        Assert.Equal(ResultStatus.Forbidden, (await office.QuoteSlaughterAsync(request)).Status);
+
+        var quote = await office.QuoteOfficeSlaughterAsync(request);
+        Assert.True(quote.IsSuccess, quote.Error);
+        Assert.Equal(150m, quote.Value!.Amount);                                       // 2 x 50 + 2 x 25
+        Assert.Equal(ResultStatus.Conflict, (await office.PostOfficeSlaughterAsync(request with { ClientOperationId = Guid.NewGuid(), ReceivedAmount = 149m })).Status);
+        var posted = await office.PostOfficeSlaughterAsync(request with { ReceivedAmount = 150m });
+        Assert.True(posted.IsSuccess, posted.Error);
+        Assert.Equal(posted.Value!.ReferenceCode, (await office.PostOfficeSlaughterAsync(request with { ReceivedAmount = 150m })).Value!.ReferenceCode);
+        var collection = await ctx.Collections.SingleAsync();
+        Assert.Null(collection.CollectorId);                                            // recorded at the office: no collector attribution
+        Assert.Equal(2, await ctx.CollectionLines.CountAsync(x => x.CollectionId == collection.Id));
+        Assert.Equal(0, await ctx.SlaughterTransactions.CountAsync());                  // no second (legacy) record of the same payment
+
+        // The same operation id with different charges is a conflict, never a second posting.
+        var other = request with { ReceivedAmount = 100m, Charges = [new SlaughterChargeSelectionDto(c.SlaughterFee, 2)] };
+        Assert.Equal(ResultStatus.Conflict, (await office.PostOfficeSlaughterAsync(other)).Status);
+        Assert.Equal(1, await ctx.Collections.CountAsync());
+    }
+
+    [SkippableFact]
+    public async Task Slaughter_Itemized_QueuedChargesSyncOnce_AnOldPayloadIsRefused_AndAReversalKeepsTheEvidence()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var (w, c) = await SeedItemizedAsync();
+        await using var ctx = db.CreateContext(w.TenantId);
+        var actor = new Actor(w.CollectorId, w.TenantId, "Collector", collector: true);
+        var sync = new EEMOCantilanSDS.Application.Command.Sync.SyncOfflineCollections.SyncOfflineCollectionsCommandHandler(
+            null!, null!, actor, feeScheduleWorkflow: Workflow(ctx, w.TenantId, w.CollectorId));
+
+        // The Mobile queue's payload: facts and the selected charges; the amount is the total the device showed.
+        var operation = Guid.NewGuid();
+        var queued = new EEMOCantilanSDS.Application.Dtos.Mobile.SyncOfflineOperationDto(operation,
+            EEMOCantilanSDS.Application.Dtos.Mobile.OfflineOperationKind.FeeScheduleCollection, Today,
+            OperationCode: CollectorOperationCodes.Slaughterhouse, OwnerName: "Juan Owner", AnimalType: AnimalType.Hog, NumberOfHeads: 3,
+            ReceivedAmount: 210m, SlaughterCharges: [new SlaughterChargeSelectionDto(c.SlaughterFee, 3), new SlaughterChargeSelectionDto(c.AnteMortem, 3)]);
+        var first = Assert.Single((await sync.Handle(new([queued]), default)).Value!.Results);
+        Assert.Equal(EEMOCantilanSDS.Application.Dtos.Mobile.SyncResultStatus.Synced, first.Status);
+        var again = Assert.Single((await sync.Handle(new([queued]), default)).Value!.Results);
+        Assert.Equal((first.ReferenceCode, first.CollectionId), (again.ReferenceCode, again.CollectionId));
+        Assert.Equal(1, await ctx.Collections.CountAsync());
+
+        // A payload from an app that cannot select charges is refused with the reason; nothing is posted.
+        var old = queued with { ClientOperationId = Guid.NewGuid(), SlaughterCharges = null };
+        var refused = Assert.Single((await sync.Handle(new([old]), default)).Value!.Results);
+        Assert.Equal(EEMOCantilanSDS.Application.Dtos.Mobile.SyncResultStatus.Rejected, refused.Status);
+        Assert.Contains("approved charges", refused.Message);
+        Assert.Equal(1, await ctx.Collections.CountAsync());
+
+        // A stale total (the rate moved while the device was offline) is refused rather than posted at the old price.
+        var stale = queued with { ClientOperationId = Guid.NewGuid(), ReceivedAmount = 200m };
+        Assert.Equal(EEMOCantilanSDS.Application.Dtos.Mobile.SyncResultStatus.Rejected,
+            Assert.Single((await sync.Handle(new([stale]), default)).Value!.Results).Status);
+
+        // Correction is remove-and-record-again: the original Collection and SRC stay, a reversal records the effect.
+        var corrections = new MobileCollectionCorrectionWorkflow(ctx, new CollectionSessionStore(ctx), null!, null!, new CollectionActivityReader(ctx), null!,
+            actor, new FixedTenant(w.TenantId), new Clock());
+        var original = await ctx.Collections.AsNoTracking().SingleAsync();
+        var removed = await corrections.RemoveAsync(new(Guid.NewGuid(), original.Id, new(MobileCorrectionReason.WrongAmount)));
+        Assert.True(removed.IsSuccess, removed.Error);
+        var kept = await ctx.Collections.AsNoTracking().SingleAsync();
+        Assert.Equal((original.ReferenceCode, original.TotalAmount, original.CollectorId), (kept.ReferenceCode, kept.TotalAmount, kept.CollectorId));
+        var reversal = await ctx.CollectionCorrections.AsNoTracking().SingleAsync();
+        Assert.Equal(-210m, reversal.FinancialEffectAmount);
+        Assert.Equal(original.Id, reversal.OriginalCollectionId);
+        // ...and the same collection cannot be corrected twice.
+        Assert.False((await corrections.RemoveAsync(new(Guid.NewGuid(), original.Id, new(MobileCorrectionReason.WrongAmount)))).IsSuccess);
+    }
+
+    [SkippableFact]
+    public async Task Slaughter_CollectorCash_CanBeReversedByTheHeadOnce_AndTheSrcAndEvidenceStay()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var (w, c) = await SeedItemizedAsync();
+        await using var ctx = db.CreateContext(w.TenantId);
+        var collector = new Actor(w.CollectorId, w.TenantId, "Collector", collector: true);
+        var sync = new EEMOCantilanSDS.Application.Command.Sync.SyncOfflineCollections.SyncOfflineCollectionsCommandHandler(
+            null!, null!, collector, feeScheduleWorkflow: Workflow(ctx, w.TenantId, w.CollectorId));
+        var queued = new EEMOCantilanSDS.Application.Dtos.Mobile.SyncOfflineOperationDto(Guid.NewGuid(),
+            EEMOCantilanSDS.Application.Dtos.Mobile.OfflineOperationKind.FeeScheduleCollection, Today,
+            OperationCode: CollectorOperationCodes.Slaughterhouse, OwnerName: "Juan Owner", AnimalType: AnimalType.Hog, NumberOfHeads: 3,
+            ReceivedAmount: 210m, SlaughterCharges: [new SlaughterChargeSelectionDto(c.SlaughterFee, 3), new SlaughterChargeSelectionDto(c.AnteMortem, 3)]);
+        Assert.Equal(EEMOCantilanSDS.Application.Dtos.Mobile.SyncResultStatus.Synced, Assert.Single((await sync.Handle(new([queued]), default)).Value!.Results).Status);
+        var original = await ctx.Collections.AsNoTracking().SingleAsync();
+
+        var head = new HeadCollectionCorrectionWorkflow(ctx, new CollectionSessionStore(ctx), new Actor(Guid.NewGuid(), w.TenantId, "SuperAdmin", collector: false),
+            new FixedTenant(w.TenantId), new Clock());
+        // A wrong direct collection can be reversed by the Head even though a collector recorded it, while it is today's and unremitted.
+        Assert.True((await head.ReviewAsync(original.Id)).Value!.Eligibility.CanCorrect);
+        var done = await head.ReverseAsync(new(Guid.NewGuid(), original.Id, "Wrong animal keyed"));
+        Assert.True(done.IsSuccess, done.Error);
+
+        var kept = await ctx.Collections.AsNoTracking().SingleAsync();
+        Assert.Equal((original.ReferenceCode, original.TotalAmount, original.CollectorId), (kept.ReferenceCode, kept.TotalAmount, kept.CollectorId));
+        var reversal = await ctx.CollectionCorrections.AsNoTracking().SingleAsync();
+        Assert.Equal((original.Id, -210m), (reversal.OriginalCollectionId, reversal.FinancialEffectAmount));
+        // Once only, by either hand.
+        Assert.Equal("AlreadyCorrected", (await head.ReverseAsync(new(Guid.NewGuid(), original.Id, "Again"))).Error);
+        var collectorCorrections = new MobileCollectionCorrectionWorkflow(ctx, new CollectionSessionStore(ctx), null!, null!, new CollectionActivityReader(ctx), null!,
+            collector, new FixedTenant(w.TenantId), new Clock());
+        Assert.False((await collectorCorrections.RemoveAsync(new(Guid.NewGuid(), original.Id, new(MobileCorrectionReason.WrongAmount)))).IsSuccess);
+    }
+
+    [SkippableFact]
+    public async Task Slaughter_ApprovedAnimal_NeedsNoPerHeadRate_OnlyWhileTheOfficeCollectsByCharges()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync(enabled: true);
+        await using (var ctx = db.CreateContext(w.TenantId))
+        {
+            var animals = new EEMOCantilanSDS.Application.Common.Slaughterhouse.ApprovedSlaughterAnimalWorkflow(
+                ctx, new Actor(Guid.NewGuid(), w.TenantId, "Admin", collector: false), new FixedTenant(w.TenantId),
+                new EEMOCantilanSDS.Infrastructure.Repositories.SlaughterAnimalLabelProvider(ctx));
+            // Per-head basis: the rate is still required.
+            Assert.False((await animals.SaveAsync(new("Chicken", null))).IsSuccess);
+            Assert.True((await animals.SaveAsync(new("Chicken", 12m))).IsSuccess);
+        }
+        var (w2, c) = await SeedItemizedAsync();
+        await using (var ctx = db.CreateContext(w2.TenantId))
+        {
+            var animals = new EEMOCantilanSDS.Application.Common.Slaughterhouse.ApprovedSlaughterAnimalWorkflow(
+                ctx, new Actor(Guid.NewGuid(), w2.TenantId, "Admin", collector: false), new FixedTenant(w2.TenantId),
+                new EEMOCantilanSDS.Infrastructure.Repositories.SlaughterAnimalLabelProvider(ctx));
+            var saved = await animals.SaveAsync(new("Duck", null));
+            Assert.True(saved.IsSuccess, saved.Error);
+            Assert.Equal(0m, saved.Value!.RatePerHead);
+            // The charges price it; the legacy per-head path never charges an animal that has no per-head rate.
+            var workflow = Workflow(ctx, w2.TenantId, w2.CollectorId);
+            var request = new FeeSchedulePostRequest(Guid.NewGuid(), CollectorOperationCodes.Slaughterhouse, Today, 0m, Animal: AnimalType.Other,
+                CustomAnimalName: "Duck", Heads: 2, OwnerName: "Juan Owner", Charges: [new SlaughterChargeSelectionDto(c.SlaughterFee, 2)]);
+            Assert.Equal(100m, (await workflow.QuoteSlaughterAsync(request)).Value!.Amount);
+        }
+    }
+
+    [SkippableFact]
+    public async Task Slaughter_ReferencePresets_AreOnlyForTheReferenceTenant_AndPrefillNothingUntilApproved()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var other = await SeedAsync(enabled: true);
+        await using (var ctx = db.CreateContext(other.TenantId))
+            Assert.Empty((await Governed(ctx, other.TenantId, "Admin").GetSlaughterChargePresetsAsync()).Value!);   // another LGU's rates are its own to state
+
+        await db.ResetAsync();
+        var w = await SeedAsync(enabled: true, referenceTenant: true);
+        await using var verify = db.CreateContext(w.TenantId);
+        var admin = Governed(verify, w.TenantId, "Admin");
+        var presets = (await admin.GetSlaughterChargePresetsAsync()).Value!;
+        Assert.Equal(10, presets.Count);                                                                  // no Hog post-mortem, nothing for Other animals
+        Assert.Equal((250m, 365m), (presets.Where(x => x.Group == "Hog").Sum(x => x.ReferenceAmount),
+            presets.Where(x => x.Group == "Carabao / Cow").Sum(x => x.ReferenceAmount)));
+        Assert.Empty((await admin.GetFeeOptionsAsync(CollectorOperationCodes.Slaughterhouse)).Value!);     // reading presets defines nothing
+        Assert.Equal(0, await verify.GovernedServiceSettings.CountAsync(x => x.Basis == GovernedServiceBasis.ApprovedFeeOption));
+
+        // The Head/Admin reviews and adds each: the same name carries different rates for different animals.
+        foreach (var p in presets)
+        {
+            var added = await admin.AddFeeOptionAsync(CollectorOperationCodes.Slaughterhouse, new AddFeeOptionRequest(
+                p.Name, null, null, null, Today.AddDays(-30), GovernedServiceBasis.FixedAmount, p.ReferenceAmount, null, p.ApplicableAnimals, p.QuantityBasis));
+            Assert.True(added.IsSuccess, $"{p.Group} {p.Name}: {added.Error}");
+        }
+        // ...but never two offered definitions of one name for the same animal (here: all animals overlaps both).
+        var overlap = await admin.AddFeeOptionAsync(CollectorOperationCodes.Slaughterhouse, new AddFeeOptionRequest(
+            "slaughter fee", null, null, null, Today, GovernedServiceBasis.FixedAmount, 10m, null, null, FeeQuantityBasis.PerHead));
+        Assert.Equal(ResultStatus.Conflict, overlap.Status);
+        var options = (await admin.GetFeeOptionsAsync(CollectorOperationCodes.Slaughterhouse)).Value!;
+        Assert.Equal(10, options.Count);
+        Assert.True((await Governed(verify, w.TenantId, "SuperAdmin").ConfigureAsync(CollectorOperationCodes.Slaughterhouse,
+            new ConfigureGovernedServiceRequest(Today.AddDays(-30), GovernedServiceBasis.ApprovedFeeOption, null, null, true, true))).IsSuccess);
+
+        // The documented per-head packages are reproduced exactly by the selected charges, and no hog charge reaches a carabao.
+        var workflow = Workflow(verify, w.TenantId, w.CollectorId);
+        Guid Id(string name, int scope) => options.Single(x => x.DisplayName == name && x.ApplicableAnimals == scope).Id;
+        var hog = (int)SlaughterAnimalScope.Hog;
+        var large = (int)(SlaughterAnimalScope.Carabao | SlaughterAnimalScope.Cow);
+        var hogCharges = options.Where(x => x.ApplicableAnimals == hog).Select(x => (x.Id, 1)).ToArray();
+        var largeCharges = options.Where(x => x.ApplicableAnimals == large).Select(x => (x.Id, 1)).ToArray();
+        Assert.Equal(250m, (await workflow.QuoteSlaughterAsync(Itemized(0m, AnimalType.Hog, 1, hogCharges))).Value!.Amount);
+        Assert.Equal(750m, (await workflow.QuoteSlaughterAsync(Itemized(0m, AnimalType.Hog, 3, hogCharges.Select(x => (x.Id, 3)).ToArray()))).Value!.Amount);
+        Assert.Equal(365m, (await workflow.QuoteSlaughterAsync(Itemized(0m, AnimalType.Carabao, 1, largeCharges))).Value!.Amount);
+        Assert.Equal(365m, (await workflow.QuoteSlaughterAsync(Itemized(0m, AnimalType.Cow, 1, largeCharges))).Value!.Amount);
+        Assert.False((await workflow.QuoteSlaughterAsync(Itemized(0m, AnimalType.Carabao, 1, (Id("Slaughter Fee", hog), 1)))).IsSuccess);
+        Assert.False((await workflow.QuoteSlaughterAsync(Itemized(0m, AnimalType.Hog, 1, (Id("Post-mortem Inspection", large), 1)))).IsSuccess);   // no hog post-mortem
+        Assert.False((await workflow.QuoteSlaughterAsync(Itemized(0m, AnimalType.Other, 1, hogCharges))).IsSuccess);                                  // nothing is invented for other animals
+        Assert.Equal(0, await verify.Collections.CountAsync());
+    }
+
+    [SkippableFact]
+    public async Task Slaughter_Charge_CanBeReinstated_AfterRetiring_WithItsRatesAndHistoryIntact()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var (w, c) = await SeedItemizedAsync();
+        await using var ctx = db.CreateContext(w.TenantId);
+        var admin = Governed(ctx, w.TenantId, "Admin");
+        Assert.False((await admin.ReinstateFeeOptionAsync(CollectorOperationCodes.Slaughterhouse, c.AnteMortem)).IsSuccess);   // nothing to undo
+        Assert.True((await admin.RetireFeeOptionAsync(CollectorOperationCodes.Slaughterhouse, c.AnteMortem, new RetireFeeOptionRequest(Today.AddDays(1)))).IsSuccess);
+        var back = await admin.ReinstateFeeOptionAsync(CollectorOperationCodes.Slaughterhouse, c.AnteMortem);
+        Assert.True(back.IsSuccess, back.Error);
+        var charge = back.Value!.Single(x => x.Id == c.AnteMortem);
+        Assert.Null(charge.RetiredFrom);
+        Assert.Equal(20m, charge.Amount);                                                  // the approved rate is untouched
+        Assert.Equal(ResultStatus.Forbidden, (await Governed(ctx, w.TenantId, "Collector").ReinstateFeeOptionAsync(CollectorOperationCodes.Slaughterhouse, c.AnteMortem)).Status);
+    }
+
+    [SkippableFact]
+    public async Task Slaughter_Charges_AreManagedByHeadAndAdminOnly_AndAdminCannotTouchOtherServices()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var (w, c) = await SeedItemizedAsync();
+        await using var ctx = db.CreateContext(w.TenantId);
+        var collector = new GovernedServiceWorkflow(ctx, new Actor(w.CollectorId, w.TenantId, "Collector", collector: true), new FixedTenant(w.TenantId), new Clock());
+        Assert.False((await collector.AddFeeOptionAsync(CollectorOperationCodes.Slaughterhouse, new AddFeeOptionRequest(
+            "Extra", null, null, null, Today, GovernedServiceBasis.FixedAmount, 5m, null))).IsSuccess);
+        var admin = Governed(ctx, w.TenantId, "Admin");
+        Assert.Equal(ResultStatus.Forbidden, (await admin.AddFeeOptionAsync(CollectorOperationCodes.MarketFees, new AddFeeOptionRequest(
+            "Comfort", null, null, null, Today, GovernedServiceBasis.FixedAmount, 5m, null))).Status);
+        Assert.False((await admin.AddFeeOptionAsync(CollectorOperationCodes.Slaughterhouse, new AddFeeOptionRequest(
+            "Typed rate", null, null, null, Today, GovernedServiceBasis.DirectApprovedAmount, null, 100m))).IsSuccess);   // no collector-entered rate
+
+        // Relabel and re-scope an existing charge without touching its rates.
+        var updated = await admin.UpdateFeeOptionAsync(CollectorOperationCodes.Slaughterhouse, c.AnteMortem,
+            new UpdateFeeOptionRequest("Ante-mortem", (int)SlaughterAnimalScope.Hog, FeeQuantityBasis.PerHead));
+        Assert.True(updated.IsSuccess, updated.Error);
+        var charge = updated.Value!.Single(x => x.Id == c.AnteMortem);
+        Assert.Equal(((int)SlaughterAnimalScope.Hog, 20m), (charge.ApplicableAnimals, charge.Amount));
     }
 }

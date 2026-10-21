@@ -16,9 +16,8 @@ public static class RevenueSourceModel
 }
 
 /// <summary>
-/// One revenue source's performance for the period. <see cref="Collected"/> is the official Monthly Income row's cash for the
-/// same period — legacy before cutover plus canonical after it, exactly once — so this register and the statement cannot
-/// disagree. The counts are read from posted Collections and are null (not zero) where the row also carries legacy money
+/// One revenue source's actual collection money for the period, excluding report-only adjustments.
+/// Official adjusted income and target attainment remain separate. Counts are null where legacy money
 /// they cannot describe.
 /// </summary>
 public sealed record RevenueSourcePerformanceRowDto(
@@ -45,6 +44,7 @@ public sealed record RevenueSourcePerformanceRowDto(
     decimal? Attainment = null)
 {
     public decimal SystemAmount => LegacyCollected + CanonicalCollected;
+    public decimal OfficialAmount => SystemAmount + AdjustmentAmount;
 }
 
 public sealed record RevenueSourceGroupDto(string Key, string Label, decimal Collected);

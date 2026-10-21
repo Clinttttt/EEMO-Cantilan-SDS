@@ -107,8 +107,9 @@
     text-align: right;
 }
 
-.fod-row-actions .v3-btn + .v3-btn {
-    margin-left: 6px;
+/* The amount is right-aligned and the status left-aligned: a gutter keeps them from reading as one run of text. */
+.fod-status-col {
+    padding-left: 32px;
 }
 
 .fod-status {
@@ -215,3 +216,30 @@
         white-space: normal;
     }
 }
+
+/* Slaughterhouse charges: the animals a charge applies to as toggle chips, and the unit under its rate. */
+.fod-scope { margin: 0; padding: 0; border: 0; min-width: 0; }
+.fod-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.fod-chips label {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.fod-chips label.is-on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.fod-chips input { position: absolute; opacity: 0; pointer-events: none; }
+.fod-chips label:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fod-unit { color: var(--text-tertiary); font-size: 0.75rem; font-weight: 500; }
+
+/* Slaughterhouse charges: about ten rows show (two-line rows), the rest scroll inside the list (scrollbar hidden) under a held heading. */
+.fod-scroll { max-height: 49rem; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.fod-scroll::-webkit-scrollbar { display: none; }
+.fod-scroll thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-muted); }

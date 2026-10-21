@@ -7,6 +7,7 @@
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
 @inject IReportsApiClient Reports
+@inject IPaymentsApiClient Payments
 @inject IOfficialReportsApiClient OfficialReports
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
@@ -17,11 +18,11 @@
    owns the <main> landmark. *@
 <div class="v3-page arr-page">
     <V3Hero Compact="true" Eyebrow="Operations · Receivables" Title="Arrears & Delinquency" FiguresLabel="Delinquency position">
-        <Meta><span>Outstanding rental accounts and follow-up · as of @_month.ToString("MMMM yyyy", CultureInfo.InvariantCulture)</span></Meta>
+        <Meta><span>Follow-up · as of @_month.ToString("MMMM yyyy", CultureInfo.InvariantCulture)</span></Meta>
         <Figures>
             <V3HeroFigure Label="Accounts" Value="@(_data?.AccountsTotal is { } n ? n.ToString(CultureInfo.InvariantCulture) : "—")" Note="delinquent rentals" />
-            <V3HeroFigure Label="Outstanding" Value="@(_data?.OutstandingTotal is { } o ? Money(o) : "—")" Note="not collected cash" />
-            <V3HeroFigure Label="Critical (3+ months)" Value="@(_data?.Accounts is { } rows ? rows.Count(r => r.Priority == "Critical").ToString(CultureInfo.InvariantCulture) : "—")" />
+            <V3HeroFigure Label="Total outstanding" Value="@(TotalOutstanding is { } o ? Money(o) : "—")" Note="all periods" />
+            <V3HeroFigure Label="Arrears" Value="@(_data?.ArrearsQualifiedAccounts is { } q ? q.ToString(CultureInfo.InvariantCulture) : "—")" Note="@(_data?.ArrearsOutstanding is { } ao ? Money(ao) + " owed" : "previous years and ended terms")" />
             <V3HeroFigure Label="@($"Recovered · {_month:MMM yyyy}")" Value="@(_data?.RecoveredThisMonth is { } r ? Money(r) : "—")" Note="cash received" />
         </Figures>
         <Actions><a href="/operations/arrears/report">Report</a></Actions>
@@ -37,8 +38,8 @@
 
     <section class="v3-panel" aria-labelledby="arr-register-title" aria-busy="@(_loading ? "true" : "false")">
         <header class="v3-panel-header">
-            <h2 id="arr-register-title">@(_condition == "arrears" ? "Qualifying Arrears" : "Follow-up accounts")</h2>
-            @if (_condition == "delinquent") { <span class="v3-panel-meta">@(Filtered.Count) of @(_data?.Accounts?.Count ?? 0) follow-up accounts shown</span> }
+            <h2 id="arr-register-title">@(_condition == "arrears" ? "Qualifying Arrears" : "Delinquent accounts")</h2>
+            <span class="v3-panel-meta">@(Filtered.Count) of @(Rows?.Count ?? 0) @(_condition == "arrears" ? "Arrears" : "Delinquent") accounts shown</span>
         </header>
         <div class="v3-toolbar arr-filters" aria-label="Arrears and delinquency filters">
             <label class="v3-period">
@@ -63,20 +64,10 @@
                     }
                 </select>
             </label>
-            <label class="v3-field">
-                <span class="v3-sr-only">Urgency</span>
-                <select @bind="_urgency">
-                    <option value="">All urgencies</option>
-                    <option value="Critical">Critical (3+ months)</option>
-                    <option value="Normal">1–2 months</option>
-                </select>
-            </label>
         </div>
-        @if (_condition == "arrears")
-        { <p class="v3-notice">Qualifying old/lapsed debt has no verified recovery register for this view. <a href="/reports/closed-accounts">Review ended accounts</a> or <a href="/reports/follow-up/history">past follow-up</a>; no debt is reclassified here.</p> }
-        @if (_condition == "delinquent")
+        @if (_condition is "delinquent" or "arrears")
         {
-@if (_data?.AccountsTotal is { } position && _data.Accounts is { } queue && position != queue.Count)        {            @* Two server reads, two scopes: the position counts delinquent rental accounts in the financial report; this register lists               every delinquent account the follow-up queue carries. They are shown as the server states them, never forced to agree. *@            <p class="v3-notice arr-scope-note" role="note">Position: @position delinquent rental accounts (financial report) · Register: @queue.Count accounts in the follow-up queue.</p>        }
+@if (PositionTotal is { } position && Rows is { } queue && position != queue.Count)        {            @* Two server reads, two scopes: the position counts delinquent rental accounts in the financial report; this register lists               every delinquent account the follow-up queue carries. They are shown as the server states them, never forced to agree. *@            <p class="v3-notice arr-scope-note" role="note">Position: @position @PositionLabel (financial report) · Register: @queue.Count accounts in the whole-account follow-up.</p>        }
         <div class="v3-table-wrap" role="region" aria-label="Rental follow-up accounts" tabindex="0">
             <table class="v3-table">
                 <thead>
@@ -90,13 +81,13 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @if (_data?.Accounts is null)
+                    @if (Rows is null)
                     {
                         <tr><td class="v3-empty" colspan="6">@(_loading ? "Loading accounts…" : "Accounts could not be loaded.")</td></tr>
                     }
                     else if (Filtered.Count == 0)
                     {
-                        <tr><td class="v3-empty" colspan="6">@(_data.Accounts.Count == 0 ? "No account has a fully elapsed unpaid month." : "No account matches these filters.")</td></tr>
+                        <tr><td class="v3-empty" colspan="6">@(Rows.Count == 0 ? (_condition == "arrears" ? "No account carries qualifying Arrears." : "No account has a fully elapsed unpaid month this year.") : "No account matches these filters.")</td></tr>
                     }
                     else
                     {
@@ -104,10 +95,10 @@
                         {
                             <tr>
                                 <td class="v3-strong">@item.Person</td>
-                                <td>@FacilityCatalog.NameOf(item.Facility) · @item.Identifier<span class="v3-block">@item.Model</span></td>
+                                <td><strong>@FacilityCatalog.NameOf(item.Facility)</strong><span class="v3-block">@item.Model</span></td>
                                 <td>@item.Period</td>
-                                <td class="v3-num v3-strong">@(item.Amount is { } a ? Money(a) : "—")</td>
-                                <td>@item.Status@(item.Priority == "Critical" ? " · Critical" : "")</td>
+                                <td class="v3-num v3-strong">@AllPeriodsText(item)</td>
+                                <td>@ArrearsReads.StatusLabel(item)</td>
                                 <td>
                                     @if (!string.IsNullOrWhiteSpace(item.Link))
                                     {
@@ -125,7 +116,7 @@
 
     <details class="arr-note-disclosure">
         <summary>How these accounts are counted</summary>
-        <p class="arr-note">Delinquent means an active account with at least one fully elapsed unpaid month. Three months indicates severity only. Qualifying old/lapsed Arrears recovery reports under its approved revenue line; the qualification boundary and source-specific recovery contract remain unresolved. This register covers the facility delinquency feed; other source-owned account positions remain in Follow-up Queue.</p>
+        <p class="arr-note">Each unpaid obligation is classified on its own. Delinquent is a fully elapsed unpaid month of the current year on an account still billed; three months indicates severity only. Arrears is unpaid rent of a previous calendar year, or of an ended occupancy or expired contract. One account can carry both, each with its own amount, and the current month is neither. Recovered Arrears reports under its approved revenue line; nothing here reclassifies a posted collection. Other source-owned account positions remain in Follow-up Queue.</p>
     </details>
 </div>
 
@@ -146,7 +137,6 @@
     private bool _loading;
     private string _search = string.Empty;
     private string _facility = string.Empty;
-    private string _urgency = string.Empty;
     private string _condition = "delinquent";
     private EEMOCantilanSDS.Client.Services.FollowUpReviewContext? _review;
     private EEMOCantilanSDS.Client.Services.FollowUpReviewContext? _payment;
@@ -160,16 +150,20 @@
     private async Task PaymentChanged() { var context = _payment; _payment = null; await LoadAsync(); _review = context; }
 
     private IEnumerable<FacilityCode> Facilities =>
-        (_data?.Accounts ?? []).Select(a => a.Facility).Distinct().OrderBy(c => c);
+        (Rows ?? []).Select(a => a.Facility).Distinct().OrderBy(c => c);
 
-    private List<FollowUpItemDto> Filtered => (_data?.Accounts ?? [])
-        .Where(a => _condition == "delinquent")
+    private IReadOnlyList<FollowUpItemDto>? Rows => _condition == "arrears" ? _data?.ArrearsAccounts : _data?.Accounts;
+    // Every unpaid period the register carries: the delinquent months of this year plus Arrears, one figure.
+    private decimal? TotalOutstanding => _data?.OutstandingTotal is { } delinquent && _data.ArrearsOutstanding is { } arrears ? delinquent + arrears : null;
+    private int? PositionTotal => _condition == "arrears" ? _data?.ArrearsQualifiedAccounts : _data?.AccountsTotal;
+    private string PositionLabel => _condition == "arrears" ? "accounts carrying Arrears" : "delinquent rental accounts";
+
+    private List<FollowUpItemDto> Filtered => (Rows ?? [])
         .Where(a => string.IsNullOrWhiteSpace(_search)
             || a.Person.Contains(_search, StringComparison.OrdinalIgnoreCase)
             || a.Identifier.Contains(_search, StringComparison.OrdinalIgnoreCase)
             || FacilityCatalog.NameOf(a.Facility).Contains(_search, StringComparison.OrdinalIgnoreCase))
         .Where(a => _facility == "" || a.Facility.ToString() == _facility)
-        .Where(a => _urgency == "" || (_urgency == "Critical" ? a.Priority == "Critical" : a.Priority != "Critical"))
         .ToList();
 
     protected override async Task OnInitializedAsync()
@@ -193,7 +187,34 @@
         _loading = true;
         try { _data = await ArrearsReads.LoadAsync(Reports, OfficialReports, _month); }
         finally { _loading = false; }
+        _ = LoadAllPeriodsAsync(_data);
     }
+
+    // The register's Outstanding is the account's total balance across all periods (what the account review states), so the two never disagree.
+    private IReadOnlyDictionary<(Guid Stall, Guid? Contract), decimal> _allPeriods = new Dictionary<(Guid, Guid?), decimal>();
+    private bool _allPeriodsLoading;
+
+    private async Task LoadAllPeriodsAsync(ArrearsReads.Snapshot? data)
+    {
+        if (data is null) return;
+        _allPeriodsLoading = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            var totals = await ArrearsReads.AllPeriodsAsync(Payments, (data.Accounts ?? []).Concat(data.ArrearsAccounts ?? []));
+            if (ReferenceEquals(data, _data)) _allPeriods = totals;
+        }
+        finally
+        {
+            _allPeriodsLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private string AllPeriodsText(FollowUpItemDto item) =>
+        item.StallId is not { } stall ? (item.Amount is { } a ? Money(a) : "—")
+        : _allPeriods.TryGetValue((stall, item.ContractId), out var total) ? Money(total)
+        : _allPeriodsLoading ? "…" : "—";
 
     private static string Money(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
 }

@@ -394,3 +394,7 @@
 .ce-part-table th, .ce-part-table td { padding: 4px 16px 4px 0; text-align: left; border-bottom: 1px solid var(--border); }
 .ce-part-table th { font-weight: 600; color: var(--text-subtle); }
 .ce-part-table .ce-num { text-align: right; }
+
+/* Canonical (receipt-based) month: one entry point instead of the status editor */
+.ce-receipt { margin-top: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-card); padding: 12px 14px; }
+.ce-receipt-text { font-size: 13px; color: var(--navy); line-height: 1.5; flex: 1 1 220px; }

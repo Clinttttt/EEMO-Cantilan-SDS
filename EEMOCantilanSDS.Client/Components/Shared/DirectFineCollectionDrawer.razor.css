@@ -1,6 +1,7 @@
-.df-fields { display: grid; gap: 14px; grid-column: 1 / -1; }
-.df-fields input, .df-fields select, .df-fields textarea { width: 100%; box-sizing: border-box; min-width: 0; }
-.df-note { margin: -6px 0 0; color: var(--text-secondary); font-size: .8125rem; line-height: 1.5; }
+.df-fields { margin-bottom: 0; gap: 12px 14px; }
+.df-wide { grid-column: 1 / -1; }
+.df-fields textarea { width: 100%; box-sizing: border-box; min-width: 0; resize: vertical; }
+.df-note { margin: 0; color: var(--text-secondary); font-size: .8125rem; line-height: 1.5; }
 
 /* Review: the amount leads, the particulars follow as label / value pairs. */
 .df-total { display: grid; grid-column: 1 / -1; gap: 2px; margin: 0 0 16px; padding: 14px 16px; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 8px; background: var(--accent-soft); }

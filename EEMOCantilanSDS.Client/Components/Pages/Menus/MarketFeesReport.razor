@@ -10,4 +10,4 @@
    month's governed collections, all read from the server. The layout owns the <main> landmark. *@
 <GovernedOperationReport OperationCode="@CollectorOperationCodes.MarketFees" Name="Market Fees" ParentHref="/operations/market-fees"
                          RowKey="MARKET_FEES" Classification="Market Fees" Instruments="@(new[] { "CT" })"
-                         InstrumentFact="Cash Ticket" IdPrefix="mfr" Basis="Market Fees is one Monthly Income line. It does not include ECF, WCF, Tabo, Fish / Meat Vendor Fees, Landing / Berthing, Transportation or rent." />
+                         InstrumentFact="Cash Ticket" IdPrefix="mfr" ByFeeType="true" />

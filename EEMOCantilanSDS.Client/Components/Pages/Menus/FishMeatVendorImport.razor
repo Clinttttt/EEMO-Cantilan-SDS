@@ -18,7 +18,7 @@
    checks every row first (nothing is saved or reserved by checking) and says which look like an existing registration; the Head confirms each
    genuinely separate one, and nothing is ever merged or linked by name. A money column, such as the monthly amounts on the office's paper, is not
    read: those are collections, which Collector Mobile records. The layout owns the <main> landmark. *@
-<OperationTopbar OperationCode="FISH_MEAT_VENDOR_FEE" Title="Fish / Meat Vendors" Crumb="Import vendor list" />
+<OperationTopbar OperationCode="FISH_MEAT_VENDOR_FEE" Title="Fish / Meat Vendors" Crumb="Import vendor list" ParentHref="@RegistryHref" ParentTitle="Fish / Meat Vendors" />
 <div class="content-area">
     <div class="fmi">
         <ImportHero Eyebrow="Fish / Meat · Bulk Import" Title="Import Fish / Meat vendors" Subtitle="Office vendor register · Upload, review and save registration details." Step="Step" Blue="true" />
@@ -106,6 +106,7 @@
     private string? _message, _uploadError, _fileName, _previewNote;
     private bool _saving, _previewing;
     private int _taxYear = PhilippineTime.Today.Year;
+    private string RegistryHref => _taxYear == PhilippineTime.Today.Year ? "/operations/fish-meat-vendor-fees" : $"/operations/fish-meat-vendor-fees?taxYear={_taxYear}";
     private VendorRegistryImportResult? _result;
     private List<Row> Rows = [];
 

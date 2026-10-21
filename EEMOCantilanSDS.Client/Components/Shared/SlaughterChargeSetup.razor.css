@@ -1,0 +1,45 @@
+.slc { display: grid; gap: 12px; }
+
+.slc-mode {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    padding: 10px 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.slc-issue { color: var(--text-secondary); font-weight: 500; }
+
+.slc-confirm {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 10px 16px;
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    background: var(--accent-soft);
+    color: var(--text);
+    font-size: 0.8125rem;
+}
+
+.slc-confirm span { flex: 1 1 18rem; }
+
+/* Charges take the main column; the collection basis and approved animals sit beside them. */
+.slc { grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr); align-items: start; gap: 20px; }
+.slc-main, .slc-aside { display: grid; gap: 20px; min-width: 0; }
+.slc-basis .slc-mode { flex-direction: column; align-items: flex-start; border: 0; border-radius: 0; padding: 16px 20px 20px; }
+.slc-state { padding: 2px 10px; border: 1px solid var(--border-strong); border-radius: 999px; color: var(--text-secondary); font-size: 0.75rem; }
+.slc-state.is-on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.slc-desc { margin: 0; color: var(--text-secondary); font-size: 0.8125rem; font-weight: 500; line-height: 1.45; }
+
+@media (max-width: 1280px) {
+    .slc { grid-template-columns: minmax(0, 1fr); }
+}

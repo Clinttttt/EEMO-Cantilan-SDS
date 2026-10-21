@@ -14,11 +14,11 @@
 <section class="v3-panel" aria-labelledby="@_titleId" aria-busy="@(_loading ? "true" : "false")">
     <header class="v3-panel-header">
         <h2 id="@_titleId">@Title</h2>
-        <AuthorizeView Roles="SuperAdmin">
+        <AuthorizeView Roles="@ManageRoles">
             <Authorized>
                 @if (_mode != FormMode.Add)
                 {
-                    <button class="v3-btn v3-btn-sm v3-btn-primary" type="button" @onclick="OpenAdd">Add fee type</button>
+                    <button class="v3-btn v3-btn-sm v3-btn-primary" type="button" @onclick="OpenAdd">@(SlaughterCharges ? "Add charge" : "Add fee type")</button>
                 }
             </Authorized>
         </AuthorizeView>
@@ -32,36 +32,68 @@
         </div>
     }
 
-    <AuthorizeView Roles="SuperAdmin">
+    <AuthorizeView Roles="@ManageRoles">
         <Authorized>
             @* Defining a fee type opens in the same side drawer as every other Add New, so the table never moves. *@
-            <AddNewDrawer Show="_mode == FormMode.Add" Title="Add fee type" Subtitle="@Title"
-                          FormId="@($"{_titleId}-add")" FormLabel="Add a fee type" SubmitText="Add fee type" Saving="_saving" Error="@_formError"
+            <AddNewDrawer Show="_mode == FormMode.Add" Title="@(SlaughterCharges ? "Add charge" : "Add fee type")" Subtitle="@Title"
+                          FormId="@($"{_titleId}-add")" FormLabel="@(SlaughterCharges ? "Add a charge" : "Add a fee type")" SubmitText="@(SlaughterCharges ? "Add charge" : "Add fee type")" Saving="_saving" Error="@_formError"
                           OnSubmit="SubmitAsync" OnCancel="Cancel">
-                <AddNewSection Title="Fee type">
+                @if (SlaughterCharges && _presets.Count > 0)
+                {
+                    <AddNewSection Title="Reference charges" Plain="true">
+                        <label class="v3-field"><span class="v3-sr-only">Reference charge</span>
+                            <select class="v3-input" value="@_presetKey" @onchange="ApplyPreset" aria-label="Start from a reference charge">
+                                <option value="">Start from a reference charge (optional)</option>
+                                @foreach (var group in _presets.GroupBy(p => p.Group))
+                                {
+                                    <optgroup label="@group.Key">
+                                        @foreach (var preset in group)
+                                        {
+                                            var added = PresetAdded(preset);
+                                            <option value="@PresetKey(preset)" disabled="@added">@preset.Name · ₱@preset.ReferenceAmount.ToString("N2")@(added ? " · added" : "")</option>
+                                        }
+                                    </optgroup>
+                                }
+                            </select></label>
+                        @if (_presetKey.Length > 0)
+                        {
+                            <p class="fod-note">A reference amount from the documented breakdown. Review the amount and the date before adding.</p>
+                        }
+                    </AddNewSection>
+                }
+                <AddNewSection Title="@(SlaughterCharges ? "Charge" : "Fee type")">
                     <label class="v3-field ans-span"><span>Name</span>
-                        <input class="v3-input" type="text" maxlength="120" required placeholder="e.g. Comfort Room" @bind="_name" /></label>
-                    <label class="v3-field"><span>Location (optional)</span>
-                        <input class="v3-input" type="text" maxlength="80" @bind="_location" /></label>
-                    <label class="v3-field"><span>Reference (optional)</span>
-                        <input class="v3-input" type="text" maxlength="40" @bind="_code" /></label>
+                        <input class="v3-input" type="text" maxlength="120" required placeholder="@(SlaughterCharges ? "e.g. Ante-mortem inspection" : "e.g. Comfort Room")" @bind="_name" /></label>
+                    @if (!SlaughterCharges)
+                    {
+                        <label class="v3-field"><span>Location (optional)</span>
+                            <input class="v3-input" type="text" maxlength="80" @bind="_location" /></label>
+                        <label class="v3-field"><span>Reference (optional)</span>
+                            <input class="v3-input" type="text" maxlength="40" @bind="_code" /></label>
+                    }
                 </AddNewSection>
-                <AddNewSection Title="Amount rule" Plain="true">
+                @if (SlaughterCharges)
+                {
+                    <AddNewSection Title="Applies to" Plain="true">
+                        @ScopeFields
+                    </AddNewSection>
+                }
+                <AddNewSection Title="@(SlaughterCharges ? "Approved rate" : "Amount rule")" Plain="true">
                     @RuleFields
                 </AddNewSection>
             </AddNewDrawer>
         </Authorized>
     </AuthorizeView>
 
-    <div class="v3-table-wrap" role="region" aria-label="@Title" tabindex="0">
+    <div class="v3-table-wrap @(SlaughterCharges ? "fod-scroll" : null)" role="region" aria-label="@Title" tabindex="0">
         <table class="v3-table">
             <caption class="v3-sr-only">@Title with the amount rule in force today</caption>
             <thead>
                 <tr>
                     <th scope="col">Name</th>
-                    <th scope="col">Rule</th>
+                    <th scope="col">@(SlaughterCharges ? "Applies to" : "Rule")</th>
                     <th scope="col" class="v3-num">Amount</th>
-                    <th scope="col">Status</th>
+                    <th scope="col" class="fod-status-col">Status</th>
                     <th scope="col"><span class="v3-sr-only">Actions</span></th>
                 </tr>
             </thead>
@@ -71,9 +103,9 @@
                     var open = _openId == option.Id;
                     <tr @key="option.Id">
                         <td class="v3-strong">@option.DisplayName@if (!string.IsNullOrWhiteSpace(option.Location)) {<span class="v3-block">@option.Location</span>}</td>
-                        <td>@RuleName(option.Basis)</td>
-                        <td class="v3-num">@AmountText(option.Basis, option.Amount, option.MaximumAmount)</td>
-                        <td>
+                        <td>@(SlaughterCharges ? ScopeText(option.ApplicableAnimals) : RuleName(option.Basis))</td>
+                        <td class="v3-num">@AmountText(option.Basis, option.Amount, option.MaximumAmount)@if (SlaughterCharges && option.Amount is not null) {<span class="v3-block fod-unit">per @(option.QuantityBasis == FeeQuantityBasis.PerUnit ? "unit counted" : "head")</span>}</td>
+                        <td class="fod-status-col">
                             <span class="fod-status fod-status-@StatusClass(option.Status)">@option.Status</span>
                             @if (option.RetiredFrom is { } retired && option.Status != "Retired")
                             {
@@ -81,17 +113,31 @@
                             }
                         </td>
                         <td class="fod-row-actions">
-                            <button class="v3-btn v3-btn-sm" type="button" aria-expanded="@(open && _mode == FormMode.None ? "true" : "false")"
-                                    @onclick="() => ToggleHistory(option)">History</button>
-                            @if (option.Status != "Retired")
-                            {
-                                <AuthorizeView Roles="SuperAdmin">
-                                    <Authorized>
+                            <div class="v3-btn-group" role="group" aria-label="@($"{option.DisplayName} actions")">
+                                <button class="v3-btn v3-btn-sm" type="button" aria-expanded="@(open && _mode == FormMode.None ? "true" : "false")"
+                                        @onclick="() => ToggleHistory(option)">History</button>
+                                @if (option.RetiredFrom is not null)
+                                {
+                                    <AuthorizeView Roles="@ManageRoles">
+                                        <Authorized>
+                                            <button class="v3-btn v3-btn-sm" type="button" disabled="@_saving" @onclick="() => ReinstateAsync(option)">Reinstate</button>
+                                        </Authorized>
+                                    </AuthorizeView>
+                                }
+                                @if (option.Status != "Retired")
+                                {
+                                    <AuthorizeView Roles="@ManageRoles">
+                                        <Authorized>
+                                            @if (SlaughterCharges)
+                                        {
+                                            <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenEdit(option)">Edit</button>
+                                        }
                                         <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenSchedule(option)">Schedule amount</button>
-                                        <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenRetire(option)">Retire</button>
-                                    </Authorized>
-                                </AuthorizeView>
-                            }
+                                            <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenRetire(option)">Retire</button>
+                                        </Authorized>
+                                    </AuthorizeView>
+                                }
+                            </div>
                         </td>
                     </tr>
                     @if (open)
@@ -103,6 +149,15 @@
                                     <form class="fod-inline" @onsubmit="SubmitAsync" @onsubmit:preventDefault="true" aria-label="@($"Schedule a new amount for {option.DisplayName}")">
                                         @RuleFields
                                         @FormFooter("Schedule amount")
+                                    </form>
+                                }
+                                else if (_mode == FormMode.Edit)
+                                {
+                                    <form class="fod-inline" @onsubmit="SubmitAsync" @onsubmit:preventDefault="true" aria-label="@($"Edit {option.DisplayName}")">
+                                        <label class="v3-field"><span>Name</span>
+                                            <input class="v3-input" type="text" maxlength="120" required @bind="_name" /></label>
+                                        @ScopeFields
+                                        @FormFooter("Save charge")
                                     </form>
                                 }
                                 else if (_mode == FormMode.Retire)
@@ -161,8 +216,10 @@
         <p class="fod-saved" role="status">@_saved</p>
     }
 
+    @if (ShowTotals)
+    {
     <div class="fod-totals" aria-busy="@(_totalsLoading ? "true" : "false")">
-        <h3 id="@_totalsTitleId">Collected by fee type · @PeriodLabel</h3>
+        <h3 id="@_totalsTitleId">@(SlaughterCharges ? "Collected by charge" : "Collected by fee type") · @PeriodLabel</h3>
         @if (_totalsError is not null)
         {
             <p class="v3-notice v3-notice-error" role="alert">@_totalsError</p>
@@ -176,8 +233,8 @@
             <table class="v3-table fod-totals-table" aria-labelledby="@_totalsTitleId">
                 <thead>
                     <tr>
-                        <th scope="col">Fee type</th>
-                        <th scope="col" class="v3-num">Collections</th>
+                        <th scope="col">@(SlaughterCharges ? "Charge" : "Fee type")</th>
+                        <th scope="col" class="v3-num">@(SlaughterCharges ? "Lines" : "Collections")</th>
                         <th scope="col" class="v3-num">Amount</th>
                     </tr>
                 </thead>
@@ -201,10 +258,14 @@
             </table>
         }
     </div>
+    }
 </section>
 
 @code {
-    private enum FormMode { None, Add, Schedule, Retire }
+    /// <summary>False when the page shows the by-fee-type totals elsewhere (Slaughterhouse puts them beside the list).</summary>
+    [Parameter] public bool ShowTotals { get; set; } = true;
+
+    private enum FormMode { None, Add, Edit, Schedule, Retire }
 
     private readonly string _titleId = $"fod-{Guid.NewGuid():N}";
     private readonly string _totalsTitleId = $"fod-t-{Guid.NewGuid():N}";
@@ -213,6 +274,15 @@
     [Parameter, EditorRequired] public string OperationCode { get; set; } = string.Empty;
 
     [Parameter] public string Title { get; set; } = "Fee types";
+
+    /// <summary>The roles that may define, re-scope, schedule and retire fee types here (Head by default).</summary>
+    [Parameter] public string ManageRoles { get; set; } = "SuperAdmin";
+
+    /// <summary>Slaughterhouse charges: each carries the animals it applies to and whether its quantity is the head count or a counted unit, and its rate is always a fixed approved amount.</summary>
+    [Parameter] public bool SlaughterCharges { get; set; }
+
+    /// <summary>The office's own names for the built-in animals, used to describe a charge's scope.</summary>
+    [Parameter] public EEMOCantilanSDS.Application.Dtos.Slaughterhouse.SlaughterAnimalLabelsDto? AnimalLabels { get; set; }
 
     /// <summary>First day of the month the drill-down covers (the workspace's selected month).</summary>
     [Parameter, EditorRequired] public DateOnly Month { get; set; }
@@ -272,12 +342,48 @@
     private GovernedServiceBasis _basis = GovernedServiceBasis.FixedAmount;
     private decimal? _amount;
     private decimal? _ceiling;
+    private bool _hog = true, _carabao = true, _cow = true, _other = true, _perUnit;
 
-    protected override Task OnInitializedAsync() => LoadOptionsAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOptionsAsync();
+        if (SlaughterCharges)
+        {
+            try
+            {
+                var presets = await GovernedApi.GetSlaughterChargePresetsAsync();
+                _presets = presets is { IsSuccess: true, Value: { } rows } ? rows.ToList() : [];
+            }
+            catch { _presets = []; }
+        }
+    }
+
+    // Reference charges (the reference tenant's documented breakdown): choosing one only prefills the form. The Head/Admin still sets
+    // the effective date and adds it, and that is what makes it collectable.
+    private List<SlaughterChargePresetDto> _presets = [];
+    private string _presetKey = string.Empty;
+    private static string PresetKey(SlaughterChargePresetDto p) => $"{p.Group}|{p.Name}";
+
+    private bool PresetAdded(SlaughterChargePresetDto p) => _options.Any(o => o.Status != "Retired"
+        && string.Equals(o.DisplayName, p.Name, StringComparison.OrdinalIgnoreCase)
+        && ((o.ApplicableAnimals ?? (int)SlaughterAnimalScope.All) & p.ApplicableAnimals) != 0);
+
+    private void ApplyPreset(ChangeEventArgs e)
+    {
+        _presetKey = e.Value?.ToString() ?? string.Empty;
+        var preset = _presets.FirstOrDefault(p => PresetKey(p) == _presetKey);
+        if (preset is null) return;
+        _name = preset.Name;
+        LoadScope(preset.ApplicableAnimals);
+        _perUnit = preset.QuantityBasis == FeeQuantityBasis.PerUnit;
+        _basis = GovernedServiceBasis.FixedAmount;
+        _amount = preset.ReferenceAmount;
+        _formError = null;
+    }
 
     protected override async Task OnParametersSetAsync()
     {
-        if (_totalsMonth != Month)
+        if (ShowTotals && _totalsMonth != Month)
         {
             _totalsMonth = Month;
             await LoadTotalsAsync();
@@ -321,6 +427,9 @@
         _effective = PhilippineTime.Today;
         _basis = GovernedServiceBasis.FixedAmount;
         _amount = _ceiling = null;
+        _hog = _carabao = _cow = _other = true;
+        _perUnit = false;
+        _presetKey = string.Empty;
     }
 
     private void OpenAdd()
@@ -328,6 +437,16 @@
         ResetForm();
         _openId = null;
         _mode = FormMode.Add;
+    }
+
+    private void OpenEdit(GovernedServiceFeeOptionDto option)
+    {
+        ResetForm();
+        _openId = option.Id;
+        _name = option.DisplayName;
+        LoadScope(option.ApplicableAnimals);
+        _perUnit = option.QuantityBasis == FeeQuantityBasis.PerUnit;
+        _mode = FormMode.Edit;
     }
 
     private void OpenSchedule(GovernedServiceFeeOptionDto option)
@@ -339,6 +458,25 @@
         _ceiling = option.MaximumAmount;
         _effective = PhilippineTime.Today.AddDays(1);
         _mode = FormMode.Schedule;
+    }
+
+    // Offers a retired or retiring option again; its rates, history and recorded collections are untouched.
+    private async Task ReinstateAsync(GovernedServiceFeeOptionDto option)
+    {
+        if (_saving) return;
+        _saving = true;
+        _formError = null;
+        try
+        {
+            var result = await GovernedApi.ReinstateFeeOptionAsync(OperationCode, option.Id);
+            if (!result.IsSuccess) { _error = result.Error ?? "It couldn't be reinstated."; return; }
+            _error = null;
+            _options = result.Value?.ToList() ?? _options;
+            ShowSaved(SlaughterCharges ? "Charge reinstated. It is offered again." : "Fee type reinstated. It is offered again.");
+            await Changed.InvokeAsync();
+        }
+        catch { _error = "It couldn't be reinstated."; }
+        finally { _saving = false; }
     }
 
     private void OpenRetire(GovernedServiceFeeOptionDto option)
@@ -377,7 +515,10 @@
             var result = _mode switch
             {
                 FormMode.Add => await GovernedApi.AddFeeOptionAsync(OperationCode,
-                    new AddFeeOptionRequest(_name, _code, _location, null, _effective, _basis, fixedAmount, ceiling)),
+                    new AddFeeOptionRequest(_name, _code, _location, null, _effective, _basis, fixedAmount, ceiling,
+                        SlaughterCharges ? ScopeMask() : null, SlaughterCharges ? QuantityChoice() : null)),
+                FormMode.Edit => await GovernedApi.UpdateFeeOptionAsync(OperationCode, _openId!.Value,
+                    new UpdateFeeOptionRequest(_name, ScopeMask(), QuantityChoice())),
                 FormMode.Schedule => await GovernedApi.ScheduleFeeOptionRateAsync(OperationCode, _openId!.Value,
                     new ScheduleFeeOptionRateRequest(_effective, _basis, fixedAmount, ceiling)),
                 FormMode.Retire => await GovernedApi.RetireFeeOptionAsync(OperationCode, _openId!.Value,
@@ -389,7 +530,8 @@
             _options = result.Value?.ToList() ?? _options;
             ShowSaved(_mode switch
             {
-                FormMode.Add => "Fee type added. It is offered from its effective date.",
+                FormMode.Add => SlaughterCharges ? "Charge added. It is offered from its effective date." : "Fee type added. It is offered from its effective date.",
+                FormMode.Edit => "Charge updated. Rates and posted collections are unchanged.",
                 FormMode.Schedule => "Amount scheduled. It applies from its effective date; recorded collections keep their amount.",
                 _ => "Fee type retired from the chosen date. Its history is kept."
             });
@@ -404,6 +546,8 @@
     private RenderFragment RuleFields => __builder =>
     {
         <div class="fod-grid">
+            @if (!SlaughterCharges)
+            {
             <fieldset class="fod-rule">
                 <legend>Amount rule</legend>
                 <div class="fod-segmented">
@@ -419,6 +563,7 @@
                     </label>
                 </div>
             </fieldset>
+            }
             @if (_basis == GovernedServiceBasis.FixedAmount)
             {
                 <label class="v3-field"><span>Approved amount (₱)</span>
@@ -432,13 +577,72 @@
             <label class="v3-field"><span>Effective from</span>
                 <input class="v3-input" type="date" required @bind="_effective" /></label>
         </div>
+        @if (!SlaughterCharges)
+        {
         <p class="fod-note">
             @(_basis == GovernedServiceBasis.FixedAmount
                 ? "Collectors see this amount and cannot change it."
                 : "Collectors enter the amount collected for each transaction.")
             A new amount applies from its effective date; collections already recorded keep theirs.
         </p>
+        }
     };
+
+    // Which animals a charge applies to (none ticked or all ticked = every animal), and whether its quantity is the head count or a counted unit.
+    private RenderFragment ScopeFields => __builder =>
+    {
+        <fieldset class="fod-scope">
+            <legend class="v3-sr-only">Animals this charge applies to</legend>
+            <div class="fod-chips">
+                <label class="@(_hog ? "is-on" : null)"><input type="checkbox" @bind="_hog" />@(AnimalLabels?.Hog ?? "Hog")</label>
+                <label class="@(_carabao ? "is-on" : null)"><input type="checkbox" @bind="_carabao" />@(AnimalLabels?.Carabao ?? "Carabao")</label>
+                <label class="@(_cow ? "is-on" : null)"><input type="checkbox" @bind="_cow" />@(AnimalLabels?.Cow ?? "Cow")</label>
+                <label class="@(_other ? "is-on" : null)"><input type="checkbox" @bind="_other" />Others</label>
+            </div>
+        </fieldset>
+        <fieldset class="fod-rule">
+            <legend>Quantity</legend>
+            <div class="fod-segmented">
+                <label class="@(!_perUnit ? "is-selected" : null)">
+                    <input type="radio" name="@_titleId-qty" checked="@(!_perUnit)" @onchange="() => _perUnit = false" />
+                    Per head
+                </label>
+                <label class="@(_perUnit ? "is-selected" : null)">
+                    <input type="radio" name="@_titleId-qty" checked="@(_perUnit)" @onchange="() => _perUnit = true" />
+                    Counted per unit
+                </label>
+            </div>
+        </fieldset>
+    };
+
+    private int? ScopeMask()
+    {
+        var mask = (_hog ? (int)SlaughterAnimalScope.Hog : 0) | (_carabao ? (int)SlaughterAnimalScope.Carabao : 0)
+            | (_cow ? (int)SlaughterAnimalScope.Cow : 0) | (_other ? (int)SlaughterAnimalScope.Other : 0);
+        return mask is 0 or (int)SlaughterAnimalScope.All ? null : mask;
+    }
+
+    private FeeQuantityBasis QuantityChoice() => _perUnit ? FeeQuantityBasis.PerUnit : FeeQuantityBasis.PerHead;
+
+    private void LoadScope(int? stored)
+    {
+        var all = stored is null or 0;
+        _hog = all || (stored! & (int)SlaughterAnimalScope.Hog) != 0;
+        _carabao = all || (stored! & (int)SlaughterAnimalScope.Carabao) != 0;
+        _cow = all || (stored! & (int)SlaughterAnimalScope.Cow) != 0;
+        _other = all || (stored! & (int)SlaughterAnimalScope.Other) != 0;
+    }
+
+    private string ScopeText(int? stored)
+    {
+        if (stored is null or 0) return "All animals";
+        var names = new List<string>();
+        if ((stored.Value & (int)SlaughterAnimalScope.Hog) != 0) names.Add(AnimalLabels?.Hog ?? "Hog");
+        if ((stored.Value & (int)SlaughterAnimalScope.Carabao) != 0) names.Add(AnimalLabels?.Carabao ?? "Carabao");
+        if ((stored.Value & (int)SlaughterAnimalScope.Cow) != 0) names.Add(AnimalLabels?.Cow ?? "Cow");
+        if ((stored.Value & (int)SlaughterAnimalScope.Other) != 0) names.Add("Others");
+        return string.Join(", ", names);
+    }
 
     private RenderFragment FormFooter(string submitLabel) => __builder =>
     {

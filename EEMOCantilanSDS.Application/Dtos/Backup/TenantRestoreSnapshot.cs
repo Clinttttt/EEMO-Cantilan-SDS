@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace EEMOCantilanSDS.Application.Dtos.Backup;
 
 /// <summary>
@@ -12,9 +14,10 @@ public sealed record TenantRestoreSnapshot(
     Guid MunicipalityId,
     DateTime GeneratedAtUtc,
     // tableName -> JSON array text of that table's rows for this municipality
-    Dictionary<string, string> Tables)
+    [property: JsonConverter(typeof(RestoreTableManifestConverter))] Dictionary<string, string> Tables,
+    string? SchemaFingerprint = null)
 {
-    public const string CurrentFormatVersion = "restore-v1";
+    public const string CurrentFormatVersion = "restore-v2";
 }
 
 /// <summary>Outcome of a scoped restore: total rows written and per-table counts (for the audit + UI).</summary>

@@ -20,7 +20,9 @@ public sealed record UtilityRegisterRequest(UtilityKind Kind, int Year, int Mont
 /// </summary>
 public sealed record UtilityRegisterRowDto(Guid StallId, Guid? UtilityBillId, string StallNo, FacilityCode Facility, string FacilityName,
     string Section, string? Payer, decimal? Approved, decimal Collected, decimal Outstanding, string Mode, string Status,
-    SettlementAuthority Authority, long SourceVersion, bool CanPrepare, string? PrepareLock);
+    SettlementAuthority Authority, long SourceVersion, bool CanPrepare, string? PrepareLock,
+    // A collector's direct amount is not settled here until the Head confirms it: <see cref="Collected"/> excludes it and this carries it.
+    decimal AwaitingConfirmation = 0m);
 
 /// <summary>
 /// Period totals for the selected facility scope. <see cref="Assessed"/> counts approved amounts only; <see cref="Collected"/> is money
@@ -28,7 +30,8 @@ public sealed record UtilityRegisterRowDto(Guid StallId, Guid? UtilityBillId, st
 /// <see cref="Outstanding"/> is the unpaid balance of prepared amounts; <see cref="DirectCollected"/> is the part of Collected that
 /// had no approved amount behind it.
 /// </summary>
-public sealed record UtilityRegisterTotalsDto(decimal Assessed, decimal Collected, decimal Outstanding, decimal DirectCollected, int Sources);
+public sealed record UtilityRegisterTotalsDto(decimal Assessed, decimal Collected, decimal Outstanding, decimal DirectCollected, int Sources,
+    decimal AwaitingConfirmation = 0m);
 
 public sealed record UtilityFacilityOptionDto(FacilityCode Code, string Name);
 

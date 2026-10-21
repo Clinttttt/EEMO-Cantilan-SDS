@@ -691,3 +691,8 @@
 .slr-hero-progress-fill {
     background: var(--accent);
 }
+
+.slr-item-row td {
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+}

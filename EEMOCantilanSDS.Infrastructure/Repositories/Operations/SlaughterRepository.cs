@@ -29,9 +29,10 @@ public class SlaughterRepository(
     // writer is closed to Collectors, so those payments never reach SlaughterTransactions. The workspace reads both: the legacy history
     // and the canonical collections (a reversed one is excluded; a replacement stands on its own SRC). One payment lives on one path only.
     private sealed record CanonicalSlaughter(Guid CollectionId, string Src, DateOnly Date, DateTime RecordedAtUtc, string Owner, AnimalType Animal,
-        string? Custom, int Heads, decimal Rate, decimal Total)
+        string? Custom, int Heads, decimal Rate, decimal Total, IReadOnlyList<SlaughterChargeItemDto>? Items = null, string? Collector = null)
     {
-        public SlaughterTransactionDto ToDto() => new(CollectionId, Owner, Animal, Custom, Heads, Rate, Total, Src, Date) { ReferenceCode = Src };
+        public SlaughterTransactionDto ToDto() => new(CollectionId, Owner, Animal, Custom, Heads, Rate, Total, Src, Date)
+        { ReferenceCode = Src, Items = Items };
     }
 
     private async Task<List<CanonicalSlaughter>> CanonicalSlaughterAsync(DateOnly start, DateOnly end, CancellationToken ct)
@@ -42,10 +43,16 @@ public class SlaughterRepository(
                           join k in context.RevenueClassifications.AsNoTracking() on l.RevenueClassificationId equals k.Id
                           where k.SemanticCode == RevenueClassificationCodes.Slaughterhouse && l.SourceKind == CollectionSourceKind.GovernedService
                               && c.BusinessDate >= start && c.BusinessDate <= end && !reversed.Contains(c.Id)
-                          select new { c.Id, c.ReferenceCode, c.BusinessDate, c.RecordedAtUtc, c.PayerName, l.Amount, l.CalculationSnapshot })
+                          select new { c.Id, c.ReferenceCode, c.BusinessDate, c.RecordedAtUtc, c.PayerName, c.CollectorId, LineId = l.Id, l.Amount, l.CalculationSnapshot })
             .ToListAsync(ct);
-        return rows.Select(r =>
+        var collectorIds = rows.Where(x => x.CollectorId.HasValue).Select(x => x.CollectorId!.Value).Distinct().ToArray();
+        var collectorNames = collectorIds.Length == 0 ? new Dictionary<Guid, string?>()
+            : await context.CollectorUsers.AsNoTracking().Where(x => collectorIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => (string?)x.FullName, ct);
+        // One collection is one transaction: a single line (the per-head total) or one line per approved charge (itemized).
+        return rows.GroupBy(r => r.Id).Select(group =>
         {
+            var lines = group.OrderBy(x => x.LineId).ToList();
+            var r = lines[0];
             string owner = r.PayerName ?? "—"; var animal = AnimalType.Other; string? custom = null; var heads = 1; var rate = r.Amount;
             try
             {
@@ -60,7 +67,29 @@ public class SlaughterRepository(
                 }
             }
             catch (System.Text.Json.JsonException) { /* an unreadable snapshot still counts at the posted amount */ }
-            return new CanonicalSlaughter(r.Id, r.ReferenceCode, r.BusinessDate, r.RecordedAtUtc, owner, animal, custom, heads, rate, r.Amount);
+
+            var items = new List<SlaughterChargeItemDto>();
+            foreach (var line in lines)
+            {
+                try
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(line.CalculationSnapshot ?? "{}");
+                    var root = doc.RootElement;
+                    if (!root.TryGetProperty("quantity", out var q) || !q.TryGetDecimal(out var quantity)) continue;
+                    var label = root.TryGetProperty("feeOptionName", out var n) && n.ValueKind == System.Text.Json.JsonValueKind.String ? n.GetString()! : "Charge";
+                    var unit = root.TryGetProperty("unitAmount", out var u) && u.TryGetDecimal(out var unitAmount) ? unitAmount : line.Amount / Math.Max(quantity, 1m);
+                    DateOnly? effective = root.TryGetProperty("feeOptionRateEffectiveDate", out var d) && d.ValueKind == System.Text.Json.JsonValueKind.String
+                        && DateOnly.TryParse(d.GetString(), out var eff) ? eff : null;
+                    items.Add(new SlaughterChargeItemDto(label, quantity, unit, line.Amount, effective));
+                }
+                catch (System.Text.Json.JsonException) { /* the line still counts at its posted amount */ }
+            }
+            var total = lines.Sum(x => x.Amount);
+            // An itemized collection has no single per-head rate: the figure shown is the per-head equivalent of what was charged.
+            if (items.Count > 0) rate = Math.Round(total / heads, 2);
+            return new CanonicalSlaughter(r.Id, r.ReferenceCode, r.BusinessDate, r.RecordedAtUtc, owner, animal, custom, heads, rate, total,
+                items.Count > 0 ? items : null,
+                r.CollectorId is { } collectorId ? collectorNames.GetValueOrDefault(collectorId) : null);
         }).ToList();
     }
 
@@ -444,23 +473,30 @@ public class SlaughterRepository(
             .ThenByDescending(x => x.CreatedAt)
             .ToListAsync(ct);
 
-        if (!transactions.Any())
-            return null;
-
         var labels = await animalLabelProvider.GetAsync(ct);
-        var transactionDtos = transactions.Select(x => new ClientTransactionDto(
+        // The client record also carries the collections this client paid on the canonical workflow (one SRC each, itemized when charged by approved charges).
+        var canonicalOwn = (await CanonicalSlaughterAsync(new DateOnly(2000, 1, 1), clock.PhilippineToday, ct))
+            .Where(x => PersonName.MatchKey(x.Owner) == ownerKey).ToList();
+        var transactionDtos = transactions.Select(x => (Date: x.TransactionDate, Created: x.CreatedAt, Dto: new ClientTransactionDto(
             x.TransactionDate,
             x.AnimalType == AnimalType.Other ? x.CustomAnimalType ?? "Other" : labels.For(x.AnimalType),
             x.NumberOfHeads,
             x.RatePerHead,
             x.RatePerHead * x.NumberOfHeads,
             x.ORNumber,
-            x.CreatedBy
-        )).ToList();
+            x.CreatedBy)))
+            .Concat(canonicalOwn.Select(x => (Date: x.Date, Created: x.RecordedAtUtc, Dto: new ClientTransactionDto(
+                x.Date,
+                x.Animal == AnimalType.Other ? x.Custom ?? "Other" : labels.For(x.Animal),
+                x.Heads, x.Rate, x.Total, x.Src, x.Collector, x.Items))))
+            .OrderByDescending(x => x.Date).ThenByDescending(x => x.Created).Select(x => x.Dto).ToList();
 
-        var totalTransactions = transactions.Count;
-        var totalHeads = transactions.Sum(x => x.NumberOfHeads);
-        var totalCollected = transactions.Sum(x => x.RatePerHead * x.NumberOfHeads);
+        if (transactionDtos.Count == 0)
+            return null;
+
+        var totalTransactions = transactionDtos.Count;
+        var totalHeads = transactionDtos.Sum(x => x.NumberOfHeads);
+        var totalCollected = transactionDtos.Sum(x => x.TotalAmount);
         var averagePerTransaction = totalTransactions > 0 ? totalCollected / totalTransactions : 0;
 
         var summary = new ClientCollectionSummaryDto(

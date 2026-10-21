@@ -81,7 +81,8 @@ public sealed record RentObligationQuoteDto(
     decimal ContractRate,
     bool CanAddToDraft,
     bool CanPostCanonical,
-    bool RequiresLegacyReconciliation);
+    bool RequiresLegacyReconciliation,
+    bool CanPostOfficeReceipt = false);
 
 public sealed record CollectionCandidateDto(
     CollectionSourceKind SourceKind,
@@ -182,7 +183,8 @@ public sealed record MobileEcfPostRequest(
 
 /// <summary>Collector Mobile monthly-rent collection (IA-051/IA-062) for one canonical PaymentRecord. No physical serial; the server returns the SRC.</summary>
 public sealed record MobileRentPostRequest(
-    Guid ClientOperationId, Guid StallId, int BillingYear, int BillingMonth, decimal ReceivedAmount, long SourceVersion, DateOnly BusinessDate);
+    Guid ClientOperationId, Guid StallId, int BillingYear, int BillingMonth, decimal ReceivedAmount, long SourceVersion, DateOnly BusinessDate,
+    Guid? ExpectedContractId = null);
 
 /// <summary>
 /// Collector Mobile Fish / Meat Vendor Fee collection (IA-050/IA-062) against one period of an existing obligation account. The

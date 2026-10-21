@@ -121,6 +121,21 @@ a {
     width: calc(100% - var(--sidebar-w-col));
 }
 
+/* Remittance registers own their scroll area; do not stack page and shell viewport floors. */
+@media screen and (min-width: 769px) {
+    .admin-layout:has(> .admin-main > .rm-workspace) {
+        height: 100dvh;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .admin-main:has(> .rm-workspace) {
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
+    }
+}
+
 /* Ensure SVG icons inserted via MarkupString (raw SVG) are styled globally
    — these raw SVGs don't receive Blazor's CSS isolation scope attribute, so
    keep the svg rules global so they apply to injected markup. */
@@ -2901,6 +2916,41 @@ a.topbar-admin.account-chip {
     color: var(--text-tertiary);
     font-size: 0.75rem;
     line-height: 1.45;
+}
+
+/* A report's headline figures on one hairline-divided line, instead of a one-row table. */
+.v3-report-summary {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0;
+    border-block: 1px solid var(--border);
+}
+
+.v3-report-summary > div {
+    display: grid;
+    flex: 1 1 8rem;
+    gap: 2px;
+    padding: 10px 16px;
+}
+
+.v3-report-summary > div + div {
+    border-left: 1px solid var(--border);
+}
+
+.v3-report-summary dt {
+    color: var(--text-tertiary);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.v3-report-summary dd {
+    margin: 0;
+    color: var(--text);
+    font-size: 1.125rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
 }
 
 @media print {

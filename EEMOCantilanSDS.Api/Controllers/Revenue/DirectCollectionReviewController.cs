@@ -18,8 +18,13 @@ public sealed class DirectCollectionReviewController(ISender sender, DirectColle
     [HttpGet]
     public async Task<ActionResult<DirectCollectionReviewPageDto>> Get(
         [FromQuery] string? state, [FromQuery] DateOnly? from, [FromQuery] DateOnly? to, [FromQuery] string? operation, [FromQuery] string? collector,
-        [FromQuery] string? search, [FromQuery] int skip = 0, [FromQuery] int take = 25, CancellationToken ct = default) =>
-        HandleResponse(await workflow.GetAsync(new(state ?? "Pending", from, to, operation, collector, search, skip, take), ct));
+        [FromQuery] string? search, [FromQuery] int skip = 0, [FromQuery] int take = 25, [FromQuery] bool scoped = false, CancellationToken ct = default) =>
+        HandleResponse(await workflow.GetAsync(new(state ?? "Pending", from, to, operation, collector, search, skip, take, scoped), ct));
+
+    /// <summary>Recorded, verified and pending-verification direct-collection cash as separate figures. Head and Admin; read-only.</summary>
+    [HttpGet("position")]
+    public async Task<ActionResult<DirectCollectionVerificationPositionDto>> Position([FromQuery] DateOnly from, [FromQuery] DateOnly to, [FromQuery] bool scoped = false, CancellationToken ct = default) =>
+        HandleResponse(await workflow.GetPositionAsync(from, to, ct, scoped));
 
     [HttpGet("{collectionId:guid}")]
     public async Task<ActionResult<DirectCollectionDetailDto>> Detail(Guid collectionId, CancellationToken ct = default) =>

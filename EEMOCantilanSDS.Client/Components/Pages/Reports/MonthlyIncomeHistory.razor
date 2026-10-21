@@ -1,0 +1,142 @@
+@page "/reports/monthly-income/history"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Revenue
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Services
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@inject IOfficialReportsApiClient Api
+@inject IJSRuntime JS
+
+<PageTitle>Monthly Income revision evidence</PageTitle>
+<div class="content-area revisions">
+    <div class="no-print">
+        <V3Hero Compact="true" Title="Monthly Income revision evidence" Subtitle="@HeroSubtitle" Figures="HeroFigures" FiguresLabel="Revision summary">
+            <Icon><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="9" y1="13" x2="15" y2="13" /><line x1="9" y1="17" x2="15" y2="17" /></svg></Icon>
+            <Actions>
+                <a class="rv-ic" href="@($"/reports/monthly-income/official?year={Year}")" title="Latest Monthly Income" aria-label="Latest Monthly Income"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg></a>
+                @if (Rows is not null && !Loading)
+                {
+                    <a class="rv-ic" download="@($"monthly-income-revisions-{LoadedYear}.csv")" href="@CsvHref" title="Download CSV" aria-label="Download CSV"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg></a>
+                    <button type="button" class="rv-ic" @onclick="Print" title="Print or save as PDF" aria-label="Print"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg></button>
+                }
+            </Actions>
+        </V3Hero>
+        <div class="rv-controls" role="toolbar" aria-label="Revision filters">
+            <FhSelect Caption="Year" Value="@Year.ToString(CultureInfo.InvariantCulture)" Options="@YearChoices" ValueChanged="@(v => Year = int.Parse(v))" />
+            <FhSelect Caption="Record type" Value="@_kind" Options="@KindChoices" ValueChanged="@(v => _kind = v)" />
+            <FhSelect Caption="Revenue line" Value="@_line" Options="@LineChoices" ValueChanged="@(v => _line = v)" />
+            <label class="rv-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input type="search" aria-label="Search revisions" placeholder="Search line, reason or recorded by" value="@_search" @oninput="e => _search = (e.Value?.ToString() ?? string.Empty).Trim()" /></label>
+            <button type="button" class="rv-review" disabled="@Loading" @onclick="Load" title="Review history" aria-label="Review history"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg><span>Review</span></button>
+        </div>
+    </div>
+    <section class="revisions-sheet">
+        <ReportLetterhead Title="Monthly Income revision evidence" Period="@LoadedYear.ToString()" />
+        @if (Loading) { <p role="status">Loading revisions…</p> }
+        @if (Error is not null) { <p role="alert">@Error</p> }
+        @if (Rows is { } rows)
+        {
+            var ordered = rows.Where(Matches).OrderBy(x => LineLabel(x.RowKey), StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Kind).ThenBy(x => x.Month).ThenBy(x => x.Revision).ToList();
+            @if (Filtered) { <p class="rv-filter" role="status">Showing @ordered.Count of @rows.Count recorded revision(s) for @FilterText.</p> }
+            <div class="revisions-scroll" tabindex="0" role="region" aria-label="Report revisions"><table>
+                <thead><tr>
+                    <th scope="col">Revenue line</th><th scope="col">Record</th><th scope="col">Revision</th>
+                    <th scope="col" class="rv-money">System at revision</th><th scope="col" class="rv-money">Recorded figure</th>
+                    <th scope="col">Recorded by</th><th scope="col">Reason / reference</th>
+                </tr></thead>
+                <tbody>@foreach (var r in ordered)
+                {
+                    <tr @key="r.Id">
+                        <td class="rv-line">@LineLabel(r.RowKey)</td>
+                        <td><strong class="rv-strong">@KindLabel(r)</strong><div class="rv-sub">@(r.Month == 0 ? "Annual" : MonthName(r.Month) + " " + r.Year)</div></td>
+                        <td><strong class="rv-strong">Revision @r.Revision</strong><div class="rv-sub">@(SupersededRevision(rows, r) is { } prior ? $"Supersedes revision {prior}" : "First entry")</div></td>
+                        <td class="rv-money">@(r.SystemAmountAtRevision is { } system ? Peso(system) : "—")</td>
+                        <td class="rv-money rv-figure">@(RecordedFigure(r) is { } figure ? Peso(figure) : "Evidence incomplete")
+                            @if (r.Kind == OfficialReportRevisionKind.MonthlyAdjustment) { <div class="rv-sub">Adjustment @Peso(r.Amount)</div> }</td>
+                        <td><strong class="rv-strong">@r.ActorName</strong><div class="rv-sub">@PhDate(r.RecordedAtUtc) · @PhTime(r.RecordedAtUtc)</div></td>
+                        <td>@r.SourceOrReason@if (!string.IsNullOrWhiteSpace(r.Reference)) {<div class="rv-sub">Ref. @r.Reference</div>}@if (!string.IsNullOrWhiteSpace(r.Note)) {<div class="rv-sub">@r.Note</div>}</td>
+                    </tr>
+                }</tbody>
+            </table></div>
+            @if (rows.Count == 0) { <p>No recorded revisions for this year. This is not proof that an original report was issued.</p> }
+            else if (ordered.Count == 0) { <p>No revision matches these filters.</p> }
+            <details class="rv-limits" open="@_printing">
+                <summary>Limitations of this record</summary>
+                <p>These are append-only revision records, not persisted copies of an issued report. Historical generated or issued report snapshots are not available in the current storage model. A regenerated statement is not the originally submitted document. Collection, SRC, balance, remittance and collector accountability are unchanged by these report-only revisions.</p>
+            </details>
+        }
+    </section>
+</div>
+
+@code {
+    [Parameter, SupplyParameterFromQuery(Name = "year")] public int Year { get; set; } = PhilippineTime.Today.Year;
+    private int LoadedYear;
+    private string _kind = string.Empty, _line = string.Empty, _search = string.Empty;
+
+    // Filters narrow the rows on screen only; the CSV and the counts in the hero stay the whole year's record.
+    private bool Filtered => _kind.Length > 0 || _line.Length > 0 || _search.Length > 0;
+    private string FilterText => string.Join(" · ", new[] { _kind.Length > 0 ? KindChoices.First(k => k.Value == _kind).Label : null, _line.Length > 0 ? LineLabel(_line) : null, _search.Length > 0 ? $"search “{_search}”" : null }.Where(x => x is not null));
+    private bool Matches(ReportRevisionDto r) =>
+        (_kind.Length == 0 || ((int)r.Kind).ToString() == _kind) && (_line.Length == 0 || r.RowKey == _line)
+        && (_search.Length == 0 || new[] { LineLabel(r.RowKey), r.SourceOrReason, r.Reference, r.Note, r.ActorName }.Any(x => x?.Contains(_search, StringComparison.OrdinalIgnoreCase) == true));
+    private static readonly IReadOnlyList<(string Value, string Label)> KindChoices =
+        [("", "All record types"), (((int)OfficialReportRevisionKind.AnnualTarget).ToString(), "Annual target"), (((int)OfficialReportRevisionKind.MonthlyAdjustment).ToString(), "Monthly adjustment")];
+    private IReadOnlyList<(string Value, string Label)> LineChoices =>
+        [("", "All revenue lines"), .. (Rows ?? []).Select(r => r.RowKey).Distinct().Select(k => (Value: k, Label: LineLabel(k))).OrderBy(x => x.Label, StringComparer.OrdinalIgnoreCase)];
+    private bool Loading;
+    private bool _printing;
+    private string? Error;
+    private IReadOnlyList<ReportRevisionDto>? Rows;
+    protected override Task OnInitializedAsync() => Load();
+    private async Task Load() {
+        Loading = true; Error = null; Rows = null; LoadedYear = Year; _kind = _line = string.Empty;
+        try { var result = await Api.GetGovernanceAsync(Year); if (result.IsSuccess) Rows = result.Value; else Error = result.Error ?? "History could not be loaded."; }
+        catch { Error = "History could not be loaded. No partial history is displayed."; }
+        finally { Loading = false; }
+    }
+
+    private IReadOnlyList<(string Value, string Label)> YearChoices =>
+        Enumerable.Range(PhilippineTime.Today.Year - 5, 7).Concat([Year]).Distinct().OrderByDescending(y => y)
+            .Select(y => (y.ToString(CultureInfo.InvariantCulture), y.ToString(CultureInfo.InvariantCulture))).ToList();
+
+    private string HeroSubtitle => $"{LoadedYear} · recorded adjustments and annual targets";
+
+    private RenderFragment? HeroFigures => Rows is not { } rows ? null : __builder =>
+    {
+        <V3HeroFigure Label="Revisions" Value="@rows.Count.ToString(CultureInfo.InvariantCulture)" />
+        <V3HeroFigure Label="Annual targets" Value="@rows.Count(x => x.Kind == OfficialReportRevisionKind.AnnualTarget).ToString(CultureInfo.InvariantCulture)" />
+        <V3HeroFigure Label="Monthly adjustments" Value="@rows.Count(x => x.Kind == OfficialReportRevisionKind.MonthlyAdjustment).ToString(CultureInfo.InvariantCulture)" />
+    };
+
+    private static decimal? RecordedFigure(ReportRevisionDto r) => r.Kind == OfficialReportRevisionKind.MonthlyAdjustment ? r.SystemAmountAtRevision + r.Amount : r.Amount;
+
+    // The statement's own name for a row, never its stored key; an unmapped key reads as words.
+    private static string LineLabel(string key) =>
+        OfficialMonthlyIncomeStructure.Rows.FirstOrDefault(x => x.Key == key)?.Label
+        ?? SourceNames.For(key.StartsWith("OTHER_", StringComparison.Ordinal) ? key["OTHER_".Length..] : key);
+
+    private static string KindLabel(ReportRevisionDto r) => r.Kind == OfficialReportRevisionKind.AnnualTarget ? "Annual target" : "Monthly adjustment";
+    private static string MonthName(int month) => CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(month);
+
+    // The revision this one replaces, by its number; the identifier itself stays in the CSV evidence.
+    private static int? SupersededRevision(IReadOnlyList<ReportRevisionDto> all, ReportRevisionDto r) =>
+        r.SupersedesId is { } id ? all.FirstOrDefault(x => x.Id == id)?.Revision : null;
+
+    private static string Peso(decimal amount) => (amount < 0m ? "-" : "") + "₱" + Math.Abs(amount).ToString("N2", CultureInfo.InvariantCulture);
+    private static string PhDate(DateTime utc) => PhilippineTime.ToPhilippineTime(utc).ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+    private static string PhTime(DateTime utc) => PhilippineTime.ToPhilippineTime(utc).ToString("hh:mm tt", CultureInfo.InvariantCulture);
+
+    private async Task Print()
+    {
+        // The limitations stay open on paper, whatever the screen state.
+        _printing = true; StateHasChanged();
+        await Task.Delay(100);
+        try { await JS.InvokeVoidAsync("stalltrackPrint.landscape"); } finally { _printing = false; }
+    }
+
+    // The export keeps the internal identifiers and stored row keys as audit evidence.
+    private string CsvHref => "data:text/csv;charset=utf-8," + Uri.EscapeDataString(string.Join("\r\n",
+        new[] { CsvCell.Row("Evidence", "Recorded revisions only; not an issued report snapshot"), CsvCell.Row("Year", "Line", "Row key", "Month", "Kind", "Revision", "System at revision", "Recorded figure", "Reason", "Reference", "Actor", "Recorded UTC", "Revision ID", "Supersedes") }
+        .Concat((Rows ?? []).Select(r => CsvCell.Row(r.Year.ToString(), LineLabel(r.RowKey), r.RowKey, r.Month.ToString(), r.Kind.ToString(), r.Revision.ToString(), r.SystemAmountAtRevision?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) ?? "", RecordedFigure(r)?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) ?? "", r.SourceOrReason, r.Reference ?? "", r.ActorName, r.RecordedAtUtc.ToString("O"), r.Id.ToString(), r.SupersedesId?.ToString() ?? "")))));
+}

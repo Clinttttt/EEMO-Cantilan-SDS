@@ -57,6 +57,8 @@ public sealed class FishMeatVendorManageTests : TestContext
         cut.WaitForAssertion(() => Assert.Contains("Lisa Ilogans", cut.Markup), Timeout);
         Assert.Equal("FISH / MEAT · REGISTRY", cut.Find(".facility-hero-eyebrow").TextContent);
         Assert.Single(cut.FindAll("h1"));
+        Assert.Empty(cut.FindAll(".fmm-back"));
+        Assert.Equal("/operations/fish-meat-vendor-fees", cut.Find(".tcc-back-btn").GetAttribute("href"));
         Row(cut, "Lisa", "Details");
         var office = cut.Find("dl[aria-label='Office information']");
         foreach (var value in new[] { "Ilogans", "Lisa", "Female", "Fish retailing", "Jr" }) Assert.Contains(value, office.TextContent);
@@ -116,6 +118,7 @@ public sealed class FishMeatVendorManageTests : TestContext
 
         Pick(cut, "Tax year", (Year - 1).ToString());
         cut.WaitForAssertion(() => Assert.Contains("Earlier Vendor", cut.Markup), Timeout);
+        Assert.Equal($"/operations/fish-meat-vendor-fees?taxYear={Year - 1}", cut.Find(".tcc-back-btn").GetAttribute("href"));
         Pick(cut, "Month", "March");
         Pick(cut, "Status", "Closed");
 

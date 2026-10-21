@@ -50,7 +50,47 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
     public DateTime CreatedAtUtc { get; private set; }
     public string CreatedBy { get; private set; } = string.Empty;
 
+    /// <summary>The physical space this occupancy is on (monthly space kinds only). Null until the unambiguous backfill or a lifecycle action links it.</summary>
+    public Guid? SpaceRegistrationId { get; private set; }
+
+    /// <summary>The previous occupancy of the same space this one follows. Set once, at creation, by an authorized lifecycle action; never inferred.</summary>
+    public Guid? PredecessorAccountId { get; private set; }
+
+    /// <summary>When the office retired this closed, fully settled occupancy. A retired account is not deleted and keeps all its history.</summary>
+    public DateTime? RetiredAtUtc { get; private set; }
+
     private ObligationAccount() { }
+
+    /// <summary>Gives a monthly space account its physical-space identity. Allowed once; the identity never changes.</summary>
+    public void LinkRegistration(Guid registrationId)
+    {
+        if (!IsMonthlySpaceKind(Kind)) throw new ArgumentException("Only a monthly space has a physical-space registration.");
+        if (registrationId == Guid.Empty) throw new ArgumentException("A registration is required.", nameof(registrationId));
+        if (SpaceRegistrationId is { } existing && existing != registrationId) throw new InvalidOperationException("This account is already on another space.");
+        SpaceRegistrationId = registrationId;
+    }
+
+    /// <summary>
+    /// Marks this new account as the next occupancy of the predecessor's space. The predecessor must be closed and on a registration, and this
+    /// occupancy must begin strictly after the predecessor's last day, so the two never share a day.
+    /// </summary>
+    public void FollowOccupancy(ObligationAccount predecessor)
+    {
+        if (predecessor.MunicipalityId != MunicipalityId || predecessor.Kind != Kind) throw new ArgumentException("A successor is the same tenant and source kind.");
+        if (predecessor.SpaceRegistrationId is not { } registration) throw new InvalidOperationException("The predecessor has no physical-space registration.");
+        if (predecessor.ActiveTo is not { } closed) throw new InvalidOperationException("The predecessor occupancy is still open.");
+        if (ActiveFrom <= closed) throw new ArgumentException("A successor occupancy begins after the predecessor's last day.");
+        if (PredecessorAccountId is not null) throw new InvalidOperationException("The predecessor link is set once.");
+        SpaceRegistrationId = registration;
+        PredecessorAccountId = predecessor.Id;
+    }
+
+    public void Retire(DateTime retiredAtUtc)
+    {
+        if (ActiveTo is null) throw new InvalidOperationException("Only a closed account can be retired.");
+        if (retiredAtUtc.Kind != DateTimeKind.Utc) throw new ArgumentException("The time must be UTC.", nameof(retiredAtUtc));
+        RetiredAtUtc ??= retiredAtUtc;
+    }
 
     public bool IsMonthly => Kind != ObligationKind.FiestaArawLotRental;
 

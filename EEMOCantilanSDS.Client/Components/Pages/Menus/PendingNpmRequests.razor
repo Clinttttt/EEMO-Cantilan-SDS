@@ -7,7 +7,7 @@
 @inject IOfficeSourcesApiClient OfficeApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 <PageTitle>StallTrack — NPM Registration Requests</PageTitle>
-<OperationTopbar Title="NPM Registration Requests" Crumb="Monitoring" />
+<OperationTopbar Title="NPM Registration Requests" Crumb="NPM requests" ParentHref="/monitoring/review" ParentTitle="Collection &amp; Registration Review" />
 <div class="content-area pnr-page">
     <V3Hero Eyebrow="MEEDO · MONITORING" Title="NPM Registration Requests"
             Subtitle="Review stall registration requests from field collectors.">
@@ -21,7 +21,7 @@
         </Figures>
     </V3Hero>
 
-    <MonitoringTabs Current="npm-requests" />
+    <MonitoringTabs Current="review" />
 
     <div class="pnr-toolbar">
         <div class="pnr-toolbar-copy">
@@ -143,6 +143,18 @@
                                               Value="@_association" ValueChanged="v => _association = v" />
                                 </label>
                             }
+                            else if (_detailError is null && _existing is { } existing)
+                            {
+                                @* The stall already exists and its occupant is this vendor: link them (no second stall is created); the link answers this request. *@
+                                <div class="pnr-link-empty" role="status">
+                                    <strong>Stall @existing.StallNo is already registered to @existing.Occupant</strong>
+                                    <p>Link this vendor to that stall. No new stall is created, and this request is closed by the link. Enter the office verification reason below first.</p>
+                                    <div class="pnr-link-actions">
+                                        <button type="button" class="v3-btn v3-btn-primary v3-btn-sm" disabled="@(string.IsNullOrWhiteSpace(_reason) || _saving)" @onclick="() => LinkExistingAsync(row, existing)">Link to Stall @existing.StallNo</button>
+                                        <button type="button" class="v3-btn v3-btn-sm" @onclick="() => LoadAssociations(row)">Check again</button>
+                                    </div>
+                                </div>
+                            }
                             else if (_detailError is null)
                             {
                                 <div class="pnr-link-empty" role="status">
@@ -205,6 +217,7 @@
     private Guid _operation;
     private bool _saving, _loading, _checkingAssociations;
     private int _page = 1;
+    private NpmVendorCandidate? _existing;
     private IReadOnlyList<(string Value, string Label)> _links = [];
     private IReadOnlyList<string> _warnings = [];
     private static string When(DateTime utc) => PhilippineTime.ToPhilippineTime(utc).ToString("MMM d, yyyy h:mm tt");
@@ -275,6 +288,7 @@
         _association = "";
         _links = [];
         _warnings = [];
+        _existing = null;
         try
         {
             var result = await OfficeApi.NpmVendorCandidatesAsync(row.TaxYear, true, true);
@@ -293,6 +307,14 @@
                         && string.Equals(x.StallNo.Trim(), row.ProposedStall.Trim(), StringComparison.OrdinalIgnoreCase))
                     || x.PossibleMatches.Any(v => v.Id == row.VendorRegistrationId)))
                 .Select(x => $"{x.Area} · Stall {x.StallNo} · {x.Occupant}").ToArray();
+            // The proposed stall already exists in the proposed area, is occupied by a name matching this vendor, and is not yet linked to them: offer to link it
+            // rather than a second registration. The Head still confirms with a reason; nothing is linked by the name alone.
+            if (row.ProposedSection is not null)
+                _existing = result.Value.Rows.SingleOrDefault(x => x.Active
+                    && string.Equals(x.Area, proposedSection, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(x.StallNo.Trim(), row.ProposedStall.Trim(), StringComparison.OrdinalIgnoreCase)
+                    && x.PossibleMatches.Any(v => v.Id == row.VendorRegistrationId)
+                    && !x.Links.Any(l => l.VendorRegistrationId == row.VendorRegistrationId && l.CorrectedAtUtc is null));
             _links = new[] { ("", "Select a verified NPM occupancy") }.Concat(result.Value.Rows.Where(x => x.Active)
                 .SelectMany(x => x.Links.Where(l => l.VendorRegistrationId == row.VendorRegistrationId && l.CorrectedAtUtc is null)
                     .Select(l => (l.Id.ToString(), $"{x.Area} · Stall {x.StallNo} · {x.Occupant}")))).ToArray();
@@ -308,6 +330,25 @@
         }
     }
     private void Close() { if (!_saving) _selected = null; }
+    private async Task LinkExistingAsync(NpmRegistrationRequestDto row, NpmVendorCandidate existing)
+    {
+        if (_saving || string.IsNullOrWhiteSpace(_reason)) return;
+        _saving = true; _detailError = null;
+        try
+        {
+            var result = await OfficeApi.LinkNpmVendorAsync(row.VendorRegistrationId,
+                new(Guid.NewGuid(), existing.ContractId, existing.StallId, existing.SourceVersion, _reason.Trim()));
+            if (result.IsSuccess) { _selected = null; await Load(); }   // the link closes the request on the server
+            else _detailError = result.Error switch
+            {
+                "NpmOccupancyChanged" => "The stall changed while you were reviewing. Check again.",
+                "AssociationAlreadyExists" => "This vendor is already linked to that stall. Check again.",
+                _ => "The link could not be saved. Check again before retrying."
+            };
+        }
+        catch { _detailError = "The link could not be confirmed. Check again before retrying."; }
+        finally { _saving = false; }
+    }
     private async Task Save()
     {
         if (_saving || _selected is null || _confirm is null) return;

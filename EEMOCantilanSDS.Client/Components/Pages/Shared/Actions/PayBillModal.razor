@@ -1,12 +1,15 @@
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Application.Dtos.Payments
 @using EEMOCantilanSDS.Application.Dtos.DailyCollections
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Application.Command.Payments.RecordPayment
 @using EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmMonth
 @using EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmDays
 @inject IPaymentsApiClient PaymentsApi
 @inject IDailyCollectionApiClient DailyApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
+@inject IServiceProvider Services
 
 @*
     PayBillModal — full-width, formal "record payment" form opened from a follow-up row.
@@ -80,11 +83,23 @@
                                     }
                                 </div>
                             </div>
+                            @if (!CanonicalRentSelected)
+                            {
                             <div class="pb-control pb-control-or">
                                 <label class="pb-label" for="pb-or">Official Receipt (OR) No.</label>
                                 <input id="pb-or" class="pb-input" type="text" maxlength="50" autocomplete="off" inputmode="numeric"
                                        placeholder="e.g. 1234567" @bind="_or" @bind:event="oninput" disabled="@_submitting" />
                             </div>
+                            }
+                            else { <p class="pb-hint">@(_rentRequests.ContainsKey(_selectedPeriod) ? "A canonical SRC is issued when this receipt is posted. Physical OR evidence is separate." : "Office rent receipts are paused. No legacy status change is allowed.")</p> }
+                            @if (CanonicalRentSelected && !SettlesEverything && _rentRequests.TryGetValue(_selectedPeriod, out var rentReceipt))
+                            {
+                                <div class="pb-control pb-control-or">
+                                    <label class="pb-label" for="pb-rent-received">Received now</label>
+                                    <input id="pb-rent-received" class="pb-input" type="number" min="0.01" step="0.01" max="@_unpaid.First(x => x.Period == _selectedPeriod).BalanceDue"
+                                        value="@rentReceipt.ReceivedAmount.ToString(System.Globalization.CultureInfo.InvariantCulture)" @onchange="RentAmountChanged" disabled="@(_submitting || _rentAttempted.Contains(_selectedPeriod))" />
+                                </div>
+                            }
                         </div>
                         <div class="pb-orhint">@OrHint()</div>
 
@@ -274,6 +289,12 @@
     private List<SettleableNpmDayDto> _days = new();
     private HashSet<DateOnly> _daySelected = new();
     private bool _daysLoading;
+    private bool _monthSource;
+    private readonly Dictionary<string, NpmWholePaymentRequest> _monthRequests = new();
+    private readonly Dictionary<string, MobileRentPostRequest> _rentRequests = new();
+    private readonly HashSet<string> _rentAttempted = new();
+    private bool CanonicalRentSelected => !IsNpm && _unpaid.Any(x => x.SettlementAuthority == SettlementAuthority.Canonical
+        && (SettlesEverything || x.Period == _selectedPeriod));
 
     private Guid _loadedStall;
 
@@ -298,6 +319,7 @@
                 return _days.Where(x => _daySelected.Contains(x.Date)).Sum(x => x.Fee);
             if (SettlesEverything)
                 return _totalOutstanding;
+            if (CanonicalRentSelected && _rentRequests.TryGetValue(_selectedPeriod, out var receipt)) return receipt.ReceivedAmount;
             return _unpaid.FirstOrDefault(x => x.Period == _selectedPeriod)?.BalanceDue ?? 0m;
         }
     }
@@ -314,13 +336,15 @@
     private bool SettlesEverything => IsNpm ? _npmMode == "all" : _scope == "all";
 
     private string CoverageText() =>
-        SettlesEverything ? "all outstanding months · one OR"
+        CanonicalRentSelected ? "reviewed rental receipt"
+        : SettlesEverything ? "all outstanding months · one OR"
         : IsNpm && _npmMode == "days" ? $"{_daySelected.Count} collection day{(_daySelected.Count == 1 ? "" : "s")}"
         : IsNpm ? "whole billing month"
         : "selected billing period";
 
     private string OrHint() =>
-        SettlesEverything ? "One OR covers all settled months of this stall in a single receipt."
+        CanonicalRentSelected ? "The server records the reviewed rent amount with its own SRC."
+        : SettlesEverything ? "One OR covers all settled months of this stall in a single receipt."
         : IsNpm && _npmMode == "days" ? "One OR will cover the selected collection days in a single transaction."
         : IsNpm ? "One OR may cover all settleable days in the selected month."
         : "The OR will be assigned to the selected billing period.";
@@ -348,6 +372,14 @@
     private bool CanSubmit()
     {
         if (_submitting) return false;
+        if (CanonicalRentSelected && !SettlesEverything && _rentRequests.TryGetValue(_selectedPeriod, out var rent)
+            && (rent.ReceivedAmount <= 0 || rent.ReceivedAmount > _unpaid.First(x => x.Period == _selectedPeriod).BalanceDue
+                || decimal.Round(rent.ReceivedAmount, 2) != rent.ReceivedAmount)) return false;
+        if (!IsNpm && _unpaid.Any(x => (SettlesEverything || x.Period == _selectedPeriod)
+            && (x.SettlementAuthority == SettlementAuthority.PendingCutover
+                || x.SettlementAuthority == SettlementAuthority.Canonical && !_rentRequests.ContainsKey(x.Period)))) return false;
+        if (_monthSource && (SettlesEverything ? _unpaid.Any(x => !_monthRequests.ContainsKey(x.Period))
+            : !_monthRequests.ContainsKey(_selectedPeriod))) return false;
         // Settling everything needs a balance to settle, not a chosen period.
         if (SettlesEverything) return _unpaid.Count > 0;
         if (IsNpm)
@@ -373,8 +405,12 @@
         }
     }
 
+    private int _loadVersion;
     private async Task LoadOutstanding()
     {
+        var version = ++_loadVersion;
+        var stallId = StallId;
+        var contractId = ContractId;
         _loading = true;
         _error = null;
         _scope = "month";
@@ -384,14 +420,64 @@
         _search = string.Empty;
         _days = new();
         _daySelected = new();
+        _monthRequests.Clear();
+        _rentRequests.Clear();
+        _rentAttempted.Clear();
+        _monthSource = false;
+        if (IsNpm)
+        {
+            var availability = await DailyApi.IsNpmMonthlySettlementAvailableAsync();
+            if (version != _loadVersion) return;
+            _monthSource = availability?.IsSuccess == true && availability.Value;
+        }
 
-        var result = await PaymentsApi.GetOutstandingMonthsAsync(StallId, ContractId, PeriodYear, PeriodMonth);
+        var result = await PaymentsApi.GetOutstandingMonthsAsync(stallId, contractId, PeriodYear, PeriodMonth);
+        if (version != _loadVersion) return;
         _unpaid = (result.IsSuccess && result.Value is not null)
             ? result.Value
                 .Where(h => !h.IsExcused && h.Status != PaymentStatus.Paid && h.BalanceDue > 0m && !string.IsNullOrWhiteSpace(h.Period))
                 .OrderBy(h => h.Period)
                 .ToList()
             : new();
+        if (_monthSource)
+        {
+            foreach (var row in _unpaid.ToArray())
+            {
+                if (!TryParsePeriod(row.Period, out var y, out var m)) continue;
+                var resultQuote = await DailyApi.QuoteNpmMonthlyWholeAsync(stallId, y, m);
+                if (version != _loadVersion) return;
+                var quote = resultQuote.Value;
+                if (!resultQuote.IsSuccess || quote is null || quote.SettlementSourceKind != CollectionSourceKind.NpmRentMonth
+                    || quote.StallId != stallId || quote.Year != y || quote.Month != m
+                    || (contractId is { } owner && quote.ResponsibleContractId != owner))
+                {
+                    _error = resultQuote.Error ?? "This period's responsible contract or approved month quote needs office review.";
+                    continue;
+                }
+                if (quote.Amount <= 0) { _unpaid.Remove(row); continue; }
+                _monthRequests[row.Period] = new(Guid.NewGuid(), stallId, y, m, quote.BusinessDate, quote.Amount, quote.QuoteToken);
+                _unpaid[_unpaid.IndexOf(row)] = row with { BalanceDue = quote.Amount,
+                    TotalBill = (quote.MonthlyObligation ?? row.TotalBill) - (quote.Credits ?? 0), AmountPaid = quote.Collected ?? row.AmountPaid };
+            }
+        }
+        if (!IsNpm)
+        {
+            var rentApi = Services.GetService(typeof(IEcfCollectionsApiClient)) as IEcfCollectionsApiClient;
+            foreach (var row in _unpaid.Where(x => x.SettlementAuthority == SettlementAuthority.Canonical).ToArray())
+            {
+                if (rentApi is null || !TryParsePeriod(row.Period, out var year, out var month))
+                { _error = "Canonical rent quoting is unavailable. No legacy status change is allowed."; continue; }
+                var quoted = await rentApi.GetRentObligationAsync(stallId, year, month);
+                if (version != _loadVersion) return;
+                if (!quoted.IsSuccess || quoted.Value is not { CanPostCanonical: true, CanPostOfficeReceipt: true } quote
+                    || quote.StallId != stallId || quote.BillingYear != year || quote.BillingMonth != month
+                    || contractId is { } owner && quote.ContractId != owner)
+                { _error = quoted.Error ?? "Office rent receipts are paused or require source reconciliation. No legacy status change is allowed."; continue; }
+                _rentRequests[row.Period] = new(Guid.NewGuid(), stallId, year, month, quote.OutstandingAmount,
+                    quote.SourceVersion, PhilippineTime.Today, quote.ContractId);
+                _unpaid[_unpaid.IndexOf(row)] = row with { TotalBill = quote.AssessedRentalAmount, AmountPaid = quote.CumulativeSettledEvidence, BalanceDue = quote.OutstandingAmount };
+            }
+        }
         _totalOutstanding = _unpaid.Sum(h => h.BalanceDue);
 
         // Start on the period the caller was looking at, when it is one of the unpaid months — the clerk opened a
@@ -469,6 +555,41 @@
 
         var or = string.IsNullOrWhiteSpace(_or) ? null : _or.Trim();
 
+        if (IsNpm && _monthSource)
+        {
+            if (_npmMode == "days")
+            {
+                _error = "Use the reviewed monthly payment or individual source quote; legacy day settlement is unavailable for this month.";
+                _submitting = false; return;
+            }
+            var targets = (SettlesEverything ? _unpaid : _unpaid.Where(x => x.Period == _selectedPeriod)).ToArray();
+            var requests = targets.Select(row => _monthRequests.GetValueOrDefault(row.Period)).ToArray();
+            if (requests.Any(request => request is null))
+            { _error = "Refresh the authoritative month quote before recording payment."; _submitting = false; return; }
+            var confirmed = 0;
+            try
+            {
+                foreach (var request in requests)
+                {
+                    var saved = await DailyApi.RecordNpmMonthlyWholeAsync(request!);
+                    if (!saved.IsSuccess)
+                    {
+                        // Keep the same reviewed amount/token/operation after an uncertain response; never silently re-quote cash.
+                        _error = $"{confirmed} month(s) confirmed in this attempt. " + (saved.Error ?? "Payment outcome is not confirmed. Retry this same reviewed operation or reconcile with the office.");
+                        _submitting = false; return;
+                    }
+                    confirmed++;
+                }
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+            {
+                _error = $"{confirmed} month(s) confirmed in this attempt. The last outcome is unknown. Retry the same reviewed operation; do not enter a second payment.";
+                _submitting = false; return;
+            }
+            _submitting = false;
+            await LoadOutstanding(); await OnChanged.InvokeAsync(); return;
+        }
+
         if (IsNpm)
         {
             if (_npmMode == "all")
@@ -533,6 +654,22 @@
             if (targets.Count == 0)
             { _error = "Select a month to pay."; _submitting = false; return; }
 
+            if (targets.Any(x => x.SettlementAuthority == SettlementAuthority.Canonical))
+            {
+                if (targets.Count != 1)
+                { _error = "Multi-period canonical receipts require a reviewed office workflow. Choose one period here; no payment was posted."; _submitting = false; return; }
+                var api = Services.GetService(typeof(IEcfCollectionsApiClient)) as IEcfCollectionsApiClient;
+                if (api is null || !_rentRequests.TryGetValue(targets[0].Period, out var request))
+                { _error = "Refresh the canonical rent quote before recording a receipt."; _submitting = false; return; }
+                Result<EcfPostOutcomeDto> posted;
+                _rentAttempted.Add(targets[0].Period);
+                try { posted = await api.PostRentReceiptAsync(request); }
+                catch { _error = "Receipt outcome unknown. Retry this same reviewed operation; do not record a legacy payment."; _submitting = false; return; }
+                if (!posted.IsSuccess) { _error = posted.Error ?? "Receipt not confirmed. Retry the same reviewed operation."; _submitting = false; return; }
+                _submitting = false;
+                await LoadOutstanding(); await OnChanged.InvokeAsync(); return;
+            }
+
             // One OR (one receipt) covers the whole transaction — a single month OR all outstanding months
             // of THIS stall. The OR is stamped on every month settled; stall-aware uniqueness permits the
             // same OR across this stall's months, while a different stall/module still rejects it.
@@ -556,6 +693,14 @@
         if (_submitting) return;
         _loadedStall = Guid.Empty;     // reload next open
         await OnClose.InvokeAsync();
+    }
+
+    private void RentAmountChanged(ChangeEventArgs e)
+    {
+        if (_rentAttempted.Contains(_selectedPeriod) || !_rentRequests.TryGetValue(_selectedPeriod, out var request)) return;
+        var amount = decimal.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Number,
+            System.Globalization.CultureInfo.InvariantCulture, out var parsed) ? parsed : 0m;
+        _rentRequests[_selectedPeriod] = request with { ClientOperationId = Guid.NewGuid(), ReceivedAmount = amount };
     }
 
     private static bool TryParsePeriod(string period, out int year, out int month)

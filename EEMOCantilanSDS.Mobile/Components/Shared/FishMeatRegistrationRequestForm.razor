@@ -1,0 +1,105 @@
+@using EEMOCantilanSDS.Application.Common
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@inject IMobileApiClient Api
+
+@* A Collector's request to register a Fish / Meat vendor the office does not yet have. It proposes an identity: no cash, amount or SRC, and the
+   proposed name is never a collectible source. The submission carries one stable operation id and a frozen body, kept across retries so a
+   dropped response replays the same request instead of creating a second one. *@
+<form class="fmr" @onsubmit="SubmitAsync" @onsubmit:preventDefault="true" aria-label="Request vendor registration">
+    <label class="fmr-field">Vendor name
+        <input class="form-input" maxlength="200" autocomplete="off" required disabled="@Locked" @bind="_name" @bind:event="oninput" /></label>
+    <div class="fmr-field" role="group" aria-label="Type">Type
+        <div class="fmr-seg">
+            <button type="button" class="@(_type == FishMeatVendorType.Fish ? "on" : null)" aria-pressed="@(_type == FishMeatVendorType.Fish ? "true" : "false")" disabled="@Locked" @onclick="() => _type = FishMeatVendorType.Fish">Fish</button>
+            <button type="button" class="@(_type == FishMeatVendorType.Meat ? "on" : null)" aria-pressed="@(_type == FishMeatVendorType.Meat ? "true" : "false")" disabled="@Locked" @onclick="() => _type = FishMeatVendorType.Meat">Meat</button>
+        </div>
+    </div>
+    <label class="fmr-field">Contact (optional)
+        <input class="form-input" maxlength="200" autocomplete="off" disabled="@Locked" @bind="_contact" /></label>
+    <label class="fmr-field">Note for the office (optional)
+        <textarea class="form-input" maxlength="1000" rows="3" disabled="@Locked" @bind="_note"></textarea></label>
+    @if (_error is not null) { <p class="fmr-error" role="alert">@_error</p> }
+    <div class="fmr-actions">
+        @if (OnCancel.HasDelegate) { <button class="btn-cancel" type="button" disabled="@_busy" @onclick="() => OnCancel.InvokeAsync()">Cancel</button> }
+        <button class="btn-confirm" type="submit" disabled="@(_busy || string.IsNullOrWhiteSpace(_name) || _type is null)">@(_busy ? "Submitting…" : _frozen is null ? "Submit request" : "Retry")</button>
+    </div>
+    @if (_frozen is not null)
+    {
+        <button class="fmr-link" type="button" disabled="@_busy" @onclick="EditAgain">Change details</button>
+    }
+    <p class="fmr-note">No cash is taken and no SRC is issued. The office verifies the vendor first.</p>
+</form>
+
+@code {
+    /// <summary>The search text the Collector typed, offered as the proposed name.</summary>
+    [Parameter] public string? InitialName { get; set; }
+
+    /// <summary>The returned request this one corrects; the server links the successor.</summary>
+    [Parameter] public Guid? ReplacesRequestId { get; set; }
+    [Parameter] public FishMeatVendorType? InitialType { get; set; }
+    [Parameter] public string? InitialContact { get; set; }
+    [Parameter] public string? InitialNote { get; set; }
+    [Parameter] public EventCallback<FishMeatRegistrationRequestDto> OnSubmitted { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private string _name = "", _contact = "", _note = "";
+    private FishMeatVendorType? _type;
+    private bool _busy, _seeded;
+    private string? _error;
+    // The exact body sent once; a retry replays it unchanged so the server answers from its own record.
+    private SubmitFishMeatRegistrationRequest? _frozen;
+    private bool Locked => _busy || _frozen is not null;
+
+    protected override void OnInitialized()
+    {
+        if (_seeded) return;
+        _seeded = true;
+        _name = InitialName?.Trim() ?? "";
+        _type = InitialType;
+        _contact = InitialContact ?? "";
+        _note = InitialNote ?? "";
+    }
+
+    private void EditAgain()
+    {
+        // Only after the server has not confirmed a decision: a changed intent is a new request with its own identity.
+        _frozen = null;
+        _error = null;
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_busy || _type is not { } type || string.IsNullOrWhiteSpace(_name)) return;
+        _frozen ??= new SubmitFishMeatRegistrationRequest(Guid.NewGuid(), _name.Trim(), type, PhilippineTime.Today.Year,
+            string.IsNullOrWhiteSpace(_contact) ? null : _contact.Trim(), string.IsNullOrWhiteSpace(_note) ? null : _note.Trim(), ReplacesRequestId);
+        _busy = true;
+        _error = null;
+        try
+        {
+            var result = await Api.SubmitFishMeatRequestAsync(_frozen);
+            if (result.IsSuccess && result.Value is { } saved)
+            {
+                _frozen = null;
+                await OnSubmitted.InvokeAsync(saved);
+                return;
+            }
+            _error = Describe(result);
+            // A definitive refusal is not retried as-is: the Collector corrects it, which is a new request identity.
+            if (result.Status is ResultStatus.Invalid or ResultStatus.Conflict or ResultStatus.Forbidden or ResultStatus.NotFound or ResultStatus.Unauthorized) _frozen = null;
+        }
+        catch { _error = "The submission could not be confirmed. Connect and retry; the same request is kept."; }
+        finally { _busy = false; }
+    }
+
+    private static string Describe(Result<FishMeatRegistrationRequestDto> result) => result.Error switch
+    {
+        string e when e.Contains("VendorRequestSchemaNotEnabled", StringComparison.Ordinal) => "Registration requests are not available yet. Ask the office.",
+        string e when e.Contains("Conflict", StringComparison.OrdinalIgnoreCase) || result.Status == ResultStatus.Conflict =>
+            "A request like this is already with the office. Check My registration requests.",
+        { Length: > 0 } e => e,
+        _ => "The request could not be submitted."
+    };
+}

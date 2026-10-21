@@ -18,7 +18,7 @@ namespace EEMOCantilanSDS.Testing.Application.Payments;
 /// </summary>
 public sealed class NpmMonthlyBillingCharacterizationTests
 {
-    private static (Stall Stall, List<DailyCollection> Rows, NpmMonthSettlementService Service) Fixture(
+    internal static (Stall Stall, List<DailyCollection> Rows, NpmMonthSettlementService Service) Fixture(
         NpmMonthBasis basis = NpmMonthBasis.RentGoal, decimal dailyFee = 30m, decimal monthlyRent = 900m)
     {
         var facility = Facility.Create(FacilityCode.NPM, "Test market", "TEST");

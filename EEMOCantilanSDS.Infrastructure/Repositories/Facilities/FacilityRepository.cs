@@ -213,6 +213,7 @@ public class FacilityRepository(AppDbContext context, IClock clock, IPaymentRepo
                 f.VegetableSectionLabel,
                 f.FishSectionLabel,
                 f.MeatSectionLabel,
+                f.Archetype,
                 Stalls = f.Stalls
                     .Where(s => s.Status == StallStatus.Active)
                     .Select(s => new
@@ -227,7 +228,7 @@ public class FacilityRepository(AppDbContext context, IClock clock, IPaymentRepo
 
         // NPM is daily-collected: its sidebar badge must answer "pending today", not "no monthly PaymentRecord".
         // Keep the monthly PaymentRecord projection below for TCC/NCC/BBQ/ICE and any other fixed-rent facility.
-        var npmPendingToday = facilities.Any(f => f.Code == FacilityCode.NPM)
+        var npmPendingToday = facilities.Any(f => f.Code == FacilityCode.NPM && f.Archetype != BillingArchetype.MonthlyRental)
             ? await paymentRepository.GetNpmPendingTodayCountAsync(ct)
             : 0;
 
@@ -235,7 +236,7 @@ public class FacilityRepository(AppDbContext context, IClock clock, IPaymentRepo
             f.Code,
             f.Name,
             f.ShortName,
-            f.Code == FacilityCode.NPM
+            f.Code == FacilityCode.NPM && f.Archetype != BillingArchetype.MonthlyRental
                 ? npmPendingToday
                 : f.Stalls.Count(s => !s.HasPaid
                     && s.Contracts.Any(c => c.IsActive
@@ -243,6 +244,7 @@ public class FacilityRepository(AppDbContext context, IClock clock, IPaymentRepo
                         && monthStart <= DomainRules.TermLastDay(c.EffectivityDate, c.DurationYears))),
             f.VegetableSectionLabel,
             f.FishSectionLabel,
-            f.MeatSectionLabel)).ToList();
+            f.MeatSectionLabel,
+            f.Archetype)).ToList();
     }
 }

@@ -4,6 +4,8 @@ using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos;
 using EEMOCantilanSDS.Application.Dtos.DailyCollections;
 using EEMOCantilanSDS.Application.Dtos.Payments;
+using EEMOCantilanSDS.Application.Dtos.Mobile;
+using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
@@ -35,6 +37,7 @@ public class PayBillModalSettleEverythingTests : TestContext
 
     private readonly List<SettleNpmMonthCommand> _settled = new();
     private Mock<IDailyCollectionApiClient> _daily = null!;
+    private readonly List<NpmWholePaymentRequest> _monthPosts = new();
 
     /// <summary>
     /// Twelve owed months of a ₱900 space — ₱10,800, the office's own Whole Year Rental figure.
@@ -60,16 +63,30 @@ public class PayBillModalSettleEverythingTests : TestContext
 
     private IRenderedComponent<PayBillModal> RenderModal(
         List<PaymentHistoryDto>? months = null,
-        string? failOnPeriod = null)
+        string? failOnPeriod = null, bool monthly = false, bool wrongOwner = false, bool transportFailure = false,
+        Task<Result<IReadOnlyList<PaymentHistoryDto>>>? firstLoad = null)
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
 
         var payments = new Mock<IPaymentsApiClient>();
         payments.Setup(p => p.GetOutstandingMonthsAsync(
                 It.IsAny<Guid>(), It.IsAny<Guid?>(), It.IsAny<int?>(), It.IsAny<int?>()))
-            .ReturnsAsync(Result<IReadOnlyList<PaymentHistoryDto>>.Success(months ?? TwelveOwedMonths()));
+            .Returns((Guid id, Guid? owner, int? year, int? month) => id == StallId && firstLoad is not null
+                ? firstLoad : Task.FromResult(Result<IReadOnlyList<PaymentHistoryDto>>.Success(months ?? TwelveOwedMonths())));
 
         _daily = new Mock<IDailyCollectionApiClient>();
+        _daily.Setup(d => d.IsNpmMonthlySettlementAvailableAsync()).ReturnsAsync(Result<bool>.Success(monthly));
+        _daily.Setup(d => d.QuoteNpmMonthlyWholeAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>()))
+            .ReturnsAsync((Guid id, int y, int m) => Result<NpmWholePaymentQuoteDto>.Success(new(id, y, m,
+                new(2026, 10, 17), 0, 25, 0, "reviewed-month-token", RevenueInstrumentType.OfficialReceipt,
+                900, 875, 0, CollectionSourceKind.NpmRentMonth, 3, wrongOwner ? Guid.NewGuid() : ContractId)));
+        _daily.Setup(d => d.RecordNpmMonthlyWholeAsync(It.IsAny<NpmWholePaymentRequest>()))
+            .ReturnsAsync((NpmWholePaymentRequest request) =>
+            {
+                _monthPosts.Add(request);
+                if (transportFailure) throw new HttpRequestException("Synthetic lost acknowledgement");
+                return Result<NpmRentMonthPaymentOutcome>.Failure("Outcome unknown; retry the same operation.", 409);
+            });
         _daily.Setup(d => d.GetSettleableNpmDaysAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<Guid?>()))
             .ReturnsAsync(Result<IReadOnlyList<SettleableNpmDayDto>>.Success(Array.Empty<SettleableNpmDayDto>()));
         _daily.Setup(d => d.SettleNpmMonthAsync(It.IsAny<SettleNpmMonthCommand>()))
@@ -100,6 +117,52 @@ public class PayBillModalSettleEverythingTests : TestContext
 
     private static void ChooseAllOutstanding(IRenderedComponent<PayBillModal> cut) =>
         cut.FindAll(".pb-seg-btn").Single(b => b.TextContent.Contains("All outstanding")).Click();
+
+    [Fact]
+    public async Task Late_response_from_previous_stall_cannot_replace_the_current_stalls_reviewed_periods()
+    {
+        var pending = new TaskCompletionSource<Result<IReadOnlyList<PaymentHistoryDto>>>();
+        var months = TwelveOwedMonths();
+        var cut = RenderModal(months: [months[1]], monthly: true, firstLoad: pending.Task);
+        var nextStall = Guid.NewGuid();
+        cut.SetParametersAndRender(p => p.Add(x => x.StallId, nextStall));
+        cut.WaitForAssertion(() => Assert.Contains("August 2023", cut.Markup));
+        await cut.InvokeAsync(() => pending.SetResult(Result<IReadOnlyList<PaymentHistoryDto>>.Success([months[0]])));
+        await cut.InvokeAsync(() => Task.CompletedTask);
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("August 2023", cut.Markup);
+            Assert.DoesNotContain("July 2023", cut.Markup);
+        });
+        Assert.Empty(_monthPosts);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Activated_month_uses_exact_server_amount_and_preserves_operation_on_uncertain_retry(bool transportFailure)
+    {
+        var cut = RenderModal(months: TwelveOwedMonths().Take(1).ToList(), monthly: true, transportFailure: transportFailure);
+        cut.WaitForAssertion(() => Assert.Contains("25.00", cut.Markup));
+        cut.FindAll("button").Single(b => b.TextContent.Contains("Record ")).Click();
+        cut.WaitForAssertion(() => Assert.Single(_monthPosts));
+        cut.FindAll("button").Single(b => b.TextContent.Contains("Record ")).Click();
+        cut.WaitForAssertion(() => Assert.Equal(2, _monthPosts.Count));
+        Assert.Equal(_monthPosts[0], _monthPosts[1]);
+        Assert.Equal(25, _monthPosts[0].Amount);
+        Assert.Equal("reviewed-month-token", _monthPosts[0].QuoteToken);
+        Assert.NotEqual(Guid.Empty, _monthPosts[0].ClientOperationId);
+        Assert.Empty(_settled);
+    }
+
+    [Fact]
+    public void Wrong_historical_contract_cannot_enable_month_payment()
+    {
+        var cut = RenderModal(months: TwelveOwedMonths().Take(1).ToList(), monthly: true, wrongOwner: true);
+        cut.WaitForAssertion(() => Assert.Contains("responsible contract", cut.Markup));
+        Assert.True(cut.FindAll("button").Single(b => b.TextContent.Contains("Record ")).HasAttribute("disabled"));
+        Assert.Empty(_monthPosts); Assert.Empty(_settled);
+    }
 
     [Fact]
     public void TheMarketIsOfferedAllOutstanding_AlongsideItsMonthAndDayChoices()

@@ -1,6 +1,8 @@
 using Bunit;
 using Bunit.TestDoubles;
+using EEMOCantilanSDS.Application.Common;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
+using EEMOCantilanSDS.Application.Common.Lifecycle;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Domain.Common;
@@ -22,6 +24,7 @@ public sealed class ClosedAccountsCoverageTests : TestContext
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
     private readonly List<Guid> Renewed = new();
     private readonly HashSet<Guid> _failRenewals = new();
+    private readonly Mock<ILifecycleApiClient> _lifecycleApi = new();
 
     private static ClosedStallAccountDto Stall(InactiveAccountState state, string occupant, string stallNo, decimal uncollected = 0m, bool reLet = false,
         FacilityCode facility = FacilityCode.NPM, string facilityName = "New Public Market") => new(
@@ -54,6 +57,7 @@ public sealed class ClosedAccountsCoverageTests : TestContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddSingleton(stallsApi.Object);
         Services.AddSingleton(obligations.Object);
+        Services.AddSingleton(_lifecycleApi.Object);
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
@@ -142,7 +146,7 @@ public sealed class ClosedAccountsCoverageTests : TestContext
         Assert.Contains("Closed event lot", lots.TextContent);
         Assert.Contains("Araw · Aug 15, 2025", lots.TextContent);
         Assert.Contains("Event", lots.QuerySelector("thead")!.TextContent);
-        // Source-owned spaces offer View account only: no renew, reopen, assign or bulk renewal exists for them.
+        // Until the server's eligibility arrives a space row shows View only; its actions are links drawn from that eligibility (see the tests below).
         foreach (var source in cut.FindAll(".ca-obligation-source"))
         {
             Assert.Empty(source.QuerySelectorAll(".ca-row-renew, .ca-row-reopen, .ca-row-remove, .ca-renew-all-btn"));
@@ -176,47 +180,14 @@ public sealed class ClosedAccountsCoverageTests : TestContext
         Assert.Equal("Renew eligible (1)", FacilityGroup(cut, "New Public Market").QuerySelector(".ca-renew-all-btn")!.TextContent.Trim());
         // Source-owned space accounts never get a bulk renewal.
         Assert.Empty(cut.Find(".ca-obligation-source").QuerySelectorAll(".ca-renew-all-btn"));
+        // It is a link to the facility's own renewal page: the report executes nothing.
+        Assert.Equal("a", FacilityGroup(cut, "Iceplant").QuerySelector(".ca-renew-all-btn")!.TagName.ToLowerInvariant());
+        Assert.Equal("/facility/ice/renewals", FacilityGroup(cut, "Iceplant").QuerySelector(".ca-renew-all-btn")!.GetAttribute("href"));
+        Assert.Equal("/facility/npm/renewals", FacilityGroup(cut, "New Public Market").QuerySelector(".ca-renew-all-btn")!.GetAttribute("href"));
+        Assert.Empty(cut.FindAll(".eemo-modal"));
     }
 
-    [Fact]
-    public void RenewingOneFacilityTouchesOnlyItsOwnEligibleAccounts_AndTheDialogNamesIt()
-    {
-        var ice1 = In("Iceplant", FacilityCode.ICE, InactiveAccountState.Expired, "Ice A", "1");
-        var ice2 = In("Iceplant", FacilityCode.ICE, InactiveAccountState.Expired, "Ice B", "2");
-        var npm = In("New Public Market", FacilityCode.NPM, InactiveAccountState.Expired, "Npm A", "5");
-        var cut = RenderRegister([ice1, ice2, npm]);
 
-        FacilityGroup(cut, "Iceplant").QuerySelector(".ca-renew-all-btn")!.Click();
-
-        Assert.Equal("Renew eligible accounts — Iceplant", cut.Find(".eemo-modal-title").TextContent.Trim());
-        Assert.Contains("2 eligible accounts", cut.Find(".confirm-text").TextContent);
-        Assert.DoesNotContain("Npm A", cut.Find(".eemo-modal").TextContent);
-        cut.Find(".eemo-modal-footer .btn-primary").Click();
-
-        cut.WaitForAssertion(() => Assert.Equal(2, Renewed.Count), Timeout);
-        Assert.Equal([ice1.StallId, ice2.StallId], Renewed.OrderBy(id => id == ice1.StallId ? 0 : 1).ToArray());
-        Assert.DoesNotContain(npm.StallId, Renewed);
-    }
-
-    [Fact]
-    public void AFilterNarrowsTheFacilityTargets_AndAPartialFailureRetriesOnlyTheFailedAccountsOfThatFacility()
-    {
-        var ice1 = In("Iceplant", FacilityCode.ICE, InactiveAccountState.Expired, "Ice A", "1");
-        var ice2 = In("Iceplant", FacilityCode.ICE, InactiveAccountState.Expired, "Ice B", "2");
-        var npm = In("New Public Market", FacilityCode.NPM, InactiveAccountState.Expired, "Npm A", "5");
-        _failRenewals.Add(ice2.StallId);
-        var cut = RenderRegister([ice1, ice2, npm]);
-
-        FacilityGroup(cut, "Iceplant").QuerySelector(".ca-renew-all-btn")!.Click();
-        cut.Find(".eemo-modal-footer .btn-primary").Click();
-
-        cut.WaitForAssertion(() => Assert.Contains("1 renewed, 1 failed", cut.Find(".ca-form-err").TextContent), Timeout);
-        Assert.Equal(2, Renewed.Count);
-        Assert.DoesNotContain(npm.StallId, Renewed);
-        // The retry covers only what is still eligible in Iceplant. The mocked register is unchanged, so both rows are still
-        // listed — but only the failed account was carried into the retry set.
-        Assert.Contains("1 eligible account", cut.Find(".confirm-text").TextContent);
-    }
 
     [Fact]
     public void ThePeriodStatusAndSourceControlsShareOneClusterAtOneHeight_AndTheBalanceNoteSpansTheSection()
@@ -295,5 +266,72 @@ public sealed class ClosedAccountsCoverageTests : TestContext
         Assert.Equal(css.Count(c => c == '{'), css.Count(c => c == '}'));
         Assert.Contains(".ca-export", css);
         Assert.DoesNotContain(".ca-chip", css);
+    }
+    private static AccountLifecycleDto Lifecycle(Guid id, params AllowedAction[] actions) => new(LifecycleSource.SpaceRental, id, "Space 1", "KanmanggaySpaceRental", "Josephine", LifecycleState.Closed,
+        new DateOnly(2025, 1, 1), new DateOnly(2026, 3, 31), null, actions, []);
+
+    [Fact]
+    public void SpaceRowsShowTheSameCompactActionsAStallRowDoes_AsLinksToTheProfile_AndTheReportMutatesNothing()
+    {
+        var km = Space(ObligationKind.KanmanggaySpaceRental, "Josephine", "Space 1");
+        var lot = Space(ObligationKind.FiestaArawLotRental, "Pedro Cruz", "Lot 4", @event: LotRentalEvent.Araw, eventDate: new DateOnly(2025, 8, 15));
+        _lifecycleApi.Setup(a => a.GetManyAsync(LifecycleSource.SpaceRental, It.IsAny<IReadOnlyList<Guid>>())).ReturnsAsync(
+            Result<IReadOnlyList<AccountLifecycleDto>>.Success([Lifecycle(km.Id,
+                new(LifecycleAction.Resume, true, null, null, "Admin", true),
+                new(LifecycleAction.Renew, false, "AccountClosed", "A closed account is resumed, not renewed.", "Admin", true),
+                new(LifecycleAction.Reassign, true, null, null, "Admin", true),
+                new(LifecycleAction.Remove, true, null, null, "SuperAdmin", true))]));
+        var cut = RenderRegister([], km, lot);
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".ca-row-reopen")), Timeout);
+        Assert.Equal($"/operations/kanmanggay/profile/{km.Id}?action=resume", cut.Find(".ca-row-reopen").GetAttribute("href"));
+        Assert.Equal($"/operations/kanmanggay/profile/{km.Id}?action=reassign", cut.Find(".ca-row-renew").GetAttribute("href"));   // the Assign/Reassign icon, as on a stall row
+        Assert.Equal($"/operations/kanmanggay/profile/{km.Id}?action=retire", cut.Find(".ca-row-remove").GetAttribute("href"));
+        Assert.Equal(["Resume account", "Reassign holder", "Retire account"], cut.FindAll(".ca-obligation-source a.ca-row-icon:not(.ca-row-view)").Select(x => x.GetAttribute("aria-label")).ToArray());
+        Assert.Empty(cut.FindAll(".ca-menu-row, .ca-menu-list"));                                              // no panel beneath the row
+        Assert.All(cut.FindAll(".ca-obligation-source .ca-act"), x => Assert.Contains("no-print", x.ClassName));   // never printed
+        Assert.Empty(cut.FindAll(".ca-obligation-source button[type='submit']"));
+        // The event lot has its View link and nothing else.
+        var lotRow = cut.FindAll(".ca-obligation-source").Single(s => s.TextContent.Contains("Fiesta / Araw"));
+        Assert.Single(lotRow.QuerySelectorAll("a.ca-row-icon"));
+        _lifecycleApi.Verify(a => a.GetManyAsync(LifecycleSource.SpaceRental, It.IsAny<IReadOnlyList<Guid>>()), Times.Once);   // one batched read, not one per row
+    }
+
+    [Fact]
+    public void AnActionWaitingOnTheOneTimeSpaceSetup_IsADisabledIconWithATooltip_AndOthersAreNotDrawn()
+    {
+        var km = Space(ObligationKind.KanmanggaySpaceRental, "Josephine", "Space 1");
+        _lifecycleApi.Setup(a => a.GetManyAsync(LifecycleSource.SpaceRental, It.IsAny<IReadOnlyList<Guid>>())).ReturnsAsync(
+            Result<IReadOnlyList<AccountLifecycleDto>>.Success([Lifecycle(km.Id,
+                new(LifecycleAction.Resume, false, "NoSpaceRegistration", "This account needs its one-time space setup first.", "Admin", true),
+                new(LifecycleAction.Renew, false, "AccountClosed", "x", "Admin", true))]));
+        var cut = RenderRegister([], km);
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".ca-row-off")), Timeout);
+        var off = cut.Find(".ca-row-off");
+        Assert.Equal("This account needs its one-time space setup first.", off.GetAttribute("title"));
+        Assert.Equal("true", off.GetAttribute("aria-disabled"));
+        Assert.Single(cut.FindAll(".ca-obligation-source .ca-row-icon:not(.ca-row-view)"));
+    }
+
+    [Fact]
+    public void AFailedEligibilityRead_IsStatedOnce_WithARetry_AndTheRowsKeepTheirViewLink()
+    {
+        var km = Space(ObligationKind.KanmanggaySpaceRental, "Josephine", "Space 1");
+        _lifecycleApi.Setup(a => a.GetManyAsync(It.IsAny<LifecycleSource>(), It.IsAny<IReadOnlyList<Guid>>())).ReturnsAsync(Result<IReadOnlyList<AccountLifecycleDto>>.Forbidden());
+        var cut = RenderRegister([], km);
+        cut.WaitForAssertion(() => Assert.Contains("Row actions could not be loaded", cut.Markup), Timeout);
+        Assert.Contains("Try again", cut.Find(".ca-obligation-source .ca-source-note[role='status'] button").TextContent);
+        Assert.Single(cut.FindAll(".ca-obligation-source a.ca-row-view"));
+    }
+
+    [Fact]
+    public void AnAccountWhoseEndDateHasNotArrivedIsStillActive_SoItIsNotListedAsClosed()
+    {
+        var closed = Space(ObligationKind.KanmanggaySpaceRental, "Pony Tail", "Space 2");
+        var ending = Space(ObligationKind.KanmanggaySpaceRental, "Josephine", "Space 1") with { ActiveTo = DateOnly.FromDateTime(DateTime.Today).AddDays(12) };
+        var cut = RenderRegister([], closed, ending);
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll("tr[data-account]")), Timeout);
+        Assert.Contains("Pony Tail", cut.Markup);
+        Assert.DoesNotContain("Josephine", cut.Markup);
     }
 }

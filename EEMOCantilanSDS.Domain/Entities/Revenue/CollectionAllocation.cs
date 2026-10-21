@@ -14,6 +14,7 @@ public sealed class CollectionAllocation : BaseEntity, IMunicipalityOwned
     public CollectionSourceKind SourceKind { get; private set; }
     public Guid SourceId { get; private set; }
     public Guid? FineAssessmentId { get; private set; }
+    public Guid? NpmRentMonthId { get; private set; }
     public CollectionSourcePart? SourcePart { get; private set; }
     public decimal Amount { get; private set; }
     public string? SourceSnapshot { get; private set; }
@@ -42,6 +43,7 @@ public sealed class CollectionAllocation : BaseEntity, IMunicipalityOwned
             SourceKind = draft.SourceKind,
             SourceId = draft.SourceId,
             FineAssessmentId = draft.SourceKind == CollectionSourceKind.FineAssessment ? draft.SourceId : null,
+            NpmRentMonthId = draft.SourceKind == CollectionSourceKind.NpmRentMonth ? draft.SourceId : null,
             SourcePart = draft.SourcePart,
             Amount = draft.Amount,
             SourceSnapshot = draft.SourceSnapshot

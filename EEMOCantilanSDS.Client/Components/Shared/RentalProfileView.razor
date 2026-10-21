@@ -34,6 +34,8 @@
         </div>
     </div>
 
+    @AfterHero
+
     <div class="prof-grid">
         <div class="prof-col">
             @foreach (var section in Sections)
@@ -163,6 +165,8 @@
     [Parameter] public string? Location { get; set; }
     [Parameter] public IReadOnlyList<ProfilePill> Pills { get; set; } = [];
     [Parameter] public IReadOnlyList<ProfileAction> Actions { get; set; } = [];
+    /// <summary>Content shown directly under the hero, before the figures: a host's own panel (a space account's lifecycle) that must not be buried below the history.</summary>
+    [Parameter] public RenderFragment? AfterHero { get; set; }
     [Parameter] public EventCallback<string> OnAction { get; set; }
     [Parameter, EditorRequired] public IReadOnlyList<ProfileSection> Sections { get; set; } = [];
 

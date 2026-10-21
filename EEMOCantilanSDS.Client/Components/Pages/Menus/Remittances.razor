@@ -19,28 +19,40 @@
 @* Money accountability over canonical Collections (IA-052 / IA-062). A remittance records money already collected and turned
    over: it never creates a Collection, a line, revenue or an SRC. Physical OR/CT books play no part here; the instrument is
    only policy metadata on a collection. The layout owns the <main> landmark. *@
-<div class="v3-page rm-page">
-    <header class="rm-header no-print">
-        <div>
-            <h1>@(Preparation ? "New Remittance" : "Remittance & Liquidation")</h1>
-            <p>@(Preparation ? "Select collected amounts to remit." : "Review collected amounts and prepare remittances.")</p>
-        </div>
-        <div class="rm-header-actions">
-        @if (Preparation)
+<div class="v3-page rm-page @(!Preparation ? "rm-workspace" : "")">
+    <div class="no-print">
+        <V3Hero Compact="true" Title="@(Preparation ? "New Remittance" : "Remittance & Liquidation")"
+                Subtitle="@(Preparation ? "Select collected amounts to remit." : "Review and remit collections.")"
+                Figures="HeroFigures" FiguresLabel="Cash position">
+            <Icon><svg viewBox="0 0 24 24"><path d="M3 7h18v12H3z" /><path d="M3 11h18" /><path d="M7 15h4" /></svg></Icon>
+            <Actions>
+                @if (Preparation)
+                {
+                    <a class="v3-btn" href="/remittances">Back to remittances</a>
+                }
+            </Actions>
+        </V3Hero>
+
+        @if (!Preparation)
         {
-            <a class="v3-btn" href="/remittances">Back to remittances</a>
+            <div class="rm-nav">
+                <div class="rm-tabs" role="group" aria-label="Remittance views">
+                    <button type="button" class="rm-tab @(_tab == "due" ? "active" : "")" aria-pressed="@(_tab == "due" ? "true" : "false")" @onclick='() => _tab = "due"'>For remittance</button>
+                    <button type="button" class="rm-tab @(_tab == "position" ? "active" : "")" aria-pressed="@(_tab == "position" ? "true" : "false")" @onclick='() => _tab = "position"'>Collector position</button>
+                    <button type="button" class="rm-tab @(_tab == "history" ? "active" : "")" aria-pressed="@(_tab == "history" ? "true" : "false")" @onclick='() => _tab = "history"'>Remittance history</button>
+                </div>
+                <div class="rm-ctl" role="group" aria-label="Remittance actions">
+                    <button class="v3-btn" type="button" @onclick="PrintAsync">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+                        Print
+                    </button>
+                    <OfficeCashTurnoverLink />
+                    <a class="v3-btn rm-act-secondary" href="/remittances/void">Void Remittance</a>
+                    <a class="v3-btn v3-btn-primary" href="/remittances/new">New Remittance</a>
+                </div>
+            </div>
         }
-        else
-        {
-            <button class="v3-btn" type="button" @onclick="PrintAsync">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
-                Print summary
-            </button>
-            <a class="v3-btn rm-act-secondary" href="/remittances/void">Void Remittance</a>
-            <a class="v3-btn v3-btn-primary" href="/remittances/new">New Remittance</a>
-        }
-        </div>
-    </header>
+    </div>
 
     <div class="rm-print-head" aria-hidden="true">
         <ReportLetterhead Title="Remittance / Liquidation Summary" Period="@PeriodLabel" />
@@ -122,9 +134,9 @@
 
     @if (_position is { } position)
     {
-        <SummaryStrip Label="Cash position" Items="SummaryItems(position)" />
-
-        <section class="v3-panel" aria-labelledby="rm-due-title" aria-busy="@(_loading ? "true" : "false")">
+        @if (ShowDue)
+        {
+        <section class="v3-panel rm-tab-panel" aria-labelledby="rm-due-title" aria-busy="@(_loading ? "true" : "false")">
             <header class="v3-panel-header">
                 <h2 id="rm-due-title">@(Preparation ? "Ready for remittance" : "For remittance")</h2>
                 <div class="rm-section-actions">
@@ -156,10 +168,11 @@
                         {
                             var draft = item.Draft;
                             var collection = item.Collection;
-                            <tr @key="collection.CollectionId">
+                            <tr @key="collection.CollectionId" class="rm-row" tabindex="0" aria-label="@($"Open details of {collection.ReferenceCode}")"
+                                @onclick="() => OpenReceipt(item)" @onkeydown="e => OnRowKey(e, item)">
                                 @if (Preparation)
                                 {
-                                <td class="rm-check"><input type="checkbox" aria-label="@($"Include {SourceLabel(collection)} {collection.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)} {Money(collection.NetAmount)}")" checked="@draft.Selected.Contains(collection.CollectionId)"
+                                <td class="rm-check" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><input type="checkbox" aria-label="@($"Include {SourceLabel(collection)} {collection.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)} {Money(collection.NetAmount)}")" checked="@draft.Selected.Contains(collection.CollectionId)"
                                            @onchange="e => Toggle(draft, collection.CollectionId, e.Value is true)" /></td>
                                 }
                                 <td>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
@@ -188,6 +201,7 @@
                 </table>
             </div>
         </section>
+        }
 
         @if (Preparation)
         {
@@ -257,9 +271,9 @@
             </section>
         }
 
-        @if (!Preparation)
+        @if (ShowPosition)
         {
-        <section class="v3-panel" aria-labelledby="rm-pos-title">
+        <section class="v3-panel rm-tab-panel" aria-labelledby="rm-pos-title">
             <header class="v3-panel-header"><h2 id="rm-pos-title">Collector position</h2></header>
             <div class="v3-table-wrap" role="region" aria-label="Collector position" tabindex="0">
                 <table class="v3-table rm-position">
@@ -292,9 +306,9 @@
         }
     }
 
-    @if (!Preparation)
+    @if (ShowHistory)
     {
-    <section class="v3-panel" aria-labelledby="rm-hist-title">
+    <section class="v3-panel rm-tab-panel" aria-labelledby="rm-hist-title">
         <header class="v3-panel-header">
             <h2 id="rm-hist-title">Remittance history</h2>
             <div class="rm-section-actions"><span class="v3-panel-meta">@_register.Count in this period</span>
@@ -355,6 +369,10 @@
             </table>
         </div>
     </section>
+    }
+    @if (_receipt is { } receipt)
+    {
+        <RemittanceCollectionDetail Collection="receipt" CollectorName="@_receiptCollector" OnClose="CloseReceipt" />
     }
 </div>
 
@@ -461,6 +479,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        if (History == "all") _tab = "history";
         _from = From ?? ParseDate(QueryFrom) ?? _from;
         _to = To ?? ParseDate(QueryTo) ?? _to;
         foreach (var id in ParseCollectorIds(Collector ?? QueryCollector)) _collectorIds.Add(id);
@@ -564,8 +583,7 @@
         draft.Amount = draft.Selected.Count == 0 ? null : draft.Expected;
     }
 
-    private static string SourceLabel(RemittanceCollectionDto collection) => collection.Lines.Count == 0 ? "—"
-        : string.Join(" · ", collection.Lines.Select(l => EEMOCantilanSDS.Client.Services.SourceNames.For(l.Name)));
+    private static string SourceLabel(RemittanceCollectionDto collection) => EEMOCantilanSDS.Client.Services.RemittanceSourceLabel.For(collection);
 
     private static string ReconcileStatus(decimal expected, decimal remitted) =>
         remitted > expected ? "Over expected" : expected - remitted == 0m ? "Balanced" : "Short · for review";
@@ -611,7 +629,39 @@
         finally { _saving = false; }
     }
 
-    private async Task PrintAsync() => await JS.InvokeVoidAsync("print");
+    // Paper carries every section, whichever tab is open on screen.
+    private async Task PrintAsync()
+    {
+        _printing = true;
+        StateHasChanged();
+        await Task.Delay(150);
+        try { await JS.InvokeVoidAsync("print"); }
+        finally { _printing = false; }
+    }
+
+    private string _tab = "due";
+    private bool _printing;
+    private bool ShowDue => Preparation || _tab == "due" || _printing;
+    private bool ShowPosition => !Preparation && (_tab == "position" || _printing);
+    private bool ShowHistory => !Preparation && (_tab == "history" || _printing);
+
+    private RemittanceCollectionDto? _receipt;
+    private string? _receiptCollector;
+    private void OpenReceipt((Draft Draft, RemittanceCollectionDto Collection) item) { _receipt = item.Collection; _receiptCollector = item.Draft.Name; }
+    private void CloseReceipt() => _receipt = null;
+    private void OnRowKey(KeyboardEventArgs e, (Draft Draft, RemittanceCollectionDto Collection) item) { if (e.Key is "Enter" or " ") OpenReceipt(item); }
+
+    private RenderFragment? HeroFigures => _position is not { } p ? null : builder =>
+    {
+        var seq = 0;
+        foreach (var item in SummaryItems(p))
+        {
+            builder.OpenComponent<V3HeroFigure>(seq++);
+            builder.AddComponentParameter(seq++, nameof(V3HeroFigure.Label), item.Label);
+            builder.AddComponentParameter(seq++, nameof(V3HeroFigure.Value), item.Value);
+            builder.CloseComponent();
+        }
+    };
 
     private static string Money(decimal amount) => $"₱{amount.ToString("N2", CultureInfo.InvariantCulture)}";
 

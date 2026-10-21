@@ -1,0 +1,117 @@
+/* Office slaughter record by approved charges — V3. The drawer, sections and fields come from AddNewDrawer and the v3- layer. */
+
+.sor-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.sor-chips label {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 14px;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.sor-chips label.is-on {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.sor-chips input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.sor-chips label:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.sor-heads {
+    max-width: 8rem;
+    margin-top: 12px;
+}
+
+.sor-note {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+}
+
+.sor-charges {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.sor-charges li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+}
+
+.sor-charges li + li {
+    border-top: 1px solid var(--border);
+}
+
+.sor-pick {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.sor-rate {
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.sor-qty {
+    width: 5.5rem;
+}
+
+.sor-breakdown {
+    width: 100%;
+    margin-top: 12px;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.sor-breakdown td,
+.sor-breakdown th {
+    padding: 6px 0;
+    text-align: left;
+}
+
+.sor-breakdown td:last-child {
+    text-align: right;
+}
+
+.sor-breakdown td:nth-child(2) {
+    color: var(--text-secondary);
+}
+
+.sor-breakdown tfoot th,
+.sor-breakdown tfoot td {
+    border-top: 1px solid var(--border-strong);
+    font-weight: 700;
+}

@@ -50,5 +50,7 @@ public sealed record CollectionSourcePage(IReadOnlyList<CollectionSourceSearchRe
 public static class CollectionSourceCategories
 {
     public const string FishMeat = "fishmeat", Npm = "npm", Rentals = "rentals", Spaces = "spaces";
+    public const string Tcc = "tcc", Ncc = "ncc", Bbq = "bbq", Ice = "ice",
+        Kanmanggay = "kanmanggay", VegetableFruit = "vegetablefruit", FiestaAraw = "fiestaaraw";
     public const int MaxPage = 50;
 }

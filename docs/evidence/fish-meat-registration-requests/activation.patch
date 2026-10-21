@@ -1,0 +1,19 @@
+diff --git a/EEMOCantilanSDS.Infrastructure/Persistence/AppDbContext.cs b/EEMOCantilanSDS.Infrastructure/Persistence/AppDbContext.cs
+--- a/EEMOCantilanSDS.Infrastructure/Persistence/AppDbContext.cs
++++ b/EEMOCantilanSDS.Infrastructure/Persistence/AppDbContext.cs
+@@ -1,3 +1,1 @@
+             modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+-            // Pending request schema is reviewed/tested separately; never make startup require an unapproved migration.
+-            modelBuilder.Ignore<FishMeatRegistrationRequest>();
+diff --git a/EEMOCantilanSDS.Infrastructure/Repositories/SystemHealth/TenantDataTables.cs b/EEMOCantilanSDS.Infrastructure/Repositories/SystemHealth/TenantDataTables.cs
+--- a/EEMOCantilanSDS.Infrastructure/Repositories/SystemHealth/TenantDataTables.cs
++++ b/EEMOCantilanSDS.Infrastructure/Repositories/SystemHealth/TenantDataTables.cs
+@@ -1,1 +1,2 @@
+         "NpmRegistrationRequests",
++        "FishMeatRegistrationRequests",
+diff --git a/EEMOCantilanSDS.Infrastructure/Repositories/SystemHealth/TenantExportRepository.cs b/EEMOCantilanSDS.Infrastructure/Repositories/SystemHealth/TenantExportRepository.cs
+--- a/EEMOCantilanSDS.Infrastructure/Repositories/SystemHealth/TenantExportRepository.cs
++++ b/EEMOCantilanSDS.Infrastructure/Repositories/SystemHealth/TenantExportRepository.cs
+@@ -1,1 +1,2 @@
+             ["NpmRegistrationRequests"] = await context.NpmRegistrationRequests.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
++            ["FishMeatRegistrationRequests"] = await context.FishMeatRegistrationRequests.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),

@@ -56,11 +56,11 @@
             }
         }
     </SourceActions>
-    <Activity>
+    <Activity Context="back">
         <section class="v3-panel" aria-labelledby="ecf-activity-title">
             <header class="v3-panel-header">
                 <h2 id="ecf-activity-title">Collection activity</h2>
-                <span class="v3-panel-meta">@_activity.Count in @_periodLabel · <a href="/collections/activity">All collections</a></span>
+                <PanelBack OnBack="back"><a class="v3-panel-meta" href="/collections/activity">All collections</a></PanelBack>
             </header>
             <div class="v3-table-wrap" role="region" aria-label="Posted ECF collections" tabindex="0">
                 <table class="v3-table">

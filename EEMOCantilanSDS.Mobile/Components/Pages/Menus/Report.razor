@@ -648,10 +648,16 @@
 </div>
 
 @code {
-    static readonly HashSet<FacilityCode> DailyFacilities = new()
+    static readonly HashSet<FacilityCode> DailyWithMarket = new()
     {
         FacilityCode.NPM, FacilityCode.SLH, FacilityCode.TRM, FacilityCode.TPM
     };
+    static readonly HashSet<FacilityCode> DailyWithoutMarket = new() { FacilityCode.SLH, FacilityCode.TRM, FacilityCode.TPM };
+
+    // A Public Market its LGU rents by the month is a monthly rental on the device: it reads month chips, not daily ones.
+    HashSet<FacilityCode> DailyFacilities =>
+        Session.Menu?.Facilities.Any(f => f.Code == FacilityCode.NPM && f.Archetype == BillingArchetype.MonthlyRental) == true
+            ? DailyWithoutMarket : DailyWithMarket;
 
     bool IsLoading = true;
     string ErrorMessage = string.Empty;

@@ -29,13 +29,16 @@ public class ToggleStallStatusCommandHandler(
     ICurrentUserService currentUser,
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
-    ITenantContext tenantContext, IClock clock) : IRequestHandler<ToggleStallStatusCommand, Result<bool>>
+    ITenantContext tenantContext, IClock clock, Common.Payments.NpmRentMonthWorkflow? monthly = null) : IRequestHandler<ToggleStallStatusCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(ToggleStallStatusCommand request, CancellationToken ct)
     {
         var stall = await stallRepository.GetByIdAsync(request.StallId, ct);
         if (stall == null)
             return Result<bool>.NotFound();
+
+        if (monthly is not null && await monthly.HasActivatedStallAsync(stall.Id, ct))
+            return Result<bool>.Failure("This account has activated month evidence. Review the closure/reopening and its approved credits through month-source reconciliation first.", ResultStatus.Conflict);
 
         var actor = currentUser.Username ?? "Admin";
 

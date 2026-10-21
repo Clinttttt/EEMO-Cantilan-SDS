@@ -471,6 +471,12 @@
     protected override async Task OnInitializedAsync()
     {
         await FacilityCatalog.EnsureLoadedAsync();
+        // An LGU whose Public Market is standard monthly rental has no daily calendar: send it to the monthly rental workspace.
+        if (FacilityCatalog.IsMonthlyRentMarket)
+        {
+            Navigation.NavigateTo("/facility/market-rent", replace: true);
+            return;
+        }
         ResetState();
         InitializeToolbarActions();
         await LoadNpmRatesAsync();

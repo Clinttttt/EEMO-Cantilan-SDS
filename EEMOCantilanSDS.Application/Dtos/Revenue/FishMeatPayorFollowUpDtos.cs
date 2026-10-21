@@ -24,6 +24,9 @@ public sealed record FishMeatPayorResolveRequest(
     Guid ClientOperationId, Guid CollectionId, Guid? VendorRegistrationId = null, FishMeatPayorRegistration? Register = null, string? Note = null);
 
 public sealed record FishMeatPayorRegistration(
-    FishMeatVendorType VendorType, string DisplayName, string? BusinessName = null, string? Address = null);
+    FishMeatVendorType VendorType, string DisplayName, string? BusinessName = null, string? Address = null,
+    VendorRegistrationKind RegistrationKind = VendorRegistrationKind.New,
+    string? LastName = null, string? FirstName = null, string? MiddleName = null,
+    string? NameExtension = null, string? Sex = null, string? NatureOfBusiness = null);
 
 public sealed record FishMeatPayorResolveResult(Guid CollectionId, FishMeatVendorRegistrationDto Registration, bool Registered);

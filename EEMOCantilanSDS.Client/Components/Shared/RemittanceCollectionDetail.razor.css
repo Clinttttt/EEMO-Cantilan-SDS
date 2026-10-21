@@ -1,0 +1,31 @@
+/* Read-only collection detail for the remittance workspace; shares the v3-modal shell and mirrors the Collection Activity receipt. */
+.crm { width: min(42rem, 94vw); max-width: 94vw; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; }
+.crm-head { display: flex; align-items: center; gap: 12px; padding: 16px 20px; background: var(--civic-panel); color: #ffffff; }
+.crm-head-text { flex: 1 1 auto; min-width: 0; }
+.crm-head h2 { margin: 0; color: #ffffff; font-size: 1.0625rem; font-weight: 700; overflow-wrap: anywhere; }
+.crm-head p { margin: 2px 0 0; color: rgba(255, 255, 255, 0.78); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+.crm-close { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 8px; background: rgba(255, 255, 255, 0.1); cursor: pointer; }
+.crm-close svg { width: 16px; height: 16px; fill: none; stroke: #ffffff; stroke-width: 2; stroke-linecap: round; }
+.crm-close:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+.crm-body { display: grid; gap: 16px; overflow-y: auto; padding: 20px; background: var(--surface); }
+.crm-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; margin: 0; }
+.crm-meta dt { color: var(--text-tertiary); font-size: 0.75rem; }
+.crm-meta dd { margin: 2px 0 0; color: var(--text); font-size: 0.875rem; font-weight: 600; overflow-wrap: anywhere; }
+.crm-sub { display: block; margin-top: 4px; color: var(--text-secondary); font-size: 0.8125rem; font-weight: 400; }
+.crm-muted { color: var(--text-secondary); font-size: 0.8125rem; font-weight: 400; }
+.crm-pill { display: inline-block; padding: 2px 8px; border: 1px solid var(--border-strong); border-radius: 999px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+.crm-subject { margin: 0; color: var(--text-secondary); font-size: 0.8125rem; }
+.crm-items { width: 100%; border-collapse: collapse; font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.crm-items th, .crm-items td { padding: 8px 0; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.crm-items thead th { color: var(--text-tertiary); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.crm-items .crm-num { text-align: right; white-space: nowrap; }
+.crm-items tfoot th, .crm-items tfoot td { border-bottom: 0; font-weight: 700; }
+.crm-items tfoot tr:first-child th, .crm-items tfoot tr:first-child td { border-top: 2px solid var(--border-strong); }
+.crm-net th, .crm-net td { color: var(--navy); }
+.crm-h { margin: 0; color: var(--navy); font-size: 0.8125rem; font-weight: 700; }
+.crm-corrections { margin: -8px 0 0; padding: 0; list-style: none; font-size: 0.8125rem; }
+.crm-corrections li { padding: 6px 0; border-bottom: 1px solid var(--border); }
+.crm-note { margin: 0; color: var(--text-secondary); font-size: 0.75rem; line-height: 1.45; }
+.crm-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--border); background: var(--surface-muted); }
+@media (max-width: 560px) { .crm-meta { grid-template-columns: minmax(0, 1fr); } }
+@media print { .crm-foot { display: none; } }

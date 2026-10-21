@@ -1,3 +1,4 @@
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Domain.Common;
@@ -5,6 +6,12 @@ using EEMOCantilanSDS.Domain.Common;
 namespace EEMOCantilanSDS.HttpClients.ApiClients;
 public sealed class OfficeSourcesApiClient(HttpClient http) : HandleResponse(http), IOfficeSourcesApiClient
 {
+    public Task<Result<FishMeatRegistrationRequestPage>> FishMeatRequestsAsync(int page = 1, int pageSize = 25, FishMeatRequestStatus? status = null) =>
+        GetAsync<FishMeatRegistrationRequestPage>($"api/office-sources/fish-meat/registration-requests?page={page}&pageSize={pageSize}{(status is { } s ? $"&status={(int)s}" : "")}");
+    public Task<Result<FishMeatRegistrationRequestDto>> ReviewFishMeatRequestAsync(Guid id, ReviewFishMeatRegistrationRequest request) =>
+        PostAsync<ReviewFishMeatRegistrationRequest, FishMeatRegistrationRequestDto>($"api/office-sources/fish-meat/registration-requests/{id}/review", request);
+    public Task<Result<FishMeatRegistrationRequestDto>> CompleteFishMeatRequestAsync(Guid id, CompleteFishMeatRegistrationRequest request) =>
+        PostAsync<CompleteFishMeatRegistrationRequest, FishMeatRegistrationRequestDto>($"api/office-sources/fish-meat/registration-requests/{id}/complete", request);
     public Task<Result<NpmRegistrationRequestPage>> NpmRequestsAsync(int page = 1, int pageSize = 25) => GetAsync<NpmRegistrationRequestPage>($"api/office-sources/npm-requests?page={page}&pageSize={pageSize}");
     public Task<Result<NpmRegistrationRequestDto>> ReviewNpmRequestAsync(Guid id, ReviewNpmRegistrationRequest request) => PostAsync<ReviewNpmRegistrationRequest, NpmRegistrationRequestDto>($"api/office-sources/npm-requests/{id}/review", request);
     public Task<Result<NpmVendorOccupancyResult>> CreateNpmVendorOccupancyAsync(CreateNpmVendorOccupancyRequest request) =>

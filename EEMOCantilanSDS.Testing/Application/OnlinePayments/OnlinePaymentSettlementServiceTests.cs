@@ -57,6 +57,20 @@ public class OnlinePaymentSettlementServiceTests
     }
 
     [Fact]
+    public async Task Callback_after_monthly_cutover_begins_is_not_marked_paid_or_projected()
+    {
+        var record = PaymentRecord.Create(Guid.NewGuid(), 2026, 6, Amount);
+        record.MarkSettlementPendingCutover();
+        var (service, payments, uow) = Build(record); var transaction = PendingTxn(record.Id);
+        var before = transaction.Status;
+        var result = await service.SettleAsync(transaction, PaidEvent());
+        Assert.Equal(ResultStatus.Conflict, result.Status); Assert.Contains("RECONCILIATION_REQUIRED", result.Error);
+        Assert.Equal(before, transaction.Status); Assert.Equal(PaymentStatus.Unpaid, record.Status);
+        payments.Verify(x => x.UpdateAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+        uow.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task AlreadyPaidByAnotherChannel_RecordsTxn_ButPreservesOriginalAttribution()
     {
         var record = PaymentRecord.Create(Guid.NewGuid(), 2026, 6, Amount);

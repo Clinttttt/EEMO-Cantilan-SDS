@@ -1,0 +1,57 @@
+{
+  "task": "2D.2",
+  "scope": "read-only privilege diagnosis after 42501; no retry or role changes",
+  "server": {
+    "database": "EEMOCantilanSDS.DB",
+    "address": "::1",
+    "port": 5432,
+    "pid": 4940,
+    "read_only": "on"
+  },
+  "privileges": {
+    "failed_harness_creation_schema": "pg_catalog",
+    "can_create_in_failed_harness_schema": true,
+    "can_create_in_public": true,
+    "can_acquire_migration_lock": true,
+    "default_read_only": "on"
+  },
+  "tablesWithoutWriteLockPrivilege": [],
+  "parentPrivileges": [
+    {
+      "table_name": "Contracts",
+      "owned_by_current_role": true,
+      "can_select": true,
+      "can_insert": true,
+      "can_update": true,
+      "can_delete": true,
+      "can_truncate": true
+    },
+    {
+      "table_name": "Facilities",
+      "owned_by_current_role": true,
+      "can_select": true,
+      "can_insert": true,
+      "can_update": true,
+      "can_delete": true,
+      "can_truncate": true
+    },
+    {
+      "table_name": "Municipalities",
+      "owned_by_current_role": true,
+      "can_select": true,
+      "can_insert": true,
+      "can_update": true,
+      "can_delete": true,
+      "can_truncate": true
+    },
+    {
+      "table_name": "Stalls",
+      "owned_by_current_role": true,
+      "can_select": true,
+      "can_insert": true,
+      "can_update": true,
+      "can_delete": true,
+      "can_truncate": true
+    }
+  ]
+}

@@ -44,8 +44,7 @@ public sealed class NpmVendorAssociationTests : TestContext
         Assert.Contains(_source.ContractId.ToString(), cut.Markup);
         Assert.Empty(cut.FindAll("#npm-confirmation")); // new registration no longer asks for link evidence before the form
         cut.Find("footer .btn-primary").Click();
-        Assert.True(cut.Find("button[type=submit]").HasAttribute("disabled"));
-        cut.Find("#npm-registration-evidence").Input("Office checked source and person");
+        Assert.Empty(cut.FindAll("#npm-registration-evidence")); // source evidence is created automatically
         Assert.False(cut.Find("button[type=submit]").HasAttribute("disabled"));
         var form = cut.FindComponent<VendorRegistrationDrawer>();
         Assert.Empty(form.FindAll(".vendor-import-action button"));
@@ -54,6 +53,42 @@ public sealed class NpmVendorAssociationTests : TestContext
         Assert.True(string.IsNullOrEmpty(form.Instance.Model.Address)); Assert.True(string.IsNullOrEmpty(form.Instance.Model.Business));
         Export("npm-prefill", cut.Markup);
     }
+    [Theory]
+    [InlineData("Joji Hepol", "Joji", "", "Hepol")]
+    [InlineData("Vincent E. Doloriel", "Vincent", "E.", "Doloriel")]
+    [InlineData("Maria de la Cruz", "", "", "")] // compound family name cannot safely be inferred
+    public void Npm_registration_prefills_only_unambiguous_identity(string occupant, string first, string middle, string last)
+    {
+        _api.Setup(x => x.NpmVendorCandidatesAsync(Year, It.IsAny<bool>(), It.IsAny<bool>()))
+            .ReturnsAsync(Result<NpmVendorCandidates>.Success(new(Year, 1, [_source with { Occupant = occupant }])));
+        var cut = Open();
+        cut.Find(".npm-link-candidate").Click();
+        cut.Find("footer .btn-primary").Click();
+        var form = cut.FindComponent<VendorRegistrationDrawer>().Instance.Model;
+        Assert.Equal(occupant, form.Name);
+        Assert.Equal(first, form.FirstName);
+        Assert.Equal(middle, form.MiddleName);
+        Assert.Equal(last, form.LastName);
+        Assert.Equal("Fish retailing", form.NatureOfBusiness);
+        Assert.Empty(cut.FindAll("#npm-registration-evidence"));
+    }
+
+    [Fact]
+    public void Meat_registration_prefills_nature_from_verified_area_without_inventing_names()
+    {
+        _api.Setup(x => x.NpmVendorCandidatesAsync(Year, It.IsAny<bool>(), It.IsAny<bool>()))
+            .ReturnsAsync(Result<NpmVendorCandidates>.Success(new(Year, 1,
+                [_source with { Occupant = "Joji Hepol", Area = "Meat Area", SuggestedType = FishMeatVendorType.Meat }])));
+        var cut = Open();
+        cut.Find(".npm-link-candidate").Click();
+        cut.Find("footer .btn-primary").Click();
+        var model = cut.FindComponent<VendorRegistrationDrawer>().Instance.Model;
+        Assert.Equal(FishMeatVendorType.Meat, model.Type);
+        Assert.Equal("Meat retailing", model.NatureOfBusiness);
+        Assert.Equal("Joji", model.FirstName);
+        Assert.Equal("Hepol", model.LastName);
+    }
+
     [Fact]
     public void Linking_existing_registration_never_submits_registration_and_carries_exact_contract()
     {
@@ -63,7 +98,11 @@ public sealed class NpmVendorAssociationTests : TestContext
             .ReturnsAsync(Result<NpmVendorAssociationDto>.Failure("test", ResultStatus.Invalid));
         var cut = Open(); cut.Find(".npm-link-candidate").Click();
         SwitchPath(cut);
-        PickVendor(cut, "Existing"); cut.Find("#npm-confirmation").Change("Verified office evidence");
+        PickVendor(cut, "Existing");
+        Assert.Contains("Verification reference", cut.Find("label[for=npm-confirmation]").TextContent);
+        Assert.True(cut.Find("#npm-confirmation").HasAttribute("required"));
+        Assert.True(cut.Find("footer .btn-primary").HasAttribute("disabled"));
+        cut.Find("#npm-confirmation").Change("Verified office evidence");
         cut.Find("footer .btn-primary").Click();
         cut.WaitForAssertion(() => Assert.NotNull(sent)); Assert.Equal(_source.ContractId, sent!.ContractId); Assert.Equal(_source.StallId, sent.StallId);
         _api.Verify(x => x.RegisterAsync(It.IsAny<RegisterFishMeatVendorRequest>()), Times.Never);
@@ -76,9 +115,12 @@ public sealed class NpmVendorAssociationTests : TestContext
             .ReturnsAsync(Result<FishMeatVendorRegistrationDto>.Failure("test", ResultStatus.Invalid));
         var cut = Open(); cut.Find(".npm-link-candidate").Click();
         cut.Find("footer .btn-primary").Click();
-        cut.Find("#npm-registration-evidence").Input("Confirmed source");
+        Assert.Empty(cut.FindAll("#npm-registration-evidence"));
         cut.Find("form").Submit(); cut.Find("form").Submit();
         Assert.Equal(2, requests.Count); Assert.Equal(requests[0].ClientOperationId, requests[1].ClientOperationId);
+        Assert.Contains(_source.ContractId.ToString(), requests[0].NpmAssociation!.ConfirmationNote);
+        Assert.Contains(_source.StallId.ToString(), requests[0].NpmAssociation!.ConfirmationNote);
+        Assert.DoesNotContain("checked", requests[0].NpmAssociation!.ConfirmationNote, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(requests[0].ClientOperationId, requests[0].NpmAssociation!.ClientOperationId);
         Assert.Equal(_source.ContractId, requests[0].NpmAssociation!.ContractId);
     }
@@ -89,6 +131,7 @@ public sealed class NpmVendorAssociationTests : TestContext
         var cut = Open(); cut.Find(".npm-link-candidate").Click();
         // A similar name starts the review at linking, as a suggestion only: nothing is chosen and nothing can be confirmed until the Head picks one.
         Assert.Contains("Similar names are suggestions only", cut.Markup); Assert.Empty(cut.FindAll(".npm-link-pick.is-picked"));
+        Assert.Equal("Search registrations", cut.Find("label[for=npm-vendor-search]").TextContent);
         cut.Find("#npm-confirmation").Change("Confirmed"); Assert.True(cut.Find("footer .btn-primary").HasAttribute("disabled"));
         SwitchPath(cut); Assert.Empty(cut.FindAll("#npm-confirmation"));
         Assert.True(cut.Find("footer .btn-primary").HasAttribute("disabled"));
@@ -168,7 +211,10 @@ public sealed class NpmVendorAssociationTests : TestContext
         _api.Setup(x => x.CorrectNpmVendorLinkAsync(link.Id, It.IsAny<CorrectNpmVendorAssociationRequest>())).ReturnsAsync(Result<NpmVendorAssociationDto>.Success(link with { CorrectedAtUtc = DateTime.UtcNow, CorrectionReason = "Wrong source", CorrectedBy = "head" }));
         var cut = Open(); cut.Find(".npm-link-candidate").Click();
         Assert.Single(cut.FindAll("a").Where(x => x.TextContent == "View registration")); Assert.Empty(cut.FindAll("footer .btn-primary"));
-        cut.FindAll("button").Single(x => x.TextContent == "Correct link").Click(); cut.Find("#npm-correction").Change("Wrong source");
+        cut.FindAll("button").Single(x => x.TextContent == "Correct link").Click();
+        Assert.True(cut.Find("footer .btn-primary").HasAttribute("disabled"));
+        _api.Verify(x => x.CorrectNpmVendorLinkAsync(It.IsAny<Guid>(), It.IsAny<CorrectNpmVendorAssociationRequest>()), Times.Never);
+        cut.Find("#npm-correction").Change("Wrong source");
         _api.Setup(x => x.NpmVendorCandidatesAsync(Year, It.IsAny<bool>(), It.IsAny<bool>())).ReturnsAsync(Result<NpmVendorCandidates>.Success(new(Year, 1, [_source with { Links = [link with { CorrectedAtUtc = DateTime.UtcNow, CorrectionReason = "Wrong source", CorrectedBy = "head" }] }])));
         cut.Find("footer .btn-primary").Click();
         cut.WaitForAssertion(() => Assert.Contains("Corrected link", cut.Markup)); Assert.Contains("Wrong source", cut.Markup);
@@ -231,8 +277,34 @@ public sealed class NpmVendorAssociationTests : TestContext
         Assert.Equal("Linked", cut.Find(".npm-link-state").TextContent);
         cut.Find(".npm-link-candidate").Click();
         Assert.Empty(cut.FindAll("#npm-confirmation")); Assert.Empty(cut.FindAll("footer .btn-primary"));
+        Assert.Contains(_vendor.DisplayName, cut.Find("[aria-label='Registration status']").TextContent);
+        Assert.Equal("Verified", cut.Find(".npm-link-record-heading .npm-link-state").TextContent);
+        Assert.Equal($"/operations/fish-meat-vendor-fees/manage?taxYear={Year}&registrationId={_vendor.Id}", cut.Find(".npm-link-actions a").GetAttribute("href"));
+        Assert.All(cut.FindAll(".npm-link-evidence"), details => Assert.False(details.HasAttribute("open")));
+        Assert.False(cut.Find(".npm-link-secondary").HasAttribute("open"));
+        Assert.DoesNotContain("This occupant is already linked.", cut.Markup);
         cut.FindAll("button").Single(x => x.TextContent == "Link a separate registration").Click();
         Assert.Single(cut.FindAll("#npm-vendor-search")); Assert.Single(cut.FindAll("#npm-confirmation"));
+        SwitchPath(cut);
+        Assert.True(cut.Find("footer .btn-primary").HasAttribute("disabled"));
+        cut.Find(".npm-link-options input").Change(true);
+        cut.Find("footer .btn-primary").Click();
+        Assert.Empty(cut.FindAll("#npm-registration-evidence"));
+        Assert.False(cut.Find("button[type=submit]").HasAttribute("disabled"));
+        _api.Verify(x => x.RegisterAsync(It.IsAny<RegisterFishMeatVendorRequest>()), Times.Never);
+    }
+    [Fact]
+    public void AdminCanViewLinkedRegistration_ButCannotCorrectOrAddASeparateLink()
+    {
+        this.AddTestAuthorization().SetAuthorized("admin").SetRoles("Admin");
+        var link = new NpmVendorAssociationDto(Guid.NewGuid(), _vendor.Id, _source.ContractId, _source.StallId,
+            _source.Occupant, "head", DateTime.UtcNow, "Office checked", null, null, null);
+        _api.Setup(x => x.NpmVendorCandidatesAsync(Year, It.IsAny<bool>(), It.IsAny<bool>())).ReturnsAsync(
+            Result<NpmVendorCandidates>.Success(new(Year, 0, [_source with { Links = [link] }])));
+        var cut = Open();
+        cut.Find(".npm-link-candidate").Click();
+        Assert.Single(cut.FindAll(".npm-link-actions a"));
+        Assert.Empty(cut.FindAll(".npm-link-actions button, .npm-link-secondary, footer .btn-primary"));
     }
     private static void Export(string name, string markup)
     {

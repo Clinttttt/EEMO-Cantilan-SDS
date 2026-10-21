@@ -19,7 +19,7 @@ public class QuoteNpmAmountQueryHandler(IStallRepository stallRepository, INpmMo
 
         var stall = await stallRepository.GetByIdAsync(request.StallId, ct);
         if (stall is null) return Result<NpmAmountQuoteDto>.NotFound();
-        if (stall.Facility?.Code != FacilityCode.NPM)
+        if (stall.Facility?.Code != FacilityCode.NPM || stall.Facility.IsMonthlyRentMarket)
             return Result<NpmAmountQuoteDto>.Failure("Only New Public Market (daily) accounts are quoted by day.", ResultStatus.Invalid);
 
         var days = (await settlement.GetPayableDaysAsync(stall, request.Year, request.Month, ct)).OrderBy(d => d).ToList();

@@ -7,6 +7,7 @@
 @inject IUtilitiesApiClient UtilitiesApi
 @inject IJSRuntime JS
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
+@inject NavigationManager NpmNavigation
 @using EEMOCantilanSDS.Application.Dtos.Utilities
 
 <PageTitle>StallTrack — @FacilityCatalog.ShortNameOf(FacilityCode.NPM) Reports</PageTitle>
@@ -1506,6 +1507,13 @@ else
     protected override async Task OnInitializedAsync()
     {
         await FacilityCatalog.EnsureLoadedAsync();
+        // The daily calendar reports belong to a daily-collected market. An LGU that rents its market by the month reads the monthly
+        // facility reports from its monthly workspace; only the utilities view (a separate billing source) stays reachable here.
+        if (FacilityCatalog.IsMonthlyRentMarket && !string.Equals(View, "utilities", StringComparison.OrdinalIgnoreCase))
+        {
+            NpmNavigation.NavigateTo("/facility/market-rent", replace: true);
+            return;
+        }
         await LoadNpmRatesAsync();
 
         // Arriving from another page that asked for a particular month's utilities — the Financial Report's

@@ -46,7 +46,9 @@ public sealed record ObligationAccountDto(
     decimal? AreaSqm = null,
     string? AreaLocation = null,
     // The monthly rental the signed contract states (evidence only; the approved amount above is what is assessed).
-    decimal? ContractMonthlyRate = null);
+    decimal? ContractMonthlyRate = null,
+    // Retired from the roll (closed, nothing owed, records kept). Part of the one account-state classification.
+    bool Retired = false);
 
 public sealed record CreateObligationAccountRequest(
     ObligationKind Kind,
@@ -65,12 +67,15 @@ public sealed record CreateObligationAccountRequest(
     int? ContractYears = null,
     decimal? AreaSqm = null,
     string? AreaLocation = null,
-    decimal? ContractMonthlyRate = null);
+    decimal? ContractMonthlyRate = null,
+    // Retired from the roll (closed, nothing owed, records kept). Part of the one account-state classification.
+    bool Retired = false);
 
 /// <summary>Head-authorized correction of recorded holder/lease evidence; it never changes existing financial periods.</summary>
 public sealed record CorrectObligationHolderRequest(string ActualOccupant, OccupancyArrangement Arrangement,
     string? ContractReference, string? ContractName, DateOnly? ContractEffectiveDate,
-    int? ContractYears, decimal? AreaSqm, string? AreaLocation, decimal? ContractMonthlyRate = null);
+    int? ContractYears, decimal? AreaSqm, string? AreaLocation, decimal? ContractMonthlyRate = null,
+    SetObligationRateRequest? RateChange = null);
 
 public sealed record SetObligationRateRequest(DateOnly EffectiveFrom, decimal Amount);
 

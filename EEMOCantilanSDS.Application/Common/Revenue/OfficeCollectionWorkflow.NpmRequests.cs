@@ -115,6 +115,35 @@ public sealed partial class OfficeCollectionWorkflow
         finally { if (!committed) db.ChangeTracker.Clear(); }
     }
 
+    /// <summary>
+    /// A collector's pending request for this vendor and stall asks the office to verify exactly the association the Head has just confirmed, so that link
+    /// answers it: the request is closed as Approved against the association instead of waiting for a second, redundant approval. Only a request for the
+    /// same vendor registration whose proposed stall number (and area, when given) is this stall is closed; any other stays pending. It runs after the link
+    /// is committed and is best-effort - the link never fails because a request could not be closed, and no amount, cash or Collection is involved.
+    /// </summary>
+    private async Task ResolveRequestsAnsweredByLinkAsync(Guid vendorRegistrationId, Guid stallId, Guid associationId, CancellationToken ct)
+    {
+        try
+        {
+            var stall = await db.Stalls.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.Id == stallId)
+                .Select(x => new { x.StallNo, x.Section }).SingleOrDefaultAsync(ct);
+            if (stall is null) return;
+            var answered = (await db.NpmRegistrationRequests.Where(x => x.MunicipalityId == Tenant && x.VendorRegistrationId == vendorRegistrationId
+                    && x.Status == NpmRegistrationRequestStatus.Submitted).ToListAsync(ct))
+                .Where(x => string.Equals(x.ProposedStall.Trim(), stall.StallNo.Trim(), StringComparison.OrdinalIgnoreCase)
+                    && (x.ProposedSection is null || x.ProposedSection == stall.Section)).ToList();
+            if (answered.Count == 0) return;
+            foreach (var request in answered)
+                request.Review(Guid.NewGuid(), request.Version, NpmRegistrationRequestStatus.Approved, user.Username ?? "Head",
+                    "Linked directly by the Head; no separate approval needed.", clock.UtcNow, associationId);
+            await db.SaveChangesAsync(ct);
+        }
+        catch (Exception e) when (e is DbException or DbUpdateException or InvalidOperationException or ArgumentException)
+        {
+            db.ChangeTracker.Clear();   // the link stands; the request stays open for review
+        }
+    }
+
     public async Task<Result<NpmRegistrationRequestDto>> ReviewNpmRequestAsync(Guid id, ReviewNpmRegistrationRequest request, CancellationToken ct = default)
     {
         if (!RegistryHead) return Result<NpmRegistrationRequestDto>.Forbidden();

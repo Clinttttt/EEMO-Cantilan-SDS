@@ -963,7 +963,7 @@
         item.StallId.HasValue
         && item.Facility != FacilityCode.NPM
         && item.Amount.GetValueOrDefault() > 0m
-        && item.ReasonKind is "delinquent" or "contract";
+        && item.ReasonKind is "delinquent" or "arrears" or "contract";
 
 
     private static string Currency(decimal value) => $"₱{value:N0}";
@@ -1035,6 +1035,7 @@
     [
         new("all", "All"),
         new("delinquent", "Delinquent"),
+        new("arrears", "Arrears"),
         new("current", "Current-period"),
         new("contract", "Contract"),
         new("excused", "Excused Review"),

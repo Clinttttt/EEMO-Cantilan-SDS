@@ -382,4 +382,138 @@ public sealed class MarketFeeDefinitionTests(PostgresFixture db)
         Assert.Empty(await otherCtx.GovernedServiceFeeOptions.ToListAsync());
         Assert.Empty(await otherCtx.GovernedServiceFeeOptionRates.ToListAsync());
     }
+
+    /// <summary>
+    /// Transportation and Parking are separate fee types of the one Transportation / Parking operation, each with its own
+    /// amount rule. While that basis is active the collector chooses a fee type and the server prices it; the direct-amount
+    /// path no longer forces itself over the Head's setup, and switching back restores it.
+    /// </summary>
+    [SkippableFact]
+    public async Task TransportationCanBeCollectedByFeeType_PricedByTheServer_AndFallsBackToDirectAmountWhenTheBasisIsChanged()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var tenant = Municipality.Create($"trp-{Guid.NewGuid():N}"[..12], "Transport Fee Test", "Province", MunicipalityStatus.Active,
+            tenantCode: $"trp-{Guid.NewGuid():N}"[..28].ToLowerInvariant());
+        var collector = CollectorUser.Create("Ana Reyes", "C-02", $"pg-{Guid.NewGuid():N}"[..14], null, null, new HashedPassword("h"), tenant.Id);
+        await using (var setup = db.CreateContext(Guid.Empty))
+        {
+            setup.AddRange(tenant, collector);
+            await setup.SaveChangesAsync();
+        }
+        var effective = Today.AddDays(-30);
+        await using (var ctx = db.CreateContext(tenant.Id))
+        {
+            var classification = RevenueClassification.Create(RevenueClassificationCodes.TransportationParking, tenant.Id);
+            ctx.Add(classification);
+            ctx.Add(RevenueClassificationPolicy.Create(classification.Id, effective, "Transportation / Parking", RevenueInstrumentType.CashTicket, tenant.Id));
+            ctx.Add(CollectorOperationAssignment.Assign(tenant.Id, collector.Id, CollectorOperationCodes.Transportation, "head"));
+            await ctx.SaveChangesAsync();
+        }
+        var world = new World(tenant, collector, Guid.NewGuid(), [], Guid.Empty, Guid.Empty, Guid.Empty, Guid.Empty);
+        Guid transport, parking;
+        await using (var ctx = db.CreateContext(tenant.Id))
+        {
+            var head = Head(world, ctx);
+            Assert.True((await head.ConfigureAsync(CollectorOperationCodes.Transportation, new ConfigureGovernedServiceRequest(
+                effective, GovernedServiceBasis.ApprovedFeeOption, null, null, true, true))).IsSuccess);
+            var added = await head.AddFeeOptionAsync(CollectorOperationCodes.Transportation,
+                new AddFeeOptionRequest("Transportation", null, null, null, effective, GovernedServiceBasis.FixedAmount, 20m, null));
+            Assert.True(added.IsSuccess, added.Error);
+            added = await head.AddFeeOptionAsync(CollectorOperationCodes.Transportation,
+                new AddFeeOptionRequest("Parking", null, null, null, effective, GovernedServiceBasis.DirectApprovedAmount, null, 100m));
+            Assert.True(added.IsSuccess, added.Error);
+            transport = added.Value!.Single(x => x.DisplayName == "Transportation").Id;
+            parking = added.Value!.Single(x => x.DisplayName == "Parking").Id;
+        }
+
+        await using (var ctx = db.CreateContext(tenant.Id))
+        {
+            var terms = (await Collector(world, ctx).GetTermsAsync(CollectorOperationCodes.Transportation, null)).Value!;
+            Assert.Equal(GovernedServiceBasis.ApprovedFeeOption, terms.Basis);   // not forced to the direct quick amount
+            Assert.Equal(new[] { transport, parking }.Order(), terms.FeeOptions!.Select(x => x.Id).Order());
+        }
+
+        GovernedServicePostRequest PostFee(decimal amount, Guid option) => new(
+            1, Guid.NewGuid(), CollectorOperationCodes.Transportation, Today, amount, null, null, null,
+            null, null, DateTime.UtcNow.AddMinutes(-1), FeeOptionId: option);
+        await using (var ctx = db.CreateContext(tenant.Id))
+            Assert.True((await Collector(world, ctx).PostMobileAsync(PostFee(20m, transport))).IsSuccess);
+        await using (var ctx = db.CreateContext(tenant.Id))
+            Assert.False((await Collector(world, ctx).PostMobileAsync(PostFee(25m, transport))).IsSuccess);   // a fixed fee is never overridden
+
+        await using (var ctx = db.CreateContext(tenant.Id))
+        {
+            Assert.True((await Head(world, ctx).ConfigureAsync(CollectorOperationCodes.Transportation, new ConfigureGovernedServiceRequest(
+                Today, GovernedServiceBasis.DirectApprovedAmount, null, null, true, true))).IsSuccess);
+        }
+        await using (var ctx = db.CreateContext(tenant.Id))
+        {
+            var terms = (await Collector(world, ctx).GetTermsAsync(CollectorOperationCodes.Transportation, null)).Value!;
+            Assert.Equal(GovernedServiceBasis.DirectApprovedAmount, terms.Basis);
+            Assert.Null(terms.FeeOptions);
+        }
+
+        await using var verify = db.CreateContext(tenant.Id);
+        var line = await verify.CollectionLines.SingleAsync();
+        Assert.Equal(20m, line.Amount);
+        Assert.Contains("Transportation", line.CalculationSnapshot);
+    }
+
+    /// <summary>
+    /// Vegetable / Fruits Daily can be collected by approved fee type: the collector is offered the Head's named walk-in fees
+    /// (Cash Ticket, Daily mode) and the server prices the chosen one.
+    /// </summary>
+    [SkippableFact]
+    public async Task VegetableFruitDaily_CanBeCollectedByFeeType_PricedByTheServer()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var tenant = Municipality.Create($"veg-{Guid.NewGuid():N}"[..12], "Veg Fee Test", "Province", MunicipalityStatus.Active,
+            tenantCode: $"veg-{Guid.NewGuid():N}"[..28].ToLowerInvariant());
+        var collector = CollectorUser.Create("Ana Reyes", "C-03", $"pg-{Guid.NewGuid():N}"[..14], null, null, new HashedPassword("h"), tenant.Id);
+        await using (var setup = db.CreateContext(Guid.Empty))
+        {
+            setup.AddRange(tenant, collector);
+            await setup.SaveChangesAsync();
+        }
+        var effective = Today.AddDays(-30);
+        await using (var ctx = db.CreateContext(tenant.Id))
+        {
+            var classification = RevenueClassification.Create(RevenueClassificationCodes.VegetableFruitSpaceRental, tenant.Id);
+            ctx.Add(classification);
+            ctx.Add(RevenueClassificationPolicy.Create(classification.Id, effective, "Vegetable / Fruits daily", RevenueInstrumentType.CashTicket,
+                tenant.Id, businessContext: RevenuePolicyContext.VegetableDailyTransaction));
+            ctx.Add(CollectorOperationAssignment.Assign(tenant.Id, collector.Id, CollectorOperationCodes.VegetableFruitSpaceRental, "head"));
+            await ctx.SaveChangesAsync();
+        }
+        var world = new World(tenant, collector, Guid.NewGuid(), [], Guid.Empty, Guid.Empty, Guid.Empty, Guid.Empty);
+        Guid stall;
+        await using (var ctx = db.CreateContext(tenant.Id))
+        {
+            var head = Head(world, ctx);
+            Assert.True((await head.ConfigureAsync(CollectorOperationCodes.VegetableFruitSpaceRental, new ConfigureGovernedServiceRequest(
+                effective, GovernedServiceBasis.ApprovedFeeOption, null, null, true, true))).IsSuccess);
+            var added = await head.AddFeeOptionAsync(CollectorOperationCodes.VegetableFruitSpaceRental,
+                new AddFeeOptionRequest("Daily stall", null, null, null, effective, GovernedServiceBasis.FixedAmount, 15m, null));
+            Assert.True(added.IsSuccess, added.Error);
+            stall = added.Value!.Single().Id;
+        }
+        await using (var ctx = db.CreateContext(tenant.Id))
+        {
+            var terms = (await Collector(world, ctx).GetTermsAsync(CollectorOperationCodes.VegetableFruitSpaceRental, GovernedServiceMode.DailyTransaction)).Value!;
+            Assert.Equal(GovernedServiceBasis.ApprovedFeeOption, terms.Basis);
+            Assert.Equal(RevenueInstrumentType.CashTicket, terms.Instrument);
+            Assert.Equal(stall, Assert.Single(terms.FeeOptions!).Id);
+        }
+        await using (var ctx = db.CreateContext(tenant.Id))
+        {
+            var posted = await Collector(world, ctx).PostMobileAsync(new GovernedServicePostRequest(
+                1, Guid.NewGuid(), CollectorOperationCodes.VegetableFruitSpaceRental, Today, 15m, GovernedServiceMode.DailyTransaction, null, null,
+                null, null, DateTime.UtcNow.AddMinutes(-1), FeeOptionId: stall));
+            Assert.True(posted.IsSuccess, posted.Error);
+        }
+        await using var verify = db.CreateContext(tenant.Id);
+        Assert.Equal(15m, (await verify.CollectionLines.SingleAsync()).Amount);
+    }
 }

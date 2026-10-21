@@ -1,0 +1,167 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Collections
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Services
+@using EEMOCantilanSDS.Domain.Enums
+@inject ICollectionActivityApiClient ActivityApi
+@inject FacilityState FacilityCatalog
+
+@* Read-only collection detail for the remittance workspace. The frozen evidence (itemized lines, corrections, recorder) is read from the
+   tenant-scoped Collection Activity feed by exact SRC; when it cannot be read, only what the remittance scope already carries is shown.
+   Nothing here is reconstructed, rated or turned into an official receipt. *@
+<div class="v3-modal-backdrop" role="presentation" @onclick="OnClose">
+    <section class="v3-modal crm" role="dialog" aria-modal="true" aria-labelledby="crm-title" @onclick:stopPropagation="true" @onkeydown="OnKey">
+        <header class="crm-head">
+            <div class="crm-head-text">
+                <h2 id="crm-title">@(string.IsNullOrWhiteSpace(Payer) ? SourceText : Payer)</h2>
+                <p>@Collection.ReferenceCode · @Collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</p>
+            </div>
+            <button class="crm-close" type="button" aria-label="Close" @ref="_close" @onclick="OnClose"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
+        </header>
+        <div class="v3-modal-body crm-body" aria-busy="@(_loading ? "true" : "false")">
+            <dl class="crm-meta">
+                <div><dt>SRC</dt><dd>@Collection.ReferenceCode</dd></div>
+                <div><dt>Collection date</dt><dd>@Collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</dd></div>
+                <div><dt>Collector</dt><dd>@(_event?.CollectorName ?? CollectorName ?? "—")</dd></div>
+                <div><dt>Payer</dt><dd>@(string.IsNullOrWhiteSpace(Payer) ? "—" : Payer)</dd></div>
+                <div><dt>Revenue source</dt><dd>@SourceText</dd></div>
+                @if (_event?.Facility is { } facility)
+                {
+                    <div><dt>Facility</dt><dd>@FacilityCatalog.ShortNameOf(facility)</dd></div>
+                }
+                <div><dt>OR / CT</dt><dd>
+                    @if (!string.IsNullOrWhiteSpace(_event?.DocumentNumber))
+                    {
+                        @if ((_event.InstrumentType ?? Collection.Instrument) is { } kind) { <InstrumentChip Instrument="@(kind == RevenueInstrumentType.OfficialReceipt ? "OR" : "CT")" /> }
+                        @_event.DocumentNumber
+                    }
+                    else if (Collection.Instrument is { } recorded)
+                    {
+                        <InstrumentChip Instrument="@(recorded == RevenueInstrumentType.OfficialReceipt ? "OR" : "CT")" />
+                        <span class="crm-muted">Number not recorded</span>
+                    }
+                    else { <span class="crm-muted">None recorded</span> }
+                </dd></div>
+                <div><dt>Remittance</dt><dd><span class="crm-pill">Not yet remitted</span>
+                    @if (Collection.CorrectedAfterRemittance) { <span class="crm-sub">Corrected after it was remitted: review before remitting.</span> }
+                </dd></div>
+            </dl>
+            @if (!string.IsNullOrWhiteSpace(_event?.Subject))
+            {
+                <p class="crm-subject">@_event.Subject</p>
+            }
+
+            <table class="crm-items" aria-label="Itemized collection">
+                <thead><tr><th scope="col">Item</th><th scope="col">Period</th><th scope="col" class="crm-num">Amount</th></tr></thead>
+                <tbody>
+                    @if (_event is { Lines.Count: > 0 })
+                    {
+                        @foreach (var line in _event.Lines)
+                        {
+                            <tr><td>@LineLabel(line)</td><td>@LinePeriod(line)</td><td class="crm-num">@Money(line.Amount)</td></tr>
+                        }
+                    }
+                    else
+                    {
+                        @foreach (var line in Collection.Lines)
+                        {
+                            <tr><td>@SourceNames.For(line.Name)</td><td></td><td class="crm-num">@Money(line.Amount)</td></tr>
+                        }
+                    }
+                </tbody>
+                <tfoot>
+                    @if (_event is not null)
+                    {
+                        <tr><th scope="row" colspan="2">Original amount</th><td class="crm-num">@Money(_event.Amount)</td></tr>
+                        @if (_event.CorrectionEffect != 0m)
+                        {
+                            <tr><th scope="row" colspan="2">Correction</th><td class="crm-num">@Money(_event.CorrectionEffect)</td></tr>
+                        }
+                        <tr class="crm-net"><th scope="row" colspan="2">Net to remit</th><td class="crm-num">@Money(_event.NetAmount)</td></tr>
+                    }
+                    else
+                    {
+                        <tr class="crm-net"><th scope="row" colspan="2">Net to remit</th><td class="crm-num">@Money(Collection.NetAmount)</td></tr>
+                    }
+                </tfoot>
+            </table>
+
+            @if (_event is { Corrections.Count: > 0 })
+            {
+                <h3 class="crm-h">Correction history</h3>
+                <ul class="crm-corrections">
+                    @foreach (var c in _event.Corrections)
+                    {
+                        <li><strong>@CorrectionLabel(c.CorrectionType)</strong> · @c.EffectiveDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) · @Money(c.FinancialEffect)
+                            @if (!string.IsNullOrWhiteSpace(c.Reason)) { <span class="crm-sub">@c.Reason</span> }</li>
+                    }
+                </ul>
+            }
+            @if (_loading)
+            {
+                <p class="crm-muted" role="status">Loading the recorded detail…</p>
+            }
+            else if (_event is null)
+            {
+                <p class="crm-note" role="status">The itemized detail could not be read. These are the classification totals the remittance uses; open Collection Activity for the recorded evidence.</p>
+            }
+            <p class="crm-note">A read-only view of the recorded collection. It is not an official receipt.</p>
+        </div>
+        <footer class="crm-foot">
+            <a class="v3-btn" href="@ActivityHref">Collection Activity</a>
+            <button type="button" class="v3-btn v3-btn-primary" @onclick="OnClose">Close</button>
+        </footer>
+    </section>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public RemittanceCollectionDto Collection { get; set; } = default!;
+    [Parameter] public string? CollectorName { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private CollectionActivityEventDto? _event;
+    private bool _loading = true;
+    private ElementReference _close;
+
+    private string? Payer => string.IsNullOrWhiteSpace(_event?.PayerName) ? Collection.PayerName : _event!.PayerName;
+    private string SourceText => RemittanceSourceLabel.For(Collection);
+    private string ActivityHref => $"/transactions?src={Uri.EscapeDataString(Collection.ReferenceCode)}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            await FacilityCatalog.EnsureLoadedAsync();
+            var result = await ActivityApi.GetAsync(Collection.BusinessDate, Collection.BusinessDate, reference: Collection.ReferenceCode);
+            if (result.IsSuccess)
+                _event = result.Value?.Events.FirstOrDefault(e => string.Equals(e.ReferenceCode, Collection.ReferenceCode, StringComparison.Ordinal));
+        }
+        catch (HttpRequestException) { _event = null; }
+        finally { _loading = false; }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await _close.FocusAsync();
+    }
+
+    private async Task OnKey(KeyboardEventArgs e) { if (e.Key == "Escape") await OnClose.InvokeAsync(); }
+
+    private static string LineLabel(CollectionActivityLineDto line) =>
+        !string.IsNullOrWhiteSpace(line.Description) ? line.Description! : line.SourcePart is "Water" or "Electricity" ? line.SourcePart : line.ClassificationName;
+
+    private static string LinePeriod(CollectionActivityLineDto line) =>
+        line.PeriodYear is { } y && line.PeriodMonth is { } m ? new DateOnly(y, m, 1).ToString("MMM yyyy", CultureInfo.InvariantCulture) : "";
+
+    private static string CorrectionLabel(string type) => type switch
+    {
+        "Void" => "Voided",
+        "Reversal" => "Reversed",
+        "Replacement" => "Replaced by a new collection",
+        "DocumentCorrection" => "Document corrected",
+        _ => "Correction"
+    };
+
+    private static string Money(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
+}

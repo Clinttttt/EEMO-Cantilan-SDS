@@ -88,7 +88,7 @@ public sealed class ContractsMonitoringTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var tabs = cut.FindAll(".mt-tab");
-            Assert.Equal(new[] { "/monitoring/follow-up", "/monitoring/contracts", "/monitoring/npm-requests" }, tabs.Select(t => t.GetAttribute("href")));
+            Assert.Equal(new[] { "/monitoring/follow-up", "/monitoring/contracts", "/monitoring/review" }, tabs.Select(t => t.GetAttribute("href")));
             Assert.Equal("page", tabs[1].GetAttribute("aria-current"));
             Assert.Null(tabs[0].GetAttribute("aria-current"));
             Assert.Null(tabs[2].GetAttribute("aria-current"));

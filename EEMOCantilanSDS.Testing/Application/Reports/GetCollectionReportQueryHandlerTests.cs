@@ -168,4 +168,43 @@ public class GetCollectionReportQueryHandlerTests
         Assert.Equal("Lita Bani", p.Payor);
         Assert.Equal(100m, p.Amount);
     }
+
+    [Theory]
+    [InlineData(35, 900, 875, 25)]
+    [InlineData(0, 1900, 1200, 700)]
+    [InlineData(30, 0, 0, 0)]
+    public async Task Activated_month_export_uses_authoritative_coverage_including_zero_and_no_daily_rate(
+        decimal daily, decimal approved, decimal paid, decimal outstanding)
+    {
+        var reports = new Mock<IFacilityReportsRepository>();
+        var row = Stall("MONTH", "Fish Area", "Synthetic", "Partial", daily, approved, paid, outstanding, 0)
+            with { FullPeriodRentObligation = approved, ORNumber = null };
+        reports.Setup(r => r.GetFacilityReportsAsync(It.IsAny<FacilityCode>(), It.IsAny<ReportPeriod>(),
+                It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((FacilityCode code, ReportPeriod _, int _, int? _, int? _, CancellationToken _) =>
+                Report(paid, outstanding, code == FacilityCode.NPM ? [row] : []));
+        reports.Setup(r => r.GetNpmFishKilosByStallAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, decimal>());
+        var facilities = new Mock<IFacilityRepository>();
+        facilities.Setup(x => x.GetFacilityNamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<FacilityCode, string> { [FacilityCode.NPM] = "Synthetic market" });
+        var slaughter = new Mock<ISlaughterRepository>();
+        slaughter.Setup(x => x.GetTransactionsByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<SlaughterTransactionDto>());
+        var trm = new Mock<ITrmRepository>();
+        trm.Setup(x => x.GetTripsByMonthAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<TrmTripDto>());
+        var tpm = new Mock<ITpmRepository>();
+        tpm.Setup(x => x.GetMonthAttendanceAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<TpmVendorAttendanceDto>());
+        var handler = new GetCollectionReportQueryHandler(reports.Object, slaughter.Object,
+            trm.Object, tpm.Object,
+            facilities.Object, CacheTestDoubles.FeeRateResolver, new FixedClock(new DateTime(2026, 10, 31)));
+        var result = await handler.Handle(new(2026, 10), default);
+        Assert.True(result.IsSuccess, result.Error);
+        var exported = Assert.Single(Assert.Single(result.Value!.Facilities).Rentals);
+        Assert.Equal(approved, exported.Coverage); Assert.Equal(outstanding, exported.CoverageBalance);
+        Assert.Equal(daily, exported.Rate); Assert.Equal(paid, exported.Collected);
+        Assert.Null(exported.ORNumber);
+    }
 }

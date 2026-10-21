@@ -1,0 +1,28 @@
+{
+  "startedAtUtc": "2026-10-17T04:10:19.159Z",
+  "scriptSha256": "091575ab2582a97dbc3af42ff28f93dababa2366d3d6b57f7e47d91ad8ce33c8",
+  "reviewed": {
+    "20261017040000_AddNpmRentMonthFoundation.cs": "5a4df8d065aac62b858748a9aedc0e951435f969bcbe34c7aed84a730feb2346",
+    "20261017040000_AddNpmRentMonthFoundation.Designer.cs": "01eeca24f4797404ad2d846ee808d588f932d10baaffae14f2f23c34f5516ef7",
+    "AppDbContextModelSnapshot.cs": "15129f5b2e9aa7c19cfb2005f2feb92297178c7be48dcbd33942d776a519796f"
+  },
+  "preflight": {
+    "server": {
+      "database": "EEMOCantilanSDS.DB",
+      "address": "::1",
+      "port": 5432,
+      "readonly": "on"
+    },
+    "tables": 95,
+    "history": 143,
+    "dataHash": "ec22390fe31353fd542a43cca3dc018ee10725a2de1499f8e22cd034eb33edad",
+    "schemaHash": "6af7382bf3babb0910aad1476f60f12d6352720b4a63c09fe03482164fe2978d",
+    "sequences": [
+      {
+        "name": "CollectionReferenceNumberSeq",
+        "last_value": "17",
+        "is_called": true
+      }
+    ]
+  }
+}

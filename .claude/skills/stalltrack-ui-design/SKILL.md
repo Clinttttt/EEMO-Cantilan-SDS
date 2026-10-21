@@ -33,6 +33,7 @@ Rule: the diff to `@code` should be empty or trivially presentational (a CSS-cla
 
 ## 4. Inventory existing presentation assets
 
+- **Principle → existing component map: `references/component-map.md`** (hero, OR/CT chip, dropdown, skeleton, tabs, info tips, icons, breadcrumbs, empty states). Reuse before building; it also lists the gaps.
 - Tokens in `EEMOCantilanSDS.Client/wwwroot/app.css` (and any V3 tokens already introduced).
 - Shared components: `FacilityHero`, `FacilityPage`, `FacilityStallsTable`, `Toolbar`, `Skeleton`, `FacilityMark`, `AccountChip`, modal classes (`eemo-modal*`).
 - Global rules for `MarkupString` SVGs and `::deep` needs for `NavLink`.

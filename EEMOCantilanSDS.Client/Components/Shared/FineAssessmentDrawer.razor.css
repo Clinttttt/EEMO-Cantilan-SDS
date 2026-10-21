@@ -13,7 +13,7 @@
 .fine-assessment ::deep .fine-search { display:flex; gap:8px; align-items:end; }
 .fine-assessment ::deep .fine-search .v3-field { flex:1; min-width:0; }
 .fine-assessment ::deep .fine-hint { margin:10px 0 0; color:var(--text-secondary); font-size:.8125rem; line-height:1.45; }
-.fine-assessment ::deep .fine-results { display:grid; gap:6px; margin-top:12px; }
+.fine-assessment ::deep .fine-results { display:grid; gap:6px; margin-top:12px; max-height:21.5rem; overflow-y:auto; overscroll-behavior:contain; }
 .fine-assessment ::deep .fine-result { display:grid; text-align:left; gap:3px; padding:11px 14px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); cursor:pointer; }
 .fine-assessment ::deep .fine-result:hover { border-color:var(--accent); background:var(--accent-soft); }
 .fine-assessment ::deep .fine-result:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
@@ -54,3 +54,15 @@
     .fine-assessment ::deep .fine-search { flex-wrap:wrap; }
     .fine-assessment ::deep .fine-steps li { padding:8px 4px; font-size:.75rem; }
 }
+
+.fine-assessment ::deep .fine-warn { padding:10px 12px; border:1px solid var(--border-strong); border-left:3px solid var(--gold, #b7791f); border-radius:8px; background:var(--surface-muted); color:var(--text); }
+.fine-assessment ::deep .fine-warn a { color:var(--accent); font-weight:600; }
+
+.fine-assessment ::deep .fine-field { display:grid; gap:6px; }
+.fine-assessment ::deep .fine-field > span { color:var(--text-secondary); font-size:.75rem; font-weight:600; }
+.fine-assessment ::deep .fine-choices { display:flex; flex-wrap:wrap; border:1px solid var(--border-strong); border-radius:8px; overflow:hidden; background:var(--surface); }
+.fine-assessment ::deep .fine-choices label { position:relative; flex:1 1 0; min-width:6rem; padding:9px 12px; color:var(--text-secondary); font-size:.8125rem; font-weight:600; text-align:center; cursor:pointer; }
+.fine-assessment ::deep .fine-choices label + label { border-left:1px solid var(--border-strong); }
+.fine-assessment ::deep .fine-choices label.is-on { background:var(--accent-soft); color:var(--accent); }
+.fine-assessment ::deep .fine-choices input { position:absolute; opacity:0; pointer-events:none; }
+.fine-assessment ::deep .fine-choices label:focus-within { outline:2px solid var(--accent); outline-offset:-2px; }

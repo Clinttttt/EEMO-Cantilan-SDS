@@ -1,0 +1,408 @@
+@page "/monitoring/fish-meat-requests"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@inject IOfficeSourcesApiClient OfficeApi
+
+<PageTitle>StallTrack — Fish / Meat Registration Requests</PageTitle>
+
+@* A Collector's request to register a Fish / Meat vendor is an identity proposal: no cash, amount or SRC, and the typed name is never an identity.
+   The Head completes it by registering the vendor with the office's own registration fields (one atomic step) or by linking an existing
+   verified registration; or returns or rejects it with a reason. Admin reads. This is separate from verifying posted collections. *@
+<OperationTopbar Title="Registration Review" Crumb="Fish / Meat requests" ParentHref="/monitoring/review" ParentTitle="Collection &amp; Registration Review" />
+<div class="content-area fmrq">
+    <V3Hero Eyebrow="Monitoring · Fish / Meat" Title="Registration Requests" Compact="true">
+        <Meta><span>Identity only · no cash or SRC</span></Meta>
+        <Figures>
+            <V3HeroFigure Label="@StatusLabel(_status)" Value="@(_data?.Total.ToString("N0", CultureInfo.InvariantCulture) ?? "—")" />
+        </Figures>
+        <Actions>
+            <a class="v3-btn" href="/operations/fish-meat-vendor-fees">Fish / Meat Vendors</a>
+        </Actions>
+    </V3Hero>
+
+    <MonitoringTabs Current="review" />
+
+    @if (!string.IsNullOrWhiteSpace(_notice))
+    {
+        <p class="v3-notice" role="status">@_notice</p>
+    }
+    @if (_error is not null)
+    {
+        <div class="v3-notice v3-notice-error v3-notice-row" role="alert">
+            <span>@_error</span>
+            <button type="button" class="v3-btn v3-btn-sm" @onclick="LoadAsync">Try again</button>
+        </div>
+    }
+
+    <section class="v3-panel" aria-labelledby="fmrq-title" aria-busy="@(_loading ? "true" : "false")">
+        <header class="v3-panel-header">
+            <h2 id="fmrq-title">Requests</h2>
+            <div class="fmrq-tabs" role="group" aria-label="Request status">
+                @foreach (var (value, label) in States)
+                {
+                    <button type="button" class="@(_status == value ? "is-on" : null)" aria-pressed="@(_status == value ? "true" : "false")" @onclick="() => SetStatusAsync(value)">@label</button>
+                }
+            </div>
+        </header>
+        <div class="v3-table-wrap" role="region" aria-label="Registration requests" tabindex="0">
+            <table class="v3-table">
+                <caption class="v3-sr-only">Fish / Meat registration requests</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Vendor</th>
+                        <th scope="col">Type</th>
+                        <th scope="col">Collector</th>
+                        <th scope="col">Submitted</th>
+                        <th scope="col">Status</th>
+                        <th scope="col"><span class="v3-sr-only">Action</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _data?.Rows ?? [])
+                    {
+                        <tr @key="row.Id">
+                            <td><span class="v3-strong">@row.VendorName</span><span class="v3-block fmrq-sub">Tax year @row.TaxYear</span></td>
+                            <td>@TypeName(row.VendorType)</td>
+                            <td>@row.SubmittedBy</td>
+                            <td>@When(row.SubmittedAtUtc)</td>
+                            <td><span class="fmrq-status @StatusClass(row.Status)">@StatusLabel(row.Status)</span></td>
+                            <td class="fmrq-act"><button type="button" class="v3-btn v3-btn-sm" @onclick="() => Open(row)">@(row.Status == FishMeatRequestStatus.Submitted ? "Review" : "View")</button></td>
+                        </tr>
+                    }
+                    @if (_data is { Total: 0 } && _error is null)
+                    {
+                        <tr><td class="v3-empty" colspan="6">@(_status is null ? "No registration request has been submitted." : $"No {StatusLabel(_status).ToLowerInvariant()} requests.")</td></tr>
+                    }
+                    @if (_loading && _data is null)
+                    {
+                        <tr><td class="v3-empty" colspan="6">Loading requests…</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (_data is { } paged && paged.Total > paged.PageSize)
+        {
+            <nav class="fmrq-paging" aria-label="Request pages">
+                <button class="v3-btn v3-btn-sm" type="button" disabled="@(_page <= 1 || _loading)" @onclick="PreviousAsync">Previous</button>
+                <span>Page @_page of @Math.Max(1, (int)Math.Ceiling(paged.Total / (double)paged.PageSize))</span>
+                <button class="v3-btn v3-btn-sm" type="button" disabled="@(_page * paged.PageSize >= paged.Total || _loading)" @onclick="NextAsync">Next</button>
+            </nav>
+        }
+    </section>
+</div>
+
+<VendorDrawerShell Show="@(_selected is not null && _mode != Mode.Register)" AnimateEntry="true" Title="@(_selected?.Status == FishMeatRequestStatus.Submitted ? "Review request" : "Request")"
+                   Subtitle="@(_selected?.VendorName)" OnClose="Close">
+    <Icon>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>
+    </Icon>
+    <ChildContent>
+        @if (_selected is { } row)
+        {
+            <div class="fmrq-drawer">
+                <dl class="fmrq-facts">
+                    <dt>Vendor</dt><dd>@row.VendorName</dd>
+                    <dt>Type</dt><dd>@TypeName(row.VendorType) · tax year @row.TaxYear</dd>
+                    <dt>Collector</dt><dd>@row.SubmittedBy</dd>
+                    <dt>Submitted</dt><dd>@When(row.SubmittedAtUtc)</dd>
+                    <dt>Contact</dt><dd>@(string.IsNullOrWhiteSpace(row.Contact) ? "Not provided" : row.Contact)</dd>
+                    <dt>Note</dt><dd>@(string.IsNullOrWhiteSpace(row.Note) ? "Not provided" : row.Note)</dd>
+                    <dt>Status</dt><dd><span class="fmrq-status @StatusClass(row.Status)">@StatusLabel(row.Status)</span></dd>
+                    @if (row.ReviewedBy is not null)
+                    {
+                        <dt>Decision</dt><dd>@row.Reason<span class="v3-block fmrq-sub">@row.ReviewedBy@(row.ReviewedAtUtc is { } at ? " · " + When(at) : "")</span></dd>
+                    }
+                    @if (row.RegistrationId is not null)
+                    {
+                        <dt>Registration</dt><dd><a href="/operations/fish-meat-vendor-fees/manage">Open in Manage</a></dd>
+                    }
+                </dl>
+                <p class="fmrq-note">No cash received. This request creates no collection, SRC, receipt or NPM link.</p>
+
+                @if (row.Status == FishMeatRequestStatus.Submitted)
+                {
+                    <AuthorizeView Roles="SuperAdmin">
+                        <Authorized>
+                            <section class="fmrq-decision" aria-label="Office decision">
+                                <div class="fmrq-modes" role="group" aria-label="Decision">
+                                    <button type="button" class="@(_mode == Mode.Link ? "is-on" : null)" aria-pressed="@(_mode == Mode.Link ? "true" : "false")" @onclick="StartLinkAsync">Use existing</button>
+                                    <button type="button" class="@(_mode == Mode.Return ? "is-on" : null)" aria-pressed="@(_mode == Mode.Return ? "true" : "false")" @onclick="() => StartMode(Mode.Return)">Return</button>
+                                    <button type="button" class="@(_mode == Mode.Reject ? "is-on" : null)" aria-pressed="@(_mode == Mode.Reject ? "true" : "false")" @onclick="() => StartMode(Mode.Reject)">Reject</button>
+                                </div>
+                                @if (_mode == Mode.Link)
+                                {
+                                    @if (_registrationsLoading) { <p class="fmrq-note" role="status">Loading registered vendors…</p> }
+                                    else if (_registrations.Count == 0) { <p class="fmrq-note">No active @TypeName(row.VendorType).ToLowerInvariant() registration exists for @row.TaxYear. Register the vendor instead.</p> }
+                                    else
+                                    {
+                                        <label class="v3-field"><span>Registered vendor</span>
+                                            <select class="v3-input" value="@_linkId" @onchange="e => _linkId = e.Value?.ToString()">
+                                                <option value="">Choose a verified registration</option>
+                                                @foreach (var registration in _registrations)
+                                                {
+                                                    <option value="@registration.Id">@registration.DisplayName@(string.IsNullOrWhiteSpace(registration.BusinessName) ? "" : " · " + registration.BusinessName)</option>
+                                                }
+                                            </select></label>
+                                    }
+                                }
+                                @if (_mode is Mode.Link or Mode.Return or Mode.Reject)
+                                {
+                                    <label class="v3-field"><span>@(_mode == Mode.Return ? "Reason for correction" : _mode == Mode.Reject ? "Reason" : "Verification note")</span>
+                                        <textarea class="v3-input fmrq-reason" maxlength="1000" rows="3" @bind="_reason" @bind:event="oninput"></textarea></label>
+                                }
+                                @if (_detailError is not null) { <p class="v3-notice v3-notice-error" role="alert">@_detailError</p> }
+                            </section>
+                        </Authorized>
+                    </AuthorizeView>
+                }
+            </div>
+        }
+    </ChildContent>
+    <Footer>
+        <div class="fmrq-actions">
+            <button class="btn-ghost" type="button" disabled="@_saving" @onclick="Close">Close</button>
+            @if (_selected?.Status == FishMeatRequestStatus.Submitted)
+            {
+                <AuthorizeView Roles="SuperAdmin">
+                    <Authorized>
+                        @if (_mode is Mode.Link or Mode.Return or Mode.Reject)
+                        {
+                            <button class="btn-primary" type="button" disabled="@(_saving || !CanConfirm)" @onclick="ReviewAsync">@(_saving ? "Saving…" : ConfirmText)</button>
+                        }
+                        else
+                        {
+                            <button class="btn-primary" type="button" @onclick="StartRegister">Register vendor</button>
+                        }
+                    </Authorized>
+                </AuthorizeView>
+            }
+        </div>
+    </Footer>
+</VendorDrawerShell>
+
+@* Completing a request is the office's existing vendor registration (its own fields), recorded with the request decision in one step. *@
+<VendorRegistrationDrawer Show="@(_mode == Mode.Register && _selected is not null)" Model="_form" FormId="fmrq-register-form" Title="Register vendor" Subtitle="@(_selected is null ? null : $"From request · tax year {_selected.TaxYear}")"
+                          SubmitText="Register and approve" Saving="_saving" CanSubmit="@(!string.IsNullOrWhiteSpace(_reason))" Error="@_detailError"
+                          OnSubmit="CompleteAsync" OnCancel="CancelRegister">
+    <SourceContext>
+        @if (_selected is { } source)
+        {
+            <fieldset class="vendor-form-section">
+                <legend>Submitted request</legend>
+                <p class="vendor-form-note">@source.VendorName · @TypeName(source.VendorType)@(string.IsNullOrWhiteSpace(source.Contact) ? "" : " · " + source.Contact)@(string.IsNullOrWhiteSpace(source.Note) ? "" : " — " + source.Note)</p>
+                <div class="avm-group vendor-field-wide">
+                    <label class="avm-label" for="fmrq-register-reason">Verification note <span class="avm-req">*</span></label>
+                    <input id="fmrq-register-reason" class="avm-input" maxlength="1000" autocomplete="off" placeholder="How the office verified this vendor" @bind="_reason" @bind:event="oninput" />
+                </div>
+            </fieldset>
+        }
+    </SourceContext>
+</VendorRegistrationDrawer>
+
+@code {
+    private enum Mode { None, Register, Link, Return, Reject }
+
+    private static readonly (FishMeatRequestStatus? Value, string Label)[] States =
+    [
+        (FishMeatRequestStatus.Submitted, "Pending"),
+        (FishMeatRequestStatus.Returned, "Returned"),
+        (FishMeatRequestStatus.Approved, "Registered"),
+        (FishMeatRequestStatus.Rejected, "Rejected"),
+        (FishMeatRequestStatus.Cancelled, "Cancelled"),
+        (null, "All")
+    ];
+
+    private FishMeatRegistrationRequestPage? _data;
+    private FishMeatRequestStatus? _status = FishMeatRequestStatus.Submitted;
+    private int _page = 1;
+    private bool _loading, _saving, _registrationsLoading;
+    private string? _error, _notice, _detailError, _reason = "", _linkId;
+    private FishMeatRegistrationRequestDto? _selected;
+    private Mode _mode;
+    private readonly VendorRegistrationForm _form = new();
+    private IReadOnlyList<FishMeatVendorRegistrationDto> _registrations = [];
+    // One decision identity per unchanged intent: a retry after an unknown response replays it; any edit is a new intent.
+    private Guid _decisionOp = Guid.NewGuid();
+    private string? _decisionFingerprint;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var result = await OfficeApi.FishMeatRequestsAsync(_page, 25, _status);
+            if (result.IsSuccess && result.Value is not null) _data = result.Value;
+            else
+            {
+                _data = null;
+                _error = result.Error?.Contains("VendorRequestSchemaNotEnabled", StringComparison.Ordinal) == true
+                    ? "Registration requests are not enabled for this office yet."
+                    : "The registration requests could not be loaded.";
+            }
+        }
+        catch { _data = null; _error = "The registration requests could not be loaded."; }
+        finally { _loading = false; }
+    }
+
+    private async Task SetStatusAsync(FishMeatRequestStatus? status) { _status = status; _page = 1; await LoadAsync(); }
+    private async Task PreviousAsync() { if (_page > 1) { _page--; await LoadAsync(); } }
+    private async Task NextAsync() { if (_data is { } d && _page * d.PageSize < d.Total) { _page++; await LoadAsync(); } }
+
+    private void Open(FishMeatRegistrationRequestDto row)
+    {
+        _selected = row;
+        _mode = Mode.None;
+        _reason = "";
+        _linkId = null;
+        _detailError = null;
+        _notice = null;
+        NewDecision();
+    }
+
+    private void Close() { if (_saving) return; _selected = null; _mode = Mode.None; _detailError = null; }
+
+    private void NewDecision() { _decisionOp = Guid.NewGuid(); _decisionFingerprint = null; }
+
+    private void StartMode(Mode mode) { _mode = mode; _detailError = null; }
+
+    private async Task StartLinkAsync()
+    {
+        if (_selected is not { } row) return;
+        _mode = Mode.Link;
+        _detailError = null;
+        _registrationsLoading = true;
+        try
+        {
+            var result = await OfficeApi.RegistrationsAsync(row.TaxYear);
+            _registrations = result is { IsSuccess: true, Value: { } list }
+                ? list.Where(x => x.VendorType == row.VendorType && x.TaxYear == row.TaxYear).OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase).ToList()
+                : [];
+            if (!result.IsSuccess) _detailError = "The registered vendors could not be loaded.";
+        }
+        catch { _registrations = []; _detailError = "The registered vendors could not be loaded."; }
+        finally { _registrationsLoading = false; }
+    }
+
+    private void StartRegister()
+    {
+        if (_selected is not { } row) return;
+        _form.Name = row.VendorName;
+        _form.Business = _form.Address = _form.Reference = string.Empty;
+        _form.LastName = _form.FirstName = _form.MiddleName = _form.NameExtension = _form.Sex = _form.NatureOfBusiness = string.Empty;
+        _form.Type = row.VendorType;
+        _form.Kind = VendorRegistrationKind.New;
+        _form.TaxYear = row.TaxYear;
+        _detailError = null;
+        NewDecision();
+        _mode = Mode.Register;
+    }
+
+    private void CancelRegister() { if (_saving) return; _mode = Mode.None; _detailError = null; }
+
+    private bool CanConfirm => !string.IsNullOrWhiteSpace(_reason) && (_mode != Mode.Link || Guid.TryParse(_linkId, out _));
+    private string ConfirmText => _mode switch { Mode.Link => "Approve with registration", Mode.Return => "Return for correction", _ => "Reject request" };
+
+    // Approve (an existing verified registration), return or reject: never approval of a typed name.
+    private async Task ReviewAsync()
+    {
+        if (_saving || _selected is not { } row || !CanConfirm) return;
+        var outcome = _mode switch { Mode.Link => FishMeatRequestStatus.Approved, Mode.Return => FishMeatRequestStatus.Returned, _ => FishMeatRequestStatus.Rejected };
+        Guid? registrationId = outcome == FishMeatRequestStatus.Approved && Guid.TryParse(_linkId, out var linked) ? linked : null;
+        Freeze($"{(int)outcome}|{registrationId}|{_reason.Trim()}|{row.Version}");
+        _saving = true;
+        _detailError = null;
+        try
+        {
+            var result = await OfficeApi.ReviewFishMeatRequestAsync(row.Id, new(_decisionOp, row.Version, outcome, _reason.Trim(), registrationId));
+            if (result.IsSuccess) await Decided(outcome == FishMeatRequestStatus.Approved ? $"{row.VendorName} approved with the registered vendor." : outcome == FishMeatRequestStatus.Returned ? $"{row.VendorName} returned to the Collector." : $"{row.VendorName} rejected.");
+            else await Failed(result.Error, result.Status);
+        }
+        catch { _detailError = "The decision could not be confirmed. Retry; the same decision is kept."; }
+        finally { _saving = false; }
+    }
+
+    // The existing office registration and the request approval commit together on the server.
+    private async Task CompleteAsync()
+    {
+        if (_saving || _selected is not { } row || string.IsNullOrWhiteSpace(_reason)) return;
+        if (_form.Name.Trim().Length < 2) { _detailError = "Enter the vendor name."; return; }
+        Freeze($"{_form.Fingerprint}|{_reason.Trim()}|{row.Version}");
+        _saving = true;
+        _detailError = null;
+        try
+        {
+            var registration = new RegisterFishMeatVendorRequest(row.Id, _form.TaxYear, _form.Type, _form.Kind, _form.Name.Trim(),
+                VendorRegistrationForm.Blank(_form.Business), VendorRegistrationForm.Blank(_form.Address), null,
+                LastName: VendorRegistrationForm.Blank(_form.LastName), FirstName: VendorRegistrationForm.Blank(_form.FirstName),
+                MiddleName: VendorRegistrationForm.Blank(_form.MiddleName), NameExtension: VendorRegistrationForm.Blank(_form.NameExtension),
+                Sex: VendorRegistrationForm.Blank(_form.Sex), NatureOfBusiness: VendorRegistrationForm.Blank(_form.NatureOfBusiness));
+            var result = await OfficeApi.CompleteFishMeatRequestAsync(row.Id, new(_decisionOp, row.Version, _reason.Trim(), registration));
+            if (result.IsSuccess) await Decided($"{_form.Name.Trim()} registered for {_form.TaxYear} and the request approved.");
+            else await Failed(result.Error, result.Status);
+        }
+        catch { _detailError = "The registration could not be confirmed. Retry; the same decision is kept."; }
+        finally { _saving = false; }
+    }
+
+    private void Freeze(string fingerprint)
+    {
+        if (_decisionFingerprint is not null && _decisionFingerprint != fingerprint) _decisionOp = Guid.NewGuid();
+        _decisionFingerprint = fingerprint;
+    }
+
+    private async Task Decided(string notice)
+    {
+        _notice = notice;
+        _selected = null;
+        _mode = Mode.None;
+        await LoadAsync();
+    }
+
+    private async Task Failed(string? code, EEMOCantilanSDS.Application.Common.ResultStatus status)
+    {
+        _detailError = code switch
+        {
+            string c when c.Contains("VendorRequestSchemaNotEnabled", StringComparison.Ordinal) => "Registration requests are not enabled for this office yet.",
+            string c when c.Contains("RegistrationIntentConflict", StringComparison.Ordinal) => "This decision was already submitted with different details. Close and review again.",
+            string c when c.Contains("RegistryConcurrencyConflict", StringComparison.Ordinal) => "Another change was saved at the same time. Retry.",
+            _ when status == EEMOCantilanSDS.Application.Common.ResultStatus.Conflict => "This request changed or was already decided. It has been refreshed; review it again.",
+            { Length: > 0 } c => c,
+            _ => "The decision could not be saved."
+        };
+        if (status == EEMOCantilanSDS.Application.Common.ResultStatus.Conflict)
+        {
+            await LoadAsync();
+            _selected = _data?.Rows.FirstOrDefault(x => x.Id == _selected?.Id) ?? _selected;
+        }
+    }
+
+    private static string TypeName(FishMeatVendorType type) => type == FishMeatVendorType.Fish ? "Fish" : "Meat";
+    private static string When(DateTime utc) => PhilippineTime.ToPhilippineTime(utc).ToString("MMM d, yyyy h:mm tt", CultureInfo.InvariantCulture);
+
+    private static string StatusLabel(FishMeatRequestStatus? status) => status switch
+    {
+        FishMeatRequestStatus.Submitted => "Pending",
+        FishMeatRequestStatus.Approved => "Registered",
+        FishMeatRequestStatus.Returned => "Returned",
+        FishMeatRequestStatus.Rejected => "Rejected",
+        FishMeatRequestStatus.Cancelled => "Cancelled",
+        _ => "All requests"
+    };
+
+    private static string StatusClass(FishMeatRequestStatus status) => status switch
+    {
+        FishMeatRequestStatus.Approved => "is-approved",
+        FishMeatRequestStatus.Returned => "is-returned",
+        FishMeatRequestStatus.Submitted => "is-pending",
+        _ => "is-closed"
+    };
+}

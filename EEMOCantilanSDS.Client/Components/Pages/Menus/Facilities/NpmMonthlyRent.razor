@@ -1,0 +1,93 @@
+@page "/facility/market-rent"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Domain.Constants
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
+@inject NavigationManager Navigation
+
+@*
+    The Public Market of an LGU that declared STANDARD MONTHLY RENTAL at onboarding. It is the same shared FacilityPage the monthly
+    facilities (TCC/NCC/BBQ/ICE and custom ones) use - stalls, contracts, monthly rent receipts, delinquency and reports, all keyed by
+    the facility's Id - for the market's own Facility record, so its identity, sections and classification are unchanged. A daily market
+    (Cantilan) never reaches this page: /npm keeps its daily calendar.
+*@
+
+<PageTitle>StallTrack — @FacilityCatalog.NameOf(FacilityCode.NPM)</PageTitle>
+
+@if (_ready)
+{
+    <FacilityPage TStall="MarketStall"
+                  FacilityCodeEnum="FacilityCode.NPM"
+                  FacilityName="@FacilityCatalog.NameOf(FacilityCode.NPM)"
+                  FacilityShortCode="@FacilityCatalog.ShortNameOf(FacilityCode.NPM)"
+                  FacilityDescription="Monthly stall rental"
+                  FacilityIcon="@MarketIcon"
+                  DefaultMonthlyRate="0"
+                  DefaultFeeTypes="@(new List<string>())"
+                  StallMapper="@MapStall"
+                  IsPaidSelector="@(s => s.IsPaid)"
+                  IsPartialSelector="@(s => s.IsPartial)"
+                  IsActiveSelector="@(s => s.IsCurrent)"
+                  MonthlyRateSelector="@(s => s.MonthlyRate)"
+                  PartialAmountSelector="@(s => s.PartialAmount)"
+                  StallNoSelector="@(s => s.StallNo)"
+                  ActualOccupantSelector="@(s => s.ActualOccupant)"
+                  ContractNameSelector="@(s => s.ContractName)"
+                  ORNumberSetter="@((s, or) => s.ORNumber = or)" />
+}
+
+@code {
+    private bool _ready;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await FacilityCatalog.EnsureLoadedAsync();
+        // A daily market has its own page; this one is never rendered for it.
+        if (!FacilityCatalog.IsMonthlyRentMarket)
+        {
+            Navigation.NavigateTo("/npm", replace: true);
+            return;
+        }
+        _ready = true;
+    }
+
+    private RenderFragment MarketIcon => @<svg viewBox="0 0 24 24" style="width:24px;height:24px;stroke:var(--gold);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M3 21h18" /><path d="M5 21V8l7-5 7 5v13" /><path d="M9 21v-6h6v6" /></svg>;
+
+    public class MarketStall
+    {
+        public Guid StallGuid { get; set; } = Guid.Empty;
+        public string StallNo { get; set; } = string.Empty;
+        public string ActualOccupant { get; set; } = string.Empty;
+        public string ContractName { get; set; } = string.Empty;
+        public double AreaSqm { get; set; }
+        public DateTime? ContractDate { get; set; }
+        public decimal MonthlyRate { get; set; }
+        public bool IsPaid { get; set; }
+        public bool IsPartial { get; set; }
+        public decimal PartialAmount { get; set; }
+        public bool IsActive { get; set; } = true;
+        /// <summary>The term has run out. The lessee usually remains and still owes, so the account stays in arrears,
+        /// follow-up and the inactive register - it is only excluded from the spaces being currently let.</summary>
+        public bool IsTermExpired { get; set; }
+        public bool IsCurrent => IsActive && !IsTermExpired;
+        public string ORNumber { get; set; } = string.Empty;
+    }
+
+    private MarketStall MapStall(Application.Dtos.Stalls.StallDto dto, bool isPaid, bool isPartial, decimal partialAmount, string orNumber) => new()
+    {
+        StallGuid = dto.Id,
+        StallNo = dto.StallNo,
+        ActualOccupant = dto.ActualOccupant ?? "N/A",
+        ContractName = dto.NameOnContract ?? string.Empty,
+        AreaSqm = dto.AreaSqm ?? 0,
+        ContractDate = dto.ContractDate,
+        MonthlyRate = dto.MonthlyRate,
+        IsActive = dto.Status == StallStatus.Active,
+        IsTermExpired = DomainRules.TermHasExpired(dto.ContractDate, dto.ContractYears, PhilippineTime.Now),
+        ORNumber = orNumber,
+        IsPaid = isPaid,
+        IsPartial = isPartial,
+        PartialAmount = partialAmount
+    };
+}

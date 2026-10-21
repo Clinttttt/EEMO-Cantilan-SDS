@@ -1,0 +1,61 @@
+-- REVIEW ONLY. Separate forward correction, NOT the seven-operation NPM migration.
+-- NOT executed in Task 2D. Do not replay the completed local correction.
+-- Future EF integration: final ID and source-control/application approval required.
+-- Run only after the canonical CollectionAllocations schema exists; transactional,
+-- bounded locking and target/backup checks belong to the approved runner.
+-- No Down recreating the obsolete uniqueness rule is authorized.
+DO $review$
+DECLARE
+    obsolete regclass := to_regclass('public."IX_CollectionAllocations_MunicipalityId_SourceKind_SourceId"');
+    lookup_index regclass := to_regclass('public."IX_CollectionAllocations_MunicipalityId_SourceKind_SourceId_So~"');
+    expected_obsolete text := 'CREATE UNIQUE INDEX "IX_CollectionAllocations_MunicipalityId_SourceKind_SourceId" ON public."CollectionAllocations" USING btree ("MunicipalityId", "SourceKind", "SourceId") WHERE ("SourceKind" = 10)';
+    expected_lookup text := 'CREATE INDEX "IX_CollectionAllocations_MunicipalityId_SourceKind_SourceId_So~" ON public."CollectionAllocations" USING btree ("MunicipalityId", "SourceKind", "SourceId", "SourcePart")';
+    kind8_before jsonb;
+    kind8_after jsonb;
+BEGIN
+    IF lookup_index IS NULL OR NOT EXISTS (
+        SELECT 1 FROM pg_index WHERE indexrelid = lookup_index
+          AND indrelid = 'public."CollectionAllocations"'::regclass
+          AND NOT indisunique AND indisvalid AND indisready
+          AND pg_get_indexdef(indexrelid) = expected_lookup
+    ) THEN
+        RAISE EXCEPTION 'Canonical nonunique allocation lookup missing or incompatible';
+    END IF;
+
+    SELECT jsonb_build_object('definition', pg_get_indexdef(indexrelid),
+                             'valid', indisvalid, 'ready', indisready)
+      INTO kind8_before FROM pg_index
+     WHERE indexrelid = to_regclass('public."IX_CollectionAllocations_MunicipalityId_SourceId"');
+
+    -- Fresh current-line or already-corrected retained databases legitimately lack it.
+    IF obsolete IS NULL THEN
+        RETURN;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_index WHERE indexrelid = obsolete
+          AND indrelid = 'public."CollectionAllocations"'::regclass
+          AND indisunique AND indisvalid AND indisready
+          AND pg_get_indexdef(indexrelid) = expected_obsolete
+    ) OR EXISTS (
+        SELECT 1 FROM pg_depend
+         WHERE refclassid = 'pg_class'::regclass AND refobjid = obsolete
+    ) THEN
+        RAISE EXCEPTION 'Legacy index identity/shape/dependencies differ; manual review required';
+    END IF;
+
+    DROP INDEX public."IX_CollectionAllocations_MunicipalityId_SourceKind_SourceId";
+
+    SELECT jsonb_build_object('definition', pg_get_indexdef(indexrelid),
+                             'valid', indisvalid, 'ready', indisready)
+      INTO kind8_after FROM pg_index
+     WHERE indexrelid = to_regclass('public."IX_CollectionAllocations_MunicipalityId_SourceId"');
+    IF kind8_after IS DISTINCT FROM kind8_before OR NOT EXISTS (
+        SELECT 1 FROM pg_index WHERE indexrelid = lookup_index
+          AND NOT indisunique AND indisvalid AND indisready
+          AND pg_get_indexdef(indexrelid) = expected_lookup
+    ) THEN
+        RAISE EXCEPTION 'Unrelated allocation indexes changed; transaction must roll back';
+    END IF;
+END;
+$review$;

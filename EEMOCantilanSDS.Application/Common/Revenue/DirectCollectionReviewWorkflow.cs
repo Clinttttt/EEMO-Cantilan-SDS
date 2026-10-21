@@ -21,14 +21,6 @@ public sealed class DirectCollectionReviewWorkflow(IAppDbContext db, ICurrentUse
     public const int MaxPage = 100;
     public const int MaxBulk = 100;
 
-    // Operations where money is recorded with no office-prepared amount: the source is the registered vendor, the service, the weighing,
-    // the terminal section or the fine authority. A prepared obligation (NPM daily/rent, assessed periods, fine assessments) is not direct.
-    private static readonly CollectionSourceKind[] DirectKinds =
-    [
-        CollectionSourceKind.GovernedService, CollectionSourceKind.NpmWeighing, CollectionSourceKind.FishMeatVendorFee,
-        CollectionSourceKind.FishMeatVendorRegistration, CollectionSourceKind.TerminalSection, CollectionSourceKind.DirectFineCollection
-    ];
-
     private bool TryTenant(out Guid tenant)
     {
         tenant = municipality.MunicipalityId;
@@ -36,22 +28,18 @@ public sealed class DirectCollectionReviewWorkflow(IAppDbContext db, ICurrentUse
             && tenant != Guid.Empty && (!user.MunicipalityId.HasValue || user.MunicipalityId == tenant);
     }
 
-    private IQueryable<Collection> DirectCollections(Guid tenant)
+    // Final verification (confirm, resolve, bulk confirm) is the Head. Admin may read and may flag a collection for correction, which is a
+    // non-financial alert; Collectors and other tenants have no access. The role is read from the server-side identity, never from the client.
+    private bool TryHead(out Guid tenant) => TryTenant(out tenant) && user.Role == "SuperAdmin";
+
+    private IQueryable<Collection> DirectCollections(Guid tenant) => DirectCollectionVerification.DirectCollections(db, tenant);
+
+    // The Collection Review area is deliberately narrow: direct ECF / WCF amounts (a utility bill allocation) and Fish / Meat payors still without a
+    // registered vendor. Nothing is hidden from the money reports; this only chooses what the Head reviews here.
+    private IQueryable<Collection> InReviewScope(Guid tenant, IQueryable<Collection> q, bool scoped)
     {
-        var directLines = db.CollectionLines.AsNoTracking()
-            .Where(l => l.MunicipalityId == tenant && l.SourceKind != null && DirectKinds.Contains(l.SourceKind.Value))
-            .Select(l => l.CollectionId);
-        var directUtility = from a in db.CollectionAllocations.AsNoTracking()
-                            join l in db.CollectionLines.AsNoTracking() on a.CollectionLineId equals l.Id
-                            join b in db.UtilityBills.AsNoTracking() on a.SourceId equals b.Id
-                            where a.MunicipalityId == tenant && a.SourceKind == CollectionSourceKind.UtilityBill
-                                && ((a.SourcePart == CollectionSourcePart.Electricity && b.ElectricityDirectCollection)
-                                    || (a.SourcePart == CollectionSourcePart.Water && b.WaterDirectCollection))
-                            select l.CollectionId;
-        // A Vendor Fee recorded against a payer name only has no source kind, but it is a direct collection all the same.
-        var payerOnly = FishMeatPayorFollowUpWorkflow.PayerOnlyCollections(db, tenant).Select(c => c.Id);
-        return db.Collections.AsNoTracking().Where(c => c.MunicipalityId == tenant && c.CollectorId != null
-            && (directLines.Contains(c.Id) || directUtility.Contains(c.Id) || payerOnly.Contains(c.Id)));
+        if (!scoped) return q;
+        return DirectCollectionVerification.ReviewableDirectCollections(db, tenant, q);
     }
 
     private IQueryable<Guid> ReversedIds(Guid tenant) => db.CollectionCorrections.AsNoTracking()
@@ -68,7 +56,7 @@ public sealed class DirectCollectionReviewWorkflow(IAppDbContext db, ICurrentUse
             return Result<DirectCollectionReviewPageDto>.Failure("Choose a period of no more than 367 days.", ResultStatus.Invalid);
         var take = Math.Clamp(request.Take <= 0 ? 25 : request.Take, 1, MaxPage); var skip = Math.Max(0, request.Skip);
 
-        var inRange = DirectCollections(tenant).Where(c => c.BusinessDate >= from && c.BusinessDate <= to);
+        var inRange = InReviewScope(tenant, DirectCollections(tenant).Where(c => c.BusinessDate >= from && c.BusinessDate <= to), request.Scoped);
         var reversed = ReversedIds(tenant); var events = Events(tenant);
         var pendingCount = await inRange.Where(c => !reversed.Contains(c.Id) && !events.Any(e => e.CollectionId == c.Id)).CountAsync(ct);
         var linked = db.FishMeatDirectCollectionLinks.AsNoTracking().Where(x => x.MunicipalityId == tenant).Select(x => x.CollectionId);
@@ -105,7 +93,7 @@ public sealed class DirectCollectionReviewWorkflow(IAppDbContext db, ICurrentUse
 
         var total = await q.CountAsync(ct);
         var page = await q.OrderByDescending(c => c.RecordedAtUtc).ThenByDescending(c => c.Id).Skip(skip).Take(take).ToListAsync(ct);
-        return Result<DirectCollectionReviewPageDto>.Success(new(await ProjectAsync(tenant, page, ct), total, pendingCount, needsRegistrationCount));
+        return Result<DirectCollectionReviewPageDto>.Success(new(await ProjectAsync(tenant, page, ct), total, pendingCount, needsRegistrationCount, user.Role == "SuperAdmin"));
     }
 
     private async Task<IReadOnlyList<DirectCollectionReviewRowDto>> ProjectAsync(Guid tenant, List<Collection> page, CancellationToken ct)
@@ -163,12 +151,16 @@ public sealed class DirectCollectionReviewWorkflow(IAppDbContext db, ICurrentUse
                 DirectCollectionReviewOutcome.NeedsCorrection => "Needs correction",
                 _ => "Resolved"
             };
+            var needsRegistration = payerOnlyIds.Contains(c.Id) && !links.ContainsKey(c.Id) && disposition != "Reversed";
+            var net = c.TotalAmount + corrections.Sum(x => x.FinancialEffectAmount);
+            var block = DirectCollectionVerification.ConfirmBlock(disposition, state, duplicate, needsRegistration, null);
             return new DirectCollectionReviewRowDto(c.Id, c.ReferenceCode, c.BusinessDate, c.RecordedAtUtc, operation, utility,
                 string.IsNullOrWhiteSpace(c.PayerName) ? "No payer named" : c.PayerName, source, c.TotalAmount, c.ActorName, "Direct",
                 first is not null ? "Source verified" : "Source-native collection", disposition, state, last?.Note, last?.ActorName, last?.OccurredAtUtc,
-                duplicate, last is null && disposition == "Posted" && !duplicate && !(payerOnlyIds.Contains(c.Id) && !links.ContainsKey(c.Id)),
+                duplicate, block is null,
                 links.TryGetValue(c.Id, out var vendorName) ? $"Registered: {vendorName}"
-                    : payerOnlyIds.Contains(c.Id) && disposition != "Reversed" ? "Needs registration" : null);
+                    : needsRegistration ? "Needs registration" : null,
+                block, VerificationLabel(disposition, state, net), net);
         }).ToList();
     }
 
@@ -194,61 +186,147 @@ public sealed class DirectCollectionReviewWorkflow(IAppDbContext db, ICurrentUse
         return Result<DirectCollectionDetailDto>.Success(new(row, document?.DocumentNumber, document?.InstrumentType.ToString(), lines, history));
     }
 
+
+    private static string VerificationLabel(string disposition, string reviewState, decimal net) =>
+        disposition == "Reversed" || net <= 0m ? DirectCollectionVerification.LabelReversed : reviewState switch
+        {
+            DirectCollectionVerification.Confirmed => DirectCollectionVerification.LabelVerified,
+            DirectCollectionVerification.NeedsCorrection => DirectCollectionVerification.LabelNeedsCorrection,
+            DirectCollectionVerification.Resolved => DirectCollectionVerification.LabelResolved,
+            _ => DirectCollectionVerification.LabelAwaiting
+        };
+
+    private static bool IsCompetingWrite(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is DbUpdateException) return true;
+            if (current is InvalidOperationException && current.Message.Contains("serializ", StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Recorded, verified and pending-verification Collector direct-collection cash, as separate figures. Recorded is actual cash net of valid
+    /// corrections and is never replaced by the verified total; Verified + Pending = Recorded. A reversed collection contributes nothing.
+    /// </summary>
+    public async Task<Result<DirectCollectionVerificationPositionDto>> GetPositionAsync(DateOnly from, DateOnly to, CancellationToken ct = default, bool scoped = false)
+    {
+        if (!TryTenant(out var tenant)) return Result<DirectCollectionVerificationPositionDto>.Forbidden();
+        if (from > to || to.DayNumber - from.DayNumber > 366)
+            return Result<DirectCollectionVerificationPositionDto>.Failure("Choose a period of no more than 367 days.", ResultStatus.Invalid);
+        var collections = await InReviewScope(tenant, DirectCollections(tenant).Where(c => c.BusinessDate >= from && c.BusinessDate <= to), scoped)
+            .Select(c => new { c.Id, c.TotalAmount }).ToListAsync(ct);
+        var ids = collections.Select(c => c.Id).ToArray();
+        var effects = ids.Length == 0 ? new Dictionary<Guid, decimal>() : await db.CollectionCorrections.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenant && ids.Contains(x.OriginalCollectionId))
+            .GroupBy(x => x.OriginalCollectionId).Select(g => new { Id = g.Key, Effect = g.Sum(x => x.FinancialEffectAmount) }).ToDictionaryAsync(x => x.Id, x => x.Effect, ct);
+        var latest = ids.Length == 0 ? new Dictionary<Guid, DirectCollectionReviewOutcome>() : (await Events(tenant).Where(e => ids.Contains(e.CollectionId)).ToListAsync(ct))
+            .GroupBy(e => e.CollectionId).ToDictionary(g => g.Key, g => g.OrderByDescending(e => e.OccurredAtUtc).ThenByDescending(e => e.Id).First().Outcome);
+        decimal recorded = 0, verified = 0, awaiting = 0, flagged = 0, resolved = 0; int count = 0, verifiedCount = 0;
+        foreach (var c in collections)
+        {
+            var net = c.TotalAmount + effects.GetValueOrDefault(c.Id);
+            if (net <= 0m) continue;                                       // reversed: never positive verified (or pending) revenue
+            count++; recorded += net;
+            if (!latest.TryGetValue(c.Id, out var outcome)) awaiting += net;
+            else if (outcome == DirectCollectionReviewOutcome.Confirmed) { verified += net; verifiedCount++; }
+            else if (outcome == DirectCollectionReviewOutcome.NeedsCorrection) flagged += net;
+            else resolved += net;
+        }
+        return Result<DirectCollectionVerificationPositionDto>.Success(new(from, to, recorded, verified, recorded - verified, awaiting, flagged, resolved,
+            count, verifiedCount, count - verifiedCount));
+    }
+
     public async Task<Result<DirectCollectionReviewRowDto>> ReviewAsync(DirectCollectionReviewActionRequest request, CancellationToken ct = default)
     {
         if (!TryTenant(out var tenant)) return Result<DirectCollectionReviewRowDto>.Forbidden();
         if (request.ClientOperationId == Guid.Empty || request.CollectionId == Guid.Empty || !Enum.TryParse<DirectCollectionReviewOutcome>(request.Outcome, true, out var outcome) || !Enum.IsDefined(outcome))
             return Result<DirectCollectionReviewRowDto>.Failure("Choose a valid review action.", ResultStatus.Invalid);
+        // Final verification belongs to the Head. An Admin may flag a collection for correction (a non-financial alert) and nothing else.
+        if (outcome != DirectCollectionReviewOutcome.NeedsCorrection && user.Role != "SuperAdmin") return Result<DirectCollectionReviewRowDto>.Forbidden();
         if (outcome == DirectCollectionReviewOutcome.NeedsCorrection && string.IsNullOrWhiteSpace(request.Note))
             return Result<DirectCollectionReviewRowDto>.Failure("Say what needs correcting.", ResultStatus.Invalid);
         if (request.Note?.Trim().Length > 500) return Result<DirectCollectionReviewRowDto>.Failure("Use a note of at most 500 characters.", ResultStatus.Invalid);
 
-        // A retry of the same operation answers with what it already recorded: one event, never a second.
-        var prior = await db.DirectCollectionReviewEvents.AsNoTracking().SingleOrDefaultAsync(e => e.MunicipalityId == tenant && e.ClientOperationId == request.ClientOperationId, ct);
-        var collection = await DirectCollections(tenant).SingleOrDefaultAsync(c => c.Id == request.CollectionId, ct);
-        if (collection is null) return Result<DirectCollectionReviewRowDto>.NotFound();
-        if (prior is not null)
-            return prior.CollectionId == request.CollectionId && prior.Outcome == outcome
-                ? Result<DirectCollectionReviewRowDto>.Success((await ProjectAsync(tenant, [collection], ct))[0])
-                : Result<DirectCollectionReviewRowDto>.Failure("This operation id was already used for a different review.", ResultStatus.Conflict);
+        try
+        {
+            // One serializable unit: two reviewers acting at once cannot both succeed against the state they each read.
+            await using var tx = await db.BeginSerializableTransactionAsync(ct);
+            // A retry of the same operation answers with what it already recorded: one event, never a second.
+            var prior = await db.DirectCollectionReviewEvents.AsNoTracking().SingleOrDefaultAsync(e => e.MunicipalityId == tenant && e.ClientOperationId == request.ClientOperationId, ct);
+            var collection = await DirectCollections(tenant).SingleOrDefaultAsync(c => c.Id == request.CollectionId, ct);
+            if (collection is null) return Result<DirectCollectionReviewRowDto>.NotFound();
+            if (prior is not null)
+                return prior.CollectionId == request.CollectionId && prior.Outcome == outcome
+                    ? Result<DirectCollectionReviewRowDto>.Success((await ProjectAsync(tenant, [collection], ct))[0])
+                    : Result<DirectCollectionReviewRowDto>.Failure("This operation id was already used for a different review.", ResultStatus.Conflict);
 
-        var row = (await ProjectAsync(tenant, [collection], ct))[0];
-        if (outcome == DirectCollectionReviewOutcome.Confirmed && row.Disposition == "Reversed")
-            return Result<DirectCollectionReviewRowDto>.Failure("This collection was reversed; there is nothing to confirm.", ResultStatus.Conflict);
-        if (outcome == DirectCollectionReviewOutcome.Resolved && row.ReviewState != "Needs correction")
-            return Result<DirectCollectionReviewRowDto>.Failure("Only a collection flagged for correction can be resolved.", ResultStatus.Conflict);
+            var row = (await ProjectAsync(tenant, [collection], ct))[0];
+            string? block = outcome switch
+            {
+                DirectCollectionReviewOutcome.Confirmed => DirectCollectionVerification.ConfirmBlock(row.Disposition, row.ReviewState, row.PossibleDuplicate,
+                    row.Registration == "Needs registration", request.Note),
+                DirectCollectionReviewOutcome.NeedsCorrection => DirectCollectionVerification.FlagBlock(row.Disposition, row.ReviewState),
+                _ => DirectCollectionVerification.ResolveBlock(row.ReviewState)
+            };
+            if (block is not null)
+                return Result<DirectCollectionReviewRowDto>.Failure(outcome switch
+                {
+                    DirectCollectionReviewOutcome.Confirmed => DirectCollectionVerification.BlockMessage(block),
+                    DirectCollectionReviewOutcome.NeedsCorrection => block == "Reversed" ? "This collection was reversed; there is nothing to flag." : "This collection is already flagged for correction.",
+                    _ => "Only a collection flagged for correction can be resolved."
+                }, ResultStatus.Conflict);
 
-        db.DirectCollectionReviewEvents.Add(DirectCollectionReviewEvent.Record(tenant, collection.Id, request.ClientOperationId, outcome, request.Note,
-            user.UserId!.Value, user.Username ?? "Office User"));
-        await db.SaveChangesAsync(ct);
-        return Result<DirectCollectionReviewRowDto>.Success((await ProjectAsync(tenant, [collection], ct))[0]);
+            db.DirectCollectionReviewEvents.Add(DirectCollectionReviewEvent.Record(tenant, collection.Id, request.ClientOperationId, outcome, request.Note,
+                user.UserId!.Value, user.Username ?? "Office User"));
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+            return Result<DirectCollectionReviewRowDto>.Success((await ProjectAsync(tenant, [collection], ct))[0]);
+        }
+        catch (Exception ex) when (IsCompetingWrite(ex))
+        {
+            db.ChangeTracker.Clear();
+            return Result<DirectCollectionReviewRowDto>.Failure("Another review was recorded at the same time. Reload to see the latest state.", ResultStatus.Conflict);
+        }
     }
 
-    /// <summary>Confirms only collections that are still awaiting review, posted, and not flagged as a possible duplicate. Everything else is skipped with its reason.</summary>
+    /// <summary>
+    /// Confirms collections under exactly the one-item rules, except that a possible duplicate is never confirmed in bulk (it needs the Head's written
+    /// reason, collection by collection). Everything else is skipped with its reason. Head only.
+    /// </summary>
     public async Task<Result<DirectCollectionBulkConfirmResult>> BulkConfirmAsync(DirectCollectionBulkConfirmRequest request, CancellationToken ct = default)
     {
-        if (!TryTenant(out var tenant)) return Result<DirectCollectionBulkConfirmResult>.Forbidden();
+        if (!TryHead(out var tenant)) return Result<DirectCollectionBulkConfirmResult>.Forbidden();
         var ids = request.CollectionIds?.Where(x => x != Guid.Empty).Distinct().ToArray() ?? [];
         if (request.ClientOperationId == Guid.Empty || ids.Length == 0 || ids.Length > MaxBulk)
             return Result<DirectCollectionBulkConfirmResult>.Failure($"Choose between 1 and {MaxBulk} collections.", ResultStatus.Invalid);
-        var collections = await DirectCollections(tenant).Where(c => ids.Contains(c.Id)).ToListAsync(ct);
-        var rows = (await ProjectAsync(tenant, collections, ct)).ToDictionary(r => r.CollectionId);
-        var confirmed = 0; var skipped = new List<DirectCollectionBulkSkip>();
-        foreach (var id in ids)
+        try
         {
-            if (!rows.TryGetValue(id, out var row)) { skipped.Add(new(id, "Not a direct collection of this office.")); continue; }
-            if (row.Disposition != "Posted") { skipped.Add(new(id, "Not in its original posted state.")); continue; }
-            if (row.ReviewState != "Awaiting review") { skipped.Add(new(id, "Already reviewed.")); continue; }
-            if (row.PossibleDuplicate) { skipped.Add(new(id, "Possible duplicate: review it on its own.")); continue; }
-            if (row.Registration == "Needs registration") { skipped.Add(new(id, "Identity review: register or link the payor first.")); continue; }
-            // Each item has its own deterministic operation id, so repeating the same bulk request never adds a second event.
-            var operation = new Guid(System.Security.Cryptography.MD5.HashData(System.Text.Encoding.UTF8.GetBytes($"{request.ClientOperationId:N}|{id:N}")));
-            if (await db.DirectCollectionReviewEvents.AnyAsync(e => e.MunicipalityId == tenant && e.ClientOperationId == operation, ct)) { confirmed++; continue; }
-            db.DirectCollectionReviewEvents.Add(DirectCollectionReviewEvent.Record(tenant, id, operation, DirectCollectionReviewOutcome.Confirmed,
-                "Confirmed in bulk review.", user.UserId!.Value, user.Username ?? "Office User"));
-            confirmed++;
+            await using var tx = await db.BeginSerializableTransactionAsync(ct);
+            var collections = await DirectCollections(tenant).Where(c => ids.Contains(c.Id)).ToListAsync(ct);
+            var rows = (await ProjectAsync(tenant, collections, ct)).ToDictionary(r => r.CollectionId);
+            var confirmed = 0; var skipped = new List<DirectCollectionBulkSkip>();
+            foreach (var id in ids)
+            {
+                if (!rows.TryGetValue(id, out var row)) { skipped.Add(new(id, "Not a direct collection of this office.")); continue; }
+                // Each item has its own deterministic operation id, so repeating the same bulk request never adds a second event.
+                var operation = new Guid(System.Security.Cryptography.MD5.HashData(System.Text.Encoding.UTF8.GetBytes($"{request.ClientOperationId:N}|{id:N}")));
+                if (await db.DirectCollectionReviewEvents.AnyAsync(e => e.MunicipalityId == tenant && e.ClientOperationId == operation, ct)) { confirmed++; continue; }
+                var block = DirectCollectionVerification.ConfirmBlock(row.Disposition, row.ReviewState, row.PossibleDuplicate, row.Registration == "Needs registration", null);
+                if (block is not null) { skipped.Add(new(id, DirectCollectionVerification.BlockMessage(block))); continue; }
+                db.DirectCollectionReviewEvents.Add(DirectCollectionReviewEvent.Record(tenant, id, operation, DirectCollectionReviewOutcome.Confirmed,
+                    "Confirmed in bulk review.", user.UserId!.Value, user.Username ?? "Office User"));
+                confirmed++;
+            }
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+            return Result<DirectCollectionBulkConfirmResult>.Success(new(confirmed, skipped));
         }
-        await db.SaveChangesAsync(ct);
-        return Result<DirectCollectionBulkConfirmResult>.Success(new(confirmed, skipped));
+        catch (Exception ex) when (IsCompetingWrite(ex))
+        {
+            db.ChangeTracker.Clear();
+            return Result<DirectCollectionBulkConfirmResult>.Failure("Another review was recorded at the same time. Reload and review again.", ResultStatus.Conflict);
+        }
     }
 }

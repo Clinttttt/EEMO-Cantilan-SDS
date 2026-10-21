@@ -6,488 +6,286 @@
 @using EEMOCantilanSDS.Application.Command.Slaughterhouse.RecordSlaughter
 @using EEMOCantilanSDS.Application.Command.Slaughterhouse.UpdateSlaughter
 @using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Domain.Constants
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @inject NavigationManager Navigation
 @inject ISlaughterApiClient SlaughterApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 <PageTitle>StallTrack — @FacilityCatalog.NameOf(FacilityCode.SLH)</PageTitle>
 
-<!-- Topbar -->
-<header class="topbar">
-    <div class="topbar-left flex gap-2">
-        <a href="/menu" class="slh-back-btn">
-            <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
-        </a>
-        <div>
-            <div class="topbar-title">@FacilityCatalog.NameOf(FacilityCode.SLH)</div>
-            <div class="topbar-breadcrumb">
-                <a href="/menu" class="breadcrumb-link">Dashboard</a>
-                <span class="breadcrumb-sep">/</span>
-                <span class="breadcrumb-active">@FacilityCatalog.NameOf(FacilityCode.SLH) — @PhilippineTime.Now.ToString("MMMM yyyy")</span>
-            </div>
+
+@* Slaughterhouse workspace (V3). The register lists the month's transactions: legacy rows as they were recorded, and collections the
+   Collectors posted on the canonical workflow (one SRC each, itemized by approved charge when the Head collects that way). Charges,
+   their animal scope, rates and effective dates are set up below; a collector selects them and never prices. *@
+<div class="v3-page sh-page">
+    <V3Hero OperationCode="@CollectorOperationCodes.Slaughterhouse" Eyebrow="@($"Operations · {FacilityCatalog.ShortNameOf(FacilityCode.SLH)}")" Title="@FacilityCatalog.NameOf(FacilityCode.SLH)" Compact="true">
+        <Icon>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 2.5c0 1.5-1.5 5-1.5 5h-2S9.5 4 9.5 2.5a2.5 2.5 0 0 1 5 0z" /><path d="M12 7.5V22" /><path d="M5 12h14" /></svg>
+        </Icon>
+        <Meta><span class="sh-meta">@MonthLabel · <InstrumentChip Instrument="OR" /> Official Receipt</span></Meta>
+        <Figures>
+            <V3HeroFigure Label="Collected" Value="@(Overview is null ? "—" : $"₱{TotalCollected:N2}")" />
+            <V3HeroFigure Label="Transactions" Value="@(Overview is null ? "—" : Overview.TotalTransactions.ToString("N0"))" />
+            <V3HeroFigure Label="Heads" Value="@(Overview is null ? "—" : TotalHeads.ToString("N0"))" />
+        </Figures>
+        <Actions>
+            <a class="v3-btn" href="/collections/activity">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4" /></svg>
+                Collection Activity
+            </a>
+            <a class="v3-btn" href="/slh/reports">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2" /></svg>
+                Reports
+            </a>
+            <a class="v3-btn" href="/reports/slaughterhouse">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17" x2="13" y2="17" /></svg>
+                Slaughter list
+            </a>
+        </Actions>
+    </V3Hero>
+
+    <SlaughterRecordModal ShowModal="ShowRecordModal"
+                          HogRate="@Overview?.HogRatePerHead"
+                          LargeRate="@Overview?.LargeRatePerHead"
+                          ApprovedAnimals="@Overview?.ApprovedAnimals"
+                          Labels="@AnimalLabels"
+                          OnClose="CloseRecordModal"
+                          OnSubmit="SubmitSlaughterRecord"
+                          ErrorMessage="@ErrorMessage" />
+
+    <SlaughterOfficeRecord Show="ShowOfficeRecord" Labels="@AnimalLabels" ApprovedAnimals="@Overview?.ApprovedAnimals"
+                           OnClose="CloseOfficeRecord" OnRecorded="OfficeRecorded" />
+
+    <AddSlaughterTransactionModal ShowModal="ShowAddTransactionModal"
+                                  HogRate="@Overview?.HogRatePerHead"
+                                  LargeRate="@Overview?.LargeRatePerHead"
+                                  ApprovedAnimals="@Overview?.ApprovedAnimals"
+                                  Labels="@AnimalLabels"
+                                  OwnerName="@SelectedOwnerName"
+                                  TransactionDate="@SelectedTransactionDate"
+                                  ORNumber="@SelectedORNumber"
+                                  OnClose="CloseAddTransactionModal"
+                                  OnSubmit="SubmitAddTransaction"
+                                  ErrorMessage="@ErrorMessage" />
+
+    <EditSlaughterTransactionModal ShowModal="ShowEditModal"
+                                   HogRate="@Overview?.HogRatePerHead"
+                                   LargeRate="@Overview?.LargeRatePerHead"
+                                   Labels="@AnimalLabels"
+                                   OnClose="CloseEditModal"
+                                   OnSave="SubmitEditTransaction"
+                                   ErrorMessage="@ErrorMessage"
+                                   SelectedGroupEntries="@SelectedGroupEntriesAsObjects" />
+
+    <section aria-labelledby="sh-animals-title" aria-busy="@(isLoading ? "true" : "false")">
+        <h2 id="sh-animals-title" class="v3-sr-only">Heads by animal</h2>
+        <div class="sh-cards" role="list" aria-label="Heads by animal">
+            @foreach (var card in AnimalCards)
+            {
+                <button type="button" role="listitem" class="v3-panel sh-card @(ActiveAnimalFilter == card.Filter ? "is-on" : null)"
+                        aria-pressed="@(ActiveAnimalFilter == card.Filter ? "true" : "false")" @onclick="() => ToggleCardFilter(card.Filter)">
+                    <span class="sh-card-name">@card.Label</span>
+                    <span class="sh-card-amount">@(Overview is null ? "—" : card.Heads.ToString("N0"))<small>@(card.Heads == 1 ? " head" : " heads")</small></span>
+                    <progress class="sh-bar" max="100" value="@HeadShare(card.Heads)" aria-label="@($"{card.Label} share of heads in {MonthLabel}")"></progress>
+                    <span class="sh-card-share">@HeadShare(card.Heads)% of heads</span>
+                </button>
+            }
         </div>
-    </div>
-    <div class="topbar-right">
-        <div class="topbar-date">
-            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-            @PhilippineTime.Now.ToString("MMMM d, yyyy")
-        </div>
-        <AccountChip />
-    </div>
-</header>
+    </section>
 
-<div class="content-area">
+    @if (!string.IsNullOrWhiteSpace(_recordedNotice))
+    {
+        <p class="v3-notice" role="status">@_recordedNotice</p>
+    }
 
-        <!-- -- SLH Hero Banner -- -->
-        <FacilityHero Code="FacilityCode.SLH"
-                      Eyebrow='@($"OPERATION · {FacilityCatalog.ShortNameOf(FacilityCode.SLH)}")'
-                      Title="@FacilityCatalog.NameOf(FacilityCode.SLH)"
-                      Icon="@SlhIcon"
-                      Stats="@HeroStats"
-                      ShowProgress="true"
-                      ProgressPercentage="100" />
+    <section class="v3-panel" aria-labelledby="sh-register-title" aria-busy="@(isLoading ? "true" : "false")">
+        <header class="v3-panel-header">
+            <h2 id="sh-register-title">Transactions</h2>
+            <button class="v3-btn v3-btn-primary v3-btn-sm" type="button" @onclick="OpenRecordSlaughterModal">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                Record slaughter
+            </button>
+        </header>
 
-        <!-- -- Toolbar (Unified Design) -- -->
-        <div class="toolbar-unified">
-            <!-- LEFT: Search Box -->
-            <div class="search-box">
-                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                <input type="text" placeholder="Search owner or OR no..."
-                       @bind-value="SearchTerm" @bind-value:event="oninput" />
-                @if (!string.IsNullOrEmpty(SearchTerm))
-                {
-                    <span class="search-clear" @onclick="() => SearchTerm = string.Empty">×</span>
-                }
-            </div>
-
-            <!-- CENTER-LEFT: Filter Tabs -->
-            <div class="filter-tabs-inline">
+        <div class="v3-toolbar sh-toolbar" aria-label="Transaction filters">
+            <input class="v3-input sh-month" type="month" aria-label="Month" title="Month" value="@_monthInput" @onchange="ChangeMonthAsync" />
+            <label class="v3-search">
+                <span class="v3-sr-only">Search owner or reference</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
+                <input type="search" placeholder="Search owner or reference" aria-label="Search owner or reference" autocomplete="off"
+                       @bind="SearchTerm" @bind:event="oninput" />
+            </label>
+            <div class="sh-seg" role="group" aria-label="Animal">
                 @foreach (var tab in AnimalFilters)
                 {
-                    <div class="filter-tab @(ActiveAnimalFilter == tab ? "active" : "")"
-                         @onclick="() => SetAnimalFilter(tab)">
-                        @tab
-                    </div>
+                    <button type="button" class="@(ActiveAnimalFilter == tab ? "is-on" : null)" aria-pressed="@(ActiveAnimalFilter == tab ? "true" : "false")"
+                            @onclick="() => SetAnimalFilter(tab)">@tab</button>
                 }
-            </div>
-
-            <div class="toolbar-actions">
-                <button class="btn btn-outline" @onclick='() => Navigation.NavigateTo("/slh/reports")'>
-                    <svg viewBox="0 0 24 24">
-                        <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" />
-                    </svg>
-                    Reports
-                </button>
-
-                <a href="/reports/slaughterhouse" class="btn btn-outline">
-                    <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle;margin-right:4px;">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                        <polyline points="14 2 14 8 20 8" />
-                    </svg>
-                    Slaughter List
-                </a>
-
-                <button class="btn btn-primary" @onclick="OpenRecordSlaughterModal">
-                    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                    Record Slaughter
-                </button>
             </div>
         </div>
 
-        <!-- SLAUGHTER RECORD MODAL. The office's own rates travel as they are: an unstated rate stays null so the modal
-             leaves that animal out, rather than a fallback putting Cantilan's ordinance on another office's screen. -->
-        <SlaughterRecordModal ShowModal="ShowRecordModal"
-                              HogRate="@Overview?.HogRatePerHead"
-                              LargeRate="@Overview?.LargeRatePerHead"
-                              ApprovedAnimals="@Overview?.ApprovedAnimals"
-                              Labels="@AnimalLabels"
-                              OnClose="CloseRecordModal"
-                              OnSubmit="SubmitSlaughterRecord"
-                              ErrorMessage="@ErrorMessage" />
-
-        <SlaughterApprovedAnimals OnChanged="LoadData" />
-
-        <!-- ADD TRANSACTION MODAL -->
-        <AddSlaughterTransactionModal ShowModal="ShowAddTransactionModal"
-                                      HogRate="@Overview?.HogRatePerHead"
-                                      LargeRate="@Overview?.LargeRatePerHead"
-                                      ApprovedAnimals="@Overview?.ApprovedAnimals"
-                                      Labels="@AnimalLabels"
-                                      OwnerName="@SelectedOwnerName"
-                                      TransactionDate="@SelectedTransactionDate"
-                                      ORNumber="@SelectedORNumber"
-                                      OnClose="CloseAddTransactionModal"
-                                      OnSubmit="SubmitAddTransaction"
-                                      ErrorMessage="@ErrorMessage" />
-
-        <!-- EDIT TRANSACTION MODAL -->
-        <EditSlaughterTransactionModal ShowModal="ShowEditModal"
-                                       HogRate="@Overview?.HogRatePerHead"
-                                       LargeRate="@Overview?.LargeRatePerHead"
-                                       Labels="@AnimalLabels"
-                                       OnClose="CloseEditModal"
-                                       OnSave="SubmitEditTransaction"
-                                       ErrorMessage="@ErrorMessage"
-                                       SelectedGroupEntries="@SelectedGroupEntriesAsObjects" />
-
-
-        <!-- -- Facility Info Bar -- -->
-        <div class="slh-facility-info">
-            <div class="slh-facility-info-left">
-                <div class="slh-facility-label-row">
-                    <span class="slh-facility-label">
-                        @(ActiveAnimalFilter == "All" ? "All Transactions" : ActiveAnimalFilter + " Transactions")
-                        — @PhilippineTime.Now.ToString("MMMM yyyy")
-                    </span>
-                    <!-- Info Icon + Hover Tooltip -->
-                    <div class="slh-info-wrap">
-                        <span class="slh-info-icon">
-                            <svg viewBox="0 0 24 24">
-                                <circle cx="12" cy="12" r="10" />
-                                <line x1="12" y1="8" x2="12" y2="8" />
-                                <line x1="12" y1="12" x2="12" y2="16" />
-                            </svg>
-                        </span>
-                        <div class="slh-tooltip">
-                            <div class="slh-tooltip-title">Slaughterhouse Fees (per head)</div>
-
-                            @* The office's own stated rates, and only the animals it prices.
-                               The itemisation that used to sit here - Slaughter 50, Ante Mortem 20, Table Charge 30,
-                               Entrance 150, and six more lines for a large animal - was Cantilan's ordinance written
-                               into the markup, shown to every LGU as though it were its own. Nothing stores a
-                               breakdown: the platform holds one total per head, so a total is what it can state. *@
-                            @if (Overview?.HogRatePerHead is { } hogRate)
-                            {
-                                <div class="slh-tooltip-section">
-                                    <div class="slh-tooltip-animal">@AnimalLabels.Hog — ₱@(hogRate.ToString("0"))</div>
-                                </div>
-                            }
-
-                            @if (Overview?.LargeRatePerHead is { } largeRate)
-                            {
-                                @if (Overview?.HogRatePerHead is not null)
-                                {
-                                    <div class="slh-tooltip-divider"></div>
-                                }
-                                <div class="slh-tooltip-section">
-                                    <div class="slh-tooltip-animal">@AnimalLabels.Carabao / @AnimalLabels.Cow — ₱@(largeRate.ToString("0"))</div>
-                                </div>
-                            }
-
-                            @if (Overview?.HogRatePerHead is null && Overview?.LargeRatePerHead is null)
-                            {
-                                <div class="slh-tooltip-section">
-                                    <div class="slh-tooltip-animal">No per-head rate is on file for this office yet.</div>
-                                </div>
-                            }
-                        </div>
-                    </div>
-                </div>
-                <div class="slh-facility-desc">Per-head fees · Collected per slaughter transaction</div>
-            </div>
-            <div class="slh-facility-mini-stats">
-                @if (OthersCount > 0)
-                {
-                    <div class="slh-mini-stat others-stat">
-                        <div class="slh-mini-val">@OthersCount</div>
-                        <div class="slh-mini-key">Others</div>
-                    </div>
-                }
-                <div class="slh-mini-stat hog-stat">
-                    <div class="slh-mini-val">@HogCount</div>
-                    <div class="slh-mini-key">@AnimalLabels.Hog</div>
-                </div>
-                <div class="slh-mini-stat carabao-stat">
-                    <div class="slh-mini-val">@CarabaoCount</div>
-                    <div class="slh-mini-key">@AnimalLabels.Carabao</div>
-                </div>
-                <div class="slh-mini-stat cow-stat">
-                    <div class="slh-mini-val">@CowCount</div>
-                    <div class="slh-mini-key">@AnimalLabels.Cow</div>
-                </div>
-                <div class="slh-mini-stat">
-                    <div class="slh-mini-val">@FilteredOwnerGroups.Sum(g => g.LatestTransactions.Sum(t => t.NumberOfHeads))</div>
-                    <div class="slh-mini-key">Heads</div>
-                </div>
-                <div class="slh-mini-stat">
-                    <div class="slh-mini-val">@FilteredOwnerGroups.Sum(g => g.LatestTransactions.Sum(t => t.TotalAmount)).ToString("N0")</div>
-                    <div class="slh-mini-key">Collected</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- -- Transactions Table -- -->
-        <div class="panel">
-            @if (isLoading)
-            {
-                <div class="slh-loading-table" aria-busy="true" aria-label="Loading slaughterhouse transactions">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Date</th>
-                                <th>Owner / Client</th>
-                                <th>Animal Type</th>
-                                <th>No. of Heads</th>
-                                <th>Rate / Head</th>
-                                <th>Total Amount</th>
-                                <th>OR No.</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                    @for (var _i = 0; _i < 8; _i++)
-                    {
-                            <tr>
-                                <td><Skeleton Width="22px" Height="13px" Radius="6px" /></td>
-                                <td><Skeleton Width="88px" Height="13px" Radius="6px" /></td>
-                                <td><Skeleton Width="145px" Height="13px" Radius="6px" /></td>
-                                <td><Skeleton Width="96px" Height="22px" Radius="999px" /></td>
-                                <td><Skeleton Width="38px" Height="13px" Radius="6px" /></td>
-                                <td><Skeleton Width="70px" Height="13px" Radius="6px" /></td>
-                                <td><Skeleton Width="82px" Height="13px" Radius="6px" /></td>
-                                <td><Skeleton Width="72px" Height="18px" Radius="6px" /></td>
-                                <td>
-                                    <div class="action-btns slh-loading-actions">
-                                        <Skeleton Width="32px" Height="32px" Radius="8px" />
-                                        <Skeleton Width="32px" Height="32px" Radius="8px" />
-                                        <Skeleton Width="32px" Height="32px" Radius="8px" />
-                                    </div>
-                                </td>
-                            </tr>
-                    }
-                        </tbody>
-                    </table>
-                </div>
-            }
-            else
-            {
-            <table class="data-table">
+        <div class="v3-table-wrap sh-scroll" role="region" aria-label="Slaughterhouse transactions" tabindex="0">
+            <table class="v3-table">
+                <caption class="v3-sr-only">Slaughterhouse transactions for @MonthLabel</caption>
                 <thead>
                     <tr>
-                        <th>#</th>
-                        <th>Date</th>
-                        <th>Owner / Client</th>
-                        <th>Animal Type</th>
-                        <th>No. of Heads</th>
-                        <th>Rate / Head</th>
-                        <th>Total Amount</th>
-                        <th>OR No.</th>
-                        <th>Actions</th>
+                        <th scope="col">Date</th>
+                        <th scope="col">Owner</th>
+                        <th scope="col">Animal</th>
+                        <th scope="col" class="v3-num">Heads</th>
+                        <th scope="col" class="v3-num">Charges</th>
+                        <th scope="col" class="v3-num">Total</th>
+                        <th scope="col">Reference</th>
+                        <th scope="col"><span class="v3-sr-only">Actions</span></th>
                     </tr>
                 </thead>
                 <tbody>
-                    @{
-                        int rowNum = 1;
-                    }
-                    @foreach (var ownerGroup in FilteredOwnerGroups)
+                    @if (isLoading)
                     {
-                        var firstTransaction = ownerGroup.LatestTransactions.First();
-                        var hasMultipleAnimals = ownerGroup.LatestTransactions.Count > 1;
-                        var hasHistory = ownerGroup.TotalTransactionDates > 1;
-                        var animalRowKey = $"{ownerGroup.OwnerName}_{ownerGroup.ORNumber}";
-                        var isAnimalExpanded = IsAnimalRowExpanded(animalRowKey);
-                        var isHistoryExpanded = IsHistoryRowExpanded(ownerGroup.OwnerName);
-                        var totalHeads = ownerGroup.LatestTransactions.Sum(t => t.NumberOfHeads);
-                        var totalAmount = ownerGroup.LatestTransactions.Sum(t => t.TotalAmount);
-                            
-                        <!-- Main Row (Latest OR Number Group) -->
-                        <tr class="@GetRowClass(GetAnimalTypeName(firstTransaction.AnimalType, firstTransaction.CustomAnimalType)) @(hasMultipleAnimals ? "has-children" : "") @(isAnimalExpanded ? "expanded" : "")">
-                            <td>@rowNum</td>
-                            <td>@ownerGroup.LatestTransactionDate.ToString("MMM d, yyyy")</td>
-                            <td>
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <span>@ownerGroup.OwnerName</span>
+                        @for (var i = 0; i < 5; i++)
+                        {
+                            <tr aria-hidden="true">
+                                <td><Skeleton Width="80px" Height="13px" Radius="6px" /></td>
+                                <td><Skeleton Width="130px" Height="13px" Radius="6px" /></td>
+                                <td><Skeleton Width="70px" Height="13px" Radius="6px" /></td>
+                                <td><Skeleton Width="30px" Height="13px" Radius="6px" /></td>
+                                <td><Skeleton Width="70px" Height="13px" Radius="6px" /></td>
+                                <td><Skeleton Width="70px" Height="13px" Radius="6px" /></td>
+                                <td><Skeleton Width="100px" Height="13px" Radius="6px" /></td>
+                                <td><Skeleton Width="60px" Height="26px" Radius="8px" /></td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        @foreach (var ownerGroup in FilteredOwnerGroups)
+                        {
+                            var first = ownerGroup.LatestTransactions.First();
+                            var hasMultipleAnimals = ownerGroup.LatestTransactions.Count > 1;
+                            var hasHistory = ownerGroup.TotalTransactionDates > 1;
+                            var rowKey = $"{ownerGroup.OwnerName}_{ownerGroup.ORNumber}";
+                            var open = IsAnimalRowExpanded(rowKey);
+                            var historyOpen = IsHistoryRowExpanded(ownerGroup.OwnerName);
+                            var itemized = ownerGroup.LatestTransactions.Any(t => t.Items is { Count: > 0 });
+                            var totalHeads = ownerGroup.LatestTransactions.Sum(t => t.NumberOfHeads);
+                            var totalAmount = ownerGroup.LatestTransactions.Sum(t => t.TotalAmount);
+                            <tr class="sh-row @(open ? "is-open" : null)">
+                                <td>@ownerGroup.LatestTransactionDate.ToString("MMM d, yyyy")</td>
+                                <td>
+                                    <span class="v3-strong">@ownerGroup.OwnerName</span>
                                     @if (hasHistory)
                                     {
-                                        <button class="btn-history-toggle" @onclick="async () => await ToggleHistoryRow(ownerGroup.OwnerName)" title="@(isHistoryExpanded ? "Hide" : "Show") previous OR numbers">
-                                            <svg class="@(isHistoryExpanded ? "expanded" : "")" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
-                                            <span>@(ownerGroup.TotalTransactionDates - 1) more</span>
+                                        <button class="sh-link" type="button" aria-expanded="@(historyOpen ? "true" : "false")" @onclick="async () => await ToggleHistoryRow(ownerGroup.OwnerName)">
+                                            @(ownerGroup.TotalTransactionDates - 1) earlier
                                         </button>
                                     }
-                                </div>
-                            </td>
-                            <td>
-                                @if (hasMultipleAnimals)
-                                {
-                                    <div class="animal-type-group" @onclick="() => ToggleAnimalRow(animalRowKey)">
-                                        <span>@GetAnimalTypeName(firstTransaction.AnimalType, firstTransaction.CustomAnimalType)</span>
-                                        <span class="animal-count-badge">+@(ownerGroup.LatestTransactions.Count - 1)</span>
-                                        <svg class="expand-icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
-                                    </div>
-                                }
-                                else
-                                {
-                                    <span>@GetAnimalTypeName(firstTransaction.AnimalType, firstTransaction.CustomAnimalType)</span>
-                                }
-                            </td>
-                            <td>@totalHeads</td>
-                            <td title="@ItemizedFees(firstTransaction.Components)">@(hasMultipleAnimals ? "—" : "₱" + firstTransaction.RatePerHead.ToString("N0"))</td>
-                            <td>₱@totalAmount.ToString("N0")</td>
-                            <td><span class="mono">@ownerGroup.ORNumber</span></td>
-                            <td>
-                                <div class="action-btns">
-                                    <button class="btn-action" title="View Details" @onclick="() => ViewEntry(firstTransaction)">
-                                        <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
-                                    </button>
-                                    <button class="btn-action" title="Add Transaction" @onclick="() => AddTransactionForOwner(firstTransaction)">
-                                        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                                    </button>
-                                    @* A collection recorded on the canonical workflow carries its SRC and is corrected through the correction process, never edited here. *@
-                                    @if (firstTransaction.ReferenceCode is null)
+                                </td>
+                                <td>@GetAnimalTypeName(first.AnimalType, first.CustomAnimalType)@if (hasMultipleAnimals) {<span class="sh-more">+@(ownerGroup.LatestTransactions.Count - 1)</span>}</td>
+                                <td class="v3-num">@totalHeads</td>
+                                <td class="v3-num">
+                                    @if (itemized || hasMultipleAnimals)
                                     {
-                                        <button class="btn-action" title="Edit" @onclick="() => EditEntry(firstTransaction)">
-                                            <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                                        <button class="sh-link sh-num-link" type="button" aria-expanded="@(open ? "true" : "false")" @onclick="() => ToggleAnimalRow(rowKey)">
+                                            @(itemized ? $"{ownerGroup.LatestTransactions.Sum(t => t.Items?.Count ?? 0)} charges" : "Breakdown")
                                         </button>
                                     }
-                                </div>
-                            </td>
-                        </tr>
-                            
-                        <!-- Level 1 Expansion: Multiple Animal Types (Same OR Number) -->
-                        @if (hasMultipleAnimals && isAnimalExpanded)
-                        {
-                            @foreach (var transaction in ownerGroup.LatestTransactions)
-                            {
-                                <tr class="detail-row @GetRowClass(GetAnimalTypeName(transaction.AnimalType, transaction.CustomAnimalType))">
-                                    <td></td>
-                                    <td></td>
-                                    <td></td>
-                                    <td>
-                                        <div class="detail-animal-type">
-                                            <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
-                                            @GetAnimalTypeName(transaction.AnimalType, transaction.CustomAnimalType)
-                                        </div>
-                                        @if (ItemizedFees(transaction.Components) is { Length: > 0 } itemized)
+                                    else
+                                    {
+                                        <span title="@ItemizedFees(first.Components)">@Money(first.RatePerHead) / head</span>
+                                    }
+                                </td>
+                                <td class="v3-num v3-strong">@Money(totalAmount)</td>
+                                <td><span class="sh-ref">@ownerGroup.ORNumber</span></td>
+                                <td class="sh-actions">
+                                    <div class="v3-btn-group" role="group" aria-label="@($"Actions for {ownerGroup.OwnerName}")">
+                                        <button class="v3-btn v3-btn-sm" type="button" @onclick="() => ViewEntry(first)">Record</button>
+                                        @* A collection posted on the canonical workflow carries its SRC and is corrected through the correction process, never added to or edited here. *@
+                                        @if (first.ReferenceCode is null)
                                         {
-                                            <div class="detail-fee-items" aria-label="Fee components">@itemized</div>
+                                            <button class="v3-btn v3-btn-sm" type="button" @onclick="() => AddTransactionForOwner(first)">Add</button>
+                                            <button class="v3-btn v3-btn-sm" type="button" @onclick="() => EditEntry(first)">Edit</button>
                                         }
+                                    </div>
+                                </td>
+                            </tr>
+                            @if (open)
+                            {
+                                <tr class="sh-detail">
+                                    <td colspan="8">
+                                        <div class="sh-lines">
+                                            @foreach (var transaction in ownerGroup.LatestTransactions)
+                                            {
+                                                <div class="sh-line-head">
+                                                    <strong>@GetAnimalTypeName(transaction.AnimalType, transaction.CustomAnimalType)</strong>
+                                                    <span>@transaction.NumberOfHeads head@(transaction.NumberOfHeads == 1 ? "" : "s")</span>
+                                                    <span class="sh-line-total">@Money(transaction.TotalAmount)</span>
+                                                </div>
+                                                @if (transaction.Items is { Count: > 0 } items)
+                                                {
+                                                    <table class="sh-items" aria-label="@($"Charges for {transaction.ReferenceCode}")">
+                                                        <thead><tr><th scope="col">Charge</th><th scope="col" class="v3-num">Quantity</th><th scope="col" class="v3-num">Rate</th><th scope="col" class="v3-num">Amount</th></tr></thead>
+                                                        <tbody>
+                                                            @foreach (var item in items)
+                                                            {
+                                                                <tr><td>@item.Label</td><td class="v3-num">@item.Quantity.ToString("0.##")</td><td class="v3-num">@Money(item.UnitAmount)</td><td class="v3-num">@Money(item.Amount)</td></tr>
+                                                            }
+                                                        </tbody>
+                                                        <tfoot><tr><th scope="row" colspan="3">Total</th><td class="v3-num">@Money(items.Sum(x => x.Amount))</td></tr></tfoot>
+                                                    </table>
+                                                }
+                                                else if (ItemizedFees(transaction.Components) is { Length: > 0 } fees)
+                                                {
+                                                    <p class="sh-fees">@fees</p>
+                                                }
+                                            }
+                                        </div>
                                     </td>
-                                    <td>@transaction.NumberOfHeads</td>
-                                    <td>₱@transaction.RatePerHead.ToString("N0")</td>
-                                    <td>₱@transaction.TotalAmount.ToString("N0")</td>
-                                    <td></td>
-                                    <td></td>
                                 </tr>
                             }
-                        }
-
-                        <!-- Level 2 Expansion: Previous OR Numbers -->
-                        @if (hasHistory && isHistoryExpanded)
-                        {
-                            var history = GetOwnerHistory(ownerGroup.OwnerName);
-                            if (history != null && history.TransactionGroups != null && history.TransactionGroups.Count > 1)
+                            @if (hasHistory && historyOpen && GetOwnerHistory(ownerGroup.OwnerName) is { TransactionGroups.Count: > 1 } history)
                             {
-                                @foreach (var orGroup in history.TransactionGroups.Skip(1))
+                                @foreach (var orGroup in history.TransactionGroups.Skip(1).Where(g => g.Transactions is { Count: > 0 }))
                                 {
-                                    if (orGroup.Transactions == null || !orGroup.Transactions.Any())
-                                    {
-                                        continue;
-                                    }
-                                            
-                                    var firstHistoryTransaction = orGroup.Transactions.First();
-                                    var historyHasMultiple = orGroup.Transactions.Count > 1;
-                                    var historyKey = $"{ownerGroup.OwnerName}_{orGroup.ORNumber}";
-                                    var isHistoryAnimalExpanded = IsAnimalRowExpanded(historyKey);
-                                    var historyTotalHeads = orGroup.Transactions.Sum(t => t.NumberOfHeads);
-                                    var historyTotalAmount = orGroup.Transactions.Sum(t => t.TotalAmount);
-
-                                    <tr class="history-row @GetRowClass(GetAnimalTypeName(firstHistoryTransaction.AnimalType, firstHistoryTransaction.CustomAnimalType)) @(historyHasMultiple ? "has-children" : "") @(isHistoryAnimalExpanded ? "expanded" : "")">
-                                        <td></td>
+                                    var past = orGroup.Transactions.First();
+                                    <tr class="sh-history">
                                         <td>@orGroup.TransactionDate.ToString("MMM d, yyyy")</td>
-                                        <td>
-                                            <div class="history-owner-name">
-                                                <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
-                                                @ownerGroup.OwnerName
-                                            </div>
-                                        </td>
-                                        <td>
-                                            @if (historyHasMultiple)
-                                            {
-                                                <div class="animal-type-group" @onclick="() => ToggleAnimalRow(historyKey)">
-                                                    <span>@GetAnimalTypeName(firstHistoryTransaction.AnimalType, firstHistoryTransaction.CustomAnimalType)</span>
-                                                    <span class="animal-count-badge">+@(orGroup.Transactions.Count - 1)</span>
-                                                    <svg class="expand-icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></svg>
-                                                </div>
-                                            }
-                                            else
-                                            {
-                                                <span>@GetAnimalTypeName(firstHistoryTransaction.AnimalType, firstHistoryTransaction.CustomAnimalType)</span>
-                                            }
-                                        </td>
-                                        <td>@historyTotalHeads</td>
-                                        <td>@(historyHasMultiple ? "—" : "₱" + firstHistoryTransaction.RatePerHead.ToString("N0"))</td>
-                                        <td>₱@historyTotalAmount.ToString("N0")</td>
-                                        <td><span class="mono">@orGroup.ORNumber</span></td>
-                                        <td>
-                                            <div class="action-btns">
-                                                <button class="btn-action" title="View Details" @onclick="() => ViewEntry(firstHistoryTransaction)">
-                                                    <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
-                                                </button>
-                                            </div>
-                                        </td>
+                                        <td>@ownerGroup.OwnerName</td>
+                                        <td>@GetAnimalTypeName(past.AnimalType, past.CustomAnimalType)@if (orGroup.Transactions.Count > 1) {<span class="sh-more">+@(orGroup.Transactions.Count - 1)</span>}</td>
+                                        <td class="v3-num">@orGroup.Transactions.Sum(t => t.NumberOfHeads)</td>
+                                        <td class="v3-num">@(orGroup.Transactions.Any(t => t.Items is { Count: > 0 }) ? $"{orGroup.Transactions.Sum(t => t.Items?.Count ?? 0)} charges" : orGroup.Transactions.Count > 1 ? "" : $"{Money(past.RatePerHead)} / head")</td>
+                                        <td class="v3-num">@Money(orGroup.Transactions.Sum(t => t.TotalAmount))</td>
+                                        <td><span class="sh-ref">@orGroup.ORNumber</span></td>
+                                        <td class="sh-actions"><button class="v3-btn v3-btn-sm" type="button" @onclick="() => ViewEntry(past)">Record</button></td>
                                     </tr>
-
-                                    @if (historyHasMultiple && isHistoryAnimalExpanded)
-                                    {
-                                        @foreach (var historyTransaction in orGroup.Transactions)
-                                        {
-                                            <tr class="detail-row history-detail-row @GetRowClass(GetAnimalTypeName(historyTransaction.AnimalType, historyTransaction.CustomAnimalType))">
-                                                <td></td>
-                                                <td></td>
-                                                <td></td>
-                                                <td>
-                                                    <div class="detail-animal-type" style="padding-left: 32px;">
-                                                        <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
-                                                        @GetAnimalTypeName(historyTransaction.AnimalType, historyTransaction.CustomAnimalType)
-                                                    </div>
-                                                </td>
-                                                <td>@historyTransaction.NumberOfHeads</td>
-                                                <td>₱@historyTransaction.RatePerHead.ToString("N0")</td>
-                                                <td>₱@historyTransaction.TotalAmount.ToString("N0")</td>
-                                                <td></td>
-                                                <td></td>
-                                            </tr>
-                                        }
-                                    }
                                 }
                             }
                         }
-                            
-                        rowNum++;
+                        @if (!FilteredOwnerGroups.Any())
+                        {
+                            <tr><td class="v3-empty" colspan="8">@(GroupedOwnerTransactions.Count == 0 ? $"No slaughter was recorded in {MonthLabel}." : "No transaction matches this filter.")</td></tr>
+                        }
                     }
                 </tbody>
             </table>
-            @if (!FilteredOwnerGroups.Any())
-            {
-                <div class="empty-state">
-                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                    <span>No transactions found</span>
-                </div>
-            }
-            }
         </div>
+    </section>
 
+    <SlaughterChargeSetup Month="@(new DateOnly(CurrentYear, CurrentMonth, 1))" AnimalLabels="@AnimalLabels" Changed="LoadData">
+        <Aside><SlaughterApprovedAnimals OnChanged="LoadData" /></Aside>
+    </SlaughterChargeSetup>
 </div>
-
-
 
 @code {
 
     private RenderFragment SlhIcon => @<svg viewBox="0 0 24 24" style="width: 26px; height: 26px; stroke: var(--gold); fill: none; stroke-width: 2;"><path d="M14.5 2.5c0 1.5-1.5 5-1.5 5h-2S9.5 4 9.5 2.5a2.5 2.5 0 0 1 5 0z" /><path d="M12 7.5V22" /><path d="M5 12h14" /></svg>;
 
-    private List<FacilityHero.HeroStat> HeroStats => new()
-    {
-        new() { Value = $"{TotalCollected:N0}", Label = "Collected" },
-        new() { Value = $"{TotalHeads}", Label = "Total Heads" },
-        new() { Value = $"{GroupedOwnerTransactions.Count}", Label = "Owners" },
-        new() { Value = PhilippineTime.Now.ToString("MMM yyyy"), Label = "Period" }
-    };
-
     // -- STATE ----------------------------------------------------
     private bool isLoading = true;
     private int CurrentYear = PhilippineTime.Now.Year;
     private int CurrentMonth = PhilippineTime.Now.Month;
+    private string _monthInput = PhilippineTime.Now.ToString("yyyy-MM");
+    private string MonthLabel => new DateTime(CurrentYear, CurrentMonth, 1).ToString("MMMM yyyy");
+    private static string Money(decimal amount) => "₱" + amount.ToString("N2");
     private List<OwnerTransactionGroupDto> GroupedOwnerTransactions = new();
     private Dictionary<string, OwnerTransactionHistoryDto> OwnerHistories = new();
     private SlaughterOverviewDto? Overview;
@@ -522,6 +320,20 @@
 
     private SlaughterAnimalLabelsDto AnimalLabels => Overview?.Labels ?? new("Hog", "Carabao", "Cow");
     private List<string> AnimalFilters => new() { "All", AnimalLabels.Hog, AnimalLabels.Carabao, AnimalLabels.Cow, "Others" };
+
+    private sealed record AnimalCard(string Label, string Filter, int Heads);
+    private IEnumerable<AnimalCard> AnimalCards =>
+    [
+        new(AnimalLabels.Hog, AnimalLabels.Hog, Overview?.HogCount ?? 0),
+        new(AnimalLabels.Carabao, AnimalLabels.Carabao, Overview?.CarabaoCount ?? 0),
+        new(AnimalLabels.Cow, AnimalLabels.Cow, Overview?.CowCount ?? 0),
+        new("Others", "Others", Overview?.OthersCount ?? 0)
+    ];
+    private int HeadShare(int heads)
+    {
+        var all = (Overview?.HogCount ?? 0) + (Overview?.CarabaoCount ?? 0) + (Overview?.CowCount ?? 0) + (Overview?.OthersCount ?? 0);
+        return all == 0 ? 0 : (int)Math.Round(heads * 100m / all);
+    }
 
     [PersistentState(AllowUpdates = true)]
     public SlaughterFacilityPageState? CachedSlaughterFacility { get; set; }
@@ -681,13 +493,47 @@
     };
 
     // -- ACTIONS --------------------------------------------------
-    private void SetAnimalFilter(string filter) => ActiveAnimalFilter = filter;
+    // A month the office can look back on: the register, the totals and the by-charge breakdown all follow it.
+    private async Task ChangeMonthAsync(ChangeEventArgs e)
+    {
+        if (!DateOnly.TryParseExact($"{e.Value}-01", "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var month)) return;
+        CurrentYear = month.Year;
+        CurrentMonth = month.Month;
+        _monthInput = month.ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture);
+        OwnerHistories.Clear();
+        ExpandedAnimalRows.Clear();
+        ExpandedHistoryRows.Clear();
+        await LoadData();
+    }
 
-    private void OpenRecordSlaughterModal()
+    private void SetAnimalFilter(string filter) => ActiveAnimalFilter = filter;
+    private void ToggleCardFilter(string filter) => ActiveAnimalFilter = ActiveAnimalFilter == filter ? "All" : filter;
+
+    private bool ShowOfficeRecord { get; set; }
+    private string? _recordedNotice;
+
+    // Once the Head collects by approved charges the office records through the same server-priced collection as the Collector;
+    // until then the existing typed-OR per-head record is unchanged.
+    private async Task OpenRecordSlaughterModal()
     {
         ErrorMessage = string.Empty;
+        _recordedNotice = null;
+        var terms = await SlaughterApi.GetOfficeTermsAsync(DateOnly.FromDateTime(PhilippineTime.Now));
+        if (terms is { IsSuccess: true, Value: { Itemized: true } })
+        {
+            ShowOfficeRecord = true;
+            return;
+        }
         ShowRecordModal = true;
-        StateHasChanged();
+    }
+
+    private void CloseOfficeRecord() => ShowOfficeRecord = false;
+
+    private async Task OfficeRecorded(string? referenceCode)
+    {
+        ShowOfficeRecord = false;
+        _recordedNotice = string.IsNullOrWhiteSpace(referenceCode) ? "Recorded." : $"Recorded · {referenceCode}";
+        await LoadData();
     }
 
     private async Task CloseRecordModal()

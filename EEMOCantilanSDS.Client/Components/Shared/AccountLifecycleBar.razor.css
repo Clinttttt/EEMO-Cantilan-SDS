@@ -1,0 +1,8 @@
+/* The rental action row under a profile header. Buttons come from the shared btn-* layer; only the row and the icon size are local. */
+.lcb-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 16px; }
+.lcb-btn { display: inline-flex; align-items: center; gap: 6px; }
+.lcb-btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.lcb-remove { color: var(--red); }
+.lcb-btn:disabled { opacity: .55; cursor: not-allowed; }
+.lcb-muted { color: var(--text-secondary); font-size: 13px; }
+.lcb-retry { padding: 0 6px; }

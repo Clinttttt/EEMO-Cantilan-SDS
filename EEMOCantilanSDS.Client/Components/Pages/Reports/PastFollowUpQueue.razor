@@ -623,7 +623,7 @@
     // here. NPM opens the daily calendar; monthly facilities open the month grid — both in PayBillModal.
     private static bool CanPay(FollowUpItemDto r) =>
         r.StallId.HasValue
-        && r.ReasonKind is "contract" or "current" or "delinquent";
+        && r.ReasonKind is "contract" or "current" or "delinquent" or "arrears";
 
     private string PayStallNo => _payItem is null
         ? string.Empty
@@ -890,7 +890,7 @@
     /// </summary>
     private (string Key, string Label)[] ReasonFilters =>
     [
-        ("all", "All"), ("delinquent", "Delinquent"),
+        ("all", "All"), ("delinquent", "Delinquent"), ("arrears", "Arrears"),
         ("current", "Current-period"), ("contract", "Contract"), ("excused", "Excused"),
         ("misc", "Miscellaneous"),
         // The register of closed and expired accounts, whole time. It answers a question no period can — "which

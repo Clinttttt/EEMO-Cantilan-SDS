@@ -190,7 +190,7 @@ public class FinancialSummaryDocumentTests : TestContext
         // Every delinquent account, not the capped list: the report states 7 while the fixture list carries 3.
         var followUp = cut.FindAll(".doc-sec").Single(s => s.TextContent.Contains("Accounts needing follow-up")).TextContent;
         Assert.Contains("7 accounts", followUp);
-        Assert.Contains("Not defined. No age-based total is reported", followUp);
+        Assert.Contains("Arrears — previous-year rent, expired contracts and ended occupancies", followUp);
         Assert.Contains("Listing 3 of 7 accounts", followUp);
     }
 
@@ -221,8 +221,8 @@ public class FinancialSummaryDocumentTests : TestContext
 
         // The follow-up section stays — its figures are the point — and says plainly that nobody is on the lists.
         Assert.Contains("Accounts needing follow-up", sheet);
-        Assert.Contains("Arrears qualification", sheet);
-        Assert.Contains("does not mean qualifying old/lapsed debt is absent", sheet);
+        Assert.Contains("Arrears — previous-year rent", sheet);
+        Assert.Contains("0 accounts", sheet);
         Assert.Contains("No account still being billed carries an unpaid month", sheet);
     }
 

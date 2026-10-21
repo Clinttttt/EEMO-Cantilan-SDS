@@ -350,32 +350,6 @@
                         {
                             @if (!string.IsNullOrEmpty(Form.SelectedSection))
                             {
-                                <div class="avm-util-divider"></div>
-                                <div class="avm-sublabel">Utility service</div>
-
-                                @* Utility service is context, not a rental charge (V3): the stall's ApplicableFees flags only list the
-                                   space in the ECF / WCF utility register, whose approved amounts are set and collected in those
-                                   operations. Nothing here enters the base rental or the whole-year figure. A space with no
-                                   service says so plainly instead of showing two empty toggles. *@
-                                @if (IsEditing && !_showUtilityCharges && !Form.FeeTypes.Contains("Electricity") && !Form.FeeTypes.Contains("Water"))
-                                {
-                                    <div class="avm-util-none">
-                                        <span>No utility service recorded for this space.</span>
-                                        <button type="button" class="avm-util-add" @onclick="() => _showUtilityCharges = true">Record a utility service</button>
-                                    </div>
-                                }
-                                else
-                                {
-                                @if (IsEditing && _showUtilityCharges && !Form.FeeTypes.Contains("Electricity") && !Form.FeeTypes.Contains("Water"))
-                                {
-                                    <div class="avm-section-note">Mark the service this space uses, then save. No charge is created.</div>
-                                }
-                                @* Each service is one control, and a control must answer to the keyboard: a button
-                                   with aria-pressed, so Tab reaches it and Space/Enter toggles it. It was a div
-                                   with a click handler and a checkbox held out of the tab order, which left the
-                                   whole "add a utility charge" flow impossible without a mouse. *@
-                                @UtilityToggles(false)
-                                }
 
                                 <!-- Section fee — only when this LGU actually charges one for the section.
                                      An office that set no per-kilo fish fee at onboarding sees nothing here. -->
@@ -390,13 +364,6 @@
                                         </div>
                                     </div>
                                 }
-                            }
-                            else
-                            {
-                                @* No section yet: the services are shown but unavailable, with a short inline reason. *@
-                                <div class="avm-util-divider"></div>
-                                <div class="avm-sublabel">Utility service <span class="avm-util-hint">Choose a section first</span></div>
-                                @UtilityToggles(true)
                             }
                         }
 
@@ -479,50 +446,6 @@
 }
 
 @code {
-    /// <summary>The Electricity and Water service toggles; unavailable (not hidden) until a section is chosen.</summary>
-    private RenderFragment UtilityToggles(bool disabled) => @<text>
-                <!-- Electricity -->
-                <button type="button" class="avm-fee-toggle @(Form.FeeTypes.Contains("Electricity") ? "active" : "")"
-                        aria-pressed="@(Form.FeeTypes.Contains("Electricity") ? "true" : "false")" disabled="@disabled"
-                        @onclick='() => HandleToggleFee("Electricity")' @onclick:stopPropagation="true">
-                    <span class="avm-fee-icon">
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                        </svg>
-                    </span>
-                    <span class="avm-fee-text">
-                        <span class="avm-fee-title">Electricity service</span>
-                        <span class="avm-fee-sub">ECF · Official Receipt</span>
-                    </span>
-                    <span class="avm-fee-mark" aria-hidden="true">
-                        @if (Form.FeeTypes.Contains("Electricity"))
-                        {
-                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                        }
-                    </span>
-                </button>
-
-                <!-- Water -->
-                <button type="button" class="avm-fee-toggle avm-fee-toggle-water @(Form.FeeTypes.Contains("Water") ? "active" : "")"
-                        aria-pressed="@(Form.FeeTypes.Contains("Water") ? "true" : "false")" disabled="@disabled"
-                        @onclick='() => HandleToggleFee("Water")' @onclick:stopPropagation="true">
-                    <span class="avm-fee-icon">
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
-                        </svg>
-                    </span>
-                    <span class="avm-fee-text">
-                        <span class="avm-fee-title">Water service</span>
-                        <span class="avm-fee-sub">WCF · Cash Ticket</span>
-                    </span>
-                    <span class="avm-fee-mark" aria-hidden="true">
-                        @if (Form.FeeTypes.Contains("Water"))
-                        {
-                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
-                        }
-                    </span>
-                </button>
-    </text>;
 
 
     // ── Parameters ────────────────────────────────────────────────────────────
@@ -730,7 +653,6 @@
             _dailyFromMonthlyRent = null;
             // "Add a utility charge" applies to the space that was open. Left set, the next stall opened would
             // show two empty toggles instead of the plain statement that it carries no utility charges.
-            _showUtilityCharges = false;
             // Closing answers whatever was on the table. A host that forgets to clear its offer therefore
             // cannot put a stale dialog over the next blank form; a NEW offer still asks.
             _answeredReuseOffer = ReuseOfferMessage;
@@ -896,7 +818,6 @@
     /// Reveals the utility toggles on a space that currently has none, so a meter installed later can be recorded
     /// without the form implying every space has one.
     /// </summary>
-    private bool _showUtilityCharges;
 
     private static readonly IReadOnlyList<(string Value, string Label)> ContractYearOptions = new List<(string, string)>
     {
