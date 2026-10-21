@@ -46,6 +46,20 @@ public sealed class FollowUpQueueCompositionTests : TestContext
     }
 
     [Fact]
+    public void Missing_optional_OR_is_not_an_action_required_alert_and_priority_badges_are_hidden()
+    {
+        var (cut, _) = RenderQueue();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Empty(cut.FindAll(".fq-priority"));
+            Assert.DoesNotContain(cut.FindAll(".fq-row"), r => r.TextContent.Contains("Receipt follow-up"));
+            Assert.DoesNotContain("Missing OR", cut.Find(".fq-section").TextContent);
+            Assert.Equal(7, cut.FindAll(".fq-row").Count);
+            Assert.Equal("7", cut.FindAll(".fq-reasons .fq-chip")[0].QuerySelector(".fq-chip-count")!.TextContent.Trim());
+        }, RenderTimeout);
+    }
+
+    [Fact]
     public void KeepsCurrentPeriodUnpaidAndPartialSeparateFromDelinquency()
     {
         var (cut, _) = RenderQueue();
@@ -257,6 +271,30 @@ public sealed class FollowUpQueueCompositionTests : TestContext
         var form=cut.FindComponent<PayBillModal>().Instance;
         Assert.True(form.Show); Assert.Equal(account.StallId,form.StallId);
         Assert.Equal(account.ContractId,form.ContractId); Assert.Equal(2026,form.PeriodYear); Assert.Equal(8,form.PeriodMonth);
+    }
+
+    [Theory]
+    [InlineData("Current unpaid")]
+    [InlineData("Current partial")]
+    public void Current_period_account_review_opens_existing_record_payment_modal(string occupant)
+    {
+        var queue = SampleQueue();
+        var account = queue.Items.Single(x => x.Person == occupant);
+        var payments = new Mock<IPaymentsApiClient>();
+        payments.Setup(x => x.GetOutstandingMonthsAsync(account.StallId!.Value, account.ContractId, null, null))
+            .ReturnsAsync(Result<IReadOnlyList<PaymentHistoryDto>>.Success([
+                new("2026-09", PaymentStatus.Unpaid, 1200, 0, 1200, null, null)]));
+        var (cut, _) = RenderQueue(queue, payments.Object);
+        cut.WaitForAssertion(() => Assert.NotNull(RowFor(cut, occupant)), RenderTimeout);
+        RowFor(cut, occupant).QuerySelector("button")!.Click();
+        cut.WaitForAssertion(() => Assert.Single(cut.FindComponents<FollowUpAccountReview>()), RenderTimeout);
+        var review = cut.FindComponent<FollowUpAccountReview>();
+        review.WaitForAssertion(() => Assert.Contains("Record payment", review.Find(".review-footer-actions").TextContent), RenderTimeout);
+        review.FindAll(".review-footer-actions button").Single(b => b.TextContent.Contains("Record payment")).Click();
+        var payment = cut.FindComponent<PayBillModal>().Instance;
+        Assert.True(payment.Show);
+        Assert.Equal(account.StallId, payment.StallId);
+        Assert.Equal(account.Facility, payment.Facility);
     }
 
     [Fact]

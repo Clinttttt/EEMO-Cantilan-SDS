@@ -78,6 +78,17 @@ public sealed class CollectionReviewDrawerTests : TestContext
     }
 
     [Fact]
+    public void Collection_activity_review_needs_no_duplicate_review_details_button()
+    {
+        var eventWithVerification = Canonical() with { Verification = "Awaiting verification" };
+        var page = Render(Review(true), eventWithVerification);
+        page.Find(".txn-row").Click();
+        page.WaitForAssertion(() => Assert.NotNull(page.Find(".txr-foot")), Timeout);
+        Assert.DoesNotContain("Review details", page.Find(".txr-foot").TextContent);
+        Assert.Contains("View Reconciliation", page.Find(".txr-foot").TextContent);
+    }
+
+    [Fact]
     public void An_Office_origin_receipt_is_not_called_remitted_or_deposited()
     {
         var page = Render(new CollectionReviewDto(CollectionId, "SRC-2026-000003", PhilippineTime.Today, false, false,
