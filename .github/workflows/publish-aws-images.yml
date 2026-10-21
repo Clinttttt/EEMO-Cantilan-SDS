@@ -1,0 +1,81 @@
+name: Build AWS release images after CI
+# Runs only when the full test workflow succeeds on master.
+# This publishes immutable container images; it does NOT update Lightsail,
+# run database migrations, create operator accounts or overwrite production.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [master]
+permissions:
+  contents: read
+  packages: write
+concurrency:
+  group: aws-image-publish
+  cancel-in-progress: false
+jobs:
+  publish:
+    name: Build and publish API and Client images
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.release.outputs.sha }}
+    steps:
+      - name: Verify successful CI run still matches master
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EXPECTED: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          CURRENT=$(gh api "repos/${GITHUB_REPOSITORY}/commits/master" --jq '.sha')
+          test "$EXPECTED" = "$CURRENT" || {
+            echo "::error::Master advanced after CI. Skip older image publication."
+            exit 1
+          }
+          echo "sha=$EXPECTED" >> "$GITHUB_OUTPUT"
+          echo "owner=$(echo \"${GITHUB_REPOSITORY_OWNER}\" | tr \"[:upper:]\" \"[:lower:]\")" >> "$GITHUB_OUTPUT"
+      - name: Check out verified CI commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.sha }}
+          persist-credentials: false
+      - name: Configure Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Authenticate to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish API by exact commit SHA
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./EEMOCantilanSDS.Api/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/${{ steps.release.outputs.owner }}/stalltrack-v10-api:${{ steps.release.outputs.sha }}
+          provenance: true
+      - name: Publish Client by exact commit SHA
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./EEMOCantilanSDS.Client/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/${{ steps.release.outputs.owner }}/stalltrack-v10-client:${{ steps.release.outputs.sha }}
+          provenance: true
+      - name: Explain release boundary
+        env:
+          RELEASE_SHA: ${{ steps.release.outputs.sha }}
+        shell: bash
+        run: |
+          {
+            echo "## AWS image artifacts ready"
+            echo "Source SHA: $RELEASE_SHA"
+            echo "Images are published to GHCR and must be deployed as a matched pair."
+            echo "No Lightsail cutover or database migration was attempted."
+            echo "An AWS runner is not registered: production auto-deploy requires separate restricted setup."
+          } >> "$GITHUB_STEP_SUMMARY"
