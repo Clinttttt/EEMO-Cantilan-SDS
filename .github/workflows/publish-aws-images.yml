@@ -35,6 +35,7 @@ jobs:
             exit 1
           }
           echo "sha=$EXPECTED" >> "$GITHUB_OUTPUT"
+          echo "owner=$(echo \"${GITHUB_REPOSITORY_OWNER}\" | tr \"[:upper:]\" \"[:lower:]\")" >> "$GITHUB_OUTPUT"
       - name: Check out verified CI commit
         uses: actions/checkout@v4
         with:
@@ -55,7 +56,7 @@ jobs:
           file: ./EEMOCantilanSDS.Api/Dockerfile
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/stalltrack-v10-api:${{ steps.release.outputs.sha }}
+          tags: ghcr.io/${{ steps.release.outputs.owner }}/stalltrack-v10-api:${{ steps.release.outputs.sha }}
           provenance: true
       - name: Publish Client by exact commit SHA
         uses: docker/build-push-action@v6
@@ -64,7 +65,7 @@ jobs:
           file: ./EEMOCantilanSDS.Client/Dockerfile
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/stalltrack-v10-client:${{ steps.release.outputs.sha }}
+          tags: ghcr.io/${{ steps.release.outputs.owner }}/stalltrack-v10-client:${{ steps.release.outputs.sha }}
           provenance: true
       - name: Explain release boundary
         env:
