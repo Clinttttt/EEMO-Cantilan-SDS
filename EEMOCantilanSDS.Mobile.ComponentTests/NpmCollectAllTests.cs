@@ -196,8 +196,8 @@ public sealed class NpmCollectAllTests : TestContext
         view.WaitForAssertion(() => Assert.Equal("Collect All unavailable", view.Find(".ca-open").TextContent.Trim()));
         Assert.True(view.Find(".ca-open").HasAttribute("disabled"));
         Assert.DoesNotContain("Nothing left to collect today", view.Markup);
-        Assert.DoesNotContain(reason, view.Find("[role=status]").TextContent);
-        Assert.NotEmpty(view.Find("[role=status]").TextContent);
+        Assert.Empty(view.FindAll(".ca-skipped"));
+        Assert.DoesNotContain("Daily collection is not enabled for Collect All yet", view.Markup);
         _api.Verify(x => x.RecordNpmDailyBatchAsync(It.IsAny<RecordNpmDailyBatchRequest>()), Times.Never);
     }
 }

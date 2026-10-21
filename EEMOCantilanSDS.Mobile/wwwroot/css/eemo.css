@@ -1,4 +1,4 @@
-﻿/* ─── Bundled fonts (MAUI Resources/Fonts → WebView) ────────────────────── */
+/* ─── Bundled fonts (MAUI Resources/Fonts → WebView) ────────────────────── */
 @font-face {
     font-family: 'EB Garamond';
     font-style: normal;
@@ -2119,6 +2119,21 @@ html, body, #app {
     align-items: center;
     gap: 12px;
 }
+
+/* Monthly rental references such as SP-7 must stay legible on a single line. */
+.sheet-preview .preview-num.monthly-stall-ref {
+    width: auto;
+    min-width: 58px;
+    max-width: 110px;
+    height: 42px;
+    padding: 0 9px;
+    box-sizing: border-box;
+    white-space: nowrap;
+    overflow-wrap: normal;
+    font-size: 16px;
+    font-variant-numeric: tabular-nums;
+}
+.sheet-preview .preview-info { min-width: 0; }
 
 /* large stall number in the preview card */
 .preview-num {

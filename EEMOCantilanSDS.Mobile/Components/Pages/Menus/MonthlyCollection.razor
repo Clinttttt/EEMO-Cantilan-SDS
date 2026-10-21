@@ -196,7 +196,7 @@
             <div class="sheet-sub">Update this stall's payment status for @MonthLabel.</div>
 
             <div class="sheet-preview">
-                <div class="preview-num">@SelectedStall.StallNo</div>
+                <div class="preview-num monthly-stall-ref" title="@SelectedStall.StallNo">@SelectedStall.StallNo</div>
                 <div class="preview-info">
                     <div class="preview-name">@SelectedStall.PayorName</div>
                     <div class="preview-detail">@MonthLabel · monthly billing</div>
@@ -383,7 +383,7 @@
             <div class="sheet-sub">Add a payment toward this stall's balance for @MonthLabel.</div>
 
             <div class="sheet-preview">
-                <div class="preview-num">@SelectedStall.StallNo</div>
+                <div class="preview-num monthly-stall-ref" title="@SelectedStall.StallNo">@SelectedStall.StallNo</div>
                 <div class="preview-info">
                     <div class="preview-name">@SelectedStall.PayorName</div>
                     <div class="preview-detail">Monthly rental · @FormatCurrency(SelectedStall.MonthlyRate)</div>
@@ -450,7 +450,7 @@
             <div class="sheet-sub">Issue a one-time code so this payor can activate their online account.</div>
 
             <div class="sheet-preview">
-                <div class="preview-num">@ActivationStall.StallNo</div>
+                <div class="preview-num monthly-stall-ref" title="@ActivationStall.StallNo">@ActivationStall.StallNo</div>
                 <div class="preview-info">
                     <div class="preview-name">@ActivationStall.PayorName</div>
                     <div class="preview-detail">Monthly rental - @FormatCurrency(ActivationStall.MonthlyRate)</div>
@@ -517,7 +517,7 @@
             <div class="sheet-sub">This stall was paid online. Enter the OR number you issued for it.</div>
 
             <div class="sheet-preview">
-                <div class="preview-num">@EncodeStall.StallNo</div>
+                <div class="preview-num monthly-stall-ref" title="@EncodeStall.StallNo">@EncodeStall.StallNo</div>
                 <div class="preview-info">
                     <div class="preview-name">@EncodeStall.PayorName</div>
                     <div class="preview-detail">Paid online · @FormatCurrency(EncodeStall.MonthlyRate)</div>
