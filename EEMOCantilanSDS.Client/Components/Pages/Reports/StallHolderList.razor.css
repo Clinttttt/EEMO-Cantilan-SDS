@@ -1,4 +1,4 @@
-﻿/* ══════════════════════════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════════════════════════
    Stall Holder List (all facilities) — scoped styles (sh-)
    Mirrors the Month-End report's document language (filter chips, sheet, summary
    cards, tables, subtotals) using the shared design tokens, so the two read as one
@@ -549,22 +549,53 @@
 .sh-bar-tools { flex: 1 1 auto; justify-content: flex-end; }
 .sh-bar .sh-search { flex: 1 1 200px; max-width: 280px; }
 
-/* The four actions are one joined group. Labels never wrap; if the band runs out of room the whole group moves down as one. */
-.sh-export { flex: 0 0 auto; max-width: 100%; }
-.sh-export .sh-print-btn { padding: 0 14px; height: 38px; white-space: nowrap; border-radius: 0; }
+/* The register toolbar must stay on ONE horizontal line. If screen width is insufficient,
+   scroll this band horizontally; never wrap, shrink the export buttons or clip the year. */
+.sh-bar {
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    gap: 10px;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    padding-bottom: 4px;
+}
+.sh-bar-filters, .sh-bar-tools {
+    flex-wrap: nowrap;
+    gap: 8px;
+    min-width: max-content;
+}
+.sh-bar-filters { flex: 0 0 auto; }
+.sh-bar-tools { flex: 1 0 auto; justify-content: flex-end; }
+.sh-bar .sh-filter { flex-wrap: nowrap; }
+.sh-bar .sh-chip { white-space: nowrap; padding-inline: 12px; }
+.sh-bar .sh-search {
+    flex: 0 0 clamp(150px, 15vw, 235px);
+    min-width: 150px;
+    max-width: 235px;
+}
+.sh-bar .sh-year-nav { flex: 0 0 auto; margin-left: 0; }
+.sh-export { flex: 0 0 auto; max-width: none; overflow: visible; }
+.sh-export .sh-print-btn { padding: 0 10px; height: 38px; white-space: nowrap; border-radius: 0; }
 .sh-export .sh-print-btn:first-child { border-top-left-radius: 9px; border-bottom-left-radius: 9px; }
 .sh-export .sh-print-btn:last-child { border-top-right-radius: 9px; border-bottom-right-radius: 9px; }
 .sh-print-btn:focus-visible, .sh-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; position: relative; z-index: 2; }
 
-/* The summary fits the cards it actually has: three cards share the width, four stay four, and narrow screens collapse naturally. */
+/* The Source and year selectors are positioned menus. Temporarily release the
+   scrolling clip while either is open so its options stay accessible. */
+.sh-bar:has(.fh-dd.open), .sh-bar:has(.rpt-picker) {
+    overflow-x: visible;
+    overflow-y: visible;
+    position: relative;
+    z-index: 301;
+}
+/* Keep the existing responsive summary cards; only the toolbar is prevented from wrapping. */
 .sh-summary { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 
-@media (max-width: 900px) {
-    .sh-bar, .sh-bar-tools { justify-content: flex-start; }
-    .sh-bar .sh-search { max-width: none; flex-basis: 100%; }
-    .sh-export { overflow-x: auto; }
+@media screen and (max-width: 900px) {
+    .sh-bar .sh-search { flex-basis: 150px; }
 }
-
 @media print {
     .sh-bar { display: none !important; }
 }

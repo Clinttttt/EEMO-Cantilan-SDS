@@ -151,19 +151,21 @@ public sealed class FinesWorkspaceTests : TestContext
     }
 
     [Fact]
-    public void TheSectionTabsLiveInOneStickyContainer_AndTheOrMarkerIsALightPillOnTheHero()
+    public void TheSectionTabsStaySticky_AndTheHeroUsesTheStandardInstrumentLine()
     {
         Serve();
         var cut = RenderComponent<Fines>();
 
         var tabs = cut.Find(".fn-nav").QuerySelectorAll("[aria-label='Fines workspace views'] button");
         Assert.Equal(["Collections", "Assessments", "Penalty settings"], tabs.Select(t => t.TextContent.Trim()).ToArray());
-        Assert.Contains("Official Receipt", cut.Find("header.v3h .fn-or").TextContent);
+        Assert.Contains("Official Receipt", cut.Find("header.v3h .fn-hero-meta").TextContent);
+        Assert.Contains("OR", cut.Find("header.v3h .fn-hero-meta").TextContent);
+        Assert.Empty(cut.FindAll("header.v3h .fn-or"));
 
-        // Pinned navigation and the legible marker are CSS contracts; guard them so a restyle cannot silently drop them.
+        // The section navigation stays pinned, while the OR marker uses the shared compact component.
         var css = File.ReadAllText("../../../../EEMOCantilanSDS.Client/Components/Pages/Menus/Fines.razor.css");
         Assert.Matches(@"\.fn-nav\s*\{[^}]*position:\s*sticky[^}]*top:\s*0", css);
-        Assert.Matches(@"\.fn-or\s+::deep\s+\.ic\s*\{[^}]*background:\s*#ffffff", css);
+        Assert.DoesNotContain(".fn-or", css);
         Assert.Equal(css.Count(c => c == '{'), css.Count(c => c == '}'));
     }
 

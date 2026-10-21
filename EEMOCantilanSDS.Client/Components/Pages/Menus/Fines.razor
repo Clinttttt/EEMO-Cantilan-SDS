@@ -16,7 +16,7 @@
 <div class="v3-page fn-page">
     <V3Hero Compact="true" Eyebrow="Operations · Fines" Title="Fines &amp; Penalties">
         <Icon><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16l3-2 3 2 3-2 3 2V8z" /><path d="M14 2v6h6" /><path d="M9 13h6" /><path d="M9 9h2" /></svg></Icon>
-        <Meta><span class="fn-hero-meta">@PeriodLabel · <span class="fn-or"><InstrumentChip Instrument="OR" ShowName="true" /></span></span></Meta>
+        <Meta><span class="fn-hero-meta">@PeriodLabel · <InstrumentChip Instrument="OR" /> Official Receipt</span></Meta>
         <Figures>
             <V3HeroFigure Label="@($"Collected · {PeriodLabel}")" Value="@HeroMoney(_summary?.Collected)" Note="@(_summaryError ? "Unavailable right now" : null)" />
             <V3HeroFigure Label="Direct fine collections" Value="@HeroMoney(_summary?.DirectCollected)" Note="@(_summaryError ? "Unavailable right now" : null)" />

@@ -105,6 +105,23 @@ public sealed class StallSpaceHolderRegisterTests : TestContext
         cut.FindAll("button.sh-chip").First(b => b.TextContent.Trim() == label).Click();
 
     [Fact]
+    public void Register_has_one_coordinated_toolbar_for_filters_exports_and_year()
+    {
+        var cut = Render(Both);
+        var bar = cut.Find(".sh-bar");
+        Assert.Equal(3, bar.QuerySelectorAll(".sh-filter button.sh-chip").Length);
+        Assert.NotNull(bar.QuerySelector(".fh-dd-trigger"));
+        Assert.NotNull(bar.QuerySelector(".sh-search input[type=search]"));
+        var exports = bar.QuerySelectorAll(".sh-export .sh-split-part");
+        Assert.Equal(4, exports.Length);
+        Assert.Contains("Print", exports[0].TextContent);
+        Assert.Contains("Excel", exports[1].TextContent);
+        Assert.Contains("CSV", exports[2].TextContent);
+        Assert.Contains("Save as PDF", exports[3].TextContent);
+        Assert.NotNull(bar.QuerySelector(".sh-year-nav .rpt-date-nav"));
+    }
+
+    [Fact]
     public void The_page_is_the_Stall_and_Space_Holder_Register_on_the_same_route()
     {
         var cut = Render(Both);
