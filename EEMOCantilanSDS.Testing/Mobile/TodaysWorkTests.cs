@@ -141,6 +141,21 @@ public class TodaysWorkTests
         Assert.Single(work.AssignedUnavailable);
     }
 
+    [Theory]
+    [InlineData(CollectorOperationCodes.KanmanggaySpaceRental)]
+    [InlineData(CollectorOperationCodes.FiestaArawLotRental)]
+    public void Ready_space_rental_is_clickable_only_when_assigned_and_collectible(string code)
+    {
+        var ready = Assert.Single(Build([Op(code, CollectorOperationCapabilityStatus.Ready)]).Available);
+        Assert.Equal(WorkTarget.Operation, ready.Target);
+        Assert.True(ready.CanOpen);
+        Assert.Equal(code, ready.OperationCode);
+
+        Assert.Empty(Build([Op(code, CollectorOperationCapabilityStatus.Ready, assigned: false)]).Available);
+        Assert.Empty(Build([Op(code, CollectorOperationCapabilityStatus.Ready, collectible: false)]).Available);
+        Assert.Empty(Build([Op(code, CollectorOperationCapabilityStatus.NeedsPolicy)]).Available);
+    }
+
     [Fact]
     public void Ready_WCF_opens_its_own_collection_page_so_an_operation_only_collector_can_collect_it()
     {

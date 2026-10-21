@@ -136,7 +136,7 @@ public static class TodaysWorkBuilder
             {
                 // WCF is a utility operation (IA-053) with its own collection page, so an operation-only collector can open it;
                 // a collector who also holds the market can still collect it from the stall sheet.
-                var opens = op.OperationCode is CollectorOperationCodes.Wcf or CollectorOperationCodes.Terminal or CollectorOperationCodes.FishMeatVendorFee or CollectorOperationCodes.WeightAndMeasure
+                var opens = CollectorOperationCodes.IsSpaceObligation(op.OperationCode) || op.OperationCode is CollectorOperationCodes.Wcf or CollectorOperationCodes.Terminal or CollectorOperationCodes.FishMeatVendorFee or CollectorOperationCodes.WeightAndMeasure
                     || GovernedServiceCatalog.Find(op.OperationCode) is not null;
                 available.Add(new WorkItem(op.Name, ReadyLabel, opens ? WorkTarget.Operation : WorkTarget.None, opens, OperationCode: op.OperationCode, Family: op.Family));
             }
