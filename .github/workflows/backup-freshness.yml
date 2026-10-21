@@ -1,138 +1,23 @@
-name: Backup freshness
-
-# Asks one question: when did a database backup last SUCCEED?
-#
-# WHY THIS EXISTS, SEPARATELY FROM THE BACKUP ITSELF
-#   The backup workflow can now report its own failures, but that only helps when it RAN. The failure
-#   this office actually hit was different: GitHub reported "The job was not acquired by Runner of type
-#   hosted even after multiple attempts" — runner capacity, not our code — and because the job never
-#   started, no run record was created, no failure step could fire, and the backups page went on showing
-#   a column of green successes. A workflow cannot notice that it never ran. Something else has to.
-#
-#   So this looks at the AGE of the newest successful backup and complains when it is too old, whatever
-#   the reason: a failed dump, a job never acquired, a disabled schedule, a repository whose Actions were
-#   turned off. It is the difference between "no news is good news" and "no news is no news".
-#
-# HONEST LIMIT
-#   This watchdog runs on the same hosted runners, so it can be skipped for the same reason. Two
-#   independent schedules missing on the same day is far less likely than one, but it is not impossible.
-#   The office should still glance at the backups page weekly; this exists so that a QUIET failure
-#   becomes a LOUD one, not so that nobody ever has to look.
-
+name: Backup freshness (AWS evidence required)
+# The old watchdog queried Azure-oriented backup.yml artifact history.
+# It cannot measure AWS Lightsail backup timers and must not report a false green.
+# On-host backup and restore-drill timers continue independently of GitHub.
 on:
-  schedule:
-    - cron: '0 3 * * *'    # 03:00 UTC = 11:00 Philippine time, well after the 01:00 PHT backup
   workflow_dispatch:
-    inputs:
-      max_age_hours:
-        description: 'Hours before a backup counts as stale. Set 0 to rehearse the alarm.'
-        required: false
-        default: ''
-
 permissions:
   contents: read
-  actions: read            # to read the backup workflow's run history
-  issues: write            # to raise the alarm where the office will see it
-
-# The number of hours after which a backup is considered stale. The backup runs daily, so 26 hours
-# allows for a late start and a slow dump without tolerating a missed day.
-#
-# Overridable on a manual run so the alarm can be REHEARSED. An alarm nobody has ever heard is the same
-# problem as a backup nobody has ever restored: run this with 0 and it must fail and raise an issue.
-env:
-  MAX_AGE_HOURS: 26
-
 jobs:
-  check:
-    name: Is the newest backup recent enough
+  aws-freshness:
+    name: Report AWS backup telemetry not yet connected
     runs-on: ubuntu-latest
-
     steps:
-      - name: Measure the age of the newest successful backup
-        id: age
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Require authentic AWS backup evidence
         run: |
-          set -euo pipefail
-
-          # A manual run may override the threshold to rehearse the alarm.
-          THRESHOLD="${{ inputs.max_age_hours }}"
-          if [ -z "$THRESHOLD" ]; then THRESHOLD="$MAX_AGE_HOURS"; fi
-          echo "Threshold: ${THRESHOLD}h"
-
-          # conclusion=success rather than status: a run that is still going is not yet a backup.
-          LATEST=$(gh api \
-            "repos/${GITHUB_REPOSITORY}/actions/workflows/backup.yml/runs?per_page=20" \
-            --jq '[.workflow_runs[] | select(.conclusion == "success")] | sort_by(.updated_at) | last | .updated_at // empty')
-
-          if [ -z "${LATEST:-}" ]; then
-            echo "stale=true" >> "$GITHUB_OUTPUT"
-            echo "detail=No successful backup run was found at all in the recent history." >> "$GITHUB_OUTPUT"
-            echo "::error title=No backup found::No successful database backup in recent history."
-            exit 0
-          fi
-
-          LATEST_EPOCH=$(date -u -d "$LATEST" +%s)
-          NOW_EPOCH=$(date -u +%s)
-          AGE_HOURS=$(( (NOW_EPOCH - LATEST_EPOCH) / 3600 ))
-
-          echo "Newest successful backup: $LATEST (${AGE_HOURS}h ago)"
-          echo "age_hours=$AGE_HOURS" >> "$GITHUB_OUTPUT"
-          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
-
           {
-            echo "### Backup freshness"
-            echo ""
-            echo "| | |"
-            echo "| --- | --- |"
-            echo "| Newest successful backup | $LATEST |"
-            echo "| Age | ${AGE_HOURS} hours |"
-            echo "| Threshold | ${THRESHOLD} hours |"
+            echo '## AWS backup freshness not verified'
+            echo 'This GitHub workflow has no authenticated access to Lightsail backup artifacts.'
+            echo 'Verify stalltrack-db-backup.timer and stalltrack-db-restore-drill.timer on AWS.'
+            echo 'Scheduled off-host freshness alerting must be separately connected and tested.'
           } >> "$GITHUB_STEP_SUMMARY"
-
-          if [ "$AGE_HOURS" -gt "$THRESHOLD" ]; then
-            echo "stale=true" >> "$GITHUB_OUTPUT"
-            echo "detail=The newest successful backup is ${AGE_HOURS} hours old (threshold ${THRESHOLD})." >> "$GITHUB_OUTPUT"
-            echo "::error title=Backup is stale::Newest successful backup is ${AGE_HOURS}h old."
-          else
-            echo "stale=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Raise the alarm where the office will see it
-        if: steps.age.outputs.stale == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Passed as an environment value, never interpolated into the script: a workflow expression
-          # spliced into bash is a shell-injection waiting for the first apostrophe.
-          DETAIL: ${{ steps.age.outputs.detail }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          BACKUP_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/workflows/backup.yml
-        run: |
-          set -euo pipefail
-          TITLE="Database backup is stale"
-
-          cat > /tmp/body.md <<EOF
-          ${DETAIL}
-
-          - Checked: $(date -u '+%Y-%m-%d %H:%M UTC')
-          - This check: ${RUN_URL}
-          - Backup workflow: ${BACKUP_WORKFLOW_URL}
-
-          What to do: run "Database backup" from the Actions tab now, then find out why the schedule did not
-          produce one. Until it succeeds, the most recent restorable copy is older than a day, and anything
-          collected since then exists only in the live database.
-          EOF
-
-          # --repo is required: this job deliberately does not check the repository out, and without it the
-          # gh CLI looks for a git remote, finds none, and fails - which is how an alarm that reports a
-          # problem correctly still tells nobody. Found by rehearsing the alarm rather than trusting it.
-          EXISTING=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty' || true)
-          if [ -n "${EXISTING:-}" ]; then
-            gh issue comment "$EXISTING" --repo "$GITHUB_REPOSITORY" --body-file /tmp/body.md
-          else
-            gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body-file /tmp/body.md
-          fi
-
-      - name: Fail the run so the badge and the Actions tab both show it
-        if: steps.age.outputs.stale == 'true'
-        run: exit 1
+          echo '::warning title=Telemetry required::No false claim that AWS backup is recent.'
+          exit 1
