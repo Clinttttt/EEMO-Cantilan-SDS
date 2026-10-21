@@ -45,6 +45,32 @@ public sealed class TodaysWorkMenuTests : TestContext
     }
 
     [Theory]
+    [InlineData(CollectorOperationCodes.KanmanggaySpaceRental)]
+    [InlineData(CollectorOperationCodes.FiestaArawLotRental)]
+    public void Ready_space_rentals_open_source_filtered_new_collection(string code)
+    {
+        var api = new Mock<IMobileApiClient>();
+        var session = new MobileSessionService();
+        api.Setup(x => x.GetOperationCapabilitiesAsync()).ReturnsAsync(Result<CollectorOperationCapabilitiesDto>.Success(
+            new(session.Menu.CollectorId, session.Menu.Today, [
+                new(code, code == CollectorOperationCodes.KanmanggaySpaceRental ? "Kanmanggay" : "Fiesta / Araw",
+                    true, CollectorOperationCapabilityStatus.Ready, true, [], Family: CollectionFamily.Space)])));
+        api.Setup(x => x.GetCollectionSessionDiscoveryAsync(null)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(
+            new(null, session.Menu.Today, [])));
+        var store = new Mock<IPendingOperationStore>();
+        store.Setup(x => x.GetAllAsync()).ReturnsAsync(Array.Empty<PendingOperation>());
+        Services.AddSingleton(session);
+        Services.AddSingleton(api.Object);
+        Services.AddSingleton(new MobileSyncService(store.Object, api.Object, Mock.Of<IConnectivityMonitor>(), Mock.Of<ICurrentCollectorProvider>()));
+
+        var view = RenderComponent<Menu>();
+        view.WaitForAssertion(() => Assert.Single(view.FindAll("button.menu-row")));
+        Assert.DoesNotContain("Collected from the stall sheet", view.Markup);
+        view.Find("button.menu-row").Click();
+        Assert.EndsWith("/collections/new?operation=" + code, Services.GetRequiredService<NavigationManager>().Uri);
+    }
+
+    [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public void Terminal_is_one_ready_tile_in_its_official_group_and_opens_the_native_route(bool explicitFamily)

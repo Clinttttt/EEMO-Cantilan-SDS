@@ -130,6 +130,47 @@ public sealed class VegetableFruitModeTests : TestContext
         Assert.Empty(view.FindAll("input[type=number]"));
     }
 
+    [Theory]
+    [InlineData(CollectorOperationCodes.KanmanggaySpaceRental)]
+    [InlineData(CollectorOperationCodes.FiestaArawLotRental)]
+    public void Registered_space_operations_restrict_search_to_their_own_accounts_and_never_offer_direct_payment(string code)
+    {
+        var space = new CollectionSourceIdentity(SourceIdentityKind.SpaceAccount, Guid.NewGuid());
+        _api.Setup(x => x.SearchCollectionSourcesAsync(It.IsAny<string?>())).ReturnsAsync(
+            Result<IReadOnlyList<CollectionSourceSearchResult>>.Success([
+                new(space, "Correct holder", "Registered space", code),
+                new(new(SourceIdentityKind.SpaceAccount, Guid.NewGuid()), "Another area", "Other space",
+                    code == CollectorOperationCodes.KanmanggaySpaceRental ? CollectorOperationCodes.FiestaArawLotRental : CollectorOperationCodes.KanmanggaySpaceRental),
+                new(new(SourceIdentityKind.FishMeatVendorRegistration, Guid.NewGuid()), "Vendor", "Fish",
+                    CollectorOperationCodes.FishMeatVendorFee)
+            ]));
+        var view = RenderComponent<CollectionSessionEditor>(p => p.Add(x => x.BusinessDate, _session.Menu.Today).Add(x => x.OnlyOperation, code));
+        Assert.Contains("Search registered space holder", view.Markup);
+        view.Find("input[type=search]").Input("Correct");
+        view.FindAll("button").Single(x => x.TextContent == "Search").Click();
+        Assert.Single(view.FindAll(".payer-option"));
+        Assert.Contains("Correct holder", view.Find(".payer-option").TextContent);
+
+        _api.Setup(x => x.SearchCollectionSourcesAsync("Missing")).ReturnsAsync(
+            Result<IReadOnlyList<CollectionSourceSearchResult>>.Success([]));
+        view.Find("input[type=search]").Input("Missing");
+        view.FindAll("button").Single(x => x.TextContent == "Search").Click();
+        Assert.Empty(view.FindAll(".payer-option"));
+        Assert.DoesNotContain("Continue with payer name", view.Markup);
+    }
+
+    [Theory]
+    [InlineData(CollectorOperationCodes.KanmanggaySpaceRental)]
+    [InlineData(CollectorOperationCodes.FiestaArawLotRental)]
+    public void Deep_linked_new_collection_sets_the_selected_space_operation(string code)
+    {
+        var nav = Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        nav.NavigateTo("/collections/new?operation=" + code);
+        var view = RenderComponent<NewCollection>();
+        view.WaitForAssertion(() => Assert.Equal(code, view.FindComponent<CollectionSessionEditor>().Instance.OnlyOperation));
+        Assert.Contains("Search registered space holder", view.Markup);
+    }
+
     [Fact]
     public void MonthlyExplainsServerUnavailableSetup()
     {

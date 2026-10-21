@@ -516,14 +516,14 @@ else
     // What kind of finder this page is: a registered vendor only, an occupant only, or any source.
     private bool VendorOnly => OnlyOperation is CollectorOperationCodes.WeightAndMeasure;
     private bool BrowserMode => _source is null && !_direct && Correction is null && OnlyOperation is null;
-    private bool DirectAllowed => !VendorOnly && OnlyOperation is not (CollectorOperationCodes.Wcf or CollectorOperationCodes.VegetableFruitSpaceRental);
+    private bool DirectAllowed => !VendorOnly && !CollectorOperationCodes.IsSpaceObligation(OnlyOperation) && OnlyOperation is not (CollectorOperationCodes.Wcf or CollectorOperationCodes.VegetableFruitSpaceRental);
     private string SourceHeading => OnlyOperation == CollectorOperationCodes.Terminal ? "Income From Terminal" : "Source";
-    private string SearchLabel => OnlyOperation == CollectorOperationCodes.VegetableFruitSpaceRental ? "Search registered space holder" : VendorOnly ? "Search registered vendor" : OnlyOperation == CollectorOperationCodes.FishMeatVendorFee ? "Search vendor or payer" : "Search payer or vendor";
+    private string SearchLabel => OnlyOperation == CollectorOperationCodes.VegetableFruitSpaceRental || CollectorOperationCodes.IsSpaceObligation(OnlyOperation) ? "Search registered space holder" : VendorOnly ? "Search registered vendor" : OnlyOperation == CollectorOperationCodes.FishMeatVendorFee ? "Search vendor or payer" : "Search payer or vendor";
     private IReadOnlyList<CollectionSourceSearchResult> VisibleSources => _found.Where(x => OnlyOperation switch
     {
         CollectorOperationCodes.WeightAndMeasure or CollectorOperationCodes.FishMeatVendorFee => x.Identity.Kind == SourceIdentityKind.FishMeatVendorRegistration,
         "ECF" => x.Identity.Kind == SourceIdentityKind.Occupancy,
-        CollectorOperationCodes.VegetableFruitSpaceRental => x.Identity.Kind == SourceIdentityKind.SpaceAccount && x.OperationCode == CollectorOperationCodes.VegetableFruitSpaceRental,
+        CollectorOperationCodes.VegetableFruitSpaceRental or CollectorOperationCodes.KanmanggaySpaceRental or CollectorOperationCodes.FiestaArawLotRental => x.Identity.Kind == SourceIdentityKind.SpaceAccount && x.OperationCode == OnlyOperation,
         _ => true
     }).ToList();
     private string SourceName => _source?.DisplayName ?? (_direct && !string.IsNullOrWhiteSpace(_snapshot) ? _snapshot.Trim() : "");
@@ -804,6 +804,7 @@ else
     // A direct collection has no Source Identity; the typed name is only the payer's name on the receipt.
     private async Task StartDirectAsync(string name)
     {
+        if (!DirectAllowed) return;
         _linkedNpmContext = false;
         _source = null; _direct = true; _snapshot = name.Trim(); _found = []; _suggestOpen = false; _searched = false; _quote = null;
         await LoadAsync();
