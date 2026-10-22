@@ -11,6 +11,30 @@ public sealed partial class CollectionSessionTests
     private static ConfirmNpmVendorAssociationRequest Confirmation(NpmVendorCandidate c, Guid? operation = null) =>
         new(operation ?? Guid.NewGuid(), c.ContractId, c.StallId, c.SourceVersion, "Office checked occupant and annual registration");
 
+    [SkippableFact]
+    public async Task Fish_meat_import_previews_existing_npm_contract_without_automatic_association()
+    {
+        var w = await SeedAsync(section: MarketSection.FishSection);
+        await using var db = database.CreateContext(w.TenantId);
+        var head = Office(db, w, "SuperAdmin");
+        var year = PhilippineTime.Today.Year;
+        var source = Assert.Single((await head.NpmVendorCandidatesAsync(year)).Value!.Rows);
+        var request = new VendorRegistryImportRequest([new(1,
+            new(Guid.NewGuid(), year, FishMeatVendorType.Fish, VendorRegistrationKind.New,
+                $"  {source.Occupant}  "))]);
+        var preview = Assert.Single((await head.PreviewImportAsync(request)).Value!.Rows);
+        var candidate = Assert.Single(preview.PossibleNpmOccupancies!);
+        Assert.Equal(source.ContractId, candidate.ContractId);
+        Assert.Equal(source.StallId, candidate.StallId);
+        Assert.False(candidate.AlreadyLinked);
+        Assert.Empty(await db.FishMeatNpmAssociations.ToListAsync());
+        var saved = await head.SaveImportAsync(request);
+        Assert.True(saved.IsSuccess, saved.Error);
+        Assert.Single(saved.Value!.Rows);
+        Assert.Empty(await db.FishMeatNpmAssociations.ToListAsync());
+        Assert.Empty(await db.Collections.ToListAsync());
+    }
+
     [SkippableTheory]
     [InlineData(MarketSection.FishSection, FishMeatVendorType.Fish)]
     [InlineData(MarketSection.MeatSection, FishMeatVendorType.Meat)]

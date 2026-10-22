@@ -26,8 +26,22 @@
         @if (_result is not null)
         {
             <ImportResultCard Ok="true">
-                <Title>@_result.Rows.Count @(_result.Rows.Count == 1 ? "vendor" : "vendors") imported for @_taxYear</Title>
+                <Title>@(_result.Rows.Count(x => !x.Reused)) @(_result.Rows.Count(x => !x.Reused) == 1 ? "vendor" : "vendors") imported for @_taxYear@if (_result.Rows.Any(x => x.Reused)) { <span> · @_result.Rows.Count(x => x.Reused) existing reused</span> }@if (Rows.Any(x => x.Skipped)) { <span> · @Rows.Count(x => x.Skipped) skipped</span> }</Title>
                 <ChildContent>
+                    @foreach (var saved in _result.Rows)
+                    {
+                        var preview = Rows.ElementAtOrDefault(saved.RowNumber - 1)?.Preview;
+                        if (preview?.PossibleNpmOccupancies?.Count > 0)
+                        {
+                            <div class="fmi-foot-note">
+                                <strong>@saved.Registration.DisplayName:</strong> possible NPM occupancy; no link was created by import.
+                                @foreach (var match in preview.PossibleNpmOccupancies.Take(3))
+                                {
+                                    <a class="imp-btn imp-btn-outline" href="@NpmReviewUrl(match.ContractId)">Review @match.Area, stall @match.StallNo@(match.AlreadyLinked ? " (already linked)" : "")</a>
+                                }
+                            </div>
+                        }
+                    }
                     <ImportButton Kind="ghost" OnClick="ResetAll">Import another list</ImportButton>
                     <ImportButton Kind="primary" Href="/operations/fish-meat-vendor-fees/manage">Open Manage</ImportButton>
                     <a class="imp-btn imp-btn-outline" href="/operations/fish-meat-vendor-fees/office-register">Open office register</a>
@@ -63,7 +77,27 @@
                 <Status Context="row">
                     @{ var (state, why) = StatusOf(row); }
                     <div class="fmi-status">
-                        @if (state == RowState.Invalid) { <span class="fmi-chip fmi-invalid">Invalid</span><span class="fmi-why">@why</span> }
+                        @if (row.Preview?.PossibleNpmOccupancies?.Count > 0)
+                        {
+                            <span class="fmi-chip fmi-review">Possible NPM occupancy</span>
+                            <span class="fmi-why">@row.Preview.PossibleNpmOccupancies.Count possible occupancy record(s). Review exact records after import; names do not establish a link.</span>
+                        }
+                        @if (!row.Skipped && row.Preview?.PossibleExistingRegistrations?.Count > 0)
+                        {
+                            <label class="fmi-confirm">
+                                Existing registration
+                                <select aria-label="Use existing registration for @row.Name" value="@(row.Reuse?.ToString() ?? "")" @onchange="e => SelectExisting(row, e.Value?.ToString())">
+                                    <option value="">New registration (requires duplicate review)</option>
+                                    @foreach (var match in row.Preview.PossibleExistingRegistrations.Where(x => x.VendorType == row.Type && x.Status == VendorRegistrationStatus.Active))
+                                    {
+                                        <option value="@match.Id">@match.DisplayName · @(match.BusinessName ?? "No business") · @match.VendorType</option>
+                                    }
+                                </select>
+                            </label>
+                        }
+                        @if (row.Skipped) { <span class="fmi-chip">Skipped</span> }
+                        else if (state == RowState.Reusing) { <span class="fmi-chip fmi-ready">Use existing registration</span> }
+                        else if (state == RowState.Invalid) { <span class="fmi-chip fmi-invalid">Invalid</span><span class="fmi-why">@why</span> }
                         else if (state == RowState.Duplicate)
                         {
                             <span class="fmi-chip fmi-review">Possible duplicate</span>
@@ -86,6 +120,7 @@
                                 </label>
                             }
                         }
+                        <button type="button" class="imp-btn imp-btn-outline" @onclick="() => ToggleSkip(row)">@(row.Skipped ? "Restore" : "Skip row")</button>
                     </div>
                 </Status>
             </ImportGrid>
@@ -107,11 +142,12 @@
     private bool _saving, _previewing;
     private int _taxYear = PhilippineTime.Today.Year;
     private string RegistryHref => _taxYear == PhilippineTime.Today.Year ? "/operations/fish-meat-vendor-fees" : $"/operations/fish-meat-vendor-fees?taxYear={_taxYear}";
+    private string NpmReviewUrl(Guid contractId) => $"/operations/fish-meat-vendor-fees?taxYear={_taxYear}&npmContractId={contractId}";
     private VendorRegistryImportResult? _result;
     private List<Row> Rows = [];
 
     private int Step => _result is not null || _saving ? 3 : Rows.Count > 0 ? 2 : 1;
-    private enum RowState { Checking, Ready, Duplicate, Invalid }
+    private enum RowState { Checking, Ready, Duplicate, Invalid, Reusing, Skipped }
 
     private IReadOnlyList<(string Value, string Label)> YearOptions =>
         Enumerable.Range(0, 5).Select(i => PhilippineTime.Today.Year + 1 - i).Append(_taxYear).Distinct().OrderByDescending(y => y).Select(y => (y.ToString(), y.ToString())).ToList();
@@ -140,15 +176,17 @@
         public string Name = "", Business = "", TypeText = "", KindText = "", Address = "", Reference = "";
         public string LastName = "", FirstName = "", MiddleName = "", Extension = "", Sex = "", Nature = "";
         public string FileTaxYear = "";
-        public bool Confirm;
+        public bool Confirm, Skipped;
+        public Guid? Reuse;
         public string? Error;
         public VendorRegistryImportPreviewRow? Preview;
         public FishMeatVendorType? Type => TypeText switch { "Fish" => FishMeatVendorType.Fish, "Meat" => FishMeatVendorType.Meat, _ => null };
         public VendorRegistrationKind? Kind => KindText switch { "New" => VendorRegistrationKind.New, "Renew" => VendorRegistrationKind.Renew, _ => null };
     }
 
-    private int ReadyCount => Rows.Count(r => StatusOf(r).State == RowState.Ready);
-    private bool CanImport => !_saving && !_previewing && Rows.Count is > 0 and <= 500 && Rows.All(r => StatusOf(r).State == RowState.Ready);
+    private int ReadyCount => Rows.Count(r => !r.Skipped && StatusOf(r).State is RowState.Ready or RowState.Reusing);
+    private bool CanImport => !_saving && !_previewing && Rows.Count is > 0 and <= 500 && Rows.Any(r => !r.Skipped)
+        && Rows.All(r => r.Skipped || StatusOf(r).State is RowState.Ready or RowState.Reusing);
 
     private string CellOf(Row row, ImportColumn col) => col.Key switch
     {
@@ -183,28 +221,37 @@
     // An edit is a new intent: its earlier check and confirmation no longer describe it, and it gets a fresh operation ID.
     private void Touched(Row row)
     {
-        row.Preview = null; row.Confirm = false; row.OperationId = Guid.NewGuid();
+        row.Preview = null; row.Confirm = false; row.Reuse = null; row.OperationId = Guid.NewGuid();
         Validate(row);
         SchedulePreview();
     }
 
-    private void ToggleConfirm(Row row, bool confirmed) { row.Confirm = confirmed; SchedulePreview(); }
+    private void ToggleConfirm(Row row, bool confirmed) { row.Confirm = confirmed; if (confirmed) row.Reuse = null; SchedulePreview(); }
+    private void ToggleSkip(Row row) { row.Skipped = !row.Skipped; row.Confirm = false; row.Reuse = null; row.Preview = null; SchedulePreview(); }
+    private void SelectExisting(Row row, string? value)
+    {
+        row.Reuse = Guid.TryParse(value, out var id) ? id : null;
+        row.Confirm = false;
+        SchedulePreview();
+    }
 
     private void ChangeYear(string value)
     {
         _taxYear = int.Parse(value);
-        foreach (var row in Rows) { row.Preview = null; row.Confirm = false; row.OperationId = Guid.NewGuid(); Validate(row); }
+        foreach (var row in Rows) { row.Preview = null; row.Confirm = false; row.Reuse = null; row.OperationId = Guid.NewGuid(); Validate(row); }
         SchedulePreview();
     }
 
     // What this page can tell before the server has: a row that fails its own checks is Invalid. The server's word then replaces it.
     private static (RowState State, string? Why) StatusOf(Row row)
     {
+        if (row.Skipped) return (RowState.Skipped, null);
         if (row.Error is not null) return (RowState.Invalid, row.Error);
         if (row.Preview is not { } line) return (RowState.Checking, null);
         return line.State switch
         {
             VendorRegistryImportState.New => (RowState.Ready, null),
+            VendorRegistryImportState.UseExisting => (RowState.Reusing, null),
             VendorRegistryImportState.PossibleDuplicateRequiresReview => row.Confirm ? (RowState.Ready, null) : (RowState.Duplicate, ProblemText(line)),
             _ => (RowState.Invalid, ProblemText(line))
         };
@@ -217,6 +264,7 @@
         "DuplicateRowIdentity" => "Listed more than once in this file.",
         "RegistrationIntentConflict" => "Conflicts with an earlier import of this row.",
         "InvalidRegistration" => "Check the name and details.",
+        "InvalidExistingRegistration" or "DuplicateExistingSelection" => "Select one eligible existing annual registration for this row.",
         _ => "Check this row."
     }).Distinct());
 
@@ -379,7 +427,7 @@
         row.Name.Trim(), VendorRegistrationForm.Blank(row.Business), VendorRegistrationForm.Blank(row.Address), VendorRegistrationForm.Blank(row.Reference),
         LastName: VendorRegistrationForm.Blank(row.LastName), FirstName: VendorRegistrationForm.Blank(row.FirstName),
         MiddleName: VendorRegistrationForm.Blank(row.MiddleName), NameExtension: VendorRegistrationForm.Blank(row.Extension),
-        Sex: VendorRegistrationForm.Blank(row.Sex), NatureOfBusiness: VendorRegistrationForm.Blank(row.Nature)), row.Confirm);
+        Sex: VendorRegistrationForm.Blank(row.Sex), NatureOfBusiness: VendorRegistrationForm.Blank(row.Nature)), row.Confirm, row.Reuse);
 
     private void SchedulePreview()
     {
@@ -399,7 +447,7 @@
     private async Task PreviewAsync()
     {
         foreach (var row in Rows) row.Preview = null;
-        var checkable = Rows.Select((row, i) => (Row: row, Number: i + 1)).Where(x => x.Row.Error is null).ToList();
+        var checkable = Rows.Select((row, i) => (Row: row, Number: i + 1)).Where(x => !x.Row.Skipped && x.Row.Error is null).ToList();
         if (checkable.Count == 0 || checkable.Count > 500) { _previewNote = null; StateHasChanged(); return; }
         _previewing = true;
         StateHasChanged();
@@ -425,7 +473,8 @@
         _message = null;
         try
         {
-            var result = await OfficeApi.SaveImportAsync(new VendorRegistryImportRequest(Rows.Select((row, i) => Build(row, i + 1)).ToList()));
+            var result = await OfficeApi.SaveImportAsync(new VendorRegistryImportRequest(Rows.Select((row, i) => (row, i))
+                .Where(x => !x.row.Skipped).Select(x => Build(x.row, x.i + 1)).ToList()));
             if (result.IsSuccess && result.Value is { } saved) _result = saved;
             else _message = SaveProblem(result.Error, result.Status);
         }

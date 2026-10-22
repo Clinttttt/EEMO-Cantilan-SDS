@@ -2,6 +2,10 @@ using Bunit;
 using Bunit.TestDoubles;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.StallHolders;
+using EEMOCantilanSDS.Application.Dtos.Mobile;
+using EEMOCantilanSDS.Application.Dtos.Stalls;
+using EEMOCantilanSDS.Application.Dtos.Facilities;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,18 +25,27 @@ namespace EEMOCantilanSDS.Testing;
 public class ImportStallholdersNumberingTests : TestContext
 {
     /// <summary>An empty facility, so nothing in it competes for a number and the numbering starts at 1.</summary>
-    private IRenderedComponent<ImportStallholders> Render(string facility, StallHoldersListDto? holders = null)
+    private IRenderedComponent<ImportStallholders> Render(string facility, StallHoldersListDto? holders = null,
+        IReadOnlyList<FishMeatVendorRegistrationDto>? vendors = null)
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
 
         var stalls = new Mock<IStallsApiClient>();
         stalls.Setup(s => s.GetStallHoldersListAsync(It.IsAny<FacilityCode>(), It.IsAny<MarketSection?>(), It.IsAny<string?>()))
               .ReturnsAsync(Result<StallHoldersListDto>.Success(holders ?? new StallHoldersListDto()));
+        stalls.Setup(s => s.GetNpmRatesAsync()).ReturnsAsync(Result<NpmRatesDto>.Success(new NpmRatesDto(30m, 1m)));
+        var facilities = new Mock<IFacilitiesApiClient>();
+        facilities.Setup(f => f.GetNpmCustomSectionsAsync())
+            .ReturnsAsync(Result<IReadOnlyList<NpmCustomSectionDto>>.Success([]));
 
         Services.AddSingleton(stalls.Object);
-        Services.AddSingleton(Mock.Of<IFacilitiesApiClient>());
+        Services.AddSingleton(facilities.Object);
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
+        var office = new Mock<IOfficeSourcesApiClient>();
+        office.Setup(x => x.RegistrationsAsync(It.IsAny<int>()))
+            .ReturnsAsync(Result<IReadOnlyList<FishMeatVendorRegistrationDto>>.Success(vendors ?? []));
+        Services.AddSingleton(office.Object);
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton(Mock.Of<ISettingsApiClient>());
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
@@ -45,6 +58,24 @@ public class ImportStallholdersNumberingTests : TestContext
     /// <summary>The Stall / Space No. of every review row, in the order the office reads them.</summary>
     private static List<string> Numbers(IRenderedComponent<ImportStallholders> cut) =>
         cut.FindAll("input.imp-stallno").Select(i => i.GetAttribute("value") ?? string.Empty).ToList();
+
+    [Fact]
+    public void NpmImportFlagsSameNameFishMeatRegistryCandidate_ButNeverAssumesAnAssociation()
+    {
+        var existing = new FishMeatVendorRegistrationDto(Guid.NewGuid(), PhilippineTime.Today.Year,
+            FishMeatVendorType.Fish, VendorRegistrationKind.New, "Ana Fish", "Fish Business", null, "REF-1");
+        var cut = Render("npm", vendors: [existing]);
+        cut.FindAll("button.imp-pick-card").First(x => x.TextContent.Contains("Fish", StringComparison.OrdinalIgnoreCase)).Click();
+        cut.Find("button.imp-enter-manually").Click();
+        cut.Find("input.imp-col-occupant").Input("Ana Fish");
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Possible existing Fish/Meat registrations (not linked)", cut.Markup);
+            Assert.Contains("Fish Business", cut.Markup);
+            Assert.Contains("Head must verify exact IDs", cut.Markup);
+            Assert.DoesNotContain("Link confirmed", cut.Markup);
+        });
+    }
 
     [Fact]
     public void DeletingASampleRowClosesUpTheNumbers()

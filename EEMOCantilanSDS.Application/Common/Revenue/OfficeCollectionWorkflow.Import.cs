@@ -6,6 +6,8 @@ using Microsoft.EntityFrameworkCore;
 namespace EEMOCantilanSDS.Application.Common.Revenue;
 public sealed partial class OfficeCollectionWorkflow
 {
+    private static string NormalizeImportName(string? name) =>
+        System.Text.RegularExpressions.Regex.Replace((name ?? string.Empty).Trim(), @"\s+", " ");
     public async Task<Result<VendorRegistryImportPreview>> PreviewImportAsync(VendorRegistryImportRequest request, CancellationToken ct = default)
     {
         if (!TenantValid || !user.IsAuthenticated || user.Role != "SuperAdmin") return Result<VendorRegistryImportPreview>.Forbidden();
@@ -16,6 +18,15 @@ public sealed partial class OfficeCollectionWorkflow
         var operationIds = request.Rows.Select(x => x.Registration.ClientOperationId).ToArray();
         var existing = await db.FishMeatVendorRegistrations.AsNoTracking().Where(x => x.MunicipalityId == Tenant
             && (years.Contains(x.TaxYear) || operationIds.Contains(x.ClientOperationId))).ToListAsync(ct);
+        // Cross-registry candidates are advisory only. Never infer a verified link from a name.
+        // One bounded office-candidate read per tax year, rather than one query per uploaded row.
+        var npmByYear = new Dictionary<int, IReadOnlyList<NpmVendorCandidate>>();
+        foreach (var year in years)
+        {
+            var candidates = await NpmVendorCandidatesAsync(year, historical: false, exceptions: true, ct: ct);
+            if (!candidates.IsSuccess) return Result<VendorRegistryImportPreview>.Failure(candidates.Error ?? "NpmCandidatesUnavailable", candidates.Status);
+            npmByYear[year] = candidates.Value!.Rows;
+        }
         var result = new List<VendorRegistryImportPreviewRow>();
         foreach (var row in request.Rows)
         {
@@ -32,17 +43,36 @@ public sealed partial class OfficeCollectionWorkflow
             if (prior is not null && candidate is not null && ToDto(prior) != ToDto(candidate) with { Id = prior.Id })
                 problems.Add(new("RegistrationIntentConflict", "This operation already saved different registration details."));
             var duplicateIds = existing.Where(x => x.ClientOperationId != r.ClientOperationId && x.TaxYear == r.TaxYear
-                && x.DisplayName.Equals(candidate?.DisplayName, StringComparison.OrdinalIgnoreCase)).Select(x => x.Id).ToArray();
+                && string.Equals(NormalizeImportName(x.DisplayName), NormalizeImportName(candidate?.DisplayName), StringComparison.OrdinalIgnoreCase))
+                .Select(x => x.Id).ToArray();
             var duplicateRow = request.Rows.Any(x => x.RowNumber != row.RowNumber && x.Registration.TaxYear == r.TaxYear
-                && string.Equals(x.Registration.DisplayName?.Trim(), candidate?.DisplayName, StringComparison.OrdinalIgnoreCase));
-            var needsReview = prior is null && (duplicateIds.Length > 0 || duplicateRow) && !row.ConfirmSeparateRegistration;
+                && string.Equals(NormalizeImportName(x.Registration.DisplayName), NormalizeImportName(candidate?.DisplayName), StringComparison.OrdinalIgnoreCase));
+            var reuse = row.ReuseRegistrationId.HasValue
+                ? existing.SingleOrDefault(x => x.Id == row.ReuseRegistrationId.Value) : null;
+            if (row.ReuseRegistrationId.HasValue && (reuse is null || reuse.TaxYear != r.TaxYear
+                || reuse.VendorType != r.VendorType || reuse.Status != VendorRegistrationStatus.Active
+                || !string.Equals(NormalizeImportName(reuse.DisplayName), NormalizeImportName(candidate?.DisplayName), StringComparison.OrdinalIgnoreCase)
+                || row.ConfirmSeparateRegistration || prior is not null))
+                problems.Add(new("InvalidExistingRegistration", "Select a current, matching annual registration to reuse."));
+            if (row.ReuseRegistrationId.HasValue && request.Rows.Count(x => x.ReuseRegistrationId == row.ReuseRegistrationId) > 1)
+                problems.Add(new("DuplicateExistingSelection", "An existing registration cannot be reused twice in the same list."));
+            var needsReview = prior is null && reuse is null && (duplicateIds.Length > 0 || duplicateRow) && !row.ConfirmSeparateRegistration;
             if (needsReview) problems.Add(new("PossibleDuplicate", "Confirm this is a separate registration. Names are never merged."));
             var normalized = candidate is null ? r : r with { DisplayName = candidate.DisplayName, BusinessName = candidate.BusinessName,
                 Address = candidate.Address, Reference = candidate.Reference, LastName = candidate.LastName,
                 FirstName = candidate.FirstName, MiddleName = candidate.MiddleName, NameExtension = candidate.NameExtension,
                 Sex = candidate.Sex, NatureOfBusiness = candidate.NatureOfBusiness };
+            var npmMatches = npmByYear[r.TaxYear].Where(x => candidate is not null
+                && string.Equals(NormalizeImportName(x.Occupant), NormalizeImportName(candidate.DisplayName), StringComparison.OrdinalIgnoreCase))
+                .Select(x => new VendorRegistryImportNpmMatch(x.ContractId, x.StallId, x.Occupant, x.StallNo, x.Area,
+                    x.Links.Any(link => link.CorrectedAtUtc is null))).ToArray();
+            var choices = existing.Where(x => x.TaxYear == r.TaxYear
+                && string.Equals(NormalizeImportName(x.DisplayName), NormalizeImportName(candidate?.DisplayName), StringComparison.OrdinalIgnoreCase))
+                .Select(x => new VendorRegistryImportExistingMatch(x.Id, x.DisplayName, x.BusinessName, x.VendorType, x.Status)).ToArray();
             result.Add(new(row.RowNumber, normalized, problems.Any(x => x.Code != "PossibleDuplicate") ? VendorRegistryImportState.Invalid
-                : needsReview ? VendorRegistryImportState.PossibleDuplicateRequiresReview : VendorRegistryImportState.New, problems, duplicateIds));
+                : reuse is not null ? VendorRegistryImportState.UseExisting
+                : needsReview ? VendorRegistryImportState.PossibleDuplicateRequiresReview : VendorRegistryImportState.New,
+                problems, duplicateIds, npmMatches, choices));
         }
         return Result<VendorRegistryImportPreview>.Success(new(result));
     }
@@ -60,10 +90,21 @@ public sealed partial class OfficeCollectionWorkflow
             var ids = preview.Value.Rows.Select(x => x.Registration.ClientOperationId).ToArray();
             var existing = await db.FishMeatVendorRegistrations.AsNoTracking().Where(x => x.MunicipalityId == Tenant && ids.Contains(x.ClientOperationId))
                 .ToDictionaryAsync(x => x.ClientOperationId, ct);
+            var reuseIds = request.Rows.Where(x => x.ReuseRegistrationId.HasValue).Select(x => x.ReuseRegistrationId!.Value).Distinct().ToArray();
+            var reusable = await db.FishMeatVendorRegistrations.AsNoTracking()
+                .Where(x => x.MunicipalityId == Tenant && reuseIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
             var rows = new List<VendorRegistryImportSavedRow>();
             foreach (var row in preview.Value.Rows)
             {
                 var r = row.Registration;
+                var selected = request.Rows.Single(x => x.RowNumber == row.RowNumber).ReuseRegistrationId;
+                if (selected.HasValue)
+                {
+                    // The preview was recomputed inside this serializable transaction. Never create
+                    // a new registration when Head chose an existing exact annual identity.
+                    rows.Add(new(row.RowNumber, ToDto(reusable[selected.Value]), Reused: true));
+                    continue;
+                }
                 if (!existing.TryGetValue(r.ClientOperationId, out var registration))
                 {
                     registration = FishMeatVendorRegistration.Register(Tenant, r.ClientOperationId, r.TaxYear, r.VendorType,

@@ -8,6 +8,7 @@
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using EEMOCantilanSDS.Application.Command.Stalls.BulkImportStallholders
 @using EEMOCantilanSDS.Application.Dtos.Stalls
+@using EEMOCantilanSDS.Application.Dtos.Mobile
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Domain.Constants
@@ -16,6 +17,7 @@
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @inject NavigationManager Navigation
 @inject IStallsApiClient StallsApi
+@inject IOfficeSourcesApiClient OfficeApi
 @inject IFacilitiesApiClient FacilitiesApi
 
 @*
@@ -98,6 +100,15 @@
                     }
                 </Text>
                 <ChildContent>
+                    @if (IsNpmImport)
+                    {
+                        <AuthorizeView Roles="SuperAdmin"><Authorized>
+                            @foreach (var row in _result.Results.Where(x => (x.Created || x.Renewed) && x.OccupancyId.HasValue && FishMeatMatches(x.Occupant).Count > 0))
+                            {
+                                <a class="imp-btn imp-btn-outline" href="@NpmLinkReviewUrl(row.OccupancyId!.Value)">Review Fish/Meat link for @row.Occupant</a>
+                            }
+                        </Authorized></AuthorizeView>
+                    }
                     <ImportButton Kind="ghost" OnClick="ResetAll">Import another file</ImportButton>
                     <ImportButton Kind="primary" Href="@BackUrl">Back to @_facility.ShortCode</ImportButton>
                 </ChildContent>
@@ -305,6 +316,21 @@
                 </div>
             }
 
+            @if (IsNpmImport && _fishMeatLookupFailed)
+            {
+                <p class="imp-cols-note" role="status">Fish/Meat registration lookup is unavailable. No association will be created; review imported occupancies with the Head afterwards.</p>
+            }
+            else if (IsNpmImport && _rows.Any(r => FishMeatMatches(GetCell(r, "occupant")).Count > 0))
+            {
+                <div class="imp-cols-note" role="status">
+                    <strong>Possible existing Fish/Meat registrations (not linked):</strong>
+                    @foreach (var r in _rows.Where(r => FishMeatMatches(GetCell(r, "occupant")).Count > 0))
+                    {
+                        var matches = FishMeatMatches(GetCell(r, "occupant"));
+                        <div>@GetCell(r, "occupant") — @string.Join(", ", matches.Take(3).Select(m => $"{m.VendorType} / {m.TaxYear} / {m.BusinessName ?? "no business recorded"}")) (@matches.Count record(s)). The Head must verify exact IDs after import.</div>
+                    }
+                </div>
+            }
             <ImportGrid TRow="Dictionary<string, string>" Columns="VisibleColumns" Rows="_rows" Label="Stallholders to import"
                         GetCell="@((r, c) => GetCell(r, c.Key))" OnChange="CellChanged" OnRemove="RemoveRow"
                         CellClass="IceCellClass" IsReadonly="IceReadonly" CellTitle="IceCellTitle" />
@@ -340,6 +366,29 @@
 
     private FacilityImportConfig? _facility;
     private List<Dictionary<string, string>> _rows = new();
+    private IReadOnlyList<FishMeatVendorRegistrationDto> _fishMeatRegistrations = [];
+    private bool _fishMeatLookupFailed;
+    private bool IsNpmImport => _facility?.Code == FacilityCode.NPM;
+    private string NpmLinkReviewUrl(Guid contractId) => $"/operations/fish-meat-vendor-fees?taxYear={PhilippineTime.Today.Year}&npmContractId={contractId}";
+    private IReadOnlyList<FishMeatVendorRegistrationDto> FishMeatMatches(string? occupant)
+    {
+        var name = NormalizeName(occupant);
+        return name.Length == 0 ? [] : _fishMeatRegistrations.Where(x =>
+            string.Equals(NormalizeName(x.DisplayName), name, StringComparison.OrdinalIgnoreCase)).ToArray();
+    }
+    private async Task LoadFishMeatMatchesAsync()
+    {
+        _fishMeatRegistrations = [];
+        _fishMeatLookupFailed = false;
+        if (!IsNpmImport || _rows.Count == 0) return;
+        try
+        {
+            var result = await OfficeApi.RegistrationsAsync(PhilippineTime.Today.Year);
+            if (result?.IsSuccess == true && result.Value is { } vendors) _fishMeatRegistrations = vendors;
+            else _fishMeatLookupFailed = true;
+        }
+        catch { _fishMeatLookupFailed = true; }
+    }
     private bool _loaded;
     private bool _saved;
     private string _fileName = string.Empty;
@@ -675,6 +724,8 @@
         _takeovers.Clear();
         _sheetQueries.Clear();
         if (_facility is null || _rows.Count == 0) return;
+        // Read-only discovery: even a name match never creates a vendor registration or association.
+        await LoadFishMeatMatchesAsync();
 
         try
         {

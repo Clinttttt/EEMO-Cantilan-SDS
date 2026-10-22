@@ -41,6 +41,7 @@ public class ImportStallholdersSpaceOnlyRowTests : TestContext
         Services.AddSingleton(Mock.Of<IFacilitiesApiClient>());
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
+        Services.AddSingleton(Mock.Of<IOfficeSourcesApiClient>());
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton(Mock.Of<ISettingsApiClient>());
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();

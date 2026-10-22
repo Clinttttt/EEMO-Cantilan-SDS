@@ -129,6 +129,24 @@ public sealed partial class CollectionSessionTests
         var duplicate = new VendorRegistryImportRequest([new(1, request.Rows[0].Registration with { ClientOperationId = Guid.NewGuid() })]);
         Assert.Equal(VendorRegistryImportState.PossibleDuplicateRequiresReview, Assert.Single((await head.PreviewImportAsync(duplicate)).Value!.Rows).State);
         Assert.Equal("ImportNeedsReview", (await head.SaveImportAsync(duplicate)).Error);
+        // A Head-selected exact annual registration is reused rather than copied. No name-based
+        // auto-selection, financial post or second registry row is permitted.
+        var existingId = saved.Rows[0].Registration.Id;
+        var reuse = duplicate with { Rows = [duplicate.Rows[0] with { ReuseRegistrationId = existingId }] };
+        var reusePreview = Assert.Single((await head.PreviewImportAsync(reuse)).Value!.Rows);
+        Assert.Equal(VendorRegistryImportState.UseExisting, reusePreview.State);
+        Assert.Contains(reusePreview.PossibleExistingRegistrations!, x => x.Id == existingId);
+        Assert.True((await head.SaveImportAsync(reuse)).IsSuccess);
+        var reused = Assert.Single((await head.SaveImportAsync(reuse)).Value!.Rows);
+        Assert.True(reused.Reused);
+        Assert.Equal(existingId, reused.Registration.Id);
+        Assert.Equal(2, await db.FishMeatVendorRegistrations.CountAsync());
+        var wrongType = reuse with { Rows = [reuse.Rows[0] with
+        {
+            Registration = reuse.Rows[0].Registration with { VendorType = FishMeatVendorType.Meat }
+        }] };
+        Assert.Equal(VendorRegistryImportState.Invalid, Assert.Single((await head.PreviewImportAsync(wrongType)).Value!.Rows).State);
+        Assert.Equal("ImportNeedsReview", (await head.SaveImportAsync(wrongType)).Error);
         duplicate = duplicate with { Rows = [duplicate.Rows[0] with { ConfirmSeparateRegistration = true }] };
         Assert.True((await head.SaveImportAsync(duplicate)).IsSuccess);
         Assert.Equal(3, await db.FishMeatVendorRegistrations.CountAsync());

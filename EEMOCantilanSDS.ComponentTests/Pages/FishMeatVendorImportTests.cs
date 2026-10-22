@@ -19,6 +19,7 @@ public sealed class FishMeatVendorImportTests : TestContext
     private static readonly int Year = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year;
     private readonly Mock<IOfficeSourcesApiClient> _office = new();
     private VendorRegistryImportRequest? _previewed, _saved;
+    private readonly Guid _existingVendorId = Guid.NewGuid();
 
     public FishMeatVendorImportTests()
     {
@@ -35,12 +36,15 @@ public sealed class FishMeatVendorImportTests : TestContext
         // Row 2 looks like an existing registration; everything else is new.
         _office.Setup(x => x.PreviewImportAsync(It.IsAny<VendorRegistryImportRequest>())).Callback<VendorRegistryImportRequest>(r => _previewed = r)
             .ReturnsAsync((VendorRegistryImportRequest r) => Result<VendorRegistryImportPreview>.Success(new(r.Rows.Select(row => row.RowNumber == 2 && !row.ConfirmSeparateRegistration
-                ? new VendorRegistryImportPreviewRow(row.RowNumber, row.Registration, VendorRegistryImportState.PossibleDuplicateRequiresReview, [new("PossibleDuplicate", "text that is never read")], [Guid.NewGuid()])
+                ? new VendorRegistryImportPreviewRow(row.RowNumber, row.Registration,
+                    row.ReuseRegistrationId == _existingVendorId ? VendorRegistryImportState.UseExisting : VendorRegistryImportState.PossibleDuplicateRequiresReview,
+                    row.ReuseRegistrationId == _existingVendorId ? [] : [new("PossibleDuplicate", "text that is never read")],
+                    [_existingVendorId], PossibleExistingRegistrations: [new(_existingVendorId, "Pantom Dant", null, FishMeatVendorType.Meat, VendorRegistrationStatus.Active)])
                 : new VendorRegistryImportPreviewRow(row.RowNumber, row.Registration, VendorRegistryImportState.New, [], [])).ToList())));
         _office.Setup(x => x.SaveImportAsync(It.IsAny<VendorRegistryImportRequest>())).Callback<VendorRegistryImportRequest>(r => _saved = r)
             .ReturnsAsync((VendorRegistryImportRequest r) => Result<VendorRegistryImportResult>.Success(new(r.Rows.Select(row =>
-                new VendorRegistryImportSavedRow(row.RowNumber, new(Guid.NewGuid(), row.Registration.TaxYear, row.Registration.VendorType, row.Registration.RegistrationKind,
-                    row.Registration.DisplayName, row.Registration.BusinessName, row.Registration.Address, row.Registration.Reference))).ToList())));
+                new VendorRegistryImportSavedRow(row.RowNumber, new(row.ReuseRegistrationId ?? Guid.NewGuid(), row.Registration.TaxYear, row.Registration.VendorType, row.Registration.RegistrationKind,
+                    row.Registration.DisplayName, row.Registration.BusinessName, row.Registration.Address, row.Registration.Reference), Reused: row.ReuseRegistrationId.HasValue)).ToList())));
     }
 
     private IRenderedComponent<FishMeatVendorImport> UploadCsv(string csv)
@@ -107,6 +111,25 @@ public sealed class FishMeatVendorImportTests : TestContext
             Assert.False(cut.Find("button.imp-btn.imp-btn-primary").HasAttribute("disabled"));
             Assert.True(_previewed!.Rows.Single(r => r.RowNumber == 2).ConfirmSeparateRegistration);
         }, Timeout);
+    }
+
+    [Fact]
+    public void HeadCanChooseAnExactExistingAnnualRegistration_WithoutCreatingAnother()
+    {
+        var cut = UploadCsv(Csv);
+        cut.WaitForAssertion(() => Assert.Contains("Possible duplicate", cut.Markup), Timeout);
+        var selection = cut.Find("select[aria-label='Use existing registration for Pantom Dant']");
+        selection.Change(_existingVendorId.ToString());
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Use existing registration", cut.Markup);
+            Assert.Equal(_existingVendorId, _previewed!.Rows.Single(x => x.RowNumber == 2).ReuseRegistrationId);
+            Assert.False(cut.Find("button.imp-btn.imp-btn-primary").HasAttribute("disabled"));
+        }, Timeout);
+        cut.Find("button.imp-btn.imp-btn-primary").Click();
+        cut.WaitForAssertion(() => Assert.NotNull(_saved), Timeout);
+        Assert.Equal(_existingVendorId, _saved!.Rows.Single(x => x.RowNumber == 2).ReuseRegistrationId);
+        Assert.DoesNotContain(_saved.Rows, x => x.ConfirmSeparateRegistration && x.ReuseRegistrationId.HasValue);
     }
 
     [Fact]
