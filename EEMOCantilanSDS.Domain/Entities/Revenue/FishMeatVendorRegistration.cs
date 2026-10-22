@@ -4,7 +4,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Revenue;
 
 public enum FishMeatVendorType { Fish = 1, Meat = 2 }
 public enum VendorRegistrationKind { New = 1, Renew = 2 }
-public enum VendorRegistrationStatus { Active = 1, Closed = 2 }
+public enum VendorRegistrationStatus { Active = 1, Closed = 2, Deleted = 3 }
 public enum TerminalSection { ComfortRoom = 1, PullPulVansCargoVans = 2, Tricycad = 3 }
 
 /// <summary>IA-068 source-owned registration. Never inferred from an NPM occupant or a matching name.</summary>
@@ -35,7 +35,23 @@ public sealed class FishMeatVendorRegistration : BaseEntity, IMunicipalityOwned
     public DateTime? ClosedAtUtc { get; private set; }
     public string? ClosedBy { get; private set; }
     public string? CloseNote { get; private set; }
+    public Guid? DeleteClientOperationId { get; private set; }
+    public DateTime? DeletedAtUtc { get; private set; }
+    public string? DeletedBy { get; private set; }
+    public string? DeleteReason { get; private set; }
     private FishMeatVendorRegistration() { }
+
+    public void DeleteClosed(Guid operation, string actor, string reason, DateTime now)
+    {
+        if (Status != VendorRegistrationStatus.Closed) throw new InvalidOperationException("CloseRegistrationBeforeDelete");
+        if (operation == Guid.Empty || string.IsNullOrWhiteSpace(actor) || actor.Trim().Length > 100
+            || string.IsNullOrWhiteSpace(reason) || reason.Trim().Length > 500 || now.Kind != DateTimeKind.Utc)
+            throw new ArgumentException("InvalidDeletionEvidence");
+        Status = VendorRegistrationStatus.Deleted;
+        DeleteClientOperationId = operation;
+        DeletedBy = actor.Trim(); DeleteReason = reason.Trim();
+        DeletedAtUtc = new DateTime(now.Ticks - now.Ticks % 10, DateTimeKind.Utc);
+    }
 
     /// <summary>Correct office facts on the existing registration, without changing identity, registration
     /// category, tax year, status, NPM links, collections, or receipt history.</summary>
@@ -63,7 +79,7 @@ public sealed class FishMeatVendorRegistration : BaseEntity, IMunicipalityOwned
         actor = actor.Trim();
         if (operation == Guid.Empty || actor.Length is < 1 or > 100 || note?.Length > 300)
             throw new ArgumentException("InvalidCloseIntent");
-        if (Status == VendorRegistrationStatus.Closed) throw new InvalidOperationException("RegistrationClosed");
+        if (Status != VendorRegistrationStatus.Active) throw new InvalidOperationException("RegistrationClosed");
         Status = VendorRegistrationStatus.Closed;
         CloseClientOperationId = operation;
         ClosedOn = businessDate;

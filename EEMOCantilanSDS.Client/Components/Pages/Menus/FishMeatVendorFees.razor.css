@@ -28,9 +28,22 @@
 .fmv-sub { font-size: 0.75rem; color: var(--text-subtle); }
 .fmv-src { font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-/* Both lists are bounded: about five rows show, the rest scroll inside the panel under a held heading. */
-.fmv-scroll { max-height: 21rem; overflow-y: auto; overscroll-behavior: contain; }
-.fmv-scroll thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-muted); }
+/* Let the page own vertical scrolling; only an unusually wide row scrolls locally. */
+.fmv-scroll { max-height: none; overflow-x: auto; }
+.fmv-scroll thead th { position: static; background: var(--surface-muted); }
+.fmv-registry { container-type: inline-size; }
+.fmv-registry th { white-space: nowrap; }
+.fmv-registry td:first-child { min-width: 160px; }
+.fmv-activity { max-width: 250px; line-height: 1.45; }
+@container (max-width: 1050px) {
+    .fmv-registry table, .fmv-registry tbody { display: block; width: 100%; min-width: 0; }
+    .fmv-registry thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    .fmv-registry tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid var(--border); padding: 12px; }
+    .fmv-registry td { display: block; min-width: 0 !important; max-width: none; padding: 8px; border: 0; overflow-wrap: break-word; }
+    .fmv-registry td::before { content: attr(data-label); display: block; font-size: .75rem; color: var(--text-subtle); margin-bottom: 4px; }
+    .fmv-registry .v3-num, .fmv-registry .fmv-row-action { text-align: left; }
+    .fmv-registry .v3-empty { grid-column: 1 / -1; }
+}
 
 /* The two lists of the workspace: the registry, and the payors a Collector named who are not registered yet. */
 .fmv-views { display: inline-flex; gap: 6px; flex-wrap: wrap; }

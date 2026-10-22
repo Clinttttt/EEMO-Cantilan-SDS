@@ -27,6 +27,8 @@ public interface IOfficeSourcesApiClient
     Task<Result<VendorRegistryManagement>> ManageRegistrationsAsync(int taxYear, int month, EEMOCantilanSDS.Domain.Entities.Revenue.VendorRegistrationStatus? status = null, int? year = null);
     Task<Result<VendorRegistrationMutationResult>> CorrectOfficeDetailsAsync(Guid id, CorrectVendorOfficeDetailsRequest request);
     Task<Result<VendorRegistrationMutationResult>> CloseRegistrationAsync(Guid id, CloseVendorRegistrationRequest request);
+    Task<Result<VendorRegistrationMutationResult>> DeleteRegistrationAsync(Guid id, DeleteVendorRegistrationRequest request) =>
+        Task.FromResult(Result<VendorRegistrationMutationResult>.Failure("Registration deletion is unavailable.", ResultStatus.Failed));
     Task<Result<VendorRegistrationMutationResult>> RenewRegistrationAsync(Guid id, RenewVendorRegistrationRequest request);
     Task<Result<IReadOnlyList<TerminalVehicleChoice>>> VehicleChoicesAsync(DateOnly date);
     Task<Result<bool>> MapVehicleAsync(TerminalVehicleMappingRequest request);

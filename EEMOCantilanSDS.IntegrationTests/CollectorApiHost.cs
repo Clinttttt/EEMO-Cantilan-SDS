@@ -45,7 +45,7 @@ internal sealed class CollectorApiHost(WebApplication app, HttpClient client) : 
     }
     internal static async Task<CollectorApiHost> StartAsync(PostgresFixture database, Guid collector, Guid tenant, Fault? fault = null,
         string role = "Collector", EEMOCantilanSDS.Application.Common.Interface.Time.IClock? clock = null,
-        Action<IServiceCollection>? beforeApplication = null)
+        Action<IServiceCollection>? beforeApplication = null, Action<IServiceCollection>? afterApplication = null)
     {
         var key = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions {
@@ -63,6 +63,7 @@ internal sealed class CollectorApiHost(WebApplication app, HttpClient client) : 
         builder.Services.AddInfrastructureService(builder.Configuration);
         beforeApplication?.Invoke(builder.Services);   // a test may state a policy before the application's own defaults are added
         builder.Services.AddApplicationService();
+        afterApplication?.Invoke(builder.Services);
         builder.ConfigureServices(); // Real JWT validation, not a test authentication scheme.
         if (clock is not null) builder.Services.AddSingleton(clock);
         foreach (var service in builder.Services.Where(x => x.ServiceType == typeof(IHostedService)

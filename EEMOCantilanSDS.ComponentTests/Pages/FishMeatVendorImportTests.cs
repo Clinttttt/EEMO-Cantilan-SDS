@@ -157,6 +157,21 @@ public sealed class FishMeatVendorImportTests : TestContext
     }
 
     [Fact]
+    public void TwelveColumnOfficeCsvPreservesPopulatedAndBlankIdentityFields()
+    {
+        var csv = "Vendor name,Business name,Last name,First name,Middle name,Extname,Sex,Type,Registration,Address,Nature of business,Reference\r\n"
+            + "Synthetic fish,Fish business,Family,Given,Middle,,Male,Fish,Renew,,Retail seafood,\r\n"
+            + "Synthetic meat,Meat business,Family,Given,,,,Meat,New,,Retail meat,\r\n";
+        var cut = UploadCsv(csv);
+        cut.WaitForAssertion(() => Assert.Equal(2, _previewed?.Rows.Count), Timeout);
+        var fish = _previewed!.Rows[0].Registration; var meat = _previewed.Rows[1].Registration;
+        Assert.Equal(("Family", "Given", "Middle", "Male", "Retail seafood"),
+            (fish.LastName, fish.FirstName, fish.MiddleName, fish.Sex, fish.NatureOfBusiness));
+        Assert.Null(fish.Address); Assert.Null(fish.NameExtension); Assert.Null(fish.Reference);
+        Assert.Null(meat.MiddleName); Assert.Null(meat.Sex); Assert.Null(meat.Address);
+    }
+
+    [Fact]
     public void OfficePaperColumnsPreserveNameAndBusinessNatureButNeverImportHandwrittenMoney()
     {
         var csv = $"Business Name,Last Name,First Name,Middle Name,Extname,Sex,Type,Type of,Tax Year,Address,Nature of Business,Amount\r\n" +

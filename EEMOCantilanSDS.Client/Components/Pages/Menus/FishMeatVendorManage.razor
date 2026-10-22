@@ -80,10 +80,17 @@
                                 <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenDetails(row)">Details</button>
                                 <AuthorizeView Roles="SuperAdmin">
                                     <Authorized>
-                                        <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenRenew(row)">Renew</button>
+                                        @if (vendor.TaxYear < 2200 && row.Status != VendorRegistrationStatus.Deleted)
+                                        {
+                                            <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenRenew(row)">Renew</button>
+                                        }
                                         @if (row.Status == VendorRegistrationStatus.Active)
                                         {
                                             <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenClose(row)">Close</button>
+                                        }
+                                        else if (row.Status == VendorRegistrationStatus.Closed)
+                                        {
+                                            <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenDelete(row)">Delete</button>
                                         }
                                     </Authorized>
                                 </AuthorizeView>
@@ -155,21 +162,28 @@
                           Subtitle="@RenewSubtitle" SubmitText="Renew" TaxYears="_renewYears" Saving="_saving" Error="@_formError" OnSubmit="RenewAsync" OnCancel="CloseRenew" />
 
 @* ── Close: restrained, final for the registration, silent about money ── *@
-<VendorDrawerShell Show="_closing is not null" KeepMounted="true" Title="Close registration" Subtitle="@(_closing?.Registration.DisplayName)" OnClose="CloseClose">
+<VendorDrawerShell Show="_closing is not null" KeepMounted="true" Title="@(_deleting ? "Delete closed registration" : "Close registration")" Subtitle="@(_closing is null ? null : $"{_closing.Registration.DisplayName} · {_closing.Registration.VendorType} · {_closing.Registration.TaxYear}")" OnClose="CloseClose">
     <Icon><svg viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg></Icon>
     <ChildContent>
-        <form id="fmm-close-form" aria-label="Close registration" @onsubmit="CloseAsync" @onsubmit:preventDefault="true">
-            <p class="fmm-close-text">Closing stops this registration from being offered for new collections. Its Collections, SRCs and history stay exactly as they are, and it cannot be reopened. A vendor who returns is registered again or renewed.</p>
+        <form id="fmm-close-form" aria-label="@(_deleting ? "Delete closed registration" : "Close registration")" @onsubmit="CloseAsync" @onsubmit:preventDefault="true">
+            @if (_deleting)
+            {
+                <p class="fmm-close-text">Remove this closed registration from operational lists and withdraw its active NPM links. The NPM stall and contract, receipts, collections and historical evidence are retained.</p>
+            }
+            else
+            {
+                <p class="fmm-close-text">Closing stops this registration from being offered for new collections. Its Collections, SRCs and history stay exactly as they are, and it cannot be reopened. A vendor who returns is registered again or renewed.</p>
+            }
             <div class="avm-group">
-                <label class="avm-label" for="fmm-close-note">Note</label>
-                <input id="fmm-close-note" class="avm-input" type="text" maxlength="300" autocomplete="off" @bind="_closeNote" @bind:event="oninput" />
+                <label class="avm-label" for="fmm-close-note">@(_deleting ? "Deletion reason *" : "Note")</label>
+                <input id="fmm-close-note" class="avm-input" type="text" maxlength="@(_deleting ? 500 : 300)" required="@_deleting" autocomplete="off" @bind="_closeNote" @bind:event="oninput" />
             </div>
             @if (!string.IsNullOrWhiteSpace(_formError)) { <div class="avm-error" role="alert">@_formError</div> }
         </form>
     </ChildContent>
     <Footer>
         <button type="button" class="btn-ghost" @onclick="CloseClose">Cancel</button>
-        <button type="submit" class="btn-primary" form="fmm-close-form" disabled="@_saving">Close registration</button>
+        <button type="submit" class="btn-primary" form="fmm-close-form" disabled="@_saving">@(_deleting ? "Delete registration" : "Close registration")</button>
     </Footer>
 </VendorDrawerShell>
 
@@ -184,6 +198,7 @@
     private List<VendorRegistrationManagementRow> _rows = [];
     private decimal _walkUp;
     private bool _loading = true, _saving, _renewing;
+    private bool _deleting;
     private string? _error, _formError, _saved;
 
     private VendorRegistrationManagementRow? _detail, _closing, _renewSource;
@@ -308,6 +323,7 @@
     // ── Close ──
     private void OpenClose(VendorRegistrationManagementRow row)
     {
+        _deleting = false;
         _detail = null;
         _closing = row;
         _closeNote = string.Empty;
@@ -317,10 +333,12 @@
     }
 
     private void CloseClose() => _closing = null;
+    private void OpenDelete(VendorRegistrationManagementRow row) { OpenClose(row); _deleting = true; }
 
     private async Task CloseAsync()
     {
         if (_saving || _closing is null) return;
+        if (_deleting && string.IsNullOrWhiteSpace(_closeNote)) { _formError = "Enter a deletion reason."; return; }
         _saving = true;
         _formError = null;
         var fingerprint = _closeNote.Trim();
@@ -328,9 +346,11 @@
         _submittedFingerprint = fingerprint;
         try
         {
-            var result = await OfficeApi.CloseRegistrationAsync(_closing.Registration.Id, new CloseVendorRegistrationRequest(_operationId, VendorRegistrationForm.Blank(_closeNote)));
+            var result = _deleting
+                ? await OfficeApi.DeleteRegistrationAsync(_closing.Registration.Id, new(_operationId, _closeNote.Trim()))
+                : await OfficeApi.CloseRegistrationAsync(_closing.Registration.Id, new CloseVendorRegistrationRequest(_operationId, VendorRegistrationForm.Blank(_closeNote)));
             if (!result.IsSuccess) { _formError = CloseProblem(result.Error, result.Status); return; }
-            _saved = $"{result.Value!.Registration.DisplayName} closed for {result.Value.Registration.TaxYear}.";
+            _saved = $"{result.Value!.Registration.DisplayName} {(_deleting ? "deleted" : "closed")} for {result.Value.Registration.TaxYear}.";
             _closing = null;
             await LoadAsync();
         }
@@ -341,6 +361,11 @@
     private static string CloseProblem(string? code, ResultStatus status) => code switch
     {
         "RegistrationClosed" => "This registration is already closed.",
+        "CloseRegistrationBeforeDelete" => "Refresh the list. Only a closed registration can be deleted.",
+        "RegistrationDeleted" => "This registration was already deleted. Refresh the list.",
+        "ReviewPendingNpmRequestsBeforeDelete" => "Review the pending NPM requests before deleting this registration.",
+        "InvalidDeletionEvidence" => "Enter a deletion reason (up to 500 characters).",
+        "RegistryConcurrencyConflict" => "Another update was saved. Refresh before trying again.",
         "RegistrationIntentConflict" => "This close was already submitted with a different note. Cancel and close again.",
         "InvalidCloseIntent" => "Check the note (up to 300 characters).",
         _ => status == ResultStatus.Forbidden ? "Only the Head can close a registration." : status == ResultStatus.NotFound ? "This registration is no longer available." : "The registration could not be closed."

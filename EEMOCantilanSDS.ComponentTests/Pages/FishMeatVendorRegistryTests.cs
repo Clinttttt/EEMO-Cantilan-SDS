@@ -57,11 +57,13 @@ public sealed class FishMeatVendorRegistryTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.Single(cut.FindAll("table"));
-            Assert.Equal(["Vendor", "Type", "Registration", "Address", "Collected this month"], cut.FindAll("thead th").Select(h => h.TextContent.Trim()).ToArray());
+            Assert.Equal(["Vendor / Business", "Type", "Registration", "Address", "Business activity", "Collected this month", "Action"], cut.FindAll("thead th").Select(h => h.TextContent.Trim()).ToArray());
             var rows = cut.FindAll("tbody tr").Select(r => r.TextContent).ToList();
             Assert.Contains(rows, r => r.Contains("Lisa Ilogans") && r.Contains("Ilogans Fish Stall") && r.Contains("Fish") && r.Contains("New") && r.Contains("Purok 3") && r.Contains("₱186.00"));
             Assert.Contains(rows, r => r.Contains("Pantom Dant") && r.Contains("Meat") && r.Contains("Renew") && r.Contains("₱0.00"));
-            Assert.Contains("num", cut.FindAll("tbody tr")[0].QuerySelectorAll("td").Last().ClassName);                              // right-aligned money
+            Assert.Contains("num", cut.FindAll("tbody tr")[0].QuerySelectorAll("td")[5].ClassName);
+            Assert.Contains("registrationId=", cut.Find("a[aria-label='Details for Lisa Ilogans']").GetAttribute("href"));
+            Assert.Contains("Not recorded", rows.Single(r => r.Contains("Pantom Dant")));
             foreach (var word in new[] { "Payor", "Stall rent", "Collections this month", "Walk-up" })
                 Assert.DoesNotContain(word, cut.Find("[aria-label='Registered vendors']").TextContent);
         }, Timeout);

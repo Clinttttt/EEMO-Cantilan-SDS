@@ -73,6 +73,7 @@ public sealed record CollectionSessionCapability(CollectionSessionItemKind? Kind
     public int EligibleChoiceCount => Choices?.Count ?? 0;
     public bool CanAutoSelect => CanAdd && EligibleChoiceCount == 1;
 }
+public enum LinkedNpmStatus { Available = 1, NotLinked = 2, AwaitingVerification = 3, NotEligibleForDate = 4, NotAuthorized = 5, Withdrawn = 6 }
 public sealed record CollectionSessionDiscovery(Guid? PayorId, DateOnly BusinessDate,
     IReadOnlyList<CollectionSessionCapability> Operations,
     IReadOnlyList<WcfMobileSourceDto>? WaterSources = null,
@@ -83,7 +84,7 @@ public sealed record CollectionSessionDiscovery(Guid? PayorId, DateOnly Business
     IReadOnlyList<SessionSlaughterOption>? SlaughterOptions = null, string? PayorDisplayName = null,
     IReadOnlyList<DirectVendorFeeSource>? VendorFeeSources = null, IReadOnlyList<WeighingSourceDto>? NpmSources = null,
     IReadOnlyList<SessionNpmWholeSource>? NpmWholeSources = null, CollectionSourceIdentity? SourceIdentity = null,
-    IReadOnlyList<CollectionSourceSearchResult>? LinkedSources = null);
+    IReadOnlyList<CollectionSourceSearchResult>? LinkedSources = null, LinkedNpmStatus? NpmLinkStatus = null);
 public sealed record CollectionSessionServiceTerms(GovernedServiceMode? Mode, GovernedServiceTermsDto Terms);
 
 // Display/selection facts only. A choice is not a reviewed quote and grants no posting authority.

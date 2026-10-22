@@ -26,7 +26,8 @@ public sealed partial class OfficeCollectionWorkflow
             where c.MunicipalityId == Tenant && s.MunicipalityId == Tenant && f.MunicipalityId == Tenant
                 && f.Code == FacilityCode.NPM && c.EffectivityDate <= new DateOnly(taxYear, 12, 31)
             select new { c, s, f }).ToListAsync(ct);
-        var vendors = await db.FishMeatVendorRegistrations.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.TaxYear == taxYear).ToListAsync(ct);
+        var vendors = await db.FishMeatVendorRegistrations.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.TaxYear == taxYear
+            && x.Status != VendorRegistrationStatus.Deleted).ToListAsync(ct);
         var vendorIds = vendors.Select(x => x.Id).ToArray();
         var links = await db.FishMeatNpmAssociations.AsNoTracking().Where(x => x.MunicipalityId == Tenant && vendorIds.Contains(x.VendorRegistrationId)).ToListAsync(ct);
         var rows = sources.Where(x => (historical || x.c.IsActive && x.s.Status == StallStatus.Active)

@@ -10,7 +10,7 @@ using Moq;
 
 namespace EEMOCantilanSDS.ComponentTests.Pages;
 
-/// <summary>Manage Fish / Meat Vendors: any tax year and month, status, the detail drawer, and the Head's Renew and Close. There is no delete.</summary>
+/// <summary>Manage annual registrations and the Head's distinct Close and logical Delete actions.</summary>
 public sealed class FishMeatVendorManageTests : TestContext
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
@@ -84,7 +84,7 @@ public sealed class FishMeatVendorManageTests : TestContext
     }
 
     [Fact]
-    public void TheTableShowsTheOfficeFactsOnly_WithStatusAndTheMonthsCollection_AndOffersNoDelete()
+    public void TheTableShowsOfficeFacts_AndDeleteOnlyForClosedRegistrations()
     {
         var cut = RenderComponent<FishMeatVendorManage>();
 
@@ -94,7 +94,7 @@ public sealed class FishMeatVendorManageTests : TestContext
             var rows = cut.FindAll("tbody tr").Select(r => r.TextContent).ToList();
             Assert.Contains(rows, r => r.Contains("Lisa Ilogans") && r.Contains("Ilogans Fish Stall") && r.Contains("Active") && r.Contains("₱186.00"));
             Assert.Contains(rows, r => r.Contains("Old Vendor") && r.Contains("Closed"));
-            Assert.DoesNotContain(cut.FindAll("button"), b => b.TextContent.Contains("Delete", StringComparison.OrdinalIgnoreCase));
+            Assert.Single(cut.FindAll("tbody tr button").Where(b => b.TextContent.Trim() == "Delete"));
             Assert.Contains("Walk-up Vendor Fee collected", cut.Find(".fmm-foot").TextContent);
             Assert.Contains("₱75.00", cut.Find(".fmm-foot").TextContent);
         }, Timeout);
@@ -104,7 +104,7 @@ public sealed class FishMeatVendorManageTests : TestContext
         Assert.NotNull(active.QuerySelector(".fmm-action-group[role='group']"));
         var closed = cut.FindAll("tbody tr").Single(r => r.TextContent.Contains("Old Vendor"));
         Assert.Equal(["Details", "Renew", "Close"], active.QuerySelectorAll("button").Select(b => b.TextContent.Trim()).ToArray());
-        Assert.Equal(["Details", "Renew"], closed.QuerySelectorAll("button").Select(b => b.TextContent.Trim()).ToArray());
+        Assert.Equal(["Details", "Renew", "Delete"], closed.QuerySelectorAll("button").Select(b => b.TextContent.Trim()).ToArray());
     }
 
     [Fact]
@@ -216,6 +216,28 @@ public sealed class FishMeatVendorManageTests : TestContext
             Assert.Contains("closed for", cut.Markup);
         }, Timeout);
         _office.Verify(x => x.ManageRegistrationsAsync(Year, Month, null, null), Times.AtLeast(2));
+    }
+
+    [Fact]
+    public void DeleteRequiresAReason_UsesTheClosedIdentity_AndPreservesTheNpmContract()
+    {
+        DeleteVendorRegistrationRequest? sent = null; Guid? target = null;
+        _office.Setup(x => x.DeleteRegistrationAsync(It.IsAny<Guid>(), It.IsAny<DeleteVendorRegistrationRequest>()))
+            .Callback<Guid, DeleteVendorRegistrationRequest>((id, request) => { target = id; sent = request; })
+            .ReturnsAsync(Result<VendorRegistrationMutationResult>.Success(new(_closed.Registration, VendorRegistrationStatus.Deleted,
+                null, null, null, null, null, false)));
+        var cut = RenderComponent<FishMeatVendorManage>();
+        cut.WaitForAssertion(() => Assert.Contains("Old Vendor", cut.Markup), Timeout);
+        Row(cut, "Old Vendor", "Delete");
+        Assert.Contains("NPM stall and contract", cut.Find("form[aria-label='Delete closed registration']").TextContent);
+        cut.Find("form[aria-label='Delete closed registration']").Submit();
+        Assert.Null(sent);
+        cut.Find("#fmm-close-note").Input("Reviewed duplicate");
+        cut.Find("form[aria-label='Delete closed registration']").Submit();
+        cut.WaitForAssertion(() => Assert.NotNull(sent), Timeout);
+        Assert.Equal(_closed.Registration.Id, target); Assert.Equal("Reviewed duplicate", sent!.Reason);
+        Assert.NotEqual(Guid.Empty, sent.ClientOperationId);
+        _office.Verify(x => x.CloseRegistrationAsync(It.IsAny<Guid>(), It.IsAny<CloseVendorRegistrationRequest>()), Times.Never);
     }
 
     [Fact]

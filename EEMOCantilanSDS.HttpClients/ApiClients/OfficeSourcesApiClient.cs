@@ -35,6 +35,8 @@ public sealed class OfficeSourcesApiClient(HttpClient http) : HandleResponse(htt
         PutAsync<CorrectVendorOfficeDetailsRequest, VendorRegistrationMutationResult>($"api/office-sources/fish-meat/registrations/{id}/office-details", request);
     public Task<Result<VendorRegistrationMutationResult>> CloseRegistrationAsync(Guid id, CloseVendorRegistrationRequest request) =>
         PostAsync<CloseVendorRegistrationRequest, VendorRegistrationMutationResult>($"api/office-sources/fish-meat/registrations/{id}/close", request);
+    public Task<Result<VendorRegistrationMutationResult>> DeleteRegistrationAsync(Guid id, DeleteVendorRegistrationRequest request) =>
+        PostAsync<DeleteVendorRegistrationRequest, VendorRegistrationMutationResult>($"api/office-sources/fish-meat/registrations/{id}/delete", request);
     public Task<Result<VendorRegistrationMutationResult>> RenewRegistrationAsync(Guid id, RenewVendorRegistrationRequest request) =>
         PostAsync<RenewVendorRegistrationRequest, VendorRegistrationMutationResult>($"api/office-sources/fish-meat/registrations/{id}/renew", request);
     public Task<Result<IReadOnlyList<TerminalVehicleChoice>>> VehicleChoicesAsync(DateOnly date) => GetAsync<IReadOnlyList<TerminalVehicleChoice>>($"api/office-sources/terminal/vehicle-choices?date={date:yyyy-MM-dd}");

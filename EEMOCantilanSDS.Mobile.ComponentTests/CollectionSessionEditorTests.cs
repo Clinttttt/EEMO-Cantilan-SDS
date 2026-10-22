@@ -92,7 +92,7 @@ public sealed class CollectionSessionEditorTests : TestContext
                 Native(CollectorOperationCodes.FishMeatVendorFee, "Fish / Meat Vendor Fee", "Pantom Dant", new(VendorRegistrationId: FishVendor.Id), RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.DirectAmount)),
          Op(CollectionSessionItemKind.SourceNative, CollectorOperationCodes.WeightAndMeasure, "Weight & Measure", CollectionFamily.Market,
                 Native(CollectorOperationCodes.WeightAndMeasure, "Weight & Measure", "Meat", new(VendorRegistrationId: FishVendor.Id), RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.QuantityRate, 66m))],
-        SourceIdentity: FishVendor)));
+        SourceIdentity: FishVendor, NpmLinkStatus: LinkedNpmStatus.NotLinked)));
 
     private void ServeDirect() => _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(null)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(new(null, Today,
         [Op(CollectionSessionItemKind.SourceNative, CollectorOperationCodes.FishMeatVendorFee, "Fish / Meat Vendor Fee", CollectionFamily.Market,
@@ -438,6 +438,24 @@ public sealed class CollectionSessionEditorTests : TestContext
         Assert.Equal(["Fish / Meat Vendor Fee", "Weight & Measure"], offered);
         _api.Verify(x => x.GetSourceCollectionDiscoveryAsync(FishVendor), Times.AtLeastOnce);
         _api.Verify(x => x.GetSourceCollectionDiscoveryAsync(null), Times.Never);       // direct operations were never mixed into the source
+    }
+
+    [Theory]
+    [InlineData(LinkedNpmStatus.NotAuthorized, "not assigned")]
+    [InlineData(LinkedNpmStatus.NotEligibleForDate, "eligible for this collection date")]
+    [InlineData(LinkedNpmStatus.AwaitingVerification, "awaiting office verification")]
+    [InlineData(LinkedNpmStatus.Withdrawn, "link was withdrawn")]
+    public void Npm_link_diagnostics_do_not_offer_duplicate_registration_requests(LinkedNpmStatus status, string text)
+    {
+        ServeFishVendor();
+        var served = _api.Object.GetSourceCollectionDiscoveryAsync(FishVendor).GetAwaiter().GetResult().Value!;
+        _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(FishVendor)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(served with { NpmLinkStatus = status }));
+        var view = PickSource("Pantom Dant");
+        view.WaitForAssertion(() => Assert.Contains(text, view.Markup));
+        Assert.Empty(view.FindComponents<NpmRegistrationRequestForm>());
+        Click(view, "+ Add item");
+        Assert.Contains(text, view.Find("[role=dialog]").TextContent);
+        Assert.Empty(view.FindComponents<NpmRegistrationRequestForm>());
     }
 
     [Fact]

@@ -4,6 +4,19 @@ namespace EEMOCantilanSDS.Testing;
 
 public class FishMeatRegistryLifecycleTests
 {
+    [Fact]
+    public void Delete_is_a_reasoned_tombstone_after_close_and_preserves_registration_identity()
+    {
+        var vendor = Vendor(); var id = vendor.Id;
+        Assert.Throws<InvalidOperationException>(() => vendor.DeleteClosed(Guid.NewGuid(), "Head", "Reason", DateTime.UtcNow));
+        vendor.Close(Guid.NewGuid(), new(2026, 10, 22), "Head", "Closed");
+        Assert.Throws<ArgumentException>(() => vendor.DeleteClosed(Guid.NewGuid(), "Head", " ", DateTime.UtcNow));
+        vendor.DeleteClosed(Guid.NewGuid(), "Head", "Reviewed", DateTime.UtcNow);
+        Assert.Equal(id, vendor.Id); Assert.Equal(VendorRegistrationStatus.Deleted, vendor.Status);
+        Assert.Equal("Reviewed", vendor.DeleteReason); Assert.NotNull(vendor.DeletedAtUtc); Assert.NotNull(vendor.ClosedAtUtc);
+        Assert.Throws<InvalidOperationException>(() => vendor.DeleteClosed(Guid.NewGuid(), "Head", "Reason", DateTime.UtcNow));
+    }
+
     private static FishMeatVendorRegistration Vendor() => FishMeatVendorRegistration.Register(Guid.NewGuid(), Guid.NewGuid(), 2026,
         FishMeatVendorType.Fish, VendorRegistrationKind.New, " Vendor ", "Business", "Address", "Reference", "Head");
     [Fact]

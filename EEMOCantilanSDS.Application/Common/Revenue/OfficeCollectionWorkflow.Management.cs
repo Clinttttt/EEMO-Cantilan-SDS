@@ -10,7 +10,8 @@ public sealed partial class OfficeCollectionWorkflow
 {
     private bool RegistryHead => TenantValid && user.IsAuthenticated && user.Role == "SuperAdmin";
     private static VendorRegistrationMutationResult Mutation(FishMeatVendorRegistration r, bool replay) =>
-        new(ToDto(r), r.Status, r.PriorRegistrationId, r.ClosedOn, r.ClosedAtUtc, r.ClosedBy, r.CloseNote, replay);
+        new(ToDto(r), r.Status, r.PriorRegistrationId, r.ClosedOn, r.ClosedAtUtc, r.ClosedBy, r.CloseNote, replay,
+            r.DeletedAtUtc, r.DeletedBy, r.DeleteReason);
 
     /// <summary>Correct office register fields in place. Registration ownership and the previous
     /// exact snapshot are checked before saving, so an old drawer cannot silently overwrite a
@@ -28,6 +29,8 @@ public sealed partial class OfficeCollectionWorkflow
             var registration = await db.FishMeatVendorRegistrations.SingleOrDefaultAsync(
                 x => x.MunicipalityId == Tenant && x.Id == id, ct);
             if (registration is null) return Result<VendorRegistrationMutationResult>.NotFound();
+            if (registration.Status == VendorRegistrationStatus.Deleted)
+                return Result<VendorRegistrationMutationResult>.Failure("RegistrationDeleted", ResultStatus.Conflict);
             var prior = ToDto(registration);
             if (prior != request.Before)
                 return Result<VendorRegistrationMutationResult>.Failure("RegistryConcurrencyConflict", ResultStatus.Conflict);
@@ -67,7 +70,7 @@ public sealed partial class OfficeCollectionWorkflow
                     : Result<VendorRegistrationMutationResult>.Failure("RegistrationIntentConflict", ResultStatus.Conflict);
             var registration = await db.FishMeatVendorRegistrations.SingleOrDefaultAsync(x => x.MunicipalityId == Tenant && x.Id == id, ct);
             if (registration is null) return Result<VendorRegistrationMutationResult>.NotFound();
-            if (registration.Status == VendorRegistrationStatus.Closed)
+            if (registration.Status != VendorRegistrationStatus.Active)
                 return Result<VendorRegistrationMutationResult>.Failure("RegistrationClosed", ResultStatus.Conflict);
             registration.Close(request.ClientOperationId, clock.PhilippineToday, user.Username ?? "Head", note);
             await db.SaveChangesAsync(ct);
@@ -102,6 +105,8 @@ public sealed partial class OfficeCollectionWorkflow
                     : Result<VendorRegistrationMutationResult>.Failure("RegistrationIntentConflict", ResultStatus.Conflict);
             if (await db.FishMeatVendorRegistrations.AnyAsync(x => x.MunicipalityId == Tenant && x.PriorRegistrationId == id && x.TaxYear == request.TaxYear, ct))
                 return Result<VendorRegistrationMutationResult>.Failure("RenewalAlreadyExists", ResultStatus.Conflict);
+            if (source.Status == VendorRegistrationStatus.Deleted)
+                return Result<VendorRegistrationMutationResult>.Failure("RegistrationDeleted", ResultStatus.Conflict);
             db.FishMeatVendorRegistrations.Add(candidate);
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct); committed = true;
@@ -119,10 +124,11 @@ public sealed partial class OfficeCollectionWorkflow
     {
         if (!TenantValid || !user.IsAuthenticated || user.Role is not ("SuperAdmin" or "Admin")) return Result<VendorRegistryManagement>.Forbidden();
         var activityYear = year ?? taxYear;
+        if (status == VendorRegistrationStatus.Deleted && !RegistryHead) return Result<VendorRegistryManagement>.Forbidden();
         if (taxYear is < 2000 or > 2200 || activityYear is < 2000 or > 2200 || month is < 1 or > 12 || status.HasValue && !Enum.IsDefined(status.Value))
             return Result<VendorRegistryManagement>.Failure("InvalidPeriod", ResultStatus.Invalid);
         var registrations = await db.FishMeatVendorRegistrations.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.TaxYear == taxYear
-            && (status == null || x.Status == status)).OrderBy(x => x.DisplayName).ThenBy(x => x.Id).ToListAsync(ct);
+            && (status == null ? x.Status != VendorRegistrationStatus.Deleted : x.Status == status)).OrderBy(x => x.DisplayName).ThenBy(x => x.Id).ToListAsync(ct);
         var from = new DateOnly(activityYear, month, 1);
         // Reuse canonical source activity, including reversal effects. Frozen registration IDs alone attribute money.
         var activity = await ActivityAsync(from, from.AddMonths(1).AddDays(-1), ct: ct);
@@ -136,7 +142,8 @@ public sealed partial class OfficeCollectionWorkflow
         var rows = registrations.Select(r => new VendorRegistrationManagementRow(ToDto(r), r.Status, r.CreatedBy, r.RecordedAtUtc,
             r.ClosedOn, r.ClosedAtUtc, r.ClosedBy, r.CloseNote, r.PriorRegistrationId,
             vendorMoney[r.Id].Where(x => x.OperationCode == CollectorOperationCodes.FishMeatVendorFee).Sum(x => x.NetAmount),
-            vendorMoney[r.Id].Where(x => x.OperationCode == CollectorOperationCodes.WeightAndMeasure).Sum(x => x.NetAmount))).ToArray();
+            vendorMoney[r.Id].Where(x => x.OperationCode == CollectorOperationCodes.WeightAndMeasure).Sum(x => x.NetAmount),
+            r.DeletedAtUtc, r.DeletedBy, r.DeleteReason)).ToArray();
         return Result<VendorRegistryManagement>.Success(new(taxYear, activityYear, month, rows,
             vendorMoney[null].Where(x => x.OperationCode == CollectorOperationCodes.FishMeatVendorFee).Sum(x => x.NetAmount)));
     }

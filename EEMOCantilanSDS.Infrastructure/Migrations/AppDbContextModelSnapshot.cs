@@ -3325,6 +3325,20 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<Guid?>("DeleteClientOperationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DeleteReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<string>("DisplayName")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -3371,6 +3385,7 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .HasColumnType("character varying(30)");
 
                     b.Property<int>("Status")
+                        .IsConcurrencyToken()
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
                         .HasDefaultValue(1);
@@ -3390,13 +3405,19 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("\"CloseClientOperationId\" IS NOT NULL");
 
+                    b.HasIndex("MunicipalityId", "DeleteClientOperationId")
+                        .IsUnique()
+                        .HasFilter("\"DeleteClientOperationId\" IS NOT NULL");
+
                     b.HasIndex("MunicipalityId", "PriorRegistrationId", "TaxYear")
                         .IsUnique()
                         .HasFilter("\"PriorRegistrationId\" IS NOT NULL");
 
                     b.ToTable("FishMeatVendorRegistrations", null, t =>
                         {
-                            t.HasCheckConstraint("CK_VendorRegistration_Lifecycle", "(\"Status\" = 1 AND \"CloseClientOperationId\" IS NULL AND \"ClosedOn\" IS NULL AND \"ClosedAtUtc\" IS NULL AND \"ClosedBy\" IS NULL AND \"CloseNote\" IS NULL) OR (\"Status\" = 2 AND \"CloseClientOperationId\" IS NOT NULL AND \"ClosedOn\" IS NOT NULL AND \"ClosedAtUtc\" IS NOT NULL AND \"ClosedBy\" IS NOT NULL)");
+                            t.HasCheckConstraint("CK_VendorRegistration_Deletion", "(\"Status\" IN (1,2) AND \"DeleteClientOperationId\" IS NULL AND \"DeletedAtUtc\" IS NULL AND \"DeletedBy\" IS NULL AND \"DeleteReason\" IS NULL) OR (\"Status\" = 3 AND \"DeleteClientOperationId\" IS NOT NULL AND \"DeletedAtUtc\" IS NOT NULL AND \"DeletedBy\" IS NOT NULL AND \"DeleteReason\" IS NOT NULL AND length(btrim(\"DeletedBy\")) > 0 AND length(btrim(\"DeleteReason\")) > 0)");
+
+                            t.HasCheckConstraint("CK_VendorRegistration_Lifecycle", "(\"Status\" = 1 AND \"CloseClientOperationId\" IS NULL AND \"ClosedOn\" IS NULL AND \"ClosedAtUtc\" IS NULL AND \"ClosedBy\" IS NULL AND \"CloseNote\" IS NULL) OR (\"Status\" IN (2,3) AND \"CloseClientOperationId\" IS NOT NULL AND \"ClosedOn\" IS NOT NULL AND \"ClosedAtUtc\" IS NOT NULL AND \"ClosedBy\" IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_VendorRegistration_Type", "\"VendorType\" IN (1,2) AND \"RegistrationKind\" IN (1,2)");
 

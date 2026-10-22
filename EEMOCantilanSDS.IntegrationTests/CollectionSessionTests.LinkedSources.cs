@@ -52,6 +52,11 @@ public sealed partial class CollectionSessionTests
         Assert.True((await flow.QuoteAsync(Intent(linked.Id, electricity))).Value!.CanRecord);
         Assert.False((await flow.QuoteAsync(Intent(sameName.Id, electricity))).Value!.CanRecord);
         Assert.False((await flow.QuoteAsync(Intent(linked.Id, new(Guid.NewGuid(), CollectionSessionItemKind.NpmDaily, 30m, NpmDaily: new(Guid.NewGuid()))))).Value!.CanRecord);
+        await head.CloseRegistrationAsync(linked.Id, new(Guid.NewGuid()));
+        Assert.False((await flow.QuoteAsync(Intent(linked.Id, electricity))).Value!.CanRecord);
+        Assert.True((await flow.QuoteAsync(Intent(linked.Id, electricity) with {
+            SourceIdentity = new(SourceIdentityKind.Occupancy, source.ContractId) })).Value!.CanRecord);
+        Assert.Null((await db.FishMeatNpmAssociations.SingleAsync()).CorrectedAtUtc);
         Assert.Empty(await db.Collections.ToListAsync());                   // discovery and quotes recorded and changed nothing
     }
 

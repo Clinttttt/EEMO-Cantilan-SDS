@@ -59,6 +59,7 @@ public sealed partial class CollectionSessionSources
     {
         var rows = new List<CollectionSessionCapability>();
         var linked = new List<CollectionSourceSearchResult>();   // office-confirmed related sources (their items are listed with the vendor's own)
+        LinkedNpmStatus? npmLinkStatus = null;
         async Task AddOffice(string operation, SourceNativeChargeIntent charge, string display, string context, CollectionSessionAmountRule rule, CollectionFamily family)
         {
             var q = await Office.QuoteAsync(new(Guid.Empty, date, 1m, charge, "quote"), ct);
@@ -77,6 +78,7 @@ public sealed partial class CollectionSessionSources
             {
                 var linkedStalls = await LinkedNpmSourcesAsync(vendor.Id, date, ct);
                 linked.AddRange(linkedStalls);
+                npmLinkStatus = await LinkedNpmStatusAsync(vendor.Id, linkedStalls.Count > 0, ct);
                 // The office-linked stall's own rent and utilities are items of this same checkout: one list for the collector, each item quoted and
                 // posted by the stall's own source as its own Collection (no payer or balance is merged).
                 foreach (var stall in linkedStalls)
@@ -84,6 +86,7 @@ public sealed partial class CollectionSessionSources
                 await AddOffice(CollectorOperationCodes.FishMeatVendorFee, new(CollectorOperationCodes.FishMeatVendorFee, vendor.Id), "Fish / Meat Vendor Fee", vendor.DisplayName, CollectionSessionAmountRule.DirectAmount, CollectionFamily.Market);
                 await AddOffice(CollectorOperationCodes.WeightAndMeasure, new(CollectorOperationCodes.WeightAndMeasure, vendor.Id, Kilograms: 1m), "Weight & Measure", vendor.VendorType.ToString(), CollectionSessionAmountRule.QuantityRate, CollectionFamily.Market);
             }
+            else npmLinkStatus = LinkedNpmStatus.NotEligibleForDate;
         }
         else if (identity is null)
             await AddOffice(CollectorOperationCodes.FishMeatVendorFee, new(CollectorOperationCodes.FishMeatVendorFee), "Fish / Meat Vendor Fee", "Payer Snapshot", CollectionSessionAmountRule.DirectAmount, CollectionFamily.Market);
@@ -195,7 +198,7 @@ public sealed partial class CollectionSessionSources
         return new(null, date, rows.GroupBy(x => x.OperationCode).Select(g => g.First() with {
             DisplayName = g.Key == CollectorOperationCodes.Terminal ? "Income From Terminal" : g.First().DisplayName,
             Choices = g.SelectMany(x => x.Choices ?? []).OrderBy(x => x.SelectionKey, StringComparer.Ordinal).ToArray()
-        }).ToArray(), SourceIdentity: identity, LinkedSources: linked.Count == 0 ? null : linked);
+        }).ToArray(), SourceIdentity: identity, LinkedSources: linked.Count == 0 ? null : linked, NpmLinkStatus: npmLinkStatus);
     }
     private async Task<bool> NativeItemMatchesAsync(CollectionSessionIntent session, CollectionSessionItemIntent item, CancellationToken ct)
     {
