@@ -169,22 +169,6 @@
             </ul>
         </section>
 
-        @* Office-defined facilities that are not an official Monthly Income line. *@
-        @if (OtherEconomicEnterpriseWorkspaces.Any())
-        {
-            <section class="ops-group" aria-labelledby="other-operations-title">
-                <h2 id="other-operations-title" class="ops-group-title">Configured enterprises</h2>
-                <ul class="ops-rows" aria-label="Other configured economic-enterprise workspaces">
-                    @foreach (var facility in OtherEconomicEnterpriseWorkspaces)
-                    {
-                        <li class="ops-item" data-facility-code="@facility.Code">
-                            @Line(facility.Name, facility.Code.ToString(), NoReceipt, FacilityHref(facility),
-                                  $"{facility.Name} ({facility.Code})", NoLinks, NoWorkspace)
-                        </li>
-                    }
-                </ul>
-            </section>
-        }
     </div>
 </div>
 
@@ -261,16 +245,12 @@
     public TenantOperationSettingsDto? CachedSettings { get; set; }
 
     private IEnumerable<FacilitySidebarSummaryDto> RentIncomeFacilities =>
-        new[] { FacilityCode.NPM, FacilityCode.NCC, FacilityCode.TCC, FacilityCode.BBQ }
+        new[] { FacilityCode.NPM, FacilityCode.NCC, FacilityCode.TCC, FacilityCode.BBQ, FacilityCode.Custom1, FacilityCode.Custom2, FacilityCode.Custom3, FacilityCode.Custom4, FacilityCode.Custom5 }
             .Select(ConfiguredFacility)
             .OfType<FacilitySidebarSummaryDto>();
 
     private FacilitySidebarSummaryDto? SlaughterhouseWorkspace =>
         ConfiguredFacility(FacilityCode.SLH);
-
-    private IEnumerable<FacilitySidebarSummaryDto> OtherEconomicEnterpriseWorkspaces => _facilities
-        .Where(facility => IsRouteable(facility.Code) && IsCustomFacility(facility.Code))
-        .OrderBy(facility => facility.Code);
 
     protected override Task OnInitializedAsync()
     {

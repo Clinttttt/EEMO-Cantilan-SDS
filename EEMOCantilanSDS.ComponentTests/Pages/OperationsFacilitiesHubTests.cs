@@ -178,7 +178,9 @@ public sealed class OperationsFacilitiesHubTests : TestContext
             Assert.Contains("Fines & Penalties",fines.TextContent);
             Assert.DoesNotContain("Official Receipt",arrears.TextContent);
             Assert.Contains("Others",cut.Markup);
-            Assert.Contains("Configured enterprises",cut.Markup);
+            Assert.DoesNotContain("Configured enterprises",cut.Markup);
+            var rentGroup = cut.Find("section[aria-labelledby='rent-income-title']");
+            Assert.Contains(rentGroup.QuerySelectorAll("[data-facility-code]"), row => row.GetAttribute("data-facility-code") == "Custom1");
             Assert.Contains("/operations/arrears/report",cut.Markup);
             SpaceHolderWorkspaceTests.SaveVisualArtifact("operations-others",cut.Markup);
         },Timeout);
