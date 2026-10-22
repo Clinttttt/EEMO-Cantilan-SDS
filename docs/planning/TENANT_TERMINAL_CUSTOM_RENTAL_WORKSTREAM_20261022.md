@@ -76,3 +76,9 @@ This addendum supersedes the "not implemented" Terminal status in the original c
 - Custom1–Custom5 remain **monthly Stall Rent**, not generic Space Rental. An arbitrary monthly Space Rental is **still not implemented**, pending an approved `ObligationAccount` source contract, classification, period allocation and report placement. Existing `RENT_OTHER` official grouping remains subject to office acceptance before merge.
 
 No production migration, production release, merge to `master`, or collector APK is approved by this candidate work.
+
+## Owner clarification — Custom Spaces monthly engine (2026-10-22)
+
+The owner explicitly approved reusing the established monthly Stall Rent obligations, contracts, payments, correction and receipt engine for **Custom Spaces**. These two custom source types differ in **category and UI/report placement**, not in monthly charge cadence or the underlying money workflow.
+
+Required future shape: a stable tenant-scoped custom facility identity with a declared `Space` versus `Stall Rent` category; display each in its appropriate existing Operations section; continue using its own source ID, period, occupant, rate and payment records. Changing category must not move old money or silently relabel historical official report rows. The official monthly statement's `RENT_OTHER` mapping for custom Spaces must be approved and made explicit (not inferred from shared billing code). This clarification supersedes the earlier recommendation that Custom Spaces necessarily require a new obligation engine. **No Custom Spaces implementation or financial-source migration is implied by this documentation change.**

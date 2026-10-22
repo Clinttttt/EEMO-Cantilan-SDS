@@ -38,6 +38,15 @@
                      Actions="@ToolbarActions">
             </Toolbar>
 
+            @if (FacilityCodeEnum == FacilityCode.NPM)
+            {
+                <div style="display:flex;align-items:center;gap:12px;margin:0 0 12px;max-width:330px;">
+                    <span style="white-space:nowrap;font-size:13px;">Market section</span>
+                    <FhSelect Block="true" Value="@_marketAreaFilter" Options="MonthlyMarketAreaFilters"
+                              ValueChanged="v => _marketAreaFilter = v" />
+                </div>
+            }
+
             <RentalSummaryStrip Title="@(FacilityCodeEnum == FacilityCode.NCC ? "Stall Rent" : $"All {SpaceWord}s")"
                                 Description="@FacilityDescription" Paid="PaidCount" Unpaid="UnpaidCount" Partial="PartialCount"
                                 Collected="@(_summary is null ? "—" : $"₱{_summary.TotalRevenue:N0}")" />
@@ -75,6 +84,7 @@
                 @bind-FormError="VendorErrorMessage"
                 FieldErrors="VendorFieldErrors"
                 FacilityOptions="FacilityOptions"
+                CustomSectionNames="_marketCustomSections"
                 FacilityLocked="true"
                 ExistingStallNos="FacilityStallNos"
                 ReuseOfferMessage="@_vendorReuseOffer"
@@ -111,6 +121,8 @@
     [Parameter] public Func<TStall, string> StallNoSelector { get; set; } = null!;
     [Parameter] public Func<TStall, string> ActualOccupantSelector { get; set; } = null!;
     [Parameter] public Func<TStall, string> ContractNameSelector { get; set; } = null!;
+    [Parameter] public Func<TStall, MarketSection?>? MarketSectionSelector { get; set; }
+    [Parameter] public Func<TStall, string?>? CustomMarketSectionSelector { get; set; }
     [Parameter] public Action<TStall, string> ORNumberSetter { get; set; } = null!;
     [Parameter] public string? ReportsUrl { get; set; }
 
@@ -137,6 +149,8 @@
     private string VendorErrorMessage { get; set; } = string.Empty;
     private Dictionary<string, string> VendorFieldErrors { get; set; } = new();
     private AddVendorModal.VendorModalForm VendorForm = new();
+    private List<string> _marketCustomSections = [];
+    private string _marketAreaFilter = "all";
 
     [PersistentState(AllowUpdates = true)]
     public FacilityPagePersistentState? CachedFacilityState { get; set; }
@@ -156,6 +170,14 @@
             && CachedFacilityState.Year == _statePeriod.Year
             && CachedFacilityState.Month == _statePeriod.Month)
         {
+            // The persisted stall roster does not cache tenant-defined section names.
+            if (FacilityCodeEnum == FacilityCode.NPM)
+            {
+                var sectionsResult = await FacilitiesApi.GetNpmCustomSectionsAsync();
+                _marketCustomSections = sectionsResult.IsSuccess && sectionsResult.Value is not null
+                    ? sectionsResult.Value.Where(s => !s.IsClosed).Select(s => s.Name).ToList()
+                    : [];
+            }
             LoadStallsFromPersistentState(CachedFacilityState);
             _loading = false;
             return;
@@ -180,6 +202,13 @@
 
     private async Task LoadStallsFromApi()
     {
+        if (FacilityCodeEnum == FacilityCode.NPM)
+        {
+            var sectionsResult = await FacilitiesApi.GetNpmCustomSectionsAsync();
+            _marketCustomSections = sectionsResult.IsSuccess && sectionsResult.Value is not null
+                ? sectionsResult.Value.Where(s => !s.IsClosed).Select(s => s.Name).ToList()
+                : [];
+        }
         var summary = await FacilitiesApi.GetFacilityReportsAsync(FacilityCodeEnum, ReportPeriod.Monthly, _statePeriod.Year, _statePeriod.Month);
         _summary = summary?.IsSuccess == true ? summary.Value : null;
         var stallsTask = StallsApi.GetStallsByFacilityPaginatedAsync(FacilityCodeEnum, null, null, 100);
@@ -273,8 +302,29 @@
             || ActualOccupantSelector(s).Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
             || StallNoSelector(s).Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
             || ContractNameSelector(s).Contains(SearchQuery, StringComparison.OrdinalIgnoreCase);
-        return matchStatus && matchSearch;
+        return matchStatus && matchSearch && MatchesMonthlyMarketArea(s);
     }).OrderBy(s => NaturalStallKey(StallNoSelector(s)), StringComparer.Ordinal);
+
+    private IReadOnlyList<(string Value, string Label)> MonthlyMarketAreaFilters =>
+        new List<(string Value, string Label)>
+        {
+            ("all", "All Sections"),
+            ("section:VegetableArea", Facilities.SectionLabelOf(FacilityCode.NPM, MarketSection.VegetableArea)),
+            ("section:FishSection", Facilities.SectionLabelOf(FacilityCode.NPM, MarketSection.FishSection)),
+            ("section:MeatSection", Facilities.SectionLabelOf(FacilityCode.NPM, MarketSection.MeatSection))
+        }.Concat(_marketCustomSections.Select(name => ($"custom:{name}", name))).ToList();
+
+    private bool MatchesMonthlyMarketArea(TStall stall)
+    {
+        if (FacilityCodeEnum != FacilityCode.NPM || _marketAreaFilter == "all") return true;
+        if (_marketAreaFilter.StartsWith("section:", StringComparison.Ordinal))
+            return string.Equals(MarketSectionSelector?.Invoke(stall)?.ToString(),
+                _marketAreaFilter["section:".Length..], StringComparison.Ordinal);
+        if (_marketAreaFilter.StartsWith("custom:", StringComparison.Ordinal))
+            return string.Equals(CustomMarketSectionSelector?.Invoke(stall),
+                _marketAreaFilter["custom:".Length..], StringComparison.OrdinalIgnoreCase);
+        return false;
+    }
 
     // Orders stall numbers naturally ("2" before "10") by zero-padding digit runs, matching the
     // backend report ordering. Plain string ordering put "10" before "2".
@@ -413,14 +463,14 @@
 
     private List<AddVendorModal.VendorFacilityOption> FacilityOptions => new()
     {
-        new() { Code = FacilityShortCode, Name = FacilityName }
+        new() { Code = FacilityCodeEnum == FacilityCode.NPM ? nameof(FacilityCode.NPM) : FacilityShortCode, Name = FacilityName }
     };
 
     private void OpenAddVendorModal()
     {
         VendorForm = new()
         {
-            FacilityCode = FacilityShortCode,
+            FacilityCode = FacilityCodeEnum == FacilityCode.NPM ? nameof(FacilityCode.NPM) : FacilityShortCode,
             StallNo = string.Empty,
             ActualOccupant = string.Empty,
             ContractName = string.Empty,
@@ -483,12 +533,27 @@
                 : (NccAreaLocation?)null;
         }
 
+        MarketSection? npmSection = null;
+        string? npmCustomSection = null;
+        if (FacilityCodeEnum == FacilityCode.NPM)
+        {
+            var chosen = MonthlyMarketSectionSelection.Resolve(VendorForm.SelectedSection, VendorForm.CustomSectionName);
+            if (chosen.Error is not null)
+            {
+                VendorFieldErrors["Section"] = chosen.Error;
+                return;
+            }
+            npmSection = chosen.Section;
+            npmCustomSection = chosen.CustomSectionName;
+            if (npmSection == MarketSection.FishSection) fees |= ApplicableFees.FishFee;
+        }
+
         var command = new Application.Command.Stalls.CreateStall.CreateStallCommand(
             FacilityCodeEnum,
             VendorForm.StallNo.Trim(),
             VendorForm.MonthlyRate,
             fees,
-            null,
+            npmSection,
             nccAreaLocation,
             VendorForm.AreaSqm > 0 ? VendorForm.AreaSqm : null,
             nccAreaNote,
@@ -497,6 +562,7 @@
             string.IsNullOrWhiteSpace(VendorForm.ContractName) ? null : VendorForm.ContractName.Trim(),
             VendorForm.ContractDate,
             VendorForm.ContractYears,
+            CustomSectionName: npmCustomSection,
             ReuseVacatedStall: _takeOverVacatedStall,
             Arrangement: VendorForm.Arrangement);
 
