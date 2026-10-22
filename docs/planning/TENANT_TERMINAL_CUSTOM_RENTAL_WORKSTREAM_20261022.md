@@ -61,3 +61,18 @@ The user's requested Space Rental `+ Add New` cannot use `Custom1..Custom5` as t
 A production-valid generic custom Space Rental needs an explicit new stable source identity/tenant space-category registry, configured period and rate policy, contract terms where applicable, source versioning, obligor/space lookup, OR policy, Mobile permissions/choice generation, corrections/reversals, and report/source totals. Until that is built and tested, do not ship an onboarding `+ Add New` that invents an unsupported `ObligationKind` or misroutes it to the Custom Stall Rent endpoint. An LGU can already rename/select the existing built-in space operations through tenant operation settings; that is NOT the same as adding multiple independent sources.
 
 No code, migrations, or production changes for a **generic custom Space Rental** were made in this phase. This is a deliberate explicitly recorded functional boundary rather than a dummy button.
+
+## Candidate implementation update — 22 October 2026 (isolated worktrees)
+
+This addendum supersedes the "not implemented" Terminal status in the original checkpoint above; that historical checkpoint is retained for traceability.
+
+- Terminal sections are now modeled by tenant-owned `TerminalSectionSettings` with the stable three-section enum, optional local names, enabled state, version/concurrency, and audit properties. Migration `AddTenantTerminalSectionSettings20261022` adds a separate table/index; it does not alter collection lines or receipts.
+- Versioned Landing Terminal declarations persist through draft editing, validation, operator review, and activation. Old drafts without declarations keep the old all-enabled fallback; unknown/future declarations remain preserved and block activation rather than being interpreted as empty.
+- Activation seeds section settings and **selected classification identities only**, with **no Cash Ticket policy or collector assignment**. An LGU Head approves an effective-dated instrument policy separately in Revenue Setup.
+- A Head-only tenant-matched API supports post-activation edits with optimistic concurrency. Mobile source discovery, capability checks, server quotes/posting, and vehicle mapping exclude disabled sections. The Web Terminal operations and register report render the LGU's section names; official classification codes and posted monetary records remain unchanged.
+- Operator Validation and Activation screens display the exact selected/not-selected Terminal sections and local names.
+- Verified during this workstream: successful Landing production build and 88 Landing tests, successful Admin production build and 153 Admin tests (verification must be repeated after any later edit), successful EEMO Client build, and passing targeted .NET tests. See local worktree logs for run details.
+- **Not release approval:** Browser acceptance at actual viewport sizes, full suites, disposable PostgreSQL migration/tenant-isolation tests, and historical report reconciliation against a real multi-LGU data fixture remain prerequisites to a merge/deployment.
+- Custom1–Custom5 remain **monthly Stall Rent**, not generic Space Rental. An arbitrary monthly Space Rental is **still not implemented**, pending an approved `ObligationAccount` source contract, classification, period allocation and report placement. Existing `RENT_OTHER` official grouping remains subject to office acceptance before merge.
+
+No production migration, production release, merge to `master`, or collector APK is approved by this candidate work.

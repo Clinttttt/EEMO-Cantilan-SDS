@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
 using Microsoft.AspNetCore.Authorization;
@@ -11,11 +12,14 @@ namespace EEMOCantilanSDS.Api.Controllers;
 /// <summary>Stable, tenant-owned Terminal sections. Head edits never authorize a Cash Ticket policy.</summary>
 [ApiController]
 [Route("api/terminal-sections")]
-public sealed class TerminalSectionsController(IAppDbContext db, ICurrentUserService user) : ControllerBase
+public sealed class TerminalSectionsController(IAppDbContext db, ICurrentUserService user,
+    ICurrentMunicipalityAccessor municipality) : ControllerBase
 {
 
 
-    private Guid Tenant => user.MunicipalityId ?? Guid.Empty;
+    // Refuse a missing or mismatched authenticated tenant before the global database filter is queried.
+    private Guid Tenant => user.MunicipalityId is { } claim && claim != Guid.Empty
+        && claim == municipality.MunicipalityId ? claim : Guid.Empty;
 
     [HttpGet]
     [Authorize(Roles = "SuperAdmin,Admin,Collector")]

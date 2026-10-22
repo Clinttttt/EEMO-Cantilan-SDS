@@ -173,11 +173,17 @@ public sealed partial class CollectionSessionSources
         // Payer-optional services are offered only to a direct session (no Source Identity); a selected source never carries them.
         if (identity is null)
         {
-        foreach (var section in (await TerminalSectionSettingsStore.ReadAsync(db, Tenant, ct)).Where(x => x.IsEnabled)) await AddOffice(CollectorOperationCodes.Terminal, new(CollectorOperationCodes.Terminal, Section: section.Section),
-            section.DisplayName, "Income From Terminal", CollectionSessionAmountRule.DirectAmount, CollectionFamily.Terminal);
+        var terminalSections = (await TerminalSectionSettingsStore.ReadAsync(db, Tenant, ct))
+            .Where(x => x.IsEnabled).ToDictionary(x => x.Section);
+        foreach (var section in terminalSections.Values)
+            await AddOffice(CollectorOperationCodes.Terminal,
+                new(CollectorOperationCodes.Terminal, Section: section.Section), section.DisplayName,
+                "Income From Terminal", CollectionSessionAmountRule.DirectAmount, CollectionFamily.Terminal);
         foreach (var vehicle in await Office.VehicleChoicesAsync(date, ct))
-            await AddOffice(CollectorOperationCodes.Terminal, new(CollectorOperationCodes.Terminal, Section: vehicle.Section, VehicleClassId: vehicle.VehicleClassId),
-                vehicle.DisplayName, (await TerminalSectionSettingsStore.ReadAsync(db, Tenant, ct)).First(x => x.Section == vehicle.Section).DisplayName, CollectionSessionAmountRule.DirectAmount, CollectionFamily.Terminal);
+            if (terminalSections.TryGetValue(vehicle.Section, out var section))
+                await AddOffice(CollectorOperationCodes.Terminal,
+                    new(CollectorOperationCodes.Terminal, Section: vehicle.Section, VehicleClassId: vehicle.VehicleClassId),
+                    vehicle.DisplayName, section.DisplayName, CollectionSessionAmountRule.DirectAmount, CollectionFamily.Terminal);
         if (sender is not null)
         {
             var optional = await DiscoverAsync(null, date, ct);

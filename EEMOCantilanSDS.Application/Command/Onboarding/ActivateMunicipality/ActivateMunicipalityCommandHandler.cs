@@ -11,6 +11,7 @@ using EEMOCantilanSDS.Application.Common.Authorization;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Onboarding;
+using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
@@ -188,8 +189,14 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
             if (request.TerminalSectionDeclarations is { } terminalSections)
             {
                 foreach (var section in terminalSections)
+                {
                     context.TerminalSectionSettings.Add(TerminalSectionSetting.Create(
                         section.Section, section.IsEnabled, section.LocalDisplayName, municipality.Id, "Activation"));
+                    // Selected classifications appear as setup-required; no Cantilan CT policy is inherited.
+                    if (section.IsEnabled)
+                        context.RevenueClassifications.Add(RevenueClassification.Create(
+                            OfficeCollectionWorkflow.SectionCode(section.Section), municipality.Id, "Activation"));
+                }
             }
 
             // 3d) Optional OR-series suggestion config (one per LGU). OR numbers stay manually entered; this
