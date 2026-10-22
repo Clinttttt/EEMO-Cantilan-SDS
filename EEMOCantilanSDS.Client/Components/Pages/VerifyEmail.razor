@@ -15,7 +15,7 @@
     unconfirmed address can never receive a reset link (so a mistyped address can't be used to take over an
     account). Confirming grants nothing else — no session, no password change, no account activation.
 
-    The token is consumed on load, so opening the link is all the user has to do.
+    The token is consumed only when the visitor explicitly confirms it, protecting against email link scanners.
 *@
 
 <div class="setup-root">
@@ -66,10 +66,32 @@
                         </button>
                     </div>
                 }
+                else if (string.IsNullOrWhiteSpace(Token))
+                {
+                    <div class="setup-form-header">
+                        <div class="setup-form-title">Confirmation link missing</div>
+                        <div class="setup-form-desc">Open the full confirmation link from your email, or ask your office Head for a new one.</div>
+                    </div>
+                    <div class="setup-form">
+                        <button class="setup-submit" @onclick="GoToLogin"><span>Back to sign in</span></button>
+                    </div>
+                }
+                else if (!_confirmAttempted)
+                {
+                    <div class="setup-form-header">
+                        <div class="setup-form-title">Confirm your email</div>
+                        <div class="setup-form-desc">Confirming proves you own this email address and enables self-service password recovery.</div>
+                    </div>
+                    <div class="setup-form">
+                        <button class="setup-submit" @onclick="ConfirmEmailAsync">
+                            <span>Confirm email address</span>
+                        </button>
+                    </div>
+                }
                 else
                 {
                     <div class="setup-form-header">
-                        <div class="setup-form-title">Link invalid or expired</div>
+                        <div class="setup-form-title">Email could not be confirmed</div>
                         <div class="setup-form-desc">
                             @(ErrorMessage.Length > 0 ? ErrorMessage : "This confirmation link is invalid or has expired.")
                             Ask your @OfficeAcronym Head to send you a new confirmation email.
@@ -91,7 +113,7 @@
 @code {
     [Parameter] public string? Token { get; set; }
 
-    bool IsLoading = true;
+    bool IsLoading = false;
     bool Confirmed;
     bool AlreadyConfirmed;
     bool _confirmAttempted;   // guards against a second confirmation call on re-render
@@ -130,17 +152,15 @@
     }
 
     /// <summary>
-    /// The confirmation call runs HERE, not in OnInitializedAsync, and only on the first interactive render.
-    /// OnInitializedAsync executes twice under prerendering (once server-prerendered, once on the circuit),
-    /// which would fire the request twice; OnAfterRender never runs during prerender, so this guarantees a
-    /// single call and the result the user sees is the one that actually happened.
+    /// Submit verification only after an explicit user click, never during prerender or page load.
     /// </summary>
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    async Task ConfirmEmailAsync()
     {
-        if (!firstRender || _confirmAttempted)
+        if (_confirmAttempted || IsLoading)
             return;
 
         _confirmAttempted = true;
+        IsLoading = true;
 
         if (string.IsNullOrWhiteSpace(Token))
         {
