@@ -2,6 +2,8 @@
 @using System.Globalization
 @using global::EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using global::EEMOCantilanSDS.Application.Dtos.Mobile
+@using global::EEMOCantilanSDS.Application.Common.Revenue
+@using global::EEMOCantilanSDS.Application.Dtos.Revenue
 @using global::EEMOCantilanSDS.Application.Dtos.Slaughterhouse
 @using global::EEMOCantilanSDS.Application.Requests.Mobile
 @using global::EEMOCantilanSDS.Domain.Enums
@@ -22,7 +24,7 @@
             </button>
             <div class="header-title-block">
                 <div class="header-title">Slaughterhouse</div>
-                <div class="header-sub">SLH - Per-Head Slaughter Fees</div>
+                <div class="header-sub">@(Itemized ? "SLH - Approved Charges" : "SLH - Per-Head Slaughter Fees")</div>
             </div>
             <img class="header-logo" src="@Session.BrandingSeal" alt="Municipality seal" />
         </div>
@@ -62,10 +64,22 @@
                 </div>
             </div>
 
-            <button class="record-cta" type="button" @onclick="OpenSheet">
-                <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                Record Slaughter
-            </button>
+            @if (TermsMissing)
+            {
+                @* The office may collect by approved charges; recording is held until the charges are known so an old per-head payload is never sent. *@
+                <div class="state-card">
+                    <div class="state-title">Approved charges not loaded</div>
+                    <div class="state-text">Connect to the office to load today's charges, then try again.</div>
+                    <button class="btn-cancel" type="button" @onclick="LoadCollectionAsync">Retry</button>
+                </div>
+            }
+            else
+            {
+                <button class="record-cta" type="button" @onclick="OpenSheet">
+                    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                    Record Slaughter
+                </button>
+            }
 
             @if (!string.IsNullOrWhiteSpace(CanonicalNotice))
             {
@@ -154,7 +168,7 @@
         <div class="sheet" @onclick:stopPropagation="true">
             <div class="sheet-handle"></div>
             <div class="sheet-title">Record Slaughter</div>
-            <div class="sheet-sub">Log a per-head slaughter transaction for @DayLabel.</div>
+            <div class="sheet-sub">@(Itemized ? $"Select the animal and its approved charges for {DayLabel}." : $"Log a per-head slaughter transaction for {DayLabel}.")</div>
 
             <div class="or-number-wrap">
                 <div class="form-label">Owner name</div>
@@ -167,6 +181,73 @@
                 }
             </div>
 
+            @if (Itemized)
+            {
+                <div class="form-label">Animal</div>
+                <div class="animal-grid animal-grid-row">
+                    @foreach (var opt in ItemAnimals)
+                    {
+                        <button class="animal-chip @(ItemAnimal == opt.Type && ItemCustom == opt.Custom ? "active" : "")" type="button" @onclick="() => PickItemAnimalAsync(opt)">
+                            <span class="animal-chip-name">@opt.Label</span>
+                        </button>
+                    }
+                </div>
+
+                @if (ItemAnimal is not null)
+                {
+                    <div class="or-number-wrap">
+                        <div class="form-label">Number of heads</div>
+                        <input class="form-input" type="number" min="1" max="1000" step="1" value="@ItemHeads"
+                               @onchange="e => SetItemHeadsAsync(e.Value?.ToString())" />
+                    </div>
+
+                    <div class="form-label">Approved charges</div>
+                    @if (ItemCharges.Count == 0)
+                    {
+                        <div class="state-text">No approved charge applies to this animal. Ask the office.</div>
+                    }
+                    else
+                    {
+                        <div class="line-input-group">
+                            @foreach (var c in ItemCharges)
+                            {
+                                <div class="line-input @(Picked.ContainsKey(c.Id) ? "is-on" : null)">
+                                    <label class="charge-pick">
+                                        <input type="checkbox" checked="@Picked.ContainsKey(c.Id)" @onchange="e => TogglePickAsync(c, e.Value is true)" />
+                                        <span class="line-input-label">@c.Name</span>
+                                    </label>
+                                    <div class="line-input-right">
+                                        @if (Picked.ContainsKey(c.Id))
+                                        {
+                                            <span class="line-input-total">@FormatMoney((c.Amount ?? 0m) * Qty(c))</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="line-input-rate">@FormatMoney(c.Amount ?? 0m)/@(PerHead(c) ? "head" : "unit")</span>
+                                        }
+                                        @if (Picked.ContainsKey(c.Id) && !PerHead(c))
+                                        {
+                                            <input class="form-input heads-input" type="number" min="1" step="1" value="@Picked[c.Id]"
+                                                   @onchange="e => SetQtyAsync(c, e.Value?.ToString())" />
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+
+                <div class="fee-preview">
+                    <span>@ItemSummary</span>
+                    <strong>@FormatMoney(ItemTotal)</strong>
+                </div>
+                @if (!Sync.IsOnline)
+                {
+                    <div class="state-text">Offline: priced from the charges last loaded. The office re-checks the total when this syncs.</div>
+                }
+            }
+            else
+            {
             <div class="form-label">Animal types · select one or more</div>
             <div class="animal-grid">
                 @foreach (var opt in FixedAnimals)
@@ -221,6 +302,7 @@
                 <span>Total fee · @TotalHeads head@(TotalHeads == 1 ? "" : "s")</span>
                 <strong>@FormatCurrency(PreviewTotal)</strong>
             </div>
+            }
 
             @if (!string.IsNullOrWhiteSpace(SheetError))
             {
@@ -473,6 +555,166 @@
     private bool Canonical => Session.Menu?.Facilities.Any(f => f.Code == FacilityCode.SLH && f.CanonicalCollection) == true;
     private string? CanonicalNotice;
 
+    // Itemized mode: the Head has Slaughterhouse on approved charges. The collector selects charges and quantities; the server prices them.
+    private SlaughterTermsDto? Terms;
+    private bool Itemized => Canonical && Terms?.Itemized == true;
+    private bool TermsMissing => Canonical && Terms is null;
+    private sealed record ItemAnimalOption(string Label, AnimalType Type, string? Custom);
+    private AnimalType? ItemAnimal;
+    private string? ItemCustom;
+    private int ItemHeads = 1;
+    private readonly Dictionary<Guid, int> Picked = new();
+    private FeeScheduleCollectionWorkflow.SlaughterQuote? ItemQuote;
+    private string? ItemQuoteError;
+
+    private IEnumerable<ItemAnimalOption> ItemAnimals =>
+        FixedAnimals.Select(a => new ItemAnimalOption(a.Label, a.Type, null))
+            .Concat(ApprovedAnimals.Select(a => new ItemAnimalOption(a.AnimalName, AnimalType.Other, a.AnimalName)));
+
+    private IReadOnlyList<FeeOptionTermDto> ItemCharges =>
+        ItemAnimal is not { } animal ? [] : (Terms?.Charges ?? [])
+            .Where(c => c.Amount is > 0 && SlaughterAnimalScopes.Includes(c.ApplicableAnimals, animal)).ToList();
+
+    private static bool PerHead(FeeOptionTermDto c) => (c.QuantityBasis ?? FeeQuantityBasis.PerHead) == FeeQuantityBasis.PerHead;
+    private int Qty(FeeOptionTermDto c) => PerHead(c) ? ItemHeads : Picked[c.Id];
+
+    // The server's quote when online; otherwise the same arithmetic on the charges last loaded (display only, never trusted on sync).
+    private decimal LocalTotal => ItemCharges.Where(c => Picked.ContainsKey(c.Id)).Sum(c => (c.Amount ?? 0m) * Qty(c));
+    private decimal ItemTotal => ItemQuote?.Amount ?? LocalTotal;
+    private string ItemSummary => Picked.Count == 0 ? "Select the charges" : $"Total · {ItemHeads} head{(ItemHeads == 1 ? "" : "s")} · {Picked.Count} charge{(Picked.Count == 1 ? "" : "s")}";
+
+    private IReadOnlyList<SlaughterChargeSelectionDto> BuildCharges() =>
+        ItemCharges.Where(c => Picked.ContainsKey(c.Id)).Select(c => new SlaughterChargeSelectionDto(c.Id, Qty(c))).ToList();
+
+    private FeeSchedulePostRequest BuildItemRequest(decimal amount) => new(
+        Guid.NewGuid(), global::EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Slaughterhouse, SelectedDate, amount,
+        Animal: ItemAnimal, CustomAnimalName: ItemCustom, Heads: ItemHeads,
+        OwnerName: string.IsNullOrWhiteSpace(OwnerName) ? "Walk-in" : OwnerName.Trim(), Charges: BuildCharges());
+
+    // Asks the server to price the selection (the same calculation posting uses). A refusal - a retired, unavailable or
+    // not-applicable charge - is shown and the charges are reloaded so the list is never left on stale rates.
+    private async Task RequoteAsync()
+    {
+        ItemQuote = null;
+        ItemQuoteError = null;
+        if (ItemAnimal is null || Picked.Count == 0 || ItemHeads < 1 || !Sync.IsOnline) return;
+        try
+        {
+            var result = await MobileApi.QuoteSlaughterAsync(BuildItemRequest(0m));
+            if (result.IsSuccess) ItemQuote = result.Value;
+            else if (!IsTransientFailure(result.StatusCode)) ItemQuoteError = result.Error ?? "These charges cannot be collected right now.";
+        }
+        catch (Exception ex) when (IsConnectivityShaped(ex)) { /* stays on the local estimate; the office re-prices on sync */ }
+    }
+
+    private async Task RefreshTermsAsync()
+    {
+        try
+        {
+            var result = await MobileApi.GetSlaughterTermsAsync(SelectedDate);
+            if (!result.IsSuccess || result.Value is null) return;
+            Terms = result.Value;
+            var offered = Terms.Charges.Select(c => c.Id).ToHashSet();
+            foreach (var gone in Picked.Keys.Where(k => !offered.Contains(k)).ToList()) Picked.Remove(gone);
+        }
+        catch (Exception ex) when (IsConnectivityShaped(ex)) { }
+    }
+
+    private async Task PickItemAnimalAsync(ItemAnimalOption option)
+    {
+        ItemAnimal = option.Type;
+        ItemCustom = option.Custom;
+        // The animal's per-head charges start ticked (the usual package); the collector may untick one, and a counted charge is ticked on purpose.
+        Picked.Clear();
+        // A custom animal has no standard package: its charges start unticked and the collector ticks what applies.
+        if (option.Type != AnimalType.Other) foreach (var c in ItemCharges.Where(PerHead)) Picked[c.Id] = 1;
+        SheetError = null;
+        await RequoteAsync();
+    }
+
+    private async Task SetItemHeadsAsync(string? raw)
+    {
+        ItemHeads = ParseHeads(raw);
+        SheetError = null;
+        await RequoteAsync();
+    }
+
+    private async Task TogglePickAsync(FeeOptionTermDto charge, bool on)
+    {
+        if (on) Picked[charge.Id] = 1; else Picked.Remove(charge.Id);
+        SheetError = null;
+        await RequoteAsync();
+    }
+
+    private async Task SetQtyAsync(FeeOptionTermDto charge, string? raw)
+    {
+        Picked[charge.Id] = Math.Clamp(ParseHeads(raw), 1, 100_000);
+        SheetError = null;
+        await RequoteAsync();
+    }
+
+    private async Task ConfirmItemizedAsync()
+    {
+        if (ItemAnimal is null) { SheetError = "Select the animal."; return; }
+        if (ItemHeads < 1) { SheetError = "Enter at least 1 head."; return; }
+        if (Picked.Count == 0) { SheetError = "Select at least one approved charge."; return; }
+        IsSaving = true;
+        SheetError = null;
+        try
+        {
+            await RequoteAsync();
+            if (ItemQuoteError is not null)
+            {
+                SheetError = ItemQuoteError;
+                await RefreshTermsAsync();
+                return;
+            }
+            var amount = ItemTotal;
+            var charges = BuildCharges();
+            var label = ItemCustom ?? AnimalLabels.For(ItemAnimal.Value);
+            var names = string.Join(", ", ItemCharges.Where(c => Picked.ContainsKey(c.Id)).Select(c => c.Name));
+            var operationId = Guid.NewGuid();
+            await Sync.EnqueueIssuedDocumentAsync(new PendingOperation
+            {
+                ClientOperationId = operationId,
+                Kind = OfflineOperationKind.FeeScheduleCollection,
+                PayloadVersion = 1,
+                OperationCode = global::EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Slaughterhouse,
+                BusinessDate = SelectedDate,
+                OwnerName = OwnerName.Trim(),
+                AnimalType = ItemAnimal,
+                NumberOfHeads = ItemHeads,
+                CustomAnimalType = ItemCustom,
+                SlaughterCharges = charges,
+                ReceivedAmount = amount,
+                FacilityLabel = "SLH",
+                Title = OwnerName.Trim(),
+                Detail = $"{label} ×{ItemHeads} · {names}",
+                Amount = amount
+            });
+            CanonicalNotice = "Saved on this device. Waiting to sync.";
+            CloseSheet();
+            if (Sync.IsOnline)
+                await Sync.SyncNowAsync(force: true);
+            var mine = (await Sync.GetAllAsync()).Where(x => x.ClientOperationId == operationId).ToList();
+            if (mine.Count > 0 && mine.All(x => x.LocalStatus == PendingLocalStatus.Synced))
+                CanonicalNotice = "Collection recorded · " + string.Join(", ", mine.Select(x => x.ReferenceCode).Where(c => c is not null));
+            else if (mine.FirstOrDefault(x => x.LocalStatus is PendingLocalStatus.Rejected or PendingLocalStatus.ReconciliationRequired) is { } refused)
+                CanonicalNotice = refused.ResultMessage ?? "The server could not accept this collection. It was not recorded.";
+            await RefreshQueuedAsync();
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        {
+            SheetError = "The collection could not be safely saved on this device. Do not rely on it; resolve device storage attention first.";
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    private static string FormatMoney(decimal value) => $"₱{value:N2}";
+
     // Canonical lines already recorded (an SRC issued) count in the day summary; the office list the summary comes from carries only legacy rows.
     private IEnumerable<QueuedReceipt> RecordedCanonical => QueuedReceipts.Where(q => q.Badge.StartsWith("Recorded", StringComparison.Ordinal));
 
@@ -679,6 +921,7 @@
             }
 
             Collection = result.Value;
+            if (Canonical) await RefreshTermsAsync();
         }
         catch
         {
@@ -853,6 +1096,12 @@
     private void OpenSheet()
     {
         OwnerName = string.Empty;
+        ItemAnimal = null;
+        ItemCustom = null;
+        ItemHeads = 1;
+        Picked.Clear();
+        ItemQuote = null;
+        ItemQuoteError = null;
         ORNumber = string.Empty;
         HogHeads = 0;
         CarabaoHeads = 0;
@@ -1040,6 +1289,12 @@
             return;
         }
 
+        if (Itemized)
+        {
+            await ConfirmItemizedAsync();
+            return;
+        }
+
         // Build the animal lines for this single owner + OR.
         var lines = new List<RecordMobileSlaughterRequest>();
         var owner = OwnerName.Trim();
@@ -1157,7 +1412,9 @@
             .Select(o => new QueuedReceipt(
                 o.OwnerName ?? "—", null,
                 [new QueuedLine(
-                    o.AnimalType == AnimalType.Other && !string.IsNullOrWhiteSpace(o.CustomAnimalType)
+                    // An itemized receipt is one Slaughterhouse collection: the card names the operation, never the list of its charges.
+                    o.SlaughterCharges is { Count: > 0 } ? "Slaughterhouse"
+                    : o.AnimalType == AnimalType.Other && !string.IsNullOrWhiteSpace(o.CustomAnimalType)
                         ? o.CustomAnimalType!
                         : (o.AnimalType is { } type ? AnimalLabels.For(type) : "Animal"),
                     o.NumberOfHeads ?? 0, o.Amount)],

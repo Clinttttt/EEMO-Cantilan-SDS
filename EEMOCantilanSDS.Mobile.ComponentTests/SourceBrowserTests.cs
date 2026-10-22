@@ -26,7 +26,7 @@ public sealed class SourceBrowserTests : TestContext
     private static readonly CollectionSourceIdentity Stall = new(SourceIdentityKind.Occupancy, Guid.NewGuid());
     private static readonly CollectionSourceIdentity Space = new(SourceIdentityKind.SpaceAccount, Guid.NewGuid());
     private static readonly IReadOnlyList<CollectionSourceCategoryDto> Categories =
-        [new("fishmeat", "Fish / Meat"), new("npm", "NPM"), new("spaces", "Spaces")];
+        [new("fishmeat", "Fish / Meat"), new("npm", "NPM"), new("kanmanggay", "Kanmanggay"), new("ncc", "NCC")];
 
     private static CollectionSourceSearchResult Row(CollectionSourceIdentity id, string name, string context, string op = "OP") => new(id, name, context, op);
 
@@ -46,7 +46,7 @@ public sealed class SourceBrowserTests : TestContext
         cut.WaitForAssertion(() => Assert.Equal(3, cut.FindAll(".sb-row").Count));
         Assert.Contains("New Public Market · Stall 1", cut.Markup);
         Assert.DoesNotContain("₱", cut.Markup);
-        Assert.Equal(["All", "Fish / Meat", "NPM", "Spaces"], cut.FindAll(".sb-chip").Select(c => c.TextContent.Trim()).ToArray());
+        Assert.Equal(["All", "Fish / Meat", "NPM", "Kanmanggay", "NCC"], cut.FindAll(".sb-chip").Select(c => c.TextContent.Trim()).ToArray());
         Assert.Equal("3 of 3", cut.Find(".sb-count").TextContent.Trim());
     }
 

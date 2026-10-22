@@ -16,7 +16,9 @@ public class BulkImportPaymentHistoryCommandValidator : AbstractValidator<BulkIm
     /// </summary>
     private static readonly HashSet<FacilityCode> NotMonthly = new()
     {
-        FacilityCode.NPM, FacilityCode.TPM, FacilityCode.SLH, FacilityCode.TRM
+        // NPM is not listed: a Public Market rented by the month is billed by the month, and the handler asks the facility's own
+        // archetype, refusing a daily-collected market with the message that points it to its own import.
+        FacilityCode.TPM, FacilityCode.SLH, FacilityCode.TRM
     };
 
     public BulkImportPaymentHistoryCommandValidator()

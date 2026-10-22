@@ -16,7 +16,8 @@ public record ClientTransactionDto(
     decimal RatePerHead,
     decimal TotalAmount,
     string? ORNumber,
-    string? CollectorName
+    string? CollectorName,
+    IReadOnlyList<SlaughterChargeItemDto>? Items = null
 );
 
 public record ClientCollectionSummaryDto(

@@ -17,8 +17,11 @@ public sealed partial class CollectionSessionSources
     [
         (CollectionSourceCategories.FishMeat, "Fish / Meat"),
         (CollectionSourceCategories.Npm, "NPM"),
-        (CollectionSourceCategories.Rentals, "Rentals"),
-        (CollectionSourceCategories.Spaces, "Spaces"),
+        (CollectionSourceCategories.Tcc, "TCC"), (CollectionSourceCategories.Ncc, "NCC"),
+        (CollectionSourceCategories.Bbq, "BBQ"), (CollectionSourceCategories.Ice, "Ice Plant"),
+        (CollectionSourceCategories.Kanmanggay, "Kanmanggay"),
+        (CollectionSourceCategories.VegetableFruit, "Vegetable / Fruits"),
+        (CollectionSourceCategories.FiestaAraw, "Fiesta / Araw"),
     ];
 
     public async Task<CollectionSourcePage> BrowseSourcesAsync(string? category, string? search, int skip, int take, CancellationToken ct)
@@ -32,15 +35,24 @@ public sealed partial class CollectionSessionSources
         var assigned = await db.CollectorOperationAssignments.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.CollectorId == user.CollectorId)
             .Select(x => x.OperationCode).ToListAsync(ct);
 
+        // Facility categories follow the tenant's active facilities, regardless of their billing archetype.
+        facilities = await db.Facilities.AsNoTracking().Where(f => f.MunicipalityId == Tenant && f.IsActive && facilities.Contains(f.Code))
+            .Select(f => f.Code).ToListAsync(ct);
         var available = new List<string>();
         if (assigned.Contains(CollectorOperationCodes.FishMeatVendorFee) || assigned.Contains(CollectorOperationCodes.WeightAndMeasure)) available.Add(CollectionSourceCategories.FishMeat);
-        if (facilities.Contains(FacilityCode.NPM)) available.Add(CollectionSourceCategories.Npm);
-        if (facilities.Any(f => f != FacilityCode.NPM)) available.Add(CollectionSourceCategories.Rentals);
+        foreach (var facility in new[] { FacilityCode.NPM, FacilityCode.TCC, FacilityCode.NCC, FacilityCode.BBQ, FacilityCode.ICE })
+            if (facilities.Contains(facility)) available.Add(facility.ToString().ToLowerInvariant());
         var spaceKinds = SpaceKindsFor(assigned);
-        if (spaceKinds.Count > 0) available.Add(CollectionSourceCategories.Spaces);
+        if (spaceKinds.Contains(ObligationKind.KanmanggaySpaceRental)) available.Add(CollectionSourceCategories.Kanmanggay);
+        if (spaceKinds.Contains(ObligationKind.VegetableFruitSpaceRental)) available.Add(CollectionSourceCategories.VegetableFruit);
+        if (spaceKinds.Contains(ObligationKind.FiestaArawLotRental)) available.Add(CollectionSourceCategories.FiestaAraw);
         var categories = CategoryLabels.Where(c => available.Contains(c.Key)).Select(c => new CollectionSourceCategoryDto(c.Key, c.Label)).ToArray();
 
-        var wanted = string.IsNullOrWhiteSpace(category) || category == "all" ? available : available.Where(c => c == category).ToList();
+        var rentalKeys = new[] { "npm", "tcc", "ncc", "bbq", "ice" };
+        var wanted = string.IsNullOrWhiteSpace(category) || category == "all" ? available
+            : category == CollectionSourceCategories.Rentals ? available.Where(rentalKeys.Contains).ToList()
+            : category == CollectionSourceCategories.Spaces ? available.Where(c => !rentalKeys.Contains(c) && c != CollectionSourceCategories.FishMeat).ToList()
+            : available.Where(c => c == category).ToList();
         if (wanted.Count == 0) return new CollectionSourcePage([], 0, categories);
 
         // "All" is the categories in their fixed order, each in its OWN stable order. Nothing is merged across categories by name, so no
@@ -56,8 +68,10 @@ public sealed partial class CollectionSessionSources
             {
                 CollectionSourceCategories.FishMeat => await FishMeatPageAsync(term, skipLeft, takeLeft, today, ct),
                 CollectionSourceCategories.Npm => await OccupancyPageAsync(term, facilities.Where(f => f == FacilityCode.NPM).ToList(), skipLeft, takeLeft, today, ct),
-                CollectionSourceCategories.Rentals => await OccupancyPageAsync(term, facilities.Where(f => f != FacilityCode.NPM).ToList(), skipLeft, takeLeft, today, ct),
-                _ => await SpacePageAsync(term, spaceKinds, skipLeft, takeLeft, today, ct),
+                CollectionSourceCategories.Tcc or CollectionSourceCategories.Ncc or CollectionSourceCategories.Bbq or CollectionSourceCategories.Ice =>
+                    await OccupancyPageAsync(term, facilities.Where(f => f.ToString().Equals(key, StringComparison.OrdinalIgnoreCase)).ToList(), skipLeft, takeLeft, today, ct),
+                _ => await SpacePageAsync(term, spaceKinds.Where(k => key == CollectionSourceCategories.Kanmanggay ? k == ObligationKind.KanmanggaySpaceRental
+                    : key == CollectionSourceCategories.VegetableFruit ? k == ObligationKind.VegetableFruitSpaceRental : k == ObligationKind.FiestaArawLotRental).ToArray(), skipLeft, takeLeft, today, ct),
             };
             rows.AddRange(items);
             total += n;

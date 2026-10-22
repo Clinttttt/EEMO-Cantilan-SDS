@@ -11,4 +11,5 @@ public record TenantExportPayload(
     string MunicipalityName,
     Guid MunicipalityId,
     DateTime GeneratedAtUtc,
-    IReadOnlyDictionary<string, object> Tables);
+    IReadOnlyDictionary<string, object> Tables,
+    IReadOnlyList<string>? CompatibilityWarnings = null);

@@ -7,157 +7,113 @@
 @inject ITpmApiClient TpmApi
 @inject IJSRuntime JS
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
+@using EEMOCantilanSDS.Client.Components.Shared
 
 <PageTitle>StallTrack — Tabo Collection Report</PageTitle>
 
-<header class="tpm-report-topbar">
-    <div class="tpm-report-navigation">
-        <a href="/facility/tpm" class="tpm-report-back" aria-label="Back to Tabo">
-            <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
-        </a>
-        <div class="tpm-report-breadcrumb">
-            <a href="/operations">Operations</a><span>/</span><a href="/facility/tpm">@FacilityCatalog.ShortNameOf(FacilityCode.TPM)</a><span>/</span><strong>Report</strong>
-        </div>
+@* Tabo collection report in the standard operation-report shell: workspace header, period and Print / Export CSV, tenant
+   letterhead and V3 report tables. Every figure is the TPM attendance read; nothing is typed in. The layout owns the main landmark. *@
+<div class="v3-page">
+    <div class="no-print">
+        <WorkspaceHeader Parent="@FacilityCatalog.NameOf(FacilityCode.TPM)" ParentHref="/facility/tpm" Title="Tabo Collection Report" Code="@FacilityCatalog.ShortNameOf(FacilityCode.TPM)">
+            <Actions>
+                <label class="v3-period">
+                    <span>Year</span>
+                    <select class="v3-select" value="@SelectedYear" @onchange="OnFiscalYearChanged" aria-label="Fiscal year">
+                        @foreach (var year in FiscalYears)
+                        {
+                            <option value="@year">@year</option>
+                        }
+                    </select>
+                </label>
+                <label class="v3-period">
+                    <span>Month</span>
+                    <select class="v3-select" value="@SelectedMonth" @onchange="OnMonthChanged" aria-label="Market day month">
+                        @foreach (var month in Months)
+                        {
+                            <option value="@month">@CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month)</option>
+                        }
+                    </select>
+                </label>
+                <div class="v3-btn-group" role="group" aria-label="Report actions">
+                    <button class="v3-btn" type="button" @onclick="PrintReportAsync" disabled="@_isLoading">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5" /><path d="M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" /><path d="M7 14h10v7H7z" /></svg>
+                        Print
+                    </button>
+                    <button class="v3-btn" type="button" @onclick="ExportCsvAsync" disabled="@_isLoading">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                        Export CSV
+                    </button>
+                </div>
+            </Actions>
+        </WorkspaceHeader>
     </div>
-    <div class="tpm-report-actions">
-        <button type="button" class="tpm-report-action secondary" @onclick="ExportCsvAsync" disabled="@_isLoading">
-            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16" /></svg>
-            Export
-        </button>
-        <button type="button" class="tpm-report-action primary" @onclick="PrintReportAsync" disabled="@_isLoading">
-            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 17H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" /><path d="M6 14h12v7H6z" /></svg>
-            Print Report
-        </button>
-    </div>
-</header>
-
-<main class="tpm-report-page">
-    <section class="tpm-report-intro">
-        <div>
-            <div class="tpm-report-eyebrow">Operations / Tabo</div>
-            <h1>Tabo Collection Report</h1>
-            <p>Market-day Cash Ticket collections and annual revenue performance.</p>
-        </div>
-        <div class="tpm-report-controls">
-            <label>
-                Fiscal Year
-                <select value="@SelectedYear" @onchange="OnFiscalYearChanged" aria-label="Fiscal year">
-                    @foreach (var year in FiscalYears)
-                    {
-                        <option value="@year">@year</option>
-                    }
-                </select>
-            </label>
-            <label>
-                Month
-                <select value="@SelectedMonth" @onchange="OnMonthChanged" aria-label="Market day month">
-                    @foreach (var month in Months)
-                    {
-                        <option value="@month">@CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month)</option>
-                    }
-                </select>
-            </label>
-        </div>
-    </section>
 
     @if (_isLoading)
     {
-        <div class="tpm-report-state" aria-busy="true">Loading Tabo collection report…</div>
+        <p class="v3-notice no-print" role="status" aria-busy="true">Loading Tabo collection report…</p>
     }
     else if (_loadError is not null)
     {
-        <div class="tpm-report-error" role="alert">
+        <div class="v3-notice v3-notice-error v3-notice-row no-print" role="alert">
             <span>@_loadError</span>
-            <button type="button" @onclick="LoadReportAsync">Try again</button>
+            <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadReportAsync">Try again</button>
         </div>
     }
     else
     {
-        <article class="tpm-report-sheet print-report-sheet">
-            <header class="tpm-report-letterhead">
-                @if (!string.IsNullOrWhiteSpace(Branding.SealPath))
-                {
-                    <img src="@Branding.SealPath" alt="@Branding.Municipality seal" />
-                }
-                <div class="tpm-report-republic">Republic of the Philippines</div>
-                <div class="tpm-report-municipality">Province of @Branding.Province</div>
-                <div class="tpm-report-municipality">Municipality of @Branding.Municipality</div>
-                <div class="tpm-report-office">@Branding.OfficeName</div>
-                <h2>TABO COLLECTION REPORT</h2>
-                <div class="tpm-report-fiscal-year">Fiscal Year @SelectedYear</div>
-            </header>
+        <article class="v3-report-sheet print-report-sheet" aria-labelledby="tpm-report-title">
+            <ReportLetterhead Title="Tabo Collection Report" Period="@($"Fiscal year {SelectedYear}")" />
+            <h2 id="tpm-report-title" class="v3-sr-only">Tabo collection report for fiscal year @SelectedYear</h2>
 
             @if (HasReconciliationGap)
             {
-                <div class="tpm-reconciliation-note" role="status">
-                    Monthly history and market-day totals do not reconcile for this report scope.
-                </div>
+                <p class="v3-notice" role="status">Monthly history and market-day totals do not reconcile for this report scope.</p>
             }
 
-            <section class="tpm-report-section" aria-labelledby="tpm-financial-position-title">
-                <h3 id="tpm-financial-position-title">Financial Position</h3>
-                <div class="tpm-position-strip">
-                    <div><span>Annual Target</span><strong>—</strong></div>
-                    <div><span>@YearCollectionLabel</span><strong>@FormatOrDash(YearCollection)</strong></div>
-                    <div><span>Remaining Target</span><strong>—</strong></div>
-                    <div><span>Target Attainment</span><strong>—</strong></div>
-                </div>
-                <p class="tpm-report-note">Annual Tabo target data is not available in the current reporting source.</p>
-            </section>
-
-            <section class="tpm-report-section" aria-labelledby="tpm-monthly-summary-title">
-                <h3 id="tpm-monthly-summary-title">Monthly Tabo Collection Summary</h3>
-                <div class="tpm-table-scroll">
-                    <table class="tpm-report-table tpm-monthly-table">
+            <section class="v3-report-section" aria-labelledby="tpm-monthly-summary-title">
+                <h3 id="tpm-monthly-summary-title">Monthly collection</h3>
+                <div class="v3-table-wrap">
+                    <table class="v3-report-table">
                         <thead>
                             <tr>
-                                <th scope="col">Revenue</th>
-                                <th scope="col">Annual Target</th>
                                 @foreach (var month in Months)
                                 {
-                                    <th scope="col">@CultureInfo.CurrentCulture.DateTimeFormat.GetAbbreviatedMonthName(month)</th>
+                                    <th scope="col" class="v3-num">@CultureInfo.CurrentCulture.DateTimeFormat.GetAbbreviatedMonthName(month)</th>
                                 }
-                                <th scope="col">YTD Total</th>
-                                <th scope="col">%</th>
+                                <th scope="col" class="v3-num">@YearCollectionLabel</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
-                                <th scope="row">Tabo</th>
-                                <td>—</td>
                                 @foreach (var month in Months)
                                 {
                                     var summary = MonthlySummary(month);
-                                    <td>@(summary is null ? "—" : FormatMoney(summary.Collected))</td>
+                                    <td class="v3-num">@(summary is null ? "—" : FormatMoney(summary.Collected))</td>
                                 }
-                                <td>@FormatOrDash(YearCollection)</td>
-                                <td>—</td>
+                                <td class="v3-num v3-strong">@FormatOrDash(YearCollection)</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
-                <div class="tpm-report-basis-inline">Collection basis: paid Tabo attendance entries, grouped by market date.</div>
             </section>
 
-            <section class="tpm-report-section" aria-labelledby="tpm-market-day-summary-title">
-                <div class="tpm-section-heading">
-                    <h3 id="tpm-market-day-summary-title">Market Day Summary</h3>
-                    <span>@CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(SelectedMonth) @SelectedYear</span>
-                </div>
-                <div class="tpm-table-scroll">
-                    <table class="tpm-report-table">
+            <section class="v3-report-section" aria-labelledby="tpm-market-day-summary-title">
+                <h3 id="tpm-market-day-summary-title">Market days</h3>
+                <div class="v3-table-wrap">
+                    <table class="v3-report-table">
                         <thead>
                             <tr>
-                                <th scope="col">Market Date</th>
+                                <th scope="col">Market date</th>
                                 <th scope="col">Weekday</th>
-                                <th scope="col" class="numeric">Vendor Entries</th>
-                                <th scope="col" class="numeric">Collection</th>
+                                <th scope="col" class="v3-num">Vendor entries</th>
+                                <th scope="col" class="v3-num">Collection</th>
                             </tr>
                         </thead>
                         <tbody>
                             @if (MarketDayRows.Count == 0)
                             {
-                                <tr><td colspan="4" class="tpm-report-empty">No configured market dates or attendance entries for this month.</td></tr>
+                                <tr><td colspan="4" class="v3-report-note">No configured market dates or attendance entries for this month.</td></tr>
                             }
                             else
                             {
@@ -166,138 +122,123 @@
                                     <tr>
                                         <td>@day.Date.ToString("MMMM d, yyyy")</td>
                                         <td>@day.Date.DayOfWeek</td>
-                                        <td class="numeric">@(day.VendorEntries?.ToString() ?? "—")</td>
-                                        <td class="numeric">@FormatOrDash(day.Collection)</td>
+                                        <td class="v3-num">@(day.VendorEntries?.ToString() ?? "—")</td>
+                                        <td class="v3-num">@FormatOrDash(day.Collection)</td>
                                     </tr>
                                 }
-                                <tr class="total-row">
-                                    <th scope="row" colspan="2">Total</th>
-                                    <td class="numeric">@MarketDayRows.Where(day => day.VendorEntries.HasValue).Sum(day => day.VendorEntries!.Value)</td>
-                                    <td class="numeric">@FormatMoney(MarketDayCollectionTotal)</td>
-                                </tr>
                             }
                         </tbody>
+                        @if (MarketDayRows.Count > 0)
+                        {
+                            <tfoot>
+                                <tr>
+                                    <th scope="row" colspan="2">Total</th>
+                                    <td class="v3-num">@MarketDayRows.Where(day => day.VendorEntries.HasValue).Sum(day => day.VendorEntries!.Value)</td>
+                                    <td class="v3-num">@FormatMoney(MarketDayCollectionTotal)</td>
+                                </tr>
+                            </tfoot>
+                        }
                     </table>
                 </div>
             </section>
 
-            <section class="tpm-report-section" aria-labelledby="tpm-vendor-summary-title">
-                <div class="tpm-section-heading">
-                    <h3 id="tpm-vendor-summary-title">Vendor Entry Summary</h3>
-                    <span>@CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(SelectedMonth) @SelectedYear</span>
-                </div>
+            <section class="v3-report-section" aria-labelledby="tpm-vendor-summary-title">
+                <h3 id="tpm-vendor-summary-title">Vendors</h3>
                 @if (VendorSummaryRows.Count == 0)
                 {
-                    <div class="tpm-report-empty-block">No vendor entries are available for this month.</div>
+                    <p class="v3-report-note">No vendor entries are available for this month.</p>
                 }
                 else
                 {
-                    <div class="tpm-table-scroll">
-                        <table class="tpm-report-table">
+                    <div class="v3-table-wrap">
+                        <table class="v3-report-table">
                             <thead>
                                 <tr>
                                     <th scope="col">Vendor</th>
-                                    <th scope="col">Goods / Product</th>
-                                    <th scope="col" class="numeric">Market Days Attended</th>
-                                    <th scope="col" class="numeric">Fees Collected</th>
+                                    <th scope="col">Goods / product</th>
+                                    <th scope="col" class="v3-num">Market days</th>
+                                    <th scope="col" class="v3-num">Fees collected</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach (var row in VendorSummaryRows)
                                 {
                                     <tr>
-                                        <td class="vendor-cell">@row.Vendor</td>
+                                        <td>@row.Vendor</td>
                                         <td>@row.Goods</td>
-                                        <td class="numeric">@row.MarketDays</td>
-                                        <td class="numeric">@FormatMoney(row.Collected)</td>
+                                        <td class="v3-num">@row.MarketDays</td>
+                                        <td class="v3-num">@FormatMoney(row.Collected)</td>
                                     </tr>
                                 }
-                                <tr class="total-row">
-                                    <th scope="row" colspan="2">Total</th>
-                                    <td class="numeric">@_monthAttendance.Select(entry => entry.MarketDate).Distinct().Count()</td>
-                                    <td class="numeric">@FormatMoney(_monthAttendance.Where(entry => entry.IsPaid).Sum(entry => entry.Fee))</td>
-                                </tr>
                             </tbody>
+                            <tfoot>
+                                <tr>
+                                    <th scope="row" colspan="2">Total</th>
+                                    <td class="v3-num">@_monthAttendance.Select(entry => entry.MarketDate).Distinct().Count()</td>
+                                    <td class="v3-num">@FormatMoney(_monthAttendance.Where(entry => entry.IsPaid).Sum(entry => entry.Fee))</td>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
                 }
             </section>
 
-            <section class="tpm-report-section" aria-labelledby="tpm-day-detail-title">
-                <div class="tpm-section-heading">
-                    <h3 id="tpm-day-detail-title">Market Day Detail</h3>
-                    <span class="tpm-report-print-date">@(SelectedMarketDate?.ToString("MMMM d, yyyy") ?? "—")</span>
-                    <label class="tpm-day-picker">
-                        Market Date
-                        <select value="@SelectedMarketDateValue" @onchange="OnMarketDateChanged" disabled="@(SelectableMarketDates.Count == 0)" aria-label="Market date detail">
-                            @if (SelectedMarketDate is null)
-                            {
-                                <option value="">No market day available</option>
-                            }
-                            @foreach (var date in SelectableMarketDates)
-                            {
-                                <option value="@date.ToString("yyyy-MM-dd")">@date.ToString("MMMM d, yyyy")</option>
-                            }
-                        </select>
-                    </label>
+            <section class="v3-report-section" aria-labelledby="tpm-day-detail-title">
+                <h3 id="tpm-day-detail-title">Market day detail</h3>
+                <div class="no-print">
+                    <select class="v3-select" value="@SelectedMarketDateValue" @onchange="OnMarketDateChanged" disabled="@(SelectableMarketDates.Count == 0)" aria-label="Market date detail">
+                        @if (SelectedMarketDate is null)
+                        {
+                            <option value="">No market day available</option>
+                        }
+                        @foreach (var date in SelectableMarketDates)
+                        {
+                            <option value="@date.ToString("yyyy-MM-dd")">@date.ToString("MMMM d, yyyy")</option>
+                        }
+                    </select>
                 </div>
                 @if (SelectedMarketDate is null)
                 {
-                    <div class="tpm-report-empty-block">No market day is available for detail in this month.</div>
+                    <p class="v3-report-note">No market day is available for detail in this month.</p>
                 }
                 else if (SelectedDayEntries.Count == 0)
                 {
-                    <div class="tpm-report-empty-block">No entries recorded for @SelectedMarketDate.Value.ToString("MMMM d, yyyy").</div>
-                    <div class="tpm-day-summary">
-                        <div><span>Vendor Entries</span><strong>0</strong></div>
-                        <div><span>Tabo Collection</span><strong>@FormatOrDash(SelectedDayCollection)</strong></div>
-                    </div>
+                    <p class="v3-report-note">No entries recorded for @SelectedMarketDate.Value.ToString("MMMM d, yyyy").</p>
                 }
                 else
                 {
-                    <div class="tpm-table-scroll">
-                        <table class="tpm-report-table">
+                    <div class="v3-table-wrap">
+                        <table class="v3-report-table">
                             <thead>
                                 <tr>
                                     <th scope="col">Vendor</th>
-                                    <th scope="col">Goods / Product</th>
-                                    <th scope="col" class="numeric">Fee</th>
+                                    <th scope="col">Goods / product</th>
+                                    <th scope="col" class="v3-num">Fee</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach (var entry in SelectedDayEntries)
                                 {
                                     <tr>
-                                        <td class="vendor-cell">@entry.VendorName</td>
+                                        <td>@entry.VendorName</td>
                                         <td>@entry.Goods</td>
-                                        <td class="numeric">@(entry.IsPaid ? FormatMoney(entry.Fee) : "—")</td>
+                                        <td class="v3-num">@(entry.IsPaid ? FormatMoney(entry.Fee) : "—")</td>
                                     </tr>
                                 }
-                                <tr class="total-row">
-                                    <th scope="row" colspan="2">Vendor Entries: @SelectedDayEntries.Count</th>
-                                    <td class="numeric">@FormatOrDash(SelectedDayCollection)</td>
-                                </tr>
                             </tbody>
+                            <tfoot>
+                                <tr>
+                                    <th scope="row" colspan="2">@SelectedDayEntries.Count entr@(SelectedDayEntries.Count == 1 ? "y" : "ies")</th>
+                                    <td class="v3-num">@FormatOrDash(SelectedDayCollection)</td>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
-                    <div class="tpm-report-basis-inline">Market-day collection includes attendance entries marked paid.</div>
                 }
-            </section>
-
-            <section class="tpm-report-basis" aria-labelledby="tpm-report-basis-title">
-                <h3 id="tpm-report-basis-title">Report Basis</h3>
-                <dl>
-                    <div><dt>Revenue Classification</dt><dd>Tabo</dd></div>
-                    <div><dt>Accountable Instrument</dt><dd><span class="tpm-ct-mark">CT</span> Cash Ticket</dd></div>
-                    <div><dt>Collection Unit</dt><dd>Market Day / Vendor Entry</dd></div>
-                    <div><dt>Fiscal Year</dt><dd>@SelectedYear</dd></div>
-                    <div><dt>Source</dt><dd>TPM market-day attendance records</dd></div>
-                    <div><dt>As of</dt><dd>@PhilippineTime.Now.ToString("MMM d, yyyy")</dd></div>
-                </dl>
             </section>
         </article>
     }
-</main>
+</div>
 
 @code {
     private readonly int _currentYear = PhilippineTime.Now.Year;

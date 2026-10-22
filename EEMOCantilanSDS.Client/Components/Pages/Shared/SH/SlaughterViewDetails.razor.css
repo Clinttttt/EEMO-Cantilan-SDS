@@ -815,3 +815,10 @@
     background: var(--accent-hover);
     color: var(--surface);
 }
+
+/* An itemized collection: the approved charges, their quantity and frozen rate, under the transaction they belong to. */
+.txn-items td { padding-top: 0; }
+.txn-item-table { width: 100%; max-width: 36rem; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.txn-item-table th,
+.txn-item-table td { padding: 4px 8px; border-bottom: 1px solid var(--border); text-align: left; }
+.txn-item-table th { color: var(--text-muted); font-weight: 600; }

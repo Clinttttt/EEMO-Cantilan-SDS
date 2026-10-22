@@ -78,12 +78,14 @@
             }
         }
     </SourceActions>
-    <Activity>
+    <Activity Context="back">
         <section class="v3-panel" aria-labelledby="wcf-activity-title">
             <header class="v3-panel-header wcf-activity-header">
                 <h2 id="wcf-activity-title">Collection activity</h2>
-                <div class="wcf-activity-controls no-print">
-                    <span class="v3-panel-meta">@FilteredActivity.Count() of @_activity.Count in @_periodLabel · <a href="/collections/activity">All collections</a></span>
+                <PanelBack OnBack="back">
+                    @if (_activity.Count > 0)
+                    {
+                        <div class="wcf-activity-controls no-print">
                     <label class="v3-search">
                         <span class="v3-sr-only">Search WCF collections</span>
                         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
@@ -97,6 +99,9 @@
                         }
                     </select>
                 </div>
+                    }
+                    <a class="v3-panel-meta" href="/collections/activity">All collections</a>
+                </PanelBack>
             </header>
             <div class="v3-table-wrap" role="region" aria-label="Posted WCF collections" tabindex="0">
                 <table class="v3-table">

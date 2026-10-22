@@ -1,0 +1,153 @@
+@page "/operations/fish-meat-vendor-fees/holder-list"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Client.Exports
+@using EEMOCantilanSDS.Domain.Common
+@inject IOfficeSourcesApiClient OfficeApi
+
+<PageTitle>StallTrack — Fish / Meat Vendor Holder List</PageTitle>
+
+@* Identity list of every vendor registered for one tax year, whatever was or was not collected in any month. Registration facts only (the same
+   server read as the Office Register); nothing is calculated, collected or reclassified here. *@
+<OfficialRegisterPage Title="Fish / Meat Vendor Holder List" OperationName="@Branding.OfficeName" Eyebrow="FISH / MEAT · HOLDER LIST"
+                      DocSubtitle="@($"Tax year {_taxYear}")" BackHref="/operations/fish-meat-vendor-fees/office-register" BackName="Office Register"
+                      Stats="Stats" SearchPlaceholder="Search name or business…" @bind-SearchQuery="_search"
+                      CsvFileName="@($"fish-meat-vendor-holder-list-{_taxYear}.csv")" CsvText="@CsvText">
+    <Filters>
+        <select class="lsh-input" aria-label="Registration tax year" @onchange="ChangeYear">
+            @foreach (var y in YearOptions) { <option value="@y" selected="@(y == _taxYear)">@y</option> }
+        </select>
+        <div class="lsh-seg" role="group" aria-label="Vendor type">
+            @foreach (var t in new[] { "All", "Fish", "Meat" })
+            {
+                <button type="button" class="lsh-seg-item @(_type == t ? "active" : "")" aria-pressed="@(_type == t ? "true" : "false")" @onclick="() => _type = t">@t</button>
+            }
+        </div>
+    </Filters>
+    <ChildContent>
+        @if (_error is not null)
+        {
+            <div class="lsh-state" role="alert"><span>@_error</span> <button type="button" class="lsh-btn" @onclick="LoadAsync">Try again</button></div>
+        }
+        else if (_loading)
+        {
+            <p class="lsh-state" role="status">Loading the holder list…</p>
+        }
+        else
+        {
+            <div class="lsh-section-block">
+                <div class="lsh-section-label-row">
+                    <span class="lsh-section-label">REGISTERED VENDORS · TAX YEAR @_taxYear</span>
+                    <span class="lsh-section-count">@Visible.Count</span>
+                </div>
+                <div class="lsh-table-wrap"><table class="lsh-table fm-col">
+                    <thead>
+                        <tr>
+                            <th class="col-no">#</th><th class="col-biz">Business name</th><th class="col-nm">Last name</th><th class="col-nm">First name</th>
+                            <th class="col-nm">Middle name</th><th class="col-ext">Extname</th><th class="col-sex">Sex</th><th class="col-addr">Business Address</th>
+                            <th class="col-kind">Type Of</th><th class="col-year">Tax year</th><th class="col-nature">Nature of business</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (var i = 0; i < Visible.Count; i++)
+                        {
+                            var v = Visible[i];
+                            <tr @key="v.Id">
+                                <td class="c">@(i + 1)</td>
+                                <td class="tl fw">@Or(v.BusinessName)</td>
+                                <td class="tl">@Or(v.LastName)</td>
+                                <td class="tl">@Or(v.FirstName)</td>
+                                <td class="tl">@Or(v.MiddleName)</td>
+                                <td class="c">@Or(v.NameExtension)</td>
+                                <td class="c">@Or(v.Sex)</td>
+                                <td class="tl">@Address(v)</td>
+                                <td class="c">@v.RegistrationKind</td>
+                                <td class="c">@v.TaxYear</td>
+                                <td class="tl">@Or(v.NatureOfBusiness)</td>
+                            </tr>
+                        }
+                        @if (Visible.Count == 0)
+                        {
+                            <tr><td colspan="11" class="c txt-muted">@(_all.Count == 0 ? $"No vendors are registered for tax year {_taxYear}." : "No registration matches the filter.")</td></tr>
+                        }
+                    </tbody>
+                </table></div>
+            </div>
+        }
+    </ChildContent>
+</OfficialRegisterPage>
+
+@code {
+    private int _taxYear = PhilippineTime.Today.Year;
+    private string _type = "All", _search = "";
+    private List<FishMeatVendorRegistrationDto> _all = [];
+    private bool _loading = true;
+    private string? _error;
+
+    private IReadOnlyList<int> YearOptions => Enumerable.Range(0, 7).Select(i => PhilippineTime.Today.Year + 1 - i)
+        .Append(_taxYear).Distinct().OrderByDescending(x => x).ToArray();
+
+    private List<FishMeatVendorRegistrationDto> Visible => _all
+        .Where(v => _type == "All" || v.VendorType.ToString() == _type)
+        .Where(v => string.IsNullOrWhiteSpace(_search) || $"{v.DisplayName} {v.BusinessName} {v.LastName} {v.FirstName} {v.MiddleName} {v.NatureOfBusiness}"
+            .Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase))
+        .OrderBy(v => v.LastName ?? v.DisplayName, StringComparer.OrdinalIgnoreCase).ThenBy(v => v.FirstName, StringComparer.OrdinalIgnoreCase).ToList();
+
+    private IReadOnlyList<OfficialRegisterPage.Stat> Stats =>
+    [
+        new(_loading || _error is not null ? "—" : _all.Count.ToString(CultureInfo.InvariantCulture), "Registered"),
+        new(_loading || _error is not null ? "—" : _all.Count(v => v.VendorType.ToString() == "Fish").ToString(CultureInfo.InvariantCulture), "Fish"),
+        new(_loading || _error is not null ? "—" : _all.Count(v => v.VendorType.ToString() == "Meat").ToString(CultureInfo.InvariantCulture), "Meat"),
+        new(_loading || _error is not null ? "—" : _all.Count(v => v.RegistrationKind.ToString() == "New").ToString(CultureInfo.InvariantCulture), "New")
+    ];
+
+    private static string Or(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value.Trim();
+    private static string Address(FishMeatVendorRegistrationDto v) => string.IsNullOrWhiteSpace(v.Address) ? "—" : VendorAddressDisplay.Clean(v.Address);
+
+    private string CsvText
+    {
+        get
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("#,Business name,Last name,First name,Middle name,Extname,Sex,Business Address,Type Of,Tax year,Nature of business");
+            var rows = Visible;
+            for (var i = 0; i < rows.Count; i++)
+            {
+                var v = rows[i];
+                sb.AppendLine(string.Join(',', new[] { (i + 1).ToString(CultureInfo.InvariantCulture), CsvCell.Escape(Or(v.BusinessName)), CsvCell.Escape(Or(v.LastName)),
+                    CsvCell.Escape(Or(v.FirstName)), CsvCell.Escape(Or(v.MiddleName)), CsvCell.Escape(Or(v.NameExtension)), CsvCell.Escape(Or(v.Sex)), CsvCell.Escape(Address(v)),
+                    v.RegistrationKind.ToString(), v.TaxYear.ToString(CultureInfo.InvariantCulture), CsvCell.Escape(Or(v.NatureOfBusiness)) }));
+            }
+            return sb.ToString();
+        }
+    }
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task ChangeYear(ChangeEventArgs args)
+    {
+        if (int.TryParse(args.Value?.ToString(), NumberStyles.None, CultureInfo.InvariantCulture, out var year) && year is >= 2000 and <= 2200)
+        {
+            _taxYear = year;
+            await LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = null; _all = [];
+        try
+        {
+            // The month only scopes the collected figures the Office Register shows; the registrations of the tax year do not depend on it.
+            var result = await OfficeApi.ManageRegistrationsAsync(_taxYear, PhilippineTime.Today.Month, status: null, year: PhilippineTime.Today.Year);
+            if (result.IsSuccess) _all = (result.Value?.Rows ?? []).Select(r => r.Registration).ToList();
+            else _error = "The holder list could not be loaded.";
+        }
+        catch { _error = "The holder list could not be loaded."; }
+        finally { _loading = false; }
+    }
+}

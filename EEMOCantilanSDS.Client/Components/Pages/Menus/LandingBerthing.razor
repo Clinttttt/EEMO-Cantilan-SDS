@@ -11,17 +11,19 @@
    transactions on Collector Mobile, and this page shows what was actually collected. Nothing on this page records
    money. The layout owns the <main> landmark. *@
 <div class="v3-page">
-    <WorkspaceHeader OperationCode="LANDING_BERTHING" Parent="Operations" Title="Landing / Berthing">
-        <Meta><InstrumentChip Instrument="CT" ShowName="true" /></Meta>
-        <Actions>
+    @* Landing and Berthing are separate fee types of this one operation. When the server offers them as approved fee types they are listed
+       here by their own stable identities; nothing is named or numbered in the browser. The workspace owns the standard V3 hero (month
+       figures come from its own collections load). *@
+    <GovernedServiceWorkspace OperationCode="@CollectorOperationCodes.LandingBerthing" Name="Landing / Berthing" FeeOptionsTitle="Landing / Berthing fees"
+                              VisibleCollectionRows="5" HeroEyebrow="Operations">
+        <HeroIcon>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4M3 17c2 2 4 2 6 0s4-2 6 0 4 2 6 0M3 21c2 2 4 2 6 0s4-2 6 0 4 2 6 0" /></svg>
+        </HeroIcon>
+        <HeroActions>
             <a class="v3-btn" href="/operations/landing-berthing/report">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17" x2="13" y2="17" /></svg>
                 Report
             </a>
-        </Actions>
-    </WorkspaceHeader>
-
-    @* Landing and Berthing are separate fee types of this one operation. When the server offers them as approved fee types they are listed
-       here by their own stable identities; nothing is named or numbered in the browser. *@
-    <GovernedServiceWorkspace OperationCode="@CollectorOperationCodes.LandingBerthing" Name="Landing / Berthing" FeeOptionsTitle="Landing / Berthing fees" />
+        </HeroActions>
+    </GovernedServiceWorkspace>
 </div>

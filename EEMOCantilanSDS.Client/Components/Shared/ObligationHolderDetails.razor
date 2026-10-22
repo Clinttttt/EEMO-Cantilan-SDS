@@ -11,8 +11,8 @@
 @* A space or lot account's details in the stall-holder drawer: occupant and contract evidence, the approved billing amount apart from the contract's own
    figure, and the months' payment position (the same read-only calendar the stall drawer carries). Source-owned: every value is the account register's or the
    period register's; nothing is repriced or computed here. *@
-<RentalDetailsDrawer Title="@SpaceAccountPresentation.Occupant(Account)" Context="Header" StatusText="@(Account.ActiveTo is null ? "Active" : "Closed")"
-                     StatusClass="@(Account.ActiveTo is null ? "pill-active" : "pill-inactive")" Summary="SummaryItems" Sections="SectionRows" Fees="FeeRows"
+<RentalDetailsDrawer Title="@SpaceAccountPresentation.Occupant(Account)" Context="Header" StatusText="@RentalAccountStatus.Label(Account)"
+                     StatusClass="@(RentalAccountStatus.IsOpen(Account) ? "pill-active" : "pill-inactive")" Summary="SummaryItems" Sections="SectionRows" Fees="FeeRows"
                      NoFeesText="@NoFees" HistoryLabel="History" EditLabel="Edit Occupant & Space"
                      OnClose="OnClose" OnHistory="OnHistory" OnEdit="@(CanEditNow ? OnEdit : default)">
     @if (IsLot)
@@ -48,7 +48,7 @@
     private bool _loaded, _failed;
 
     private bool IsLot => Account.Kind == ObligationKind.FiestaArawLotRental;
-    private bool CanEditNow => CanEdit && Account.ActiveTo is null && !IsLot;
+    private bool CanEditNow => CanEdit && RentalAccountStatus.IsOpen(Account) && !IsLot;
     private DateTime? Start => (Account.ContractEffectiveDate ?? Account.ActiveFrom).ToDateTime(TimeOnly.MinValue);
     private string NoFees => IsLot ? "No additional fees for this lot." : "No additional fees for this space.";
 
@@ -120,7 +120,7 @@
                 rows.Add(new("Event date", Account.EventDate?.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) ?? "Not recorded", Account.EventDate is null));
                 rows.Add(new("Lot no.", Account.SubjectLabel));
                 rows.Add(new("Active from", Account.ActiveFrom.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)));
-                if (Account.ActiveTo is { } closed) rows.Add(new("Closed on", closed.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)));
+                if (Account.ActiveTo is { } closed) rows.Add(new(RentalAccountStatus.IsOpen(Account) ? "Ends on" : "Closed on", closed.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)));
                 return [new("Lot holder & event", rows)];
             }
             rows.Add(new("Basis of occupancy", SpaceAccountPresentation.Basis(Account)));
@@ -135,7 +135,7 @@
             }
             else rows.Add(new("Contract duration", "No contract", true));
             rows.Add(new("Active from", Account.ActiveFrom.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)));
-            if (Account.ActiveTo is { } ended) rows.Add(new("Closed on", ended.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)));
+            if (Account.ActiveTo is { } ended) rows.Add(new(RentalAccountStatus.IsOpen(Account) ? "Ends on" : "Closed on", ended.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)));
             if (!string.IsNullOrWhiteSpace(Account.AreaLocation)) rows.Add(new("Area note", Account.AreaLocation));
             return [new("Occupant & contract", rows)];
         }

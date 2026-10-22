@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
+using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
@@ -15,6 +16,34 @@ namespace EEMOCantilanSDS.IntegrationTests;
 /// </summary>
 public sealed partial class CollectionSessionTests
 {
+    [SkippableFact]
+    public async Task Npm_occupancy_without_manual_utility_flags_is_discoverable_without_creating_bills()
+    {
+        var today = PhilippineTime.Today;
+        var w = await SeedAsync(linked: false);
+        await using var db = database.CreateContext(w.TenantId);
+        var stall = await db.Stalls.SingleAsync(x => x.Id == w.StallId);
+        stall.SetApplicableFees(ApplicableFees.BaseRental, "Synthetic registration without utility checkboxes");
+        db.Add(CollectorOperationAssignment.Assign(w.TenantId, w.CollectorId, CollectorOperationCodes.Wcf, "Synthetic Head"));
+        db.Add(CollectorOperationActivation.Activate(w.TenantId, CollectorOperationCodes.Wcf, today, w.CollectorId, "Synthetic Head", DateTime.UtcNow));
+        await db.SaveChangesAsync();
+        var contract = await db.Contracts.SingleAsync(x => x.StallId == w.StallId);
+        var sources = new CollectionSessionSources(db, new Caller(w.CollectorId, w.TenantId), new Tenant(w.TenantId), new Clock(today), null!, new NoMarketDays());
+        var result = await NativeWorkflow(db, w, sources).DiscoverNativeAsync(new(SourceIdentityKind.Occupancy, contract.Id));
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Contains(result.Value!.Operations, x => x.OperationCode == "ECF");
+        Assert.Contains(result.Value.Operations, x => x.OperationCode == "WCF");
+        foreach (var kind in new[] { UtilityKind.Electricity, UtilityKind.Water })
+        {
+            var head = new UtilityRegisterReader(db, new Caller(w.CollectorId, w.TenantId, "SuperAdmin"), new Tenant(w.TenantId), new Clock(today));
+            var register = await head.GetAsync(new(kind, today.Year, today.Month));
+            Assert.True(register.IsSuccess, register.Error);
+            Assert.Single(register.Value!.Rows);
+        }
+        Assert.Empty(await db.UtilityBills.ToListAsync());
+        Assert.Empty(await db.Collections.ToListAsync());
+    }
+
     [SkippableFact]
     public async Task Browsing_lists_the_assigned_registered_sources_by_exact_identity_without_merging_same_names()
     {
@@ -32,6 +61,13 @@ public sealed partial class CollectionSessionTests
         Assert.Equal(all.Items.Count, all.Total);
         // Only the categories this collector's assignments support exist: no space operation is assigned in this scenario.
         Assert.Contains(all.Categories, c => c.Key == CollectionSourceCategories.FishMeat);
+        Assert.Contains(all.Categories, c => c.Key == CollectionSourceCategories.Npm);
+        Assert.DoesNotContain(all.Categories, c => c.Key == CollectionSourceCategories.Rentals);
+        var npm = await sources.BrowseSourcesAsync(CollectionSourceCategories.Npm, null, 0, 25, default);
+        Assert.Single(npm.Items);
+        Assert.All(npm.Items, x => Assert.Equal(SourceIdentityKind.Occupancy, x.Identity.Kind));
+        var unassigned = await sources.BrowseSourcesAsync(CollectionSourceCategories.Tcc, null, 0, 25, default);
+        Assert.Empty(unassigned.Items);
         Assert.DoesNotContain(all.Categories, c => c.Key == CollectionSourceCategories.Spaces);
     }
 

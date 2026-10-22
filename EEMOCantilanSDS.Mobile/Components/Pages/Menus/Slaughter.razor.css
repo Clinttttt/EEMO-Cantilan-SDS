@@ -566,3 +566,40 @@
 .tx-amount {
     font-variant-numeric: tabular-nums;
 }
+
+.charge-pick {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    margin: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.charge-pick input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 auto;
+}
+
+/* Itemized sheet: the animals sit on one row, a ticked charge shows its line amount. */
+.animal-grid-row {
+    grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
+}
+
+.animal-grid-row .animal-chip {
+    align-items: center;
+    padding: 12px 8px;
+}
+
+.line-input.is-on {
+    background: #fff;
+}
+
+.line-input-total {
+    color: var(--navy-primary);
+    font-size: 13px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}

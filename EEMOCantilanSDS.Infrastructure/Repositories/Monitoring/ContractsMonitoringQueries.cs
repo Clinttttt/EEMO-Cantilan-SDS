@@ -126,7 +126,7 @@ public sealed class ContractsMonitoringQueries(AppDbContext db, ICurrentMunicipa
                                  OccupancyStart = account.ActiveFrom,
                                  EffectivityDate = account.Arrangement == OccupancyArrangement.SignedContract ? account.ContractEffectiveDate : null,
                                  DurationYears = account.Arrangement == OccupancyArrangement.SignedContract ? account.ContractYears : null,
-                                 Ended = account.ActiveTo != null, ClosureDate = account.ActiveTo,
+                                 Ended = account.ActiveTo != null && account.ActiveTo < today, ClosureDate = account.ActiveTo,
                                  ApprovedCharge = db.ObligationRates.Where(r => r.MunicipalityId == tenant && r.ObligationAccountId == account.Id && r.EffectiveFrom <= today)
                                      .OrderByDescending(r => r.EffectiveFrom).ThenByDescending(r => r.Id).Select(r => (decimal?)r.Amount).FirstOrDefault(),
                                  ChargeFrequency = ContractMonitoringChargeFrequency.Monthly,

@@ -39,7 +39,9 @@ public class GetFollowUpQueueQueryHandler(
         foreach (var code in FollowUpComposer.StallFacilities)
             facilityReports[code] = await reportsRepository.GetFacilityReportsAsync(code, ReportPeriod.Monthly, year, month, null, ct);
 
-        var delinquency = await reportsRepository.GetDelinquentStallsAsync(null, year, month, ct);
+        // The whole account, so previous-year Arrears (IA-069) is stated in full here as in the Financial Reports; the Delinquent part (current-year
+        // elapsed months) is the same in a rolling window and in the whole account.
+        var delinquency = await reportsRepository.GetDelinquentStallsAsync(null, year, month, includeClosed: true, wholeAccount: true, ct);
         var awaitingOr = await onlinePaymentRepository.GetAwaitingOrAsync(ct);
         var slaughter = await slaughterRepository.GetTransactionsByMonthAsync(year, month, ct);
         var trips = await trmRepository.GetTripsByMonthAsync(year, month, ct);

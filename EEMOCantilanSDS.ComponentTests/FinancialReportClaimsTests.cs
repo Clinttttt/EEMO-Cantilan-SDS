@@ -58,8 +58,8 @@ public class FinancialReportClaimsTests
     {
         var markup = ReadReport(string.Empty);
 
-        Assert.Contains("At least one fully elapsed unpaid month", markup);
-        Assert.Contains("The old/lapsed qualification boundary is not defined", markup);
+        Assert.Contains("Fully elapsed unpaid months of the current year", markup);
+        Assert.Contains("Previous-year rent, expired contracts and ended occupancies", markup);
         Assert.DoesNotContain("DomainRules.DelinquentThresholdMonths - 1", markup);
         Assert.DoesNotContain("unpaid months</div>", markup);
     }
@@ -72,9 +72,10 @@ public class FinancialReportClaimsTests
         var summary = File.ReadAllText(Path.Combine(root, "EEMOCantilanSDS.Client", "Components", "Pages", "Reports", "FinancialSummaryDocument.razor"));
         var completeDocumentation = File.ReadAllText(Path.Combine(root, "docs", "business", "EEMO_BUSINESS_RULES.md"));
 
-        Assert.Contains("Not defined; not inferred from unpaid-month age", settings);
+        // IA-069 defines Arrears per obligation (year / ended occupancy / expired contract), never by the age of an unpaid-month count.
+        Assert.Contains("per obligation", settings);
         Assert.DoesNotContain("ArrearsMinMonths", settings);
-        Assert.Contains("Not defined. No age-based total is reported", summary);
+        Assert.Contains("Arrears — previous-year rent, expired contracts and ended occupancies", summary);
         Assert.DoesNotContain("1 to @(DomainRules.DelinquentThresholdMonths - 1)", summary);
         Assert.DoesNotContain("3+ unpaid months inside a rolling 12-month window = delinquent; 1–2 = arrears", completeDocumentation);
     }
@@ -117,32 +118,22 @@ public class FinancialReportClaimsTests
     public void OnlyASectionThatIsNeverPrinted_MayBeLeftOutOfTheMarkup()
     {
         // Export Summary PDF is assembled by the print stylesheet from the whole page, whatever tab is open, so every
-        // pdf-include section has to exist at all times — hidden by a class, never omitted. Attention and the register are
-        // read on screen only, and the register's print button is inside the register, so it cannot be asked to print
-        // while it is closed. Leaving those two out cut the page from 116 kb of markup to 30 kb.
-        //
-        // This is the assertion that stops the saving from being taken one section too far: omitting a pdf-include
-        // section would export a report with a hole in it, and nothing on screen would look wrong.
+        // pdf-include section has to exist at all times — hidden by a class, never omitted. Receivables is read on screen
+        // only, so it may leave the markup while another tab is open.
         var markup = ReadReport(string.Empty);
 
-        foreach (var key in new[] { "followup", "records", "misc" })
-            Assert.Contains($@"SectionShown(""{key}"")", markup);
-
-        foreach (var key in new[] { "overview", "trend", "facility" })
-        {
-            Assert.Contains($@"SectionOff(""{key}"")", markup);
-            Assert.DoesNotContain($@"SectionShown(""{key}"")", markup);
-        }
-
-        // Each conditional section states the id it guards, so the two lists above cannot silently swap places.
+        Assert.Contains(@"SectionShown(""followup"")", markup);
+        Assert.Contains(@"SectionOff(""overview"")", markup);
+        Assert.DoesNotContain(@"SectionShown(""overview"")", markup);
         Assert.Matches(@"SectionShown\(""followup""\)\s*\)\s*\{\s*<div id=""rpt-followup""", markup);
-        Assert.Matches(@"SectionShown\(""records""\)\s*\)\s*\{\s*<div id=""rpt-records""", markup);
 
-        // The button that prints the register is inside the register, which is what makes omitting it safe.
-        var registerStart = markup.IndexOf(@"<div id=""rpt-records""", StringComparison.Ordinal);
-        var printButton = markup.IndexOf("PrintRegister", StringComparison.Ordinal);
-        Assert.True(registerStart > 0 && printButton > registerStart,
-            "PrintRegister must be triggered from inside the register section");
+        // The physical-facility analysis is no longer on the Trends & Targets screen, but the print document still carries it:
+        // it stays in the markup, pdf-include, hidden on screen only.
+        Assert.Matches(@"<div id=""rpt-facility"" class=""section-card pdf-include rpt-sec-off""", markup);
+
+        // The legacy-source register, Miscellaneous and the facility-oriented Revenue Trend were retired from the screen.
+        foreach (var gone in new[] { @"id=""rpt-records""", @"id=""rpt-misc""", @"id=""rpt-trend""", "Legacy-source collections", "Physical facility analysis — @PeriodLabel</div>" })
+            Assert.DoesNotContain(gone, markup.Replace("Physical facility analysis — @PeriodLabel<span", "x"));
     }
 
     [Fact]
@@ -178,21 +169,6 @@ public class FinancialReportClaimsTests
         // Borrowed from the card below rather than invented: same border, same tinted panel, same red figure.
         Assert.Contains(".rpt-empty-note {", css);
         Assert.Contains("color: var(--red);", css);
-    }
-
-    [Fact]
-    public void TheRegisterShowsTheStallAndWhoRecordedIt_BecauseBothWereAlreadyOnTheRow()
-    {
-        // Two things this report held and did not show. The column has always been headed "Payor / Stall" while the cell
-        // rendered the payor alone, and the transaction feed has carried RecordedBy since it was normalised while the
-        // report mapped it to null. For an LGU register the officer answerable for an entry is exactly what is worth
-        // keeping, and three of Cantilan's market sections each hold a "Stall 1", so the payor's name does not identify
-        // what was collected on.
-        var markup = ReadReport(string.Empty);
-
-        Assert.Contains("SpaceNumber.Describe(tx.StallNo)", markup);
-        Assert.Contains(@"<th scope=""col"">Recorded by</th>", markup);
-        Assert.Contains("tx.Collector", markup);
     }
 
     [Fact]
@@ -270,7 +246,7 @@ public class FinancialReportClaimsTests
 
         Assert.Contains("Not to be added", markup);
         Assert.Contains("Lapsed term exposure", markup);
-        Assert.Contains("within whole account", markup);
+        Assert.Contains("within Arrears", markup);
 
         // Every label starts on the same line: the relationship is carried by the wording, not by an indent that leaves
         // one row out of alignment with the others.
@@ -291,64 +267,6 @@ public class FinancialReportClaimsTests
 
         // Shown only when it says something the headline does not, so it never just repeats the card above it.
         Assert.Contains("serviceCollected > 0m && recurringBilled > 0m && recurringRate != Model.CollectionRatePct", markup);
-    }
-
-    [Fact]
-    public void TheTrendTable_DerivesEachPeriodsRateFromTheSameIdentityAsTheHeadline()
-    {
-        // The chart says which direction; the table says by how much, and it is the part that survives being printed. A
-        // period's rate is collected over collected-plus-unpaid — the same identity the headline rate uses (Billed =
-        // Collected + CurrentPeriodUnpaid) — so a period's rate here and the card above can never disagree.
-        var markup = ReadReport(string.Empty);
-        var css = ReadReport(".css");
-
-        Assert.Contains("var pBilled = p.Collected + p.Unpaid;", markup);
-        Assert.Contains("p.Collected / pBilled * 100m", markup);
-
-        // A period with nothing billed has no rate, and says so rather than showing zero.
-        Assert.Contains(@"pBilled > 0m ? Math.Round(p.Collected / pBilled * 100m).ToString(""0"") + ""%"" : ""—""", markup);
-
-        // The selected period is marked, so the table and the chart agree at a glance.
-        Assert.Contains("p.IsSelected ? \"is-selected\" : \"\"", markup);
-
-        // It prints with the chart, which means its horizontal scroll must be released or the last column is clipped.
-        Assert.Contains(".rpt-trend-table-wrap { overflow: visible !important;", css);
-    }
-
-    [Fact]
-    public void TheTrendMovement_UsesTheSameNearZeroGuardAsTheCollectedCard()
-    {
-        // A percentage against a tiny prior period is misleading — a pre-rollout month makes any month look like a
-        // thousandfold rise. The Collected card already switched to pesos beyond ten times; this states movement in the
-        // same place and must use the same rule, or one figure contradicts the other on the same screen.
-        var markup = ReadReport(string.Empty);
-
-        Assert.Contains("Model.CollectedPreviousPeriod is decimal prevCollected", markup);
-        Assert.Contains("Math.Abs(movePct) < 1000m", markup);
-
-        // Nothing is shown at all without a prior period to compare against, rather than a movement from zero.
-        Assert.Contains("Model.PreviousPeriodLabel is not null && prevCollected > 0m", markup);
-
-        // It states only the change. The two figures it used to carry beside that change — this period and the one before —
-        // are rows in the table above, so the panel was a second place to read the same numbers.
-        Assert.Contains("rpt-ytd-move", markup);
-        Assert.DoesNotContain("rpt-move-close", markup);
-
-        // Razor trims markup whitespace at the leading edge of a code block, which once ran the peso figure straight into
-        // the percentage after it. The separators are character references, which survive that trim.
-        Assert.Contains("<text>&#160;</text><span class=\"rpt-ytd-move", markup);
-        Assert.Contains("</span><text>&#160;</text><span class=\"rpt-ytd-base\"", markup);
-
-        var css = ReadReport(".css");
-
-        // Nothing of the removed panel is left behind in the stylesheet.
-        Assert.Contains(".rpt-ytd-move {", css);
-        Assert.DoesNotContain("rpt-move-split", css);
-        Assert.DoesNotContain("rpt-move-close", css);
-        Assert.DoesNotContain(".fac-close-val.is-quiet", css);
-
-        // The header carries no figures, so the print rule hides it outright.
-        Assert.Contains(".rpt-trend-card .section-header { display: none !important; }", css);
     }
 
     [Fact]
@@ -383,38 +301,6 @@ public class FinancialReportClaimsTests
 
         // The mark and its note are one screen-only element: nothing about the rule reaches paper.
         Assert.Contains("class=\"rpt-rule-wrap no-print\"", markup);
-    }
-
-    [Fact]
-    public void Miscellaneous_CarriesTheSameTwoActionsTheRegisterDoes_AndPrintsAsItsOwnDocument()
-    {
-        // The readings behind this table are entered on the market's utility billing screen, and the table itself is
-        // filed. So: the same two actions the register carries, through the same print helper — one mechanism for
-        // "print this section", not two — and a link that lands on the period the report is showing.
-        var markup = ReadReport(string.Empty);
-        var css = ReadReport(".css");
-
-        Assert.Contains("stalltrackPrint.sectionDocument\", \"#rpt-sheet\", \"print-misc\"", markup);
-        Assert.Contains("/npm/reports?view=utilities&year={year}&month={month}", markup);
-
-        // The actions never print, and the button says so rather than vanishing when there is nothing to print.
-        Assert.Contains("class=\"rpt-register-actions no-print\"", markup);
-        Assert.Contains("disabled=\"@(Model.Misc is null)\"", markup);
-
-        // An id, because the rule that hides every section-card without pdf-include would otherwise win.
-        Assert.Contains(".print-misc #rpt-misc { display: block !important; }", css);
-
-        // The two faults the register document had, fixed here before they could happen: a break spacer that opens the
-        // document with a blank sheet, and card chrome that draws its background to the edge of every middle page.
-        Assert.Contains(".print-misc .rpt-page-space { display: none !important; }", css);
-        Assert.Contains(".print-misc #rpt-misc .section-header { display: none !important; }", css);
-
-        // This table's tfoot is a real total row, not the register's spacer. A footer group would print "Total" at the
-        // foot of every sheet as though each page were complete.
-        Assert.Contains(".print-misc #rpt-misc tfoot { display: table-row-group; }", css);
-
-        // And the summary export is untouched: the section carries no pdf-include at all.
-        Assert.DoesNotContain("id=\"rpt-misc\" class=\"section-card pdf-include", markup);
     }
 
     [Fact]
@@ -493,56 +379,6 @@ public class FinancialReportClaimsTests
         Assert.True(serverLimit.Success, "expected the handler to state its register cap");
 
         Assert.Equal(serverLimit.Groups["n"].Value, pageLimit.Groups["n"].Value);
-    }
-
-    [Fact]
-    public void TheRegisterIsTitledForThePeriod_AndPointsAtTheFullLedger()
-    {
-        // It used to read "Recent Collection Records · Latest recorded payments", which is activity for the scope. The
-        // section is the evidence behind the period's totals, so it says which period — and hands off to the transactions
-        // page rather than growing a page control the feed cannot support correctly.
-        var markup = ReadReport(string.Empty);
-
-        // Named for what it is beside the official register: the legacy-source facility records of the period.
-        Assert.Contains("Legacy-source collections — @PeriodLabel", markup);
-        Assert.DoesNotContain("Recent Collection Records</div>", markup);
-        Assert.Contains(@"href=""/transactions""", markup);
-    }
-
-    [Fact]
-    public void TheRegisterPrintsAsItsOwnDocument_WithoutChangingTheSummaryExport()
-    {
-        // Two documents from one page. The summary is what the office signs off, so the register was NOT added to it —
-        // fifty rows a period would make it a different document. The register prints under a class the print helper adds
-        // for the duration of the print.
-        var markup = ReadReport(string.Empty);
-        var css = ReadReport(".css");
-
-        Assert.Contains(@"id=""rpt-sheet""", markup);
-        Assert.Contains(@"stalltrackPrint.sectionDocument"", ""#rpt-sheet"", ""print-register""", markup);
-
-        // Register mode hides the summary's own sections and shows the register …
-        Assert.Contains(".print-register #rpt-records { display: block !important; }", css);
-        Assert.Contains(".print-register .kpi-row,", css);
-
-        // … the spacer that forces a page break for the facility card goes with it, or the register begins on a blank
-        // sheet, which is exactly what it did …
-        Assert.Contains(".print-register .rpt-page-space { display: none !important; }", css);
-
-        // … and the margin is ZERO, so Chromium has no margin box to print its date, title and URL into. The whitespace
-        // comes from the container's own print padding and from the repeated header and footer rows.
-        Assert.Contains("margin: 0;", ReadPrintJs());
-        Assert.Contains(".content-area { page: report-doc; padding: 10mm 12mm !important;", css);
-
-        // The card chrome is stripped for print: a bordered panel broken across sheets draws its background to the paper's
-        // edge on every page between its true start and end, which read as the table falling off the sheet.
-        Assert.Contains(".print-register #rpt-records {", css);
-        Assert.Contains("background: transparent !important;", css);
-
-        // … and the register still carries no pdf-include, which is what leaves the Summary PDF exactly as it was.
-        var records = Regex.Match(markup, @"<div id=""rpt-records""[^>]*>");
-        Assert.True(records.Success, "expected the register section to still carry its id");
-        Assert.DoesNotContain("pdf-include", records.Value);
     }
 
     [Fact]

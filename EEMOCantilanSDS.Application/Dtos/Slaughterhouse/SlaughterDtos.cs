@@ -37,7 +37,13 @@ public record SlaughterTransactionDto(
 {
     /// <summary>Set only on a collection the Collector recorded on the canonical workflow (its SRC): such a row is read here, never edited here.</summary>
     public string? ReferenceCode { get; init; }
+
+    /// <summary>The approved charges of an itemized canonical collection (label, quantity, frozen approved rate, amount); null for a per-head or legacy row.</summary>
+    public IReadOnlyList<SlaughterChargeItemDto>? Items { get; init; }
 }
+
+/// <summary>One itemized line of a Slaughterhouse collection as frozen on its receipt.</summary>
+public record SlaughterChargeItemDto(string Label, decimal Quantity, decimal UnitAmount, decimal Amount, DateOnly? RateEffectiveDate = null);
 
 public record SlaughterOverviewDto(
     int TotalTransactions,

@@ -3,8 +3,9 @@
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
 @using System.Globalization
-@implements IDisposable
+@implements IAsyncDisposable
 @inject IUtilityRegisterApiClient RegisterApi
+@inject IJSRuntime JS
 
 @* The ECF / WCF workspace, one composition for both utilities: a compact header, the source register (server-filtered, counted and
    paged), the selected source's detail and actions, then whatever the page adds (its notices and its collection activity). It
@@ -18,6 +19,16 @@
             <V3HeroFigure Label="Net settled" Value="@Figure(_page?.Totals.Collected)" Note="@DirectNote" />
             <V3HeroFigure Label="Outstanding" Value="@Figure(_page?.Totals.Outstanding)" Note="@(_page is null ? null : "Prepared balances")" />
         </Figures>
+        <Actions>
+            <a class="v3-btn" href="@BasePath/statements">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" /></svg>
+                Statements
+            </a>
+            <a class="v3-btn" href="@BasePath/report">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17" x2="13" y2="17" /></svg>
+                Report
+            </a>
+        </Actions>
     </V3Hero>
 
     @if (!string.IsNullOrWhiteSpace(_message))
@@ -26,7 +37,13 @@
     }
     @Notices
 
-    <div class="uw-layout">
+    @if (_showActivity)
+    {
+        <div class="uw-enter">@Activity?.Invoke(EventCallback.Factory.Create(this, HideActivity))</div>
+    }
+    else
+    {
+    <div class="uw-layout uw-enter @(Selected is null ? "uw-idle" : null)">
         <section class="v3-panel uw-register" aria-labelledby="uw-register-title" aria-busy="@(_loading ? "true" : "false")">
             <header class="v3-panel-header uw-register-head">
                 <h2 id="uw-register-title">@RegisterTitle</h2>
@@ -48,6 +65,9 @@
                         <option value="@((int)facility.Code)" selected="@(_facility == ((int)facility.Code).ToString())">@facility.Name</option>
                     }
                 </select>
+                <button class="v3-btn uw-icon-btn" type="button" @onclick="ShowActivity" aria-label="Show collection activity" title="Collection activity">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4" /></svg>
+                </button>
                 <details class="uw-filters">
                     <summary class="v3-btn uw-icon-btn" aria-label="@(AreaOrStatusActive ? "Filters, applied" : "Filters")" title="Filters">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
@@ -92,7 +112,7 @@
                 </div>
             }
 
-            <div class="v3-table-wrap" role="region" aria-label="@(Title) sources" tabindex="0">
+            <div class="v3-table-wrap uw-scroll" @ref="_register" role="region" aria-label="@(Title) sources" tabindex="0">
                 <table class="v3-table uw-table">
                     <caption class="v3-sr-only">@Title sources for @PeriodLabel</caption>
                     <thead>
@@ -115,7 +135,7 @@
                                     </button>
                                 </td>
                                 <td class="v3-num">@(row.Approved is { } approved ? Money(approved) : "—")</td>
-                                <td class="v3-num">@Money(row.Collected)</td>
+                                <td class="v3-num">@Money(row.Collected)@if (row.AwaitingConfirmation > 0m) { <span class="v3-block uw-awaiting">+@Money(row.AwaitingConfirmation) awaiting</span> }</td>
                                 <td class="v3-num v3-strong">@(row.Mode == "Prepared" ? Money(row.Outstanding) : "—")</td>
                                 <td><span class="uw-status uw-status-@row.Status.ToLowerInvariant()">@StatusLabel(row.Status)</span></td>
                             </tr>
@@ -148,13 +168,6 @@
             {
                 <footer class="uw-pager no-print">
                     <span class="uw-pager-info">@(_skip + 1)–@(_skip + pg.Rows.Count) of @(pg.Total)</span>
-                    <label class="uw-pager-size">
-                        <span>Rows</span>
-                        <select class="v3-select" aria-label="Rows per page" @onchange="ChangePageSizeAsync">
-                            <option value="25" selected="@(_take == 25)">25</option>
-                            <option value="50" selected="@(_take == 50)">50</option>
-                        </select>
-                    </label>
                     <div class="v3-btn-group" role="group" aria-label="Pages">
                         <button class="v3-btn v3-btn-sm" type="button" disabled="@(_skip == 0 || _loading)" @onclick="PreviousAsync">Previous</button>
                         <button class="v3-btn v3-btn-sm" type="button" disabled="@(_skip + pg.Rows.Count >= pg.Total || _loading)" @onclick="NextAsync">Next</button>
@@ -176,6 +189,7 @@
                         <div><dt>Amount method</dt><dd>@MethodOf(source)</dd></div>
                         <div><dt>Approved</dt><dd>@(source.Approved is { } approved ? Money(approved) : "Not prepared")</dd></div>
                         <div><dt>Net settled</dt><dd>@Money(source.Collected)</dd></div>
+                        @if (source.AwaitingConfirmation > 0m) { <div><dt>Awaiting confirmation</dt><dd class="v3-strong">@Money(source.AwaitingConfirmation)</dd></div> }
                         @if (source.Mode == "Prepared")
                         {
                             <div><dt>Outstanding</dt><dd class="v3-strong">@Money(source.Outstanding)</dd></div>
@@ -221,17 +235,12 @@
             else
             {
                 <header class="v3-panel-header"><h2 id="uw-detail-title">Source details</h2></header>
-                <div class="v3-panel-body"><p class="uw-note">Select a source to see its position, prepare its approved amount or record a payment.</p></div>
+                <div class="v3-panel-body uw-empty-detail"><p class="uw-note">Select a source to see its position, prepare its approved amount or record a payment.</p></div>
             }
         </aside>
     </div>
+    }
 
-    @Activity
-
-    <nav class="uw-secondary no-print" aria-label="@Title pages">
-        <a class="v3-btn" href="@BasePath/statements">Statements</a>
-        <a class="v3-btn" href="@BasePath/report">Report</a>
-    </nav>
 </div>
 
 @if (_batchOpen)
@@ -271,18 +280,18 @@
                 }
                 else
                 {
-                    <p class="uw-help">Enter an approved amount for each source to prepare, from the sources currently listed. Leave the others blank.</p>
+                    <p class="uw-help">Enter an approved amount for each source you want to prepare. Leave the others blank.</p>
                     <div class="v3-table-wrap">
                         <table class="v3-table">
-                            <thead><tr><th scope="col">Source</th><th scope="col">Status</th><th scope="col" class="v3-num">Approved amount (₱)</th></tr></thead>
+                            <thead><tr><th scope="col">Source</th><th scope="col">Status</th><th scope="col" class="v3-num">Amount (₱)</th></tr></thead>
                             <tbody>
                                 @foreach (var row in PreparableRows)
                                 {
                                     <tr @key="row.StallId">
                                         <td><span class="v3-strong">@PayerOf(row)</span><span class="v3-block uw-context">@ContextOf(row)</span></td>
-                                        <td>@StatusLabel(row.Status)</td>
+                                        <td><span class="uw-status uw-status-@row.Status.ToLowerInvariant()">@StatusLabel(row.Status)</span></td>
                                         <td class="v3-num">
-                                            <input class="v3-input uw-batch-input" type="text" inputmode="decimal" autocomplete="off"
+                                            <input class="v3-input uw-batch-input" placeholder="0.00" type="text" inputmode="decimal" autocomplete="off"
                                                    aria-label="@($"Approved amount for {PayerOf(row)}, {ContextOf(row)}")"
                                                    value="@BatchText(row.StallId)" @oninput="e => SetBatch(row.StallId, e.Value?.ToString())" />
                                         </td>
@@ -299,6 +308,10 @@
                 }
             </div>
             <footer class="v3-modal-footer">
+                @if (_batchResult is null && !_batchReviewing)
+                {
+                    <span class="uw-batch-count" role="status">@BatchEntries.Count to prepare</span>
+                }
                 @if (_batchResult is not null)
                 {
                     <button class="v3-btn v3-btn-primary" type="button" @onclick="CloseBatch">Done</button>
@@ -328,7 +341,7 @@
     [Parameter] public RenderFragment<UtilityRegisterRowDto>? SourceActions { get; set; }
 
     /// <summary>The page's own compact collection activity.</summary>
-    [Parameter] public RenderFragment? Activity { get; set; }
+    [Parameter] public RenderFragment<EventCallback>? Activity { get; set; }
 
     /// <summary>Raised after the register has loaded for a month, so the page can load that month's activity.</summary>
     [Parameter] public EventCallback<(int Year, int Month)> OnPeriodLoaded { get; set; }
@@ -374,7 +387,7 @@
     private bool Filtered => _search.Length > 0 || _facility != "" || _section != "" || _status != "All";
 
     private string Summary => _page is null ? (_loading ? "Loading…" : "") : $"{_page.Total} source{(_page.Total == 1 ? "" : "s")}";
-    private string? DirectNote => _page is { Totals.DirectCollected: > 0m } p ? $"{Money(p.Totals.DirectCollected)} of it direct" : _page is null ? null : "Applied to this month";
+    private string? DirectNote => _page is null ? null : _page.Totals.AwaitingConfirmation > 0m ? $"{Money(_page.Totals.AwaitingConfirmation)} direct, awaiting Head confirmation" : _page.Totals.DirectCollected > 0m ? $"{Money(_page.Totals.DirectCollected)} of it direct" : "Applied to this month";
     private UtilityRegisterRowDto? Selected => _page?.Rows.FirstOrDefault(r => r.StallId == _selectedId);
     private bool IsSelected(UtilityRegisterRowDto row) => row.StallId == _selectedId;
     private IEnumerable<UtilityRegisterRowDto> PreparableRows => (_page?.Rows ?? []).Where(r => r.CanPrepare);
@@ -437,7 +450,6 @@
     private Task ChangeFacilityAsync(ChangeEventArgs a) { _facility = a.Value?.ToString() ?? ""; _section = ""; _skip = 0; return LoadAsync(); }
     private Task ChangeSectionAsync(ChangeEventArgs a) { _section = a.Value?.ToString() ?? ""; _skip = 0; return LoadAsync(); }
     private Task ChangeStatusAsync(ChangeEventArgs a) { _status = a.Value?.ToString() ?? "All"; _skip = 0; return LoadAsync(); }
-    private Task ChangePageSizeAsync(ChangeEventArgs a) { _take = a.Value?.ToString() == "50" ? 50 : 25; _skip = 0; return LoadAsync(); }
     private Task PreviousAsync() { _skip = Math.Max(0, _skip - _take); return LoadAsync(); }
     private Task NextAsync() { _skip += _take; return LoadAsync(); }
     private Task ClearFiltersAsync() { (_search, _facility, _section, _status, _skip) = ("", "", "", "All", 0); return LoadAsync(); }
@@ -545,7 +557,7 @@
         "Unpaid" => $"{Money(row.Outstanding)} remaining.",
         "Partial" => $"{Money(row.Outstanding)} remaining.",
         "Settled" => "Settled for this period.",
-        "Direct" => "Collection recorded without a prepared assessment.",
+        "Direct" => row.AwaitingConfirmation > 0m ? $"{Money(row.AwaitingConfirmation)} recorded by the collector; it is settled here once the Head confirms it in Collection Review." : "Collection recorded without a prepared assessment.",
         "NeedsReview" => "Source requires office review.",
         _ => ""
     };
@@ -567,5 +579,33 @@
     private static string Money(decimal amount) => $"₱{amount:N2}";
     private static string Figure(decimal? amount) => amount is { } value ? Money(value) : "—";
 
-    public void Dispose() => _debounce?.Cancel();
+    // The register shows about six sources; the rest scroll inside it (sized by the same measuring module as the governed-service history).
+    private const int VisibleSources = 5;
+    private bool _showActivity, _observed;
+    private void ShowActivity() { _showActivity = true; _observed = false; }
+    private void HideActivity() => _showActivity = false;
+    private ElementReference _register;
+    private IJSObjectReference? _scrollModule;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        _scrollModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/collectionHistory.js");
+        if (!_showActivity && !_observed)
+        {
+            _observed = true;
+            await _scrollModule.InvokeVoidAsync("observe", _register, VisibleSources);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _debounce?.Cancel();
+        if (_scrollModule is null) return;
+        try
+        {
+            await _scrollModule.InvokeVoidAsync("disconnect", _register);
+            await _scrollModule.DisposeAsync();
+        }
+        catch (JSDisconnectedException) { }
+    }
 }

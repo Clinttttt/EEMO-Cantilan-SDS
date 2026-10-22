@@ -140,4 +140,6 @@ public sealed record MobileReportPayeeSummaryDto(
     int TransactionCount,
     int PartialCount,
     DateTime? LastCollectedAt,
-    string? ORNumber);
+    string? ORNumber,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    Guid? StallId = null);

@@ -101,12 +101,41 @@ public sealed class FishMeatPayorFollowUpTests(PostgresFixture db)
         Assert.Equal(1, review.Value.NeedsRegistrationCount);
         // The money is financially reviewable on its own and still counted; only bulk confirmation of an unidentified payor is refused.
         Assert.Single((await Review(ctx, w).GetAsync(new("Pending", Today.AddDays(-1), Today))).Value!.Rows);
-        var bulk = (await Review(ctx, w).BulkConfirmAsync(new(Guid.NewGuid(), [id]))).Value!;
+        // Verification needs the payor identified: an Admin cannot verify at all, and the Head cannot until the payor is registered or linked.
+        Assert.Equal(ResultStatus.Forbidden, (await Review(ctx, w, "Admin").ReviewAsync(new(Guid.NewGuid(), id, "Confirmed"))).Status);
+        Assert.Equal(ResultStatus.Forbidden, (await Review(ctx, w, "Admin").BulkConfirmAsync(new(Guid.NewGuid(), [id]))).Status);
+        var bulk = (await Review(ctx, w, "SuperAdmin").BulkConfirmAsync(new(Guid.NewGuid(), [id]))).Value!;
         Assert.Equal(0, bulk.Confirmed);
-        Assert.Contains("register or link", Assert.Single(bulk.Skipped).Reason);
-        var confirmed = await Review(ctx, w).ReviewAsync(new(Guid.NewGuid(), id, "Confirmed"));
-        Assert.True(confirmed.IsSuccess);
-        Assert.Equal("Needs registration", confirmed.Value!.Registration);   // financial review never resolves identity
+        Assert.Contains("register or link", Assert.Single(bulk.Skipped).Reason, StringComparison.OrdinalIgnoreCase);
+        var single = await Review(ctx, w, "SuperAdmin").ReviewAsync(new(Guid.NewGuid(), id, "Confirmed"));
+        Assert.False(single.IsSuccess);
+        Assert.Equal(ResultStatus.Conflict, single.Status);
+        Assert.Contains("register or link", single.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(await ctx.DirectCollectionReviewEvents.AsNoTracking().ToListAsync());     // nothing was recorded by either refusal
+    }
+
+    [SkippableFact]
+    public async Task AnUnresolvedVendorRegistration_IsCountedAsCash_ButNotVerified_UntilTheHeadLinksIt()
+    {
+        var w = await SeedAsync();
+        await using var ctx = db.CreateContext(w.TenantId);
+        var id = await PostPayerOnlyAsync(ctx, w, "Giorgia Macapagal");
+        var head = () => Review(ctx, w, "SuperAdmin");
+
+        var before = (await head().GetPositionAsync(Today.AddDays(-1), Today)).Value!;
+        Assert.Equal((43m, 0m, 43m), (before.Recorded, before.Verified, before.PendingVerification));   // the cash is recorded and pending, never hidden
+
+        var vendor = (await Office(ctx, w, "SuperAdmin").RegisterAsync(new(Guid.NewGuid(), Today.Year, FishMeatVendorType.Fish, VendorRegistrationKind.New, "Giorgia Macapagal"))).Value!;
+        var linked = await FollowUp(ctx, w).ResolveAsync(new(Guid.NewGuid(), id, VendorRegistrationId: vendor.Id));
+        Assert.True(linked.IsSuccess, linked.Error);
+
+        var row = Assert.Single((await head().GetAsync(new("All", Today.AddDays(-1), Today))).Value!.Rows);
+        Assert.True(row.CanConfirm);                                                                    // identified: now confirmable
+        var confirmed = await head().ReviewAsync(new(Guid.NewGuid(), id, "Confirmed"));
+        Assert.True(confirmed.IsSuccess, confirmed.Error);
+        var after = (await head().GetPositionAsync(Today.AddDays(-1), Today)).Value!;
+        Assert.Equal((43m, 43m, 0m), (after.Recorded, after.Verified, after.PendingVerification));     // verified only now; recorded cash never changed
+        Assert.Equal(1, await ctx.Collections.CountAsync());                                            // confirmation created no collection
     }
 
     [SkippableFact]
@@ -133,10 +162,16 @@ public sealed class FishMeatPayorFollowUpTests(PostgresFixture db)
         Assert.Equal(43m, (await Office(ctx, w, "SuperAdmin").ManageRegistrationsAsync(Today.Year, Today.Month)).Value!.WalkUpVendorFeeCollected);   // counted, but under no vendor yet
 
         var op = Guid.NewGuid();
-        var resolved = await FollowUp(ctx, w).ResolveAsync(new(op, id, Register: new(FishMeatVendorType.Fish, "Giorgia Macapagal", "Giorgia Fish Stand", "Stall 4")));
+        var resolved = await FollowUp(ctx, w).ResolveAsync(new(op, id, Register: new(FishMeatVendorType.Fish,
+            "Giorgia Macapagal", "Giorgia Fish Stand", "Stall 4", VendorRegistrationKind.New,
+            "Macapagal", "Giorgia", "E.", null, "Female", "Fish retailing")));
         Assert.True(resolved.IsSuccess, resolved.Error);
         Assert.True(resolved.Value!.Registered);
         Assert.Equal(Today.Year, resolved.Value.Registration.TaxYear);
+        var savedVendor = await ctx.FishMeatVendorRegistrations.AsNoTracking()
+            .SingleAsync(v => v.Id == resolved.Value.Registration.Id);
+        Assert.Equal(("Macapagal", "Giorgia", "E.", "Female", "Fish retailing"),
+            (savedVendor.LastName, savedVendor.FirstName, savedVendor.MiddleName, savedVendor.Sex, savedVendor.NatureOfBusiness));
 
         // The registered-vendor registry now carries them and their linked payment; the follow-up no longer does. The money moves from "walk-up" to the vendor, never twice.
         var registry = (await Office(ctx, w, "SuperAdmin").ManageRegistrationsAsync(Today.Year, Today.Month)).Value!;
@@ -156,7 +191,9 @@ public sealed class FishMeatPayorFollowUpTests(PostgresFixture db)
         Assert.Equal(1, await after.FishMeatDirectCollectionLinks.CountAsync(l => l.CollectionId == id));
 
         // A retry of the same operation answers with what it recorded; a different operation cannot link it twice.
-        var replay = await FollowUp(after, w).ResolveAsync(new(op, id, Register: new(FishMeatVendorType.Fish, "Giorgia Macapagal", "Giorgia Fish Stand", "Stall 4")));
+        var replay = await FollowUp(after, w).ResolveAsync(new(op, id, Register: new(FishMeatVendorType.Fish,
+            "Giorgia Macapagal", "Giorgia Fish Stand", "Stall 4", VendorRegistrationKind.New,
+            "Macapagal", "Giorgia", "E.", null, "Female", "Fish retailing")));
         Assert.True(replay.IsSuccess, replay.Error);
         Assert.Equal(resolved.Value.Registration.Id, replay.Value!.Registration.Id);
         var again = await FollowUp(after, w).ResolveAsync(new(Guid.NewGuid(), id, VendorRegistrationId: resolved.Value.Registration.Id));

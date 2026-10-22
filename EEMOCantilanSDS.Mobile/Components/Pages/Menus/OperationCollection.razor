@@ -493,6 +493,10 @@
             _reference = null;
             await LoadAsync();
         }
+        catch (InvalidOperationException ex) when (ex.Message.StartsWith("A queued collection must include", StringComparison.Ordinal))
+        {
+            _message = "Check the amount and the details above. This collection was not saved.";
+        }
         catch (Exception ex) when (ex is IOException or InvalidOperationException)
         {
             _message = "The collection could not be safely saved on this device. Do not rely on it; resolve device storage attention first.";

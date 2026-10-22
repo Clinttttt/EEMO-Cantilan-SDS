@@ -128,14 +128,33 @@ public sealed class UtilityCrossFacilityTests(PostgresFixture db)
         Assert.True(bill.WaterDirectCollection);
         Assert.Equal(0m, bill.WaterCharge);                                                                  // no ₱250 monthly assessment was manufactured
         var row = (await Register(ctx, w).GetAsync(new(UtilityKind.Water, Today.Year, Today.Month, FacilityCode.TCC))).Value!.Rows.Single(r => r.StallId == w.TccWater);
-        Assert.Equal(("Direct", "Direct", 250m, 0m, (decimal?)null), (row.Mode, row.Status, row.Collected, row.Outstanding, row.Approved));   // money collected, nothing owed
-        Assert.Equal(250m, (await Register(ctx, w).GetAsync(new(UtilityKind.Water, Today.Year, Today.Month, FacilityCode.TCC))).Value!.Totals.DirectCollected);
+        // The collector's direct amount is not settled until the Head confirms it: it is carried apart, nothing is owed, nothing is invented.
+        Assert.Equal(("Direct", "Direct", 0m, 250m, 0m, (decimal?)null), (row.Mode, row.Status, row.Collected, row.AwaitingConfirmation, row.Outstanding, row.Approved));
+        var awaiting = (await Register(ctx, w).GetAsync(new(UtilityKind.Water, Today.Year, Today.Month, FacilityCode.TCC))).Value!.Totals;
+        Assert.Equal((0m, 0m, 250m), (awaiting.Collected, awaiting.DirectCollected, awaiting.AwaitingConfirmation));
 
         // A second, independent direct payment is a second Collection with its own SRC.
         var current = (await Wcf(ctx, w, w.TccCollector, "Collector").GetMobileSourcesAsync(Today.Year, Today.Month, selectedStallId: w.TccWater)).Value!.Single();
         Assert.True((await Wcf(ctx, w, w.TccCollector, "Collector").PostMobileAsync(DirectWater(w.TccWater, 100m) with { WaterSourceVersion = current.WaterSourceVersion })).IsSuccess);
         Assert.Equal(2, await ctx.Collections.CountAsync());
-        Assert.Equal(350m, (await Register(ctx, w).GetAsync(new(UtilityKind.Water, Today.Year, Today.Month, FacilityCode.TCC))).Value!.Rows.Single(r => r.StallId == w.TccWater).Collected);
+        var both = (await Register(ctx, w).GetAsync(new(UtilityKind.Water, Today.Year, Today.Month, FacilityCode.TCC))).Value!.Rows.Single(r => r.StallId == w.TccWater);
+        Assert.Equal((0m, 350m), (both.Collected, both.AwaitingConfirmation));
+
+        // A wrong ₱100 receipt is reversed by the Head (collector cash, direct WCF): the SRC stays, the amount leaves the awaiting figure.
+        var wrong = await ctx.Collections.AsNoTracking().SingleAsync(c => c.TotalAmount == 100m);
+        var correction = new HeadCollectionCorrectionWorkflow(ctx, new CollectionSessionStore(ctx), new Actor(w.HeadId, w.TenantId, "SuperAdmin"), new FixedTenant(w.TenantId), new Clock());
+        var reversed = await correction.ReverseAsync(new(Guid.NewGuid(), wrong.Id, "Wrong amount keyed"));
+        Assert.True(reversed.IsSuccess, reversed.Error);
+        Assert.Equal(2, await ctx.Collections.CountAsync());
+        var afterReversal = (await Register(ctx, w).GetAsync(new(UtilityKind.Water, Today.Year, Today.Month, FacilityCode.TCC))).Value!.Rows.Single(r => r.StallId == w.TccWater);
+        Assert.Equal((0m, 250m), (afterReversal.Collected, afterReversal.AwaitingConfirmation));
+
+        // The Head confirms the remaining receipt in Collection Review; only then is it settled on the register. The cash and SRCs are untouched throughout.
+        var head = new DirectCollectionReviewWorkflow(ctx, new Actor(w.HeadId, w.TenantId, "SuperAdmin"), new FixedTenant(w.TenantId), new Clock());
+        Assert.True((await head.ReviewAsync(new(Guid.NewGuid(), (await ctx.Collections.AsNoTracking().SingleAsync(c => c.TotalAmount == 250m)).Id, "Confirmed", null))).IsSuccess);
+        var confirmed = (await Register(ctx, w).GetAsync(new(UtilityKind.Water, Today.Year, Today.Month, FacilityCode.TCC))).Value!;
+        var settled = confirmed.Rows.Single(r => r.StallId == w.TccWater);
+        Assert.Equal((250m, 0m, 250m), (settled.Collected, settled.AwaitingConfirmation, confirmed.Totals.DirectCollected));
     }
 
     [SkippableFact]
@@ -251,7 +270,11 @@ public sealed class UtilityCrossFacilityTests(PostgresFixture db)
         Assert.Equal(CollectionSourcePart.Electricity, line.SourcePart);
         Assert.Equal(RevenueInstrumentType.OfficialReceipt, (await ctx.RevenueClassificationPolicies.SingleAsync(p => p.Id == line.RevenueClassificationPolicyId)).PermittedInstrumentType);
         var row = (await Register(ctx, w).GetAsync(new(UtilityKind.Electricity, Today.Year, Today.Month, FacilityCode.TCC))).Value!.Rows.Single(r => r.StallId == w.TccElectric);
-        Assert.Equal(("Direct", 800m, 0m), (row.Mode, row.Collected, row.Outstanding));                       // collected money, no manufactured balance
+        Assert.Equal(("Direct", 0m, 800m, 0m), (row.Mode, row.Collected, row.AwaitingConfirmation, row.Outstanding));   // recorded, awaiting the Head; no manufactured balance
+        var headReview = new DirectCollectionReviewWorkflow(ctx, new Actor(w.HeadId, w.TenantId, "SuperAdmin"), new FixedTenant(w.TenantId), new Clock());
+        Assert.True((await headReview.ReviewAsync(new(Guid.NewGuid(), collection.Id, "Confirmed", null))).IsSuccess);
+        row = (await Register(ctx, w).GetAsync(new(UtilityKind.Electricity, Today.Year, Today.Month, FacilityCode.TCC))).Value!.Rows.Single(r => r.StallId == w.TccElectric);
+        Assert.Equal((800m, 0m), (row.Collected, row.AwaitingConfirmation));
         // Electricity does not settle Water on the same space, and the Water register is untouched.
         Assert.Equal(0m, (await Register(ctx, w).GetAsync(new(UtilityKind.Water, Today.Year, Today.Month))).Value!.Totals.Collected);
     }

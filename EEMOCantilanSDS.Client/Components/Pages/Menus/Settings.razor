@@ -14,11 +14,8 @@
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 @*
-    Settings — read-only system configuration overview.
-    Every value is loaded from the API (GetSystemSettings query), which sources them from the live
-    domain constants (FeeRates / DomainRules), the office-profile constants and the host environment.
-    Nothing here is hardcoded in markup, so the page can never drift from the system's real rules.
-    No secrets are exposed; the page does not duplicate Dashboard/Reports/Accounts/facility pages.
+    Tenant configuration overview and authorized management links.
+    Counts, identity, policy values and reference rates come from the settings API.
 *@
 
 <PageTitle>StallTrack — Settings</PageTitle>
@@ -45,50 +42,18 @@
 
     @{
         var loaded = _model is not null;
-        var settingsPeriod = _model?.System.ServerDate ?? _now;
     }
 
     <!-- ── Hero (shell is always visible; only the stat values skeletonize) ── -->
-    <div class="vs-hero">
-        <div class="vs-hero-left">
-            <div class="vs-hero-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="3" />
-                    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
-                </svg>
-            </div>
-            <div>
-                <div class="vs-hero-eyebrow">@Branding.OfficeAcronym Admin · System</div>
-                <div class="vs-hero-title">Settings</div>
-                <div class="vs-hero-sub">System configuration · read-only</div>
-            </div>
-        </div>
-        <div class="vs-hero-stats">
-            <div class="vs-hero-stat">
-                <div class="vs-hero-val">@(_model?.Facilities.Count ?? 0)</div>
-                <div class="vs-hero-key">Facilities</div>
-                <div class="vs-hero-sub2">Configured</div>
-            </div>
-            <div class="vs-hero-divider"></div>
-            <div class="vs-hero-stat">
-                <div class="vs-hero-val">@(_model?.Security.Roles.Count ?? 0)</div>
-                <div class="vs-hero-key">User Roles</div>
-                <div class="vs-hero-sub2">@(loaded ? string.Join(" · ", _model!.Security.Roles) : "Role policy")</div>
-            </div>
-            <div class="vs-hero-divider"></div>
-            <div class="vs-hero-stat">
-                <div class="vs-hero-val">@settingsPeriod.ToString("MMM yyyy")</div>
-                <div class="vs-hero-key">Collection Period</div>
-                <div class="vs-hero-sub2">Open</div>
-            </div>
-            <div class="vs-hero-divider"></div>
-            <div class="vs-hero-stat">
-                <div class="vs-hero-val">v@(_model?.System.Version ?? "1.0")</div>
-                <div class="vs-hero-key">Version</div>
-                <div class="vs-hero-sub2">@(_model?.System.ApplicationName ?? "StallTrack")</div>
-            </div>
-        </div>
-    </div>
+    <V3Hero Compact="true" Eyebrow="@($"{Branding.OfficeAcronym} Admin · System")" Title="Settings" Subtitle="Office configuration and system overview">
+        <Icon><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" /></svg></Icon>
+        <Figures>
+            <V3HeroFigure Label="Facilities" Value="@(_model?.Facilities.Count.ToString() ?? "—")" Note="Tenant facility records" />
+            <V3HeroFigure Label="Role types" Value="@(_model?.Security.Roles.Count.ToString() ?? "—")" Note="Access policy" />
+            <V3HeroFigure Label="Server month" Value="@(_model?.System.ServerDate.ToString("MMM yyyy") ?? "—")" Note="@_model?.System.TimeZone" />
+            <V3HeroFigure Label="Application version" Value="@(loaded ? $"v{_model!.System.Version}" : "—")" Note="@_model?.System.ApplicationName" />
+        </Figures>
+    </V3Hero>
 
     @if (_error is not null)
     {
@@ -151,7 +116,7 @@
                     <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></svg></div>
                     <div class="set-card-titles">
                         <div class="set-card-title">Security &amp; Access Policy</div>
-                        <div class="set-card-sub">Authentication rules · not account lists</div>
+                        <div class="set-card-sub">Sign-in policy and account security</div>
                     </div>
                 </div>
                 <div class="set-rows">
@@ -159,8 +124,8 @@
                     {
                         <div class="set-row"><span class="set-key">Access token</span><span class="set-val">@_model!.Security.AccessTokenMinutes minutes</span></div>
                         <div class="set-row"><span class="set-key">Refresh token</span><span class="set-val">@_model.Security.RefreshTokenDays days</span></div>
-                        <div class="set-row"><span class="set-key">Account lockout</span><span class="set-val">@_model.Security.MaxFailedLoginAttempts attempts</span></div>
-                        <div class="set-row"><span class="set-key">Password reset</span><span class="set-val">By the @Branding.OfficeAcronym Head</span></div>
+                        <div class="set-row"><span class="set-key">Account lockout</span><span class="set-val">@_model.Security.MaxFailedLoginAttempts failed attempts · @_model.Security.LockoutMinutes minutes</span></div>
+                        <div class="set-row"><span class="set-key">Password reset</span><span class="set-val">Verified-email recovery or Head-managed reset</span></div>
                         <div class="set-row"><span class="set-key">Roles</span><span class="set-val">@string.Join(" · ", _model.Security.Roles)</span></div>
                     }
                     else
@@ -213,12 +178,12 @@
                 <div class="set-rows">
                     @if (loaded)
                     {
-                        <div class="set-row"><span class="set-key">Current period</span><span class="set-val">@_model!.System.ServerDate.ToString("MMMM yyyy") <span class="set-pill pill-ok">Open</span></span></div>
+                        <div class="set-row"><span class="set-key">Server month</span><span class="set-val">@_model!.System.ServerDate.ToString("MMMM yyyy")</span></div>
                         <div class="set-row"><span class="set-key">Delinquent</span><span class="set-val">At least @_model.Collection.DelinquentThresholdMonths fully elapsed unpaid month(s)</span></div>
-                        <div class="set-row"><span class="set-key">Arrears qualification</span><span class="set-val">Not defined; not inferred from unpaid-month age</span></div>
+                        <div class="set-row"><span class="set-key">Arrears qualification</span><span class="set-val">Previous-year rent, expired contracts and ended occupancies (per obligation)</span></div>
                         <div class="set-row"><span class="set-key">Delinquency window</span><span class="set-val">Rolling @_model.Collection.DelinquencyWindowMonths months</span></div>
                         <div class="set-row"><span class="set-key">Contract expiry warning</span><span class="set-val">Within @_model.Collection.ContractExpiryWarningMonths months</span></div>
-                        <div class="set-row"><span class="set-key">Excused / closure days</span><span class="set-val">₱0 owed · never unpaid</span></div>
+                        <div class="set-row"><span class="set-key">Excused / closure days</span><span class="set-val">Reviewed under the source's billing and credit rules</span></div>
                         <div class="set-row"><span class="set-key">Business clock</span><span class="set-val">@_model.Collection.TimeZone</span></div>
                     }
                     else
@@ -238,12 +203,12 @@
                         <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18" /><path d="M5 21V7l8-4v18" /><path d="M19 21V11l-6-4" /><path d="M9 9v.01M9 12v.01M9 15v.01" /></svg></div>
                         <div class="set-card-titles">
                             <div class="set-card-title">Facility Configuration</div>
-                            <div class="set-card-sub">Your facilities, billing models &amp; rates</div>
+                        <div class="set-card-sub">Tenant facilities, billing models &amp; effective rates</div>
                         </div>
                     </div>
                     <div class="set-rows">
-                        <div class="set-row"><span class="set-key">Configured</span><span class="set-val">@(_model?.Facilities.Count ?? 0) facilities</span></div>
-                        <div class="set-row"><span class="set-key">Billing models</span><span class="set-val">@(_model?.Facilities.Select(f => f.Model).Distinct().Count() ?? 0) distinct</span></div>
+                        <div class="set-row"><span class="set-key">Facility records</span><span class="set-val">@(_model?.Facilities.Count.ToString() ?? "—")</span></div>
+                        <div class="set-row"><span class="set-key">Billing models</span><span class="set-val">@(_model?.Facilities.Select(f => f.Model).Distinct().Count().ToString() ?? "—")</span></div>
                         <div class="set-row"><span class="set-key">Facilities</span><span class="set-val set-val-wrap">@FacilityCodes()</span></div>
                         <div class="set-row"><span class="set-key">Rate authority</span><span class="set-val">Municipal revenue ordinance</span></div>
                         <div class="set-row"><span class="set-key">Managed by</span><span class="set-val">The @Branding.OfficeAcronym Head</span></div>
@@ -251,7 +216,7 @@
                     <div class="set-links">
                         <a class="set-link" href="/settings/facilities">Manage facilities<span class="set-link-arrow">→</span></a>
                     </div>
-                    <div class="set-note">Rates are versioned by effectivity date, so a mid-term change never alters past billing.</div>
+                    <div class="set-note">Facility records are separate from revenue sources and collection eligibility. Manage effective-dated rates in the relevant operation.</div>
                 </section>
             }
             @if (_isHead)
@@ -262,7 +227,7 @@
                         <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10" /></svg></div>
                         <div class="set-card-titles">
                             <div class="set-card-title">Operation settings</div>
-                            <div class="set-card-sub">Which operations you list, and your own names for them</div>
+                            <div class="set-card-sub">Tenant operation visibility and local names</div>
                         </div>
                     </div>
                     <div class="set-links">
@@ -306,34 +271,17 @@
                         <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3" /></svg></div>
                         <div class="set-card-titles">
                             <div class="set-card-title">Backups &amp; Restore</div>
-                            <div class="set-card-sub">Back up and restore your municipality's data</div>
+                            <div class="set-card-sub">Tenant archives and compatible restore points</div>
                         </div>
                     </div>
                     <div class="set-rows">
-                        @* What an office can rely on, and nothing it cannot.
-                           The row that used to sit here said "Automated - Daily 01:00 PH time", on a card headed "your
-                           municipality's data". That nightly job is a pg_dump of the WHOLE database kept as a platform artefact,
-                           which an office can neither reach nor restore from - so it read as a promise about this LGU's data that
-                           nothing kept. A per-tenant backup IS taken daily now, by DailyTenantBackupService, but it can miss a day
-                           when the app is asleep, so it is stated on the Backups page where the caveat can be read rather than
-                           compressed into a row here.
-
-                           These three are checked rather than asserted: what this page can do, how many backups are kept
-                           (RetentionCount = 15 for each class, so up to fifteen the office took plus fifteen the platform took),
-                           and that a restore touches nobody else. *@
-                        <div class="set-row"><span class="set-key">Your municipality</span><span class="set-val">Data archive · restore point · restore</span></div>
-                        <div class="set-row"><span class="set-key">Backups kept</span><span class="set-val">15 yours · 15 automated</span></div>
+                        @* Backup availability and restore compatibility are checked in the backup workflow. *@
+                        <div class="set-row"><span class="set-key">Your municipality</span><span class="set-val">Data archive · restore point</span></div>
+                        <div class="set-row"><span class="set-key">Restore eligibility</span><span class="set-val">Validated against tenant, schema and retained records</span></div>
                         <div class="set-row"><span class="set-key">Scope</span><span class="set-val">Your records only</span></div>
-                        @* Point-in-time recovery is the OPERATOR's tool, and this card was the one place that told an office
-                           otherwise. Azure PITR restores the whole PostgreSQL server as it stood at a chosen moment: it has no
-                           notion of a tenant, so it cannot roll back one municipality without rolling back the others.
-
-                           The nightly whole-database dump belongs here for the same reason - it is real, but it is the platform's,
-                           not the office's. The Backups page has always gated its equivalents this way. *@
+                        @* Whole-database tools remain restricted to the dedicated platform operator. *@
                         @if (_isPlatformOperator)
                         {
-                            <div class="set-row"><span class="set-key">Automated</span><span class="set-val">Daily · 01:00 PH time · whole database</span></div>
-                            <div class="set-row"><span class="set-key">Point-in-time recovery</span><span class="set-val">7-day Azure PITR · whole database</span></div>
                             <div class="set-row"><span class="set-key">Whole database</span><span class="set-val">Run &amp; download · restore</span></div>
                         }
                     </div>
@@ -341,16 +289,6 @@
                         <a class="set-link" href="/settings/backups">Open backups &amp; restore<span class="set-link-arrow">→</span></a>
                     </div>
                 </section>
-            }
- <!-- ── Database health (shared server metrics; storage is scoped to the caller's LGU) — every Head ── -->
-            @if (_isHead)
-            {
-                <DatabaseHealthPanel />
-            }
-            <!-- ── Storage usage (this municipality only) — every Head ── -->
-            @if (_isHead)
-            {
-                <TenantUsagePanel />
             }
     <!-- ── System Information ── -->
             <section class="set-card">
@@ -379,6 +317,16 @@
                     }
                 </div>
             </section>
+            <!-- ── Storage usage (this municipality only) — every Head ── -->
+            @if (_isHead)
+            {
+                <TenantUsagePanel />
+            }
+ <!-- ── Database health (shared server metrics; storage is scoped to the caller's LGU) — every Head ── -->
+            @if (_isHead)
+            {
+                <DatabaseHealthPanel />
+            }
            
 
         </div>
@@ -388,8 +336,8 @@
             <div class="set-card-head">
                 <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg></div>
                 <div class="set-card-titles">
-                    <div class="set-card-title">Facility Collection Rules</div>
-                    <div class="set-card-sub">@(loaded ? $"How each of the {_model!.Facilities.Count} facilities is billed" : "How each facility is billed")</div>
+                    <div class="set-card-title">Facility Billing Reference</div>
+                    <div class="set-card-sub">Facility reference rates · current collection eligibility and quotes come from each operation</div>
                 </div>
                 <a class="set-link" href="/reports/collections">Closures &amp; exceptions<span class="set-link-arrow">→</span></a>
             </div>

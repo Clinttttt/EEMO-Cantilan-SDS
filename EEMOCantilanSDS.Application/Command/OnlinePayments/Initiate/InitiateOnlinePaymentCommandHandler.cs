@@ -23,7 +23,7 @@ public class InitiateOnlinePaymentCommandHandler(
     INpmMonthSettlementService npmMonthSettlementService,
     IFeeRateResolver feeRateResolver,
     IUtilityBillRepository utilityBillRepository,
-    IUnitOfWork unitOfWork, IClock clock) : IRequestHandler<InitiateOnlinePaymentCommand, Result<InitiateOnlinePaymentResultDto>>
+    IUnitOfWork unitOfWork, IClock clock, NpmRentMonthWorkflow? monthly = null) : IRequestHandler<InitiateOnlinePaymentCommand, Result<InitiateOnlinePaymentResultDto>>
 {
     public async Task<Result<InitiateOnlinePaymentResultDto>> Handle(InitiateOnlinePaymentCommand request, CancellationToken cancellationToken)
     {
@@ -43,6 +43,10 @@ public class InitiateOnlinePaymentCommandHandler(
         // linked to a stall could pay for months the stall isn't contracted for (before move-in, after
         // expiry, or arbitrary future months), creating obligation rows for uncovered periods.
         var periodStart = new DateOnly(request.Year, request.Month, 1);
+        if (stall.Facility?.Code == FacilityCode.NPM && !stall.Facility.IsMonthlyRentMarket && request.Kind != PayorPayableKind.NpmUtility
+            && monthly is not null && await monthly.IsMonthActivatedAsync(stall.Id, periodStart, cancellationToken))
+            return Result<InitiateOnlinePaymentResultDto>.Failure(
+                "Online rent checkout is unavailable for this activated month. Use the office's reviewed month-source payment.", ResultStatus.Conflict);
         var periodEnd = new DateOnly(request.Year, request.Month, DateTime.DaysInMonth(request.Year, request.Month));
         if (!stall.Contracts.Any(c => c.OverlapsPeriod(periodStart, periodEnd)))
             return Result<InitiateOnlinePaymentResultDto>.Failure(
@@ -51,7 +55,7 @@ public class InitiateOnlinePaymentCommandHandler(
         // NPM is daily-billed (no monthly record). Online pays a whole month of the base ₱30 daily fee —
         // the same unpaid, elapsed, in-term, non-closed days the staff month-settle would cover (fish ₱/kg
         // is weighed at the stall and utilities are billed separately, so both are excluded here).
-        if (stall.Facility?.Code == FacilityCode.NPM)
+        if (stall.Facility?.Code == FacilityCode.NPM && !stall.Facility.IsMonthlyRentMarket)
             return request.Kind switch
             {
                 PayorPayableKind.NpmUtility => await InitiateNpmUtilityAsync(stall, payorId.Value, request, cancellationToken),

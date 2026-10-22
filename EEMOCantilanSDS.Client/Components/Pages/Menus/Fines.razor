@@ -14,15 +14,14 @@
 
 @* Assessments and cash are separate; existing definition and eligibility workflows retain their own identities. *@
 <div class="v3-page fn-page">
-    <V3Hero Compact="true" Eyebrow="Operations" Title="Fines & Penalties">
+    <V3Hero Compact="true" Eyebrow="Operations · Fines" Title="Fines &amp; Penalties">
         <Icon><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16l3-2 3 2 3-2 3 2V8z" /><path d="M14 2v6h6" /><path d="M9 13h6" /><path d="M9 9h2" /></svg></Icon>
-        <Meta><span>Fine assessments and revenue collections</span><span class="fn-or"><InstrumentChip Instrument="OR" ShowName="true" /></span></Meta>
+        <Meta><span class="fn-hero-meta">@PeriodLabel · <span class="fn-or"><InstrumentChip Instrument="OR" ShowName="true" /></span></span></Meta>
         <Figures>
-            <V3HeroFigure Label="@($"Collected · {PeriodLabel}")" Value="@HeroMoney(_summary?.Collected)" Note="@(_summaryError ? "Unavailable right now" : "Fine cash, net of corrections")" />
-            <V3HeroFigure Label="Direct fine collections" Value="@HeroMoney(_summary?.DirectCollected)" Note="@(_summaryError ? "Unavailable right now" : "No registered account · same period")" />
+            <V3HeroFigure Label="@($"Collected · {PeriodLabel}")" Value="@HeroMoney(_summary?.Collected)" Note="@(_summaryError ? "Unavailable right now" : null)" />
+            <V3HeroFigure Label="Direct fine collections" Value="@HeroMoney(_summary?.DirectCollected)" Note="@(_summaryError ? "Unavailable right now" : null)" />
             <V3HeroFigure Label="Outstanding assessments" Value="@HeroMoney(_summary?.OutstandingAssessed)" Note="@(_summary is null ? (_summaryError ? "Unavailable right now" : "Loading…") : $"{_summary.OutstandingAssessments} unpaid · not yet collected")" />
         </Figures>
-        <Actions><a href="/collections/activity">Collection Activity</a></Actions>
     </V3Hero>
 
     @* Stays pinned while a long register scrolls so sections can be switched without returning to the top. *@
@@ -41,7 +40,7 @@
     <section class="v3-panel" aria-labelledby="fn-defs-title" aria-busy="@(_loadingDefinitions ? "true" : "false")">
         <header class="v3-panel-header">
             <h2 id="fn-defs-title">Penalty categories</h2>
-            <span class="v3-panel-meta fn-meta">@_definitions.Count approved · governs both assessed and direct fines</span>
+            <span class="v3-panel-meta fn-meta">@_definitions.Count approved</span>
             <AuthorizeView Roles="SuperAdmin">
                 <Authorized>
                     @if (!_editing)
@@ -99,46 +98,8 @@
 
         <AuthorizeView Roles="SuperAdmin">
             <Authorized>
-                @if (_editing)
-                {
-                    <form class="fn-form" @onsubmit="SaveAsync" @onsubmit:preventDefault="true" aria-label="Define a penalty">
-                        <div class="v3-form-grid">
-                            <label class="v3-field"><span>Code</span><input required maxlength="40" placeholder="LATE_PAYMENT" @bind="_code" /></label>
-                            <label class="v3-field"><span>Name</span><input required maxlength="120" @bind="_name" /></label>
-                        </div>
-                        <div class="v3-form-grid">
-                            <label class="v3-field"><span>Applies to (optional)</span><input maxlength="80" @bind="_appliesTo" /></label>
-                            <label class="v3-field"><span>Effective from</span><input type="date" required @bind="_effective" /></label>
-                        </div>
-                        <div class="v3-form-grid">
-                            <label class="v3-field">
-                                <span>Amount rule</span>
-                                <select @bind="_basis">
-                                    <option value="@GovernedServiceBasis.FixedAmount">Fixed approved amount</option>
-                                    <option value="@GovernedServiceBasis.DirectApprovedAmount">Manually approved amount</option>
-                                </select>
-                            </label>
-                            @if (_basis == GovernedServiceBasis.FixedAmount)
-                            {
-                                <label class="v3-field"><span>Amount (₱)</span><input type="number" min="0.01" step="0.01" required @bind="_fixedAmount" /></label>
-                            }
-                            else
-                            {
-                                <label class="v3-field"><span>Maximum per transaction (₱, optional)</span><input type="number" min="0.01" step="0.01" @bind="_ceiling" /></label>
-                            }
-                        </div>
-                        <label class="fn-check"><input type="checkbox" @bind="_active" /> Active for new fines</label>
-                        @if (!string.IsNullOrWhiteSpace(_saveError))
-                        {
-                            <p class="v3-notice v3-notice-error" role="alert">@_saveError</p>
-                        }
-                        <p class="fn-note">Saving adds a new version from its effective date. Earlier versions and fines already collected are never changed.</p>
-                        <div class="fn-actions">
-                            <button class="v3-btn" type="button" @onclick="CloseEditor">Cancel</button>
-                            <button class="v3-btn v3-btn-primary" type="submit" disabled="@_saving">Save penalty</button>
-                        </div>
-                    </form>
-                }
+                @* The definition editor is a drawer, like every other add form. *@
+
             </Authorized>
         </AuthorizeView>
         @if (!string.IsNullOrWhiteSpace(_saved))
@@ -146,6 +107,36 @@
             <p class="v3-notice fn-notice" role="status">@_saved</p>
         }
         <FinePolicySetup Definitions="_definitions" />
+        <AuthorizeView Roles="SuperAdmin">
+            <Authorized>
+                <AddNewDrawer Show="_editing" Title="Define penalty" Subtitle="Adds a new version from its effective date." FormId="fn-define" FormLabel="Define a penalty" SubmitText="Save penalty"
+                              Saving="_saving" Error="@_saveError" OnSubmit="SaveAsync" OnCancel="CloseEditor">
+                    <AddNewSection Title="Penalty">
+                        <label class="v3-field"><span>Code</span><input class="v3-input" required maxlength="40" placeholder="LATE_PAYMENT" @bind="_code" /></label>
+                        <label class="v3-field"><span>Name</span><input class="v3-input" required maxlength="120" @bind="_name" /></label>
+                        <label class="v3-field fn-span"><span>Applies to (optional)</span><input class="v3-input" maxlength="80" @bind="_appliesTo" /></label>
+                    </AddNewSection>
+                    <AddNewSection Title="Amount rule">
+                        <div class="fn-seg fn-span" role="radiogroup" aria-label="Amount rule">
+                            <label class="@(_basis == GovernedServiceBasis.FixedAmount ? "is-on" : null)"><input type="radio" name="fn-basis" checked="@(_basis == GovernedServiceBasis.FixedAmount)" @onchange="() => _basis = GovernedServiceBasis.FixedAmount" />Fixed amount</label>
+                            <label class="@(_basis == GovernedServiceBasis.DirectApprovedAmount ? "is-on" : null)"><input type="radio" name="fn-basis" checked="@(_basis == GovernedServiceBasis.DirectApprovedAmount)" @onchange="() => _basis = GovernedServiceBasis.DirectApprovedAmount" />Manually approved</label>
+                        </div>
+                        @if (_basis == GovernedServiceBasis.FixedAmount)
+                        {
+                            <label class="v3-field"><span>Amount (₱)</span><input class="v3-input" type="number" min="0.01" step="0.01" required @bind="_fixedAmount" /></label>
+                        }
+                        else
+                        {
+                            <label class="v3-field"><span>Maximum (₱, optional)</span><input class="v3-input" type="number" min="0.01" step="0.01" @bind="_ceiling" /></label>
+                        }
+                        <label class="v3-field"><span>Effective from</span><input class="v3-input" type="date" required @bind="_effective" /></label>
+                    </AddNewSection>
+                    <AddNewSection Plain="true" Title="Status">
+                        <label class="fn-check"><input type="checkbox" @bind="_active" /> Active for new fines</label>
+                    </AddNewSection>
+                </AddNewDrawer>
+            </Authorized>
+        </AuthorizeView>
     </section>
     }
 
@@ -185,15 +176,14 @@
                         <th scope="col">Payer / source</th>
                         <th scope="col">Status</th>
                         <th scope="col" class="v3-num">Amount</th>
-                        <th scope="col"><span class="v3-sr-only">Actions</span></th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var row in VisibleCollections)
                     {
-                        <tr>
+                        <tr class="fn-row" tabindex="0" aria-label="@($"Open {row.ReferenceCode}")" @onclick="() => _detail = row" @onkeydown="args => OnRowKey(args, row)">
                             <td class="fn-nowrap"><span class="fn-date">@row.BusinessDate.ToString("MMM d, yyyy")</span><span class="v3-block fn-src">@row.ReferenceCode</span></td>
-                            <td><strong>@row.PenaltyName</strong><span class="fn-kind fn-kind-@row.Kind.ToLowerInvariant()">@KindLabel(row.Kind)</span>@if(!string.IsNullOrWhiteSpace(row.Reason)) { <span class="v3-block fn-reason" title="@row.Reason">@row.Reason</span> }</td>
+                            <td><strong>@row.PenaltyName</strong><span class="fn-kind fn-kind-@row.Kind.ToLowerInvariant()">@KindLabel(row.Kind)</span></td>
                             <td>
                                 @if (row.Kind == PenaltyRegisterKinds.Assessed)
                                 {
@@ -203,7 +193,6 @@
                                 else if (row.Kind == PenaltyRegisterKinds.Direct)
                                 {
                                     @if (!string.IsNullOrWhiteSpace(row.PayerName)) { <strong>@row.PayerName</strong> }
-                                    <span class="v3-block">Direct fine collection</span>
                                 }
                                 else
                                 {
@@ -213,13 +202,12 @@
                             </td>
                             <td><span class="status-pill @CollectionPill(row.Status)">@row.Status</span></td>
                             <td class="v3-num fn-amount @(row.Status == "Reversed" ? "fn-amount-void" : "")">@Money(row.EffectiveAmount ?? (row.Status == "Posted" ? row.Amount : 0m))@if (row.Status != "Posted" && row.Amount != (row.EffectiveAmount ?? 0m)) { <span class="v3-block">of @Money(row.Amount) posted</span> }</td>
-                            <td class="fn-row-actions"><a class="v3-btn v3-btn-sm" href="/collections/activity" aria-label="@($"View {row.ReferenceCode} in Collection Activity")">@ListIcon<span>Activity</span></a></td>
                         </tr>
                     }
                     @if (!VisibleCollections.Any())
                     {
                         <tr>
-                            <td class="v3-empty" colspan="6">
+                            <td class="v3-empty" colspan="5">
                                 @if (_loadingRegister) { <span role="status">Loading fines…</span> }
                                 else if (_registerError is not null) { <span>Fines are unavailable.</span> }
                                 else { <span class="v3-empty-block">@EmptyIcon<span>No collections match this view.</span></span> }
@@ -233,7 +221,6 @@
                         <tr>
                             <td colspan="4"><strong>Shown collections</strong></td>
                             <td class="v3-num v3-strong">@Money(VisibleCollections.Sum(x => x.EffectiveAmount ?? (x.Status == "Posted" ? x.Amount : 0m)))</td>
-                            <td></td>
                         </tr>
                     </tfoot>
                 }
@@ -244,10 +231,61 @@
 </div>
 @if(_direct) { <DirectFineCollectionDrawer OnClose="() => _direct=false" OnCollected="RefreshCollectionsAsync" /> }
 
+@* One collection's details, from the register row already loaded: nothing is fetched or invented, and the original amount stays beside the
+   corrected one when a correction applies. *@
+@if (_detail is { } fine)
+{
+    var recorded = PhilippineTime.ToPhilippineTime(fine.RecordedAtUtc);
+    var effective = fine.EffectiveAmount ?? (fine.Status == "Posted" ? fine.Amount : 0m);
+    <div class="v3-modal-backdrop" role="presentation" @onclick="CloseDetail">
+        <section class="v3-modal fn-modal" role="dialog" aria-modal="true" aria-labelledby="fn-detail-title" @onclick:stopPropagation="true" @onkeydown="OnDetailKey">
+            <header class="fn-modal-head">
+                <div class="fn-modal-text">
+                    <h2 id="fn-detail-title">@fine.PenaltyName</h2>
+                    <p>@fine.ReferenceCode · @fine.BusinessDate.ToString("MMM d, yyyy")</p>
+                </div>
+                <button class="fn-modal-close" type="button" aria-label="Close" @onclick="CloseDetail"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
+            </header>
+            <div class="v3-modal-body fn-modal-body">
+                <dl class="fn-facts">
+                    <div><dt>Status</dt><dd><span class="status-pill @CollectionPill(fine.Status)">@fine.Status</span></dd></div>
+                    <div><dt>Source</dt><dd>@KindLabel(fine.Kind)@(string.IsNullOrWhiteSpace(fine.Origin) ? "" : " · " + fine.Origin)</dd></div>
+                    <div><dt>Fine category</dt><dd>@fine.PenaltyName</dd></div>
+                    <div><dt>Payer</dt><dd>@(string.IsNullOrWhiteSpace(fine.PayerName) ? "Not recorded" : fine.PayerName)</dd></div>
+                    @if (!string.IsNullOrWhiteSpace(fine.Account) || !string.IsNullOrWhiteSpace(fine.Facility))
+                    {
+                        <div class="fn-wide"><dt>Account</dt><dd>@string.Join(" · ", new[] { fine.Account, fine.Facility }.Where(x => !string.IsNullOrWhiteSpace(x)))</dd></div>
+                    }
+                    <div><dt>Business date</dt><dd>@fine.BusinessDate.ToString("MMM d, yyyy")</dd></div>
+                    <div><dt>Recorded</dt><dd>@recorded.ToString("MMM d, yyyy h:mm tt")</dd></div>
+                    <div><dt>SRC</dt><dd>@fine.ReferenceCode</dd></div>
+                    @if (!string.IsNullOrWhiteSpace(fine.Reason))
+                    {
+                        <div class="fn-wide"><dt>Reason</dt><dd>@fine.Reason</dd></div>
+                    }
+                </dl>
+                <dl class="fn-amounts">
+                    <div><dt>@(fine.Status == "Posted" ? "Amount collected" : "Original amount")</dt><dd>@Money(fine.Amount)</dd></div>
+                    @if (fine.Status != "Posted" || effective != fine.Amount)
+                    {
+                        <div><dt>Correction</dt><dd>@Money(effective - fine.Amount)</dd></div>
+                        <div class="fn-net"><dt>Net after correction</dt><dd>@Money(effective)</dd></div>
+                    }
+                </dl>
+            </div>
+            <footer class="fn-modal-foot"><button class="v3-btn v3-btn-primary" type="button" @onclick="CloseDetail">Close</button></footer>
+        </section>
+    </div>
+}
+
 @code {
     [SupplyParameterFromQuery(Name = "view")] public string? ViewQuery { get; set; }
     private string _view = "collected";
     private bool _direct;
+    private PenaltyRegisterRowDto? _detail;
+    private void CloseDetail() => _detail = null;
+    private void OnDetailKey(KeyboardEventArgs e) { if (e.Key == "Escape") CloseDetail(); }
+    private void OnRowKey(KeyboardEventArgs e, PenaltyRegisterRowDto row) { if (e.Key is "Enter" or " ") _detail = row; }
     protected override void OnParametersSet() { _view = RequestedAccount is not null || PaymentAssessmentId is not null ? "assessments" : ViewQuery is "assessments" or "settings" ? ViewQuery : "collected"; }
     [SupplyParameterFromQuery(Name = "accountKind")] public string? AccountKindQuery { get; set; }
     [SupplyParameterFromQuery(Name = "accountId")] public Guid? AccountIdQuery { get; set; }

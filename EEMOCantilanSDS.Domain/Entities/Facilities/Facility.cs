@@ -116,6 +116,14 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
             _ => BillingArchetype.Custom
         };
 
+        /// <summary>
+        /// A Public Market (<see cref="FacilityCode.NPM"/>) whose LGU declared STANDARD MONTHLY RENTAL at onboarding: one monthly
+        /// obligation per occupied stall, paid in full or in partial installments like TCC/NCC. It is read only from the stored,
+        /// immutable <see cref="Archetype"/> the LGU chose - never from a daily rate, a payment amount or the facility's name - and a
+        /// market that stated nothing (every record created before this existed, Cantilan included) keeps its daily behaviour.
+        /// </summary>
+        public bool IsMonthlyRentMarket => Code == FacilityCode.NPM && Archetype == BillingArchetype.MonthlyRental;
+
         public void Deactivate() => IsActive = false;
         public void Activate() => IsActive = true;
 

@@ -44,5 +44,9 @@ public sealed record MobileNpmStallCollectionDto(
     decimal? MeatKilosToday = null,
     decimal MeatFeeToday = 0m,
     decimal? MeatFeeRatePerKiloToday = null,
-    DateOnly? MeatFeeRateEffectiveDateToday = null);
+    DateOnly? MeatFeeRateEffectiveDateToday = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    EEMOCantilanSDS.Application.Common.Payments.NpmRentMonthQuote? MonthlyRentQuote = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    decimal? MonthlyRentCollectedToday = null);
 

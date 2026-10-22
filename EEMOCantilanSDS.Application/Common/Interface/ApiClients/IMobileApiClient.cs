@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Command.Payors.GenerateStallActivationCode;
+using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.Payors;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
@@ -12,6 +13,14 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 
 public interface IMobileApiClient
 {
+    Task<Result<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmOutstandingRentAccountsPage>> GetNpmOutstandingAccountsPageAsync(int offset, int pageSize) =>
+        Task.FromResult(Result<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmOutstandingRentAccountsPage>.Failure("Outstanding rent is unavailable."));
+    Task<Result<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmOutstandingRentAccount>>> GetNpmOutstandingAccountsAsync() =>
+        Task.FromResult(Result<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmOutstandingRentAccount>>.Failure("Outstanding rent is unavailable."));
+    Task<Result<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmOutstandingRentQuote>> GetNpmOutstandingQuoteAsync(Guid stallId, Guid? contractId = null, decimal? amount = null) =>
+        Task.FromResult(Result<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmOutstandingRentQuote>.Failure("Outstanding rent is unavailable."));
+    Task<Result<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmPartPaymentOutcomeDto>> RecordNpmOutstandingRentAsync(EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmOutstandingRentPayment request) =>
+        Task.FromResult(Result<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmPartPaymentOutcomeDto>.Failure("Outstanding rent collection is unavailable."));
     Task<Result<NpmRegistrationRequestDto>> SubmitNpmRequestAsync(SubmitNpmRegistrationRequest request) => Task.FromResult(Result<NpmRegistrationRequestDto>.Failure("Registration requests unavailable."));
     Task<Result<NpmStallNumberSuggestionDto>> SuggestNpmStallAsync(EEMOCantilanSDS.Domain.Enums.MarketSection section) =>
         Task.FromResult(Result<NpmStallNumberSuggestionDto>.Failure("Stall suggestion unavailable."));
@@ -19,6 +28,13 @@ public interface IMobileApiClient
         Task.FromResult(Result<NpmRegistrationRequestDto>.Failure("Cancellation is unavailable."));
     Task<Result<NpmRegistrationRequestDto>> GetPendingNpmRequestAsync(Guid vendorRegistrationId) =>
         Task.FromResult(Result<NpmRegistrationRequestDto>.Failure("NPM request lookup is unavailable."));
+    /// <summary>Fish / Meat vendor registration requests (identity proposals: no cash, amount or SRC). The collector sees only their own.</summary>
+    Task<Result<FishMeatRegistrationRequestPage>> GetFishMeatRequestsAsync(int page = 1, int pageSize = 25) =>
+        Task.FromResult(Result<FishMeatRegistrationRequestPage>.Failure("Registration requests unavailable."));
+    Task<Result<FishMeatRegistrationRequestDto>> SubmitFishMeatRequestAsync(SubmitFishMeatRegistrationRequest request) =>
+        Task.FromResult(Result<FishMeatRegistrationRequestDto>.Failure("Registration requests unavailable."));
+    Task<Result<FishMeatRegistrationRequestDto>> CancelFishMeatRequestAsync(Guid requestId, CancelFishMeatRegistrationRequest request) =>
+        Task.FromResult(Result<FishMeatRegistrationRequestDto>.Failure("Registration requests unavailable."));
     Task<Result<NpmRegistrationRequestPage>> GetNpmRequestsAsync(int page = 1, int pageSize = 25) => Task.FromResult(Result<NpmRegistrationRequestPage>.Failure("Registration requests unavailable."));
     /// <summary>Bounded, category-filtered pages of the registered sources assigned to this collector. Online only; nothing is cached or computed here.</summary>
     Task<Result<CollectionSourcePage>> BrowseCollectionSourcesAsync(string? category, string? search, int skip, int take) => Task.FromResult(Result<CollectionSourcePage>.Failure("Source browsing unavailable."));
@@ -115,6 +131,9 @@ public interface IMobileApiClient
     Task<Result<MobileSlaughterCollectionDto>> GetSlaughterCollectionAsync(int year, int month, int day);
     Task<Result<bool>> RecordSlaughterAsync(RecordMobileSlaughterRequest request);
     Task<Result<bool>> UpdateSlaughterAsync(UpdateMobileSlaughterRequest request);
+    /// <summary>The approved Slaughterhouse charges (today's fixed rates) and whether the service is collected by approved charges.</summary>
+    Task<Result<SlaughterTermsDto>> GetSlaughterTermsAsync(DateOnly date) => Task.FromResult(Result<SlaughterTermsDto>.Failure("Slaughterhouse charges are unavailable."));
+    Task<Result<FeeScheduleCollectionWorkflow.SlaughterQuote>> QuoteSlaughterAsync(FeeSchedulePostRequest request) => Task.FromResult(Result<FeeScheduleCollectionWorkflow.SlaughterQuote>.Failure("Slaughterhouse quote is unavailable."));
     Task<Result<MobileTrmCollectionDto>> GetTrmCollectionAsync();
     Task<Result<TrmTripDto>> RecordTripAsync(RecordMobileTripRequest request);
     Task<Result<TrmTransporterDto>> AddTransporterAsync(string name, string organization, string route, string plate);

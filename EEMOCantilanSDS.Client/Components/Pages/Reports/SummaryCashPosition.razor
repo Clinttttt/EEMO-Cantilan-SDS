@@ -4,10 +4,9 @@
 @using EEMOCantilanSDS.Client.Components.Shared
 @inject IRemittancesApiClient Remittances
 
-@* The management summary line (IA-052): what was collected, the year to date, target attainment, and the three things that
-   must never be blended: what payors still OWE (outstanding obligations), what was COLLECTED but not yet remitted
-   (unremitted collections), and accountability exceptions. Collection efficiency and target attainment are different
-   figures; without an approved annual target, attainment is stated as not configured rather than invented. *@
+@* The management cash position (IA-052): what was collected, year to date, and three figures
+   that must never be blended: outstanding payor obligations, collections awaiting remittance,
+   and accountability exceptions. Target coverage remains in its own revenue-performance view. *@
 <section class="scp no-print" aria-label="Collections and accountability position">
     <SummaryStrip Label="Collections and accountability" Items="Items" />
     @if (_failed)
@@ -45,7 +44,6 @@
     [
         new("Collected", Money(Collected)),
         new("Year to date", Money(YtdCollected)),
-        new("Target attainment", TargetText),
         new("Outstanding obligations", Money(Outstanding)),
         new("Unremitted collections", _position is null ? "—" : Money(_position.Unremitted), Emphasis: _position is { Unremitted: not 0m }),
         new("Accountability exceptions", _position is null ? "—" : _position.NeedsReviewCount.ToString(CultureInfo.InvariantCulture)),

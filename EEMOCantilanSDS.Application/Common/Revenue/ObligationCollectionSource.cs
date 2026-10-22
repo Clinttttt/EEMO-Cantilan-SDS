@@ -39,7 +39,7 @@ public sealed class ObligationCollectionSource(IAppDbContext db)
 
     /// <summary>The quotes for every period of the accounts up to the business date, oldest first, unpaid or not.</summary>
     public async Task<IReadOnlyList<ObligationQuoteDto>> GetQuotesAsync(
-        Guid tenantId, IReadOnlyList<ObligationAccount> accounts, DateOnly businessDate, CancellationToken ct)
+        Guid tenantId, IReadOnlyList<ObligationAccount> accounts, DateOnly businessDate, CancellationToken ct, int? lookbackMonths = null)
     {
         if (accounts.Count == 0) return [];
         var accountIds = accounts.Select(x => x.Id).ToArray();
@@ -57,7 +57,7 @@ public sealed class ObligationCollectionSource(IAppDbContext db)
         {
             foreach (var start in account.PeriodStarts(businessDate))
             {
-                if (start < businessDate.AddMonths(-LookbackMonths)) continue;
+                if (start < businessDate.AddMonths(-(lookbackMonths ?? LookbackMonths))) continue;
                 periods.TryGetValue((account.Id, start), out var period);
                 if (account.Kind == ObligationKind.FishMeatVendorFee && FishMeatVendorFeeRules.UsesDirectCollection(businessDate) && period is null) continue;
                 var rate = period is null ? ObligationRate.Resolve(rates[account.Id], account.RateAsOf(start)) : null;

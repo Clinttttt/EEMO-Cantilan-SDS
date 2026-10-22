@@ -49,33 +49,33 @@ public sealed class OperationsWorkspaceHeroTests : TestContext
     }
 
     [Fact]
-    public void EcfStatements_TheHeroIsScreenOnly_AndTheBillingMonthSurvivesALoadFailure()
+    public void EcfStatements_AreTheOfficialRegister_WithTheBillingMonthKeptOnALoadFailure()
     {
         ServeEcf(Result<IReadOnlyList<EcfObligationQuoteDto>>.Failure("offline"));
 
         var cut = RenderComponent<ElectricityConsumptionFeesStatements>();
 
         cut.WaitForAssertion(() => Assert.Contains("couldn't be loaded", cut.Find("[role=alert]").TextContent), Timeout);
-        Assert.NotNull(cut.Find("input[type=month]"));              // the office can still choose another month
-        Assert.Equal("Electricity Consumption Fees Statements", cut.Find("h1.v3h-title").TextContent.Trim());
-        Assert.NotNull(cut.Find("h1.v3h-title").Closest(".no-print"));
+        Assert.NotNull(cut.Find(".page-toolbar input[type=month]"));   // the office can still choose another month
+        Assert.Equal("Electricity Consumption Fees Statements", cut.Find(".lsh-hero-title").TextContent.Trim());
     }
 
     [Fact]
-    public void EcfStatements_ThePrintedSheetsCarryTheLetterheadAndNeverTheHero()
+    public void EcfStatements_TheToolbarCarriesSearchMonthPrintCsvPdfAndBack()
     {
         ServeEcf(Result<IReadOnlyList<EcfObligationQuoteDto>>.Success([Ecf("Ana Reyes", 100m, 40m, 60m)]));
 
         var cut = RenderComponent<ElectricityConsumptionFeesStatements>();
 
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".us-sheets")), Timeout);
-        Assert.Empty(cut.FindAll(".us-sheets .v3h"));
-        Assert.All(cut.FindAll(".v3h"), hero => Assert.NotNull(hero.Closest(".no-print")));
-        Assert.Contains("₱60.00", cut.Find("dl.v3h-figures").TextContent);
-        var bar = cut.Find("[aria-label='Statement filters']");
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".lsh-table tbody tr")), Timeout);
+        Assert.Contains("₱60.00", cut.Find(".lsh-hero").TextContent);
+        var bar = cut.Find(".page-toolbar");
         Assert.NotNull(bar.QuerySelector("input[type=month]"));
-        Assert.NotNull(bar.QuerySelector("input[type=search]"));
-        Assert.Contains("Print statements", bar.TextContent);
+        Assert.NotNull(bar.QuerySelector(".search-box input"));
+        Assert.Contains("Print", bar.TextContent);
+        Assert.Contains("Download CSV", bar.TextContent);
+        Assert.Contains("Save as PDF", bar.TextContent);
+        Assert.Equal("/operations/ecf", bar.QuerySelector("a[href='/operations/ecf']")!.GetAttribute("href"));
     }
 
     [Fact]

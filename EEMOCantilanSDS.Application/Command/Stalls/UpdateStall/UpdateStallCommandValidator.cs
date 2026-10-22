@@ -33,6 +33,7 @@ public class UpdateStallCommandValidator : AbstractValidator<UpdateStallCommand>
 
             var stall = await _stallRepo.GetByIdAsync(command.StallId, ct);
             if (stall?.Facility?.Code != FacilityCode.NPM) return false;
+            if (stall.Facility.IsMonthlyRentMarket) return false;   // a monthly-rent market always states its rent
 
             var snapshot = await _feeRateResolver.GetSnapshotAsync(ct);
             return !snapshot.MonthRule.HasMonthlyGoal;

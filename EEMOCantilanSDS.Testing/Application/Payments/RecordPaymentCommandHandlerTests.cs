@@ -70,6 +70,42 @@ public class RecordPaymentCommandHandlerTests
     }
 
     [Fact]
+    public async Task Legacy_payload_cannot_mutate_a_month_after_cutover_begins_or_stamp_a_new_operation()
+    {
+        var stall = StallInFacility(FacilityCode.NCC); var record = PaymentRecord.Create(stall.Id, 2026, 10, 1200);
+        record.MarkSettlementPendingCutover();
+        var (handler, repository) = Build(stall, null, "Admin", null);
+        repository.Setup(x => x.GetPaymentRecordAsync(stall.Id, 2026, 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaymentRecordDto(record.Id, PaymentStatus.Unpaid, null, 1200, null, null, null, 0, 1200));
+        repository.Setup(x => x.GetByIdAsync(record.Id, It.IsAny<CancellationToken>())).ReturnsAsync(record);
+        var result = await handler.Handle(new(stall.Id, 2026, 10, PaymentStatus.Paid, null, null, "546564", Guid.NewGuid()), default);
+        Assert.Equal(ResultStatus.Conflict, result.Status); Assert.Contains("RECONCILIATION_REQUIRED", result.Error);
+        Assert.Equal(PaymentStatus.Unpaid, record.Status); Assert.Null(record.ORNumber); Assert.Null(record.ClientOperationId);
+        repository.Verify(x => x.UpdateAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Legacy_payload_cannot_mutate_an_already_canonical_month_or_fabricate_a_receipt()
+    {
+        var stall = StallInFacility(FacilityCode.NCC); var record = PaymentRecord.Create(stall.Id, 2026, 10, 1200);
+        record.MarkSettlementPendingCutover();
+        var boundary = DateTime.UtcNow;
+        record.ActivateCanonicalSettlement(EEMOCantilanSDS.Domain.Entities.Revenue.CollectionSettlementCutover.Freeze(Guid.NewGuid(),
+            EEMOCantilanSDS.Domain.Enums.CollectionSourceKind.PaymentRecord, record.Id, null, record.SettlementVersion,
+            boundary, 1200, 0, 1200, "{\"legacyWritersQuiesced\":true}", Guid.NewGuid(), boundary));
+        var (handler, repository) = Build(stall, null, "Admin", null);
+        repository.Setup(x => x.GetPaymentRecordAsync(stall.Id, 2026, 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaymentRecordDto(record.Id, PaymentStatus.Unpaid, null, 1200, null, null, null, 0, 1200, SettlementAuthority.Canonical));
+        repository.Setup(x => x.GetByIdAsync(record.Id, It.IsAny<CancellationToken>())).ReturnsAsync(record);
+
+        var result = await handler.Handle(new(stall.Id, 2026, 10, PaymentStatus.Partial, 600, null, "546564", Guid.NewGuid()), default);
+
+        Assert.Equal(ResultStatus.Conflict, result.Status); Assert.Contains("RECONCILIATION_REQUIRED", result.Error);
+        Assert.Equal((PaymentStatus.Unpaid, 0m), (record.Status, record.PartialAmount)); Assert.Null(record.ORNumber); Assert.Null(record.ClientOperationId);
+        repository.Verify(x => x.UpdateAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Collector_AssignedToFacility_RecordsWithOrNumber()
     {
         var stall = StallInFacility(FacilityCode.TCC);

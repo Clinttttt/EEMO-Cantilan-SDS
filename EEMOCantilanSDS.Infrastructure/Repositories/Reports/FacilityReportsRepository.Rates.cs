@@ -40,7 +40,7 @@ public partial class FacilityReportsRepository
 
         var occupiedStallIds = occupiedStalls.Select(s => s.Id).ToList();
 
-        if (facilityCode == FacilityCode.NPM)
+        if (IsDailyMarket(facilityCode))
         {
             var npmCollectableStalls = await LoadNpmCollectableStallsAsync(facilityId, ct);
             var npmStallsById = npmCollectableStalls.ToDictionary(s => s.Id);
@@ -76,6 +76,12 @@ public partial class FacilityReportsRepository
                 && IsStallCollectableOn(stall, dc.CollectionDate)
                     ? dc.CollectedFee
                     : 0m);
+
+            foreach (var stall in npmCollectableStalls)
+            {
+                var delta = await MonthComplianceDeltaAsync(stall, startDate, endDate, null, ct);
+                expectedDailyFees += delta.BillDelta; dailyFeeRevenue += delta.PaidDelta;
+            }
 
             if (expectedDailyFees == 0)
                 return 0m;
@@ -159,7 +165,7 @@ public partial class FacilityReportsRepository
         DateOnly endDate,
         CancellationToken ct)
     {
-        if (facilityCode == FacilityCode.NPM)
+        if (IsDailyMarket(facilityCode))
         {
             var compliance = await GenerateStallComplianceAsync(facilityCode, facilityId, startDate, endDate, ct);
             return (compliance.Count(s => s.Balance > 0m), compliance.Sum(s => s.Balance));
@@ -198,7 +204,7 @@ public partial class FacilityReportsRepository
             );
 
         // NPM also collects daily fees; aggregate them once, server-side.
-        var dailyCollectionsByStall = facilityCode == FacilityCode.NPM
+        var dailyCollectionsByStall = IsDailyMarket(facilityCode)
             ? await _context.DailyCollections
                 .AsNoTracking()
                 .Where(dc => occupiedStalls.Select(s => s.Id).Contains(dc.StallId)

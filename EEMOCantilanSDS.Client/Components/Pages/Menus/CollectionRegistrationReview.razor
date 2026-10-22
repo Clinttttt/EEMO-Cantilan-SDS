@@ -1,0 +1,77 @@
+@page "/monitoring/review"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@inject IOfficeSourcesApiClient OfficeApi
+
+<PageTitle>StallTrack — Collection &amp; Registration Review</PageTitle>
+
+@* One place for the Head's three separate reviews. They never merge: verifying cash a Collector already recorded (money, SRC), a Fish / Meat vendor
+   registration request (identity, no money) and an NPM registration request (tenancy, no money). Approving a registration confirms no payment. *@
+<OperationTopbar Title="Collection &amp; Registration Review" Crumb="Review" ParentHref="/monitoring/follow-up" ParentTitle="Monitoring" />
+<div class="content-area">
+    <V3Hero Eyebrow="Monitoring" Title="Collection &amp; Registration Review" Compact="true">
+        <Meta><span>Three separate reviews</span></Meta>
+        <Figures>
+            <V3HeroFigure Label="Fish / Meat requests pending" Value="@Count(_fishMeat)" />
+            <V3HeroFigure Label="NPM requests" Value="@Count(_npm)" />
+        </Figures>
+    </V3Hero>
+
+    <MonitoringTabs Current="review" />
+
+    <div class="crr-grid">
+        <section class="v3-panel crr-card" aria-labelledby="crr-collections">
+            <header class="v3-panel-header"><h2 id="crr-collections">Collection verification</h2></header>
+            <p class="crr-text">Direct ECF / WCF amounts a Collector recorded without a prepared amount, and Fish / Meat payors still without a registered vendor. Verification adds a note; corrections go through the correction process. The money and the SRC never change here.</p>
+            <div class="crr-actions">
+                <DirectCollectionReview />
+                <a class="v3-btn" href="/collections/activity">Collection Activity</a>
+            </div>
+        </section>
+
+        <section class="v3-panel crr-card" aria-labelledby="crr-fishmeat">
+            <header class="v3-panel-header">
+                <h2 id="crr-fishmeat">Fish / Meat registration</h2>
+                <span class="crr-count">@Count(_fishMeat)</span>
+            </header>
+            <p class="crr-text">Vendors a Collector asked the office to register. The Head registers the vendor, links an existing registration, or returns the request. No cash or SRC.</p>
+            <div class="crr-actions"><a class="v3-btn v3-btn-primary" href="/monitoring/fish-meat-requests">Open requests</a></div>
+        </section>
+
+        <section class="v3-panel crr-card" aria-labelledby="crr-npm">
+            <header class="v3-panel-header">
+                <h2 id="crr-npm">NPM registration</h2>
+                <span class="crr-count">@Count(_npm)</span>
+            </header>
+            <p class="crr-text">Stall registration requests from field Collectors, verified against the NPM register. Registration only.</p>
+            <div class="crr-actions"><a class="v3-btn v3-btn-primary" href="/monitoring/npm-requests">Open requests</a></div>
+        </section>
+    </div>
+</div>
+
+@code {
+    private int? _fishMeat, _npm;
+
+    private static string Count(int? value) => value?.ToString("N0", CultureInfo.InvariantCulture) ?? "—";
+
+    // Two bounded reads of the totals; a failure shows a dash, never a made-up zero.
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var fishMeat = await OfficeApi.FishMeatRequestsAsync(1, 1, FishMeatRequestStatus.Submitted);
+            _fishMeat = fishMeat is { IsSuccess: true, Value: { } a } ? a.Total : null;
+        }
+        catch { _fishMeat = null; }
+        try
+        {
+            var npm = await OfficeApi.NpmRequestsAsync(1, 1);
+            _npm = npm is { IsSuccess: true, Value: { } b } ? b.Total : null;
+        }
+        catch { _npm = null; }
+    }
+}

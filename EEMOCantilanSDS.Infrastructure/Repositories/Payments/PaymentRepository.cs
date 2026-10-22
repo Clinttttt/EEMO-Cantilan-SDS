@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Infrastructure.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Fees;
+using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Application.Extensions;
@@ -23,7 +24,8 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories;
 // days a stall is chargeable for, and duplicating it would let one account's ledger disagree with the office's reports. What
 // IS separate is the contracts, so a caller that only wants to read one account depends on IStallLedgerQueries and nothing
 // else.
-public partial class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateResolver, IClock clock)
+public partial class PaymentRepository(AppDbContext context, IFeeRateResolver feeRateResolver, IClock clock,
+    NpmRentMonthWorkflow? npmRentMonths = null)
     : IPaymentRepository, IStallLedgerQueries, IMissingReceiptQueries
 {
     /// <summary>
@@ -48,6 +50,7 @@ public partial class PaymentRepository(AppDbContext context, IFeeRateResolver fe
 
     private readonly IFeeRateResolver _feeRateResolver = feeRateResolver;
     private readonly IClock _clock = clock;
+    private readonly NpmRentMonthWorkflow? _npmRentMonths = npmRentMonths;
 
     public async Task<PaymentRecord?> GetByIdAsync(Guid id, CancellationToken ct)
     {
@@ -72,7 +75,8 @@ public partial class PaymentRepository(AppDbContext context, IFeeRateResolver fe
             payment.WaterAmount,
             payment.FishFeeAmount,
             payment.AmountPaid,
-            payment.BalanceDue
+            payment.BalanceDue,
+            payment.SettlementAuthorityState
         );
     }
 

@@ -26,6 +26,47 @@ namespace EEMOCantilanSDS.IntegrationTests;
 public sealed class ObligationAccountTests(PostgresFixture db)
 {
     [SkippableFact]
+    public async Task Holder_and_approved_rate_save_atomically_without_repricing_history()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync(); var seed = await SeedAsync();
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1);
+        Guid id;
+        await using (var context = db.CreateContext(seed.TenantId))
+        {
+            var head = Setup(context, seed);
+            var created = await head.CreateAccountAsync(new(ObligationKind.KanmanggaySpaceRental, seed.PayorId,
+                null, "", null, null, start, 175m, OccupancyArrangement.SpaceOnly, ActualOccupant: "Original"));
+            Assert.True(created.IsSuccess, created.Error); id = created.Value!.Id;
+            var invalid = await head.CorrectHolderAsync(id, new("Original", OccupancyArrangement.SpaceOnly,
+                null, null, null, null, 10m, null, RateChange: new(start, 200m)));
+            Assert.False(invalid.IsSuccess);
+        }
+        await using (var context = db.CreateContext(seed.TenantId))
+        {
+            var invalidHolder = await Setup(context, seed).CorrectHolderAsync(id, new("Different holder", OccupancyArrangement.SpaceOnly,
+                null, null, null, null, 10m, null, RateChange: new(start.AddMonths(1), 200m)));
+            Assert.False(invalidHolder.IsSuccess);
+        }
+        await using (var context = db.CreateContext(seed.TenantId))
+        {
+            Assert.Equal("Original", (await context.ObligationAccounts.SingleAsync()).ActualOccupant);
+            Assert.Single(await context.ObligationRates.ToListAsync());
+            var result = await Setup(context, seed).CorrectHolderAsync(id, new("Original", OccupancyArrangement.SpaceOnly,
+                null, null, null, null, 10m, null, RateChange: new(start.AddMonths(1), 200m)));
+            Assert.True(result.IsSuccess, result.Error);
+        }
+        await using var verify = db.CreateContext(seed.TenantId);
+        Assert.Equal("Original", (await verify.ObligationAccounts.SingleAsync()).ActualOccupant);
+        Assert.Equal(10m, (await verify.ObligationAccounts.SingleAsync()).AreaSqm);
+        Assert.Equal(new[] { 175m, 200m }, await verify.ObligationRates.OrderBy(x => x.EffectiveFrom).Select(x => x.Amount).ToArrayAsync());
+        Assert.All(await verify.ObligationPeriods.ToListAsync(), x => Assert.Equal(175m, x.AssessedAmount));
+        Assert.Contains(await verify.AuditLogs.ToListAsync(), x => x.Action == "CorrectSpaceHolderEvidence");
+        Assert.Contains(await verify.AuditLogs.ToListAsync(), x => x.Action == "ChangeApprovedSpaceAmount");
+        Assert.Empty(await verify.Collections.ToListAsync());
+    }
+
+    [SkippableFact]
     public async Task Kanmanggay_LeaseMetadata_PersistsAcrossContexts_WithoutInventingLegacyTerms()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
@@ -386,6 +427,70 @@ public sealed class ObligationAccountTests(PostgresFixture db)
         public DateTime UtcNow => DateTime.UtcNow;
         public DateTime PhilippineNow => PhilippineToday.ToDateTime(TimeOnly.MinValue);
     }
+    [SkippableFact]
+    public async Task Retire_IsRefusedWhileMoneyIsOwed_AndSucceedsOnlyAfterARealCollectionSettlesIt_PreservingEveryRecord()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var seed = await SeedAsync();
+        var start = new DateOnly(seed.Today.Year, seed.Today.Month, 1).AddMonths(-1);
+        var end = start.AddMonths(1).AddDays(-1);                                                      // ended before today: one month (the previous one) accrued
+        await using var context = db.CreateContext(seed.TenantId);
+        var head = Setup(context, seed);
+        var created = await head.CreateAccountAsync(new CreateObligationAccountRequest(ObligationKind.KanmanggaySpaceRental, seed.PayorId, null, "", null, null, start, 1200m));
+        Assert.True(created.IsSuccess, created.Error);
+        var accountId = created.Value!.Id;
+        Assert.True((await head.CloseAccountAsync(accountId, new CloseObligationAccountRequest(end))).IsSuccess);
+
+        EEMOCantilanSDS.Application.Common.Lifecycle.SpaceLifecycleWorkflow Lifecycle(string role) =>
+            new(context, new TestActor(seed.UserId, seed.TenantId, role), new FixedTenant(seed.TenantId), new HistoricalClock());
+        var retire = new EEMOCantilanSDS.Application.Common.Lifecycle.LifecycleCommand(EEMOCantilanSDS.Application.Common.Lifecycle.LifecycleAction.Remove, null, "Space removed from the roll", "Memo 4");
+        async Task<EEMOCantilanSDS.Application.Common.Result<EEMOCantilanSDS.Application.Common.Lifecycle.LifecycleOutcome>> TryRetire(string role)
+        {
+            var workflow = Lifecycle(role);
+            var preview = await workflow.PreviewAsync(accountId, retire);
+            return await workflow.ExecuteAsync(accountId, new(Guid.NewGuid(), preview.Value!.Version, retire));
+        }
+
+        // 1. Money is owed: refused with the balance, and nothing changes.
+        var owing = await Lifecycle("SuperAdmin").PreviewAsync(accountId, retire);
+        Assert.Equal(("OutstandingBalance", false), (owing.Value!.ReasonCode, owing.Value.CanExecute));
+        Assert.Contains("1,200.00", owing.Value.Explanation);
+        Assert.Equal(1200m, (await head.GetRegisterAsync(accountId)).Value!.Sum(p => p.OutstandingAmount));
+
+        // 2. A real Collection (Official Receipt) settles the month in full.
+        var composer = Composer(context, seed);
+        var draft = await composer.AddObligationAllocationAsync(new AddObligationDraftAllocationRequest(accountId, start.Year, start.Month, 1200m, null));
+        Assert.True(draft.IsSuccess, draft.Error);
+        await PostAsync(composer, draft.Value!, seed.OrIds[0]);
+        Assert.Equal(0m, (await head.GetRegisterAsync(accountId)).Value!.Sum(p => p.OutstandingAmount));
+        var cashBefore = await context.Collections.AsNoTracking().SingleAsync();
+        var allocationBefore = await context.CollectionAllocations.AsNoTracking().SingleAsync();
+        var periodBefore = await context.ObligationPeriods.AsNoTracking().SingleAsync();
+
+        // 3. An Admin can never retire; the Head can, now that nothing is owed.
+        Assert.Equal(EEMOCantilanSDS.Application.Common.ResultStatus.Forbidden, (await TryRetire("Admin")).Status);
+        Assert.Null((await context.ObligationAccounts.AsNoTracking().SingleAsync()).RetiredAtUtc);
+        var done = await TryRetire("SuperAdmin");
+        Assert.True(done.IsSuccess, done.Error);
+
+        // 4. Retiring deleted nothing: the account, its period, the Collection with its reference, the allocation and the rate are exactly as they were.
+        context.ChangeTracker.Clear();
+        var account = await context.ObligationAccounts.AsNoTracking().SingleAsync();
+        Assert.NotNull(account.RetiredAtUtc);
+        Assert.Equal((start, end), (account.ActiveFrom, account.ActiveTo!.Value));
+        var cashAfter = await context.Collections.AsNoTracking().SingleAsync();
+        Assert.Equal((cashBefore.Id, cashBefore.TotalAmount), (cashAfter.Id, cashAfter.TotalAmount));
+        Assert.Equal(cashBefore.ReferenceCode, cashAfter.ReferenceCode);
+        Assert.Equal((allocationBefore.Id, allocationBefore.Amount), (await context.CollectionAllocations.AsNoTracking().SingleAsync() is var a2 ? (a2.Id, a2.Amount) : default));
+        Assert.Equal((periodBefore.Id, periodBefore.AssessedAmount), (await context.ObligationPeriods.AsNoTracking().SingleAsync() is var p2 ? (p2.Id, p2.AssessedAmount) : default));
+        Assert.Equal(1, await context.ObligationRates.CountAsync());
+        Assert.Equal(1, await context.SpaceLifecycleEvents.CountAsync(e => e.Action == EEMOCantilanSDS.Domain.Entities.Revenue.SpaceLifecycleAction.Retire));
+        // A retired account can no longer be resumed.
+        var resume = await Lifecycle("SuperAdmin").PreviewAsync(accountId, new(EEMOCantilanSDS.Application.Common.Lifecycle.LifecycleAction.Resume, start.AddMonths(2), "x"));
+        Assert.Equal("Retired", resume.Value!.ReasonCode);
+    }
+
     private sealed record Seed(Guid TenantId, Guid UserId, Guid StallId, Guid PayorId, Guid UnlinkedStallId,
         Guid[] OrIds, DateOnly Today);
 

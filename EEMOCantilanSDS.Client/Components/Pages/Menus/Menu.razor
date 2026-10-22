@@ -51,12 +51,12 @@
                     </svg>
                 </Icon>
                 <Figures>
-                    @* Each figure states what it covers. Collected is the official total for every revenue source; the other three are
+                    @* Collected is actual authoritative cash across revenue sources, excluding report-only adjustments; the other three are
                        measured only where the office holds an obligation or a payment record (stall facilities). *@
                     <V3HeroFigure Label="Collected" Value="@OfficialCollectedValue" Note="@OfficialCollectedNote" />
-                    <V3HeroFigure Label="Outstanding rent" Value="@($"₱{TotalPending:N0}")" Note="@($"{UnpaidCount} stall account{(UnpaidCount == 1 ? "" : "s")} · facility rentals only")" />
-                    <V3HeroFigure Label="Facility payments" Value="@PaidCount.ToString()" Note="@($"{ActiveFacilitiesCount} facilit{(ActiveFacilitiesCount == 1 ? "y" : "ies")} · not every source")" />
-                    <V3HeroFigure Label="Facility collection rate" Value="@($"{CollectionRate}%")" Note="@($"stall rentals · {TotalCollectors} active collectors")" />
+                    <V3HeroFigure Label="Outstanding rent" Value="@($"₱{TotalPending:N0}")" Note="@($"{UnpaidCount} stall account{(UnpaidCount == 1 ? "" : "s")} · rentals only")" />
+                    <V3HeroFigure Label="Facility payments" Value="@PaidCount.ToString()" Note="@($"{ActiveFacilitiesCount} facilit{(ActiveFacilitiesCount == 1 ? "y" : "ies")} · not all sources")" />
+                    <V3HeroFigure Label="Collection rate" Value="@($"{CollectionRate}%")" Note="@($"stall rentals · {TotalCollectors} collectors")" />
                 </Figures>
             </V3Hero>
 
@@ -124,7 +124,7 @@
                                 <div class="facility-card-stats">
                                     <div class="fac-stat">
                                         <div class="fac-stat-val">₱@fac.Collected.ToString("N0")</div>
-                                        <div class="fac-stat-key">Collected</div>
+                                        <div class="fac-stat-key" title="@(fac.Code is FacilityCode.NCC or FacilityCode.TCC or FacilityCode.BBQ or FacilityCode.ICE ? "Payments applied to the selected billing period" : null)">Collected</div>
                                     </div>
                                     <div class="fac-stat">
                                         @if (fac.Code == FacilityCode.NPM)
@@ -558,11 +558,11 @@ var button = _view == ViewRevenue ? _revToRev : _opsToOps;        try { await bu
 
     private string CardName(RevenueSourcePerformanceRowDto row) => _names?.NameForSource(row.Key, null, row.Label) ?? row.Label;
 
-    // Collected is the official all-source total (legacy before cutover plus canonical after it, once) — the same figure the Revenue
+    // Collected is actual all-source cash (legacy before cutover plus canonical after it, once) — the same figure the Revenue
     // sources table totals. A failed read is "unavailable", never a zero; the facility sum is no longer presented as the office total.
     private string OfficialCollectedValue => _source is { } source ? $"₱{source.TotalCollected:N0}" : "—";
     private string OfficialCollectedNote => _source is not null ? $"{_now:MMMM yyyy} · all revenue sources"
-        : _sourceLoading ? "Loading official total…" : "Official total unavailable";
+        : _sourceLoading ? "Loading actual collections…" : "Actual collections unavailable";
 
     // ── Model-aware card presentation (derived from the facility code) ──
     private static string ModelLabel(FacilityCode c) => c switch

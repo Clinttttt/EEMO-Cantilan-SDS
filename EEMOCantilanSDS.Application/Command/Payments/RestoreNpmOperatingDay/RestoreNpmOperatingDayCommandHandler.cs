@@ -16,12 +16,15 @@ public class RestoreNpmOperatingDayCommandHandler(
     IClock clock,
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
-    ITenantContext tenantContext) : IRequestHandler<RestoreNpmOperatingDayCommand, Result<bool>>
+    ITenantContext tenantContext, NpmRentMonthWorkflow? monthly = null) : IRequestHandler<RestoreNpmOperatingDayCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(RestoreNpmOperatingDayCommand request, CancellationToken ct)
     {
         if (NpmOperatingDayAuthority.Check(currentUser, request.Date, clock.PhilippineToday, request.Remarks) is { } refused)
             return refused;
+
+        if (monthly is not null && await monthly.HasActivatedPeriodAsync(new(request.Date.Year, request.Date.Month, 1), ct))
+            return Result<bool>.Failure("Use the coordinated market-day reopening workflow to revise activated month credits.", ResultStatus.Conflict);
 
         var existing = await closureRepository.GetAsync(request.Date, ct);
         if (existing is not null)

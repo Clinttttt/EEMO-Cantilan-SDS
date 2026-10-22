@@ -7,5 +7,5 @@
 <PageTitle>StallTrack — Vegetable / Fruits Daily Report</PageTitle>
 <GovernedOperationReport OperationCode="@CollectorOperationCodes.VegetableFruitSpaceRental" Name="Vegetable / Fruits Daily" ParentHref="/operations/vegetable-fruit"
                          RowKey="VEGETABLE_FRUIT_SPACE_RENTAL" Classification="Vegetable / Fruits space rental" Instruments="@(new[] { "CT", "OR" })"
-                         InstrumentFact="Cash Ticket for Daily; Official Receipt for historical Whole Payment" IdPrefix="vfd" ModeAware="true"
-                         Basis="Daily CT collections and historical Whole Payment receipts remain in this activity register. The official Vegetable / Fruits row combines Monthly OR and Daily CT collections once." />
+                         InstrumentFact="Cash Ticket for Daily; Official Receipt for historical Whole Payment" IdPrefix="vfd" ModeAware="true" ByFeeType="true"
+ />

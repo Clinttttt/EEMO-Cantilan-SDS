@@ -120,17 +120,14 @@ public class ClosedStallAccountsHandoverAndPeriodTests : RepositoryTestBase
             new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), CancellationToken.None));
         Assert.Equal(5_000m, year2026.Uncollected);
 
-        // 2023 owes June to December — the term had not begun in January.
-        var year2023 = Assert.Single(await repo.GetClosedStallAccountsForPeriodAsync(
+        // At the 2023 or March 2025 anchor, this contract was still active: its billed periods
+        // belong to the live account, NOT the ended-occupancy Arrears register.
+        Assert.Empty(await repo.GetClosedStallAccountsForPeriodAsync(
             new DateOnly(2023, 1, 1), new DateOnly(2023, 12, 31), CancellationToken.None));
-        Assert.Equal(7_000m, year2023.Uncollected);
-
-        // A single month owes one month.
-        var march2025 = Assert.Single(await repo.GetClosedStallAccountsForPeriodAsync(
+        Assert.Empty(await repo.GetClosedStallAccountsForPeriodAsync(
             new DateOnly(2025, 3, 1), new DateOnly(2025, 3, 31), CancellationToken.None));
-        Assert.Equal(1_000m, march2025.Uncollected);
 
-        // The occupancy's own dates stay facts on every reading — only the FIGURES are scoped.
+                // The occupancy's own dates stay facts on every reading — only the FIGURES are scoped.
         Assert.Equal(new DateOnly(2023, 6, 1), year2026.EffectivityDate);
         // The last day inside the term: a term ends the day before its anniversary, per the office's 2026-09-12 ruling.
         Assert.Equal(new DateOnly(2026, 5, 31), year2026.OccupancyEndedOn);

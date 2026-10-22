@@ -4,6 +4,8 @@
 @using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Application.Dtos.Stalls
 @using EEMOCantilanSDS.Application.Dtos.Payments
+@using EEMOCantilanSDS.Application.Common.Lifecycle
+@using EEMOCantilanSDS.Client.Services
 @inject IStallsApiClient StallsApi
 @inject IPaymentsApiClient PaymentsApi
 @inject IFacilitiesApiClient FacilitiesApi
@@ -43,6 +45,12 @@
             @if (!IsLoading && StallGuid != Guid.Empty && FacilitySlug == "npm")
             {
                 <NpmOccupancyVendorContext StallId="StallGuid" />
+                @if (_openingContract is { } pending)
+                {
+                    @* Only exceptional pre-existing unactivated openings show a review button.
+                       Automatically activated registrations never show this action. *@
+                    <NpmOpeningMonthReview StallId="StallGuid" ContractId="pending.Contract" PeriodStart="pending.Period" OnChanged="LoadStallData" />
+                }
             }
 
             @if (IsLoading)
@@ -179,6 +187,17 @@
                     </button>
                 </div>
             </div>
+
+            @* The account's lifecycle as the server reports it. A stall's actions run in the existing stall dialogs below; the Closed Accounts report only links here. *@
+            @if (StallGuid != Guid.Empty)
+            {
+            <AccountLifecycleBar Source="LifecycleSource.Stall" AccountId="StallGuid"
+                                   OnStallAction="HandleStallAction" RefreshToken="_lifecycleRefresh" />
+            }
+            @if (_stallAction is { } stallAction && _lifecycleRow is not null)
+            {
+                <StallAccountActions Account="_lifecycleRow" Action="stallAction" OnDone="StallActionDone" OnCancel="() => _stallAction = null" />
+            }
 
             <!-- -- Main 2-col grid -- -->
             <div class="prof-grid">
@@ -898,11 +917,50 @@
     bool IsLoading = true;
     Guid StallGuid = Guid.Empty;
 
+    private (Guid Contract, DateOnly Period)? _openingContract;
+
     /// <summary>
     /// Terms on THIS stall that have ended and still owe money — the current term is never listed. Read from the
     /// same register the office reconciles against, so the two documents cannot disagree.
     /// </summary>
     private List<ClosedStallAccountDto> _priorTerms = new();
+
+    // ── Lifecycle (Resume / Renew / Assign new stall / Remove) ──
+    /// <summary>A deep link from another page: opened once the server offers the action and this stall's account row is known.</summary>
+    [SupplyParameterFromQuery(Name = "action")] public string? ActionName { get; set; }
+    /// <summary>Which of this stall's accounts the link means (a re-let stall has the earlier lessee's row as well as the sitting one).</summary>
+        [SupplyParameterFromQuery(Name = "contract")] public Guid? ContractId { get; set; }
+    private bool _deepLinkHandled;
+    private ClosedStallAccountDto? _lifecycleRow;
+    private StallAccountAction? _stallAction, _pendingAction;
+    private int _lifecycleRefresh;
+
+    private void HandleStallAction(LifecycleAction action)
+    {
+        _pendingAction = action switch
+        {
+            LifecycleAction.Resume => StallAccountAction.Resume,
+            LifecycleAction.Renew => StallAccountAction.Renew,
+            LifecycleAction.Reassign => StallAccountAction.Assign,
+            LifecycleAction.Remove => StallAccountAction.Remove,
+            _ => null
+        };
+        TryOpenPending();
+    }
+
+    private void TryOpenPending()
+    {
+        if (_pendingAction is { } pending && _lifecycleRow is not null) { _stallAction = pending; _pendingAction = null; }
+    }
+
+    private async Task StallActionDone()
+    {
+        var removed = _stallAction == StallAccountAction.Remove;
+        _stallAction = null;
+        if (removed) { Navigation.NavigateTo($"/facility/{FacilitySlug}"); return; }
+        _lifecycleRefresh++;
+        await LoadStallData();
+    }
 
     private async Task LoadPriorTermsAsync()
     {
@@ -914,6 +972,18 @@
         // Terms of THIS stall that still owe money and are not the one in force. A lapsed term is the exception: it
         // IS the term in force, but its span has run out, so the office needs it stated here too — those 57 accounts
         // otherwise showed nothing on the very screen the clerk collects from, with no prompt to renew.
+        // The account the lifecycle dialogs act on: this stall's own latest row that is not a term already renewed.
+        var mine = result.Value.Where(a => a.StallId == StallGuid && a.State != InactiveAccountState.Renewed).ToList();
+        _lifecycleRow = (ContractId is { } wanted ? mine.FirstOrDefault(a => a.ContractId == wanted) : null)
+            ?? mine.OrderByDescending(a => a.OccupancyEndedOn ?? a.ExpiryDate).FirstOrDefault();
+        // A link from the Closed Accounts register opens its action here. The existing Stall endpoints still decide whether it is allowed.
+        if (!_deepLinkHandled && LifecyclePresentation.FromQuery(ActionName) is { } linked)
+        {
+            _deepLinkHandled = true;
+            HandleStallAction(linked);
+        }
+        TryOpenPending();
+
         _priorTerms = result.Value
             .Where(a => a.StallId == StallGuid && a.Uncollected > 0m)
             .OrderByDescending(a => a.OccupancyEndedOn ?? a.ExpiryDate)
@@ -1213,6 +1283,8 @@
             if (stallDto != null)
             {
                 StallGuid = stallDto.Id;
+                _openingContract = stallDto.OccupancyId is { } occupancy && stallDto.ContractDate is { } openingDate
+                    ? (occupancy, new DateOnly(openingDate.Year, openingDate.Month, 1)) : null;
                 DisplayStallNo = stallDto.StallNo;
 
                 // Fetch all per-stall data concurrently (each is keyed by the stall id and independent),

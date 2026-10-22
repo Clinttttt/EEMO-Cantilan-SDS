@@ -1,0 +1,109 @@
+@using EEMOCantilanSDS.Application.Common.Payments
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@inject IDailyCollectionApiClient DailyApi
+
+<AuthorizeView Roles="SuperAdmin">
+    @if (_review is not null && !_review.IsActivated)
+    {
+        <button type="button" class="btn btn-outline-primary" @onclick="Open">Review opening-month rent</button>
+    }
+    <VendorDrawerShell Show="_open" Title="Opening-month rent" Subtitle="Review the approved rental obligation" OnClose="Close">
+        <ChildContent>
+            @if (_review is { } review)
+            {
+                <section class="avm-section">
+                    <h3 class="avm-section-title">@PeriodStart.ToString("MMMM yyyy")</h3>
+                    <dl class="opening-position">
+                        <div><dt>Approved monthly rent</dt><dd>@Money(review.GrossObligation)</dd></div>
+                        <div><dt>Approved credits</dt><dd>@Money(review.Credits)</dd></div>
+                        <div><dt>Daily installment</dt><dd>@Money(review.Authority.ApprovedDailyInstallment)</dd></div>
+                        <div><dt>Occupancy starts</dt><dd>@review.Authority.OccupancyStart.ToString("MMM d, yyyy")</dd></div>
+                    </dl>
+                    <p>The full opening-month rent applies. Daily installments settle this same obligation. Activation records no cash and does not make the full balance overdue.</p>
+                    <details><summary>Rate and approval evidence</summary>
+                        <p>@review.Authority.ApprovalReference</p>
+                        <p>Rate effective @review.Authority.MonthlyRateEffectiveFrom.ToString("MMM d, yyyy")</p>
+                    </details>
+                </section>
+                @if (!review.IsActivated)
+                {
+                    <div class="avm-field">
+                        <label for="@_referenceId">Head authorization reference</label>
+                        <input id="@_referenceId" class="avm-input" maxlength="1000" @bind="_reference" disabled="@_busy" />
+                    </div>
+                    <label class="opening-confirm"><input type="checkbox" @bind="_confirmed" disabled="@_busy" /> I reviewed the occupant, approved rate and opening-month obligation.</label>
+                }
+                else { <p role="status">Monthly rent is activated. Collection quotes now use this source.</p> }
+            }
+            @if (_error is not null) { <p role="alert">@_error</p> }
+        </ChildContent>
+        <Footer>
+            <button type="button" class="btn btn-outline-secondary" @onclick="Close" disabled="@_busy">Close</button>
+            @if (_review is { IsActivated: false })
+            {
+                <button type="button" class="btn btn-primary" disabled="@(_busy || !_confirmed || string.IsNullOrWhiteSpace(_reference))" @onclick="Activate">@(_busy ? "Confirming…" : "Authorize monthly rent")</button>
+            }
+        </Footer>
+    </VendorDrawerShell>
+</AuthorizeView>
+
+@code {
+    [Parameter] public Guid StallId { get; set; }
+    [Parameter] public Guid ContractId { get; set; }
+    [Parameter] public DateOnly PeriodStart { get; set; }
+    [Parameter] public bool AutoOpen { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+    private readonly string _referenceId = $"npm-opening-reference-{Guid.NewGuid():N}";
+    private (Guid, Guid, DateOnly)? _loaded;
+    private NpmOpeningMonthAssessmentReview? _review;
+    private bool _open, _busy, _confirmed;
+    private string _reference = "";
+    private string? _error;
+    protected override async Task OnParametersSetAsync()
+    {
+        var key = (StallId, ContractId, PeriodStart);
+        if (_loaded == key || StallId == Guid.Empty || ContractId == Guid.Empty) return;
+        _loaded = key; _review = null; _error = null; _open = false; _confirmed = false; _reference = "";
+        var enabled = await DailyApi.IsNpmMonthlySettlementAvailableAsync();
+        if (!enabled.IsSuccess || !enabled.Value) return;
+        await Refresh();
+        _open = AutoOpen && _review?.IsActivated != true;
+    }
+    private async Task Refresh()
+    {
+        var result = await DailyApi.ReviewNpmOpeningMonthAsync(StallId, ContractId, PeriodStart);
+        _review = result.IsSuccess ? result.Value : null;
+        _error = result.IsSuccess ? null : result.Error;
+    }
+    private void Open() => _open = true;
+    private void Close() => _open = false;
+    private static string Money(decimal value) => value.ToString("C2", System.Globalization.CultureInfo.GetCultureInfo("en-PH"));
+    private async Task Activate()
+    {
+        if (_busy || !_confirmed || _review is null || _review.IsActivated || string.IsNullOrWhiteSpace(_reference)) return;
+        _busy = true; _error = null;
+        try
+        {
+            var reviewed = _review;
+            // Preparation is read back before activation; an uncertain retry never creates a second month.
+            await Refresh();
+            if (_review is null || _review.IsActivated) return;
+            if (!SameAssessment(reviewed, _review)) { _confirmed = false; _error = "The approved assessment changed. Review it again before authorization."; return; }
+            if (_review.MonthId is null)
+            {
+                var prepared = await DailyApi.PrepareNpmOpeningMonthAsync(new(StallId, ContractId, PeriodStart));
+                if (!prepared.IsSuccess) { _error = prepared.Error; return; }
+                await Refresh();
+            }
+            if (_review is not null && !SameAssessment(reviewed, _review)) { _confirmed = false; _error = "The prepared assessment changed. Review it again before authorization."; return; }
+            if (_review?.Version is not { } version) return;
+            var activated = await DailyApi.ActivateNpmOpeningMonthAsync(new(StallId, ContractId, PeriodStart, version, _reference.Trim()));
+            if (!activated.IsSuccess) { _error = activated.Error; return; }
+            await Refresh();
+            await OnChanged.InvokeAsync();
+        }
+        finally { _busy = false; }
+    }
+    private static bool SameAssessment(NpmOpeningMonthAssessmentReview left, NpmOpeningMonthAssessmentReview right) =>
+        left.GrossObligation == right.GrossObligation && left.Credits == right.Credits && left.Authority == right.Authority;
+}

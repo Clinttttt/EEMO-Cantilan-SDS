@@ -8,6 +8,8 @@ This document records intended future semantics and the approved migration direc
 
 ## 1. Purpose and authority
 
+2026-10-19 engineering boundary: the owner requested prospective registration-first Fish/Meat Vendor Fee eligibility, with a separate nonfinancial Collector request and Head-completed office registration. Office confirmation remains pending; IA-068's walk-up permission remains the current default. A tenant-specific effective business date and disabled installation/policy gates protect existing registrations, historical payments and retries. This adds no cash ledger or NPM tenancy. Implementation and approval requirements are recorded in [the registry backend handoff](../planning/FISH_MEAT_REGISTRY_MANAGEMENT_HANDOFF_20261007.md#2026-10-19-collector-registration-request-backend).
+
 StallTrack is evolving from a primarily stall and rental system into a broader platform for MEEDO operations, assessments, collections, accountable documents and classified revenue reporting. Its mature stall, occupancy, contract, NPM settlement and facility domains remain valuable and are not being replaced by one generic transaction model.
 
 The authority labels used below mean:
@@ -274,7 +276,8 @@ Unreleased capabilities remain hidden. Do not add empty workspace navigation. Pr
 Vocabulary boundary:
 
 - **Paid** describes an obligation state.
-- **Collected** describes money received.
+- **Collected** describes actual authoritative collection money, including applicable linked financial corrections and excluding Head-only report adjustments. Dashboard/source performance cash totals use the official statement's `SystemAmount`, not its adjusted `OfficialAmount`.
+- **Official income / official target attainment** may include authorized report-only revisions. Display that basis explicitly; a revision never changes a Collection, SRC, source balance, remittance or collector accountability. A captured revision is not a persisted issued-report snapshot.
 - **Issued** describes an accountable-document state.
 
 Partial, queued offline, awaiting document, reversed and voided states remain distinct.

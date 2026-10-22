@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Tenancy;
+using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using MediatR;
@@ -15,7 +16,8 @@ public class SetNpmOperatingScheduleCommandHandler(
     IClock clock,
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
-    ITenantContext tenantContext) : IRequestHandler<SetNpmOperatingScheduleCommand, Result<bool>>
+    ITenantContext tenantContext,
+    NpmRentMonthWorkflow? monthly = null) : IRequestHandler<SetNpmOperatingScheduleCommand, Result<bool>>
 {
     public const int MinimumAuthorityLength = 3;
 
@@ -33,6 +35,9 @@ public class SetNpmOperatingScheduleCommandHandler(
             return Result<bool>.Failure("The market must open on at least one weekday.", ResultStatus.Invalid);
         if (closed.Count > 0 && (request.Remarks?.Trim().Length ?? 0) < MinimumAuthorityLength)
             return Result<bool>.Failure("State the authority for closing these weekdays.", ResultStatus.Invalid);
+
+        if (monthly is not null && await monthly.HasActivatedFromAsync(request.EffectiveFrom, ct))
+            return Result<bool>.Failure("Review activated month assessments and approved credits before changing their operating schedule.", ResultStatus.Conflict);
 
         var recordedBy = currentUser.Username ?? "Head";
         var existing = await scheduleRepository.GetByEffectiveDateAsync(request.EffectiveFrom, ct);

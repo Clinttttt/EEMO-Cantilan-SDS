@@ -20,12 +20,12 @@ public sealed class MonitoringTabsNpmTests : TestContext
     [Theory]
     [InlineData("follow-up")]
     [InlineData("contracts")]
-    [InlineData("npm-requests")]
-    public void Monitoring_tabs_link_all_three_registers(string current)
+    [InlineData("review")]
+    public void Monitoring_tabs_link_the_three_primary_registers(string current)
     {
         var view = RenderComponent<MonitoringTabs>(p => p.Add(x => x.Current, current));
         Assert.Equal(3, view.FindAll("a.mt-tab").Count);
-        Assert.Contains("/monitoring/npm-requests", view.Markup);
+        Assert.Contains("/monitoring/review", view.Markup);
         Assert.Equal(1, view.FindAll("a[aria-current='page']").Count);
         var active = view.Find("a[aria-current='page']");
         Assert.Contains(current == "follow-up" ? "/monitoring/follow-up" : "/monitoring/" + current,

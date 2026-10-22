@@ -133,18 +133,19 @@ public class MobileSettleDaysBoundaryTests
     /// round is the ordinary path for the month in hand — but a stall whose section has been CLOSED is not in the round at all, so
     /// those days were owed with no way on any screen to collect them, and the balance could never reach nil.
     ///
-    /// <para>Settled as DAYS through the existing route, because a running month owes exactly the days it has run — the month
-    /// settlement would price it as a whole month. The dates come from the row itself, so the collector settles what was shown.</para>
+    /// <para>The amount workflow now quotes collectible periods on the server. The historical explicit-day exception remains
+    /// available; prospective monthly assessment and earned liability keep their distinct source-owned rules.</para>
     /// </remarks>
     [Fact]
     public void TheArrearsScreenCanSettleTheDaysOwedInTheMonthStillRunning()
     {
         var sheet = Source("EEMOCantilanSDS.Mobile", "Components", "Pages", "Menus", "Market.razor");
 
-        // The current-month row is an action, not a label.
-        Assert.Contains("OpenDaysSettle(payor)", sheet);
+        // Outstanding accounts now open the shared server-quoted amount form, including the current period.
+        Assert.Contains("_outstandingAccount = payor", sheet);
+        Assert.Contains("<NpmRentAmountForm", sheet);
 
-        // And it settles through the DAYS route, carrying the dates the row named.
+        // The historical explicit-day exception still carries the actual dates through its established API.
         Assert.Contains("SettleNpmDaysAsync(new SettleMobileNpmDaysRequest(", sheet);
         Assert.Contains("MonthSettleDays", sheet);
     }

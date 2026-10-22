@@ -3,16 +3,13 @@
 .npm-history-eyebrow { display: block; margin-bottom: 5px; color: #dbe8fa; font-size: 10px; font-weight: 700; letter-spacing: .12em; }
 .npm-history-hero h1 { margin: 0 0 5px; color: white; font-size: 19px; font-weight: 700; line-height: 1.3; }
 .npm-history-hero p { margin: 0; color: #e5eefb; font-size: 12px; line-height: 1.5; }
-.npm-history-safeguard { margin: 0 1px 16px; color: var(--mobile-text-secondary); font-size: 12px; line-height: 1.5; }
 .npm-history-state { background: var(--mobile-surface); border: 1px solid var(--mobile-border); border-radius: 12px; padding: 18px 16px; color: var(--mobile-navy); }
 .npm-history-state strong { font-size: 15px; }
 .npm-history-state p { color: var(--mobile-text-secondary); font-size: 13px; line-height: 1.5; margin: 7px 0 0; }
 .npm-history-error { border-left: 3px solid #b97828; }
 .npm-history-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
 .npm-history-actions button, .npm-history-paging button { padding: 9px 14px; min-height: 40px; border: 1px solid var(--mobile-blue); color: var(--mobile-blue); border-radius: 9px; background: white; font-weight: 650; font-size: 13px; }
-.npm-history-actions a, .npm-history-state a, .npm-history-back { color: var(--mobile-blue); font-size: 13px; font-weight: 600; text-decoration: none; }
-.npm-history-list-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 9px; }
-.npm-history-list-head h2 { margin: 0; font-size: 14px; color: var(--mobile-navy); }
+.npm-history-list-head { display: flex; justify-content: flex-end; align-items: baseline; margin-bottom: 9px; }
 .npm-history-list-head > span { font-size: 12px; color: var(--mobile-text-secondary); }
 .npm-history-list { display: grid; gap: 10px; }
 .npm-history-card { padding: 14px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); min-width: 0; }
@@ -43,5 +40,4 @@
 .npm-history-paging { display: flex; justify-content: space-between; align-items: center; gap: 9px; margin: 15px 0; }
 .npm-history-paging span { color: var(--mobile-text-secondary); font-size: 12px; text-align: center; }
 .npm-history-paging button:disabled { opacity: .55; }
-.npm-history-back { display: inline-block; padding: 14px 2px 6px; }
 @media(max-width: 350px) { .npm-history-hero { padding: 14px 12px; } .npm-history-card { padding: 12px; } .npm-history-card-top { flex-wrap: wrap; } }

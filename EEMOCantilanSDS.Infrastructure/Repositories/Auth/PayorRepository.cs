@@ -173,7 +173,7 @@ public class PayorRepository(
             // monthly rate, a figure the payor is never billed, beside a balance built from days: the two could not be
             // reconciled by the person paying. The days owed come from the same settlement service the payable item and the
             // collector's app use, and the day's fee from the same rule, so the screen cannot disagree with the charge.
-            var isDaily = stall.Facility!.Code == FacilityCode.NPM;
+            var isDaily = stall.Facility!.Code == FacilityCode.NPM && !stall.Facility.IsMonthlyRentMarket;   // a market rented by the month shows its monthly rent
             var dailyRate = 0m;
             var daysOwed = 0;
             var balance = stallItems.Sum(i => i.BalanceDue);
@@ -287,7 +287,7 @@ public class PayorRepository(
             }
 
             // 2) Synthesized current-month obligation for monthly-rental facilities.
-            var isMonthly = facility != FacilityCode.NPM;
+            var isMonthly = facility != FacilityCode.NPM || stall.Facility.IsMonthlyRentMarket;
             var dueThisMonth = isMonthly
                 && stall.MonthlyRate > 0m
                 && stall.Status == StallStatus.Active
@@ -305,7 +305,7 @@ public class PayorRepository(
             // unpaid, elapsed, in-term, non-closed days — from the shared settlement service, so the amount
             // shown equals what initiate charges and settlement marks. Fish ₱/kg and utilities are excluded
             // (weighed/metered at the stall). Only shown when there is an outstanding daily balance.
-            if (facility == FacilityCode.NPM
+            if (facility == FacilityCode.NPM && !stall.Facility.IsMonthlyRentMarket
                 && stall.Status == StallStatus.Active
                 && stall.Contracts.Any(c => c.IsActive && c.EffectivityDate <= monthEnd && monthStart <= c.ExpiryDate))
             {

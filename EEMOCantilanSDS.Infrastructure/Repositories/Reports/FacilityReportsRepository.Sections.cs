@@ -26,7 +26,7 @@ public partial class FacilityReportsRepository
         DateOnly endDate,
         CancellationToken ct)
     {
-        if (facilityCode == FacilityCode.NPM)
+        if (IsDailyMarket(facilityCode))
         {
             return await GenerateNpmSectionBreakdownAsync(facilityId, startDate, endDate, ct);
         }
@@ -46,15 +46,19 @@ public partial class FacilityReportsRepository
     {
         var sections = new[] { MarketSection.VegetableArea, MarketSection.FishSection, MarketSection.MeatSection };
         var breakdown = new List<SectionBreakdownDto>();
+        var monthCash = await MonthCashAsync(facilityId, startDate, endDate, ct);
+        var displayedSections = new HashSet<string>(StringComparer.Ordinal);
 
         // Builds one section card from a set of stalls, using the SAME revenue/expected/rate/count logic for
         // canonical AND custom sections — so every card is computed identically and the cards reconcile to the
         // facility total. An empty set yields a ₱0 card (canonical sections always render; custom ones are only
         // built for groups that exist).
-        async Task<SectionBreakdownDto> BuildCardAsync(string sectionName, List<Stall> stalls)
+        async Task<SectionBreakdownDto> BuildCardAsync(string sectionName, string sectionKey, List<Stall> stalls)
         {
+            displayedSections.Add(sectionKey);
+            var sourceCash = monthCash.Where(x => x.SectionKey == sectionKey).Sum(x => x.Amount);
             if (stalls.Count == 0)
-                return new SectionBreakdownDto(sectionName, 0m, 0m, 0, 0, 0, 0);
+                return new SectionBreakdownDto(sectionName, sourceCash, 0m, 0, 0, 0, 0);
 
             var stallIds = stalls.Select(s => s.Id).ToList();
             var stallsById = stalls.ToDictionary(s => s.Id);
@@ -99,7 +103,7 @@ public partial class FacilityReportsRepository
                 ? RecognizedNpmDailyFeeRevenue(pr, startDate, endDate, stall)
                 : 0m);
 
-            var actualRevenue = dailyRevenue + monthlyRevenue;
+            var actualRevenue = dailyRevenue + monthlyRevenue + sourceCash;
 
             // Calculate expected revenue for this section (occupied stalls only)
             var occupiedStalls = stalls.Where(s => s.Contracts.Any(c => c.IsActive)).ToList();
@@ -111,6 +115,11 @@ public partial class FacilityReportsRepository
             // collected money shows in Revenue but never in the rate, so the rate reflects current
             // billable performance and can never read above 100%.
             var rentCollected = dailyFeeRevenue + monthlyDailyFeeRevenue;
+            foreach (var stall in occupiedStalls)
+            {
+                var delta = await MonthComplianceDeltaAsync(stall, startDate, endDate, null, ct);
+                expectedRevenue += delta.BillDelta; rentCollected += delta.PaidDelta;
+            }
             var percentage = expectedRevenue > 0 ? Math.Min(100m, (rentCollected / expectedRevenue) * 100m) : 0m;
             var activeStalls = stalls.Count(s => CountNpmCollectableDays(s, startDate, endDate) > 0);
             var closedStalls = stalls.Count(s => s.Status == StallStatus.Closed);
@@ -136,7 +145,7 @@ public partial class FacilityReportsRepository
                 .Include(s => s.Contracts.Where(c => c.IsActive))
                 .ToListAsync(ct);
 
-            breakdown.Add(await BuildCardAsync(SectionLabel(section), stalls));
+            breakdown.Add(await BuildCardAsync(SectionLabel(section), section.ToString(), stalls));
         }
 
         // Per-LGU CUSTOM sections: NPM stalls with no canonical Section (Section == null) but a
@@ -169,7 +178,7 @@ public partial class FacilityReportsRepository
             .GroupBy(s => s.CustomSectionName!.Trim(), StringComparer.OrdinalIgnoreCase)
             .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
         {
-            var card = await BuildCardAsync(group.Key, group.ToList());
+            var card = await BuildCardAsync(group.Key, "custom:" + group.Key, group.ToList());
 
             if (closedSet.Contains(group.Key) && card.Revenue <= 0m)
                 continue;
@@ -177,6 +186,9 @@ public partial class FacilityReportsRepository
             breakdown.Add(card);
         }
 
+        var historicalCash = monthCash.Where(x => x.SectionKey is null || !displayedSections.Contains(x.SectionKey)).Sum(x => x.Amount);
+        if (historicalCash != 0)
+            breakdown.Add(new SectionBreakdownDto("Historical / unassigned section", historicalCash, 0, 0, 0, 0, 0));
         return breakdown;
     }
 
@@ -329,7 +341,7 @@ public partial class FacilityReportsRepository
             .GroupBy(pr => pr.StallId)
             .ToDictionary(
                 g => g.Key,
-                g => g.Sum(pr => facilityCode == FacilityCode.NPM
+                g => g.Sum(pr => IsDailyMarket(facilityCode)
                     ? stallsById.TryGetValue(pr.StallId, out var stall)
                         ? RecognizedNpmPaymentRevenue(pr, startDate, endDate, stall)
                         : 0m
@@ -344,7 +356,7 @@ public partial class FacilityReportsRepository
 
         // NPM also earns daily-collection revenue; aggregate it server-side in ONE query.
         Dictionary<Guid, decimal> dailyRevenueByStall;
-        if (facilityCode == FacilityCode.NPM)
+        if (IsDailyMarket(facilityCode))
         {
             var dailyCollections = await _context.DailyCollections
                 .AsNoTracking()
@@ -371,14 +383,22 @@ public partial class FacilityReportsRepository
             dailyRevenueByStall = new Dictionary<Guid, decimal>();
         }
 
-        return stalls
+        var monthSourceCash = IsDailyMarket(facilityCode) ? await MonthCashAsync(facilityId, startDate, endDate, ct) : [];
+        var currentContracts = stalls.ToDictionary(x => x.Id, x => x.Contracts.FirstOrDefault()?.Id);
+        var ranked = stalls
             .Select(stall => new TopStallDto(
                 stall.StallNo,
                 stall.Contracts.FirstOrDefault()?.ActualOccupant ?? "Vacant",
-                monthlyRevenueByStall.GetValueOrDefault(stall.Id) + dailyRevenueByStall.GetValueOrDefault(stall.Id)))
+                monthlyRevenueByStall.GetValueOrDefault(stall.Id) + dailyRevenueByStall.GetValueOrDefault(stall.Id)
+                    + monthSourceCash.Where(x => x.StallId == stall.Id && currentContracts[stall.Id] == x.ContractId).Sum(x => x.Amount)))
+            .Concat(monthSourceCash.Where(x => currentContracts.GetValueOrDefault(x.StallId) != x.ContractId)
+                .GroupBy(x => (x.StallId, x.ContractId)).Select(g => new TopStallDto(
+                    stallsById.GetValueOrDefault(g.Key.StallId)?.StallNo ?? "Recorded space",
+                    g.First().Occupant ?? "Historical occupancy requiring review", g.Sum(x => x.Amount))))
             .OrderByDescending(t => t.Revenue)
             .Take(4)
             .ToList();
+        return ranked;
     }
 
     #endregion
@@ -422,7 +442,7 @@ public partial class FacilityReportsRepository
             .ToDictionary(pr => pr.StallId, pr => pr.Status);
 
         // For NPM: Check daily collections to determine if Unpaid should be Partial
-        if (facilityCode == FacilityCode.NPM)
+        if (IsDailyMarket(facilityCode))
         {
             var dailyCollections = await _context.DailyCollections
                 .AsNoTracking()

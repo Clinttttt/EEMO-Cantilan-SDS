@@ -11,7 +11,8 @@ namespace EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmCollection;
 public sealed class GetMobileNpmCollectionQueryHandler(
     ICollectorRepository collectorRepository,
     IStallMobileQueries mobileQueries,
-    ICurrentUserService currentUser, IClock clock) : IRequestHandler<GetMobileNpmCollectionQuery, Result<MobileNpmCollectionDto>>
+    ICurrentUserService currentUser, IClock clock,
+    EEMOCantilanSDS.Application.Common.Interface.Persistence.IFacilityRepository? facilities = null) : IRequestHandler<GetMobileNpmCollectionQuery, Result<MobileNpmCollectionDto>>
 {
     public async Task<Result<MobileNpmCollectionDto>> Handle(GetMobileNpmCollectionQuery request, CancellationToken ct)
     {
@@ -24,6 +25,10 @@ public sealed class GetMobileNpmCollectionQueryHandler(
 
         var hasNpmAssignment = collector.FacilityAssignments.Any(a => a.FacilityCode == FacilityCode.NPM);
         if (!hasNpmAssignment)
+            return Result<MobileNpmCollectionDto>.Forbidden();
+
+        // A Public Market its LGU rents by the month has no daily list or daily arrears: the device collects its rent on the monthly screen.
+        if (facilities is not null && await facilities.GetByCodeAsync(FacilityCode.NPM, ct) is { IsMonthlyRentMarket: true })
             return Result<MobileNpmCollectionDto>.Forbidden();
 
         var collection = await mobileQueries.GetMobileNpmCollectionAsync(

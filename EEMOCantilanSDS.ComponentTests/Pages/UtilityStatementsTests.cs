@@ -31,7 +31,7 @@ public sealed class UtilityStatementsTests : TestContext
     }
 
     [Fact]
-    public void Ecf_StatementsLoadFromTheEcfRead_StateAssessedPaidAndBalance_AndNeedNoNpmView()
+    public void Ecf_StatementsLoadFromTheEcfRead_AsTheEightColumnRegister_AndNeedNoNpmView()
     {
         Assert.Equal("/operations/ecf/statements",
             Assert.Single(typeof(ElectricityConsumptionFeesStatements).GetCustomAttributes(typeof(RouteAttribute), true).Cast<RouteAttribute>()).Template);
@@ -44,25 +44,21 @@ public sealed class UtilityStatementsTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            var row = Assert.Single(cut.FindAll("[aria-label='ECF statement register'] tbody tr"));
+            Assert.Equal(["#", "Name of Lessee (Actual Occupants)", "Billing Month", "Operations", "Section", "Stall No.", "Assessed", "Balance"],
+                cut.FindAll(".lsh-table thead th").Select(t => string.Join(' ', t.TextContent.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))).ToArray());
+            var row = Assert.Single(cut.FindAll(".lsh-table tbody tr"));
+            Assert.Equal(8, row.Children.Length);
             Assert.Contains("Pedro Vendor", row.TextContent);
+            Assert.Contains("October 2026", row.TextContent);
             Assert.Contains("₱650.00", row.TextContent);
-            Assert.Contains("₱150.00", row.TextContent);
             Assert.Contains("₱500.00", row.TextContent);
-            Assert.Equal("Statements", cut.Find("h2").TextContent.Trim());
-            var sheet = cut.Find("article.us-sheet");
-            Assert.Contains("Statement of Account", sheet.TextContent);
-            Assert.Contains("Electricity Consumption Fees", sheet.TextContent);
-            Assert.DoesNotContain("Please settle", sheet.TextContent);                   // a statement states the account, it does not instruct the payor
-            Assert.DoesNotContain("Present this statement", sheet.TextContent);
-            Assert.Contains("Net settled", sheet.TextContent);
-            Assert.Contains("Official Receipt", sheet.TextContent);
-            Assert.DoesNotContain("utilities", cut.Markup.ToLowerInvariant().Replace("utility", ""));
+            Assert.DoesNotContain("Net settled", cut.Markup);                              // no settlement/status column in the official register
+            Assert.NotNull(cut.Find(".lsh-actions a[download]"));
         }, Timeout);
     }
 
     [Fact]
-    public void Wcf_BalanceOnlyFilterHidesSettledStatements()
+    public void Wcf_BalanceOnlyFilterHidesSettledLines_AndTheCsvFollowsTheFilteredRows()
     {
         var api = new Mock<IWcfCollectionsApiClient>();
         api.Setup(x => x.GetObligationsAsync(It.IsAny<int>(), It.IsAny<int>())).ReturnsAsync(
@@ -70,14 +66,16 @@ public sealed class UtilityStatementsTests : TestContext
         Services.AddSingleton(api.Object);
 
         var cut = RenderComponent<WaterConsumptionFeesStatements>();
-        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[aria-label='WCF statement register'] tbody tr").Count), Timeout);
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll(".lsh-table tbody tr").Count), Timeout);
 
-        cut.Find("input[type='checkbox']").Change(true);
+        cut.FindAll(".lsh-seg-item").Single(b => b.TextContent.Contains("With balance")).Click();
         cut.WaitForAssertion(() =>
         {
-            var row = Assert.Single(cut.FindAll("[aria-label='WCF statement register'] tbody tr"));
+            var row = Assert.Single(cut.FindAll(".lsh-table tbody tr"));
             Assert.Contains("Ben Stall", row.TextContent);
-            Assert.Contains("Cash Ticket", cut.Find("article.us-sheet").TextContent);
+            var csv = Uri.UnescapeDataString(cut.Find(".lsh-actions a[download]").GetAttribute("href")!);
+            Assert.Contains("Ben Stall", csv);
+            Assert.DoesNotContain("Ana Stall", csv);
         }, Timeout);
     }
 

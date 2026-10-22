@@ -143,6 +143,7 @@ namespace EEMOCantilanSDS.Client
             service.AddApiHttpClient<ITpmApiClient, TpmApiClient>(configuration);
             service.AddApiHttpClient<ITrmApiClient, TrmApiClient>(configuration);
             service.AddApiHttpClient<ISlaughterApiClient, SlaughterApiClient>(configuration);
+            service.AddApiHttpClient<ILifecycleApiClient, LifecycleApiClient>(configuration);
             service.AddApiHttpClient<IDailyCollectionApiClient, DailyCollectionApiClient>(configuration);
             service.AddApiHttpClient<IUtilitiesApiClient, UtilitiesApiClient>(configuration);
             service.AddApiHttpClient<IEcfCollectionsApiClient, EcfCollectionsApiClient>(configuration);
@@ -155,6 +156,7 @@ namespace EEMOCantilanSDS.Client
             service.AddApiHttpClient<IDashboardApiClient, DashboardApiClient>(configuration);
             service.AddApiHttpClient<ITransactionsApiClient, TransactionsApiClient>(configuration);
             service.AddApiHttpClient<ICollectionActivityApiClient, CollectionActivityApiClient>(configuration);
+            service.AddApiHttpClient<IOfficeCashTurnoverApiClient, OfficeCashTurnoverApiClient>(configuration);
             service.AddApiHttpClient<IPayorApiClient, PayorApiClient>(configuration);
             service.AddApiHttpClient<IOnlinePaymentsApiClient, OnlinePaymentsApiClient>(configuration);
             service.AddApiHttpClient<IAuditApiClient, AuditApiClient>(configuration);

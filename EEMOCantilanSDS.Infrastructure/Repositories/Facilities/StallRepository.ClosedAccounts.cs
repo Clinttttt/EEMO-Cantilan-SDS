@@ -33,6 +33,10 @@ public partial class StallRepository
     public async Task<IReadOnlyList<ClosedStallAccountDto>> GetClosedStallAccountsAsync(CancellationToken ct)
         => await GetClosedStallAccountsCoreAsync(null, null, ct);
 
+    /// <summary>Historical ended-account position, excluding contracts, handovers and closures that only ended later.</summary>
+    public async Task<IReadOnlyList<ClosedStallAccountDto>> GetClosedStallAccountsAsOfAsync(DateOnly asOf, CancellationToken ct)
+        => await GetClosedStallAccountsCoreAsync(null, null, ct, asOf);
+
     /// <summary>
     /// The same register, bounded to a period: every figure states what each ended occupancy owed and paid FOR
     /// <paramref name="from"/>–<paramref name="to"/>, and an occupancy that did not exist in that period is not
@@ -44,9 +48,14 @@ public partial class StallRepository
         => await GetClosedStallAccountsCoreAsync(from, to, ct);
 
     private async Task<IReadOnlyList<ClosedStallAccountDto>> GetClosedStallAccountsCoreAsync(
-        DateOnly? windowStart, DateOnly? windowEnd, CancellationToken ct)
+        DateOnly? windowStart, DateOnly? windowEnd, CancellationToken ct, DateOnly? snapshotAsOf = null)
     {
-        var today = _clock.PhilippineToday;
+        var today = windowEnd ?? snapshotAsOf ?? _clock.PhilippineToday;
+        if (today > _clock.PhilippineToday) today = _clock.PhilippineToday;
+        var historical = windowEnd.HasValue || snapshotAsOf.HasValue;
+        // An occupancy's End is the last day the lessee held the stall (inclusive). On a past as-of date that day is over, so an
+        // occupancy ending ON it has ended; on the real current day it is still in force, which is what Occupancy.IsCurrent says too.
+        bool EndedAsOf(DateOnly end) => end < today || end == today && today < _clock.PhilippineToday;
 
         // Resolve the municipality's NPM rates as of today (falls back to the ordinance constants, so
         // Cantilan's lifetime/uncollected figures are unchanged).
@@ -74,7 +83,10 @@ public partial class StallRepository
 
         var accounts = everLet
             .SelectMany(s => occupanciesByStall[s.Id].Select(o => (Stall: s, Occupancy: o)))
-            .Where(x => !x.Occupancy.IsCurrent || x.Stall.Status == StallStatus.Closed)
+            .Where(x => !historical
+                ? !x.Occupancy.IsCurrent || x.Stall.Status == StallStatus.Closed
+                : (EndedAsOf(x.Occupancy.End) || x.Stall.Status == StallStatus.Closed && x.Stall.ClosedAt is { } closed && closed <= today)
+                  && (!x.Occupancy.IsCurrent || x.Stall.Status == StallStatus.Closed && x.Stall.ClosedAt is { } closedAgain && closedAgain <= today))
             // A period-scoped read lists only the occupancies that existed in that period: a 2023 view showing an
             // account that began in 2026 states a debt nobody could have owed then.
             .Where(x => windowStart is not { } ws || windowEnd is not { } we
@@ -119,7 +131,7 @@ public partial class StallRepository
         {
             var contract = occupancy.Contract;
             var isNpm = stall.Facility?.Code == FacilityCode.NPM;
-            var isClosed = stall.Status == StallStatus.Closed;
+            var isClosed = stall.Status == StallStatus.Closed && (!historical || stall.ClosedAt is { } closed && closed <= today);
 
             var contractExpiry = contract.ExpiryDate;
             // End point of THIS occupancy: the day the lessee actually stopped holding the stall — terminated,
@@ -129,6 +141,12 @@ public partial class StallRepository
             var endDate = occupancy.End;
             // Charges stop at the term's end even if the lessee stayed on afterwards.
             var billableEnd = occupancy.BillableEnd;
+            // An as-of reading never includes obligations that had not accrued by that date.
+            if (historical)
+            {
+                if (endDate > today) endDate = today;
+                if (billableEnd > today) billableEnd = today;
+            }
 
             // A period-scoped read narrows all three to the requested window, so every figure on the row is what
             // this occupancy owed and paid FOR that period — never its lifetime total under a period heading.
@@ -236,6 +254,13 @@ public partial class StallRepository
                         .Sum(p => p.DailyFee);
 
                     var monthOutstanding = DomainRules.DailyBilledMonthOutstanding(obligation, collected, credit);
+                    if (_npmRentMonths is not null && await _npmRentMonths.ReadPositionAsync(stall.Id, cursor, ct) is { } authoritative)
+                    {
+                        if (authoritative.ContractId != occupancy.Contract.Id)
+                            throw new InvalidOperationException("NPM month responsibility requires reconciliation before stating this closed account.");
+                        lifetimeCollected += (await _npmRentMonths.ReadCashEventsAsync(stall.Id, cursor, ct)).Sum(x => x.Net);
+                        monthOutstanding = (await NpmMonthSettlement.ComputePayableAsync(stall, cursor.Year, cursor.Month, ct)).Amount;
+                    }
                     uncollected += monthOutstanding;
                     if (monthOutstanding > 0m) monthsUnpaid++;
                     cursor = cursor.AddMonths(1);
@@ -279,7 +304,7 @@ public partial class StallRepository
             // space, and reading "Handed over" beside a stall he is still trading in — with an "Assign new stall"
             // button — told the office both that he had gone and that the space was free to offer.
             var later = occupanciesByStall[stall.Id]
-                .Where(o => o.Start > occupancy.Start)
+                .Where(o => o.Start > occupancy.Start && (!historical || o.Start <= today))
                 .OrderBy(o => o.Start)
                 .FirstOrDefault();
             var sameLessee = later is not null
@@ -340,7 +365,7 @@ public partial class StallRepository
                 // day left its own window still in force. The register concluded the stall had been re-let, told the
                 // office the space was taken by the very lessee it had just closed, and offered "Assign new stall" as
                 // the only action: no way to resume the account, and no way to remove it.
-                stall.Occupancies(today).Any(o => o.IsCurrent && o.Contract.Id != contract.Id),
+                stall.Occupancies(today).Any(o => o.IsCurrent && o.Start <= today && o.Contract.Id != contract.Id),
                 // The term this row is the record of, so an action on THIS lessee cannot pick up the sitting one's.
                 contract.Id,
                 // The space as measured on the stall today — what a renewal is checked against.

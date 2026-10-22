@@ -74,8 +74,7 @@ Mobile for this release, or withdraw it until ECF has a canonical writer.
 
 ## E. Slaughterhouse packages / add-ons
 
-No package or add-on concept exists in Domain or Application; approved animal/service definitions only. Remains an explicit
-gap; nothing was invented in the UI.
+**Closed 2026-10-19:** Slaughterhouse charges (Ante-mortem, Post-mortem, Slaughter fee and Head/Admin-approved additions, with animal scope, fixed effective-dated rates and per-head / counted quantity) are built on the governed fee-option machinery and post as one itemized canonical Collection. See the handoff entries of 2026-10-19: Collector Mobile (queue and checkout), Admin Web, corrections and reports are included.
 
 ## F. Annual targets
 

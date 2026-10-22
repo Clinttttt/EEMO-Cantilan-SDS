@@ -116,11 +116,17 @@ public sealed class FishMeatPayorFollowUpWorkflow(IAppDbContext db, ICurrentUser
         if (await db.CollectionCorrections.AnyAsync(x => x.MunicipalityId == tenant && x.OriginalCollectionId == collection.Id && x.FinancialEffectAmount < 0m, ct))
             return Result<FishMeatPayorResolveResult>.Failure("This collection was reversed; there is nothing to link.", ResultStatus.Conflict);
 
+        // Registering a previously unnamed payor and linking the posted Collection must
+        // commit together. A failed or concurrent link cannot leave an orphan registration.
+        await using var registrationTx = request.Register is not null
+            ? await db.BeginSerializableTransactionAsync(ct) : null;
         FishMeatVendorRegistrationDto vendor;
         if (request.Register is { } register)
         {
-            var created = await office.RegisterAsync(new(request.ClientOperationId, collection.BusinessDate.Year, register.VendorType, VendorRegistrationKind.New,
-                register.DisplayName, register.BusinessName, register.Address, null), ct);
+            var created = await office.RegisterAsync(new(request.ClientOperationId, collection.BusinessDate.Year, register.VendorType, register.RegistrationKind,
+                register.DisplayName, register.BusinessName, register.Address, null, null,
+                register.LastName, register.FirstName, register.MiddleName, register.NameExtension,
+                register.Sex, register.NatureOfBusiness), ct);
             if (!created.IsSuccess) return Result<FishMeatPayorResolveResult>.Failure(created.Error ?? "The vendor could not be registered.", created.Status);
             vendor = created.Value!;
         }
@@ -139,6 +145,7 @@ public sealed class FishMeatPayorFollowUpWorkflow(IAppDbContext db, ICurrentUser
         {
             db.FishMeatDirectCollectionLinks.Add(FishMeatDirectCollectionLink.Confirm(tenant, collection.Id, vendor.Id, request.ClientOperationId, request.Note, actorId, user.Username ?? "Head"));
             await db.SaveChangesAsync(ct);
+            if (registrationTx is not null) await registrationTx.CommitAsync(ct);
         }
         catch (DbUpdateException)
         {

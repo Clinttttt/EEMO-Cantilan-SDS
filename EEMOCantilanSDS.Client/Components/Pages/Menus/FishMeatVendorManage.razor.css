@@ -1,16 +1,4 @@
 /* Manage Fish / Meat Vendors — calm and administrative. Panels, tables and buttons come from the v3- layer in app.css; the Toolbar is the shared one. */
-.fmm-back {
-    display: inline-block;
-    margin-bottom: 6px;
-    color: var(--accent);
-    font-size: 0.8125rem;
-    font-weight: 600;
-    text-decoration: none;
-}
-
-.fmm-back:hover { text-decoration: underline; }
-.fmm-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
-
 .fmm-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 
 .fmm-saved { margin: 16px 0 0; }

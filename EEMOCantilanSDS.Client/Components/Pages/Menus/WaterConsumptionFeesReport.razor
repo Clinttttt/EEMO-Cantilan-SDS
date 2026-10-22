@@ -64,33 +64,18 @@
         <OperationMonthlyIncome Classification="Water Consumption Fees / WCF" RowKey="WCF" Year="_period.Year" HeadingId="wcfr-official" />
 
         <section class="v3-report-section" aria-labelledby="wcfr-position">
-            <h3 id="wcfr-position">Obligation position — through @PeriodLabel</h3>
-            <div class="v3-table-wrap">
-                <table class="v3-report-table">
-                    <thead>
-                        <tr>
-                            <th scope="col" class="v3-num">Obligations</th>
-                            <th scope="col" class="v3-num">With balance</th>
-                            <th scope="col" class="v3-num">Approved amount</th>
-                            <th scope="col" class="v3-num">Previously settled</th>
-                            <th scope="col" class="v3-num">Outstanding</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td class="v3-num">@Figure(_quotes.Count.ToString())</td>
-                            <td class="v3-num">@Figure(_quotes.Count(x => x.OutstandingAmount > 0m).ToString())</td>
-                            <td class="v3-num">@Figure(Money(TotalAssessed))</td>
-                            <td class="v3-num">@Figure(Money(TotalSettled))</td>
-                            <td class="v3-num">@Figure(Money(TotalOutstanding))</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            <h3 id="wcfr-position">Obligation position</h3>
+            <dl class="v3-report-summary">
+                <div><dt>Obligations</dt><dd>@Figure(_quotes.Count.ToString())</dd></div>
+                <div><dt>With balance</dt><dd>@Figure(_quotes.Count(x => x.OutstandingAmount > 0m).ToString())</dd></div>
+                <div><dt>Approved amount</dt><dd>@Figure(Money(TotalAssessed))</dd></div>
+                <div><dt>Previously settled</dt><dd>@Figure(Money(TotalSettled))</dd></div>
+                <div><dt>Outstanding</dt><dd>@Figure(Money(TotalOutstanding))</dd></div>
+            </dl>
         </section>
 
         <section class="v3-report-section" aria-labelledby="wcfr-accounts">
-            <h3 id="wcfr-accounts">Obligations — through @PeriodLabel</h3>
+            <h3 id="wcfr-accounts">Obligations</h3>
             <div class="v3-table-wrap">
                 <table class="v3-report-table">
                     <thead>
@@ -131,7 +116,6 @@
                     }
                 </table>
             </div>
-            <p class="v3-report-note">Basis: WCF obligations recorded in StallTrack through this billing month, including earlier periods still unpaid, as of the date prepared. Previously settled is the net settlement applied to these obligations (opening settlement carried forward, recorded payment and Collections, net of corrections), not the cash received on one calendar date. Cash Ticket numbers are recorded per collection.</p>
         </section>
     </article>
 </div>

@@ -34,7 +34,7 @@
              OnFilterChanged="v => _filter = v"
              Filters="@((List<string>?)null)"
              SearchPlaceholder="Search vendor, business or address…"
-             BeforeSearch="@ActionBarContent" />
+             BeforeFilters="@ActionBarContent" />
     </div>
 
     @if (!string.IsNullOrWhiteSpace(_saved))

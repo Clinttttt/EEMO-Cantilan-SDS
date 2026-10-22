@@ -1,0 +1,140 @@
+@page "/facility/{Slug}/renewals"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Application.Dtos.Stalls
+@using EEMOCantilanSDS.Application.Requests.Stalls
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Client.Services
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@inject IStallsApiClient StallsApi
+@inject FacilityState FacilityCatalog
+
+<PageTitle>StallTrack — Renew expired terms</PageTitle>
+
+@* The facility-owned place to renew its expired terms in one go. It was the "Renew eligible" button of the Closed Accounts report; a report changes nothing
+   (IA-006), so the operation lives here with the facility. It is the same Stalls endpoint with the same arguments, one account at a time: each account keeps its
+   own occupant and contract name, only the common start date and term are applied, and the server decides each one. *@
+<OperationTopbar Title="Renew expired terms" Crumb="@FacilityName" ParentHref="@($"/facility/{Slug}")" ParentTitle="@FacilityName" />
+<div class="content-area">
+    @if (_loading)
+    {
+        <Skeleton Height="220px" />
+    }
+    else if (_error is not null)
+    {
+        <div class="v3-notice v3-notice-error v3-notice-row" role="alert"><span>@_error</span><button type="button" class="btn-outline" @onclick="LoadAsync">Try again</button></div>
+    }
+    else if (_unknown)
+    {
+        <div class="v3-notice" role="status"><span>That facility was not found.</span><a class="btn-outline" href="/operations">Back to Operations</a></div>
+    }
+    else
+    {
+        <section class="v3-panel str-panel" aria-label="Expired terms">
+            <div class="v3-panel-header"><h2>@(_eligible.Count) expired term@(_eligible.Count == 1 ? "" : "s") · @FacilityName</h2></div>
+            @if (_eligible.Count == 0)
+            {
+                <p class="v3-notice" role="status">Nothing to renew here. Closed accounts, accounts already on a new term and accounts someone else now holds are not renewed this way.</p>
+            }
+            else
+            {
+                <table class="str-table">
+                    <thead><tr><th>@Unit</th><th>Holder</th><th>Name on contract</th><th>Term</th><th class="str-r">Balance</th><th>Result</th></tr></thead>
+                    <tbody>
+                        @foreach (var row in _eligible)
+                        {
+                            <tr>
+                                <td class="str-strong">@SpaceNumber.Display(row.StallNo)</td>
+                                <td>@row.Occupant</td>
+                                <td class="str-muted">@(string.IsNullOrWhiteSpace(row.ContractName) ? "—" : row.ContractName)</td>
+                                <td class="str-muted">@row.EffectivityDate.ToString("MMM d, yyyy") – @row.ExpiryDate.ToString("MMM d, yyyy")</td>
+                                <td class="str-r">@(row.Uncollected > 0 ? $"₱{row.Uncollected:N0}" : "₱0")</td>
+                                <td>@if (_results.TryGetValue(row.StallId, out var result)) { <span class="@(result.Ok ? "str-ok" : "str-fail")" role="status">@result.Text</span> }</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <form class="str-form" @onsubmit="RenewAsync" @onsubmit:preventDefault="true" aria-label="Renew these terms">
+                    <label>Start date <input id="str-start" type="date" @bind="_start" disabled="@_busy" /></label>
+                    <label>Duration (years) <input id="str-years" type="number" min="1" max="50" @bind="_years" disabled="@_busy" /></label>
+                    <button type="submit" class="btn-primary" disabled="@_busy">@(_busy ? "Working…" : $"Renew {_eligible.Count}")</button>
+                </form>
+                <p class="str-note">The lapsed period is not back-billed. Nothing is written off.</p>
+                @if (_progress is not null) { <p class="str-note" role="status">@_progress</p> }
+                @if (_message is not null) { <p class="str-message" role="alert">@_message</p> }
+            }
+        </section>
+    }
+</div>
+
+@code {
+    [Parameter] public string Slug { get; set; } = string.Empty;
+
+    private List<ClosedStallAccountDto> _eligible = [];
+    private readonly Dictionary<Guid, (bool Ok, string Text)> _results = [];
+    private bool _loading = true, _busy, _unknown;
+    private string? _error, _progress, _message;
+    private DateOnly _start = PhilippineTime.Today;
+    private int _years = 3;
+    private FacilityCode _code;
+
+    private string FacilityName => _eligible.FirstOrDefault()?.FacilityName ?? (_unknown ? Slug : FacilityCatalog.NameOf(_code));
+    private string Unit => FacilityCatalog.HolderUnitFor(_code.ToString());
+
+    // The accounts a bulk renewal may cover are exactly those whose own row offers Renew: not ended by a closure, not already on a fresh term, not a past
+    // occupancy of a stall somebody else now holds, and with a term to renew (a no-contract occupancy has none). The server still decides each one.
+    public static bool IsBulkRenewable(ClosedStallAccountDto r) =>
+        r.State != InactiveAccountState.Closed && r.State != InactiveAccountState.Renewed && !r.StallReLet && r.DurationYears > 0;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _unknown = !Enum.TryParse(Slug, ignoreCase: true, out _code) || !Enum.IsDefined(_code);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = null;
+        try
+        {
+            await FacilityCatalog.EnsureLoadedAsync();
+            if (_unknown) return;
+            var result = await StallsApi.GetClosedStallAccountsAsync();
+            if (result is not { IsSuccess: true }) { _error = result?.Error ?? "The accounts could not be loaded."; return; }
+            _eligible = (result.Value ?? []).Where(r => r.FacilityCode == _code && IsBulkRenewable(r)).DistinctBy(r => r.StallId)
+                .OrderBy(r => r.StallNo, StringComparer.OrdinalIgnoreCase).ToList();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException) { _error = "The accounts could not be loaded. Check the connection and try again."; }
+        finally { _loading = false; }
+    }
+
+    private async Task RenewAsync()
+    {
+        if (_busy || _eligible.Count == 0) return;
+        if (_years < 1) { _message = "Duration must be at least 1 year."; return; }
+        _busy = true; _message = null; _results.Clear();
+        var targets = _eligible.ToList();
+        int ok = 0, failed = 0;
+        // Each account keeps its own occupant and contract name; only the (common) start date and term are applied.
+        foreach (var r in targets)
+        {
+            _progress = $"Renewing {ok + failed + 1} of {targets.Count}…";
+            await InvokeAsync(StateHasChanged);
+            try
+            {
+                var response = await StallsApi.RenewStallContractAsync(r.StallId, new RenewStallContractRequest(_start, _years, r.Occupant, r.ContractName));
+                if (response.IsSuccess) { ok++; _results[r.StallId] = (true, "Renewed"); }
+                else { failed++; _results[r.StallId] = (false, response.Error ?? "Refused"); }
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException) { failed++; _results[r.StallId] = (false, "No answer from the server"); }
+        }
+        _progress = null;
+        _message = failed == 0 ? null : $"{ok} renewed, {failed} failed. Please retry the remaining accounts.";
+        var shown = _results.ToDictionary(x => x.Key, x => x.Value);
+        await LoadAsync();                       // renewed accounts drop off; what failed is still eligible and is the retry set
+        foreach (var (id, outcome) in shown) if (!outcome.Ok || _eligible.Any(e => e.StallId == id)) _results[id] = outcome;
+        if (failed == 0 && ok > 0) _message = null;
+        _busy = false;
+    }
+}

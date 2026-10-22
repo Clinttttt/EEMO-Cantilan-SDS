@@ -13,5 +13,11 @@ public record RecordDailyCollectionCommand(
     Guid? ClientOperationId = null,
     // Excused/absent day: the payor was not operating. ₱0 owed, mutually exclusive with IsPaid.
     bool IsAbsent = false,
-    decimal? MeatKilos = null
+    decimal? MeatKilos = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    decimal? ReviewedMonthAmount = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    string? MonthQuoteToken = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    DateOnly? PaymentBusinessDate = null
 ) : IRequest<Result<bool>>;

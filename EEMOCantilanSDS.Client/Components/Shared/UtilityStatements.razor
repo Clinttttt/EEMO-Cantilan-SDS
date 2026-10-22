@@ -1,188 +1,153 @@
-@using EEMOCantilanSDS.Client.Services
-@inject BrandingState Branding
 @using System.Globalization
-@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Client.Exports
 
-@* Statements of account for one utility (ECF or WCF): a register on screen, one statement per payor and space on paper.
-   Every figure is the server's obligation read (assessed, settled, outstanding) handed in by the owning workspace; this
-   component calculates and records nothing, and a statement is evidence for the payor, never a receipt. *@
-<section class="us" aria-labelledby="@_titleId">
-    <div class="us-screen no-print">
-        @if (ShowSummary)
+@* The official register of one utility (ECF or WCF): the Stall Holder List's own document, with eight columns. Every figure is the server's obligation read
+   (assessed, outstanding) handed in by the owning workspace; this component calculates and records nothing and the register is evidence, never a receipt.
+   The per-payor statement evidence stays in the source's API; it is not drawn here. *@
+<OfficialRegisterPage Title="@($"{UtilityName} Statements")" OperationName="@PeriodLabel" Eyebrow="@($"OPERATIONS · {UtilityCode}")"
+                      BackHref="@BackHref" BackName="@BackName" Stats="Stats" SearchPlaceholder="Search name or stall" @bind-SearchQuery="_search"
+                      CsvFileName="@CsvFileName" CsvText="@CsvText">
+    <Filters>
+        <input class="lsh-input" type="month" aria-label="Billing month" title="Billing month" value="@MonthValue" @onchange="OnMonthChanged" />
+        <div class="lsh-seg" role="group" aria-label="Balance filter">
+            <button type="button" class="lsh-seg-item @(!_balanceOnly ? "active" : "")" aria-pressed="@(!_balanceOnly ? "true" : "false")" @onclick="() => _balanceOnly = false">All</button>
+            <button type="button" class="lsh-seg-item @(_balanceOnly ? "active" : "")" aria-pressed="@(_balanceOnly ? "true" : "false")" @onclick="() => _balanceOnly = true">With balance</button>
+        </div>
+    </Filters>
+    <ChildContent>
+        @if (!string.IsNullOrWhiteSpace(Error))
         {
-            <SummaryStrip Label="@($"{UtilityCode} statements")" Items="Summary" />
-        }
-
-        <div class="v3-panel">
-            <header class="v3-panel-header">
-                <h2 id="@_titleId">Statements</h2>
-                <span class="v3-panel-meta">@Visible.Count of @Groups.Count · @PeriodLabel</span>
-            </header>
-            <div class="v3-toolbar us-toolbar" aria-label="Statement filters">
-                @Toolbar
-                <label class="v3-search">
-                    <span class="v3-sr-only">Search statements</span>
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
-                    <input type="search" placeholder="Search payor, stall or area" aria-label="Search statements"
-                           @bind="_search" @bind:event="oninput" />
-                </label>
-                <label class="us-check"><input type="checkbox" @bind="_balanceOnly" /> With balance only</label>
-                <button class="v3-btn v3-btn-primary" type="button" @onclick="() => PrintAsync(null)" disabled="@(Visible.Count == 0)">Print statements</button>
+            <div class="lsh-state" role="alert">
+                @if (SetupRequired) { <span><strong>Setup required.</strong> @Error</span> <a class="lsh-btn" href="/settings/revenue">Open Revenue Setup</a> }
+                else { <span>@Error</span> <button type="button" class="lsh-btn" @onclick="OnRetry">Try again</button> }
             </div>
-            <div class="v3-table-wrap" role="region" aria-label="@($"{UtilityCode} statement register")" tabindex="0">
-                <table class="v3-table">
+        }
+        else if (Loading)
+        {
+            <p class="lsh-state" role="status">Loading the register…</p>
+        }
+        else
+        {
+            <div class="lsh-section-block">
+                <div class="lsh-section-label-row">
+                    <span class="lsh-section-label">ALL BILLING MONTHS</span>
+                    <span class="lsh-section-count">@Visible.Count line@(Visible.Count == 1 ? "" : "s")</span>
+                </div>
+                <div class="lsh-table-wrap"><table class="lsh-table us-col">
                     <thead>
                         <tr>
-                            <th scope="col">Payor</th>
-                            <th scope="col">Facility / source</th>
-                            <th scope="col" class="v3-num">Assessed</th>
-                            <th scope="col" class="v3-num">Net settled</th>
-                            <th scope="col" class="v3-num">Balance</th>
-                            <th scope="col"><span class="v3-sr-only">Actions</span></th>
+                            <th class="col-no">#</th>
+                            <th class="col-name">Name of Lessee <br /><span class="th-sub">(Actual Occupants)</span></th>
+                            <th class="col-month">Billing <br />Month</th>
+                            <th class="col-op">Operations</th>
+                            <th class="col-sec">Section</th>
+                            <th class="col-stall">Stall <br />No.</th>
+                            <th class="col-amt">Assessed</th>
+                            <th class="col-amt">Balance</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var group in Visible)
+                        @for (var i = 0; i < Visible.Count; i++)
                         {
-                            <tr @key="group.Key">
-                                <td class="v3-strong">@group.Payor</td>
-                                <td>@group.Space</td>
-                                <td class="v3-num">@Money(group.Assessed)</td>
-                                <td class="v3-num">@Money(group.Settled)</td>
-                                <td class="v3-num v3-strong">@Money(group.Outstanding)</td>
-                                <td class="us-action">
-                                    <button class="v3-btn v3-btn-sm" type="button" aria-label="@($"Print statement for {group.Payor}, {group.Space}")"
-                                            @onclick="() => PrintAsync(group.Key)">Print</button>
-                                </td>
+                            var l = Visible[i];
+                            <tr>
+                                <td class="c">@(i + 1)</td>
+                                <td class="tl fw">@l.Payor</td>
+                                <td class="c">@MonthName(l)</td>
+                                <td class="c">@Operation(l)</td>
+                                <td class="c">@SectionOf(l)</td>
+                                <td class="c">@StallOf(l)</td>
+                                <td class="r">@Money(l.Assessed)</td>
+                                <td class="r">@Money(l.Outstanding)</td>
                             </tr>
                         }
                         @if (Visible.Count == 0)
                         {
-                            <tr><td class="v3-empty" colspan="6">@(Lines.Count == 0 ? $"No {UtilityCode} charges were assessed for {PeriodLabel}." : "No statement matches the filter.")</td></tr>
+                            <tr><td colspan="8" class="c txt-muted">@(Lines.Count == 0 ? $"No {UtilityCode} charges were assessed for {PeriodLabel}." : "No billing line matches the filter.")</td></tr>
                         }
                     </tbody>
                     @if (Visible.Count > 0)
                     {
                         <tfoot>
-                            <tr>
-                                <td colspan="2"><strong>Total · @Visible.Count statement@(Visible.Count == 1 ? "" : "s")</strong></td>
-                                <td class="v3-num">@Money(Visible.Sum(g => g.Assessed))</td>
-                                <td class="v3-num">@Money(Visible.Sum(g => g.Settled))</td>
-                                <td class="v3-num v3-strong">@Money(Visible.Sum(g => g.Outstanding))</td>
-                                <td></td>
+                            <tr class="tfoot-row">
+                                <td colspan="6" class="tfoot-label">Total</td>
+                                <td class="r tfoot-val">@Money(Visible.Sum(l => l.Assessed))</td>
+                                <td class="r tfoot-val">@Money(Visible.Sum(l => l.Outstanding))</td>
                             </tr>
                         </tfoot>
                     }
-                </table>
+                </table></div>
             </div>
-        </div>
-    </div>
-
-    @* On paper: one statement per payor and space, each on its own sheet. *@
-    <div class="us-sheets" aria-hidden="true">
-        @foreach (var group in ToPrint)
-        {
-            <article class="us-sheet" @key="group.Key">
-                <ReportLetterhead Title="Statement of Account" Period="@($"{UtilityName} · {PeriodLabel}")">
-                    <Facts>
-                        <div><dt>Payor</dt><dd>@group.Payor</dd></div>
-                        <div><dt>Facility / source</dt><dd>@group.Space</dd></div>
-                        <div><dt>Instrument</dt><dd>@InstrumentName</dd></div>
-                    </Facts>
-                </ReportLetterhead>
-                <table class="us-table">
-                    <thead>
-                        <tr><th scope="col">Billing period</th><th scope="col" class="us-num">Assessed</th><th scope="col" class="us-num">Net settled</th><th scope="col" class="us-num">Balance</th></tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var line in group.Lines)
-                        {
-                            <tr>
-                                <td>@(new DateOnly(line.Year, line.Month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture))</td>
-                                <td class="us-num">@Money(line.Assessed)</td>
-                                <td class="us-num">@Money(line.Settled)</td>
-                                <td class="us-num">@Money(line.Outstanding)</td>
-                            </tr>
-                        }
-                    </tbody>
-                    <tfoot>
-                        <tr><th scope="row">Total</th><td class="us-num">@Money(group.Assessed)</td><td class="us-num">@Money(group.Settled)</td><td class="us-num"><strong>@Money(group.Outstanding)</strong></td></tr>
-                    </tfoot>
-                </table>
-                <footer class="us-sign"><SignatureStrip /></footer>
-            </article>
         }
-    </div>
-</section>
+    </ChildContent>
+</OfficialRegisterPage>
 
 @code {
-    private readonly string _titleId = $"us-{Guid.NewGuid():N}";
     private string _search = string.Empty;
     private bool _balanceOnly;
-    private string? _only;
-
-    [Inject] private IJSRuntime JS { get; set; } = default!;
 
     /// <summary>Short utility code shown in headings, e.g. ECF.</summary>
     [Parameter, EditorRequired] public string UtilityCode { get; set; } = string.Empty;
-
-    /// <summary>Full name printed on the statement, e.g. Electricity Consumption Fee (ECF).</summary>
+    /// <summary>Full name printed on the document, e.g. Electricity Consumption Fees.</summary>
     [Parameter, EditorRequired] public string UtilityName { get; set; } = string.Empty;
-
-    [Parameter, EditorRequired] public string InstrumentName { get; set; } = string.Empty;
     [Parameter, EditorRequired] public string PeriodLabel { get; set; } = string.Empty;
     [Parameter, EditorRequired] public IReadOnlyList<StatementLine> Lines { get; set; } = [];
-
-    /// <summary>False when the host already states these figures (e.g. in its own hero). The printed statements are unaffected.</summary>
-    [Parameter] public bool ShowSummary { get; set; } = true;
-
-    /// <summary>Extra screen-only controls placed at the start of the statement filter bar (e.g. the host's period picker).</summary>
-    [Parameter] public RenderFragment? Toolbar { get; set; }
+    [Parameter, EditorRequired] public string BackHref { get; set; } = "/operations";
+    [Parameter, EditorRequired] public string BackName { get; set; } = "Operations";
+    /// <summary>The selected billing month as yyyy-MM; the host owns the selection and the load.</summary>
+    [Parameter] public string MonthValue { get; set; } = string.Empty;
+    [Parameter] public EventCallback<ChangeEventArgs> OnMonthChanged { get; set; }
+    [Parameter] public bool Loading { get; set; }
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public bool SetupRequired { get; set; }
+    [Parameter] public EventCallback OnRetry { get; set; }
 
     /// <summary>One billing month of one space, exactly as the obligation read states it.</summary>
     public sealed record StatementLine(
         Guid StallId, string StallNo, string Section, string Payor, int Year, int Month,
         decimal Assessed, decimal Settled, decimal Outstanding, string FacilityName = "");
 
-    private sealed record Group(string Key, string Payor, string Space, string Section, IReadOnlyList<StatementLine> Lines)
-    {
-        public decimal Assessed => Lines.Sum(x => x.Assessed);
-        public decimal Settled => Lines.Sum(x => x.Settled);
-        public decimal Outstanding => Lines.Sum(x => x.Outstanding);
-    }
+    private List<StatementLine> Visible => Lines
+        .Where(l => (!_balanceOnly || l.Outstanding > 0m)
+            && (string.IsNullOrWhiteSpace(_search)
+                || l.Payor.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                || l.StallNo.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                || l.Section.Contains(_search, StringComparison.OrdinalIgnoreCase)))
+        .OrderBy(l => l.Payor, StringComparer.OrdinalIgnoreCase).ThenBy(l => l.StallNo, StringComparer.OrdinalIgnoreCase)
+        .ThenBy(l => l.Year).ThenBy(l => l.Month).ToList();
 
-    private List<Group> Groups => Lines
-        .GroupBy(x => (x.StallId, x.Payor))
-        .Select(g => new Group($"{g.Key.StallId}|{g.Key.Payor}", g.Key.Payor,
-            string.Join(" · ", new[] { g.First().FacilityName, $"Stall {g.First().StallNo}", g.First().Section }.Where(x => !string.IsNullOrWhiteSpace(x))),
-            g.First().Section, g.OrderBy(x => x.Year).ThenBy(x => x.Month).ToList()))
-        .OrderBy(g => g.Payor, StringComparer.OrdinalIgnoreCase).ThenBy(g => g.Space, StringComparer.OrdinalIgnoreCase)
-        .ToList();
-
-    private List<Group> Visible => Groups.Where(g =>
-        (!_balanceOnly || g.Outstanding > 0m)
-        && (string.IsNullOrWhiteSpace(_search)
-            || g.Payor.Contains(_search, StringComparison.OrdinalIgnoreCase)
-            || g.Space.Contains(_search, StringComparison.OrdinalIgnoreCase))).ToList();
-
-    private IEnumerable<Group> ToPrint => _only is null ? Visible : Groups.Where(g => g.Key == _only);
-
-    private IReadOnlyList<SummaryStrip.SummaryItem> Summary =>
+    private IReadOnlyList<OfficialRegisterPage.Stat> Stats =>
     [
-        new("Period", PeriodLabel),
-        new("Assessed", Money(Lines.Sum(x => x.Assessed))),
-        new("Net settled", Money(Lines.Sum(x => x.Settled))),
-        new("Balance", Money(Lines.Sum(x => x.Outstanding)), Emphasis: true),
+        new(Loading || Error is not null ? "—" : Lines.Select(l => (l.StallId, l.Payor)).Distinct().Count().ToString(CultureInfo.InvariantCulture), "Accounts"),
+        new(Loading || Error is not null ? "—" : Lines.Count.ToString(CultureInfo.InvariantCulture), "Billing lines"),
+        new(Loading || Error is not null ? "—" : Money(Lines.Sum(l => l.Assessed)), "Assessed"),
+        new(Loading || Error is not null ? "—" : Money(Lines.Sum(l => l.Outstanding)), "Balance")
     ];
 
-    private async Task PrintAsync(string? key)
-    {
-        _only = key;
-        StateHasChanged();
-        await Task.Delay(60);   // let the sheets render before the print dialog captures them
-        try { await JS.InvokeVoidAsync("print"); } catch (JSException) { }
-        _only = null;
-    }
-
+    private static string MonthName(StatementLine l) => new DateOnly(l.Year, l.Month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+    private static string Operation(StatementLine l) => string.IsNullOrWhiteSpace(l.FacilityName) ? "—" : l.FacilityName;
+    // Where no section applies, the operation's own name stands in the Section column rather than an empty field.
+    private static string SectionOf(StatementLine l) => !string.IsNullOrWhiteSpace(l.Section) ? l.Section : Operation(l);
+    private static string StallOf(StatementLine l) => string.IsNullOrWhiteSpace(l.StallNo) ? "—" : l.StallNo;
     private static string Money(decimal amount) => $"₱{amount.ToString("N2", CultureInfo.InvariantCulture)}";
+
+    private string CsvFileName => $"{UtilityCode.ToLowerInvariant()}-statements-{MonthValue}.csv";
+
+    /// <summary>The filtered rows, in the printed column order. Amounts keep their precision; text is escaped for CSV and for spreadsheet formulas.</summary>
+    private string CsvText
+    {
+        get
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("#,Name of Lessee (Actual Occupants),Billing Month,Operations,Section,Stall No.,Assessed,Balance");
+            var rows = Visible;
+            for (var i = 0; i < rows.Count; i++)
+            {
+                var l = rows[i];
+                sb.AppendLine(string.Join(',', new[] { (i + 1).ToString(CultureInfo.InvariantCulture), CsvCell.Escape(l.Payor), CsvCell.Escape(MonthName(l)), CsvCell.Escape(Operation(l)),
+                    CsvCell.Escape(SectionOf(l)), CsvCell.Escape(StallOf(l)), l.Assessed.ToString("0.00", CultureInfo.InvariantCulture), l.Outstanding.ToString("0.00", CultureInfo.InvariantCulture) }));
+            }
+            return sb.ToString();
+        }
+    }
 }

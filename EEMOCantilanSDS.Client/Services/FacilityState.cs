@@ -93,6 +93,13 @@ public class FacilityState(IFacilitiesApiClient api)
 
     public static bool IsRental(FacilityCode code) => RentalCodes.Contains(code);
 
+    /// <summary>
+    /// True once the catalog is loaded and this LGU's Public Market was declared as standard monthly rental at onboarding: it is
+    /// collected and managed like TCC/NCC (one monthly rent per stall), not on the daily calendar. False before load or on a
+    /// failed load, so a daily market such as Cantilan's always keeps its daily page.
+    /// </summary>
+    public bool IsMonthlyRentMarket => _facilities?.Any(f => f.IsMonthlyRentMarket) == true;
+
     // Cantilan's names are NOT kept here any more. They were the display fallback for every tenant, which is how another
     // municipality's office name reached Madrid's reports; the fallback is now the facility CODE, and Cantilan's own names
     // reach its pages the same way every other LGU's do - from its catalog. The canonical defaults still exist once, in

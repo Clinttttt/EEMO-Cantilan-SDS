@@ -317,3 +317,27 @@ collector app's bind link.
 - **Billable** — a stall that owes for the period (active, in term, not excused).
 - **Settlement** — converting a month of NPM daily marks into the month's payment record.
 - **Head** — the LGU's SuperAdmin, the office's own authority. Not the platform operator.
+
+## 11. Owner-requested prospective NPM opening-month rule (2026-10-20; not live activation)
+
+For an explicitly approved new `DailyStall` / `RentGoal` occupancy and a reviewed month source,
+the opening calendar month's **gross obligation is the approved monthly rent**, including a mid-month start.
+Daily installments, authorized Part payments and Whole settlement reduce that same source-owned balance;
+they are not additional rent. Whole settlement may include a genuine terminal remainder without creating
+an extra occupied day or DailyCollection. Gross assessment, credits, net received, full-period outstanding
+and earned/as-of liability remain distinct. This rule does not make the entire opening month delinquent
+on the first occupancy day, and introduces no penalty or new due date.
+
+Implementation is prospective and disabled by default. It requires tenant/facility-specific approval,
+an effective date and approval evidence preceding registration, an explicit tenant-owned monthly rate
+record, an unassessed opening period and unambiguous occupancy ownership. A descriptive registration or
+contract amount, or thirty times a daily rate, is not sufficient monthly approval. Missing authority,
+custom-section monthly terms without approval, existing assessment/payment evidence, shared months and
+early termination require Office review. Rates/assessment provenance are frozen on the month source;
+approved credits and immutable cash evidence remain separate.
+
+Historical RentGoal proration, PureDays, NPM's separate `MonthlyRental` archetype and other facilities retain
+their existing interpretation. There is no automatic municipal activation, historical reassessment or
+conversion of earlier receipts. Financial-schema installation and real-LGU cutover require separate approval.
+See the [consolidated implementation handoff](../planning/NPM_MONTHLY_SETTLEMENT_CONSOLIDATED_IMPLEMENTATION_20261017.md)
+for the executable scope, tests and remaining acceptance limits.

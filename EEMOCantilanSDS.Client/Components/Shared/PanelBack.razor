@@ -1,0 +1,14 @@
+@* Icon button at the end of a panel header that returns from a full-width view to the page's main view. Header content
+   (links, filters) goes inside and sits before the button. *@
+<div class="pb-tools">
+    @ChildContent
+    <button class="v3-btn pb-btn" type="button" aria-label="Back to @Label" title="Back to @Label" @onclick="OnBack">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
+    </button>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public EventCallback OnBack { get; set; }
+    [Parameter] public string Label { get; set; } = "sources";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

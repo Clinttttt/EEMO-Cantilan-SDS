@@ -18,10 +18,13 @@ public sealed record SessionElectricityIntent(Guid UtilityBillId, long SourceVer
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? Month = null);
 public enum WeighingType { Fish = 1, Meat = 2 }
 public sealed record SessionWeighingIntent(Guid StallId, WeighingType Type, decimal Kilograms);
-public sealed record SessionSlaughterIntent(AnimalType Animal, int Heads, string? CustomAnimalName = null, string? OwnerName = null);
+public sealed record SessionSlaughterIntent(AnimalType Animal, int Heads, string? CustomAnimalName = null, string? OwnerName = null,
+    // Itemized Slaughterhouse: the approved charges selected with their quantities (omitted from the intent when not stated, so earlier intents keep their fingerprint).
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SlaughterChargeSelectionDto>? Charges = null);
 public sealed record SessionVendorFeeIntent(Guid StallId);
 public sealed record SessionNpmWholeIntent(Guid StallId, int Year, int Month);
-public sealed record SessionNpmDailyIntent(Guid StallId);
+public sealed record SessionNpmDailyIntent(Guid StallId,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? OfficialReceiptNumber = null);
 // An NPM payment of an AMOUNT against this month's installments: the amount is the item's ConfirmedAmount, the server plans how it is applied.
 public sealed record SessionNpmPartIntent(Guid StallId, int Year, int Month);
 public sealed record SessionMonthlyRentIntent(Guid StallId, int Year, int Month, long SourceVersion);

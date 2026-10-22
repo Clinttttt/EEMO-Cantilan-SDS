@@ -38,6 +38,10 @@ public sealed class CachingMobileApiClient(
         inner.CancelNpmRequestAsync(requestId, request);
     public Task<Result<NpmRegistrationRequestDto>> GetPendingNpmRequestAsync(Guid vendorRegistrationId) =>
         inner.GetPendingNpmRequestAsync(vendorRegistrationId);
+    // Registration requests are always read from the office (never inferred from a cache); a submission is not cached or queued here.
+    public Task<Result<FishMeatRegistrationRequestPage>> GetFishMeatRequestsAsync(int page = 1, int pageSize = 25) => inner.GetFishMeatRequestsAsync(page, pageSize);
+    public Task<Result<FishMeatRegistrationRequestDto>> SubmitFishMeatRequestAsync(SubmitFishMeatRegistrationRequest request) => inner.SubmitFishMeatRequestAsync(request);
+    public Task<Result<FishMeatRegistrationRequestDto>> CancelFishMeatRequestAsync(Guid requestId, CancelFishMeatRegistrationRequest request) => inner.CancelFishMeatRequestAsync(requestId, request);
     public Task<Result<NpmRegistrationRequestPage>> GetNpmRequestsAsync(int page = 1, int pageSize = 25) => inner.GetNpmRequestsAsync(page, pageSize);
     public Task<Result<CollectionSourcePage>> BrowseCollectionSourcesAsync(string? category, string? search, int skip, int take) => inner.BrowseCollectionSourcesAsync(category, search, skip, take);
     public Task<Result<IReadOnlyList<CollectionSourceSearchResult>>> SearchCollectionSourcesAsync(string? search) => inner.SearchCollectionSourcesAsync(search);
@@ -93,6 +97,12 @@ public sealed class CachingMobileApiClient(
     // yesterday. Naming the day in the key turns that into a miss — the honest answer offline — instead of a
     // confident wrong one. The device's own date decides, which is the same clock the capture is stamped with.
     private static string Today => DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd");
+
+    // Amount allocation is always revalidated online; never substitute a cached settlement quote.
+    public Task<Result<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmOutstandingRentAccountsPage>> GetNpmOutstandingAccountsPageAsync(int offset, int pageSize) => inner.GetNpmOutstandingAccountsPageAsync(offset, pageSize);
+    public Task<Result<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmOutstandingRentAccount>>> GetNpmOutstandingAccountsAsync() => inner.GetNpmOutstandingAccountsAsync();
+    public Task<Result<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmOutstandingRentQuote>> GetNpmOutstandingQuoteAsync(Guid stallId, Guid? contractId = null, decimal? amount = null) => inner.GetNpmOutstandingQuoteAsync(stallId, contractId, amount);
+    public Task<Result<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmPartPaymentOutcomeDto>> RecordNpmOutstandingRentAsync(EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmOutstandingRentPayment request) => inner.RecordNpmOutstandingRentAsync(request);
 
     public Task<Result<NpmWholePaymentQuoteDto>> GetNpmWholePaymentQuoteAsync(Guid stallId, int year, int month) =>
         ReadThroughAsync($"npm|whole|{stallId}|{year}|{month}|{Today}", () => inner.GetNpmWholePaymentQuoteAsync(stallId, year, month));
@@ -179,6 +189,10 @@ public sealed class CachingMobileApiClient(
     public Task<Result<bool>> RecordSlaughterAsync(RecordMobileSlaughterRequest request) =>
         InvalidatingAsync(() => inner.RecordSlaughterAsync(request));
 
+    // Terms are day-scoped and cached per day so the sheet still opens offline; posting revalidates every rate on sync.
+    public Task<Result<SlaughterTermsDto>> GetSlaughterTermsAsync(DateOnly date) =>
+        ReadThroughAsync($"slaughter|terms|{date:yyyy-MM-dd}", () => inner.GetSlaughterTermsAsync(date));
+    public Task<Result<EEMOCantilanSDS.Application.Common.Revenue.FeeScheduleCollectionWorkflow.SlaughterQuote>> QuoteSlaughterAsync(FeeSchedulePostRequest request) => inner.QuoteSlaughterAsync(request);
     public Task<Result<bool>> UpdateSlaughterAsync(UpdateMobileSlaughterRequest request) =>
         InvalidatingAsync(() => inner.UpdateSlaughterAsync(request));
 

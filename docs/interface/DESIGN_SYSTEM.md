@@ -288,3 +288,17 @@ Before approving UI work, verify:
 - Did the change avoid shared-shell files unless that ownership was explicit?
 
 For substantial interface review, use `.agents/skills/stalltrack-interface-review/SKILL.md`.
+
+## 18. Official register shell (holder lists and statement registers)
+
+`Components/Shared/OfficialRegisterPage.razor` is the one presentation shell for every official holder list or register: topbar and breadcrumb, hero counts, a single-row toolbar (`[Search][page filters][Print][Download CSV][Save as PDF][Back to {operation}]`), and the letterhead document panel. It shares presentation only; each page keeps its own source, rows, totals and column widths (`.col-*` in its own `.razor.css`). Print and Save as PDF both use `stalltrackPrint.landscape`; CSV is built from the same filtered rows as the screen with `CsvCell.Escape`. Reference page: Stall Holder List (`/list-stall-holders?facility=npm`).
+
+| Route | Page | Columns |
+|---|---|---|
+| `/list-stall-holders?facility=…` | `StallHoldersList` | per facility (reference) |
+| `/operations/water-consumption-fees/statements`, `/operations/ecf/statements` | `UtilityStatements` | 8: # · Name of Lessee (Actual Occupants) · Billing Month · Operations · Section · Stall No. · Assessed · Balance |
+| `/operations/fish-meat-vendor-fees/holder-list` | `FishMeatVendorHolderList` | 11: # · Business name · Last name · First name · Middle name · Extname · Sex · Business Address · Type Of (New/Renew) · Tax year · Nature of business |
+| `/operations/vegetable-fruit/space-holders`, `/operations/kanmanggay/space-holders` | `SpaceHolderRoster` | 10: stall-list columns with Space No.; Whole Year Rental is a footnoted 12 x approved-monthly projection |
+| `/operations/fiesta-araw/space-holders` | `SpaceHolderRoster` (lots) | 6: # · Name of Lessee · Lot No. · Event · Approved Amount · Contract |
+
+WCF and ECF read their own obligation APIs and are never mixed. Missing values print as an em dash; nothing is invented for space-only occupancy.

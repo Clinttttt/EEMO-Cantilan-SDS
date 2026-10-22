@@ -1,0 +1,24 @@
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@inject IServiceProvider Services
+
+@* Entry to Office cash turnover, shown only where the module is on for this municipality. It never throws and renders nothing
+   otherwise, so the page that hosts it keeps its own lifecycle and tests unchanged. *@
+@if (_available)
+{
+    <a class="v3-btn rm-act-secondary" href="/remittances/office-cash">Office cash</a>
+}
+
+@code {
+    private bool _available;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Services.GetService(typeof(IOfficeCashTurnoverApiClient)) is not IOfficeCashTurnoverApiClient api) return;
+        try
+        {
+            var result = await api.IsAvailableAsync();
+            _available = result.IsSuccess && result.Value;
+        }
+        catch (HttpRequestException) { _available = false; }
+    }
+}

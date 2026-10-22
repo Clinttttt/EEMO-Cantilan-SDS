@@ -1,0 +1,171 @@
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Common.Payments
+@using EEMOCantilanSDS.Application.Common
+@using System.Globalization
+@inject IDailyCollectionApiClient DailyApi
+
+@if (_review is not null)
+{
+    <button type="button" class="btn btn-outline-primary" @onclick="Open">Review monthly rent</button>
+}
+<VendorDrawerShell Show="_open" Title="Review monthly rent" Subtitle="Approved credits and verified cash corrections" OnClose="Close">
+    <ChildContent>
+        @if (_review is { } review)
+        {
+            <section class="avm-section">
+                <h3 class="avm-section-title">@review.Quote.PeriodStart.ToString("MMMM yyyy")</h3>
+                <dl class="npm-review-position">
+                    <div><dt>Approved rent</dt><dd>@Money(review.Quote.Assessment)</dd></div>
+                    <div><dt>Approved credits</dt><dd>@Money(review.Quote.Credits)</dd></div>
+                    <div><dt>Received, net of corrections</dt><dd>@Money(review.Quote.Received)</dd></div>
+                    <div><dt>Remaining whole-period rent</dt><dd>@Money(review.Quote.Outstanding)</dd></div>
+                </dl>
+                @if (review.Quote.OpeningAuthority is { } authority)
+                {
+                    <details class="npm-opening-authority">
+                        <summary>Opening-month rate evidence</summary>
+                        <p>Full opening-month rent · effective @authority.RateAsOf.ToString("MMM d, yyyy") · @authority.ApprovalReference</p>
+                        <p>Approved installment @Money(authority.ApprovedDailyInstallment). Registered amounts remain descriptive; the approved source rate determines this assessment.</p>
+                    </details>
+                }
+                @if (review.Quote.HistoricalExcess > 0)
+                {
+                    <p role="status">Historical excess @Money(review.Quote.HistoricalExcess) requires separate reconciliation. No refund is authorized here.</p>
+                }
+            </section>
+            <fieldset disabled="@(_busy || Frozen)" class="npm-review-fields">
+                <div class="avm-field">
+                    <label for="npm-review-action">Review action</label>
+                    <select id="npm-review-action" class="avm-input" @bind="_action" @bind:after="ResetAmount">
+                        <option value="credit">Revise approved credit total</option>
+                        <option value="reverse">Reverse verified collection</option>
+                        <option value="replace">Replace current-day entry</option>
+                    </select>
+                </div>
+                @if (_action != "credit")
+                {
+                    <div class="avm-field">
+                        <label for="npm-review-collection">Original collection</label>
+                        <select id="npm-review-collection" class="avm-input" @bind="_collectionId">
+                            <option value="@Guid.Empty">Select verified SRC</option>
+                            @foreach (var cash in review.Cash)
+                            {
+                                <option value="@cash.CollectionId" disabled="@(cash.CorrectionEffect != 0 || review.RemittedCollectionIds.Contains(cash.CollectionId) || (_action == "replace" && cash.CollectorId is not null))">
+                                    @cash.ReferenceCode · @cash.BusinessDate.ToString("MMM d, yyyy") · @Money(cash.Received)@(review.RemittedCollectionIds.Contains(cash.CollectionId) ? " · Remitted" : "")
+                                </option>
+                            }
+                        </select>
+                    </div>
+                    <p>Remitted cash requires remittance reconciliation. Replacement is limited to a verified current-day office entry; collector custody and historical cash are preserved.</p>
+                }
+                @if (_action != "reverse")
+                {
+                    <div class="avm-field">
+                        <label for="npm-review-amount">@(_action == "credit" ? "Total approved credits" : "Verified replacement amount")</label>
+                        <input id="npm-review-amount" class="avm-input" type="number" min="0" step="0.01" @bind="_amount" />
+                    </div>
+                }
+                <div class="avm-field">
+                    <label for="npm-review-reference">Office authority / review reference</label>
+                    <input id="npm-review-reference" class="avm-input" maxlength="150" @bind="_reference" />
+                </div>
+                <div class="avm-field">
+                    <label for="npm-review-reason">Reason and verified evidence</label>
+                    <textarea id="npm-review-reason" class="avm-input" maxlength="300" @bind="_reason"></textarea>
+                </div>
+                <label><input type="checkbox" @bind="_confirmed" /> I verified the source, amount and office authority. This action does not authorize a refund or additional cash.</label>
+            </fieldset>
+        }
+        @if (_message is not null) { <p role="status">@_message</p> }
+        @if (Frozen) { <p>Review submission retained. Retry uses the same operation and frozen details; refresh only after its outcome is confirmed.</p> }
+    </ChildContent>
+    <Footer>
+        <button type="button" class="btn btn-outline-secondary" disabled="@_busy" @onclick="Close">Back</button>
+        <button type="button" class="btn btn-primary" disabled="@(_busy || (!_confirmed && !Frozen))" @onclick="Submit">@(_busy ? "Confirming…" : Frozen ? "Retry same review" : "Confirm reviewed action")</button>
+    </Footer>
+</VendorDrawerShell>
+
+@code {
+    [Parameter] public Guid StallId { get; set; }
+    [Parameter] public DateOnly PeriodStart { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+    private NpmRentMonthHeadReview? _review;
+    private (Guid, DateOnly)? _loaded;
+    private (Guid, DateOnly)? _editing;
+    private NpmRentMonthCreditRequest? _credit;
+    private NpmRentMonthReverseRequest? _reverse;
+    private NpmRentMonthReplacementRequest? _replacement;
+    private bool Frozen => _credit is not null || _reverse is not null || _replacement is not null;
+    private bool _open, _busy, _confirmed;
+    private string _action = "credit", _reference = "", _reason = "";
+    private string? _message;
+    private decimal _amount;
+    private Guid _collectionId;
+    private static string Money(decimal value) => value.ToString("C2", CultureInfo.GetCultureInfo("en-PH"));
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Frozen || _loaded == (StallId, PeriodStart)) return;
+        _loaded = (StallId, PeriodStart); _review = null;
+        try
+        {
+            var available = await DailyApi.IsNpmMonthlySettlementAvailableAsync();
+            if (available is null || !available.IsSuccess || !available.Value) return;
+            var key = _loaded;
+            var response = await DailyApi.ReviewNpmMonthAsync(StallId, PeriodStart);
+            if (_loaded == key && response is { IsSuccess: true }) _review = response.Value;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        { _loaded = null; }
+    }
+    private void Open()
+    {
+        if (!Frozen && _review is { } review && _editing != (review.Quote.StallId, review.Quote.PeriodStart))
+        {
+            _editing = (review.Quote.StallId, review.Quote.PeriodStart);
+            _action = "credit"; _amount = review.Quote.Credits; _reference = _reason = ""; _confirmed = false;
+        }
+        _open = true;
+    }
+    private void ResetAmount()
+    {
+        _amount = _action == "credit" ? _review?.Quote.Credits ?? 0 : 0;
+        _collectionId = Guid.Empty; _confirmed = false;
+    }
+    private void Close() { if (!_busy) _open = false; }
+    private async Task Submit()
+    {
+        if (_busy || _review is null) return;
+        if (!Frozen)
+        {
+            if (!_confirmed || string.IsNullOrWhiteSpace(_reference) || string.IsNullOrWhiteSpace(_reason)
+                || (_action != "credit" && _collectionId == Guid.Empty))
+            { _message = "Confirm the source and supply the reviewed authority and reason."; return; }
+            var q = _review.Quote;
+            if (_action == "credit") _credit = new(Guid.NewGuid(), q.StallId, q.PeriodStart, q.Version, _amount, _reference, _reason);
+            else if (_action == "reverse") _reverse = new(Guid.NewGuid(), _collectionId, q.StallId, q.PeriodStart, q.Version, _reference + ": " + _reason);
+            else _replacement = new(Guid.NewGuid(), _collectionId, q.Version, _amount, _reference, _reason);
+        }
+        _busy = true;
+        try
+        {
+            bool success, rejected;
+            if (_credit is not null)
+            { var r = await DailyApi.ApplyNpmMonthCreditAsync(_credit); success = r.IsSuccess; rejected = KnownRejection(r); _message = Message(r); }
+            else if (_reverse is not null)
+            { var r = await DailyApi.ReverseNpmMonthAsync(_reverse); success = r.IsSuccess; rejected = KnownRejection(r); _message = Message(r); }
+            else
+            { var r = await DailyApi.ReplaceNpmMonthAsync(_replacement!); success = r.IsSuccess; rejected = KnownRejection(r); _message = Message(r); }
+            if (!success && !rejected) return;
+            _credit = null; _reverse = null; _replacement = null; _confirmed = false;
+            if (success) { _message = "Reviewed action confirmed."; await OnChanged.InvokeAsync(); }
+            _loaded = null; await OnParametersSetAsync();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        { _message = "Outcome not confirmed. Retry the same review; no new operation will be created."; }
+        finally { _busy = false; }
+    }
+    private static bool KnownRejection<T>(Result<T> response) => !response.IsSuccess
+        && (response.Status == ResultStatus.Invalid || response.ValidationErrors?.ContainsKey("ExpectedVersion") == true);
+    private static string? Message<T>(Result<T> response) => response.ValidationErrors is { Count: > 0 }
+        ? string.Join(" ", response.ValidationErrors.Values.SelectMany(x => x)) : response.Error;
+}

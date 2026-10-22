@@ -1,0 +1,172 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Collections
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Services
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@inject IOfficialReportsApiClient Reports
+@inject IServiceProvider Services
+
+@* One posted Collection, read-only, opened from the Collections register. The parent Collection (totals, corrections, remittance coverage)
+   comes from the authoritative report read; the recorded charge descriptions come from Collection Activity by exact SRC. The charge list
+   is taken from Activity only when it adds back to the Collection's own total, so a mismatch can never put different money on screen. *@
+<div class="v3-modal-backdrop" role="presentation" @onclick="OnClose">
+    <section class="v3-modal cdm" role="dialog" aria-modal="true" aria-labelledby="cdm-title" @onclick:stopPropagation="true" @onkeydown="OnKey">
+        <header class="cdm-head">
+            <div class="cdm-head-text">
+                <h2 id="cdm-title">@(string.IsNullOrWhiteSpace(_doc?.PayorName) ? "Collection details" : _doc!.PayorName)</h2>
+                <p>@(_doc?.BusinessDate ?? BusinessDate).ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</p>
+            </div>
+            <button class="cdm-close" type="button" aria-label="Close" @ref="_close" @onclick="OnClose"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
+        </header>
+        <div class="v3-modal-body cdm-body" aria-busy="@(_loading ? "true" : "false")">
+            @if (_loading)
+            {
+                <p class="cdm-muted" role="status">Loading the collection…</p>
+            }
+            else if (_doc is not { } doc)
+            {
+                <p class="v3-notice v3-notice-error" role="alert">That collection could not be opened.</p>
+            }
+            else
+            {
+                <dl class="cdm-meta">
+                    <div><dt>StallTrack reference</dt><dd>@doc.ReferenceCode</dd></div>
+                    <div><dt>Payer</dt><dd>@(string.IsNullOrWhiteSpace(doc.PayorName) ? "—" : doc.PayorName)</dd></div>
+                    <div><dt>Collection date</dt><dd>@doc.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</dd></div>
+                    <div><dt>Recorded</dt><dd>@PhilippineTime.ToPhilippineTime(doc.RecordedAtUtc).ToString("MMM d, yyyy · h:mm tt", CultureInfo.InvariantCulture)</dd></div>
+                    <div><dt>Source</dt><dd>@SourceText(doc)</dd></div>
+                    <div><dt>Collector</dt><dd>@(doc.CollectorName ?? "Office")</dd></div>
+                    <div><dt>Receipt</dt><dd>
+                        @if (!string.IsNullOrWhiteSpace(doc.DocumentNumber))
+                        {
+                            @if (doc.Instrument is { } kind) { <InstrumentChip Instrument="@(kind == RevenueInstrumentType.OfficialReceipt ? "OR" : "CT")" /> }
+                            @doc.DocumentNumber
+                        }
+                        else { <span class="cdm-muted">None recorded</span> }
+                    </dd></div>
+                    <div><dt>Remittance</dt><dd>
+                        @if (doc.RemittanceId is { } remittance) { <a href="@($"/remittances/{remittance}")">Covered · @doc.RemittanceStatus</a> }
+                        else { <span class="cdm-pill">Not yet remitted</span> }
+                    </dd></div>
+                </dl>
+
+                <table class="cdm-items" aria-label="Itemized collection">
+                    <thead><tr><th scope="col">Item</th><th scope="col">Period</th><th scope="col" class="cdm-num">Amount</th></tr></thead>
+                    <tbody>
+                        @if (UseActivity)
+                        {
+                            @foreach (var line in _event!.Lines)
+                            {
+                                <tr><td>@ActivityLabel(line)</td><td>@ActivityPeriod(line)</td><td class="cdm-num">@Money(line.Amount)</td></tr>
+                            }
+                        }
+                        else
+                        {
+                            @foreach (var line in doc.Lines)
+                            {
+                                <tr>
+                                    <td>@DocLabel(line)@foreach (var detail in line.Details) { <span class="cdm-sub">@detail</span> }</td>
+                                    <td></td>
+                                    <td class="cdm-num">@Money(line.Amount)</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr><th scope="row" colspan="2">Gross collection</th><td class="cdm-num">@Money(doc.Total)</td></tr>
+                        @if (doc.CorrectionEffect != 0m)
+                        {
+                            <tr><th scope="row" colspan="2">Corrections</th><td class="cdm-num">@Money(doc.CorrectionEffect)</td></tr>
+                            <tr class="cdm-net"><th scope="row" colspan="2">Net</th><td class="cdm-num">@Money(doc.Total + doc.CorrectionEffect)</td></tr>
+                        }
+                    </tfoot>
+                </table>
+                @if (_event is { Corrections.Count: > 0 })
+                {
+                    <ul class="cdm-corrections" aria-label="Correction history">
+                        @foreach (var c in _event.Corrections)
+                        {
+                            <li><strong>@CorrectionLabel(c.CorrectionType)</strong> · @c.EffectiveDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) · @Money(c.FinancialEffect)
+                                @if (!string.IsNullOrWhiteSpace(c.Reason)) { <span class="cdm-sub">@c.Reason</span> }</li>
+                        }
+                    </ul>
+                }
+            }
+        </div>
+        <footer class="cdm-foot">
+            <button type="button" class="v3-btn v3-btn-primary" @onclick="OnClose">Close</button>
+        </footer>
+    </section>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Guid CollectionId { get; set; }
+    [Parameter, EditorRequired] public string Reference { get; set; } = string.Empty;
+    [Parameter] public DateOnly BusinessDate { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private CollectionDocumentDto? _doc;
+    private CollectionActivityEventDto? _event;
+    private bool _loading = true;
+    private ElementReference _close;
+
+    // Activity lines are used only when they reconcile to the Collection's own total.
+    private bool UseActivity => _doc is not null && _event is { Lines.Count: > 0 } e && e.Lines.Sum(l => l.Amount) == _doc.Total;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var result = await Reports.GetCollectionAsync(CollectionId);
+            _doc = result is { IsSuccess: true } ? result.Value : null;
+            if (_doc is not null && Services.GetService(typeof(ICollectionActivityApiClient)) is ICollectionActivityApiClient activity)
+            {
+                var feed = await activity.GetAsync(_doc.BusinessDate, _doc.BusinessDate, reference: _doc.ReferenceCode);
+                if (feed is { IsSuccess: true }) _event = feed.Value?.Events.FirstOrDefault(e => e.CollectionId == CollectionId);
+            }
+        }
+        catch (HttpRequestException) { }
+        finally { _loading = false; }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await _close.FocusAsync();
+    }
+
+    private async Task OnKey(KeyboardEventArgs e) { if (e.Key == "Escape") await OnClose.InvokeAsync(); }
+
+    // The parent source, once: the distinct classifications of the lines, never one name stamped on a multi-line collection.
+    private static string SourceText(CollectionDocumentDto doc)
+    {
+        var names = doc.Lines.Select(l => SourceNames.Name(l.ClassificationName)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        return names.Count == 0 ? "—" : string.Join(" · ", names);
+    }
+
+    private static string ActivityLabel(CollectionActivityLineDto line) =>
+        !string.IsNullOrWhiteSpace(line.Description) ? line.Description! : line.SourcePart is "Water" or "Electricity" ? line.SourcePart : SourceNames.For(line.ClassificationCode, line.ClassificationName);
+
+    private static string ActivityPeriod(CollectionActivityLineDto line) =>
+        line.PeriodYear is { } y && line.PeriodMonth is { } m ? new DateOnly(y, m, 1).ToString("MMM yyyy", CultureInfo.InvariantCulture) : "";
+
+    // Without Activity, a line reads as its recorded source; the classification is added only when it says something the source does not.
+    private static string DocLabel(CollectionDocumentLineDto line)
+    {
+        var classification = SourceNames.Name(line.ClassificationName);
+        return string.IsNullOrWhiteSpace(line.SourceLabel) || line.SourceLabel == "—" ? classification
+            : line.SourceLabel.Contains(classification, StringComparison.OrdinalIgnoreCase) ? line.SourceLabel : $"{classification} · {line.SourceLabel}";
+    }
+
+    private static string CorrectionLabel(string type) => type switch
+    {
+        "Void" => "Voided",
+        "Reversal" => "Reversed",
+        "Replacement" => "Replaced by a new collection",
+        "DocumentCorrection" => "Document corrected",
+        _ => "Correction"
+    };
+
+    private static string Money(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
+}

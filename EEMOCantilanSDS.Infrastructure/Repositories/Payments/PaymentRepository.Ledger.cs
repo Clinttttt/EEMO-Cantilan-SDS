@@ -133,6 +133,11 @@ public partial class PaymentRepository
             var bill = obligation - DomainRules.DailyBilledMonthCredit(fee, obligation, daysHeld, daysForgiven);
             var monthDailies = dailies.Where(d => d.CollectionDate >= monthStart && d.CollectionDate <= monthEnd).ToList();
             var amountPaid = monthDailies.Sum(d => d.DailyFee);
+            if (_npmRentMonths is not null && await _npmRentMonths.ReadEarnedPositionAsync(stall.Id, monthStart, ct) is { } authoritative)
+            {
+                bill = authoritative.EarnedLiability!.Value;
+                amountPaid = authoritative.Collected!.Value;
+            }
 
             // Only emit a row for months with actual daily collections. Months with no payment are
             // intentionally omitted so the modal can render them correctly: pre-contract months are
@@ -295,6 +300,16 @@ public partial class PaymentRepository
 
             if (isNpm)
             {
+                if (_npmRentMonths is not null && await _npmRentMonths.ReadEarnedPositionAsync(stall.Id, new DateOnly(year, month, 1), ct) is { } authoritative)
+                {
+                    totalCollected += authoritative.Collected!.Value;
+                    totalOutstanding += authoritative.Amount;
+                    if (authoritative.EarnedLiability > 0)
+                    {
+                        if (authoritative.Amount == 0) monthsPaid++; else monthsUnpaid++;
+                    }
+                    continue;
+                }
                 // The month's contractual rent, less the days nothing is owed for. Excused/absent/market-closed days
                 // are credits against the obligation; a month entirely credited is skipped (not paid, not unpaid).
                 var npmExcused = excusedDates.Count(d => d >= monthStart && d <= monthEnd);
@@ -421,6 +436,17 @@ public partial class PaymentRepository
                 // at their term's end, at the next lessee's start and at any closure — so the days need counting,
                 // not re-testing against the stall's CURRENT contract (which is how an ended occupancy used to
                 // come back as owing nothing).
+                if (_npmRentMonths is not null && await _npmRentMonths.ReadEarnedPositionAsync(stall.Id, m, ct) is { } authoritative)
+                {
+                    var source = await _npmRentMonths.ReadPositionAsync(stall.Id, m, ct);
+                    if (source!.ContractId != occupancy.Contract.Id)
+                        throw new InvalidOperationException("NPM month responsibility differs from this account; reconciliation is required.");
+                    if (authoritative.Amount > 0)
+                        result.Add(new PaymentHistoryDto($"{m.Year:0000}-{m.Month:00}",
+                            authoritative.Collected > 0 ? PaymentStatus.Partial : PaymentStatus.Unpaid,
+                            authoritative.EarnedLiability!.Value, authoritative.Collected!.Value, authoritative.Amount, null, null));
+                    continue;
+                }
                 var daysHeld = to.DayNumber - from.DayNumber + 1;
                 var excusedDays = excused.Count(d => d >= from && d <= to);
                 if (daysHeld - excusedDays <= 0) continue;
@@ -469,7 +495,8 @@ public partial class PaymentRepository
                 result.Add(new PaymentHistoryDto(
                     $"{m.Year:0000}-{m.Month:00}",
                     paid > 0m ? PaymentStatus.Partial : PaymentStatus.Unpaid,
-                    bill, paid, balance, rec?.ORNumber, null));
+                    bill, paid, balance, rec?.ORNumber, null,
+                    SettlementAuthority: rec?.SettlementAuthorityState ?? SettlementAuthority.Legacy));
             }
         }
 

@@ -133,6 +133,30 @@ public class ReportPageTests : TestContext
     }
 
     [Fact]
+    public void TrendsAndTargets_DefaultsToRevenueSources_AndSwitchesToTheOfficialTrend()
+    {
+        var cut = RenderReport(SampleReport());
+        OpenSection(cut, "Trends & Targets");
+
+        cut.WaitForAssertion(() =>
+        {
+            var buttons = cut.FindAll(".rpt-view-switch button");
+            Assert.Equal(["Revenue sources", "Revenue trend"], buttons.Select(b => b.TextContent.Trim()).ToArray());
+            Assert.Equal("true", buttons[0].GetAttribute("aria-pressed"));
+            Assert.Empty(cut.FindAll("section.rtp"));
+            Assert.DoesNotContain("Revenue Trend", cut.Markup);                       // the old facility trend block no longer exists
+            Assert.Empty(cut.FindAll("#rpt-facility:not(.rpt-sec-off)"));              // the physical-facility analysis is off screen but kept for print
+        }, RenderTimeout);
+
+        cut.FindAll(".rpt-view-switch button")[1].Click();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Single(cut.FindAll("section.rtp"));
+            Assert.Equal("true", cut.FindAll(".rpt-view-switch button")[1].GetAttribute("aria-pressed"));
+        }, RenderTimeout);
+    }
+
+    [Fact]
     public void TheFacilityFilter_NarrowsAnalysisOnly_NeverTheOfficialMonthlyIncome()
     {
         var cut = RenderReport(SampleReport());
@@ -189,7 +213,7 @@ public class ReportPageTests : TestContext
     }
 
     [Fact]
-    public void Renders_FacilityRows_And_TrendBars()
+    public void Renders_FacilityRows_AndTheOldFacilityTrendIsGone()
     {
         var cut = RenderReport(SampleReport());
 
@@ -198,129 +222,10 @@ public class ReportPageTests : TestContext
             Assert.Contains("New Public Market", cut.Markup);
             Assert.Contains("Transport Terminal", cut.Markup);
             Assert.Contains("Paid on service", cut.Markup);
-            // Two trend points → two bar groups.
-            Assert.Equal(2, cut.FindAll(".bar-group").Count);
+            // The facility-oriented trend block was replaced by the official Revenue trend view on Trends & Targets.
+            Assert.Empty(cut.FindAll(".bar-group"));
+            Assert.DoesNotContain("Revenue Trend", cut.Markup);
         }, RenderTimeout);
-    }
-
-    [Fact]
-    public void TheTotalsLine_StatesMovementBesideTheTotal_WithTheFiguresKeptApart()
-    {
-        // Movement used to be a panel of three figures under the table, two of which the table already listed as rows.
-        // It now rides on the totals line. Razor strips markup whitespace at the edge of a code block, which once ran
-        // "₱6,128" straight into "69.0% of August 2026" on screen, so the separation is asserted here as the page reads
-        // it rather than as CSS that a stylesheet change could quietly drop.
-        var cut = RenderReport(SampleReport() with
-        {
-            CollectedPreviousPeriod = 233_800m,          // February's collected, the bar before the selected one
-            PreviousPeriodLabel = "February 2026"
-        });
-
-        cut.WaitForAssertion(() =>
-        {
-            // Non-breaking spaces separate the parts, so compare on ordinary ones.
-            var note = cut.Find(".rpt-ytd-note").TextContent.Replace('\u00A0', ' ');
-
-            // 242,170 against 233,800 is a rise of 8,370, which is 3.6% of the month before. Every figure on the line is
-            // a separate word: this is the assertion that would have caught the run-together text.
-            Assert.Contains("₱475,970 ↑ ₱8,370 (3.6% of February 2026)", note);
-
-            // The period figures themselves are the table's job, not this line's.
-            Assert.DoesNotContain("MOVEMENT", cut.Markup);
-            Assert.Empty(cut.FindAll(".rpt-move-close"));
-        }, RenderTimeout);
-    }
-
-    [Fact]
-    public void Miscellaneous_StatesTheChargesPerPayor_AndThatTheyAreNotAnAddition()
-    {
-        // The section's whole purpose: what the readings charged, from whom, and — in one line — that the money is
-        // already inside the period's collected. A reader who added it on would double the office's own revenue.
-        var cut = RenderReport(SampleReport() with
-        {
-            Misc = new FinancialMiscDto(
-                Charged: 919m, Collected: 700m, Due: 219m, Settled: 2, Outstanding: 2, AmountsRecorded: true,
-                Rows: new List<MonthEndUtilityRowDto>
-                {
-                    new("01", "Pedro Santos", 219m, 100m, 100m, 0m, "OR-2", FacilityCode.NPM, PaymentStatus.Partial, PaymentStatus.Unpaid),
-                    new("07", "Maria Velasco", 400m, 400m, 200m, 200m, "OR-1", FacilityCode.NPM, PaymentStatus.Paid, PaymentStatus.Paid)
-                })
-        });
-
-        OpenSection(cut, "Receivables");
-
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("#rpt-misc")), RenderTimeout);
-
-        var section = cut.Find("#rpt-misc").TextContent.Replace('\u00A0', ' ');
-
-        Assert.Contains("Maria Velasco", section);
-        Assert.Contains("OR-2", section);
-        Assert.Contains("₱919", section);                                   // charged, the figure no other section states
-
-        // A label and its figures, not a sentence — the sentence ran "₱0 0 settled" together and off the card.
-        var close = cut.Find(".rpt-misc-close");
-        Assert.Contains("Already inside the period's collected", close.TextContent);
-        Assert.Equal("₱700", close.QuerySelector("strong")!.TextContent.Trim());
-        Assert.Contains("2 settled", close.TextContent);
-        Assert.Contains("2 still owing", close.TextContent);
-
-        // One facility, so no facility column: the report names a place only when the rows come from more than one.
-        Assert.DoesNotContain("Facility", cut.Find("#rpt-misc thead").TextContent);
-    }
-
-    [Fact]
-    public void Miscellaneous_StatesStandingsInsteadOfMoney_WhenTheOfficeRecordsNoAmounts()
-    {
-        // The shape the coming settings change will select: an office that only marks a utility settled or not has no
-        // money to report, and a table of noughts would read as "nothing charged". The same table states standings, and
-        // the money columns are not offered at all.
-        var cut = RenderReport(SampleReport() with
-        {
-            Misc = new FinancialMiscDto(
-                Charged: 0m, Collected: 0m, Due: 0m, Settled: 1, Outstanding: 2, AmountsRecorded: false,
-                Rows: new List<MonthEndUtilityRowDto>
-                {
-                    new("01", "Pedro Santos", 0m, 0m, 0m, 0m, null, FacilityCode.NPM, PaymentStatus.Paid, PaymentStatus.Unpaid),
-                    new("07", "Maria Velasco", 0m, 0m, 0m, 0m, null, FacilityCode.NPM, PaymentStatus.Partial, PaymentStatus.Unpaid)
-                })
-        });
-
-        OpenSection(cut, "Receivables");
-
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("#rpt-misc")), RenderTimeout);
-
-        var head = cut.Find("#rpt-misc thead").TextContent;
-        Assert.Contains("Electricity", head);
-        Assert.DoesNotContain("Charged", head);
-        Assert.DoesNotContain("Balance", head);
-
-        var body = cut.Find("#rpt-misc tbody").TextContent;
-        Assert.Contains("Settled", body);
-        Assert.Contains("Part-settled", body);
-        Assert.Contains("Unpaid", body);
-        Assert.DoesNotContain("₱", body);
-
-        var section = cut.Find("#rpt-misc").TextContent.Replace('\u00A0', ' ');
-        Assert.Contains("Settled this period", section);
-        Assert.Contains("2 still owing", section);
-
-        // No total row either: there is nothing to total.
-        Assert.Empty(cut.FindAll("#rpt-misc tfoot"));
-    }
-
-    [Fact]
-    public void Miscellaneous_SaysNothingWasBilled_RatherThanShowingAnEmptyTable()
-    {
-        // A month with no bill, or a yearly view, which is billed and filed a month at a time. The same principle the
-        // facility table follows for a facility with nothing billed: state it, do not draw noughts.
-        var cut = RenderReport(SampleReport());   // the sample carries no Misc
-
-        OpenSection(cut, "Receivables");
-
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("#rpt-misc")), RenderTimeout);
-
-        Assert.Empty(cut.FindAll("#rpt-misc table"));
-        Assert.Contains("Nothing billed", cut.Find("#rpt-misc").TextContent);
     }
 
     [Fact]
@@ -355,7 +260,7 @@ public class ReportPageTests : TestContext
     }
 
     [Fact]
-    public void RendersOneMonthDelinquency_AndKeepsArrearsUnresolved()
+    public void RendersCurrentYearDelinquency_AndArrearsAsItsOwnColumn()
     {
         var cut = RenderReport(SampleReport());
 
@@ -364,9 +269,8 @@ public class ReportPageTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("Delinquent accounts", cut.Markup);
-            Assert.Contains("At least one fully elapsed unpaid month", cut.Markup);
-            Assert.Contains("Arrears qualification", cut.Markup);
-            Assert.Contains("old/lapsed qualification boundary is not defined", cut.Markup);
+            Assert.Contains("Fully elapsed unpaid months of the current year", cut.Markup);
+            Assert.Contains("Previous-year rent, expired contracts and ended occupancies", cut.Markup);
             Assert.Contains("Rosa Magbanua", cut.Markup);
             Assert.Contains("3 unpaid months", cut.Markup);
             Assert.Contains("Jose Dalumpines", cut.Markup);
@@ -402,7 +306,7 @@ public class ReportPageTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Contains("No age-based Arrears count or amount is reported", cut.Markup);
+            Assert.Contains("No Arrears for", cut.Markup);       // an absent list is an empty column, not a fabricated figure
             Assert.DoesNotContain("0 Arrears", cut.Markup);
             Assert.DoesNotContain("Accounts in arrears", cut.Markup);
         }, RenderTimeout);
@@ -461,54 +365,6 @@ public class ReportPageTests : TestContext
     /// id: a Contains would still pass if the number were the thing in the link.</para>
     /// </remarks>
     [Fact]
-    public void RecentRecords_LinksThePayorToTheStallById()
-    {
-        var stallId = Guid.NewGuid();
-        var dto = SampleReport() with
-        {
-            RecentRecords = new List<FinancialRecordDto>
-            {
-                new("OR-9", "Luz Cano", FacilityCode.NPM, "1", new DateTime(2026, 3, 25), null, "Daily Fee", 930m, stallId)
-            }
-        };
-
-        var cut = RenderReport(dto);
-
-        OpenSection(cut, "Collections");
-
-        cut.WaitForAssertion(() =>
-        {
-            var link = cut.FindAll("a.vendor-link").Single(a => a.TextContent.Trim() == "Luz Cano");
-
-            Assert.Equal($"/profile/npm/{stallId}", link.GetAttribute("href"));
-        }, RenderTimeout);
-    }
-
-    /// <summary>A row about no stall still links as it always did — slaughter, terminal trips and market-day vendors have none.</summary>
-    [Fact]
-    public void RecentRecords_WithNoStall_FallsBackToTheReference()
-    {
-        var dto = SampleReport() with
-        {
-            RecentRecords = new List<FinancialRecordDto>
-            {
-                new("OR-9", "Ramon Dy", FacilityCode.TRM, "ABC-123", new DateTime(2026, 3, 25), null, "Terminal Trip", 30m)
-            }
-        };
-
-        var cut = RenderReport(dto);
-
-        OpenSection(cut, "Collections");
-
-        cut.WaitForAssertion(() =>
-        {
-            var link = cut.FindAll("a.vendor-link").Single(a => a.TextContent.Trim() == "Ramon Dy");
-
-            Assert.Equal("/profile/trm/ABC-123", link.GetAttribute("href"));
-        }, RenderTimeout);
-    }
-
-    [Fact]
     public void AttentionList_SearchFiltersEachColumnIndependently()
     {
         var cut = RenderReport(SampleReport());
@@ -555,10 +411,10 @@ public class ReportPageTests : TestContext
             // The header states figures rather than a sentence now, so they are read off the elements that hold them —
             // a raw string match would break on the CSS-isolation attribute Blazor adds to the class. What the test is
             // really holding is unchanged: the delinquent count and balance come from report TOTALS, not the rows rendered.
-            var stats = cut.FindAll(".rpt-attn-stat-val").Select(e => e.TextContent.Trim()).ToList();
+            var stats = cut.FindAll("dl[aria-label='Receivables position'] dd").Select(e => e.TextContent.Trim()).ToList();
             Assert.Contains("63", stats);
             Assert.Contains("₱500,000", stats);
-            Assert.Contains("delinquent balance", cut.Markup);
+            Assert.Contains("Delinquent balance", cut.Markup);
         }, RenderTimeout);
     }
 
@@ -610,7 +466,7 @@ public class ReportPageTests : TestContext
         {
             Assert.Equal("63", cut.Find(".attn-count-red").TextContent.Trim());
             Assert.Empty(cut.FindAll(".attn-count-amber"));
-            Assert.Contains("Arrears qualification", cut.Markup);
+            Assert.Contains("No Arrears for", cut.Markup);
         }, RenderTimeout);
     }
 }

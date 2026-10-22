@@ -108,26 +108,19 @@
     color: var(--mobile-danger);
 }
 
-/* Loading placeholder: quiet static lines, no shimmer. */
-.menu-skeleton {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.sk-line {
-    height: 52px;
-    border-radius: 10px;
-    background: var(--mobile-surface);
-    border: 1px solid var(--mobile-border);
-}
-
-.sk-title {
-    height: 22px;
-    width: 40%;
-    border: 0;
-    background: var(--mobile-border);
-}
+/* Static placeholders follow the loaded summary and operation rows. */
+.menu-skeleton .sk-line { height: 12px; border-radius: 5px; background: var(--mobile-border); }
+.menu-skeleton .sk-title { height: 24px; width: 45%; margin-bottom: 6px; }
+.menu-skeleton .sk-date { width: 60%; }
+.menu-skeleton .menu-summary .sk-line { background: rgba(255, 255, 255, .25); }
+.menu-skeleton .sk-number { height: 28px; width: 40%; margin-bottom: 4px; }
+.menu-skeleton .sk-caption { width: 80%; }
+.menu-skeleton .sk-section { width: 35%; margin: 0 0 10px; }
+.menu-skeleton .sk-action { height: 46px; margin-bottom: 18px; border-radius: 12px; }
+.menu-skeleton .sk-icon { width: 40px; height: 40px; flex: 0 0 40px; border-radius: 10px; background: var(--mobile-border); }
+.menu-skeleton .sk-name { width: 70%; }
+.menu-skeleton .sk-chip { width: 35%; height: 16px; }
+.menu-skeleton .menu-row + .menu-row { border-top: 1px solid var(--mobile-border); }
 
 /* In-app update prompt */
 .update-banner {

@@ -7,8 +7,8 @@
 
 @* REVENUE SOURCE PERFORMANCE — every source the office collects, facility or not.
 
-   The register's money is the server's official Monthly Income for the same period (legacy before cutover plus canonical
-   after it, once). Overview and Reports use the same static management table, with target editing available only in
+   Collected is the statement's system cash component; official adjustments and target attainment are labeled separately.
+   Overview and Reports use the same static management table, with target editing available only in
    Reports; contribution uses the existing source-group amount, and recurring outstanding amounts appear only when the
    same-period facility register supplies them. *@
 <section class="rsp" aria-labelledby="rsp-title" aria-busy="@(_loading ? "true" : "false")">
@@ -35,7 +35,7 @@
         <div class="rsp-head @(HeaderActions is not null ? "rsp-head-hosted" : "")">
             <div class="rsp-head-copy @(Embedded && HeaderActions is null ? "v3-sr-only" : "")">
                 <h2 id="rsp-title" class="rsp-title">Revenue source performance — @PeriodLabel</h2>
-                <div class="rsp-sub @(HeaderActions is not null ? "v3-sr-only" : "")">Official collections and operating activity by revenue source for the selected period.</div>
+                <div class="rsp-sub @(HeaderActions is not null ? "v3-sr-only" : "")">Actual collections and operating activity by revenue source. Target attainment uses adjusted official income.</div>
             </div>
             <div class="rsp-head-controls">
                 @if (HeaderActions is not null)
@@ -113,7 +113,7 @@
                 <thead>
                     <tr>
                         <th scope="col">Source</th>
-                        <th scope="col" class="rsp-num">Collected</th>
+                        <th scope="col" class="rsp-num" title="Actual cash net of recorded corrections. Report-only adjustments are shown separately.">Collected</th>
                         <th scope="col" class="rsp-num">Annual target</th>
                         <th scope="col" class="rsp-num">Contribution</th>
                         <th scope="col">Attention</th>
@@ -132,12 +132,14 @@
                             var facility = FacilityOf(row);
                             <tr class="rsp-row">
                                 <th scope="row" class="rsp-source">@row.Label</th>
-                                <td class="rsp-num rsp-collected">@Money(row.Collected)</td>
+                                <td class="rsp-num rsp-collected">@Money(row.Collected)
+                                    @if (row.AdjustmentAmount != 0m) { <div class="rsp-quiet">Official @Money(row.OfficialAmount) · report adjustment @Money(row.AdjustmentAmount)</div> }
+                                </td>
                                 <td class="rsp-num rsp-target">
                                     @if (row.AnnualTarget is { } target)
                                     {
                                         <span>@Money(target)</span>
-                                        @if (row.Attainment is { } attainment) { <span class="rsp-attain">@(attainment.ToString("N1", CultureInfo.InvariantCulture) + "%")</span> }
+                                        @if (row.Attainment is { } attainment) { <span class="rsp-attain">@(attainment.ToString("N1", CultureInfo.InvariantCulture) + "% official")</span> }
                                     }
                                     else { <span class="rsp-quiet">Not set</span> }
                                     @if (!OverviewMode)

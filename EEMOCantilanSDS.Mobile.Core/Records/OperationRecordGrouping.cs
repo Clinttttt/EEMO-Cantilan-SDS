@@ -12,9 +12,11 @@ public sealed record OperationRecord(
     string? PayorName,
     string Status,
     decimal Total,
-    IReadOnlyList<OperationRecordLine> Lines);
+    IReadOnlyList<OperationRecordLine> Lines,
+    string? Subject = null,
+    string? DocumentNumber = null);
 
-public sealed record OperationRecordLine(string ClassificationName, string SourceLabel, decimal Amount);
+public sealed record OperationRecordLine(string ClassificationName, string SourceLabel, decimal Amount, string? ItemLabel = null);
 
 /// <summary>
 /// Turns the server's per-line register rows into one record per collection, so an itemized Official Receipt reads as ONE
@@ -28,12 +30,13 @@ public static class OperationRecordGrouping
             .Select(g =>
             {
                 var first = g.First();
-                var lines = g.Select(x => new OperationRecordLine(x.ClassificationName, x.SourceLabel, x.Amount + x.CorrectionEffect)).ToList();
+                var lines = g.Select(x => new OperationRecordLine(x.ClassificationName, x.SourceLabel, x.Amount + x.CorrectionEffect, x.ItemLabel)).ToList();
                 // A collection is Posted only when every line is; any correction is shown rather than hidden.
                 var status = g.All(x => x.Status == "Posted") ? "Posted" : g.Any(x => x.Status == "Reversed") ? "Reversed" : "Corrected";
                 return new OperationRecord(g.Key, first.BusinessDate, first.ReferenceCode, first.Instrument, first.PayorName, status,
-                    lines.Sum(x => x.Amount), lines);
+                    lines.Sum(x => x.Amount), lines, g.Select(x => x.Subject).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)), first.DocumentNumber);
             })
-            .OrderByDescending(x => x.BusinessDate).ThenBy(x => x.ReferenceCode.Length).ThenBy(x => x.ReferenceCode, StringComparer.Ordinal)
+            // Newest first: the SRC sequence is issued in recording order, so within a day the highest SRC is the latest collection.
+            .OrderByDescending(x => x.BusinessDate).ThenByDescending(x => x.ReferenceCode.Length).ThenByDescending(x => x.ReferenceCode, StringComparer.Ordinal)
             .ToList();
 }

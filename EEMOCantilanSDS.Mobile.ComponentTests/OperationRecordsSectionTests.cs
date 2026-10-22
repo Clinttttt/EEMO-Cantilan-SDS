@@ -40,7 +40,9 @@ public sealed class OperationRecordsSectionTests : TestContext
     public void TodaysCollectionOffersACorrectionEntry_ThatOpensTheRecentCollectionsList()
     {
         var view = RenderComponent<OperationRecordsSection>(p => p.Add(x => x.From, Today.AddDays(-5)).Add(x => x.To, Today));
-        view.WaitForAssertion(() => Assert.Contains("SRC-2026-000042", view.Markup));
+        view.WaitForAssertion(() => Assert.Contains("None recorded", view.Markup));
+        view.Find(".collection-record-row").Click();
+        Assert.Contains("SRC-2026-000042", view.Markup);
         var open = view.Find(".ors-correct");
         Assert.Equal("false", open.GetAttribute("aria-expanded"));
         Assert.Empty(view.FindAll(".rc"));
@@ -57,7 +59,7 @@ public sealed class OperationRecordsSectionTests : TestContext
     public void APastPeriodOffersNoCorrection()
     {
         var view = RenderComponent<OperationRecordsSection>(p => p.Add(x => x.From, Today.AddDays(-40)).Add(x => x.To, Today.AddDays(-10)));
-        view.WaitForAssertion(() => Assert.Contains("SRC-2026-000042", view.Markup));
+        view.WaitForAssertion(() => Assert.Contains("None recorded", view.Markup));
         Assert.Empty(view.FindAll(".ors-correct"));
         _api.Verify(x => x.GetRecentCollectionsAsync(), Times.Never);
     }

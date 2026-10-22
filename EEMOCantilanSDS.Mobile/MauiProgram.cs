@@ -30,9 +30,9 @@ namespace EEMOCantilanSDS.Mobile
             builder.Services.AddSingleton<MobilePaymentHubService>();
             builder.Services.AddSingleton<EEMOCantilanSDS.Mobile.Abstractions.IConnectivityMonitor, EEMOCantilanSDS.Mobile.Platform.MauiConnectivityMonitor>();
             builder.Services.AddSingleton<EEMOCantilanSDS.Mobile.Abstractions.IPendingOperationStore>(
-                _ => new EEMOCantilanSDS.Mobile.Services.PendingOperationStore(FileSystem.AppDataDirectory));
+                _ => new EEMOCantilanSDS.Mobile.Services.PendingOperationStore(LocalAcceptanceProfile.DataDirectory));
             builder.Services.AddSingleton<EEMOCantilanSDS.Mobile.Abstractions.IOfflineReadCache>(
-                _ => new EEMOCantilanSDS.Mobile.Services.JsonOfflineReadCache(FileSystem.AppDataDirectory));
+                _ => new EEMOCantilanSDS.Mobile.Services.JsonOfflineReadCache(LocalAcceptanceProfile.DataDirectory));
             builder.Services.AddSingleton<EEMOCantilanSDS.Mobile.Abstractions.ICurrentCollectorProvider, EEMOCantilanSDS.Mobile.Platform.MauiCurrentCollectorProvider>();
             builder.Services.AddSingleton<EEMOCantilanSDS.Mobile.Services.MobileSyncService>();
             builder.Services.AddTransient<MobileLoopbackFallbackHandler>();
@@ -104,6 +104,14 @@ namespace EEMOCantilanSDS.Mobile
                           || global::Android.OS.Build.Model?.Contains("Android SDK") == true;
             return isEmulator ? "http://10.0.2.2:5117/" : "http://localhost:5117/";
 #else
+            var localAcceptanceUrl = Environment.GetEnvironmentVariable("STALLTRACK_LOCAL_API_URL");
+            if (!string.IsNullOrWhiteSpace(localAcceptanceUrl))
+            {
+                if (!Uri.TryCreate(localAcceptanceUrl, UriKind.Absolute, out var local) || !local.IsLoopback
+                    || local.Scheme is not ("http" or "https") || local.AbsolutePath != "/" || local.Query.Length != 0 || local.UserInfo.Length != 0)
+                    throw new InvalidOperationException("The Debug acceptance API must be a loopback root URL.");
+                return local.AbsoluteUri;
+            }
             return "http://localhost:5117/";
 #endif
 #else

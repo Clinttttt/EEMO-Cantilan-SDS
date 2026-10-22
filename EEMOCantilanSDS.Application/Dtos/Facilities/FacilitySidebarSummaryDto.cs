@@ -9,5 +9,11 @@ public record FacilitySidebarSummaryDto(
     int UnpaidCount,
     string? VegetableSectionLabel = null,
     string? FishSectionLabel = null,
-    string? MeatSectionLabel = null
-);
+    string? MeatSectionLabel = null,
+    /// <summary>How the facility bills, as the LGU declared it. Null from an older API; a Public Market that reads MonthlyRental is rented by the month.</summary>
+    BillingArchetype? Archetype = null
+)
+{
+    /// <summary>A Public Market whose LGU declared standard monthly rental: managed like TCC/NCC, not on the daily calendar.</summary>
+    public bool IsMonthlyRentMarket => Code == FacilityCode.NPM && Archetype == BillingArchetype.MonthlyRental;
+}

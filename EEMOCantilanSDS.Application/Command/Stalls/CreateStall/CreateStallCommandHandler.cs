@@ -1,4 +1,6 @@
 using EEMOCantilanSDS.Application.Common.Interface.Time;
+using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Tenancy;
@@ -16,13 +18,20 @@ public class CreateStallCommandHandler(
     IPayorRepository payorRepository,
     IUnitOfWork uow,
     IEemoCacheInvalidator cacheInvalidator,
-    ITenantContext tenantContext, IClock clock) : IRequestHandler<CreateStallCommand, Result<StallDto>>
+    ITenantContext tenantContext, IClock clock,
+    IAppDbContext? context = null, NpmRentMonthWorkflow? openingMonths = null) : IRequestHandler<CreateStallCommand, Result<StallDto>>
 {
     public async Task<Result<StallDto>> Handle(CreateStallCommand request, CancellationToken cancellationToken)
     {
         var facility = await facilityRepo.GetByCodeAsync(request.FacilityCode, cancellationToken);
         if (facility is null)
             return Result<StallDto>.NotFound();
+
+        // A prospective NPM opening and its first rent source must commit together.
+        // The office-link flow already owns a serializable transaction; do not nest another.
+        await using var openingTransaction = facility.Code == FacilityCode.NPM
+            && openingMonths?.Enabled == true && context is not null && !context.HasActiveTransaction
+                ? await context.BeginSerializableTransactionAsync(cancellationToken) : null;
 
         // Taking over a stall the office has vacated. The physical space keeps its number, its section and its
         // whole history: the previous terms stay as history, the money already collected against it is untouched,
@@ -38,7 +47,10 @@ public class CreateStallCommandHandler(
                 if (!existing.IsVacant(clock.PhilippineToday))
                     return Result<StallDto>.Failure("That stall is still occupied, so it cannot be reassigned.", ResultStatus.Conflict);
 
-                return await ReassignAsync(existing, request, cancellationToken);
+                var reassigned = await ReassignAsync(existing, request, cancellationToken);
+                if (reassigned.IsSuccess && openingTransaction is not null)
+                    await openingTransaction.CommitAsync(cancellationToken);
+                return reassigned;
             }
         }
 
@@ -82,6 +94,10 @@ public class CreateStallCommandHandler(
         // a month's rent, and have no lessee, no term and no start date to bill against. The stall's id is generated in
         // memory, so nothing here needs the first insert to have happened.
         await uow.SaveChangesAsync(cancellationToken);
+        var opening = await ActivateOpeningIfApprovedAsync(stall.Id, contract, facility.Code, cancellationToken);
+        if (!opening.IsSuccess)
+            return Result<StallDto>.Failure(opening.Error!, opening.Status);
+        if (openingTransaction is not null) await openingTransaction.CommitAsync(cancellationToken);
         await cacheInvalidator.InvalidateReferenceDataAsync(tenantContext.TenantCode, cancellationToken);
 
         var dto = new StallDto(
@@ -104,6 +120,20 @@ public class CreateStallCommandHandler(
             );
 
         return Result<StallDto>.Success(dto);
+    }
+
+    /// <summary>
+    /// Registering a Head-approved opening is sufficient to apply the existing tenant-owned policy.
+    /// No second dialog, manual rate, unverified authorization or Collection is introduced.
+    /// </summary>
+    private async Task<Result<bool>> ActivateOpeningIfApprovedAsync(Guid stallId, Contract contract,
+        FacilityCode facility, CancellationToken ct)
+    {
+        if (facility != FacilityCode.NPM || openingMonths?.Enabled != true)
+            return Result<bool>.Success(false);
+        var start = contract.EffectivityDate;
+        return await openingMonths.ActivateRegisteredOpeningAsync(stallId, contract.Id,
+            new DateOnly(start.Year, start.Month, 1), ct);
     }
 
     /// <summary>
@@ -151,6 +181,9 @@ public class CreateStallCommandHandler(
         await payorRepository.RemoveStallLinksAsync(stall.Id, ct);
 
         await uow.SaveChangesAsync(ct);
+        var opening = await ActivateOpeningIfApprovedAsync(stall.Id, contract, request.FacilityCode, ct);
+        if (!opening.IsSuccess)
+            return Result<StallDto>.Failure(opening.Error!, opening.Status);
         await cacheInvalidator.InvalidateReferenceDataAsync(tenantContext.TenantCode, ct);
 
         return Result<StallDto>.Success(new StallDto(

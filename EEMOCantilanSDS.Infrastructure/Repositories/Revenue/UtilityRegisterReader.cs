@@ -5,6 +5,7 @@ using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -35,6 +36,7 @@ public sealed class UtilityRegisterReader(AppDbContext db, ICurrentUserService u
         public decimal Opening { get; set; }
         public decimal Allocated { get; set; }
         public decimal Corrected { get; set; }
+        public decimal Pending { get; set; }
         public string FacilityName { get; set; } = "";
         public FacilityCode FacilityCode { get; set; }
         public string StallNo { get; set; } = "";
@@ -66,7 +68,8 @@ public sealed class UtilityRegisterReader(AppDbContext db, ICurrentUserService u
         {
             F = f,
             Prepared = !f.Direct && f.Charge > 0m,
-            Settled = f.Authority == SettlementAuthority.Canonical ? f.Opening + f.Allocated + f.Corrected : f.LegacyPaid,
+            // A collector's direct amount is not settled until the Head confirms it; it is carried apart as Pending.
+            Settled = (f.Authority == SettlementAuthority.Canonical ? f.Opening + f.Allocated + f.Corrected : f.LegacyPaid) - (f.Direct ? f.Pending : 0m),
             Outstanding = !f.Direct && f.Charge > 0m
                 ? (f.Charge - (f.Authority == SettlementAuthority.Canonical ? f.Opening + f.Allocated + f.Corrected : f.LegacyPaid) > 0m
                     ? f.Charge - (f.Authority == SettlementAuthority.Canonical ? f.Opening + f.Allocated + f.Corrected : f.LegacyPaid) : 0m)
@@ -89,6 +92,7 @@ public sealed class UtilityRegisterReader(AppDbContext db, ICurrentUserService u
             Collected = g.Sum(d => d.Settled),
             Outstanding = g.Sum(d => d.Outstanding),
             Direct = g.Sum(d => d.F.Direct ? d.Settled : 0m),
+            Awaiting = g.Sum(d => d.F.Direct ? d.F.Pending : 0m),
             Count = g.Count()
         }).SingleOrDefaultAsync(ct);
 
@@ -131,7 +135,8 @@ public sealed class UtilityRegisterReader(AppDbContext db, ICurrentUserService u
                 : null;
             return new UtilityRegisterRowDto(d.F.StallId, d.F.BillId, d.F.StallNo, d.F.FacilityCode, d.F.FacilityName, section, payer,
                 d.Prepared ? d.F.Charge : null, d.Settled, d.Outstanding, d.F.Direct ? "Direct" : d.Prepared ? "Prepared" : "None", d.Status,
-                d.F.Authority, d.F.Version, @lock is null && contract is not null, contract is null ? "No occupancy answers for this month." : @lock);
+                d.F.Authority, d.F.Version, @lock is null && contract is not null, contract is null ? "No occupancy answers for this month." : @lock,
+                d.F.Direct ? d.F.Pending : 0m);
         }).ToList();
 
         var eligible = db.Stalls.AsNoTracking().Where(s => s.MunicipalityId == tenant).Where(UtilityServiceEligibility.SourcePredicate(request.Kind));
@@ -139,7 +144,7 @@ public sealed class UtilityRegisterReader(AppDbContext db, ICurrentUserService u
         var sections = await ApplySectionOptions(eligible, request.Facility).ToListAsync(ct);
         var t = totals;
         return Result<UtilityRegisterPageDto>.Success(new(result, total,
-            new(t?.Assessed ?? 0m, t?.Collected ?? 0m, t?.Outstanding ?? 0m, t?.Direct ?? 0m, t?.Count ?? 0),
+            new(t?.Assessed ?? 0m, t?.Collected ?? 0m, t?.Outstanding ?? 0m, t?.Direct ?? 0m, t?.Count ?? 0, t?.Awaiting ?? 0m),
             facilities.Select(f => new UtilityFacilityOptionDto(f.Code, f.Name)).ToList(), sections));
     }
 
@@ -185,7 +190,13 @@ public sealed class UtilityRegisterReader(AppDbContext db, ICurrentUserService u
                        && a.SourceId == b.Id && a.SourcePart == CollectionSourcePart.Water).Sum(a => (decimal?)a.Amount) ?? 0m),
                    Corrected = b == null ? 0m : (db.CollectionCorrectionAllocations.Where(c => c.MunicipalityId == tenant
                        && db.CollectionAllocations.Any(a => a.Id == c.OriginalAllocationId && a.SourceKind == CollectionSourceKind.UtilityBill
-                           && a.SourceId == b.Id && a.SourcePart == CollectionSourcePart.Water)).Sum(c => (decimal?)c.FinancialEffectAmount) ?? 0m)
+                           && a.SourceId == b.Id && a.SourcePart == CollectionSourcePart.Water)).Sum(c => (decimal?)c.FinancialEffectAmount) ?? 0m),
+                   Pending = b == null || !b.WaterDirectCollection ? 0m : (db.CollectionAllocations.Where(a => a.MunicipalityId == tenant && a.SourceKind == CollectionSourceKind.UtilityBill
+                       && a.SourceId == b.Id && a.SourcePart == CollectionSourcePart.Water
+                       && db.CollectionLines.Any(l => l.Id == a.CollectionLineId && db.Collections.Any(c => c.Id == l.CollectionId && c.CollectorId != null
+                           && db.DirectCollectionReviewEvents.Where(e => e.CollectionId == c.Id).OrderByDescending(e => e.OccurredAtUtc).ThenByDescending(e => e.Id)
+                               .Select(e => (DirectCollectionReviewOutcome?)e.Outcome).FirstOrDefault() != DirectCollectionReviewOutcome.Confirmed)))
+                       .Sum(a => (decimal?)(a.Amount + (db.CollectionCorrectionAllocations.Where(c => c.OriginalAllocationId == a.Id).Sum(c => (decimal?)c.FinancialEffectAmount) ?? 0m))) ?? 0m)
                };
     }
 
@@ -216,7 +227,13 @@ public sealed class UtilityRegisterReader(AppDbContext db, ICurrentUserService u
                        && a.SourceId == b.Id && a.SourcePart == CollectionSourcePart.Electricity).Sum(a => (decimal?)a.Amount) ?? 0m),
                    Corrected = b == null ? 0m : (db.CollectionCorrectionAllocations.Where(c => c.MunicipalityId == tenant
                        && db.CollectionAllocations.Any(a => a.Id == c.OriginalAllocationId && a.SourceKind == CollectionSourceKind.UtilityBill
-                           && a.SourceId == b.Id && a.SourcePart == CollectionSourcePart.Electricity)).Sum(c => (decimal?)c.FinancialEffectAmount) ?? 0m)
+                           && a.SourceId == b.Id && a.SourcePart == CollectionSourcePart.Electricity)).Sum(c => (decimal?)c.FinancialEffectAmount) ?? 0m),
+                   Pending = b == null || !b.ElectricityDirectCollection ? 0m : (db.CollectionAllocations.Where(a => a.MunicipalityId == tenant && a.SourceKind == CollectionSourceKind.UtilityBill
+                       && a.SourceId == b.Id && a.SourcePart == CollectionSourcePart.Electricity
+                       && db.CollectionLines.Any(l => l.Id == a.CollectionLineId && db.Collections.Any(c => c.Id == l.CollectionId && c.CollectorId != null
+                           && db.DirectCollectionReviewEvents.Where(e => e.CollectionId == c.Id).OrderByDescending(e => e.OccurredAtUtc).ThenByDescending(e => e.Id)
+                               .Select(e => (DirectCollectionReviewOutcome?)e.Outcome).FirstOrDefault() != DirectCollectionReviewOutcome.Confirmed)))
+                       .Sum(a => (decimal?)(a.Amount + (db.CollectionCorrectionAllocations.Where(c => c.OriginalAllocationId == a.Id).Sum(c => (decimal?)c.FinancialEffectAmount) ?? 0m))) ?? 0m)
                };
     }
 }

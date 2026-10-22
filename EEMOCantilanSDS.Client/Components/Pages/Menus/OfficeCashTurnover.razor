@@ -1,0 +1,385 @@
+@page "/remittances/office-cash"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@using EEMOCantilanSDS.Domain.Enums
+@inject IOfficeCashTurnoverApiClient Api
+
+<PageTitle>StallTrack — Office cash turnover</PageTitle>
+
+@* Cash the Head collected directly (canonical Collections with no collector), accounted for apart from collector remittance. A turnover
+   records what was handed over with the reference the Head enters; it creates no Collection or SRC and is NOT a verified bank deposit
+   or a Treasury acknowledgment. Amounts come from the server; the only arithmetic here is the live difference shown before saving. *@
+<div class="v3-page oc-page">
+    <V3Hero Compact="true" Title="Office cash turnover" Subtitle="Cash collected by the Office, accounted for apart from collector remittance.">
+        <Icon><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6 10v.01M18 14v.01" /></svg></Icon>
+        <Actions>
+            <a href="/remittances">Back to remittances</a>
+        </Actions>
+    </V3Hero>
+
+    @if (_available is null)
+    {
+        <p role="status">Loading…</p>
+    }
+    else if (_available == false)
+    {
+        <p class="v3-notice" role="status">Office cash turnover is not enabled for this municipality.</p>
+    }
+    else
+    {
+        <form class="oc-filters" aria-label="Office cash filters" @onsubmit="ReloadAsync" @onsubmit:preventDefault="true">
+            <label class="v3-field"><span>From</span><input type="date" @bind="_from" disabled="@(_loading || _saving)" /></label>
+            <label class="v3-field"><span>To</span><input type="date" @bind="_to" disabled="@(_loading || _saving)" /></label>
+            <label class="v3-field"><span>Authority</span><select @bind="_authorityId" disabled="@(_loading || _saving)">
+                <option value="">All authorities</option>
+                @foreach (var authority in _authorities) { <option value="@authority.Id">@authority.Name</option> }
+            </select></label>
+            <label class="v3-field"><span>Instrument</span><select @bind="_instrument" disabled="@(_loading || _saving)">
+                <option value="">OR and CT</option>
+                <option value="@RevenueInstrumentType.CashTicket">Cash Ticket</option>
+                <option value="@RevenueInstrumentType.OfficialReceipt">Official Receipt</option>
+            </select></label>
+            <button class="v3-btn" type="submit" disabled="@(_loading || _saving)">Apply</button>
+        </form>
+
+        @if (!string.IsNullOrWhiteSpace(_error)) { <p class="v3-notice v3-notice-error" role="alert">@_error</p> }
+        @if (!string.IsNullOrWhiteSpace(_message)) { <p class="v3-notice" role="status">@_message</p> }
+
+        @if (_position is { } position)
+        {
+            <SummaryStrip Label="Office cash position" Items="PositionItems(position)" />
+        }
+
+        <section class="v3-panel" aria-labelledby="oc-pending-title" aria-busy="@(_loading ? "true" : "false")">
+            <header class="v3-panel-header">
+                <h2 id="oc-pending-title">Pending turnover</h2>
+                <span class="v3-panel-meta">
+                    @(_review?.Collections.Count ?? 0) collection@(_review?.Collections.Count == 1 ? "" : "s")
+                    <AuthorizeView Roles="SuperAdmin">
+                        @if (_selected.Count > 0) { <text> · <strong>@_selected.Count selected</strong> · expected <strong>@Money(Expected)</strong></text> }
+                    </AuthorizeView>
+                </span>
+            </header>
+            @if (_review is null || _review.Collections.Count == 0)
+            {
+                <p class="oc-empty" role="status">No uncovered Office collections in this period.</p>
+            }
+            else
+            {
+                <div class="v3-table-wrap" role="region" aria-label="Office collections pending turnover" tabindex="0">
+                    <table class="v3-table oc-table">
+                        <thead>
+                            <tr>
+                                <AuthorizeView Roles="SuperAdmin">
+                                    <th scope="col" class="oc-check"><input type="checkbox" aria-label="Select all pending collections" checked="@AllSelected" @onchange="ToggleAll" /></th>
+                                </AuthorizeView>
+                                <th scope="col">SRC</th><th scope="col">Date</th><th scope="col">Payer</th><th scope="col">Collected by</th>
+                                <th scope="col" class="v3-num">Collected</th><th scope="col" class="v3-num">Corrections</th><th scope="col" class="v3-num">Cash to account for</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var c in _review.Collections)
+                            {
+                                <tr @key="c.CollectionId" class="@(_selected.Contains(c.CollectionId) ? "is-selected" : null)">
+                                    <AuthorizeView Roles="SuperAdmin">
+                                        <td class="oc-check"><input type="checkbox" aria-label="@($"Select {c.ReferenceCode}")" checked="@_selected.Contains(c.CollectionId)" @onchange="() => Toggle(c.CollectionId)" /></td>
+                                    </AuthorizeView>
+                                    <td class="oc-src">@c.ReferenceCode</td>
+                                    <td class="oc-date">@c.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
+                                    <td>@(string.IsNullOrWhiteSpace(c.PayerName) ? "—" : c.PayerName)</td>
+                                    <td>@c.OriginalActorName</td>
+                                    <td class="v3-num">@Money(c.Amount)</td>
+                                    <td class="v3-num">@(c.CorrectionEffect == 0m ? "—" : Money(c.CorrectionEffect))</td>
+                                    <td class="v3-num v3-strong">@Money(c.NetAmount)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            <AuthorizeView Roles="SuperAdmin">
+                @if (_selected.Count > 0)
+                {
+                    <form class="oc-form" aria-label="Record turnover" @onsubmit="RecordAsync" @onsubmit:preventDefault="true">
+                        <dl class="oc-summary" aria-label="Turnover summary">
+                            <div><dt>Selected</dt><dd>@_selected.Count collection@(_selected.Count == 1 ? "" : "s")</dd></div>
+                            <div><dt>Expected</dt><dd class="oc-expected">@Money(Expected)</dd></div>
+                            <div><dt>Turned over</dt><dd>@Money(_amount)</dd></div>
+                            <div class="@(Difference != 0m ? "oc-flag" : null)"><dt>Difference</dt><dd>@(Difference == 0m ? "—" : (Difference > 0m ? "Short " : "Over ") + Money(Math.Abs(Difference)))</dd></div>
+                        </dl>
+                        <div class="oc-fields">
+                            <label class="v3-field"><span>Amount turned over</span><input type="number" step="0.01" min="0" inputmode="decimal" @bind="Amount" @bind:event="oninput" /></label>
+                            <label class="v3-field"><span>Turnover date</span><input type="date" @bind="Date" /></label>
+                            <label class="v3-field"><span>Turned over by</span><input maxlength="150" @bind="By" @bind:event="oninput" /></label>
+                            <label class="v3-field"><span>Supporting document reference (optional)</span><input maxlength="100" @bind="Reference" @bind:event="oninput" /></label>
+                            <label class="v3-field oc-wide"><span>Remarks@(Difference != 0m ? " (required to explain the difference)" : "")</span><textarea class="avm-input" rows="2" maxlength="500" @bind="Remarks" @bind:event="oninput"></textarea></label>
+                        </div>
+                        @if (Difference != 0m)
+                        {
+                            <p class="oc-difference" role="status">@(Difference > 0m ? "Shortfall" : "Excess") of <strong>@Money(Math.Abs(Difference))</strong>. It stays on the record; no collection is changed.</p>
+                        }
+                        <div class="oc-actions">
+                            <p class="oc-note">The supporting reference is optional and is not an OR, Treasury or bank reference.</p>
+                            <button class="v3-btn v3-btn-primary oc-record" type="submit" disabled="@(!CanRecord)">@(_saving ? "Recording…" : "Record turnover")</button>
+                        </div>
+                    </form>
+                }
+            </AuthorizeView>
+        </section>
+
+        <section class="v3-panel" aria-labelledby="oc-register-title">
+            <header class="v3-panel-header">
+                <h2 id="oc-register-title">Turnover register</h2>
+                <span class="v3-panel-meta">@_register.Count record@(_register.Count == 1 ? "" : "s")</span>
+            </header>
+            @if (_register.Count == 0)
+            {
+                <p class="oc-empty" role="status">No turnovers recorded in this period.</p>
+            }
+            else
+            {
+                <div class="v3-table-wrap" role="region" aria-label="Office cash turnovers" tabindex="0">
+                    <table class="v3-table oc-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Date</th><th scope="col">Turnover ref.</th><th scope="col">Supporting ref.</th><th scope="col">Turned over by</th>
+                                <th scope="col" class="v3-num">Expected</th><th scope="col" class="v3-num">Turned over</th><th scope="col" class="v3-num">Difference</th>
+                                <th scope="col">Status</th><th scope="col"><span class="v3-sr-only">Details</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var t in _register)
+                            {
+                                <tr @key="t.Id">
+                                    <td class="oc-date">@t.TurnoverDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
+                                    <td class="oc-src">@t.ReferenceCode</td>
+                                    <td>@(t.Reference ?? "—")</td>
+                                    <td>@t.TurnedOverBy</td>
+                                    <td class="v3-num">@Money(t.ExpectedAmount)</td>
+                                    <td class="v3-num">@Money(t.TurnedOverAmount)</td>
+                                    <td class="v3-num">@DifferenceText(t)</td>
+                                    <td><span class="oc-status @(t.Status == OfficeCashTurnoverStatus.Voided ? "oc-voided" : "")">@(t.Status == OfficeCashTurnoverStatus.Voided ? "Voided" : "Recorded")</span></td>
+                                    <td class="oc-row-action"><button type="button" class="v3-btn v3-btn-sm" aria-label="@($"View turnover {t.ReferenceCode}")" @onclick="() => OpenDetail(t.Id)">View</button></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
+</div>
+
+<SideDrawer Show="@(_detail is not null)" Title="@(_detail?.Row.ReferenceCode ?? "Turnover")"
+            Subtitle="@(_detail is null ? null : _detail.Row.TurnoverDate.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture))" OnClose="CloseDetail">
+    @if (_detail is { } d)
+    {
+        <dl class="oc-facts">
+            <div><dt>Status</dt><dd><span class="oc-status @(d.Row.Status == OfficeCashTurnoverStatus.Voided ? "oc-voided" : "")">@(d.Row.Status == OfficeCashTurnoverStatus.Voided ? "Voided" : "Recorded")</span></dd></div>
+            <div><dt>Expected</dt><dd>@Money(d.Row.ExpectedAmount)</dd></div>
+            <div><dt>Turned over</dt><dd>@Money(d.Row.TurnedOverAmount)</dd></div>
+            <div><dt>Difference</dt><dd>@DifferenceText(d.Row)</dd></div>
+            <div><dt>Supporting reference</dt><dd>@(d.Row.Reference ?? "None entered")</dd></div>
+            <div><dt>Turned over by</dt><dd>@d.Row.TurnedOverBy</dd></div>
+            <div><dt>Recorded by</dt><dd>@d.Row.RecordedBy · @d.Row.RecordedAtUtc.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</dd></div>
+            @if (!string.IsNullOrWhiteSpace(d.Remarks)) { <div><dt>Remarks</dt><dd>@d.Remarks</dd></div> }
+            @if (d.Row.Status == OfficeCashTurnoverStatus.Voided)
+            {
+                <div><dt>Voided by</dt><dd>@d.Row.VoidedBy</dd></div>
+                <div><dt>Void reason</dt><dd>@d.Row.VoidReason</dd></div>
+            }
+        </dl>
+        <h3 class="oc-h">Collections covered</h3>
+        <table class="v3-table oc-coverage" aria-label="Collections covered">
+            <thead><tr><th scope="col">SRC</th><th scope="col">Collected by</th><th scope="col" class="v3-num">Covered</th><th scope="col">Coverage</th></tr></thead>
+            <tbody>
+                @foreach (var c in d.Collections)
+                {
+                    <tr @key="c.CollectionId"><td>@c.ReferenceCode</td><td>@c.OriginalActorName</td><td class="v3-num">@Money(c.CoveredAmount)</td><td>@(c.IsActive ? "Active" : "Released")</td></tr>
+                }
+            </tbody>
+        </table>
+        <p class="oc-note">The original collections and their SRCs are not changed by a turnover or by voiding it.</p>
+
+        <AuthorizeView Roles="SuperAdmin">
+            @if (d.Row.Status == OfficeCashTurnoverStatus.Recorded)
+            {
+                @if (!_voidArming)
+                {
+                    <button type="button" class="v3-btn v3-btn-sm" @onclick="() => _voidArming = true">Void this turnover…</button>
+                }
+                else
+                {
+                    <label class="oc-label" for="oc-void-reason">Reason (required)</label>
+                    <textarea id="oc-void-reason" class="oc-reason" rows="3" maxlength="300" @bind="_voidReason" @bind:event="oninput"></textarea>
+                    <label class="oc-ack"><input type="checkbox" @bind="_voidAck" /> I confirm this releases the covered collections for a corrected turnover. The record is kept.</label>
+                    @if (_voidError is not null) { <p class="v3-notice v3-notice-error" role="alert">@_voidError</p> }
+                    <div class="oc-actions">
+                        <button type="button" class="v3-btn v3-btn-primary" disabled="@(!_voidAck || string.IsNullOrWhiteSpace(_voidReason) || _voiding)" @onclick="VoidAsync">@(_voiding ? "Voiding…" : "Void turnover")</button>
+                        <button type="button" class="v3-btn v3-btn-sm" disabled="@_voiding" @onclick="CancelVoid">Cancel</button>
+                    </div>
+                }
+            }
+        </AuthorizeView>
+    }
+</SideDrawer>
+
+@code {
+    private bool? _available;
+    private bool _loading, _saving, _voiding, _voidArming, _voidAck;
+    private DateOnly _from = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
+    private DateOnly _to = PhilippineTime.Today;
+    private DateOnly _loadedFrom, _loadedTo;
+    private OfficeCashPositionDto? _position;
+    private Guid? _authorityId;
+    private RevenueInstrumentType? _instrument;
+    private Guid? _loadedAuthorityId;
+    private RevenueInstrumentType? _loadedInstrument;
+    private IReadOnlyList<OfficeCashAuthorityDto> _authorities = [];
+    private OfficeCashTurnoverReviewDto? _review;
+    private IReadOnlyList<OfficeCashTurnoverRowDto> _register = [];
+    private readonly HashSet<Guid> _selected = new();
+    private OfficeCashTurnoverDetailDto? _detail;
+    private string? _error, _message, _voidError;
+    private string _voidReason = string.Empty;
+
+    // The form. Any change of intent gets a new operation identity; an unchanged retry (a lost reply) keeps it and so replays safely.
+    private decimal _amount;
+    private DateOnly _date = PhilippineTime.Today;
+    private string _reference = string.Empty, _by = string.Empty, _remarks = string.Empty;
+    private Guid _operationId = Guid.NewGuid();
+    private string _intentKey = string.Empty;
+
+    private decimal Amount { get => _amount; set => _amount = value; }
+    private DateOnly Date { get => _date; set => _date = value; }
+    private string Reference { get => _reference; set => _reference = value ?? string.Empty; }
+    private string By { get => _by; set => _by = value ?? string.Empty; }
+    private string Remarks { get => _remarks; set => _remarks = value ?? string.Empty; }
+
+    private decimal Expected => _review?.Collections.Where(x => _selected.Contains(x.CollectionId)).Sum(x => x.NetAmount) ?? 0m;
+    private decimal Difference => Expected - _amount;
+    private bool AllSelected => _review is { Collections.Count: > 0 } r && r.Collections.All(x => _selected.Contains(x.CollectionId));
+    private bool CanRecord => !_saving && !_loading && _selected.Count > 0 && _amount > 0m && decimal.Round(_amount, 2) == _amount
+        && _from == _loadedFrom && _to == _loadedTo && _authorityId == _loadedAuthorityId && _instrument == _loadedInstrument
+        && !string.IsNullOrWhiteSpace(_by) && (Difference == 0m || !string.IsNullOrWhiteSpace(_remarks));
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var availability = await Api.IsAvailableAsync();
+            _available = availability.IsSuccess && availability.Value;
+        }
+        catch (HttpRequestException) { _available = false; }
+        if (_available == true) await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (_loading) return;
+        _position = null; _review = null; _register = [];
+        _selected.Clear(); _amount = 0m;
+        if (_to < _from) { _error = "The period cannot end before it begins."; return; }
+        _loading = true; _error = null;
+        try
+        {
+            var result = await Api.GetWorkspaceAsync(new(_from, _to, _authorityId, _instrument));
+            if (!result.IsSuccess || result.Value is null)
+            {
+                _error = result.Error ?? "Office cash could not be loaded.";
+                return;
+            }
+            _position = result.Value.Position; _review = result.Value.Review; _register = result.Value.Register;
+            _authorities = result.Value.Authorities; _loadedFrom = _from; _loadedTo = _to;
+            _loadedAuthorityId = _authorityId; _loadedInstrument = _instrument;
+            _selected.IntersectWith(_review!.Collections.Select(x => x.CollectionId));
+            _amount = Expected;
+        }
+        catch (HttpRequestException) { _error = "Office cash could not be loaded. Try again."; }
+        finally { _loading = false; }
+    }
+
+    private void Toggle(Guid id)
+    {
+        if (!_selected.Add(id)) _selected.Remove(id);
+        _amount = Expected;
+    }
+
+    private void ToggleAll()
+    {
+        if (_review is null) return;
+        if (AllSelected) _selected.Clear(); else foreach (var c in _review.Collections) _selected.Add(c.CollectionId);
+        _amount = Expected;
+    }
+
+    private string Intent() => string.Join('|', _loadedFrom, _loadedTo, _date, _amount.ToString("0.00", CultureInfo.InvariantCulture),
+        _reference.Trim(), _by.Trim(), _remarks.Trim(), string.Join(',', _selected.OrderBy(x => x)));
+
+    private async Task RecordAsync()
+    {
+        if (!CanRecord || _review is null) return;
+        _saving = true; _error = null; _message = null;
+        try
+        {
+            if (Intent() != _intentKey) { _operationId = Guid.NewGuid(); _intentKey = Intent(); }
+            var result = await Api.RecordAsync(new(_operationId, _date, _loadedFrom, _loadedTo, _selected.OrderBy(x => x).ToList(), _amount,
+                string.IsNullOrWhiteSpace(_reference) ? null : _reference.Trim(), _by.Trim(), string.IsNullOrWhiteSpace(_remarks) ? null : _remarks.Trim()));
+            if (result.IsSuccess && result.Value is { } recorded)
+            {
+                _message = $"Turnover recorded: {Money(recorded.Row.TurnedOverAmount)} against {Money(recorded.Row.ExpectedAmount)} expected. Turnover reference {recorded.Row.ReferenceCode}.";
+                _selected.Clear(); _reference = _by = _remarks = string.Empty; _operationId = Guid.NewGuid(); _intentKey = string.Empty;
+                await ReloadAsync();
+            }
+            else _error = result.Error ?? "The turnover was not recorded.";
+        }
+        catch (HttpRequestException) { _error = "The reply was lost. Record again to confirm: the same request is never saved twice."; }
+        finally { _saving = false; }
+    }
+
+    private async Task OpenDetail(Guid id)
+    {
+        _voidArming = false; _voidAck = false; _voidReason = string.Empty; _voidError = null;
+        var result = await Api.GetDetailAsync(id);
+        if (result.IsSuccess) _detail = result.Value; else _error = result.Error ?? "The turnover could not be loaded.";
+    }
+
+    private void CloseDetail() { _detail = null; _voidArming = false; }
+    private void CancelVoid() { _voidArming = false; _voidAck = false; _voidReason = string.Empty; _voidError = null; }
+
+    private async Task VoidAsync()
+    {
+        if (_detail is null || _voiding) return;
+        _voiding = true; _voidError = null;
+        try
+        {
+            var result = await Api.VoidAsync(_detail.Row.Id, new(_voidReason.Trim()));
+            if (result.IsSuccess && result.Value is not null)
+            {
+                _detail = result.Value; _voidArming = false; _message = "Turnover voided. Its record is kept and the collections are available again.";
+                await ReloadAsync();
+            }
+            else _voidError = result.Error ?? "The turnover was not voided.";
+        }
+        catch (HttpRequestException) { _voidError = "The reply was lost. Reload to check the status before trying again."; }
+        finally { _voiding = false; }
+    }
+
+    private IReadOnlyList<SummaryStrip.SummaryItem> PositionItems(OfficeCashPositionDto p) =>
+    [
+        new("Collected", Money(p.Collected)),
+        new("Covered by turnover", Money(p.Covered)),
+        new("Pending", Money(p.Pending), Emphasis: p.Pending != 0m),
+        new("Needs review", p.NeedsReviewCount.ToString(CultureInfo.InvariantCulture), Emphasis: p.NeedsReviewCount > 0),
+    ];
+
+    private static string Money(decimal value) => "₱" + value.ToString("N2", CultureInfo.InvariantCulture);
+    private static string DifferenceText(OfficeCashTurnoverRowDto t) =>
+        t.DifferenceAmount == 0m ? "—" : (t.DifferenceAmount > 0m ? "Short " : "Over ") + Money(Math.Abs(t.DifferenceAmount));
+}

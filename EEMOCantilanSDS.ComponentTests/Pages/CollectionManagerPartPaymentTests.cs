@@ -68,6 +68,39 @@ public sealed class CollectionManagerPartPaymentTests : TestContext
         return cut;
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Activated_day_uses_frozen_terminal_quote_and_retries_with_the_same_operation(bool transportFailure)
+    {
+        var today = PhilippineTime.Today;
+        var quote = new EEMOCantilanSDS.Application.Common.Payments.NpmRentMonthQuote(Guid.NewGuid(), StallId,
+            Guid.NewGuid(), new(today.Year, today.Month, 1), today,
+            EEMOCantilanSDS.Application.Common.Payments.NpmRentPaymentScope.DailyInstallment,
+            3, 900, 0, 875, 25, 25, 0, "reviewed-terminal", RevenueInstrumentType.OfficialReceipt, today, 35);
+        _daily.Setup(x => x.IsNpmMonthlySettlementAvailableAsync()).ReturnsAsync(Result<bool>.Success(true));
+        _daily.Setup(x => x.QuoteNpmMonthlyDayAsync(StallId, today))
+            .ReturnsAsync(Result<EEMOCantilanSDS.Application.Common.Payments.NpmRentMonthDayReview>.Success(new(true, quote)));
+        var attempts = new List<EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection.RecordDailyCollectionCommand>();
+        _daily.Setup(x => x.RecordDailyCollectionAsync(It.IsAny<EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection.RecordDailyCollectionCommand>()))
+            .Callback<EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection.RecordDailyCollectionCommand>(attempts.Add)
+            .ReturnsAsync(() => transportFailure ? throw new HttpRequestException("Synthetic lost acknowledgement")
+                : Result<bool>.Failure("Response lost; retry the same operation."));
+        var cut = OpenStall();
+        cut.Find(".ce-cell-today").Click();
+        cut.WaitForAssertion(() => Assert.Contains("Reviewed stall rent", cut.Markup), Timeout);
+        cut.Find(".ce-set-paid").Click();
+        cut.Find(".ce-confirm .ce-cbtn-primary").Click();
+        cut.WaitForAssertion(() => Assert.Single(attempts), Timeout);
+        cut.Find(".ce-confirm .ce-cbtn-primary").Click();
+        cut.WaitForAssertion(() => Assert.Equal(2, attempts.Count), Timeout);
+        Assert.Equal(attempts[0], attempts[1]);
+        Assert.Equal(25, attempts[0].ReviewedMonthAmount);
+        Assert.Equal("reviewed-terminal", attempts[0].MonthQuoteToken);
+        Assert.Equal(today, attempts[0].PaymentBusinessDate);
+        Assert.NotEqual(Guid.Empty, attempts[0].ClientOperationId);
+    }
+
     [Fact]
     public void AServerAllocationPreview_IsShownAsReceived_AndTheSameAmountIsRecorded()
     {

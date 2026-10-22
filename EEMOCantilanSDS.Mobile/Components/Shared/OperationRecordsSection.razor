@@ -30,14 +30,22 @@ else if (_records.Count > 0)
             @foreach (var record in VisibleRecords)
             {
                 <li>
-                    <CollectionRecordRow Identity="@record.ReferenceCode" Amount="record.Total"
+                    @* One clean row per SRC: what it was (the operation once, with the animal and the number of charges), and the itemized
+                       charges only when the row is opened - never one repeated line per charge. *@
+                    <CollectionRecordRow Identity="@(string.IsNullOrWhiteSpace(record.DocumentNumber) ? "None recorded" : Kind(record.Instrument) + " " + record.DocumentNumber)" Amount="record.Total"
                         DateText="@(record.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture) + (string.IsNullOrWhiteSpace(record.PayorName) ? "" : " · " + record.PayorName))"
-                        Status="@(record.Status == "Posted" ? null : record.Status)">
+                        Status="@(record.Status == "Posted" ? null : record.Status)"
+                        OnOpen="@OpenFor(record)">
                         <Details>
-                        @foreach (var line in record.Lines)
-                        {
-                            <div class="ors-line">@line.ClassificationName · @Peso(line.Amount)</div>
-                        }
+                            <div class="ors-what">@Summary(record)</div>
+                            @if (_open.Contains(record.CollectionId))
+                            {
+                                <div class="ors-line"><span>StallTrack reference</span><span>@record.ReferenceCode</span></div>
+                                @foreach (var line in record.Lines)
+                                {
+                                    <div class="ors-line"><span>@(line.ItemLabel ?? line.ClassificationName)</span><span>@Peso(line.Amount)</span></div>
+                                }
+                            }
                         </Details>
                     </CollectionRecordRow>
                 </li>
@@ -55,6 +63,21 @@ else if (_records.Count > 0)
         .Contains(Search.Trim(), StringComparison.OrdinalIgnoreCase));
 
     private IReadOnlyList<OperationRecord> _records = Array.Empty<OperationRecord>();
+    private readonly HashSet<Guid> _open = [];
+    private void Toggle(Guid id) { if (!_open.Remove(id)) _open.Add(id); }
+
+    // Only a record with something more to show (several charges, or the animal it was for) opens; a plain single-line record stays a static row.
+    private EventCallback OpenFor(OperationRecord record) =>
+        EventCallback.Factory.Create(this, () => Toggle(record.CollectionId));
+
+    // "Slaughterhouse · Carabao × 2 · 6 charges": the operation once, what it was for, and how many charges it itemizes.
+    private static string Summary(OperationRecord record)
+    {
+        var parts = record.Lines.Select(l => l.ClassificationName).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().ToList();
+        if (!string.IsNullOrWhiteSpace(record.Subject)) parts.Add(record.Subject!);
+        if (record.Lines.Count > 1) parts.Add($"{record.Lines.Count} charges");
+        return string.Join(" · ", parts);
+    }
     private bool _failed, _correcting;
     private DateOnly _loadedFrom;
     private DateOnly _loadedTo;

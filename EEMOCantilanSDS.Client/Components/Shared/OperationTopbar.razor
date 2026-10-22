@@ -1,4 +1,4 @@
-@* The page topbar every operation page carries: back to the dashboard, the operation's name and where it sits.
+@* Operation workspaces return to Operations; child pages name their explicit parent.
    Markup and classes are the ones the facility pages use, so an obligation operation reads like the rest. *@
 @implements IDisposable
 @using EEMOCantilanSDS.Client.Services
@@ -9,19 +9,24 @@
 {
     <PageTitle>StallTrack — @ShownTitle</PageTitle>
 }
-<header class="topbar @(ParentHref is not null ? "operation-context" : "")">
+<header class="topbar operation-context">
     <div class="topbar-left flex gap-2">
-        <a href="@(ParentHref ?? "/menu")" class="tcc-back-btn" aria-label="@($"Back to {ParentTitle ?? "dashboard"}")">
+        <a href="@BackHref" class="tcc-back-btn" aria-label="@($"Back to {BackTitle}")">
             <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
         </a>
         <div>
             <div class="topbar-title">@ShownTitle</div>
             <div class="topbar-breadcrumb">
                 <a href="/menu" class="breadcrumb-link">Dashboard</a>
-                @if (ParentHref is not null)
+                @if (!BackHref.StartsWith("/monitoring/", StringComparison.Ordinal))
                 {
                     <span class="breadcrumb-sep">/</span>
-                    <a href="@ParentHref" class="breadcrumb-link">@ParentTitle</a>
+                    <a href="/operations" class="breadcrumb-link">Operations</a>
+                }
+                @if (ParentHref is not null && ParentHref != "/operations")
+                {
+                    <span class="breadcrumb-sep">/</span>
+                    <a href="@ParentHref" class="breadcrumb-link">@BackTitle</a>
                 }
                 <span class="breadcrumb-sep">/</span>
                 <span class="breadcrumb-active">@Crumb — @PhilippineTime.Now.ToString("MMMM yyyy")</span>
@@ -47,6 +52,9 @@
     [Parameter] public string? OperationCode { get; set; }
 
     private OperationNameService? _names;
+    private string BackHref => ParentHref ?? "/operations";
+    private string BackTitle => ParentTitle is not null && OperationCode is not null && BackHref.StartsWith("/operations/", StringComparison.Ordinal)
+        ? _names?.NameFor(OperationCode, ParentTitle) ?? ParentTitle : ParentTitle ?? "Operations";
     private string ShownTitle => _names is not null && OperationCode is not null ? _names.NameFor(OperationCode, Title) : Title;
 
     protected override async Task OnInitializedAsync()

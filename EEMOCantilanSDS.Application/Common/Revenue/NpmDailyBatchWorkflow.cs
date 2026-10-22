@@ -20,7 +20,7 @@ namespace EEMOCantilanSDS.Application.Common.Revenue;
 /// <summary>Today's checked stalls only. The existing daily handler owns every charge; one atomic checkout, independent SRCs.</summary>
 public sealed class NpmDailyBatchWorkflow(IAppDbContext db, ICollectionSessionStore store, NpmDailyCanonicalPoster poster,
     INpmMonthSettlementService months, IFeeRateResolver rates, ISender sender, ICurrentUserService user,
-    ICurrentMunicipalityAccessor tenant, IClock clock)
+    ICurrentMunicipalityAccessor tenant, IClock clock, NpmRentMonthWorkflow? monthly = null)
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private Guid Tenant => tenant.MunicipalityId;
@@ -32,7 +32,7 @@ public sealed class NpmDailyBatchWorkflow(IAppDbContext db, ICollectionSessionSt
     {
         if (!await Authorized(ct)) return Result<IReadOnlyList<NpmDailyBatchSource>>.Forbidden();
         var today = clock.PhilippineToday;
-        var ids = await db.Stalls.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.Facility!.Code == FacilityCode.NPM)
+        var ids = await db.Stalls.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.Facility!.Code == FacilityCode.NPM && x.Facility.Archetype != BillingArchetype.MonthlyRental)
             .OrderBy(x => x.StallNo).Select(x => x.Id).ToListAsync(ct);
         var sources = new List<NpmDailyBatchSource>();
         foreach (var chunk in ids.Chunk(500))
@@ -64,7 +64,7 @@ public sealed class NpmDailyBatchWorkflow(IAppDbContext db, ICollectionSessionSt
         var snapshot = await rates.GetSnapshotAsync(ct);
         var ids = intent.Items.Select(x => x.StallId).ToArray();
         var stalls = await db.Stalls.AsNoTracking().Include(x => x.Facility).Include(x => x.Contracts)
-            .Where(x => x.MunicipalityId == Tenant && ids.Contains(x.Id) && x.Facility!.Code == FacilityCode.NPM).ToDictionaryAsync(x => x.Id, ct);
+            .Where(x => x.MunicipalityId == Tenant && ids.Contains(x.Id) && x.Facility!.Code == FacilityCode.NPM && x.Facility.Archetype != BillingArchetype.MonthlyRental).ToDictionaryAsync(x => x.Id, ct);
         var policy = await (from p in db.RevenueClassificationPolicies.AsNoTracking()
             join c in db.RevenueClassifications.AsNoTracking() on p.RevenueClassificationId equals c.Id
             where c.MunicipalityId == Tenant && c.SemanticCode == RevenueClassificationCodes.PermanentStallRent && p.EffectiveDate <= intent.BusinessDate
@@ -74,6 +74,18 @@ public sealed class NpmDailyBatchWorkflow(IAppDbContext db, ICollectionSessionSt
         {
             if (!stalls.TryGetValue(item.StallId, out var stall)) { problems.Add(new(item.ClientItemId, "InvalidSource", "This stall is unavailable.")); continue; }
             var owner = stall.OccupancyAnsweringForMonth(intent.BusinessDate.Year, intent.BusinessDate.Month, intent.BusinessDate)?.Contract;
+            if (monthly is not null && await monthly.MustUseMonthlyAuthorityAsync(stall.Id, new(intent.BusinessDate.Year, intent.BusinessDate.Month, 1), ct))
+            {
+                var quoted = await monthly.QuoteAsync(stall.Id, new(intent.BusinessDate.Year, intent.BusinessDate.Month, 1),
+                    intent.BusinessDate, NpmRentPaymentScope.DailyInstallment, ct, intent.BusinessDate);
+                var q = quoted.Value;
+                var unavailable = !canonical ? "SourceStillLegacy" : !quoted.IsSuccess ? "ReconciliationRequired"
+                    : q!.ContractId != owner?.Id ? "InvalidSource" : q.EligibleAmount <= 0m ? "AlreadySettledOrUnavailable" : null;
+                sources.Add(new(stall.Id, owner?.Id ?? Guid.Empty, stall.StallNo, owner?.ActualOccupant ?? "",
+                    q?.EligibleAmount ?? 0m, unavailable is null, unavailable, q?.Token));
+                if (unavailable is not null) problems.Add(new(item.ClientItemId, unavailable, "Review this month's rent before collecting."));
+                continue;
+            }
             var row = await db.DailyCollections.AsNoTracking().SingleOrDefaultAsync(x => x.StallId == stall.Id && x.CollectionDate == intent.BusinessDate, ct);
             var charge = row?.DailyFee ?? NpmDailyFee.ForStallOrNull(stall, snapshot, intent.BusinessDate) ?? 0m;
             var payable = owner is not null && (await months.GetPayableDaysAsync(stall, intent.BusinessDate.Year, intent.BusinessDate.Month, ct)).Contains(intent.BusinessDate);
@@ -117,6 +129,16 @@ public sealed class NpmDailyBatchWorkflow(IAppDbContext db, ICollectionSessionSt
                 foreach (var item in intent.Items.OrderBy(x => x.ClientItemId))
                 {
                     var operation = CollectionSessionWorkflow.ChildOperationId(Tenant, intent.ClientCollectionSessionId, item.ClientItemId);
+                    if (monthly is not null && await monthly.MustUseMonthlyAuthorityAsync(item.StallId, new(intent.BusinessDate.Year, intent.BusinessDate.Month, 1), ct))
+                    {
+                        var source = quote.Sources.Single(x => x.StallId == item.StallId);
+                        var saved = await monthly.PostAsync(new(operation, item.StallId, new(intent.BusinessDate.Year, intent.BusinessDate.Month, 1),
+                            intent.BusinessDate, NpmRentPaymentScope.DailyInstallment, source.EffectiveCharge, source.MonthQuoteToken!, intent.BusinessDate), ct);
+                        if (!saved.IsSuccess || saved.Value!.Amount != source.EffectiveCharge) throw new BatchRejected("QuoteStale");
+                        children.Add(new(saved.Value.CollectionId, saved.Value.ReferenceCode, (await poster.GetInstrumentAsync(intent.BusinessDate, ct))!.Value,
+                            saved.Value.Amount, [item.ClientItemId], "Posted"));
+                        continue;
+                    }
                     var posted = await sender.Send(new RecordDailyCollectionCommand(item.StallId, intent.BusinessDate, true, ClientOperationId: operation), ct);
                     var child = posted.IsSuccess ? await poster.FindPostedAsync(operation, ct) : null;
                     if (child is null || child.Amount != quote.Sources.Single(x => x.StallId == item.StallId).EffectiveCharge) throw new BatchRejected("QuoteStale");
@@ -127,6 +149,7 @@ public sealed class NpmDailyBatchWorkflow(IAppDbContext db, ICollectionSessionSt
                 await store.SaveAsync(MobileCollectionSession.Recorded(Tenant, intent.ClientCollectionSessionId, user.CollectorId!.Value,
                     null, intent.BusinessDate, fingerprint, JsonSerializer.Serialize(output, Json)), ct);
             }, ct);
+            if (monthly?.Enabled == true) await monthly.InvalidateAfterCommitAsync(ct);
             return Result<CollectionSessionResult>.Success(output!);
         }
         catch (BatchRejected e) { return Result<CollectionSessionResult>.Failure(e.Message, ResultStatus.Conflict); }

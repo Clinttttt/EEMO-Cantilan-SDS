@@ -22,6 +22,17 @@ public class CachingMobileApiClientTests
         new(inner, cache, new FakeConnectivityMonitor(online));
 
     [Fact]
+    public async Task Outstanding_rent_quotes_are_live_even_when_offline_and_never_fall_back_to_cached_money()
+    {
+        var inner = new Mock<IMobileApiClient>(); var stall = Guid.NewGuid(); var contract = Guid.NewGuid();
+        inner.Setup(x => x.GetNpmOutstandingQuoteAsync(stall, contract, 50))
+            .ReturnsAsync(Result<EEMOCantilanSDS.Application.Dtos.DailyCollections.NpmOutstandingRentQuote>.Failure("Connection required"));
+        var cache = new FakeOfflineReadCache();
+        Assert.Equal("Connection required", (await Sut(inner.Object, cache, online: false).GetNpmOutstandingQuoteAsync(stall, contract, 50)).Error);
+        inner.Verify(x => x.GetNpmOutstandingQuoteAsync(stall, contract, 50), Times.Once);
+    }
+
+    [Fact]
     public async Task Npm_registration_requests_are_forwarded_live_without_using_collection_cache_or_offline_queue()
     {
         var inner = new Mock<IMobileApiClient>();

@@ -1,0 +1,85 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Constants
+@inject IGovernedServicesApiClient GovernedApi
+
+@* What the month collected, by approved charge: the server's totals (the amounts frozen on each collection). Per-head collections appear on one
+   line, so the table adds up to the register and the official Monthly Income. *@
+<section class="v3-panel scb" aria-labelledby="scb-title" aria-busy="@(_loading ? "true" : "false")">
+    <header class="v3-panel-header">
+        <h2 id="scb-title">Collected by charge</h2>
+        <span class="scb-period">@Month.ToString("MMMM yyyy", CultureInfo.InvariantCulture)</span>
+    </header>
+    @if (_error is not null)
+    {
+        <p class="v3-notice v3-notice-error scb-note" role="alert">@_error</p>
+    }
+    else if (_totals.Count == 0)
+    {
+        <p class="scb-empty">@(_loading ? "Loading…" : "Nothing was collected this month.")</p>
+    }
+    else
+    {
+        <div class="v3-table-wrap scb-scroll" role="region" aria-label="Collected by charge" tabindex="0">
+            <table class="v3-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Charge</th>
+                        <th scope="col" class="v3-num">Lines</th>
+                        <th scope="col" class="v3-num">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var total in _totals)
+                    {
+                        <tr>
+                            <td>@total.Name</td>
+                            <td class="v3-num">@total.Collections.ToString("N0", CultureInfo.InvariantCulture)</td>
+                            <td class="v3-num v3-strong">@Money(total.Amount)</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <th scope="row">Total</th>
+                        <td class="v3-num">@_totals.Sum(x => x.Collections).ToString("N0", CultureInfo.InvariantCulture)</td>
+                        <td class="v3-num v3-strong">@Money(_totals.Sum(x => x.Amount))</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public DateOnly Month { get; set; }
+
+    /// <summary>Changes when the page wants the totals read again.</summary>
+    [Parameter] public int Version { get; set; }
+
+    private List<FeeOptionTotalDto> _totals = [];
+    private bool _loading;
+    private string? _error;
+    private DateOnly _loadedMonth;
+    private int _loadedVersion = -1;
+
+    private static string Money(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedMonth == Month && _loadedVersion == Version) return;
+        _loadedMonth = Month;
+        _loadedVersion = Version;
+        _loading = true;
+        _error = null;
+        try
+        {
+            var result = await GovernedApi.GetFeeOptionTotalsAsync(CollectorOperationCodes.Slaughterhouse, Month, Month.AddMonths(1).AddDays(-1));
+            if (result.IsSuccess) _totals = result.Value?.ToList() ?? [];
+            else { _totals = []; _error = "The breakdown by charge couldn't be loaded."; }
+        }
+        catch { _totals = []; _error = "The breakdown by charge couldn't be loaded."; }
+        finally { _loading = false; }
+    }
+}

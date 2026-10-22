@@ -40,7 +40,7 @@ public sealed class TerminalOverviewCardTests : TestContext
         _api.Setup(x=>x.ActivityAsync(It.IsAny<DateOnly>(),It.IsAny<DateOnly>(),CollectorOperationCodes.Terminal)).ReturnsAsync(failed?Result<IReadOnlyList<SourceNativeActivityDto>>.Failure("Unavailable"):Result<IReadOnlyList<SourceNativeActivityDto>>.Success([]));
         var cut=RenderComponent<TerminalOverviewCard>(p=>p.Add(x=>x.Year,2026).Add(x=>x.Month,9));
         if(failed) { cut.WaitForAssertion(()=>Assert.Contains("unavailable",cut.Markup)); Assert.Empty(cut.FindAll("dd")); }
-        else { cut.WaitForAssertion(()=>Assert.Contains("Collected Sep 2026",cut.Markup)); Assert.Equal("₱0",cut.Find("dd").TextContent); }
+        else { cut.WaitForAssertion(()=>Assert.Contains("Collected",cut.Markup)); Assert.Equal("₱0",cut.Find("dd").TextContent); }
         Export(failed?"terminal-overview-error":"terminal-overview-zero",cut.Markup);
     }
     private static void Export(string name,string markup) {

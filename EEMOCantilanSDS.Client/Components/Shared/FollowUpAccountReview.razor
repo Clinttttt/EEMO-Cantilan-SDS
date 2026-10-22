@@ -24,7 +24,7 @@
             <p class="review-scope">As of @PhilippineTime.Today.ToString("MMM d, yyyy")@if (Context.SnapshotDate != PhilippineTime.Today) { <span> · Queue dated @Context.SnapshotDate.ToString("MMM d, yyyy")</span> }</p>
             @if (_hasLedger && (Owed.Any() || Context.FacilityItem?.ReasonKind != "contract"))
             {
-                @if (Context.FacilityItem is { ReasonKind: "delinquent" or "current", Amount: { } queueAmount })
+                @if (Context.FacilityItem is { ReasonKind: "delinquent" or "arrears" or "current", Amount: { } queueAmount })
                 {
                     <div class="review-queue-position" aria-label="Selected follow-up amount">
                         <div>
@@ -73,12 +73,12 @@
                     <div><dt>Registered occupant</dt><dd>@ReviewOccupant</dd></div>
                     <div><dt>Source</dt><dd>@SourceName</dd></div>
                     @if (Context.FacilityItem?.Model is { Length: > 0 } model) { <div><dt>Billing basis</dt><dd>@model</dd></div> }
-                    @if (_account is not null) { <div><dt>Account status</dt><dd>@(_account.ActiveTo is null ? "Active" : "Closed")</dd></div> }
+                    @if (_account is not null) { <div><dt>Account status</dt><dd>@RentalAccountStatus.Label(_account)</dd></div> }
                     @if (_account is not null)
                     {
                         @if (_account.Arrangement is { } basis) { <div><dt>Occupancy basis</dt><dd>@(basis == OccupancyArrangement.SignedContract ? "Signed lease contract" : "No contract (space only)")</dd></div> }
                         <div><dt>Effective from</dt><dd>@_account.ActiveFrom.ToString("MMM d, yyyy")</dd></div>
-                        @if (_account.ActiveTo is { } end) { <div><dt>Closed on</dt><dd>@end.ToString("MMM d, yyyy")</dd></div> }
+                        @if (_account.ActiveTo is { } end) { <div><dt>@(RentalAccountStatus.IsOpen(_account) ? "Ends on" : "Closed on")</dt><dd>@end.ToString("MMM d, yyyy")</dd></div> }
                         @if (_account.EventDate is { } eventDate) { <div><dt>Event</dt><dd>@_account.Event · @eventDate.ToString("MMM d, yyyy")</dd></div> }
                         @if (_account.ContractName is { Length: > 0 }) { <div><dt>Name on contract</dt><dd>@_account.ContractName</dd></div> }
                         @if (_account.ContractReference is { Length: > 0 }) { <div><dt>Contract reference</dt><dd>@_account.ContractReference</dd></div> }

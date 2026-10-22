@@ -12,36 +12,26 @@
 <PageTitle>StallTrack — Transportation / Parking</PageTitle>
 
 @* Transportation / Parking is a Cash Ticket collection on Collector Mobile: the collector records the amount received. It has no vehicle
-   class, rate or ceiling, and it is separate from Income From Terminal. Earlier trips stay readable under the legacy history. Nothing on this
-   page records money; the layout owns the <main> landmark. *@
-<OperationTopbar OperationCode="TRANSPORTATION" Title="Transportation / Parking" Crumb="Operation" />
-<div class="content-area">
-    <V3Hero Eyebrow="Operation · Transportation" Title="Transportation / Parking" Compact="true">
+   class, rate or ceiling, and it is separate from Income From Terminal. Nothing on this
+   page records money; the layout owns the <main> landmark. The structure is the Market Fees one: V3 hero, collections beside setup. *@
+<div class="v3-page">
+    <V3Hero OperationCode="TRANSPORTATION" Eyebrow="Operations · Transportation" Title="Transportation / Parking" Compact="true">
+        <Icon>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 17h14M6 17V9l2-4h8l2 4v8M6 12h12M8 17v2M16 17v2" /></svg>
+        </Icon>
         <Meta><span class="tp-meta">@Today.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture) · <InstrumentChip Instrument="CT" /> Cash Ticket</span></Meta>
         <Figures>
             <V3HeroFigure Label="Collected today" Value="@Money(_current?.CollectedToday ?? 0m)" />
             <V3HeroFigure Label="Transactions today" Value="@((_current?.TransactionsToday ?? 0).ToString("N0"))" />
             <V3HeroFigure Label="Collected this month" Value="@Money(_current?.CollectedInPeriod ?? 0m)" />
         </Figures>
+        <Actions>
+            <a class="v3-btn" href="/operations/transportation/report">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17" x2="13" y2="17" /></svg>
+                Report
+            </a>
+        </Actions>
     </V3Hero>
-
-    <div class="tp-toolbar">
-        <p class="tp-status" role="status">Collector Mobile · <strong>@(MobileReady ? "Enabled" : "Not enabled")</strong></p>
-        <div class="v3-btn-group" role="group" aria-label="Transportation / Parking actions">
-            <AuthorizeView Roles="SuperAdmin">
-                <Authorized>
-                    @if (!MobileReady && _loaded)
-                    {
-                        <button class="v3-btn v3-btn-primary" type="button" @onclick="EnableAsync" disabled="@_saving">Enable for collectors</button>
-                    }
-                </Authorized>
-            </AuthorizeView>
-            <button class="v3-btn" type="button" @onclick="LoadAsync" disabled="@_loading">Refresh</button>
-            <a class="v3-btn" href="/operations/transportation/report">Report</a>
-            <a class="v3-btn" href="/collections/activity">Collection Activity</a>
-            <a class="v3-btn" href="/facility/trm/legacy">Legacy trip history</a>
-        </div>
-    </div>
 
     @if (!string.IsNullOrWhiteSpace(_error))
     {
@@ -51,51 +41,94 @@
         </div>
     }
 
-    <section class="v3-panel" aria-labelledby="tp-title" aria-busy="@(_loading ? "true" : "false")">
-        <header class="v3-panel-header">
-            <h2 id="tp-title">Today's collections</h2>
-            <span class="v3-panel-meta">@Rows.Count @(Rows.Count == 1 ? "collection" : "collections")</span>
-        </header>
-        <div class="v3-table-wrap tp-scroll" role="region" aria-label="Today's Transportation / Parking collections" tabindex="0">
-            <table class="v3-table">
-                <caption class="v3-sr-only">Transportation / Parking collections recorded on @Today.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture)</caption>
-                <thead>
-                    <tr>
-                        <th scope="col">Time</th>
-                        <th scope="col">SRC</th>
-                        <th scope="col">Payer / reference</th>
-                        <th scope="col">Collector</th>
-                        <th scope="col" class="v3-num">Amount</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var row in Rows)
-                    {
+    <div class="tp-layout">
+        <section class="v3-panel" aria-labelledby="tp-title" aria-busy="@(_loading ? "true" : "false")">
+            <header class="v3-panel-header">
+                <h2 id="tp-title">Today's collections</h2>
+                <button class="v3-btn tp-icon-btn" type="button" @onclick="LoadAsync" disabled="@_loading" aria-label="Refresh collections" title="Refresh collections">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5" /></svg>
+                </button>
+            </header>
+            <div class="v3-table-wrap tp-scroll" role="region" aria-label="Today's Transportation / Parking collections" tabindex="0">
+                <table class="v3-table">
+                    <caption class="v3-sr-only">Transportation / Parking collections recorded on @Today.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture)</caption>
+                    <thead>
                         <tr>
-                            <td>@PhilippineTime.ToPhilippineTime(row.RecordedAtUtc).ToString("h:mm tt", CultureInfo.InvariantCulture)</td>
-                            <td class="v3-strong">@(row.ReferenceCode ?? "—")</td>
-                            <td>@(string.IsNullOrWhiteSpace(row.PayerName) ? "—" : row.PayerName)@if (!string.IsNullOrWhiteSpace(row.Reference)) { <span class="v3-block">@row.Reference</span> }</td>
-                            <td>@(row.CollectorName ?? "—")</td>
-                            <td class="v3-num v3-strong">@Money(row.Amount)</td>
+                            <th scope="col">Time</th>
+                            <th scope="col">SRC</th>
+                            <th scope="col">Payer / reference</th>
+                            <th scope="col">Collector</th>
+                            <th scope="col" class="v3-num">Amount</th>
                         </tr>
-                    }
-                    @if (Rows.Count == 0)
+                    </thead>
+                    <tbody>
+                        @foreach (var row in Rows)
+                        {
+                            <tr>
+                                <td>@PhilippineTime.ToPhilippineTime(row.RecordedAtUtc).ToString("h:mm tt", CultureInfo.InvariantCulture)</td>
+                                <td class="v3-strong">@(row.ReferenceCode ?? "—")</td>
+                                <td>@if (!string.IsNullOrWhiteSpace(row.FeeOptionName)) {<span class="tp-fee">@row.FeeOptionName</span>}@(string.IsNullOrWhiteSpace(row.PayerName) ? (string.IsNullOrWhiteSpace(row.FeeOptionName) ? "—" : null) : row.PayerName)@if (!string.IsNullOrWhiteSpace(row.Reference)) { <span class="v3-block">@row.Reference</span> }</td>
+                                <td>@(row.CollectorName ?? "—")</td>
+                                <td class="v3-num v3-strong">@Money(row.Amount)</td>
+                            </tr>
+                        }
+                        @if (Rows.Count == 0)
+                        {
+                            <tr><td class="v3-empty" colspan="5">@(_loading ? "Loading collections…" : _error is not null ? "Collections are unavailable." : "No transportation collection was recorded today.")</td></tr>
+                        }
+                    </tbody>
+                    @if (Rows.Count > 0)
                     {
-                        <tr><td class="v3-empty" colspan="5">@(_loading ? "Loading collections…" : _error is not null ? "Collections are unavailable." : "No transportation collection was recorded today.")</td></tr>
+                        <tfoot>
+                            <tr>
+                                <td colspan="4"><strong>Total today</strong></td>
+                                <td class="v3-num v3-strong">@Money(Rows.Sum(x => x.Amount))</td>
+                            </tr>
+                        </tfoot>
                     }
-                </tbody>
-                @if (Rows.Count > 0)
-                {
-                    <tfoot>
-                        <tr>
-                            <td colspan="4"><strong>Total today</strong></td>
-                            <td class="v3-num v3-strong">@Money(Rows.Sum(x => x.Amount))</td>
-                        </tr>
-                    </tfoot>
-                }
-            </table>
+                </table>
+            </div>
+        </section>
+
+        <aside class="v3-panel" aria-labelledby="tp-setup-title">
+            <header class="v3-panel-header">
+                <h2 id="tp-setup-title">Setup</h2>
+            </header>
+            <div class="v3-panel-body">
+                <dl class="v3-facts" aria-label="Approved setup">
+                    <div><dt>Instrument</dt><dd>Cash Ticket</dd></div>
+                    <div><dt>Amount</dt><dd>@(ByFeeType ? "By approved fee type" : "Recorded by the collector")</dd></div>
+                    <div><dt>Collector Mobile</dt><dd class="tp-status">@(MobileReady ? "Enabled" : "Not enabled")</dd></div>
+                    @if (_definition?.EffectiveDate is { } effective)
+                    {
+                        <div><dt>Effective since</dt><dd>@effective.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</dd></div>
+                    }
+                </dl>
+                <div class="tp-actions">
+                    <AuthorizeView Roles="SuperAdmin">
+                        <Authorized>
+                            @if (!MobileReady && _loaded)
+                            {
+                                <button class="v3-btn v3-btn-sm v3-btn-primary" type="button" @onclick="EnableAsync" disabled="@_saving">Enable for collectors</button>
+                            }
+                            @if (HasFeeOptions && _loaded)
+                            {
+                                <button class="v3-btn v3-btn-sm" type="button" @onclick="ChangeBasisAsync" disabled="@_saving">@(ByFeeType ? "Collect by direct amount" : "Collect by fee type")</button>
+                            }
+                        </Authorized>
+                    </AuthorizeView>
+                    <a class="v3-btn v3-btn-sm" href="/collections/activity">Collection Activity</a>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    @if (HasFeeOptions)
+    {
+        <div class="tp-fees">
+            <FeeOptionDefinitions OperationCode="@CollectorOperationCodes.Transportation" Title="Transportation / Parking fee types" Month="@(new DateOnly(Today.Year, Today.Month, 1))" Changed="LoadAsync" />
         </div>
-    </section>
+    }
 </div>
 
 @code {
@@ -106,6 +139,8 @@
     private string? _error;
 
     private IReadOnlyList<GovernedServiceActivityDto> Rows => _current?.Collections.Where(x => x.BusinessDate == Today).OrderByDescending(x => x.RecordedAtUtc).ToList() ?? [];
+    private bool HasFeeOptions => _definition?.AllowedBases.Contains(GovernedServiceBasis.ApprovedFeeOption) == true;
+    private bool ByFeeType => _definition?.Basis == GovernedServiceBasis.ApprovedFeeOption;
     private bool MobileReady => _definition is { MobileEnabled: true, State: GovernedServiceSetupState.Active };
 
     protected override Task OnInitializedAsync() => LoadAsync();
@@ -139,6 +174,22 @@
             else _error = "Transportation / Parking couldn't be enabled.";
         }
         catch { _error = "Transportation / Parking couldn't be enabled."; }
+        finally { _saving = false; }
+    }
+
+    // Switches how Transportation / Parking is collected from today: by the Head's approved fee types, or the direct amount the collector records.
+    private async Task ChangeBasisAsync()
+    {
+        if (_saving) return;
+        _saving = true;
+        try
+        {
+            var result = await GovernedApi.ConfigureAsync(CollectorOperationCodes.Transportation, new ConfigureGovernedServiceRequest(
+                Today, ByFeeType ? GovernedServiceBasis.DirectApprovedAmount : GovernedServiceBasis.ApprovedFeeOption, null, null, true, true));
+            if (result.IsSuccess) _definition = result.Value;
+            else _error = result.Error ?? "The amount basis couldn't be changed.";
+        }
+        catch { _error = "The amount basis couldn't be changed."; }
         finally { _saving = false; }
     }
 

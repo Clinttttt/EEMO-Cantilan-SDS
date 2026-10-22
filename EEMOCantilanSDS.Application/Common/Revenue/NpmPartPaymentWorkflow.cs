@@ -21,20 +21,24 @@ namespace EEMOCantilanSDS.Application.Common.Revenue;
 /// </summary>
 public sealed class NpmPartPaymentWorkflow(IStallRepository stalls, ICollectorRepository collectors,
     IDailyCollectionRepository days, INpmMonthSettlementService settlement, NpmDailyCanonicalPoster poster,
-    ICurrentUserService user, IClock clock, IEemoCacheInvalidator cache, ITenantContext tenant, NpmPartPaymentOptions? options = null)
+    ICurrentUserService user, IClock clock, IEemoCacheInvalidator cache, ITenantContext tenant, NpmPartPaymentOptions? options = null,
+    NpmRentMonthWorkflow? monthly = null)
 {
     public async Task<Result<NpmPartPaymentQuoteDto>> QuoteAsync(Guid stallId, int year, int month, decimal amount, CancellationToken ct = default, DateOnly? collectionDate = null)
     {
         // Off until the office has verified every report that reads NPM day rows against part payments (see the handoff).
-        if (options?.Enabled != true)
+        if (options?.Enabled != true && options?.ApprovedContracts?.Count is not > 0)
             return Result<NpmPartPaymentQuoteDto>.Failure("Part payments are not enabled yet.", ResultStatus.Conflict);
         if (year is < 2000 or > 2100 || month is < 1 or > 12)
             return Result<NpmPartPaymentQuoteDto>.Failure("Choose a valid settlement period.", ResultStatus.Invalid);
         if (!await NpmSettlementAccess.MaySettleMarketCollectionsAsync(user, collectors, ct))
             return Result<NpmPartPaymentQuoteDto>.Forbidden();
         var stall = await stalls.GetByIdAsync(stallId, ct);
-        if (stall?.Facility?.Code != FacilityCode.NPM) return Result<NpmPartPaymentQuoteDto>.NotFound();
+        if (stall?.Facility?.Code != FacilityCode.NPM || stall.Facility.IsMonthlyRentMarket) return Result<NpmPartPaymentQuoteDto>.NotFound();
         var businessDate = collectionDate ?? clock.PhilippineToday;
+        var owner = EEMOCantilanSDS.Domain.Entities.Facilities.StallOccupancy.AnsweringForMonth(stall.Occupancies(businessDate), year, month);
+        if (owner is null || options?.Allows(owner.Contract.Id) != true)
+            return Result<NpmPartPaymentQuoteDto>.Failure("Part payments are not enabled for this occupancy.", ResultStatus.Conflict);
         if (businessDate == default || businessDate > clock.PhilippineToday)
             return Result<NpmPartPaymentQuoteDto>.Failure("Choose a valid business date.", ResultStatus.Invalid);
         // Several Collections against one day need canonical authority: a legacy row can carry only one payment event.
@@ -42,6 +46,18 @@ public sealed class NpmPartPaymentWorkflow(IStallRepository stalls, ICollectorRe
             return Result<NpmPartPaymentQuoteDto>.Failure("Part payments are available after NPM collection activation.", ResultStatus.Conflict);
         var instrument = await poster.GetInstrumentAsync(businessDate, ct);
         if (instrument is null) return Result<NpmPartPaymentQuoteDto>.Failure("The approved collection policy is unavailable.", ResultStatus.Conflict);
+        if (monthly is not null && await monthly.MustUseMonthlyAuthorityAsync(stallId, new(year, month, 1), ct))
+        {
+            var result = await monthly.QuoteAsync(stallId, new(year, month, 1), businessDate, NpmRentPaymentScope.PartPayment, ct);
+            if (!result.IsSuccess) return Result<NpmPartPaymentQuoteDto>.Failure(result.Error!, result.Status);
+            var q = result.Value!;
+            var valid = amount > 0 && decimal.Round(amount, 2) == amount && amount <= q.EligibleAmount;
+            return Result<NpmPartPaymentQuoteDto>.Success(new(stallId, year, month, businessDate,
+                valid ? "Applied" : q.EligibleAmount == 0 ? "NothingPayable" : "ExceedsPayable",
+                valid ? null : "The amount exceeds eligible month rent.", amount, valid ? amount : 0,
+                q.EligibleAmount, q.Outstanding - (valid ? amount : 0), 0, valid ? 0 : amount, [], q.Token, q.Instrument,
+                CollectionSourceKind.NpmRentMonth));
+        }
 
         var plan = await settlement.PlanPartPaymentAsync(stall, year, month, amount, ct);
         return Result<NpmPartPaymentQuoteDto>.Success(new(stallId, year, month, businessDate, plan.Outcome, plan.Message, plan.Amount, plan.Applied,
@@ -56,6 +72,20 @@ public sealed class NpmPartPaymentWorkflow(IStallRepository stalls, ICollectorRe
             return Result<NpmDailyCanonicalPoster.Outcome>.Failure("A reviewed part-payment quote is required.", ResultStatus.Invalid);
         if (!await NpmSettlementAccess.MaySettleMarketCollectionsAsync(user, collectors, ct))
             return Result<NpmDailyCanonicalPoster.Outcome>.Forbidden();
+        if (request.Year is < 2000 or > 2100 || request.Month is < 1 or > 12)
+            return Result<NpmDailyCanonicalPoster.Outcome>.Failure("Choose a valid settlement period.", ResultStatus.Invalid);
+        if (monthly is not null && await monthly.MustUseMonthlyAuthorityAsync(request.StallId, new(request.Year, request.Month, 1), ct))
+        {
+            // The month writer rechecks the exact responsible contract and its frozen approval evidence.
+            if (!await poster.IsCanonicalAsync(request.BusinessDate, ct))
+                return Result<NpmDailyCanonicalPoster.Outcome>.Failure("This date is not under canonical NPM authority.", ResultStatus.Conflict);
+            var monthlyResult = await monthly.PostAsync(new(request.ClientOperationId, request.StallId, new(request.Year, request.Month, 1),
+                request.BusinessDate, NpmRentPaymentScope.PartPayment, request.Amount, request.QuoteToken), ct);
+            if (!monthlyResult.IsSuccess) return Result<NpmDailyCanonicalPoster.Outcome>.Failure(monthlyResult.Error!, monthlyResult.Status);
+            await cache.InvalidatePaymentAffectedViewsAsync(tenant.TenantCode, FacilityCode.NPM, request.Year, request.Month, ct);
+            var saved = monthlyResult.Value!;
+            return Result<NpmDailyCanonicalPoster.Outcome>.Success(new(saved.CollectionId, saved.ReferenceCode, saved.Amount, saved.Existing));
+        }
         var intent = poster.NormalizeIntent("NpmPartPayment", request.StallId, [], request.BusinessDate,
             $"{request.Year:D4}-{request.Month:D2}|{request.Amount.ToString(CultureInfo.InvariantCulture)}|{request.QuoteToken}");
         if (await poster.FindPriorAsync(request.ClientOperationId, intent, ct) is { } prior) return prior;

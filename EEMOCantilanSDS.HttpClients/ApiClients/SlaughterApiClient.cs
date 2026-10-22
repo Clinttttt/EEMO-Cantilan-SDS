@@ -17,6 +17,15 @@ public class SlaughterApiClient(HttpClient http) : HandleResponse(http), ISlaugh
     public async Task<Result<SlaughterHistoryDto>> GetHistoryAsync(int year) =>
         await GetAsync<SlaughterHistoryDto>($"api/slaughter/history?year={year}");
 
+    public async Task<Result<EEMOCantilanSDS.Application.Dtos.Revenue.SlaughterTermsDto>> GetOfficeTermsAsync(DateOnly date) =>
+        await GetAsync<EEMOCantilanSDS.Application.Dtos.Revenue.SlaughterTermsDto>($"api/slaughter/office/terms?date={date:yyyy-MM-dd}");
+
+    public async Task<Result<EEMOCantilanSDS.Application.Common.Revenue.FeeScheduleCollectionWorkflow.SlaughterQuote>> QuoteOfficeAsync(EEMOCantilanSDS.Application.Dtos.Revenue.FeeSchedulePostRequest request) =>
+        await PostAsync<EEMOCantilanSDS.Application.Dtos.Revenue.FeeSchedulePostRequest, EEMOCantilanSDS.Application.Common.Revenue.FeeScheduleCollectionWorkflow.SlaughterQuote>("api/slaughter/office/quote", request);
+
+    public async Task<Result<EEMOCantilanSDS.Application.Dtos.Revenue.GovernedServiceOutcomeDto>> RecordOfficeAsync(EEMOCantilanSDS.Application.Dtos.Revenue.FeeSchedulePostRequest request) =>
+        await PostAsync<EEMOCantilanSDS.Application.Dtos.Revenue.FeeSchedulePostRequest, EEMOCantilanSDS.Application.Dtos.Revenue.GovernedServiceOutcomeDto>("api/slaughter/office/record", request);
+
     public async Task<Result<IReadOnlyList<SlaughterTransactionDto>>> GetTransactionsAsync(int year, int month) =>
         await GetAsync<IReadOnlyList<SlaughterTransactionDto>>($"api/slaughter/transactions?year={year}&month={month}");
 

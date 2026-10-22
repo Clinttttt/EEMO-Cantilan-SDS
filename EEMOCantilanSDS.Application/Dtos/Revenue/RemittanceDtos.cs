@@ -150,7 +150,11 @@ public sealed record AccountabilityPositionDto(
     decimal Unremitted,
     int NeedsReviewCount,
     decimal LegacyCollectionsOutsideRemittance,
-    IReadOnlyList<CollectorPositionDto> Collectors);
+    IReadOnlyList<CollectorPositionDto> Collectors,
+    // Canonical Collections with no collector (Office receipts), net of corrections. Visible and auditable here, but NOT part of any
+    // collector Collected/Remitted/Unremitted figure; whether and how the Office turns this cash over is not established by the workflow.
+    decimal OfficeOriginCollected = 0m,
+    int OfficeOriginCount = 0);
 
 public sealed record ReturnUnusedFormsRequest(Guid FormBookId, long FirstSerialNumber, long LastSerialNumber);
 

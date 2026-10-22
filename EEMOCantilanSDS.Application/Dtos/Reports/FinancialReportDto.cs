@@ -12,8 +12,9 @@ namespace EEMOCantilanSDS.Application.Dtos.Reports;
 ///  • <see cref="CollectionRatePct"/> is amount-based: Collected / Billed (Collected + CurrentPeriodUnpaid).
 ///  • Per-head (SLH) / per-trip (TRM) / weekly-attendance (TPM) facilities are paid on service: they
 ///    contribute to Collected but carry no recurring unpaid balance (<see cref="FinancialFacilityRowDto.Unpaid"/> = null).
-///  • Delinquent = one or more fully elapsed unpaid months. Arrears qualification is unresolved and is never inferred
-///    from the age of an outstanding balance.
+///  • Receivables are classified obligation by obligation (IA-019, IA-020, IA-069): Arrears = unpaid previous-calendar-year rent and
+///    unpaid rent of ended occupancies or expired contracts; Delinquent = fully elapsed unpaid months of the current year under a live
+///    account; the month in progress is current-period unpaid. An account may carry several categories; each peso belongs to exactly one.
 /// </summary>
 public record FinancialReportDto(
     // ── Scope / identity ──
@@ -36,7 +37,7 @@ public record FinancialReportDto(
     // Delinquent is CAPPED for display (the most overdue accounts first). Never count or sum it to state
     // how many delinquent accounts there are or how much they owe — use the delinquent totals at the end of this record.
     IReadOnlyList<AttentionAccountDto> Delinquent,
-    /// <summary>Null while the old/lapsed Arrears qualification rule is unresolved.</summary>
+    /// <summary>Accounts carrying Arrears, capped for display (largest first); the totals at the end of this record count every one.</summary>
     IReadOnlyList<AttentionAccountDto>? Arrears,
 
     /// <summary>
@@ -97,11 +98,23 @@ public record FinancialReportDto(
     /// <summary>What all of those accounts owe in full.</summary>
     decimal DelinquentOutstandingTotal = 0m,
 
-    /// <summary>Null while the Arrears qualification boundary is unresolved; no age-derived count is reported.</summary>
+    /// <summary>Accounts carrying any Arrears: live accounts with previous-year or expired-contract months, plus ended occupancies with a balance.</summary>
     int? ArrearsAccountsTotal = null,
 
-    /// <summary>Null while the Arrears qualification boundary is unresolved; no age-derived amount is reported.</summary>
+    /// <summary>Money owed in Arrears across every one of those accounts; never overlaps the Delinquent total.</summary>
     decimal? ArrearsOutstandingTotal = null,
+
+    /// <summary>The part of the Arrears accounts that are ended occupancies (a former lessee's own debt, listed by the Closed / Inactive register).</summary>
+    int EndedArrearsAccountsTotal = 0,
+
+    /// <summary>What those ended occupancies owe; a slice of <see cref="ArrearsOutstandingTotal"/>.</summary>
+    decimal EndedArrearsOutstandingTotal = 0m,
+
+    /// <summary>Accounts (an occupancy of a stall) carrying Delinquent, Arrears or both: each counted once, however many categories it carries.</summary>
+    int ReceivableAccountsTotal = 0,
+
+    /// <summary>Delinquent plus Arrears money: every peso counted once.</summary>
+    decimal ReceivableOutstandingTotal = 0m,
 
     /// <summary>
     /// The period's metered utilities, per payor. Null when the office raised no bill for the period, and null for any
@@ -177,7 +190,9 @@ public record AttentionAccountDto(
     decimal Balance,
     int UnpaidMonths,
     bool TermLapsed = false,
-    Guid? StallId = null
+    Guid? StallId = null,
+    // Why the row is Arrears, when it is: "Previous year", "Expired contract" or "Ended occupancy". Null on a Delinquent row.
+    string? ArrearsBasis = null
 );
 
 public record ReportTrendPointDto(

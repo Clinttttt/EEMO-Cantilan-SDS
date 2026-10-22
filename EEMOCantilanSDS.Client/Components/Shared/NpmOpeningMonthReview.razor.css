@@ -1,0 +1,5 @@
+.opening-position { display: grid; gap: .75rem; margin: 1rem 0; }
+.opening-position > div { display: flex; justify-content: space-between; gap: 1rem; }
+.opening-position dt { font-weight: 400; color: var(--text-secondary, #526780); }
+.opening-position dd { margin: 0; text-align: right; font-weight: 600; }
+.opening-confirm { display: flex; align-items: flex-start; gap: .5rem; margin-block: 1rem; }

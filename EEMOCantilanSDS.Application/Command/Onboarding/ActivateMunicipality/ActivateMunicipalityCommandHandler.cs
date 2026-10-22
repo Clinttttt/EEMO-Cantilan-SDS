@@ -83,7 +83,9 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                     // The office's own rule for what a market month owes, as it declared at onboarding, so its first month
                     // is measured by its own convention rather than by somebody else's. Recorded as a STATEMENT, which is
                     // also what stops the console asking the question the office has just answered.
-                    facility.SetMonthBasis(f.MonthBasis, "Activation");
+                    // Only a daily-collected market has a month basis: a market declared as standard monthly rental owes its stated
+                    // rent by the month and has nothing to choose, so none is recorded for it.
+                    if (f.Archetype == BillingArchetype.DailyStall) facility.SetMonthBasis(f.MonthBasis, "Activation");
                 }
             }
 

@@ -27,6 +27,19 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
     private const string Legacy = "Legacy";
     private const string Canonical = "Canonical";
 
+    public async Task<IReadOnlyList<CollectionActivityEventDto>> GetReconciliationAsync(Guid tenantId, DateOnly from, DateOnly to,
+        DateTime cutoffUtc, bool correctionActivity, CancellationToken ct = default)
+    {
+        var collectors = await context.CollectorUsers.AsNoTracking().Where(c => c.MunicipalityId == tenantId)
+            .ToDictionaryAsync(c => c.Id, c => c.FullName ?? c.Username ?? "Collector", ct);
+        var rows = await CanonicalAsync(new(tenantId, from, to, default, default), collectors, ct, cutoffUtc, correctionActivity);
+        return correctionActivity ? rows.Select(e => {
+            var corrections = e.Corrections.Where(c => c.EffectiveDate >= from && c.EffectiveDate <= to).ToArray();
+            var effect = corrections.Sum(c => c.FinancialEffect);
+            return e with { Corrections = corrections, CorrectionEffect = effect, NetAmount = e.Amount + effect };
+        }).ToArray() : rows;
+    }
+
     public async Task<IReadOnlyList<CollectionActivityEventDto>> GetAsync(
         Guid tenantId, DateOnly from, DateOnly to, CancellationToken ct = default)
     {
@@ -48,7 +61,11 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
         events.AddRange(await TripsAsync(window, collectors, names, ct));
         events.AddRange(await TaboAsync(window, collectors, names, ct));
         events.AddRange(await CanonicalAsync(window, collectors, ct));
-        return events;
+
+        // Collector direct collections carry the verification of their cash; every other source is untouched and keeps no label.
+        var canonicalIds = events.Where(e => e.CollectionId.HasValue && e.Authority == Canonical).Select(e => e.CollectionId!.Value).ToArray();
+        var labels = await EEMOCantilanSDS.Application.Common.Revenue.DirectCollectionVerification.LabelsAsync(context, tenantId, canonicalIds, ct);
+        return labels.Count == 0 ? events : events.Select(e => e.CollectionId is { } id && labels.TryGetValue(id, out var label) ? e with { Verification = label } : e).ToList();
     }
 
     public async Task<DateOnly?> FindBusinessDateByReferenceAsync(Guid tenantId, string referenceCode, CancellationToken ct = default)
@@ -297,12 +314,19 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
     }
 
     // ── Canonical: one event per posted Collection, authoritative lines only, with linked corrections ──
+    private static string? FrozenSlaughterChargeName(string? snapshot) => EEMOCantilanSDS.Application.Common.Revenue.FrozenCollectionFacts.ChargeName(snapshot);
+    private static string? FrozenSlaughterSubject(IEnumerable<string?> snapshots) => EEMOCantilanSDS.Application.Common.Revenue.FrozenCollectionFacts.SlaughterSubject(snapshots);
+
     private async Task<List<CollectionActivityEventDto>> CanonicalAsync(Window w, IReadOnlyDictionary<Guid, string> collectors,
-        CancellationToken ct)
+        CancellationToken ct, DateTime? cutoffUtc = null, bool correctionActivity = false)
     {
         var tenant = w.TenantId;
         var collections = await context.Collections.AsNoTracking()
-            .Where(c => c.MunicipalityId == tenant && c.BusinessDate >= w.From && c.BusinessDate <= w.To)
+            .Where(c => c.MunicipalityId == tenant && (!cutoffUtc.HasValue || c.RecordedAtUtc <= cutoffUtc.Value)
+                && (correctionActivity ? context.CollectionCorrections.Any(r => r.MunicipalityId == tenant
+                    && r.OriginalCollectionId == c.Id && r.CorrectionEffectiveDate >= w.From && r.CorrectionEffectiveDate <= w.To
+                    && (!cutoffUtc.HasValue || r.RecordedAtUtc <= cutoffUtc.Value))
+                    : c.BusinessDate >= w.From && c.BusinessDate <= w.To))
             .Select(c => new { c.Id, c.BusinessDate, c.RecordedAtUtc, c.ReferenceCode, c.ActorName, c.CollectorId, c.PayorId, c.PayerName })
             .ToListAsync(ct);
         if (collections.Count == 0) return [];
@@ -310,12 +334,12 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
 
         var lines = await context.CollectionLines.AsNoTracking()
             .Where(l => l.MunicipalityId == tenant && ids.Contains(l.CollectionId))
-            .Select(l => new { l.Id, l.CollectionId, l.RevenueClassificationId, l.RevenueClassificationPolicyId, l.Amount, l.SourceKind, l.SourceId, l.SourcePart })
+            .Select(l => new { l.Id, l.CollectionId, l.RevenueClassificationId, l.RevenueClassificationPolicyId, l.Amount, l.SourceKind, l.SourceId, l.SourcePart, l.CalculationSnapshot })
             .ToListAsync(ct);
         var lineIds = lines.Select(l => l.Id).ToArray();
         var allocations = await context.CollectionAllocations.AsNoTracking()
             .Where(a => a.MunicipalityId == tenant && lineIds.Contains(a.CollectionLineId))
-            .Select(a => new { a.CollectionLineId, a.SourceKind, a.SourceId, a.SourcePart })
+            .Select(a => new { a.CollectionLineId, a.SourceKind, a.SourceId, a.SourcePart, a.SourceSnapshot })
             .ToListAsync(ct);
 
         // Settlement authority and context of the source rows these lines settle.
@@ -333,14 +357,43 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
             .ToDictionaryAsync(b => b.Id, ct);
         // NPM day rows a canonical Collection paid: only for the stall and facility of the line, never for its amount.
         var dayIds = allocations.Where(a => a.SourceKind == CollectionSourceKind.DailyCollection).Select(a => a.SourceId).Distinct().ToArray();
+        var monthIds = allocations.Where(a => a.SourceKind == CollectionSourceKind.NpmRentMonth).Select(a => a.SourceId).Distinct().ToArray();
+        var rentMonths = await (from source in context.NpmRentMonths.AsNoTracking()
+            join stall in context.Stalls.AsNoTracking() on new { source.MunicipalityId, Id = source.StallId } equals new { stall.MunicipalityId, stall.Id }
+            join facility in context.Facilities.AsNoTracking() on new { source.MunicipalityId, Id = source.FacilityId } equals new { facility.MunicipalityId, facility.Id }
+            where source.MunicipalityId == tenant && monthIds.Contains(source.Id)
+            select new { source.Id, source.PeriodStart, stall.StallNo, facility.Code }).ToDictionaryAsync(x => x.Id, ct);
+        var frozenMonths = new Dictionary<Guid, (DateOnly Period, string Space, FacilityCode Facility)>();
+        foreach (var allocation in allocations.Where(x => x.SourceKind == CollectionSourceKind.NpmRentMonth))
+        {
+            if (string.IsNullOrWhiteSpace(allocation.SourceSnapshot)) continue;
+            using var snapshot = System.Text.Json.JsonDocument.Parse(allocation.SourceSnapshot);
+            var evidence = snapshot.RootElement;
+            if (evidence.TryGetProperty("periodStart", out var period) && evidence.TryGetProperty("spaceNo", out var space)
+                && evidence.TryGetProperty("facilityCode", out var facility)
+                && DateOnly.TryParseExact(period.GetString(), "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out var recordedPeriod)
+                && Enum.TryParse<FacilityCode>(facility.ValueKind == System.Text.Json.JsonValueKind.Number ? facility.GetRawText() : facility.GetString(), out var recordedFacility)
+                && Enum.IsDefined(recordedFacility))
+                frozenMonths[allocation.SourceId] = (recordedPeriod, space.GetString() ?? "", recordedFacility);
+        }
         var days = await context.DailyCollections.AsNoTracking()
             .Where(d => d.MunicipalityId == tenant && dayIds.Contains(d.Id))
             .Select(d => new { d.Id, d.CollectionDate, d.Stall!.StallNo, Code = d.Stall.Facility!.Code })
             .ToDictionaryAsync(d => d.Id, ct);
 
+        var knownCutovers = cutoffUtc.HasValue
+            ? await context.CollectionSettlementCutovers.AsNoTracking()
+                .Where(x => x.MunicipalityId == tenant && (recordIds.Contains(x.SourceId) || billIds.Contains(x.SourceId))
+                    && x.CutoverAtUtc <= cutoffUtc.Value && x.ReconciledAtUtc <= cutoffUtc.Value)
+                .Select(x => new { x.SourceKind, x.SourceId, x.SourcePart }).ToListAsync(ct)
+            : null;
         bool SourceCounts(CollectionSourceKind? kind, Guid? sourceId, CollectionSourcePart? part)
         {
             if (kind is not { } k) return true;
+            // Historical authority needs dated cutover evidence, not today's mutable legacy projection.
+            if (knownCutovers is not null && k is CollectionSourceKind.PaymentRecord or CollectionSourceKind.UtilityBill)
+                return knownCutovers.Any(x => x.SourceKind == k && x.SourceId == sourceId && x.SourcePart == part);
             // A posted line whose source row cannot be read is still posted money; it is not hidden.
             var authority = k switch
             {
@@ -373,7 +426,8 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
             .ToDictionaryAsync(p => p.Id, p => (RevenueInstrumentType?)p.PermittedInstrumentType, ct);
 
         var corrections = await context.CollectionCorrections.AsNoTracking()
-            .Where(c => c.MunicipalityId == tenant && ids.Contains(c.OriginalCollectionId))
+            .Where(c => c.MunicipalityId == tenant && ids.Contains(c.OriginalCollectionId)
+                && (!cutoffUtc.HasValue || c.RecordedAtUtc <= cutoffUtc.Value))
             .Select(c => new { c.Id, c.OriginalCollectionId, c.CorrectionType, c.CorrectionEffectiveDate, c.RecordedAtUtc, c.ReplacementCollectionId, c.ReplacementDocumentId, c.Reason })
             .ToListAsync(ct);
         var correctionIds = corrections.Select(c => c.Id).ToArray();
@@ -382,13 +436,15 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
             .Select(c => new { c.CorrectionId, c.OriginalCollectionLineId, c.FinancialEffectAmount })
             .ToListAsync(ct);
         var replaces = await context.CollectionCorrections.AsNoTracking()
-            .Where(c => c.MunicipalityId == tenant && c.ReplacementCollectionId.HasValue && ids.Contains(c.ReplacementCollectionId.Value))
+            .Where(c => c.MunicipalityId == tenant && c.ReplacementCollectionId.HasValue && ids.Contains(c.ReplacementCollectionId.Value)
+                && (!cutoffUtc.HasValue || c.RecordedAtUtc <= cutoffUtc.Value))
             .Select(c => new { Replacement = c.ReplacementCollectionId!.Value, c.OriginalCollectionId })
             .ToListAsync(ct);
 
         var replacementDocIds = corrections.Where(c => c.ReplacementDocumentId.HasValue).Select(c => c.ReplacementDocumentId!.Value).ToArray();
         var documents = await context.AccountableDocuments.AsNoTracking()
             .Where(d => d.MunicipalityId == tenant
+                && (!cutoffUtc.HasValue || d.ConsumedAtUtc.HasValue && d.ConsumedAtUtc.Value <= cutoffUtc.Value)
                 && ((d.CollectionId.HasValue && ids.Contains(d.CollectionId.Value)) || replacementDocIds.Contains(d.Id)))
             .Select(d => new { d.Id, d.CollectionId, d.DocumentNumber, d.InstrumentType })
             .ToListAsync(ct);
@@ -398,7 +454,8 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
         var replacementCodes = replacementCollectionIds.Length == 0
             ? new Dictionary<Guid, string>()
             : await context.Collections.AsNoTracking()
-                .Where(x => x.MunicipalityId == tenant && replacementCollectionIds.Contains(x.Id))
+                .Where(x => x.MunicipalityId == tenant && replacementCollectionIds.Contains(x.Id)
+                    && (!cutoffUtc.HasValue || x.RecordedAtUtc <= cutoffUtc.Value))
                 .ToDictionaryAsync(x => x.Id, x => x.ReferenceCode, ct);
 
         var linesByCollection = authoritative.ToLookup(l => l.CollectionId);
@@ -423,10 +480,24 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
                     (year, month, description) = (bill.BillingYear, bill.BillingMonth, $"Stall {bill.StallNo}");
                 else if (kind == CollectionSourceKind.DailyCollection && sourceId is { } dayId && days.TryGetValue(dayId, out var day))
                     (year, month, description) = (day.CollectionDate.Year, day.CollectionDate.Month, $"Stall {day.StallNo}");
+                else if (kind == CollectionSourceKind.NpmRentMonth && sourceId is { } frozenId && frozenMonths.TryGetValue(frozenId, out var frozen))
+                    (year, month, description) = (frozen.Period.Year, frozen.Period.Month, $"Stall {frozen.Space}");
+                else if (kind == CollectionSourceKind.NpmRentMonth && sourceId is { } rentId && rentMonths.TryGetValue(rentId, out var rent))
+                    (year, month, description) = (rent.PeriodStart.Year, rent.PeriodStart.Month, $"Stall {rent.StallNo}");
                 else if (kind == CollectionSourceKind.DirectFineCollection)
                     description = "Direct fine collection";
-                return new CollectionActivityLineDto(code, policyNames.GetValueOrDefault(l.RevenueClassificationPolicyId, code),
-                    l.Amount, kind?.ToString(), l.SourcePart?.ToString(), sourceId, year, month, description);
+                var display = policyNames.GetValueOrDefault(l.RevenueClassificationPolicyId, code);
+                // Itemized Slaughterhouse posts one SRC with a frozen approved-name snapshot per charge.
+                // A revenue policy names the operation, not the individual service: never replace that
+                // recorded label with today's mutable fee schedule or an amount-based guess.
+                if (code == RevenueClassificationCodes.Slaughterhouse
+                    && kind == CollectionSourceKind.GovernedService
+                    && FrozenSlaughterChargeName(l.CalculationSnapshot) is { } approved)
+                    display = approved;
+                return new CollectionActivityLineDto(code, display,
+                    l.Amount, kind?.ToString(), l.SourcePart?.ToString(), sourceId, year, month, description,
+                    ParentSourceName: code == RevenueClassificationCodes.Slaughterhouse
+                        ? policyNames.GetValueOrDefault(l.RevenueClassificationPolicyId, code) : null);
             }).ToList();
 
             var facilities = own.SelectMany(l => new[] { (l.SourceKind, l.SourceId) }
@@ -434,6 +505,8 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
                 .Select(s => s.Item1 == CollectionSourceKind.PaymentRecord && s.Item2 is { } r && records.TryGetValue(r, out var rec) ? (FacilityCode?)rec.Code
                     : s.Item1 == CollectionSourceKind.UtilityBill && s.Item2 is { } b && bills.TryGetValue(b, out var bill) ? bill.Code
                     : s.Item1 == CollectionSourceKind.DailyCollection && s.Item2 is { } d && days.TryGetValue(d, out var day) ? day.Code
+                    : s.Item1 == CollectionSourceKind.NpmRentMonth && s.Item2 is { } frozenId && frozenMonths.TryGetValue(frozenId, out var frozen) ? frozen.Facility
+                    : s.Item1 == CollectionSourceKind.NpmRentMonth && s.Item2 is { } m && rentMonths.TryGetValue(m, out var rent) ? rent.Code
                     : null)
                 .Where(f => f.HasValue).Distinct().ToList();
             var stalls = detail.Select(d => d.Description).Where(d => d is not null).Distinct().ToList();
@@ -447,8 +520,8 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
             var effect = correctionDtos.Sum(x => x.FinancialEffect);
             var disposition = linked.Count == 0 ? "Posted"
                 : linked.Any(x => x.CorrectionType == CollectionCorrectionType.Void) ? "Voided"
+                : linked.Any(x => x.ReplacementCollectionId.HasValue || x.CorrectionType == CollectionCorrectionType.Replacement) ? "Replaced"
                 : linked.Any(x => x.CorrectionType == CollectionCorrectionType.Reversal) ? "Reversed"
-                : linked.Any(x => x.CorrectionType == CollectionCorrectionType.Replacement) ? "Replaced"
                 : "Document corrected";
 
             var linkedReplacementDocs = linked.Where(x => x.ReplacementDocumentId.HasValue).Select(x => x.ReplacementDocumentId!.Value).ToHashSet();
@@ -465,7 +538,8 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
                 c.CollectorId, CollectorName(c.CollectorId, collectors),
                 c.CollectorId is { } id ? collectors.GetValueOrDefault(id, "Collector") : string.IsNullOrWhiteSpace(c.ActorName) ? "Office" : c.ActorName,
                 facilities.Count == 1 ? facilities[0] : null,
-                stalls.Count == 0 ? null : string.Join(", ", stalls), null,
+                stalls.Count == 0 ? null : string.Join(", ", stalls),
+                FrozenSlaughterSubject(own.Where(l => codes.GetValueOrDefault(l.RevenueClassificationId) == RevenueClassificationCodes.Slaughterhouse).Select(l => l.CalculationSnapshot)),
                 amount, effect, amount + effect, disposition,
                 replaces.FirstOrDefault(x => x.Replacement == c.Id)?.OriginalCollectionId,
                 detail, correctionDtos));

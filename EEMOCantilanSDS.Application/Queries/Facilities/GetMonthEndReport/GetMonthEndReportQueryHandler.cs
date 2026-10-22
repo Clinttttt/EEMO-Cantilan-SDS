@@ -72,6 +72,7 @@ public class GetMonthEndReportQueryHandler(
         var tenantCodes = facilityNames.Keys.ToHashSet();
 
         // ── Rental facilities: per-payor compliance + summary from the canonical report aggregation ──
+        var npmMonthly = (await facilityRepository.GetByCodeAsync(FacilityCode.NPM, ct))?.IsMonthlyRentMarket == true;
         foreach (var code in RentalFacilities.Where(tenantCodes.Contains))
         {
             var report = await reportsRepository.GetFacilityReportsAsync(
@@ -80,7 +81,7 @@ public class GetMonthEndReportQueryHandler(
             // NPM is billed daily; surface the fixed full-month (30-day) coverage reference (₱900) and the
             // remaining balance toward it alongside the existing daily-based figures. Additive only — every
             // other facility keeps these at 0 and is unaffected.
-            var isNpm = code == FacilityCode.NPM;
+            var isNpm = code == FacilityCode.NPM && !npmMonthly;
 
             var payors = report.StallCompliance
                 .Select(s =>
@@ -90,7 +91,7 @@ public class GetMonthEndReportQueryHandler(
                     // report carries per stall, so an office pricing its areas apart is measured area by area.
                     var stallDaily = s.DailyRate > 0 ? s.DailyRate : npmDaily;
                     var coverage = isNpm
-                        ? rateSnapshot.MonthRule.Coverage(stallDaily, npmMonthlyStated, asOf.Day, s.AbsentDays)
+                        ? s.FullPeriodRentObligation ?? rateSnapshot.MonthRule.Coverage(stallDaily, npmMonthlyStated, asOf.Day, s.AbsentDays)
                         : 0m;
                     return new MonthEndPayorDto(
                         s.StallNo, s.Occupant, s.MonthlyRate, s.Status, s.AmountPaid, s.Balance, s.ORNumber, s.DailyRate,

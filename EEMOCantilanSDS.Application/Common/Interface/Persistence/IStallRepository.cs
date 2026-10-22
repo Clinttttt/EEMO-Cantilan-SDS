@@ -28,6 +28,7 @@ public interface IStallRepository
     /// import to decide per row whether to create a new stall or renew an existing expired/closed one.
     /// </summary>
     Task<IReadOnlyList<Stall>> GetStallsWithContractsByFacilityAsync(FacilityCode facilityCode, MarketSection? section, string? customSectionName, CancellationToken ct);
+    Task<IReadOnlyList<Stall>> GetNpmStallsWithContractsAsync(CancellationToken ct);
     Task AddAsync(Stall stall, CancellationToken ct);
     Task AddContractAsync(Contract contract, CancellationToken ct);
     Task UpdateAsync(Stall stall, CancellationToken ct);

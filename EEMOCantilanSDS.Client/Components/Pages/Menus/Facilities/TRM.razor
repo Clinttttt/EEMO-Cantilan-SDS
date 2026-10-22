@@ -4,7 +4,7 @@
 @inject NavigationManager Navigation
 
 @* The old Transport Terminal address. Income From Terminal is its own operation now and Transportation / Parking is separate, so this only
-   forwards a saved link; the earlier trip records stay under "Legacy trip history". *@
+   forwards a saved link. *@
 
 @code {
     protected override void OnInitialized() => Navigation.NavigateTo("/operations/terminal", replace: true);

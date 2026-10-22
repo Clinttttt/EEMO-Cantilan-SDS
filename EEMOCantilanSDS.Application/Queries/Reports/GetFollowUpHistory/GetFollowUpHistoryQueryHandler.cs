@@ -1,4 +1,4 @@
-﻿using EEMOCantilanSDS.Application.Common.Interface.Time;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Tenancy;
@@ -78,7 +78,7 @@ public class GetFollowUpHistoryQueryHandler(
         // showing a single month's figure under a "whole time" heading is exactly the contradiction this fixes.
         if (request.AllTime)
         {
-            var allAccounts = await closedRegister.GetClosedStallAccountsAsync(ct);
+            var allAccounts = await closedRegister.GetClosedStallAccountsAsOfAsync(asOf, ct);
             // Keyed on stall identity, and only the occupancy that is still in force. Keying by facility-and-number
             // summed the market's three "Stall 1" spaces into one figure, and including ended occupancies put their
             // balance on a lapsed contract row as well as on their own row in the register section below — the same
@@ -159,7 +159,8 @@ public class GetFollowUpHistoryQueryHandler(
                 : await reportsRepository.GetFacilityReportsAsync(code, ReportPeriod.Monthly, year, month, null, ct);
         }
 
-        var delinquency = await reportsRepository.GetDelinquentStallsAsync(null, year, month, ct);
+        // The whole account as of that period, so Arrears (previous-year and expired-contract months, IA-069) is stated in full like the live queue.
+        var delinquency = await reportsRepository.GetDelinquentStallsAsync(null, year, month, includeClosed: true, wholeAccount: true, ct);
 
         // Online payments still awaiting a receipt, and utility bills, are recorded per month and have no year-wide
         // read. Both are small, single-table lookups, so a whole-year view gathers the year's months rather than

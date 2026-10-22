@@ -29,7 +29,8 @@ public class BulkImportStallholdersCommandHandler(
         if (facility is null)
             return Result<BulkImportResultDto>.NotFound();
 
-        var isNpm = request.FacilityCode == FacilityCode.NPM;
+        // A Public Market its LGU rents by the month imports like any monthly facility: one monthly rent per stall, no daily rate.
+        var isNpm = request.FacilityCode == FacilityCode.NPM && !facility.IsMonthlyRentMarket;
         var section = isNpm ? request.Section : null;
         // NPM custom section (Section null + a name): every imported row lands in this custom section,
         // billed flat-daily like Vegetable/Meat.
@@ -45,8 +46,10 @@ public class BulkImportStallholdersCommandHandler(
         var statedDailyRate = section is { } importedArea
             ? NpmDailyFee.ForAreaOrNull(importedArea, rateSnapshot, rateAsOf)
             : rateSnapshot.ResolveOrNull(FeeRateKey.NpmDailyStall, rateAsOf);
-        if (statedDailyRate is not { } npmDailyRate)
+        // Only a daily-collected market needs a stated daily fee; a monthly facility never reads it.
+        if (isNpm && statedDailyRate is null)
             return Result<BulkImportResultDto>.Failure(FeeRateMessages.NotStated(FeeRateKey.NpmDailyStall));
+        var npmDailyRate = statedDailyRate ?? 0m;
 
         // Load the facility's existing stalls (tracked) so an imported row landing on an EXPIRED/CLOSED
         // stall number renews that stall instead of being rejected, while an ACTIVE stall is protected.

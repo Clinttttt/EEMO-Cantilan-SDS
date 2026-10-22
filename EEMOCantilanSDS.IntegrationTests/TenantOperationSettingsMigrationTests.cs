@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 
 namespace EEMOCantilanSDS.IntegrationTests;
 
@@ -26,23 +27,59 @@ public sealed class TenantOperationSettingsMigrationTests(PostgresFixture db)
     private static async Task MigrateToAsync(Microsoft.EntityFrameworkCore.DbContext context, string? target) =>
         await context.GetService<IMigrator>().MigrateAsync(target);
 
+    private sealed class NoTenant : EEMOCantilanSDS.Application.Common.Tenancy.ICurrentMunicipalityAccessor
+    {
+        public Guid MunicipalityId => Guid.Empty;
+        public void Set(Guid municipalityId) { }
+    }
+
+    /// <summary>
+    /// A schema is rewound by building a SEPARATE throwaway database forward to the wanted migration, never by running later migrations'
+    /// Down. Some later migrations are deliberately forward-only (the NPM evidence schema refuses Down with "An approved forward recovery
+    /// plan is required"); that safeguard stays, and these tests no longer depend on crossing it.
+    /// </summary>
+    private async Task<(string Name, string ConnectionString)> NewThrowawayDatabaseAsync()
+    {
+        var name = "ops_" + Guid.NewGuid().ToString("N")[..10];
+        await using var admin = db.CreateRawConnection();
+        await admin.OpenAsync();
+        await using (var create = new NpgsqlCommand($"CREATE DATABASE {name}", admin)) await create.ExecuteNonQueryAsync();
+        var cs = new NpgsqlConnectionStringBuilder(db.CreateRawConnection().ConnectionString) { Database = name, Pooling = false }.ConnectionString;
+        return (name, cs);
+    }
+
+    private async Task DropAsync(string name)
+    {
+        await using var admin = db.CreateRawConnection();
+        await admin.OpenAsync();
+        await using var drop = new NpgsqlCommand($"DROP DATABASE IF EXISTS {name} WITH (FORCE)", admin);
+        await drop.ExecuteNonQueryAsync();
+    }
+
+    private static Microsoft.EntityFrameworkCore.DbContext Open(string cs) =>
+        new EEMOCantilanSDS.Infrastructure.Persistence.AppDbContext(
+            new DbContextOptionsBuilder<EEMOCantilanSDS.Infrastructure.Persistence.AppDbContext>().UseNpgsql(cs).Options, new NoTenant());
+
+    private static EEMOCantilanSDS.Infrastructure.Persistence.AppDbContext OpenApp(string cs) =>
+        (EEMOCantilanSDS.Infrastructure.Persistence.AppDbContext)Open(cs);
+
     [SkippableFact]
     public async Task Upgrading_AnExistingSchemaWithData_LeavesItUntouched_AndTheTenantOnTheLegacyFallback()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
-        await db.ResetAsync();
         Guid cantilan;
+        var (dbName, cs) = await NewThrowawayDatabaseAsync();
         try
         {
-            // The schema as it was before this migration - what production holds today.
-            await using (var rewind = db.CreateContext(Guid.Empty)) await MigrateToAsync(rewind, PreviousMigration);
-            await using (var check = db.CreateContext(Guid.Empty))
+            // The schema as it was before this migration - what production holds today - built forward in its own database.
+            await using (var rewind = Open(cs)) await MigrateToAsync(rewind, PreviousMigration);
+            await using (var check = Open(cs))
                 Assert.Equal(0, await check.Database.SqlQueryRaw<int>(
                     "select count(*)::int as \"Value\" from information_schema.tables where table_name = 'TenantOperationSettings'").SingleAsync());
 
             var municipality = Municipality.Create("CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active, tenantCode: "cantilan-sds", isDefault: true);
             cantilan = municipality.Id;
-            await using (var seed = db.CreateContext(Guid.Empty))
+            await using (var seed = OpenApp(cs))
             {
                 seed.Municipalities.Add(municipality);
                 seed.Facilities.Add(Facility.Create(FacilityCode.NPM, "New Public Market", "NPM", archetype: BillingArchetype.DailyStall, municipalityId: cantilan));
@@ -52,10 +89,10 @@ public sealed class TenantOperationSettingsMigrationTests(PostgresFixture db)
             }
 
             // Upgrade, twice (the second is a no-op).
-            await using (var up = db.CreateContext(Guid.Empty)) await up.Database.MigrateAsync();
-            await using (var again = db.CreateContext(Guid.Empty)) await again.Database.MigrateAsync();
+            await using (var up = Open(cs)) await up.Database.MigrateAsync();
+            await using (var again = Open(cs)) await again.Database.MigrateAsync();
 
-            await using var verify = db.CreateContext(Guid.Empty);
+            await using var verify = OpenApp(cs);
             Assert.Contains(ThisMigration, await verify.Database.GetAppliedMigrationsAsync());
             Assert.Equal(1, (await verify.Database.GetAppliedMigrationsAsync()).Count(m => m == ThisMigration));
             Assert.Equal(1, await verify.Facilities.IgnoreQueryFilters().CountAsync());
@@ -70,11 +107,7 @@ public sealed class TenantOperationSettingsMigrationTests(PostgresFixture db)
             Assert.All(dto.Items, i => Assert.True(i.IsListed));
             Assert.Equal("Kanmanggay", dto.Items.Single(i => i.OperationCode == "KANMANGGAY_SPACE_RENTAL").DisplayName);
         }
-        finally
-        {
-            await using var restore = db.CreateContext(Guid.Empty);
-            await restore.Database.MigrateAsync();
-        }
+        finally { await DropAsync(dbName); }
     }
 
     [SkippableFact]
@@ -96,21 +129,22 @@ public sealed class TenantOperationSettingsMigrationTests(PostgresFixture db)
     public async Task RollingBackThisMigration_DropsOnlyItsOwnTable()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
-        await db.ResetAsync();
+        var (dbName, cs) = await NewThrowawayDatabaseAsync();
         try
         {
-            await using (var rewind = db.CreateContext(Guid.Empty)) await MigrateToAsync(rewind, PreviousMigration);
-            await using var check = db.CreateContext(Guid.Empty);
+            // Forward to THIS migration, then undo only it: its own Down is what is under test, and no later migration is crossed.
+            await using (var forward = Open(cs)) await MigrateToAsync(forward, ThisMigration);
+            await using (var before = Open(cs))
+                Assert.Equal(1, await before.Database.SqlQueryRaw<int>(
+                    "select count(*)::int as \"Value\" from information_schema.tables where table_name = 'TenantOperationSettings'").SingleAsync());
+            await using (var rewind = Open(cs)) await MigrateToAsync(rewind, PreviousMigration);
+            await using var check = Open(cs);
             var tables = await check.Database.SqlQueryRaw<string>(
                 "select table_name as \"Value\" from information_schema.tables where table_schema = 'public' and table_name in ('TenantOperationSettings','Facilities','Municipalities')").ToListAsync();
             Assert.DoesNotContain("TenantOperationSettings", tables);
             Assert.Contains("Facilities", tables);
             Assert.Contains("Municipalities", tables);
         }
-        finally
-        {
-            await using var restore = db.CreateContext(Guid.Empty);
-            await restore.Database.MigrateAsync();
-        }
+        finally { await DropAsync(dbName); }
     }
 }

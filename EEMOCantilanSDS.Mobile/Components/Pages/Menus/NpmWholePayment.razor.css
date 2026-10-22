@@ -1,14 +1,6 @@
-.whole-workspace { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 16px 16px calc(72px + env(safe-area-inset-bottom, 0px)); color: var(--mobile-text); }
-.whole-workspace h1 { margin: 16px 0 2px; font-size: 20px; line-height: 1.25; color: var(--mobile-navy); }
-.whole-payor, .whole-note { margin: 0; color: var(--mobile-text-secondary); font-size: 13px; }
-.whole-modes { display: flex; padding: 4px; gap: 4px; border: 1px solid var(--mobile-border); border-radius: 10px; background: var(--mobile-surface); }
-.whole-modes button { flex: 1; min-height: 44px; border: 0; border-radius: 8px; background: transparent; color: var(--mobile-navy); font: inherit; }
-.whole-modes .selected { background: var(--mobile-blue); color: white; font-weight: 600; }
-
-/* Month and Year read as one period control: two choices side by side, the month the wider. */
-.whole-period { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 10px; margin: 14px 0 16px; }
-
-.whole-confirm { display: block; flex: 0 0 auto; width: 100%; height: 48px; min-height: 48px; margin-top: 14px; }
-.whole-error { color: var(--mobile-error); font-size: 14px; }
-.whole-notice { color: var(--mobile-blue); font-size: 14px; font-weight: 600; }
-button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--mobile-focus); outline-offset: 2px; }
+.whole-workspace { display: flex; flex-direction: column; gap: 16px; flex: 1 1 auto; min-height: 0; min-width: 0; overflow-y: auto; padding: 20px 16px calc(80px + env(safe-area-inset-bottom, 0px)); color: var(--mobile-text); }
+.whole-workspace h1 { margin: 0; font-size: 20px; line-height: 1.25; color: var(--mobile-navy); }
+.whole-payor { margin: -10px 0 0; color: var(--mobile-text-secondary); font-size: 13px; }
+.whole-history { color: var(--mobile-text-secondary); font-size: 13px; }
+.whole-history a { display: inline-block; margin-top: 12px; }
+button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--mobile-focus); outline-offset: 2px; }

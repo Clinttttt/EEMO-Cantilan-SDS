@@ -5,6 +5,7 @@ using System.Text.Json;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Tenancy;
+using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
@@ -15,7 +16,7 @@ namespace EEMOCantilanSDS.Application.Common.Revenue;
 /// <summary>Non-financial orchestration. Source adapters quote and call their original canonical writers.</summary>
 public sealed class CollectionSessionWorkflow(ICollectionSessionStore store, ICollectionSessionSources sources,
     ICurrentUserService user, ICurrentMunicipalityAccessor municipality, IClock clock,
-    ILogger<CollectionSessionWorkflow> logger)
+    ILogger<CollectionSessionWorkflow> logger, NpmRentMonthWorkflow? monthly = null)
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private async Task<bool> AuthorizedAsync(CancellationToken ct) => user.IsAuthenticated && user.Role == "Collector"
@@ -85,6 +86,9 @@ public sealed class CollectionSessionWorkflow(ICollectionSessionStore store, ICo
                     CollectionSessionItemKind.Obligation when item.Obligation is { } o => $"Obligation|{o.AccountId}|{o.Year}|{o.Month}",
                     CollectionSessionItemKind.Electricity when item.Electricity is { UtilityBillId: var bill } && bill != Guid.Empty => $"Electricity|{bill}",
                     CollectionSessionItemKind.Electricity when item.Electricity is { } e => $"Electricity|{e.StallId}|{e.Year}|{e.Month}",
+                    // A registered vendor's fee and weighing are each taken once per checkout: a twin would be the same charge keyed twice.
+                    CollectionSessionItemKind.SourceNative when item.Native is { VendorRegistrationId: { } vendor, OperationCode: EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.FishMeatVendorFee or EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.WeightAndMeasure } native
+                        => $"VendorCharge|{native.OperationCode}|{vendor}",
                     // These are independent transactions, not shared balances. Each keeps its own document boundary.
                     CollectionSessionItemKind.Weighing or CollectionSessionItemKind.Slaughter or CollectionSessionItemKind.SourceNative => $"Transaction|{item.ClientItemId}",
                     CollectionSessionItemKind.VendorFee => $"VendorFee|{item.ClientItemId}",
@@ -156,6 +160,8 @@ public sealed class CollectionSessionWorkflow(ICollectionSessionStore store, ICo
         }
         logger.LogInformation("Collector checkout {SessionId} returned {Status} with {Count} canonical collections",
             intent.ClientCollectionSessionId, result?.Status, result?.Collections.Count ?? 0);
+        if (result?.Status == CollectionSessionStatus.Recorded && monthly?.Enabled == true)
+            await monthly.InvalidateAfterCommitAsync(ct);
         return Result<CollectionSessionResult>.Success(result!);
     }
 
@@ -196,10 +202,13 @@ public sealed class CollectionSessionWorkflow(ICollectionSessionStore store, ICo
         })
         }, Json);
         // Preserve the v1 fingerprint byte-for-byte for existing queued/replayed sessions.
-        return intent.Items.Any(i => i.Weighing is not null || i.Slaughter is not null || i.VendorFee is not null || i.NpmWhole is not null)
+        var fingerprint = intent.Items.Any(i => i.Weighing is not null || i.Slaughter is not null || i.VendorFee is not null || i.NpmWhole is not null)
             ? Hash(JsonSerializer.Serialize(new { Version = 2, Original = original,
                 Specialized = intent.Items.OrderBy(i => i.ClientItemId).Select(i => new { i.ClientItemId, i.Weighing, i.Slaughter, i.VendorFee, i.NpmWhole }) }, Json))
             : Hash(original);
+        var receipts = intent.Items.Where(i => !string.IsNullOrWhiteSpace(i.NpmDaily?.OfficialReceiptNumber))
+            .OrderBy(i => i.ClientItemId).Select(i => i.ClientItemId + NpmReceiptEvidence.IntentSuffix(i.NpmDaily!.OfficialReceiptNumber)).ToArray();
+        return receipts.Length == 0 ? fingerprint : Hash(fingerprint + "|" + string.Join("|", receipts));
     }
     public static Guid ChildOperationId(Guid tenant, Guid session, Guid item) =>
         new(SHA256.HashData(Encoding.UTF8.GetBytes($"StallTrack.CollectionSession.v1|{tenant:N}|{session:N}|{item:N}"))[..16]);

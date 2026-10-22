@@ -151,6 +151,28 @@ public sealed partial class CollectionSessionTests
     }
 
     [SkippableFact]
+    public async Task A_direct_head_link_closes_the_collectors_pending_request_for_that_stall_and_leaves_other_requests_open()
+    {
+        var w = await SeedAsync(section: MarketSection.FishSection); await using var db = database.CreateContext(w.TenantId);
+        await EnableOffice(db, w);
+        var head = Office(db, w, "SuperAdmin"); var collector = Office(db, w); var year = PhilippineTime.Today.Year;
+        var source = Assert.Single((await head.NpmVendorCandidatesAsync(year)).Value!.Rows);
+        var matching = (await head.RegisterAsync(new(Guid.NewGuid(), year, FishMeatVendorType.Fish, VendorRegistrationKind.New, "Waiting vendor"))).Value!;
+        var elsewhere = (await head.RegisterAsync(new(Guid.NewGuid(), year, FishMeatVendorType.Fish, VendorRegistrationKind.New, "Other stall vendor"))).Value!;
+        var asked = (await collector.SubmitNpmRequestAsync(new(Guid.NewGuid(), matching.Id, source.StallNo, MarketSection.FishSection, "Verify the occupant"))).Value!;
+        var other = (await collector.SubmitNpmRequestAsync(new(Guid.NewGuid(), elsewhere.Id, "NOT-" + source.StallNo, MarketSection.FishSection, "A different stall"))).Value!;
+
+        // The Head links the vendor straight to the stall the collector asked about: that is the association the request wanted.
+        var link = await head.LinkNpmVendorAsync(matching.Id, Confirmation(source)); Assert.True(link.IsSuccess, link.Error);
+
+        var closed = (await head.NpmRequestsAsync()).Value!.Rows.Single(x => x.Id == asked.Id);
+        Assert.Equal((NpmRegistrationRequestStatus.Approved, link.Value!.Id), (closed.Status, closed.AssociationId));
+        Assert.Equal(ResultStatus.NotFound, (await collector.PendingNpmRequestAsync(matching.Id)).Status);   // nothing left pending on the phone
+        // A request for another stall (or vendor) is untouched; and nothing was posted.
+        Assert.Equal(NpmRegistrationRequestStatus.Submitted, (await head.NpmRequestsAsync()).Value!.Rows.Single(x => x.Id == other.Id).Status);
+        Assert.Empty(await db.Collections.ToListAsync());
+    }
+    [SkippableFact]
     public async Task Npm_requests_are_tenant_scoped_and_rejection_preserves_history_without_tenancy()
     {
         var w = await SeedAsync(); var other = await SeedAsync(reset: false);

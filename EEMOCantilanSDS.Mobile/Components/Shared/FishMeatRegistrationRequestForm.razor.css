@@ -1,0 +1,25 @@
+.fmr { display: grid; gap: 12px; min-width: 0; }
+.fmr-field { display: grid; gap: 6px; color: var(--navy-primary); font-size: 12px; font-weight: 600; }
+.fmr .form-input { width: 100%; min-width: 0; box-sizing: border-box; font-size: 14px; }
+.fmr textarea { resize: vertical; min-height: 72px; }
+
+.fmr-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+.fmr-seg button {
+    min-height: 44px;
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-page);
+    color: var(--navy-primary);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.fmr-seg button.on { border-color: var(--navy-primary); background: #fff; }
+.fmr-seg button:focus-visible { outline: 2px solid var(--navy-primary); outline-offset: 2px; }
+
+.fmr-error { margin: 0; padding: 9px 10px; border-left: 3px solid #b34a4a; background: #fff2f2; color: #8d2727; font-size: 12px; line-height: 1.45; }
+.fmr-note { margin: 0; color: var(--text-muted); font-size: 11px; line-height: 1.45; }
+.fmr-actions { display: flex; gap: 8px; }
+.fmr-actions button { flex: 1 1 0; }
+.fmr-link { justify-self: start; padding: 0; border: 0; background: transparent; color: var(--navy-primary); font-size: 12px; font-weight: 600; text-decoration: underline; }

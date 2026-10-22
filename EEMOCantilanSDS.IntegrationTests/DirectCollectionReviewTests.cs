@@ -22,7 +22,7 @@ namespace EEMOCantilanSDS.IntegrationTests;
 /// tenant-isolated, idempotent per operation id, and a possible duplicate is flagged and left out of bulk confirmation.
 /// </summary>
 [Collection(PostgresCollection.Name)]
-public sealed class DirectCollectionReviewTests(PostgresFixture db)
+public sealed partial class DirectCollectionReviewTests(PostgresFixture db)
 {
     private static DateOnly Today => PhilippineTime.Today;
 
@@ -70,7 +70,7 @@ public sealed class DirectCollectionReviewTests(PostgresFixture db)
         return new(tenant.Id, head, collector.Id, stall.Id);
     }
 
-    private static DirectCollectionReviewWorkflow Review(AppDbContext ctx, World w, string role = "Admin", Guid? tenant = null) =>
+    private static DirectCollectionReviewWorkflow Review(AppDbContext ctx, World w, string role = "SuperAdmin", Guid? tenant = null) =>
         new(ctx, new Actor(role == "Collector" ? w.Collector : w.Head, tenant ?? w.TenantId, role), new FixedTenant(tenant ?? w.TenantId), new Clock());
 
     private static async Task<Guid> RecordDirectAsync(AppDbContext ctx, World w, decimal amount)
@@ -120,6 +120,23 @@ public sealed class DirectCollectionReviewTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task TheScopedReviewAreaKeepsDirectWcfAmounts_AndItsFiguresMatchTheList()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync();
+        await using var ctx = db.CreateContext(w.TenantId);
+        var collectionId = await RecordDirectAsync(ctx, w, 10m);
+
+        var scoped = (await Review(ctx, w).GetAsync(Pending() with { Scoped = true })).Value!;
+        Assert.Equal(collectionId, Assert.Single(scoped.Rows).CollectionId);
+        Assert.Equal(1, scoped.PendingCount);
+        var position = (await Review(ctx, w).GetPositionAsync(Today.AddDays(-1), Today, default, scoped: true)).Value!;
+        Assert.Equal(10m, position.Recorded);
+        Assert.Empty((await Review(ctx, w).GetAsync(Pending("NeedsRegistration") with { Scoped = true })).Value!.Rows);   // a utility amount never needs a vendor registration
+    }
+
+    [SkippableFact]
     public async Task NeedsCorrectionRequiresANote_AndOnlyAFlaggedCollectionCanBeResolved_WithoutTouchingTheMoney()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
@@ -160,8 +177,10 @@ public sealed class DirectCollectionReviewTests(PostgresFixture db)
         Assert.Contains("duplicate", result.Skipped[0].Reason, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(0, await ctx.DirectCollectionReviewEvents.CountAsync());
 
-        // A deliberate single review of each is still possible: the Head decides, the system never blocks genuine repeat payments.
-        Assert.True((await Review(ctx, w).ReviewAsync(new(Guid.NewGuid(), twin, "Confirmed"))).IsSuccess);
+        // A possible duplicate is never confirmed silently: the Head may confirm it on its own, but only by writing why it is a genuine repeat payment.
+        Assert.False((await Review(ctx, w).ReviewAsync(new(Guid.NewGuid(), twin, "Confirmed"))).IsSuccess);
+        Assert.False((await Review(ctx, w).ReviewAsync(new(Guid.NewGuid(), twin, "Confirmed", "too short"))).IsSuccess);
+        Assert.True((await Review(ctx, w).ReviewAsync(new(Guid.NewGuid(), twin, "Confirmed", "Second payment received at the counter, separate slip"))).IsSuccess);
         Assert.Equal(2, await ctx.Collections.CountAsync());
     }
 

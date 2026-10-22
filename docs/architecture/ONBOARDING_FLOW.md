@@ -229,7 +229,7 @@ additive only; see `../planning/IMPLEMENTATION_HISTORY.md` for the full reasonin
 
 Its rules are the registry's own, asserted in `ActivationCustomMarketAreaTests`: a name is required and capped at 60
 characters (as `AddNpmCustomSectionCommandValidator` has it), the same area twice is refused rather than collapsed, only
-a daily-stall market has areas to declare (nothing else keeps a registry, so accepting them would store nothing and say
+a public market has areas to declare, whether it is collected daily or rented monthly (nothing else keeps a registry, so accepting them would store nothing and say
 nothing), and an area may not carry the same name as one of the three the office has already named — two groups reading
 "Gulayan" on one sheet is not a document anybody can reconcile.
 
@@ -265,3 +265,7 @@ under.
 Both fall back to the production domain when unset, so existing deployments are unchanged. `MunicipalityPage` lower-cases the code,
 because the landing site's own links are written that way (`?lgu=carrascal`) and a casing its router does not match would fall
 through the same wildcard that caused the original fault.
+
+## The Public Market's rental model
+
+A Public Market (`NPM`) is rented in one of three declared ways, and the LGU states which at onboarding: **standard monthly stall rental** (stored as `Facility.Archetype = MonthlyRental`, collected like TCC/NCC), or the **daily-collected market** (`DailyStall`) on the monthly-rent-in-installments basis (`RentGoal`, Cantilan's) or the calendar-day basis (`PureDays`). The archetype is stored once, has no setter, and is never inferred from a rate, an amount or a name. Landing records it as `rentalModel` on the draft facility, Platform Admin maps it to `archetype`, and activation refuses a contradictory pair (a monthly market with a daily rate, a monthly-stall rate or the days basis) instead of converting it. The market keeps its sections whichever way it is rented. Details and gates: `docs/planning/PUBLIC_MARKET_RENTAL_MODELS_20261018.md`.

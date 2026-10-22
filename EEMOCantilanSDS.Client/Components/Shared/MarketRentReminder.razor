@@ -200,7 +200,7 @@
 
             // A tenant with no market has no market rent to confirm.
             await FacilityCatalog.EnsureLoadedAsync();
-            if (!FacilityCatalog.All.Contains(FacilityCode.NPM)) return;
+            if (!FacilityCatalog.All.Contains(FacilityCode.NPM) || FacilityCatalog.IsMonthlyRentMarket) return;   // a monthly-rent market has no month basis or market rent to confirm
 
             var rates = await StallsApi.GetNpmRatesAsync();
             if (!rates.IsSuccess || rates.Value is null) return;

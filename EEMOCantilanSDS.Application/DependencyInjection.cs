@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Behaviors;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -32,15 +33,34 @@ namespace EEMOCantilanSDS.Application
                 Common.Interface.Services.IOnlinePaymentSettlementService,
                 Common.Payments.OnlinePaymentSettlementService>();
 
-            services.AddScoped<
-                Common.Payments.INpmMonthSettlementService,
-                Common.Payments.NpmMonthSettlementService>();
+            services.AddScoped<Common.Payments.NpmMonthSettlementService>();
+            services.AddScoped<Common.Payments.INpmMonthSettlementService, Common.Payments.NpmMonthSettlementBridge>();
+            // Deliberately not bound to configuration: no setting can activate an unfinished source.
+            services.AddSingleton(new Common.Payments.NpmRentMonthRuntime());
+            services.AddSingleton(new Common.Revenue.MonthlyRentReceiptOptions());
+            // Default off: Office cash turnover needs its schema installed and an explicit activation.
+            services.AddSingleton(new Dtos.Revenue.OfficeCashTurnoverOptions());
+            services.AddScoped<Common.Revenue.OfficeCashTurnoverWorkflow>();
+            services.AddScoped<Common.Payments.NpmRentMonthWorkflow>();
+            services.AddScoped<Common.Revenue.NpmOutstandingRentWorkflow>();
+            // Read-only account lifecycle: one adapter per source family; the query picks the adapter that handles the requested source.
+            services.AddScoped<Common.Lifecycle.StallLifecycle>();
+            // Space lifecycle execution: the same rental actions a stall has, through one shared rule table (no per-municipality switch).
+            services.AddScoped<Common.Lifecycle.SpaceLifecycleWorkflow>();
+            services.AddScoped<Common.Lifecycle.SpaceAccountLifecycle>();
+            services.AddScoped<Common.Lifecycle.SpaceIdentityPreflight>();
+            services.AddScoped<Common.Lifecycle.SpaceRegistrationBackfill>();
+            services.AddScoped(sp => new Common.Lifecycle.AccountLifecycleResolver(
+                [sp.GetRequiredService<Common.Lifecycle.StallLifecycle>(), sp.GetRequiredService<Common.Lifecycle.SpaceAccountLifecycle>()],
+                [sp.GetRequiredService<Common.Lifecycle.SpaceAccountLifecycle>()]));
 
             services.AddScoped<Common.Revenue.CollectionComposerWorkflow>();
             services.AddScoped<Common.Revenue.CollectionSessionWorkflow>();
             services.AddScoped<Common.Revenue.OfficeCollectionWorkflow>();
+            services.AddSingleton(new Common.Revenue.FishMeatRegistrationOptions());
             services.AddScoped<Common.Revenue.NpmDailyBatchWorkflow>();
             services.AddScoped<Common.Revenue.MobileCollectionCorrectionWorkflow>();
+            services.AddScoped<Common.Revenue.HeadCollectionCorrectionWorkflow>();
             services.AddScoped<Common.Revenue.EcfCollectionWorkflow>();
             services.AddScoped<Common.Revenue.WcfCollectionWorkflow>();
             services.AddScoped<Common.Revenue.UtilityPreparationWorkflow>();

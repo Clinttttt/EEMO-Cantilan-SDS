@@ -161,3 +161,42 @@
 @media (prefers-reduced-motion: reduce) {
     .fn-tab { transition: none; }
 }
+
+.fn-hero-meta { display: inline-flex; align-items: center; gap: 6px; }
+
+/* A collection row opens its details. */
+.fn-row { cursor: pointer; }
+.fn-row:hover td { background: var(--surface-muted); }
+.fn-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.fn-span { grid-column: 1 / -1; }
+
+/* Binary choice as one joined control. */
+.fn-seg { display: flex; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.fn-seg label { position: relative; flex: 1 1 0; padding: 9px 12px; color: var(--text-secondary); font-size: 0.8125rem; font-weight: 600; text-align: center; cursor: pointer; }
+.fn-seg label + label { border-left: 1px solid var(--border-strong); }
+.fn-seg label.is-on { background: var(--accent-soft); color: var(--accent); }
+.fn-seg input { position: absolute; opacity: 0; pointer-events: none; }
+.fn-seg label:focus-within { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Collection details dialog. */
+.fn-modal { width: min(40rem, 94vw); max-width: 94vw; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; }
+.fn-modal-head { display: flex; align-items: center; gap: 12px; padding: 16px 20px; background: var(--civic-panel); color: #fff; }
+.fn-modal-text { flex: 1 1 auto; min-width: 0; }
+.fn-modal-head h2 { margin: 0; color: #fff; font-size: 1.0625rem; font-weight: 700; overflow-wrap: anywhere; }
+.fn-modal-head p { margin: 2px 0 0; color: rgba(255, 255, 255, 0.78); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+.fn-modal-close { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 8px; background: rgba(255, 255, 255, 0.1); cursor: pointer; }
+.fn-modal-close svg { width: 16px; height: 16px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; }
+.fn-modal-close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.fn-modal-body { display: grid; gap: 16px; overflow-y: auto; padding: 20px; background: var(--bg-card); }
+.fn-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; margin: 0; }
+.fn-facts dt { color: var(--text-tertiary); font-size: 0.75rem; }
+.fn-facts dd { margin: 2px 0 0; color: var(--text); font-size: 0.875rem; font-weight: 600; overflow-wrap: anywhere; }
+.fn-wide { grid-column: 1 / -1; }
+.fn-amounts { display: grid; gap: 6px; margin: 0; padding-top: 12px; border-top: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+.fn-amounts > div { display: flex; justify-content: space-between; gap: 12px; font-size: 0.875rem; }
+.fn-amounts dt { color: var(--text-secondary); }
+.fn-amounts dd { margin: 0; font-weight: 700; }
+.fn-net dt, .fn-net dd { color: var(--navy); font-weight: 700; }
+.fn-modal-foot { display: flex; justify-content: flex-end; padding: 14px 20px; border-top: 1px solid var(--border); background: var(--surface-muted); }
+@media (max-width: 560px) { .fn-facts { grid-template-columns: minmax(0, 1fr); } }

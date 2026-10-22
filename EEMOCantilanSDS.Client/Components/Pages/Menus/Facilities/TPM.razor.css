@@ -120,7 +120,7 @@
     display: grid;
     grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.65fr);
     align-items: start;
-    gap: 1.1rem;
+    gap: 1.25rem;
 }
 
 .tpm-panel {
@@ -791,4 +791,44 @@
 .tpm-content-area {
     --text-muted: var(--text-tertiary);
     --gold: var(--accent);
+}
+
+
+/* Both cards keep one height, set by the Market days card, whether or not a day is selected; a long entries list scrolls inside
+   its card (scrollbar hidden) instead of stretching the row. */
+.tpm-columns > .tpm-panel {
+    align-self: stretch;
+}
+
+.tpm-panel-entries {
+    contain: size;
+}
+
+.tpm-panel-entries > * {
+    flex-shrink: 0;
+}
+
+.tpm-panel-entries > .tpm-vendor-table-wrap,
+.tpm-panel-entries > .tpm-empty {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.tpm-panel-entries > .tpm-vendor-table-wrap {
+    overflow-y: auto;
+    scrollbar-width: none;
+}
+
+.tpm-panel-entries > .tpm-vendor-table-wrap::-webkit-scrollbar {
+    display: none;
+}
+
+@media (max-width: 760px) {
+    .tpm-panel-entries {
+        contain: none;
+    }
+
+    .tpm-panel-entries > .tpm-vendor-table-wrap {
+        max-height: 24rem;
+    }
 }

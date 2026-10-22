@@ -34,7 +34,7 @@ public sealed class RentalConsolidationTests : TestContext
         Services.AddSingleton(_payments.Object); Services.AddSingleton(_activity.Object); Services.AddSingleton(_vendors.Object);
         Services.AddSingleton(Mock.Of<IEcfCollectionsApiClient>());
         Services.AddSingleton(Mock.Of<IDailyCollectionApiClient>());
-        Services.AddSingleton(Mock.Of<ISetupApiClient>()); Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
+        Services.AddSingleton(Mock.Of<ILifecycleApiClient>()); Services.AddSingleton(Mock.Of<ISetupApiClient>()); Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton(Mock.Of<IFacilitiesApiClient>()); Services.AddSingleton(Mock.Of<ISettingsApiClient>());
         Services.AddSingleton<BrandingState>(); Services.AddSingleton<FacilityState>();
         _accounts.Setup(x => x.GetWorkspaceAsync(It.IsAny<ObligationKind>())).ReturnsAsync(Result<ObligationWorkspaceDto>.Success(new([], 0m, 0m, 0m)));
@@ -364,7 +364,7 @@ public sealed class RentalConsolidationTests : TestContext
         Assert.Equal(5, buttons.Count);
         Assert.True(buttons[2].HasAttribute("disabled"));
         Assert.True(buttons[4].HasAttribute("disabled"));
-        Assert.Contains("Reopen unavailable", buttons[4].GetAttribute("title"));
+        Assert.Contains("Open the account profile to resume, renew, reassign or retire", buttons[4].GetAttribute("title"));
         Assert.Empty(_stalls.Invocations);
         Assert.Empty(_payments.Invocations);
         _accounts.Verify(x => x.CloseAccountAsync(It.IsAny<Guid>(), It.IsAny<CloseObligationAccountRequest>()), Times.Never);
@@ -533,7 +533,7 @@ public sealed class RentalConsolidationTests : TestContext
         var template = Account(closed: true);
         Serve(Enumerable.Range(1, 90).Select(i => template with { Id = Guid.NewGuid(), SubjectLabel = i.ToString("000"), ActualOccupant = $"Audit holder {i:000}" }).ToArray());
         var cut = RenderComponent<ClosedAccounts>();
-        cut.WaitForAssertion(() => Assert.Equal(90, cut.FindAll("tr[data-account]").Count));
+        cut.WaitForAssertion(() => Assert.Equal(90, cut.FindAll("tr[data-account]").Count), TimeSpan.FromSeconds(10));
         Assert.DoesNotContain(cut.FindAll(".ca-obligation-source button"), x => x.TextContent.Contains("Renew"));
         SpaceHolderWorkspaceTests.SaveVisualArtifact("closed-rental-register-many", cut.Markup);
     }

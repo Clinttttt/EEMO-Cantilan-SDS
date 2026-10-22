@@ -1115,3 +1115,52 @@
 .owed-pill { width: auto; height: 44px; padding: 0 8px; gap: 5px; flex: 0 0 auto; font-size: 13px; font-weight: 600; color: var(--mobile-navy); }
 .owed-pill svg { color: var(--gold-primary); }
 .owed-pill .owed-count { position: static; min-width: 20px; height: 20px; line-height: 20px; border-radius: 10px; }
+.daily-statuses { margin-block: 16px; border-top: 1px solid var(--mobile-border); padding-top: 12px; font-size: 13px; }
+.daily-statuses summary { cursor: pointer; color: var(--mobile-text-secondary); }
+.daily-statuses .status-option { min-height: 44px; padding: 10px; margin-top: 8px; }
+.daily-statuses .status-option-sub { display: none; }
+.rent-secondary-link {
+    display: inline-flex;
+    width: fit-content;
+    min-height: 36px;
+    align-items: center;
+    margin: 2px 0 5px;
+    padding: 6px 0;
+    border: 0;
+    background: transparent;
+    color: var(--mobile-blue-deep, #174a86);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+}
+.sheet .sheet-title { margin-bottom: 3px; color: var(--mobile-navy, #0d2137); }
+.sheet .sheet-sub { margin-bottom: 12px; color: var(--mobile-text-secondary, #526579); font-size: 12px; }
+.sheet .sheet-preview { margin-bottom: 16px; background: var(--mobile-blue-subtle, #e8f0f9); }
+.sheet .preview-name { color: var(--mobile-navy, #0d2137); font-size: 14px; font-weight: 700; }
+.sheet .preview-detail { color: var(--mobile-text-secondary, #526579); font-size: 12px; }
+.sheet .preview-num { color: var(--mobile-navy, #0d2137); }
+.sheet .daily-statuses { margin-top: 18px; color: var(--mobile-text-secondary, #526579); }
+.sheet .daily-statuses summary { padding: 5px 0; color: var(--mobile-blue-deep, #174a86); }
+.arrears-body .state-card { padding: 16px; margin-top: 12px; }
+.arrears-body .state-title { color: var(--mobile-navy, #0d2137); margin-bottom: 6px; }
+.arrears-body .state-text { color: var(--mobile-text-secondary, #526579); line-height: 1.45; }
+.arrears-body .tx-sub { color: var(--mobile-text-secondary, #526579); font-size: 12px; }
+.sheet .arrears-close { display: block; margin-top: 12px; }
+.arrears-retry {
+    min-height: 44px;
+    margin-top: 12px;
+    padding: 0 16px;
+    border: 1px solid var(--mobile-blue, #1f5fa8);
+    border-radius: 10px;
+    color: var(--mobile-blue-deep, #174a86);
+    background: #fff;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+}
+.arrears-retry:focus-visible, .rent-secondary-link:focus-visible {
+    outline: 2px solid var(--mobile-focus, #1f5fa8);
+    outline-offset: 2px;
+}

@@ -90,7 +90,7 @@ public sealed partial class FineAssessmentTests
     }
 
     [SkippableFact]
-    public async Task RecordedPaidNpmDayCanBeRelatedWithoutInventingMonthlyDebt()
+    public async Task RecordedPaidNpmDaysAreOfferedAsTheirCalendarMonth_WithoutInventingMonthlyDebtOrLinkingOneDay()
     {
         var seed=await SeedAsync(FineAccountKind.FacilityContract,facilityCode:FacilityCode.NPM);
         await using var db=database.CreateContext(seed.TenantId);
@@ -99,7 +99,8 @@ public sealed partial class FineAssessmentTests
         day.MarkPaid("TEST-OR",null);db.DailyCollections.Add(day);await db.SaveChangesAsync();
         var workflow=Workflow(db,seed);
         var choice=Assert.Single((await workflow.PeriodsAsync(seed.Account,2024)).Value!);
-        Assert.Equal(FineAffectedPeriodKind.NpmDay,choice.Reference.Kind);
+        Assert.Equal((FineAffectedPeriodKind.FacilityMonth,new DateOnly(2024,9,1),new DateOnly(2024,9,30)),(choice.Reference.Kind,choice.Reference.Start,choice.Reference.End));
+        Assert.Equal("September 2024 · daily charges",choice.Label);                                                      // the label states it is the daily charges of the month
         var saved=await workflow.CreateAsync(Request(seed) with {ViolationDate=day.CollectionDate,RelatedPeriod=choice.Reference});
         Assert.True(saved.IsSuccess,saved.Error);
         Assert.Equal(choice,saved.Value!.RelatedPeriod);
@@ -122,10 +123,10 @@ public sealed partial class FineAssessmentTests
         using var services=new ServiceCollection().AddSingleton<IRequestHandler<GetSettleableNpmDaysQuery,Result<IReadOnlyList<SettleableNpmDayDto>>>>(handler).BuildServiceProvider();
         var workflow=new EEMOCantilanSDS.Application.Common.Revenue.FineAssessmentWorkflow(db,new Actor(seed.TenantId),new Tenant(seed.TenantId),new Clock(),sourceReads:new Mediator(services));
         var choices=await workflow.PeriodsAsync(seed.Account,2024);Assert.True(choices.IsSuccess,choices.Error);
-        Assert.DoesNotContain(choices.Value!,x=>x.Reference.Start==excused.CollectionDate);
         var actual=await handler.Handle(new(contract.StallId,2024,9,contract.Id),default);
-        Assert.Equal(actual.Value!.Select(x=>x.Date),choices.Value!.Where(x=>x.Reference.Start.Month==9).Select(x=>x.Reference.Start));
-        Assert.All(choices.Value!,x=>Assert.Equal(FineAffectedPeriodKind.NpmDay,x.Reference.Kind));
+        // A month is offered only when the source calendar still has an eligible day in it; an excused day alone offers nothing.
+        Assert.Equal(actual.Value!.Any(),choices.Value!.Any(x=>x.Reference.Start.Month==9));
+        Assert.All(choices.Value!,x=>Assert.Equal(FineAffectedPeriodKind.FacilityMonth,x.Reference.Kind));
         Assert.Single(await db.DailyCollections.ToListAsync());Assert.Empty(await db.FineAssessments.ToListAsync());Assert.Empty(await db.Collections.ToListAsync());
     }
 }

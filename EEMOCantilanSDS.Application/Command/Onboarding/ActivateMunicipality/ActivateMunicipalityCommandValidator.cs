@@ -74,8 +74,8 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                 // Only a daily-stall market keeps a section registry. Accepting areas for anything else would store
                 // nothing and say nothing, which is how an office ends up believing it declared something it did not.
                 f.RuleFor(x => x)
-                    .Must(fac => fac.CustomSections is null or { Count: 0 } || fac.Archetype == BillingArchetype.DailyStall)
-                    .WithMessage(fac => $"{fac.Name} is not a daily-stall market, so it has no market areas to declare.");
+                    .Must(fac => fac.CustomSections is null or { Count: 0 } || fac.Code == FacilityCode.NPM)
+                    .WithMessage(fac => $"{fac.Name} is not a public market, so it has no market areas to declare.");
 
                 // A declared area may not carry the same name as one of the three the office has already named. Two
                 // groups reading "Gulayan" on one collection sheet - one canonical, one custom - is not a document
@@ -97,6 +97,26 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
             });
 
             RuleFor(x => x.Rates).NotNull();
+
+            // The Public Market's rental model is the archetype the LGU chose, stored once and never inferred: a daily-collected
+            // market (the platform's default) or STANDARD MONTHLY RENTAL, one monthly obligation per stall like TCC/NCC.
+            // The market keeps its identity and its sections either way. A market declared monthly states no daily rate, no
+            // monthly-rent fee key and no month basis - rent is set per stall and contract after activation - and the pair is
+            // refused here rather than filed as figures nothing would read.
+            RuleFor(x => x).Must(c => c.Facilities?.Where(f => f.Code == FacilityCode.NPM)
+                    .All(f => f.Archetype is BillingArchetype.DailyStall or BillingArchetype.MonthlyRental) != false)
+                .WithMessage("The Public Market is either collected daily or rented monthly; no other billing type applies to it.");
+            RuleFor(x => x).Must(c =>
+                {
+                    var market = c.Facilities?.FirstOrDefault(f => f.Code == FacilityCode.NPM);
+                    if (market is null || market.Archetype != BillingArchetype.MonthlyRental) return true;
+                    return market.MonthBasis == NpmMonthBasis.RentGoal
+                        && c.Rates?.Any(r => r.FacilityCode == FacilityCode.NPM && r.Key is FeeRateKey.NpmDailyStall
+                            or FeeRateKey.NpmDailyStallVegetable or FeeRateKey.NpmDailyStallFish or FeeRateKey.NpmDailyStallMeat
+                            or FeeRateKey.NpmMonthlyStall) != true;
+                })
+                .WithMessage("A Public Market rented by the month states its rent for each stall after activation. Remove its daily rates, "
+                    + "monthly stall rate and month basis, or declare the daily-collection model instead.");
 
             // Declared operations are presentation configuration, but they are still written to the tenant's own record, so they
             // are held to the same rules as the Head's own edits: a recognised stable code, declared once, and a local name that

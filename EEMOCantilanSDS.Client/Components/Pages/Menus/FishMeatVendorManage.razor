@@ -15,9 +15,8 @@
 @* Registry administration: any tax year, any month's collections, closed registrations, and the lifecycle (Renew, Close). There is no delete: a
    registration is closed, never removed, and its Collections and SRCs stay as they were. Every figure, status and rule is the server's; this page
    shows them and sends the Head's explicit choices. The layout owns the <main> landmark. *@
-<OperationTopbar Title="Manage Fish / Meat Vendors" Crumb="Operation" />
+<OperationTopbar Title="Manage Fish / Meat Vendors" Crumb="Manage" ParentHref="@RegistryHref" ParentTitle="Fish / Meat Vendors" />
 <div class="content-area">
-    <a class="fmm-back" href="/operations/fish-meat-vendor-fees">← Fish / Meat Vendors</a>
     <FacilityHero Title="Manage Fish / Meat Vendors" Eyebrow="FISH / MEAT · REGISTRY"
         Subtitle="Review registrations, renew vendor records, and close inactive registrations.">
         <Icon><svg viewBox="0 0 24 24"><path d="M3 12c3-5 8-6 12-3l4-3v12l-4-3c-4 3-9 2-12-3z" /></svg></Icon>
@@ -179,6 +178,7 @@
     private static readonly string[] Months = CultureInfo.InvariantCulture.DateTimeFormat.MonthNames.Take(12).ToArray();
 
     private int _taxYear = PhilippineTime.Today.Year;
+    private string RegistryHref => _taxYear == PhilippineTime.Today.Year ? "/operations/fish-meat-vendor-fees" : $"/operations/fish-meat-vendor-fees?taxYear={_taxYear}";
     private int _month = PhilippineTime.Today.Month;
     private string _status = "All", _search = string.Empty, _filter = "All";
     private List<VendorRegistrationManagementRow> _rows = [];

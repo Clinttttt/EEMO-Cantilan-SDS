@@ -13,7 +13,6 @@
             <h1>My NPM requests</h1>
             <p>Track stall registration reviews from the office.</p>
         </header>
-        <p class="npm-history-safeguard">Registration only · No payment or SRC is created.</p>
 
         @if (_loading)
         {
@@ -29,7 +28,6 @@
                 <p>@_error</p>
                 <div class="npm-history-actions">
                     <button type="button" class="npm-history-retry" @onclick="Load" disabled="@_loading">Try again</button>
-                    <a href="/records">Back to Records</a>
                 </div>
             </section>
         }
@@ -38,13 +36,11 @@
             <section class="npm-history-state">
                 <strong>No requests yet</strong>
                 <p>When you submit a registration request, its review status will appear here.</p>
-                <a href="/records">Back to Records</a>
             </section>
         }
         else if (_data is { } history)
         {
             <div class="npm-history-list-head">
-                <h2>Submitted requests</h2>
                 <span>@history.Total total</span>
             </div>
             <div class="npm-history-list">
@@ -120,7 +116,6 @@
                     <button type="button" disabled="@(_loading || _page * history.PageSize >= history.Total)" @onclick="Next">Next</button>
                 </nav>
             }
-            <a class="npm-history-back" href="/records">← Back to Records</a>
         }
     </main>
     <BottomNav ActiveTab="records" />

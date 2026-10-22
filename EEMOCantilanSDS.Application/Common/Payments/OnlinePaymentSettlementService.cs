@@ -17,7 +17,7 @@ public sealed class OnlinePaymentSettlementService(
     IOnlinePaymentNotifier notifier,
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
-    ITenantContext tenantContext) : IOnlinePaymentSettlementService
+    ITenantContext tenantContext, NpmRentMonthWorkflow? monthly = null) : IOnlinePaymentSettlementService
 {
     public async Task<Result<bool>> SettleAsync(
         OnlinePaymentTransaction transaction,
@@ -31,6 +31,24 @@ public sealed class OnlinePaymentSettlementService(
         // Amount integrity — never settle on a mismatch.
         if (Math.Round(evt.Amount, 2) != Math.Round(transaction.Amount, 2))
             return Result<bool>.Failure("Payment amount does not match the initiated amount.", ResultStatus.Conflict);
+
+        // A pre-cutover checkout may still callback. Do not mark it settled or project it into day rows.
+        if (monthly is not null && transaction.TargetKind is OnlinePaymentTargetKind.NpmDailyMonth
+                or OnlinePaymentTargetKind.NpmFishDay or OnlinePaymentTargetKind.NpmFishDays
+            && transaction.TargetStallId is { } target && transaction.TargetYear is { } year && transaction.TargetMonth is { } month
+            && await monthly.IsMonthActivatedAsync(target, new(year, month, 1), cancellationToken))
+            return Result<bool>.Failure("RECONCILIATION_REQUIRED: Captured gateway payment targets an activated NPM month. No legacy settlement was performed; retain the provider payment for office reconciliation.", ResultStatus.Conflict);
+
+        PaymentRecord? monthlyRecord = null;
+        if (transaction.TargetKind == OnlinePaymentTargetKind.MonthlyRecord)
+        {
+            monthlyRecord = transaction.PaymentRecordId is { } recordId
+                ? await paymentRepository.GetByIdAsync(recordId, cancellationToken) : null;
+            if (monthlyRecord is null || monthlyRecord.MunicipalityId != transaction.MunicipalityId)
+                return Result<bool>.Failure("Linked monthly source not found in this municipality.", ResultStatus.Conflict);
+            if (monthlyRecord.SettlementAuthorityState != SettlementAuthority.Legacy)
+                return Result<bool>.Failure("RECONCILIATION_REQUIRED: Gateway callback targets a transitioning or canonical monthly source. No Collection or legacy settlement was posted. Retain provider evidence for office reconciliation.", ResultStatus.Conflict);
+        }
 
         transaction.MarkPaid(evt.PaymentId, evt.Method, evt.PaidAt ?? DateTime.UtcNow, evt.RawPayload);
 
@@ -50,7 +68,7 @@ public sealed class OnlinePaymentSettlementService(
         if (transaction.TargetKind == OnlinePaymentTargetKind.NpmFishDays)
             return await SettleNpmFishDaysAsync(transaction, cancellationToken);
 
-        var record = await paymentRepository.GetByIdAsync(transaction.PaymentRecordId!.Value, cancellationToken);
+        var record = monthlyRecord;
         if (record is null)
             return Result<bool>.Failure("Linked payment record not found.", ResultStatus.Failed);
 

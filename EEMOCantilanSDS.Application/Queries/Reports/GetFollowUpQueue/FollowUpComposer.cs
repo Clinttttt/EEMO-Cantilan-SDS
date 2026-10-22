@@ -84,6 +84,10 @@ public static class FollowUpComposer
         // keeps the page's period label, which is right wherever the page IS a period.
         string? currentPeriodLabel = null)
     {
+        // A Public Market rented by the month is a monthly-rental facility here: no daily wording, model name or coverage gap.
+        var npmMonthly = facilityReports.TryGetValue(FacilityCode.NPM, out var marketReport) && !marketReport.BillsDaily;
+        string Model(FacilityCode c) => c == FacilityCode.NPM && npmMonthly ? "Monthly rental" : ModelOf(c);
+        bool BillsDaily(FacilityCode c) => c == FacilityCode.NPM && !npmMonthly;
         var periodLabel = periodLabelOverride
             ?? new DateTime(year, month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
         // The cumulative view is the one with no window: its figures are lifetime totals, so its spans are whole.
@@ -112,35 +116,67 @@ public static class FollowUpComposer
         var moneyStatedForStall = new HashSet<Guid>();
         foreach (var d in delinquency)
         {
-            if (d.MonthsUnpaid < DomainRules.DelinquentThresholdMonths) continue;
-            var immediateSeverity = d.MonthsUnpaid >= ImmediateSeverityAgeMonths;
+            // One account can owe in more than one category (IA-069): previous-year or expired-contract rent is Arrears, fully elapsed
+            // current-year months are Delinquent. Each is its own row with its own money, so a peso is never stated twice. A producer that
+            // did not classify (DelinquentMonthCount = MonthsUnpaid) behaves as it always did.
+            var delinquentMonths = d.DelinquentMonthCount;
+            var arrearsAmount = d.ArrearsOutstanding;
+            if (delinquentMonths < DomainRules.DelinquentThresholdMonths && arrearsAmount <= 0m) continue;
             delinquentKeys.Add(Key(d.FacilityCode, d.StallNo));
             if (d.StallId is { } stallWithMoney) moneyStatedForStall.Add(stallWithMoney);
-            items.Add(new FollowUpItemDto(
-                Section: immediateSeverity ? SecImmediate : SecThisPeriod,
-                Priority: immediateSeverity ? "Critical" : "Normal",
-                Reason: "Delinquent",
-                ReasonKind: "delinquent",
-                Facility: d.FacilityCode,
-                Model: Model(d.FacilityCode),
-                Person: Named(d.Occupant),
-                // Named with its section where the facility has them. The market numbers spaces per section, so three
-                // different payors were each listed as "Stall 1 · NPM" with nothing to tell them apart — the office
-                // could not know which space a row was about, let alone which one it had just collected from.
-                Identifier: Label(Where(d.StallNo), d.Section),
-                Amount: d.OutstandingBalance,
-                Excused: false,
-                Period: delinquencySpanLabel ?? periodLabel,
-                // A daily-billed stall does not owe whole months. Its debt is a run of market days, and the month
-                // count is only the span those days fall in — so a market stall read "37 months" beside a monthly
-                // stall's "36 months" on the identical term dates, inviting the office to think one was over-billed.
-                // Both figures were right; only the word "months" meant two different things.
-                Status: BillsDaily(d.FacilityCode)
-                    ? $"Unpaid · daily fees across {d.MonthsUnpaid} month{(d.MonthsUnpaid == 1 ? "" : "s")}"
-                    : $"Unpaid · {d.MonthsUnpaid} month{(d.MonthsUnpaid == 1 ? "" : "s")}",
-                Action: "View vendor",
-                Link: ProfileLink(d.FacilityCode, d.StallId ?? Guid.Empty, d.StallNo),
-                StallId: d.StallId));
+
+            if (delinquentMonths >= DomainRules.DelinquentThresholdMonths)
+            {
+                // Severity is the delinquent age (IA-019): one or two elapsed months Normal, three or more Critical.
+                var immediateSeverity = delinquentMonths >= ImmediateSeverityAgeMonths;
+                items.Add(new FollowUpItemDto(
+                    Section: immediateSeverity ? SecImmediate : SecThisPeriod,
+                    Priority: immediateSeverity ? "Critical" : "Normal",
+                    Reason: "Delinquent",
+                    ReasonKind: "delinquent",
+                    Facility: d.FacilityCode,
+                    Model: Model(d.FacilityCode),
+                    Person: Named(d.Occupant),
+                    // Named with its section where the facility has them. The market numbers spaces per section, so three
+                    // different payors were each listed as "Stall 1 · NPM" with nothing to tell them apart.
+                    Identifier: Label(Where(d.StallNo), d.Section),
+                    Amount: d.DelinquentOutstanding,
+                    Excused: false,
+                    // The months this row is about, when the source classified them; otherwise the caller's span.
+                    Period: ClassifiedSpan(d.DelinquentFirstPeriod, d.DelinquentLastPeriod) ?? delinquencySpanLabel ?? periodLabel,
+                    // A daily-billed stall does not owe whole months. Its debt is a run of market days, and the month
+                    // count is only the span those days fall in.
+                    Status: BillsDaily(d.FacilityCode)
+                        ? $"Unpaid · daily fees across {delinquentMonths} month{(delinquentMonths == 1 ? "" : "s")}"
+                        : $"Unpaid · {delinquentMonths} month{(delinquentMonths == 1 ? "" : "s")}",
+                    Action: "View vendor",
+                    Link: ProfileLink(d.FacilityCode, d.StallId ?? Guid.Empty, d.StallNo),
+                    StallId: d.StallId));
+            }
+
+            if (arrearsAmount > 0m)
+            {
+                // Arrears keeps the immediate placement an ended occupancy's balance has; it is a different dimension from the delinquent age.
+                var basis = d.TermLapsed ? "contract expired" : "previous year";
+                items.Add(new FollowUpItemDto(
+                    Section: SecImmediate,
+                    Priority: "High",
+                    Reason: "Arrears",
+                    ReasonKind: "arrears",
+                    Facility: d.FacilityCode,
+                    Model: Model(d.FacilityCode),
+                    Person: Named(d.Occupant),
+                    Identifier: Label(Where(d.StallNo), d.Section),
+                    Amount: arrearsAmount,
+                    Excused: false,
+                    Period: ClassifiedSpan(d.ArrearsFirstPeriod, d.ArrearsLastPeriod) ?? delinquencySpanLabel ?? periodLabel,
+                    Status: BillsDaily(d.FacilityCode)
+                        ? $"Arrears · daily fees across {d.ArrearsMonths} month{(d.ArrearsMonths == 1 ? "" : "s")} · {basis}"
+                        : $"Arrears · {d.ArrearsMonths} month{(d.ArrearsMonths == 1 ? "" : "s")} · {basis}",
+                    Action: "View vendor",
+                    Link: ProfileLink(d.FacilityCode, d.StallId ?? Guid.Empty, d.StallNo),
+                    StallId: d.StallId));
+            }
         }
 
         // ── 2) Per stall-facility compliance: current-period unpaid/partial, excused, NPM missed-daily ──
@@ -189,7 +225,7 @@ public static class FollowUpComposer
             }
 
             // NPM daily coverage gap (missed collection days this period).
-            if (code == FacilityCode.NPM && report.DailyCollectionStreak is { } streak && streak.MissedDays > 0)
+            if (code == FacilityCode.NPM && !npmMonthly && report.DailyCollectionStreak is { } streak && streak.MissedDays > 0)
             {
                 items.Add(new FollowUpItemDto(
                     SecOperational, streak.MissedDays >= 5 ? "High" : "Normal",
@@ -410,7 +446,8 @@ public static class FollowUpComposer
                     // the sitting lessee, which "Delinquent" would hide; only what the row is COUNTED as changes. And it is
                     // the month count, not the money, that decides. A positive balance with no elapsed unpaid month count
                     // remains a contract/occupancy review; it is not classified as Arrears based on age.
-                    account.MonthsUnpaid >= DomainRules.DelinquentThresholdMonths ? "delinquent" : "contract",
+                    // Unpaid rent of an ended occupancy is Arrears (IA-020, IA-069), whatever its age: it stays with the former lessee and period.
+                    "arrears",
                     account.FacilityCode, Model(account.FacilityCode), Named(account.Occupant), Where(account.StallNo),
                     account.Uncollected, false,
                     // The part of this occupancy that falls inside the view's window, beside the figure that window
@@ -435,6 +472,15 @@ public static class FollowUpComposer
             .ToList();
 
         return new FollowUpQueueDto(periodLabel, asOf, ordered);
+    }
+
+    /// <summary>"Jan 2026 – Sep 2026" (or one month) from two yyyy-MM labels; null when the source gave none.</summary>
+    private static string? ClassifiedSpan(string? first, string? last)
+    {
+        static string? Month(string? v) => v is not null && DateTime.TryParseExact(v + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d)
+            ? d.ToString("MMM yyyy", CultureInfo.InvariantCulture) : null;
+        var a = Month(first); var b = Month(last);
+        return a is null ? null : b is null || a == b ? a : $"{a} – {b}";
     }
 
     private static string Key(FacilityCode code, string stallNo) => $"{code}|{stallNo}";
@@ -540,7 +586,7 @@ public static class FollowUpComposer
         _ => 3
     };
 
-    private static string Model(FacilityCode code) => code switch
+    private static string ModelOf(FacilityCode code) => code switch
     {
         FacilityCode.NPM => "Daily stall",
         FacilityCode.TCC or FacilityCode.NCC or FacilityCode.BBQ or FacilityCode.ICE => "Monthly rental",
@@ -564,9 +610,4 @@ public static class FollowUpComposer
     private static string Label(params string?[] parts) =>
         string.Join(" · ", parts.Where(p => !string.IsNullOrWhiteSpace(p)).Select(p => p!.Trim()));
 
-    /// <summary>
-    /// True where the facility charges by the day rather than by the month, so a month count describes the span the
-    /// debt falls in and not a number of whole months owed.
-    /// </summary>
-    private static bool BillsDaily(FacilityCode code) => code == FacilityCode.NPM;
 }

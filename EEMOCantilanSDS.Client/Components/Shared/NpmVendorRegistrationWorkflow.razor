@@ -52,19 +52,22 @@
             @if (_selected.Links.Count > 0 || _correcting.HasValue)
             {
             <section class="npm-link-section" aria-label="Registration status">
-            <h3>Linked registration</h3>
-            @foreach (var link in _selected.Links)
+            @foreach (var link in _selected.Links.OrderBy(x => x.CorrectedAtUtc.HasValue))
             {
                 <div class="npm-link-record">
-                    <strong>@VendorName(link.VendorRegistrationId)</strong>
-                    <span>@(link.CorrectedAtUtc.HasValue ? "Corrected link" : "Verified registration linked")</span>
-                    <a href="@DetailsUrl(link.VendorRegistrationId)">View registration</a>
+                    <div class="npm-link-record-heading">
+                        <strong>@VendorName(link.VendorRegistrationId)</strong>
+                        <span class="npm-link-state @(link.CorrectedAtUtc.HasValue ? "" : "is-linked")">@(link.CorrectedAtUtc.HasValue ? "Corrected link" : "Verified")</span>
+                    </div>
+                    <div class="npm-link-actions">
+                        <a class="v3-btn v3-btn-sm" href="@DetailsUrl(link.VendorRegistrationId)">View registration</a>
+                        @if (!link.CorrectedAtUtc.HasValue && _head)
+                        {
+                            <button type="button" class="v3-btn v3-btn-sm" disabled="@_saving" @onclick="() => _correcting = link.Id">Correct link</button>
+                        }
+                    </div>
                     <details class="npm-link-evidence"><summary>Verification history</summary><p>@link.ConfirmedBy · @link.ConfirmedAtUtc.ToString("MMM d, yyyy") · @link.ConfirmationNote</p>
                     @if (link.CorrectedAtUtc is { } corrected) { <p>@link.CorrectionReason · @link.CorrectedBy · @corrected.ToString("MMM d, yyyy")</p> }</details>
-                    @if (!link.CorrectedAtUtc.HasValue && _head)
-                    {
-                        <button type="button" class="btn-ghost" disabled="@_saving" @onclick="() => _correcting = link.Id">Correct link</button>
-                    }
                 </div>
             }
             @if (_correcting.HasValue)
@@ -80,12 +83,13 @@
                 <section class="npm-link-section" aria-label="Registration action">
                 @if (!_path.HasValue)
                 {
-                    <p class="npm-link-muted">This occupant is already linked. Link a separate registration only for a verified separate business or vendor type.</p>
-                    <button type="button" class="btn-ghost" @onclick="() => ChoosePath(ReviewPath.Link)">Link a separate registration</button>
+                    <details class="npm-link-more npm-link-secondary">
+                        <summary>More actions</summary>
+                        <button type="button" class="btn-ghost npm-link-switch" title="For a verified separate business or vendor type" @onclick="() => ChoosePath(ReviewPath.Link)">Link a separate registration</button>
+                    </details>
                 }
                 else if (_path == ReviewPath.Link)
                 {
-                    <h3>Link a registration</h3>
                     @if (_selected.PossibleMatches.Count > 0)
                     {
                         <p class="npm-link-muted">Similar names are suggestions only. Choose the one that is the same vendor.</p>
@@ -93,7 +97,7 @@
                             @foreach (var match in _selected.PossibleMatches) { <button type="button" class="npm-link-pick @(_vendorId == match.Id.ToString() ? "is-picked" : "")" aria-pressed="@(_vendorId == match.Id.ToString() ? "true" : "false")" @onclick="() => PickVendor(match.Id)"><strong>@match.DisplayName</strong><span>@match.VendorType · @(match.BusinessName ?? "No business name recorded")</span></button> }
                         </div>
                     }
-                    <div class="avm-group"><label class="avm-label" for="npm-vendor-search">@(_selected.PossibleMatches.Count > 0 ? "Or search another registration" : "Search registrations")</label>
+                    <div class="avm-group"><label class="avm-label" for="npm-vendor-search">Search registrations</label>
                     <input id="npm-vendor-search" class="avm-input" type="search" autocomplete="off" placeholder="Vendor or business" @bind="_vendorSearch" @bind:event="oninput" /></div>
                     @if (_vendorSearch.Trim().Length >= 2)
                     {
@@ -111,16 +115,14 @@
                 else
                 {
                     <h3>Register from NPM</h3>
-                    <p class="npm-link-muted">No registration is linked to this occupant. Review the office registration details next; only the occupant name and suggested Fish/Meat type come from NPM.</p>
                     <button type="button" class="btn-ghost npm-link-switch" @onclick="() => ChoosePath(ReviewPath.Link)">Link an existing registration instead</button>
                 }
                 @if (_path.HasValue)
                 {
                 @if (_path == ReviewPath.Link)
                 {
-                <div class="avm-group npm-office-evidence"><label class="avm-label" for="npm-confirmation">Office link verification <span class="avm-req">*</span></label>
-                <input id="npm-confirmation" class="avm-input" maxlength="500" placeholder="Reference or evidence checked by the office" @bind="_note" />
-                <small class="npm-link-muted">Required to confirm the NPM association; this is not a payment or vendor fee.</small></div>
+                <div class="avm-group npm-office-evidence"><label class="avm-label" for="npm-confirmation">Verification reference <span class="avm-req">*</span></label>
+                <input id="npm-confirmation" class="avm-input" required maxlength="500" placeholder="Office reference or evidence checked" @bind="_note" /></div>
                 }
                 <div class="npm-link-options">
                     @if (RequiresException) { <label><input type="checkbox" @bind="_exceptionConfirmed" /> Exception confirmed<span>Verify this historical occupancy or area/type exception.</span></label> }
@@ -151,9 +153,6 @@
         @if (_selected is not null)
         {
             <div class="npm-link-record"><strong>NPM occupancy</strong><span>@_selected.Area · Stall @_selected.StallNo · Tax year @TaxYear</span><details class="npm-link-evidence"><summary>Source details</summary><p>Contract @_selected.ContractId</p></details></div>
-            <div class="avm-group npm-office-evidence"><label class="avm-label" for="npm-registration-evidence">Office link reference <span class="avm-req">*</span></label>
-                <input id="npm-registration-evidence" class="avm-input" maxlength="500" placeholder="Source verified by office / reference checked" @bind="_note" @bind:event="oninput" />
-                <small class="npm-link-muted">Only for documenting the verified NPM association. No collection is recorded.</small></div>
             @if (!_selected.Active || _selected.SuggestedType != _form.Type) { <div class="npm-link-options"><label><input type="checkbox" @bind="_exceptionConfirmed" /> Exception confirmed<span>Verify this historical occupancy or area/type exception.</span></label></div> }
         }
     </SourceContext>
@@ -247,9 +246,47 @@
         catch { _error = "The link could not be saved. Retry keeps the same request identity."; }
         finally { _saving = false; }
     }
+    // Source is an NPM occupant display name, not structured civil-registration evidence.
+    // Fill only unambiguous two- or three-token names; do not guess at compound names.
+    // The Head can review and correct every prefilled field before submitting.
+    private static (string First, string Middle, string Last) SuggestedNameParts(string name)
+    {
+        var tokens = name.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return tokens.Length switch
+        {
+            2 => (tokens[0], "", tokens[1]),
+            3 => (tokens[0], tokens[1], tokens[2]),
+            _ => ("", "", "")
+        };
+    }
+
+    // Preserve the required tenant/audit evidence without a redundant typing step.
+    // This documents only the selected source and the initiated registration; it does
+    // not claim that a separate document or identity check was performed.
+    private static string RegistrationSourceNote(NpmVendorCandidate source, int taxYear) =>
+        $"NPM source: contract {source.ContractId:D}; stall {source.StallId:D}; tax year {taxYear}; registered from selected NPM occupancy.";
+
     private void NewRegistration()
     {
-        _form = new() { Name = _selected!.Occupant, Type = _selected.SuggestedType ?? FishMeatVendorType.Fish, Kind = VendorRegistrationKind.New, TaxYear = TaxYear };
+        var source = _selected!;
+        var (first, middle, last) = SuggestedNameParts(source.Occupant);
+        _form = new()
+        {
+            Name = source.Occupant,
+            FirstName = first,
+            MiddleName = middle,
+            LastName = last,
+            Type = source.SuggestedType ?? FishMeatVendorType.Fish,
+            NatureOfBusiness = source.SuggestedType switch
+            {
+                FishMeatVendorType.Fish => "Fish retailing",
+                FishMeatVendorType.Meat => "Meat retailing",
+                _ => ""
+            },
+            Kind = VendorRegistrationKind.New,
+            TaxYear = TaxYear
+        };
+        _note = RegistrationSourceNote(source, TaxYear);
         _registering = true; _error = null;
     }
     private async Task Register()

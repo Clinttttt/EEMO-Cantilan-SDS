@@ -62,6 +62,13 @@ public class GetFinancialReportQueryHandler(
 
     public async Task<Result<FinancialReportDto>> Handle(GetFinancialReportQuery request, CancellationToken ct)
     {
+        try { return await ReadReport(request, ct); }
+        catch (EEMOCantilanSDS.Application.Common.Payments.NpmMonthReportScopeException ex)
+        { return Result<FinancialReportDto>.Failure(ex.Message, ResultStatus.Invalid); }
+    }
+
+    private async Task<Result<FinancialReportDto>> ReadReport(GetFinancialReportQuery request, CancellationToken ct)
+    {
         // "All time" aggregates every year into one view. Cached under a distinct key (year = 0 sentinel),
         // invalidated alongside the current period so new activity refreshes it.
         if (request.AllTime)
@@ -106,6 +113,7 @@ public class GetFinancialReportQueryHandler(
         // zero rows). Combined with the request.Facility scope filter below.
         var facilityNames = await facilityRepository.GetFacilityNamesAsync(ct);
         var tenantCodes = facilityNames.Keys.ToHashSet();
+        var npmMonthly = (await facilityRepository.GetByCodeAsync(FacilityCode.NPM, ct))?.IsMonthlyRentMarket == true;
         bool InScope(FacilityCode c) => (request.Facility is null || request.Facility == c) && tenantCodes.Contains(c);
 
         // Resolve the municipality's NPM rates as of the report period (falls back to the ordinance
@@ -150,7 +158,7 @@ public class GetFinancialReportQueryHandler(
             // any month carrying a month-end adjustment). Monthly-billed facilities keep one record per occupied
             // stall (counted when paid or partially paid).
             int paid, expected;
-            if (code == FacilityCode.NPM)
+            if (code == FacilityCode.NPM && !npmMonthly)
             {
                 paid = report.FeeTypeBreakdown?.PaidDayRecords ?? 0;
                 expected = report.FeeTypeBreakdown?.ExpectedDayRecords ?? 0;
@@ -165,7 +173,7 @@ public class GetFinancialReportQueryHandler(
 
             // NPM-only extras (fish split + full-month ₱900 coverage) for the expandable detail row.
             NpmFacilityDetailDto? detail = null;
-            if (code == FacilityCode.NPM)
+            if (code == FacilityCode.NPM && !npmMonthly)
             {
                 var dailyFee = report.FeeTypeBreakdown?.DailyFeeAmount ?? 0m;
                 var fishFee = report.FeeTypeBreakdown?.FishFeeAmount ?? 0m;
@@ -223,7 +231,7 @@ public class GetFinancialReportQueryHandler(
             facilityRows.Add(new FinancialFacilityRowDto(
                 Code: code,
                 Name: ReportName(code, facilityNames),
-                Model: FacilityModel(code),
+                Model: code == FacilityCode.NPM && npmMonthly ? "Monthly rental" : FacilityModel(code),
                 PaidOnService: false,
                 Collected: rowCollected,
                 Unpaid: rowUnpaid,
@@ -334,7 +342,9 @@ public class GetFinancialReportQueryHandler(
         // ordered most-overdue first, so what survives it is the part the office would work through first.
         // Every account with one or more fully elapsed unpaid months is delinquent. The display list is capped below;
         // totals use the full set. Arrears is not derived from age because its old/lapsed qualification boundary is unresolved.
-        var delinquentAll = delinquency.Where(d => d.MonthsUnpaid >= DomainRules.DelinquentThresholdMonths).ToList();
+        // Classified per obligation by the source (IA-019 / IA-069): Delinquent keeps only the fully elapsed unpaid months of the CURRENT
+        // year under a live account; previous-year months and every month of an expired contract are Arrears instead.
+        var delinquentAll = delinquency.Where(d => d.DelinquentMonthCount >= DomainRules.DelinquentThresholdMonths).ToList();
 
         // Receivable aging, over the WHOLE set and never over the capped lists below — the difference between "what is
         // owed" and "what happens to be on screen". The bands partition every account with at least one unpaid month.
@@ -349,6 +359,7 @@ public class GetFinancialReportQueryHandler(
         var lapsedWithBalance = delinquency.Where(d => d.TermLapsed && d.OutstandingBalance > 0m).ToList();
 
         var delinquent = delinquentAll
+            .OrderByDescending(d => d.DelinquentMonthCount).ThenByDescending(d => d.DelinquentOutstanding)
             .Take(AttentionLimit)
             .Select(ToAttention)
             .ToList();
@@ -395,12 +406,35 @@ public class GetFinancialReportQueryHandler(
         // delinquency figures above. Counting it here as well stated the same debt twice — Cantilan
         // read "84 accounts need follow-up · ₱519,880" beside "closed / expired accounts ₱1,905,300", and 57 of
         // those 58 accounts were the same live receivables, over a longer span, presented as a separate sum.
-        var closedAccounts = await closedRegister.GetClosedStallAccountsAsync(ct);
+        var closedAccounts = await closedRegister.GetClosedStallAccountsAsOfAsync(asOf, ct);
         var closedWithBalance = closedAccounts
             .Where(a => a.Uncollected > 0m
                 && a.State != InactiveAccountState.Lapsed
                 && (request.Facility is null || a.FacilityCode == request.Facility))
             .ToList();
+
+        // Arrears (IA-020 / IA-069): the live accounts' previous-year and expired-contract months, plus the unpaid rent of ended occupancies
+        // (a former lessee's own debt, kept with that lessee and period). A LAPSED occupancy is the live account, already inside the first
+        // group, so it is not added again. Each peso is in exactly one of Delinquent / Arrears.
+        var liveArrears = delinquency.Where(d => d.ArrearsOutstanding > 0m).ToList();
+        var arrearsRows = liveArrears.Select(d => ToArrearsAttention(d))
+            .Concat(closedWithBalance.Select(a => new AttentionAccountDto(
+                Name: string.IsNullOrWhiteSpace(a.Occupant) ? "Unoccupied / unnamed" : a.Occupant,
+                FacilityCode: a.FacilityCode,
+                StallNo: a.StallNo,
+                Location: string.IsNullOrWhiteSpace(a.Section)
+                    ? JoinParts(a.FacilityCode.ToString(), SpaceNumber.Describe(a.StallNo))
+                    : JoinParts(a.FacilityCode.ToString(), a.Section, SpaceNumber.Describe(a.StallNo)),
+                Balance: a.Uncollected,
+                UnpaidMonths: a.MonthsUnpaid,
+                TermLapsed: false,
+                StallId: a.StallId,
+                ArrearsBasis: "Ended occupancy")))
+            .OrderByDescending(a => a.Balance).ThenByDescending(a => a.UnpaidMonths)
+            .ToList();
+        var endedArrears = closedWithBalance.Sum(a => a.Uncollected);
+        var accountsWithAnyReceivable = delinquency.Count(d => d.DelinquentMonthCount >= DomainRules.DelinquentThresholdMonths || d.ArrearsOutstanding > 0m)
+            + closedWithBalance.Count;
 
         var misc = await BuildMiscAsync(request, ct);
 
@@ -418,7 +452,7 @@ public class GetFinancialReportQueryHandler(
             CollectedPreviousPeriod: collectedPreviousPeriod,
             PreviousPeriodLabel: PreviousPeriodLabel(request),
             Delinquent: delinquent,
-            Arrears: null,
+            Arrears: arrearsRows.Take(AttentionLimit).ToList(),
             Aging: aging,
             LapsedWithBalanceCount: lapsedWithBalance.Count,
             LapsedWithBalanceOutstanding: lapsedWithBalance.Sum(d => d.OutstandingBalance),
@@ -433,9 +467,13 @@ public class GetFinancialReportQueryHandler(
             AttentionSpanLabel: AttentionSpanLabel(anchorYear, anchorMonth, clock.PhilippineToday),
             // Counted over every account, not over the capped lists above. The header states these.
             DelinquentAccountsTotal: delinquentAll.Count,
-            DelinquentOutstandingTotal: delinquentAll.Sum(d => d.OutstandingBalance),
-            ArrearsAccountsTotal: null,
-            ArrearsOutstandingTotal: null,
+            DelinquentOutstandingTotal: delinquentAll.Sum(d => d.DelinquentOutstanding),
+            ArrearsAccountsTotal: arrearsRows.Count,
+            ArrearsOutstandingTotal: liveArrears.Sum(d => d.ArrearsOutstanding) + endedArrears,
+            EndedArrearsAccountsTotal: closedWithBalance.Count,
+            EndedArrearsOutstandingTotal: endedArrears,
+            ReceivableAccountsTotal: accountsWithAnyReceivable,
+            ReceivableOutstandingTotal: delinquentAll.Sum(d => d.DelinquentOutstanding) + liveArrears.Sum(d => d.ArrearsOutstanding) + endedArrears,
             Misc: misc);
 
         return dto;
@@ -605,7 +643,11 @@ public class GetFinancialReportQueryHandler(
             DelinquentAccountsTotal: latest.DelinquentAccountsTotal,
             DelinquentOutstandingTotal: latest.DelinquentOutstandingTotal,
             ArrearsAccountsTotal: latest.ArrearsAccountsTotal,
-            ArrearsOutstandingTotal: latest.ArrearsOutstandingTotal);
+            ArrearsOutstandingTotal: latest.ArrearsOutstandingTotal,
+            EndedArrearsAccountsTotal: latest.EndedArrearsAccountsTotal,
+            EndedArrearsOutstandingTotal: latest.EndedArrearsOutstandingTotal,
+            ReceivableAccountsTotal: latest.ReceivableAccountsTotal,
+            ReceivableOutstandingTotal: latest.ReceivableOutstandingTotal);
     }
 
     /// <param name="today">
@@ -668,6 +710,14 @@ public class GetFinancialReportQueryHandler(
         return bands;
     }
 
+    /// <summary>A live account's Arrears part: its previous-calendar-year months and, when its contract term has run out, every month.</summary>
+    private static AttentionAccountDto ToArrearsAttention(DelinquentStallDto d) => ToAttention(d) with
+    {
+        Balance = d.ArrearsOutstanding,
+        UnpaidMonths = d.ArrearsMonths,
+        ArrearsBasis = d.TermLapsed ? "Expired contract" : "Previous year"
+    };
+
     private static AttentionAccountDto ToAttention(DelinquentStallDto d) => new(
         Name: string.IsNullOrWhiteSpace(d.Occupant) ? "Unoccupied / unnamed" : d.Occupant,
         FacilityCode: d.FacilityCode,
@@ -678,8 +728,9 @@ public class GetFinancialReportQueryHandler(
             ? JoinParts(d.FacilityCode.ToString(), SpaceNumber.Describe(d.StallNo))
             // The market numbers per section, so three different payors would all read "NPM · Stall 1".
             : JoinParts(d.FacilityCode.ToString(), d.Section, SpaceNumber.Describe(d.StallNo)),
-        Balance: d.OutstandingBalance,
-        UnpaidMonths: d.MonthsUnpaid,
+        // The Delinquent part only: the current-year elapsed unpaid months. Previous-year and expired-contract months are on the Arrears list.
+        Balance: d.DelinquentOutstanding,
+        UnpaidMonths: d.DelinquentMonthCount,
         TermLapsed: d.TermLapsed,
         // Carried so the row can link to the stall itself. A facility-and-number link opened whichever of the
         // market's three "Stall 1" spaces the lookup happened to find first.

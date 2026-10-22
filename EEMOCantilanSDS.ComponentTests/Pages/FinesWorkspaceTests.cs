@@ -113,8 +113,8 @@ public sealed class FinesWorkspaceTests : TestContext
             var rows = cut.FindAll("[aria-label='Fines collected'] tbody tr");
             Assert.Equal(4, rows.Count);
             Assert.Contains("Direct fine", rows[0].TextContent);
-            Assert.Contains("Obstructing the walkway", rows[0].TextContent);
-            Assert.Contains("Direct fine collection", rows[0].TextContent);
+            Assert.DoesNotContain("Obstructing the walkway", rows[0].TextContent);   // the reason lives in the details, not the table
+            Assert.DoesNotContain("Direct fine collection", rows[0].TextContent);
             Assert.DoesNotContain("Assessed account", rows[0].TextContent);
             Assert.Contains("Walk-up payer", rows[1].TextContent);
             Assert.Contains("Assessed fine payment", rows[2].TextContent);
@@ -123,6 +123,12 @@ public sealed class FinesWorkspaceTests : TestContext
             Assert.Contains("Fine on receipt", rows[3].TextContent);
             Assert.Contains("Stall 4 · August rent", rows[3].TextContent);
         }, Timeout);
+
+        // Clicking the row opens its details with the full reason.
+        cut.FindAll("[aria-label='Fines collected'] tbody tr")[0].Click();
+        var dialog = cut.Find("[role='dialog']");
+        Assert.Contains("Obstructing the walkway", dialog.TextContent);
+        Assert.Contains("Direct fine", dialog.TextContent);
     }
 
     [Fact]
@@ -162,7 +168,7 @@ public sealed class FinesWorkspaceTests : TestContext
     }
 
     [Fact]
-    public void CollectionStatusesArePillsWithText_AndEveryRowHasANamedActivityAction()
+    public void CollectionStatusesArePillsWithText_AndEveryRowOpensItsDetails()
     {
         var posted = Row(PenaltyRegisterKinds.Direct);
         var reversed = Row(PenaltyRegisterKinds.Direct, status: "Reversed", amount: 50m);
@@ -180,10 +186,16 @@ public sealed class FinesWorkspaceTests : TestContext
             // A reversed fine shows what it now contributes and what was originally posted.
             Assert.Contains("₱0.00", rows[1].QuerySelector("td.v3-num")!.TextContent);
             Assert.Contains("of ₱50.00 posted", rows[1].QuerySelector("td.v3-num")!.TextContent);
-            var action = rows[0].QuerySelector("a")!;
-            Assert.Contains(posted.ReferenceCode, action.GetAttribute("aria-label"));
-            Assert.Equal("Activity", action.TextContent.Trim());
+            Assert.Contains(posted.ReferenceCode, rows[0].GetAttribute("aria-label"));
+            Assert.Equal("0", rows[0].GetAttribute("tabindex"));
+            Assert.Null(rows[0].QuerySelector("a"));
         }, Timeout);
+        cut.FindAll("[aria-label='Fines collected'] tbody tr")[0].Click();
+        var dialog = cut.Find("[role='dialog']");
+        Assert.Contains(posted.ReferenceCode, dialog.TextContent);
+        Assert.Contains("Posted", dialog.TextContent);
+        cut.Find("[role='dialog']").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Escape" });
+        Assert.Empty(cut.FindAll("[role='dialog']"));
     }
 
     [Fact]

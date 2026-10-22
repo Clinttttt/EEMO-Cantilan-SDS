@@ -8,6 +8,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Application.Common.Revenue;
+using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 using FluentValidation;
@@ -25,7 +26,8 @@ public sealed class SyncOfflineCollectionsCommandHandler(
     FeeScheduleCollectionWorkflow? feeScheduleWorkflow = null,
     NpmDailyCanonicalPoster? npmCanonical = null,
     NpmWholePaymentWorkflow? npmWholePayment = null,
-    CollectionSessionWorkflow? collectionSessions = null)
+    CollectionSessionWorkflow? collectionSessions = null, NpmRentMonthWorkflow? monthly = null,
+    NpmOutstandingRentWorkflow? outstandingRent = null)
     : IRequestHandler<SyncOfflineCollectionsCommand, Result<SyncOfflineCollectionsResultDto>>
 {
     public async Task<Result<SyncOfflineCollectionsResultDto>> Handle(SyncOfflineCollectionsCommand request, CancellationToken ct)
@@ -39,6 +41,18 @@ public sealed class SyncOfflineCollectionsCommandHandler(
 
         foreach (var op in request.Operations)
         {
+            if (op.Kind == OfflineOperationKind.NpmOutstandingRent)
+            {
+                if (outstandingRent is null)
+                { results.Add(new(op.ClientOperationId, SyncResultStatus.Failed, "Outstanding rent sync is unavailable.")); continue; }
+                var posted = await outstandingRent.PostAsync(new(op.ClientOperationId, op.StallId ?? Guid.Empty,
+                    op.NpmContractId ?? Guid.Empty, op.BusinessDate, op.ReceivedAmount ?? 0, op.NpmQuoteToken ?? "", op.ORNumber), ct);
+                var outcome = posted.IsSuccess ? SyncResultStatus.Synced
+                    : posted.Status == ResultStatus.Conflict ? SyncResultStatus.ReconciliationRequired
+                    : IsTransient(posted.StatusCode) ? SyncResultStatus.Failed : SyncResultStatus.Rejected;
+                results.Add(new(op.ClientOperationId, outcome, posted.Error, posted.Value?.ReferenceCode, posted.Value?.CollectionId));
+                continue;
+            }
             if (op.Kind == OfflineOperationKind.ItemizedCollectionSession)
             {
                 if (collectionSessions is null) { results.Add(new(op.ClientOperationId, SyncResultStatus.Failed, "Checkout sync is unavailable.")); continue; }
@@ -60,7 +74,7 @@ public sealed class SyncOfflineCollectionsCommandHandler(
                     continue;
                 }
                 var posted = await npmWholePayment.PostAsync(new(op.ClientOperationId, op.StallId ?? Guid.Empty,
-                    op.BillingYear ?? 0, op.BillingMonth ?? 0, op.BusinessDate, op.ReceivedAmount ?? 0m, op.NpmQuoteToken ?? ""), ct);
+                    op.BillingYear ?? 0, op.BillingMonth ?? 0, op.BusinessDate, op.ReceivedAmount ?? 0m, op.NpmQuoteToken ?? "", op.ORNumber), ct);
                 var outcome = posted.IsSuccess ? SyncResultStatus.Synced
                     : posted.Error?.StartsWith("RECONCILIATION_REQUIRED:", StringComparison.Ordinal) == true ? SyncResultStatus.ReconciliationRequired
                     : IsTransient(posted.StatusCode) ? SyncResultStatus.Failed : SyncResultStatus.Rejected;
@@ -101,7 +115,7 @@ public sealed class SyncOfflineCollectionsCommandHandler(
                 var fee = await feeScheduleWorkflow.PostMobileAsync(new FeeSchedulePostRequest(
                     op.ClientOperationId, op.OperationCode ?? string.Empty, op.BusinessDate, op.ReceivedAmount ?? 0m,
                     VendorName: op.VendorName, Goods: op.Goods, Animal: op.AnimalType, CustomAnimalName: op.CustomAnimalType,
-                    Heads: op.NumberOfHeads, OwnerName: op.OwnerName), ct);
+                    Heads: op.NumberOfHeads, OwnerName: op.OwnerName, Charges: op.SlaughterCharges), ct);
                 var feeStatus = fee.IsSuccess ? SyncResultStatus.Synced
                     : IsTransient(fee.StatusCode) ? SyncResultStatus.Failed : SyncResultStatus.Rejected;
                 results.Add(new SyncOperationResultDto(op.ClientOperationId, feeStatus,
@@ -180,6 +194,34 @@ public sealed class SyncOfflineCollectionsCommandHandler(
                     governed.Value?.ReferenceCode, governed.Value?.CollectionId));
                 continue;
             }
+            if (op.Kind == OfflineOperationKind.NpmDaily && monthly is not null && op.StallId is { } monthStall
+                && await monthly.IsMonthActivatedAsync(monthStall, new((op.NpmInstallmentDate ?? op.BusinessDate).Year,
+                    (op.NpmInstallmentDate ?? op.BusinessDate).Month, 1), ct))
+            {
+                var historical = npmCanonical is null ? null : await npmCanonical.FindHistoricalDailyReplayAsync(op.ClientOperationId,
+                    monthStall, op.BusinessDate, op.IsPaid ?? true, op.IsAbsent ?? false, ct, op.ORNumber);
+                if (historical is not null)
+                {
+                    results.Add(new(op.ClientOperationId, historical.IsSuccess ? SyncResultStatus.Synced : SyncResultStatus.ReconciliationRequired,
+                        historical.Error, historical.Value?.ReferenceCode, historical.Value?.CollectionId));
+                    continue;
+                }
+                if (op.IsAbsent == true || op.IsPaid == false || op.FishKilos is > 0m || op.MeatKilos is > 0m
+                    || op.ReceivedAmount is not > 0m || string.IsNullOrWhiteSpace(op.NpmQuoteToken))
+                {
+                    results.Add(new(op.ClientOperationId, SyncResultStatus.ReconciliationRequired,
+                        "RECONCILIATION_REQUIRED: Queued daily payment has no reviewed month amount/token or combines independent fees. No new money was posted."));
+                    continue;
+                }
+                var saved = await monthly.PostAsync(new(op.ClientOperationId, monthStall,
+                    new((op.NpmInstallmentDate ?? op.BusinessDate).Year, (op.NpmInstallmentDate ?? op.BusinessDate).Month, 1),
+                    op.BusinessDate, NpmRentPaymentScope.DailyInstallment,
+                    op.ReceivedAmount.Value, op.NpmQuoteToken, op.NpmInstallmentDate ?? op.BusinessDate, op.ORNumber), ct);
+                results.Add(new(op.ClientOperationId, saved.IsSuccess ? SyncResultStatus.Synced : IsTransient(saved.StatusCode)
+                        ? SyncResultStatus.Failed : SyncResultStatus.ReconciliationRequired,
+                    saved.Error, saved.Value?.ReferenceCode, saved.Value?.CollectionId));
+                continue;
+            }
             // An NPM daily payment received once the NPM daily switch is on is canonical money. The same NPM command decides it
             // (the market rules are unchanged); a retry is recognised by its posting operation, so the device is told the SAME
             // SRC, and the id reused for something else is refused rather than waved through as "already synced".
@@ -189,7 +231,8 @@ public sealed class SyncOfflineCollectionsCommandHandler(
                 var (posted, postedStatus, postedMessage) = await DispatchAsync(op, ct);
                 var outcome = posted ? await npmCanonical.FindPostedAsync(op.ClientOperationId, ct) : null;
                 results.Add(new SyncOperationResultDto(op.ClientOperationId,
-                    posted ? SyncResultStatus.Synced : IsTransient(postedStatus) ? SyncResultStatus.Failed : SyncResultStatus.Rejected,
+                    posted ? SyncResultStatus.Synced : postedMessage?.StartsWith("RECONCILIATION_REQUIRED:", StringComparison.Ordinal) == true
+                        ? SyncResultStatus.ReconciliationRequired : IsTransient(postedStatus) ? SyncResultStatus.Failed : SyncResultStatus.Rejected,
                     posted ? null : postedMessage, outcome?.ReferenceCode, outcome?.CollectionId));
                 continue;
             }
@@ -234,7 +277,7 @@ public sealed class SyncOfflineCollectionsCommandHandler(
                     var r = await sender.Send(new RecordDailyCollectionCommand(
                         op.StallId ?? Guid.Empty, op.BusinessDate, op.IsPaid ?? true,
                         op.FishKilos, op.ORNumber, op.ClientOperationId, op.IsAbsent ?? false,
-                        MeatKilos: op.MeatKilos), ct);
+                        MeatKilos: op.MeatKilos, ReviewedMonthAmount: op.ReceivedAmount, MonthQuoteToken: op.NpmQuoteToken), ct);
                     return (r.IsSuccess, r.StatusCode, r.Error);
                 }
                 case OfflineOperationKind.MonthlyRental:

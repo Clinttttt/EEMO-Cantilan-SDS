@@ -67,8 +67,7 @@
 
 /* ── Statement table ── */
 .mi-scroll {
-    max-height: calc(100vh - 220px);
-    overflow: auto;
+    overflow-x: auto;
     border: 1px solid var(--border);
     border-radius: 0 0 10px 10px;
     background: var(--surface);

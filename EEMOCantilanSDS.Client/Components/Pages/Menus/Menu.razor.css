@@ -530,6 +530,8 @@ a.dashboard-report-tab:hover {
     text-transform: none;
     font-weight: 500;
     color: var(--text-tertiary);
+    line-height: 1.25;
+    text-wrap: balance;
 }
 
 .facility-progress-bar {

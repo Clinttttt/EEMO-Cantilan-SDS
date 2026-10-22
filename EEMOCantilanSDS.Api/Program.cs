@@ -27,11 +27,18 @@ if (!builder.Environment.IsDevelopment())
 builder.Services.AddApi(builder.Environment,builder.Configuration);
 builder.Services.AddInfrastructureService(builder.Configuration);
 builder.Services.AddApplicationService();
+builder.Services.AddPreviewMonthlyRentReceipts(builder.Configuration);
+builder.Services.AddWorkingCopyOfficeCashTurnover(builder.Configuration);
+builder.Services.AddWorkingCopyNpmMonthly(builder.Configuration, builder.Environment);
+builder.Services.AddWorkingCopyNpmAmounts(builder.Configuration, builder.Environment);
+builder.Services.AddWorkingCopyFishMeatRegistrationRequests(builder.Configuration, builder.Environment);
 builder.ConfigureServices();
 
 
 
 var app = builder.Build();
+await app.VerifyWorkingCopyNpmMonthlyAsync();
+await app.VerifyWorkingCopyFishMeatRegistrationRequestsAsync();
 
 if (builder.Configuration.GetValue<bool>("Database:ApplyMigrationsAtStartup"))
 {

@@ -56,6 +56,7 @@ public sealed class NpmNativePolishTests : TestContext
             Assert.Contains("updated server and its approved migration", cut.Markup);
             Assert.DoesNotContain("No requests yet", cut.Markup);
             Assert.Single(cut.FindAll(".npm-history-actions button"));
+            Assert.Empty(cut.FindAll(".npm-history a[href='/records']"));
             Assert.Empty(cut.FindAll(".npm-history-list"));
         });
     }

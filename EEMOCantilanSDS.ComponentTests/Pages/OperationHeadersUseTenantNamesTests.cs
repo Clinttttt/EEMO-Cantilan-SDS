@@ -2,6 +2,7 @@ using Bunit;
 using Bunit.TestDoubles;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Client.Components.Shared;
+using EEMOCantilanSDS.Client.Components.Pages.Menus;
 using EEMOCantilanSDS.Client.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
@@ -32,6 +33,44 @@ public sealed class OperationHeadersUseTenantNamesTests : TestContext
         var labels = label is null ? null : new Dictionary<string, string> { ["KANMANGGAY_SPACE_RENTAL"] = label };
         var api = OperationsTenantConfigurationTests.SettingsApi(adopted, ["KANMANGGAY_SPACE_RENTAL"], labels);
         Services.AddSingleton(new OperationNameService(api.Object));
+    }
+
+    [Fact]
+    public void OperationTopbar_DefaultsToOperations_ForDirectPageAccess()
+    {
+        this.AddTestAuthorization().SetAuthorized("head");
+        var cut = RenderComponent<OperationTopbar>(p => p.Add(c => c.Title, "Kanmanggay").Add(c => c.Crumb, "Space rental"));
+        Assert.Equal("/operations", cut.Find(".tcc-back-btn").GetAttribute("href"));
+        Assert.Equal("Back to Operations", cut.Find(".tcc-back-btn").GetAttribute("aria-label"));
+        Assert.Contains(cut.FindAll(".breadcrumb-link"), a => a.GetAttribute("href") == "/operations");
+    }
+
+    [Theory]
+    [InlineData(typeof(KanmanggayImport), "/operations/kanmanggay")]
+    [InlineData(typeof(VegetableFruitImport), "/operations/vegetable-fruit")]
+    [InlineData(typeof(FiestaArawImport), "/operations/fiesta-araw")]
+    public void ImportPage_ReturnsToItsOperation_WithoutBrowserHistory(Type page, string parent)
+    {
+        this.AddTestAuthorization().SetAuthorized("head");
+        ComponentFactories.AddStub<SpaceHolderImport>();
+        var cut = RenderComponent<Microsoft.AspNetCore.Components.DynamicComponent>(p => p.Add(c => c.Type, page));
+        Assert.Equal(parent, cut.Find(".tcc-back-btn").GetAttribute("href"));
+        Assert.Contains(cut.FindAll(".breadcrumb-link"), a => a.GetAttribute("href") == parent);
+    }
+
+    [Theory]
+    [InlineData("/operations/fish-meat-vendor-fees?taxYear=2025", "Fish / Meat Vendors", true)]
+    [InlineData("/monitoring/review", "Collection & Registration Review", false)]
+    [InlineData("/monitoring/follow-up", "Monitoring", false)]
+    public void OperationTopbar_UsesItsExplicitParentAndContext(string href, string title, bool operations)
+    {
+        this.AddTestAuthorization().SetAuthorized("head");
+        var cut = RenderComponent<OperationTopbar>(p => p.Add(c => c.Title, "Review")
+            .Add(c => c.Crumb, "Details").Add(c => c.ParentHref, href).Add(c => c.ParentTitle, title));
+        Assert.Equal(href, cut.Find(".tcc-back-btn").GetAttribute("href"));
+        Assert.Equal($"Back to {title}", cut.Find(".tcc-back-btn").GetAttribute("aria-label"));
+        Assert.Contains(cut.FindAll(".breadcrumb-link"), a => a.GetAttribute("href") == href && a.TextContent == title);
+        Assert.Equal(operations, cut.FindAll(".breadcrumb-link").Any(a => a.GetAttribute("href") == "/operations"));
     }
 
     [Fact]

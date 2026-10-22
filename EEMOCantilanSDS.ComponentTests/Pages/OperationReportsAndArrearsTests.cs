@@ -77,6 +77,35 @@ public sealed class OperationReportsAndArrearsTests : TestContext
     }
 
     [Fact]
+    public void TheMarketFeesReport_BreaksTheMonthDownByFeeType_FromTheServersTotals()
+    {
+        _governed.Setup(x => x.GetActivityAsync("MARKET_FEES", It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(Result<IReadOnlyList<GovernedServiceActivityDto>>.Success(
+            [
+                new(Guid.NewGuid(), DateOnly.FromDateTime(DateTime.Today), DateTime.UtcNow, "SRC-2026-000004", RevenueInstrumentType.CashTicket,
+                    null, "Walk-up", null, 200m, "Ana Reyes", "Posted", "Comfort Room"),
+            ]));
+        _governed.Setup(x => x.GetFeeOptionTotalsAsync("MARKET_FEES", It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(Result<IReadOnlyList<FeeOptionTotalDto>>.Success(
+            [
+                new(Guid.NewGuid(), "Comfort Room", 2, 234m),
+                new(Guid.NewGuid(), "Weighing", 1, 50m),
+            ]));
+
+        var cut = RenderComponent<MarketFeesReport>();
+
+        cut.WaitForAssertion(() =>
+        {
+            var fees = cut.Find("section[aria-labelledby='mfr-fees']");
+            Assert.Contains("Comfort Room", fees.TextContent);
+            Assert.Contains("₱284.00", fees.QuerySelector("tfoot")!.TextContent);   // the sum of the server's per-fee-type totals
+            var register = cut.Find("section[aria-labelledby='mfr-register']");
+            Assert.Contains("Fee type", register.QuerySelector("thead")!.TextContent);
+            Assert.DoesNotContain("Instrument", register.QuerySelector("thead")!.TextContent);   // one instrument: stated once in the header
+        }, Timeout);
+    }
+
+    [Fact]
     public void TheVegetableReport_StatesBothInstruments_AndTheModeThatDecides()
     {
         _governed.Setup(x => x.GetActivityAsync(It.IsAny<string>(), It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
@@ -113,15 +142,20 @@ public sealed class OperationReportsAndArrearsTests : TestContext
             {
                 DelinquentAccountsTotal = 7,
                 DelinquentOutstandingTotal = 12_345m,
+                ArrearsAccountsTotal = 2,
+                ArrearsOutstandingTotal = 8_000m,
             }));
-        _reports.Setup(x => x.GetFollowUpQueueAsync(It.IsAny<int>(), It.IsAny<int>()))
-            .ReturnsAsync(Result<FollowUpQueueDto>.Success(new FollowUpQueueDto("October 2026", DateOnly.FromDateTime(DateTime.Today),
+        var queue = Result<FollowUpQueueDto>.Success(new FollowUpQueueDto("October 2026", DateOnly.FromDateTime(DateTime.Today),
             [
                 new(1, "Critical", "Delinquent", "delinquent", FacilityCode.NCC, "Monthly rental", "Rosa Magbanua", "Stall 3", 2_700m,
                     false, "3 months to September 2026", "Unpaid · 3 months", "Record payment", "/profile/ncc/3"),
+                new(1, "High", "Arrears", "arrears", FacilityCode.TCC, "Monthly rental", "Pedro Reyes", "Stall 4", 8_000m,
+                    false, "Nov 2025 – Dec 2025", "Arrears · 2 months · previous year", "Record payment", "/profile/tcc/4"),
                 new(1, "Normal", "Current-period", "current", FacilityCode.TCC, "Monthly rental", "Current Only", "Stall 9", 900m,
                     false, "October 2026", "Unpaid", "Record payment", "/profile/tcc/9"),
-            ])));
+            ]));
+        _reports.Setup(x => x.GetFollowUpQueueAsync(It.IsAny<int>(), It.IsAny<int>())).ReturnsAsync(queue);
+        _reports.Setup(x => x.GetFollowUpHistoryAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>())).ReturnsAsync(queue);
     }
 
     [Fact]
@@ -134,7 +168,7 @@ public sealed class OperationReportsAndArrearsTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var markup = cut.Markup;
-            Assert.Contains("₱12,345.00", markup);            // the server's own delinquency total, not a client sum
+            Assert.Contains("₱20,345.00", markup);            // delinquent ₱12,345 + Arrears ₱8,000, the two server totals
             Assert.Contains("Rosa Magbanua", markup);
             Assert.DoesNotContain("Current Only", markup);     // current-period balances are not arrears
             Assert.Contains("Review account", markup);
@@ -156,13 +190,13 @@ public sealed class OperationReportsAndArrearsTests : TestContext
         {
             Assert.Equal("Arrears & Delinquency", cut.Find("h1.v3h-title").TextContent.Trim());
             var figures = cut.Find("dl[aria-label='Delinquency position']").TextContent;
-            Assert.Contains("₱12,345.00", figures);
-            Assert.Contains("not collected cash", figures);          // outstanding is never presented as revenue
+            Assert.Contains("₱20,345.00", figures);
+            Assert.Contains("Total outstanding", figures);          // labelled as outstanding, never as revenue
             Assert.Contains("cash received", figures);               // recovered is the only cash figure
-            Assert.Equal("Follow-up accounts", cut.Find("#arr-register-title").TextContent.Trim());
-            // 7 in the financial report's position, 1 in the follow-up queue: stated, never forced to agree.
+            Assert.Equal("Delinquent accounts", cut.Find("#arr-register-title").TextContent.Trim());
+            // 7 in the financial report's position, 1 in the follow-up rows: stated, never forced to agree.
             Assert.Contains("Position: 7 delinquent rental accounts", cut.Find(".arr-scope-note").TextContent);
-            Assert.Contains("Register: 1 accounts in the follow-up queue", cut.Find(".arr-scope-note").TextContent);
+            Assert.Contains("Register: 1 accounts in the whole-account follow-up", cut.Find(".arr-scope-note").TextContent);
             Assert.NotNull(cut.Find("details.arr-note-disclosure summary"));
         }, Timeout);
     }
@@ -184,15 +218,16 @@ public sealed class OperationReportsAndArrearsTests : TestContext
         }, Timeout);
     }
     [Fact]
-    public void UnresolvedArrearsQualificationDoesNotRenderAFabricatedEmptyRegister()
+    public void TheArrearsFilterListsTheServersArrearsRows_NotTheDelinquentOnesAndNotAnEmptyRegister()
     {
         ArrearsData(); var cut=RenderComponent<Arrears>();
         cut.WaitForAssertion(()=>Assert.Contains("Rosa Magbanua",cut.Markup),Timeout);
         cut.Find("select").Change("arrears");
-        Assert.Contains("no verified recovery register",cut.Markup);
-        Assert.Empty(cut.FindAll("table"));
-        Assert.DoesNotContain("0 of",cut.Markup);
-        Assert.Contains("/reports/closed-accounts",cut.Markup);
+        Assert.Equal("Qualifying Arrears", cut.Find("#arr-register-title").TextContent.Trim());
+        Assert.Contains("Pedro Reyes",cut.Markup);                 // the obligation is Arrears; it is not shown as Delinquent
+        Assert.DoesNotContain("Rosa Magbanua",cut.Markup);
+        Assert.DoesNotContain("Current Only",cut.Markup);
+        Assert.Contains("1 of 1 Arrears accounts shown",cut.Markup);
         SpaceHolderWorkspaceTests.SaveVisualArtifact("arrears-qualification-unavailable",cut.Markup);
     }
 

@@ -1,0 +1,109 @@
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Common.Lifecycle
+@using EEMOCantilanSDS.Client.Services
+@inject ILifecycleApiClient LifecycleApi
+@inject NavigationManager Navigation
+
+@* The rental actions an account offers, as one compact row of buttons under the profile header, the same row for a stall and for a monthly space.
+   They are exactly the actions the server allows: nothing else is drawn, and there is no explanatory text. An action that cannot run yet only because
+   the account still needs its one-time space setup is shown disabled with a short tooltip. *@
+@if (_error is not null)
+{
+    <div class="lcb-bar lcb-muted" role="alert"><span>@_error</span> <button type="button" class="btn-ghost lcb-retry" @onclick="LoadAsync">Try again</button></div>
+}
+else if (_shown.Count > 0)
+{
+    <div class="lcb-bar" role="group" aria-label="Account actions">
+        @foreach (var action in _shown)
+        {
+            <button type="button" class="btn-outline lcb-btn @(action.Action == LifecycleAction.Remove ? "lcb-remove" : "")" disabled="@(!action.Allowed)"
+                    title="@(action.Allowed ? null : action.Reason)" @onclick="() => ChooseAsync(action.Action)">
+                <svg viewBox="0 0 24 24" aria-hidden="true">@IconFor(action.Action)</svg>
+                @LifecyclePresentation.Label(action.Action, Source)
+            </button>
+        }
+    </div>
+}
+
+@if (_drawer is { } open && _view is not null && Source != LifecycleSource.Stall)
+{
+    <LifecycleActionDrawer Source="Source" Account="_view" Action="open" OnDone="DoneAsync" OnCancel="() => _drawer = null" />
+}
+
+@code {
+    [Parameter, EditorRequired] public LifecycleSource Source { get; set; }
+    [Parameter, EditorRequired] public Guid AccountId { get; set; }
+    /// <summary>The profile of a given account in this source, so Resume and Reassign can open the new occupancy.</summary>
+    [Parameter] public Func<Guid, string>? ProfileHref { get; set; }
+    /// <summary>A deep link's action: opened once, and only if the server offers it.</summary>
+    [Parameter] public LifecycleAction? InitialAction { get; set; }
+    /// <summary>Raised after a confirmed action so the page can refresh the account, its periods and any totals it shows.</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+    /// <summary>Raised with the server's view of the account whenever it is read, for the host's own pill and history.</summary>
+    [Parameter] public EventCallback<AccountLifecycleDto> OnLoaded { get; set; }
+    /// <summary>A stall's actions run in the stall's own dialogs, so the host is told which one was chosen.</summary>
+    [Parameter] public EventCallback<LifecycleAction> OnStallAction { get; set; }
+    /// <summary>A host raises this after it changed the account, so the bar reads the server's state again.</summary>
+    [Parameter] public int RefreshToken { get; set; }
+
+    private AccountLifecycleDto? _view;
+    private IReadOnlyList<AllowedAction> _shown = [];
+    private string? _error;
+    private LifecycleAction? _drawer;
+    private Guid _loadedFor;
+    private int _refreshSeen;
+    private bool _deepLinkHandled;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedFor == AccountId && _refreshSeen == RefreshToken) return;
+        _refreshSeen = RefreshToken;
+        if (_loadedFor != AccountId) _deepLinkHandled = false;
+        _loadedFor = AccountId;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _error = null;
+        try
+        {
+            var result = await LifecycleApi.GetAsync(Source, AccountId);
+            if (result is { IsSuccess: true }) _view = result.Value;
+            else { _view = null; _error = result is null ? "Account actions could not be loaded." : LifecyclePresentation.Describe(result).Message; }
+            _shown = _view is null ? [] : _view.Actions.Where(a => LifecyclePresentation.SpaceActions.Contains(a.Action)
+                && (a.Allowed || a.ReasonCode == SpaceLifecycleWorkflow.NoSpaceRegistration)).ToList();
+            if (_view is not null) await OnLoaded.InvokeAsync(_view);
+            if (_view is not null && !_deepLinkHandled && InitialAction is { } wanted && _view.Actions.Any(a => a.Action == wanted && a.Allowed)) await ChooseAsync(wanted);
+            _deepLinkHandled = true;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException) { _view = null; _shown = []; _error = "Account actions could not be loaded. Check the connection and try again."; }
+    }
+
+    private async Task ChooseAsync(LifecycleAction action)
+    {
+        if (Source == LifecycleSource.Stall) await OnStallAction.InvokeAsync(action);
+        else _drawer = action;
+    }
+
+    private async Task DoneAsync(LifecycleOutcome outcome)
+    {
+        var action = _drawer;
+        _drawer = null;
+        if (action is LifecycleAction.Resume or LifecycleAction.Reassign && outcome.ResultAccountId is { } next && ProfileHref is not null)
+        {
+            Navigation.NavigateTo(ProfileHref(next));
+            return;
+        }
+        await LoadAsync();
+        await OnChanged.InvokeAsync();
+    }
+
+    private static RenderFragment IconFor(LifecycleAction action) => action switch
+    {
+        LifecycleAction.Resume => @<path d="M5 3l14 9-14 9V3z" />,
+        LifecycleAction.Renew => @<g><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></g>,
+        LifecycleAction.Reassign => @<g><polyline points="16 3 21 3 21 8" /><line x1="4" y1="20" x2="21" y2="3" /><polyline points="21 16 21 21 16 21" /><line x1="15" y1="15" x2="21" y2="21" /></g>,
+        _ => @<g><polyline points="21 8 21 21 3 21 3 8" /><rect x="1" y="3" width="22" height="5" /><line x1="10" y1="12" x2="14" y2="12" /></g>
+    };
+}

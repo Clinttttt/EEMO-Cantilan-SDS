@@ -125,6 +125,26 @@ public sealed partial class CollectionSessionTests
         Assert.Equal(2, collectorReport.OperationCollections!.Count);
     }
     [SkippableFact]
+    public async Task A_registered_vendors_fee_and_weighing_are_each_taken_once_per_checkout()
+    {
+        var Today = PhilippineTime.Today;
+        var w = await SeedAsync(linked: false); await using var db = database.CreateContext(w.TenantId); await EnableOffice(db, w);
+        var vendor = (await Office(db, w, "SuperAdmin").RegisterAsync(new RegisterFishMeatVendorRequest(Guid.NewGuid(), Today.Year, FishMeatVendorType.Meat, VendorRegistrationKind.New, "Twice Vendor"))).Value!;
+        var flow = NativeWorkflow(db, w, new CollectionSessionSources(db, new Caller(w.CollectorId, w.TenantId), new Tenant(w.TenantId), new Clock(Today), null!, new NoMarketDays()));
+        var identity = new CollectionSourceIdentity(SourceIdentityKind.FishMeatVendorRegistration, vendor.Id);
+        Assert.NotEmpty((await flow.DiscoverNativeAsync(identity)).Value!.Operations);
+        CollectionSessionIntent Intent(params CollectionSessionItemIntent[] items) => new(Guid.NewGuid(), Today, null, items, SourceIdentity: identity);
+        CollectionSessionItemIntent Fee(decimal amount) => new(Guid.NewGuid(), CollectionSessionItemKind.SourceNative, amount, Native: new(CollectorOperationCodes.FishMeatVendorFee, vendor.Id));
+        CollectionSessionItemIntent Weigh(decimal amount, decimal kg) => new(Guid.NewGuid(), CollectionSessionItemKind.SourceNative, amount, Native: new(CollectorOperationCodes.WeightAndMeasure, vendor.Id, Kilograms: kg));
+
+        var normal = (await flow.QuoteAsync(Intent(Fee(100m), Weigh(66m, 3m)))).Value!; Assert.True(normal.CanRecord, string.Join("; ", normal.Problems.Select(x => x.Code + ":" + x.Message)));                       // one of each is a normal visit
+        var twiceFee = (await flow.QuoteAsync(Intent(Fee(100m), Fee(40m)))).Value!;
+        Assert.False(twiceFee.CanRecord); Assert.Contains(twiceFee.Problems, x => x.Code == "DuplicateBusinessEvent");
+        var twiceWeigh = (await flow.QuoteAsync(Intent(Weigh(66m, 3m), Weigh(22m, 1m)))).Value!;
+        Assert.False(twiceWeigh.CanRecord); Assert.Contains(twiceWeigh.Problems, x => x.Code == "DuplicateBusinessEvent");
+        Assert.Empty(await db.Collections.ToListAsync());
+    }
+    [SkippableFact]
     public async Task Native_mixed_checkout_rolls_back_and_rate_staleness_tenant_and_type_fail_closed()
     {
         var date = PhilippineTime.Today; var w = await SeedAsync(linked: false);

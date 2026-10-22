@@ -6,6 +6,7 @@
 @using EEMOCantilanSDS.Application.Dtos.Settings
 @using EEMOCantilanSDS.Application.Requests.Collectors
 @using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Domain.Constants
 @using Microsoft.AspNetCore.Authorization
 @inject ICollectorsApiClient CollectorsApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
@@ -137,7 +138,7 @@
                                 <tr>
                                     <th>Collector</th>
                                     <th>Employee ID</th>
-                                    <th>Assigned Facilities</th>
+                                    <th>Assigned Facilities & Operations</th>
                                     <th>Collected (This Month)</th>
                                     <th>Transactions</th>
                                     <th>Last Active</th>
@@ -197,7 +198,7 @@
                                 <tr>
                                     <th>Collector</th>
                                     <th>Employee ID</th>
-                                    <th>Assigned Facilities</th>
+                                    <th>Assigned Facilities & Operations</th>
                                     <th>Collected (This Month)</th>
                                     <th>Transactions</th>
                                     <th>Last Active</th>
@@ -219,14 +220,19 @@
                                         </td>
                                         <td><span>@c.EmployeeId</span></td>
                                         <td>
-                                            <div class="facility-tags">
-                                                @foreach (var f in c.AssignedFacilities)
+                                            @{ var (shown, hidden) = AssignmentChips(c); }
+                                            <div class="facility-tags facility-tags-compact">
+                                                @foreach (var label in shown)
                                                 {
-                                                    <span>@f</span>
+                                                    <span title="@label.Name">@label.Label</span>
                                                 }
-                                                @if (c.AssignedFacilities.Count == 0)
+                                                @if (hidden.Count > 0)
                                                 {
-                                                    <span class="no-facility">No facility · operations only</span>
+                                                    <span class="tag-more" title="@string.Join(", ", hidden.Select(x => x.Name))" aria-label="@($"{hidden.Count} more: {string.Join(", ", hidden.Select(x => x.Name))}")">+@hidden.Count</span>
+                                                }
+                                                @if (shown.Count == 0)
+                                                {
+                                                    <span class="no-facility">@(_opNames.ContainsKey(c.Id) ? "No facility or operation" : "Loading operations…")</span>
                                                 }
                                             </div>
                                         </td>
@@ -746,6 +752,52 @@
     public List<CollectorListDto>? Collectors { get; set; }
     string? LoadError = null;
 
+    // Every collector's assigned non-facility operations, read once the list is on screen (the list itself carries facilities only).
+    readonly Dictionary<Guid, List<(string Label, string Name)>> _opNames = new();
+    bool _opsRequested;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_opsRequested || _loading || Collectors is not { Count: > 0 } list) return;
+        _opsRequested = true;
+        await Task.WhenAll(list.Select(async c =>
+        {
+            try
+            {
+                var result = await CollectorsApi.GetCollectionOperationsAsync(c.Id);
+                if (result is { IsSuccess: true, Value: not null })
+                    _opNames[c.Id] = result.Value.Where(x => x.Assigned)
+                        .Select(x => (Label: AssignmentLabel(x), Name: x.DisplayName)).ToList();
+            }
+            catch (HttpRequestException) { }
+        }));
+        StateHasChanged();
+    }
+
+    private static string AssignmentLabel(CollectorOperationAssignmentDto operation) => operation.Code switch
+    {
+        "WCF" or "ECF" => operation.Code,
+        CollectorOperationCodes.Terminal => "IFT",
+        CollectorOperationCodes.FishMeatVendorFee => "FMVF",
+        CollectorOperationCodes.WeightAndMeasure => "W&M",
+        CollectorOperationCodes.KanmanggaySpaceRental => "KNM",
+        CollectorOperationCodes.FiestaArawLotRental => "F/A",
+        CollectorOperationCodes.VegetableFruitSpaceRental => "V/F",
+        CollectorOperationCodes.LandingBerthing => "L/B",
+        CollectorOperationCodes.TransferLargeCattle => "TLC",
+        CollectorOperationCodes.MarketFees => "MF",
+        CollectorOperationCodes.Transportation => "T/P",
+        _ => operation.DisplayName
+    };
+
+    // Seven chips per row, two rows; reserve the last slot for overflow when needed.
+    (List<(string Label, string Name)> Shown, List<(string Label, string Name)> Hidden) AssignmentChips(CollectorListDto c)
+    {
+        var all = c.AssignedFacilities.Select(f => (Label: f.ToString(), Name: f.ToString())).Concat(_opNames.GetValueOrDefault(c.Id) ?? []).ToList();
+        var visible = all.Count <= 14 ? all.Count : 13;
+        return (all.Take(visible).ToList(), all.Skip(visible).ToList());
+    }
+
     protected override async Task OnInitializedAsync()
     {
         await FacilityCatalog.EnsureLoadedAsync();
@@ -788,7 +840,9 @@
         bool matchSearch = string.IsNullOrWhiteSpace(SearchQuery)
             || c.FullName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
             || c.EmployeeId.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
-            || c.AssignedFacilities.Any(f => f.ToString().Contains(SearchQuery, StringComparison.OrdinalIgnoreCase));
+            || c.AssignedFacilities.Any(f => f.ToString().Contains(SearchQuery, StringComparison.OrdinalIgnoreCase))
+            || (_opNames.GetValueOrDefault(c.Id)?.Any(o => o.Name.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
+                || o.Label.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)) ?? false);
         return matchFilter && matchSearch;
     });
 

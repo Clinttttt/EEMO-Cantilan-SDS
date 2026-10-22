@@ -7,6 +7,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 public interface IDirectCollectionReviewApiClient
 {
     Task<Result<DirectCollectionReviewPageDto>> GetAsync(DirectCollectionReviewRequest request);
+    Task<Result<DirectCollectionVerificationPositionDto>> PositionAsync(DateOnly from, DateOnly to, bool scoped = false);
     Task<Result<DirectCollectionDetailDto>> DetailAsync(Guid collectionId);
     Task<Result<DirectCollectionReviewRowDto>> ReviewAsync(DirectCollectionReviewActionRequest request);
     Task<Result<DirectCollectionBulkConfirmResult>> ConfirmManyAsync(DirectCollectionBulkConfirmRequest request);

@@ -22,6 +22,7 @@ public sealed class DirectCollectionReviewTests : TestContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddSingleton(_api.Object);
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
+        Services.AddSingleton(Mock.Of<IOfficeSourcesApiClient>());
         Services.AddSingleton(Mock.Of<IStallsApiClient>());
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
@@ -55,8 +56,8 @@ public sealed class DirectCollectionReviewTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var trigger = cut.Find(".dcr-trigger");
-            Assert.Equal("Review direct collections, 2 awaiting review", trigger.GetAttribute("aria-label"));
-            Assert.Equal("Review direct collections", trigger.GetAttribute("title"));
+            Assert.Equal("Collection Review, 2 awaiting review", trigger.GetAttribute("aria-label"));
+            Assert.Equal("Collection Review", trigger.GetAttribute("title"));
             Assert.Equal("2", cut.Find(".dcr-badge").TextContent.Trim());
         }, Timeout);
     }
@@ -73,12 +74,12 @@ public sealed class DirectCollectionReviewTests : TestContext
             var dialog = cut.Find("[role=dialog]");
             Assert.Contains("SRC-2026-000016", dialog.TextContent);
             Assert.Contains("₱656.00", dialog.TextContent);
-            Assert.Contains("Pat Collector", dialog.TextContent);
+            Assert.DoesNotContain("Pat Collector", dialog.TextContent);
             Assert.Contains("Awaiting review", dialog.TextContent);
             // The long explanation is a tooltip on the info control, not a paragraph on the page.
             Assert.DoesNotContain(cut.FindAll("p"), p => p.TextContent.Contains("never changes the money"));
-            Assert.Contains("never changes the money or the SRC", cut.Find("button[aria-label='About this review']").GetAttribute("title"));
-            Assert.Equal("Direct Collection Review", cut.Find("#dcr-title").TextContent);
+            Assert.Contains("The SRC and the cash record never change", cut.Find("button[aria-label='About this review']").GetAttribute("title"));
+            Assert.Equal("Collection Review", cut.Find("#dcr-title").TextContent);
         }, Timeout);
     }
 
@@ -107,7 +108,22 @@ public sealed class DirectCollectionReviewTests : TestContext
         }, Timeout);
         _api.Verify(x => x.DetailAsync(row.CollectionId), Times.Once);
         cut.Find(".dcr-back").Click();
-        cut.WaitForAssertion(() => Assert.Equal("Direct Collection Review", cut.Find("#dcr-title").TextContent), Timeout);
+        cut.WaitForAssertion(() => Assert.Equal("Collection Review", cut.Find("#dcr-title").TextContent), Timeout);
+    }
+
+    [Fact]
+    public void CompactRowsKeepStatusAndSourceWithoutRedundantRecorderOrVerificationText()
+    {
+        Serve(Row("SRC-2026-000016", state: "Confirmed") with { Verification = "Verified", ReviewedBy = "admin" });
+        var cut = Open();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".dcr-table tbody tr")), Timeout);
+        var row = cut.Find(".dcr-table tbody tr").TextContent;
+        Assert.Contains("Confirmed", row);
+        Assert.Contains("Public Market", row);
+        Assert.DoesNotContain("Verified", row);
+        Assert.DoesNotContain("admin", row);
+        Assert.DoesNotContain("Pat Collector", row);
+        Assert.DoesNotContain("Verified and pending add up", cut.Markup);
     }
 
     [Fact]
@@ -176,6 +192,11 @@ public sealed class DirectCollectionReviewTests : TestContext
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("button[aria-label='Flag SRC-2026-000016 for correction']")), Timeout);
 
         cut.Find("button[aria-label='Flag SRC-2026-000016 for correction']").Click();
+        var noteCell = Assert.Single(cut.Find(".dcr-note-row").Children);
+        Assert.Equal("7", noteCell.GetAttribute("colspan"));
+        Assert.Equal("Correction note", cut.Find(".dcr-note-label").TextContent);
+        Assert.Equal("Review note for SRC-2026-000016", cut.Find(".dcr-note-editor").GetAttribute("aria-label"));
+        Assert.NotNull(cut.Find(".dcr-note-actions"));
         Assert.True(cut.FindAll("button").Single(b => b.TextContent.Trim() == "Flag").HasAttribute("disabled"));     // no note, no flag
 
         cut.Find("textarea").Input("Amount looks short");

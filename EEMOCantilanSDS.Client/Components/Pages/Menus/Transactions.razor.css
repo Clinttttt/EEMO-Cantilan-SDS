@@ -161,7 +161,7 @@
 .txn-jump-today svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 /* ── Table ── */
-.txn-card { padding: 0; overflow: hidden; }
+.txn-card { padding: 0; overflow: hidden; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; }
 .txn-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .txn-table th { padding: 12px 16px; background: var(--bg); border-bottom: 1px solid var(--border); text-align: left; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); white-space: nowrap; }
 .txn-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--navy); vertical-align: middle; }
@@ -611,3 +611,180 @@
 .txn-search-row .txn-search {
     flex: 1 1 auto;
 }
+
+/* ── Collection review drawer ── */
+.txn-review {
+    margin-top: 4px;
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--accent);
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+    .txn-review:hover {
+        border-color: var(--accent);
+    }
+
+    .txn-review:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+    }
+
+.txn-facts {
+    margin: 0 0 16px;
+}
+
+    .txn-facts > div {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--border);
+        font-size: 13px;
+    }
+
+    .txn-facts dt {
+        color: var(--text-secondary);
+    }
+
+    .txn-facts dd {
+        margin: 0;
+        text-align: right;
+        color: var(--navy);
+        font-weight: 600;
+    }
+
+.txn-fact-money {
+    font-variant-numeric: tabular-nums;
+}
+
+.txn-drawer-h {
+    margin: 16px 0 6px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.txn-corrections {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 13px;
+    color: var(--navy);
+}
+
+.txn-muted {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.txn-note {
+    margin: 0 0 12px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
+
+.txn-error {
+    margin: 8px 0;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--red);
+}
+
+.txn-success {
+    margin: 0 0 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--green);
+}
+
+.txn-field-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.txn-reason {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font: inherit;
+    font-size: 13px;
+    resize: vertical;
+}
+
+    .txn-reason:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+    }
+
+.txn-ack {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 10px 0 12px;
+    font-size: 12.5px;
+    color: var(--navy);
+    cursor: pointer;
+}
+
+.txn-links {
+    margin: 16px 0 0;
+    font-size: 13px;
+}
+
+.txn-status-line {
+    margin: 0 0 12px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+}
+
+.txn-status-reversed {
+    margin-right: 6px;
+}
+
+.txn-verify {
+    margin-top: 4px;
+    font-size: 11.5px;
+    color: var(--text-secondary);
+}
+
+/* The row opens the itemized receipt; the pointer says so. */
+.txn-row { cursor: pointer; }
+.txn-row:hover td { background: var(--surface-muted); }
+.txn-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Itemized receipt (centered dialog). */
+.txr { width: min(44rem, 94vw); max-width: 94vw; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; }
+.txr-head { display: flex; align-items: center; gap: 12px; padding: 16px 20px; background: var(--civic-panel); color: #fff; }
+.txr-head-text { flex: 1 1 auto; min-width: 0; }
+.txr-head h2 { margin: 0; color: #fff; font-size: 1.0625rem; font-weight: 700; overflow-wrap: anywhere; }
+.txr-head p { margin: 2px 0 0; color: rgba(255, 255, 255, 0.78); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+.txr-close { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 8px; background: rgba(255, 255, 255, 0.1); cursor: pointer; }
+.txr-close svg { width: 16px; height: 16px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; }
+.txr-close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.txr-body { display: grid; gap: 16px; overflow-y: auto; padding: 20px; background: var(--bg-card); }
+.txr-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; margin: 0; }
+.txr-meta dt { color: var(--text-tertiary); font-size: 0.75rem; }
+.txr-meta dd { margin: 2px 0 0; color: var(--text); font-size: 0.875rem; font-weight: 600; overflow-wrap: anywhere; }
+.txr-sub { display: block; margin-top: 4px; color: var(--text-secondary); font-size: 0.8125rem; font-weight: 400; }
+.txr-subject { margin: 0; color: var(--text-secondary); font-size: 0.8125rem; }
+.txr-items { width: 100%; border-collapse: collapse; font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.txr-items th, .txr-items td { padding: 8px 0; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.txr-items thead th { color: var(--text-tertiary); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.txr-items .txn-num { text-align: right; white-space: nowrap; }
+.txr-group th, .txr-group td { padding-top: 14px; border-bottom: 0; color: var(--navy); font-weight: 700; }
+.txr-items tfoot th, .txr-items tfoot td { border-bottom: 0; font-weight: 700; }
+.txr-items tfoot tr:first-child th, .txr-items tfoot tr:first-child td { border-top: 2px solid var(--border-strong); }
+.txr-net th, .txr-net td { color: var(--navy); }
+.txr-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--border); background: var(--surface-muted); }
+@media (max-width: 560px) { .txr-meta { grid-template-columns: minmax(0, 1fr); } }

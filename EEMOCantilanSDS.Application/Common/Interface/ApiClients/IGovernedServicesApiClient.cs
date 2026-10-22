@@ -14,6 +14,11 @@ public interface IGovernedServicesApiClient
     Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> GetFeeOptionsAsync(string operationCode, bool activeOnly);
     Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> AddFeeOptionAsync(string operationCode, AddFeeOptionRequest request);
     Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> ScheduleFeeOptionRateAsync(string operationCode, Guid feeOptionId, ScheduleFeeOptionRateRequest request);
+    Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> UpdateFeeOptionAsync(string operationCode, Guid feeOptionId, UpdateFeeOptionRequest request);
     Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> RetireFeeOptionAsync(string operationCode, Guid feeOptionId, RetireFeeOptionRequest request);
+    Task<Result<IReadOnlyList<GovernedServiceFeeOptionDto>>> ReinstateFeeOptionAsync(string operationCode, Guid feeOptionId) =>
+        Task.FromResult(Result<IReadOnlyList<GovernedServiceFeeOptionDto>>.Failure("Reinstating is unavailable."));
     Task<Result<IReadOnlyList<FeeOptionTotalDto>>> GetFeeOptionTotalsAsync(string operationCode, DateOnly from, DateOnly to);
+    Task<Result<IReadOnlyList<SlaughterChargePresetDto>>> GetSlaughterChargePresetsAsync() =>
+        Task.FromResult(Result<IReadOnlyList<SlaughterChargePresetDto>>.Success([]));
 }

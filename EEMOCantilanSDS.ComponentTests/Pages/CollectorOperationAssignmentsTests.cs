@@ -35,6 +35,59 @@ public sealed class CollectorOperationAssignmentsTests : TestContext
         JSInterop.Mode = JSRuntimeMode.Loose;
     }
 
+    [Theory]
+    [InlineData("WCF", "Water Consumption Fees", "WCF")]
+    [InlineData("ECF", "Electricity Consumption Fees", "ECF")]
+    [InlineData("TERMINAL", "Income From Terminal", "IFT")]
+    [InlineData("FISH_MEAT_VENDOR_FEE", "Fish / Meat Vendor Fee", "FMVF")]
+    [InlineData("WEIGHT_AND_MEASURE", "Weight & Measure", "W&M")]
+    [InlineData("KANMANGGAY_SPACE_RENTAL", "Kanmanggay Space Rental", "KNM")]
+    [InlineData("FIESTA_ARAW_LOT_RENTAL", "Fiesta / Araw Lot Rental", "F/A")]
+    [InlineData("VEGETABLE_FRUIT_SPACE_RENTAL", "Vegetable / Fruit Space Rental", "V/F")]
+    [InlineData("LANDING_BERTHING", "Landing / Berthing", "L/B")]
+    [InlineData("TRANSFER_LARGE_CATTLE", "Transfer Large Cattle", "TLC")]
+    [InlineData("MARKET_FEES", "Market Fees", "MF")]
+    [InlineData("TRANSPORTATION", "Transportation / Parking", "T/P")]
+    [InlineData("FUTURE_OPERATION", "Office service", "Office service")]
+    public void OperationAssignmentChipsUseShortLabels_AndKeepFullNamesInTooltips(string code, string name, string label)
+    {
+        var api = CollectorsApi();
+        api.Setup(x => x.GetCollectionOperationsAsync(CollectorId)).ReturnsAsync(
+            Result<IReadOnlyList<CollectorOperationAssignmentDto>>.Success([
+                new(code, name, true)]));
+        Services.AddSingleton(api.Object);
+        var cut = RenderComponent<Collector>();
+        cut.WaitForAssertion(() =>
+        {
+            var chips = cut.FindAll(".facility-tags span");
+            Assert.Contains(chips, x => x.TextContent == label && x.GetAttribute("title") == name);
+        }, Timeout);
+    }
+
+    [Theory]
+    [InlineData(13, 0)]
+    [InlineData(19, 7)]
+    public void AssignmentChipsUseAtMostFourteenSlots_IncludingOverflow(int operations, int hidden)
+    {
+        var api = CollectorsApi();
+        api.Setup(x => x.GetCollectionOperationsAsync(CollectorId)).ReturnsAsync(
+            Result<IReadOnlyList<CollectorOperationAssignmentDto>>.Success(
+                Enumerable.Range(1, operations).Select(i => new CollectorOperationAssignmentDto($"TEST_{i}", $"Operation {i}", true)).ToList()));
+        Services.AddSingleton(api.Object);
+        var cut = RenderComponent<Collector>();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(14, cut.FindAll(".facility-tags-compact > span").Count);
+            if (hidden == 0) Assert.Empty(cut.FindAll(".tag-more"));
+            else
+            {
+                var overflow = cut.Find(".tag-more");
+                Assert.Equal($"+{hidden}", overflow.TextContent);
+                Assert.Contains($"Operation {operations}", overflow.GetAttribute("title"));
+            }
+        }, Timeout);
+    }
+
     [Fact]
     public void Create_OperationOnlyCollector_SendsOperationCodes_WithNoFacility()
     {

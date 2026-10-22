@@ -60,7 +60,7 @@ The table above is an **implementation audit**; it does not override IA-045/049/
 | **Slaughterhouse (SLH)** | **Canonical after Head enablement of the `SLAUGHTERHOUSE` service** (current per-head transaction rules); legacy before and for historical rows | `FeeScheduleCollectionWorkflow`; SRC per animal line, no typed OR |
 | NPM daily (`DailyCollection`) | **Legacy** (not migrated) | `RecordDailyCollectionCommand` |
 | Fish/Meat Vendor Fee | **Not built** | — |
-| Slaughterhouse packages / add-ons | **Not built** (none are active in the current rules) | — |
+| Slaughterhouse packages / add-ons | **Built 2026-10-19** as Head/Admin approved charges (itemized lines on one SRC) across Mobile, Admin Web, corrections and reports | `FeeScheduleCollectionWorkflow` itemized mode |
 
 ### Phase 2.1 closure (financial proof, no new behaviour)
 For one canonical Mobile ECF collection and one canonical Mobile rent collection, PostgreSQL integration tests prove: counted exactly once in the official Monthly Income row (legacy projection excluded), appears once in the Collector Report under its SRC with no legacy duplicate, appears once in the Collection Activity and the Remittance position (collected = amount, remitted = 0, unremitted = amount); a remittance record moves only remitted/unremitted, never income, and creates no Collection or line. The Mobile.Core queue test proves the real `PendingOperationStore` + `MobileSyncService` keep a queued canonical operation across a failed attempt and reconcile with the server's SRC on retry under the same `ClientOperationId` (never a second identity).

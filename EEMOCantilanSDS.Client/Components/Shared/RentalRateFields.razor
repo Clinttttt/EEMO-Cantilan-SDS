@@ -2,7 +2,7 @@
 
 @if (!ChargeCard)
 {
-    <div class="avm-row-2">
+    <div class="avm-row-2" style="@(ShowContractRate ? "" : "grid-template-columns: minmax(0, 1fr);")">
         <div class="avm-group">
             <label class="avm-label" for="@InputId">@Label <span class="avm-req">*</span></label>
             <input id="@InputId" class="avm-input" type="number" min="@Minimum" step="@Step" placeholder="e.g. 900"
@@ -22,10 +22,7 @@
                 <div class="avm-hint-muted">Evidence only; not billed.</div>
             </div>
         }
-        else
-        {
-            <div class="avm-group" style="visibility:hidden;"></div>
-        }
+        @* No empty column when contract-rate evidence is not being requested. *@
     </div>
 }
 else

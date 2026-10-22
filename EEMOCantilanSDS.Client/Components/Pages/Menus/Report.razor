@@ -90,6 +90,13 @@
                     <span class="rpt-refreshing-dot"></span> Refreshing @PeriodLabel…
                 </span>
             }
+            @if (_section == "targets" && SelectedYear != "all")
+            {
+                <div class="rpt-seg rpt-view-switch no-print" role="group" aria-label="Trends and targets view">
+                    <button type="button" class="rpp @(_trendView == "sources" ? "on" : "")" aria-pressed="@(_trendView == "sources" ? "true" : "false")" @onclick='() => _trendView = "sources"'>Revenue sources</button>
+                    <button type="button" class="rpp @(_trendView == "trend" ? "on" : "")" aria-pressed="@(_trendView == "trend" ? "true" : "false")" @onclick='() => _trendView = "trend"'>Revenue trend</button>
+                </div>
+            }
             @if (_section == "overview")
             {
                 @* The Financial Summary document is built for paper and opens in a new tab: the office is leaving a screen
@@ -257,6 +264,7 @@
             </div>
         </div>
 
+        <div class="rpt-overview-combined @(_section == "overview" ? "is-joined" : "")">
         <!-- FINANCIAL POSITION — KPIs -->
         <div id="rpt-overview" class="kpi-row pdf-include@(SectionOff("overview"))">
             @* Billed leads, because it is the figure the other three answer to: Billed = Collected + Current-period unpaid,
@@ -313,7 +321,7 @@
                 <div class="kpi-body">
                     <div class="kpi-value">@Money(Model.CurrentPeriodUnpaid)</div>
                     <div class="kpi-label">Current-period unpaid balance</div>
-                    <div class="kpi-sub">Billed but uncollected for @PeriodLabel</div>
+                    <div class="kpi-sub">Unpaid for @PeriodLabel</div>
                 </div>
             </div>
             <div class="kpi-card">
@@ -338,16 +346,30 @@
         @if (_section == "overview")
         {
             <SummaryCashPosition Collected="Model.Collected" YtdCollected="Model.YtdCollected" Outstanding="Model.CurrentPeriodUnpaid"
-                                 From="OfficialFrom" To="OfficialTo" TargetCoverage="_targetCoverage" />
+                                 From="OfficialFrom" To="OfficialTo" />
         }
+        </div>
 
         @* Every revenue source, facility or not, with the official Monthly Income money for the period. Read only while Summary
            is open (it has its own server read; screen-only, not a pdf-include section) and only for a calendar period. *@
-        @if ((_section == "overview" || _section == "targets") && SelectedYear != "all")
+        @if (_section == "overview" && SelectedYear != "all")
         {
-            @* On Trends & Targets this is the primary view: every revenue source by its own model (no collection rate for a
-               source paid on service). The physical-facility table below is the secondary analysis. *@
             <RevenueSourcePerformancePanel Year="OfficialYear" Month="OfficialMonth" Facilities="Model.Facilities" OnCoverage="SetTargetCoverage" />
+        }
+        else if (_section == "targets" && SelectedYear != "all")
+        {
+            @* Revenue sources is the default: every revenue source by its own model (no collection rate for a source paid on service).
+               Revenue trend reads the same official statement period by period. The key re-creates the view on a switch, which replays its enter animation. *@
+            <div class="rpt-view" @key="_trendView">
+                @if (_trendView == "trend")
+                {
+                    <RevenueTrendPanel Year="OfficialYear" Month="OfficialMonth" Annual="@(ActiveTab == "Annual")" />
+                }
+                else
+                {
+                    <RevenueSourcePerformancePanel Year="OfficialYear" Month="OfficialMonth" Facilities="Model.Facilities" OnCoverage="SetTargetCoverage" />
+                }
+            </div>
         }
 
         <div class="rpt-panels pdf-include@(SectionOff("overview"))">
@@ -408,20 +430,27 @@
                         <span class="rpt-pos-label">Delinquent position</span>
                         <span class="rpt-pos-val">
                             @Money(Model.DelinquentOutstandingTotal)
-                            <span class="rpt-pos-count">@Model.DelinquentAccountsTotal accounts with an elapsed unpaid month</span>
+                            <span class="rpt-pos-count">@Model.DelinquentAccountsTotal accounts with an elapsed unpaid month this year</span>
+                        </span>
+                    </div>
+                    <div class="rpt-pos-row">
+                        <span class="rpt-pos-label">Arrears position</span>
+                        <span class="rpt-pos-val">
+                            @Money(Model.ArrearsOutstandingTotal ?? 0m)
+                            <span class="rpt-pos-count">@(Model.ArrearsAccountsTotal ?? 0) account@(Model.ArrearsAccountsTotal == 1 ? "" : "s") · previous years and ended terms</span>
                         </span>
                     </div>
                     @* Named rather than described. "Lapsed term exposure" is the office's own term, and the qualifier says
                        which figure it is part of, so the indent is not carrying that meaning on its own. *@
                     <div class="rpt-pos-row is-part">
-                        <span class="rpt-pos-label">Lapsed term exposure <span class="rpt-pos-of">within whole account</span></span>
+                        <span class="rpt-pos-label">Lapsed term exposure <span class="rpt-pos-of">within Arrears</span></span>
                         <span class="rpt-pos-val">
                             @Money(Model.LapsedWithBalanceOutstanding)
                             <span class="rpt-pos-count">@Model.LapsedWithBalanceCount occupanc@(Model.LapsedWithBalanceCount == 1 ? "y" : "ies")</span>
                         </span>
                     </div>
                     <div class="rpt-pos-row">
-                        <span class="rpt-pos-label">Former occupancies</span>
+                        <span class="rpt-pos-label">Former occupancies <span class="rpt-pos-of">within Arrears</span></span>
                         <span class="rpt-pos-val">
                             @Money(Model.ClosedWithBalanceOutstanding)
                             <span class="rpt-pos-count">@Model.ClosedWithBalanceCount account@(Model.ClosedWithBalanceCount == 1 ? "" : "s")</span>
@@ -444,38 +473,14 @@
         <div id="rpt-followup" class="section-card rpt-attention-wrap" style="margin-bottom:20px;">
             <div class="section-header">
                 <div>
-                    <div class="section-title">Attention &amp; Follow-up</div>
-                    @* Figures, not sentences. The header was two lines of description where the office wanted the numbers
-                       it is being asked to act on: how many accounts, what they owe, and how much of that is behind an
-                       expired term and so settled by renewing rather than by chasing. The span is kept because a follow-up
-                       figure means nothing without knowing which month it stops at, but it is stated as a value now. *@
-                    <div class="rpt-attn-stats">
-                        <span class="rpt-attn-stat">
-                            <span class="rpt-attn-stat-val">@FollowUpAccounts</span>
-                            <span class="rpt-attn-stat-key">delinquent accounts</span>
-                        </span>
-                        <span class="rpt-attn-stat">
-                            <span class="rpt-attn-stat-val is-owed">@Money(FollowUpOutstanding)</span>
-                            <span class="rpt-attn-stat-key">delinquent balance</span>
-                        </span>
-                        @if (Model.LapsedWithBalanceCount > 0)
-                        {
-                            <span class="rpt-attn-stat">
-                                <span class="rpt-attn-stat-val">@Money(Model.LapsedWithBalanceOutstanding)</span>
-                                <span class="rpt-attn-stat-key">behind an expired term</span>
-                            </span>
-                        }
-                        <span class="rpt-attn-stat">
-                            <span class="rpt-attn-stat-val">@(string.IsNullOrEmpty(Model.AttentionSpanLabel) ? LastClosedMonthLabel : Model.AttentionSpanLabel)</span>
-                            <span class="rpt-attn-stat-key">counted to</span>
-                        </span>
-                    </div>
+                    <div class="section-title">Receivables</div>
                 </div>
                 @* This section states WHO owes and how much; it does not act. Encoding a missing OR, reviewing a contract,
                    recording a payment or checking an excused entry all happen on the follow-up queue, which carries those
                    categories as well as these two. The handoff is stated rather than left for the office to know. *@
                 <a class="rpt-attn-link no-print" href="/reports/follow-up">Open full Follow-up Queue →</a>
             </div>
+            <div class="rpt-attn-strip"><SummaryStrip Label="Receivables position" Items="ReceivableItems" /></div>
             @* Receivable aging earns its place only when the debt actually spans more than one band. With every account in
                the youngest band it repeats the same delinquency count beside it, and naming the empty bands states an absence the
                office already knows — the ages are a scale for reading a schedule, not a prediction that anyone will reach
@@ -490,7 +495,7 @@
                         @if (Model.LapsedWithBalanceCount > 0)
                         {
                             <span class="rpt-aging-lapsed">
-                                Lapsed term exposure <strong>@Money(Model.LapsedWithBalanceOutstanding)</strong>
+                                Lapsed term exposure, within Arrears <strong>@Money(Model.LapsedWithBalanceOutstanding)</strong>
                                 · @Model.LapsedWithBalanceCount occupanc@(Model.LapsedWithBalanceCount == 1 ? "y" : "ies")
                             </span>
                         }
@@ -511,7 +516,7 @@
             {
                 @* No spread worth a schedule, but a lapsed term still wants renewing, so that one figure is kept. *@
                 <div class="rpt-aging rpt-aging-lean">
-                    <span class="rpt-aging-label">Lapsed term exposure</span>
+                    <span class="rpt-aging-label">Lapsed term exposure · within Arrears</span>
                     <span class="rpt-aging-lapsed">
                         <strong>@Money(Model.LapsedWithBalanceOutstanding)</strong>
                         · @Model.LapsedWithBalanceCount occupanc@(Model.LapsedWithBalanceCount == 1 ? "y" : "ies") still in place
@@ -528,7 +533,7 @@
                         <span class="attn-count attn-count-red">@Model.DelinquentAccountsTotal</span>
                     </div>
                     @* One fully elapsed unpaid month is the confirmed delinquency boundary. *@
-                    <div class="attn-col-note">At least one fully elapsed unpaid month</div>
+                    <div class="attn-col-note">Fully elapsed unpaid months of the current year</div>
                     @if (Model.DelinquentAccountsTotal > 0)
                     {
                         <div class="attn-search">
@@ -597,13 +602,49 @@
                 </div>
                 <div class="attn-col">
                     <div class="attn-col-head">
-                        <span class="attn-col-title attn-arrears">Arrears qualification</span>
+                        <span class="attn-col-title attn-arrears">Arrears</span>
+                        <span class="attn-count attn-count-red">@(Model.ArrearsAccountsTotal ?? 0)</span>
                     </div>
-                    <div class="attn-col-note">The old/lapsed qualification boundary is not defined</div>
-                    <div class="delinq-list">
-                        <div class="rpt-empty">
-                            No age-based Arrears count or amount is reported. This does not establish that qualifying old/lapsed debt is absent.
+                    <div class="attn-col-note">Previous-year rent, expired contracts and ended occupancies · @Money(Model.ArrearsOutstandingTotal ?? 0m)</div>
+                    @if ((Model.ArrearsAccountsTotal ?? 0) > 0)
+                    {
+                        <div class="attn-search">
+                            <input type="search" value="@_arrearsSearch" @oninput="e => _arrearsSearch = e.Value?.ToString() ?? string.Empty"
+                                   placeholder="Search name or stall no.…" aria-label="Search arrears accounts" />
                         </div>
+                    }
+                    <div class="delinq-list">
+                        @{ var arrearsRows = Filtered(Model.Arrears ?? [], _arrearsSearch); }
+                        @if ((Model.ArrearsAccountsTotal ?? 0) == 0)
+                        {
+                            <div class="rpt-empty">No Arrears for @PeriodLabel.</div>
+                        }
+                        else if (arrearsRows.Count == 0)
+                        {
+                            <div class="rpt-empty">No Arrears account matches “@_arrearsSearch”.</div>
+                        }
+                        @foreach (var d in arrearsRows)
+                        {
+                            <a href="@(d.ArrearsBasis == "Ended occupancy" ? "/reports/closed-accounts?status=ended" : ProfileUrl(d))" class="delinq-item-link">
+                                <div class="delinq-item">
+                                    <div class="delinq-avatar">@Initials(d.Name)</div>
+                                    <div class="delinq-info">
+                                        <div class="delinq-name">@d.Name</div>
+                                        <div class="delinq-loc">@d.Location <span class="attn-lapsed">@d.ArrearsBasis</span></div>
+                                    </div>
+                                    <div class="delinq-amount">
+                                        <div class="delinq-amt-val">@Money(d.Balance)</div>
+                                        <div class="delinq-months attn-age-red">@MonthsLabel(d.UnpaidMonths)</div>
+                                    </div>
+                                </div>
+                            </a>
+                        }
+                        @if ((Model.ArrearsAccountsTotal ?? 0) > (Model.Arrears?.Count ?? 0))
+                        {
+                            <div class="attn-capped">
+                                Showing the @(Model.Arrears?.Count ?? 0) largest of @Model.ArrearsAccountsTotal. The figures above count every account.
+                            </div>
+                        }
                     </div>
                 </div>
             </div>
@@ -633,135 +674,11 @@
         </div>
         }
 
-        <!-- REVENUE TREND -->
-        <div id="rpt-trend" class="section-card pdf-include rpt-trend-card@(SectionOff("trend"))" style="margin-bottom:20px;">
-            <div class="section-header">
-                <div>
-                    <div class="section-title">Revenue Trend</div>
-                    <div class="section-sub">@ScopeLabel · amounts in ₱</div>
-                </div>
-            </div>
-            <div class="chart-wrap">
-                @if (TrendBars.Count == 0)
-                {
-                    <div class="rpt-empty">No trend data for @PeriodLabel.</div>
-                }
-                else
-                {
-                    <div class="chart-legend">
-                        <div class="legend-item"><div class="legend-dot" style="background:var(--navy)"></div> Collected</div>
-                        <div class="legend-item"><div class="legend-dot" style="background:var(--gold)"></div> Selected period</div>
-                        <div class="legend-item"><div class="legend-dot" style="background:#dde4ea"></div> Current-period unpaid balance</div>
-                    </div>
-                    <div class="rpt-trend-plot">
-                        <div class="rpt-yaxis" aria-hidden="true">
-                            @foreach (var lbl in AxisLabels)
-                            {
-                                <span>@lbl</span>
-                            }
-                        </div>
-                        <div class="rpt-plot">
-                            <div class="rpt-grid" aria-hidden="true">
-                                @foreach (var _ in AxisLabels)
-                                {
-                                    <div class="rpt-grid-line"></div>
-                                }
-                            </div>
-                            <div class="bar-chart">
-                                @{ var bi = 0; }
-                                @foreach (var m in TrendBars)
-                                {
-                                    var delay = $"{bi * 70}ms";
-                                    <div class="bar-group" @key="(_renderEpoch, bi)">
-                                        <div class="bar-wrap" aria-label="@m.Label — collected @Money(m.Collected), unpaid @Money(m.Unpaid)">
-                                            <div class="bar @(m.IsSelected ? "gold-bar" : "collected")" style="height:@Pct(m.Collected)%;animation-delay:@delay"></div>
-                                            <div class="bar unpaid" style="height:@Pct(m.Unpaid)%;animation-delay:@delay"></div>
-                                            <div class="bar-tip" role="tooltip">
-                                                <div class="bar-tip-title">@m.Label</div>
-                                                <div class="bar-tip-row"><span class="bar-tip-dot tip-collected"></span><span class="bar-tip-key">Collected</span><span class="bar-tip-val">@Money(m.Collected)</span></div>
-                                                <div class="bar-tip-row"><span class="bar-tip-dot tip-unpaid"></span><span class="bar-tip-key">Unpaid</span><span class="bar-tip-val">@Money(m.Unpaid)</span></div>
-                                            </div>
-                                        </div>
-                                        <div class="bar-month" style="@(m.IsSelected ? "color:var(--gold);font-weight:700" : "")">@m.Label@(m.IsSelected ? " ●" : "")</div>
-                                    </div>
-                                    bi++;
-                                }
-                            </div>
-                        </div>
-                    </div>
-                    @* The chart answers which direction; this answers by how much. It is also the part that survives being
-                       printed and discussed at a desk, where a bar two pixels tall says nothing. The rate per period is
-                       collected over collected-plus-unpaid — the same identity the headline rate uses, so a period's rate
-                       here and the card above can never disagree. *@
-                    @if (Model.Trend.Count > 0)
-                    {
-                        <div class="rpt-trend-table-wrap">
-                            <table class="rpt-trend-table">
-                                <thead>
-                                    <tr>
-                                        <th scope="col">Period</th>
-                                        <th scope="col" class="r">Collected</th>
-                                        <th scope="col" class="r">Unpaid</th>
-                                        <th scope="col" class="r">Rate</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var p in Model.Trend)
-                                    {
-                                        var pBilled = p.Collected + p.Unpaid;
-                                        <tr class="@(p.IsSelected ? "is-selected" : "")">
-                                            <td>
-                                                @p.Label
-                                                @if (p.IsSelected)
-                                                {
-                                                    <span class="rpt-trend-here">selected</span>
-                                                }
-                                            </td>
-                                            <td class="r">@Money(p.Collected)</td>
-                                            <td class="r is-owed">@Money(p.Unpaid)</td>
-                                            <td class="r">@(pBilled > 0m ? Math.Round(p.Collected / pBilled * 100m).ToString("0") + "%" : "—")</td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
-                        </div>
-                    }
-
-                    @* Movement rides on the totals line. It used to close the section as a panel of three figures, but two
-                       of the three — the selected period and the one before it — are already rows in the table above, so the
-                       panel restated the table. What the table cannot state is the change between them, so that is all that
-                       is left here.
-
-                       The near-zero guard is the one the Collected card uses: beyond ten times, the movement is stated in
-                       pesos with the base named, because a percentage against a pre-rollout month makes any month look like
-                       a thousandfold rise and two figures on one screen must not contradict each other. *@
-                    <div class="rpt-ytd-note">
-                        Collected across shown periods: <strong>@Money(Model.YtdCollected)</strong>
-                        @if (Model.CollectedPreviousPeriod is decimal prevCollected && Model.PreviousPeriodLabel is not null && prevCollected > 0m)
-                        {
-                            var move = Model.Collected - prevCollected;
-                            var movePct = move / prevCollected * 100m;
-                            var rose = move >= 0m;
-                            var moveBase = Math.Abs(movePct) < 1000m
-                                ? $"({Math.Abs(movePct).ToString("0.0")}% of {Model.PreviousPeriodLabel})"
-                                : $"(from {Money(prevCollected)} in {Model.PreviousPeriodLabel})";
-
-                            @* The separators are character references, not spaces. Razor trims markup whitespace at the
-                               leading edge of a code block, which is what once ran "₱6,128" straight into the percentage
-                               beside it; a non-breaking space survives that trim and keeps the movement on the same visual
-                               line as the total it qualifies. *@
-                            <text>&#160;</text><span class="rpt-ytd-move @(rose ? "is-up" : "is-down")">@(rose ? "↑" : "↓") @Money(Math.Abs(move))</span><text>&#160;</text><span class="rpt-ytd-base">@moveBase</span>
-                        }
-                    </div>
-                }
-            </div>
-        </div>
-
         <!-- REVENUE BY FACILITY -->
         @* Print-only spacer: it owns the page break and the whitespace above the card, so the card's own
            border never sits against the top edge of the sheet. Invisible on screen. *@
         <div class="rpt-page-space" aria-hidden="true"></div>
-        <div id="rpt-facility" class="section-card pdf-include@(SectionOff("facility"))" style="margin-bottom:20px;">
+        <div id="rpt-facility" class="section-card pdf-include rpt-sec-off" style="margin-bottom:20px;">
             <div class="section-header">
                 <div>
                     @* The rate here is not the rate the Dashboard states for the same market, and the two get read side by
@@ -956,216 +873,6 @@
             </div>
         </div>
 
-        @* COLLECTION REGISTER — rendered only while its own tab is open, for the reason given above the Attention
-           section: it carries no pdf-include, and the button that prints it is inside it. *@
-        if (SectionShown("records"))
-        {
-        <div id="rpt-records" class="section-card" style="margin-bottom:20px;">
-            <div class="section-header">
-                <div>
-                    <div class="section-title">Legacy-source collections — @PeriodLabel</div>
-                    <div class="rpt-legacy-note">Facility records from sources not yet cut over to posted Collections. The official register above lists posted Collections; a collection appears in only one of the two.</div>
-                    @* The plain count and scope are gone: the title already names the period and the badge above states the
-                       scope, so it was a third statement of the same thing. What remains is the one thing nothing else
-                       says — that the list is capped — and it appears only when the cap is actually reached, so a complete
-                       register carries no line at all. *@
-                    @if (Model.RecentRecords.Count >= RegisterListLimit)
-                    {
-                        <div class="section-sub">The @RegisterListLimit most recent of this period</div>
-                    }
-                </div>
-                <div class="rpt-register-actions no-print">
-                    @* Its own print action rather than a place in the Summary PDF: the summary is the report the office
-                       signs off, and fifty rows of evidence a period would make it a different document. *@
-                    <button type="button" class="rpt-register-print" @onclick="PrintRegister" disabled="@(Model.RecentRecords.Count == 0)">
-                        Print register
-                    </button>
-                    <a class="rpt-attn-link" href="/transactions">Open all transactions →</a>
-                </div>
-            </div>
-            <div class="rpt-table-scroll">
-                <table class="tx-table">
-                    <thead>
-                        <tr>
-                            <th scope="col">OR / Ref #</th>
-                            <th scope="col">Payor / Stall</th>
-                            <th scope="col">Facility</th>
-                            <th scope="col">Date</th>
-                            <th scope="col">Type</th>
-                            <th scope="col">Recorded by</th>
-                            <th scope="col">Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (Model.RecentRecords.Count == 0)
-                        {
-                            <tr><td colspan="7"><div class="rpt-empty">No records for @ScopeLabel.</div></td></tr>
-                        }
-                        @foreach (var tx in Model.RecentRecords)
-                        {
-                            <tr>
-                                <td class="tx-id">@tx.Reference</td>
-                                @* The column has always said "Payor / Stall" and shown only the payor. The stall was carried
-                                   on the row all along — it is what the profile link is built from — so a register that
-                                   names a facility but not the space inside it was stating less than it held. Three of
-                                   Cantilan's market sections each hold a "Stall 1", so the payor's name alone does not
-                                   identify what was collected on. *@
-                                <td>
-                                    <a href="@ProfileUrl(tx)" class="vendor-link">@tx.Payor</a>
-                                    @if (!string.IsNullOrWhiteSpace(tx.StallNo))
-                                    {
-                                        <div class="tx-sub">@SpaceNumber.Describe(tx.StallNo)</div>
-                                    }
-                                </td>
-                                <td><span class="fac-code-badge">@FacilityCatalog.ShortNameOf(tx.FacilityCode)</span></td>
-                                <td style="color:var(--text-muted);font-size:12.5px;">@tx.RecordedAt.ToString("MMM d, yyyy")</td>
-                                <td><span class="pay-method">@tx.Method</span></td>
-                                @* Who took the money. The transaction feed has carried this since it was normalised, and this
-                                   report dropped it on the way through — for an LGU register that is exactly the attribution
-                                   worth keeping. Blank where the source has none rather than inventing an actor. *@
-                                <td class="tx-actor">@(string.IsNullOrWhiteSpace(tx.Collector) ? "—" : tx.Collector)</td>
-                                <td class="amount-green">@Money(tx.Amount)</td>
-                            </tr>
-                        }
-                    </tbody>
-                    @* A print-only footer. With the page margin at zero — which is what keeps the browser's date, title and
-                       URL off a government document — nothing else can put whitespace at the FOOT of a continuation sheet:
-                       the container's padding applies once, at the end of the flow. A table footer repeats on every page,
-                       so this is the only element that can hold that space. Invisible on screen. *@
-                    <tfoot class="tx-print-foot" aria-hidden="true">
-                        <tr><td colspan="7"></td></tr>
-                    </tfoot>
-                </table>
-            </div>
-        </div>
-        }
-
-        @* MISCELLANEOUS — the period's metered electricity and water, per payor. Rendered only while its own tab is
-           open, and outside the Summary PDF, for the same reasons as the register above.
-
-           The office's own word: the month-end sheet calls this table Miscellaneous, and this is that table, through the
-           same repository method, so a figure questioned on one document is found in the other. It states what was
-           CHARGED — the one thing no other figure on this report says — and from whom. The money is already inside the
-           report's Collected and Unpaid, so nothing here is added to any total; the closing line says so. *@
-        if (SectionShown("misc"))
-        {
-        <div id="rpt-misc" class="section-card" style="margin-bottom:20px;">
-            <div class="section-header">
-                <div>
-                    <div class="section-title">Miscellaneous — @PeriodLabel</div>
-                    <div class="section-sub">Electricity and water, billed per reading</div>
-                </div>
-                @* The same two actions the register carries, for the same two reasons: this table is filed, and the
-                   readings behind it are entered somewhere else. Disabled rather than hidden when there is nothing to
-                   print, so the action does not appear and disappear. *@
-                <div class="rpt-register-actions no-print">
-                    <button type="button" class="rpt-register-print" @onclick="PrintMisc" disabled="@(Model.Misc is null)">
-                        Print misc
-                    </button>
-                    <a class="rpt-attn-link" href="@UtilityBillingUrl">Utility Billing →</a>
-                </div>
-            </div>
-
-            @if (Model.Misc is { } misc)
-            {
-                var spansFacilities = misc.Rows.Select(r => r.Facility).Distinct().Count() > 1;
-
-                <div class="rpt-table-scroll">
-                    <table class="tx-table">
-                        <thead>
-                            <tr>
-                                @if (spansFacilities)
-                                {
-                                    <th scope="col">Facility</th>
-                                }
-                                <th scope="col">Space</th>
-                                <th scope="col">Payor</th>
-                                <th scope="col" class="r">Electricity</th>
-                                <th scope="col" class="r">Water</th>
-                                @if (misc.AmountsRecorded)
-                                {
-                                    <th scope="col" class="r">Charged</th>
-                                    <th scope="col" class="r">Collected</th>
-                                    <th scope="col" class="r">Balance</th>
-                                }
-                                <th scope="col">OR No.</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var u in misc.Rows)
-                            {
-                                <tr>
-                                    @if (spansFacilities)
-                                    {
-                                        <td>@FacilityCatalog.ShortNameOf(u.Facility)</td>
-                                    }
-                                    <td>@SpaceNumber.Display(u.StallNo)</td>
-                                    <td>@(string.IsNullOrWhiteSpace(u.Payor) ? "—" : u.Payor)</td>
-                                    @* With a reading and a rate the cell is money. Where the office only marks a utility
-                                       settled or not, money would be a row of noughts, so the cell states the standing
-                                       instead — and a utility that charged nothing is not owed, and says so. *@
-                                    <td class="r">@MiscCell(misc.AmountsRecorded, u.ElecCharge, u.ElecStatus)</td>
-                                    <td class="r">@MiscCell(misc.AmountsRecorded, u.WaterCharge, u.WaterStatus)</td>
-                                    @if (misc.AmountsRecorded)
-                                    {
-                                        <td class="r">@Money(u.Charged)</td>
-                                        <td class="r">@(u.Collected > 0m ? Money(u.Collected) : "—")</td>
-                                        <td class="r @(u.Balance > 0m ? "is-owed" : "")">@(u.Balance > 0m ? Money(u.Balance) : "—")</td>
-                                    }
-                                    <td>@(string.IsNullOrWhiteSpace(u.ORNumber) ? "—" : u.ORNumber)</td>
-                                </tr>
-                            }
-                        </tbody>
-                        @if (misc.AmountsRecorded)
-                        {
-                            <tfoot>
-                                <tr>
-                                    <td colspan="@(spansFacilities ? 3 : 2)"><strong>Total</strong></td>
-                                    <td class="r"><strong>@Money(misc.Rows.Sum(r => r.ElecCharge))</strong></td>
-                                    <td class="r"><strong>@Money(misc.Rows.Sum(r => r.WaterCharge))</strong></td>
-                                    <td class="r"><strong>@Money(misc.Charged)</strong></td>
-                                    <td class="r"><strong>@(misc.Collected > 0m ? Money(misc.Collected) : "—")</strong></td>
-                                    <td class="r @(misc.Due > 0m ? "is-owed" : "")"><strong>@(misc.Due > 0m ? Money(misc.Due) : "—")</strong></td>
-                                    <td></td>
-                                </tr>
-                            </tfoot>
-                        }
-                    </table>
-                </div>
-
-                @* What the section is for, in one line: this money is not an addition to the report. Laid out as a label
-                   and its figures rather than a sentence, so it cannot run together or off the card. *@
-                <div class="rpt-misc-close">
-                    <span class="rpt-misc-close-key">
-                        @(misc.AmountsRecorded ? "Already inside the period's collected" : "Settled this period")
-                    </span>
-                    <span class="rpt-misc-close-val">
-                        @if (misc.AmountsRecorded)
-                        {
-                            <strong>@Money(misc.Collected)</strong>
-                        }
-                        else
-                        {
-                            <strong>@misc.Settled</strong>
-                        }
-                        <span class="rpt-misc-close-sep" aria-hidden="true">·</span>
-                        <span class="rpt-misc-close-aside">@misc.Settled settled</span>
-                        <span class="rpt-misc-close-sep" aria-hidden="true">·</span>
-                        <span class="rpt-misc-close-aside">@misc.Outstanding still owing</span>
-                    </span>
-                </div>
-            }
-            else
-            {
-                @* Absent figures rather than a table of noughts: either the office raised no bill for this period, or the
-                   period is a year, which is billed and filed a month at a time. *@
-                <div class="rpt-rule-note">
-                    <div class="rpt-rule-key">Nothing billed</div>
-                    <div>No electricity or water was billed for @PeriodLabel. Utilities are billed per month, so this section states a single month.</div>
-                </div>
-            }
-        </div>
-        }
     }
 
 </div>
@@ -1422,6 +1129,16 @@
     // Per-column search over the two attention lists. Both are already loaded, so filtering happens here rather
     // than as another request: the office types a name to find one account among dozens without leaving the page.
     private string _delinquentSearch = "";
+    private string _arrearsSearch = "";
+
+    // The receivables position in one strip. Delinquent and Arrears are different scopes (IA-019 / IA-069) and are stated apart.
+    private IReadOnlyList<SummaryStrip.SummaryItem> ReceivableItems =>
+    [
+        new("Delinquent accounts", FollowUpAccounts.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+        new("Delinquent balance", Money(FollowUpOutstanding), Emphasis: FollowUpOutstanding != 0m),
+        new("Arrears", $"{Money(Model.ArrearsOutstandingTotal ?? 0m)} · {Model.ArrearsAccountsTotal ?? 0} account{(Model.ArrearsAccountsTotal == 1 ? "" : "s")}"),
+        new("Counted to", string.IsNullOrEmpty(Model.AttentionSpanLabel) ? LastClosedMonthLabel : Model.AttentionSpanLabel),
+    ];
 
     private static IReadOnlyList<AttentionAccountDto> Filtered(IReadOnlyList<AttentionAccountDto> rows, string search)
     {
@@ -1509,6 +1226,9 @@
     ];
 
     private string _section = "overview";
+
+    /// <summary>Trends &amp; Targets shows the Revenue sources table by default; "trend" shows the revenue trend chart.</summary>
+    private string _trendView = "sources";
 
     /// <summary>
     /// Whether the rate-basis note under the By facility heading is open. Closed by default: the office asked for the

@@ -3,7 +3,7 @@
 <nav class="mt-tabs" aria-label="Monitoring registers">
     <a href="/monitoring/follow-up" class="mt-tab @(Current == "follow-up" ? "mt-tab-active" : "")" aria-current="@PageIf("follow-up")">Follow-ups</a>
     <a href="/monitoring/contracts" class="mt-tab @(Current == "contracts" ? "mt-tab-active" : "")" aria-current="@PageIf("contracts")">Contracts</a>
-    <a href="/monitoring/npm-requests" class="mt-tab @(Current == "npm-requests" ? "mt-tab-active" : "")" aria-current="@PageIf("npm-requests")">NPM requests</a>
+    <a href="/monitoring/review" class="mt-tab @(Current == "review" ? "mt-tab-active" : "")" aria-current="@PageIf("review")">Review</a>
     @if (ShowHistory)
     {
         <a href="/reports/follow-up/history" class="mt-tab fq-history-link" title="Past-period snapshot from source records; this is not a log of actions or local hides.">Past-period view</a>
@@ -11,7 +11,7 @@
 </nav>
 
 @code {
-    /// <summary>"follow-up", "contracts", or "npm-requests".</summary>
+    /// <summary>"follow-up", "contracts" or "review"; request queues use Review.</summary>
     [Parameter, EditorRequired] public string Current { get; set; } = "follow-up";
     [Parameter] public bool ShowHistory { get; set; }
 

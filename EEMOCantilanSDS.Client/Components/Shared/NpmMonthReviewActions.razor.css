@@ -1,0 +1,4 @@
+.npm-review-position { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.npm-review-position dd { margin: 0; font-variant-numeric: tabular-nums; font-weight: 600; }
+.npm-review-fields { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 16px; }
+@media (max-width: 560px) { .npm-review-position { grid-template-columns: minmax(0, 1fr); } }

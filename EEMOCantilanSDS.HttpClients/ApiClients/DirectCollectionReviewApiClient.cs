@@ -7,6 +7,9 @@ namespace EEMOCantilanSDS.HttpClients.ApiClients;
 
 public sealed class DirectCollectionReviewApiClient(HttpClient http) : HandleResponse(http), IDirectCollectionReviewApiClient
 {
+    public Task<Result<DirectCollectionVerificationPositionDto>> PositionAsync(DateOnly from, DateOnly to, bool scoped = false) =>
+        GetAsync<DirectCollectionVerificationPositionDto>($"api/direct-collection-review/position?from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}{(scoped ? "&scoped=true" : "")}");
+
     public Task<Result<DirectCollectionReviewPageDto>> GetAsync(DirectCollectionReviewRequest r)
     {
         var query = new List<string>
@@ -18,6 +21,7 @@ public sealed class DirectCollectionReviewApiClient(HttpClient http) : HandleRes
         if (!string.IsNullOrWhiteSpace(r.Operation)) query.Add($"operation={Uri.EscapeDataString(r.Operation.Trim())}");
         if (!string.IsNullOrWhiteSpace(r.Collector)) query.Add($"collector={Uri.EscapeDataString(r.Collector.Trim())}");
         if (!string.IsNullOrWhiteSpace(r.Search)) query.Add($"search={Uri.EscapeDataString(r.Search.Trim())}");
+        if (r.Scoped) query.Add("scoped=true");
         return GetAsync<DirectCollectionReviewPageDto>("api/direct-collection-review?" + string.Join("&", query));
     }
 

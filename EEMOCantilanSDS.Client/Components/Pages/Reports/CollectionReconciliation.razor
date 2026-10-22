@@ -1,0 +1,333 @@
+@page "/reports/collection-reconciliation"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@using EEMOCantilanSDS.Application.Dtos.Collections
+@using EEMOCantilanSDS.Client.Services
+@using EEMOCantilanSDS.Domain.Enums
+@using System.Globalization
+@inject ICollectionActivityApiClient Api
+@inject IJSRuntime JS
+@inject IServiceProvider Services
+
+<PageTitle>Collection reconciliation</PageTitle>
+<div class="content-area reconciliation">
+    <div class="no-print">
+        <V3Hero Compact="true" Title="Collection reconciliation" Subtitle="@HeroSubtitle" Figures="HeroFigures" FiguresLabel="Reconciliation total">
+            <Icon><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg></Icon>
+            <Actions>
+                <a class="rc-ic" href="/collections/activity" title="Collection Activity" aria-label="Collection Activity"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><circle cx="4" cy="6" r="1" /><circle cx="4" cy="12" r="1" /><circle cx="4" cy="18" r="1" /></svg></a>
+                @if (Data is { Truncated: false } report && !Loading)
+                {
+                    <a class="rc-ic" download="@($"reconciliation-{report.From:yyyyMMdd}-{report.Basis}.csv")" href="@CsvHref" title="Download CSV" aria-label="Download CSV"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg></a>
+                    <button type="button" class="rc-ic" @onclick="Print" title="Print or save as PDF" aria-label="Print"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg></button>
+                }
+            </Actions>
+        </V3Hero>
+        <div class="recon-controls" role="toolbar" aria-label="Reconciliation filters">
+            <label class="rc-date"><span>From</span><input type="date" @bind="From" /></label>
+            <label class="rc-date"><span>To</span><input type="date" @bind="To" /></label>
+            <FhSelect Caption="Revenue source" Value="@SourceFilter" Options="@SourceChoices" ValueChanged="@(v => SourceFilter = v)" />
+            <label class="rc-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input type="search" aria-label="Search SRC or payer" placeholder="Search SRC or payer" value="@_search" @oninput="e => _search = (e.Value?.ToString() ?? string.Empty).Trim()" /></label>
+            <FhSelect Caption="Reporting basis" Value="@(((int)Basis).ToString())" Options="@BasisChoices" ValueChanged="@(v => Basis = (CollectionReconciliationBasis)int.Parse(v))" />
+            @if (Basis == CollectionReconciliationBasis.AsOriginallyKnown)
+            {
+                <label class="rc-date"><span>Known through</span><input type="date" aria-label="Known through (Philippine date)" @bind="KnownThrough" /></label>
+            }
+            <button type="button" class="rc-review" disabled="@Loading" @onclick="Load" title="Review" aria-label="Review"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg><span>Review</span></button>
+        </div>
+    </div>
+    @if (Loading) { <p role="status">Preparing reconciliation…</p> }
+    @if (Error is not null) { <p role="alert">@Error</p> }
+    @if (Data is { } data)
+    {
+        var shown = Shown;
+        var totals = Totals(shown);
+        <section class="recon-document">
+            <ReportLetterhead Title="Collection reconciliation" Period="@($"{data.From:MMM d, yyyy} – {data.To:MMM d, yyyy}")" />
+            <header class="recon-head recon-paper">
+                <div>
+                    <h1>@Label(data.Basis)</h1>
+                    <p class="recon-meta">@data.From.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) – @data.To.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)
+                        @if (data.Basis == CollectionReconciliationBasis.AsOriginallyKnown) { <text> · Known through @Ph(data.KnowledgeCutoffUtc)</text> }</p>
+                </div>
+                <p class="recon-total">
+                    <span>@(data.Basis == CollectionReconciliationBasis.CorrectionActivity ? "Dated correction effects" : "Original-period net")</span>
+                    <strong>@Peso(Filtered && !data.Truncated ? totals.Net : data.NetAmount)</strong>
+                    <small>@(Filtered && !data.Truncated ? $"{shown.Count} of {data.MatchingCount} transaction(s)" : $"{data.MatchingCount} original transaction(s)")</small>
+                </p>
+            </header>
+            <p class="recon-notice">Reconstructed canonical evidence for this period and cutoff. Not an issued RCD, deposit or remittance statement.</p>
+            @if (Filtered)
+            {
+                <p class="recon-filter" role="status">Filtered: @FilterText. @(data.Truncated
+                    ? $"Only the first {data.Events.Count} transactions were loaded, so this filter covers those and the total above is the whole report's."
+                    : $"The total above is for these {shown.Count} transaction(s); the whole report is {Peso(data.NetAmount)} over {data.MatchingCount}.")</p>
+            }
+            @if (data.Truncated) { <p role="alert">Only the first @data.Events.Count transactions are displayed. Totals cover all matches. Narrow the period before printing or exporting.</p> }
+            <div class="recon-scroll" tabindex="0" role="region" aria-label="Reconciliation records">
+                <table>
+                    <thead><tr>
+                        <th scope="col">Collection</th><th scope="col">Revenue line</th><th scope="col">Recorded</th>
+                        <th scope="col" class="recon-money">Original amount</th><th scope="col" class="recon-money">Correction</th>
+                        <th scope="col" class="recon-money">@(data.Basis == CollectionReconciliationBasis.CorrectionActivity ? "Selected effects" : "Net")</th>
+                        <th scope="col" class="no-print">Details</th>
+                    </tr></thead>
+                    <tbody>
+                    @foreach (var e in shown)
+                    {
+                        <tr @key="e.EventKey">
+                            <td><strong class="recon-src">@e.ReferenceCode</strong><div class="recon-payer">@(string.IsNullOrWhiteSpace(e.PayerName) ? "—" : e.PayerName)</div></td>
+                            <td>@RevenueLine(e)</td>
+                            <td>@RecordedDate(e)<div class="recon-time">@RecordedTime(e)</div></td>
+                            <td class="recon-money">@Peso(e.Amount)@(data.Basis == CollectionReconciliationBasis.CorrectionActivity ? " (context)" : "")</td>
+                            <td class="recon-money">@(e.CorrectionEffect == 0m ? "—" : Peso(e.CorrectionEffect))</td>
+                            <td class="recon-money recon-net">@Peso(data.Basis == CollectionReconciliationBasis.CorrectionActivity ? e.CorrectionEffect : e.NetAmount)</td>
+                            <td class="no-print"><button type="button" class="v3-btn v3-btn-sm" @ref="_triggers[e.EventKey]" aria-label="@($"View details of {e.ReferenceCode}")" @onclick="() => _detail = e">View details</button></td>
+                        </tr>
+                    }
+                    @if (shown.Count == 0 && data.Events.Count > 0)
+                    {
+                        <tr><td class="recon-empty" colspan="7">No transaction matches these filters.</td></tr>
+                    }
+                    </tbody>
+                    @if (shown.Count > 0)
+                    {
+                        <tfoot><tr>
+                            <th scope="row" colspan="3">@(Filtered && !data.Truncated ? "Filtered total" : "Total shown")</th>
+                            <td class="recon-money">@(data.Basis == CollectionReconciliationBasis.CorrectionActivity ? "—" : Peso(totals.Original))</td>
+                            <td class="recon-money">@Peso(totals.Effect)</td>
+                            <td class="recon-money recon-net">@Peso(totals.Net)</td><td class="no-print"></td>
+                        </tr></tfoot>
+                    }
+                </table>
+            </div>
+            @if (data.Events.Count == 0) { <p>No canonical evidence matches this period and cutoff. This does not establish that legacy collections were zero.</p> }
+            <details class="recon-limits" open="@_printing">
+                <summary>Limitations of this statement</summary>
+                <p>@data.EvidenceNotice</p>
+            </details>
+        </section>
+    }
+</div>
+
+@if (_detail is { } d && Data is { } basisData)
+{
+    <div class="v3-modal-backdrop no-print" role="presentation" @onclick="CloseDetail">
+        <section class="v3-modal rcm" role="dialog" aria-modal="true" aria-labelledby="rcm-title" @onclick:stopPropagation="true" @onkeydown="OnKey">
+            <header class="rcm-head">
+                <div class="rcm-head-text">
+                    <h2 id="rcm-title">@d.ReferenceCode</h2>
+                    <p>@(string.IsNullOrWhiteSpace(d.PayerName) ? "No payer recorded" : d.PayerName)</p>
+                </div>
+                <button class="rcm-close" type="button" aria-label="Close" @ref="_close" @onclick="CloseDetail"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
+            </header>
+            <div class="v3-modal-body rcm-body">
+                <section aria-labelledby="rcm-collection"><h3 id="rcm-collection">Collection</h3>
+                    <dl class="rcm-facts">
+                        <div><dt>SRC</dt><dd>@d.ReferenceCode</dd></div>
+                        <div><dt>Payer</dt><dd>@(string.IsNullOrWhiteSpace(d.PayerName) ? "—" : d.PayerName)</dd></div>
+                        <div><dt>Revenue source</dt><dd>@RevenueLine(d)</dd></div>
+                        <div><dt>Recorded</dt><dd>@RecordedDate(d)@(d.RecordedAtUtc is null ? "" : " · " + RecordedTime(d))</dd></div>
+                        <div><dt>Cash date</dt><dd>@d.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</dd></div>
+                        <div><dt>Collector</dt><dd>@(d.CollectorName ?? "Office")</dd></div>
+                        <div><dt>Receipt instrument</dt><dd>@(d.InstrumentType is { } kind ? (kind == RevenueInstrumentType.OfficialReceipt ? "Official Receipt" : "Cash Ticket") : "Not recorded")</dd></div>
+                        <div><dt>Document number</dt><dd>@(string.IsNullOrWhiteSpace(d.DocumentNumber) ? "Not recorded" : d.DocumentNumber)</dd></div>
+                    </dl>
+                </section>
+                <section aria-labelledby="rcm-charges"><h3 id="rcm-charges">Charges</h3>
+                    <table class="rcm-table" aria-label="Itemized charges">
+                        <thead><tr><th scope="col">Charge</th><th scope="col">Period</th><th scope="col" class="recon-money">Amount</th></tr></thead>
+                        <tbody>
+                            @foreach (var line in d.Lines)
+                            {
+                                <tr><td>@LineLabel(line)</td><td>@LinePeriod(line)</td><td class="recon-money">@Peso(line.Amount)</td></tr>
+                            }
+                            @if (d.Lines.Count == 0) { <tr><td colspan="3" class="recon-empty">No itemized charges recorded.</td></tr> }
+                        </tbody>
+                    </table>
+                </section>
+                <section aria-labelledby="rcm-corrections"><h3 id="rcm-corrections">Corrections</h3>
+                    @if (d.Corrections.Count == 0)
+                    {
+                        <p class="recon-muted">No correction is recorded for this collection.</p>
+                    }
+                    @foreach (var c in d.Corrections)
+                    {
+                        <dl class="rcm-facts rcm-correction">
+                            <div><dt>Type</dt><dd>@CorrectionLabel(c.CorrectionType)</dd></div>
+                            <div><dt>Financial effect</dt><dd class="recon-money">@Peso(c.FinancialEffect)</dd></div>
+                            <div><dt>Effective</dt><dd>@c.EffectiveDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</dd></div>
+                            <div><dt>Recorded</dt><dd>@PhDate(c.RecordedAtUtc) · @PhTime(c.RecordedAtUtc)</dd></div>
+                            <div class="rcm-wide"><dt>Reason</dt><dd>@(string.IsNullOrWhiteSpace(c.Reason) ? "Not recorded" : c.Reason)</dd></div>
+                            @if (c.ReplacementCollectionId is not null)
+                            {
+                                <div><dt>Replacement</dt><dd>@(d.ReplacementReferenceCodes.Count > 0 ? string.Join(", ", d.ReplacementReferenceCodes) : "Recorded; SRC not available here")</dd></div>
+                            }
+                        </dl>
+                    }
+                </section>
+                <section aria-labelledby="rcm-recon"><h3 id="rcm-recon">Reconciliation</h3>
+                    <dl class="rcm-sum">
+                        <div><dt>Original amount</dt><dd>@Peso(d.Amount)</dd></div>
+                        <div><dt>Correction effect</dt><dd>@Peso(d.CorrectionEffect)</dd></div>
+                        <div class="rcm-sum-net"><dt>Resulting net</dt><dd>@Peso(d.NetAmount)</dd></div>
+                    </dl>
+                    <p class="recon-muted">@(basisData.Basis == CollectionReconciliationBasis.CorrectionActivity ? "On this basis the report lists the selected correction effects only; the original amount is context." : "Under " + Label(basisData.Basis) + ".")</p>
+                </section>
+            </div>
+            <footer class="rcm-foot"><button type="button" class="v3-btn v3-btn-primary" @onclick="CloseDetail">Close</button></footer>
+        </section>
+    </div>
+}
+
+@code {
+    private DateOnly From = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1), To = PhilippineTime.Today, KnownThrough = PhilippineTime.Today;
+    private CollectionReconciliationBasis Basis = CollectionReconciliationBasis.LatestCorrected;
+    private CollectionReconciliationDto? Data;
+    private bool Loading;
+    private string? Error;
+    private string HeroSubtitle => Data is { } d ? $"{Label(d.Basis)} · {d.From:MMM d, yyyy} – {d.To:MMM d, yyyy}" + (d.Basis == CollectionReconciliationBasis.AsOriginallyKnown ? $" · known through {Ph(d.KnowledgeCutoffUtc)}" : "") : "Reconstructed canonical collection evidence";
+
+    private RenderFragment? HeroFigures => Data is not { } d ? null : __builder =>
+    {
+        var shown = Shown;
+        var filtered = Filtered && !d.Truncated;
+        <V3HeroFigure Label="@(d.Basis == CollectionReconciliationBasis.CorrectionActivity ? "Dated correction effects" : "Original-period net")" Value="@Peso(filtered ? Totals(shown).Net : d.NetAmount)" />
+    };
+    private string SourceFilter = string.Empty;
+    private string _search = string.Empty;
+    private CollectionActivityEventDto? _detail;
+    private ElementReference _close;
+    private readonly Dictionary<string, ElementReference> _triggers = [];
+    private bool _printing;
+    // Optional deep link from Collection Activity: the selected SRC's business date, shown as one day under the default basis.
+    [SupplyParameterFromQuery(Name = "from")] public DateOnly? QueryFrom { get; set; }
+    [SupplyParameterFromQuery(Name = "to")] public DateOnly? QueryTo { get; set; }
+    protected override Task OnInitializedAsync()
+    {
+        if (QueryFrom is { } from && QueryTo is { } to && from <= to && to.DayNumber - from.DayNumber < 31) { From = from; To = to; }
+        return Load();
+    }
+    private async Task Load()
+    {
+        Loading = true; Error = null; Data = null; _detail = null; SourceFilter = string.Empty;
+        try {
+            DateTimeOffset? cutoff = Basis == CollectionReconciliationBasis.AsOriginallyKnown
+                ? new DateTimeOffset(KnownThrough == PhilippineTime.Today ? DateTime.UtcNow : PhilippineTime.DayUtcRange(KnownThrough).EndUtc.AddTicks(-1)) : null;
+            var result = await Api.GetReconciliationAsync(From, To, Basis, cutoff, 5000);
+            if (result.IsSuccess) Data = result.Value; else Error = result.Error ?? "Reconciliation could not be loaded.";
+        } catch { Error = "Reconciliation could not be loaded. No incomplete statement is displayed."; }
+        finally { Loading = false; }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_detail is not null) { try { await _close.FocusAsync(); } catch (InvalidOperationException) { } }
+    }
+
+    private async Task CloseDetail()
+    {
+        var key = _detail?.EventKey;
+        _detail = null;
+        StateHasChanged();
+        if (key is not null && _triggers.TryGetValue(key, out var trigger)) { try { await trigger.FocusAsync(); } catch (InvalidOperationException) { } }
+    }
+    private async Task OnKey(KeyboardEventArgs e) { if (e.Key == "Escape") await CloseDetail(); }
+
+    private async Task Print()
+    {
+        // The limitations stay open on paper, whatever the screen state.
+        _printing = true; StateHasChanged();
+        await Task.Delay(100);
+        try { await JS.InvokeVoidAsync("stalltrackPrint.landscape"); } finally { _printing = false; }
+    }
+
+    // ── filters: applied to the loaded transactions only; the server's report-wide totals are never recomputed from a partial list ──
+    private bool Filtered => SourceFilter.Length > 0 || _search.Length > 0;
+    private string FilterText => string.Join(" · ", new[] { SourceFilter.Length > 0 ? $"revenue source {SourceFilter}" : null, _search.Length > 0 ? $"search “{_search}”" : null }.Where(x => x is not null));
+
+    private IReadOnlyList<CollectionActivityEventDto> Shown => Data is null ? [] : Data.Events.Where(e =>
+        (SourceFilter.Length == 0 || LineSources(e).Contains(SourceFilter, StringComparer.OrdinalIgnoreCase))
+        && (_search.Length == 0 || (e.ReferenceCode?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (e.PayerName?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false))).ToList();
+
+    private IReadOnlyList<(string Value, string Label)> SourceChoices => [("", "All revenue sources"), .. SourceOptions.Select(x => (x, x))];
+    private static readonly IReadOnlyList<(string Value, string Label)> BasisChoices =
+    [
+        (((int)CollectionReconciliationBasis.AsOriginallyKnown).ToString(), "As Originally Known"),
+        (((int)CollectionReconciliationBasis.LatestCorrected).ToString(), "Latest Corrected"),
+        (((int)CollectionReconciliationBasis.CorrectionActivity).ToString(), "Correction Activity"),
+    ];
+
+    private IReadOnlyList<string> SourceOptions => Data is null ? [] : Data.Events.SelectMany(LineSources).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+
+    // The same arithmetic the server uses for the report total, over the transactions in view.
+    private (decimal Original, decimal Effect, decimal Net) Totals(IReadOnlyList<CollectionActivityEventDto> events)
+    {
+        var original = Data?.Basis == CollectionReconciliationBasis.CorrectionActivity ? 0m : events.Sum(e => e.Amount);
+        var effect = events.Sum(e => e.CorrectionEffect);
+        return (original, effect, original + effect);
+    }
+
+    // ── presentation ──
+    private IReadOnlyList<string> LineSources(CollectionActivityEventDto e) =>
+        e.Lines.Select(SourceName).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+    // The parent revenue line, never the charge names: Slaughterhouse charges are frozen descriptions under the Slaughterhouse parent.
+    private string SourceName(CollectionActivityLineDto line)
+    {
+        var name = line.ClassificationCode == "SLAUGHTERHOUSE" && line.SourceKind == "GovernedService" ? line.ParentSourceName : line.ClassificationName;
+        return Services.GetService<OperationNameService>()?.NameForSource(line.ClassificationCode, name) ?? SourceNames.For(line.ClassificationCode, name);
+    }
+
+    private string RevenueLine(CollectionActivityEventDto e)
+    {
+        var sources = LineSources(e);
+        return sources.Count == 0 ? "—" : string.Join(" · ", sources);
+    }
+
+    private static string LineLabel(CollectionActivityLineDto line) =>
+        !string.IsNullOrWhiteSpace(line.Description) ? line.Description! : line.SourcePart is "Water" or "Electricity" ? line.SourcePart : line.ClassificationName;
+    private static string LinePeriod(CollectionActivityLineDto line) =>
+        line.PeriodYear is { } y && line.PeriodMonth is { } m ? new DateOnly(y, m, 1).ToString("MMM yyyy", CultureInfo.InvariantCulture) : "—";
+    private static string CorrectionLabel(string type) => type switch
+    {
+        "Void" => "Void", "Reversal" => "Reversal", "Replacement" => "Replacement", "DocumentCorrection" => "Document correction", _ => type
+    };
+
+    private static string RecordedDate(CollectionActivityEventDto e) =>
+        (e.RecordedAtUtc is { } utc ? PhilippineTime.ToPhilippineTime(utc) : e.BusinessDate.ToDateTime(TimeOnly.MinValue)).ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+    private static string RecordedTime(CollectionActivityEventDto e) =>
+        e.RecordedAtUtc is { } utc ? PhTime(utc) : "Time not recorded";
+    private static string PhDate(DateTime utc) => PhilippineTime.ToPhilippineTime(utc).ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+    private static string PhTime(DateTime utc) => PhilippineTime.ToPhilippineTime(utc).ToString("hh:mm tt", CultureInfo.InvariantCulture);
+
+    private static string Label(CollectionReconciliationBasis basis) => basis switch { CollectionReconciliationBasis.AsOriginallyKnown => "As Originally Known", CollectionReconciliationBasis.CorrectionActivity => "Correction Activity", _ => "Latest Corrected" };
+    private static string Ph(DateTime utc) => PhilippineTime.ToPhilippineTime(utc).ToString("MMM d, yyyy HH:mm:ss", CultureInfo.InvariantCulture) + " PHT";
+    private static string Money(decimal amount) => amount.ToString("N2", CultureInfo.InvariantCulture);          // plain figures for the CSV
+    private static string Peso(decimal amount) => (amount < 0m ? "-" : "") + "₱" + Math.Abs(amount).ToString("N2", CultureInfo.InvariantCulture);
+
+    // The export carries what is on screen: the filtered transactions, the filter stated, and the report-wide total beside it.
+    // Internal identifiers stay in the export as audit evidence.
+    private string CsvHref {
+        get {
+            if (Data is not { Truncated: false } data) return "";
+            var shown = Shown;
+            var totals = Totals(shown);
+            var rows = new List<string> {
+                CsvCell.Row("Reporting basis", Label(data.Basis), "From", data.From.ToString("yyyy-MM-dd"), "To", data.To.ToString("yyyy-MM-dd"), "Knowledge cutoff UTC", data.KnowledgeCutoffUtc.ToString("O")),
+                CsvCell.Row("Evidence notice", data.EvidenceNotice),
+                CsvCell.Row("Filter", Filtered ? FilterText : "None"),
+                CsvCell.Row("Statement total", Money(Filtered ? totals.Net : data.NetAmount)),
+                CsvCell.Row("Report-wide total", Money(data.NetAmount), "Transactions", data.MatchingCount.ToString(CultureInfo.InvariantCulture)),
+                CsvCell.Row("Original SRC", "Payer", "Revenue line", "Collection ID", "Cash date", "Original recorded UTC", "Source", "Original amount (context for activity)", "Selected effect", "Net / activity effect", "Correction ID", "Effective date", "Correction recorded UTC", "Reason")
+            };
+            foreach (var e in shown) {
+                var corrections = data.Basis == CollectionReconciliationBasis.CorrectionActivity ? e.Corrections.Select(c => (CollectionActivityCorrectionDto?)c) : new CollectionActivityCorrectionDto?[] { null };
+                foreach (var c in corrections) rows.Add(CsvCell.Row(e.ReferenceCode ?? "", e.PayerName ?? "", RevenueLine(e), e.CollectionId?.ToString() ?? "", e.BusinessDate.ToString("yyyy-MM-dd"), e.RecordedAtUtc?.ToString("O") ?? "", string.Join(" | ", e.Lines.Select(l => $"{l.ClassificationName}; {l.SourceKind}; {l.SourceId}; period {l.PeriodYear}-{l.PeriodMonth:00}")), Money(e.Amount), Money(c?.FinancialEffect ?? e.CorrectionEffect), Money(c?.FinancialEffect ?? e.NetAmount),
+                    c?.CorrectionId.ToString() ?? string.Join(" | ", e.Corrections.Select(x => x.CorrectionId)), c?.EffectiveDate.ToString("yyyy-MM-dd") ?? string.Join(" | ", e.Corrections.Select(x => x.EffectiveDate.ToString("yyyy-MM-dd"))), c?.RecordedAtUtc.ToString("O") ?? string.Join(" | ", e.Corrections.Select(x => x.RecordedAtUtc.ToString("O"))), c?.Reason ?? string.Join(" | ", e.Corrections.Select(x => x.Reason))));
+            }
+            return "data:text/csv;charset=utf-8," + Uri.EscapeDataString(string.Join("\r\n", rows));
+        }
+    }
+}

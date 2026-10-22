@@ -91,6 +91,18 @@ public sealed class OfficialMonthlyIncomeTests(PostgresFixture db)
         Assert.True(zero.IsSuccess, zero.Error);
         Assert.Null(Statement(w, ctx).Groups.SelectMany(x => x.Rows).Single(x => x.Key == "MARKET_FEES").Attainment);
         Assert.Equal(4, (await workflow.HistoryAsync(Today.Year)).Value!.Count);
+        var revisionHistory = (await workflow.HistoryAsync(Today.Year)).Value!;
+        var preserved = Assert.Single(revisionHistory, x => x.Id == adjustment.Value.Id);
+        Assert.Equal(system, preserved.SystemAmountAtRevision);
+        Assert.Equal(adjustment.Value.SourceOrReason, preserved.SourceOrReason);
+        Assert.Equal(adjustment.Value.ActorId, preserved.ActorId);
+        Assert.Equal(adjustment.Value.RecordedAtUtc.Ticks / 10, preserved.RecordedAtUtc.Ticks / 10);
+        Assert.Equal(DateTimeKind.Utc, preserved.RecordedAtUtc.Kind);
+        Assert.Equal(adjustment.Value.Id, Assert.Single(revisionHistory, x => x.Id == cleared.Value.Id).SupersedesId);
+        Assert.Equal(cash.Value!.ReferenceCode, (await ctx.Collections.SingleAsync()).ReferenceCode);
+        Assert.Single(await ctx.Collections.ToListAsync());
+        Assert.Empty(await ctx.CollectionCorrections.ToListAsync());
+        Assert.Empty(await ctx.CollectionRemittances.ToListAsync());
         var unauthorized = new ReportGovernanceWorkflow(ctx, new Caller(w.HeadId, w.Tenant.Id, "Admin"), tenant, new Clock(), new LegacyMonthlyIncomeReader(ctx));
         Assert.Equal(ResultStatus.Forbidden, (await unauthorized.SetTargetAsync(targetRequest)).Status);
         var foreign = new ReportGovernanceWorkflow(ctx, new Caller(w.HeadId, Guid.NewGuid(), "SuperAdmin"), tenant, new Clock(), new LegacyMonthlyIncomeReader(ctx));

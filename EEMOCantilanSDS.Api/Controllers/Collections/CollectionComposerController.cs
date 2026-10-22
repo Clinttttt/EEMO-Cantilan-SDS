@@ -12,6 +12,10 @@ namespace EEMOCantilanSDS.Api.Controllers;
 public sealed class CollectionComposerController(ISender sender, CollectionComposerWorkflow composer)
     : ApiBaseController(sender)
 {
+    [HttpPost("rent-receipts")]
+    public async Task<ActionResult<EcfPostOutcomeDto>> PostRentReceipt([FromBody] MobileRentPostRequest request, CancellationToken ct) =>
+        HandleResponse(await composer.PostOfficeRentAsync(request, ct));
+
     [HttpGet("drafts/current")]
     public async Task<ActionResult<EcfCollectionDraftDto>> GetCurrentDraft(CancellationToken ct) =>
         HandleResponse(await composer.GetCurrentDraftAsync(ct));

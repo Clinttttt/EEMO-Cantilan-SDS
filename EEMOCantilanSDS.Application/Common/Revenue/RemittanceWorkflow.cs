@@ -431,9 +431,21 @@ public sealed class RemittanceWorkflow(
             }
             rows = rows.Where(x => x.Collected != 0m || x.Forms.Any(f => f.Assigned > 0) || x.NeedsReviewCount > 0)
                 .OrderBy(x => x.CollectorName, StringComparer.OrdinalIgnoreCase).ToList();
+            // Office-origin cash: the same canonical Collections, read apart (no collector), never added to a collector or marked remitted.
+            var officeTotal = 0m; var officeCount = 0;
+            if (onlyCollector is null)
+            {
+                var office = await db.Collections.AsNoTracking()
+                    .Where(x => x.MunicipalityId == tenantId && x.CollectorId == null && x.BusinessDate >= from && x.BusinessDate <= to)
+                    .Select(x => new { x.Id, x.TotalAmount }).ToListAsync(ct);
+                var ids = office.Select(x => x.Id).ToArray();
+                var corrected = ids.Length == 0 ? 0m : await db.CollectionCorrections.AsNoTracking()
+                    .Where(x => x.MunicipalityId == tenantId && ids.Contains(x.OriginalCollectionId)).SumAsync(x => x.FinancialEffectAmount, ct);
+                officeTotal = office.Sum(x => x.TotalAmount) + corrected; officeCount = office.Count;
+            }
             return Result<AccountabilityPositionDto>.Success(new AccountabilityPositionDto(from, to,
                 rows.Sum(x => x.Collected), rows.Sum(x => x.Remitted), rows.Sum(x => x.Unremitted),
-                rows.Sum(x => x.NeedsReviewCount), rows.Sum(x => x.LegacyCollectionsOutsideRemittance), rows));
+                rows.Sum(x => x.NeedsReviewCount), rows.Sum(x => x.LegacyCollectionsOutsideRemittance), rows, officeTotal, officeCount));
         }
     }
 

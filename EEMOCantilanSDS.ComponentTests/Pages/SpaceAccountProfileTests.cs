@@ -1,6 +1,7 @@
 using Bunit;
 using Bunit.TestDoubles;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
+using EEMOCantilanSDS.Application.Common.Lifecycle;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Client.Components.Pages.Menus;
 using EEMOCantilanSDS.Client.Services;
@@ -21,6 +22,7 @@ public sealed class SpaceAccountProfileTests : TestContext
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
     private readonly Mock<IObligationsApiClient> _accounts = new();
+    private readonly Mock<ILifecycleApiClient> _lifecycle = new();
     private static DateOnly ThisMonth => new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
 
     public SpaceAccountProfileTests()
@@ -28,6 +30,7 @@ public sealed class SpaceAccountProfileTests : TestContext
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.AddTestAuthorization().SetAuthorized("Head").SetRoles("SuperAdmin");
         Services.AddSingleton(_accounts.Object);
+        Services.AddSingleton(_lifecycle.Object);
         Services.AddSingleton(Mock.Of<ISetupApiClient>()); Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton(Mock.Of<IStallsApiClient>()); Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
         Services.AddSingleton<BrandingState>(); Services.AddSingleton<FacilityState>(new FacilityState(Mock.Of<IFacilitiesApiClient>()));
@@ -209,6 +212,29 @@ public sealed class SpaceAccountProfileTests : TestContext
             Assert.Equal("Elena Ramos", cut.Find("h1.prof-hero-name").TextContent.Trim());
             Assert.Contains("Collection history could not be loaded", cut.Find(".prof-ch-state").TextContent);   // never an empty "No collections recorded"
             Assert.DoesNotContain("No collections recorded yet", cut.Markup);
+        }, Timeout);
+    }
+    [Fact]
+    public void TheHolderIsTheAccountsOwn_TheStatusSaysEndsForAFutureEndDate_AndHistoryIsAnOrdinaryProfileCard()
+    {
+        var ends = PhilippineTime.Today.AddDays(12);
+        var account = Signed(occupant: "Josephine") with { ActiveTo = ends };
+        _lifecycle.Setup(x => x.GetAsync(LifecycleSource.SpaceRental, account.Id)).ReturnsAsync(Result<AccountLifecycleDto>.Success(new(
+            LifecycleSource.SpaceRental, account.Id, "7", "KanmanggaySpaceRental", "Josephine", LifecycleState.Ending, account.ActiveFrom, ends, null,
+            [new(LifecycleAction.Close, true, null, null, "SuperAdmin", true), new(LifecycleAction.Resume, false, LifecycleReason.NotClosed, "Still active.", "Admin", true)],
+            [new(account.ActiveFrom, "AccountOpened", "Josephine"), new(ends, "Ends", "Account ends")])));
+        var cut = Open(account, "kanmanggay");
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("Josephine", cut.Find("h1.prof-hero-name").TextContent.Trim());
+            Assert.DoesNotContain("Holder not recorded", cut.Markup);
+            Assert.Contains($"Ends {ends:MMM d, yyyy}", cut.Find(".prof-hero-meta").TextContent);        // a future end date is not "Closed"
+            Assert.DoesNotContain("Closed", cut.Find(".prof-hero-meta").TextContent);
+            var history = cut.FindAll(".prof-card").Single(c => c.QuerySelector(".prof-card-title")!.TextContent == "History");
+            Assert.Contains("Account ends", history.TextContent);
+            Assert.DoesNotContain("Josephine", history.TextContent);                                      // the opening entry repeats the summary, so it is not repeated
+            Assert.Empty(cut.FindAll(".lcb-bar"));                                                        // nothing to resume, nothing drawn
         }, Timeout);
     }
 }

@@ -38,10 +38,10 @@
     {
         <RentalRegistryHero Title="Spaces &amp; Occupants" Progress="CollectionRate">
             <Figures>
-                <V3HeroFigure Label="Registered units" Value="@(_loading || _error is not null ? "—" : _accounts.Count.ToString())" Note="@($"{_accounts.Count(a => a.ActiveTo is null)} active · {_accounts.Count(a => a.ActiveTo is not null)} closed")" />
-                <V3HeroFigure Label="Assessed" Value="@(_workspace is null ? "—" : Money(_workspace.Assessed))" Note="All accounts · to date" />
-                <V3HeroFigure Label="Collected" Value="@(_workspace is null ? "—" : Money(_workspace.Collected))" Note="All accounts · to date" />
-                <V3HeroFigure Label="Remaining" Value="@(_workspace is null ? "—" : Money(_workspace.Outstanding))" Note="All accounts · to date" />
+                <V3HeroFigure Label="Registered units" Value="@(_loading || _error is not null ? "—" : _accounts.Count.ToString())" Note="@($"{_accounts.Count(a => RentalAccountStatus.IsOpen(a))} active · {_accounts.Count(a => !RentalAccountStatus.IsOpen(a))} closed")" />
+                <V3HeroFigure Label="Assessed" Value="@(_workspace is null ? "—" : Money(_workspace.Assessed))" />
+                <V3HeroFigure Label="Collected" Value="@(_workspace is null ? "—" : Money(_workspace.Collected))" />
+                <V3HeroFigure Label="Remaining" Value="@(_workspace is null ? "—" : Money(_workspace.Outstanding))" />
             </Figures>
         </RentalRegistryHero>
 
@@ -80,9 +80,9 @@
 {
     <RentalSummaryStrip Title="@(Workspace?.TableTitle ?? "Space Rentals")" Description="@(Kind == ObligationKind.FiestaArawLotRental ? "Event lot rental · account-to-date position" : "Approved monthly rental · account-to-date position")"
                         Available="@(!_loading && _error is null)" StatusScope="Active registrations · account-to-date position"
-                        Paid="@_accounts.Count(a => a.ActiveTo is null && PaymentStatus(a) == "Paid")"
-                        Unpaid="@_accounts.Count(a => a.ActiveTo is null && PaymentStatus(a) == "Unpaid")"
-                        Partial="@_accounts.Count(a => a.ActiveTo is null && PaymentStatus(a) == "Partial")"
+                        Paid="@_accounts.Count(a => RentalAccountStatus.IsOpen(a) && PaymentStatus(a) == "Paid")"
+                        Unpaid="@_accounts.Count(a => RentalAccountStatus.IsOpen(a) && PaymentStatus(a) == "Unpaid")"
+                        Partial="@_accounts.Count(a => RentalAccountStatus.IsOpen(a) && PaymentStatus(a) == "Partial")"
                         Collected="@(_workspace is null ? "—" : Money(_workspace.Collected))" />
     @if (_error is not null) { <div role="alert" class="v3-notice v3-notice-error">@_error <button type="button" class="btn-outline" @onclick="LoadAsync">Try again</button></div> }
     <RegisteredRentalTable TItem="ObligationAccountDto" Rows="RentalRows" Unit="@SubjectNoun"
@@ -139,11 +139,11 @@ else
                         @if (!string.IsNullOrWhiteSpace(selectedAccount.AreaLocation)) { <div><dt>Area location / note</dt><dd>@selectedAccount.AreaLocation</dd></div> }
                         @if (SpaceAccountPresentation.Reference(selectedAccount) is { Length: > 0 } reference) { <div><dt>Contract reference</dt><dd>@reference</dd></div> }
                         <div><dt>Approved amount effective from</dt><dd>@selectedAccount.CurrentAmountEffectiveFrom?.ToString("MMM yyyy")</dd></div>
-                        @if (selectedAccount.ActiveTo is { } closed) { <div><dt>Closed on</dt><dd>@closed.ToString("MMM d, yyyy")</dd></div> }
+                        @if (selectedAccount.ActiveTo is { } closed) { <div><dt>@(RentalAccountStatus.IsOpen(selectedAccount) ? "Ends on" : "Closed on")</dt><dd>@closed.ToString("MMM d, yyyy")</dd></div> }
                     </dl>
                     <AuthorizeView Roles="SuperAdmin">
                         <Authorized>
-                            @if (!ReadOnlyHistory && selectedAccount.ActiveTo is null)
+                            @if (!ReadOnlyHistory && RentalAccountStatus.IsOpen(selectedAccount))
                             {
                                 <div class="obw-actions" role="group" aria-label="Authorized account changes">
                                     @if (selectedAccount.Kind != ObligationKind.FiestaArawLotRental)
@@ -187,12 +187,12 @@ else
                         <tr>
                             <td data-label="@SubjectNoun">@account.SubjectLabel@if (account.Kind == ObligationKind.FiestaArawLotRental && account.Event is { } lotEvent)
                             {<span class="v3-block">@LotLabel(account)</span>}
-                            else if (account.ActiveTo is { } ended) {<span class="v3-block">Ended @ended.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</span>}</td>
+                            else if (account.ActiveTo is not null) {<span class="v3-block">@RentalAccountStatus.LabelWithDate(account)</span>}</td>
                             <td class="v3-strong" data-label="Occupant">@SpaceAccountPresentation.Occupant(account)</td>
                             @if (SpaceExperience)
                             {
                                 <td data-label="Start date">@account.ActiveFrom.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
-                                <td data-label="Status"><AccountStatusPill Status="@(account.ActiveTo is not null ? "Closed" : "Active")" /></td>
+                                <td data-label="Status"><AccountStatusPill Status="@RentalAccountStatus.Label(account)" /></td>
                             }
                             <td class="v3-num" data-label="@AmountHeading">@(account.CurrentAmount is { } amount ? Money(amount) : "—")</td>
                             <td class="v3-num" data-label="Assessed">@Money(account.AssessedToDate)</td>
@@ -203,11 +203,11 @@ else
                                         @onclick="() => ToggleRegisterAsync(account.Id)">Periods</button>
                                 <AuthorizeView Roles="SuperAdmin">
                                     <Authorized>
-                                        @if (!ReadOnlyHistory && account.Kind != ObligationKind.FiestaArawLotRental && account.ActiveTo is null)
+                                        @if (!ReadOnlyHistory && account.Kind != ObligationKind.FiestaArawLotRental && RentalAccountStatus.IsOpen(account))
                                         {
                                             <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenRate(account)">Change amount</button>
                                         }
-                                        @if (!ReadOnlyHistory && account.ActiveTo is null)
+                                        @if (!ReadOnlyHistory && RentalAccountStatus.IsOpen(account))
                                         {
                                             <button class="v3-btn v3-btn-sm" type="button" @onclick="() => CloseAsync(account.Id)">@(SpaceExperience ? "Close account" : "End")</button>
                                         }
@@ -226,7 +226,7 @@ else
                                             @if (!string.IsNullOrWhiteSpace(SpaceAccountPresentation.Reference(account)))
                                             { <div><dt>Contract reference</dt><dd>@account.ContractReference</dd></div> }
                                             <div><dt>Approved amount effective from</dt><dd>@(account.CurrentAmountEffectiveFrom?.ToString("MMM yyyy") ?? "Not recorded")</dd></div>
-                                            @if (account.ActiveTo is { } closed) { <div><dt>Closed on</dt><dd>@closed.ToString("MMM d, yyyy")</dd></div> }
+                                            @if (account.ActiveTo is { } closed) { <div><dt>@(RentalAccountStatus.IsOpen(account) ? "Ends on" : "Closed on")</dt><dd>@closed.ToString("MMM d, yyyy")</dd></div> }
                                         </dl>
                                     }
                                     @if (_registerError is not null)
@@ -336,17 +336,7 @@ else
                 @if (SupportsContractBasis)
                 {
                     <RentalLesseeFields Form="RegistrationState" ContractNameSupported="true" OccupantId="obw-occupant"
-                                        OccupantPlaceholder="Current space occupant" OnArrangement="SelectRentalBasis">
-                        <ExtraFields>
-                            @if (_signedContract)
-                            {
-                                <div class="avm-row-2"><div class="avm-group">
-                                    <label class="avm-label">Contract reference</label>
-                                    <input class="avm-input" type="text" maxlength="200" placeholder="As written on the contract" @bind="_contractRef" />
-                                </div></div>
-                            }
-                        </ExtraFields>
-                    </RentalLesseeFields>
+                                        OccupantPlaceholder="Current space occupant" OnArrangement="SelectRentalBasis" />
                 }
                 else if (Kind == ObligationKind.FiestaArawLotRental)
                 {
@@ -375,13 +365,7 @@ else
                             <label class="avm-label" for="obw-occupant">Actual Occupant (Leasee) <span class="avm-req">*</span></label>
                             <input id="obw-occupant" class="avm-input" type="text" maxlength="200" autocomplete="off" aria-label="Actual occupant" @bind="_occupant" @bind:event="oninput" />
                         </div>
-                        @if (SupportsContractBasis && _signedContract)
-                        {
-                            <div class="avm-group">
-                                <label class="avm-label">Contract reference</label>
-                                <input class="avm-input" type="text" maxlength="200" placeholder="As written on the contract" @bind="_contractRef" />
-                            </div>
-                        }
+                        @* Signed-contract reference is optional historical evidence, not a required registration step. *@
                     </div>
                 </AddNewSection>
                 }
@@ -543,7 +527,7 @@ else
                 {
                     <AddNewSection Title="Rental Rates" Plain="true">
                         <RentalRateFields Form="RegistrationState" InputId="obw-amount" Label="Approved Monthly Rental (₱)" Minimum="0.01m" Step="0.01" Entered="() => StateHasChanged()"
-                                          ShowContractRate="_signedContract" ContractRate="_contractRate" ContractRateChanged="v => _contractRate = v" />
+                                          ShowContractRate="false" />
                     </AddNewSection>
                     <AddNewSection Title="Additional Information" Plain="true">
                         <div class="avm-row-2"><div class="avm-group">
@@ -585,17 +569,7 @@ else
                           OnSubmit="SaveHolderAsync" OnCancel="CloseForm">
                 <RentalLesseeFields Form="RegistrationState" OccupantId="obw-occupant"
                                     ContractNameSupported="true" OccupantPlaceholder="Current space occupant"
-                                    OnArrangement="SelectRentalBasis">
-                    <ExtraFields>
-                        @if (_signedContract)
-                        {
-                            <div class="avm-row-2"><div class="avm-group">
-                                <label class="avm-label">Contract reference</label>
-                                <input class="avm-input" type="text" maxlength="200" placeholder="As written on the contract" @bind="_contractRef" />
-                            </div></div>
-                        }
-                    </ExtraFields>
-                </RentalLesseeFields>
+                                    OnArrangement="SelectRentalBasis" />
                 <RentalContractFields Title="Rent / Space & Contract Details">
                     <SourceField>
                         <div class="avm-group">
@@ -665,31 +639,33 @@ else
                         <input id="obw-area" class="avm-input" type="number" min="0" max="1000000" step="0.01" @bind="_areaSqm" />
                     </div></div>
                 </AddNewSection>
-                @if (_signedContract)
-                {
-                    <AddNewSection Title="Rental per Contract" Plain="true">
-                        <div class="avm-row-2"><div class="avm-group">
-                            <label class="avm-label" for="obw-contract-rate">Monthly Rental per Contract (₱)</label>
-                            <input id="obw-contract-rate" class="avm-input" type="number" min="0" step="0.01" placeholder="Per signed contract"
-                                   value="@_contractRate" @onchange="e => _contractRate = decimal.TryParse(e.Value?.ToString(), NumberStyles.Number, CultureInfo.InvariantCulture, out var stated) && stated > 0m ? stated : null" />
-                            <div class="avm-hint-muted">What the signed contract states. Evidence only; the approved amount below is what is billed.</div>
-                        </div></div>
-                    </AddNewSection>
-                }
+                @* Existing signed-contract rate evidence remains on the account; rental changes use the approved rate workflow. *@
                 <AddNewSection Title="Additional Information" Plain="true">
                     <div class="avm-row-2"><div class="avm-group">
                         <label class="avm-label" for="obw-area-note">Area Location / Note</label>
                         <input id="obw-area-note" class="avm-input" type="text" maxlength="250" @bind="_areaLocation" />
                     </div></div>
                 </AddNewSection>
-                <div class="v3-notice">
-                    Recorded rent: @Money(editing.CurrentAmount ?? 0m) / month. Changes to the approved amount have a separate
-                    effective-dated approval. If prior months were assessed, the occupant, occupancy basis and lease term
-                    cannot be replaced here: close the term and begin a new approved occupancy instead.
+                <div class="avm-hint-muted">
+                    Approved monthly rental: @(editing.CurrentAmount is { } approved ? Money(approved) : "Not effective yet").
+                    Rate changes take effect from the month you select and do not rewrite previous collections.
                 </div>
                 <div class="obw-actions">
-                    <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenRate(editing)">Change approved amount</button>
+                    <label><input type="checkbox" @bind="_changeApprovedAmount" /> Change approved amount</label>
                 </div>
+                @if (_changeApprovedAmount)
+                {
+                    <div class="avm-row-2">
+                        <div class="avm-group">
+                            <label class="avm-label" for="obw-holder-rate-month">Effective from (month)</label>
+                            <input id="obw-holder-rate-month" class="avm-input" type="month" required value="@_rateMonth" @onchange="e => _rateMonth = e.Value?.ToString() ?? string.Empty" />
+                        </div>
+                        <div class="avm-group">
+                            <label class="avm-label" for="obw-holder-rate-amount">Approved monthly amount</label>
+                            <input id="obw-holder-rate-amount" class="avm-input" type="number" min="0.01" step="0.01" required @bind="_amount" />
+                        </div>
+                    </div>
+                }
             </AddNewDrawer>
         }
 
@@ -822,7 +798,7 @@ else
         new() { Label = "Remaining", Value = _workspace is null ? "—" : Money(_workspace.Outstanding) },
         new() { Label = AccountCountLabel ?? $"Registered {SubjectNoun.ToLowerInvariant()}s", Value = _loading || _error is not null ? "—" : _accounts.Count.ToString(CultureInfo.InvariantCulture) }];
     private IEnumerable<ObligationAccountDto> VisibleAccounts => _accounts.Where(a =>
-        (!SpaceExperience || (!Overview && _lifecycle == "All") || ((Overview ? _filter == "Closed" : _lifecycle == "Closed") ? a.ActiveTo is not null : a.ActiveTo is null))
+        (!SpaceExperience || (!Overview && _lifecycle == "All") || ((Overview ? _filter == "Closed" : _lifecycle == "Closed") ? !RentalAccountStatus.IsOpen(a) : RentalAccountStatus.IsOpen(a)))
         && (!SpaceExperience || _filter switch
         {
             "Paid" => a.AssessedToDate > 0m && a.OutstandingToDate == 0m,
@@ -889,12 +865,12 @@ else
     private decimal? _amount;
     private RenderFragment<ObligationAccountDto> RegistryAccountActions => a => @<AuthorizeView Roles="SuperAdmin">
         <Authorized>
-            <RentalRegistryActionButtons Subject="@SpaceAccountPresentation.Occupant(a)" IsActive="@(a.ActiveTo is null)"
-                CanEdit="@(a.ActiveTo is null && a.Kind != ObligationKind.FiestaArawLotRental && !ReadOnlyHistory)"
+            <RentalRegistryActionButtons Subject="@SpaceAccountPresentation.Occupant(a)" IsActive="@(RentalAccountStatus.IsOpen(a))"
+                CanEdit="@(RentalAccountStatus.IsOpen(a) && a.Kind != ObligationKind.FiestaArawLotRental && !ReadOnlyHistory)"
                 EditTitle="Edit Space Holder"
                 EditUnavailableReason="Editing is unavailable: closed account or unsupported event-amount revision."
-                CanToggle="@(a.ActiveTo is null && !ReadOnlyHistory)"
-                ToggleTitle="@(a.ActiveTo is null ? "Close Account" : "Reopen unavailable: requires an approved successor-account workflow.")"
+                CanToggle="@(RentalAccountStatus.IsOpen(a) && !ReadOnlyHistory)"
+                ToggleTitle="@(RentalAccountStatus.IsOpen(a) ? "Close Account" : "Closed. Open the account profile to resume, renew, reassign or retire it.")"
                 OnInspect="() => OpenHolderDetails(a, true)"
                 OnProfile="() => OpenAccountProfile(a)"
                 OnEdit="() => OpenHolderEditor(a)"
@@ -902,7 +878,7 @@ else
                 OnToggle="() => CloseAsync(a.Id)" />
         </Authorized>
         <NotAuthorized>
-            <RentalRegistryActionButtons Subject="@SpaceAccountPresentation.Occupant(a)" IsActive="@(a.ActiveTo is null)"
+            <RentalRegistryActionButtons Subject="@SpaceAccountPresentation.Occupant(a)" IsActive="@(RentalAccountStatus.IsOpen(a))"
                 CanEdit="false" CanToggle="false"
                 EditUnavailableReason="Only an authorized Head can change an approved amount."
                 ToggleTitle="Only an authorized Head may close accounts. Reopening is unavailable."
@@ -923,7 +899,7 @@ else
     private IEnumerable<RentalTableRow<ObligationAccountDto>> RentalRows => VisibleAccounts.Select(a => new RentalTableRow<ObligationAccountDto>(a,
         a.SubjectLabel, SpaceAccountPresentation.Occupant(a), RegistryContract(a),
         (a.ContractEffectiveDate ?? a.ActiveFrom).ToString("MMM d, yyyy"), a.CurrentAmount, PaymentStatus(a),
-        a.ActiveTo is null ? "Active" : "Closed",
+        RentalAccountStatus.Label(a),
         a.Event is not null ? LotLabel(a) : !string.IsNullOrWhiteSpace(a.AreaLocation) ? a.AreaLocation : Name));
     private void OpenAccountPosition(ObligationAccountDto account) { _detailsAccount = account; _detailsHistory = false; }
     // The peso action is the stall registers' own: a read-only acknowledgement of this month's rental (this event's amount for a lot), from the account's period
@@ -991,7 +967,7 @@ else
         await LoadAsync();
         if (Management && AccountId is { } id && _accounts.FirstOrDefault(a => a.Id == id) is { } selected)
         {
-            _lifecycle = selected.ActiveTo is null ? "Active" : "Closed";
+            _lifecycle = RentalAccountStatus.IsOpen(selected) ? "Active" : "Closed";
             await ToggleRegisterAsync(id);
         }
     }
@@ -1068,9 +1044,12 @@ else
 
     private void OpenHolderEditor(ObligationAccountDto account)
     {
-        if (!SupportsContractBasis || account.ActiveTo is not null) return;
+        if (!SupportsContractBasis || !RentalAccountStatus.IsOpen(account)) return;
         _formError = null; _saved = null; _opening = false; _rateFor = null;
         _editFor = account;
+        _changeApprovedAmount = false;
+        _amount = account.CurrentAmount;
+        _rateMonth = PhilippineTime.Today.AddMonths(1).ToString("yyyy-MM", CultureInfo.InvariantCulture);
         _occupant = SpaceAccountPresentation.Occupant(account);
         _signedContract = account.Arrangement == OccupancyArrangement.SignedContract;
         _contractRef = account.ContractReference ?? string.Empty;
@@ -1207,10 +1186,18 @@ else
         finally { _saving = false; _advanceRequest = null; }
     }
 
+    private bool _changeApprovedAmount;
     private async Task SaveHolderAsync()
     {
         if (_saving || _editFor is not { } account) return;
         _formError = null;
+        SetObligationRateRequest? rateChange = null;
+        if (_changeApprovedAmount)
+        {
+            if (_amount is not > 0m) { _formError = "Enter the approved amount."; return; }
+            if (!TryMonthStart(_rateMonth, out var effective)) { _formError = "Choose the month the amount takes effect."; return; }
+            rateChange = new(effective, _amount.Value);
+        }
         _saving = true;
         try
         {
@@ -1219,7 +1206,7 @@ else
                 _signedContract ? _contractRef : null, _signedContract ? _contractName : null,
                 _signedContract && _contractDate is { } contractDate ? DateOnly.FromDateTime(contractDate) : null,
                 _signedContract && DurationUnconfirmed ? account.ContractYears : _signedContract && _contractYears > 0 ? _contractYears : null,
-                _areaSqm, _areaLocation, _signedContract ? _contractRate : null);
+                _areaSqm, _areaLocation, _signedContract ? _contractRate : null, rateChange);
             var result = await ObligationsApi.CorrectHolderAsync(account.Id, request);
             if (!result.IsSuccess) { _formError = result.Error ?? "Holder details could not be saved."; return; }
             _editFor = null;

@@ -25,5 +25,7 @@ public enum CollectionSourceKind
     /// <summary>Settlement of an existing governed fine assessment, never a penalty-definition version.</summary>
     FineAssessment = 15,
     /// <summary>Immediate fine cash under reviewed no-registration authority. SourceId is DirectFineAuthority.Id; no receivable.</summary>
-    DirectFineCollection = 16
+    DirectFineCollection = 16,
+    /// <summary>Specialized NPM month source. Dormant until coordinated monthly settlement activation.</summary>
+    NpmRentMonth = 17
 }

@@ -22,7 +22,8 @@ public class RecordSlaughterCommandHandler(
     IEemoCacheInvalidator cacheInvalidator,
     IFeeRateResolver feeRateResolver,
     ITenantContext tenantContext,
-    Common.Revenue.GovernedCanonicalAuthority? canonicalAuthority = null) : IRequestHandler<RecordSlaughterCommand, Result<bool>>
+    Common.Revenue.GovernedCanonicalAuthority? canonicalAuthority = null,
+    Common.Revenue.FeeScheduleCollectionWorkflow? approvedCharges = null) : IRequestHandler<RecordSlaughterCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(RecordSlaughterCommand request, CancellationToken ct)
     {
@@ -51,6 +52,14 @@ public class RecordSlaughterCommandHandler(
                     "Slaughterhouse is collected on the canonical collection workflow. The legacy transaction record is closed for Collector collections; earlier records remain unchanged.",
                     ResultStatus.Conflict);
         }
+
+        // Once the Head has Slaughterhouse on approved charges, the office records through the same approved-charge collection as the
+        // Collector; this typed-OR per-head writer stays for earlier dates and for offices that have not switched.
+        if (currentUser.Role != "Collector" && approvedCharges is not null
+            && await approvedCharges.IsSlaughterItemizedAsync(request.TransactionDate, ct))
+            return Result<bool>.Failure(
+                "Slaughterhouse is collected by approved charges. Record this transaction with its approved charges; the per-head office record is closed. Earlier records remain unchanged.",
+                ResultStatus.Conflict);
 
         var collectorId = currentUser.CollectorId;
         var recordedBy = currentUser.Username ?? "Admin";
@@ -81,6 +90,9 @@ public class RecordSlaughterCommandHandler(
                 return Result<bool>.Failure(
                     $"'{request.CustomAnimalType}' is not an approved slaughter animal. The Head or an Admin must approve it, with its rate, before it can be recorded.",
                     ResultStatus.Invalid);
+            if (approvedCustom.RatePerHead <= 0m)
+                return Result<bool>.Failure(
+                    $"{approvedCustom.AnimalName} has no per-head rate; it is collected by approved charges.", ResultStatus.Invalid);
             if (request.CustomRate is { } typed && typed != approvedCustom.RatePerHead)
                 return Result<bool>.Failure(
                     $"The approved rate for {approvedCustom.AnimalName} is ₱{approvedCustom.RatePerHead:N2} per head. A different rate cannot be entered here.",

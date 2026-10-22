@@ -1,7 +1,9 @@
 using System.Text.Json;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Tenancy;
+using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
@@ -26,7 +28,7 @@ public sealed class NpmDailyCanonicalPoster(
     IAppDbContext db,
     ICurrentUserService currentUser,
     ICurrentMunicipalityAccessor municipality,
-    GovernedCanonicalAuthority authority)
+    GovernedCanonicalAuthority authority, NpmRentMonthWorkflow? monthly = null)
 {
     public const string Origin = "NpmDaily";
     private const int IntentVersion = 1;
@@ -85,6 +87,25 @@ public sealed class NpmDailyCanonicalPoster(
 
     private string ActorId => (currentUser.CollectorId ?? currentUser.UserId ?? Guid.Empty).ToString("N");
 
+    /// <summary>Replay recorded daily money using its original payment date across a later source cutover.</summary>
+    public async Task<Result<Outcome>?> FindHistoricalDailyReplayAsync(Guid operation, Guid stallId, DateOnly day,
+        bool paid, bool absent, CancellationToken ct = default, string? officialReceiptNumber = null)
+    {
+        var original = await db.PostingOperations.AsNoTracking().SingleOrDefaultAsync(x => x.MunicipalityId == municipality.MunicipalityId
+            && x.ClientOperationId == operation && x.Origin == Origin, ct);
+        if (original is null) return null;
+        try
+        {
+            using var document = JsonDocument.Parse(original.NormalizedIntent);
+            var date = DateOnly.ParseExact(document.RootElement.GetProperty("paymentDate").GetString()!, "yyyy-MM-dd",
+                System.Globalization.CultureInfo.InvariantCulture);
+            return await FindPriorAsync(operation, NormalizeIntent("NpmDailyRecord", stallId, [day], date,
+                $"paid={paid};absent={absent}" + NpmReceiptEvidence.IntentSuffix(officialReceiptNumber)), ct);
+        }
+        catch (Exception ex) when (ex is JsonException or FormatException or KeyNotFoundException or InvalidOperationException)
+        { return Result<Outcome>.Failure("RECONCILIATION_REQUIRED: Original daily intent cannot be verified.", ResultStatus.Conflict); }
+    }
+
     /// <summary>
     /// A retry of an operation already decided. Null when the id is new; the same Collection and SRC when the intent is the
     /// same; a conflict when the id was bound to something else. Asked BEFORE any market rule runs, so a replay never
@@ -114,10 +135,24 @@ public sealed class NpmDailyCanonicalPoster(
     /// </summary>
     public async Task<Result<Outcome>> PostAsync(
         Stall stall, IReadOnlyList<Charge> charges, Guid clientOperationId, string normalizedIntent, DateOnly paymentDate,
-        CancellationToken ct = default)
+        CancellationToken ct = default, string? officialReceiptNumber = null)
+        => await PostCombinedAsync(stall, charges, clientOperationId, normalizedIntent, paymentDate, [], null, null, null, ct, officialReceiptNumber: officialReceiptNumber);
+
+    internal async Task<Result<Outcome>> PostCombinedAsync(Stall stall, IReadOnlyList<Charge> charges,
+        Guid clientOperationId, string normalizedIntent, DateOnly paymentDate, IReadOnlyList<CollectionLineDraft> monthLines,
+        NpmRentMonthPostingPermit? permit, Action<Guid, DateTime>? monthChanges, string? responsiblePayor, CancellationToken ct, IClock? postingClock = null,
+        string? officialReceiptNumber = null)
     {
+        if (monthly is not null)
+            foreach (var period in charges.Select(c => new DateOnly(c.Day.CollectionDate.Year, c.Day.CollectionDate.Month, 1)).Distinct())
+                if (await monthly.MustUseMonthlyAuthorityAsync(stall.Id, period, ct))
+                    return Discard("This month uses the coordinated month writer; legacy daily posting is unavailable.", ResultStatus.Conflict);
+        if (monthly is not null)
+            foreach (var period in charges.Select(x => new DateOnly(x.Day.CollectionDate.Year, x.Day.CollectionDate.Month, 1)).Distinct())
+                if (await monthly.IsMonthActivatedAsync(stall.Id, period, ct))
+                    return Discard("Activated month authority cannot fall back to legacy daily posting.", ResultStatus.Conflict);
         var tenantId = municipality.MunicipalityId;
-        if (tenantId == Guid.Empty || charges.Count == 0 || charges.Any(x => x.Amount <= 0m))
+        if (tenantId == Guid.Empty || charges.Count + monthLines.Count == 0 || charges.Any(x => x.Amount <= 0m))
             return Discard("There is no stall-fee money to post.", ResultStatus.Invalid);
 
         var classification = await db.RevenueClassifications.SingleOrDefaultAsync(x =>
@@ -128,16 +163,23 @@ public sealed class NpmDailyCanonicalPoster(
             .OrderByDescending(x => x.EffectiveDate).FirstOrDefaultAsync(ct);
         if (classification is null || policy?.PermittedInstrumentType is null)
             return Discard("No effective approved instrument policy exists for the stall-rent classification on this date.", ResultStatus.Conflict);
+        var receipt = await NpmReceiptEvidence.ResolveAsync(db, currentUser, tenantId, policy.PermittedInstrumentType.Value, officialReceiptNumber, ct);
+        if (!receipt.IsSuccess) return Discard(receipt.Error!, receipt.Status);
 
         var role = currentUser.Role ?? "Admin";
         var actorName = currentUser.Username ?? "System";
         var occupant = stall.ResolveOccupancy(null, paymentDate);
-        var payer = string.IsNullOrWhiteSpace(occupant?.Occupant) ? null : occupant!.Occupant;
-        var total = charges.Sum(x => x.Amount);
-        var allocations = charges.Select(x => new CollectionAllocationDraft(CollectionSourceKind.DailyCollection, x.Day.Id, x.Amount, CollectionSourcePart.DailyFee,
+        var payer = responsiblePayor ?? (string.IsNullOrWhiteSpace(occupant?.Occupant) ? null : occupant!.Occupant);
+        var postingLines = monthLines.ToList();
+        // Separate period lines keep receipt/report period labels accurate without splitting the actual cash receipt.
+        foreach (var periodCharges in charges.GroupBy(x => new DateOnly(x.Day.CollectionDate.Year, x.Day.CollectionDate.Month, 1)))
+        {
+        var allocations = periodCharges.Select(x => new CollectionAllocationDraft(CollectionSourceKind.DailyCollection, x.Day.Id, x.Amount, CollectionSourcePart.DailyFee,
             JsonSerializer.Serialize(new
             {
                 schemaVersion = 1, stallId = stall.Id, stallNo = stall.StallNo, section = stall.Section?.ToString(),
+                contractId = StallOccupancy.AnsweringForMonth(stall.Occupancies(paymentDate), x.Day.CollectionDate.Year, x.Day.CollectionDate.Month)?.Contract.Id,
+                periodStart = new DateOnly(x.Day.CollectionDate.Year, x.Day.CollectionDate.Month, 1),
                 day = x.Day.CollectionDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
                 dailyFee = x.Day.DailyFee, monthEndAdjustment = x.Day.MonthEndAdjustment, charged = x.Amount,
                 partPayment = x.PartPayment ? true : (bool?)null, settledBefore = x.PartPayment ? x.Day.CanonicalSettledAmount : (decimal?)null
@@ -145,18 +187,19 @@ public sealed class NpmDailyCanonicalPoster(
         var lineSnapshot = JsonSerializer.Serialize(new
         {
             schemaVersion = 1, lineKind = "NpmDailyStallFee", facility = FacilityCode.NPM.ToString(), stallId = stall.Id,
-            stallNo = stall.StallNo, days = charges.Count, policyId = policy.Id, instrument = policy.PermittedInstrumentType
+            stallNo = stall.StallNo, periodStart = periodCharges.Key, days = periodCharges.Count(), policyId = policy.Id, instrument = policy.PermittedInstrumentType
         }, JsonOptions);
-        var line = new CollectionLineDraft(classification, policy, total, null, null, null, lineSnapshot, allocations);
+        postingLines.Add(new CollectionLineDraft(classification, policy, periodCharges.Sum(x => x.Amount), null, null, null, lineSnapshot, allocations));
+        }
 
         Collection collection;
         try
         {
-            collection = await new CanonicalCollectionPostingCoordinator(db).PostAsync(
+            collection = await new CanonicalCollectionPostingCoordinator(db, postingClock).PostAsync(
                 tenantId, clientOperationId, IntentVersion, normalizedIntent, Origin, ActorId, actorName, role, paymentDate, actorName,
-                [line], null, collectorId: currentUser.CollectorId, payerName: payer,
+                postingLines, receipt.Value, collectorId: currentUser.CollectorId, payerName: payer,
                 // A day already paid by an earlier Collection (it now carries a month-end adjustment) keeps that Collection as its payer.
-                beforeCommit: (collectionId, _) =>
+                beforeCommit: (collectionId, recordedAt) =>
                 {
                     foreach (var charge in charges)
                     {
@@ -166,8 +209,9 @@ public sealed class NpmDailyCanonicalPoster(
                             charge.Day.ApplyCanonicalAdjustment(collectionId, charge.OriginalUpdatedAt, charge.OriginalUpdatedBy);
                         else if (charge.Day.CanonicalCollectionId is null) charge.Day.ApplyCanonicalPayment(collectionId);
                     }
+                    monthChanges?.Invoke(collectionId, recordedAt);
                 },
-                ct: ct);
+                ct: ct, npmMonthPermit: permit);
         }
         catch (Exception ex) when (ex is DbUpdateException or System.Data.Common.DbException
             or InvalidOperationException { InnerException: DbUpdateException or System.Data.Common.DbException })
@@ -186,6 +230,8 @@ public sealed class NpmDailyCanonicalPoster(
 
     // A refused post must leave nothing behind: the caller has already marked the day rows in this unit of work, and an
     // offline sync replays several operations in one scope, so unsaved changes are dropped rather than left to ride on a later save.
+    internal Result<Outcome> DiscardStagedPayment(string message, ResultStatus status) => Discard(message, status);
+
     private Result<Outcome> Discard(string message, ResultStatus status)
     {
         db.ChangeTracker.Clear();
@@ -211,12 +257,23 @@ public sealed class NpmDailyCanonicalPoster(
             .SingleOrDefaultAsync(x => x.MunicipalityId == tenantId && x.Id == collectionId, ct);
         if (collection is null) return Result<Outcome>.NotFound();
         var allocations = collection.Lines.SelectMany(l => l.Allocations).ToList();
-        if (allocations.Count == 0 || allocations.Any(a => a.SourceKind != CollectionSourceKind.DailyCollection))
+        if (allocations.Count == 0 || allocations.Any(a => a.SourceKind is not (CollectionSourceKind.DailyCollection or CollectionSourceKind.NpmRentMonth))
+            || allocations.Any(a => a.SourceKind == CollectionSourceKind.DailyCollection && a.SourcePart != CollectionSourcePart.DailyFee))
             return Result<Outcome>.Failure("Only an NPM daily stall-fee Collection can be voided here.", ResultStatus.Invalid);
+        if (allocations.Any(a => a.SourceKind == CollectionSourceKind.NpmRentMonth) && monthly?.Enabled != true)
+            return Result<Outcome>.Failure("The coordinated month correction workflow is unavailable.", ResultStatus.Conflict);
+        if (await db.CollectionRemittanceCoverages.AnyAsync(x => x.MunicipalityId == tenantId && x.CollectionId == collectionId && x.IsActive, ct))
+            return Result<Outcome>.Failure("Remitted cash requires the established remittance reconciliation process.", ResultStatus.Conflict);
         if (await db.CollectionCorrections.AsNoTracking().AnyAsync(x => x.MunicipalityId == tenantId && x.OriginalCollectionId == collectionId, ct))
             return Result<Outcome>.Failure("This Collection has already been corrected.", ResultStatus.Conflict);
 
-        var dayIds = allocations.Select(a => a.SourceId).Distinct().ToList();
+        await using var monthTransaction = monthly?.Enabled == true && !db.HasActiveTransaction
+            ? await db.BeginSerializableTransactionAsync(ct) : null;
+        if (monthly?.Enabled == true && await db.CollectionCorrections.AnyAsync(x => x.MunicipalityId == tenantId
+            && x.OriginalCollectionId == collectionId, ct))
+            return Result<Outcome>.Failure("This Collection has already been corrected.", ResultStatus.Conflict);
+
+        var dayIds = allocations.Where(a => a.SourceKind == CollectionSourceKind.DailyCollection).Select(a => a.SourceId).Distinct().ToList();
         var days = await db.DailyCollections.Where(x => x.MunicipalityId == tenantId && dayIds.Contains(x.Id)).ToListAsync(ct);
         // A day that part payments built up takes back exactly what THIS Collection applied; the other payments stay in force.
         var partPaid = days.Where(d => d.CanonicalSettledAmount > 0m).ToDictionary(d => d.Id);
@@ -224,6 +281,8 @@ public sealed class NpmDailyCanonicalPoster(
             || days.Any(d => d.CanonicalSettledAmount == 0m && d.CanonicalCollectionId == collection.Id && d.CanonicalAdjustmentCollectionId is not null))
             return Result<Outcome>.Failure("Void the separately recorded month-end adjustment before its original installment.", ResultStatus.Conflict);
         var actor = currentUser.Username ?? "office";
+        if (monthly?.Enabled == true)
+            await monthly.TouchCorrectionMonthsAsync(allocations, "Existing Head void of Collection " + collectionId + ": " + reason.Trim(), ct);
         var lines = collection.Lines.Select(l => new CollectionCorrectionLineDraft(l.Id, -l.Amount,
             l.Allocations.Select(a => new CollectionCorrectionAllocationDraft(a.Id, -a.Amount)).ToList())).ToList();
         db.CollectionCorrections.Add(CollectionCorrection.Record(tenantId, collection.Id, null, null, null, CollectionCorrectionType.Void,
@@ -248,6 +307,7 @@ public sealed class NpmDailyCanonicalPoster(
         foreach (var day in days.Where(d => d.CanonicalAdjustmentCollectionId == collection.Id))
             day.ApplyCanonicalAdjustmentVoid();
         await db.SaveChangesAsync(ct);
+        if (monthTransaction is not null) await monthTransaction.CommitAsync(ct);
         return Result<Outcome>.Success(new Outcome(collection.Id, collection.ReferenceCode, 0m, false));
     }
 }

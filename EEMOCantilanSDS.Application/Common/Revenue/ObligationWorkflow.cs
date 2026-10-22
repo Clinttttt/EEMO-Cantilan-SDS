@@ -54,7 +54,12 @@ public sealed class ObligationWorkflow(
 
             var rows = accounts.OrderBy(x => x.SubjectLabel, StringComparer.OrdinalIgnoreCase).Select(account =>
             {
-                var current = ObligationRate.Resolve(rates[account.Id], BusinessToday);
+                // A future approved successor must show its effective rental rate, not ₱0
+                // merely because its occupancy has not started yet. Closed occupancies
+                // show their rate as of closure; live occupancies show today's rate.
+                var rateDate = account.ActiveFrom > BusinessToday ? account.ActiveFrom
+                    : account.ActiveTo is { } closed && closed < BusinessToday ? closed : BusinessToday;
+                var current = ObligationRate.Resolve(rates[account.Id], rateDate);
                 var accountQuotes = quotes[account.Id].ToList();
                 return new ObligationAccountDto(
                     account.Id, account.Kind, ObligationCollectionSource.KindLabel(account.Kind), account.PayorId ?? Guid.Empty,
@@ -63,7 +68,7 @@ public sealed class ObligationWorkflow(
                     account.SubjectLabel, account.Event, account.EventDate, account.ActiveFrom, account.ActiveTo,
                     current?.Amount, current?.EffectiveFrom,
                     accountQuotes.Sum(x => x.AssessedAmount), accountQuotes.Sum(x => x.SettledAmount),
-                    accountQuotes.Sum(x => x.OutstandingAmount), account.Arrangement, account.ContractReference, account.ActualOccupant, account.ContractName, account.ContractEffectiveDate, account.ContractYears, account.AreaSqm, account.AreaLocation, account.ContractMonthlyRate);
+                    accountQuotes.Sum(x => x.OutstandingAmount), account.Arrangement, account.ContractReference, account.ActualOccupant, account.ContractName, account.ContractEffectiveDate, account.ContractYears, account.AreaSqm, account.AreaLocation, account.ContractMonthlyRate, account.RetiredAtUtc is not null);
             }).ToList();
             return Result<IReadOnlyList<ObligationAccountDto>>.Success(rows);
         }, ct);
@@ -233,6 +238,7 @@ public sealed class ObligationWorkflow(
                 return Result<ObligationAccountDto>.Failure(ex.Message, ResultStatus.Invalid);
             }
             db.ObligationAccounts.Add(account);
+            RegisterSpace(account, actor);
             db.ObligationRates.Add(rate);
             try { await db.SaveChangesAsync(ct); }
             catch (DbUpdateException)
@@ -303,7 +309,7 @@ public sealed class ObligationWorkflow(
             var skipped = plan.Rows.Count(x => x.Code == "DuplicateSpace");
             // Validate the complete list before any account or financial assessment is written.
             if (review.Length > 0) return Result<ImportSpaceHoldersResult>.Success(new(0, skipped, review, plan.Rows));
-            foreach (var item in plan.Additions) { db.ObligationAccounts.Add(item.Account); db.ObligationRates.Add(item.Rate); }
+            foreach (var item in plan.Additions) { db.ObligationAccounts.Add(item.Account); db.ObligationRates.Add(item.Rate); RegisterSpace(item.Account, actor); }
             // The run is recorded with the accounts it created, in the same transaction: a saved import always has its run, and a
             // preview, a refusal or a list that added nothing never does.
             if (plan.Additions.Count > 0)
@@ -334,6 +340,16 @@ public sealed class ObligationWorkflow(
 
     private sealed record SpaceImportPlan(List<(ObligationAccount Account, ObligationRate Rate)> Additions,
         List<SpaceHolderImportRowResult> Rows);
+
+    // Every NEW monthly space account is born with its physical-space identity. A number that already has an account is refused earlier by the
+    // numbering allocator; reusing a number is only possible through an authorized lifecycle action, never by creating another account.
+    private void RegisterSpace(ObligationAccount account, Actor actor)
+    {
+        if (!ObligationAccount.IsMonthlySpaceKind(account.Kind)) return;
+        var registration = SpaceRegistration.Create(actor.TenantId, account.Kind, account.SubjectLabel, actor.Username);
+        db.SpaceRegistrations.Add(registration);
+        account.LinkRegistration(registration.Id);
+    }
 
     private async Task<SpaceAccountNumbering> LoadSpaceNumberingAsync(Guid tenantId, CancellationToken ct)
     {
@@ -435,6 +451,7 @@ public sealed class ObligationWorkflow(
         Run<bool>(async actor =>
         {
             if (actor.Role != "SuperAdmin") return Result<bool>.Forbidden();
+            await using var transaction = request.RateChange is null || db.HasActiveTransaction ? null : await db.BeginSerializableTransactionAsync(ct);
             var account = await db.ObligationAccounts.SingleOrDefaultAsync(x =>
                 x.MunicipalityId == actor.TenantId && x.Id == accountId, ct);
             if (account is null) return Result<bool>.NotFound();
@@ -449,19 +466,33 @@ public sealed class ObligationWorkflow(
             var durationProblem = await SignedContractDurationProblemAsync(
                 actor.TenantId, account.Kind, request.Arrangement, request.ContractYears, account.ContractYears, ct);
             if (durationProblem is not null) return Result<bool>.Failure(durationProblem, ResultStatus.Conflict);
+            if (request.RateChange is { } rate)
+            {
+                var rated = await SetRateAsync(accountId, rate, ct);
+                if (!rated.IsSuccess) return rated;
+            }
             try { account.CorrectHolderEvidence(request.ActualOccupant, request.Arrangement, request.ContractReference,
                 request.ContractName, request.ContractEffectiveDate, request.ContractYears,
                 request.AreaSqm, request.AreaLocation, hasHistory, request.ContractMonthlyRate); }
-            catch (ArgumentException ex) { return Result<bool>.Failure(ex.Message, ResultStatus.Conflict); }
+            catch (ArgumentException ex)
+            {
+                if (request.RateChange is not null) db.ChangeTracker.Clear();
+                return Result<bool>.Failure(ex.Message, ResultStatus.Conflict);
+            }
             var revised = JsonSerializer.Serialize(new { account.ActualOccupant, account.Arrangement, account.ContractReference,
                 account.ContractName, account.ContractEffectiveDate, account.ContractYears,
                 account.AreaSqm, account.AreaLocation, account.ContractMonthlyRate });
-            if (previous == revised) return Result<bool>.Success(true);
+            if (previous == revised)
+            {
+                if (transaction is not null) await transaction.CommitAsync(ct);
+                return Result<bool>.Success(true);
+            }
             db.AuditLogs.Add(AuditLog.Create(actor.UserId.ToString("N"), actor.Username, actor.Role,
                 "CorrectSpaceHolderEvidence", nameof(ObligationAccount), account.Id,
                 oldValues: previous, newValues: revised, municipalityId: actor.TenantId,
                 notes: "Source-native metadata correction; no existing obligation period or collection was changed."));
             await db.SaveChangesAsync(ct);
+            if (transaction is not null) await transaction.CommitAsync(ct);
             return Result<bool>.Success(true);
         }, ct);
 
@@ -488,6 +519,10 @@ public sealed class ObligationWorkflow(
                 return Result<bool>.Failure("Choose a realistic effective date (not more than a year ahead).", ResultStatus.Invalid);
             try { db.ObligationRates.Add(ObligationRate.Create(actor.TenantId, accountId, request.EffectiveFrom, request.Amount, actor.Username)); }
             catch (ArgumentException ex) { return Result<bool>.Failure(ex.Message, ResultStatus.Invalid); }
+            db.AuditLogs.Add(AuditLog.Create(actor.UserId.ToString("N"), actor.Username, actor.Role,
+                "ChangeApprovedSpaceAmount", nameof(ObligationAccount), account.Id,
+                newValues: JsonSerializer.Serialize(request), municipalityId: actor.TenantId,
+                notes: "Effective-dated approved amount; existing assessments and collections remain unchanged."));
             await db.SaveChangesAsync(ct);
             return Result<bool>.Success(true);
         }, ct);
@@ -520,7 +555,11 @@ public sealed class ObligationWorkflow(
         if (tenantId == Guid.Empty || currentUser.MunicipalityId is { } claimed && claimed != tenantId)
             return Result<T>.Forbidden();
         try { return await action(new Actor(userId, tenantId, currentUser.Username ?? "Office User", currentUser.Role!)); }
-        catch (DbUpdateException) { return Result<T>.Failure("The operation conflicts with another saved transaction.", ResultStatus.Conflict); }
+        catch (Exception ex) when (ex is DbUpdateException or System.Data.Common.DbException)
+        {
+            db.ChangeTracker.Clear();
+            return Result<T>.Failure("The operation conflicts with another saved transaction.", ResultStatus.Conflict);
+        }
     }
 
     private sealed record Actor(Guid UserId, Guid TenantId, string Username, string Role);

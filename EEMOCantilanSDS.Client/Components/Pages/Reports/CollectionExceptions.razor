@@ -6,6 +6,7 @@
 @using EEMOCantilanSDS.Application.Dtos.Stalls
 @using EEMOCantilanSDS.Application.Dtos.DailyCollections
 @using EEMOCantilanSDS.Application.Dtos.Payments
+@using EEMOCantilanSDS.Application.Common.Payments
 @using EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmDays
 @using EEMOCantilanSDS.Application.Command.DailyCollections.RecordDailyCollection
 @using EEMOCantilanSDS.Application.Command.Payments.RecordPayment
@@ -340,6 +341,11 @@
                     </div>
                 }
 
+                @if (IsNpm && SelectedStall is not null)
+                {
+                    <NpmMonthReviewActions StallId="SelectedStall.Id" PeriodStart="@(new DateOnly(_year, _month, 1))" OnChanged="LoadPeriod" />
+                }
+
                 @if (_drawerOpen)
                 {
                     var cur = DrawerStatus();
@@ -395,6 +401,36 @@
                                 </div>
                             }
 
+                            @if (IsDay && _monthlyDayQuote is { } reviewed)
+                            {
+                                <div class="ce-standing" aria-live="polite">
+                                    <span>Reviewed stall rent: @Money(reviewed.EligibleAmount)</span>
+                                    <span>Monthly balance: @Money(reviewed.Outstanding)</span>
+                                </div>
+                            }
+                            @if (SourceOwnedRecord() is { } owned)
+                            {
+                                @* A month that has moved to receipt-based collection is never edited as a status: money enters
+                                   only through the one payment dialog (quote, exact balance, operation ID, generated SRC). A
+                                   month mid-cutover offers nothing until its cutover finishes. *@
+                                if (owned.SettlementAuthority == SettlementAuthority.Canonical)
+                                {
+                                    <div class="ce-receipt">
+                                        <div class="ce-receipt-text">
+                                            This month is collected by receipt. Each payment is recorded once and gets its own SRC.
+                                        </div>
+                                        <button class="ce-cbtn ce-cbtn-primary" type="button" disabled="@(DrawerIsFuture() || owned.BalanceDue <= 0m)" @onclick="OpenReceipt">Record payment</button>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="ce-receipt" role="status">
+                                        <div class="ce-receipt-text">This month is being moved to receipt-based collection. It cannot be edited or paid until that finishes.</div>
+                                    </div>
+                                }
+                            }
+                            else
+                            {
                             <div class="ce-set-label">Set status</div>
                             <div class="ce-set-opts">
                                 <button class="ce-set-opt ce-set-paid @(eff == "collected" ? "ce-set-on" : "") @(DrawerIsFuture() ? "ce-set-disabled" : "")" type="button" disabled="@DrawerIsFuture()" @onclick='() => ChooseStatus("collected")'>
@@ -501,6 +537,7 @@
                                     </div>
                                 </div>
                             }
+                            }
                         </div>
                     </div>
                 }
@@ -509,7 +546,34 @@
     </div>
 </div>
 
+@if (SelectedStall is not null && !IsNpm && System.Enum.TryParse<FacilityCode>(_facility, out var receiptFacility))
+{
+    @* The same payment dialog the follow-up pages use: one posting path, one quote, one SRC per receipt. *@
+    <PayBillModal Show="_receiptOpen"
+                  StallId="SelectedStall.Id"
+                  Facility="receiptFacility"
+                  StallNo="@SelectedStall.StallNo"
+                  Occupant="@SelectedStall.Occupant"
+                  PeriodYear="_year" PeriodMonth="_drawerMonth"
+                  OnClose="CloseReceipt"
+                  OnChanged="ReceiptRecorded" />
+}
+
 @code {
+    private bool _receiptOpen;
+
+    // The month's record when a receipt-based writer owns it (Canonical or mid-cutover); null for Legacy months.
+    private PaymentRecordDto? SourceOwnedRecord() =>
+        !IsNpm && _drawerKind == "month" && DrawerRecord() is { SettlementAuthority: not SettlementAuthority.Legacy } r ? r : null;
+
+    private void OpenReceipt() => _receiptOpen = true;
+    private void CloseReceipt() => _receiptOpen = false;
+    private async Task ReceiptRecorded()
+    {
+        _receiptOpen = false;
+        await LoadPeriod();
+    }
+
     // Section filter options — DATA-DRIVEN from the payors actually loaded for this facility, so per-LGU
     // CUSTOM NPM sections (and only the sections that exist) appear alongside the canonical ones. "All" first.
     private IEnumerable<string> Sections =>
@@ -874,12 +938,38 @@
     }
 
     // ── Drawer ──
-    private void OpenDay(int d)
+    private NpmRentMonthQuote? _monthlyDayQuote;
+    private Guid _monthlyDayOperation;
+    private bool _checkingMonthlyDay;
+    private string? _monthlyDayError;
+    private int _monthlyDaySequence;
+    private async Task OpenDay(int d)
     {
         if (_marketClosedDays.Contains(d) || DayStatus(d) == "na") return;
         _drawerKind = "day"; _drawerDay = d; _pendingStatus = null; _ackEdit = false; _saveError = null;
         SeedFishKilos();
         _drawerOpen = true;
+        _monthlyDayQuote = null; _monthlyDayError = null; _monthlyDayOperation = Guid.NewGuid();
+        var sequence = ++_monthlyDaySequence;
+        _checkingMonthlyDay = true;
+        try
+        {
+            var available = await DailyApi.IsNpmMonthlySettlementAvailableAsync();
+            if (sequence != _monthlyDaySequence) return;
+            if (available?.IsSuccess == true && available.Value && SelectedStall is { } stall)
+            {
+                var result = await DailyApi.QuoteNpmMonthlyDayAsync(stall.Id, new(_year, _month, d));
+                if (sequence != _monthlyDaySequence) return;
+                if (result?.IsSuccess == true && result.Value is { } review)
+                {
+                    if (review.IsActivated && review.Quote is null) _monthlyDayError = "The activated month quote is missing. No payment can be recorded.";
+                    else _monthlyDayQuote = review.IsActivated ? review.Quote : null;
+                }
+                else _monthlyDayError = result?.Error ?? "The monthly rent could not be reviewed.";
+            }
+        }
+        catch { if (sequence == _monthlyDaySequence) _monthlyDayError = "The monthly rent could not be reviewed. Reopen the date to retry."; }
+        finally { if (sequence == _monthlyDaySequence) { _checkingMonthlyDay = false; _saveError = _monthlyDayError; } }
     }
 
     // Pre-fill the fish-weight box from an already-recorded collection so re-recording keeps the value.
@@ -890,8 +980,8 @@
         if (_npmMonth is not null && _npmMonth.Collections.TryGetValue(key, out var c) && c.FishKilos is { } kg && kg > 0)
             _fishKilos[CurrentKey] = ((int)kg).ToString();
     }
-    private void OpenMonth(int m) { if (MonthStatus(m) == "na") return; _drawerKind = "month"; _drawerMonth = m; _pendingStatus = null; _ackEdit = false; _saveError = null; _drawerOpen = true; }
-    private void CloseDrawer() { _drawerOpen = false; _pendingStatus = null; _ackEdit = false; _saveError = null; }
+    private void OpenMonth(int m) { if (MonthStatus(m) == "na") return; _monthlyDaySequence++; _checkingMonthlyDay = false; _monthlyDayQuote = null; _drawerKind = "month"; _drawerMonth = m; _pendingStatus = null; _ackEdit = false; _saveError = null; _drawerOpen = true; }
+    private void CloseDrawer() { _monthlyDaySequence++; _checkingMonthlyDay = false; _monthlyDayQuote = null; _drawerOpen = false; _pendingStatus = null; _ackEdit = false; _saveError = null; }
 
     private bool IsDay => _drawerKind == "day";
     private bool DrawerIsFuture() => IsDay
@@ -984,6 +1074,8 @@
     private async Task ConfirmPending()
     {
         if (_pendingStatus is null || SelectedStall is null) return;
+        if (_saving || _checkingMonthlyDay) return;
+        if (IsDay && _monthlyDayError is not null) { _saveError = _monthlyDayError; return; }
         if (DrawerLocked && !_ackEdit) return;
 
         var or = string.IsNullOrWhiteSpace(CurrentOr) ? null : CurrentOr.Trim();
@@ -994,6 +1086,29 @@
         if (IsDay)
         {
             var date = new DateOnly(_year, _month, _drawerDay);
+            if (_monthlyDayQuote is { } reviewed)
+            {
+                if (_pendingStatus != "collected" || reviewed.EligibleAmount <= 0 || FishKilosValue() > 0)
+                {
+                    _saving = false;
+                    _saveError = "Use the audited month credit/correction workflow for changes, and record independent weighing separately. No stall rent was recorded.";
+                    return;
+                }
+                try
+                {
+                    res = await DailyApi.RecordDailyCollectionAsync(new(SelectedStall.Id, date, IsPaid: true,
+                        ClientOperationId: _monthlyDayOperation, ReviewedMonthAmount: reviewed.EligibleAmount,
+                        MonthQuoteToken: reviewed.Token, PaymentBusinessDate: reviewed.BusinessDate));
+                }
+                catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+                {
+                    _saving = false;
+                    _saveError = "The payment outcome is unknown. Retry this same reviewed operation; do not enter another payment.";
+                    return;
+                }
+            }
+            else
+            {
             var cmd = _pendingStatus switch
             {
                 "collected" => new RecordDailyCollectionCommand(SelectedStall.Id, date, IsPaid: true, FishKilos: FishKilosValue(), ORNumber: or),
@@ -1001,6 +1116,7 @@
                 _ => new RecordDailyCollectionCommand(SelectedStall.Id, date, IsPaid: false, IsAbsent: true)
             };
             res = await DailyApi.RecordDailyCollectionAsync(cmd);
+            }
         }
         else
         {
