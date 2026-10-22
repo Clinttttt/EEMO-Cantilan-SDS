@@ -633,8 +633,10 @@
             border-bottom: none;
         }
 
-        .data-table.registry-table tbody tr:hover {
-            background: var(--accent-hover);
+        /* Subtle hover preserves the contrast of dark account labels and status text. */
+        .data-table.registry-table tbody tr:hover,
+        .data-table.registry-table tbody tr:hover > td {
+            background: color-mix(in srgb, var(--accent) 6%, var(--bg-card));
         }
 
 .registry-table .col-actions {
