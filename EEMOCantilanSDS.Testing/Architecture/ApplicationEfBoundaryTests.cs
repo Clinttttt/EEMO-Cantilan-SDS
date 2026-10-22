@@ -83,6 +83,9 @@ public class ApplicationEfBoundaryTests
         // Presentation configuration only - no revenue or settlement data is read or written.
         "UpdateTenantOperationSettingCommandHandler.cs",
         "TenantOperationSettingsStore.cs",
+        // Tenant Terminal configuration follows the existing settings store pattern: read-only,
+        // explicit municipality filtering, without altering posting or Cash Ticket policy.
+        "TerminalSectionSettingsStore.cs",
 
         // Authentication, account recovery and MFA: pre-auth paths that resolve an account before a tenant exists.
         "RequestPasswordResetCommandHandler.cs",
@@ -200,6 +203,9 @@ public class ApplicationEfBoundaryTests
         "OfficeCollectionWorkflow.NpmOccupancy.cs",
         "OfficeCollectionWorkflow.NpmRequests.cs",
         "OfficeCollectionWorkflow.FishMeatRequests.cs", // Same tenant-scoped nonfinancial review transaction; no new financial ledger.
+        // Head-only logical deletion shares the registry's serializable tenant transaction,
+        // atomically withdrawing NPM links and retaining tombstone/audit evidence without changing cash.
+        "OfficeCollectionWorkflow.Deletion.cs",
 
         // The shared Composer posting transaction revalidates every participating source and atomically writes
         // the draft, Collection/lines/allocations, compatibility projections, accountable document, and durable

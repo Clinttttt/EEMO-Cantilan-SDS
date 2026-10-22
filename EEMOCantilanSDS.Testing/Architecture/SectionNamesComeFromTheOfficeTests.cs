@@ -57,6 +57,9 @@ public class SectionNamesComeFromTheOfficeTests
         ["StallHoldersList.razor"] =
             "Mentions the canonical name only in comments, explaining that the label arrives from the server "
             + "already resolved and must be used as it is. No name is rendered from a literal here.",
+        ["MonthlyMarketSectionSelection.cs"] =
+            "Pure input mapping from stable select values to canonical MarketSection keys. "
+            + "It renders no section label; FacilityPage is responsible for office-specific display.",
     };
 
     /// <summary>Where the office's screens live. The API and Domain hold the keys, and are not display.</summary>
