@@ -1,0 +1,116 @@
+# TEMPLATE ONLY — copy to the PRIVATE deployment repo's .github/workflows/ directory
+# AFTER the isolated runner, verified production forced-command gate and secrets
+# have been installed and independently rehearsed. This file is NOT a workflow
+# when stored under infra/aws/templates/ in the public source repository.
+#
+# Required private-repo secrets:
+#   GHCR_READ_USER     read-only GitHub package account
+#   GHCR_READ_TOKEN    token with read:packages only
+# Required *protected* aws-production environment secrets:
+#   PROD_RUNNER_SSH_KEY    private key for deploybot's forced command only
+#   PROD_RUNNER_KNOWN_HOSTS   preverified production SSH host key (not ssh-keyscan)
+# Required protected environment variable:
+#   AWS_DEPLOY_ENABLED  exact value "true" after rehearsal
+# Required repository variable:
+#   PROD_RUNNER_HOST    known production host address
+#
+# Initially manual dispatch only. Add scheduled polling AFTER acceptance tests:
+#   schedule:
+#     - cron: '*/10 * * * *'
+# A scheduled version must resolve the latest master SHA without an input.
+name: Promote checked V10 Client release
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Exact 40-character public master commit SHA to promote
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: aws-production-client-promotion
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Check source CI and immutable Client artifact
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.check.outputs.sha }}
+      client_digest: ${{ steps.image.outputs.client_digest }}
+    steps:
+      - name: Verify release commit is latest master with successful push CI
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ inputs.release_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Invalid release SHA"; exit 1; }
+          CURRENT=$(gh api repos/Clinttttt/EEMO-Cantilan-SDS/commits/master --jq .sha)
+          [[ "$SHA" == "$CURRENT" ]] || { echo "::error::Release is not current master"; exit 1; }
+          SUCCESS_COUNT=$(gh api "repos/Clinttttt/EEMO-Cantilan-SDS/actions/runs?head_sha=$SHA&event=push&status=success&per_page=30" --jq '[.workflow_runs[] | select(.name == "CI" and .conclusion == "success" and .head_sha == env.SHA)] | length')
+          [[ "$SUCCESS_COUNT" -ge 1 ]] || { echo "::error::No successful push CI for release SHA"; exit 1; }
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+      - name: Install Docker Buildx for image manifest verification
+        uses: docker/setup-buildx-action@v3
+      - name: Read-only GHCR authentication
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.GHCR_READ_USER }}
+          password: ${{ secrets.GHCR_READ_TOKEN }}
+      - name: Resolve immutable Client image digest
+        id: image
+        env:
+          SHA: ${{ steps.check.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/clinttttt/stalltrack-v10-client:$SHA"
+          DIGEST=$(docker buildx imagetools inspect "$IMAGE" | awk '$1=="Digest:" { print $2; exit }')
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::Missing or invalid GHCR digest"; exit 1; }
+          echo "client_digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
+  promote-client:
+    name: Client-only promotion through restricted AWS gate
+    needs: verify
+    # Leave off until administrator explicitly activates the protected environment.
+    if: ${{ vars.AWS_DEPLOY_ENABLED == 'true' }}
+    runs-on: [self-hosted, linux, x64, stalltrack-deploy-control]
+    environment:
+      name: aws-production
+      url: https://console.stalltrack.site/login
+    timeout-minutes: 15
+    steps:
+      - name: Send signed-off release identity through forced SSH command
+        env:
+          SHA: ${{ needs.verify.outputs.sha }}
+          DIGEST: ${{ needs.verify.outputs.client_digest }}
+          HOST: ${{ vars.PROD_RUNNER_HOST }}
+          SSH_KEY: ${{ secrets.PROD_RUNNER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.PROD_RUNNER_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ -n "$HOST" && -n "$SSH_KEY" && -n "$KNOWN_HOSTS" ]]
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          trap 'rm -f "$HOME/.ssh/stalltrack_deploy_key" "$HOME/.ssh/stalltrack_known_hosts"' EXIT
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/stalltrack_deploy_key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$HOME/.ssh/stalltrack_known_hosts"
+          # No remote command is supplied: production's authorized_keys MUST
+          # enforce a single root-owned, fixed, independently audited gate.
+          printf '%s %s\n' "$SHA" "$DIGEST" | ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/stalltrack_known_hosts" \
+            -i "$HOME/.ssh/stalltrack_deploy_key" -- "deploybot@$HOST"
+      - name: Independently check public endpoints after deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 20 -o /dev/null https://console.stalltrack.site/login
+          curl -fsS --max-time 20 -o /dev/null https://api.stalltrack.site/health/ready
