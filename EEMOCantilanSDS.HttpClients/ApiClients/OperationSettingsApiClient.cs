@@ -7,6 +7,10 @@ namespace EEMOCantilanSDS.HttpClients.ApiClients;
 
 public sealed class OperationSettingsApiClient(HttpClient http) : HandleResponse(http), IOperationSettingsApiClient
 {
+    public async Task<Result<IReadOnlyList<EEMOCantilanSDS.Application.Common.Revenue.TerminalSectionSettingsStore.SectionView>>> GetTerminalSectionsAsync() =>
+        await GetAsync<IReadOnlyList<EEMOCantilanSDS.Application.Common.Revenue.TerminalSectionSettingsStore.SectionView>>("api/terminal-sections");
+    public async Task<Result<IReadOnlyList<EEMOCantilanSDS.Application.Common.Revenue.TerminalSectionSettingsStore.SectionView>>> UpdateTerminalSectionAsync(EEMOCantilanSDS.Application.Dtos.Settings.TerminalSectionUpdateRequest request) =>
+        await PutAsync<EEMOCantilanSDS.Application.Dtos.Settings.TerminalSectionUpdateRequest, IReadOnlyList<EEMOCantilanSDS.Application.Common.Revenue.TerminalSectionSettingsStore.SectionView>>("api/terminal-sections", request);
     public async Task<Result<TenantOperationSettingsDto>> GetAsync() =>
         await GetAsync<TenantOperationSettingsDto>("api/operation-settings");
 

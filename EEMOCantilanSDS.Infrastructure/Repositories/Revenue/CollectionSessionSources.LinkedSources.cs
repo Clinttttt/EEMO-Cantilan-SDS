@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Enums;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Infrastructure.Repositories.Revenue;
@@ -12,10 +13,28 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories.Revenue;
 // Collection, quoted and posted by the stall's own source writer, so no payer or balance is merged); the vendor session answers for no other stall.
 public sealed partial class CollectionSessionSources
 {
+    private async Task<LinkedNpmStatus> LinkedNpmStatusAsync(Guid vendorId, bool offered, CancellationToken ct)
+    {
+        if (offered) return LinkedNpmStatus.Available;
+        if (!await db.CollectorUsers.AsNoTracking().AnyAsync(x => x.MunicipalityId == Tenant && x.Id == user.CollectorId
+            && x.IsActive && x.FacilityAssignments.Any(a => a.FacilityCode == FacilityCode.NPM), ct))
+            return LinkedNpmStatus.NotAuthorized;
+        if (await db.NpmRegistrationRequests.AsNoTracking().AnyAsync(x => x.MunicipalityId == Tenant
+            && x.VendorRegistrationId == vendorId && x.Status == NpmRegistrationRequestStatus.Submitted, ct))
+            return LinkedNpmStatus.AwaitingVerification;
+        var links = await db.FishMeatNpmAssociations.AsNoTracking().Where(x => x.MunicipalityId == Tenant
+            && x.VendorRegistrationId == vendorId).Select(x => x.CorrectedAtUtc).ToListAsync(ct);
+        return links.Any(x => x == null) ? LinkedNpmStatus.NotEligibleForDate
+            : links.Count > 0 ? LinkedNpmStatus.Withdrawn : LinkedNpmStatus.NotLinked;
+    }
+
     private sealed record LinkedOccupancy(Stall Stall, Contract Answering, string OccupantSnapshot);
 
     private async Task<IReadOnlyList<LinkedOccupancy>> LinkedOccupanciesAsync(Guid vendorRegistrationId, DateOnly date, CancellationToken ct)
     {
+        if (!await db.FishMeatVendorRegistrations.AsNoTracking().AnyAsync(x => x.MunicipalityId == Tenant
+            && x.Id == vendorRegistrationId && x.Status == VendorRegistrationStatus.Active
+            && x.TaxYear == date.Year, ct)) return [];
         var assignedToMarket = await db.CollectorUsers.AsNoTracking().AnyAsync(x => x.MunicipalityId == Tenant && x.Id == user.CollectorId && x.IsActive
             && x.FacilityAssignments.Any(a => a.FacilityCode == FacilityCode.NPM), ct);
         if (!assignedToMarket) return [];

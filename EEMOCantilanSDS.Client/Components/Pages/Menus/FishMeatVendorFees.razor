@@ -109,16 +109,18 @@
         }
         else
         {
-        <div class="v3-table-wrap fmv-scroll" role="region" aria-label="Registered vendors" tabindex="0">
+        <div class="v3-table-wrap fmv-scroll fmv-registry" role="region" aria-label="Registered vendors" tabindex="0">
             <table class="v3-table">
                 <caption class="v3-sr-only">Active Fish and Meat vendors registered for @_taxYear with what each paid in @_monthName</caption>
                 <thead>
                     <tr>
-                        <th scope="col">Vendor</th>
+                        <th scope="col">Vendor / Business</th>
                         <th scope="col">Type</th>
                         <th scope="col">Registration</th>
                         <th scope="col">Address</th>
+                        <th scope="col">Business activity</th>
                         <th scope="col" class="v3-num">@(_taxYear == PhilippineTime.Today.Year ? "Collected this month" : $"Collected in {_monthName}")</th>
+                        <th scope="col"><span class="v3-sr-only">Action</span></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -126,19 +128,21 @@
                     {
                         var vendor = row.Registration;
                         <tr @key="vendor.Id">
-                            <td>
+                            <td data-label="Vendor / Business">
                                 <span class="v3-strong">@vendor.DisplayName</span>
                                 @if (!string.IsNullOrWhiteSpace(vendor.BusinessName)) { <span class="v3-block fmv-sub">@vendor.BusinessName</span> }
                             </td>
-                            <td>@vendor.VendorType</td>
-                            <td>@vendor.RegistrationKind</td>
-                            <td class="fmv-address" title="@vendor.Address">@VendorAddressDisplay.Clean(vendor.Address)</td>
-                            <td class="v3-num">@Money(row.TotalCollected)</td>
+                            <td data-label="Type">@vendor.VendorType</td>
+                            <td data-label="Registration">@vendor.RegistrationKind<span class="v3-block fmv-sub">@vendor.TaxYear</span></td>
+                            <td data-label="Address" class="fmv-address" title="@vendor.Address">@VendorAddressDisplay.Clean(vendor.Address)</td>
+                            <td data-label="Business activity" class="fmv-activity">@(vendor.NatureOfBusiness ?? "Not recorded")</td>
+                            <td data-label="Collected" class="v3-num">@Money(row.TotalCollected)</td>
+                            <td data-label="Action" class="fmv-row-action"><a class="v3-btn v3-btn-sm" href="@($"/operations/fish-meat-vendor-fees/manage?taxYear={vendor.TaxYear}&registrationId={vendor.Id}")" aria-label="@($"Details for {vendor.DisplayName}")">Details</a></td>
                         </tr>
                     }
                     @if (VisibleRows.Count == 0)
                     {
-                        <tr><td class="v3-empty" colspan="5">@(_loading ? "Loading vendors…" : HasSearch ? "No vendor matches the search." : $"No vendor is registered for {_taxYear}.")</td></tr>
+                        <tr><td class="v3-empty" colspan="7">@(_loading ? "Loading vendors…" : HasSearch ? "No vendor matches the search." : $"No vendor is registered for {_taxYear}.")</td></tr>
                     }
                 </tbody>
             </table>

@@ -379,8 +379,12 @@
                 }
                 else if (!(info.HasCorrection || _reversed is not null) && info.Eligibility.CanCorrect)
                 {
-                    <label class="txn-field-label" for="txn-reason">Reason (required)</label>
-                    <textarea id="txn-reason" class="txn-reason" rows="3" maxlength="500" @bind="Reason" @bind:event="oninput"></textarea>
+                    <div class="txn-reverse-field">
+                        <label class="txn-field-label" for="txn-reason">Reason for reversal <span>(required)</span></label>
+                        <textarea id="txn-reason" class="txn-reason" rows="4" maxlength="500"
+                                  placeholder="State why this collection must be reversed"
+                                  aria-required="true" @bind="Reason" @bind:event="oninput"></textarea>
+                    </div>
                     <label class="txn-ack"><input type="checkbox" @bind="_ack" /> I confirm this reverses @r.ReferenceCode and reopens the month's balance.</label>
                     @if (_reverseError is not null) { <p class="txn-error" role="alert">@_reverseError</p> }
                     <button type="button" class="v3-btn v3-btn-primary" disabled="@(!_ack || string.IsNullOrWhiteSpace(_reason) || _working)" @onclick="ReverseAsync">@(_working ? "Reversing…" : "Reverse collection")</button>
@@ -394,7 +398,7 @@
                 {
                     <a class="v3-btn" href="@ReconciliationHref(r)">View Reconciliation</a>
                 }
-                @if (r.Verification is not null && r.CollectionId is not null)
+                @if (!isCanonical && r.Verification is not null && r.CollectionId is not null)
                 {
                     <button type="button" class="v3-btn" @onclick="OpenCollectionReviewAsync">Review details</button>
                 }

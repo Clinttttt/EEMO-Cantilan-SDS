@@ -14,7 +14,7 @@ namespace EEMOCantilanSDS.Client.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class AuthProxyController(IAuthApiClient apiAuthService, ILogger<AuthProxyController> logger) : ControllerBase
+public class AuthProxyController(IAuthApiClient apiAuthService, IAccountSecurityApiClient accountSecurityApi, ILogger<AuthProxyController> logger) : ControllerBase
 {
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginCommand request)
@@ -66,7 +66,7 @@ public class AuthProxyController(IAuthApiClient apiAuthService, ILogger<AuthProx
     [Authorize]
     public async Task<IActionResult> ChangeMyPassword([FromBody] ChangeMyPasswordCommand request)
     {
-        var result = await apiAuthService.ChangeMyPasswordAsync(request);
+        var result = await accountSecurityApi.ChangeMyPasswordAsync(request);
 
         if (!result.IsSuccess || result.Value is null)
         {

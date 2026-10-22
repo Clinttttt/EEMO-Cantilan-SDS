@@ -56,10 +56,14 @@ public class UtilityDirectApprovedPresentationTests
     {
         var text = Read(Path.Combine("Shared", "AddVendorModal.razor"));
 
+        // The current shared rental form no longer repeats the old utility disclaimer.
+        // Utilities are separate approved sources, not selectable rent components here.
         Assert.DoesNotContain("amount varies per reading", text);
         Assert.DoesNotContain(">Utility Charges<", text);
-        Assert.Contains("Utility service", text);
-        Assert.Contains("not a rental charge", text);
+        Assert.DoesNotContain("Utility service", text);
+        Assert.DoesNotContain("UtilityBill", text);
+        Assert.Contains("RentalRateFields", text);
+        Assert.Contains("Applicable Charges", text);
     }
 
     [Fact]

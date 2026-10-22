@@ -1,225 +1,26 @@
-name: Database backup
-
-# Off-site, restorable backups of the production PostgreSQL database.
-#
-# WHY THIS EXISTS
-#   The Azure Postgres Flexible Server already keeps 7-day automated point-in-time
-#   restore (PITR) — that is the primary safety net and is independent of the F1
-#   App Service tier. This workflow adds long-term, self-held copies: a real
-#   pg_dump you can keep beyond 7 days and grab before any risky change. It runs in
-#   GitHub's CI (not the F1 app), so the "we can't auto-backup on F1" limitation
-#   does not apply here.
-#
-# WHAT IT PRODUCES
-#   A compressed, custom-format dump (pg_dump -Fc) uploaded as a build artifact,
-#   retained 90 days. Restore with:
-#       pg_restore --no-owner --no-privileges -d "<target-connection>" <file>.dump
-#
-# ONE-TIME SETUP (see the notes at the bottom of this file)
-
+name: Database backup (AWS operator handoff)
+# AWS PostgreSQL 18 lives on Lightsail, not Azure Flexible Server.
+# The live host owns daily stalltrack-db-backup.timer and the isolated restore drill.
+# This manual workflow FAILS CLOSED: success here must never imply an AWS backup exists.
 on:
-  schedule:
-    - cron: '0 17 * * *'   # daily at 17:00 UTC = 01:00 Philippine time (off-peak)
-  workflow_dispatch:        # allows an on-demand backup from the Actions tab
-
+  workflow_dispatch:
 permissions:
   contents: read
-  id-token: write           # required for Azure OIDC login
-  issues: write             # so a failed backup can raise one instead of passing silently
-
-concurrency:
-  group: database-backup
-  cancel-in-progress: false
-
-env:
-  RESOURCE_GROUP: stalltrack-prod-rg
-
 jobs:
-  backup:
-    name: pg_dump to artifact
+  aws-backup:
+    name: AWS backup needs verified host access
     runs-on: ubuntu-latest
-    # Reuse the existing Azure federated credential, which is registered for the
-    # OIDC subject "repo:...:environment:production" (same as the deploy job). Without
-    # this, the subject is "...:ref:refs/heads/master", which Azure does not recognize.
-    environment: production
-
     steps:
-      - name: Sign in to Azure with OpenID Connect
-        uses: azure/login@v2
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Install PostgreSQL client
-        # pg_dump must be >= the server's major version. The server is PostgreSQL 18,
-        # so install client 18 from the PGDG apt repo.
+      - name: Explain the backup handoff
+        shell: bash
         run: |
-          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
-          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client-18
-
-      - name: Detect runner public IP
-        id: ip
-        run: echo "ip=$(curl -fsSL https://api.ipify.org)" >> "$GITHUB_OUTPUT"
-
-      - name: Open a temporary firewall rule for this runner
-        run: |
-          az postgres flexible-server firewall-rule create \
-            --resource-group "$RESOURCE_GROUP" \
-            --server-name "${{ vars.PG_SERVER_NAME }}" \
-            --name "ghbackup-${GITHUB_RUN_ID}" \
-            --start-ip-address "${{ steps.ip.outputs.ip }}" \
-            --end-ip-address "${{ steps.ip.outputs.ip }}"
-
-      - name: Run pg_dump (compressed, restorable custom format)
-        env:
-          PGHOST: ${{ secrets.PG_HOST }}
-          PGDATABASE: ${{ secrets.PG_DATABASE }}
-          PGUSER: ${{ secrets.PG_USER }}
-          PGPASSWORD: ${{ secrets.PG_PASSWORD }}   # passed via env, never on the command line
-          PGSSLMODE: require                        # Azure Postgres requires TLS
-        run: |
-          STAMP="$(date -u +%Y%m%d-%H%M)"
-          FILE="stalltrack-backup-${STAMP}.dump"
-          echo "BACKUP_FILE=$FILE" >> "$GITHUB_ENV"
-          pg_dump -Fc -Z 6 --no-owner --no-privileges -f "$FILE"
-          ls -lh "$FILE"
-
-      - name: Verify the dump before trusting it
-        # A dump nobody has looked at is a hope, not a backup. The upload step's if-no-files-found
-        # only catches a MISSING file: a 0-byte or truncated dump uploaded as a success, and the
-        # office would have discovered it on the day it needed to restore.
-        env:
-          PGHOST: ${{ secrets.PG_HOST }}
-          PGDATABASE: ${{ secrets.PG_DATABASE }}
-          PGUSER: ${{ secrets.PG_USER }}
-          PGPASSWORD: ${{ secrets.PG_PASSWORD }}
-          PGSSLMODE: require
-        run: |
-          set -euo pipefail
-
-          # 1. It exists and is not empty.
-          if [ ! -s "$BACKUP_FILE" ]; then
-            echo "::error title=Backup unusable::$BACKUP_FILE is missing or zero bytes."
-            exit 1
-          fi
-
-          SIZE=$(stat -c%s "$BACKUP_FILE")
-          echo "Dump size: $SIZE bytes"
-          echo "BACKUP_SIZE=$SIZE" >> "$GITHUB_ENV"
-
-          # 2. It parses. A custom-format dump carries a table of contents; pg_dump writes that last,
-          #    so a truncated or corrupt file fails here even when its size looks plausible.
-          if ! pg_restore --list "$BACKUP_FILE" > /tmp/backup-toc.txt 2> /tmp/backup-toc.err; then
-            echo "::error title=Backup unreadable::pg_restore could not read the table of contents."
-            cat /tmp/backup-toc.err
-            exit 1
-          fi
-
-          # 3. It is a dump of THIS database, not of an empty or wrong one. These tables exist as
-          #    schema objects whether or not they hold rows, so the check is stable on a quiet day.
-          #    pg_restore --list writes entries as "TABLE <schema> <name> <owner>", unquoted - an earlier
-          #    version of this check looked for quoted names, found none, and failed a perfectly good dump.
-          MISSING=""
-          for t in Users Municipalities Facilities Stalls Contracts PaymentRecords; do
-            grep -qE "TABLE [^ ]+ ${t}( |$)" /tmp/backup-toc.txt || MISSING="$MISSING $t"
-          done
-          if [ -n "$MISSING" ]; then
-            echo "::error title=Backup incomplete::Expected tables absent from the dump:$MISSING"
-            echo "Table entries actually present:"
-            grep -E "^[0-9;].* TABLE " /tmp/backup-toc.txt | head -40
-            exit 1
-          fi
-
-          ENTRIES=$(wc -l < /tmp/backup-toc.txt)
-          echo "Table-of-contents entries: $ENTRIES"
           {
-            echo "### Backup verified"
-            echo ""
-            echo "| Check | Result |"
-            echo "| --- | --- |"
-            echo "| File | \`$BACKUP_FILE\` |"
-            echo "| Size | $SIZE bytes |"
-            echo "| Table-of-contents entries | $ENTRIES |"
-            echo "| Expected tables present | yes |"
+            echo '## AWS backup not executed by GitHub'
+            echo 'The Azure PostgreSQL dump and firewall commands have been retired.'
+            echo 'Check AWS Lightsail systemd timer stalltrack-db-backup.timer.'
+            echo 'Confirm a nonempty PostgreSQL 18 custom-format dump, checksum and off-host copy.'
+            echo 'Confirm an isolated restore using stalltrack-db-restore-drill.timer.'
+            echo 'Do not trust this workflow as backup proof or restore into the live database.'
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload backup artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.BACKUP_FILE }}
-          path: ${{ env.BACKUP_FILE }}
-          retention-days: 90
-          if-no-files-found: error
-
-      - name: Remove the temporary firewall rule
-        if: always()   # always clean up, even if the dump failed, so no rule lingers
-        run: |
-          az postgres flexible-server firewall-rule delete \
-            --resource-group "$RESOURCE_GROUP" \
-            --server-name "${{ vars.PG_SERVER_NAME }}" \
-            --name "ghbackup-${GITHUB_RUN_ID}" \
-            --yes || true
-
-      - name: Raise an issue if the backup failed
-        # A failed backup used to be silent. Nothing notified anyone, and the office had no reason to
-        # open the Actions tab, so a failure — or a run of them — would simply pass. An issue is used
-        # rather than email because GitHub already emails the watchers of this repository, so it needs
-        # no new secret, no mail server, and no address to keep up to date.
-        if: failure()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          set -euo pipefail
-          TITLE="Database backup failed"
-
-          # A heredoc rather than a quoted multi-line string: the body carries URLs and punctuation, and
-          # building it by interpolation is how a stray quote turns an alarm into a broken script.
-          cat > /tmp/body.md <<EOF
-          The scheduled database backup did not complete.
-
-          - Run: ${RUN_URL}
-          - When: $(date -u '+%Y-%m-%d %H:%M UTC')
-
-          The last good backup is whatever the previous successful run produced, so the exposure grows with
-          every day this is left. Re-run "Database backup" from the Actions tab once the cause is understood.
-          EOF
-
-          # --repo is required: this job does not check the repository out, and without it the gh CLI looks
-          # for a git remote, finds none, and fails - so the alarm would report the failure correctly and
-          # still tell nobody.
-          EXISTING=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty' || true)
-          if [ -n "${EXISTING:-}" ]; then
-            gh issue comment "$EXISTING" --repo "$GITHUB_REPOSITORY" --body-file /tmp/body.md
-          else
-            gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body-file /tmp/body.md
-          fi
-
-# ─────────────────────────────────────────────────────────────────────────────
-# ONE-TIME SETUP
-#
-# 1. Repository variable (Settings → Secrets and variables → Actions → Variables):
-#      PG_SERVER_NAME   the Flexible Server RESOURCE name (e.g. psql-stalltrack),
-#                       NOT the full hostname.
-#
-# 2. Repository secrets (Settings → Secrets and variables → Actions → Secrets):
-#      PG_HOST          <server>.postgres.database.azure.com
-#      PG_DATABASE      the database name (e.g. stalltrack)
-#      PG_USER          the admin login
-#      PG_PASSWORD      the admin password
-#    (AZURE_CLIENT_ID / AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID already exist for deploy.)
-#
-# 3. RBAC: the OIDC identity must be able to manage firewall rules on the server.
-#    Contributor on stalltrack-prod-rg (already used for deploy) covers this. Verify
-#    with the first manual "Run workflow" before relying on the schedule.
-#
-# 4. This file only takes effect once it is on the default branch (master) on GitHub.
-#    Pushing it does NOT trigger a production deploy (deploy ignores .github/**).
-#
-# RESTORE (to a fresh/target database):
-#      pg_restore --no-owner --no-privileges --clean --if-exists \
-#        -d "postgresql://user:pass@host:5432/dbname?sslmode=require" backup.dump
-# ─────────────────────────────────────────────────────────────────────────────
+          echo '::error title=AWS backup not performed::Run and verify the authorized AWS backup procedure; this workflow does not create a dump.'
+          exit 1

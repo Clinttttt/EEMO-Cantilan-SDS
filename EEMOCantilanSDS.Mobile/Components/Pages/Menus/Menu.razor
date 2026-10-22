@@ -135,7 +135,7 @@
                                         <span class="menu-row-main">
                                             <span class="menu-row-name">@item.Name</span>
                                             <span class="menu-chip ready">@item.Status</span>
-                                            <span class="menu-row-status">Collected from the stall sheet</span>
+                                            <span class="menu-row-status">Open New Collection to find eligible charges</span>
                                         </span>
                                     </div>
                                 }
@@ -282,13 +282,16 @@
 
     void Open(WorkItem item)
     {
+        if (!item.CanOpen) return;
+        if (item.Target == WorkTarget.Operation && global::EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.IsSpaceObligation(item.OperationCode))
+        {
+            Navigation.NavigateTo($"/collections/new?operation={Uri.EscapeDataString(item.OperationCode!)}", forceLoad: false);
+            return;
+        }
         if (item.OperationCode == "ECF") { Navigation.NavigateTo("/ecf"); return; }
         if (item.OperationCode == "WEIGHT_AND_MEASURE") { Navigation.NavigateTo("/weight-measure"); return; }
         if (item.OperationCode == "FISH_MEAT_VENDOR_FEE") { Navigation.NavigateTo("/vendor-fee"); return; }
         if (item.OperationCode == "TERMINAL") { Navigation.NavigateTo("/income-terminal"); return; }
-        if (!item.CanOpen)
-            return;
-
         // WCF has its own page (a utility operation, IA-053); every other operation opens the governed collection page.
         if (item.Target == WorkTarget.Operation && item.OperationCode == global::EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.Wcf)
             Navigation.NavigateTo("/wcf", forceLoad: false);

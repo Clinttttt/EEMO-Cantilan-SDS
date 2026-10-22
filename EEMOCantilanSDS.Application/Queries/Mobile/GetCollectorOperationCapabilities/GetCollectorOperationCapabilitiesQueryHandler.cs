@@ -75,7 +75,7 @@ public sealed class GetCollectorOperationCapabilitiesQueryHandler(
             if (code is CollectorOperationCodes.Terminal or CollectorOperationCodes.FishMeatVendorFee or CollectorOperationCodes.WeightAndMeasure)
             {
                 var codes = code == CollectorOperationCodes.Terminal
-                    ? new[] { RevenueClassificationCodes.TerminalComfortRoom, RevenueClassificationCodes.TerminalPullPulVansCargoVans, RevenueClassificationCodes.TerminalTricycad }
+                    ? (await TerminalSectionSettingsStore.ReadAsync(db, tenantId, ct)).Where(x => x.IsEnabled).Select(x => OfficeCollectionWorkflow.SectionCode(x.Section)).ToArray()
                     : new[] { code == CollectorOperationCodes.FishMeatVendorFee ? RevenueClassificationCodes.FishMeatVendorFee : RevenueClassificationCodes.WeightAndMeasure };
                 var expected = code == CollectorOperationCodes.Terminal ? RevenueInstrumentType.CashTicket : RevenueInstrumentType.OfficialReceipt;
                 var policies = await (from p in db.RevenueClassificationPolicies.AsNoTracking()

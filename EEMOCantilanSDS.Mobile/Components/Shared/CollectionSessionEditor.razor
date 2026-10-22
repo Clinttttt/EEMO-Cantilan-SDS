@@ -190,7 +190,7 @@ else
                 @* The linked stall's rent and utilities are listed with the vendor's own charges (see Available charges / Add item); the request form shows only once the server has answered that there is no link. *@
                 @if (!_picker && _source?.Identity.Kind == SourceIdentityKind.FishMeatVendorRegistration && Correction is null && _discovery is not null && (_discovery.LinkedSources?.Count ?? 0) == 0)
                 {
-                    <NpmRegistrationRequestForm VendorId="_source.Identity.Id" />
+                    @NpmLinkContent
                 }
                 @if (NothingDue && DirectAllowed && MonthlyFacilityCode is null)
                 {
@@ -286,7 +286,7 @@ else
             {
                 @if (_source?.Identity.Kind == SourceIdentityKind.FishMeatVendorRegistration && Correction is null && _discovery is not null && (_discovery.LinkedSources?.Count ?? 0) == 0)
                 {
-                    <NpmRegistrationRequestForm VendorId="_source.Identity.Id" />
+                    @NpmLinkContent
                 }
                 @foreach (var section in PickerSections)
                 {
@@ -433,6 +433,22 @@ else
     // A registered vendor the office has linked to an NPM stall is collected with that stall's own rent and utilities in one list: the server lists them
     // under the vendor's source, so the page's single-operation filter stands aside for them.
     private bool VendorHasLinkedStall => _source?.Identity.Kind == SourceIdentityKind.FishMeatVendorRegistration && (_discovery?.LinkedSources?.Count ?? 0) > 0;
+    private RenderFragment NpmLinkContent => @<div>
+        @if (_discovery?.NpmLinkStatus == LinkedNpmStatus.NotLinked)
+        {
+            <NpmRegistrationRequestForm VendorId="_source!.Identity.Id" />
+        }
+        else
+        {
+            <p role="status">@(_discovery?.NpmLinkStatus switch {
+                LinkedNpmStatus.NotAuthorized => "NPM collection is not assigned to your account. Ask the office to review your facility access.",
+                LinkedNpmStatus.AwaitingVerification => "NPM registration is awaiting office verification.",
+                LinkedNpmStatus.Withdrawn => "The previous NPM link was withdrawn. Ask the office to verify the current occupancy.",
+                LinkedNpmStatus.NotEligibleForDate => "No linked NPM occupancy is eligible for this collection date. Ask the office to review it.",
+                _ => "NPM link status is unavailable. Refresh before requesting registration."
+            })</p>
+        }
+    </div>;
     private bool Allows(string? code) => _linkedNpmContext || OnlyOperation is null || code == OnlyOperation || (AlsoOperations?.Contains(code ?? "") ?? false) || VendorHasLinkedStall;
 
     private sealed record Shown(string Name, string Context);
@@ -516,14 +532,14 @@ else
     // What kind of finder this page is: a registered vendor only, an occupant only, or any source.
     private bool VendorOnly => OnlyOperation is CollectorOperationCodes.WeightAndMeasure;
     private bool BrowserMode => _source is null && !_direct && Correction is null && OnlyOperation is null;
-    private bool DirectAllowed => !VendorOnly && OnlyOperation is not (CollectorOperationCodes.Wcf or CollectorOperationCodes.VegetableFruitSpaceRental);
+    private bool DirectAllowed => !VendorOnly && !CollectorOperationCodes.IsSpaceObligation(OnlyOperation) && OnlyOperation is not (CollectorOperationCodes.Wcf or CollectorOperationCodes.VegetableFruitSpaceRental);
     private string SourceHeading => OnlyOperation == CollectorOperationCodes.Terminal ? "Income From Terminal" : "Source";
-    private string SearchLabel => OnlyOperation == CollectorOperationCodes.VegetableFruitSpaceRental ? "Search registered space holder" : VendorOnly ? "Search registered vendor" : OnlyOperation == CollectorOperationCodes.FishMeatVendorFee ? "Search vendor or payer" : "Search payer or vendor";
+    private string SearchLabel => OnlyOperation == CollectorOperationCodes.VegetableFruitSpaceRental || CollectorOperationCodes.IsSpaceObligation(OnlyOperation) ? "Search registered space holder" : VendorOnly ? "Search registered vendor" : OnlyOperation == CollectorOperationCodes.FishMeatVendorFee ? "Search vendor or payer" : "Search payer or vendor";
     private IReadOnlyList<CollectionSourceSearchResult> VisibleSources => _found.Where(x => OnlyOperation switch
     {
         CollectorOperationCodes.WeightAndMeasure or CollectorOperationCodes.FishMeatVendorFee => x.Identity.Kind == SourceIdentityKind.FishMeatVendorRegistration,
         "ECF" => x.Identity.Kind == SourceIdentityKind.Occupancy,
-        CollectorOperationCodes.VegetableFruitSpaceRental => x.Identity.Kind == SourceIdentityKind.SpaceAccount && x.OperationCode == CollectorOperationCodes.VegetableFruitSpaceRental,
+        CollectorOperationCodes.VegetableFruitSpaceRental or CollectorOperationCodes.KanmanggaySpaceRental or CollectorOperationCodes.FiestaArawLotRental => x.Identity.Kind == SourceIdentityKind.SpaceAccount && x.OperationCode == OnlyOperation,
         _ => true
     }).ToList();
     private string SourceName => _source?.DisplayName ?? (_direct && !string.IsNullOrWhiteSpace(_snapshot) ? _snapshot.Trim() : "");
@@ -804,6 +820,7 @@ else
     // A direct collection has no Source Identity; the typed name is only the payer's name on the receipt.
     private async Task StartDirectAsync(string name)
     {
+        if (!DirectAllowed) return;
         _linkedNpmContext = false;
         _source = null; _direct = true; _snapshot = name.Trim(); _found = []; _suggestOpen = false; _searched = false; _quote = null;
         await LoadAsync();

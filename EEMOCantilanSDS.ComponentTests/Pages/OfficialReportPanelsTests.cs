@@ -1017,20 +1017,23 @@ public sealed class OfficialReportPanelsTests : TestContext
     }
 
     [Fact]
-    public void TheSummaryStatesTargetAttainmentByCoverage_NeverAnInventedFigure()
+    public void TheCashSummaryKeepsAnnualTargetsInRevenuePerformance_NotCashPosition()
     {
         TargetCoverageDto Coverage(TargetCoverageState state, decimal? attainment) => new(state, 1, 2, 1000m, 100m, attainment);
         string Text(TargetCoverageDto? coverage) => RenderComponent<SummaryCashPosition>(p => p
             .Add(x => x.Collected, 1m).Add(x => x.From, new DateOnly(2026, 1, 1)).Add(x => x.To, new DateOnly(2026, 10, 1))
             .Add(x => x.TargetCoverage, coverage)).Markup;
 
-        Assert.Contains("Not configured", Text(null));
-        var partial = Text(Coverage(TargetCoverageState.Partial, 10m));
-        Assert.Contains("1 of 2 configured", partial);
-        Assert.DoesNotContain("Partially", partial);
-        var complete = Text(Coverage(TargetCoverageState.Complete, 62.5m));
-        Assert.Contains("62.5%", complete);
-        Assert.DoesNotContain("Partially", complete);
+        // Target coverage moved to Revenue Source Performance. The cash position must
+        // not imply incomplete targets are zero, or confuse targets with collectible cash.
+        foreach (var markup in new[] { Text(null), Text(Coverage(TargetCoverageState.Partial, 10m)), Text(Coverage(TargetCoverageState.Complete, 62.5m)) })
+        {
+            Assert.Contains("Collections and accountability position", markup);
+            Assert.DoesNotContain("Not configured", markup);
+            Assert.DoesNotContain("1 of 2 configured", markup);
+            Assert.DoesNotContain("62.5%", markup);
+            Assert.DoesNotContain("Target attainment", markup);
+        }
     }
 
     [Fact]

@@ -53,6 +53,11 @@ public class ApplicationEfBoundaryTests
         "NpmRentMonthWorkflow.HeadReview.cs",
         // The same source-owned transaction verifies persisted tenant rates and absence of prior assessment before creating an opening month.
         "NpmRentMonthWorkflow.OpeningMonth.cs",
+        // Optional NPM physical OR custody is validated against the tracked accountable document
+        // inside the SAME tenant-scoped payment transaction. Moving this lookup to a detached
+        // repository read risks breaking custody revalidation before canonical posting; it uses
+        // explicit MunicipalityId, instrument, normalized serial and assignee checks.
+        "NpmReceiptEvidence.cs",
         "PaginationExtensions.cs",
 
         // Onboarding and assessment: the operator pipeline from request to activation.

@@ -23,7 +23,8 @@ public sealed partial class OfficeCollectionWorkflow
             var problems = new List<VendorRegistryImportProblem>();
             FishMeatVendorRegistration? candidate = null;
             try { candidate = FishMeatVendorRegistration.Register(Tenant, r.ClientOperationId, r.TaxYear, r.VendorType, r.RegistrationKind,
-                r.DisplayName, r.BusinessName, r.Address, r.Reference, user.Username ?? "Head"); }
+                r.DisplayName, r.BusinessName, r.Address, r.Reference, user.Username ?? "Head",
+                r.LastName, r.FirstName, r.MiddleName, r.NameExtension, r.Sex, r.NatureOfBusiness); }
             catch (ArgumentException) { problems.Add(new("InvalidRegistration", "Review the name, year, vendor type and registration details.")); }
             if (row.RowNumber < 1 || request.Rows.Count(x => x.Registration.ClientOperationId == r.ClientOperationId) != 1)
                 problems.Add(new("DuplicateRowIdentity", "Each row needs a unique operation identity."));
@@ -37,7 +38,9 @@ public sealed partial class OfficeCollectionWorkflow
             var needsReview = prior is null && (duplicateIds.Length > 0 || duplicateRow) && !row.ConfirmSeparateRegistration;
             if (needsReview) problems.Add(new("PossibleDuplicate", "Confirm this is a separate registration. Names are never merged."));
             var normalized = candidate is null ? r : r with { DisplayName = candidate.DisplayName, BusinessName = candidate.BusinessName,
-                Address = candidate.Address, Reference = candidate.Reference };
+                Address = candidate.Address, Reference = candidate.Reference, LastName = candidate.LastName,
+                FirstName = candidate.FirstName, MiddleName = candidate.MiddleName, NameExtension = candidate.NameExtension,
+                Sex = candidate.Sex, NatureOfBusiness = candidate.NatureOfBusiness };
             result.Add(new(row.RowNumber, normalized, problems.Any(x => x.Code != "PossibleDuplicate") ? VendorRegistryImportState.Invalid
                 : needsReview ? VendorRegistryImportState.PossibleDuplicateRequiresReview : VendorRegistryImportState.New, problems, duplicateIds));
         }
@@ -64,7 +67,8 @@ public sealed partial class OfficeCollectionWorkflow
                 if (!existing.TryGetValue(r.ClientOperationId, out var registration))
                 {
                     registration = FishMeatVendorRegistration.Register(Tenant, r.ClientOperationId, r.TaxYear, r.VendorType,
-                        r.RegistrationKind, r.DisplayName, r.BusinessName, r.Address, r.Reference, user.Username ?? "Head");
+                        r.RegistrationKind, r.DisplayName, r.BusinessName, r.Address, r.Reference, user.Username ?? "Head",
+                        r.LastName, r.FirstName, r.MiddleName, r.NameExtension, r.Sex, r.NatureOfBusiness);
                     db.FishMeatVendorRegistrations.Add(registration);
                 }
                 rows.Add(new(row.RowNumber, ToDto(registration)));

@@ -314,3 +314,98 @@ After this correction the API was rebuilt successfully in Release, and **12 focu
 
 A full authenticated Collector-submit -> Head-review -> register/return browser walkthrough has not been executed on the real working-copy Portal. Tests verify the underlying PostgreSQL request workflow and API permissions; a human log-in and real UI submission are still the recommended final demonstration smoke test. No commit/push or production change.
 Final tenant-scoped PostgreSQL regression rerun after deployment: 11 passed, 0 failed, 0 skipped (exit code 0); the 12 tenant-guard unit tests passed. The deployed API and Head Portal health checks remain HTTP 200. Authenticated manual UI acceptance has not been performed.
+
+## 2026-10-22 Registry integrity, request availability and logical deletion (isolated source candidate)
+
+**Not deployed or enabled in a user database.** Worktree `C:\dev\stalltrack\eemo-fish-meat-integrity-20261022`, branch `fix/fish-meat-integrity-20261022`, based on fetched `origin/master` **e6bd88ce2643bcbd4b58df058290002d415575c0**. The dirty primary checkout remains on `17b9d100`; none of its files was edited or copied into this worktree. No commit, push, merge, production query, migration, data correction or service restart was performed. Older running-version claims above are historical.
+
+### Findings and implemented boundaries
+
+- **Confirmed import defect:** `OfficeCollectionWorkflow.Import.cs` omitted LastName, FirstName, MiddleName, NameExtension, Sex and NatureOfBusiness in both domain-factory calls. Preview/save now forward all six and return their domain-normalized values. The existing full DTO comparison now detects conflicting retries of those fields. No monetary CSV column is consumed, and no name establishes registration identity.
+- Both supplied Downloads files were inspected read-only: 10 rows each, the exact 12-column header. Fish has 10 populated last/first/middle names, sex and business activity; Meat has 10 populated last/first names and activities, with blank middle name/sex. Both have blank address/extension/reference. Blanks stay null. No actual CSV rows were imported into a user database; PostgreSQL tests use synthetic representative records.
+- **Confirmed diagnostic defect:** Mobile previously inferred “request registration” solely from an empty LinkedSources list. That list is also empty for missing NPM assignment, withdrawn links and ineligible occupancies. `CollectionSessionDiscovery.NpmLinkStatus` now distinguishes Available, NotLinked, AwaitingVerification, NotEligibleForDate, NotAuthorized and Withdrawn. The request form is offered for an explicitly NotLinked response; other cases show the specific office-review reason. An older API without this field requires refresh/reconciliation, never a guessed registration request.
+- Existing exact vendor/contract/stall linkage, answering occupancy/date and Collector NPM assignment remain authoritative. The linked-occupancy check additionally requires an active current-year vendor so a closed vendor checkout cannot submit linked NPM items. The stall's independent NPM session remains available under its own authorization. No name-matching link is introduced.
+- **Imelda case remains a data/runtime investigation, not a proven missing-link finding.** No authorized production database/API or installed-APK inspection was performed. Office review still needs exact tenant/annual registration ID, lifecycle/type/year, stall/contract ID, answering term/date, confirmation/correction evidence, Collector assignment and API/APK versions. A recorded rent payment or matching names alone proves none of those associations.
+- Holder List and Office Register already read `ManageRegistrationsAsync` and canonical office fields. The main registry now shows vendor/business, type, New/Renew plus year, recorded address, activity, unchanged canonical monthly collection amount, and a Details link into the existing Manage drawer. No new details component or financial calculation. Page scrolling replaces its capped inner vertical scroll; narrow content uses a scoped container-query layout. Printable lists/CSV columns are unchanged.
+
+### Normal nonfinancial request activation
+
+The existing migration **20261020133853_AddFishMeatRegistrationRequestsWorkingCopy20261020** is already part of the normal mapped EF model and migration assembly on this baseline. Its historical name is retained; it is neither renamed nor duplicated. Testcontainers apply the official migration chain.
+
+`FishMeatRequestActivation.cs` provides a normal-environment configuration path, default off:
+
+```json
+{
+  "StallTrack": {
+    "FishMeatRequests": {
+      "Enabled": true,
+      "MunicipalityIds": ["<explicit-reviewed-municipality-guid>"]
+    }
+  }
+}
+```
+
+This is an operator example, not a committed enabled configuration. Empty, duplicate or zero GUID allow-lists are rejected. Simultaneous normal and WorkingCopy activation is rejected. The existing exact working-copy guard is retained. `IFishMeatRequestSchema` / `FishMeatRequestSchema` checks the original migration marker and a tenant-filtered read of the mapped request columns before workflow reads/writes. Absent schema/columns or denied table access returns the existing `VendorRequestSchemaNotEnabled` diagnostic. Unrelated database failures are not hidden as empty queues. Availability never populates `RegistrationRequiredFrom`; direct fee collection policy is unchanged.
+
+Existing submit/cancel, versioned return/reject/approve, durable retry identity and one-registration completion remain the implementation. Authenticated TestServer/controller tests exercise normal allow-list activation, Collector submission, Head completion and Collector status refresh against real PostgreSQL. No payment/document/obligation is generated by requests.
+
+Before any real activation, the operator must review the target migration history/schema, back up that environment, apply only missing reviewed migrations through the established release path, verify exact tenant GUIDs and separately authorize the configuration. This work does not claim production schema inspection or enablement.
+
+### Close versus Delete contract
+
+- Close remains irreversible for an annual registration and retains its NPM association. It does not change the stall/contract or cash.
+- New **POST `/api/office-sources/fish-meat/registrations/{id}/delete`**, Head (`SuperAdmin`) only, accepts `{ clientOperationId, reason }`. Registration must already be Closed; nonblank reason up to 500 characters is required. Matching retry returns the existing outcome; conflicting operation intent or concurrent mutation returns conflict.
+- `OfficeCollectionWorkflow.Deletion.cs` atomically marks Status=Deleted and corrects every unwithdrawn association using the established `FishMeatNpmAssociation.Correct` evidence. No physical deletion or occupancy/financial mutation. Deletion timestamp, actor, reason and operation identity are persisted. Registry, link and NPM-request mutations are covered by `AuditSaveChangesInterceptor`.
+- Pending NPM requests block deletion with **`ReviewPendingNpmRequestsBeforeDelete`** until the Head explicitly returns/rejects/resolves them. A Submitted Fish/Meat request cannot reference a completed registration under its existing check constraint. Already Approved request references and annual renewal chains remain historical evidence, never deleted or rewritten.
+- Ordinary registry/Holder List/Office Register/Manage reads exclude Deleted. Collector discovery requires Active. Historical source/activity/export queries retain the underlying row (no global deletion filter), so original collection attribution and retries remain valid. Head-only historical API read: `GET /api/office-sources/fish-meat/manage?taxYear=<year>&month=<month>&status=Deleted`; Admin cannot request this scope. Existing NPM link-history endpoint and Audit Trail retain correction evidence. New renewal/correction of a deleted record is blocked; existing successful intents retain their replay semantics.
+- Head Manage shows Details/Renew/Close for Active and Details/Renew/Delete for Closed, with an exact vendor/type/year confirmation and mandatory reason. No Collector Delete control.
+
+Additive migration **20261022124440_FishMeatRegistrationLogicalDeletion20261022** adds four nullable evidence columns, a tenant/operation unique index, a deletion-evidence check and the lifecycle-constraint extension. Existing tenant-composite restrictive foreign keys are unchanged. Status is an EF concurrency token. Reviewed forward SQL: [registry-logical-deletion.sql](../evidence/fish-meat-registration-requests/registry-logical-deletion.sql). No backfill or financial table change. Model/snapshot check passes. Down is tested on unused scratch schema; it explicitly refuses rollback when tombstones exist, before dropping evidence columns. Prefer a reviewed forward repair after use.
+
+Release compatibility gate: install the reviewed schema and compatible API before exposing Delete. Once Status=Deleted (3) has been used, do not roll back to a pre-feature API: the old vendor quote guard recognized Closed (2) only. A compatible forward repair is required; schema rollback refusal alone cannot make an old API safe. No such production release or rollback was attempted here.
+
+### Reconciliation of earlier imports (no backfill performed)
+
+1. Recover original persisted operation identities/import evidence where available, or have the Head review an explicit CSV-row-to-**exact registration ID** mapping. Reuploading this CSV does not recreate the original operation IDs. No matching/merging by name alone.
+2. Read the exact tenant/year/type registration through the existing management service. Dry-run each supported office field as Existing / Proposed / No change / Fill blank / Conflict. CSV blanks propose no overwrite. Ambiguous/missing IDs and changed nonblank values require explicit review, not an automatic correction.
+3. Retain the full original registration DTO as `Before`. For each approved correction call the existing **PUT `/api/office-sources/fish-meat/registrations/{id}/office-details`** with that snapshot and the reviewed office facts, preserving all unedited values. This uses canonical validation, serializable concurrency and audit evidence. Refresh/re-review on conflict; never blindly retry over a new snapshot. Historical reference is not editable through this correction contract; conflicting references require separate review. Both supplied files leave it blank.
+4. Verify the same registration ID/year/type/status, original NPM links/renewals, and unchanged collections/receipts; compare Manage details, Holder List/Office Register and export. No production reconciliation preview or write was performed here because reviewed exact IDs/production evidence are unavailable.
+
+Counts retain their existing definitions: main registry is Active for the selected tax year; Manage/official lists include Active and Closed; Deleted is a separate authorized historical scope. “NPM review” counts unresolved eligible Fish/Meat NPM occupancies lacking an uncorrected annual link, not unregistered people. Monthly money still separates Vendor Fee and Weight & Measure and comes from actual canonical activity.
+
+### Validation and release gates
+
+Commands run from the isolated worktree (suites separately):
+
+```powershell
+dotnet test EEMOCantilanSDS.Testing/EEMOCantilanSDS.UnitTest.csproj -c Release --filter 'FullyQualifiedName~FishMeat|FullyQualifiedName~TenantBackupCoverage|FullyQualifiedName~TenantRestore'
+dotnet test EEMOCantilanSDS.ComponentTests/EEMOCantilanSDS.ComponentTests.csproj -c Release --filter 'FullyQualifiedName~FishMeat|FullyQualifiedName~NpmVendorRegistration'
+dotnet test EEMOCantilanSDS.Mobile.ComponentTests/EEMOCantilanSDS.Mobile.ComponentTests.csproj -c Release --filter 'FullyQualifiedName~CollectionSessionEditorTests|FullyQualifiedName~NpmPendingRequestTests|FullyQualifiedName~RegistrationRequestAndRecordTests'
+dotnet test EEMOCantilanSDS.IntegrationTests/EEMOCantilanSDS.IntegrationTests.csproj -c Release --filter 'FullyQualifiedName~CollectionSessionTests|FullyQualifiedName~FishMeatPayorFollowUpTests'
+dotnet build EEMOCantilanSDS.Api/EEMOCantilanSDS.Api.csproj -c Release --no-restore
+dotnet build EEMOCantilanSDS.Client/EEMOCantilanSDS.Client.csproj -c Release --no-restore
+dotnet build EEMOCantilanSDS.Mobile/EEMOCantilanSDS.Mobile.csproj -c Release -f net10.0-windows10.0.19041.0
+dotnet ef migrations has-pending-model-changes --project EEMOCantilanSDS.Infrastructure --startup-project EEMOCantilanSDS.Infrastructure
+git diff --check
+```
+
+Results: unit/schema/backup **69 passed**, Head components **55 passed**, Mobile components **73 passed**, PostgreSQL/controller/financial regressions **130 passed**; all **0 failed / 0 skipped**. Additional focused PostgreSQL export/projection checks **3 passed / 0 failed / 0 skipped**. The import regression first failed against unchanged import code (1 failed as expected), then passed with normalized preview/persisted fields, blank preservation and conflicting-retry checks. Migration apply, unused rollback/reapply, used rollback refusal, delete races, request lifecycle, original cash/SRC replay and tenant boundaries are exercised on disposable PostgreSQL, not a retained database.
+
+API and Client Release builds passed (final incremental runs 0 warnings / 0 errors); Windows Mobile Release passed with existing warnings. Initial Client `--no-restore` failed because this fresh worktree had no assets; the component restore supplied them and the subsequent build passed. Existing dependency/compiler warnings were not changed as unrelated work.
+
+The closed-vendor linked-source guard was deliberately removed once in this isolated worktree: the regression failed (`Assert.False`, actual True), proving the old path still quoted linked utilities for a closed vendor. Restoring the guard passed **8 targeted PostgreSQL tests**, including the same linked-source test, independent NPM eligibility, import/projection/export, deletion evidence/retry, normal request activation, pending requests, concurrency, migration rollback and missing-schema behavior.
+
+Final sequential verification against the final source repeated **69 unit/schema/backup, 55 Head component, 73 Mobile component and 130 PostgreSQL tests**, all **0 failed / 0 skipped**. API and Client Release builds each finished with **0 warnings / 0 errors**; Windows Mobile Release finished with **19 existing warnings / 0 errors**. Final no-build EF model/snapshot check found no changes. Scoped source CSS braces **59/59**, generated Client bundle **13,678/13,678**, and `git diff --check` passed. The isolated worktree has 40 changed/new paths, no deleted files, no staged/committed changes. Primary checkout HEAD remains **17b9d100e8ddffdd747f5688a8e49818693d078a** on its original branch; its unrelated pending work is preserved.
+
+Principal source paths for review:
+
+| Area | Paths (relative to repository root) |
+|---|---|
+| Import and lifecycle | `EEMOCantilanSDS.Application/Common/Revenue/OfficeCollectionWorkflow.Import.cs`, `.Management.cs`, `.Deletion.cs`, `.NpmAssociations.cs`, `OfficeCollectionWorkflow.cs`; `EEMOCantilanSDS.Domain/Entities/Revenue/FishMeatVendorRegistration.cs` |
+| Request activation/readiness | `EEMOCantilanSDS.Api/FishMeatRequestActivation.cs`, `Program.cs`; `EEMOCantilanSDS.Application/Common/Interface/Persistence/IFishMeatRequestSchema.cs`; `EEMOCantilanSDS.Infrastructure/Repositories/Revenue/FishMeatRequestSchema.cs`; `OfficeCollectionWorkflow.FishMeatRequests.cs` |
+| Contracts and transport | `EEMOCantilanSDS.Application/Dtos/Mobile/CollectionSessionDtos.cs`, `VendorRegistryManagementDtos.cs`; `EEMOCantilanSDS.Api/Controllers/Revenue/OfficeSourcesController.cs`; `IOfficeSourcesApiClient.cs` and `OfficeSourcesApiClient.cs` in their existing API-client folders |
+| Persistence and source eligibility | `EEMOCantilanSDS.Infrastructure/Persistence/Configuration/FishMeatVendorRegistrationConfiguration.cs`, `Interceptors/AuditSaveChangesInterceptor.cs`; `Repositories/Revenue/CollectionSessionSources.LinkedSources.cs` and `.Native.cs`; generated migration/designer and `Migrations/AppDbContextModelSnapshot.cs` |
+| Head/Mobile | `EEMOCantilanSDS.Client/Components/Pages/Menus/FishMeatVendorFees.razor` / `.razor.css`, `FishMeatVendorManage.razor`; `EEMOCantilanSDS.Mobile/Components/Shared/CollectionSessionEditor.razor` |
+| Regression coverage | `EEMOCantilanSDS.IntegrationTests/CollectionSessionTests.RegistryIntegrity.cs`, `.LinkedSources.cs`, `CollectorApiHost.cs`; existing Fish/Meat Head tests, `EEMOCantilanSDS.Mobile.ComponentTests/CollectionSessionEditorTests.cs`, `FishMeatRegistryLifecycleTests.cs` and `FishMeatRequestActivationTests.cs` |
+
+CSS source/generated bundle braces are balanced; whitespace checks pass. No browser or native GUI acceptance: CUA inventory was empty and opening IAB returned `Browser is not available: iab`. No deployed API/APK was inspected or updated. A signed versioned Collector APK and separately authorized API/Client migration/release are required before users see these changes. Manual desktop/tablet/Android checks and the exact-ID Imelda investigation remain pending; build/component success is not visual or production acceptance.

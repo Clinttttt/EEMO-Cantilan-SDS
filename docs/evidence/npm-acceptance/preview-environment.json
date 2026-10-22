@@ -1,0 +1,34 @@
+{
+  "status": "prepared-inert-fixtures-only",
+  "startsApi": false,
+  "startsWindowsApp": false,
+  "financialRuntimeEnabled": false,
+  "databaseConnectionOverride": null,
+  "artifactDirectory": "%TEMP%/stalltrack-npm-acceptance",
+  "head": {
+    "fixture": "EEMOCantilanSDS.ComponentTests/Pages/NpmMonthReviewActionsTests.cs",
+    "artifact": "head-review.html",
+    "mode": "real drawer with mock authenticated-client responses; no real authentication or backend"
+  },
+  "mobile": {
+    "fixture": "EEMOCantilanSDS.Mobile.ComponentTests/NpmAcceptancePreviewTests.cs",
+    "artifacts": ["mobile-summary-25.html", "mobile-summary-20.html", "mobile-summary-0.html"],
+    "mode": "shared Mobile summary rendered in-process, not the MAUI Windows host"
+  },
+  "reports": {
+    "fixture": "EEMOCantilanSDS.ComponentTests/Pages/NpmExportAcceptanceTests.cs",
+    "artifacts": ["october-as-known.html", "october-as-known.csv", "october-as-known.pdf", "october-latest-corrected.html", "october-latest-corrected.csv", "october-latest-corrected.pdf"],
+    "mode": "production export component with declared synthetic DTO inputs; not an official RCD or a new report API basis"
+  },
+  "postgres": {
+    "fixture": "EEMOCantilanSDS.IntegrationTests/NpmRentMonthFinancialTests.Acceptance.cs",
+    "mode": "owned disposable Testcontainers PostgreSQL, stalltrack_tests, mapped non-5432 port; no external connection override",
+    "artifacts": ["large-lgu-metrics.json", "synthetic-src-evidence.json"]
+  },
+  "featureOnApprovalNeeded": [
+    "Owner-approved disposable authenticated preview host and synthetic tenant; never the retained municipal database",
+    "Preview-only Windows endpoint arrangement: ordinary Debug still uses localhost:5117 and must not be repointed silently",
+    "Candidate schema and test-only runtime enabled only in the disposable preview; normal API registration remains disabled",
+    "No official cross-period RCD, weekly allocation, historical opening conversion or collector cash-custody policy may be inferred"
+  ]
+}

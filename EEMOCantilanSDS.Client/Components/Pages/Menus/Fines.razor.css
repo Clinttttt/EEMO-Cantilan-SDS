@@ -11,25 +11,6 @@
 .fn-page ::deep .v3h { margin-bottom: 0; }
 .fn-page ::deep .v3h-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
 
-/* The Official Receipt marker sits on the blue band as a light pill so it reads as an official context indicator. */
-.fn-or { display: inline-flex; }
-.fn-or ::deep .ic {
-    gap: 8px;
-    padding: 3px 12px 3px 4px;
-    border-radius: 999px;
-    background: #ffffff;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.55);
-}
-.fn-or ::deep .ic-code {
-    height: 20px;
-    border-color: var(--gold);
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--gold) 22%, #ffffff);
-    color: var(--navy);
-    font-weight: 700;
-}
-.fn-or ::deep .ic-name { color: var(--navy); font-size: 0.8125rem; font-weight: 600; }
-
 /* ── Section tabs: pinned under the viewport top while a long register scrolls ── */
 .fn-nav {
     position: sticky;

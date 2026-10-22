@@ -16,7 +16,7 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.UpdateOnboardingConfig
             RuleFor(x => x.ConfigJson)
                 .Custom((json, ctx) =>
                 {
-                    foreach (var error in OnboardingOperationDeclarations.Validate(json))
+                    foreach (var error in OnboardingOperationDeclarations.Validate(json).Concat(OnboardingTerminalSections.Validate(json)))
                         ctx.AddFailure(nameof(UpdateOnboardingConfigCommand.ConfigJson), error);
                 });
         }

@@ -32,6 +32,7 @@ builder.Services.AddWorkingCopyOfficeCashTurnover(builder.Configuration);
 builder.Services.AddWorkingCopyNpmMonthly(builder.Configuration, builder.Environment);
 builder.Services.AddWorkingCopyNpmAmounts(builder.Configuration, builder.Environment);
 builder.Services.AddWorkingCopyFishMeatRegistrationRequests(builder.Configuration, builder.Environment);
+builder.Services.AddFishMeatRequestActivation(builder.Configuration);
 builder.ConfigureServices();
 
 

@@ -142,6 +142,25 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                     });
             });
 
+            When(x => x.TerminalSectionDeclarations is not null, () =>
+            {
+                RuleFor(x => x.TerminalSectionDeclarations!).Must(items =>
+                    items.Count == 3
+                    && items.Select(s => s.Section).Distinct().Count() == 3
+                    && items.All(s => Enum.IsDefined(s.Section)))
+                    .WithMessage("Exactly the three stable Terminal sections must be declared once each.");
+                RuleFor(x => x.TerminalSectionDeclarations!).Must(items =>
+                {
+                    try
+                    {
+                        var labels = items.Select(s => EEMOCantilanSDS.Domain.Entities.Revenue.TerminalSectionSetting.NormalizeName(s.LocalDisplayName)
+                            ?? EEMOCantilanSDS.Application.Common.Revenue.OfficeCollectionWorkflow.SectionName(s.Section)).ToArray();
+                        return labels.Distinct(StringComparer.OrdinalIgnoreCase).Count() == labels.Length;
+                    }
+                    catch (ArgumentException) { return false; }
+                }).WithMessage("Terminal section names must be valid and unique.");
+            });
+
             // An office that measures its market month by the DAYS it has must not also declare a monthly rent. The rule
             // ignores such a figure by design, so accepting it would file a number in the office's own rate table that
             // nothing reads and that contradicts the basis printed on its screens. Refused at the door, where the

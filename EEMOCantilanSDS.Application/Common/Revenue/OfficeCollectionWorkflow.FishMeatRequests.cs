@@ -8,8 +8,9 @@ namespace EEMOCantilanSDS.Application.Common.Revenue;
 
 public sealed partial class OfficeCollectionWorkflow
 {
-    private bool VendorRequestsInstalled => registrationOptions?.RequestsAvailable(Tenant) == true
-        && db.ChangeTracker.Context.Model.FindEntityType(typeof(FishMeatRegistrationRequest)) is not null;
+    private async Task<bool> VendorRequestsInstalledAsync(CancellationToken ct) => registrationOptions?.RequestsAvailable(Tenant) == true
+        && db.ChangeTracker.Context.Model.FindEntityType(typeof(FishMeatRegistrationRequest)) is not null
+        && (requestSchema is null || await requestSchema.IsReadyAsync(ct));
     private async Task<bool> CanRequestVendor(CancellationToken ct) => await IsAssignedAsync(CollectorOperationCodes.FishMeatVendorFee, ct)
         || await IsAssignedAsync(CollectorOperationCodes.WeightAndMeasure, ct);
     private static FishMeatRegistrationRequestDto VendorRequestDto(FishMeatRegistrationRequest x) => new(x.Id,
@@ -21,7 +22,7 @@ public sealed partial class OfficeCollectionWorkflow
     {
         var office = TenantValid && user.IsAuthenticated && user.Role is "SuperAdmin" or "Admin";
         if (!office && !await CanRequestVendor(ct)) return Result<FishMeatRegistrationRequestPage>.Forbidden();
-        if (!VendorRequestsInstalled) return Result<FishMeatRegistrationRequestPage>.Failure("VendorRequestSchemaNotEnabled", ResultStatus.Failed);
+        if (!await VendorRequestsInstalledAsync(ct)) return Result<FishMeatRegistrationRequestPage>.Failure("VendorRequestSchemaNotEnabled", ResultStatus.Failed);
         if (page is < 1 or > 100000 || pageSize is < 1 or > 100 || status.HasValue && !Enum.IsDefined(status.Value))
             return Result<FishMeatRegistrationRequestPage>.Failure("Invalid pagination or status.", ResultStatus.Invalid);
         var q = db.FishMeatRegistrationRequests.AsNoTracking().Where(x => x.MunicipalityId == Tenant);
@@ -37,7 +38,7 @@ public sealed partial class OfficeCollectionWorkflow
     {
         var office = TenantValid && user.IsAuthenticated && user.Role is "SuperAdmin" or "Admin";
         if (!office && !await CanRequestVendor(ct)) return Result<FishMeatRegistrationRequestDto>.Forbidden();
-        if (!VendorRequestsInstalled) return VendorRequestUnavailable();
+        if (!await VendorRequestsInstalledAsync(ct)) return VendorRequestUnavailable();
         var row = await db.FishMeatRegistrationRequests.AsNoTracking().SingleOrDefaultAsync(x => x.MunicipalityId == Tenant
             && x.Id == id && (office || x.CollectorId == user.CollectorId), ct);
         return row is null ? Result<FishMeatRegistrationRequestDto>.NotFound() : Result<FishMeatRegistrationRequestDto>.Success(VendorRequestDto(row));
@@ -49,7 +50,7 @@ public sealed partial class OfficeCollectionWorkflow
     public async Task<Result<FishMeatRegistrationRequestDto>> SubmitVendorRequestAsync(SubmitFishMeatRegistrationRequest request, CancellationToken ct = default)
     {
         if (!await CanRequestVendor(ct) || user.CollectorId is not { } collector) return Result<FishMeatRegistrationRequestDto>.Forbidden();
-        if (!VendorRequestsInstalled) return VendorRequestUnavailable();
+        if (!await VendorRequestsInstalledAsync(ct)) return VendorRequestUnavailable();
         var committed = false;
         try
         {
@@ -95,7 +96,7 @@ public sealed partial class OfficeCollectionWorkflow
         CompleteFishMeatRegistrationRequest request, CancellationToken ct = default)
     {
         if (!RegistryHead || user.UserId is not { } actorId || actorId == Guid.Empty) return Result<FishMeatRegistrationRequestDto>.Forbidden();
-        if (!VendorRequestsInstalled) return VendorRequestUnavailable();
+        if (!await VendorRequestsInstalledAsync(ct)) return VendorRequestUnavailable();
         if (request.Registration is null || request.Registration.NpmAssociation is not null)
             return Result<FishMeatRegistrationRequestDto>.Failure("Complete the independent office registration; no NPM association is permitted here.", ResultStatus.Invalid);
         var committed = false;
@@ -141,7 +142,7 @@ public sealed partial class OfficeCollectionWorkflow
     {
         if (cancel ? !await CanRequestVendor(ct) : !RegistryHead) return Result<FishMeatRegistrationRequestDto>.Forbidden();
         if (user.UserId is not { } actorId || actorId == Guid.Empty) return Result<FishMeatRegistrationRequestDto>.Forbidden();
-        if (!VendorRequestsInstalled) return VendorRequestUnavailable();
+        if (!await VendorRequestsInstalledAsync(ct)) return VendorRequestUnavailable();
         if (!cancel && request.Outcome == FishMeatRequestStatus.Cancelled)
             return Result<FishMeatRegistrationRequestDto>.Failure("Only the submitting collector may cancel.", ResultStatus.Invalid);
         var committed = false;

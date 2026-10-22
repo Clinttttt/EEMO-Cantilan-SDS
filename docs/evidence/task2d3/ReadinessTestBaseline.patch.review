@@ -1,0 +1,24 @@
+Review-only compatibility patch for the separately approved promotion step.
+Not applied: the existing pending test file is protected in Task 2D.3.
+After promotion, test the finalized migration's seven operations rather than
+expecting an updated snapshot to retain a pending model difference. The latest
+historical migration has no target model; use the full active snapshot as the
+pre-foundation baseline during the current offline verification.
+
+--- a/EEMOCantilanSDS.Testing/Infrastructure/Persistence/NpmRentMonthSchemaReadinessTests.cs
++++ b/EEMOCantilanSDS.Testing/Infrastructure/Persistence/NpmRentMonthSchemaReadinessTests.cs
+@@ -17,12 +17,10 @@
+         using var context = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>()
+             .UseNpgsql("Host=127.0.0.1;Port=1;Database=unused;Username=unused;Password=unused").Options);
+-        var snapshot = context.GetService<IMigrationsAssembly>().ModelSnapshot!;
+         var registry = context.GetService<IMigrationsAssembly>().Migrations;
+         output.WriteLine($"Compiled migration registry: count={registry.Count}; latest={registry.Keys.Max()}");
+-        var previous = context.GetService<IModelRuntimeInitializer>().Initialize(snapshot.Model, designTime: true);
+         var model = context.GetService<IDesignTimeModel>().Model;
+-        var operations = context.GetService<IMigrationsModelDiffer>()
+-            .GetDifferences(previous.GetRelationalModel(), model.GetRelationalModel());
++        var operations = context.GetService<IMigrationsAssembly>().CreateMigration(
++            registry["20261017040000_AddNpmRentMonthFoundation"], context.Database.ProviderName!).UpOperations;
+ 
+         var keys = operations.OfType<AddUniqueConstraintOperation>().OrderBy(x => x.Table).ToArray();
+         Assert.Equal(2, keys.Length);

@@ -710,16 +710,31 @@
     color: var(--navy);
 }
 
+.txn-reverse-field {
+    margin: 14px 0 12px;
+}
+.txn-field-label span {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
 .txn-reason {
+    display: block;
     width: 100%;
+    min-height: 108px;
+    height: 108px;
     box-sizing: border-box;
-    padding: 8px 10px;
+    padding: 12px 14px;
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 9px;
+    background: var(--surface, #fff);
+    color: var(--text);
     font: inherit;
-    font-size: 13px;
+    font-size: 13.5px;
+    line-height: 1.55;
     resize: vertical;
 }
+.txn-reason::placeholder { color: var(--text-secondary); opacity: .85; }
+
 
     .txn-reason:focus-visible {
         outline: 2px solid var(--accent);

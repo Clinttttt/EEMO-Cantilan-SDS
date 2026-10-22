@@ -1,0 +1,805 @@
+{
+  "task": "2D.2",
+  "mode": "rehearse",
+  "startedAtUtc": "2026-10-17T03:12:22.079Z",
+  "scriptSha256": "ff6533c5f49eebe8da6a1382a6fe5a8e561314457741ba593e4f302c7d0bcdc7",
+  "ddlSha256": "1cfc71caaaf302042e4c2fac66c74f5b24ea9fecb499f4a22d0ebc5ec4120a31",
+  "preflight": {
+    "server": {
+      "database": "EEMOCantilanSDS.DB",
+      "address": "::1",
+      "port": 5432,
+      "pid": 12264,
+      "read_only": "on"
+    },
+    "tables": 95,
+    "migrations": 143,
+    "dataHash": "ec22390fe31353fd542a43cca3dc018ee10725a2de1499f8e22cd034eb33edad",
+    "schemaHash": "6af7382bf3babb0910aad1476f60f12d6352720b4a63c09fe03482164fe2978d",
+    "extraSchemaHash": "9bf0e1bea6b418cd59a4e95b262c4f0e5cf220bc3fc94931fa101d9a31d9dba3",
+    "historyHash": "e310e9cd9bee20f9703aba284268c2a1b13f394b38b855c3d45fa1ae110e3445",
+    "retainedTables": [
+      {
+        "table": "ConfigurableServiceAssessments",
+        "rows": "1",
+        "fingerprint": "94851f11b7043ca20bcba76eae8a8c36"
+      },
+      {
+        "table": "ConfigurableServiceDefinitions",
+        "rows": "6",
+        "fingerprint": "24124279613188d2aad9a298af5bdc65"
+      },
+      {
+        "table": "ConfigurableServicePolicies",
+        "rows": "5",
+        "fingerprint": "c37ac06f354a7556202da0e21a6bbdf7"
+      },
+      {
+        "table": "EcfApprovedAssessments",
+        "rows": "1",
+        "fingerprint": "0e859277fe4212af595b8aaa5024d981"
+      },
+      {
+        "table": "FishMeatVendorFeeObligations",
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "table": "FishMeatVendorFeePolicies",
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "table": "KanmanggayMonthlyObligations",
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "table": "KanmanggayMonthlyPolicies",
+        "rows": "1",
+        "fingerprint": "6141880d28c9a1b60e272fb745e3bafb"
+      },
+      {
+        "table": "KanmanggayRentalAccounts",
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "table": "LandingBerthingActivities",
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "table": "VegetableSpaceRentalAssessments",
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "table": "VegetableSpaceRentalPolicies",
+        "rows": "1",
+        "fingerprint": "13724bbccb183adfb051ba49984d34b7"
+      },
+      {
+        "table": "WcfApprovedChargePolicies",
+        "rows": "0",
+        "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+      }
+    ],
+    "srcSequence": {
+      "name": "CollectionReferenceNumberSeq",
+      "last_value": "17",
+      "is_called": true
+    },
+    "allocationIndexes": [
+      {
+        "name": "IX_CollectionAllocations_MunicipalityId_SourceId",
+        "definition": "CREATE UNIQUE INDEX \"IX_CollectionAllocations_MunicipalityId_SourceId\" ON public.\"CollectionAllocations\" USING btree (\"MunicipalityId\", \"SourceId\") WHERE (\"SourceKind\" = 8)",
+        "valid": true,
+        "ready": true
+      },
+      {
+        "name": "IX_CollectionAllocations_MunicipalityId_SourceKind_SourceId_So~",
+        "definition": "CREATE INDEX \"IX_CollectionAllocations_MunicipalityId_SourceKind_SourceId_So~\" ON public.\"CollectionAllocations\" USING btree (\"MunicipalityId\", \"SourceKind\", \"SourceId\", \"SourcePart\")",
+        "valid": true,
+        "ready": true
+      }
+    ],
+    "parentKeys": [
+      {
+        "kind": "constraint",
+        "name": "AK_Contracts_MunicipalityId_Id",
+        "definition": "UNIQUE (\"MunicipalityId\", \"Id\")"
+      },
+      {
+        "kind": "constraint",
+        "name": "AK_Contracts_MunicipalityId_Id_StallId",
+        "definition": "UNIQUE (\"MunicipalityId\", \"Id\", \"StallId\")"
+      },
+      {
+        "kind": "constraint",
+        "name": "AK_Stalls_MunicipalityId_Id",
+        "definition": "UNIQUE (\"MunicipalityId\", \"Id\")"
+      },
+      {
+        "kind": "constraint",
+        "name": "PK_Contracts",
+        "definition": "PRIMARY KEY (\"Id\")"
+      },
+      {
+        "kind": "constraint",
+        "name": "PK_Facilities",
+        "definition": "PRIMARY KEY (\"Id\")"
+      },
+      {
+        "kind": "constraint",
+        "name": "PK_Stalls",
+        "definition": "PRIMARY KEY (\"Id\")"
+      }
+    ]
+  },
+  "apiInactive": true,
+  "backup": {
+    "path": "C:\\dev\\stalltrack-v2-worktrees\\local-db-backups\\EEMOCantilanSDS.DB_task2d2_full_2026-10-17T03-12-22-080Z.dump",
+    "createdAtUtc": "2026-10-17T03:12:22.629Z",
+    "bytes": 1711539,
+    "sha256": "5138c96d761f738d309138e62951257e45a59353c777f7d511c8b195ba5f8e6c",
+    "full": true,
+    "archiveListExitCode": 0,
+    "fullDecodeExitCode": 0,
+    "publicTableDataEntries": 95,
+    "retainedAndHistoryDataEntries": 14
+  },
+  "writer": {
+    "database": "EEMOCantilanSDS.DB",
+    "address": "::1",
+    "port": 5432,
+    "pid": 29412,
+    "read_only": "on"
+  },
+  "mutationServer": {
+    "database": "EEMOCantilanSDS.DB",
+    "address": "::1",
+    "port": 5432,
+    "pid": 29412,
+    "read_only": "off"
+  },
+  "stage": "exercise_complete",
+  "ddlOperationsCompleted": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "installed": {
+    "operations": 7,
+    "columns": [
+      {
+        "column_name": "Id",
+        "data_type": "uuid",
+        "numeric_precision": null,
+        "numeric_scale": null
+      },
+      {
+        "column_name": "MunicipalityId",
+        "data_type": "uuid",
+        "numeric_precision": null,
+        "numeric_scale": null
+      },
+      {
+        "column_name": "FacilityId",
+        "data_type": "uuid",
+        "numeric_precision": null,
+        "numeric_scale": null
+      },
+      {
+        "column_name": "StallId",
+        "data_type": "uuid",
+        "numeric_precision": null,
+        "numeric_scale": null
+      },
+      {
+        "column_name": "ContractId",
+        "data_type": "uuid",
+        "numeric_precision": null,
+        "numeric_scale": null
+      },
+      {
+        "column_name": "PeriodStart",
+        "data_type": "date",
+        "numeric_precision": null,
+        "numeric_scale": null
+      },
+      {
+        "column_name": "OwnershipAsOf",
+        "data_type": "date",
+        "numeric_precision": null,
+        "numeric_scale": null
+      },
+      {
+        "column_name": "AssessedAmount",
+        "data_type": "numeric",
+        "numeric_precision": 18,
+        "numeric_scale": 2
+      },
+      {
+        "column_name": "CreditedAmount",
+        "data_type": "numeric",
+        "numeric_precision": 18,
+        "numeric_scale": 2
+      },
+      {
+        "column_name": "MonthBasis",
+        "data_type": "integer",
+        "numeric_precision": 32,
+        "numeric_scale": 0
+      },
+      {
+        "column_name": "RateAsOf",
+        "data_type": "date",
+        "numeric_precision": null,
+        "numeric_scale": null
+      },
+      {
+        "column_name": "PolicyReference",
+        "data_type": "character varying",
+        "numeric_precision": null,
+        "numeric_scale": null
+      },
+      {
+        "column_name": "RateEvidenceJson",
+        "data_type": "jsonb",
+        "numeric_precision": null,
+        "numeric_scale": null
+      },
+      {
+        "column_name": "CreditEvidenceJson",
+        "data_type": "jsonb",
+        "numeric_precision": null,
+        "numeric_scale": null
+      },
+      {
+        "column_name": "Status",
+        "data_type": "integer",
+        "numeric_precision": 32,
+        "numeric_scale": 0
+      },
+      {
+        "column_name": "SettlementVersion",
+        "data_type": "bigint",
+        "numeric_precision": 64,
+        "numeric_scale": 0
+      },
+      {
+        "column_name": "CreatedByUserId",
+        "data_type": "uuid",
+        "numeric_precision": null,
+        "numeric_scale": null
+      },
+      {
+        "column_name": "CreatedBy",
+        "data_type": "character varying",
+        "numeric_precision": null,
+        "numeric_scale": null
+      },
+      {
+        "column_name": "CreatedAtUtc",
+        "data_type": "timestamp with time zone",
+        "numeric_precision": null,
+        "numeric_scale": null
+      },
+      {
+        "column_name": "UpdatedByUserId",
+        "data_type": "uuid",
+        "numeric_precision": null,
+        "numeric_scale": null
+      },
+      {
+        "column_name": "UpdatedBy",
+        "data_type": "character varying",
+        "numeric_precision": null,
+        "numeric_scale": null
+      },
+      {
+        "column_name": "UpdatedAtUtc",
+        "data_type": "timestamp with time zone",
+        "numeric_precision": null,
+        "numeric_scale": null
+      },
+      {
+        "column_name": "LastRevisionReason",
+        "data_type": "character varying",
+        "numeric_precision": null,
+        "numeric_scale": null
+      },
+      {
+        "column_name": "ReconciledByUserId",
+        "data_type": "uuid",
+        "numeric_precision": null,
+        "numeric_scale": null
+      },
+      {
+        "column_name": "ReconciledAtUtc",
+        "data_type": "timestamp with time zone",
+        "numeric_precision": null,
+        "numeric_scale": null
+      },
+      {
+        "column_name": "ReconciliationEvidence",
+        "data_type": "character varying",
+        "numeric_precision": null,
+        "numeric_scale": null
+      }
+    ],
+    "constraints": [
+      {
+        "conname": "AK_NpmRentMonths_MunicipalityId_Id",
+        "contype": "u",
+        "definition": "UNIQUE (\"MunicipalityId\", \"Id\")"
+      },
+      {
+        "conname": "CK_NpmRentMonths_Basis",
+        "contype": "c",
+        "definition": "CHECK (((\"MonthBasis\" IS NULL) OR (\"MonthBasis\" = ANY (ARRAY[1, 2]))))"
+      },
+      {
+        "conname": "CK_NpmRentMonths_Evidence",
+        "contype": "c",
+        "definition": "CHECK (((length(btrim((\"PolicyReference\")::text)) > 0) AND (length(btrim((\"CreatedBy\")::text)) > 0) AND (jsonb_typeof(\"RateEvidenceJson\") = 'object'::text) AND (\"RateEvidenceJson\" <> '{}'::jsonb) AND (jsonb_typeof(\"CreditEvidenceJson\") = 'object'::text) AND (\"CreditEvidenceJson\" <> '{}'::jsonb)))"
+      },
+      {
+        "conname": "CK_NpmRentMonths_Identity",
+        "contype": "c",
+        "definition": "CHECK (((\"MunicipalityId\" <> '00000000-0000-0000-0000-000000000000'::uuid) AND (\"FacilityId\" <> '00000000-0000-0000-0000-000000000000'::uuid) AND (\"StallId\" <> '00000000-0000-0000-0000-000000000000'::uuid) AND (\"ContractId\" <> '00000000-0000-0000-0000-000000000000'::uuid) AND (\"CreatedByUserId\" <> '00000000-0000-0000-0000-000000000000'::uuid)))"
+      },
+      {
+        "conname": "CK_NpmRentMonths_Money",
+        "contype": "c",
+        "definition": "CHECK (((\"AssessedAmount\" >= (0)::numeric) AND (\"CreditedAmount\" >= (0)::numeric) AND (\"CreditedAmount\" <= \"AssessedAmount\")))"
+      },
+      {
+        "conname": "CK_NpmRentMonths_Period",
+        "contype": "c",
+        "definition": "CHECK ((EXTRACT(day FROM \"PeriodStart\") = (1)::numeric))"
+      },
+      {
+        "conname": "CK_NpmRentMonths_Review",
+        "contype": "c",
+        "definition": "CHECK ((((\"Status\" = 1) AND (\"ReconciledByUserId\" IS NULL) AND (\"ReconciledAtUtc\" IS NULL) AND (\"ReconciliationEvidence\" IS NULL)) OR ((\"Status\" = 2) AND (\"MonthBasis\" IS NOT NULL) AND (\"ReconciledByUserId\" IS NOT NULL) AND (\"ReconciledByUserId\" <> '00000000-0000-0000-0000-000000000000'::uuid) AND (\"ReconciledAtUtc\" IS NOT NULL) AND (\"ReconciledAtUtc\" >= \"CreatedAtUtc\") AND (\"ReconciliationEvidence\" IS NOT NULL) AND (length(btrim((\"ReconciliationEvidence\")::text)) > 0))))"
+      },
+      {
+        "conname": "CK_NpmRentMonths_RevisionReason",
+        "contype": "c",
+        "definition": "CHECK ((((\"UpdatedAtUtc\" IS NULL) AND (\"LastRevisionReason\" IS NULL)) OR ((\"UpdatedAtUtc\" IS NOT NULL) AND (\"LastRevisionReason\" IS NOT NULL) AND (length(btrim((\"LastRevisionReason\")::text)) > 0))))"
+      },
+      {
+        "conname": "CK_NpmRentMonths_Updated",
+        "contype": "c",
+        "definition": "CHECK ((((\"UpdatedAtUtc\" IS NULL) AND (\"UpdatedByUserId\" IS NULL) AND (\"UpdatedBy\" IS NULL)) OR ((\"UpdatedAtUtc\" IS NOT NULL) AND (\"UpdatedAtUtc\" >= \"CreatedAtUtc\") AND (\"UpdatedByUserId\" IS NOT NULL) AND (\"UpdatedByUserId\" <> '00000000-0000-0000-0000-000000000000'::uuid) AND (\"UpdatedBy\" IS NOT NULL) AND (length(btrim((\"UpdatedBy\")::text)) > 0))))"
+      },
+      {
+        "conname": "CK_NpmRentMonths_Version",
+        "contype": "c",
+        "definition": "CHECK ((\"SettlementVersion\" > 0))"
+      },
+      {
+        "conname": "FK_NpmRentMonths_Contracts_MunicipalityId_ContractId_StallId",
+        "contype": "f",
+        "definition": "FOREIGN KEY (\"MunicipalityId\", \"ContractId\", \"StallId\") REFERENCES \"Contracts\"(\"MunicipalityId\", \"Id\", \"StallId\") ON DELETE RESTRICT"
+      },
+      {
+        "conname": "FK_NpmRentMonths_Facilities_MunicipalityId_FacilityId",
+        "contype": "f",
+        "definition": "FOREIGN KEY (\"MunicipalityId\", \"FacilityId\") REFERENCES \"Facilities\"(\"MunicipalityId\", \"Id\") ON DELETE RESTRICT"
+      },
+      {
+        "conname": "FK_NpmRentMonths_Stalls_MunicipalityId_StallId_FacilityId",
+        "contype": "f",
+        "definition": "FOREIGN KEY (\"MunicipalityId\", \"StallId\", \"FacilityId\") REFERENCES \"Stalls\"(\"MunicipalityId\", \"Id\", \"FacilityId\") ON DELETE RESTRICT"
+      },
+      {
+        "conname": "NpmRentMonths_AssessedAmount_not_null",
+        "contype": "n",
+        "definition": "NOT NULL \"AssessedAmount\""
+      },
+      {
+        "conname": "NpmRentMonths_ContractId_not_null",
+        "contype": "n",
+        "definition": "NOT NULL \"ContractId\""
+      },
+      {
+        "conname": "NpmRentMonths_CreatedAtUtc_not_null",
+        "contype": "n",
+        "definition": "NOT NULL \"CreatedAtUtc\""
+      },
+      {
+        "conname": "NpmRentMonths_CreatedByUserId_not_null",
+        "contype": "n",
+        "definition": "NOT NULL \"CreatedByUserId\""
+      },
+      {
+        "conname": "NpmRentMonths_CreatedBy_not_null",
+        "contype": "n",
+        "definition": "NOT NULL \"CreatedBy\""
+      },
+      {
+        "conname": "NpmRentMonths_CreditEvidenceJson_not_null",
+        "contype": "n",
+        "definition": "NOT NULL \"CreditEvidenceJson\""
+      },
+      {
+        "conname": "NpmRentMonths_CreditedAmount_not_null",
+        "contype": "n",
+        "definition": "NOT NULL \"CreditedAmount\""
+      },
+      {
+        "conname": "NpmRentMonths_FacilityId_not_null",
+        "contype": "n",
+        "definition": "NOT NULL \"FacilityId\""
+      },
+      {
+        "conname": "NpmRentMonths_Id_not_null",
+        "contype": "n",
+        "definition": "NOT NULL \"Id\""
+      },
+      {
+        "conname": "NpmRentMonths_MunicipalityId_not_null",
+        "contype": "n",
+        "definition": "NOT NULL \"MunicipalityId\""
+      },
+      {
+        "conname": "NpmRentMonths_OwnershipAsOf_not_null",
+        "contype": "n",
+        "definition": "NOT NULL \"OwnershipAsOf\""
+      },
+      {
+        "conname": "NpmRentMonths_PeriodStart_not_null",
+        "contype": "n",
+        "definition": "NOT NULL \"PeriodStart\""
+      },
+      {
+        "conname": "NpmRentMonths_PolicyReference_not_null",
+        "contype": "n",
+        "definition": "NOT NULL \"PolicyReference\""
+      },
+      {
+        "conname": "NpmRentMonths_RateAsOf_not_null",
+        "contype": "n",
+        "definition": "NOT NULL \"RateAsOf\""
+      },
+      {
+        "conname": "NpmRentMonths_RateEvidenceJson_not_null",
+        "contype": "n",
+        "definition": "NOT NULL \"RateEvidenceJson\""
+      },
+      {
+        "conname": "NpmRentMonths_SettlementVersion_not_null",
+        "contype": "n",
+        "definition": "NOT NULL \"SettlementVersion\""
+      },
+      {
+        "conname": "NpmRentMonths_StallId_not_null",
+        "contype": "n",
+        "definition": "NOT NULL \"StallId\""
+      },
+      {
+        "conname": "NpmRentMonths_Status_not_null",
+        "contype": "n",
+        "definition": "NOT NULL \"Status\""
+      },
+      {
+        "conname": "PK_NpmRentMonths",
+        "contype": "p",
+        "definition": "PRIMARY KEY (\"Id\")"
+      }
+    ]
+  },
+  "fractionalCentBoundary": {
+    "input": "900.001",
+    "storedByPostgres": "900.00",
+    "requiresDomainRejection": true
+  },
+  "expectedFailures": [
+    {
+      "name": "Duplicate tenant/stall/month",
+      "sqlstate": "23505",
+      "constraint": "IX_NpmRentMonths_MunicipalityId_StallId_PeriodStart"
+    },
+    {
+      "name": "Contract change cannot duplicate physical month",
+      "sqlstate": "23505",
+      "constraint": "IX_NpmRentMonths_MunicipalityId_StallId_PeriodStart"
+    },
+    {
+      "name": "Wrong-tenant facility",
+      "sqlstate": "23503",
+      "constraint": "FK_NpmRentMonths_Facilities_MunicipalityId_FacilityId"
+    },
+    {
+      "name": "Wrong-parent stall/facility",
+      "sqlstate": "23503",
+      "constraint": "FK_NpmRentMonths_Stalls_MunicipalityId_StallId_FacilityId"
+    },
+    {
+      "name": "Wrong-tenant stall",
+      "sqlstate": "23503",
+      "constraint": "FK_NpmRentMonths_Contracts_MunicipalityId_ContractId_StallId"
+    },
+    {
+      "name": "Wrong-stall contract",
+      "sqlstate": "23503",
+      "constraint": "FK_NpmRentMonths_Contracts_MunicipalityId_ContractId_StallId"
+    },
+    {
+      "name": "Wrong-tenant contract",
+      "sqlstate": "23503",
+      "constraint": "FK_NpmRentMonths_Contracts_MunicipalityId_ContractId_StallId"
+    },
+    {
+      "name": "Not first of month",
+      "sqlstate": "23514",
+      "constraint": "CK_NpmRentMonths_Period"
+    },
+    {
+      "name": "Negative assessment",
+      "sqlstate": "23514",
+      "constraint": "CK_NpmRentMonths_Money"
+    },
+    {
+      "name": "Negative credit",
+      "sqlstate": "23514",
+      "constraint": "CK_NpmRentMonths_Money"
+    },
+    {
+      "name": "Credit exceeds assessment",
+      "sqlstate": "23514",
+      "constraint": "CK_NpmRentMonths_Money"
+    },
+    {
+      "name": "Unsupported review state",
+      "sqlstate": "23514",
+      "constraint": "CK_NpmRentMonths_Review"
+    },
+    {
+      "name": "Unsupported basis",
+      "sqlstate": "23514",
+      "constraint": "CK_NpmRentMonths_Basis"
+    },
+    {
+      "name": "Empty policy",
+      "sqlstate": "23514",
+      "constraint": "CK_NpmRentMonths_Evidence"
+    },
+    {
+      "name": "Empty rate evidence",
+      "sqlstate": "23514",
+      "constraint": "CK_NpmRentMonths_Evidence"
+    },
+    {
+      "name": "Array rate evidence",
+      "sqlstate": "23514",
+      "constraint": "CK_NpmRentMonths_Evidence"
+    },
+    {
+      "name": "Empty credit evidence",
+      "sqlstate": "23514",
+      "constraint": "CK_NpmRentMonths_Evidence"
+    },
+    {
+      "name": "Array credit evidence",
+      "sqlstate": "23514",
+      "constraint": "CK_NpmRentMonths_Evidence"
+    },
+    {
+      "name": "Malformed JSON evidence",
+      "sqlstate": "22P02"
+    },
+    {
+      "name": "Null required evidence",
+      "sqlstate": "23502"
+    },
+    {
+      "name": "Unreconciled row cannot carry review evidence",
+      "sqlstate": "23514",
+      "constraint": "CK_NpmRentMonths_Review"
+    },
+    {
+      "name": "Reconciled row requires review fields",
+      "sqlstate": "23514",
+      "constraint": "CK_NpmRentMonths_Review"
+    },
+    {
+      "name": "Unknown basis cannot be reconciled",
+      "sqlstate": "23514",
+      "constraint": "CK_NpmRentMonths_Review"
+    },
+    {
+      "name": "Review cannot predate creation",
+      "sqlstate": "23514",
+      "constraint": "CK_NpmRentMonths_Review"
+    },
+    {
+      "name": "Zero version",
+      "sqlstate": "23514",
+      "constraint": "CK_NpmRentMonths_Version"
+    },
+    {
+      "name": "Empty actor identity",
+      "sqlstate": "23514",
+      "constraint": "CK_NpmRentMonths_Identity"
+    },
+    {
+      "name": "Missing revision reason",
+      "sqlstate": "23514",
+      "constraint": "CK_NpmRentMonths_RevisionReason"
+    },
+    {
+      "name": "Incomplete update actor",
+      "sqlstate": "23514",
+      "constraint": "CK_NpmRentMonths_Updated"
+    },
+    {
+      "name": "Numeric overflow",
+      "sqlstate": "22003"
+    }
+  ],
+  "validRows": 4,
+  "onlyChangedTables": [
+    "Contracts",
+    "Facilities",
+    "Municipalities",
+    "NpmRentMonths",
+    "Stalls"
+  ],
+  "allOriginalIndexesPreserved": true,
+  "noFinancialRowsChanged": true,
+  "noSequenceChanged": true,
+  "scopeLimits": [
+    "No payment workflow, SRC posting, remittance or concurrency execution",
+    "Database FK membership does not authorize owner/facility type or approved rate",
+    "Precision coercion requires existing domain validation",
+    "Preparation/reconciliation states do not permit collection",
+    "No generic tenant restore executed; retained-table guard remains mandatory"
+  ],
+  "execution": {
+    "transaction": "rollback_acknowledged",
+    "verification": "independently_verified_unchanged",
+    "success": true,
+    "postflight": {
+      "server": {
+        "database": "EEMOCantilanSDS.DB",
+        "address": "::1",
+        "port": 5432,
+        "pid": 25492,
+        "read_only": "on"
+      },
+      "tables": 95,
+      "migrations": 143,
+      "dataHash": "ec22390fe31353fd542a43cca3dc018ee10725a2de1499f8e22cd034eb33edad",
+      "schemaHash": "6af7382bf3babb0910aad1476f60f12d6352720b4a63c09fe03482164fe2978d",
+      "extraSchemaHash": "9bf0e1bea6b418cd59a4e95b262c4f0e5cf220bc3fc94931fa101d9a31d9dba3",
+      "historyHash": "e310e9cd9bee20f9703aba284268c2a1b13f394b38b855c3d45fa1ae110e3445",
+      "retainedTables": [
+        {
+          "table": "ConfigurableServiceAssessments",
+          "rows": "1",
+          "fingerprint": "94851f11b7043ca20bcba76eae8a8c36"
+        },
+        {
+          "table": "ConfigurableServiceDefinitions",
+          "rows": "6",
+          "fingerprint": "24124279613188d2aad9a298af5bdc65"
+        },
+        {
+          "table": "ConfigurableServicePolicies",
+          "rows": "5",
+          "fingerprint": "c37ac06f354a7556202da0e21a6bbdf7"
+        },
+        {
+          "table": "EcfApprovedAssessments",
+          "rows": "1",
+          "fingerprint": "0e859277fe4212af595b8aaa5024d981"
+        },
+        {
+          "table": "FishMeatVendorFeeObligations",
+          "rows": "0",
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "FishMeatVendorFeePolicies",
+          "rows": "0",
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "KanmanggayMonthlyObligations",
+          "rows": "0",
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "KanmanggayMonthlyPolicies",
+          "rows": "1",
+          "fingerprint": "6141880d28c9a1b60e272fb745e3bafb"
+        },
+        {
+          "table": "KanmanggayRentalAccounts",
+          "rows": "0",
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "LandingBerthingActivities",
+          "rows": "0",
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "VegetableSpaceRentalAssessments",
+          "rows": "0",
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        },
+        {
+          "table": "VegetableSpaceRentalPolicies",
+          "rows": "1",
+          "fingerprint": "13724bbccb183adfb051ba49984d34b7"
+        },
+        {
+          "table": "WcfApprovedChargePolicies",
+          "rows": "0",
+          "fingerprint": "d41d8cd98f00b204e9800998ecf8427e"
+        }
+      ],
+      "srcSequence": {
+        "name": "CollectionReferenceNumberSeq",
+        "last_value": "17",
+        "is_called": true
+      },
+      "allocationIndexes": [
+        {
+          "name": "IX_CollectionAllocations_MunicipalityId_SourceId",
+          "definition": "CREATE UNIQUE INDEX \"IX_CollectionAllocations_MunicipalityId_SourceId\" ON public.\"CollectionAllocations\" USING btree (\"MunicipalityId\", \"SourceId\") WHERE (\"SourceKind\" = 8)",
+          "valid": true,
+          "ready": true
+        },
+        {
+          "name": "IX_CollectionAllocations_MunicipalityId_SourceKind_SourceId_So~",
+          "definition": "CREATE INDEX \"IX_CollectionAllocations_MunicipalityId_SourceKind_SourceId_So~\" ON public.\"CollectionAllocations\" USING btree (\"MunicipalityId\", \"SourceKind\", \"SourceId\", \"SourcePart\")",
+          "valid": true,
+          "ready": true
+        }
+      ],
+      "parentKeys": [
+        {
+          "kind": "constraint",
+          "name": "AK_Contracts_MunicipalityId_Id",
+          "definition": "UNIQUE (\"MunicipalityId\", \"Id\")"
+        },
+        {
+          "kind": "constraint",
+          "name": "AK_Contracts_MunicipalityId_Id_StallId",
+          "definition": "UNIQUE (\"MunicipalityId\", \"Id\", \"StallId\")"
+        },
+        {
+          "kind": "constraint",
+          "name": "AK_Stalls_MunicipalityId_Id",
+          "definition": "UNIQUE (\"MunicipalityId\", \"Id\")"
+        },
+        {
+          "kind": "constraint",
+          "name": "PK_Contracts",
+          "definition": "PRIMARY KEY (\"Id\")"
+        },
+        {
+          "kind": "constraint",
+          "name": "PK_Facilities",
+          "definition": "PRIMARY KEY (\"Id\")"
+        },
+        {
+          "kind": "constraint",
+          "name": "PK_Stalls",
+          "definition": "PRIMARY KEY (\"Id\")"
+        }
+      ]
+    }
+  },
+  "finishedAtUtc": "2026-10-17T03:12:28.992Z"
+}

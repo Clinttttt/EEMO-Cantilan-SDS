@@ -1,0 +1,67 @@
+{
+  "task": "2C.4",
+  "action": "Retire only obsolete kind-10 unique allocation index",
+  "authorization": "explicit owner 2026-10-17",
+  "target": {
+    "host": "localhost",
+    "port": 5432,
+    "database": "EEMOCantilanSDS.DB"
+  },
+  "startedAtUtc": "2026-10-17T01:39:45.376Z",
+  "journal": "C:/dev/stalltrack-v2-worktrees/local-db-backups/kind10-correction-2026-10-17T01-39-45-376Z.journal.jsonl",
+  "scriptSha256": "c490313715992e4b0801442c991e72b7f979df87fcc5d57a7eade212e286391c",
+  "reviewedPreflightOnlyAttempt": "C:\\dev\\stalltrack\\eemo\\docs\\evidence\\2026-10-17_kind10_permanent_correction.json",
+  "writer": {
+    "db": "EEMOCantilanSDS.DB",
+    "address": "::1",
+    "port": 5432,
+    "version": 180004,
+    "pid": 10972
+  },
+  "backup": {
+    "path": "C:/dev/stalltrack-v2-worktrees/local-db-backups/EEMOCantilanSDS.DB_before_kind10_permanent_2026-10-17T01-39-48-556Z.dump",
+    "createdAtUtc": "2026-10-17T01:39:49.302Z",
+    "bytes": 1712039,
+    "sha256": "6de2ff106738f0caa4c58f1d979b289b6b8a3a89dea5102b23adac41b0165592",
+    "readabilityVerified": true,
+    "retainedTablesAndHistoryCovered": 14
+  },
+  "execution": {
+    "commit": "acknowledged",
+    "verification": "committed",
+    "outcome": "independently_verified_committed",
+    "evidenceWriteFailed": false,
+    "postflight": {
+      "server": {
+        "db": "EEMOCantilanSDS.DB",
+        "address": "::1",
+        "port": 5432,
+        "version": 180004,
+        "pid": 23028
+      },
+      "readOnly": true,
+      "tables": 95,
+      "migrations": 143,
+      "dataHash": "ec22390fe31353fd542a43cca3dc018ee10725a2de1499f8e22cd034eb33edad",
+      "schemaHash": "6af7382bf3babb0910aad1476f60f12d6352720b4a63c09fe03482164fe2978d",
+      "srcSequence": {
+        "last_value": "17",
+        "is_called": true
+      },
+      "retiredIndexPresent": false,
+      "otherIndexesPreserved": true
+    }
+  },
+  "finishedAtUtc": "2026-10-17T01:39:57.477Z",
+  "before": {
+    "tables": 95,
+    "migrations": 143,
+    "dataHash": "ec22390fe31353fd542a43cca3dc018ee10725a2de1499f8e22cd034eb33edad",
+    "schemaHash": "ee67c77e6d7f74cfac2fcef3096f287721e205e3c5542fc838905c91d203b99f",
+    "srcSequence": {
+      "last_value": "17",
+      "is_called": true
+    },
+    "retiredIndex": "CREATE UNIQUE INDEX \"IX_CollectionAllocations_MunicipalityId_SourceKind_SourceId\" ON public.\"CollectionAllocations\" USING btree (\"MunicipalityId\", \"SourceKind\", \"SourceId\") WHERE (\"SourceKind\" = 10)"
+  }
+}

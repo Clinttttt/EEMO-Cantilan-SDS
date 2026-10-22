@@ -127,3 +127,14 @@
 
 .trm2-tools { display: flex; align-items: center; gap: 8px; }
 .trm2-month { width: 9.5rem; min-height: 36px; padding-block: 4px; }
+
+/* Tenant Terminal sections use the same V3 workspace patterns as other Head-configurable registers. */
+.trm2-settings { margin-bottom: 1rem; }
+.trm2-settings-body { display: grid; gap: 0.75rem; padding: 1rem; }
+.trm2-settings-row { display: flex; flex-wrap: wrap; gap: 0.7rem; align-items: center; }
+.trm2-settings-label { min-width: 10rem; font-size: 0.875rem; }
+.trm2-settings-input { flex: 1 1 12rem; min-width: 0; }
+@media (max-width: 600px) {
+    .trm2-settings-row { display: grid; grid-template-columns: minmax(0, 1fr); }
+    .trm2-settings-label, .trm2-settings-input { width: 100%; }
+}

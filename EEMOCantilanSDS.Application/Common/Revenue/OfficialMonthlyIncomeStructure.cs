@@ -6,8 +6,8 @@ namespace EEMOCantilanSDS.Application.Common.Revenue;
 /// <summary>
 /// The office Monthly Income statement's rows and groups (IA-050, Rulebook sections 9-13). The hierarchy follows the office
 /// statement, never the facilities: a facility only decides the stall-rent row, because the sheet prints NPM, NCC and TCC
-/// rent separately. BBQ belongs to Rent and Slaughterhouse has its own section. Other unconfirmed rental facilities
-/// are listed under their own heading instead of being placed by guess.
+/// rent separately. BBQ belongs to Rent and Slaughterhouse has its own section. Custom monthly rental facilities
+/// are placed in the rent group under their existing Other rental facilities row, retaining exact facility identities in account detail.
 /// </summary>
 public static class OfficialMonthlyIncomeStructure
 {

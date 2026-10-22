@@ -3,6 +3,7 @@
 @page "/weight-measure"
 @page "/vendor-fee"
 @page "/income-terminal"
+@using EEMOCantilanSDS.Domain.Constants
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 @inject EEMOCantilanSDS.Application.Common.Interface.ApiClients.IMobileApiClient Api
@@ -25,19 +26,21 @@
 
 @code {
     [SupplyParameterFromQuery] public Guid? SessionId { get; set; }
+    [SupplyParameterFromQuery(Name = "operation")] public string? RequestedSpaceOperation { get; set; }
 
     /// <summary>The recent collection being edited (opened from Today's recent collections).</summary>
     [SupplyParameterFromQuery(Name = "correct")] public Guid? CorrectId { get; set; }
     private EEMOCantilanSDS.Application.Dtos.Mobile.MobileRecentCollection? _correction;
     private bool _ready;
     private DateOnly Today => Session.Menu?.Today ?? DateOnly.FromDateTime(DateTime.Now);
-    private string? OnlyOperation => Last switch
+    // Only space-obligation codes may be supplied by the menu deep link; all other values fall back to normal New Collection.
+    private string? OnlyOperation => CorrectId is not null ? null : Last switch
     {
         "ecf" => "ECF",
         "weight-measure" => "WEIGHT_AND_MEASURE",
         "vendor-fee" => "FISH_MEAT_VENDOR_FEE",
         "income-terminal" => "TERMINAL",
-        _ => null
+        _ => CollectorOperationCodes.IsSpaceObligation(RequestedSpaceOperation) ? RequestedSpaceOperation : null
     };
     // The Fish / Meat page is the collection family, not one item: a registered vendor can pay the Vendor Fee and Weight & Measure here, as in New Collection.
     private IReadOnlyCollection<string>? AlsoOperations => Last == "vendor-fee" ? ["WEIGHT_AND_MEASURE"] : null;
@@ -48,6 +51,8 @@
         "WEIGHT_AND_MEASURE" => "Weight & Measure",
         "FISH_MEAT_VENDOR_FEE" => "Fish / Meat Collection",
         "TERMINAL" => "Income From Terminal",
+        CollectorOperationCodes.KanmanggaySpaceRental => "Kanmanggay Space Rental",
+        CollectorOperationCodes.FiestaArawLotRental => "Fiesta / Araw Lot Rental",
         _ => "New Collection"
     };
     protected override async Task OnInitializedAsync()
@@ -57,12 +62,13 @@
     }
 
     private Guid? _loadedCorrectId;
+    private string? _loadedOnlyOperation;
 
     // Editing navigates from this same page to /collections/new?correct=..., which reuses this component: the correction is therefore resolved whenever the
     // query changes, not only on first load. Only what the server still lets this collector edit opens, taken from the same recent list that offered it.
     protected override async Task OnParametersSetAsync()
     {
-        if (Session.Menu is null || (_ready && CorrectId == _loadedCorrectId)) return;
+        if (Session.Menu is null || (_ready && CorrectId == _loadedCorrectId && OnlyOperation == _loadedOnlyOperation)) return;
         _ready = false;
         _correction = null;
         if (CorrectId is { } id)
@@ -71,6 +77,7 @@
             _correction = recent.IsSuccess ? recent.Value?.Rows.FirstOrDefault(r => r.Collection.CollectionId == id && r.CanEdit) : null;
         }
         _loadedCorrectId = CorrectId;
+        _loadedOnlyOperation = OnlyOperation;
         _ready = true;
     }
 }

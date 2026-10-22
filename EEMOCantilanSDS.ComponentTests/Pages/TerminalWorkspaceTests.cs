@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Common;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
+using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Client.Components.Pages.Menus;
 using EEMOCantilanSDS.Client.Components.Pages.Menus.Facilities;
 using EEMOCantilanSDS.Domain.Common;
@@ -31,6 +32,11 @@ public sealed class TerminalWorkspaceTests : TestContext
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
         Services.AddSingleton(_office.Object);
         Services.AddSingleton(_classes.Object);
+        var settings = new Mock<IOperationSettingsApiClient>();
+        settings.Setup(x => x.GetTerminalSectionsAsync()).ReturnsAsync(
+            Result<IReadOnlyList<TerminalSectionSettingsStore.SectionView>>.Success(
+                TerminalSectionSettingsStore.Project([])));
+        Services.AddSingleton(settings.Object);
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
     }

@@ -43,7 +43,9 @@ public static class WorkingCopyFishMeatRegistrationRequests
         await using var scope = app.Services.CreateAsyncScope();
         scope.ServiceProvider.GetRequiredService<ICurrentMunicipalityAccessor>().Set(DemoTenant);
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var tenant = await db.Municipalities.IgnoreQueryFilters().AsNoTracking()
+        // The tenant accessor was bound to DemoTenant above. Keep EF's soft-delete
+        // and tenant filters in force; a missing/inactive local office must fail closed.
+        var tenant = await db.Municipalities.AsNoTracking()
             .SingleOrDefaultAsync(x => x.Id == DemoTenant);
         if (tenant is null || tenant.TenantCode != "cantilan-sds"
             || !(await db.Database.GetAppliedMigrationsAsync()).Contains(MigrationId))

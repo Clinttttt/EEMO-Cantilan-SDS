@@ -28,6 +28,7 @@ public class AuditSaveChangesInterceptor(ICurrentUserService currentUser) : Save
         typeof(PaymentRecord), typeof(DailyCollection), typeof(UtilityBill),
         typeof(NpmRentMonth), // preparation/review evidence is audited even though it cannot post cash
         typeof(FishMeatRegistrationRequest), // nonfinancial proposal and one terminal decision, never cash
+        typeof(FishMeatVendorRegistration), typeof(FishMeatNpmAssociation), typeof(NpmRegistrationRequest),
         typeof(StallMonthlyException), typeof(NpmMarketClosure), typeof(NpmOperatingSchedule),
         typeof(TpmAttendance), typeof(TrmTrip), typeof(SlaughterTransaction),
         typeof(OnlinePaymentTransaction),

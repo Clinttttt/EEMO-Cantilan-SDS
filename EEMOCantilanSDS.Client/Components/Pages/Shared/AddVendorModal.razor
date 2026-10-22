@@ -227,7 +227,7 @@
 
                     @* The applicable-charges block below already states every fee this stall carries, with the
                        tenant's own rates, so these standalone reminders only repeated it. *@
-                    @if (Form.FacilityCode == "NPM"
+                    @if (Form.FacilityCode == "NPM" && !FacilityCatalog.IsMonthlyRentMarket
                         && (Form.SelectedSection == "__custom__"
                             || (Form.SelectedSection != null && Form.SelectedSection.StartsWith("existing:", StringComparison.Ordinal))))
                     {

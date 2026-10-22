@@ -67,6 +67,7 @@ namespace EEMOCantilanSDS.Infrastructure
             service.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
             service.AddScoped<ICollectionSessionStore, Repositories.Revenue.CollectionSessionStore>();
             service.AddScoped<ICollectionSessionSources, Repositories.Revenue.CollectionSessionSources>();
+            service.AddScoped<IFishMeatRequestSchema, Repositories.Revenue.FishMeatRequestSchema>();
             service.AddScoped<IBackEntryReconciliationReader, Repositories.Revenue.BackEntryReconciliationReader>();
             service.AddScoped<IUtilityRegisterReader, Repositories.Revenue.UtilityRegisterReader>();
             service.AddScoped<IUnitOfWork, UnitOfWork>();

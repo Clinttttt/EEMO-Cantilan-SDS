@@ -17,7 +17,8 @@ namespace EEMOCantilanSDS.Application.Common.Revenue;
 
 /// <summary>IA-067/068 source facts delegate money to the shared canonical coordinator. No legacy projections.</summary>
 public sealed partial class OfficeCollectionWorkflow(IAppDbContext db, ICurrentUserService user,
-    ICurrentMunicipalityAccessor tenant, IClock clock, IFeeRateResolver rates, FishMeatRegistrationOptions? registrationOptions = null)
+    ICurrentMunicipalityAccessor tenant, IClock clock, IFeeRateResolver rates, FishMeatRegistrationOptions? registrationOptions = null,
+    IFishMeatRequestSchema? requestSchema = null)
 {
     public static readonly DateOnly EffectiveFrom = new(2026, 10, 6);
     private Guid Tenant => tenant.MunicipalityId;
@@ -69,7 +70,8 @@ public sealed partial class OfficeCollectionWorkflow(IAppDbContext db, ICurrentU
             return Result<IReadOnlyList<FishMeatVendorRegistrationDto>>.Forbidden();
         if (year is < 2000 or > 2200) return Result<IReadOnlyList<FishMeatVendorRegistrationDto>>.Failure("InvalidPeriod", ResultStatus.Invalid);
         return Result<IReadOnlyList<FishMeatVendorRegistrationDto>>.Success((await db.FishMeatVendorRegistrations.AsNoTracking()
-            .Where(x => x.MunicipalityId == Tenant && x.TaxYear == year && (user.Role != "Collector" || x.Status == VendorRegistrationStatus.Active)).OrderBy(x => x.DisplayName).ThenBy(x => x.Id).ToListAsync(ct)).Select(ToDto).ToArray());
+            .Where(x => x.MunicipalityId == Tenant && x.TaxYear == year && x.Status != VendorRegistrationStatus.Deleted
+                && (user.Role != "Collector" || x.Status == VendorRegistrationStatus.Active)).OrderBy(x => x.DisplayName).ThenBy(x => x.Id).ToListAsync(ct)).Select(ToDto).ToArray());
     }
     public static FishMeatVendorRegistrationDto ToDto(FishMeatVendorRegistration x) => new(x.Id, x.TaxYear, x.VendorType, x.RegistrationKind, x.DisplayName, x.BusinessName, x.Address, x.Reference, x.LastName, x.FirstName, x.MiddleName,
         x.NameExtension, x.Sex, x.NatureOfBusiness);
@@ -78,6 +80,7 @@ public sealed partial class OfficeCollectionWorkflow(IAppDbContext db, ICurrentU
         if (!TenantValid || !user.IsAuthenticated || user.Role != "SuperAdmin") return Result<bool>.Forbidden();
         var vehicle = await db.VehicleClasses.SingleOrDefaultAsync(x => x.MunicipalityId == Tenant && x.Id == request.VehicleClassId, ct);
         if (vehicle is null) return Result<bool>.NotFound();
+        if (!await TerminalSectionSettingsStore.AllowsAsync(db, Tenant, request.Section, ct)) return Result<bool>.Failure("TerminalSectionNotEnabled", ResultStatus.Invalid);
         try { vehicle.AssociateTerminalSection(request.Section); }
         catch (ArgumentException e) { return Result<bool>.Failure(e.Message, ResultStatus.Invalid); }
         await db.SaveChangesAsync(ct); return Result<bool>.Success(true);
@@ -86,7 +89,8 @@ public sealed partial class OfficeCollectionWorkflow(IAppDbContext db, ICurrentU
     {
         if (!TenantValid || !user.IsAuthenticated || user.Role is not ("SuperAdmin" or "Admin" or "Collector")) return [];
         if (user.Role == "Collector" && !await IsAssignedAsync(CollectorOperationCodes.Terminal, ct)) return [];
-        var vehicles = (await db.VehicleClasses.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.IsActive).ToListAsync(ct)).Where(x => x.EffectiveTerminalSection != null).ToList();
+        var enabledSections = (await TerminalSectionSettingsStore.ReadAsync(db, Tenant, ct)).Where(x => x.IsEnabled).Select(x => x.Section).ToHashSet();
+        var vehicles = (await db.VehicleClasses.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.IsActive).ToListAsync(ct)).Where(x => x.EffectiveTerminalSection is { } section && enabledSections.Contains(section)).ToList();
         var ids = vehicles.Select(x => x.Id).ToArray();
         var versions = (await db.VehicleClassRates.AsNoTracking().Where(x => x.MunicipalityId == Tenant && ids.Contains(x.VehicleClassId)).ToListAsync(ct)).ToLookup(x => x.VehicleClassId);
         return vehicles.Select(v => (v, rate: VehicleClassRate.Resolve(versions[v.Id], date))).Where(x => x.rate is not null)
@@ -108,7 +112,9 @@ public sealed partial class OfficeCollectionWorkflow(IAppDbContext db, ICurrentU
         {
             if (charge.Section is not { } section || !Enum.IsDefined(section) || charge.CashTicketCount is < 0 || charge.VendorRegistrationId.HasValue || charge.Kilograms.HasValue)
                 return (null, "InvalidTerminalSection");
-            code = SectionCode(section); label = SectionName(section);
+            if (!await TerminalSectionSettingsStore.AllowsAsync(db, Tenant, section, ct)) return (null, "TerminalSectionNotEnabled");
+            code = SectionCode(section);
+            label = (await TerminalSectionSettingsStore.ReadAsync(db, Tenant, ct)).First(x => x.Section == section).DisplayName;
             if (charge.VehicleClassId is { } vehicleId)
             {
                 var vehicle = (await VehicleChoicesAsync(request.BusinessDate, ct)).SingleOrDefault(x => x.VehicleClassId == vehicleId && x.Section == section);
@@ -123,7 +129,7 @@ public sealed partial class OfficeCollectionWorkflow(IAppDbContext db, ICurrentU
             var vendor = charge.VendorRegistrationId is { } id ? await db.FishMeatVendorRegistrations.AsNoTracking().SingleOrDefaultAsync(x =>
                 x.MunicipalityId == Tenant && x.Id == id && x.TaxYear == request.BusinessDate.Year, ct) : null;
             if (charge.VendorRegistrationId.HasValue && vendor is null) return (null, "InvalidSource");
-            if (vendor?.Status == VendorRegistrationStatus.Closed) return (null, "RegistrationClosed");
+            if (vendor is not null && vendor.Status != VendorRegistrationStatus.Active) return (null, "RegistrationClosed");
             if (vendor is not null) { source = vendor.Id; payer = vendor.DisplayName; vendorType = vendor.VendorType; }
             if (charge.OperationCode == CollectorOperationCodes.FishMeatVendorFee)
             {

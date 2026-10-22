@@ -59,6 +59,9 @@ public sealed class OfficeSourcesController(ISender sender, OfficeCollectionWork
     public async Task<ActionResult<VendorRegistrationMutationResult>> Close(Guid id, CloseVendorRegistrationRequest request, CancellationToken ct) => HandleResponse(await workflow.CloseRegistrationAsync(id, request, ct));
     [HttpPost("fish-meat/registrations/{id:guid}/renew"), Authorize(Roles = "SuperAdmin")]
     public async Task<ActionResult<VendorRegistrationMutationResult>> Renew(Guid id, RenewVendorRegistrationRequest request, CancellationToken ct) => HandleResponse(await workflow.RenewRegistrationAsync(id, request, ct));
+    [HttpPost("fish-meat/registrations/{id:guid}/delete"), Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<VendorRegistrationMutationResult>> Delete(Guid id, DeleteVendorRegistrationRequest request, CancellationToken ct) =>
+        HandleResponse(await workflow.DeleteRegistrationAsync(id, request, ct));
     [HttpPost("fish-meat/import/preview"), Authorize(Roles = "SuperAdmin")]
     public async Task<ActionResult<VendorRegistryImportPreview>> PreviewImport(VendorRegistryImportRequest request, CancellationToken ct) => HandleResponse(await workflow.PreviewImportAsync(request, ct));
     [HttpPost("fish-meat/import/save"), Authorize(Roles = "SuperAdmin")]

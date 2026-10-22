@@ -34,6 +34,8 @@
                   StallNoSelector="@(s => s.StallNo)"
                   ActualOccupantSelector="@(s => s.ActualOccupant)"
                   ContractNameSelector="@(s => s.ContractName)"
+                  MarketSectionSelector="@(s => s.Section)"
+                  CustomMarketSectionSelector="@(s => s.CustomSectionName)"
                   ORNumberSetter="@((s, or) => s.ORNumber = or)" />
 }
 
@@ -58,6 +60,8 @@
     {
         public Guid StallGuid { get; set; } = Guid.Empty;
         public string StallNo { get; set; } = string.Empty;
+        public MarketSection? Section { get; set; }
+        public string? CustomSectionName { get; set; }
         public string ActualOccupant { get; set; } = string.Empty;
         public string ContractName { get; set; } = string.Empty;
         public double AreaSqm { get; set; }
@@ -78,6 +82,8 @@
     {
         StallGuid = dto.Id,
         StallNo = dto.StallNo,
+        Section = dto.Section,
+        CustomSectionName = dto.CustomSectionName,
         ActualOccupant = dto.ActualOccupant ?? "N/A",
         ContractName = dto.NameOnContract ?? string.Empty,
         AreaSqm = dto.AreaSqm ?? 0,

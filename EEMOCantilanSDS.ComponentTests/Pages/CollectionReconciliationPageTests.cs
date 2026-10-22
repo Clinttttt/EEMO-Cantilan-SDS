@@ -38,7 +38,9 @@ public sealed class CollectionReconciliationPageTests : TestContext
                 basis == CollectionReconciliationBasis.AsOriginallyKnown ? new(2026, 10, 31, 15, 59, 59, DateTimeKind.Utc) : new(2026, 12, 1, 0, 0, 0, DateTimeKind.Utc), [original], 1, false,
                 basis == CollectionReconciliationBasis.CorrectionActivity ? 0 : 900, original.CorrectionEffect, total, "Reconstructed. Official RCD treatment pending Office confirmation. Legacy history excluded.")));
         var cut = RenderComponent<CollectionReconciliation>();
-        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".recon-document")));
+        // Under parallel bUnit load the asynchronous report render can outlast the
+        // one-second default; keep the exact evidence assertion with a bounded wait.
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".recon-document")), TimeSpan.FromSeconds(5));
         Assert.Contains("SRC-2026-000900", cut.Markup); Assert.Contains("pending Office", cut.Markup);
         Assert.Contains(Math.Abs(total).ToString("N2"), cut.Find(".recon-total").TextContent);
         var csv = Uri.UnescapeDataString(cut.Find("a[download]").GetAttribute("href")!.Split(',', 2)[1]);

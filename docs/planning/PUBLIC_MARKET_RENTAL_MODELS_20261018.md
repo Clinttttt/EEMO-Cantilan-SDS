@@ -43,3 +43,15 @@ Compatibility requirement: Landing/Admin builds that send `archetype: 'MonthlyRe
 ## 5. Synthetic acceptance (monthly-only tenant) — see the handoff
 
 The authenticated procedure is in `REPORT_GOVERNANCE_FAST_COLLECTION_HANDOFF.md` (section "Public Market rental models"). It uses a disposable database only.
+
+## 2026-10-22 monthly-market section preservation — isolated candidate
+
+**Owner direction:** Maintain the existing StallTrack layouts and shared UI primitives. This follow-up is limited to wiring the existing monthly NPM registration and roster to the LGU's section choices. Do not redesign the daily calendar, change Cantilan's `DailyStall` arithmetic, or generalize NPM into a new billing engine.
+
+- The monthly NPM page continues to use `NpmMonthlyRent.razor` → the existing `FacilityPage` monthly table, payment modal, contracts, and report sources; a small existing-style market section dropdown scopes the table. The daily NPM page is unchanged.
+- The monthly NPM Add Vendor drawer preserves canonical Vegetable/Fish/Meat section values and previously created municipality-specific custom section names. The selected `MarketSection` or `CustomSectionName` must be sent to the existing `CreateStallCommand`; invalid/missing choices are refused at the monthly UI instead of silently defaulting to Vegetable or dropping the choice.
+- The monthly NPM custom-section form does not ask for daily fees. Monthly rent remains a positive per-stall/contract amount entered after activation, with no fabricated `NpmDailyStall` rate or daily collector row. Fish classification is retained by the stable Fish enum independently of its displayed LGU label.
+- The municipality's displayed NPM short name must **not** replace the canonical internal form facility code `NPM`. Existing custom section names must be loaded even when the monthly stall roster comes from persistent UI state.
+- No rates, source authority, tenant permissions, ledger entities, migrations, report classifications, or existing collected amounts were changed for this presentation/registration correction. Monthly NPM stays under the existing official `RENT_NPM` row.
+- Acceptance still requires a monthly-model disposable tenant with Fish/Meat/custom sections, creation of a positive monthly-rent stall under each; Head/Web, Mobile, records, collections and reports; check that Cantilan daily remains identical; browser viewport verification. A local build/test pass is not production proof.
+- These changes reside on the isolated `agent/tenant-terminal-facility-v10-20261022` branch, not on source `master`; no production deployment or APK publication is authorized by this note.
