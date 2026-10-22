@@ -31,3 +31,33 @@ A truly custom monthly Space Rental must use the `ObligationAccount`/period/allo
 ## Merge discipline
 
 Codex owns the Fish/Meat/NPM task in its own worktree. The multi-LGU workstream must never cherry-pick a Codex WIP commit or touch its checkout; integrate both against updated remote master after separate review and run conflict/diff checks, full relevant tests, disposable Postgres test suites and one tenant-isolation browser walkthrough. Keep AWS deploy, live data, APK and migrations untouched until that release is approved.
+## Terminal implementation checkpoint (22 October 2026)
+
+**Candidate code completed in the isolated agent branches, not merged/deployed:**
+
+- Versioned three-section Terminal declaration in the Landing onboarding workspace, with independent local names and selection, reusable shared validation library, preservation of unreadable newer drafts and operator activation mapping.
+- Backend `TerminalSectionSetting` entity (tenant ID + stable `TerminalSection` + enabled flag + local name + concurrency version + audit fields), isolated through automatic tenant-owned EF query filters.
+- Additive migration `20261022135153_AddTenantTerminalSectionSettings20261022` creating only `TerminalSectionSettings` with one unique row per `(MunicipalityId, Section)`. The migration has NOT been applied to any database.
+- Backend draft save/submission validation and activation-time stamping of explicitly selected OR disabled sections. No CT policy or collector assignment is created from the declaration.
+- Head-only settings change in `/api/terminal-sections` with GET for signed-in roles, concurrency conflict handling, first-edit legacy adoption, exact municipality scoping, and unique local names.
+- Head Terminal page editor, named cards, vehicle mappings and operational Terminal Report labels / CSV use tenant configuration. Disabled sections with historical collections remain visible in history, and the section's stable classification is unchanged.
+- Mobile collector options, vehicle choice quoting and source-native posting honor the backend enabled setting; disabled sections cannot be added to new collections, and current policy checks continue to govern whether Cash Ticket recording is allowed.
+- Existing municipalities with no configuration row retain the original three Cantilan section defaults for backward compatibility; explicitly configured municipalities with all three disabled do NOT automatically re-enable them.
+
+**Checks executed during isolated work:** EEMO Client and API builds successful (existing compiler warnings), 13 Operations component tests, 9 targeted EEMO unit tests, Landing tests 88/88 passing, Admin tests 153/153 passing. Initial parallel Vitest runs crashed due Node workers; sequential reruns passed. These do not replace a full disposable-Postgres integration run or actual browser/Collector APK E2E.
+
+**Important release gates before any integration/deployment:**
+
+1. Compare and regenerate EF model snapshot against the latest `master` **after Codex Fish/Meat migrations**; two agents may independently change `AppDbContextModelSnapshot.cs`. Resolve integration conflicts without discarding either migration.
+2. Run disposable PostgreSQL migration and tenant isolation tests (Cantilan legacy, Carmen all-disabled, Madrid renames, cross-tenant edits refused). Test Head edits and Collector quote/post rejection end-to-end, not only unit tests.
+3. Confirm approved Terminal instruments for each LGU: activation does NOT seed Cash Ticket classification policies for a new municipality. A selected terminal section is therefore initially *configured but not collectible* until an approved policy exists.
+4. Confirm report wording semantics: the operational Terminal report uses the latest local alias for stable section identities; official archival reporting must continue to reconcile original stable classification codes and collection evidence. No historical amounts have been reclassified or changed.
+5. Browser-check responsive Head drawer, Terminal screen and report; Mobile choices are API-derived but an APK E2E was not performed.
+
+### Custom Space Rental — separate financial model, not yet safely implemented
+
+The user's requested Space Rental `+ Add New` cannot use `Custom1..Custom5` as though it were a Stall Rent facility: those identities use `BillingArchetype.MonthlyRental`, the facility / Stall / Contract / PaymentRecord source. Existing Spaces instead use `ObligationAccount`, `ObligationKind`, a tenant and source-specific registration lifecycle, billing/allocations, collection authority and official report group.
+
+A production-valid generic custom Space Rental needs an explicit new stable source identity/tenant space-category registry, configured period and rate policy, contract terms where applicable, source versioning, obligor/space lookup, OR policy, Mobile permissions/choice generation, corrections/reversals, and report/source totals. Until that is built and tested, do not ship an onboarding `+ Add New` that invents an unsupported `ObligationKind` or misroutes it to the Custom Stall Rent endpoint. An LGU can already rename/select the existing built-in space operations through tenant operation settings; that is NOT the same as adding multiple independent sources.
+
+No code, migrations, or production changes for a **generic custom Space Rental** were made in this phase. This is a deliberate explicitly recorded functional boundary rather than a dummy button.

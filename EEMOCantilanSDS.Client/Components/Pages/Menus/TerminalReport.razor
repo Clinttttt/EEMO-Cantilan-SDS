@@ -10,6 +10,7 @@
 @using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Domain.Entities.Revenue
 @inject IOfficeSourcesApiClient OfficeApi
+@inject IOperationSettingsApiClient OperationSettingsApi
 @inject IJSRuntime JS
 
 <PageTitle>StallTrack — Income From Terminal Report</PageTitle>
@@ -83,7 +84,7 @@
                         {
                             var rows = _rows.Where(x => x.Section == section).ToList();
                             <tr>
-                                <th scope="row">@OfficeCollectionWorkflow.SectionName(section)</th>
+                                <th scope="row">@SectionName(section)</th>
                                 <td class="v3-num">@(Ready ? rows.Count.ToString("N0", CultureInfo.InvariantCulture) : "—")</td>
                                 <td class="v3-num">@(Ready ? Money(rows.Sum(x => x.NetAmount)) : "—")</td>
                                 <td class="v3-num">@(Ready ? Share(rows.Sum(x => x.NetAmount)) : "—")</td>
@@ -121,7 +122,7 @@
                             <tr>
                                 <td>@row.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)</td>
                                 <td>@row.SRC</td>
-                                <td>@(row.Section is { } s ? OfficeCollectionWorkflow.SectionName(s) : "—")</td>
+                                <td>@(row.Section is { } s ? SectionName(s) : "—")</td>
                                 <td>@(row.CollectorName ?? "—")</td>
                                 <td class="v3-num">@Money(row.NetAmount)</td>
                             </tr>
@@ -138,7 +139,12 @@
 </div>
 
 @code {
-    private static readonly TerminalSection[] Sections = Enum.GetValues<TerminalSection>();
+    private List<TerminalSectionSettingsStore.SectionView> _terminalSettings = [];
+    private IReadOnlyList<TerminalSection> Sections => Enum.GetValues<TerminalSection>()
+        .Where(section => _terminalSettings.Count == 0 || _terminalSettings.Any(x => x.Section == section && x.IsEnabled)
+            || _rows.Any(x => x.Section == section)).ToArray();
+    private string SectionName(TerminalSection section) =>
+        _terminalSettings.FirstOrDefault(x => x.Section == section)?.DisplayName ?? OfficeCollectionWorkflow.SectionName(section);
 
     private DateOnly _month = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
     private string _monthInput = PhilippineTime.Today.ToString("yyyy-MM", CultureInfo.InvariantCulture);
@@ -167,6 +173,9 @@
         _error = null;
         try
         {
+            var settings = await OperationSettingsApi.GetTerminalSectionsAsync();
+            if (settings.IsSuccess && settings.Value is { } values) _terminalSettings = values.ToList();
+            else { _terminalSettings = []; _error = "Terminal section configuration could not be loaded."; }
             var result = await OfficeApi.ActivityAsync(_month, _month.AddMonths(1).AddDays(-1), CollectorOperationCodes.Terminal);
             if (result.IsSuccess) _rows = result.Value?.ToList() ?? [];
             else { _rows = []; _error = "The Terminal collections couldn't be loaded."; }
@@ -208,7 +217,7 @@
         };
         lines.AddRange(_rows.OrderBy(x => x.BusinessDate).Select(x => Csv(
             x.BusinessDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), x.SRC,
-            x.Section is { } s ? OfficeCollectionWorkflow.SectionName(s) : "", x.CollectorName ?? "",
+            x.Section is { } s ? SectionName(s) : "", x.CollectorName ?? "",
             x.NetAmount.ToString("0.00", CultureInfo.InvariantCulture))));
         return string.Join("\r\n", lines);
     }

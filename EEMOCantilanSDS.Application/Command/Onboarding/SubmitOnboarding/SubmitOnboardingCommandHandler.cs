@@ -27,8 +27,8 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.SubmitOnboarding
 
             // A draft saved by an older workspace carries no declarations and passes. A malformed block is refused here too,
             // so a document that never went through the save validator cannot reach the operator.
-            var operationErrors = OnboardingOperationDeclarations.Validate(draft.ConfigJson);
-            if (operationErrors.Count > 0)
+            var operationErrors = OnboardingOperationDeclarations.Validate(draft.ConfigJson).Concat(OnboardingTerminalSections.Validate(draft.ConfigJson)).ToArray();
+            if (operationErrors.Length > 0)
                 return Result<OnboardingDraftDto>.Failure(string.Join(" ", operationErrors));
 
             var requestEntity = await context.AssessmentRequests

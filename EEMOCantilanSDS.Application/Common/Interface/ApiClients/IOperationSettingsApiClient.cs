@@ -7,6 +7,8 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 public interface IOperationSettingsApiClient
 {
     Task<Result<TenantOperationSettingsDto>> GetAsync();
+    Task<Result<IReadOnlyList<EEMOCantilanSDS.Application.Common.Revenue.TerminalSectionSettingsStore.SectionView>>> GetTerminalSectionsAsync();
+    Task<Result<IReadOnlyList<EEMOCantilanSDS.Application.Common.Revenue.TerminalSectionSettingsStore.SectionView>>> UpdateTerminalSectionAsync(EEMOCantilanSDS.Application.Dtos.Settings.TerminalSectionUpdateRequest request);
 
     Task<Result<TenantOperationSettingsDto>> UpdateAsync(string operationCode, UpdateTenantOperationSettingRequest request);
 }

@@ -30,6 +30,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<Municipality> Municipalities { get; }
         DbSet<OrSeriesConfig> OrSeriesConfigs { get; }
         DbSet<TenantOperationSetting> TenantOperationSettings { get; }
+        DbSet<TerminalSectionSetting> TerminalSectionSettings { get; }
         DbSet<FacilityRate> FacilityRates { get; }
         DbSet<RevenueClassification> RevenueClassifications { get; }
         DbSet<OfficialReportRevision> OfficialReportRevisions { get; }

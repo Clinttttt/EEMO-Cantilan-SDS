@@ -12,6 +12,9 @@
 @using EEMOCantilanSDS.Domain.Entities.Revenue
 @inject IOfficeSourcesApiClient OfficeApi
 @inject IVehicleClassesApiClient VehicleClassesApi
+@inject IOperationSettingsApiClient OperationSettingsApi
+@using EEMOCantilanSDS.Application.Common.Revenue
+@using EEMOCantilanSDS.Application.Dtos.Settings
 
 <PageTitle>StallTrack — Income From Terminal</PageTitle>
 
@@ -49,6 +52,43 @@
         </div>
     }
 
+    <AuthorizeView Roles="SuperAdmin">
+        <Authorized>
+            @if (_terminalSettings.Count > 0)
+            {
+                <section class="v3-panel trm2-settings" aria-labelledby="terminal-settings-title">
+                    <header class="v3-panel-header">
+                        <h2 id="terminal-settings-title">Terminal sections</h2>
+                        <button type="button" class="v3-btn v3-btn-sm" @onclick="() => _showSectionSettings = !_showSectionSettings"
+                            aria-expanded="@_showSectionSettings">@(_showSectionSettings ? "Close" : "Configure")</button>
+                    </header>
+                    @if (_showSectionSettings)
+                    {
+                        <div class="trm2-settings-body">
+                            <p class="v3-muted">Disable a section to stop new collections. Historical amounts remain in reporting. No setting grants Cash Ticket authority.</p>
+                            @foreach (var item in _terminalSettings)
+                            {
+                                <div class="trm2-settings-row" @key="item.Section">
+                                    <label class="trm2-settings-label"><input type="checkbox" checked="@item.IsEnabled"
+                                        @onchange="e => EditSection(item.Section, enabled: e.Value is true)" /> @OfficeCollectionWorkflow.SectionName(item.Section)</label>
+                                    <input class="v3-input trm2-settings-input" aria-label="@($"Local name for {item.Section}")" maxlength="80"
+                                        value="@item.LocalDisplayName" @oninput="e => EditSection(item.Section, name: e.Value?.ToString())"
+                                        placeholder="@OfficeCollectionWorkflow.SectionName(item.Section)" />
+                                    <button class="v3-btn v3-btn-sm" type="button" disabled="@_savingSection"
+                                        @onclick="() => SaveSectionAsync(item.Section)">Save</button>
+                                </div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(_sectionSaveMessage))
+                            {
+                                <p class="v3-muted" role="status">@_sectionSaveMessage</p>
+                            }
+                        </div>
+                    }
+                </section>
+            }
+        </Authorized>
+    </AuthorizeView>
+
     @* The three office sections side by side: each card carries the section's month total, its share of Terminal income and today's amount. *@
     <section aria-labelledby="trm2-sections-title" aria-busy="@(_loading ? "true" : "false")">
         <h2 id="trm2-sections-title" class="v3-sr-only">Sections</h2>
@@ -58,9 +98,9 @@
                 var monthRows = _rows.Where(x => x.Section == section).ToList();
                 var monthNet = monthRows.Sum(x => x.NetAmount);
                 <article class="v3-panel trm2-card" role="listitem">
-                    <h3 class="trm2-card-name">@OfficeCollectionWorkflow.SectionName(section)</h3>
+                    <h3 class="trm2-card-name">@SectionDisplayName(section)</h3>
                     <p class="trm2-card-amount">@Money(monthNet)</p>
-                    <progress class="trm2-bar" max="100" value="@SharePercent(monthNet)" aria-label="@($"{OfficeCollectionWorkflow.SectionName(section)} share of Terminal income this month")"></progress>
+                    <progress class="trm2-bar" max="100" value="@SharePercent(monthNet)" aria-label="@($"{SectionDisplayName(section)} share of Terminal income this month")"></progress>
                     <dl class="trm2-card-facts">
                         <div><dt>Today</dt><dd>@(IsCurrentMonth ? Money(monthRows.Where(x => x.BusinessDate == Today).Sum(x => x.NetAmount)) : "—")</dd></div>
                         <div><dt>Share this month</dt><dd class="trm2-share">@Contribution(monthNet)</dd></div>
@@ -99,7 +139,7 @@
                             <tr @key="row.CollectionId">
                                 <td>@row.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)</td>
                                 <td class="trm2-src">@row.SRC</td>
-                                <td>@(row.Section is { } s ? OfficeCollectionWorkflow.SectionName(s) : "—")</td>
+                                <td>@(row.Section is { } s ? SectionDisplayName(s) : "—")</td>
                                 <td>@(row.CollectorName ?? "—")</td>
                                 <td class="v3-num v3-strong">@Money(row.NetAmount)</td>
                             </tr>
@@ -136,7 +176,7 @@
                                 <td>
                                     @if (section is { } mapped)
                                     {
-                                        @OfficeCollectionWorkflow.SectionName(mapped)
+                                        @SectionDisplayName(mapped)
                                     }
                                     else
                                     {
@@ -145,8 +185,10 @@
                                             <Authorized>
                                                 <select class="trm2-map" aria-label="@($"Section for {vehicle.DisplayName}")" @onchange="e => MapAsync(vehicle, e.Value?.ToString())">
                                                     <option value="">Map to section…</option>
-                                                    <option value="@((int)TerminalSection.PullPulVansCargoVans)">@OfficeCollectionWorkflow.SectionName(TerminalSection.PullPulVansCargoVans)</option>
-                                                    <option value="@((int)TerminalSection.Tricycad)">@OfficeCollectionWorkflow.SectionName(TerminalSection.Tricycad)</option>
+                                                    @foreach (var option in _terminalSettings.Where(x => x.IsEnabled && (x.Section is TerminalSection.PullPulVansCargoVans or TerminalSection.Tricycad)))
+                                                    {
+                                                        <option value="@((int)option.Section)">@option.DisplayName</option>
+                                                    }
                                                 </select>
                                             </Authorized>
                                         </AuthorizeView>
@@ -169,7 +211,44 @@
 
 @code {
     private static DateOnly Today => PhilippineTime.Today;
-    private static readonly TerminalSection[] Sections = Enum.GetValues<TerminalSection>();
+    private IReadOnlyList<TerminalSection> Sections => Enum.GetValues<TerminalSection>()
+        .Where(section => _terminalSettings.Any(x => x.Section == section && x.IsEnabled)
+            || _rows.Any(x => x.Section == section) || _terminalSettings.Count == 0).ToArray();
+
+    private List<TerminalSectionSettingsStore.SectionView> _terminalSettings = [];
+    private bool _showSectionSettings;
+    private bool _savingSection;
+    private string? _sectionSaveMessage;
+    private string SectionDisplayName(TerminalSection section) =>
+        _terminalSettings.FirstOrDefault(x => x.Section == section)?.DisplayName ?? OfficeCollectionWorkflow.SectionName(section);
+    private void EditSection(TerminalSection section, bool? enabled = null, string? name = null)
+    {
+        _terminalSettings = _terminalSettings.Select(x => x.Section != section ? x : x with {
+            IsEnabled = enabled ?? x.IsEnabled,
+            LocalDisplayName = name ?? x.LocalDisplayName,
+            DisplayName = name is null ? x.DisplayName : string.IsNullOrWhiteSpace(name) ? OfficeCollectionWorkflow.SectionName(section) : name.Trim()
+        }).ToList();
+    }
+    private async Task SaveSectionAsync(TerminalSection section)
+    {
+        var row = _terminalSettings.Single(x => x.Section == section);
+        _savingSection = true;
+        _sectionSaveMessage = null;
+        try
+        {
+            var result = await OperationSettingsApi.UpdateTerminalSectionAsync(
+                new TerminalSectionUpdateRequest(section, row.IsEnabled, row.LocalDisplayName, row.Version));
+            if (result.IsSuccess && result.Value is { } updated)
+            {
+                _terminalSettings = updated.ToList();
+                _sectionSaveMessage = "Terminal section saved.";
+                await LoadAsync();
+            }
+            else _sectionSaveMessage = "Settings were not saved. Reload and try again.";
+        }
+        catch { _sectionSaveMessage = "Settings could not be saved."; }
+        finally { _savingSection = false; }
+    }
 
     private List<SourceNativeActivityDto> _rows = [];
     private List<VehicleClassDto> _classes = [];
@@ -214,6 +293,9 @@
         _error = null;
         try
         {
+            var settings = await OperationSettingsApi.GetTerminalSectionsAsync();
+            if (settings.IsSuccess && settings.Value is { } saved) _terminalSettings = saved.ToList();
+            else _error = "Terminal section settings could not be loaded.";
             var activity = await OfficeApi.ActivityAsync(_month, IsCurrentMonth ? Today : _month.AddMonths(1).AddDays(-1), CollectorOperationCodes.Terminal);
             if (activity.IsSuccess) _rows = activity.Value?.OrderByDescending(x => x.RecordedAtUtc).ToList() ?? [];
             else { _rows = []; _error = "The Terminal collections couldn't be loaded."; }

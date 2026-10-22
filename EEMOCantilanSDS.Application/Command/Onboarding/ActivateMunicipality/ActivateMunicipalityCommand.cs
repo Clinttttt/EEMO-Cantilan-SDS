@@ -24,7 +24,8 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
         ActivationOrSeries? OrSeries = null,
         DayOfWeek? TpmMarketDay = null,
         Guid? AssessmentRequestId = null,
-        IReadOnlyList<ActivationOperation>? OperationDeclarations = null) : IRequest<Result<ActivationResultDto>>;
+        IReadOnlyList<ActivationOperation>? OperationDeclarations = null,
+        IReadOnlyList<ActivationTerminalSection>? TerminalSectionDeclarations = null) : IRequest<Result<ActivationResultDto>>;
 
     /// <summary>
     /// One revenue operation the LGU declared at onboarding. Carried as tenant PRESENTATION configuration (listed or not, and the
@@ -32,6 +33,8 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
     /// (<c>null</c>, an older onboarding) leaves the municipality on the legacy fallback; an empty list means "explicitly nothing selected".
     /// </summary>
     public record ActivationOperation(string OperationCode, bool Selected, string? LocalDisplayName = null);
+    /// <summary>Stable terminal-section configuration; none of these fields authorizes CT posting.</summary>
+    public record ActivationTerminalSection(EEMOCantilanSDS.Domain.Entities.Revenue.TerminalSection Section, bool IsEnabled, string? LocalDisplayName = null);
 
     /// <summary>Official identity captured at onboarding, stamped onto the LGU's registry record.</summary>
     public record ActivationBranding(string OfficeName, string? Address, string? SealPath, string? OfficeAcronym = null);

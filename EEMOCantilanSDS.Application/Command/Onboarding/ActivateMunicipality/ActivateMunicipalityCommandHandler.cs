@@ -183,6 +183,15 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                 }
             }
 
+            // Terminal sections are independent from per-trip TRM facility configuration. Persist all three
+            // choices (including unchecked) atomically with activation; selecting one never seeds a CT policy.
+            if (request.TerminalSectionDeclarations is { } terminalSections)
+            {
+                foreach (var section in terminalSections)
+                    context.TerminalSectionSettings.Add(TerminalSectionSetting.Create(
+                        section.Section, section.IsEnabled, section.LocalDisplayName, municipality.Id, "Activation"));
+            }
+
             // 3d) Optional OR-series suggestion config (one per LGU). OR numbers stay manually entered; this
             //     only seeds the suggested format the portal pre-fills.
             var orSeriesConfigured = false;

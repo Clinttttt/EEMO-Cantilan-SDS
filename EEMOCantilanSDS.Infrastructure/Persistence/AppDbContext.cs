@@ -114,6 +114,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         public DbSet<TenantBackup> TenantBackups { get; set; }
         public DbSet<OrSeriesConfig> OrSeriesConfigs { get; set; }
         public DbSet<TenantOperationSetting> TenantOperationSettings { get; set; }
+        public DbSet<TerminalSectionSetting> TerminalSectionSettings { get; set; }
         public DbSet<FacilityRate> FacilityRates { get; set; }
         public DbSet<RevenueClassification> RevenueClassifications { get; set; }
         public DbSet<RevenueClassificationPolicy> RevenueClassificationPolicies { get; set; }

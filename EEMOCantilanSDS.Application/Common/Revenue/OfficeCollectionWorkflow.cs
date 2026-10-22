@@ -78,6 +78,7 @@ public sealed partial class OfficeCollectionWorkflow(IAppDbContext db, ICurrentU
         if (!TenantValid || !user.IsAuthenticated || user.Role != "SuperAdmin") return Result<bool>.Forbidden();
         var vehicle = await db.VehicleClasses.SingleOrDefaultAsync(x => x.MunicipalityId == Tenant && x.Id == request.VehicleClassId, ct);
         if (vehicle is null) return Result<bool>.NotFound();
+        if (!await TerminalSectionSettingsStore.AllowsAsync(db, Tenant, request.Section, ct)) return Result<bool>.Failure("TerminalSectionNotEnabled", ResultStatus.Invalid);
         try { vehicle.AssociateTerminalSection(request.Section); }
         catch (ArgumentException e) { return Result<bool>.Failure(e.Message, ResultStatus.Invalid); }
         await db.SaveChangesAsync(ct); return Result<bool>.Success(true);
@@ -86,7 +87,8 @@ public sealed partial class OfficeCollectionWorkflow(IAppDbContext db, ICurrentU
     {
         if (!TenantValid || !user.IsAuthenticated || user.Role is not ("SuperAdmin" or "Admin" or "Collector")) return [];
         if (user.Role == "Collector" && !await IsAssignedAsync(CollectorOperationCodes.Terminal, ct)) return [];
-        var vehicles = (await db.VehicleClasses.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.IsActive).ToListAsync(ct)).Where(x => x.EffectiveTerminalSection != null).ToList();
+        var enabledSections = (await TerminalSectionSettingsStore.ReadAsync(db, Tenant, ct)).Where(x => x.IsEnabled).Select(x => x.Section).ToHashSet();
+        var vehicles = (await db.VehicleClasses.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.IsActive).ToListAsync(ct)).Where(x => x.EffectiveTerminalSection is { } section && enabledSections.Contains(section)).ToList();
         var ids = vehicles.Select(x => x.Id).ToArray();
         var versions = (await db.VehicleClassRates.AsNoTracking().Where(x => x.MunicipalityId == Tenant && ids.Contains(x.VehicleClassId)).ToListAsync(ct)).ToLookup(x => x.VehicleClassId);
         return vehicles.Select(v => (v, rate: VehicleClassRate.Resolve(versions[v.Id], date))).Where(x => x.rate is not null)
@@ -108,7 +110,9 @@ public sealed partial class OfficeCollectionWorkflow(IAppDbContext db, ICurrentU
         {
             if (charge.Section is not { } section || !Enum.IsDefined(section) || charge.CashTicketCount is < 0 || charge.VendorRegistrationId.HasValue || charge.Kilograms.HasValue)
                 return (null, "InvalidTerminalSection");
-            code = SectionCode(section); label = SectionName(section);
+            if (!await TerminalSectionSettingsStore.AllowsAsync(db, Tenant, section, ct)) return (null, "TerminalSectionNotEnabled");
+            code = SectionCode(section);
+            label = (await TerminalSectionSettingsStore.ReadAsync(db, Tenant, ct)).First(x => x.Section == section).DisplayName;
             if (charge.VehicleClassId is { } vehicleId)
             {
                 var vehicle = (await VehicleChoicesAsync(request.BusinessDate, ct)).SingleOrDefault(x => x.VehicleClassId == vehicleId && x.Section == section);
