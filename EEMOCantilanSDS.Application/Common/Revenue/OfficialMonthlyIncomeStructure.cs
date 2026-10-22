@@ -59,7 +59,7 @@ public static class OfficialMonthlyIncomeStructure
         new(RevenueClassificationCodes.TerminalPullPulVansCargoVans, "PULL PUL VANS, CARGO VANS", Terminal, RevenueClassificationCodes.TerminalPullPulVansCargoVans),
         new(RevenueClassificationCodes.TerminalTricycad, "TRICYCAD", Terminal, RevenueClassificationCodes.TerminalTricycad),
         new("SLAUGHTERHOUSE", "Income from Slaughterhouse", Slaughterhouse, RevenueClassificationCodes.Slaughterhouse),
-        new("RENT_OTHER", "Other monthly rental facilities", Rent, RevenueClassificationCodes.PermanentStallRent),
+        new("RENT_OTHER", "Rent - other rental facilities", Pending, RevenueClassificationCodes.PermanentStallRent),
     ];
 
     /// <summary>

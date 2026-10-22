@@ -7,10 +7,10 @@ namespace EEMOCantilanSDS.Testing.Application.Reports;
 public class CustomRentalGroupingTests
 {
     [Fact]
-    public void CustomMonthlyRent_UsesStableOtherRentalRowInRentGroup()
+    public void CustomMonthlyRent_PreservesPendingReportRowUntilApproval()
     {
         var row = Assert.Single(OfficialMonthlyIncomeStructure.Rows, x => x.Key == "RENT_OTHER");
-        Assert.Equal(OfficialMonthlyIncomeStructure.Rent, row.GroupKey);
+        Assert.Equal(OfficialMonthlyIncomeStructure.Pending, row.GroupKey);
         Assert.Equal(RevenueClassificationCodes.PermanentStallRent, row.ClassificationCode);
         Assert.Null(row.Facility);
 
