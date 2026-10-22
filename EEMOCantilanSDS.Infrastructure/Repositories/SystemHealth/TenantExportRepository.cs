@@ -50,6 +50,7 @@ public class TenantExportRepository(AppDbContext context, ITenantRestoreSchemaRe
             ["FacilitySectionClosures"] = await context.FacilitySectionClosures.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["OrSeriesConfigs"] = await context.OrSeriesConfigs.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["TenantOperationSettings"] = await context.TenantOperationSettings.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
+            ["TerminalSectionSettings"] = await context.TerminalSectionSettings.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["RevenueClassifications"] = await context.RevenueClassifications.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["RevenueClassificationPolicies"] = await context.RevenueClassificationPolicies.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["Collections"] = await context.Collections.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
