@@ -76,6 +76,21 @@ public sealed class RevenueTrendPanelTests : TestContext
         Assert.DoesNotContain("₱10,000.00", string.Concat(rows));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void HighValuesKeepExactAccessibleAmountsAndLabelsAreAnchoredToThePlot(bool annual)
+    {
+        for (var year = 2020; year < 2024; year++) Serve(year, Statement(year, null, Group("MARKET", "Market", 0m)));
+        Serve(2024, Statement(2024, null, Group("MARKET", "Market", 9_999_999m)));
+        var cut = RenderComponent<RevenueTrendPanel>(p => p.Add(x => x.Year, 2024).Add(x => x.Annual, annual));
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".bar-wrap > .bar-top")), Timeout);
+        Assert.Equal("₱9,999,999.00", cut.Find(".bar-top").GetAttribute("title"));
+        Assert.Contains(cut.FindAll(".bar-group"), x => x.GetAttribute("aria-label")!.Contains("₱9,999,999.00"));
+        Assert.NotEmpty(cut.FindAll(".bar-none"));
+        Assert.Empty(cut.FindAll(".bar .bar-top"));
+    }
+
     [Fact]
     public void Annual_ReadsFiveYears_StatesTargetCoverage_AndNeverDrawsAnUnreadableYearAsZero()
     {

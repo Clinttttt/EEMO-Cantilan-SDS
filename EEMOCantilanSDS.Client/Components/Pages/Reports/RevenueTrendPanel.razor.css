@@ -64,6 +64,8 @@
 
 /* ── Chart: the report's own bar design (raised 3D bars, mono axis, lift on hover, white tooltip), stacked by revenue group ── */
 .rtp-chart {
+    --plot-height: 160px;
+    --label-room: 34px;
     display: flex;
     align-items: flex-start;
     gap: 12px;
@@ -75,7 +77,8 @@
     flex-direction: column;
     justify-content: space-between;
     flex-shrink: 0;
-    height: 160px;
+    height: var(--plot-height);
+    margin-top: var(--label-room);
     color: var(--text-subtle);
     font-family: 'DM Mono', monospace;
     font-size: 11px;
@@ -91,13 +94,13 @@
 
 .rpt-grid {
     position: absolute;
-    top: 0;
+    top: var(--label-room);
     right: 0;
     left: 0;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    height: 160px;
+    height: var(--plot-height);
     pointer-events: none;
 }
 
@@ -111,10 +114,9 @@
     position: relative;
     z-index: 1;
     display: flex;
-    align-items: flex-end;
+    align-items: flex-start;
     gap: 10px;
-    height: 190px;
-    padding: 0 2px;
+    padding: var(--label-room) 2px 0;
 }
 
 .bar-group {
@@ -128,12 +130,13 @@
 }
 
 .bar-wrap {
+    --depth: 6px;
     position: relative;
     display: flex;
     align-items: flex-end;
     justify-content: center;
     width: 100%;
-    height: 160px;
+    height: var(--plot-height);
 }
 
 .bar {
@@ -210,6 +213,9 @@
     font-size: 10.5px;
     font-weight: 700;
     white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* A period with no money keeps a thin trace on the baseline, so a missing month reads as zero rather than as a gap. */

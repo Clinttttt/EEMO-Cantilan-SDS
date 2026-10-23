@@ -1,5 +1,6 @@
 ﻿@using System.Security.Claims
 @using EEMOCantilanSDS.Application.Dtos.Tenancy
+@using EEMOCantilanSDS.Client.Services
 @inject IOnlinePaymentsApiClient OnlinePaymentsApi
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Nav
@@ -18,7 +19,10 @@
 <aside class="sidebar @(SidebarCollapsed ? "collapsed" : "") @(_mobileOpen ? "mobile-open" : "")">
     <div class="sidebar-brand">
         <div class="sidebar-seal">
-            <img src="@Branding.SealPath" alt="@Branding.Municipality" />
+            @{ var sealPath = Branding.SealPath; }
+            <img @key="sealPath" src="@(_failedSealPath == sealPath ? BrandingState.WaitingSealPath : sealPath)"
+                 alt="@(_failedSealPath == sealPath ? "Municipal seal unavailable" : Branding.Municipality)"
+                 @onerror="() => _failedSealPath = sealPath" />
         </div>
         <div class="sidebar-brand-text">
             <div class="sidebar-brand-name">STALLTRACK</div>
@@ -127,6 +131,7 @@
 @* Cross-page "restore complete" popup — event-driven (subscribes to the scoped RestoreNotifier); no timer here. *@
 
 @code {
+    private string? _failedSealPath;
     private bool SidebarCollapsed;
     private bool _mobileOpen;   // off-canvas drawer open state (mobile only; desktop ignores it)
     private string _portalLabel = "Admin Portal";

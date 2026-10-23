@@ -53,6 +53,26 @@ public sealed class SidebarNavigationTests : TestContext
     }
 
     [Fact]
+    public void BrokenSealUsesNeutralFallback_AndUpdatedVersionIsRetried()
+    {
+        var branding = Services.GetRequiredService<BrandingState>();
+        var tenant = new EEMOCantilanSDS.Application.Dtos.Tenancy.MunicipalityBrandingDto(
+            Code: "TEST", TenantCode: "test", Name: "Test municipality", Province: "Test province",
+            OfficeName: "Test office", SealPath: "https://api.test/seal?v=1", Status: "Active", IsActive: true);
+        branding.Apply(tenant);
+        var cut = RenderComponent<Sidebar>();
+        var image = cut.Find(".sidebar-seal img");
+        Assert.Equal(tenant.SealPath, image.GetAttribute("src"));
+        image.TriggerEvent("onerror", new EventArgs());
+        Assert.Equal(BrandingState.WaitingSealPath, cut.Find(".sidebar-seal img").GetAttribute("src"));
+        Assert.DoesNotContain("LGU_CANTILAN_LOGO", cut.Markup);
+
+        branding.Apply(tenant with { SealPath = "https://api.test/seal?v=2" });
+        cut.Render();
+        Assert.Equal("https://api.test/seal?v=2", cut.Find(".sidebar-seal img").GetAttribute("src"));
+    }
+
+    [Fact]
     public void HeadSeesTheCuratedDestinationsInOrder()
     {
         var cut = RenderComponent<Sidebar>();

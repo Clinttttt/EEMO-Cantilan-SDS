@@ -66,8 +66,8 @@
                                 @if (StackTotal(p) > 0m && _max > 0m)
                                 {
                                     var stack = StackTotal(p);
+                                    <span class="bar-top" style="bottom:calc(@Pct(stack)% + var(--depth) + 4px)" title="@Money(p.Official)" aria-hidden="true">@Compact(p.Official)</span>
                                     <div class="bar" style="height:@Pct(stack)%">
-                                        <span class="bar-top" aria-hidden="true">@Compact(p.Official)</span>
                                         <div class="bar-stack">
                                             @foreach (var s in _series)
                                             {

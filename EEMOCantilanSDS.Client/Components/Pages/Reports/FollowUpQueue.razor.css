@@ -21,7 +21,7 @@
 .fq-navrow ::deep .mt-tabs {
     margin: 0;
     border-bottom: 0;
-    flex: 0 0 auto;
+    flex: 1 1 auto;
 }
 .fq-navrow .fq-search {
     flex: 0 1 340px;
@@ -59,7 +59,7 @@
     .fq-navrow .fq-search { order: 3; margin-left: 0; flex: 1 1 100%; max-width: none; }
 }
 @media (max-width: 560px) {
-    .fq-navrow ::deep .mt-tabs { flex: 1 1 100%; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
+    .fq-navrow ::deep .mt-tabs { flex: 1 1 100%; min-width: 0; }
     .fq-navrow ::deep .mt-tab { flex-shrink: 0; white-space: nowrap; padding-inline: 10px; }
     .fq-source-select { flex: 0 0 145px; }
 }
