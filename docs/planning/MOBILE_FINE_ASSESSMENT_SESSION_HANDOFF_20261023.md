@@ -43,3 +43,9 @@ One New Collection checkout can include rent and fine together; it records **one
 - `EEMOCantilanSDS.Mobile.ComponentTests/CollectionSessionEditorTests.cs`
 
 External release-progress log: `C:\dev\stalltrack\release-evidence\V13_MOBILE_ASSESSED_FINES_IMPLEMENTATION_PROGRESS_20261023.md`.
+
+## Follow-up verification — 2026-10-24 (linked NPM Fish/Meat vendor)
+
+- Added `EEMOCantilanSDS.IntegrationTests/CollectionSessionTests.LinkedFineAssessments.cs` as a **test-only** source-linking regression. No production code adjustment was necessary: existing native discovery recursively includes an office-confirmed vendor's linked occupancy choices, and `FineMatchesSessionAsync` rechecks the precise occupancy link during review and posting.
+- Actual disposable PostgreSQL Testcontainers result: **1 passed / 0 failed / 0 skipped** (`Verified_vendor_occupancy_inherits_exact_assessed_fine_but_same_name_never_does`). A Head-created approved NPM contract fine appears under the verified Fish/Meat vendor, is not shown or payable for an unlinked same-name registration, posts through the typed Mobile intent into an `SRC-` collection and `FineAssessment` allocation, and clears the outstanding balance.
+- This test is in addition to the original 74 fine-assessment regression tests, 67 Mobile editor tests, 4 session identity tests, and Android build checks. It does **not** establish uncached offline discovery, physical device visual acceptance, source search coverage of closed historical registrations or production rollout readiness.
