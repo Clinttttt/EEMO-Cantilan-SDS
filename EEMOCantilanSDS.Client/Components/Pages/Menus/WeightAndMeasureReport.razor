@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @using System.Globalization
 @using EEMOCantilanSDS.Application.Dtos.Facilities
+@using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
@@ -63,8 +64,24 @@
 
         <OperationMonthlyIncome Classification="Weight & Measure" RowKey="WEIGHT_AND_MEASURE" Year="_period.Year" HeadingId="wmr-official" />
 
+        <section class="v3-report-section" aria-labelledby="wmr-source-native">
+            <h3 id="wmr-source-native">Registered Fish / Meat vendor weighing</h3>
+            <dl class="v3-report-summary">
+                <div><dt>Fish weighing</dt><dd>@(_sourceReport is null ? "—" : Money(_sourceReport.FishTotal))</dd></div>
+                <div><dt>Meat weighing</dt><dd>@(_sourceReport is null ? "—" : Money(_sourceReport.MeatTotal))</dd></div>
+                <div><dt>Total registered-vendor weighing</dt><dd>@(_sourceReport is null ? "—" : Money(_sourceReport.Total))</dd></div>
+            </dl>
+            <div class="v3-table-wrap"><table class="v3-report-table"><thead><tr><th>Date</th><th>Reference</th><th>Vendor</th><th>Type</th><th class="v3-num">Kilos</th><th class="v3-num">Rate/kg</th><th class="v3-num">Net amount</th></tr></thead><tbody>
+                @foreach (var row in _sourceReport?.Rows ?? [])
+                {
+                    <tr><td>@row.BusinessDate.ToString("MMM d")</td><td>@row.ReferenceCode</td><td>@row.Vendor</td><td>@row.VendorType</td><td class="v3-num">@Kilos(row.Kilograms)</td><td class="v3-num">@Money(row.RatePerKilo)</td><td class="v3-num">@Money(row.NetAmount)</td></tr>
+                }
+                @if (_sourceReport?.Rows.Count is not > 0) { <tr><td colspan="7" class="v3-report-note">No registered-vendor weighing was recorded for this month.</td></tr> }
+            </tbody></table></div>
+        </section>
+
         <section class="v3-report-section" aria-labelledby="wmr-summary">
-            <h3 id="wmr-summary">Summary</h3>
+            <h3 id="wmr-summary">Historical NPM weighing evidence</h3>
             <dl class="v3-report-summary">
                 <div><dt>Meat weighing</dt><dd>@(_report?.FeeTypeBreakdown is { } meat ? Money(meat.MeatWeightMeasureAmount) : "—")</dd></div>
                 <div><dt>Fish weighing</dt><dd>@(_report?.FeeTypeBreakdown is { } fish ? Money(fish.FishWeightMeasureFrozenAmount) : "—")</dd></div>
@@ -75,7 +92,7 @@
         </section>
 
         <section class="v3-report-section" aria-labelledby="wmr-fish">
-            <h3 id="wmr-fish">Fish weighing</h3>
+            <h3 id="wmr-fish">Historical NPM Fish weighing by stall</h3>
             <div class="v3-table-wrap">
                 <table class="v3-report-table">
                     <thead>
@@ -118,11 +135,12 @@
     private DateOnly _period = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
     private string _monthInput = PhilippineTime.Today.ToString("yyyy-MM", CultureInfo.InvariantCulture);
     private FacilityReportsDto? _report;
+    private WeighingCollectionReportDto? _sourceReport;
     private bool _loading = true;
     private string? _error;
 
     private string PeriodLabel => _period.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
-    private bool Ready => !_loading && _error is null && _report is not null;
+    private bool Ready => !_loading && _error is null && _sourceReport is not null;
 
     /// <summary>NPM stalls that carry fish weighing evidence for the month, as the server reports them.</summary>
     private IEnumerable<StallComplianceDto> FishRows =>
@@ -150,14 +168,17 @@
         _error = null;
         try
         {
+            var source = await FacilitiesApi.GetWeighingSourceNativeReportAsync(_period.Year, _period.Month);
+            _sourceReport = source.IsSuccess ? source.Value : null;
+            if (!source.IsSuccess) _error = source.Error ?? "Registered-vendor weighing records couldn't be loaded.";
             var report = await FacilitiesApi.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, _period.Year, _period.Month);
             if (report.IsSuccess) _report = report.Value;
-            else { _report = null; _error = "NPM weighing records couldn't be loaded."; }
+            else { _report = null; /* No NPM is valid for an LGU that only operates Weight & Measure. */ }
         }
         catch
         {
             _report = null;
-            _error = "NPM weighing records couldn't be loaded.";
+            _error = "Weighing records couldn't be loaded.";
         }
         finally { _loading = false; }
     }
@@ -181,8 +202,13 @@
             Csv("Instrument", "Official Receipt"),
             Csv("Date prepared", PhilippineTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
             string.Empty,
-            Csv("Occupant", "Stall", "Section", "Fish kilos weighed"),
+            Csv("Registered vendor date", "Reference", "Vendor", "Type", "Kilograms", "Frozen rate/kg", "Net amount", "Status"),
         };
+        rows.AddRange((_sourceReport?.Rows ?? []).Select(x => Csv(x.BusinessDate.ToString("yyyy-MM-dd"), x.ReferenceCode,
+            x.Vendor, x.VendorType.ToString(), x.Kilograms.ToString("0.00", CultureInfo.InvariantCulture),
+            x.RatePerKilo.ToString("0.00", CultureInfo.InvariantCulture), x.NetAmount.ToString("0.00", CultureInfo.InvariantCulture), x.Status)));
+        rows.Add(string.Empty);
+        rows.Add(Csv("Historical NPM occupant", "Stall", "Section", "Fish kilos weighed"));
         rows.AddRange(FishRows.Select(x => Csv(Occupant(x), x.StallNo, x.Section, x.FishKilos.ToString("0.00", CultureInfo.InvariantCulture))));
         return string.Join("\r\n", rows);
     }

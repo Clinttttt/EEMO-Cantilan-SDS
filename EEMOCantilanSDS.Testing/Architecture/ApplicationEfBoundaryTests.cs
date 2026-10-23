@@ -177,6 +177,10 @@ public class ApplicationEfBoundaryTests
         "MonthlyRentCollectionSourceAdapter.cs",
         // IA-067/068 reuse the canonical coordinator and the daily handler within the established shared transaction.
         "OfficeCollectionWorkflow.cs",
+        // Independent Fish/Meat rates must be selected inside the same tenant-scoped quote/post boundary;
+        // the service reads explicit append-only versions or the tenant's historical facility-rate row,
+        // never cross-tenant defaults. This is the same EF boundary as OfficeCollectionWorkflow.
+        "WeighingRateSchedule.cs",
         "OfficeCollectionWorkflow.Reads.cs", // Tenant-scoped canonical audit read for the same source-owned writer.
         "NpmDailyBatchWorkflow.cs",
         // Collector self-correction releases allocations/daily projections and re-quotes the existing source writer

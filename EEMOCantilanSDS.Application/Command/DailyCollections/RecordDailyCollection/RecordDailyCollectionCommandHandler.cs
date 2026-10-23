@@ -22,13 +22,22 @@ public class RecordDailyCollectionCommandHandler(
     IFeeRateResolver feeRateResolver,
     ITenantContext tenantContext,
     Common.Revenue.NpmDailyCanonicalPoster? canonical = null,
-    Common.Payments.NpmRentMonthWorkflow? monthly = null) : IRequestHandler<RecordDailyCollectionCommand, Result<bool>>
+    Common.Payments.NpmRentMonthWorkflow? monthly = null,
+    IAppDbContext? db = null) : IRequestHandler<RecordDailyCollectionCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(RecordDailyCollectionCommand request, CancellationToken ct)
     {
         var stall = await stallRepository.GetByIdAsync(request.StallId, ct);
         if (stall is null)
             return Result<bool>.NotFound();
+        // A municipality that has adopted independent Weight & Measure cannot start NEW
+        // NPM-linked kilo charges on the old rent/day form. Use its registered Fish/Meat vendor
+        // source and approved rate. Historical NPM weighing before adoption is unchanged.
+        if (db is not null && (request.FishKilos is > 0m || request.MeatKilos is > 0m)
+            && await Common.Revenue.WeighingRateSchedule.HasAdoptedIndependentRatesAsync(
+                db, stall.MunicipalityId, request.CollectionDate, ct))
+            return Result<bool>.Failure("Collect Weight & Measure through the registered Fish/Meat vendor instead of an NPM daily entry.", ResultStatus.Conflict);
+
         if (stall.Facility?.IsMonthlyRentMarket == true)
             return Result<bool>.Failure("This market collects standard monthly rent. Record the payment against the month's rent, not the daily calendar.", ResultStatus.Invalid);
 

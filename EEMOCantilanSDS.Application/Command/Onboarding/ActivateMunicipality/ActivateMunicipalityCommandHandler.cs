@@ -127,6 +127,17 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                     r.FacilityCode, r.Key, r.Amount, RateEffectiveFrom, municipality.Id, "Activation"));
             }
 
+            // 3a) Independent weighing rates are optional in older onboarding drafts. When present,
+            // record BOTH Fish and Meat explicitly so a disabled type cannot inherit an NPM legacy rate.
+            if (request.WeighingConfiguration is { } weighing)
+            {
+                var effectivity = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(8));
+                context.WeighingRateVersions.Add(WeighingRateVersion.Create(municipality.Id, FishMeatVendorType.Fish,
+                    weighing.FishEnabled, weighing.FishRatePerKilo, effectivity, "Activation"));
+                context.WeighingRateVersions.Add(WeighingRateVersion.Create(municipality.Id, FishMeatVendorType.Meat,
+                    weighing.MeatEnabled, weighing.MeatRatePerKilo, effectivity, "Activation"));
+            }
+
             // 3b) Custom slaughterhouse animal types (beyond Hog/Carabao/Cow) with their default per-head
             //     rates — seeded into the LGU's own registry so the SLH record screen can offer them later.
             var customAnimalsCreated = 0;
@@ -180,7 +191,7 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                     // authorized, and the utility workflows keep refusing until the Head approves an instrument in Revenue Setup.
                     // It exists so Revenue Setup lists the source (with its Setup-required state) instead of the Head having to
                     // know and type an internal code. An unselected operation gets nothing.
-                    if (selected && entry.Code is "ECF" or "WCF")
+                    if (selected && entry.Code is "ECF" or "WCF" or "WEIGHT_AND_MEASURE")
                         context.RevenueClassifications.Add(RevenueClassification.Create(entry.ClassificationCode, municipality.Id, "Activation"));
                 }
             }

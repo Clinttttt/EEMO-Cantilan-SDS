@@ -7,6 +7,7 @@ using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Client.Components.Pages.Menus;
 using EEMOCantilanSDS.Client.Services;
+using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
@@ -16,9 +17,9 @@ using Moq;
 namespace EEMOCantilanSDS.ComponentTests.Pages;
 
 /// <summary>
-/// ONE SOURCE OWNER: NPM owns the Fish / Meat stalls and weighing records. Fish / Meat Vendor Fees and Weight &amp;
-/// Measure are focused, read-only financial views over that source — they add no vendor, stall, collector, payment or
-/// weighing action, and they never take a figure from stall rent.
+/// Fish / Meat Vendor Fee and independent Weight &amp; Measure remain separate operations.
+/// Existing NPM weighing evidence is historical and frozen, while new registered-vendor weighing
+/// has its own source-native read model. Neither view recalculates amounts from current stall rent.
 /// </summary>
 public sealed class FishMeatWorkspaceTests : TestContext
 {
@@ -37,6 +38,12 @@ public sealed class FishMeatWorkspaceTests : TestContext
             .ReturnsAsync(Result<IReadOnlyList<FacilitySidebarSummaryDto>>.Success(
                 new[] { new FacilitySidebarSummaryDto(FacilityCode.NPM, "Tenant Public Market", "TPM", 0) }));
         _stalls.Setup(x => x.GetNpmRatesAsync()).ReturnsAsync(Result<NpmRatesDto>.Success(new NpmRatesDto(30m, 1m)));
+        // This page now reads an independent registered-vendor source in addition to the historical NPM source.
+        // Supply both read models so existing historical financial evidence assertions remain meaningful.
+        _facilities.Setup(x => x.GetWeighingConfigurationAsync()).ReturnsAsync(
+            Result<WeighingConfigurationDto>.Success(new(PhilippineTime.Today, PhilippineTime.Today.AddDays(1), [], [])));
+        _facilities.Setup(x => x.GetWeighingSourceNativeReportAsync(It.IsAny<int>(), It.IsAny<int>()))
+            .ReturnsAsync(Result<WeighingCollectionReportDto>.Success(new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, [])));
 
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());

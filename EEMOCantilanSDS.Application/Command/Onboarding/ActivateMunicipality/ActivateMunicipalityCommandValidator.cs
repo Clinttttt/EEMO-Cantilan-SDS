@@ -178,6 +178,18 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                 .WithMessage(
                     "A market measured by the days a month has cannot also state a monthly rent. Remove the monthly stall "
                     + "rate, or declare the monthly-rent basis instead.");
+            When(x => x.WeighingConfiguration is not null, () =>
+            {
+                RuleFor(x => x.WeighingConfiguration!)
+                    .Must(w => ValidWeighing(w.FishEnabled, w.FishRatePerKilo)
+                        && ValidWeighing(w.MeatEnabled, w.MeatRatePerKilo))
+                    .WithMessage("Each enabled weighing type needs a positive per-kg rate (maximum 2 decimals); disabled types must have no rate.");
+                RuleFor(x => x).Must(c => c.OperationDeclarations is null ||
+                    c.OperationDeclarations.Any(o => o.OperationCode == "WEIGHT_AND_MEASURE" && o.Selected)
+                    || !(c.WeighingConfiguration!.FishEnabled || c.WeighingConfiguration.MeatEnabled))
+                    .WithMessage("Weight & Measure must be declared when Fish or Meat weighing is enabled.");
+            });
+
             RuleForEach(x => x.Rates).ChildRules(r =>
             {
                 r.RuleFor(x => x.Amount).GreaterThanOrEqualTo(0m).WithMessage("Rate amount cannot be negative.");
@@ -267,5 +279,8 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                     .WithMessage("OR pad width must be between 0 and 12.");
             });
         }
+
+        private static bool ValidWeighing(bool enabled, decimal? rate) =>
+            !enabled ? rate is null : rate is > 0m and <= 999999m && decimal.Round(rate.Value, 2) == rate;
     }
 }

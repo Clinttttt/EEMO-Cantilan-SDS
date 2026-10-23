@@ -145,14 +145,17 @@ public sealed partial class OfficeCollectionWorkflow(IAppDbContext db, ICurrentU
             {
                 if (vendor is null) return (null, "RequiresRegisteredVendor");
                 if (charge.Kilograms is not { } kg || kg <= 0m || kg > 1_000_000m || decimal.Round(kg, 2) != kg) return (null, "InvalidQuantity");
-                var key = vendor.VendorType == FishMeatVendorType.Fish ? FeeRateKey.NpmFishPerKilo : FeeRateKey.NpmMeatPerKilo;
-                var entry = (await rates.GetSnapshotAsync(ct)).ResolveEntryOrNull(key, request.BusinessDate);
-                if (entry is not { Amount: > 0m }) return (null, "RateNotEffective");
-                var rate = await db.FacilityRates.AsNoTracking().SingleOrDefaultAsync(x => x.MunicipalityId == Tenant && x.FacilityCode == entry.Value.Facility && x.RateKey == key && x.EffectiveDate == entry.Value.EffectiveDate, ct);
+                var rate = await WeighingRateSchedule.ResolveAsync(db, rates, Tenant, vendor.VendorType, request.BusinessDate, ct);
                 if (rate is null) return (null, "RateNotEffective");
-                amount = decimal.Round(kg * rate.Amount, 2, MidpointRounding.AwayFromZero);
-                rateId = rate.Id; rateDate = rate.EffectiveDate; approvedRate = rate.Amount;
-                calculation = new { Vendor = ToDto(vendor), Kilograms = kg, RateId = rate.Id, Rate = rate.Amount, RateEffectiveDate = rate.EffectiveDate, rate.UpdatedAt };
+                amount = decimal.Round(kg * rate.RatePerKilo, 2, MidpointRounding.AwayFromZero);
+                rateId = rate.Id; rateDate = rate.EffectiveDate; approvedRate = rate.RatePerKilo;
+                // Preserve the exact legacy calculation JSON shape on unchanged NPM rates:
+                // queued offline quotes issued before this upgrade must retain their source version.
+                calculation = rate.Legacy
+                    ? new { Vendor = ToDto(vendor), Kilograms = kg, RateId = rate.Id, Rate = rate.RatePerKilo,
+                        RateEffectiveDate = rate.EffectiveDate, rate.UpdatedAt }
+                    : new { Vendor = ToDto(vendor), Kilograms = kg, RateId = rate.Id, Rate = rate.RatePerKilo,
+                        RateEffectiveDate = rate.EffectiveDate, rate.Legacy };
                 code = RevenueClassificationCodes.WeightAndMeasure; label = "Weight & Measure";
             }
         }
