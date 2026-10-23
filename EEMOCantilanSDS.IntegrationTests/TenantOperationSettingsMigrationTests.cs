@@ -82,7 +82,22 @@ public sealed class TenantOperationSettingsMigrationTests(PostgresFixture db)
             await using (var seed = OpenApp(cs))
             {
                 seed.Municipalities.Add(municipality);
-                seed.Facilities.Add(Facility.Create(FacilityCode.NPM, "New Public Market", "NPM", archetype: BillingArchetype.DailyStall, municipalityId: cantilan));
+                await seed.SaveChangesAsync();
+
+                // Seed a genuinely OLD Facilities row. The latest EF model includes later-added
+                // CustomCategory, which this pre-2026-10-12 schema intentionally lacks.
+                // Inserting a latest-model Facility via SaveChanges would therefore fail before
+                // this test ever reaches the migration it is meant to verify.
+                await seed.Database.ExecuteSqlInterpolatedAsync($"""
+                    INSERT INTO "Facilities"
+                        ("Id", "MunicipalityId", "Code", "Archetype", "Name", "ShortName",
+                         "IsActive", "CreatedAt", "CreatedBy", "IsDeleted")
+                    VALUES
+                        ({Guid.NewGuid()}, {cantilan}, {(int)FacilityCode.NPM},
+                         {(int)BillingArchetype.DailyStall}, {"New Public Market"}, {"NPM"},
+                         {true}, {DateTime.UtcNow}, {"System"}, {false})
+                    """);
+
                 seed.FacilityRates.Add(FacilityRate.Create(FacilityCode.NPM, FeeRateKey.NpmDailyStall, 30m, new DateOnly(2020, 1, 1), cantilan, "seed"));
                 seed.AdminUsers.Add(AdminUser.Create("Head", "head", "head@x.ph", new HashedPassword("h"), AdminRole.SuperAdmin, cantilan, mustChangePassword: false));
                 await seed.SaveChangesAsync();
@@ -96,6 +111,8 @@ public sealed class TenantOperationSettingsMigrationTests(PostgresFixture db)
             Assert.Contains(ThisMigration, await verify.Database.GetAppliedMigrationsAsync());
             Assert.Equal(1, (await verify.Database.GetAppliedMigrationsAsync()).Count(m => m == ThisMigration));
             Assert.Equal(1, await verify.Facilities.IgnoreQueryFilters().CountAsync());
+            Assert.Equal(CustomFacilityCategory.StallRent,
+                (await verify.Facilities.IgnoreQueryFilters().SingleAsync()).CustomCategory);
             var rate = await verify.FacilityRates.IgnoreQueryFilters().SingleAsync(r => r.MunicipalityId == cantilan);
             Assert.Equal(30m, rate.Amount);
             Assert.Equal(1, await verify.AdminUsers.IgnoreQueryFilters().CountAsync());
