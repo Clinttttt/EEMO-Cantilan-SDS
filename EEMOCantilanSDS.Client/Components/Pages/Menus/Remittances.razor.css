@@ -578,3 +578,7 @@
     .rm-workspace { overflow: auto; }
     .rm-workspace > .rm-tab-panel { flex: none; min-height: 15rem; }
 }
+.rm-review-dialog { width: min(100%, 58rem); }
+.rm-review-dialog .v3-modal-header { justify-content: space-between; flex: none; }
+.rm-review-dialog .rm-form { min-height: 0; margin: 0; overscroll-behavior: contain; }
+.rm-review-dialog .v3-modal-footer { flex: none; }

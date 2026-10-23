@@ -100,7 +100,7 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
         new(ctx, new Caller(w.HeadId, tenant ?? w.Tenant.Id, role), new FixedTenant(tenant ?? w.Tenant.Id));
 
     private static RecordRemittanceRequest Request(World w, decimal amount, Guid? operationId = null, IReadOnlyList<Guid>? ids = null) => new(
-        operationId ?? Guid.NewGuid(), w.Collector.Id, Today, Today.AddDays(-1), Today, RevenueInstrumentType.CashTicket, ids, amount, "ACK-1", null);
+        operationId ?? Guid.NewGuid(), w.Collector.Id, Today, Today.AddDays(-1), Today, RevenueInstrumentType.CashTicket, ids, amount, "ACK-1", amount < 110m ? "Counted short at turnover" : null);
 
     private async Task PostThreeAsync(World w)
     {
@@ -274,6 +274,10 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
         Assert.False(over.IsSuccess);
         Assert.Contains("cannot exceed", over.Error, StringComparison.OrdinalIgnoreCase);
 
+        var unexplained = await remit.RecordAsync(Request(w, 100m) with { Remarks = null });
+        Assert.Equal(ResultStatus.Invalid, unexplained.Status);
+        Assert.Empty(await ctx.CollectionRemittances.ToListAsync());
+
         var short_ = await remit.RecordAsync(Request(w, 100m));
         Assert.True(short_.IsSuccess, short_.Error);
         Assert.Equal((110m, 100m, 10m), (short_.Value!.Row.ExpectedAmount, short_.Value.Row.RemittedAmount, short_.Value.Row.DifferenceAmount));
@@ -355,6 +359,11 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
 
         var right = await remit.RecordAsync(Request(w, 110m));
         Assert.True(right.IsSuccess, right.Error);
+        var lineage = Assert.Single(right.Value!.PriorVoidedCoverage!);
+        Assert.Equal(wrong.Row.Id, lineage.RemittanceId);
+        Assert.Equal("Counted short by mistake", lineage.VoidReason);
+        Assert.Equal(3, lineage.SharedCollectionCount);
+        Assert.Equal(100m, (await remit.GetDetailAsync(wrong.Row.Id)).Value!.Row.RemittedAmount);
         Assert.Equal(2, await ctx.CollectionRemittances.CountAsync());
     }
 
@@ -724,7 +733,7 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
         var (anaOp, benOp) = (Guid.NewGuid(), Guid.NewGuid());
         var request = new RecordRemittanceBatchRequest([
             RequestFor(w.Collector.Id, 110m, "ACK-A", anaOp),
-            RequestFor(ben.Id, 100m, "ACK-B", benOp)]);
+            RequestFor(ben.Id, 100m, "ACK-B", benOp) with { Remarks = "Counted short at turnover" }]);
 
         var result = await Remit(ctx, w).RecordBatchAsync(request);
 
@@ -734,6 +743,7 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
         Assert.Equal(2, rows.Count);
         var ana = rows.Single(x => x.CollectorId == w.Collector.Id);
         var benRow = rows.Single(x => x.CollectorId == ben.Id);
+        Assert.Equal("Counted short at turnover", benRow.Remarks);
         Assert.Equal((110m, "ACK-A"), (ana.RemittedAmount, ana.Reference));
         Assert.Equal((100m, 10m, "ACK-B"), (benRow.RemittedAmount, benRow.ExpectedAmount - benRow.RemittedAmount, benRow.Reference));
         // Every collection is covered exactly once, by its own collector's record; no collection or revenue was created.

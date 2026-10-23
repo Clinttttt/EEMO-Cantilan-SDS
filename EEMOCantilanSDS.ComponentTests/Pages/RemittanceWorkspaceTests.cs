@@ -260,14 +260,17 @@ public sealed class RemittanceWorkspaceTests : TestContext
         }, Timeout);
         cut.Find($"{form} input[type='number']").Change("90");
         cut.WaitForAssertion(() => Assert.Contains("Over expected", cut.Find("dl.rm-reconcile").TextContent), Timeout);
-        Assert.True(cut.Find($"{form} button[type='submit']").HasAttribute("disabled"));
+        Assert.True(cut.Find("button[type='submit'][form='rm-review-form']").HasAttribute("disabled"));
         cut.Find($"{form} input[type='number']").Change("70");
+        Assert.True(cut.Find("button[type='submit'][form='rm-review-form']").HasAttribute("disabled"));
+        cut.Find($"{form} input[maxlength='500']").Change("Counted short at turnover");
         cut.Find(form).Submit();
 
         cut.WaitForAssertion(() =>
         {
             Assert.NotNull(sent);
             Assert.Equal((CollectorId, 70m), (sent!.CollectorId, sent.AmountRemitted));
+            Assert.Equal("Counted short at turnover", sent.Remarks);
             Assert.NotEqual(Guid.Empty, sent.ClientOperationId);
             Assert.Equal(new[] { CollectionA, CollectionB }.Order(), sent.CollectionIds!.Order());
             Assert.Contains("for review", cut.Markup);
@@ -294,6 +297,28 @@ public sealed class RemittanceWorkspaceTests : TestContext
             Assert.Equal(("View", $"/remittances/{ana.RemittanceId}"), actions[0]);
             Assert.Equal(("Print", $"/remittances/{ana.RemittanceId}?print=1"), actions[1]);
         }, Timeout);
+    }
+
+    [Fact]
+    public void ReviewIsAModal_WithFocusBindingEscapeAndUnchangedSelection()
+    {
+        var focus = JSInterop.SetupModule("./js/account-review.js");
+        focus.Mode = JSRuntimeMode.Loose;
+        ServePosition(Position(20000m, 19920m));
+        _api.Setup(x => x.GetScopeAsync(CollectorId, It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<RevenueInstrumentType?>()))
+            .ReturnsAsync(Result<RemittanceScopeDto>.Success(Scope()));
+        var cut = RenderComponent<NewRemittance>();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("input[aria-label='Select all collections']")), Timeout);
+        cut.Find("input[aria-label='Select all collections']").Change(true);
+        cut.FindAll("button").Single(x => x.TextContent.Trim() == "Review Remittance").Click();
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll("[role='dialog'][aria-modal='true']")), Timeout);
+        Assert.Contains("80.00", cut.Find("[role='dialog']").TextContent);
+        cut.WaitForAssertion(() => Assert.Contains(focus.Invocations, x => x.Identifier == "bind"), Timeout);
+        cut.Find("[role='dialog']").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Escape" });
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll("[role='dialog']")), Timeout);
+        Assert.Contains(focus.Invocations, x => x.Identifier == "release");
+        _api.Verify(x => x.RecordAsync(It.IsAny<RecordRemittanceRequest>()), Times.Never);
+        Assert.True(cut.Find("input[aria-label='Select all collections']").HasAttribute("checked"));
     }
 
     [Fact]
@@ -423,11 +448,12 @@ public sealed class RemittanceWorkspaceTests : TestContext
         Assert.Contains("Ben Cruz", cut.FindAll("section.rm-draft")[1].TextContent);
         cut.FindAll("section.rm-draft")[1].QuerySelector("input[type='number']")!.Change("35");
         cut.FindAll("section.rm-draft")[1].QuerySelectorAll(".rm-form-row input")[1].Change("ACK-B");
+        cut.FindAll("section.rm-draft")[1].QuerySelector("input[maxlength='500']")!.Change("Counted short at turnover");
         var total = cut.Find("dl[aria-label='Remittance total']").TextContent;
         Assert.Contains("₱120.00", total);                                   // total selected
         Assert.Contains("₱115.00", total);                                   // being remitted
 
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Confirm Remittance").Click();
+        cut.Find("form[aria-label='Confirm remittance']").Submit();
 
         cut.WaitForAssertion(() =>
         {
@@ -437,6 +463,7 @@ public sealed class RemittanceWorkspaceTests : TestContext
             var ben = sent.Remittances.Single(x => x.CollectorId == benId);
             Assert.Equal((80m, (string?)null), (ana.AmountRemitted, ana.Reference));
             Assert.Equal((35m, (string?)"ACK-B"), (ben.AmountRemitted, ben.Reference));
+            Assert.Equal("Counted short at turnover", ben.Remarks);
             Assert.Equal(new[] { benCollection }, ben.CollectionIds);
             Assert.NotEqual(ana.ClientOperationId, ben.ClientOperationId);
             Assert.Contains("2 remittances recorded, one per collector", cut.Markup);

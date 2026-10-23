@@ -115,7 +115,11 @@ public sealed record RemittanceDetailDto(
     IReadOnlyList<RemittanceBreakdownDto> Breakdown,
     string? FirstReferenceCode,
     string? LastReferenceCode,
-    bool NeedsReview);
+    bool NeedsReview,
+    IReadOnlyList<RemittancePriorCoverageDto>? PriorVoidedCoverage = null);
+
+public sealed record RemittancePriorCoverageDto(Guid RemittanceId, string? Reference, string? VoidReason,
+    string? VoidedBy, DateTime? VoidedAtUtc, int SharedCollectionCount);
 
 /// <summary>Physical form accountability for one collector and instrument. These are counts of forms, never pesos.</summary>
 public sealed record FormAccountabilityDto(

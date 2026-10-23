@@ -62,13 +62,25 @@
                 <div><dt>Recorded by</dt><dd>@d.RecordedBy · @d.Row.RecordedAtUtc.ToLocalTime().ToString("MMM d, yyyy h:mm tt", CultureInfo.InvariantCulture)</dd></div>
                 @if (!string.IsNullOrWhiteSpace(d.Remarks))
                 {
-                    <div><dt>Remarks</dt><dd>@d.Remarks</dd></div>
+                    <div><dt>@(d.Row.DifferenceAmount != 0m ? "Reason for difference" : "Remarks")</dt><dd>@d.Remarks</dd></div>
                 }
                 @if (d.Row.Status == RemittanceStatus.Voided)
                 {
                     <div><dt>Voided</dt><dd>@d.VoidReason · @d.VoidedBy</dd></div>
                 }
             </dl>
+            @if (d.PriorVoidedCoverage is { Count: > 0 } previous)
+            {
+                <details class="v3-panel-body">
+                    <summary>Previous voided coverage</summary>
+                    <ul>
+                        @foreach (var prior in previous)
+                        {
+                            <li><a href="@($"/remittances/{prior.RemittanceId}")">@(prior.Reference ?? "View remittance")</a> · @prior.SharedCollectionCount shared collections · @prior.VoidReason · @prior.VoidedBy · @prior.VoidedAtUtc?.ToLocalTime().ToString("MMM d, yyyy h:mm tt", CultureInfo.InvariantCulture)</li>
+                        }
+                    </ul>
+                </details>
+            }
         </section>
 
         <section class="v3-panel" aria-labelledby="rd-break-title">
