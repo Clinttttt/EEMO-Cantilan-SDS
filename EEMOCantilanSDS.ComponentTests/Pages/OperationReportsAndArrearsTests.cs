@@ -223,12 +223,18 @@ public sealed class OperationReportsAndArrearsTests : TestContext
         ArrearsData(); var cut=RenderComponent<Arrears>();
         cut.WaitForAssertion(()=>Assert.Contains("Rosa Magbanua",cut.Markup),Timeout);
         cut.Find("select").Change("arrears");
-        Assert.Equal("Qualifying Arrears", cut.Find("#arr-register-title").TextContent.Trim());
-        Assert.Contains("Pedro Reyes",cut.Markup);                 // the obligation is Arrears; it is not shown as Delinquent
-        Assert.DoesNotContain("Rosa Magbanua",cut.Markup);
-        Assert.DoesNotContain("Current Only",cut.Markup);
-        Assert.Contains("1 of 1 Arrears accounts shown",cut.Markup);
-        SpaceHolderWorkspaceTests.SaveVisualArtifact("arrears-qualification-unavailable",cut.Markup);
+        // The select's bound render can complete after Change returns when the
+        // component also has background account-total lookups in flight.
+        // Assert the final rendered filter, not the transient preceding frame.
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("Qualifying Arrears", cut.Find("#arr-register-title").TextContent.Trim());
+            Assert.Contains("Pedro Reyes", cut.Markup); // Arrears row, not Delinquent
+            Assert.DoesNotContain("Rosa Magbanua", cut.Markup);
+            Assert.DoesNotContain("Current Only", cut.Markup);
+            Assert.Contains("1 of 1 Arrears accounts shown", cut.Markup);
+        }, Timeout);
+        SpaceHolderWorkspaceTests.SaveVisualArtifact("arrears-qualification-unavailable", cut.Markup);
     }
 
     [Fact]

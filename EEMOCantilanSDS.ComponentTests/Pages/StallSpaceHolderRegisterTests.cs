@@ -332,13 +332,17 @@ public sealed class StallSpaceHolderRegisterTests : TestContext
         var cut = Render(Both);
         cut.WaitForAssertion(() => Assert.Contains("Kanmanggay Seller", cut.Markup));
 
-        Assert.Equal(["All sources", "New Commercial Center", "Vegetable / Fruits", "Kanmanggay", "Fiesta / Araw"], SourceChoices(cut));
+        cut.WaitForAssertion(() => Assert.Equal(
+            ["All sources", "New Commercial Center", "Vegetable / Fruits", "Kanmanggay", "Fiesta / Araw"],
+            SourceChoices(cut)));
 
         Choose(cut, "Stall rentals");
-        Assert.Equal(["All facilities", "New Commercial Center"], SourceChoices(cut));
+        cut.WaitForAssertion(() => Assert.Equal(
+            ["All facilities", "New Commercial Center"], SourceChoices(cut)));
 
         Choose(cut, "Space rentals");
-        Assert.Equal(["All spaces", "Vegetable / Fruits", "Kanmanggay", "Fiesta / Araw"], SourceChoices(cut));
+        cut.WaitForAssertion(() => Assert.Equal(
+            ["All spaces", "Vegetable / Fruits", "Kanmanggay", "Fiesta / Araw"], SourceChoices(cut)));
     }
 
     [Fact]
