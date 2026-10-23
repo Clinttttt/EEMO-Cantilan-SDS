@@ -144,7 +144,7 @@ public sealed class FishMeatWorkspaceTests : TestContext
 
             // The report's fish amount (₱37) is kilos x the rate in force when it is READ, so it is never shown as collected
             // money. Only the server's frozen Fish total is shown, and kilos without frozen rate evidence are stated as such.
-            var summary = cut.Find("dl[aria-label='Weighing position']").TextContent;
+            var summary = cut.Find("section[aria-label='Historical NPM weighing']").TextContent;
             Assert.DoesNotContain("₱37.00", cut.Markup);
             Assert.Contains("Fish weighing (frozen)", summary);
             Assert.Contains("₱15.00", summary);                 // frozen Fish weighing money from the server
@@ -199,8 +199,35 @@ public sealed class FishMeatWorkspaceTests : TestContext
         }, Timeout);
     }
 
+    [Theory]
+    [InlineData(typeof(WeightAndMeasure), "Weighing month")]
+    [InlineData(typeof(WeightAndMeasureReport), "Reporting month")]
+    public void FailedPeriodChangeDoesNotRetainPreviousRegisteredVendorTotals(Type page, string monthLabel)
+    {
+        Services.AddSingleton(Mock.Of<IOfficialReportsApiClient>());
+        _facilities.SetupSequence(x => x.GetWeighingSourceNativeReportAsync(It.IsAny<int>(), It.IsAny<int>()))
+            .ReturnsAsync(Result<WeighingCollectionReportDto>.Success(new(2026, 10,
+                [new(new(2026, 10, 1), "SRC-TEST", "Test vendor", FishMeatVendorType.Fish, 2m, 50m, 100m, "Recorded")])))
+            .ThrowsAsync(new HttpRequestException("unavailable"));
+        _facilities.Setup(x => x.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>()))
+            .ReturnsAsync(Result<FacilityReportsDto>.Success(Report(fishFeeAmount: 0m)));
+        var cut = Render(builder => { builder.OpenComponent(0, page); builder.CloseComponent(); });
+        cut.WaitForAssertion(() => Assert.Contains("Test vendor", cut.Markup), Timeout);
+        if (page == typeof(WeightAndMeasure))
+            Assert.Contains("₱100.00", cut.Find("dl[aria-label='Weighing position']").TextContent);
+
+        cut.Find($"input[aria-label='{monthLabel}']").Change("2026-09");
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("couldn't be loaded", cut.Find("[role='alert']").TextContent);
+            Assert.DoesNotContain("Test vendor", cut.Markup);
+            Assert.DoesNotContain("₱100.00", cut.Markup);
+        }, Timeout);
+    }
+
     [Fact]
-    public void WeightAndMeasure_FailedSource_SaysSo_InsteadOfShowingZeroes()
+    public void WeightAndMeasure_FailedHistoricalSourceDoesNotInventLegacyTotals_IndependentSourceStillDisplays()
     {
         _facilities.Setup(x => x.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>()))
             .ReturnsAsync(Result<FacilityReportsDto>.Failure("offline"));
@@ -211,7 +238,36 @@ public sealed class FishMeatWorkspaceTests : TestContext
         {
             Assert.Contains("couldn't be loaded", cut.Find("[role='alert']").TextContent);
             Assert.Contains("Weighing records are unavailable.", cut.Markup);
-            Assert.DoesNotContain("₱0.00", cut.Find("dl[aria-label='Weighing position']").TextContent);
+            Assert.DoesNotContain("₱0.00", cut.Find("section[aria-label='Historical NPM weighing']").TextContent);
+            Assert.Contains("₱0.00", cut.Find("dl[aria-label='Weighing position']").TextContent);
+        }, Timeout);
+    }
+
+    [Theory]
+    [InlineData(typeof(WeightAndMeasure), "Weighing month")]
+    [InlineData(typeof(WeightAndMeasureReport), "Reporting month")]
+    public async Task AnOlderPeriodResponseCannotReplaceTheLatestSelection(Type page, string monthLabel)
+    {
+        Services.AddSingleton(Mock.Of<IOfficialReportsApiClient>());
+        static Result<WeighingCollectionReportDto> Source(string vendor, int month) =>
+            Result<WeighingCollectionReportDto>.Success(new(2026, month,
+                [new(new(2026, month, 1), "SRC-TEST", vendor, FishMeatVendorType.Fish, 1m, 30m, 30m, "Posted")]));
+        var delayed = new TaskCompletionSource<Result<WeighingCollectionReportDto>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _facilities.SetupSequence(x => x.GetWeighingSourceNativeReportAsync(It.IsAny<int>(), It.IsAny<int>()))
+            .ReturnsAsync(Source("Initial vendor", 10)).Returns(delayed.Task).ReturnsAsync(Source("Latest vendor", 8));
+        _facilities.Setup(x => x.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>()))
+            .ReturnsAsync(Result<FacilityReportsDto>.Success(Report(fishFeeAmount: 0m)));
+        var cut = Render(builder => { builder.OpenComponent(0, page); builder.CloseComponent(); });
+        cut.WaitForAssertion(() => Assert.Contains("Initial vendor", cut.Markup), Timeout);
+        var olderRequest = cut.Find($"input[aria-label='{monthLabel}']").ChangeAsync(new ChangeEventArgs { Value = "2026-09" });
+        await cut.Find($"input[aria-label='{monthLabel}']").ChangeAsync(new ChangeEventArgs { Value = "2026-08" });
+        cut.WaitForAssertion(() => Assert.Contains("Latest vendor", cut.Markup), Timeout);
+        delayed.SetResult(Source("Older vendor", 9));
+        await olderRequest;
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Latest vendor", cut.Markup);
+            Assert.DoesNotContain("Older vendor", cut.Markup);
         }, Timeout);
     }
 

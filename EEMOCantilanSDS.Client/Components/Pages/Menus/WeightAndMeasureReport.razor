@@ -76,7 +76,7 @@
                 {
                     <tr><td>@row.BusinessDate.ToString("MMM d")</td><td>@row.ReferenceCode</td><td>@row.Vendor</td><td>@row.VendorType</td><td class="v3-num">@Kilos(row.Kilograms)</td><td class="v3-num">@Money(row.RatePerKilo)</td><td class="v3-num">@Money(row.NetAmount)</td></tr>
                 }
-                @if (_sourceReport?.Rows.Count is not > 0) { <tr><td colspan="7" class="v3-report-note">No registered-vendor weighing was recorded for this month.</td></tr> }
+                @if (_sourceReport?.Rows.Count is not > 0) { <tr><td colspan="7" class="v3-report-note">@(_sourceReport is null ? "Registered-vendor weighing unavailable." : "No registered-vendor weighing was recorded for this month.")</td></tr> }
             </tbody></table></div>
         </section>
 
@@ -137,6 +137,7 @@
     private FacilityReportsDto? _report;
     private WeighingCollectionReportDto? _sourceReport;
     private bool _loading = true;
+    private int _loadVersion;
     private string? _error;
 
     private string PeriodLabel => _period.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
@@ -164,23 +165,30 @@
 
     private async Task LoadAsync()
     {
+        var version = ++_loadVersion;
+        var period = _period;
         _loading = true;
         _error = null;
+        _sourceReport = null;
+        _report = null;
         try
         {
-            var source = await FacilitiesApi.GetWeighingSourceNativeReportAsync(_period.Year, _period.Month);
+            var source = await FacilitiesApi.GetWeighingSourceNativeReportAsync(period.Year, period.Month);
+            if (version != _loadVersion) return;
             _sourceReport = source.IsSuccess ? source.Value : null;
             if (!source.IsSuccess) _error = source.Error ?? "Registered-vendor weighing records couldn't be loaded.";
-            var report = await FacilitiesApi.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, _period.Year, _period.Month);
+            var report = await FacilitiesApi.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, period.Year, period.Month);
+            if (version != _loadVersion) return;
             if (report.IsSuccess) _report = report.Value;
             else { _report = null; /* No NPM is valid for an LGU that only operates Weight & Measure. */ }
         }
         catch
         {
+            if (version != _loadVersion) return;
             _report = null;
             _error = "Weighing records couldn't be loaded.";
         }
-        finally { _loading = false; }
+        finally { if (version == _loadVersion) _loading = false; }
     }
 
     private async Task PrintAsync()

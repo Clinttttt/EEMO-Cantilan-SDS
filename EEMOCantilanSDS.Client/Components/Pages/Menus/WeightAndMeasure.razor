@@ -22,12 +22,9 @@
         </Icon>
         <Meta><span class="wm-meta">@PeriodLabel · <InstrumentChip Instrument="OR" /> Official Receipt</span></Meta>
         <Figures>
-            @if (FacilityCatalog.All.Contains(FacilityCode.NPM))
-            {
-                <V3HeroFigure Label="Meat weighing (frozen)" Value="@(_report?.FeeTypeBreakdown is { } breakdown ? Money(breakdown.MeatWeightMeasureAmount) : "—")" />
-                <V3HeroFigure Label="Fish weighing (frozen)" Value="@(_report?.FeeTypeBreakdown is { } fish ? Money(fish.FishWeightMeasureFrozenAmount) : "—")" />
-                <V3HeroFigure Label="Fish kilos without rate evidence" Value="@(_report?.FeeTypeBreakdown is { } unresolved ? Kilos(unresolved.FishKilosWithoutFrozenRate) : "—")" />
-            }
+            <V3HeroFigure Label="Registered fish weighing" Value="@(_sourceReport is null ? "—" : Money(_sourceReport.FishTotal))" />
+            <V3HeroFigure Label="Registered meat weighing" Value="@(_sourceReport is null ? "—" : Money(_sourceReport.MeatTotal))" />
+            <V3HeroFigure Label="Registered total" Value="@(_sourceReport is null ? "—" : Money(_sourceReport.Total))" />
         </Figures>
         <Actions>
             @if (FacilityCatalog.All.Contains(FacilityCode.NPM))
@@ -100,6 +97,17 @@
         </section>
     }
 
+    @if (FacilityCatalog.All.Contains(FacilityCode.NPM))
+    {
+        <section class="v3-panel" aria-label="Historical NPM weighing">
+            <header class="v3-panel-header"><h2>Historical NPM weighing</h2></header>
+            <dl class="v3-facts">
+                <div><dt>Meat weighing (frozen)</dt><dd>@(_report?.FeeTypeBreakdown is { } historicalMeat ? Money(historicalMeat.MeatWeightMeasureAmount) : "—")</dd></div>
+                <div><dt>Fish weighing (frozen)</dt><dd>@(_report?.FeeTypeBreakdown is { } fish ? Money(fish.FishWeightMeasureFrozenAmount) : "—")</dd></div>
+                <div><dt>Fish kilos without rate evidence</dt><dd>@(_report?.FeeTypeBreakdown is { } unresolved ? Kilos(unresolved.FishKilosWithoutFrozenRate) : "—")</dd></div>
+            </dl>
+        </section>
+    }
     <div class="wm-layout">
         <section class="v3-panel" aria-labelledby="wm-fish-title" aria-busy="@(_loading ? "true" : "false")">
             <header class="v3-panel-header">
@@ -254,6 +262,7 @@
         finally { _saving = false; }
     }
     private bool _loading = true;
+    private int _loadVersion;
     private string? _error;
 
     private string PeriodLabel => _period.ToString("MMMM yyyy");
@@ -289,14 +298,20 @@
 
     private async Task LoadAsync()
     {
+        var version = ++_loadVersion;
+        var period = _period;
         _loading = true;
         _error = null;
+        _sourceReport = null;
+        _report = null;
         try
         {
-            var sourceReport = await FacilitiesApi.GetWeighingSourceNativeReportAsync(_period.Year, _period.Month);
+            var sourceReport = await FacilitiesApi.GetWeighingSourceNativeReportAsync(period.Year, period.Month);
+            if (version != _loadVersion) return;
             _sourceReport = sourceReport.IsSuccess ? sourceReport.Value : null;
             if (!sourceReport.IsSuccess) _error = sourceReport.Error ?? "Registered-vendor weighing records couldn't be loaded.";
-            var report = await FacilitiesApi.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, _period.Year, _period.Month);
+            var report = await FacilitiesApi.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, period.Year, period.Month);
+            if (version != _loadVersion) return;
             if (report.IsSuccess) _report = report.Value;
             else
             {
@@ -308,12 +323,13 @@
         }
         catch
         {
+            if (version != _loadVersion) return;
             _report = null;
             _error = "Weighing records couldn't be loaded.";
         }
         finally
         {
-            _loading = false;
+            if (version == _loadVersion) _loading = false;
         }
     }
 
