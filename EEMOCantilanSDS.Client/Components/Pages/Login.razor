@@ -226,27 +226,6 @@
                     }
                 </div>
 
-                @* A generic login has no tenant claim yet. Where multiple LGUs operate,
-                   explicitly choose which office owns these credentials. Do not infer it
-                   from a remembered logo or username prefix. Scoped ?lgu= links remain unchanged. *@
-                @if (string.IsNullOrWhiteSpace(LguParam) && _activeLoginMunicipalities.Count > 1)
-                {
-                    <div class="form-group">
-                        <label class="form-label" for="login-office">Municipality</label>
-                        <select id="login-office" class="form-input"
-                                @bind="SelectedMunicipalityCode"
-                                @bind:after="OnMunicipalitySelectedAsync"
-                                disabled="@(IsLocked || !FormReady)">
-                            <option value="">Select your municipality</option>
-                            @foreach (var office in _activeLoginMunicipalities)
-                            {
-                                <option value="@office.Code">@office.Name</option>
-                            }
-                        </select>
-                        <span class="form-hint">Choose the office where your administrator account was created.</span>
-                    </div>
-                }
-
                 <!-- Password -->
                 <div class="form-group">
                     <label class="form-label" for="login-password">Password</label>
@@ -531,24 +510,6 @@
     // and the code is sent with the sign-in so the API enforces the account belongs to this LGU.
     string LguParam = string.Empty;
     bool _lguLocked = false;
-    private List<EEMOCantilanSDS.Application.Dtos.Tenancy.MunicipalityDto> _activeLoginMunicipalities = new();
-    private string SelectedMunicipalityCode = string.Empty;
-
-    private async Task OnMunicipalitySelectedAsync()
-    {
-        if (string.IsNullOrWhiteSpace(SelectedMunicipalityCode)) return;
-        try
-        {
-            var response = await MunicipalitiesApi.GetBrandingByIdentifierAsync(SelectedMunicipalityCode);
-            if (response.IsSuccess && response.Value is { IsActive: true } branding)
-            {
-                _brandedIdentifier = branding.TenantCode;
-                ApplyBranding(branding);
-            }
-        }
-        catch { /* A cosmetic branding call must never block credentials or invent an LGU. */ }
-    }
-
     // Resolve the LGU from the typed username (Head usernames are "{tenant}.head", e.g. carrascal.head)
     // and theme the login panel from that LGU's onboarding branding. Debounced; falls back to defaults.
     async Task OnUsernameChanged()
@@ -647,18 +608,6 @@
             if (PBrandAcronym is not null) OfficeAcronym = PBrandAcronym;
             if (PBrandOffice is not null) OfficeName = PBrandOffice;
         }
-
-        // Public pre-login registry: when 2+ LGUs exist, an unscoped username may be shared.
-        // Offer explicit selection instead of letting the unscoped repository pick an arbitrary
-        // matching account. No selector is needed for legacy single-LGU or ?lgu= login links.
-        try
-        {
-            var offices = await MunicipalitiesApi.GetMunicipalitiesAsync();
-            if (offices.IsSuccess && offices.Value is not null)
-                _activeLoginMunicipalities = offices.Value.Where(m => m.IsActive)
-                    .OrderBy(m => m.Name).ToList();
-        }
-        catch { /* Leave the previous login flow available when discovery is unavailable. */ }
 
         var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
         var query = QueryHelpers.ParseQuery(uri.Query);
@@ -849,14 +798,6 @@
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(LguParam) && _activeLoginMunicipalities.Count > 1
-            && string.IsNullOrWhiteSpace(SelectedMunicipalityCode))
-        {
-            ErrorMessage = "Select your municipality to sign in to the correct office.";
-            StateHasChanged();
-            return;
-        }
-
         IsLoading = true;
         StateHasChanged();
 
@@ -873,9 +814,9 @@
 
         try
         {
-            var officeScope = string.IsNullOrWhiteSpace(LguParam)
-                ? SelectedMunicipalityCode : LguParam;
-            var outcome = await AuthService.LoginAsync(Username, Password, officeScope);
+            // The server resolves an unscoped username/password to exactly one office.
+            // Only an explicit office link (?lgu=) may pin the sign-in to a municipality.
+            var outcome = await AuthService.LoginAsync(Username, Password, LguParam);
 
             if (outcome.MfaRequired)
             {

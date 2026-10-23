@@ -16,12 +16,14 @@ public class LoginCommandHandler(IAuthRepository authRepository, IMunicipalityRe
 {
     public async Task<Result<TokenResponseDto>> Handle(LoginCommand request, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
+            return Result<TokenResponseDto>.Unauthorized();
         // Resolve the target tenant up-front when the caller specified which LGU it is signing into (scoped
         // login URL ?lgu={code}), so the username lookup is scoped to that municipality. A username shared
         // across LGUs otherwise resolves to an ARBITRARY tenant's account — the password is then checked
         // against the wrong hash and the legitimate admin is blocked (and the wrong account penalized).
-        // When no code is supplied (direct /login, first-run setup, existing clients) the lookup stays
-        // global — behaviour unchanged for the default Cantilan flow.
+        // Without an office code, verify credentials across matching LGU accounts and select
+        // the single valid identity. The login screen needs no public municipality selector.
         Guid? scopeMunicipalityId = null;
         if (!string.IsNullOrWhiteSpace(request.MunicipalityCode))
         {
@@ -30,9 +32,45 @@ public class LoginCommandHandler(IAuthRepository authRepository, IMunicipalityRe
             scopeMunicipalityId = municipality.Id;
         }
 
-        var user = scopeMunicipalityId is { } mid
-            ? await authRepository.GetAdminByUsernameAsync(request.Username, mid, cancellationToken)
-            : await authRepository.GetAdminByUsernameAsync(request.Username, cancellationToken);
+        AdminUser? user;
+        if (scopeMunicipalityId is { } mid)
+        {
+            user = await authRepository.GetAdminByUsernameAsync(request.Username, mid, cancellationToken);
+        }
+        else
+        {
+            // Resolve an unscoped sign-in from the unique matching password, not whichever
+            // municipality happens to be returned first by the database.
+            var candidates = await authRepository.GetAdminsByUsernameAsync(request.Username, cancellationToken);
+            var matches = candidates.Where(a =>
+                passwordHasher.Check(a.PasswordHash, request.Password) != PasswordCheck.Failed).ToList();
+            if (matches.Count > 1)
+            {
+                // Identical credentials across LGUs are genuinely ambiguous. Never guess a tenant.
+                return Result<TokenResponseDto>.Failure(
+                    "These credentials belong to more than one office. Use your office's direct sign-in link.",
+                    ResultStatus.Conflict);
+            }
+
+            if (matches.Count == 1)
+                user = matches[0];
+            else if (candidates.Count == 1)
+                user = candidates[0]; // Preserve single-account lockout behavior below.
+            else
+            {
+                // Duplicate username with no correct password: do not let collisions bypass
+                // brute-force protection. Count one failed attempt per unlocked candidate.
+                var changed = false;
+                foreach (var candidate in candidates)
+                {
+                    if (candidate.IsLockedOut(clock.UtcNow)) continue;
+                    candidate.RecordFailedLogin(clock.UtcNow);
+                    changed = true;
+                }
+                if (changed) await unitOfWork.SaveChangesAsync(cancellationToken);
+                return Result<TokenResponseDto>.Unauthorized();
+            }
+        }
         // Uniform 401 for both unknown username and wrong password — never reveal which usernames exist.
         if (user is null) return Result<TokenResponseDto>.Unauthorized();
 

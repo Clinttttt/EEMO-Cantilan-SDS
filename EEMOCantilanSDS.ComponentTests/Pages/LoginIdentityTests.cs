@@ -48,16 +48,16 @@ public class LoginIdentityTests
         Source("EEMOCantilanSDS.Client", "Components", "Pages", "Login.razor");
 
     [Fact]
-    public void GenericSignIn_WithSeveralLGUs_RequiresExplicitOfficeSelection()
+    public void GenericSignIn_UsesOnlyCredentials_WithoutMunicipalitySelector()
     {
         var markup = LoginMarkup();
 
-        Assert.Contains("_activeLoginMunicipalities.Count > 1", markup);
-        Assert.Contains("Select your municipality to sign in to the correct office.", markup);
-        Assert.Contains("var officeScope = string.IsNullOrWhiteSpace(LguParam)", markup);
-        Assert.Contains("SelectedMunicipalityCode : LguParam", markup);
-        Assert.Contains("AuthService.LoginAsync(Username, Password, officeScope)", markup);
-        // A brand remembered on this browser is never used as security authority.
+        Assert.DoesNotContain("Select your municipality", markup);
+        Assert.DoesNotContain("SelectedMunicipalityCode", markup);
+        Assert.DoesNotContain("_activeLoginMunicipalities", markup);
+        Assert.DoesNotContain("login-office", markup);
+        Assert.Contains("AuthService.LoginAsync(Username, Password, LguParam)", markup);
+        // Last-used branding must never become an authorization boundary.
         Assert.DoesNotContain("LguParam = remembered", markup);
     }
 

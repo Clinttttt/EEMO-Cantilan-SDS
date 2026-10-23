@@ -45,6 +45,7 @@ public class MunicipalPortalRefusesThePlatformOperatorTests
         var token = new Mock<ITokenService>();
         var uow = new Mock<IUnitOfWork>();
 
+        repo.Setup(r => r.GetAdminsByUsernameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(new[] { user });
         repo.Setup(r => r.GetAdminByUsernameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
         repo.Setup(r => r.GetAdminByUsernameAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
         token.Setup(t => t.CreateTokenResponse(It.IsAny<AdminUser>()))

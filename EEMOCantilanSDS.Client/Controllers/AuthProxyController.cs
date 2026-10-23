@@ -33,6 +33,11 @@ public class AuthProxyController(IAuthApiClient apiAuthService, IAccountSecurity
             if (result.Status == ResultStatus.Locked && !string.IsNullOrWhiteSpace(result.Error))
                 return StatusCode(423, new { error = result.Error });
 
+            // Returned only after a correct password matches more than one municipality.
+            // No session is issued, and no municipality account list is disclosed.
+            if (result.Status == ResultStatus.Conflict && !string.IsNullOrWhiteSpace(result.Error))
+                return Conflict(new { error = result.Error });
+
             return Unauthorized();
         }
 

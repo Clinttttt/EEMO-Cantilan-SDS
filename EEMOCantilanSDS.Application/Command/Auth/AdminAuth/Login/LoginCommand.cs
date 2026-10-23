@@ -10,8 +10,8 @@ using System.Threading.Tasks;
 namespace EEMOCantilanSDS.Application.Command.Auth.AdminAuth.Login
 {
     // MunicipalityCode is the LGU the caller is signing into, carried from a scoped login URL (?lgu={code}).
-    // Optional: when null/empty the login behaves exactly as before (no per-municipality boundary), so
-    // existing callers and the default Cantilan flow are unchanged.
+    // Optional: when null/empty, the server verifies credentials across exact username matches
+    // and accepts only one matching administrator. It never assumes which LGU a shared username belongs to.
     //
     // RequirePlatformOperator is set by the ADMIN CONSOLE's own endpoint (api/adminauth/console-login). That console
     // belongs to the dedicated platform operator who onboards LGUs; it is not a second door into an LGU's portal. Without

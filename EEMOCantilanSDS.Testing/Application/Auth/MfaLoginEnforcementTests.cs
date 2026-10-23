@@ -65,6 +65,7 @@ public class MfaLoginEnforcementTests
     private static LoginCommandHandler LoginHandler(AdminUser user, Mock<ITokenService> token, Mock<IUnitOfWork> uow)
     {
         var repo = new Mock<IAuthRepository>();
+        repo.Setup(r => r.GetAdminsByUsernameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(new[] { user });
         repo.Setup(r => r.GetAdminByUsernameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
         repo.Setup(r => r.GetAdminByUsernameAsync(It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(user);
         token.Setup(t => t.CreateTokenResponse(It.IsAny<BaseUser>()))

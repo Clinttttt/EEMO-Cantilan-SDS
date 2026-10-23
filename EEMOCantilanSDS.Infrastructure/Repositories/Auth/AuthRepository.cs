@@ -18,6 +18,15 @@ public class AuthRepository(AppDbContext context) : IAuthRepository
             .FirstOrDefaultAsync(a => !a.IsDeleted && a.Username == username, ct);
     }
 
+    public async Task<IReadOnlyList<AdminUser>> GetAdminsByUsernameAsync(string username, CancellationToken ct)
+    {
+        // Pre-authentication has no tenant context. Return all exact username matches so
+        // the password can establish the unique tenant without exposing a public LGU chooser.
+        return await context.AdminUsers.IgnoreQueryFilters()
+            .Where(a => !a.IsDeleted && a.Username == username)
+            .ToListAsync(ct);
+    }
+
     public async Task<AdminUser?> GetAdminByUsernameAsync(string username, Guid municipalityId, CancellationToken ct)
     {
         // Scoped login (?lgu={code}): the tenant is known up-front, so resolve the username WITHIN that

@@ -6,6 +6,10 @@ public interface IAuthRepository
 {
     Task<AdminUser?> GetAdminByUsernameAsync(string username, CancellationToken ct);
 
+    /// <summary>Pre-tenant login: retrieve every non-deleted administrator with this exact username.
+    /// The handler verifies credentials before selecting an LGU; never pick an arbitrary first match.</summary>
+    Task<IReadOnlyList<AdminUser>> GetAdminsByUsernameAsync(string username, CancellationToken ct);
+
     /// <summary>
     /// Tenant-scoped admin lookup: resolves the username WITHIN a specific municipality. Used by the
     /// scoped login (?lgu={code}) so a username shared across LGUs resolves to the correct tenant's

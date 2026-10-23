@@ -21,6 +21,10 @@ According to PayMongo Hosted Checkout documentation, QR expiration **does not ex
 
 Generic Head `/login` previously sent an empty municipality code to an arbitrary global username lookup. After onboarding multiple active LGUs, duplicated usernames can resolve to the wrong tenant. The generic login now offers a **Municipality** selector only when more than one active LGU exists; chosen Code is sent as `MunicipalityCode` to the **already-existing scoped API login**. Existing `?lgu=...` links and single-LGU screens remain unchanged. Remembered branding is never silently treated as tenant authorization; password hashing, lockout, MFA and token issuance are unchanged.
 
+### Follow-up: clean login without an office chooser (2026-10-23)
+
+The initially deployed always-visible municipality selector was rejected as unnecessary friction. The Head login again shows only username and password. An unscoped login now checks **all** non-deleted admin accounts sharing the username, verifies their password hashes, and authenticates only when **exactly one** account matches. It never assumes a remembered logo, typed username prefix, or the first query result identifies the tenant. If two accounts share the same username **and password**, login fails closed and advises using an existing office-specific `?lgu=` link; no selection UI, list of accounts, cookie or token is returned. Invalid passwords retain failed-attempt protections; explicit scoped login, MFA, and console-operator boundaries remain in place. No mobile selector was introduced.
+
 ## Safety, deployment and acceptance
 
 - Do not use this feature on Live checkouts. A Test key and a test-labeled checkout are not proof that a QR Ph scan cannot send real funds; never initiate a payment during cleanup.

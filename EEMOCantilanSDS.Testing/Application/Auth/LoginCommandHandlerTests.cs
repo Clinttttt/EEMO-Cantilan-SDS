@@ -24,6 +24,8 @@ public class LoginCommandHandlerTests
         var token = new Mock<ITokenService>();
         var uow = new Mock<IUnitOfWork>();
 
+        repo.Setup(r => r.GetAdminsByUsernameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(user is null ? Array.Empty<AdminUser>() : new[] { user });
         repo.Setup(r => r.GetAdminByUsernameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(user);
         // Scoped login (?lgu={code}) resolves the tenant first and uses the tenant-scoped overload; stub it
