@@ -38,3 +38,20 @@ The additive migration `AddIndependentWeightMeasureRateVersions` only creates a 
 - `nx test landing`: **87 passed, 3 failed**, all in existing `municipality.service.spec.ts` with Angular TestBed reinitialization ("Cannot configure ... already instantiated"); no production code change was made to hide these failures.
 - No PostgreSQL migration was applied and no production/local financial records were mutated. No authenticated E2E browser walkthrough was run; independent W&M posting and year-boundary scenarios still require environment-backed integration verification.
 - The Head UI preserves V3 shell, historical NPM frozen-rate and unresolved-kilo indicators; the operator's review page masks submitted Fish/Meat rates until the existing reveal control is used.
+
+## Verification gate closure — local feature branches, 2026-10-23
+
+The earlier report of 87 Landing passing / 3 failing is superseded by the final results below. The municipality-service tests had assumed the on-disk build-time rollout registry listed Carrascal/Madrid as Active; another existing, uncommitted registry edit listed them Upcoming. We corrected **test setup** by constructing an explicit stale snapshot and checking live-API precedence independently of the mutable registry. On cleanup, TestBed now resets even if an HTTP expectation fails. No municipality activation state or registry production data was changed.
+
+- Landing Angular tests: **92 passed / 0 failed** including two new direct tests for Fish-only draft persistence, validation, and future-version preservation.
+- Platform Admin Angular tests: **158 passed / 0 failed** (mapping, masked operator review and activation declarations).
+- .NET application unit tests: **3,123 passed / 0 failed**.
+- Head Portal Blazor component tests: **1,418 passed / 0 failed**, including a new SuperAdmin save-rate interaction test.
+- EF CLI `migrations has-pending-model-changes`: **0 pending**.
+- PostgreSQL 16 Testcontainers (disposable; Docker Desktop started locally, no office DB connections): **127 passed / 0 skipped** for the CollectionSession and new W&M migration subset. New tests include tenant/date/type isolation, database amount check constraint, and an end-to-end Fish-only quote → post → stale-quote rejection → disabled-Meat rejection → exactly-once replay → frozen Head report with old/revised rates. The historical ₱2/kg and revised ₱4/kg entries remain independently evidenced.
+- The test fixture now truncates the newly added WeighingRateVersions table between disposable integration scenarios; it cannot leak tenant-specific rate versions into subsequent tests.
+- A generated migration was applied successfully on a blank throwaway PostgreSQL database. No migration has been run against a live or local municipal database.
+- Full PostgreSQL integration test suite: **864 passed / 0 failed / 14 skipped**, out of 878 total. Skips are recorded as skips, not claimed as verified. The focused W&M/CollectionSession subset previously completed **127 passed / 0 skipped**.
+- An authenticated manual browser walkthrough, production-specific rates/OR approval, and production deployment were **not performed**. Automated component tests cover the Head edit interaction but are not a substitute for a browser-size/layout acceptance check.
+
+Release status: feature branches only. No push, merge, or AWS deployment. The developer's unrelated Platform registry edit remains untouched and uncommitted.

@@ -118,7 +118,7 @@ public sealed class PostgresFixture : IAsyncLifetime
                 "PostingOperations", "AccountableDocuments", "AccountableFormAssignments", "AccountableFormBooks",
                 "CollectionAllocations", "CollectionLines", "Collections", "CollectionSettlementCutovers",
                 "RevenueClassificationPolicies", "RevenueClassifications", "Payors",
-                "TenantOperationSettings", "Users", "SlaughterAnimalLabels", "SlaughterAnimalRates", "UtilityBills", "Contracts", "Stalls", "Facilities", "Municipalities" CASCADE;
+                "TenantOperationSettings", "WeighingRateVersions", "Users", "SlaughterAnimalLabels", "SlaughterAnimalRates", "UtilityBills", "Contracts", "Stalls", "Facilities", "Municipalities" CASCADE;
             """);
     }
 

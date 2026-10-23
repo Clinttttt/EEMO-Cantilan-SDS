@@ -8,6 +8,7 @@ using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Client.Components.Pages.Menus;
 using EEMOCantilanSDS.Client.Services;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
@@ -31,6 +32,7 @@ public sealed class FishMeatWorkspaceTests : TestContext
     private readonly Mock<IFacilitiesApiClient> _facilities = new();
     private readonly Mock<IStallsApiClient> _stalls = new();
     private readonly Mock<IObligationsApiClient> _obligations = new();
+    private readonly TestAuthorizationContext _authorization;
 
     public FishMeatWorkspaceTests()
     {
@@ -56,7 +58,8 @@ public sealed class FishMeatWorkspaceTests : TestContext
         Services.AddSingleton(Mock.Of<IBusinessPayorsApiClient>());
         Services.AddSingleton<FacilityState>();
         JSInterop.Mode = JSRuntimeMode.Loose;
-        this.AddTestAuthorization().SetAuthorized("admin").SetRoles("Admin");
+        _authorization = this.AddTestAuthorization();
+        _authorization.SetAuthorized("admin").SetRoles("Admin");
     }
 
     [Theory]
@@ -66,6 +69,55 @@ public sealed class FishMeatWorkspaceTests : TestContext
     {
         Assert.Equal(template, Assert.Single(page.GetCustomAttributes(typeof(RouteAttribute), true).Cast<RouteAttribute>()).Template);
         Assert.Equal("SuperAdmin,Admin", Assert.Single(page.GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>()).Roles);
+    }
+
+    [Fact]
+    public void SuperAdmin_can_update_independent_fish_meat_rates_in_the_existing_operation_page()
+    {
+        _authorization.SetRoles("SuperAdmin");
+        var today = PhilippineTime.Today;
+        var next = today.AddDays(1);
+        var current = new[]
+        {
+            new WeighingTypeConfigurationDto(FishMeatVendorType.Fish, true, 1m, today, true),
+            new WeighingTypeConfigurationDto(FishMeatVendorType.Meat, true, 66m, today, true),
+        };
+        var upcoming = new[]
+        {
+            new WeighingTypeConfigurationDto(FishMeatVendorType.Fish, true, 1m, today, true),
+            new WeighingTypeConfigurationDto(FishMeatVendorType.Meat, true, 66m, today, true),
+        };
+        _facilities.Setup(x => x.GetWeighingConfigurationAsync())
+            .ReturnsAsync(Result<WeighingConfigurationDto>.Success(
+                new WeighingConfigurationDto(today, next, current, upcoming)));
+        _facilities.Setup(x => x.SetWeighingConfigurationAsync(
+            It.Is<SetWeighingConfigurationRequest>(r =>
+                r.FishEnabled && r.FishRatePerKilo == 2.50m
+                && !r.MeatEnabled && r.MeatRatePerKilo == null)))
+            .ReturnsAsync(Result<bool>.Success(true));
+        _facilities.Setup(x => x.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly,
+            It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>()))
+            .ReturnsAsync(Result<FacilityReportsDto>.Success(Report(fishFeeAmount: 0m)));
+
+        var cut = RenderComponent<WeightAndMeasure>();
+        cut.WaitForAssertion(() => Assert.Contains("Edit rates", cut.Markup), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Edit rates").Click();
+        var rates = cut.FindAll("input[type=number]");
+        Assert.Equal(2, rates.Count);
+        rates[0].Change("2.50");
+        var enabled = cut.FindAll("input[type=checkbox]");
+        Assert.Equal(2, enabled.Count);
+        enabled[1].Change(false);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Save rates").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            _facilities.Verify(x => x.SetWeighingConfigurationAsync(
+                It.Is<SetWeighingConfigurationRequest>(r =>
+                    r.FishEnabled && r.FishRatePerKilo == 2.50m
+                    && !r.MeatEnabled && r.MeatRatePerKilo == null)), Times.Once);
+            Assert.Contains("next collection business date", cut.Markup);
+        }, Timeout);
     }
 
     [Fact]
