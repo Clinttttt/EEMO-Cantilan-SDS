@@ -2,6 +2,8 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
 @using EEMOCantilanSDS.Application.Dtos.Facilities
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using System.Globalization
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
@@ -10,25 +12,31 @@
 
 <PageTitle>StallTrack — Weight & Measure</PageTitle>
 
-@* ONE SOURCE OWNER: NPM owns the Fish / Meat stalls, occupants and weighing records. This page only reads NPM's
-   weighing evidence for the Weight & Measure revenue line — it manages no stall or vendor, enters no kilos and records
-   no collection. Weight & Measure is a separate charge from stall rent and from the Fish / Meat Vendor Fee. *@
+@* Weight & Measure is independent of NPM and Fish/Meat Vendor Fee. This operation displays
+   source-native registered-vendor weighing separately from frozen historical NPM evidence.
+   Head rate revisions are append-only and apply from the next business date. *@
 <div class="v3-page wm-page">
-    <V3Hero OperationCode="WEIGHT_AND_MEASURE" Eyebrow="Operations" Title="Weight & Measure / Registration" Compact="true" FiguresLabel="Weighing position">
+    <V3Hero OperationCode="WEIGHT_AND_MEASURE" Eyebrow="Operations" Title="Weight & Measure" Compact="true" FiguresLabel="Weighing position">
         <Icon>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M7 21h10M5 7h14M5 7l-3 7a3 3 0 0 0 6 0L5 7zM19 7l-3 7a3 3 0 0 0 6 0l-3-7z" /></svg>
         </Icon>
         <Meta><span class="wm-meta">@PeriodLabel · <InstrumentChip Instrument="OR" /> Official Receipt</span></Meta>
         <Figures>
-            <V3HeroFigure Label="Meat weighing (frozen)" Value="@(_report?.FeeTypeBreakdown is { } breakdown ? Money(breakdown.MeatWeightMeasureAmount) : "—")" />
-            <V3HeroFigure Label="Fish weighing (frozen)" Value="@(_report?.FeeTypeBreakdown is { } fish ? Money(fish.FishWeightMeasureFrozenAmount) : "—")" />
-            <V3HeroFigure Label="Fish kilos without rate evidence" Value="@(_report?.FeeTypeBreakdown is { } unresolved ? Kilos(unresolved.FishKilosWithoutFrozenRate) : "—")" />
+            @if (FacilityCatalog.All.Contains(FacilityCode.NPM))
+            {
+                <V3HeroFigure Label="Meat weighing (frozen)" Value="@(_report?.FeeTypeBreakdown is { } breakdown ? Money(breakdown.MeatWeightMeasureAmount) : "—")" />
+                <V3HeroFigure Label="Fish weighing (frozen)" Value="@(_report?.FeeTypeBreakdown is { } fish ? Money(fish.FishWeightMeasureFrozenAmount) : "—")" />
+                <V3HeroFigure Label="Fish kilos without rate evidence" Value="@(_report?.FeeTypeBreakdown is { } unresolved ? Kilos(unresolved.FishKilosWithoutFrozenRate) : "—")" />
+            }
         </Figures>
         <Actions>
-            <a class="v3-btn" href="/facility/npm">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18" /><path d="M5 21V7l7-4 7 4v14" /><path d="M9 21v-5h6v5" /></svg>
-                Open NPM
-            </a>
+            @if (FacilityCatalog.All.Contains(FacilityCode.NPM))
+            {
+                <a class="v3-btn" href="/facility/npm">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18" /><path d="M5 21V7l7-4 7 4v14" /><path d="M9 21v-5h6v5" /></svg>
+                    Open NPM
+                </a>
+            }
             <a class="v3-btn" href="/operations/weight-and-measure/report">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17" x2="13" y2="17" /></svg>
                 Report
@@ -44,10 +52,58 @@
         </div>
     }
 
+    <section class="v3-panel" aria-label="Weight and Measure configuration">
+        <header class="v3-panel-header"><h2>Weighing configuration</h2></header>
+        <div class="v3-panel-body">
+            @if (_config is null) { <p class="v3-empty">Configuration unavailable.</p> }
+            else
+            {
+                <p class="v3-panel-meta">Approved rate effective for this municipality. Changes saved by the Head apply from @_config.NextEffectiveDate.ToString("MMM d, yyyy").</p>
+                <dl class="v3-facts">
+                    @foreach (var row in _config.Current)
+                    {
+                        <div><dt>@row.VendorType</dt><dd>@(row.Enabled ? Money(row.RatePerKilo ?? 0m) + "/kg" : "Not enabled")</dd></div>
+                    }
+                </dl>
+                <AuthorizeView Roles="SuperAdmin">
+                    <Authorized>
+                        @if (_editingConfiguration)
+                        {
+                            <div class="v3-facts">
+                                <label><input type="checkbox" @bind="_fishEnabled" /> Fish weighing</label>
+                                @if (_fishEnabled) { <label>Fish rate (₱/kg)<input class="v3-input" type="number" step="0.01" min="0.01" @bind="_fishRateText" /></label> }
+                                <label><input type="checkbox" @bind="_meatEnabled" /> Meat weighing</label>
+                                @if (_meatEnabled) { <label>Meat rate (₱/kg)<input class="v3-input" type="number" step="0.01" min="0.01" @bind="_meatRateText" /></label> }
+                            </div>
+                            <div class="v3-toolbar"><button type="button" class="v3-btn" @onclick="SaveConfigurationAsync" disabled="@_saving">Save rates</button><button type="button" class="v3-btn" @onclick="() => _editingConfiguration = false">Cancel</button></div>
+                        }
+                        else { <button type="button" class="v3-btn" @onclick="BeginEditingConfiguration">Edit rates</button> }
+                        @if (!string.IsNullOrWhiteSpace(_configMessage)) { <p role="status" class="v3-panel-meta">@_configMessage</p> }
+                    </Authorized>
+                </AuthorizeView>
+            }
+        </div>
+    </section>
+
+    @if (_sourceReport is { } source)
+    {
+        <section class="v3-panel" aria-label="Registered vendor weighing collections">
+            <header class="v3-panel-header"><h2>Registered vendor weighing</h2><span class="v3-panel-meta">@PeriodLabel</span></header>
+            <div class="v3-panel-body"><p>Fish: @Money(source.FishTotal) · Meat: @Money(source.MeatTotal) · Total: @Money(source.Total)</p></div>
+            <div class="v3-table-wrap"><table class="v3-table"><thead><tr><th>Date</th><th>Vendor</th><th>Type</th><th class="v3-num">Kilos</th><th class="v3-num">Rate/kg</th><th class="v3-num">Net amount</th></tr></thead><tbody>
+                @foreach (var row in source.Rows)
+                {
+                    <tr><td>@row.BusinessDate.ToString("MMM d")</td><td>@row.Vendor</td><td>@row.VendorType</td><td class="v3-num">@Kilos(row.Kilograms)</td><td class="v3-num">@Money(row.RatePerKilo)</td><td class="v3-num">@Money(row.NetAmount)</td></tr>
+                }
+                @if (source.Rows.Count == 0) { <tr><td colspan="6" class="v3-empty">No registered-vendor weighing collections for this month.</td></tr> }
+            </tbody></table></div>
+        </section>
+    }
+
     <div class="wm-layout">
         <section class="v3-panel" aria-labelledby="wm-fish-title" aria-busy="@(_loading ? "true" : "false")">
             <header class="v3-panel-header">
-                <h2 id="wm-fish-title">Fish weighing</h2>
+                <h2 id="wm-fish-title">Historical NPM Fish weighing</h2>
                 @if (FishRows.Any())
                 {
                     <span class="v3-panel-meta">@Kilos(FishRows.Sum(x => x.FishKilos))</span>
@@ -120,7 +176,7 @@
 
         <section class="v3-panel" aria-labelledby="wm-meat-title" aria-busy="@(_loading ? "true" : "false")">
             <header class="v3-panel-header">
-                <h2 id="wm-meat-title">Meat weighing</h2>
+                <h2 id="wm-meat-title">Historical NPM Meat weighing</h2>
             </header>
             @if (_report?.FeeTypeBreakdown is { } meat && (meat.MeatKilos > 0m || meat.MeatWeightMeasureAmount > 0m))
             {
@@ -157,6 +213,46 @@
     private string _monthInput = PhilippineTime.Today.ToString("yyyy-MM");
     private string _search = string.Empty;
     private FacilityReportsDto? _report;
+    private WeighingConfigurationDto? _config;
+    private WeighingCollectionReportDto? _sourceReport;
+    private bool _editingConfiguration;
+    private bool _saving;
+    private bool _fishEnabled;
+    private bool _meatEnabled;
+    private string _fishRateText = "";
+    private string _meatRateText = "";
+    private string? _configMessage;
+
+    private void BeginEditingConfiguration()
+    {
+        if (_config is null) return;
+        var fish = _config.Next.First(x => x.VendorType == EEMOCantilanSDS.Domain.Entities.Revenue.FishMeatVendorType.Fish);
+        var meat = _config.Next.First(x => x.VendorType == EEMOCantilanSDS.Domain.Entities.Revenue.FishMeatVendorType.Meat);
+        _fishEnabled = fish.Enabled; _meatEnabled = meat.Enabled;
+        _fishRateText = fish.RatePerKilo?.ToString("0.00", CultureInfo.InvariantCulture) ?? "";
+        _meatRateText = meat.RatePerKilo?.ToString("0.00", CultureInfo.InvariantCulture) ?? "";
+        _configMessage = null; _editingConfiguration = true;
+    }
+
+    private async Task SaveConfigurationAsync()
+    {
+        decimal? Parse(string text) => decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var rate) ? rate : null;
+        var fish = _fishEnabled ? Parse(_fishRateText) : null;
+        var meat = _meatEnabled ? Parse(_meatRateText) : null;
+        if (_fishEnabled && fish is not > 0m || _meatEnabled && meat is not > 0m)
+        { _configMessage = "Enter a valid positive per-kilo rate for every enabled type."; return; }
+        _saving = true;
+        try
+        {
+            var result = await FacilitiesApi.SetWeighingConfigurationAsync(new(_fishEnabled, fish, _meatEnabled, meat));
+            if (!result.IsSuccess) { _configMessage = result.Error ?? "Unable to save rates."; return; }
+            _editingConfiguration = false; _configMessage = "Rate revision saved for the next collection business date.";
+            var updated = await FacilitiesApi.GetWeighingConfigurationAsync();
+            if (updated.IsSuccess) _config = updated.Value;
+        }
+        catch { _configMessage = "Unable to save rates. Try again."; }
+        finally { _saving = false; }
+    }
     private bool _loading = true;
     private string? _error;
 
@@ -176,6 +272,8 @@
     protected override async Task OnInitializedAsync()
     {
         await FacilityCatalog.EnsureLoadedAsync();
+        var configuration = await FacilitiesApi.GetWeighingConfigurationAsync();
+        if (configuration.IsSuccess) _config = configuration.Value;
         await LoadAsync();
     }
 
@@ -195,18 +293,23 @@
         _error = null;
         try
         {
+            var sourceReport = await FacilitiesApi.GetWeighingSourceNativeReportAsync(_period.Year, _period.Month);
+            _sourceReport = sourceReport.IsSuccess ? sourceReport.Value : null;
+            if (!sourceReport.IsSuccess) _error = sourceReport.Error ?? "Registered-vendor weighing records couldn't be loaded.";
             var report = await FacilitiesApi.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, _period.Year, _period.Month);
             if (report.IsSuccess) _report = report.Value;
             else
             {
                 _report = null;
-                _error = "NPM weighing records couldn't be loaded.";
+                // Missing NPM is fine for an independent LGU; failure to read an existing NPM must not be hidden.
+                if (FacilityCatalog.All.Contains(FacilityCode.NPM))
+                    _error ??= "NPM weighing records couldn't be loaded.";
             }
         }
         catch
         {
             _report = null;
-            _error = "NPM weighing records couldn't be loaded.";
+            _error = "Weighing records couldn't be loaded.";
         }
         finally
         {

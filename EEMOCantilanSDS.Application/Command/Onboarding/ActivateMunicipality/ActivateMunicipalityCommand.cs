@@ -25,7 +25,13 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
         DayOfWeek? TpmMarketDay = null,
         Guid? AssessmentRequestId = null,
         IReadOnlyList<ActivationOperation>? OperationDeclarations = null,
-        IReadOnlyList<ActivationTerminalSection>? TerminalSectionDeclarations = null) : IRequest<Result<ActivationResultDto>>;
+        IReadOnlyList<ActivationTerminalSection>? TerminalSectionDeclarations = null,
+        ActivationWeighingConfiguration? WeighingConfiguration = null) : IRequest<Result<ActivationResultDto>>;
+
+    /// <summary>Explicit independent Fish/Meat choices filed as dated tenant rate versions during activation.
+    /// Null means a legacy onboarding that never stated this configuration.</summary>
+    public record ActivationWeighingConfiguration(bool FishEnabled, decimal? FishRatePerKilo,
+        bool MeatEnabled, decimal? MeatRatePerKilo);
 
     /// <summary>
     /// One revenue operation the LGU declared at onboarding. Carried as tenant PRESENTATION configuration (listed or not, and the

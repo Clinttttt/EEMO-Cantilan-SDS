@@ -46,6 +46,13 @@ public class FacilitiesApiClient(HttpClient http) : HandleResponse(http), IFacil
     public async Task<Result<FacilityConfigurationDto>> GetFacilityConfigurationAsync() =>
         await GetAsync<FacilityConfigurationDto>("api/Facilities/configuration");
 
+    public Task<Result<EEMOCantilanSDS.Application.Dtos.Revenue.WeighingConfigurationDto>> GetWeighingConfigurationAsync() =>
+        GetAsync<EEMOCantilanSDS.Application.Dtos.Revenue.WeighingConfigurationDto>("api/weight-and-measure/configuration");
+    public Task<Result<bool>> SetWeighingConfigurationAsync(EEMOCantilanSDS.Application.Dtos.Revenue.SetWeighingConfigurationRequest request) =>
+        PutAsync<EEMOCantilanSDS.Application.Dtos.Revenue.SetWeighingConfigurationRequest, bool>("api/weight-and-measure/configuration", request);
+    public Task<Result<EEMOCantilanSDS.Application.Dtos.Revenue.WeighingCollectionReportDto>> GetWeighingSourceNativeReportAsync(int year, int month) =>
+        GetAsync<EEMOCantilanSDS.Application.Dtos.Revenue.WeighingCollectionReportDto>($"api/weight-and-measure/source-native-report?year={year}&month={month}");
+
     public async Task<Result<bool>> AddFacilityAsync(AddFacilityCommand command) =>
         await PostAsync<AddFacilityCommand, bool>("api/Facilities", command);
 

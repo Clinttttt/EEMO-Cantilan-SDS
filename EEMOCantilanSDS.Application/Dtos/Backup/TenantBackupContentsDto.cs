@@ -24,6 +24,7 @@ public static class TenantBackupTableNames
     {
         ["Facilities"] = "Facilities",
         ["FacilityRates"] = "Facility rates",
+        ["WeighingRateVersions"] = "Weight & Measure rate history",
         ["OrSeriesConfigs"] = "OR series configuration",
         ["TenantOperationSettings"] = "Operation settings (listing and local names)",
         ["Stalls"] = "Stalls",

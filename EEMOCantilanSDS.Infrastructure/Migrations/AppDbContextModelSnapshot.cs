@@ -5129,6 +5129,46 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Revenue.WeighingRateVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("EffectiveDate")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("MunicipalityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("RatePerKilo")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime>("RecordedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RecordedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("VendorType")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MunicipalityId", "VendorType", "EffectiveDate", "RecordedAtUtc");
+
+                    b.ToTable("WeighingRateVersions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_WeighingRateVersions_Amount", "(\"IsEnabled\" = TRUE AND \"RatePerKilo\" > 0) OR (\"IsEnabled\" = FALSE AND \"RatePerKilo\" IS NULL)");
+                        });
+                });
+
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Slaughterhouse.SlaughterAnimalLabel", b =>
                 {
                     b.Property<Guid>("Id")

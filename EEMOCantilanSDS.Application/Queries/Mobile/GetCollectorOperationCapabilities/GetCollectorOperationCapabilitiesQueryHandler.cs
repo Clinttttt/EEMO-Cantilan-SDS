@@ -30,6 +30,7 @@ public sealed class GetCollectorOperationCapabilitiesQueryHandler(
     public const string NoCanonicalSource = "NO_CANONICAL_SOURCE";
     public const string PolicyNotEffective = "POLICY_NOT_EFFECTIVE";
     public const string NoAssignedCashTicket = "NO_ASSIGNED_CASH_TICKET";
+    public const string RateNotEffective = "RATE_NOT_EFFECTIVE";
 
     public async Task<Result<CollectorOperationCapabilitiesDto>> Handle(
         GetCollectorOperationCapabilitiesQuery request, CancellationToken ct)
@@ -83,10 +84,14 @@ public sealed class GetCollectorOperationCapabilitiesQueryHandler(
                     where c.MunicipalityId == tenantId && c.IsActive && codes.Contains(c.SemanticCode)
                         && p.BusinessContext == RevenuePolicyContext.Default && p.EffectiveDate <= today
                     select p).ToListAsync(ct);
-                var ready = collector.IsActive && today >= OfficeCollectionWorkflow.EffectiveFrom && policies
+                var policyReady = collector.IsActive && today >= OfficeCollectionWorkflow.EffectiveFrom && policies
                     .GroupBy(x => x.RevenueClassificationId).Any(g => g.OrderByDescending(x => x.EffectiveDate).First().PermittedInstrumentType == expected);
+                // Policy alone is not weighing availability. The source remains server-authoritative.
+                var rateReady = code != CollectorOperationCodes.WeightAndMeasure
+                    || await WeighingRateSchedule.HasAvailableTypeAsync(db, tenantId, today, ct);
+                var ready = policyReady && rateReady;
                 operations.Add(new(code, name, true, ready ? CollectorOperationCapabilityStatus.Ready : CollectorOperationCapabilityStatus.NeedsPolicy,
-                    ready, ready ? [] : [collector.IsActive ? PolicyNotEffective : CollectorInactive]));
+                    ready, ready ? [] : [!collector.IsActive ? CollectorInactive : !policyReady ? PolicyNotEffective : RateNotEffective]));
                 continue;
             }
             if (CollectorOperationCodes.IsSpaceObligation(code))

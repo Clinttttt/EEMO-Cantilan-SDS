@@ -26,6 +26,10 @@ public interface IFacilitiesApiClient
 
     Task<Result<FacilityConfigurationDto>> GetFacilityConfigurationAsync();
 
+    Task<Result<EEMOCantilanSDS.Application.Dtos.Revenue.WeighingConfigurationDto>> GetWeighingConfigurationAsync();
+    Task<Result<bool>> SetWeighingConfigurationAsync(EEMOCantilanSDS.Application.Dtos.Revenue.SetWeighingConfigurationRequest request);
+    Task<Result<EEMOCantilanSDS.Application.Dtos.Revenue.WeighingCollectionReportDto>> GetWeighingSourceNativeReportAsync(int year, int month);
+
     Task<Result<bool>> AddFacilityAsync(AddFacilityCommand command);
 
     /// <summary>Updates a facility's name/short-name/description for the caller's LGU (code/billing immutable).</summary>
