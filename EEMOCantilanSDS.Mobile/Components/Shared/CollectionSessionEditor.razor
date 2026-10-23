@@ -391,6 +391,8 @@ else
                         }
                         <div class="sheet-note">Approved amount confirmed on review</div>
                     }
+                    @if (_choice.Kind == CollectionSessionItemKind.FineAssessment)
+                    { <div class="sheet-note">Full outstanding assessed fine · Official Receipt. The server verifies the remaining amount before recording.</div> }
                     @if (_choice.Kind == CollectionSessionItemKind.NpmWholePayment) { <div class="sheet-note">Remaining monthly rent is confirmed on review</div> }
                     @if (_choice.Kind == CollectionSessionItemKind.NpmDaily)
                     {
@@ -596,6 +598,7 @@ else
     {
         "NPM_DAILY" when row.Choices is [{ ServerAmount: { } amount }] => Money(amount) + " · Today",
         "NPM_WHOLE_PAYMENT" when row.Choices is [{ ServerAmount: { } amount }] => Money(amount) + " remaining",
+        RevenueClassificationCodes.PenaltiesAndFines when row.Choices is [{ ServerAmount: { } fine }] => Money(fine) + " outstanding",
         "NPM_PART_PAYMENT" when row.Choices is [{ MaximumAmount: { } most }] => "Any amount up to " + Money(most),
         _ => null
     };
@@ -607,10 +610,12 @@ else
         _ => "Source"
     };
     private IReadOnlyList<MobileChoice.Choice> ChoiceOptions => Choices.Select(x => new MobileChoice.Choice(x.SelectionKey, x.DisplayName,
-        string.IsNullOrWhiteSpace(x.Context) || x.Context == _operation?.DisplayName ? (x.ServerAmount is { } amount ? Money(amount) : null) : x.Context)).ToArray();
+        x.Kind == CollectionSessionItemKind.FineAssessment && x.ServerAmount is { } fine
+            ? $"{x.Context} · {Money(fine)} outstanding"
+            : string.IsNullOrWhiteSpace(x.Context) || x.Context == _operation?.DisplayName ? (x.ServerAmount is { } amount ? Money(amount) : null) : x.Context)).ToArray();
     private bool IsWeighing => _choice is { Kind: CollectionSessionItemKind.SourceNative, OperationCode: CollectorOperationCodes.WeightAndMeasure };
     private bool IsTerminal => _choice is { Kind: CollectionSessionItemKind.SourceNative, OperationCode: CollectorOperationCodes.Terminal };
-    private bool TakesTypedAmount => _choice is { } c && !IsWeighing && c.Kind is not (CollectionSessionItemKind.Slaughter or CollectionSessionItemKind.NpmWholePayment)
+    private bool TakesTypedAmount => _choice is { } c && !IsWeighing && c.Kind is not (CollectionSessionItemKind.Slaughter or CollectionSessionItemKind.NpmWholePayment or CollectionSessionItemKind.FineAssessment)
         && c.AmountRule is CollectionSessionAmountRule.DirectAmount or CollectionSessionAmountRule.PreparedBalance;
     private bool NeedsPayerName => _choice is { Kind: CollectionSessionItemKind.SourceNative, OperationCode: CollectorOperationCodes.FishMeatVendorFee } c
         && c.Identity.VendorRegistrationId is null;
@@ -961,7 +966,7 @@ else
         var id = Guid.NewGuid(); var identity = c.Identity;
         SessionWaterIntent? water = null; SessionElectricityIntent? electricity = null; SessionObligationIntent? obligation = null;
         SessionGovernedIntent? service = null; SessionSlaughterIntent? slaughter = null; SessionNpmWholeIntent? npmWhole = null; SessionNpmDailyIntent? npmDaily = null; SessionNpmPartIntent? npmPart = null;
-        SourceNativeChargeIntent? native = null; SessionMonthlyRentIntent? rent = null;
+        SourceNativeChargeIntent? native = null; SessionMonthlyRentIntent? rent = null; SessionFineAssessmentIntent? fine = null;
         var year = identity.Year ?? identity.PeriodStart?.Year ?? BusinessDate.Year;
         var month = identity.Month ?? identity.PeriodStart?.Month ?? BusinessDate.Month;
         switch (c.Kind)
@@ -973,6 +978,7 @@ else
             case CollectionSessionItemKind.NpmDaily: npmDaily = new(identity.StallId!.Value, string.IsNullOrWhiteSpace(_npmReceipt) ? null : _npmReceipt.Trim()); break;
             case CollectionSessionItemKind.NpmPartPayment: npmPart = new(identity.StallId!.Value, year, month); break;
             case CollectionSessionItemKind.MonthlyRent: rent = new(identity.StallId!.Value, year, month, identity.SourceVersion); break;
+            case CollectionSessionItemKind.FineAssessment: fine = new(identity.FineAssessmentId!.Value, identity.FineVersion); break;
             case CollectionSessionItemKind.GovernedService: service = new(c.OperationCode, identity.Mode, identity.FeeOptionId, identity.VehicleClassCode); break;
             case CollectionSessionItemKind.Slaughter:
                 slaughter = new(identity.Animal!.Value, _heads, identity.CustomAnimalName, _source is null && string.IsNullOrWhiteSpace(_snapshot) ? _owner.Trim() : null, SlhSelected()); break;
@@ -983,7 +989,7 @@ else
         var amount = c.Kind is CollectionSessionItemKind.Slaughter or CollectionSessionItemKind.NpmWholePayment ? 0m
             : IsWeighing ? _serverAmount ?? 0m
             : c.AmountRule == CollectionSessionAmountRule.FixedAmount ? c.ServerAmount ?? 0m : _amount;
-        var added = new CollectionSessionItemIntent(id, c.Kind, amount, water, service, obligation, electricity, null, slaughter, null, npmWhole, native, rent, npmDaily, npmPart);
+        var added = new CollectionSessionItemIntent(id, c.Kind, amount, water, service, obligation, electricity, null, slaughter, null, npmWhole, native, rent, npmDaily, npmPart, fine);
         var at = _editingId is { } editing ? _items.FindIndex(x => x.ClientItemId == editing) : -1;
         if (at >= 0) { _items[at] = added; _shown.Remove(_editingId!.Value); _drafts.Remove(_editingId.Value); }
         else _items.Add(added);

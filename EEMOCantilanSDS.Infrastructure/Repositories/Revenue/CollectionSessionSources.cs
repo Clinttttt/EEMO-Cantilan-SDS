@@ -248,10 +248,11 @@ public sealed partial class CollectionSessionSources(AppDbContext db, ICurrentUs
         CollectionSessionIntent session, CollectionSessionItemIntent item, CancellationToken ct)
     {
         (CollectionSessionItemQuote?, CollectionSessionProblem?) Fail(string code, string message) => (null, new(item.ClientItemId, code, message));
-        var count = (item.Water is null ? 0 : 1) + (item.Service is null ? 0 : 1) + (item.Obligation is null ? 0 : 1) + (item.Electricity is null ? 0 : 1) + (item.Weighing is null ? 0 : 1) + (item.Slaughter is null ? 0 : 1) + (item.VendorFee is null ? 0 : 1) + (item.NpmWhole is null ? 0 : 1) + (item.Native is null ? 0 : 1) + (item.Rent is null ? 0 : 1) + (item.NpmDaily is null ? 0 : 1) + (item.NpmPart is null ? 0 : 1);
+        var count = (item.Water is null ? 0 : 1) + (item.Service is null ? 0 : 1) + (item.Obligation is null ? 0 : 1) + (item.Electricity is null ? 0 : 1) + (item.Weighing is null ? 0 : 1) + (item.Slaughter is null ? 0 : 1) + (item.VendorFee is null ? 0 : 1) + (item.NpmWhole is null ? 0 : 1) + (item.Native is null ? 0 : 1) + (item.Rent is null ? 0 : 1) + (item.NpmDaily is null ? 0 : 1) + (item.NpmPart is null ? 0 : 1) + (item.Fine is null ? 0 : 1);
         if (count != 1 || (item.Kind is CollectionSessionItemKind.Weighing or CollectionSessionItemKind.Slaughter or CollectionSessionItemKind.NpmWholePayment ? item.ConfirmedAmount < 0m : item.ConfirmedAmount <= 0m) || item.ConfirmedAmount > EEMOCantilanSDS.Domain.Entities.Revenue.Collection.MaximumMoneyAmount
             || decimal.Round(item.ConfirmedAmount, 2) != item.ConfirmedAmount)
             return Fail("InvalidIntent", "Supply one source-specific intent and a positive amount with at most two decimals.");
+        if (item.Fine is not null) return await QuoteFineAsync(session, item, ct);
         if (item.Native is not null) return await QuoteNativeChargeAsync(session, item, ct);
         if (session.SourceIdentity is not null && !await NativeItemMatchesAsync(session, item, ct)) return Fail("PayerMismatch", "This item belongs to a different Source Identity.");
         if (item.Rent is not null) return await QuoteNativeRentAsync(session, item, ct);
@@ -442,6 +443,7 @@ public sealed partial class CollectionSessionSources(AppDbContext db, ICurrentUs
 
     public async Task<CollectionSessionCollection> PostAsync(CollectionSessionIntent session, CollectionSessionItemIntent item, Guid operation, CancellationToken ct)
     {
+        if (item.Fine is not null) return await PostFineAsync(session, item, operation, ct);
         if (item.Native is not null) return await PostNativeChargeAsync(session, item, operation, ct);
         if (item.Rent is not null) return await PostNativeRentAsync(session, item, operation, ct);
         if (item.NpmDaily is not null) return await PostNativeDailyAsync(session, item, operation, ct);
