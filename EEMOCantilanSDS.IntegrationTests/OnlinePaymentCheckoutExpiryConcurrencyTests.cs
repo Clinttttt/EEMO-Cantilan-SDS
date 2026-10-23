@@ -1,4 +1,9 @@
 using EEMOCantilanSDS.Domain.Entities.Payments;
+using EEMOCantilanSDS.Application.Common;
+using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Common.Payments;
+using EEMOCantilanSDS.Domain.Entities.Facilities;
+using EEMOCantilanSDS.Infrastructure.Persistence;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Repositories;
@@ -9,6 +14,45 @@ namespace EEMOCantilanSDS.IntegrationTests;
 [Collection(PostgresCollection.Name)]
 public class OnlinePaymentCheckoutExpiryConcurrencyTests(PostgresFixture db)
 {
+    [SkippableFact]
+    public async Task CapturedCutoverCallbackPersistsReconciliationEvidence_WithoutCashOrDuplicateSettlement()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+        await db.ResetAsync();
+        var office = Municipality.Create("TEST-CAPTURE", "Capture Test Office", "Test", MunicipalityStatus.Active);
+        await using (var setup = db.CreateContext(Guid.Empty))
+        {
+            setup.Municipalities.Add(office); await setup.SaveChangesAsync();
+        }
+        var facility = Facility.Create(FacilityCode.NCC, "Test monthly facility", "NCC");
+        var stall = Stall.Create(facility.Id, "1", 100m, ApplicableFees.BaseRental);
+        var record = PaymentRecord.Create(stall.Id, 2026, 10, 100m);
+        record.MarkSettlementPendingCutover();
+        var transaction = OnlinePaymentTransaction.Create("TEST-CAPTURE-1", Guid.NewGuid(), record.Id, 100m, "PayMongo");
+        transaction.SetPending("cs_test", "https://checkout.test");
+        await using var context = db.CreateContext(office.Id);
+        context.AddRange(facility, stall, record, transaction); await context.SaveChangesAsync();
+        // This refusal path must never reach a legacy writer, notification or cache dependency.
+        var service = new OnlinePaymentSettlementService(new PaymentRepository(context), null!,
+            null!, null!, null!, new UnitOfWork(context), null!, null!);
+        var evt = new PaymentGatewayEvent(PaymentGatewayEventType.Paid, "cs_test", 100m, "pay_test", "qrph", DateTime.UtcNow, "{\"captured\":true}");
+
+        Assert.Equal(ResultStatus.Conflict, (await service.SettleAsync(transaction, evt)).Status);
+        context.ChangeTracker.Clear();
+        var saved = await context.OnlinePaymentTransactions.SingleAsync();
+        Assert.Equal(OnlinePaymentStatus.ReconciliationRequired, saved.Status);
+        Assert.Equal("pay_test", saved.PaymentId);
+        Assert.Contains("captured", saved.RawPayload);
+        Assert.Null(saved.ORNumber);
+        Assert.True((await service.SettleAsync(saved, evt)).IsSuccess);
+        Assert.Equal(PaymentStatus.Unpaid, (await context.PaymentRecords.SingleAsync()).Status);
+        Assert.Empty(await context.Collections.ToListAsync());
+        Assert.Empty(await context.CollectionAllocations.ToListAsync());
+        Assert.Single(await context.OnlinePaymentTransactions.ToListAsync());
+        await using var foreign = db.CreateContext(Guid.NewGuid());
+        Assert.Empty(await foreign.OnlinePaymentTransactions.ToListAsync());
+    }
+
     [SkippableFact]
     public async Task CheckoutExpiryCompareAndSet_CannotOverwriteCapturedFundsOrAnotherOffice()
     {

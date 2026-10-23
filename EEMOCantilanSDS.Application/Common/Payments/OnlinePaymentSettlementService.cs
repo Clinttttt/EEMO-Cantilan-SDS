@@ -37,7 +37,8 @@ public sealed class OnlinePaymentSettlementService(
                 or OnlinePaymentTargetKind.NpmFishDay or OnlinePaymentTargetKind.NpmFishDays
             && transaction.TargetStallId is { } target && transaction.TargetYear is { } year && transaction.TargetMonth is { } month
             && await monthly.IsMonthActivatedAsync(target, new(year, month, 1), cancellationToken))
-            return Result<bool>.Failure("RECONCILIATION_REQUIRED: Captured gateway payment targets an activated NPM month. No legacy settlement was performed; retain the provider payment for office reconciliation.", ResultStatus.Conflict);
+            return await PreserveCaptureForReconciliationAsync(transaction, evt,
+                "Captured gateway payment targets an activated NPM month. No legacy settlement was performed.", cancellationToken);
 
         PaymentRecord? monthlyRecord = null;
         if (transaction.TargetKind == OnlinePaymentTargetKind.MonthlyRecord)
@@ -47,7 +48,8 @@ public sealed class OnlinePaymentSettlementService(
             if (monthlyRecord is null || monthlyRecord.MunicipalityId != transaction.MunicipalityId)
                 return Result<bool>.Failure("Linked monthly source not found in this municipality.", ResultStatus.Conflict);
             if (monthlyRecord.SettlementAuthorityState != SettlementAuthority.Legacy)
-                return Result<bool>.Failure("RECONCILIATION_REQUIRED: Gateway callback targets a transitioning or canonical monthly source. No Collection or legacy settlement was posted. Retain provider evidence for office reconciliation.", ResultStatus.Conflict);
+                return await PreserveCaptureForReconciliationAsync(transaction, evt,
+                    "Gateway callback targets a transitioning or canonical monthly source. No Collection or legacy settlement was posted.", cancellationToken);
         }
 
         transaction.MarkPaid(evt.PaymentId, evt.Method, evt.PaidAt ?? DateTime.UtcNow, evt.RawPayload);
@@ -121,11 +123,16 @@ public sealed class OnlinePaymentSettlementService(
         return Result<bool>.Success(true);
     }
 
-    // NPM daily-month settlement: mark the month's still-unpaid, in-term, non-closed days Paid (blank OR;
-    // staff encode the OR later). Cross-channel safe — any day already collected in person is skipped by
-    // the shared service, so this never double-collects. If fewer days remain than were charged (some were
-    // paid in person after checkout), the money is still recorded (transaction MarkPaid above) for audit /
-    // refund, exactly as the monthly path records an already-settled period without overwriting it.
+    private async Task<Result<bool>> PreserveCaptureForReconciliationAsync(
+        OnlinePaymentTransaction transaction, PaymentGatewayEvent evt, string reason, CancellationToken ct)
+    {
+        transaction.MarkPaid(evt.PaymentId, evt.Method, evt.PaidAt ?? DateTime.UtcNow, evt.RawPayload);
+        transaction.MarkSettlementReconciliationRequired(reason);
+        await unitOfWork.SaveChangesAsync(ct);
+        return Result<bool>.Failure("RECONCILIATION_REQUIRED: " + reason, ResultStatus.Conflict);
+    }
+
+    // Cross-channel settlement leaves paid days intact; excess capture remains traceable for reconciliation/refund.
     private async Task<Result<bool>> SettleNpmAsync(OnlinePaymentTransaction transaction, CancellationToken cancellationToken)
     {
         if (transaction.TargetStallId is not { } stallId

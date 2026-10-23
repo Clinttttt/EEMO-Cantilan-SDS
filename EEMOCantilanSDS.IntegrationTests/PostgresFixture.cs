@@ -43,7 +43,7 @@ public sealed class PostgresFixture : IAsyncLifetime
         {
             _postgres = new PostgreSqlBuilder()
                 // Pinned: a test that only passes on whatever "latest" happens to be is not a test of anything.
-                .WithImage("postgres:16-alpine")
+                .WithImage("postgres:18-alpine")
                 .WithDatabase("stalltrack_tests")
                 .WithUsername("stalltrack")
                 .WithPassword("stalltrack")

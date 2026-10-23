@@ -276,9 +276,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         }
 
         /// <summary>
-        /// Preserves a captured NPM utility payment as a durable exception when its legacy combined
-        /// Electricity/Water writer reaches a source part that has entered cutover. No UtilityBill
-        /// settlement is changed; the gateway payment and any already-issued legacy OR remain traceable.
+        /// Preserves a captured payment as a durable exception when its source has entered cutover.
+        /// No source settlement is changed; gateway evidence and any issued legacy OR remain traceable.
         /// </summary>
         public void MarkSettlementReconciliationRequired(string reason, string? issuedDocumentNumber = null)
         {
