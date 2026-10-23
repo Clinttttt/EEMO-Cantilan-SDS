@@ -60,6 +60,34 @@ public class AuditTrailScopeTests
     }
 
     [Fact]
+    public async Task SharedUsernameResolvesOnlyWithinItsTenant_AndRecordedActorIdWins()
+    {
+        var options = Options();
+        var own = Guid.NewGuid(); var other = Guid.NewGuid();
+        using var ctx = new AppDbContext(options, new FixedMunicipality(own));
+        SeedAdmin(ctx, other, "head", "Other Head");
+        SeedAdmin(ctx, own, "head", "Own Head");
+        var known = ctx.ChangeTracker.Entries<AdminUser>().Single(x => x.Entity.FullName == "Own Head").Entity;
+        var confirmed = AuditLog.Create(known.Id.ToString(), "old.username", "SuperAdmin", "Updated", "AdminAccount");
+        var unknown = AuditLog.Create(Guid.NewGuid().ToString(), "head", "SuperAdmin", "Updated", "AdminAccount");
+        ctx.AuditLogs.AddRange(confirmed, unknown);
+        Stamp(ctx, confirmed, own); Stamp(ctx, unknown, own);
+        var otherHead = ctx.ChangeTracker.Entries<AdminUser>().Single(x => x.Entity.FullName == "Other Head").Entity;
+        var compactForeignId = AuditLog.Create(otherHead.Id.ToString("N").ToUpperInvariant(), "head", "SuperAdmin", "Updated", "AdminAccount");
+        ctx.AuditLogs.Add(compactForeignId); Stamp(ctx, compactForeignId, own);
+        SeedEvent(ctx, own, "head");
+        await ctx.SaveChangesAsync();
+
+        var trail = await new AuditRepository(ctx, new FixedMunicipality(own))
+            .GetAuditTrailAsync(null, null, null, null, null, null, 1, 25, true, default);
+        Assert.Equal(3, trail.TotalEvents);
+        Assert.Equal("Own Head", trail.Items.Single(x => x.Id == confirmed.Id).ActorDisplayName);
+        Assert.Equal("head", trail.Items.Single(x => x.Id == unknown.Id).ActorDisplayName);
+        Assert.DoesNotContain(trail.Items, x => x.ActorDisplayName == "Other Head");
+        Assert.Contains(trail.Actors, x => x.Value == "head" && x.Label == "head");
+    }
+
+    [Fact]
     public async Task AnotherMunicipalitysStaff_NeverAppearInThisOfficesTrail()
     {
         var options = Options();

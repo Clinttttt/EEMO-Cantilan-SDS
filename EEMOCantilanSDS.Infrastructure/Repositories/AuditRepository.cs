@@ -42,7 +42,13 @@ public class AuditRepository(IAppDbContext context, ICurrentMunicipalityAccessor
         // Resolve usernames -> staff full names up front (admins + collectors; payors excluded).
         // Needed both to display names and to let the search box match what the user sees.
         var staff = await BuildStaffDirectoryAsync(ct);
-        var nameMap = staff.ToDictionary(s => s.Key, s => s.Value.FullName, StringComparer.OrdinalIgnoreCase);
+        var currentMunicipality = municipality?.MunicipalityId ?? Guid.Empty;
+        var ownStaff = staff.Where(s => currentMunicipality == Guid.Empty || s.MunicipalityId == currentMunicipality).ToList();
+        var nameMap = ownStaff.GroupBy(s => s.Username, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() == 1)
+            .ToDictionary(g => g.Key, g => g.Single().FullName, StringComparer.OrdinalIgnoreCase);
+        var idMap = ownStaff.ToDictionary(s => s.Id, s => s.FullName);
+        var ownIds = ownStaff.SelectMany(s => new[] { s.Id.ToString(), s.Id.ToString("N") }).ToList();
 
         // Actors that belong to ANOTHER municipality never appear in this LGU's trail. Audit rows are stamped
         // with the tenant that was current when they were written, and some are written in flows where that is
@@ -50,21 +56,25 @@ public class AuditRepository(IAppDbContext context, ICurrentMunicipalityAccessor
         // office's own audit page must show its own people, so those rows are excluded here by the actor's
         // municipality rather than by the row's stamp. Accounts we cannot attribute (deleted staff, payors,
         // "system") are kept: an audit trail may never silently drop an event.
-        var currentMunicipality = municipality?.MunicipalityId ?? Guid.Empty;
         var foreignActors = currentMunicipality == Guid.Empty
             ? new List<string>()
-            : staff.Where(s => s.Value.MunicipalityId != Guid.Empty && s.Value.MunicipalityId != currentMunicipality)
+            : staff.Where(s => s.MunicipalityId != Guid.Empty && s.MunicipalityId != currentMunicipality)
                    // Lower-cased on both sides: usernames are matched case-insensitively everywhere else in the
                    // system, and a differently-cased actor name must not slip past this exclusion.
-                   .Select(s => s.Key.ToLower())
+                   .Select(s => s.Username.ToLower()).Where(n => !ownStaff.Any(s => s.Username.Equals(n, StringComparison.OrdinalIgnoreCase)))
                    .ToList();
+        var foreignIds = currentMunicipality == Guid.Empty ? new List<string>()
+            : staff.Where(s => s.MunicipalityId != Guid.Empty && s.MunicipalityId != currentMunicipality)
+                .SelectMany(s => new[] { s.Id.ToString(), s.Id.ToString("N") }).ToList();
 
         // Base scope = every filter EXCEPT action, so the summary cards always show the full
         // Created/Updated/Deleted breakdown for the current search/date/actor/entity scope.
         var baseQuery = context.AuditLogs.AsNoTracking();
 
         if (foreignActors.Count > 0)
-            baseQuery = baseQuery.Where(a => !foreignActors.Contains(a.ActorName.ToLower()));
+            baseQuery = baseQuery.Where(a => ownIds.Contains(a.ActorId.ToLower()) || !foreignActors.Contains(a.ActorName.ToLower()));
+        if (foreignIds.Count > 0)
+            baseQuery = baseQuery.Where(a => !foreignIds.Contains(a.ActorId.ToLower()));
 
         // Rows already written before audit entries were filed under the record's own municipality can still
         // carry this office's stamp while describing ANOTHER LGU's record — e.g. "Updated the staff account of
@@ -116,13 +126,15 @@ public class AuditRepository(IAppDbContext context, ICurrentMunicipalityAccessor
                 .Where(kv => kv.Value.ToLower().Contains(term))
                 .Select(kv => kv.Key)
                 .ToList();
+            var matchedIds = ownStaff.Where(s => s.FullName.Contains(term, StringComparison.OrdinalIgnoreCase))
+                .SelectMany(s => new[] { s.Id.ToString(), s.Id.ToString("N") }).ToList();
 
             baseQuery = baseQuery.Where(a =>
                 a.ActorName.ToLower().Contains(term) ||
                 a.EntityType.ToLower().Contains(term) ||
                 a.Action.ToLower().Contains(term) ||
                 (a.Notes != null && a.Notes.ToLower().Contains(term)) ||
-                matchedUsernames.Contains(a.ActorName));
+                matchedIds.Contains(a.ActorId.ToLower()) || matchedUsernames.Contains(a.ActorName));
         }
 
         // Action breakdown over the base scope (single round-trip via GROUP BY).
@@ -154,6 +166,7 @@ public class AuditRepository(IAppDbContext context, ICurrentMunicipalityAccessor
                 a.Id,
                 a.LoggedAt,
                 a.ActorName,
+                a.ActorId,
                 a.ActorRole,
                 a.Action,
                 a.EntityType,
@@ -177,7 +190,7 @@ public class AuditRepository(IAppDbContext context, ICurrentMunicipalityAccessor
                 a.Id,
                 a.LoggedAt,
                 a.ActorName,
-                Display(a.ActorName, nameMap),
+                Display(a.ActorId, a.ActorName, nameMap, idMap),
                 a.ActorRole,
                 a.Action,
                 a.EntityType,
@@ -201,14 +214,19 @@ public class AuditRepository(IAppDbContext context, ICurrentMunicipalityAccessor
             // Built from the SAME scoped query as the trail, so the dropdown can only offer actors whose events
             // this office is actually allowed to read.
             var distinctActors = await baseQuery
-                .Select(a => a.ActorName)
+                .Select(a => new { a.ActorId, a.ActorName })
                 .Distinct()
                 .ToListAsync(ct);
 
             // Exclude payor self-service accounts (all-numeric mobile-number usernames); show staff names.
             actorOptions = distinctActors
-                .Where(n => !IsNumericActor(n))
-                .Select(n => new AuditActorOptionDto(n, Display(n, nameMap)))
+                .Where(n => !IsNumericActor(n.ActorName))
+                .GroupBy(n => n.ActorName)
+                .Select(g =>
+                {
+                    var labels = g.Select(a => Display(a.ActorId, a.ActorName, nameMap, idMap)).Distinct().ToList();
+                    return new AuditActorOptionDto(g.Key, labels.Count == 1 ? labels[0] : g.Key);
+                })
                 .OrderBy(o => o.Label, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
@@ -331,7 +349,9 @@ public class AuditRepository(IAppDbContext context, ICurrentMunicipalityAccessor
         _ => null
     };
 
-    private async Task<Dictionary<string, (string FullName, Guid MunicipalityId)>> BuildStaffDirectoryAsync(CancellationToken ct)
+    private sealed record StaffActor(Guid Id, string Username, string FullName, Guid MunicipalityId);
+
+    private async Task<List<StaffActor>> BuildStaffDirectoryAsync(CancellationToken ct)
     {
         // Deliberately ignores the tenant query filter: this directory is what tells us WHICH municipality an
         // actor belongs to, so it has to be able to see accounts outside the current one. Nothing from another
@@ -339,26 +359,24 @@ public class AuditRepository(IAppDbContext context, ICurrentMunicipalityAccessor
         // to resolve this LGU's own names.
         var admins = await context.AdminUsers.AsNoTracking().IgnoreQueryFilters()
             .Where(u => u.Username != null && u.FullName != null)
-            .Select(u => new { u.Username, u.FullName, u.MunicipalityId })
+            .Select(u => new StaffActor(u.Id, u.Username!, u.FullName!, u.MunicipalityId))
             .ToListAsync(ct);
 
         var collectors = await context.CollectorUsers.AsNoTracking().IgnoreQueryFilters()
             .Where(u => u.Username != null && u.FullName != null)
-            .Select(u => new { u.Username, u.FullName, u.MunicipalityId })
+            .Select(u => new StaffActor(u.Id, u.Username!, u.FullName!, u.MunicipalityId))
             .ToListAsync(ct);
 
-        return admins.Concat(collectors)
-            .GroupBy(u => u.Username!, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(
-                g => g.Key,
-                g => (g.First().FullName!, g.First().MunicipalityId),
-                StringComparer.OrdinalIgnoreCase);
+        return admins.Concat(collectors).ToList();
     }
 
-    // Maps a stored actor username to a display name: "system" -> "System", known staff -> full name,
-    // otherwise the username unchanged (e.g. a payor mobile number).
-    private static string Display(string actorName, IReadOnlyDictionary<string, string> nameMap)
+    // Recorded staff identity wins; only legacy non-GUID actors use an unambiguous tenant username.
+    private static string Display(string actorId, string actorName, IReadOnlyDictionary<string, string> nameMap,
+        IReadOnlyDictionary<Guid, string> idMap)
     {
+        // A deleted or unknown recorded staff ID must never resolve to a replacement with the same username.
+        if (Guid.TryParse(actorId, out var id))
+            return idMap.GetValueOrDefault(id, actorName);
         if (string.Equals(actorName, "system", StringComparison.OrdinalIgnoreCase))
             return "System";
         return nameMap.TryGetValue(actorName, out var fullName) && !string.IsNullOrWhiteSpace(fullName)
