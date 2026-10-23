@@ -74,7 +74,8 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
         /// its paper says otherwise must not need a developer.
         /// </para>
         /// </remarks>
-        NpmMonthBasis MonthBasis = NpmMonthBasis.RentGoal);
+        NpmMonthBasis MonthBasis = NpmMonthBasis.RentGoal,
+        CustomFacilityCategory CustomCategory = CustomFacilityCategory.StallRent);
 
     /// <summary>
     /// The LGU's own names for the three collection areas of its public-market daily sheet, as it declared

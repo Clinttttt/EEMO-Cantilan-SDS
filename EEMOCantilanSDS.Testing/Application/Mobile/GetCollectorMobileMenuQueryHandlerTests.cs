@@ -2,6 +2,7 @@
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorMobileMenu;
 using EEMOCantilanSDS.Domain.Entities.Users;
+using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Enums;
 using Moq;
 
@@ -80,6 +81,9 @@ public class GetCollectorMobileMenuQueryHandlerTests
         var facilityRepo = new Mock<IFacilityRepository>();
         facilityRepo.Setup(r => r.GetFacilityNamesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)new Dictionary<FacilityCode, string> { [FacilityCode.Custom1] = "Fishery Economics" });
+        facilityRepo.Setup(r => r.GetByCodeAsync(FacilityCode.Custom1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Facility.Create(FacilityCode.Custom1, "Fishery Economics", "FE",
+                customCategory: CustomFacilityCategory.SpaceRental));
         var currentUser = new Mock<ICurrentUserService>();
         currentUser.SetupGet(u => u.CollectorId).Returns(collector.Id);
         var handler = new GetCollectorMobileMenuQueryHandler(
@@ -92,6 +96,8 @@ public class GetCollectorMobileMenuQueryHandlerTests
         Assert.True(custom.IsAssigned);
         Assert.True(custom.IsAvailable);                                   // was locked before the fix
         Assert.Equal(BillingArchetype.MonthlyRental, custom.Archetype);    // routes to the monthly screen
+        Assert.Equal(CustomFacilityCategory.SpaceRental, custom.CustomCategory);
+        Assert.Equal("Monthly Space Rental", custom.Description);
     }
 
     [Fact]

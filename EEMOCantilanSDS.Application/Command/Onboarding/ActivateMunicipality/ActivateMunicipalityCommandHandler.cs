@@ -73,7 +73,8 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
             foreach (var f in request.Facilities)
             {
                 var facility = Facility.Create(
-                    f.Code, f.Name.Trim(), f.ShortName.Trim(), archetype: f.Archetype, municipalityId: municipality.Id);
+                    f.Code, f.Name.Trim(), f.ShortName.Trim(), archetype: f.Archetype,
+                    municipalityId: municipality.Id, customCategory: f.CustomCategory);
                 context.Facilities.Add(facility);
                 if (f.Code == FacilityCode.NPM)
                 {

@@ -60,6 +60,12 @@ public class GetCollectorMobileMenuQueryHandler(
                      (FacilityCode.NPM, npmDaily, RevenueClassificationCodes.PermanentStallRent)
                  })
             if (on) canonical[facility] = await canonicalAuthority!.ResolveInstrumentAsync(classification, today, cancellationToken);
+        // Tenant-scoped reads: preserve the same monthly route for both categories.
+        // The extra category only changes the displayed source family, never collection authority.
+        var customCategories = new Dictionary<FacilityCode, CustomFacilityCategory>();
+        foreach (var code in names.Keys.Where(FacilityCatalog.IsCustom))
+            customCategories[code] = (await facilityRepository.GetByCodeAsync(code, cancellationToken))?.CustomCategory
+                ?? CustomFacilityCategory.StallRent;
         var facilities = names
             .OrderBy(kv => kv.Key)
             .Select(kv =>
@@ -69,7 +75,9 @@ public class GetCollectorMobileMenuQueryHandler(
                 return new MobileFacilityMenuItemDto(
                     kv.Key,
                     kv.Value,
-                    kv.Key == FacilityCode.NPM && npmMonthly ? "NPM - Monthly Stall Rental" : GetFacilityDescription(kv.Key),
+                    kv.Key == FacilityCode.NPM && npmMonthly ? "NPM - Monthly Stall Rental"
+                        : customCategories.GetValueOrDefault(kv.Key) == CustomFacilityCategory.SpaceRental
+                            ? "Monthly Space Rental" : GetFacilityDescription(kv.Key),
                     isAssigned,
                     // Available when assigned AND the billing archetype maps to a built mobile screen. Every
                     // archetype except the unmapped "Custom" has one (custom FACILITIES bill as MonthlyRental
@@ -77,7 +85,8 @@ public class GetCollectorMobileMenuQueryHandler(
                     isAssigned && archetype != BillingArchetype.Custom,
                     archetype,
                     canonical.ContainsKey(kv.Key),
-                    canonical.GetValueOrDefault(kv.Key));
+                    canonical.GetValueOrDefault(kv.Key),
+                    customCategories.GetValueOrDefault(kv.Key));
             })
             .ToList();
 

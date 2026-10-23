@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 
 namespace EEMOCantilanSDS.Application.Command.Facilities.AddFacility;
@@ -9,5 +10,6 @@ namespace EEMOCantilanSDS.Application.Command.Facilities.AddFacility;
 /// archetype defaulted from the code); fixed rates fall back to the ordinance defaults until customised,
 /// and monthly-rental rates live per stall. Rejected if that code is already configured for the tenant.
 /// </summary>
-public record AddFacilityCommand(string Code, string Name, string ShortName, string? Description = null)
+public record AddFacilityCommand(string Code, string Name, string ShortName, string? Description = null,
+    CustomFacilityCategory CustomCategory = CustomFacilityCategory.StallRent)
     : IRequest<Result<bool>>;

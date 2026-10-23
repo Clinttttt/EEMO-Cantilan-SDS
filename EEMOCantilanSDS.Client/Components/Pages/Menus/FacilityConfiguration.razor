@@ -1,6 +1,7 @@
 @page "/settings/facilities"
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @using EEMOCantilanSDS.Application.Command.Facilities.AddFacility
+@using EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Application.Command.Facilities.UpdateFacility
 @using EEMOCantilanSDS.Application.Dtos.TaboanMarket
 @using EEMOCantilanSDS.Application.Command.TaboanMarket.SetMarketDay
@@ -136,12 +137,13 @@
                                             </span>
                                         </div>
                                     </td>
-                                    <td class="fac-billing">@f.BillingModel</td>
+                                    <td class="fac-billing">@f.BillingModel@if (IsCustom(f.Code)) { <span> · @(f.CustomCategory == CustomFacilityCategory.SpaceRental ? "Space Rental" : "Stall Rent")</span> }</td>
                                     <td class="v3-num">@(f.StallCount > 0 ? f.StallCount.ToString("N0") : "—")</td>
                                     <td>
                                         @if (f.Rates.Count == 0)
                                         {
-                                            <span class="fac-rate-none">Rents set per stall</span>
+                                            <span class="fac-rate-none">@(IsCustom(f.Code) && f.CustomCategory == CustomFacilityCategory.SpaceRental
+                                                ? "Rents set per space" : "Rents set per stall")</span>
                                         }
                                         else
                                         {
@@ -261,7 +263,17 @@
                     <input class="fac-input" @bind="_addShortName" @bind:event="oninput" maxlength="16" />
                 </label>
 
-                <div class="cfg-field-note">Fixed fees start at the ordinance rates. Monthly rents are set per stall.</div>
+                @if (_addTarget.IsCustom)
+                {
+                    <label class="fac-field">
+                        <span class="fac-field-label">Rental category</span>
+                        <select class="fac-input" @bind="_addCategory">
+                            <option value="@CustomFacilityCategory.StallRent">Stall Rent</option>
+                            <option value="@CustomFacilityCategory.SpaceRental">Space Rental</option>
+                        </select>
+                    </label>
+                }
+                <div class="cfg-field-note">Monthly charges and receipts use the existing rental contract engine.</div>
 
                 @if (_addError is not null)
                 {
@@ -1428,6 +1440,7 @@
 
     // Add
     private AvailableFacilityDto? _addTarget;
+    private CustomFacilityCategory _addCategory = CustomFacilityCategory.StallRent;
     private string _addName = string.Empty;
     private string _addShortName = string.Empty;
     // No longer edited: the description input was removed because nothing in the portal displayed it. Kept as
@@ -1520,6 +1533,7 @@
     private void OpenAdd(AvailableFacilityDto a)
     {
         _addTarget = a;
+        _addCategory = CustomFacilityCategory.StallRent;
         // Custom facilities are Head-named — start blank so they enter their own name.
         _addName = a.IsCustom ? string.Empty : a.Name;
         _addShortName = a.IsCustom ? string.Empty : a.ShortName;
@@ -1707,7 +1721,7 @@
 
         var result = await FacilitiesApi.AddFacilityAsync(new AddFacilityCommand(
             _addTarget.Code, _addName.Trim(), _addShortName.Trim(),
-            string.IsNullOrWhiteSpace(_addDescription) ? null : _addDescription.Trim()));
+            string.IsNullOrWhiteSpace(_addDescription) ? null : _addDescription.Trim(), _addCategory));
 
         _busy = false;
         if (result.IsSuccess)

@@ -93,6 +93,10 @@ public class FacilityState(IFacilitiesApiClient api)
 
     public static bool IsRental(FacilityCode code) => RentalCodes.Contains(code);
 
+    /// <summary>LGU-declared custom display category, not a billing or classification switch.</summary>
+    public CustomFacilityCategory CustomCategoryOf(FacilityCode code) =>
+        _facilities?.FirstOrDefault(f => f.Code == code)?.CustomCategory ?? CustomFacilityCategory.StallRent;
+
     /// <summary>
     /// True once the catalog is loaded and this LGU's Public Market was declared as standard monthly rental at onboarding: it is
     /// collected and managed like TCC/NCC (one monthly rent per stall), not on the daily calendar. False before load or on a

@@ -22,7 +22,8 @@ public record ConfiguredFacilityDto(
     IReadOnlyList<ConfiguredRateDto> Rates,
     string? VegetableSectionLabel = null,
     string? FishSectionLabel = null,
-    string? MeatSectionLabel = null);
+    string? MeatSectionLabel = null,
+    CustomFacilityCategory CustomCategory = CustomFacilityCategory.StallRent);
 
 /// <summary>
 /// A configurable fixed rate for a facility: the current effective amount (a customised row, else the

@@ -120,7 +120,10 @@ public class GetMonthEndReportQueryHandler(
                 // charges would stop tying to the lines above it.
                 Utilities: isNpm
                     ? await reportsRepository.GetNpmUtilityRowsAsync(request.Year, request.Month, ct)
-                    : null));
+                    : null,
+                CustomCategory: FacilityCatalog.IsCustom(code)
+                    ? (await facilityRepository.GetByCodeAsync(code, ct))?.CustomCategory ?? CustomFacilityCategory.StallRent
+                    : CustomFacilityCategory.StallRent));
         }
 
         // ── Transaction facilities: itemised month records grouped by payor ──

@@ -24,6 +24,12 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.Property(s => s.Archetype)
                 .IsRequired()
                 .HasConversion<int>();
+
+            // Existing municipalities retain Stall Rent (0); adding this field does not rewrite their collections.
+            builder.Property(s => s.CustomCategory)
+                .IsRequired()
+                .HasConversion<int>()
+                .HasDefaultValue(EEMOCantilanSDS.Domain.Enums.CustomFacilityCategory.StallRent);
             
             builder.Property(s => s.Name)
                 .IsRequired()

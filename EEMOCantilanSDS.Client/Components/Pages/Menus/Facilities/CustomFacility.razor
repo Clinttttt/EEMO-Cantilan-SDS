@@ -19,7 +19,8 @@
               FacilityCodeEnum="_code"
               FacilityName="@FacilityCatalog.NameOf(_code)"
               FacilityShortCode="@_code.ToString()"
-              FacilityDescription="Custom facility · monthly rental"
+              FacilityDescription="@(FacilityCatalog.CustomCategoryOf(_code) == CustomFacilityCategory.SpaceRental
+                  ? "Custom space rental - monthly" : "Custom stall rent - monthly")"
               FacilityIcon="@CustomIcon"
               DefaultMonthlyRate="0"
               DefaultFeeTypes="@(new List<string>())"

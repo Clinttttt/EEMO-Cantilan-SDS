@@ -7,6 +7,10 @@ public class AddFacilityCommandValidator : AbstractValidator<AddFacilityCommand>
 {
     public AddFacilityCommandValidator()
     {
+        RuleFor(x => x.CustomCategory)
+            .Must(Enum.IsDefined)
+            .WithMessage("Choose Stall Rent or Space Rental.");
+
         RuleFor(x => x.Code)
             .NotEmpty().WithMessage("A facility type is required.")
             .Must(c => Enum.TryParse<FacilityCode>(c, ignoreCase: true, out _))

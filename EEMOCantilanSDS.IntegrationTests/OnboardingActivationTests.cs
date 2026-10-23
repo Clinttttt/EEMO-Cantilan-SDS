@@ -144,7 +144,8 @@ public sealed partial class OnboardingActivationTests(PostgresFixture db)
             [
                 Fac(FacilityCode.NPM, "Madrid Pamilihan", BillingArchetype.DailyStall),
                 Fac(FacilityCode.TCC, "Plaza Tindahan", BillingArchetype.MonthlyRental),
-                Fac(FacilityCode.Custom1, "Night Market", BillingArchetype.MonthlyRental),
+                Fac(FacilityCode.Custom1, "Night Market", BillingArchetype.MonthlyRental)
+                    with { CustomCategory = CustomFacilityCategory.SpaceRental },
                 Fac(FacilityCode.Custom2, "Fiesta Hall", BillingArchetype.MonthlyRental),
                 Fac(FacilityCode.TRM, "Pantalan Terminal", BillingArchetype.PerTrip),
             ],
@@ -161,6 +162,12 @@ public sealed partial class OnboardingActivationTests(PostgresFixture db)
             facilities.Select(f => f.Name).Order().ToArray());
         Assert.All(facilities.Where(f => f.Code is FacilityCode.Custom1 or FacilityCode.Custom2),
             f => Assert.Equal(BillingArchetype.MonthlyRental, f.Archetype));
+        Assert.Equal(CustomFacilityCategory.SpaceRental,
+            facilities.Single(f => f.Code == FacilityCode.Custom1).CustomCategory);
+        Assert.Equal(CustomFacilityCategory.StallRent,
+            facilities.Single(f => f.Code == FacilityCode.Custom2).CustomCategory);
+        Assert.Equal(CustomFacilityCategory.StallRent,
+            facilities.Single(f => f.Code == FacilityCode.TCC).CustomCategory);
 
         var rates = await verify.FacilityRates.IgnoreQueryFilters().Where(r => r.MunicipalityId == w.TargetId).ToListAsync();
         Assert.Equal(2, rates.Count); // exactly the two stated; none for a monthly rental, none zero-filled

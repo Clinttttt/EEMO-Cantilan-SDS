@@ -96,6 +96,33 @@ public sealed class MonthlyCollectionReportPageTests : TestContext
         cut.FindAll(".me-official .me-src-table tbody tr:not(.me-area-row):not(.me-area-sub) td:first-child").Select(c => c.TextContent.Trim()).ToArray();
 
     [Fact]
+    public void CustomSpacesAreLabeledInAccountDetailWithoutMovingTheOfficialPendingRevenue()
+    {
+        var custom = new MonthEndFacilityDto(FacilityCode.Custom1, "Civic Plaza", true,
+            300m, 0m, 100, 1, 0, 0, 1,
+            [new("S-01", "Ana Cruz", 300m, "Paid", 300m, 0m, "OR-123")], [],
+            CustomCategory: CustomFacilityCategory.SpaceRental);
+        var details = new MonthEndReportDto(PhilippineTime.Now.Year, PhilippineTime.Now.Month, "October 2026",
+            300m, 0m, 100, 1, 0, 0, [custom]);
+        _facilities.Setup(x => x.GetMonthEndReportAsync(It.IsAny<int>(), It.IsAny<int>()))
+            .ReturnsAsync(Result<MonthEndReportDto>.Success(details));
+        _official.Setup(x => x.GetSourcePerformanceAsync(It.IsAny<int>(), It.IsAny<int?>()))
+            .ReturnsAsync(Result<RevenueSourcePerformanceDto>.Success(Official(
+                Row("RENT_OTHER", "Other rental facilities", "PENDING",
+                    "Awaiting an approved official grouping", RevenueSourceModel.RecurringObligation, 300m))));
+        var cut = RenderReport();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Civic Plaza", cut.Markup);
+            Assert.Contains("Space Rental", cut.FindAll(".me-fac-head").Single(h => h.TextContent.Contains("Civic Plaza")).TextContent);
+            Assert.Equal(EEMOCantilanSDS.Application.Common.Revenue.OfficialMonthlyIncomeStructure.Pending,
+                EEMOCantilanSDS.Application.Common.Revenue.OfficialMonthlyIncomeStructure.Rows.Single(r => r.Key == "RENT_OTHER").GroupKey);
+            Assert.Equal("RENT_OTHER", EEMOCantilanSDS.Application.Common.Revenue.OfficialMonthlyIncomeStructure.RowKeyFor(
+                EEMOCantilanSDS.Domain.Constants.RevenueClassificationCodes.PermanentStallRent, FacilityCode.Custom1));
+        }, Timeout);
+    }
+
+    [Fact]
     public void TheReportIsOrganizedByTheOfficesGroups_AndItsTotalIsTheOfficialTotal()
     {
         Serve(Official(OfficialRows()));

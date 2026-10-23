@@ -58,6 +58,30 @@ public sealed class OperationsFacilitiesHubTests : TestContext
     }
 
     [Fact]
+    public void CustomMonthlySpacesRenderInSpaceRental_AndCustomStallsRemainInRentIncome()
+    {
+        var summaries = new[]
+        {
+            new FacilitySidebarSummaryDto(FacilityCode.Custom1, "Civic Plaza", "PLZ", 0,
+                CustomCategory: CustomFacilityCategory.SpaceRental),
+            new FacilitySidebarSummaryDto(FacilityCode.Custom2, "Trade Hall", "HAL", 0)
+        };
+        Services.AddSingleton(FacilityApi(summaries).Object);
+        var cut = RenderComponent<Operations>();
+        cut.WaitForAssertion(() =>
+        {
+            var spaces = cut.Find("section[aria-labelledby=space-rental-title]");
+            var rent = cut.Find("section[aria-labelledby=rent-income-title]");
+            Assert.NotNull(spaces.QuerySelector("[data-facility-code='Custom1']"));
+            Assert.Null(rent.QuerySelector("[data-facility-code='Custom1']"));
+            Assert.NotNull(rent.QuerySelector("[data-facility-code='Custom2']"));
+            Assert.Null(spaces.QuerySelector("[data-facility-code='Custom2']"));
+            AssertFacilityLink(cut, FacilityCode.Custom1, "/facility/plz");
+            AssertFacilityLink(cut, FacilityCode.Custom2, "/facility/hal");
+        }, Timeout);
+    }
+
+    [Fact]
     public void RendersOnlyTenantSummaryFacilities_WithTenantNamesAndExistingSlugs()
     {
         var summaries = new[]

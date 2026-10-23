@@ -161,6 +161,25 @@ public class OnboardingOperationDeclarationTests
     public void ACustomCodeAcceptsAMonthlyRentalFacility() =>
         Assert.True(new ActivateMunicipalityCommandValidator().Validate(Activation(FacilityCode.Custom1, BillingArchetype.MonthlyRental)).IsValid);
 
+    [Fact]
+    public void OnlyCustomMonthlyFacilitiesMayDeclareSpaceRental()
+    {
+        var validator = new ActivateMunicipalityCommandValidator();
+        var valid = Activation(FacilityCode.Custom1, BillingArchetype.MonthlyRental);
+        var declared = valid with { Facilities = [
+            valid.Facilities[0] with { CustomCategory = CustomFacilityCategory.SpaceRental }] };
+        Assert.True(validator.Validate(declared).IsValid);
+
+        var nonCustom = Activation(FacilityCode.TCC, BillingArchetype.MonthlyRental);
+        var invalid = nonCustom with { Facilities = [
+            nonCustom.Facilities[0] with { CustomCategory = CustomFacilityCategory.SpaceRental }] };
+        Assert.False(validator.Validate(invalid).IsValid);
+
+        var future = valid with { Facilities = [
+            valid.Facilities[0] with { CustomCategory = (CustomFacilityCategory)999 }] };
+        Assert.False(validator.Validate(future).IsValid);
+    }
+
     [Theory]
     [InlineData(BillingArchetype.DailyStall)]
     [InlineData(BillingArchetype.PerHead)]

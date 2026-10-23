@@ -55,6 +55,34 @@ public class AddFacilityCommandHandlerTests
     }
 
     [Fact]
+    public async Task HeadCustomSpaceUsesSameMonthlyEngineWithOwnCategory()
+    {
+        var repo = new Mock<IFacilityRepository>();
+        Facility? saved = null;
+        repo.Setup(x => x.AddFacilityAsync(It.IsAny<Facility>(), It.IsAny<CancellationToken>()))
+            .Callback<Facility, CancellationToken>((f, _) => saved = f).Returns(Task.CompletedTask);
+        var result = await Build(repo, new Mock<IUnitOfWork>())
+            .Handle(new AddFacilityCommand("Custom2", "Civic Plaza", "PLZ", null,
+                CustomFacilityCategory.SpaceRental), CancellationToken.None);
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.NotNull(saved);
+        Assert.Equal(CustomFacilityCategory.SpaceRental, saved!.CustomCategory);
+        Assert.Equal(BillingArchetype.MonthlyRental, saved.Archetype);
+    }
+
+    [Fact]
+    public async Task StandardFacilityCannotDeclareCustomSpace_WithoutWritingAnything()
+    {
+        var repo = new Mock<IFacilityRepository>();
+        var uow = new Mock<IUnitOfWork>();
+        var result = await Build(repo, uow).Handle(new AddFacilityCommand(
+            "TCC", "Commercial Center", "TCC", null, CustomFacilityCategory.SpaceRental), CancellationToken.None);
+        Assert.False(result.IsSuccess);
+        repo.Verify(x => x.AddFacilityAsync(It.IsAny<Facility>(), It.IsAny<CancellationToken>()), Times.Never);
+        uow.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Rejects_WhenCodeAlreadyConfigured()
     {
         var repo = new Mock<IFacilityRepository>();

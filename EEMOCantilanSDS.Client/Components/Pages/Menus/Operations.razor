@@ -1,6 +1,7 @@
 @page "/operations"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Dtos.Facilities
+@using EEMOCantilanSDS.Domain.Enums
 @inject IFacilitiesApiClient FacilitiesApi
 @inject IOperationSettingsApiClient OperationSettingsApi
 @using EEMOCantilanSDS.Application.Dtos.Settings
@@ -107,14 +108,21 @@
         </section>
         }
 
-        @if (ShowGroup(SpaceLines.Count))
+        @if (ShowGroup(SpaceLines.Count + SpaceRentalFacilities.Count()))
         {
         <section class="ops-group" aria-labelledby="space-rental-title">
             <h2 id="space-rental-title" class="ops-group-title">
                 Space Rental
-                <span class="ops-group-count">@LineCount(SpaceLines.Count)</span>
+                <span class="ops-group-count">@LineCount(SpaceLines.Count + SpaceRentalFacilities.Count())</span>
             </h2>
             <ul class="ops-rows">
+                @foreach (var facility in SpaceRentalFacilities)
+                {
+                    <li class="ops-item" data-facility-code="@facility.Code">
+                        @Line(facility.Name, facility.Code.ToString(), OfficialReceipt, FacilityHref(facility),
+                              $"{facility.Name} ({facility.Code})", NoLinks, NoWorkspace)
+                    </li>
+                }
                 @foreach (var service in SpaceLines)
                 {
                     <li class="ops-item">
@@ -247,7 +255,13 @@
     private IEnumerable<FacilitySidebarSummaryDto> RentIncomeFacilities =>
         new[] { FacilityCode.NPM, FacilityCode.NCC, FacilityCode.TCC, FacilityCode.BBQ, FacilityCode.Custom1, FacilityCode.Custom2, FacilityCode.Custom3, FacilityCode.Custom4, FacilityCode.Custom5 }
             .Select(ConfiguredFacility)
-            .OfType<FacilitySidebarSummaryDto>();
+            .OfType<FacilitySidebarSummaryDto>()
+            .Where(f => !IsCustomFacility(f.Code) || f.CustomCategory == CustomFacilityCategory.StallRent);
+
+    private IEnumerable<FacilitySidebarSummaryDto> SpaceRentalFacilities =>
+        new[] { FacilityCode.Custom1, FacilityCode.Custom2, FacilityCode.Custom3, FacilityCode.Custom4, FacilityCode.Custom5 }
+            .Select(ConfiguredFacility).OfType<FacilitySidebarSummaryDto>()
+            .Where(f => f.CustomCategory == CustomFacilityCategory.SpaceRental);
 
     private FacilitySidebarSummaryDto? SlaughterhouseWorkspace =>
         ConfiguredFacility(FacilityCode.SLH);

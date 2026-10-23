@@ -1,4 +1,5 @@
-﻿using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using System;
@@ -29,6 +30,9 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         /// <summary>How this facility bills, independent of its <see cref="Code"/> (Phase 4). Stored as data
         /// so another LGU can map its facilities to any billing behaviour.</summary>
         public BillingArchetype Archetype { get; private set; } = BillingArchetype.Custom;
+
+        /// <summary>Immutable operational category for a custom monthly rental. Not a revenue classification.</summary>
+        public CustomFacilityCategory CustomCategory { get; private set; } = CustomFacilityCategory.StallRent;
 
         // Per-LGU CUSTOM NPM section registry. NPM stalls may belong to one of these names (Stall.Section
         // null + Stall.CustomSectionName) instead of a canonical MarketSection. Managed by the Head; a name
@@ -84,8 +88,12 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
            string shortName,
            string? description = null,
            BillingArchetype? archetype = null,
-           Guid municipalityId = default)
+           Guid municipalityId = default,
+           CustomFacilityCategory customCategory = CustomFacilityCategory.StallRent)
         {
+            if (!Enum.IsDefined(customCategory)
+                || (!FacilityCatalog.IsCustom(code) && customCategory != CustomFacilityCategory.StallRent))
+                throw new ArgumentOutOfRangeException(nameof(customCategory), "Only custom facilities may declare Space Rental.");
             return new Facility
             {
                 Id = Guid.NewGuid(),
@@ -95,6 +103,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
                 ShortName = shortName,
                 Description = description,
                 Archetype = archetype ?? DefaultArchetypeFor(code),
+                CustomCategory = customCategory,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = "System"

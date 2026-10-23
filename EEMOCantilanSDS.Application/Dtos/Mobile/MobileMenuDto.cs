@@ -40,4 +40,5 @@ public sealed record MobileFacilityMenuItemDto(
     // (default, so a menu cached before this field existed still deserializes).
     bool CanonicalCollection = false,
     // The accountable-instrument policy (OR / CT) the canonical collection falls under, for display only. Never a serial.
-    RevenueInstrumentType? Instrument = null);
+    RevenueInstrumentType? Instrument = null,
+    CustomFacilityCategory CustomCategory = CustomFacilityCategory.StallRent);

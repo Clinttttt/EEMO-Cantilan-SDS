@@ -113,6 +113,7 @@ public class FacilityRepository(AppDbContext context, IClock clock, IPaymentRepo
                 f.ShortName,
                 f.Description,
                 f.Archetype,
+                f.CustomCategory,
                 f.IsActive,
                 f.VegetableSectionLabel,
                 f.FishSectionLabel,
@@ -159,7 +160,8 @@ public class FacilityRepository(AppDbContext context, IClock clock, IPaymentRepo
                 lines,
                 f.VegetableSectionLabel,
                 f.FishSectionLabel,
-                f.MeatSectionLabel);
+                f.MeatSectionLabel,
+                f.CustomCategory);
         }).ToList();
     }
 
@@ -214,6 +216,7 @@ public class FacilityRepository(AppDbContext context, IClock clock, IPaymentRepo
                 f.FishSectionLabel,
                 f.MeatSectionLabel,
                 f.Archetype,
+                f.CustomCategory,
                 Stalls = f.Stalls
                     .Where(s => s.Status == StallStatus.Active)
                     .Select(s => new
@@ -245,6 +248,7 @@ public class FacilityRepository(AppDbContext context, IClock clock, IPaymentRepo
             f.VegetableSectionLabel,
             f.FishSectionLabel,
             f.MeatSectionLabel,
-            f.Archetype)).ToList();
+            f.Archetype,
+            f.CustomCategory)).ToList();
     }
 }

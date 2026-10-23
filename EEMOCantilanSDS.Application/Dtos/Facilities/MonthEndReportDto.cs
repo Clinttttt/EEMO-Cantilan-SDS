@@ -36,7 +36,9 @@ public record MonthEndFacilityDto(
     IReadOnlyList<MonthEndTxnPayorDto> TransactionPayors,
     // The market's metered utilities for the month, per space. Empty for every other facility, and empty for the
     // market itself when no bill was raised.
-    IReadOnlyList<MonthEndUtilityRowDto>? Utilities = null
+    IReadOnlyList<MonthEndUtilityRowDto>? Utilities = null,
+    // Office-declared category for a custom facility; the financial classification is unchanged.
+    CustomFacilityCategory CustomCategory = CustomFacilityCategory.StallRent
 );
 
 public record MonthEndPayorDto(

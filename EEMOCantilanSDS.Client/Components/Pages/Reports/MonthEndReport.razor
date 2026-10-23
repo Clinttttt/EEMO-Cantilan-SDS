@@ -328,6 +328,11 @@
                     <div class="me-fac-head">
                         <div class="me-fac-title">
                             <span class="me-fac-name">@f.Name</span>
+                            @if (MonthlyCollectionReport.IsCustom(f.Code))
+                            {
+                                <span class="me-tag">@(f.CustomCategory == EEMOCantilanSDS.Domain.Enums.CustomFacilityCategory.SpaceRental
+                                    ? "Space Rental" : "Stall Rent")</span>
+                            }
                             @if (f.Code == FacilityCode.TRM)
                             {
                                 @* The facility record is the legacy trip ledger. Terminal cash recorded since cutover is itemised in the

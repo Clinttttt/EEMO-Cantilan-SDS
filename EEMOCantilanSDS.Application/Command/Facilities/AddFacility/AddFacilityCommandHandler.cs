@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Enums;
+using EEMOCantilanSDS.Domain.Constants;
 using MediatR;
 
 namespace EEMOCantilanSDS.Application.Command.Facilities.AddFacility;
@@ -19,6 +20,10 @@ public class AddFacilityCommandHandler(
         if (!Enum.TryParse<FacilityCode>(request.Code, ignoreCase: true, out var code) || !Enum.IsDefined(code))
             return Result<bool>.Failure("Unknown facility type.", ResultStatus.Invalid);
 
+        if (!Enum.IsDefined(request.CustomCategory)
+            || (!FacilityCatalog.IsCustom(code) && request.CustomCategory != CustomFacilityCategory.StallRent))
+            return Result<bool>.Failure("Only custom facilities can use the Space Rental category.", ResultStatus.Invalid);
+
         // One facility per code per tenant. GetByCodeAsync is tenant-scoped, so this only blocks a duplicate
         // within the caller's own LGU (never sees another municipality's facilities).
         var existing = await facilityRepository.GetByCodeAsync(code, ct);
@@ -31,7 +36,8 @@ public class AddFacilityCommandHandler(
             code,
             request.Name.Trim(),
             request.ShortName.Trim(),
-            string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim());
+            string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
+            customCategory: request.CustomCategory);
 
         await facilityRepository.AddFacilityAsync(facility, ct);
         await unitOfWork.SaveChangesAsync(ct);

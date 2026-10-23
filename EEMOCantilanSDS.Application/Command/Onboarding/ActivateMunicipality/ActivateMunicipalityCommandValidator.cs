@@ -48,6 +48,9 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                 f.RuleFor(x => x)
                     .Must(fac => !FacilityCatalog.IsCustom(fac.Code) || fac.Archetype == BillingArchetype.MonthlyRental)
                     .WithMessage(fac => $"{fac.Name} uses the reserved custom code {fac.Code}, which is only for monthly-rental facilities.");
+                f.RuleFor(x => x).Must(fac => Enum.IsDefined(fac.CustomCategory)
+                    && (FacilityCatalog.IsCustom(fac.Code) || fac.CustomCategory == CustomFacilityCategory.StallRent))
+                    .WithMessage("Only custom monthly facilities may declare Space Rental.");
             });
 
             RuleForEach(x => x.Facilities).ChildRules(f =>
