@@ -5,6 +5,7 @@ using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Moq;
 
 namespace EEMOCantilanSDS.Testing;
@@ -31,7 +32,8 @@ public class PaymentSettingsQueryTests
 
     /// <summary>Seeds one LGU and returns a handler reading as one of its users.</summary>
     private static async Task<(GetMunicipalityPaymentSettingsQueryHandler handler, Municipality lgu, AppDbContext ctx)> BuildAsync(
-        bool isDefault = false, string? secretPlain = null, bool withWebhook = false, bool protectorThrows = false)
+        bool isDefault = false, string? secretPlain = null, bool withWebhook = false, bool protectorThrows = false,
+        string? defaultMerchantKey = null)
     {
         var options = NewDb();
 
@@ -65,7 +67,11 @@ public class PaymentSettingsQueryTests
         urls.Setup(u => u.BuildWebhookUrl(It.IsAny<string>()))
             .Returns((string code) => $"https://api.stalltrack.site/api/onlinepayments/webhook/{code}");
 
-        return (new GetMunicipalityPaymentSettingsQueryHandler(ctx, user.Object, protector.Object, urls.Object), lgu, ctx);
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["PayMongo:SecretKey"] = defaultMerchantKey
+        }).Build();
+        return (new GetMunicipalityPaymentSettingsQueryHandler(ctx, user.Object, protector.Object, urls.Object, config), lgu, ctx);
     }
 
     private static async Task<PaymentSettingsDto> Read(GetMunicipalityPaymentSettingsQueryHandler handler)
@@ -149,13 +155,26 @@ public class PaymentSettingsQueryTests
     {
         // It has no account of its own because the platform configuration IS its account. Unchanged behaviour, asserted so
         // the new fields cannot quietly take it away.
-        var (handler, _, ctx) = await BuildAsync(isDefault: true, secretPlain: null);
+        var (handler, _, ctx) = await BuildAsync(isDefault: true, secretPlain: null,
+            defaultMerchantKey: "sk_live_server_configured");
         await using var _ctx = ctx;
 
         var dto = await Read(handler);
 
         Assert.False(dto.HasOwnAccount);
         Assert.True(dto.CanAcceptOnlinePayments);
+        Assert.True(dto.DefaultMerchantAccountConfigured);
         Assert.Null(dto.Mode);
     }
+    [Fact]
+    public async Task DefaultMunicipalityWithoutMerchantKeyIsNotReportedAsReady()
+    {
+        var (handler, _, ctx) = await BuildAsync(isDefault: true);
+        await using var _ctx = ctx;
+        var dto = await Read(handler);
+        Assert.False(dto.HasOwnAccount);
+        Assert.False(dto.CanAcceptOnlinePayments);
+        Assert.False(dto.DefaultMerchantAccountConfigured);
+    }
+
 }

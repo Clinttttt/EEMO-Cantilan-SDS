@@ -146,6 +146,21 @@ public sealed class OnlinePaymentUrlBuilder(
                     "OnlinePayments:WebhookBaseUrl to this API's public address.");
             }
 
+            // A server-to-server Blazor call can expose an internal Docker host (e.g. api:8080).
+            // HTTPS alone is not sufficient; PayMongo cannot resolve or reach that hostname.
+            if (!isDevelopment)
+            {
+                if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri)
+                    || uri.Scheme != Uri.UriSchemeHttps
+                    || !uri.Host.Contains('.')
+                    || uri.IsLoopback
+                    || uri.Host.EndsWith(".local", StringComparison.OrdinalIgnoreCase)
+                    || uri.Host.EndsWith(".internal", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException(
+                        "OnlinePayments:WebhookBaseUrl must be a public HTTPS API origin. " +
+                        "Set it to https://api.stalltrack.site; internal container hosts are not valid webhooks.");
+            }
+
             return baseUrl;
         }
     }

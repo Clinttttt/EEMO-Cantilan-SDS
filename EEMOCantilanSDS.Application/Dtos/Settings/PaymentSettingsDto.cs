@@ -35,4 +35,5 @@ public record PaymentSettingsDto(
     bool HasWebhookSecret = false,
     string? WebhookUrl = null,
     string? Mode = null,
-    DateTime? LastVerifiedAtUtc = null);
+    DateTime? LastVerifiedAtUtc = null,
+    bool DefaultMerchantAccountConfigured = false);

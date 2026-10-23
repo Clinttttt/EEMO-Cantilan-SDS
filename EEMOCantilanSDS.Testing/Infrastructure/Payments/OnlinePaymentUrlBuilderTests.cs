@@ -169,6 +169,23 @@ public class OnlinePaymentWebhookUrlTests
     }
 
     [Fact]
+    public void Production_InternalDockerHostOnServerToServerRequest_IsRejected()
+    {
+        var builder = Build(webhookBaseUrl: null, environment: "Production",
+            requestScheme: "http", requestHost: "api:8080");
+
+        Assert.Throws<InvalidOperationException>(() => builder.BuildWebhookUrl("cantilan-sds"));
+    }
+
+    [Fact]
+    public void Production_InternalDockerHostExplicitlyConfigured_IsRejected()
+    {
+        var builder = Build(webhookBaseUrl: "https://api:8080", environment: "Production");
+
+        Assert.Throws<InvalidOperationException>(() => builder.BuildWebhookUrl("cantilan-sds"));
+    }
+
+    [Fact]
     public void ALocalhostAddressIsAllowedInDevelopment()
     {
         var builder = Build(webhookBaseUrl: null, environment: "Development",

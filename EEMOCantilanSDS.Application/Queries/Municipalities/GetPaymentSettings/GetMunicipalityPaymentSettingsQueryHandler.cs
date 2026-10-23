@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Dtos.Settings;
 using EEMOCantilanSDS.Domain.Common;
 using MediatR;
+using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Application.Queries.Municipalities.GetPaymentSettings;
@@ -11,7 +12,8 @@ public class GetMunicipalityPaymentSettingsQueryHandler(
     IAppDbContext context,
     ICurrentUserService currentUser,
     ICredentialProtector protector,
-    IOnlinePaymentUrlBuilder urlBuilder) : IRequestHandler<GetMunicipalityPaymentSettingsQuery, Result<PaymentSettingsDto>>
+    IOnlinePaymentUrlBuilder urlBuilder,
+    IConfiguration configuration) : IRequestHandler<GetMunicipalityPaymentSettingsQuery, Result<PaymentSettingsDto>>
 {
     public async Task<Result<PaymentSettingsDto>> Handle(GetMunicipalityPaymentSettingsQuery request, CancellationToken ct)
     {
@@ -24,13 +26,16 @@ public class GetMunicipalityPaymentSettingsQueryHandler(
         if (municipality is null)
             return Result<PaymentSettingsDto>.NotFound();
 
+        var defaultAccountConfigured = municipality.IsDefault
+            && !string.IsNullOrWhiteSpace(configuration["PayMongo:SecretKey"]);
+
         return Result<PaymentSettingsDto>.Success(
             new PaymentSettingsDto(
                 municipality.HasOwnPayMongoAccount,
                 municipality.PayMongoPublicKey,
                 // The global configuration is the DEFAULT municipality's own merchant account, so only they can take
                 // payments without configuring one. Every other LGU has to bring its own, or online payments stay shut.
-                CanAcceptOnlinePayments: municipality.HasOwnPayMongoAccount || municipality.IsDefault,
+                CanAcceptOnlinePayments: municipality.HasOwnPayMongoAccount || defaultAccountConfigured,
                 HasWebhookSecret: municipality.HasPayMongoWebhookSecret,
 
                 // The SAME builder that registers the webhook composes the address shown here, so what the office is told
@@ -38,7 +43,8 @@ public class GetMunicipalityPaymentSettingsQueryHandler(
                 // controller, which is how an http address reached the screen.
                 WebhookUrl: WebhookUrlOrNull(municipality.TenantCode),
 
-                Mode: ModeOf(municipality.PayMongoSecretKeyEnc)));
+                Mode: ModeOf(municipality.PayMongoSecretKeyEnc),
+                DefaultMerchantAccountConfigured: defaultAccountConfigured));
     }
 
     /// <summary>
