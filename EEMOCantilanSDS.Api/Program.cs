@@ -6,6 +6,22 @@ using EEMOCantilanSDS.Infrastructure;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
+// The digest-pinned release runner performs EF checks and migration before web-host setup.
+// Do not resolve PayMongo, JWT, background processors, tenant defaults, or seeders here.
+var releaseMigrationMode = Environment.GetEnvironmentVariable("STALLTRACK_MIGRATION_MODE");
+if (releaseMigrationMode is not null)
+{
+    var connection = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
+    if (string.IsNullOrWhiteSpace(connection))
+        throw new InvalidOperationException("A production migration connection string is required.");
+    using var loggerFactory = LoggerFactory.Create(logging => logging.AddConsole());
+    var options = new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(connection).Options;
+    await using var db = new AppDbContext(options);
+    await DatabaseStartup.RunReleaseMigrationsAsync(db,
+        loggerFactory.CreateLogger("StallTrackMigration"), releaseMigrationMode);
+    return;
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Structured logging (Hardening §7 — observability): emit machine-parseable JSON
@@ -38,6 +54,7 @@ builder.ConfigureServices();
 
 
 var app = builder.Build();
+
 await app.VerifyWorkingCopyNpmMonthlyAsync();
 await app.VerifyWorkingCopyFishMeatRegistrationRequestsAsync();
 
