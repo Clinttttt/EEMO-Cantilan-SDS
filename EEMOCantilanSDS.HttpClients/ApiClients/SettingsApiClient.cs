@@ -27,6 +27,11 @@ public class SettingsApiClient : HandleResponse, ISettingsApiClient
             "api/municipality-profile/payment/test",
             new TestPaymentConnectionCommand(secretKey));
 
+    public async Task<Result<EEMOCantilanSDS.Application.Command.Municipalities.CloseAbandonedTestCheckouts.CloseAbandonedTestCheckoutsResultDto>>
+        CloseAbandonedTestCheckoutsAsync(string currentPassword) =>
+        await PostAsync<object, EEMOCantilanSDS.Application.Command.Municipalities.CloseAbandonedTestCheckouts.CloseAbandonedTestCheckoutsResultDto>(
+            "api/municipality-profile/payment/close-abandoned-test-checkouts", new { CurrentPassword = currentPassword });
+
     public async Task<Result<bool>> VerifyMyPasswordAsync(string password) =>
         await PostAsync<object, bool>("api/municipality-profile/verify-password", new { Password = password });
 

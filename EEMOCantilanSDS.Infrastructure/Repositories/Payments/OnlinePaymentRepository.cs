@@ -39,6 +39,39 @@ public class OnlinePaymentRepository(AppDbContext context) : IOnlinePaymentRepos
             .AnyAsync(t => t.Reference == reference, ct);
     }
 
+    public async Task<bool> HasCapturedReconciliationAsync(Guid municipalityId, CancellationToken ct = default)
+        => await context.OnlinePaymentTransactions
+            .AnyAsync(t => t.MunicipalityId == municipalityId && !t.IsDeleted
+                && t.Status == OnlinePaymentStatus.ReconciliationRequired, ct);
+
+    public async Task<IReadOnlyList<OnlinePaymentTransaction>> GetUnsettledMerchantCheckoutsAsync(
+        Guid municipalityId, int limit, CancellationToken ct = default)
+        => await context.OnlinePaymentTransactions
+            .Where(t => t.MunicipalityId == municipalityId && !t.IsDeleted
+                && (t.Status == OnlinePaymentStatus.Pending || t.Status == OnlinePaymentStatus.Initiated)
+                && t.GatewayReference != null)
+            .OrderBy(t => t.CreatedAt)
+            .Take(limit + 1)
+            .ToListAsync(ct);
+
+    public async Task<bool> TryExpireUnsettledCheckoutAsync(
+        Guid municipalityId, Guid transactionId, string gatewayReference,
+        string expiryEvidenceJson, CancellationToken ct = default)
+    {
+        // Compare-and-set at the database: a webhook may have settled this checkout since
+        // the list was read or PayMongo confirmed expiry. Do not overwrite captured funds.
+        var updated = await context.OnlinePaymentTransactions
+            .Where(t => t.MunicipalityId == municipalityId && !t.IsDeleted
+                && t.Id == transactionId && t.GatewayReference == gatewayReference
+                && (t.Status == OnlinePaymentStatus.Pending || t.Status == OnlinePaymentStatus.Initiated))
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(t => t.Status, OnlinePaymentStatus.Expired)
+                .SetProperty(t => t.RawPayload, expiryEvidenceJson)
+                .SetProperty(t => t.UpdatedAt, DateTime.UtcNow)
+                .SetProperty(t => t.UpdatedBy, "Online"), ct);
+        return updated == 1;
+    }
+
     public async Task AddAsync(OnlinePaymentTransaction transaction, CancellationToken ct = default)
     {
         await context.OnlinePaymentTransactions.AddAsync(transaction, ct);

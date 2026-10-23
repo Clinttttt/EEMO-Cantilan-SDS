@@ -21,6 +21,10 @@ public interface ISettingsApiClient
     /// </summary>
     Task<Result<Command.Municipalities.TestPaymentConnection.PaymentConnectionTestDto>> TestPaymentConnectionAsync(string? secretKey);
 
+    /// <summary>Head explicitly expires only provider-confirmed TEST checkouts, never captured funds.</summary>
+    Task<Result<Command.Municipalities.CloseAbandonedTestCheckouts.CloseAbandonedTestCheckoutsResultDto>>
+        CloseAbandonedTestCheckoutsAsync(string currentPassword);
+
     Task<Result<bool>> VerifyMyPasswordAsync(string password);
 
     /// <summary>The caller Head's current office/LGU branding (to pre-fill the profile edit form).</summary>

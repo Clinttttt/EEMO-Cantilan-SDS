@@ -38,6 +38,21 @@ public interface IOnlinePaymentRepository
     /// </summary>
     Task<OnlinePaymentTransaction?> GetResumableNpmFishDayTransactionAsync(Guid stallId, int year, int month, int day, CancellationToken ct = default);
 
+    /// <summary>Check for a captured payment that treasury must reconcile before merchant rotation,
+    /// restricted to the requesting municipality.</summary>
+    Task<bool> HasCapturedReconciliationAsync(Guid municipalityId, CancellationToken ct = default);
+
+    /// <summary>Get tracked outstanding gateway-backed transactions for Head-confirmed TEST expiry.
+    /// Returns up to <paramref name="limit"/> plus one for bounded-work safety.</summary>
+    Task<IReadOnlyList<OnlinePaymentTransaction>> GetUnsettledMerchantCheckoutsAsync(
+        Guid municipalityId, int limit, CancellationToken ct = default);
+
+    /// <summary>Atomically expire an exact unpaid checkout only while its persisted state is
+    /// Initiated or Pending. Returns false when a webhook or another request changed the row.</summary>
+    Task<bool> TryExpireUnsettledCheckoutAsync(
+        Guid municipalityId, Guid transactionId, string gatewayReference,
+        string expiryEvidenceJson, CancellationToken ct = default);
+
     Task AddAsync(OnlinePaymentTransaction transaction, CancellationToken ct = default);
 
     /// <summary>Online payments that are Paid (money received) but still awaiting staff OR encoding.</summary>

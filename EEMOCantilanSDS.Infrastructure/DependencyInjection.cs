@@ -301,6 +301,12 @@ namespace EEMOCantilanSDS.Infrastructure
 
             // The same base address, because it is the same provider - but its own client, because this one authenticates
             // with a key the office is in the middle of entering rather than with the current tenant's stored credentials.
+            service.AddHttpClient<IPayMongoCheckoutExpiryService, PayMongoCheckoutExpiryService>(client =>
+            {
+                client.BaseAddress = gatewayBase;
+                client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                client.Timeout = TimeSpan.FromSeconds(15);
+            });
             service.AddHttpClient<IPayMongoAccountVerifier, PayMongoAccountVerifier>(client =>
             {
                 client.BaseAddress = gatewayBase;

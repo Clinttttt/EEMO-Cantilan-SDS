@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Command.Municipalities.UpdateOfficeProfile;
 using EEMOCantilanSDS.Application.Command.Municipalities.SetPaymentCredentials;
+using EEMOCantilanSDS.Application.Command.Municipalities.CloseAbandonedTestCheckouts;
 using EEMOCantilanSDS.Application.Command.Municipalities.SetReportSignatories;
 using EEMOCantilanSDS.Application.Command.Municipalities.IssueMobileBindLink;
 using EEMOCantilanSDS.Application.Queries.Auth.VerifyMyPassword;
@@ -101,6 +102,21 @@ public class MunicipalityProfileController : ApiBaseController
         return HandleResponse(result);
     }
 
+    /// <summary>Head-confirmed expiry of this office's abandoned TEST checkouts only,
+    /// never automatically during Save. PayMongo must prove session expiry.</summary>
+    [HttpPost("payment/close-abandoned-test-checkouts")]
+    public async Task<ActionResult<CloseAbandonedTestCheckoutsResultDto>> CloseAbandonedTestCheckoutsAsync(
+        [FromBody] ConfirmPaymentMaintenancePasswordRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.CurrentPassword))
+            return BadRequest("Confirm your current password before closing abandoned checkouts.");
+        var verification = await Sender.Send(new VerifyMyPasswordQuery(request.CurrentPassword));
+        if (!verification.IsSuccess || verification.Value != true)
+            return Forbid();
+
+        return HandleResponse(await Sender.Send(new CloseAbandonedTestCheckoutsCommand()));
+    }
+
     /// <summary>Get (or rotate, with ?rotate=true) this LGU's collector-app bind link + the app download link.</summary>
     [HttpPost("bind-link")]
     public async Task<ActionResult<MobileBindLinkDto>> IssueBindLinkAsync([FromQuery] bool rotate = false)
@@ -136,3 +152,4 @@ public class MunicipalityProfileController : ApiBaseController
 
 /// <summary>Request body for the re-authentication check.</summary>
 public record VerifyMyPasswordRequest(string Password);
+public record ConfirmPaymentMaintenancePasswordRequest(string CurrentPassword);

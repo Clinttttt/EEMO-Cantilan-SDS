@@ -48,6 +48,20 @@ public class LoginIdentityTests
         Source("EEMOCantilanSDS.Client", "Components", "Pages", "Login.razor");
 
     [Fact]
+    public void GenericSignIn_WithSeveralLGUs_RequiresExplicitOfficeSelection()
+    {
+        var markup = LoginMarkup();
+
+        Assert.Contains("_activeLoginMunicipalities.Count > 1", markup);
+        Assert.Contains("Select your municipality to sign in to the correct office.", markup);
+        Assert.Contains("var officeScope = string.IsNullOrWhiteSpace(LguParam)", markup);
+        Assert.Contains("SelectedMunicipalityCode : LguParam", markup);
+        Assert.Contains("AuthService.LoginAsync(Username, Password, officeScope)", markup);
+        // A brand remembered on this browser is never used as security authority.
+        Assert.DoesNotContain("LguParam = remembered", markup);
+    }
+
+    [Fact]
     public void TheRememberedLGUIsUsedWhenTheAddressNamesNone()
     {
         // The case the office reported after signing out, and the one a link cannot cover: a bookmarked /login, or simply

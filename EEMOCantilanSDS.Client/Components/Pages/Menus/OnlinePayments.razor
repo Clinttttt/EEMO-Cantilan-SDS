@@ -126,6 +126,21 @@
                     </div>
                 </details>
 
+                @if (_payment?.HasOwnAccount == true && _payment.Mode == "Test")
+                {
+                    <div class="op-test-maintenance">
+                        <div class="op-field-hint">
+                            Switching from Test to Live? An earlier checkout may still be open even after its QR expires.
+                            Close only abandoned Test checkouts first. PayMongo will refuse closure when a payment has
+                            already succeeded or is processing. Existing payment records are retained.
+                        </div>
+                        <button type="button" class="btn-ghost" disabled="@(_paySaving || _payTesting)"
+                                @onclick="() => RequestPasswordFor(PaymentPasswordAction.CloseTestCheckouts)">
+                            Close abandoned Test checkouts
+                        </button>
+                    </div>
+                }
+
                 @if (!string.IsNullOrEmpty(_payError))
                 {
                     <div class="op-banner op-banner-error">@_payError</div>
@@ -447,7 +462,16 @@
                     </button>
                 </div>
                 <div class="eemo-modal-body">
-                    <p class="op-pw-note">Confirm your password to @(_paymentPasswordAction == PaymentPasswordAction.Disconnect ? "disconnect" : "save") this office's payment account.</p>
+                    <p class="op-pw-note">
+                        @if (_paymentPasswordAction == PaymentPasswordAction.CloseTestCheckouts)
+                        {
+                            <text>Confirm your password to permanently close abandoned Test checkouts. Any paid, processing or unverified checkout stays protected. You cannot reuse a closed checkout link.</text>
+                        }
+                        else
+                        {
+                            <text>Confirm your password to @(_paymentPasswordAction == PaymentPasswordAction.Disconnect ? "disconnect" : "save") this office's payment account.</text>
+                        }
+                    </p>
                     <div class="form-group">
                         <label class="form-label">Password</label>
                         <div class="pw-reveal-wrap">
@@ -515,7 +539,7 @@
     private bool _pwVerifying;
     private string? _pwError;
 
-    private enum PaymentPasswordAction { Save, Disconnect }
+    private enum PaymentPasswordAction { Save, Disconnect, CloseTestCheckouts }
     private PaymentPasswordAction _paymentPasswordAction;
 
     private void RequestSave()
@@ -562,6 +586,8 @@
                 // it independently. A browser-only modal must never be the financial boundary.
                 if (_paymentPasswordAction == PaymentPasswordAction.Disconnect)
                     await RevertPaymentAsync(password);
+                else if (_paymentPasswordAction == PaymentPasswordAction.CloseTestCheckouts)
+                    await CloseAbandonedTestCheckoutsAsync(password);
                 else
                     await SavePaymentAsync(password);
             }
@@ -750,6 +776,31 @@
         : "Setup incomplete";
 
     private string ConnectionTone => !CanAcceptOnlinePayments ? "off" : "warn";
+
+    private async Task CloseAbandonedTestCheckoutsAsync(string currentPassword)
+    {
+        _payError = null;
+        _payMsg = null;
+        _paySaving = true;
+        try
+        {
+            var response = await SettingsApi.CloseAbandonedTestCheckoutsAsync(currentPassword);
+            if (response.IsSuccess && response.Value is { } result)
+                _payMsg = result.Message;
+            else
+                _payError = response.Error ?? "PayMongo could not verify the abandoned Test checkouts.";
+            // This action does not change merchant settings. Do not reload the form:
+            // doing so overwrites an unsaved replacement Live public key.
+        }
+        catch
+        {
+            _payError = "Could not verify abandoned Test checkouts. No payment was changed without provider confirmation.";
+        }
+        finally
+        {
+            _paySaving = false;
+        }
+    }
 
     private async Task SavePaymentAsync(string currentPassword)
     {
