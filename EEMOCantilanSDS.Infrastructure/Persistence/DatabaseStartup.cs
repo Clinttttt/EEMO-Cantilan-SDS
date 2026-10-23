@@ -27,6 +27,62 @@ public static class DatabaseStartup
     /// </summary>
     public const long MigrationLockKey = 8_472_113_509_001L;
 
+    /// <summary>One-off release operations from an immutable API image. Never seed reference data.</summary>
+    /// <remarks>The caller must provide ConnectionStrings__DefaultConnection and run in a private container.</remarks>
+    public static async Task RunReleaseMigrationsAsync(AppDbContext db, ILogger logger, string mode)
+    {
+        if (mode is not ("check" or "apply" or "verify"))
+            throw new InvalidOperationException("Unrecognized release migration mode.");
+        var connection = db.Database.GetDbConnection();
+        await connection.OpenAsync();
+        var lockHeld = false;
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync("SET lock_timeout = '15s'");
+            await db.Database.ExecuteSqlRawAsync("SET statement_timeout = '120s'");
+
+            // Never silently run an older release against a schema it cannot recognize.
+            async Task<string[]> PendingAsync()
+            {
+                var known = db.Database.GetMigrations().ToHashSet(StringComparer.Ordinal);
+                var applied = (await db.Database.GetAppliedMigrationsAsync()).ToArray();
+                var unknown = applied.Where(id => !known.Contains(id)).ToArray();
+                if (unknown.Length != 0)
+                    throw new InvalidOperationException("Production migration history contains unknown versions: " + string.Join(",", unknown));
+                return (await db.Database.GetPendingMigrationsAsync()).ToArray();
+            }
+
+            if (mode == "apply")
+            {
+                await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_lock({0})", MigrationLockKey);
+                lockHeld = true;
+                var pending = await PendingAsync();
+                if (pending.Length != 0)
+                    await db.Database.MigrateAsync();
+                if ((await PendingAsync()).Length != 0)
+                    throw new InvalidOperationException("The database still has pending migrations after apply.");
+                logger.LogInformation("Release migration completed; applied {Count} versions.", pending.Length);
+                Console.WriteLine("STALLTRACK_MIGRATION_APPLIED_IDS=" + string.Join(",", pending));
+            }
+            else
+            {
+                var pending = await PendingAsync();
+                if (mode == "verify" && pending.Length != 0)
+                    throw new InvalidOperationException("Release verification found pending migrations: " + string.Join(",", pending));
+                Console.WriteLine("STALLTRACK_MIGRATION_PENDING_IDS=" + string.Join(",", pending));
+            }
+        }
+        finally
+        {
+            if (lockHeld)
+            {
+                try { await db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_unlock({0})", MigrationLockKey); }
+                catch (Exception ex) { logger.LogError(ex, "Failed to release migration advisory lock"); }
+            }
+            await connection.CloseAsync();
+        }
+    }
+
     /// <summary>How long to wait for another instance to finish migrating before abandoning startup.</summary>
     private const string LockTimeout = "150s";
 
