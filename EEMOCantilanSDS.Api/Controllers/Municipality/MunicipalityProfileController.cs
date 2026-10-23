@@ -89,6 +89,14 @@ public class MunicipalityProfileController : ApiBaseController
     [HttpPut("payment")]
     public async Task<ActionResult<PaymentSetupResultDto>> UpdatePaymentAsync([FromBody] SetMunicipalityPaymentCredentialsCommand command)
     {
+        // Never trust the Blazor password modal as authorization. The same server re-authentication
+        // applies to saving, rotating and clearing an LGU's merchant account.
+        if (string.IsNullOrWhiteSpace(command.CurrentPassword))
+            return BadRequest("Confirm your current password before changing the PayMongo account.");
+        var verification = await Sender.Send(new VerifyMyPasswordQuery(command.CurrentPassword));
+        if (!verification.IsSuccess || verification.Value != true)
+            return Forbid();
+
         var result = await Sender.Send(command);
         return HandleResponse(result);
     }

@@ -785,3 +785,17 @@
 .op-confirm .eemo-modal-title {
     color: var(--navy);
 }
+
+/* Hide/show is a presentation choice only: the pending OR count stays in the KPI. */
+.op-intro-row {
+    flex-wrap: wrap;
+    align-items: center;
+}
+.op-intro-row > div:first-child {
+    flex: 1 1 250px;
+    min-width: 0;
+}
+.op-or-toggle {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}

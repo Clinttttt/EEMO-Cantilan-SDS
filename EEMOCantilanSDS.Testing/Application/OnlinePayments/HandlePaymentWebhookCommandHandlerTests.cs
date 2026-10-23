@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Payments;
+using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Enums;
 using Moq;
 
@@ -30,7 +31,9 @@ public class HandlePaymentWebhookCommandHandlerTests
         new(PaymentGatewayEventType.Paid, GatewayRef, amount, "pay_1", "gcash", DateTime.UtcNow, "{\"raw\":true}");
 
     private static (HandlePaymentWebhookCommandHandler handler, Mock<IUnitOfWork> uow, Mock<IPaymentGateway> gateway, Mock<IOnlinePaymentNotifier> notifier)
-        Build(OnlinePaymentTransaction? txn, PaymentRecord? record, PaymentGatewayEvent? evt, bool signatureValid = true)
+        Build(OnlinePaymentTransaction? txn, PaymentRecord? record, PaymentGatewayEvent? evt,
+            bool signatureValid = true, bool namedWebhook = false, bool signedForAnotherTenant = false,
+            bool isDefault = true)
     {
         var gateway = new Mock<IPaymentGateway>();
         gateway.Setup(g => g.VerifyWebhookSignature(It.IsAny<string>(), It.IsAny<string>())).Returns(signatureValid);
@@ -51,7 +54,28 @@ public class HandlePaymentWebhookCommandHandlerTests
         var settlement = new OnlinePaymentSettlementService(paymentRepo.Object, new Mock<IStallRepository>().Object, new Mock<INpmMonthSettlementService>().Object, new Mock<IUtilityBillRepository>().Object, notifier.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
 
         var municipalityRepo = new Mock<IMunicipalityRepository>();
+        var owner = Municipality.Create("OWNER", "Owner", "PH", MunicipalityStatus.Active, "owner", isDefault: isDefault);
+        if (txn is not null)
+            typeof(OnlinePaymentTransaction).GetProperty(nameof(OnlinePaymentTransaction.MunicipalityId))!
+                .SetValue(txn, owner.Id);
+        if (record is not null)
+            typeof(PaymentRecord).GetProperty(nameof(PaymentRecord.MunicipalityId))!
+                .SetValue(record, owner.Id);
+        municipalityRepo.Setup(r => r.GetByIdAsync(owner.Id, It.IsAny<CancellationToken>())).ReturnsAsync(owner);
+
         var credentialResolver = new Mock<IPayMongoCredentialResolver>();
+        if (namedWebhook)
+        {
+            var signer = signedForAnotherTenant
+                ? Municipality.Create("SIGNER", "Signer", "PH", MunicipalityStatus.Active, "signer")
+                : owner;
+            municipalityRepo.Setup(r => r.GetByIdentifierAsync("webhook-tenant", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(signer);
+            credentialResolver.Setup(r => r.ResolveAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new PayMongoCredentials("sk_test_fake", null, "whsk_fake"));
+            gateway.Setup(g => g.VerifyWebhookSignature(It.IsAny<string>(), It.IsAny<string>(), "whsk_fake"))
+                .Returns(signatureValid);
+        }
         var tenantScope = new EEMOCantilanSDS.Infrastructure.Tenancy.RequestTenantScope();
 
         return (new HandlePaymentWebhookCommandHandler(gateway.Object, onlineRepo.Object, settlement, uow.Object, municipalityRepo.Object, credentialResolver.Object, tenantScope), uow, gateway, notifier);
@@ -69,6 +93,48 @@ public class HandlePaymentWebhookCommandHandlerTests
         gateway.Verify(g => g.ParseEvent(It.IsAny<string>()), Times.Never);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
         Assert.Equal(OnlinePaymentStatus.Pending, txn.Status);
+    }
+
+    [Fact]
+    public async Task WebhookSignedForAnotherLguCannotSettleAnUnrelatedLgusTransaction()
+    {
+        var (txn, record) = PendingPair();
+        var (handler, uow, gateway, _) = Build(txn, record, PaidEvent(Amount),
+            namedWebhook: true, signedForAnotherTenant: true);
+        var result = await handler.Handle(new HandlePaymentWebhookCommand("{}", "sig", "webhook-tenant"),
+            CancellationToken.None);
+        Assert.Equal(ResultStatus.Unauthorized, result.Status);
+        Assert.Equal(OnlinePaymentStatus.Pending, txn.Status);
+        Assert.Equal(PaymentStatus.Unpaid, record.Status);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        gateway.Verify(g => g.VerifyWebhookSignature("{}", "sig", "whsk_fake"), Times.Once);
+    }
+
+    [Fact]
+    public async Task LegacyWebhookCannotSettleAnotherMunicipalityEvenWithValidDefaultSignature()
+    {
+        var (txn, record) = PendingPair();
+        var (handler, uow, _, _) = Build(txn, record, PaidEvent(Amount), isDefault: false);
+        var result = await handler.Handle(new HandlePaymentWebhookCommand("{}", "sig"),
+            CancellationToken.None);
+        Assert.Equal(ResultStatus.Unauthorized, result.Status);
+        Assert.Equal(OnlinePaymentStatus.Pending, txn.Status);
+        Assert.Equal(PaymentStatus.Unpaid, record.Status);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ValidSameLguWebhookCanSettleOnlyItsOwnTransaction()
+    {
+        var (txn, record) = PendingPair();
+        var (handler, uow, _, _) = Build(txn, record, PaidEvent(Amount),
+            namedWebhook: true, isDefault: false);
+        var result = await handler.Handle(new HandlePaymentWebhookCommand("{}", "sig", "webhook-tenant"),
+            CancellationToken.None);
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal(OnlinePaymentStatus.Paid, txn.Status);
+        Assert.Equal(PaymentStatus.Paid, record.Status);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

@@ -5,6 +5,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
+using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -284,4 +285,49 @@ public class SetMunicipalityPaymentCredentialsProvisioningTests
         Assert.Null(saved.PayMongoWebhookId);
         Assert.Null(saved.PayMongoLastVerifiedAtUtc);
     }
+    [Fact]
+    public async Task SwitchingOrDisconnectingMerchantWithOutstandingGatewayCheckout_IsBlocked()
+    {
+        var (handler, municipality, context) = await BuildAsync();
+        await using var _ctx = context;
+        var setup = await handler.Handle(
+            new SetMunicipalityPaymentCredentialsCommand(Secret, null, null), CancellationToken.None);
+        Assert.True(setup.IsSuccess);
+
+        var pending = OnlinePaymentTransaction.Create(
+            "ST-OP-ROTATE-TEST", Guid.NewGuid(), Guid.NewGuid(), 100m, "PayMongo");
+        pending.SetPending("cs_test_in_flight", "https://checkout.test/pending");
+        context.OnlinePaymentTransactions.Add(pending);
+        context.Entry(pending).Property(nameof(OnlinePaymentTransaction.MunicipalityId)).CurrentValue =
+            municipality.Id;
+        await context.SaveChangesAsync();
+
+        var changed = await handler.Handle(
+            new SetMunicipalityPaymentCredentialsCommand("sk_live_other_merchant", null, null),
+            CancellationToken.None);
+        Assert.Equal(ResultStatus.Conflict, changed.Status);
+
+        var cleared = await handler.Handle(
+            new SetMunicipalityPaymentCredentialsCommand(null, null, null), CancellationToken.None);
+        Assert.Equal(ResultStatus.Conflict, cleared.Status);
+
+        var stored = await Reload(context, municipality.Id);
+        Assert.Equal("enc:" + Secret, stored.PayMongoSecretKeyEnc);
+        Assert.NotNull(stored.PayMongoWebhookId);
+    }
+
+    [Fact]
+    public async Task ProvidedSigningSecretMismatchCannotBeReportedAsRegistered()
+    {
+        var (handler, lgu, ctx) = await BuildAsync();
+        await using var _ctx = ctx;
+        var result = await handler.Handle(new SetMunicipalityPaymentCredentialsCommand(
+            Secret, null, "whsk_incorrect"), CancellationToken.None);
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value!.Saved);
+        Assert.False(result.Value.WebhookRegistered);
+        Assert.Contains("does not match", result.Value.Message);
+        Assert.True((await Reload(ctx, lgu.Id)).HasOwnPayMongoAccount);
+    }
+
 }

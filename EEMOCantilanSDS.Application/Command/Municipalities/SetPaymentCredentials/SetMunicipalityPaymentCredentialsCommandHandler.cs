@@ -5,6 +5,9 @@ using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.Settings;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Enums;
+using System.Security.Cryptography;
+using System.Text;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -46,6 +49,11 @@ public class SetMunicipalityPaymentCredentialsCommandHandler(
 
         if (string.IsNullOrWhiteSpace(request.SecretKey))
         {
+            // Disconnecting this merchant account must not strand a payment already in flight.
+            if (municipality.HasOwnPayMongoAccount && await HasUnsettledCheckoutsAsync(municipalityId, ct))
+                return Result<PaymentSetupResultDto>.Failure(
+                    "Reconcile or complete outstanding gateway checkouts before disconnecting this PayMongo account.",
+                    ResultStatus.Conflict);
             // Empty secret => this LGU keeps no account of its own. Only the DEFAULT municipality can still take payments
             // afterwards, because the platform configuration is its own account.
             municipality.ClearPayMongoCredentials(actor);
@@ -64,6 +72,10 @@ public class SetMunicipalityPaymentCredentialsCommandHandler(
 
         // Whether this is the SAME PayMongo account as before decides what happens to the signing secret already stored.
         var accountChanged = !string.Equals(StoredSecret(municipality.PayMongoSecretKeyEnc), secretPlain, StringComparison.Ordinal);
+        if (accountChanged && await HasUnsettledCheckoutsAsync(municipalityId, ct))
+            return Result<PaymentSetupResultDto>.Failure(
+                "Reconcile or complete outstanding gateway checkouts before changing the PayMongo merchant account.",
+                ResultStatus.Conflict);
 
         // A webhook secret the office typed itself is theirs, and provisioning must not overwrite it further down.
         var suppliedWebhook = !string.IsNullOrWhiteSpace(request.WebhookSecret);
@@ -95,6 +107,16 @@ public class SetMunicipalityPaymentCredentialsCommandHandler(
         return Result<PaymentSetupResultDto>.Success(registration);
     }
 
+    // Explicit municipality predicate is required even when query filters are bypassed: we inspect
+    // the current Head's office only. No merchant rotation while provider money may still be in flight.
+    private Task<bool> HasUnsettledCheckoutsAsync(Guid municipalityId, CancellationToken ct) =>
+        context.OnlinePaymentTransactions.IgnoreQueryFilters()
+            .AnyAsync(t => t.MunicipalityId == municipalityId && !t.IsDeleted
+                && (t.Status == OnlinePaymentStatus.Initiated
+                    || t.Status == OnlinePaymentStatus.Pending
+                    || t.Status == OnlinePaymentStatus.ReconciliationRequired)
+                && t.GatewayReference != null, ct);
+
     /// <summary>
     /// The stored secret key in plain form, or null when there is none or it cannot be read.
     ///
@@ -117,6 +139,14 @@ public class SetMunicipalityPaymentCredentialsCommandHandler(
     /// a webhook can be added by hand from the address shown on the same screen.
     /// </para>
     /// </summary>
+    private static bool ConstantTimeEquals(string expected, string? candidate)
+    {
+        if (candidate is null) return false;
+        var a = Encoding.UTF8.GetBytes(expected);
+        var b = Encoding.UTF8.GetBytes(candidate);
+        return a.Length == b.Length && CryptographicOperations.FixedTimeEquals(a, b);
+    }
+
     private async Task<PaymentSetupResultDto> TryRegisterWebhookAsync(
         Domain.Entities.Tenancy.Municipality municipality,
         string secretPlain,
@@ -146,6 +176,14 @@ public class SetMunicipalityPaymentCredentialsCommandHandler(
         }
 
         var registration = result.Value;
+
+        // When PayMongo returns the actual signing secret, compare with any manually supplied
+        // one before claiming it can authenticate deliveries. Never overwrite the office input.
+        if (officeSuppliedItsOwnWebhookSecret && !string.IsNullOrWhiteSpace(registration.SigningSecret)
+            && !ConstantTimeEquals(registration.SigningSecret!, municipality.PayMongoWebhookSecretEnc is { } encrypted
+                ? StoredSecret(encrypted) : null))
+            return new PaymentSetupResultDto(true, false,
+                "Saved, but the manually entered webhook signing secret does not match PayMongo. Correct the signing secret before using automatic confirmation.");
 
         // The signing secret is only stored when PayMongo actually revealed one - and never over a secret the office typed
         // itself. SetPayMongoWebhook refuses to overwrite with a blank for the same reason: replacing a working secret with

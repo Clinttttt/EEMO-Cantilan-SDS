@@ -21,5 +21,6 @@ namespace EEMOCantilanSDS.Application.Command.Municipalities.SetPaymentCredentia
 /// webhook does, and the office has to be told when only the first of those worked.
 /// </para>
 /// </summary>
-public record SetMunicipalityPaymentCredentialsCommand(string? SecretKey, string? PublicKey, string? WebhookSecret)
+public record SetMunicipalityPaymentCredentialsCommand(string? SecretKey, string? PublicKey, string? WebhookSecret,
+    string? CurrentPassword = null)
     : IRequest<Result<PaymentSetupResultDto>>;

@@ -145,14 +145,14 @@
                     <button class="btn-ghost" disabled="@(_paySaving || _payTesting)" @onclick="TestPaymentAsync">
                         @(_payTesting ? "Testing…" : "Test connection")
                     </button>
-                    <button class="btn-primary" disabled="@_paySaving" @onclick="SavePaymentAsync">@(_paySaving ? "Saving…" : "Save")</button>
+                    <button class="btn-primary" disabled="@_paySaving" @onclick="RequestSave">@(_paySaving ? "Saving…" : "Save")</button>
                     @if (_payment?.HasOwnAccount == true || _isDefaultTenant)
                     {
                         <button class="btn-ghost" disabled="@_paySaving" @onclick="() => _showSetup = false">Cancel</button>
                     }
                     @if (_payment?.HasOwnAccount == true)
                     {
-                        <button class="btn-ghost" disabled="@_paySaving" @onclick="RevertPaymentAsync">Revert to default</button>
+                        <button class="btn-ghost" disabled="@_paySaving" @onclick="RequestDisconnect">@(_isDefaultTenant ? "Use office default account" : "Disconnect account")</button>
                     }
                 </div>
             </div>
@@ -188,7 +188,7 @@
                                 <span class="op-step-no">3</span>
                                 <div class="op-step-main">
                                     <div class="op-step-title">Add a webhook</div>
-                                    <div class="op-step-text">In <b>Developers → Webhooks</b>, add a webhook to <span class="op-mono">…/onlinepayments/webhook/@Branding.TenantCode</span>, then paste its signing secret into Webhook Secret.</div>
+                                    <div class="op-step-text">Webhooks register automatically. If setup fails, copy the exact webhook endpoint shown above into PayMongo Developers - Webhooks, enable checkout_session.payment.paid, and save its signing secret.</div>
                                 </div>
                             </li>
                             <li class="op-step">
@@ -251,8 +251,15 @@
         <div class="op-intro op-intro-row">
             <div>
                 <div class="op-intro-title">Online payments received — awaiting Official Receipt</div>
-                <div class="op-intro-sub">Encode the manually-issued OR number to complete each cleared payment.</div>
+                <div class="op-intro-sub">@(Items.Count == 0
+                    ? "No payments awaiting OR."
+                    : $"{Items.Count} payment(s) awaiting OR. Encode the accountable number when issued.")</div>
             </div>
+            <button class="btn-ghost op-or-toggle" type="button"
+                    aria-expanded="@_showOrQueue" aria-controls="online-payments-or-queue"
+                    @onclick="() => _showOrQueue = !_showOrQueue">
+                @(_showOrQueue ? "Hide OR list" : $"Show OR list ({Items.Count})")
+            </button>
             @if (_isHead && _paymentLoaded)
             {
                 <button class="op-config-btn" type="button"
@@ -261,7 +268,7 @@
                                     : CanAcceptOnlinePayments
                                         ? "Settling to this office's PayMongo account — click to configure"
                                         : "Online payments are not set up — click to configure")"
-                        @onclick="RequestConfigure">
+                        @onclick="OpenSetup">
                     @* "Default account" is no longer said to an LGU that has none: the default account is another
                        municipality's, and calling it theirs is how this looked configured when it was not. *@
                     <span class="op-config-status @(_payment?.HasOwnAccount == true ? "is-own" : "")">@(_payment?.HasOwnAccount == true ? "Own account" : CanAcceptOnlinePayments ? "Office account" : "Not set up")</span>
@@ -275,7 +282,9 @@
         <div class="op-banner @(IsError ? "op-banner-error" : "op-banner-ok")">@Message</div>
     }
 
-    <div class="section-card">
+    @if (_showOrQueue)
+    {
+    <div class="section-card" id="online-payments-or-queue">
         @if (Loading)
         {
             <div class="op-loading" aria-busy="true" aria-label="Checking online payments awaiting Official Receipt">
@@ -353,6 +362,8 @@
             </div>
         }
     </div>
+
+    }
 
     @* ── Recent online payments (received) ── *@
     <div class="op-intro op-history-head">
@@ -434,7 +445,7 @@
                     </button>
                 </div>
                 <div class="eemo-modal-body">
-                    <p class="op-pw-note">Enter your password to change the online-payment account.</p>
+                    <p class="op-pw-note">Confirm your password to @(_paymentPasswordAction == PaymentPasswordAction.Disconnect ? "disconnect" : "save") this office's payment account.</p>
                     <div class="form-group">
                         <label class="form-label">Password</label>
                         <div class="pw-reveal-wrap">
@@ -471,6 +482,8 @@
     // Treasury overview + recent history (all staff).
     private OnlinePaymentDashboardDto? _dashboard;
     private bool _dashboardLoaded;
+    // Collapses the queue presentation, not the OR obligation or treasury counts.
+    private bool _showOrQueue = true;
 
     // ── Per-LGU online-payment account (Head only) ──────────────────────────────
     private PaymentSettingsDto? _payment;
@@ -501,8 +514,15 @@
     private bool _pwVerifying;
     private string? _pwError;
 
-    private void RequestConfigure()
+    private enum PaymentPasswordAction { Save, Disconnect }
+    private PaymentPasswordAction _paymentPasswordAction;
+
+    private void RequestSave() => RequestPasswordFor(PaymentPasswordAction.Save);
+    private void RequestDisconnect() => RequestPasswordFor(PaymentPasswordAction.Disconnect);
+
+    private void RequestPasswordFor(PaymentPasswordAction action)
     {
+        _paymentPasswordAction = action;
         _pwInput = string.Empty;
         _pwError = null;
         _showPwConfirm = true;
@@ -524,9 +544,15 @@
             var result = await SettingsApi.VerifyMyPasswordAsync(_pwInput);
             if (result.IsSuccess && result.Value)
             {
+                var password = _pwInput;
                 _pwInput = string.Empty;
                 _showPwConfirm = false;
-                OpenSetup();
+                // Pass this password to the API in the actual save request; the server verifies
+                // it independently. A browser-only modal must never be the financial boundary.
+                if (_paymentPasswordAction == PaymentPasswordAction.Disconnect)
+                    await RevertPaymentAsync(password);
+                else
+                    await SavePaymentAsync(password);
             }
             else
             {
@@ -704,21 +730,18 @@
     /// </summary>
     private string ConnectionStatus =>
         !CanAcceptOnlinePayments ? "Not connected"
-        : _payment?.HasWebhookSecret == true ? "Ready"
+        : _payment?.HasWebhookSecret == true ? "Configured - verify webhook"
         : "Setup incomplete";
 
-    private string ConnectionTone =>
-        !CanAcceptOnlinePayments ? "off"
-        : _payment?.HasWebhookSecret == true ? "ok"
-        : "warn";
+    private string ConnectionTone => !CanAcceptOnlinePayments ? "off" : "warn";
 
-    private async Task SavePaymentAsync()
+    private async Task SavePaymentAsync(string currentPassword)
     {
         _payError = null;
         _payMsg = null;
         if (string.IsNullOrWhiteSpace(_paySecret))
         {
-            _payError = "Enter your PayMongo secret key — or use ‘Revert to platform default’.";
+            _payError = "Enter the PayMongo secret key, or disconnect the existing account.";
             return;
         }
 
@@ -728,7 +751,8 @@
             var result = await SettingsApi.SavePaymentCredentialsAsync(
                 _paySecret.Trim(),
                 string.IsNullOrWhiteSpace(_payPublic) ? null : _payPublic.Trim(),
-                string.IsNullOrWhiteSpace(_payWebhook) ? null : _payWebhook.Trim());
+                string.IsNullOrWhiteSpace(_payWebhook) ? null : _payWebhook.Trim(),
+                currentPassword);
 
             if (result.IsSuccess)
             {
@@ -759,31 +783,31 @@
         }
     }
 
-    private async Task RevertPaymentAsync()
+    private async Task RevertPaymentAsync(string currentPassword)
     {
         _payError = null;
         _payMsg = null;
         _paySaving = true;
         try
         {
-            var result = await SettingsApi.SavePaymentCredentialsAsync(null, null, null);
+            var result = await SettingsApi.SavePaymentCredentialsAsync(null, null, null, currentPassword);
             if (result.IsSuccess)
             {
                 _paySecret = string.Empty;
                 _payPublic = string.Empty;
                 _payWebhook = string.Empty;
                 await LoadPaymentAsync();
-                _showSetup = false;
-                _payMsg = "Reverted to the platform default account.";
+                _showSetup = !CanAcceptOnlinePayments;
+                _payMsg = _isDefaultTenant ? "Default office account restored." : "PayMongo account disconnected. Online payments are disabled.";
             }
             else
             {
-                _payError = result.Error ?? "Couldn't revert to the default account.";
+                _payError = result.Error ?? "Couldn't disconnect the payment account.";
             }
         }
         catch
         {
-            _payError = "Couldn't revert. Please try again.";
+            _payError = "Couldn't update the payment account. Please try again.";
         }
         finally
         {

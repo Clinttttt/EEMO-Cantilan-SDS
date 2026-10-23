@@ -23,12 +23,14 @@ public class HandlePaymentWebhookCommandHandler(
         // ITS webhook secret; the default webhook (no tenant code) verifies against the global secret so
         // Cantilan's path is byte-for-byte unchanged.
         bool verified;
+        Guid? signedForMunicipalityId = null;
         if (!string.IsNullOrWhiteSpace(request.TenantCode))
         {
             var lgu = await municipalityRepository.GetByIdentifierAsync(request.TenantCode!, cancellationToken);
             if (lgu is null)
                 return Result<bool>.Unauthorized();
 
+            signedForMunicipalityId = lgu.Id;
             tenantScope.Use(lgu.Id, lgu.TenantCode);
             var credentials = await credentialResolver.ResolveAsync(cancellationToken);
             verified = paymentGateway.VerifyWebhookSignature(
@@ -57,13 +59,22 @@ public class HandlePaymentWebhookCommandHandler(
         if (transaction is null)
             return Result<bool>.Success(true); // not one of ours — ack and ignore
 
-        // The webhook is anonymous, so this request would otherwise resolve to the DEFAULT tenant (Cantilan).
-        // Pin it to the transaction's own LGU so the settlement's payment-record lookup, write-stamping, and
-        // cache invalidation all run under the correct municipality (multi-LGU correctness). No-op for the
-        // default tenant, so Cantilan is unchanged.
+        // Authentication of a webhook signs ONE merchant's delivery, not every merchant's transactions.
+        // The gateway reference is intentionally looked up globally before applying the tenant scope, so
+        // the authenticated merchant MUST match the transaction before any paid/failed/expired mutation.
+        // Otherwise LGU A's valid secret could be used to alter LGU B's financial ledger.
+        if (transaction.MunicipalityId == Guid.Empty
+            || (signedForMunicipalityId is { } signedFor && transaction.MunicipalityId != signedFor))
+            return Result<bool>.Unauthorized();
+
         var municipality = await municipalityRepository.GetByIdAsync(transaction.MunicipalityId, cancellationToken);
-        if (municipality is not null)
-            tenantScope.Use(municipality.Id, municipality.TenantCode);
+        if (municipality is null
+            || (signedForMunicipalityId is null && !municipality.IsDefault))
+            return Result<bool>.Unauthorized();
+
+        // The tenant-less legacy webhook is authorized exclusively for the default municipality.
+        // This also pins its tenant context before all tenant-scoped ledger reads/writes.
+        tenantScope.Use(municipality.Id, municipality.TenantCode);
 
         switch (evt.Type)
         {

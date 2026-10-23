@@ -78,11 +78,19 @@ public sealed class PayMongoAccountVerifier(HttpClient httpClient, ILogger<PayMo
             {
                 var reEnabled = false;
 
+                if (!found.Events.Contains("checkout_session.payment.paid", StringComparer.OrdinalIgnoreCase))
+                    return Result<PayMongoWebhookRegistration>.Failure(
+                        "The existing PayMongo webhook does not subscribe to checkout_session.payment.paid. Update its events in PayMongo before accepting online payments.",
+                        ResultStatus.UpstreamFailed);
+
                 if (!string.Equals(found.Status, "enabled", StringComparison.OrdinalIgnoreCase))
                 {
-                    // PayMongo disables a webhook after repeated delivery failures, so finding one switched off is normal
-                    // rather than exceptional - and leaving it off would mean nothing ever confirms a payment again.
+                    // Never claim successful registration when PayMongo refused to re-enable delivery.
                     reEnabled = await EnableAsync(key, found.Id, cancellationToken);
+                    if (!reEnabled)
+                        return Result<PayMongoWebhookRegistration>.Failure(
+                            "The webhook exists but PayMongo could not enable it. Re-enable it in PayMongo and retry.",
+                            ResultStatus.UpstreamFailed);
                 }
 
                 return Result<PayMongoWebhookRegistration>.Success(new PayMongoWebhookRegistration(
@@ -116,13 +124,18 @@ public sealed class PayMongoAccountVerifier(HttpClient httpClient, ILogger<PayMo
         };
 
         using var response = await httpClient.SendAsync(request, ct);
-        if (!response.IsSuccessStatusCode) return null;
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogWarning("PayMongo webhook listing failed ({Status}); refusing to create a possible duplicate.",
+                (int)response.StatusCode);
+            throw new HttpRequestException("Could not list existing webhooks.");
+        }
 
         var payload = await response.Content.ReadAsStringAsync(ct);
         using var doc = JsonDocument.Parse(payload);
 
         if (!doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
-            return null;
+            throw new JsonException("Webhook list response has no resource array.");
 
         foreach (var item in data.EnumerateArray())
         {
@@ -134,7 +147,11 @@ public sealed class PayMongoAccountVerifier(HttpClient httpClient, ILogger<PayMo
             return new PayMongoWebhookRecord(
                 item.TryGetProperty("id", out var id) ? id.GetString() ?? string.Empty : string.Empty,
                 attributes.TryGetProperty("status", out var s) ? s.GetString() : null,
-                attributes.TryGetProperty("secret_key", out var sk) ? sk.GetString() : null);
+                attributes.TryGetProperty("secret_key", out var sk) ? sk.GetString() : null,
+                attributes.TryGetProperty("events", out var events) && events.ValueKind == JsonValueKind.Array
+                    ? events.EnumerateArray().Where(e => e.ValueKind == JsonValueKind.String)
+                        .Select(e => e.GetString() ?? "").ToArray()
+                    : Array.Empty<string>());
         }
 
         return null;
@@ -208,12 +225,18 @@ public sealed class PayMongoAccountVerifier(HttpClient httpClient, ILogger<PayMo
                 ResultStatus.UpstreamFailed);
         }
 
+        if (attributes.TryGetProperty("status", out var status)
+            && !string.Equals(status.GetString(), "enabled", StringComparison.OrdinalIgnoreCase))
+            return Result<PayMongoWebhookRegistration>.Failure(
+                "PayMongo created a webhook but it is not enabled. Enable it in PayMongo before collecting payments.",
+                ResultStatus.UpstreamFailed);
+
         return Result<PayMongoWebhookRegistration>.Success(
             new PayMongoWebhookRegistration(webhookId!, secret, AlreadyExisted: false, WasReEnabled: false));
     }
 
     /// <summary>What PayMongo says about one registered webhook.</summary>
-    private sealed record PayMongoWebhookRecord(string Id, string? Status, string? SecretKey);
+    private sealed record PayMongoWebhookRecord(string Id, string? Status, string? SecretKey, IReadOnlyList<string> Events);
 
     private static AuthenticationHeaderValue BasicAuth(string secretKey) =>
         new("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes(secretKey + ":")));

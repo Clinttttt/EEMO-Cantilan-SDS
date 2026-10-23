@@ -190,21 +190,30 @@ public sealed class PayMongoPaymentGateway(
                 _ => PaymentGatewayEventType.Unknown
             };
 
-            // For checkout-session events the actual payment lives in attributes.payments[0];
-            // for direct payment events the amount/id are on the resource itself.
+            // For checkout-session paid events, find an actual paid attempt (not payments[0]).
+            // A failed earlier attempt must never be treated as proof of a successful charge.
             JsonElement paymentAttrs = resourceAttrs;
             string? paymentId = resourceId.StartsWith("pay_", StringComparison.OrdinalIgnoreCase) ? resourceId : null;
-
-            if (resourceAttrs.ValueKind == JsonValueKind.Object
-                && resourceAttrs.TryGetProperty("payments", out var payments)
-                && payments.ValueKind == JsonValueKind.Array
-                && payments.GetArrayLength() > 0)
+            if (eventName == "checkout_session.payment.paid")
             {
-                var firstPayment = payments[0];
-                if (firstPayment.TryGetProperty("id", out var payIdEl))
-                    paymentId = payIdEl.GetString();
-                if (firstPayment.TryGetProperty("attributes", out var payAttrsEl))
-                    paymentAttrs = payAttrsEl;
+                if (resourceAttrs.ValueKind != JsonValueKind.Object
+                    || !resourceAttrs.TryGetProperty("payments", out var payments)
+                    || payments.ValueKind != JsonValueKind.Array)
+                    return Result<PaymentGatewayEvent>.Failure("Checkout session event lacks payment evidence.");
+
+                var paid = payments.EnumerateArray().FirstOrDefault(p =>
+                    p.ValueKind == JsonValueKind.Object
+                    && p.TryGetProperty("attributes", out var attrs)
+                    && attrs.ValueKind == JsonValueKind.Object
+                    && attrs.TryGetProperty("status", out var status)
+                    && status.ValueKind == JsonValueKind.String
+                    && string.Equals(status.GetString(), "paid", StringComparison.OrdinalIgnoreCase));
+
+                if (paid.ValueKind != JsonValueKind.Object)
+                    return Result<PaymentGatewayEvent>.Failure("Checkout session has no paid payment evidence.");
+
+                paymentId = paid.TryGetProperty("id", out var payId) ? payId.GetString() : null;
+                paymentAttrs = paid.GetProperty("attributes");
             }
 
             decimal amount = 0m;
@@ -275,8 +284,8 @@ public sealed class PayMongoPaymentGateway(
 
             if (!response.IsSuccessStatusCode)
             {
-                logger.LogError("PayMongo checkout session retrieve failed ({Status}): {Payload}",
-                    (int)response.StatusCode, payload);
+                logger.LogError("PayMongo checkout session retrieve failed ({Status}): {Error}",
+                    (int)response.StatusCode, SummarizePayMongoError(payload));
                 return Result<PaymentGatewayEvent>.Failure(
                     $"Payment provider returned {(int)response.StatusCode} while verifying the payment.", ResultStatus.UpstreamFailed);
             }
