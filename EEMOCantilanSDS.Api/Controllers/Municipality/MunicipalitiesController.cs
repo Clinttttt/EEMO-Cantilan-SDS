@@ -13,7 +13,7 @@ namespace EEMOCantilanSDS.Api.Controllers;
 // Anonymous BY DESIGN — the public landing needs the list/status before any authentication,
 // mirroring the existing public SetupController. Returns only non-sensitive presentation
 // fields (no operational data).
-public class MunicipalitiesController(ISender sender) : ApiBaseController(sender)
+public class MunicipalitiesController(ISender sender, IConfiguration configuration) : ApiBaseController(sender)
 {
     [AllowAnonymous]
     [HttpGet]
@@ -86,7 +86,7 @@ public class MunicipalitiesController(ISender sender) : ApiBaseController(sender
     /// Replaces an embedded seal with the address of the seal endpoint, leaving every other field alone.
     ///
     /// <para>
-    /// Done here rather than in the query because only the request knows the host the caller reached us on, and the
+    /// Done here rather than in the query because the API presentation boundary owns the public origin, and the
     /// portal, the collector app and the printed sheets all read the same field. They receive a short URL now instead
     /// of a data URI of some tens of kilobytes, so the value can be carried across a prerender boundary and cached by
     /// the browser. A seal already recorded as a file path is left exactly as it is: the web host serves it.
@@ -97,7 +97,7 @@ public class MunicipalitiesController(ISender sender) : ApiBaseController(sender
         if (!result.IsSuccess || result.Value is not { } branding) return result;
         if (branding.SealPath is not { Length: > 0 } stored) return result;
 
-        var url = SealUrl.From(Request, identifier, stored);
+        var url = SealUrl.From(Request, identifier, stored, configuration["PublicApiBaseUrl"]);
         return ReferenceEquals(url, stored) || url == stored
             ? result
             : Result<MunicipalityBrandingDto>.Success(branding with { SealPath = url });

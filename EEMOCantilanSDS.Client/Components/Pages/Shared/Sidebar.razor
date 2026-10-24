@@ -22,10 +22,8 @@
 <aside class="sidebar @(SidebarCollapsed ? "collapsed" : "") @(_mobileOpen ? "mobile-open" : "")">
     <div class="sidebar-brand">
         <div class="sidebar-seal">
-            @{ var sealPath = VisibleSealPath; }
-            <img @key="sealPath" src="@sealPath"
-                 alt="@(sealPath == BrandingState.WaitingSealPath ? "Municipal seal unavailable" : Branding.Municipality)"
-                 @onerror="() => OnSealErrorAsync(sealPath)" />
+            <MunicipalSeal Source="@VisibleSealPath" Municipality="@Branding.Municipality"
+                           OnFailed="OnSealErrorAsync" />
         </div>
         <div class="sidebar-brand-text">
             <div class="sidebar-brand-name">STALLTRACK</div>
@@ -139,6 +137,8 @@
     private string? _officeProfileSealPath;
     private bool _officeProfileSealAttempted;
     private int _officeSealGeneration;
+    private string? _observedBrandingTenant;
+    private string? _observedBrandingSeal;
 
     // The normal tenant-branding endpoint is authoritative. If its image fails, the
     // signed-in office's *own* saved image can still render without inventing an LGU seal.
@@ -254,6 +254,20 @@
 
     private void OnBrandingChanged() => _ = InvokeAsync(() =>
     {
+        // A duplicate branding notification is not a new image. Keep the last failed
+        // URL suppressed instead of flashing the same broken image again.
+        var tenant = Branding.TenantCode;
+        var seal = Branding.SealPath;
+        if (string.Equals(_observedBrandingTenant, tenant, StringComparison.Ordinal)
+            && string.Equals(_observedBrandingSeal, seal, StringComparison.Ordinal))
+        {
+            PersistedBranding = Branding.Current;
+            StateHasChanged();
+            return;
+        }
+
+        _observedBrandingTenant = tenant;
+        _observedBrandingSeal = seal;
         _failedBrandingSealPath = null;
         _failedProfileSealPath = null;
         _officeProfileSealPath = null;
@@ -277,14 +291,11 @@
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
         => _ = InvokeAsync(async () =>
         {
-            _failedBrandingSealPath = null;
-            if (_officeProfileSealPath is null) _officeProfileSealAttempted = false;
+            // Navigation does not change the LGU seal. Reusing the verified/broken
+            // URL avoids another image fetch or fallback flash on every page.
             await Branding.EnsureLoadedAsync();
-            if (!Branding.Resolved)
-            {
-                _officeProfileSealAttempted = false;
+            if (!Branding.Resolved && !_officeProfileSealAttempted)
                 await TryLoadOwnOfficeSealAsync();
-            }
             _pendingPath = null;
             SetMobileOpen(false);   // navigating closes the mobile drawer
             StateHasChanged();
@@ -382,6 +393,12 @@
             await Branding.EnsureLoadedAsync();
             PersistedBranding = Branding.Current;
         }
+
+        // The initial branding load may finish before its Changed notification runs.
+        // Capture the identity here so a later metadata-only update cannot be mistaken
+        // for a new seal and accidentally reopen a previously failed image.
+        _observedBrandingTenant = Branding.TenantCode;
+        _observedBrandingSeal = Branding.SealPath;
 
         var state = await AuthState.GetAuthenticationStateAsync();
         _isHead = state.User.IsInRole("SuperAdmin")

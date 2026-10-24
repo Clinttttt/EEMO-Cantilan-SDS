@@ -20,8 +20,11 @@ namespace EEMOCantilanSDS.Api.Controllers;
 [ApiController]
 public class ActivationController : ApiBaseController
 {
-    public ActivationController(ISender sender) : base(sender)
+    private readonly IConfiguration _configuration;
+
+    public ActivationController(ISender sender, IConfiguration configuration) : base(sender)
     {
+        _configuration = configuration;
     }
 
     /// <summary>Commits an onboarding configuration and takes the target municipality live.</summary>
@@ -68,10 +71,11 @@ public class ActivationController : ApiBaseController
 
         // An embedded seal becomes the address of the seal endpoint, exactly as the branding endpoints do it: the page
         // carries a short URL across its prerender boundary instead of tens of kilobytes of data URI, and the browser
-        // caches the image. Done here because only the request knows the host the caller reached us on.
+        // caches the image. The configured public API origin keeps this address browser-reachable
+        // even when the server-side portal used an internal Docker hostname.
         if (result.IsSuccess && result.Value is { } ctx)
         {
-            var url = SealUrl.From(Request, ctx.Code, ctx.SealPath);
+            var url = SealUrl.From(Request, ctx.Code, ctx.SealPath, _configuration["PublicApiBaseUrl"]);
             if (url != ctx.SealPath)
                 result = Result<ActivationContextDto>.Success(ctx with { SealPath = url });
         }

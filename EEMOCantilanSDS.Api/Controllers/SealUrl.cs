@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Http;
 namespace EEMOCantilanSDS.Api.Controllers;
 
 /// <summary>
-/// The address of an LGU's seal, built from the request that asked for it.
+/// Generates a versioned browser-facing URL for an LGU's seal using the configured public API origin when present.
 ///
 /// <para>
 /// Lifted out of <see cref="MunicipalitiesController"/> unchanged when the Head's activation page needed the same
@@ -26,7 +26,7 @@ public static class SealUrl
     /// twice.
     /// </para>
     /// </summary>
-    public static string? From(HttpRequest request, string? identifier, string? stored)
+    public static string? From(HttpRequest request, string? identifier, string? stored, string? publicApiBaseUrl = null)
     {
         if (stored is not { Length: > 0 }) return stored;
         if (!stored.StartsWith("data:", StringComparison.OrdinalIgnoreCase)) return stored;
@@ -34,8 +34,17 @@ public static class SealUrl
 
         var version = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(stored)))[..12].ToLowerInvariant();
 
-        return $"{PublicScheme(request)}://{request.Host}{request.PathBase}" +
-               $"/api/municipalities/{Uri.EscapeDataString(identifier)}/seal?v={version}";
+        // The portal calls the API through an internal Docker hostname (api:8080).
+        // Request.Host is therefore NOT necessarily a browser-reachable host. Use the
+        // configured public API origin for browser-facing image links, while retaining
+        // request-based URLs in local environments without that configuration.
+        var origin = Uri.TryCreate(publicApiBaseUrl, UriKind.Absolute, out var publicUri)
+            && (publicUri.Scheme == Uri.UriSchemeHttps || (publicUri.IsLoopback && publicUri.Scheme == Uri.UriSchemeHttp))
+            && publicUri.UserInfo.Length == 0 && publicUri.Query.Length == 0 && publicUri.Fragment.Length == 0
+            ? publicUri.AbsoluteUri.TrimEnd('/')
+            : $"{PublicScheme(request)}://{request.Host}{request.PathBase}";
+
+        return origin + $"/api/municipalities/{Uri.EscapeDataString(identifier)}/seal?v={version}";
     }
 
     /// <summary>

@@ -1,0 +1,42 @@
+@* One rendering path for public and authenticated LGU seals. The placeholder lives behind
+   the image, so a slow or failed request never exposes broken-image text or another LGU. *@
+<span class="municipal-seal-frame">
+    <svg class="municipal-seal-outline" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"
+         aria-hidden="true">
+        <path d="M3 21h18" />
+        <path d="M5 21V10l7-5 7 5v11" />
+        <path d="M9 21v-6h6v6" />
+    </svg>
+    @if (!string.IsNullOrWhiteSpace(Source) && Source != EEMOCantilanSDS.Client.Services.BrandingState.WaitingSealPath && !_failed)
+    {
+        <img src="@Source" alt="@($"{Municipality} seal")" @onerror="HandleError" />
+    }
+</span>
+
+@code {
+    [Parameter] public string? Source { get; set; }
+    [Parameter] public string Municipality { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> OnFailed { get; set; }
+
+    private string? _source;
+    private bool _failed;
+
+    protected override void OnParametersSet()
+    {
+        // Only a genuinely different URL resets an image failure. Routine navigation and
+        // same-value branding events must not request the broken URL again.
+        if (!string.Equals(_source, Source, StringComparison.Ordinal))
+        {
+            _source = Source;
+            _failed = false;
+        }
+    }
+
+    private async Task HandleError()
+    {
+        if (_failed || string.IsNullOrEmpty(_source)) return;
+        _failed = true;
+        if (OnFailed.HasDelegate) await OnFailed.InvokeAsync(_source);
+    }
+}

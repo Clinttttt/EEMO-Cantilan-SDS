@@ -6,6 +6,7 @@
 @using EEMOCantilanSDS.Application.Common.Onboarding
 @using EEMOCantilanSDS.Application.Dtos.Tenancy
 @using Microsoft.AspNetCore.WebUtilities
+@using EEMOCantilanSDS.Client.Components.Pages.Shared
 @inject AuthService AuthService
 @inject ISetupApiClient SetupApi
 @inject IMunicipalitiesApiClient MunicipalitiesApi
@@ -32,7 +33,7 @@
                 <div class="government-logo-card">
                     @if (HasOwnSeal)
                     {
-                        <img src="@SealPath" alt="@MunicipalityName seal" />
+                        <MunicipalSeal Source="@SealPath" Municipality="@MunicipalityName" />
                     }
                     else
                     {
@@ -591,6 +592,15 @@
         OfficeName = "Municipal Economic Enterprises Development Office";
     }
 
+    void SetUnresolvedMunicipality(string identifier)
+    {
+        _isDefaultBrand = false;
+        SealPath = NeutralSealPath;
+        MunicipalityName = identifier.Trim();
+        OfficeAcronym = MunicipalityName;
+        OfficeName = "Municipal Office";
+    }
+
     protected override async Task OnInitializedAsync()
     {
         // If the prerender already resolved an LGU's branding, apply it up-front so the interactive pass
@@ -615,7 +625,7 @@
 
         // Scoped login from the municipality selector (?lgu={code}): theme the panel to that LGU and pin
         // it (locked), and remember the code so the sign-in enforces the account belongs to this LGU. Any
-        // branding failure keeps the Cantilan defaults and never blocks login.
+        // branding failure keeps this scoped login neutral and never blocks login.
         if (query.TryGetValue("lgu", out var lguValues))
         {
             var lgu = lguValues.ToString().Trim();
@@ -623,6 +633,10 @@
             {
                 LguParam = lgu;
                 _lguLocked = true;
+                // Never show Cantilan (or a different persisted LGU) when this URL
+                // explicitly selects another municipality and its lookup is slow or fails.
+                if (!string.Equals(PBrandId, lgu, StringComparison.OrdinalIgnoreCase))
+                    SetUnresolvedMunicipality(lgu);
                 var notOnboarded = false;
                 try
                 {
@@ -695,6 +709,7 @@
 
             if (!string.IsNullOrWhiteSpace(remembered))
             {
+                SetUnresolvedMunicipality(remembered!);
                 try
                 {
                     var branding = await MunicipalitiesApi.GetBrandingByIdentifierAsync(remembered!);
