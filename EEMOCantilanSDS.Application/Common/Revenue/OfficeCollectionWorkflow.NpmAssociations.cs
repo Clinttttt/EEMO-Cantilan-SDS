@@ -66,7 +66,12 @@ public sealed partial class OfficeCollectionWorkflow
         if (string.IsNullOrWhiteSpace(request.ConfirmationNote) || request.ConfirmationNote.Trim().Length > 500) return (null, "RequiresOfficeConfirmation");
         if ((!source.Active || source.SuggestedType != vendor.VendorType) && !request.ExceptionConfirmed) return (null, "RequiresExceptionConfirmation");
         if (vendor.Status != VendorRegistrationStatus.Active) return (null, "RegistrationClosed");
-        if (creating && (source.Links.Any(x => x.CorrectedAtUtc == null) || source.PossibleMatches.Count > 0) && !request.DuplicateReviewConfirmed)
+        // A reviewed same-name match is not identity proof, but an existing exact
+        // active contract association is. Review confirmation must NEVER bypass it,
+        // even if the active association belongs to a different vendor registration.
+        if (source.Links.Any(x => x.CorrectedAtUtc == null))
+            return (null, "AssociationAlreadyExists");
+        if (creating && source.PossibleMatches.Count > 0 && !request.DuplicateReviewConfirmed)
             return (null, "RequiresDuplicateReview");
         return (source, null);
     }
