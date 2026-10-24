@@ -154,8 +154,16 @@ public sealed class VegetableFruitModeTests : TestContext
         _api.Setup(x => x.SearchCollectionSourcesAsync("Missing")).ReturnsAsync(
             Result<IReadOnlyList<CollectionSourceSearchResult>>.Success([]));
         view.Find("input[type=search]").Input("Missing");
+        // Confirm the input event has rendered before asserting immediate invalidation.
+        // bUnit can return from Input before its scheduled render under full-suite load.
+        view.WaitForAssertion(() =>
+        {
+            Assert.Equal("Missing", view.Find("input[type=search]").GetAttribute("value"));
+            Assert.Empty(view.FindAll(".payer-option"));
+        });
+        Assert.Empty(view.FindAll(".payer-selected")); // no old holder may enter the checkout
         view.FindAll("button").Single(x => x.TextContent == "Search").Click();
-        Assert.Empty(view.FindAll(".payer-option"));
+        view.WaitForAssertion(() => Assert.Empty(view.FindAll(".payer-option")));
         Assert.DoesNotContain("Continue with payer name", view.Markup);
     }
 

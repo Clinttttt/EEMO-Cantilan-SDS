@@ -78,7 +78,7 @@
                 </button>
             }
 
-            @if (!string.IsNullOrWhiteSpace(CanonicalNotice))
+            @if (!string.IsNullOrWhiteSpace(CanonicalNotice) && !CanonicalNotice.StartsWith("Collection recorded", StringComparison.Ordinal))
             {
                 <div class="state-card" role="status">
                     <div class="state-text">@CanonicalNotice</div>
@@ -328,7 +328,13 @@
     </div>
 }
 
+@if (CanonicalNotice?.StartsWith("Collection recorded", StringComparison.Ordinal) == true)
+{
+    <CollectionRecordedSheet Message="@CanonicalNotice" OnClose="DismissRecorded" />
+}
+
 @code {
+    private void DismissRecorded() => CanonicalNotice = null;
     private MobileTpmCollectionDto? Collection;
     private bool IsLoading = true;
     private bool IsSaving;

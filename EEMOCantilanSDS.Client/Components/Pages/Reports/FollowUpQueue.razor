@@ -550,11 +550,12 @@
 
     private DateOnly AsOf => _data?.AsOf ?? PhilippineTime.Today;
     private string PeriodLabel => _data?.PeriodLabel ?? PhilippineTime.Now.ToString("MMMM yyyy");
-    // A physical OR number is supplementary evidence for these collected records.
-    // Do not present its absence as an actionable debt or alert; retain the server
-    // source unchanged for historical/audit views and existing receipt workflows.
+    // Optional blank receipt metadata is not an alert. However, an ONLINE payment
+    // actually awaiting office-issued receipt must remain visible in the live work queue.
+    // Historical source events are left unchanged in the server response.
     private IReadOnlyList<FollowUpItemDto> AllItems =>
-        (_data?.Items ?? Array.Empty<FollowUpItemDto>()).Where(i => i.ReasonKind != "missingor").ToList();
+        (_data?.Items ?? Array.Empty<FollowUpItemDto>())
+            .Where(i => i.ReasonKind != "missingor" || i.ReceiptActionRequired).ToList();
 
     protected override async Task OnInitializedAsync()
     {

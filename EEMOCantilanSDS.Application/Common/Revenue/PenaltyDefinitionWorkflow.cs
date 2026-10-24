@@ -131,6 +131,30 @@ public sealed class PenaltyDefinitionWorkflow(
                     version.Code, version.DisplayName, line.CalculationSnapshot, line.Amount, LineId = line.Id,
                     Kind = PenaltyRegisterKinds.Direct, Account = (string?)null, Unit = (string?)null, Facility = (string?)null, Described = (string?)null }).ToListAsync(ct);
             rows.AddRange(directRows);
+            // No-authority manual direct fines are still canonical cash with an OR-classified
+            // line. Identify them by their dedicated posting origin, never by editable JSON.
+            var manualRows = await (
+                from collection in db.Collections.AsNoTracking()
+                join operation in db.PostingOperations.AsNoTracking()
+                    on (Guid?)collection.Id equals operation.CollectionId
+                join line in db.CollectionLines.AsNoTracking() on collection.Id equals line.CollectionId
+                join classification in db.RevenueClassifications.AsNoTracking()
+                    on new { line.MunicipalityId, Id = line.RevenueClassificationId }
+                    equals new { classification.MunicipalityId, classification.Id }
+                where collection.MunicipalityId == tenantId
+                    && operation.MunicipalityId == tenantId && line.MunicipalityId == tenantId
+                    && classification.MunicipalityId == tenantId
+                    && collection.BusinessDate >= @from && collection.BusinessDate <= to
+                    && operation.Origin == "DirectFineCollection"
+                    && line.SourceKind == null && line.SourceId == null
+                    && classification.SemanticCode == Domain.Constants.RevenueClassificationCodes.PenaltiesAndFines
+                select new { collection.Id, collection.BusinessDate, collection.RecordedAtUtc,
+                    collection.PayerName, collection.ReferenceCode,
+                    Code = "DIRECT_FINE", DisplayName = "Direct fine", line.CalculationSnapshot, line.Amount,
+                    LineId = line.Id, Kind = PenaltyRegisterKinds.Direct,
+                    Account = (string?)null, Unit = (string?)null, Facility = (string?)null,
+                    Described = (string?)null }).ToListAsync(ct);
+            rows.AddRange(manualRows);
             rows = rows.OrderByDescending(r => r.BusinessDate).ThenByDescending(r => r.RecordedAtUtc).ToList();
             var ids = rows.Select(x => x.LineId).ToArray();
             var corrections = await db.CollectionCorrectionLines.AsNoTracking().Where(x =>

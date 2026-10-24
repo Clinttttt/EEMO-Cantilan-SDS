@@ -52,7 +52,7 @@
                 <input type="text"
                        placeholder="Search name, OR no., stall…"
                        @bind="SearchQuery"
-                       @bind:event="oninput" />
+                       @bind:event="oninput" @bind:after="OnSearchChanged" />
             </div>
             <button class="pending-btn @(Sync.PendingCount > 0 ? "has-pending" : "")"
                     type="button"
@@ -121,33 +121,49 @@
         }
         else
         {
-            @foreach (var group in FilteredTimeline.GroupBy(r => r.RecordedAt.Date))
+            var timeline = FilteredTimeline;
+            var completeSessions = VisibleCanonicalGroups;
+            var groupsById = completeSessions.SelectMany(g => g.Select(r => (r.CollectionId, Group: g)))
+                .ToDictionary(x => x.CollectionId, x => x.Group);
+            var groupLeaders = completeSessions.Select(g => timeline.First(e =>
+                e.Canonical is { } op && g.Any(r => r.CollectionId == op.CollectionId)).Canonical!.CollectionId).ToHashSet();
+            @foreach (var group in timeline.GroupBy(r => r.RecordedAt.Date))
             {
                 @if (!SingleDayMode)
                 {
                     <div class="section-label">
                         @DateLabel(group.Key)
-                        <span class="section-count">@group.Count() entries</span>
+                        <span class="section-count">@(group.Count(e => e.Canonical is not { } op || !groupsById.ContainsKey(op.CollectionId) || groupLeaders.Contains(op.CollectionId))) entries</span>
                     </div>
                 }
                 @foreach (var entry in group)
                 {
                     @if (entry.Canonical is { } op)
                     {
+                        var sessionGroup = groupsById.GetValueOrDefault(op.CollectionId);
+                        @if (sessionGroup is { Count: > 1 })
+                        {
+                            @if (groupLeaders.Contains(op.CollectionId))
+                            {
+                                <CollectionRecordRow Identity="@(string.IsNullOrWhiteSpace(op.PayorName) ? "Collection session" : op.PayorName!)"
+                                    Amount="@sessionGroup.Sum(x => x.Total)"
+                                    DateText="@entry.RecordedAt.ToString("MMM d · h:mm tt", CultureInfo.InvariantCulture)"
+                                    Status="@(sessionGroup.Any(x => x.Status != "Posted") ? "Contains corrections" : null)"
+                                    OnOpen="() => OpenCanonicalSession(sessionGroup)">
+                                    <Details><span>@sessionGroup.Count collections · @sessionGroup.SelectMany(x => x.Lines).Count() items · Individual SRCs and receipts</span></Details>
+                                </CollectionRecordRow>
+                            }
+                        }
+                        else
+                        {
                         <CollectionRecordRow Identity="@(string.IsNullOrWhiteSpace(op.PayorName) ? op.ReferenceCode : op.PayorName!)"
                             Amount="@op.Total" DateText="@(op.RecordedAtUtc is null ? op.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture) : entry.RecordedAt.ToString("MMM d · h:mm tt", CultureInfo.InvariantCulture))"
-                            Status="@(op.Status == "Posted" ? null : op.Status)" OnOpen="() => ToggleCanonical(op.CollectionId)">
+                            Status="@(op.Status == "Posted" ? null : op.Status)" OnOpen="() => OpenCanonical(op)">
                             <Details>
-                                <span>@OperationSummary(op) · @op.ReferenceCode</span>
-                                @if (_openCanonical.Contains(op.CollectionId))
-                                {
-                                    @foreach (var line in op.Lines)
-                                    {
-                                        <div class="record-line-detail"><span>@(line.ItemLabel ?? line.ClassificationName)</span><span>₱@line.Amount.ToString("N2", CultureInfo.InvariantCulture)</span></div>
-                                    }
-                                }
+                                <span>@OperationSummary(op) · @op.ReferenceCode @if (CollectorRecordLabels.InstrumentCode(op.Instrument) is { } instrument) { <span>@instrument</span> }</span>
                             </Details>
                         </CollectionRecordRow>
+                        }
                     }
                     else if (entry.Legacy is { } row)
                     {
@@ -157,7 +173,7 @@
                             Status="@(rec.IsAbsent ? "Excused" : row.AnyPartial ? "Partial" : null)"
                             OnOpen="() => OpenDetail(row)">
                             <Details>
-                                <span>@rec.FacilityCode · @(rec.IsAbsent ? "Excused" : row.SharesOneNature ? rec.Nature : "Multiple charges")</span>
+                                <span>@CollectorRecordLabels.Display(rec.FacilityCode.ToString()) · @(rec.IsAbsent ? "Excused" : row.SharesOneNature ? CollectorRecordLabels.Display(rec.Nature) : "Multiple charges")</span>
                             </Details>
                         </CollectionRecordRow>
                     }
@@ -170,6 +186,16 @@
     <BottomNav ActiveTab="records" />
 
 </div>
+
+@if (SelectedCanonicalSession is { Count: > 1 } selectedSession)
+{
+    <CollectionSessionRecordSheet Records="selectedSession" OnClose="CloseCanonicalSession" />
+}
+
+@if (SelectedCanonicalRecord is { } canonical)
+{
+    <CanonicalRecordDetailSheet Record="canonical" OnClose="CloseCanonical" />
+}
 
 @if (ShowDetailSheet && SelectedRecord is not null)
 {
@@ -446,11 +472,17 @@
     string ActivePeriodKey = "0";              // key within the active mode
     IReadOnlyList<MobileCollectorRecordDto> Records = Array.Empty<MobileCollectorRecordDto>();
     IReadOnlyList<OperationRecord> CanonicalRecords = Array.Empty<OperationRecord>();
+    IReadOnlyList<global::EEMOCantilanSDS.Application.Common.Revenue.CollectionSessionDisplayGroup> CanonicalSessions = [];
     bool _canonicalFailed, _correcting;
-    readonly HashSet<Guid> _openCanonical = [];
-    void ToggleCanonical(Guid id) { if (!_openCanonical.Remove(id)) _openCanonical.Add(id); }
+    OperationRecord? SelectedCanonicalRecord;
+    IReadOnlyList<OperationRecord>? SelectedCanonicalSession;
+    void OpenCanonicalSession(IReadOnlyList<OperationRecord> records) => SelectedCanonicalSession = records;
+    void CloseCanonicalSession() => SelectedCanonicalSession = null;
+    void OpenCanonical(OperationRecord record) => SelectedCanonicalRecord = record;
+    void CloseCanonical() => SelectedCanonicalRecord = null;
+    void OnSearchChanged() { SelectedCanonicalRecord = null; SelectedCanonicalSession = null; CloseDetail(); }
     static string OperationSummary(OperationRecord op) => string.Join(" · ",
-        op.Lines.Select(l => l.ClassificationName).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct());
+        op.Lines.Select(l => CollectorRecordLabels.Display(l.ClassificationName)).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct());
 
     // Instant re-open while online: keep the last records per (collector · facility · date-range) in memory,
     // so returning to Records shows them immediately and then refreshes quietly in the background instead of
@@ -620,6 +652,7 @@
         if (ActiveFacility is not null)
         {
             CanonicalRecords = [];
+            CanonicalSessions = [];
             _canonicalFailed = false;
             return;
         }
@@ -630,6 +663,7 @@
             if (result.IsSuccess && result.Value is not null)
             {
                 CanonicalRecords = OperationRecordGrouping.Group(result.Value.Rows);
+                CanonicalSessions = result.Value.Sessions ?? [];
                 _canonicalFailed = result.Value.RowsTruncated;
             }
             else _canonicalFailed = true;
@@ -727,6 +761,22 @@
         (r.ReferenceCode + " " + r.DocumentNumber + " " + r.PayorName + " " +
          string.Join(" ", r.Lines.Select(l => l.ClassificationName + " " + l.SourceLabel)))
         .Contains(SearchQuery.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    // Only complete visible groups may replace individual cards. Partial search/filter keeps child cards.
+    IReadOnlyList<IReadOnlyList<OperationRecord>> VisibleCanonicalGroups
+    {
+        get
+        {
+            var visible = VisibleCanonical.ToDictionary(r => r.CollectionId);
+            return CanonicalSessions.Select(s => s.CollectionIds.Select(id => visible.GetValueOrDefault(id)).ToArray())
+                .Where(rows => rows.Length > 1 && rows.All(r => r is not null))
+                // Never hide an item from another Philippine recording-date section.
+                .Where(rows => rows.Select(r => r!.RecordedAtUtc is { } utc
+                    ? PhilippineTime.ToPhilippineTime(utc).Date
+                    : r.BusinessDate.ToDateTime(TimeOnly.MinValue).Date).Distinct().Count() == 1)
+                .Select(rows => (IReadOnlyList<OperationRecord>)rows.Select(r => r!).ToArray()).ToList();
+        }
+    }
 
     IReadOnlyList<CollectorRecordTimelineItem> FilteredTimeline =>
         CollectorRecordTimeline.Build(FilteredRecords, VisibleCanonical);

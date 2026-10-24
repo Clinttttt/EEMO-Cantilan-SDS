@@ -208,7 +208,7 @@
                 }
             }
 
-            @if (!string.IsNullOrWhiteSpace(_message))
+            @if (!string.IsNullOrWhiteSpace(_message) && !_showRecordedModal)
             {
                 <div class="op-message" role="status">@_message</div>
             }
@@ -246,6 +246,10 @@
     </div>
     <BottomNav ActiveTab="menu" />
 </div>
+@if (_showRecordedModal)
+{
+    <CollectionRecordedSheet Message="@_recordedMessage" Amount="@_recordedAmount" OnClose="CloseRecordedModal" />
+}
 
 @code {
     [Parameter] public string Code { get; set; } = string.Empty;
@@ -268,6 +272,10 @@
     private string? _blocked;
     private bool _blockedTemporary;
     private string? _message;
+    private bool _showRecordedModal;
+    private string? _recordedMessage;
+    private decimal? _recordedAmount;
+    private void CloseRecordedModal() { _showRecordedModal = false; _recordedMessage = null; _recordedAmount = null; }
     private decimal _amount;
     private string? _payer;
     private string? _reference;
@@ -450,6 +458,7 @@
 
         _saving = true;
         _message = null;
+        CloseRecordedModal();
         var operationId = Guid.NewGuid();
         var amount = ExpectedAmount;
         var operation = new PendingOperation
@@ -481,7 +490,11 @@
                 await Sync.SyncNowAsync(force: true);
             var result = (await Sync.GetAllAsync()).FirstOrDefault(x => x.ClientOperationId == operationId);
             if (result?.LocalStatus == PendingLocalStatus.Synced)
-                _message = result.ReferenceCode is { } src ? $"Collection recorded · {src}" : "Collection recorded.";
+            {
+                _recordedMessage = result.ReferenceCode is { } src ? $"Collection recorded · {src}" : "Collection recorded.";
+                _recordedAmount = amount;
+                _showRecordedModal = true;
+            }
             else if (result?.LocalStatus is PendingLocalStatus.Rejected or PendingLocalStatus.ReconciliationRequired)
                 _message = result.ResultMessage ?? "The server could not accept this collection. It was not recorded.";
             else if (result is not null)

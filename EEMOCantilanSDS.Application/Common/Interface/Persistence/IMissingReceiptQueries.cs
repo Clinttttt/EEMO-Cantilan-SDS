@@ -3,12 +3,12 @@ using EEMOCantilanSDS.Application.Dtos.Payments;
 namespace EEMOCantilanSDS.Application.Common.Interface.Persistence;
 
 /// <summary>
-/// Collections that were taken but carry no receipt number yet — the office's "awaiting OR" queue.
+/// Historical cash/field records with an unfilled optional OR-number field.
 ///
 /// <para>
-/// A distinct question from what a stall owes. These reads scan a whole PERIOD across every payor looking for money
-/// already received whose Official Receipt has not been written down, because a payment without one is a payment the
-/// office cannot account for at audit. That is a follow-up task, not a balance.
+/// Distinct from money a stall owes: these are already-paid source records with unfilled optional
+/// receipt-number evidence. They belong in operational/historical inspection, not an urgent debt queue.
+
 /// </para>
 ///
 /// <para>
@@ -20,8 +20,8 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence;
 public interface IMissingReceiptQueries
 {
     /// <summary>
-    /// Fully-paid records whose OR is still blank for the given period — the cash/field "awaiting OR"
-    /// queue. Returns monthly records (one per stall) and NPM daily collections (grouped per stall).
+    /// Fully-paid cash/field records whose optional OR-number field is blank for the period.
+    /// Returns monthly records (one per stall) and NPM daily collections (grouped per stall).
     /// Online payments are excluded; they surface via the online awaiting-OR queue.
     /// </summary>
     Task<IReadOnlyList<UnreceiptedPaymentDto>> GetUnreceiptedCashPaymentsAsync(int year, int month, CancellationToken ct);

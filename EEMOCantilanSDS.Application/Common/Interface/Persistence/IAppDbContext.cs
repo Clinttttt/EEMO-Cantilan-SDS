@@ -44,6 +44,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<FishMeatDirectCollectionLink> FishMeatDirectCollectionLinks { get; }
         DbSet<RevenueClassificationPolicy> RevenueClassificationPolicies { get; }
         DbSet<EEMOCantilanSDS.Domain.Entities.Revenue.Collection> Collections { get; }
+        DbSet<MobileCollectionSession> MobileCollectionSessions { get; }
         DbSet<EEMOCantilanSDS.Domain.Entities.Revenue.CollectionLine> CollectionLines { get; }
         DbSet<Payor> Payors { get; }
         DbSet<CollectionAllocation> CollectionAllocations { get; }

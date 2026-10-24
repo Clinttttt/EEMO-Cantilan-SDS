@@ -42,6 +42,8 @@ public sealed class TodaysWorkMenuTests : TestContext
         {
             Assert.Empty(view.FindAll(".menu-skeleton"));
             Assert.Equal("Today's work", view.Find("h1").TextContent);
+            Assert.DoesNotContain("Offline lists partially fetched", view.Markup);
+            Assert.DoesNotContain("Preparing offline lists", view.Markup);
         });
     }
 

@@ -395,6 +395,80 @@ public sealed class OfficialReportPanelsTests : TestContext
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void Accountability_legacy_receipt_number_is_displayed_as_historical_evidence_not_an_accountable_document(bool duplicate)
+    {
+        var from = new DateOnly(2026, 10, 1);
+        var to = new DateOnly(2026, 10, 31);
+        const string legacyOr = "0000256";
+        _remittances.Setup(x => x.GetPositionAsync(from, to)).ReturnsAsync(
+            Result<AccountabilityPositionDto>.Success(new(from, to, 365m, 0m, 365m, 0, 0m, [])));
+        _reports.Setup(x => x.TraceDocumentAsync(legacyOr))
+            .ReturnsAsync(Result<DocumentTraceDto>.NotFound());
+        CollectionActivityEventDto Entry(string key, string payer) => new(
+            key, "Legacy", "Slaughterhouse", null, new DateOnly(2026, 10, 21),
+            DateTime.UtcNow, null, legacyOr, RevenueInstrumentType.OfficialReceipt,
+            [], [], payer, null, null, null, "Cian Consigna", FacilityCode.SLH,
+            "Carabao x 1", "Paid", 365m, 0m, 365m, "Paid", null, [], []);
+        var records = duplicate
+            ? new[] { Entry("legacy-a", "Alex Buenavista"), Entry("legacy-b", "Second holder") }
+            : new[] { Entry("legacy-a", "Alex Buenavista") };
+        _activity.Setup(x => x.GetAsync(from, to, It.IsAny<FacilityCode?>(),
+            It.IsAny<Guid?>(), "Legacy", 5000, null))
+            .ReturnsAsync(Result<CollectionActivityFeedDto>.Success(new(
+                from, to, "Business date", "Net", DateTime.UtcNow, records,
+                records.Length, false, records.Sum(x => x.Amount), 0m, 0m,
+                records.Sum(x => x.Amount), [])));
+
+        var cut = RenderComponent<AccountabilityPanel>(p => p
+            .Add(x => x.From, from).Add(x => x.To, to).Add(x => x.PeriodLabel, "October 2026"));
+        cut.Find("form[aria-label='Trace a document'] input").Change(legacyOr);
+        cut.Find("form[aria-label='Trace a document']").Submit();
+        cut.WaitForAssertion(() =>
+        {
+            var legacy = cut.Find("[aria-label='Legacy receipt reference matches']").TextContent;
+            Assert.Contains(legacyOr, legacy);
+            Assert.Contains("Alex Buenavista", legacy);
+            Assert.Contains("Cian Consigna", legacy);
+            Assert.Contains("365.00", legacy);
+            Assert.Contains("no separately registered accountable OR/CT", legacy);
+            Assert.Equal(duplicate ? 2 : 1, cut.FindAll("[aria-label='Legacy payment reference results'] tbody tr").Count);
+            Assert.Empty(cut.FindAll("dl[aria-label='Document trace']"));
+            Assert.Empty(cut.FindAll("dl[aria-label='Collection reference trace']"));
+            Assert.DoesNotContain("Covered (", legacy);
+        }, Timeout);
+        _reports.Verify(x => x.GetCollectionAsync(It.IsAny<Guid>()), Times.Never);
+        _activity.Verify(x => x.GetAsync(from, to, It.IsAny<FacilityCode?>(),
+            It.IsAny<Guid?>(), "Legacy", 5000, null), Times.Once);
+    }
+
+    [Fact]
+    public void Accountability_nonmatching_legacy_reference_keeps_not_found_in_selected_period()
+    {
+        var from = new DateOnly(2026, 10, 1);
+        var to = new DateOnly(2026, 10, 31);
+        _remittances.Setup(x => x.GetPositionAsync(from, to)).ReturnsAsync(
+            Result<AccountabilityPositionDto>.Success(new(from, to, 0m, 0m, 0m, 0, 0m, [])));
+        _reports.Setup(x => x.TraceDocumentAsync("NOT-RECORDED"))
+            .ReturnsAsync(Result<DocumentTraceDto>.NotFound());
+        _activity.Setup(x => x.GetAsync(from, to, It.IsAny<FacilityCode?>(),
+            It.IsAny<Guid?>(), "Legacy", 5000, null))
+            .ReturnsAsync(Result<CollectionActivityFeedDto>.Success(new(
+                from, to, "Business date", "Net", DateTime.UtcNow, [],
+                0, false, 0m, 0m, 0m, 0m, [])));
+        var cut = RenderComponent<AccountabilityPanel>(p => p
+            .Add(x => x.From, from).Add(x => x.To, to).Add(x => x.PeriodLabel, "October 2026"));
+        cut.Find("form[aria-label='Trace a document'] input").Change("NOT-RECORDED");
+        cut.Find("form[aria-label='Trace a document']").Submit();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("No registered OR/CT document or matching legacy payment reference", cut.Markup);
+            Assert.Empty(cut.FindAll("[aria-label='Legacy receipt reference matches']"));
+        }, Timeout);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void Accountability_TracesSRCThroughCollectionAndAuthoritativeRemittanceCoverage(bool covered)
     {
         var date = new DateOnly(2026, 10, 12);

@@ -31,11 +31,111 @@ public sealed partial class FineAssessmentTests
         new(db,new Actor(seed.TenantId,role,seed.ActorId),new Tenant(seed.TenantId),new Clock());
     private static DirectFineCollectionRequest DirectRequest(Guid authority) => new(Guid.NewGuid(),authority,Today,100m);
 
+    private async Task<Seed> ManualDirectSeed(bool receiptPolicy = true)
+    {
+        Skip.IfNot(database.Available, database.UnavailableReason ?? "PostgreSQL unavailable");
+        await database.ResetAsync();
+        var municipality = Municipality.Create("MANUALFINE", "Isolated manual fine office", "TEST", MunicipalityStatus.Active);
+        var actor = Guid.NewGuid();
+        await using var db = database.CreateContext(municipality.Id);
+        db.Municipalities.Add(municipality);
+        var classification = RevenueClassification.Create(RevenueClassificationCodes.PenaltiesAndFines, municipality.Id);
+        db.RevenueClassifications.Add(classification);
+        if (receiptPolicy)
+            db.RevenueClassificationPolicies.Add(RevenueClassificationPolicy.Create(classification.Id,
+                Today.AddDays(-1), "Fines", RevenueInstrumentType.OfficialReceipt, municipality.Id));
+        await db.SaveChangesAsync();
+        return new(municipality.Id, new(FineAccountKind.FacilityContract, Guid.Empty), Guid.Empty, actor);
+    }
+
+    [SkippableFact]
+    public async Task Manual_direct_fine_posts_without_authority_setup_and_is_visible_in_fines_reports()
+    {
+        var s = await ManualDirectSeed();
+        await using var db = database.CreateContext(s.TenantId);
+        var workflow = Direct(db, s);
+        Assert.Empty(await db.DirectFineAuthorities.ToListAsync());
+        Assert.Empty(await db.PenaltyDefinitions.ToListAsync());
+        var options = (await workflow.OptionsAsync()).Value!;
+        var manual = Assert.Single(options.Categories);
+        Assert.Equal(Guid.Empty, manual.AuthorityId);
+        Assert.True(manual.RequiresReason);
+        Assert.Equal(RevenueInstrumentType.OfficialReceipt,
+            (await workflow.QuoteAsync(new(Guid.NewGuid(), Guid.Empty, Today, 65.25m, "Walkway obstruction"))).Value!.Instrument);
+
+        var request = new DirectFineCollectionRequest(Guid.NewGuid(), Guid.Empty, Today, 65.25m,
+            "Walkway obstruction", "Inspector entry 22", "Walk-in payor");
+        var posted = await workflow.PostAsync(request);
+        Assert.True(posted.IsSuccess, posted.Error);
+        Assert.Equal(65.25m, posted.Value!.Amount);
+        Assert.StartsWith("SRC-", posted.Value.ReferenceCode);
+        var replay = await workflow.PostAsync(request);
+        Assert.True(replay.IsSuccess, replay.Error);
+        Assert.True(replay.Value!.ExistingOutcome);
+        Assert.Equal(posted.Value.CollectionId, replay.Value.CollectionId);
+        Assert.Equal(409, (await workflow.PostAsync(request with {Amount = 66m})).StatusCode);
+
+        var line = Assert.Single(await db.CollectionLines.AsNoTracking().ToListAsync());
+        Assert.Null(line.SourceKind);
+        Assert.Null(line.SourceId);
+        Assert.Contains("Walkway obstruction", line.CalculationSnapshot);
+        Assert.Contains("Inspector entry 22", line.CalculationSnapshot);
+        Assert.Contains("Manual", line.CalculationSnapshot);
+        Assert.Single(await db.Collections.AsNoTracking().ToListAsync());
+        Assert.Single(await db.PostingOperations.AsNoTracking().ToListAsync());
+        Assert.Empty(await db.FineAssessments.ToListAsync());
+        Assert.Empty(await db.CollectionAllocations.ToListAsync());
+        Assert.Equal(65.25m, await OfficialFinesAsync(db, s));
+
+        var penalties = new PenaltyDefinitionWorkflow(db, new Actor(s.TenantId, id:s.ActorId),
+            new Tenant(s.TenantId), new Clock());
+        var row = Assert.Single((await penalties.GetRegisterAsync(Today, Today)).Value!);
+        Assert.Equal(PenaltyRegisterKinds.Direct, row.Kind);
+        Assert.Equal("Walkway obstruction", row.Reason);
+        Assert.Equal("Walk-in payor", row.PayerName);
+        Assert.Equal(65.25m, row.EffectiveAmount);
+        var summary = (await penalties.GetSummaryAsync(Today, Today)).Value!;
+        Assert.Equal(65.25m, summary.DirectCollected);
+        var activity = Assert.Single(await new EEMOCantilanSDS.Infrastructure.Repositories.CollectionActivityReader(db)
+            .GetAsync(s.TenantId, Today, Today));
+        Assert.Equal(posted.Value.ReferenceCode, activity.ReferenceCode);
+        Assert.Equal(65.25m, activity.NetAmount);
+    }
+
+    [SkippableFact]
+    public async Task Manual_direct_fine_rejects_invalid_facts_and_missing_receipt_policy_without_cash()
+    {
+        var s = await ManualDirectSeed(receiptPolicy:false);
+        await using var db = database.CreateContext(s.TenantId);
+        var workflow = Direct(db, s);
+        var request = new DirectFineCollectionRequest(Guid.NewGuid(), Guid.Empty, Today, 100m, "Actual incident");
+        Assert.False((await workflow.PostAsync(request)).IsSuccess);
+        Assert.Empty(await db.Collections.ToListAsync());
+        Assert.Empty(await db.PostingOperations.ToListAsync());
+
+        db.RevenueClassificationPolicies.Add(RevenueClassificationPolicy.Create(
+            (await db.RevenueClassifications.SingleAsync()).Id, Today.AddDays(-1),
+            "Fines", RevenueInstrumentType.OfficialReceipt, s.TenantId));
+        await db.SaveChangesAsync();
+        foreach (var invalid in new[] { 0m, -5m, 1.001m })
+            Assert.False((await workflow.PostAsync(request with { ClientOperationId=Guid.NewGuid(), Amount=invalid })).IsSuccess);
+        Assert.False((await workflow.PostAsync(request with { ClientOperationId=Guid.NewGuid(), Reason=null })).IsSuccess);
+        Assert.False((await workflow.PostAsync(request with { ClientOperationId=Guid.NewGuid(), AuthorityId=Guid.NewGuid() })).IsSuccess);
+        Assert.False((await workflow.PostAsync(request with { ClientOperationId=Guid.NewGuid(), BusinessDate=Today.AddDays(-1) })).IsSuccess);
+        Assert.Equal(403, (await Direct(db, s, "Collector").PostAsync(request)).StatusCode);
+        Assert.Empty(await db.Collections.ToListAsync());
+        Assert.Empty(await db.CollectionLines.ToListAsync());
+        Assert.Empty(await db.PostingOperations.ToListAsync());
+    }
+
     [SkippableFact] public async Task DirectFineCreatesOnlyCanonicalCashAndFinesRevenue()
     {
         var (s,a)=await DirectSeed(); await using var db=database.CreateContext(s.TenantId); var w=Direct(db,s);
         Assert.Equal(0m,await OfficialFinesAsync(db,s));
-        Assert.Single((await w.OptionsAsync()).Value!.Categories);
+        var categories = (await w.OptionsAsync()).Value!.Categories;
+        Assert.Equal(2, categories.Count);
+        Assert.Equal(Guid.Empty, categories[0].AuthorityId);
+        Assert.Equal(a, categories[1].AuthorityId);
         var r=await w.PostAsync(DirectRequest(a)); Assert.True(r.IsSuccess,r.Error);
         Assert.NotEmpty(r.Value!.ReferenceCode); Assert.Equal(100m,r.Value.Amount);
         var line=await db.CollectionLines.SingleAsync(); Assert.Equal(CollectionSourceKind.DirectFineCollection,line.SourceKind); Assert.Equal(a,line.SourceId);
@@ -108,7 +208,9 @@ public sealed partial class FineAssessmentTests
     [SkippableFact] public async Task DirectFineUncappedAndFixedRulesRemainGoverned()
     {
         var (s,a)=await DirectSeed(ceiling:null); await using(var db=database.CreateContext(s.TenantId)) {
-            Assert.Empty((await Direct(db,s).OptionsAsync()).Value!.Categories); Assert.False((await Direct(db,s).PostAsync(DirectRequest(a))).IsSuccess); }
+            var options = (await Direct(db,s).OptionsAsync()).Value!.Categories;
+            Assert.Equal(Guid.Empty, Assert.Single(options).AuthorityId);
+            Assert.False((await Direct(db,s).PostAsync(DirectRequest(a))).IsSuccess); }
         (s,a)=await DirectSeed(ceiling:null,uncapped:true); await using(var db=database.CreateContext(s.TenantId)) Assert.True((await Direct(db,s).PostAsync(DirectRequest(a))).IsSuccess);
         (s,a)=await DirectSeed(basis:GovernedServiceBasis.FixedAmount); await using(var db=database.CreateContext(s.TenantId)) {
             Assert.False((await Direct(db,s).PostAsync(DirectRequest(a) with {Amount=101m})).IsSuccess); Assert.True((await Direct(db,s).PostAsync(DirectRequest(a))).IsSuccess); }
@@ -118,7 +220,9 @@ public sealed partial class FineAssessmentTests
         var (s,a)=await DirectSeed(); await using var db=database.CreateContext(s.TenantId); var request=DirectRequest(a); var w=Direct(db,s);
         var first=await w.PostAsync(request); Assert.True(first.IsSuccess,first.Error);
         db.PenaltyDefinitions.Add(PenaltyDefinition.Create(s.TenantId,"TEST_DIRECT_FINE",Today,"Retired",null,GovernedServiceBasis.FixedAmount,100m,null,false,"fixture")); await db.SaveChangesAsync();
-        Assert.Empty((await w.OptionsAsync()).Value!.Categories); Assert.False((await w.PostAsync(request with {ClientOperationId=Guid.NewGuid()})).IsSuccess);
+        var options = (await w.OptionsAsync()).Value!.Categories;
+        Assert.Equal(Guid.Empty, Assert.Single(options).AuthorityId);
+        Assert.False((await w.PostAsync(request with {ClientOperationId=Guid.NewGuid()})).IsSuccess);
         Assert.Equal(first.Value!.CollectionId,(await w.PostAsync(request)).Value!.CollectionId);
     }
     [SkippableFact] public async Task DirectFineReversalRemovesEffectiveIncomeAndKeepsSrc()

@@ -118,6 +118,45 @@ public sealed partial class CollectionSessionTests
     }
 
     [SkippableFact]
+    public async Task Npm_active_contract_link_is_not_overridable_even_after_duplicate_review()
+    {
+        var w = await SeedAsync();
+        await using var db = database.CreateContext(w.TenantId);
+        var head = Office(db, w, "SuperAdmin");
+        var year = PhilippineTime.Today.Year;
+        var source = Assert.Single((await head.NpmVendorCandidatesAsync(year)).Value!.Rows);
+        var first = (await head.RegisterAsync(new(Guid.NewGuid(), year, FishMeatVendorType.Fish,
+            VendorRegistrationKind.New, "First vendor"))).Value!;
+        var second = (await head.RegisterAsync(new(Guid.NewGuid(), year, FishMeatVendorType.Fish,
+            VendorRegistrationKind.New, "Second vendor"))).Value!;
+        var active = await head.LinkNpmVendorAsync(first.Id, Confirmation(source));
+        Assert.True(active.IsSuccess, active.Error);
+
+        var linked = Assert.Single((await head.NpmVendorCandidatesAsync(year)).Value!.Rows);
+        var duplicate = Confirmation(linked) with { DuplicateReviewConfirmed = true };
+        var linkResult = await head.LinkNpmVendorAsync(second.Id, duplicate);
+        Assert.Equal(ResultStatus.Conflict, linkResult.Status);
+        Assert.Equal("AssociationAlreadyExists", linkResult.Error);
+
+        var createId = Guid.NewGuid();
+        var registrationResult = await head.RegisterAsync(new(createId, year, FishMeatVendorType.Fish,
+            VendorRegistrationKind.New, "Third vendor",
+            NpmAssociation: Confirmation(linked, createId) with { DuplicateReviewConfirmed = true }));
+        Assert.Equal(ResultStatus.Conflict, registrationResult.Status);
+        Assert.Equal("AssociationAlreadyExists", registrationResult.Error);
+        Assert.Equal(2, await db.FishMeatVendorRegistrations.CountAsync());
+        Assert.Single(await db.FishMeatNpmAssociations.Where(x => x.CorrectedAtUtc == null).ToListAsync());
+
+        var corrected = await head.CorrectNpmVendorLinkAsync(active.Value!.Id,
+            new(Guid.NewGuid(), "Verified reassignment to second registered vendor"));
+        Assert.True(corrected.IsSuccess, corrected.Error);
+        var replacement = await head.LinkNpmVendorAsync(second.Id, Confirmation(linked));
+        Assert.True(replacement.IsSuccess, replacement.Error);
+        Assert.Single(await db.FishMeatNpmAssociations.Where(x => x.CorrectedAtUtc == null).ToListAsync());
+        Assert.Empty(await db.Collections.ToListAsync());
+    }
+
+    [SkippableFact]
     public async Task Npm_name_matches_are_warnings_not_identity_and_multiple_stalls_are_valid()
     {
         var w = await SeedAsync(); await using var db = database.CreateContext(w.TenantId);
@@ -178,6 +217,42 @@ public sealed partial class CollectionSessionTests
     }
 
     [SkippableFact]
+    public async Task Npm_two_different_vendors_cannot_concurrently_claim_one_exact_contract()
+    {
+        var w = await SeedAsync();
+        NpmVendorCandidate source;
+        Guid firstVendor;
+        Guid secondVendor;
+        await using (var setup = database.CreateContext(w.TenantId))
+        {
+            var office = Office(setup, w, "SuperAdmin");
+            var year = PhilippineTime.Today.Year;
+            source = Assert.Single((await office.NpmVendorCandidatesAsync(year)).Value!.Rows);
+            firstVendor = (await office.RegisterAsync(new(Guid.NewGuid(), year, FishMeatVendorType.Fish,
+                VendorRegistrationKind.New, "First registered vendor"))).Value!.Id;
+            secondVendor = (await office.RegisterAsync(new(Guid.NewGuid(), year, FishMeatVendorType.Fish,
+                VendorRegistrationKind.New, "Second registered vendor"))).Value!.Id;
+        }
+
+        await using var first = database.CreateContext(w.TenantId);
+        await using var second = database.CreateContext(w.TenantId);
+        var results = await Task.WhenAll(
+            Office(first, w, "SuperAdmin").LinkNpmVendorAsync(firstVendor, Confirmation(source)),
+            Office(second, w, "SuperAdmin").LinkNpmVendorAsync(secondVendor, Confirmation(source)));
+
+        // Two independent client intents may race, but must not produce two active
+        // associations to the same tenant-owned contract or create revenue.
+        Assert.Equal(1, results.Count(x => x.IsSuccess));
+        Assert.All(results.Where(x => !x.IsSuccess), x => Assert.Equal(ResultStatus.Conflict, x.Status));
+        await using var verify = database.CreateContext(w.TenantId);
+        var linked = Assert.Single(await verify.FishMeatNpmAssociations.AsNoTracking().ToListAsync());
+        Assert.Equal(source.ContractId, linked.ContractId);
+        Assert.Contains(linked.VendorRegistrationId, new[] { firstVendor, secondVendor });
+        Assert.Empty(await verify.Collections.ToListAsync());
+        Assert.Empty(await verify.CollectionAllocations.ToListAsync());
+    }
+
+    [SkippableFact]
     public async Task Npm_historical_contract_and_replacement_never_transfer_link_or_lifecycle()
     {
         var w = await SeedAsync(); await using var db = database.CreateContext(w.TenantId);
@@ -195,7 +270,13 @@ public sealed partial class CollectionSessionTests
         Assert.Equal(VendorRegistrationStatus.Active, (await db.FishMeatVendorRegistrations.SingleAsync(x => x.Id == vendor.Id)).Status);
         var another = (await head.RegisterAsync(new(Guid.NewGuid(), year, FishMeatVendorType.Fish, VendorRegistrationKind.New, "Historical business"))).Value!;
         Assert.Equal("RequiresExceptionConfirmation", (await head.LinkNpmVendorAsync(another.Id, Confirmation(historical))).Error);
-        Assert.True((await head.LinkNpmVendorAsync(another.Id, Confirmation(historical) with { ExceptionConfirmed = true })).IsSuccess);
+        // Historical exception consent permits an otherwise eligible historical link, but
+        // cannot override the active exact association already owned by the original vendor.
+        Assert.Equal("AssociationAlreadyExists",
+            (await head.LinkNpmVendorAsync(another.Id,
+                Confirmation(historical) with { ExceptionConfirmed = true })).Error);
+        Assert.Empty((await head.NpmVendorLinksAsync(another.Id)).Value!);
+        Assert.Single((await head.NpmVendorLinksAsync(vendor.Id)).Value!);
         Assert.True((await head.CloseRegistrationAsync(vendor.Id, new(Guid.NewGuid(), "Independent annual closure"))).IsSuccess);
         Assert.True((await db.Contracts.SingleAsync(x => x.Id == successor.Id)).IsActive);
         Assert.Empty(await db.Collections.ToListAsync());

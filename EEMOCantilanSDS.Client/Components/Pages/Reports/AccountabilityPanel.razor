@@ -46,6 +46,32 @@
             @TraceCard(trace.Collection, trace, "Document trace")
         </div>
     }
+    @if (_legacyTraces.Count > 0)
+    {
+        <section class="ap-card no-print" aria-label="Legacy receipt reference matches">
+            <header class="ap-card-head">
+                <div>
+                    <p class="ap-card-kicker">Historical collection evidence</p>
+                    <h3>Legacy receipt reference: @_serial.Trim()</h3>
+                </div>
+                <span class="ap-pill">@_legacyTraces.Count @( _legacyTraces.Count == 1 ? "record" : "records")</span>
+            </header>
+            <p class="v3-notice">This reference was recorded on a legacy payment in the selected period, but no separately registered accountable OR/CT document was found. Verify physical receipt custody independently; no SRC or official document is being inferred.</p>
+            <table class="ap-lines" aria-label="Legacy payment reference results">
+                <thead><tr><th scope="col">Date / source</th><th scope="col">Payor / recorded by</th><th scope="col" class="v3-num">Recorded amount</th></tr></thead>
+                <tbody>
+                    @foreach (var row in _legacyTraces)
+                    {
+                        <tr>
+                            <td>@row.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture) · @row.Source</td>
+                            <td>@(row.PayerName ?? "Not recorded") · @row.RecordedBy</td>
+                            <td class="v3-num">@Money(row.Amount)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </section>
+    }
 
     @if (!string.IsNullOrWhiteSpace(_error))
     {
@@ -142,6 +168,7 @@
     private AccountabilityPositionDto? _data;
     private DocumentTraceDto? _trace;
     private CollectionDocumentDto? _srcTrace;
+    private IReadOnlyList<CollectionActivityEventDto> _legacyTraces = [];
     private bool _tracing;
     private static readonly System.Text.RegularExpressions.Regex SrcFormat = new("^SRC-[0-9]{4}-[0-9]{6,}$", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
     private string? _error;
@@ -242,6 +269,7 @@
         _traceError = null;
         _trace = null;
         _srcTrace = null;
+        _legacyTraces = [];
         var input = _serial.Trim();
         if (input.Length == 0) return;
         _tracing = true;
@@ -284,9 +312,34 @@
             }
 
             var document = await Reports.TraceDocumentAsync(input);
-            if (document.IsSuccess) _trace = document.Value;
-            else _traceError = document.Status == EEMOCantilanSDS.Application.Common.ResultStatus.NotFound
-                ? "No OR/CT document with that serial exists in this office." : "The document could not be traced.";
+            if (document.IsSuccess) { _trace = document.Value; return; }
+            if (document.Status != EEMOCantilanSDS.Application.Common.ResultStatus.NotFound)
+            {
+                _traceError = "The accountable document could not be traced. Please try again.";
+                return;
+            }
+
+            // Only after an authoritative document lookup returns NotFound, inspect *historical*
+            // collection evidence. Do not promote a legacy-entered OR number into an issued
+            // accountable document, an SRC, or remittance/custody evidence.
+            if (To.DayNumber - From.DayNumber >= 31)
+            {
+                _traceError = "No registered OR/CT document matches. Select a month to check older legacy payment references.";
+                return;
+            }
+            var legacy = await Activity.GetAsync(From, To, authority: "Legacy", limit: 5000);
+            if (!legacy.IsSuccess || legacy.Value is null)
+            {
+                _traceError = "No registered OR/CT document matches. Legacy payment references could not be checked right now.";
+                return;
+            }
+            _legacyTraces = legacy.Value.Events.Where(e => e.Authority == "Legacy"
+                && string.Equals(e.DocumentNumber?.Trim(), input, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(e => e.BusinessDate).ThenBy(e => e.EventKey, StringComparer.Ordinal).ToArray();
+            if (_legacyTraces.Count == 0)
+                _traceError = legacy.Value.Truncated
+                    ? "No registered OR/CT document matches. The legacy payment list is incomplete; narrow the period or inspect Collection Activity."
+                    : "No registered OR/CT document or matching legacy payment reference was found in this period.";
         }
         catch
         {

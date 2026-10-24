@@ -53,9 +53,15 @@ else if (_queued)
         else
         {
             <p>@(_needsReview ? "Review the affected items." : "SRC references appear after synchronization.")</p>
-            @if (_needsReview)
-            { <button class="btn-primary" type="button" disabled="@_busy" @onclick="ReviewQueuedAsync">Review</button> }
-            <button class="btn-cancel" type="button" @onclick="RefreshResultAsync">Refresh</button>
+            <div class="collection-recovery-actions" role="group" aria-label="Unposted checkout actions">
+                @if (_needsReview)
+                {
+                    <button class="collection-primary" type="button" disabled="@_busy" @onclick="ReviewQueuedAsync">Review items</button>
+                    <button class="collection-secondary" type="button" disabled="@_busy" @onclick="ConfirmDiscardQueuedAsync">@(_confirmDiscard ? "Confirm discard" : "Discard checkout")</button>
+                }
+                <button class="collection-secondary" type="button" disabled="@_busy" @onclick="RefreshResultAsync">Refresh status</button>
+            </div>
+            @if (_confirmDiscard) { <p class="collection-recovery-hint">Discard only if this checkout was never recorded. The server will be checked first.</p> }
         }
     </section>
 }
@@ -83,7 +89,7 @@ else
             <div class="collection-search">
                 <label class="form-field"><span class="form-label">@(SearchLabel)</span>
                     <input class="form-input" type="search" autocomplete="off" enterkeyhint="search" placeholder="Name"
-                           @bind="_search" @bind:event="oninput" @bind:after="OnSearchChanged" @onfocus="OnSearchFocusAsync" @onkeydown="OnSearchKeyAsync" /></label>
+                           value="@_search" @oninput="OnSearchInput" @onfocus="OnSearchFocusAsync" @onkeydown="OnSearchKeyAsync" /></label>
                 <button class="collection-small" type="button" disabled="@_searching" @onclick="SearchAsync">Search</button>
             </div>
             @if (_suggestOpen)
@@ -94,8 +100,8 @@ else
                         <div class="payer-list" role="list">
                             @foreach (var found in VisibleSources)
                             {
-                                <button class="collection-option payer-option" type="button" role="listitem" @onclick="() => SelectSourceAsync(found)">
-                                    <span class="payer-option-text"><strong>@found.DisplayName</strong><small>@found.Context</small></span>
+                                <button class="collection-option payer-option" type="button" role="listitem" disabled="@(!found.CanSelect)" @onclick="() => SelectSuggestedSourceAsync(found)">
+                                    <span class="payer-option-text"><strong>@found.DisplayName</strong><small>@found.Context</small>@if (!found.CanSelect && found.AvailableOn is { } available) { <small>Available on @available.ToString("MMM d, yyyy")</small> }</span>
                                     <span aria-hidden="true">›</span></button>
                             }
                         </div>
@@ -206,8 +212,8 @@ else
                 var own = (item.Native?.OperationCode == CollectorOperationCodes.Terminal || item.Kind is CollectionSessionItemKind.Electricity or CollectionSessionItemKind.Water) && shown is not null;
                 <div class="item-row @(problem ? "item-row-problem" : "")">
                     <div class="item-main">
-                        <strong class="item-name">@(own ? shown!.Name : quote?.DisplayName ?? shown?.Name ?? "Collection item")</strong>
-                        <span class="item-context">@(own ? shown!.Context : quote?.Context is { Length: > 0 } qc && !qc.Equals(quote.DisplayName, StringComparison.OrdinalIgnoreCase) ? qc : shown?.Context ?? "Confirmed on review")</span>
+                        <strong class="item-name">@(own ? shown!.Name : quote?.DisplayName ?? shown?.Name ?? RecoveredItemName(item))</strong>
+                        <span class="item-context">@(own ? shown!.Context : quote?.Context is { Length: > 0 } qc && !qc.Equals(quote.DisplayName, StringComparison.OrdinalIgnoreCase) ? qc : shown?.Context ?? "Saved checkout item · review before recording")</span>
                         <span class="item-actions">
                             @if (_drafts.ContainsKey(item.ClientItemId)) { <button class="collection-link" type="button" disabled="@_busy" @onclick="() => EditAsync(item)">Edit</button> }
                             <button class="collection-link" type="button" @onclick="() => Remove(item)">Remove</button>
@@ -220,6 +226,15 @@ else
                 </div>
             }
         </section>
+        @if (_supersededSessionId.HasValue)
+        {
+            <section class="collection-entry" aria-label="Original unposted checkout">
+                <p>These are the original items from a checkout the server rejected before recording. Removing an item edits only this replacement draft; it does not discard the original offline entry.</p>
+                <div class="collection-recovery-actions">
+                    <button type="button" class="collection-secondary" disabled="@_busy" @onclick="ConfirmDiscardQueuedAsync">@(_confirmDiscard ? "Confirm discard" : "Discard original checkout")</button>
+                </div>
+            </section>
+        }
         @if (_quote is not null)
         {
             <section class="collection-entry review-summary" aria-live="polite" aria-label="Collection total">
@@ -253,6 +268,10 @@ else
     }
 }
 @if (!string.IsNullOrWhiteSpace(_message)) { <p class="collection-message" role="status">@_message</p> }
+@if (_showRecordedSheet && _result is { Status: CollectionSessionStatus.Recorded } posted)
+{
+    <CollectionRecordedSheet Amount="@posted.GrandTotal" References="@posted.Collections.Select(c => c.ReferenceCode).ToArray()" OnClose="DismissRecordedSheet" />
+}
 
 @* Leaving with items that are not yet recorded asks first, so a slip of the back button never loses the collector's progress. *@
 @if (_leaveTarget is not null)
@@ -398,6 +417,8 @@ else
                     {
                         <label class="form-field"><span class="form-label">Official Receipt No. (Optional)</span><input class="form-input" type="text" maxlength="100" @bind="_npmReceipt" /></label>
                     }
+                    @if (_choice.Kind == CollectionSessionItemKind.FineAssessment && _choice.MaximumAmount is { } fineCap)
+                    { <div class="sheet-note">Outstanding assessed fine: @Money(fineCap). The amount is pre-filled; a partial amount can be entered. The remaining balance is confirmed on review.</div> }
                     @if (_choice.Kind == CollectionSessionItemKind.NpmPartPayment) { <div class="sheet-note">Applied to the oldest unpaid day first. The server shows how it is applied on review@(_choice.MaximumAmount is { } most ? $" · up to {Money(most)} is payable now" : "").</div> }
                     @if (TakesTypedAmount)
                     {
@@ -464,6 +485,8 @@ else
     private readonly Dictionary<Guid, Shown> _shown = [];
     private CollectionSessionQuote? _quote;
     private CollectionSessionResult? _result;
+    private bool _showRecordedSheet, _recordedSheetWasShown;
+    private void DismissRecordedSheet() => _showRecordedSheet = false;
     private Guid _sessionId = Guid.NewGuid();
     private Guid? _supersededSessionId;
     private bool _loading = true, _busy, _picker, _queued, _needsReview, _direct;
@@ -615,7 +638,7 @@ else
             : string.IsNullOrWhiteSpace(x.Context) || x.Context == _operation?.DisplayName ? (x.ServerAmount is { } amount ? Money(amount) : null) : x.Context)).ToArray();
     private bool IsWeighing => _choice is { Kind: CollectionSessionItemKind.SourceNative, OperationCode: CollectorOperationCodes.WeightAndMeasure };
     private bool IsTerminal => _choice is { Kind: CollectionSessionItemKind.SourceNative, OperationCode: CollectorOperationCodes.Terminal };
-    private bool TakesTypedAmount => _choice is { } c && !IsWeighing && c.Kind is not (CollectionSessionItemKind.Slaughter or CollectionSessionItemKind.NpmWholePayment or CollectionSessionItemKind.FineAssessment)
+    private bool TakesTypedAmount => _choice is { } c && !IsWeighing && c.Kind is not (CollectionSessionItemKind.Slaughter or CollectionSessionItemKind.NpmWholePayment)
         && c.AmountRule is CollectionSessionAmountRule.DirectAmount or CollectionSessionAmountRule.PreparedBalance;
     private bool NeedsPayerName => _choice is { Kind: CollectionSessionItemKind.SourceNative, OperationCode: CollectorOperationCodes.FishMeatVendorFee } c
         && c.Identity.VendorRegistrationId is null;
@@ -625,6 +648,7 @@ else
             && (_slhTerms is not { Itemized: true } || _slhPicked.Count > 0)
         : c.Kind == CollectionSessionItemKind.NpmWholePayment ? true
         : c.Kind == CollectionSessionItemKind.NpmPartPayment ? _amount > 0m && (c.MaximumAmount is not { } cap || _amount <= cap)
+        : c.Kind == CollectionSessionItemKind.FineAssessment ? _amount > 0m && (c.MaximumAmount is not { } fineCap || _amount <= fineCap) && decimal.Round(_amount, 2) == _amount
         : (c.AmountRule == CollectionSessionAmountRule.FixedAmount ? c.ServerAmount ?? 0m : _amount) > 0m)
         && (!NeedsPayerName || !string.IsNullOrWhiteSpace(_snapshot))
         && !(UtilityChoice is not null && _recent == RecentUtilityNotice.Check.Loading);   // never before the earlier-collections check has answered
@@ -770,9 +794,21 @@ else
     // The source list is read from the office again, so a vendor the Head has just registered appears for selection.
     private async Task SearchAfterRequestAsync() { _requestSaved = null; _suggestOpen = true; await SearchAsync(); }
 
+    private int _searchGeneration;
+    private void OnSearchInput(ChangeEventArgs args)
+    {
+        _search = args.Value?.ToString() ?? "";
+        OnSearchChanged();
+    }
+
     private void OnSearchChanged()
     {
         _searchDelay?.Cancel();
+        _searchGeneration++; // Invalidate even requests that have already left the debounce window.
+        // A previous query's holders must disappear immediately: choosing a stale
+        // space/Fiesta account while new text is being searched is unsafe.
+        _found = [];
+        _searched = false;
         _suggestOpen = true;
         _searchDelay = new CancellationTokenSource();
         _ = DebouncedSearchAsync(_searchDelay.Token);
@@ -781,7 +817,13 @@ else
     private async Task DebouncedSearchAsync(CancellationToken token)
     {
         try { await Task.Delay(300, token); } catch (OperationCanceledException) { return; }
-        await InvokeAsync(() => RunSearchAsync(_search, announceFailure: true));
+        if (token.IsCancellationRequested) return;
+        var term = _search;
+        await InvokeAsync(async () =>
+        {
+            if (!token.IsCancellationRequested && term == _search)
+                await RunSearchAsync(term, announceFailure: true);
+        });
     }
 
     private async Task OnSearchKeyAsync(KeyboardEventArgs args)
@@ -796,18 +838,19 @@ else
     private async Task RunSearchAsync(string term, bool announceFailure)
     {
         if (_source is not null || _direct) return;
+        var generation = ++_searchGeneration;
         _searching = true;
         StateHasChanged();     // the debounced path has no event handler to re-render for it
         try
         {
             var response = await Api.SearchCollectionSourcesAsync(term);
-            if (_source is not null || _direct || term != _search) return;     // a newer search or a chosen source supersedes this answer
+            if (_source is not null || _direct || term != _search || generation != _searchGeneration) return; // stale searches cannot replace newer results
             _found = response?.Value ?? [];
             _searched = response is { IsSuccess: true };
             if (response is { IsSuccess: false } && announceFailure) _message = "Search is unavailable.";
         }
-        catch { if (announceFailure) _message = "Connect to search."; }
-        finally { _searching = false; StateHasChanged(); }
+        catch { if (announceFailure && generation == _searchGeneration) _message = "Connect to search."; }
+        finally { if (generation == _searchGeneration) { _searching = false; StateHasChanged(); } }
     }
 
     // A source chosen from the browser goes straight to what the server says it can be collected for: the Add item sheet opens on the eligible
@@ -820,8 +863,19 @@ else
         if (_items.Count == 0 && _discovery is not null && Offered.Count > 0) await OpenPickerAsync();
     }
 
+    // UI updates can lag the input event on a busy handset. A stale rendered suggestion
+    // must never select an account after a newer search has invalidated its result set.
+    private Task SelectSuggestedSourceAsync(CollectionSourceSearchResult found)
+    {
+        if (!_found.Any(x => x.Identity == found.Identity && x.OperationCode == found.OperationCode)
+            || !VisibleSources.Any(x => x.Identity == found.Identity && x.OperationCode == found.OperationCode))
+            return Task.CompletedTask;
+        return SelectSourceAsync(found);
+    }
+
     private async Task SelectSourceAsync(CollectionSourceSearchResult found)
     {
+        if (!found.CanSelect) return; // A future event is registered, not yet collectible.
         _linkedNpmContext = false;
         _source = found; _found = []; _suggestOpen = false; _searched = false; _quote = null; _direct = false;
         await LoadAsync();
@@ -1012,7 +1066,36 @@ else
     private static string CleanContext(params string?[] parts) => string.Join(" · ", parts.SelectMany(p => (p ?? "").Split('·'))
         .Select(p => p.Trim()).Where(p => p.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase));
 
-    private void Remove(CollectionSessionItemIntent item) { if (Correction is not null) _sessionId = Guid.NewGuid(); _items.Remove(item); _shown.Remove(item.ClientItemId); _drafts.Remove(item.ClientItemId); _quote = null; }
+    private static string RecoveredItemName(CollectionSessionItemIntent item) => item.Kind switch
+    {
+        CollectionSessionItemKind.Water => "Water",
+        CollectionSessionItemKind.Electricity => "Electricity",
+        CollectionSessionItemKind.VendorFee => "Fish / Meat vendor fee",
+        CollectionSessionItemKind.Weighing => "Weight & Measure",
+        CollectionSessionItemKind.Slaughter => "Slaughterhouse",
+        CollectionSessionItemKind.NpmDaily => "NPM daily rent",
+        CollectionSessionItemKind.NpmWholePayment => "NPM monthly rent",
+        CollectionSessionItemKind.NpmPartPayment => "NPM partial rent",
+        CollectionSessionItemKind.MonthlyRent => "Monthly stall rent",
+        CollectionSessionItemKind.FineAssessment => "Fines / Penalties",
+        CollectionSessionItemKind.Obligation => "Space rental",
+        CollectionSessionItemKind.GovernedService => item.Service?.OperationCode switch
+        {
+            CollectorOperationCodes.Transportation => "Transportation / Parking",
+            CollectorOperationCodes.LandingBerthing => "Landing / Berthing",
+            _ => "Operation collection"
+        },
+        CollectionSessionItemKind.SourceNative => item.Native?.OperationCode switch
+        {
+            CollectorOperationCodes.FishMeatVendorFee => "Fish / Meat vendor fee",
+            CollectorOperationCodes.WeightAndMeasure => "Weight & Measure",
+            CollectorOperationCodes.Terminal => "Income From Terminal",
+            _ => "Direct operation fee"
+        },
+        _ => "Collection charge"
+    };
+
+    private void Remove(CollectionSessionItemIntent item) { if (Correction is not null) _sessionId = Guid.NewGuid(); _items.Remove(item); _shown.Remove(item.ClientItemId); _drafts.Remove(item.ClientItemId); _quote = null; _confirmDiscard = false; }
 
     // ── Review, record, result ──────────────────────────────────────────────────────────────────────
     private async Task ReviewAsync()
@@ -1054,6 +1137,11 @@ else
         if (pending is null) return;
         _result = pending.CollectionSessionResult;
         _needsReview = pending.LocalStatus is PendingLocalStatus.ReconciliationRequired or PendingLocalStatus.Rejected;
+        // Do not confirm a locally queued checkout as recorded until its actual server result is synced.
+        if (!_recordedSheetWasShown && pending.LocalStatus == PendingLocalStatus.Synced && _result?.Status == CollectionSessionStatus.Recorded)
+        {
+            _recordedSheetWasShown = _showRecordedSheet = true;
+        }
     }
 
     private async Task RefreshResultAsync()
@@ -1061,6 +1149,40 @@ else
         await RefreshQueuedFromLocalAsync();
         if (_result is null && Sync.IsOnline)
             try { _result = (await Api.GetCollectionSessionAsync(_sessionId)).Value; } catch { }
+    }
+
+    private bool _confirmDiscard;
+    private async Task ConfirmDiscardQueuedAsync()
+    {
+        if (_busy || !Sync.IsOnline) { _message = "Connect to the server before discarding this checkout."; return; }
+        if (!_confirmDiscard) { _confirmDiscard = true; return; }
+        _busy = true; _message = null;
+        try
+        {
+            var original = _supersededSessionId ?? _sessionId;
+            var current = await Api.GetCollectionSessionAsync(original);
+            if (current.StatusCode != 404)
+            {
+                _message = current.Value?.Status == CollectionSessionStatus.Recorded
+                    ? "This checkout was recorded. Open Records; it cannot be discarded."
+                    : "The server has not confirmed that this checkout is unposted. Keep it for office review.";
+                return;
+            }
+            var pending = (await Sync.GetAllAsync()).FirstOrDefault(x => x.ClientOperationId == original);
+            if (pending is null || !EEMOCantilanSDS.Mobile.Services.MobileSyncService.CanReviewUnpostedSession(pending)
+                || !await Sync.DiscardAsync(original))
+            {
+                _message = "The checkout changed while reviewing. Refresh its status before discarding.";
+                return;
+            }
+            _supersededSessionId = null;
+            _items.Clear(); _shown.Clear(); _drafts.Clear();
+            _queued = _needsReview = false;
+            _leaveAllowed = true;
+            Navigation.NavigateTo("/menu");
+        }
+        catch { _message = "Unable to confirm the checkout with the server. Nothing was discarded."; }
+        finally { _confirmDiscard = false; _busy = false; }
     }
 
     private async Task ReviewQueuedAsync()
@@ -1086,6 +1208,7 @@ else
     {
         _linkedNpmContext = false;
         _sessionId = Guid.NewGuid(); _items.Clear(); _shown.Clear(); _drafts.Clear(); _result = null; _quote = null; _queued = _needsReview = false;
+        _showRecordedSheet = _recordedSheetWasShown = false;
         _source = null; _snapshot = ""; _search = ""; _found = []; _searched = _browsed = _suggestOpen = false; _discovery = null;
         _direct = OnlyOperation == CollectorOperationCodes.Terminal;
         await LoadAsync();

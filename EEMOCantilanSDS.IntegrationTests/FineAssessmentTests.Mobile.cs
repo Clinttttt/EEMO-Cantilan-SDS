@@ -56,7 +56,9 @@ public sealed partial class FineAssessmentTests
         Assert.Equal(fine, choice.Identity.FineAssessmentId);
         Assert.Equal(100m, choice.ServerAmount);
         Assert.Equal(RevenueInstrumentType.OfficialReceipt, choice.Instrument);
-        Assert.Equal(CollectionSessionAmountRule.FixedAmount, choice.AmountRule);
+        Assert.Equal(CollectionSessionAmountRule.PreparedBalance, choice.AmountRule);
+        Assert.True(choice.CanEnterAmount);
+        Assert.Equal(100m, choice.MaximumAmount);
 
         var intent = new CollectionSessionIntent(Guid.NewGuid(), Today, null,
             [new(Guid.NewGuid(), CollectionSessionItemKind.FineAssessment, 100m,
@@ -107,7 +109,7 @@ public sealed partial class FineAssessmentTests
     }
 
     [SkippableFact]
-    public async Task Mobile_fine_stale_offline_quote_and_partial_amount_do_not_double_collect()
+    public async Task Mobile_fine_stale_offline_quote_and_partial_amount_cannot_double_collect()
     {
         var (seed, fine) = await SettlementSeedAsync();
         await using var db = database.CreateContext(seed.TenantId);
@@ -120,9 +122,12 @@ public sealed partial class FineAssessmentTests
                 Fine: new(fine, choice.Identity.FineVersion))], SourceIdentity: identity);
         var reviewed = (await flow.QuoteAsync(intent)).Value!;
         Assert.True(reviewed.CanRecord);
-        Assert.False((await flow.QuoteAsync(intent with {
+        var partialQuote = (await flow.QuoteAsync(intent with {
             Items = [intent.Items[0] with { ConfirmedAmount = 50m }]
-        })).Value!.CanRecord);
+        })).Value!;
+        Assert.True(partialQuote.CanRecord);
+        Assert.Equal(50m, Assert.Single(partialQuote.Items).Amount);
+        Assert.Empty(await db.Collections.ToListAsync()); // Quoting never collects money.
 
         var head = Composer(db, seed);
         var draft = await FineDraftAsync(head, fine);

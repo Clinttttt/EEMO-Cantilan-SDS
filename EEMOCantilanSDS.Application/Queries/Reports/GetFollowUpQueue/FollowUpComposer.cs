@@ -259,7 +259,8 @@ public static class FollowUpComposer
                 a.Facility, Model(a.Facility), Named(a.PayorName),
                 Label(Where(a.StallNo), "online"),
                 a.Amount, false, a.Period,
-                "Paid · awaiting OR", "Encode OR", "/online-payments"));
+                "Paid · awaiting OR", "Encode OR", "/online-payments",
+                ReceiptActionRequired: true));
         }
 
         // ── 4) Missing OR — service facilities (paid/recorded with a blank receipt), per record month ──
@@ -305,8 +306,9 @@ public static class FollowUpComposer
         }
 
         // ── 4b) Missing OR — cash/field records fully paid but not yet receipted ──
-        // Monthly cash records are immediate traceability; NPM daily receipts are operational. Online
-        // payments are excluded by the repository (they have their own awaiting-OR queue above).
+        // Legacy monthly/daily blank OR-number fields are optional evidence, so keep them in
+        // operational history without creating an urgent action. Online payment issuance is
+        // a separate high-priority workflow and is excluded from these cash records.
         foreach (var u in unreceipted)
         {
             // Whole-year aggregation returns one row per (stall, month); label each with its own month.
@@ -328,7 +330,7 @@ public static class FollowUpComposer
             else
             {
                 items.Add(new FollowUpItemDto(
-                    SecImmediate, "High", "Missing OR", "missingor",
+                    SecOperational, "Normal", "OR not recorded", "missingor",
                     u.Facility, Model(u.Facility), Named(u.Occupant), Where(u.StallNo),
                     u.Amount, false, uPeriod,
                     "Paid · OR blank", "Add OR", ProfileLink(u.Facility, u.StallId, u.StallNo),

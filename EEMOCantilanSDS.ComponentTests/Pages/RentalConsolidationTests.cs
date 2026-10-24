@@ -472,6 +472,23 @@ public sealed class RentalConsolidationTests : TestContext
         public decimal MonthlyRate { get; set; } = 900m;
         public bool IsPaid { get; set; }
     }
+    [Theory]
+    [InlineData("Space", "Kanmanggay")]
+    [InlineData("Lot", "Fiesta / Araw")]
+    [InlineData("Space", "Vegetable / Fruits")]
+    public void Rental_registry_numbers_do_not_repeat_operation_names_on_a_second_line(string unit, string context)
+    {
+        var row = new RentalTableRow<FacilityFixture>(new FacilityFixture(), "7", "Test Holder",
+            "Space only", "Oct 1, 2026", 1200m, "Unpaid", Context: context);
+        var cut = RenderComponent<RegisteredRentalTable<FacilityFixture>>(p => p
+            .Add(x => x.Rows, new[] { row })
+            .Add(x => x.Unit, unit));
+        var number = cut.Find($"td[data-label='{unit} No.']");
+        Assert.Equal("7", number.TextContent.Trim());
+        Assert.Empty(number.QuerySelectorAll("small"));
+        Assert.Contains("Test Holder", cut.Find("tbody").TextContent);
+    }
+
     [Fact]
     public void FacilityTableAndKmOverviewShareTheRealTableAndActionOrder()
     {

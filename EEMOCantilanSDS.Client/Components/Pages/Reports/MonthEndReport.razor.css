@@ -135,8 +135,8 @@
 .me-fac-stats { display: flex; gap: 16px; font-size: 12.5px; color: var(--text-subtle); }
 .me-fac-stats strong { color: var(--navy); }
 
-.me-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-.me-table th { text-align: center; padding: 7px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+.me-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.me-table th { text-align: center; padding: 8px 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .3px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
 .me-table td {
     padding: 7px 10px;
     text-align: center;
@@ -146,7 +146,7 @@
     font-variant-numeric: tabular-nums;
 }
 .me-table th.me-num, .me-table td.me-num { text-align: center; font-variant-numeric: tabular-nums; }
-.me-table td.me-mono { font-family: "Cascadia Mono", "Consolas", monospace; font-size: 11.5px; letter-spacing: .3px; font-variant-numeric: tabular-nums; color: var(--text-subtle); }
+.me-table td.me-mono { font-family: "Cascadia Mono", "Consolas", monospace; font-size: 12.5px; letter-spacing: .2px; font-variant-numeric: tabular-nums; color: var(--text-subtle); }
 .me-table tfoot td { border-top: 2px solid var(--border); border-bottom: none; padding-top: 9px; }
 .me-table tfoot td:first-child { text-align: left; }
 /* No row shading and no filled status chips. A tinted row and an amber chip are web conventions; on a filed
@@ -154,7 +154,7 @@
    colour the office already uses for paid, partial and unpaid, so a scanned or photocopied sheet still reads. */
 .me-row-unpaid, .me-row-partial { background: none; }
 
-.me-status { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; }
+.me-status { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .2px; }
 .me-paid { color: var(--green); }
 .me-partial { color: #8a6d1b; }
 .me-unpaid { color: var(--red); }

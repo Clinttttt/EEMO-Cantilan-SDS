@@ -54,5 +54,10 @@ public record FollowUpItemDto(
     /// the sitting lessee's days under a former lessee's name. Null means "the stall's current occupancy", which is
     /// what every live-queue row means.
     /// </summary>
-    Guid? ContractId = null
+    Guid? ContractId = null,
+
+    // Explicit source policy: a received online payment still needs an office-issued receipt.
+    // A blank optional OR-number field on legacy cash/field records does not imply urgent issuance.
+    // Defaults false for older API payloads and existing non-receipt follow-up rows.
+    bool ReceiptActionRequired = false
 );

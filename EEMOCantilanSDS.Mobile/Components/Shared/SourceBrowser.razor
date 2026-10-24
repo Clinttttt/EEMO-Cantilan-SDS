@@ -47,8 +47,8 @@
         <div class="sb-list" role="list" aria-busy="@(_loading ? "true" : "false")">
             @foreach (var source in _rows)
             {
-                <button type="button" class="sb-row payer-option" role="listitem" @key="source.Identity" @onclick="() => OnSelect.InvokeAsync(source)">
-                    <span class="sb-text"><strong>@source.DisplayName</strong><small>@source.Context</small></span>
+                <button type="button" class="sb-row payer-option" role="listitem" @key="source.Identity" disabled="@(!source.CanSelect)" @onclick="() => OnSelect.InvokeAsync(source)">
+                    <span class="sb-text"><strong>@source.DisplayName</strong><small>@source.Context</small>@if (!source.CanSelect && source.AvailableOn is { } available) { <small>Available for collection on @available.ToString("MMM d, yyyy")</small> }</span>
                     <span class="sb-go" aria-hidden="true">›</span>
                 </button>
             }
@@ -102,6 +102,11 @@
     {
         _search = e.Value?.ToString() ?? "";
         _generation++;              // an answer to the previous text is stale from this keystroke on, not from when the pause ends
+        // The old holder must not remain tappable during the 300 ms debounce.
+        _rows.Clear();
+        _total = _skip = 0;
+        _exhausted = false;
+        _failed = false;
         _loading = true;
         _delay?.Cancel();
         _delay = new CancellationTokenSource();

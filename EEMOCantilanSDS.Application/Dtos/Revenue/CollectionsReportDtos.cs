@@ -50,7 +50,8 @@ public sealed record CollectionsRegisterDto(
     decimal CorrectionEffect,
     decimal Net,
     // True when the period held more rows than the register shows; the summary always covers the whole period.
-    bool RowsTruncated);
+    bool RowsTruncated,
+    IReadOnlyList<global::EEMOCantilanSDS.Application.Common.Revenue.CollectionSessionDisplayGroup>? Sessions = null);
 
 public sealed record CollectionDocumentLineDto(
     string ClassificationName,

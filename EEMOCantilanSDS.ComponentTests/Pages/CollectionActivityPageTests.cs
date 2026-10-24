@@ -19,6 +19,7 @@ namespace EEMOCantilanSDS.ComponentTests.Pages;
 public sealed class CollectionActivityPageTests : TestContext
 {
     private readonly Mock<ICollectionActivityApiClient> _activity = new();
+    private IReadOnlyList<global::EEMOCantilanSDS.Application.Common.Revenue.CollectionSessionDisplayGroup> _sessions = [];
     private readonly Mock<EEMOCantilanSDS.Application.Common.Interface.ApiClients.IDirectCollectionReviewApiClient> _review = new();
 
     [Theory]
@@ -54,7 +55,7 @@ public sealed class CollectionActivityPageTests : TestContext
             .Setup(client => client.GetAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), null, null, null, It.IsAny<int>(), null))
             .ReturnsAsync((DateOnly from, DateOnly to, FacilityCode? _, Guid? _, string? _, int _, string? _) =>
                 Result<CollectionActivityFeedDto>.Success(new CollectionActivityFeedDto(from, to, "basis", "LatestCorrected",
-                    DateTime.UtcNow, events, events.Length, false, 0m, 0m, 0m, 0m, [])));
+                    DateTime.UtcNow, events, events.Length, false, 0m, events.Sum(x => x.Amount), 0m, events.Sum(x => x.Amount), [], _sessions)));
 
         var facilities = new Mock<IFacilitiesApiClient>();
         facilities.Setup(client => client.GetFacilitySummariesAsync(It.IsAny<int>(), It.IsAny<int>()))
@@ -75,6 +76,42 @@ public sealed class CollectionActivityPageTests : TestContext
         this.AddTestAuthorization().SetAuthorized("Admin");
 
         return RenderComponent<TransactionsPage>();
+    }
+
+    [Fact]
+    public void Same_checkout_shows_one_parent_and_itemized_separate_SRCs_while_search_keeps_child_identity()
+    {
+        var collector = Guid.NewGuid();
+        var first = Event("a", "Canonical", "FISH_MEAT_VENDOR_FEE", "Fish/Meat", 56m,
+            instrument: RevenueInstrumentType.OfficialReceipt, document: "OR-100")
+            with { CollectionId = Guid.NewGuid(), CollectorId = collector, ReferenceCode = "SRC-2026-000221" };
+        var second = Event("b", "Canonical", "WEIGHT_AND_MEASURE", "Weight", 132m,
+            instrument: RevenueInstrumentType.OfficialReceipt, document: "OR-101")
+            with { CollectionId = Guid.NewGuid(), CollectorId = collector, ReferenceCode = "SRC-2026-000222" };
+        var third = Event("c", "Canonical", "WCF", "Water", 284m,
+            instrument: RevenueInstrumentType.CashTicket, document: "CT-111")
+            with
+            {
+                CollectionId = Guid.NewGuid(), CollectorId = collector, ReferenceCode = "SRC-2026-000223",
+                CorrectionEffect = -284m, NetAmount = 0m, Disposition = "Reversed",
+                Corrections = [new(Guid.NewGuid(), "Reversal", PhilippineTime.Today, DateTime.UtcNow, -284m, null, "Duplicate payment correction")]
+            };
+        _sessions = [new(Guid.NewGuid(), [first.CollectionId!.Value, second.CollectionId!.Value, third.CollectionId!.Value])];
+        var page = RenderPage(first, second, third);
+        page.WaitForAssertion(() => Assert.Single(page.FindAll(".txn-row")));
+        Assert.Contains("472.00", page.Find(".txn-amount").TextContent);
+        Assert.Contains("188.00", page.Find(".txn-net").TextContent);
+        Assert.Contains("Contains corrections", page.Find(".txn-row").TextContent);
+        page.Find(".txn-row").Click();
+        Assert.Contains("SRC-2026-000221", page.Find("[aria-label='Itemized checkout collections']").TextContent);
+        Assert.Contains("SRC-2026-000222", page.Find("[aria-label='Itemized checkout collections']").TextContent);
+        Assert.Contains("SRC-2026-000223", page.Find("[aria-label='Itemized checkout collections']").TextContent);
+        Assert.Contains("CT-111", page.Find("[aria-label='Itemized checkout collections']").TextContent);
+        page.FindAll(".txr-foot button").Last().Click();
+        page.Find("input.txn-search-input").Input("SRC-2026-000222");
+        Assert.Single(page.FindAll(".txn-row"));
+        Assert.Contains("132.00", page.Find(".txn-row").TextContent);
+        Assert.DoesNotContain("Combined collection", page.Find(".txn-row").TextContent);
     }
 
     [Fact]

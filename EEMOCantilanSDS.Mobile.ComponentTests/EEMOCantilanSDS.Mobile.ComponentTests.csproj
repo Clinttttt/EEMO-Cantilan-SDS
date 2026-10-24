@@ -37,6 +37,9 @@
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/RecordedNotice.razor" Link="Components/Shared/RecordedNotice.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/CollectorPositionPanel.razor" Link="Components/Shared/CollectorPositionPanel.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/OperationRecordsSection.razor" Link="Components/Shared/OperationRecordsSection.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/CanonicalRecordDetailSheet.razor" Link="Components/Shared/CanonicalRecordDetailSheet.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/CollectionSessionRecordSheet.razor" Link="Components/Shared/CollectionSessionRecordSheet.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/CollectionRecordedSheet.razor" Link="Components/Shared/CollectionRecordedSheet.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/CollectionRecordRow.razor" Link="Components/Shared/CollectionRecordRow.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/DailyReceiptBreakdown.razor" Link="Components/Shared/DailyReceiptBreakdown.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/NpmRegistrationRequestForm.razor" Link="Components/Shared/NpmRegistrationRequestForm.razor" />

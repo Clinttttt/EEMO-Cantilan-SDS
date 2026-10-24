@@ -136,21 +136,31 @@ public sealed partial class CollectionSessionSources
         return (ordered.Skip(skip).Take(take).ToArray(), ordered.Count);
     }
 
-    // Source-owned space accounts that are open today, for the operations this collector is assigned to.
+    // Assigned current space accounts, plus registered future event lots shown as non-selectable until their event date.
     private async Task<(IReadOnlyList<CollectionSourceSearchResult>, int)> SpacePageAsync(
         string term, IReadOnlyCollection<ObligationKind> kinds, int skip, int take, DateOnly today, CancellationToken ct)
     {
-        var query = db.ObligationAccounts.AsNoTracking().Where(x => x.MunicipalityId == Tenant && kinds.Contains(x.Kind) && x.ActiveFrom <= today
-            && (x.ActiveTo == null || x.ActiveTo >= today)
-            && (term == "" || x.SubjectLabel.ToLower().Contains(term) || (x.ActualOccupant != null && x.ActualOccupant.ToLower().Contains(term))));
+        var query = db.ObligationAccounts.AsNoTracking().Where(x => x.MunicipalityId == Tenant && kinds.Contains(x.Kind)
+            && ((x.ActiveFrom <= today && (x.ActiveTo == null || x.ActiveTo >= today))
+                || (x.Kind == ObligationKind.FiestaArawLotRental && x.EventDate > today && x.ActiveTo == null))
+            && (term == "" || x.SubjectLabel.ToLower().Contains(term)
+                || (x.ActualOccupant != null && x.ActualOccupant.ToLower().Contains(term))
+                || (x.PayorId != null && db.Payors.Any(p => p.MunicipalityId == Tenant
+                    && p.Id == x.PayorId && p.DisplayName.ToLower().Contains(term)))));
         var total = await query.CountAsync(ct);
         var accounts = await query.OrderBy(x => x.SubjectLabel).ThenBy(x => x.Id).Skip(skip).Take(take).ToListAsync(ct);
         var quotes = await new ObligationCollectionSource(db).GetQuotesAsync(Tenant, accounts, today, ct);
+        var linkedIds = accounts.Where(a => a.PayorId.HasValue).Select(a => a.PayorId!.Value).Distinct().ToArray();
+        var payorNames = await db.Payors.AsNoTracking()
+            .Where(x => x.MunicipalityId == Tenant && linkedIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
         var results = accounts.Select(account => new CollectionSourceSearchResult(new(SourceIdentityKind.SpaceAccount, account.Id),
-            quotes.FirstOrDefault(x => x.AccountId == account.Id)?.PayerName ?? account.ActualOccupant ?? account.SubjectLabel,
+            quotes.FirstOrDefault(x => x.AccountId == account.Id)?.PayerName ?? account.ActualOccupant ?? (account.PayorId is { } id ? payorNames.GetValueOrDefault(id) : null) ?? account.SubjectLabel,
             account.Kind == ObligationKind.VegetableFruitSpaceRental ? $"Vegetable / Fruits · Space {account.SubjectLabel}" :
             account.Kind == ObligationKind.KanmanggaySpaceRental ? $"Kanmanggay · Space {account.SubjectLabel}" : $"Fiesta / Araw · Lot {account.SubjectLabel}",
-            ObligationAccount.OperationCodeFor(account.Kind)!)).ToArray();
+            ObligationAccount.OperationCodeFor(account.Kind)!,
+            CanSelect: account.Kind != ObligationKind.FiestaArawLotRental || account.ActiveFrom <= today,
+            AvailableOn: account.Kind == ObligationKind.FiestaArawLotRental && account.ActiveFrom > today ? account.EventDate : null)).ToArray();
         return (results, total);
     }
 }

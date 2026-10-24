@@ -39,7 +39,12 @@ public sealed class DirectFineCollectionWorkflow(IAppDbContext db, ICurrentUserS
     {
         if (!Authorized) return Result<DirectFineOptionsDto>.Forbidden();
         var ids = await db.DirectFineAuthorities.AsNoTracking().Where(x => x.MunicipalityId == Tenant).Select(x => x.Id).ToListAsync(ct);
-        var list = new List<DirectFineCategoryDto>();
+        // Built-in Head-office collection mode: no separately configured DirectFineAuthority.
+        // Keep any existing authority-backed categories for historical/backward compatibility.
+        var list = new List<DirectFineCategoryDto> {
+            new(Guid.Empty, "Direct fine", GovernedServiceBasis.DirectApprovedAmount,
+                null, null, false, true, false, "Manual Head-office collection")
+        };
         foreach (var id in ids) if (await Resolve(id, clock.PhilippineToday, ct) is { } f)
             list.Add(new(id, f.Version.DisplayName, f.Version.Basis, f.Version.FixedAmount, f.Version.MaximumAmount,
                 f.Authority.RequiresPayerParticulars, f.Authority.RequiresReason, f.Authority.RequiresSupportingReference, f.Authority.GoverningReference));
@@ -51,21 +56,40 @@ public sealed class DirectFineCollectionWorkflow(IAppDbContext db, ICurrentUserS
         var r = Normalize(request);
         if (r.ClientOperationId == Guid.Empty || r.BusinessDate != clock.PhilippineToday)
             return Result<DirectFineQuoteDto>.Failure("Use the current authorized business date.", ResultStatus.Invalid);
-        var facts = await Resolve(r.AuthorityId, r.BusinessDate, ct);
-        if (facts is not { } f) return Result<DirectFineQuoteDto>.Failure("No approved direct-fine authority is available for this category.", ResultStatus.Invalid);
-        if (f.Version.CheckAmount(r.Amount) is { } amountError) return Result<DirectFineQuoteDto>.Failure(amountError switch {
-            "AMOUNT_ABOVE_CEILING" => "The fine amount exceeds the approved maximum.",
-            "AMOUNT_NOT_APPROVED" => "Enter the category's fixed approved amount.",
-            _ => "Enter a positive fine amount in whole centavos." }, ResultStatus.Invalid);
-        if (r.Reason?.Length > 1000 || r.SupportingReference?.Length > 200 || r.PayerParticulars?.Length > 200
-            || (f.Authority.RequiresReason && r.Reason is null) || (f.Authority.RequiresSupportingReference && r.SupportingReference is null)
-            || (f.Authority.RequiresPayerParticulars && r.PayerParticulars is null))
-            return Result<DirectFineQuoteDto>.Failure("Supply the category's required reason, reference and receipt particulars.", ResultStatus.Invalid);
+        var manual = r.AuthorityId == Guid.Empty;
+        var facts = manual ? null : await Resolve(r.AuthorityId, r.BusinessDate, ct);
+        if (!manual && facts is null)
+            return Result<DirectFineQuoteDto>.Failure("The selected direct-fine category is unavailable.", ResultStatus.Invalid);
+        if (manual)
+        {
+            if (r.Amount <= 0m || decimal.Round(r.Amount, 2) != r.Amount)
+                return Result<DirectFineQuoteDto>.Failure("Enter a positive fine amount in whole centavos.", ResultStatus.Invalid);
+            // A reason is the minimum auditable explanation for an ad-hoc collection.
+            if (r.Reason is null || r.Reason.Length > 1000 || r.SupportingReference?.Length > 200
+                || r.PayerParticulars?.Length > 200)
+                return Result<DirectFineQuoteDto>.Failure("Enter a reason (up to 1,000 characters), and keep optional receipt particulars within 200 characters.", ResultStatus.Invalid);
+        }
+        else
+        {
+            var f = facts!.Value;
+            if (f.Version.CheckAmount(r.Amount) is { } amountError)
+                return Result<DirectFineQuoteDto>.Failure(amountError switch {
+                    "AMOUNT_ABOVE_CEILING" => "The fine amount exceeds the approved maximum.",
+                    "AMOUNT_NOT_APPROVED" => "Enter the category's fixed approved amount.",
+                    _ => "Enter a positive fine amount in whole centavos." }, ResultStatus.Invalid);
+            if (r.Reason?.Length > 1000 || r.SupportingReference?.Length > 200 || r.PayerParticulars?.Length > 200
+                || (f.Authority.RequiresReason && r.Reason is null) || (f.Authority.RequiresSupportingReference && r.SupportingReference is null)
+                || (f.Authority.RequiresPayerParticulars && r.PayerParticulars is null))
+                return Result<DirectFineQuoteDto>.Failure("Supply the category's required reason, reference and receipt particulars.", ResultStatus.Invalid);
+        }
         var classification = await db.RevenueClassifications.AsNoTracking().SingleOrDefaultAsync(x => x.MunicipalityId == Tenant && x.SemanticCode == RevenueClassificationCodes.PenaltiesAndFines, ct);
         var policy = classification is null ? null : await Policy(classification.Id, r.BusinessDate, ct);
         if (policy is null || policy.PermittedInstrumentType != RevenueInstrumentType.OfficialReceipt)
             return Result<DirectFineQuoteDto>.Failure("The approved Fines Official Receipt policy is unavailable.", ResultStatus.Invalid);
-        return Result<DirectFineQuoteDto>.Success(new(r, f.Version.DisplayName, f.Authority.GoverningReference, RevenueInstrumentType.OfficialReceipt));
+        return Result<DirectFineQuoteDto>.Success(new(r,
+            manual ? "Direct fine" : facts!.Value.Version.DisplayName,
+            manual ? "Head-office manual collection" : facts!.Value.Authority.GoverningReference,
+            RevenueInstrumentType.OfficialReceipt));
     }
     public async Task<Result<GovernedServiceOutcomeDto>> PostAsync(DirectFineCollectionRequest request, CancellationToken ct = default)
     {
@@ -92,15 +116,23 @@ public sealed class DirectFineCollectionWorkflow(IAppDbContext db, ICurrentUserS
             await using var tx = outer ? null : await db.BeginSerializableTransactionAsync(ct);
             var quote = await QuoteAsync(r, ct);
             if (!quote.IsSuccess) return Result<GovernedServiceOutcomeDto>.Failure(quote.Error!, ResultStatus.Invalid);
-            var f = (await Resolve(r.AuthorityId, r.BusinessDate, ct))!.Value;
+            var manual = r.AuthorityId == Guid.Empty;
+            var f = manual ? null : await Resolve(r.AuthorityId, r.BusinessDate, ct);
             var classification = await db.RevenueClassifications.SingleAsync(x => x.MunicipalityId == Tenant && x.SemanticCode == RevenueClassificationCodes.PenaltiesAndFines, ct);
             var policy = (await Policy(classification.Id, r.BusinessDate, ct))!;
-            var snapshot = JsonSerializer.Serialize(new { origin = "Direct fine collection", category = f.Version.DisplayName,
-                penaltyVersionId = f.Version.Id, f.Authority.GoverningReference, f.Authority.ApprovalReference,
-                f.Authority.VerifiedBy, f.Authority.VerifiedAtUtc, r.Reason, r.SupportingReference, r.PayerParticulars });
+            // Manual direct fines intentionally have no invented penalty version or approval record.
+            // The canonical SRC, actor, immutable line snapshot and operation fingerprint are the audit trail.
+            var snapshot = manual
+                ? JsonSerializer.Serialize(new { origin = "Direct fine collection", mode = "Manual",
+                    category = "Direct fine", r.Reason, r.SupportingReference, r.PayerParticulars,
+                    RecordedById = user.UserId, RecordedByRole = "SuperAdmin", RecordedAtUtc = clock.UtcNow })
+                : JsonSerializer.Serialize(new { origin = "Direct fine collection", category = f!.Value.Version.DisplayName,
+                    penaltyVersionId = f.Value.Version.Id, f.Value.Authority.GoverningReference, f.Value.Authority.ApprovalReference,
+                    f.Value.Authority.VerifiedBy, f.Value.Authority.VerifiedAtUtc, r.Reason, r.SupportingReference, r.PayerParticulars });
             var c = await new CanonicalCollectionPostingCoordinator(db).PostAsync(Tenant, r.ClientOperationId, 1, normalized,
                 Origin, actor, user.Username ?? "Head", "SuperAdmin", r.BusinessDate, user.Username ?? "Head",
-                [new(classification, policy, r.Amount, CollectionSourceKind.DirectFineCollection, f.Authority.Id, CalculationSnapshot: snapshot)],
+                [new(classification, policy, r.Amount, manual ? null : CollectionSourceKind.DirectFineCollection,
+                    manual ? null : f!.Value.Authority.Id, CalculationSnapshot: snapshot)],
                 payerName: r.PayerParticulars, ct: ct);
             if (tx is not null) await tx.CommitAsync(ct);
             return Result<GovernedServiceOutcomeDto>.Success(new(c.Id, c.ReferenceCode, c.BusinessDate, c.TotalAmount, RevenueInstrumentType.OfficialReceipt, "Posted", false));

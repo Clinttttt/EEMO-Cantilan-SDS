@@ -119,11 +119,15 @@ public sealed class WorkingCopyDirectFineFixtureTests(PostgresFixture db)
         Assert.Empty(await context.PostingOperations.AsNoTracking().ToArrayAsync());
 
         // Only the Head sees it, and it lapses by itself.
-        var category = Assert.Single((await Direct(context, w).OptionsAsync()).Value!.Categories);
+        var available = (await Direct(context, w).OptionsAsync()).Value!.Categories;
+        Assert.Equal(Guid.Empty, available[0].AuthorityId);
+        var category = Assert.Single(available.Where(x => x.AuthorityId == first.AuthorityId));
         Assert.Equal((true, false, false), (category.RequiresPayerParticulars, category.RequiresReason, category.RequiresSupportingReference));
         Assert.Equal(ResultStatus.Forbidden, (await Direct(context, w, "Admin").OptionsAsync()).Status);
         Assert.Equal(ResultStatus.Forbidden, (await Direct(context, w, "Collector").OptionsAsync()).Status);
-        Assert.Empty((await Direct(context, w, today: Today.AddDays(14)).OptionsAsync()).Value!.Categories);
+        var afterExpiry = (await Direct(context, w, today: Today.AddDays(14)).OptionsAsync()).Value!.Categories;
+        Assert.Equal(Guid.Empty, Assert.Single(afterExpiry).AuthorityId);
+        Assert.DoesNotContain(afterExpiry, c => c.AuthorityId == first.AuthorityId);
     }
 
     [SkippableFact]

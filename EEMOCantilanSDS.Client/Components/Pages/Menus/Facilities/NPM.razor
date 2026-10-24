@@ -1350,7 +1350,11 @@
     private void SelectRegisteredVendor(FishMeatVendorRegistrationDto vendor)
     {
         _registryVendor = vendor; _registryPicker = false; _registryOperation = Guid.NewGuid();
-        _registryNote = ""; _registryReviewed = false; _registryException = false;
+        // The Head explicitly chose this recorded registration; preserve its real identity
+        // as structured provenance rather than requesting a manually invented reference.
+        _registryNote = $"Selected existing Fish/Meat registration {vendor.Id:D} (tax year {vendor.TaxYear}).";
+        _registryReviewed = true;
+        _registryException = false;
         VendorForm.ActualOccupant = vendor.DisplayName;
         VendorForm.SelectedSection = vendor.VendorType == EEMOCantilanSDS.Domain.Entities.Revenue.FishMeatVendorType.Fish ? "Fish" : "Meat";
         // Only the exact Fish/Meat registration carried by the Head request link may reuse
@@ -1387,14 +1391,14 @@
                         <text>Confirm the NPM stall and tenancy with office records before saving.</text>
                     }
                 </p>
-                <div class="npm-registry-verifications">
-                    <label><input type="checkbox" @bind="_registryReviewed" /><span>Office checked the NPM register and confirmed this tenancy.</span></label>
-                    <label><input type="checkbox" @bind="_registryException" /><span>Verified different section from Fish / Meat type (only if applicable).</span></label>
-                </div>
-                <div class="npm-registry-note">
-                    <label class="avm-label" for="npm-registry-note">Verification evidence</label>
-                    <input id="npm-registry-note" class="avm-input" maxlength="500" placeholder="Office record or supporting reference" @bind="_registryNote" @bind:event="oninput" />
-                </div>
+                <p class="npm-registry-help">Selected Fish/Meat registration will be recorded as the association source. Confirm the new stall and contract details before saving.</p>
+                @if ((vendor.VendorType == EEMOCantilanSDS.Domain.Entities.Revenue.FishMeatVendorType.Fish && VendorForm.SelectedSection != "Fish")
+                    || (vendor.VendorType == EEMOCantilanSDS.Domain.Entities.Revenue.FishMeatVendorType.Meat && VendorForm.SelectedSection != "Meat"))
+                {
+                    <div class="npm-registry-verifications">
+                        <label><input type="checkbox" @bind="_registryException" /><span>Confirm this exceptional section differs from the registered Fish/Meat type.</span></label>
+                    </div>
+                }
             </section>
         }
     </text>;

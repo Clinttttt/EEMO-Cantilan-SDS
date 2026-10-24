@@ -61,8 +61,16 @@ public sealed class CollectionsReportWorkflow(
             return Result<CollectionsRegisterDto>.Failure("Choose a valid period of no more than 367 days.", ResultStatus.Invalid);
         var rows = (await LoadRowsAsync(tenantId, from, to, collectorId, null, null, ct)).Select(x => x.Row)
             .OrderByDescending(x => x.RecordedAtUtc ?? x.BusinessDate.ToDateTime(TimeOnly.MinValue)).ThenByDescending(x => x.ReferenceCode, StringComparer.Ordinal).ToList();
-        return Result<CollectionsRegisterDto>.Success(new CollectionsRegisterDto(from, to, rows.Take(RowLimit).ToList(), [],
-            rows.Sum(x => x.Amount), rows.Sum(x => x.CorrectionEffect), rows.Sum(x => x.Amount + x.CorrectionEffect), rows.Count > RowLimit));
+        var shown = rows.Take(RowLimit).ToList();
+        // A row-limit split can omit some lines of an otherwise visible Collection.
+        // In a truncated response keep every row individual; never show an incomplete grouped subtotal.
+        IReadOnlyList<CollectionSessionDisplayGroup> sessions = rows.Count > RowLimit ? [] :
+            await CollectionSessionReadGroups.LoadAsync(
+                db, tenantId, from, to,
+                shown.Select(x => (x.CollectionId, x.BusinessDate, x.CollectorId)).ToArray(), collectorId, ct);
+        return Result<CollectionsRegisterDto>.Success(new CollectionsRegisterDto(from, to, shown, [],
+            rows.Sum(x => x.Amount), rows.Sum(x => x.CorrectionEffect), rows.Sum(x => x.Amount + x.CorrectionEffect),
+            rows.Count > RowLimit, sessions));
     }
 
     public Task<Result<CollectionDocumentDto>> GetCollectionAsync(Guid collectionId, CancellationToken ct = default) =>

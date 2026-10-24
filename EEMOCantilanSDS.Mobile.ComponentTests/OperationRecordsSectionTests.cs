@@ -42,7 +42,11 @@ public sealed class OperationRecordsSectionTests : TestContext
         var view = RenderComponent<OperationRecordsSection>(p => p.Add(x => x.From, Today.AddDays(-5)).Add(x => x.To, Today));
         view.WaitForAssertion(() => Assert.Contains("None recorded", view.Markup));
         view.Find(".collection-record-row").Click();
-        Assert.Contains("SRC-2026-000042", view.Markup);
+        Assert.Contains("SRC-2026-000042", view.Find("[role='dialog']").TextContent);
+        Assert.Contains("OR", view.Find("[role='dialog']").TextContent);
+        Assert.Empty(view.FindAll(".ors-line")); // The card no longer expands.
+        view.Find("[role='dialog'] .btn-close").Click();
+        Assert.Empty(view.FindAll("[role='dialog']"));
         var open = view.Find(".ors-correct");
         Assert.Equal("false", open.GetAttribute("aria-expanded"));
         Assert.Empty(view.FindAll(".rc"));

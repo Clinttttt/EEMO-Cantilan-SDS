@@ -189,8 +189,41 @@
                         </tr>
                     </thead>
                     <tbody>
+                        @{
+                            var sessionByCollection = CompleteVisibleSessions
+                                .SelectMany(s => s.Children.Where(e => e.CollectionId.HasValue)
+                                    .Select(e => (Id: e.CollectionId!.Value, Session: s)))
+                                .ToDictionary(x => x.Id, x => x.Session);
+                        }
                         @foreach (var e in Visible)
                         {
+                            var session = e.CollectionId is { } id ? sessionByCollection.GetValueOrDefault(id) : null;
+                            @if (session is { } combined)
+                            {
+                                @if (combined.Children[0].CollectionId == e.CollectionId)
+                                {
+                                    var first = combined.Children[0];
+                                    var atGroup = first.RecordedAtUtc is { } utcGroup ? PhilippineTime.ToPhilippineTime(utcGroup) : (DateTime?)null;
+                                    <tr @key="combined.SessionId" class="txn-row" tabindex="0" aria-label="Open @combined.Children.Count collections in one checkout"
+                                        @onclick="() => OpenSession(combined)">
+                                        <td class="txn-when"><div class="txn-date">@first.BusinessDate.ToString("MMM d, yyyy")</div>
+                                            @if (atGroup is { } groupTime) { <div class="txn-time">@groupTime.ToString("h:mm tt")</div> }
+                                        </td>
+                                        <td><div class="txn-source-name">Combined collection</div></td>
+                                        <td class="txn-party">@first.PayerName</td>
+                                        <td><div class="txn-kind">@combined.Children.Count separate collections</div><div class="txn-ref">View itemized SRCs and receipts</div></td>
+                                        <td class="txn-num txn-amount">&#8369;@combined.Children.Sum(c => c.Amount).ToString("N2")
+                                            @if (combined.Children.Any(c => c.CorrectionEffect != 0m))
+                                            { <div class="txn-net">Net &#8369;@combined.Children.Sum(c => c.NetAmount).ToString("N2")</div> }
+                                        </td>
+                                        <td class="txn-or">@combined.Children.Count separate SRCs</td>
+                                        <td><span class="txn-status">@(combined.Children.Any(c => c.CorrectionEffect != 0m) ? "Contains corrections" : "Posted")</span></td>
+                                        <td class="txn-recorder">@first.RecordedBy</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
                             var expandable = e.Lines.Count > 1 || e.Corrections.Count > 0;
                             var expanded = _expanded.Contains(e.EventKey);
                             var at = e.RecordedAtUtc is { } utc ? PhilippineTime.ToPhilippineTime(utc) : (DateTime?)null;
@@ -253,6 +286,7 @@
                                 </td>
                                 <td class="txn-recorder">@e.RecordedBy</td>
                             </tr>
+                            }
                         }
                     </tbody>
                 </table>
@@ -266,6 +300,43 @@
 
 </div>
 
+@if (_sessionReview is { } combinedReview)
+{
+    <div class="v3-modal-backdrop" role="presentation" @onclick="CloseSession">
+        <section class="v3-modal txr" role="dialog" aria-modal="true" aria-label="Combined collection details" @onclick:stopPropagation="true">
+            <header class="txr-head"><div class="txr-head-text"><h2>@(combinedReview.Children[0].PayerName ?? "Collection session")</h2>
+                <p>@combinedReview.Children.Count separate collections · @combinedReview.Children[0].BusinessDate.ToString("MMM d, yyyy")</p></div></header>
+            <div class="v3-modal-body txr-body">
+                <table class="txr-items" aria-label="Itemized checkout collections">
+                    <thead><tr><th>Operation and reference</th><th>Instrument / receipt</th><th class="txn-num">Amount</th></tr></thead>
+                    <tbody>
+                    @foreach (var child in combinedReview.Children)
+                    {
+                        <tr><td><strong>@SourceLabel(child)</strong><div class="txn-ref">@child.ReferenceCode</div>
+                            <div class="txn-ref">@StatusText(child)@if (child.CorrectionEffect != 0m) { <span> · Correction &#8369;@child.CorrectionEffect.ToString("N2")</span> }</div>
+                            @if (child.ReplacementReferenceCodes.Count > 0)
+                            { <div class="txn-ref">Replacement SRC: @string.Join(", ", child.ReplacementReferenceCodes)</div> }
+                            @foreach (var line in child.Lines) { <div class="txn-ref">@LineLabel(line) · &#8369;@line.Amount.ToString("N2")</div> }
+                            </td><td>@(child.InstrumentType == RevenueInstrumentType.OfficialReceipt ? "OR" : child.InstrumentType == RevenueInstrumentType.CashTicket ? "CT" : "Unspecified")
+                                <div class="txn-ref">@(string.IsNullOrWhiteSpace(child.DocumentNumber) ? "None recorded" : child.DocumentNumber)</div>
+                                @if (child.ReplacementDocumentNumbers.Count > 0)
+                                { <div class="txn-ref">Replacement: @string.Join(", ", child.ReplacementDocumentNumbers)</div> }
+                            </td><td class="txn-num">&#8369;@child.Amount.ToString("N2")
+                                @if (child.CorrectionEffect != 0m) { <div class="txn-net">Net &#8369;@child.NetAmount.ToString("N2")</div> }
+                                <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenSessionChild(child)">Details</button>
+                            </td></tr>
+                    }
+                    </tbody>
+                    <tfoot><tr><th colspan="2">Total collected</th><td class="txn-num">&#8369;@combinedReview.Children.Sum(c => c.Amount).ToString("N2")</td></tr>
+                    @if (combinedReview.Children.Any(c => c.CorrectionEffect != 0m))
+                    { <tr><th colspan="2">Net after corrections</th><td class="txn-num">&#8369;@combinedReview.Children.Sum(c => c.NetAmount).ToString("N2")</td></tr> }
+                    </tfoot>
+                </table>
+            </div>
+            <footer class="txr-foot"><button type="button" class="v3-btn v3-btn-primary" @onclick="CloseSession">Close</button></footer>
+        </section>
+    </div>
+}
 @if (_review is { } r)
 {
     var isCanonical = !string.IsNullOrWhiteSpace(r.ReferenceCode) && r.CollectionId is not null;
@@ -410,6 +481,34 @@
 
 @code {
     private const int Limit = 1000;
+
+    private sealed record ShownSession(Guid SessionId, IReadOnlyList<CollectionActivityEventDto> Children);
+    private ShownSession? _sessionReview;
+    private IReadOnlyList<ShownSession> CompleteVisibleSessions
+    {
+        get
+        {
+            var visible = Visible;
+            var children = visible.Where(e => e.CollectionId.HasValue)
+                .ToDictionary(e => e.CollectionId!.Value);
+            var positions = visible.Select((e, index) => (e.CollectionId, index))
+                .Where(x => x.CollectionId.HasValue)
+                .ToDictionary(x => x.CollectionId!.Value, x => x.index);
+            return (_feed?.Sessions ?? []).Select(s => new ShownSession(s.SessionId,
+                    s.CollectionIds.Where(id => children.ContainsKey(id))
+                        .OrderBy(id => positions[id]).Select(id => children[id]).ToArray()))
+                .Where(s => s.Children.Count > 1 &&
+                    (_feed?.Sessions?.FirstOrDefault(x => x.SessionId == s.SessionId)?.CollectionIds.Count ?? 0) == s.Children.Count)
+                .ToArray();
+        }
+    }
+    private void OpenSession(ShownSession session) => _sessionReview = session;
+    private void CloseSession() => _sessionReview = null;
+    private async Task OpenSessionChild(CollectionActivityEventDto child)
+    {
+        _sessionReview = null;
+        await OpenReview(child);
+    }
 
     // ── Collection review ──
     private CollectionActivityEventDto? _review;
@@ -704,6 +803,7 @@
         IsLoading = true;
         _loadFailed = false;
         _expanded.Clear();
+        _sessionReview = null;
         if (paintLoading)
             await PaintLoadingAsync();
 

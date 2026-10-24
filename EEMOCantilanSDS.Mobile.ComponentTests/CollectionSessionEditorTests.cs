@@ -24,6 +24,7 @@ public sealed class CollectionSessionEditorTests : TestContext
     private static readonly DateOnly Today = new(2026, 10, 7);
     private readonly Mock<IMobileApiClient> _api = new();
     private readonly List<PendingOperation> _queue = [];
+    private readonly Mock<IPendingOperationStore> _store = new();
     private readonly Connectivity _connection = new();
     private static readonly CollectionSourceIdentity FishVendor = new(SourceIdentityKind.FishMeatVendorRegistration, Guid.NewGuid());
     private static readonly CollectionSourceIdentity Occupancy = new(SourceIdentityKind.Occupancy, Guid.NewGuid());
@@ -33,10 +34,12 @@ public sealed class CollectionSessionEditorTests : TestContext
 
     public CollectionSessionEditorTests()
     {
-        var store = new Mock<IPendingOperationStore>();
+        var store = _store;
         store.Setup(x => x.GetAllAsync()).ReturnsAsync(() => _queue.ToArray());
         store.Setup(x => x.AddIssuedDocumentOperationAsync(It.IsAny<PendingOperation>())).Callback<PendingOperation>(x => _queue.Add(x)).Returns(Task.CompletedTask);
         store.Setup(x => x.UpdateAsync(It.IsAny<PendingOperation>())).Returns(Task.CompletedTask);
+        store.Setup(x => x.RemoveAsync(It.IsAny<Guid>())).Callback<Guid>(id =>
+            _queue.RemoveAll(x => x.ClientOperationId == id)).Returns(Task.CompletedTask);
         var owner = new Mock<ICurrentCollectorProvider>(); owner.SetupGet(x => x.CollectorKey).Returns("tenant:collector");
         Services.AddSingleton(_api.Object);
         Services.AddSingleton(new MobileSyncService(store.Object, _api.Object, _connection, owner.Object));
@@ -69,6 +72,64 @@ public sealed class CollectionSessionEditorTests : TestContext
                     x.Native?.OperationCode == CollectorOperationCodes.Terminal ? RevenueInstrumentType.CashTicket : RevenueInstrumentType.OfficialReceipt, x.ConfirmedAmount, [x.ClientItemId], "Posted")).ToArray(), []);
             return Result<SyncOfflineCollectionsResultDto>.Success(new(1, 0, 0, [new(operation.ClientOperationId, SyncResultStatus.Synced, null, CollectionSession: result)]));
         });
+    }
+
+    [Fact]
+    public void Rejected_unposted_checkout_requires_explicit_server_verified_discard()
+    {
+        var checkout = Guid.NewGuid();
+        var fee = new CollectionSessionItemIntent(Guid.NewGuid(), CollectionSessionItemKind.SourceNative, 56m,
+            Native: new SourceNativeChargeIntent(CollectorOperationCodes.FishMeatVendorFee));
+        var parking = new CollectionSessionItemIntent(Guid.NewGuid(), CollectionSessionItemKind.Water, 30m);
+        _queue.Add(new PendingOperation {
+            ClientOperationId = checkout, OwnerKey = "tenant:collector",
+            Kind = OfflineOperationKind.ItemizedCollectionSession,
+            LocalStatus = PendingLocalStatus.ReconciliationRequired,
+            CollectionSession = new(new(checkout, Today, null, [fee, parking]), "prior-quote"),
+            CollectionSessionResult = new(checkout, CollectionSessionStatus.NeedsReview, null, 86m,
+                [], [new(fee.ClientItemId, "RateChanged", "The original amount needs review.")]),
+            ReceivedAmount = 86m
+        });
+        _api.Setup(x => x.GetCollectionSessionAsync(checkout))
+            .ReturnsAsync(Result<CollectionSessionResult>.NotFound());
+
+        var cut = RenderComponent<CollectionSessionEditor>(p =>
+            p.Add(x => x.BusinessDate, Today).Add(x => x.ResumeSessionId, checkout));
+        Assert.Contains("Needs review", cut.Markup);
+        Assert.Contains("Discard checkout", cut.Markup);
+        cut.FindAll("button").Single(x => x.TextContent == "Discard checkout").Click();
+        Assert.Single(_queue);
+        Assert.Contains("Confirm discard", cut.Markup);
+        cut.FindAll("button").Single(x => x.TextContent == "Confirm discard").Click();
+        cut.WaitForAssertion(() => Assert.Empty(_queue));
+        _api.Verify(x => x.GetCollectionSessionAsync(checkout), Times.AtLeastOnce);
+        _store.Verify(x => x.RemoveAsync(checkout), Times.Once);
+    }
+
+    [Fact]
+    public void Rejected_checkout_cannot_be_discarded_if_server_has_a_posted_collection()
+    {
+        var checkout = Guid.NewGuid();
+        var fee = new CollectionSessionItemIntent(Guid.NewGuid(), CollectionSessionItemKind.Water, 56m);
+        _queue.Add(new PendingOperation {
+            ClientOperationId = checkout, OwnerKey = "tenant:collector",
+            Kind = OfflineOperationKind.ItemizedCollectionSession,
+            LocalStatus = PendingLocalStatus.ReconciliationRequired,
+            CollectionSession = new(new(checkout, Today, null, [fee]), "prior-quote"),
+            CollectionSessionResult = new(checkout, CollectionSessionStatus.NeedsReview, null, 56m,
+                [], [new(fee.ClientItemId, "RateChanged", "Needs review.")])
+        });
+        _api.Setup(x => x.GetCollectionSessionAsync(checkout)).ReturnsAsync(
+            Result<CollectionSessionResult>.Success(new(checkout, CollectionSessionStatus.Recorded,
+                null, 56m, [new(Guid.NewGuid(), "SRC-TEST", RevenueInstrumentType.OfficialReceipt,
+                    56m, [fee.ClientItemId], "Posted")], [])));
+        var cut = RenderComponent<CollectionSessionEditor>(p =>
+            p.Add(x => x.BusinessDate, Today).Add(x => x.ResumeSessionId, checkout));
+        cut.FindAll("button").Single(x => x.TextContent == "Discard checkout").Click();
+        cut.FindAll("button").Single(x => x.TextContent == "Confirm discard").Click();
+        cut.WaitForAssertion(() => Assert.Contains("cannot be discarded", cut.Markup));
+        Assert.Single(_queue);
+        _store.Verify(x => x.RemoveAsync(checkout), Times.Never);
     }
 
     private static string Name(CollectionSessionItemIntent item) => item.Native?.OperationCode switch
@@ -391,6 +452,44 @@ public sealed class CollectionSessionEditorTests : TestContext
 
     private static bool AddDisabled(IRenderedComponent<CollectionSessionEditor> view) =>
         view.Find("[role=dialog]").QuerySelectorAll(".sheet-actions button").Single(b => b.TextContent.Trim() == "Add item").HasAttribute("disabled");
+
+    [Fact]
+    public void Assessed_fine_defaults_to_remaining_but_accepts_only_valid_partial_amounts()
+    {
+        var fineId = Guid.NewGuid();
+        _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(Occupancy))
+            .ReturnsAsync(Result<CollectionSessionDiscovery>.Success(new(null, Today,
+                [Op(CollectionSessionItemKind.FineAssessment, RevenueClassificationCodes.PenaltiesAndFines,
+                    "Fines / Penalties", CollectionFamily.Rent,
+                    new CollectionSessionSourceChoice("FINE|" + fineId.ToString("N"), CollectionSessionItemKind.FineAssessment,
+                        RevenueClassificationCodes.PenaltiesAndFines, "Penalty", "Stall 1",
+                        new(FineAssessmentId: fineId, FineVersion: 3),
+                        RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.PreparedBalance,
+                        ServerAmount: 320m, MaximumAmount: 320m, RequiredInputs: []))],
+                SourceIdentity: Occupancy)));
+        var view = PickSource("Ana Reyes");
+        Click(view, "+ Add item");
+        view.Find("[role=dialog] .collection-option").Click(); // choose Fines / Penalties
+        var amount = view.Find("[role=dialog] input[type=number]");
+        Assert.Equal("320", amount.GetAttribute("value"));
+        Assert.Contains("Outstanding assessed fine", view.Find("[role=dialog]").TextContent);
+        foreach (var invalid in new[] { "0", "-1", "320.01", "5.001" })
+        {
+            amount.Input(invalid);
+            Assert.True(AddDisabled(view), $"Amount {invalid} should be rejected.");
+        }
+        amount.Input("125");
+        Assert.False(AddDisabled(view));
+        Click(view, "Add item");
+        Assert.Single(view.FindAll(".item-row"));
+        Assert.Contains("125.00", view.Find(".item-row").TextContent);
+        Click(view, "Review collection");
+        _api.Verify(x => x.QuoteCollectionSessionAsync(It.Is<CollectionSessionIntent>(intent =>
+            intent.Items.Count == 1 && intent.Items[0].ConfirmedAmount == 125m &&
+            intent.Items[0].Fine != null && intent.Items[0].Fine.AssessmentId == fineId &&
+            intent.Items[0].Fine.Version == 3)), Times.Once);
+        Assert.Empty(_queue); // quote/review must never create a receipt
+    }
 
     [Fact]
     public void Whole_payment_summary_uses_server_monthly_balance_without_days_covered()
@@ -1327,7 +1426,7 @@ public sealed class CollectionSessionEditorTests : TestContext
     }
 
     [Fact]
-    public void Verified_fine_uses_the_existing_item_row_and_server_fixed_balance_without_editable_amount()
+    public void Verified_fine_prefills_assessed_balance_and_preserves_receipt_and_liability_identity()
     {
         var assessment = Guid.NewGuid();
         _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(Kanmanggay))
@@ -1338,7 +1437,7 @@ public sealed class CollectionSessionEditorTests : TestContext
                         CollectionSessionItemKind.FineAssessment, RevenueClassificationCodes.PenaltiesAndFines,
                         "Approved violation", "Kanmanggay · Space 4 · Outstanding assessment",
                         new(FineAssessmentId: assessment, FineVersion: 3),
-                        RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.FixedAmount,
+                        RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.PreparedBalance,
                         ServerAmount: 150m, MaximumAmount: 150m))],
                 SourceIdentity: Kanmanggay)));
 
@@ -1347,9 +1446,9 @@ public sealed class CollectionSessionEditorTests : TestContext
         view.Find("[role=dialog]").QuerySelectorAll(".collection-option")
             .Single(x => x.TextContent.Contains("Fines / Penalties")).Click();
         var sheet = view.Find("[role=dialog]");
-        Assert.Contains("Full outstanding assessed fine", sheet.TextContent);
+        Assert.Contains("Outstanding assessed fine", sheet.TextContent);
         Assert.Contains("Official Receipt", sheet.TextContent);
-        Assert.Empty(sheet.QuerySelectorAll("input[type=number]"));
+        Assert.Equal("150", Assert.Single(sheet.QuerySelectorAll("input[type=number]")).GetAttribute("value"));
         Click(view, "Add item");
         Assert.Single(view.FindAll(".item-row"));
         Assert.Contains("150", view.Find(".item-row").TextContent);

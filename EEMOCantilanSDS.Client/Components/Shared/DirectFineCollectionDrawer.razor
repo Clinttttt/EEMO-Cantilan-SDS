@@ -24,7 +24,8 @@
             <div class="df-total"><span>Amount to collect</span><strong class="df-amount">₱@q.Intent.Amount.ToString("N2")</strong><small>Actual money received · no account or assessment is created</small></div>
             <dl class="df-review"><dt>Revenue source</dt><dd>Fines &amp; Penalties</dd><dt>Fine category</dt><dd>@q.Category</dd>
                 <dt>Business date</dt><dd>@q.Intent.BusinessDate.ToString("MMM d, yyyy")</dd><dt>Instrument</dt><dd>Official Receipt</dd>
-                <dt>Approved authority</dt><dd>@q.GoverningReference</dd>
+                @if (q.Intent.AuthorityId == Guid.Empty) { <dt>Recording method</dt><dd>Manual direct fine · Head office</dd> }
+                else { <dt>Approved authority</dt><dd>@q.GoverningReference</dd> }
                 @if(q.Intent.Reason is not null) { <dt>Reason</dt><dd>@q.Intent.Reason</dd> }
                 @if(q.Intent.SupportingReference is not null) { <dt>Reference</dt><dd>@q.Intent.SupportingReference</dd> }
                 @if(q.Intent.PayerParticulars is not null) { <dt>Receipt particulars</dt><dd>@q.Intent.PayerParticulars</dd> }
@@ -35,8 +36,7 @@
         </AddNewSection>
     }
     else if (_options.Categories.Count == 0) {
-        <p role="status">No approved direct-fine collection policy is configured.</p>
-        <p class="df-note">Office authority must confirm the category, amount rules and receipt particulars before collection is enabled.</p>
+        <p role="status">Direct fine options are unavailable. Try again or contact the office administrator.</p>
     }
     else {
         <AddNewSection Title="Collection details" Plain="true">
@@ -50,9 +50,8 @@
                 {
                     <p class="df-note df-wide">@(_category?.Basis == GovernedServiceBasis.FixedAmount ? "Fixed approved amount" : $"Authorized maximum: ₱{_category?.MaximumAmount:N2}")</p>
                 }
-                @* Shown only when this category's approved authority requires it: the posting contract refuses the collection without it. *@
-                @if(_category?.RequiresSupportingReference == true) {
-                    <label class="v3-field df-wide"><span>Supporting reference</span><input maxlength="200" required @bind="_reference" /></label>
+                @if(_category?.RequiresSupportingReference == true || _category?.AuthorityId == Guid.Empty) {
+                    <label class="v3-field df-wide"><span>Supporting reference@(_category?.RequiresSupportingReference == true ? "" : " (optional)")</span><input maxlength="200" required="@(_category?.RequiresSupportingReference == true)" @bind="_reference" /></label>
                 }
                 <label class="v3-field df-wide"><span>Description@(_category?.RequiresReason == true ? "" : " (optional)")</span><textarea class="avm-input" rows="3" maxlength="1000" required="@(_category?.RequiresReason == true)" @bind="_reason"></textarea></label>
             </div>
@@ -87,8 +86,8 @@
     private async Task Load() {
         _loading=true; _error=null;
         try { var r=await Api.GetDirectFineOptionsAsync(); if(r is {IsSuccess:true,Value:not null}) { _options=r.Value; _category=_options.Categories.FirstOrDefault(); _amount=_category?.FixedAmount ?? 0m; }
-            else _error=r?.Error ?? "Fine collection policies are unavailable."; }
-        catch { _error="Fine collection policies are unavailable."; } finally { _loading=false; }
+            else _error=r?.Error ?? "Fine collection options are unavailable."; }
+        catch { _error="Fine collection options are unavailable."; } finally { _loading=false; }
     }
     private void SelectCategory(ChangeEventArgs e) { _category=_options?.Categories.SingleOrDefault(c=>c.AuthorityId.ToString()==e.Value?.ToString()); _amount=_category?.FixedAmount ?? 0m; if(_category?.RequiresSupportingReference != true) _reference=null; }
     private Task Close() => _busy ? Task.CompletedTask : OnClose.InvokeAsync();
