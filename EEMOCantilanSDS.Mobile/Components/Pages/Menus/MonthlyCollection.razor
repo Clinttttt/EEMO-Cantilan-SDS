@@ -96,7 +96,7 @@
             }
             else
             {
-@if (!string.IsNullOrWhiteSpace(RentNotice))                {                    <RecordedNotice Message="@RentNotice" />                }
+@if (!string.IsNullOrWhiteSpace(RentNotice) && !RecordConfirmed) { <RecordedNotice Message="@RentNotice" /> }
                 <div class="section-label">@Collection.TotalStalls Occupied Stalls</div>
                 @foreach (var stall in FilteredStalls)
                 {
@@ -551,7 +551,14 @@
     </div>
 }
 
+@if (RecordConfirmed)
+{
+    <CollectionRecordedSheet Message="@RentNotice" OnClose="DismissRecorded" />
+}
+
 @code {
+    private bool RecordConfirmed => RentNotice?.StartsWith("Collection recorded", StringComparison.Ordinal) == true || RentNotice == "Payment recorded successfully.";
+    private void DismissRecorded() => RentNotice = null;
     [Parameter] public string Facility { get; set; } = string.Empty;
 
     private FacilityCode FacilityCode;

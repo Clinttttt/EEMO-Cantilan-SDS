@@ -1,0 +1,32 @@
+@using System.Globalization
+<div class="sheet-overlay" @onclick="OnClose">
+    <section class="sheet" role="dialog" aria-modal="true" aria-label="Collection recorded successfully" @onclick:stopPropagation="true">
+        <div class="sheet-handle"></div>
+        <div class="sheet-title">Recorded successfully</div>
+        <div class="sheet-sub">The server accepted your collection.</div>
+        @if (Amount is { } amount)
+        {
+            <div class="detail-row"><span class="detail-key">Amount collected</span><span class="detail-val amount-val">@("₱" + amount.ToString("N2", CultureInfo.InvariantCulture))</span></div>
+        }
+        @if (References is { Count: > 0 })
+        {
+            @foreach (var reference in References)
+            {
+                <div class="detail-row"><span class="detail-key">StallTrack reference</span><span class="detail-val">@reference</span></div>
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(Reference))
+        {
+            <div class="detail-row"><span class="detail-key">StallTrack reference</span><span class="detail-val">@Reference</span></div>
+        }
+        <div class="sheet-btn-row"><button type="button" class="btn-close" @onclick="OnClose">Done</button></div>
+    </section>
+</div>
+@code {
+    [Parameter] public string? Message { get; set; }
+    [Parameter] public decimal? Amount { get; set; }
+    [Parameter] public IReadOnlyList<string>? References { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    private string? Reference => Message is { } message && message.StartsWith("Collection recorded · ", StringComparison.Ordinal)
+        ? message["Collection recorded · ".Length..] : null;
+}

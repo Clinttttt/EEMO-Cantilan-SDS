@@ -1,5 +1,4 @@
 @page "/menu"
-@implements IDisposable
 @using global::EEMOCantilanSDS.Application.Dtos.Mobile
 @using global::EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Mobile.Presentation
@@ -93,10 +92,7 @@
                                     <span class="menu-tile attention" aria-hidden="true">!</span>
                                     <span class="menu-row-main">
                                         <span class="menu-row-name">@(item.Count > 1 ? $"{item.Count} " : "")@item.Text</span>
-                                        @if (item.Text.Contains("sync", StringComparison.OrdinalIgnoreCase))
-                                        {
-                                            <span class="menu-readiness-note" role="status">@OfflineReadiness.StatusText</span>
-                                        }
+
                                     </span>
                                     <span class="menu-row-chevron" aria-hidden="true">›</span>
                                 </button>
@@ -106,10 +102,7 @@
                 </section>
             }
 
-            @if (!Work.Attention.Any(item => item.Text.Contains("sync", StringComparison.OrdinalIgnoreCase)))
-            {
-                <div class="menu-readiness-note menu-readiness-standalone" role="status">@OfflineReadiness.StatusText</div>
-            }
+
 
             <section class="menu-group" aria-labelledby="menu-available">
                 <h2 id="menu-available" class="menu-group-title">Available now <span class="menu-group-count">@Work.Available.Count</span></h2>
@@ -240,7 +233,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        OfflineReadiness.Changed += OnOfflineReadinessChanged;
+        // Background preparation remains active without user-visible progress counters.
         try
         {
             await Session.InitializeAsync();
@@ -271,8 +264,6 @@
         }
     }
 
-    private void OnOfflineReadinessChanged() => _ = InvokeAsync(StateHasChanged);
-    public void Dispose() => OfflineReadiness.Changed -= OnOfflineReadinessChanged;
 
     async Task LoadOperationCapabilitiesAsync()
     {

@@ -83,7 +83,7 @@ else
             <div class="collection-search">
                 <label class="form-field"><span class="form-label">@(SearchLabel)</span>
                     <input class="form-input" type="search" autocomplete="off" enterkeyhint="search" placeholder="Name"
-                           @bind="_search" @bind:event="oninput" @bind:after="OnSearchChanged" @onfocus="OnSearchFocusAsync" @onkeydown="OnSearchKeyAsync" /></label>
+                           value="@_search" @oninput="OnSearchInput" @onfocus="OnSearchFocusAsync" @onkeydown="OnSearchKeyAsync" /></label>
                 <button class="collection-small" type="button" disabled="@_searching" @onclick="SearchAsync">Search</button>
             </div>
             @if (_suggestOpen)
@@ -253,6 +253,10 @@ else
     }
 }
 @if (!string.IsNullOrWhiteSpace(_message)) { <p class="collection-message" role="status">@_message</p> }
+@if (_showRecordedSheet && _result is { Status: CollectionSessionStatus.Recorded } posted)
+{
+    <CollectionRecordedSheet Amount="@posted.GrandTotal" References="@posted.Collections.Select(c => c.ReferenceCode).ToArray()" OnClose="DismissRecordedSheet" />
+}
 
 @* Leaving with items that are not yet recorded asks first, so a slip of the back button never loses the collector's progress. *@
 @if (_leaveTarget is not null)
@@ -464,6 +468,8 @@ else
     private readonly Dictionary<Guid, Shown> _shown = [];
     private CollectionSessionQuote? _quote;
     private CollectionSessionResult? _result;
+    private bool _showRecordedSheet, _recordedSheetWasShown;
+    private void DismissRecordedSheet() => _showRecordedSheet = false;
     private Guid _sessionId = Guid.NewGuid();
     private Guid? _supersededSessionId;
     private bool _loading = true, _busy, _picker, _queued, _needsReview, _direct;
@@ -770,9 +776,19 @@ else
     // The source list is read from the office again, so a vendor the Head has just registered appears for selection.
     private async Task SearchAfterRequestAsync() { _requestSaved = null; _suggestOpen = true; await SearchAsync(); }
 
+    private void OnSearchInput(ChangeEventArgs args)
+    {
+        _search = args.Value?.ToString() ?? "";
+        OnSearchChanged();
+    }
+
     private void OnSearchChanged()
     {
         _searchDelay?.Cancel();
+        // A previous query's holders must disappear immediately: choosing a stale
+        // space/Fiesta account while new text is being searched is unsafe.
+        _found = [];
+        _searched = false;
         _suggestOpen = true;
         _searchDelay = new CancellationTokenSource();
         _ = DebouncedSearchAsync(_searchDelay.Token);
@@ -1054,6 +1070,11 @@ else
         if (pending is null) return;
         _result = pending.CollectionSessionResult;
         _needsReview = pending.LocalStatus is PendingLocalStatus.ReconciliationRequired or PendingLocalStatus.Rejected;
+        // Do not confirm a locally queued checkout as recorded until its actual server result is synced.
+        if (!_recordedSheetWasShown && pending.LocalStatus == PendingLocalStatus.Synced && _result?.Status == CollectionSessionStatus.Recorded)
+        {
+            _recordedSheetWasShown = _showRecordedSheet = true;
+        }
     }
 
     private async Task RefreshResultAsync()
@@ -1086,6 +1107,7 @@ else
     {
         _linkedNpmContext = false;
         _sessionId = Guid.NewGuid(); _items.Clear(); _shown.Clear(); _drafts.Clear(); _result = null; _quote = null; _queued = _needsReview = false;
+        _showRecordedSheet = _recordedSheetWasShown = false;
         _source = null; _snapshot = ""; _search = ""; _found = []; _searched = _browsed = _suggestOpen = false; _discovery = null;
         _direct = OnlyOperation == CollectorOperationCodes.Terminal;
         await LoadAsync();

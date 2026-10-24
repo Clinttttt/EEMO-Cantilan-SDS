@@ -52,7 +52,7 @@
                 <input type="text"
                        placeholder="Search name, OR no., stall…"
                        @bind="SearchQuery"
-                       @bind:event="oninput" />
+                       @bind:event="oninput" @bind:after="OnSearchChanged" />
             </div>
             <button class="pending-btn @(Sync.PendingCount > 0 ? "has-pending" : "")"
                     type="button"
@@ -136,16 +136,9 @@
                     {
                         <CollectionRecordRow Identity="@(string.IsNullOrWhiteSpace(op.PayorName) ? op.ReferenceCode : op.PayorName!)"
                             Amount="@op.Total" DateText="@(op.RecordedAtUtc is null ? op.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture) : entry.RecordedAt.ToString("MMM d · h:mm tt", CultureInfo.InvariantCulture))"
-                            Status="@(op.Status == "Posted" ? null : op.Status)" OnOpen="() => ToggleCanonical(op.CollectionId)">
+                            Status="@(op.Status == "Posted" ? null : op.Status)" OnOpen="() => OpenCanonical(op)">
                             <Details>
-                                <span>@OperationSummary(op) · @op.ReferenceCode</span>
-                                @if (_openCanonical.Contains(op.CollectionId))
-                                {
-                                    @foreach (var line in op.Lines)
-                                    {
-                                        <div class="record-line-detail"><span>@(line.ItemLabel ?? line.ClassificationName)</span><span>₱@line.Amount.ToString("N2", CultureInfo.InvariantCulture)</span></div>
-                                    }
-                                }
+                                <span>@OperationSummary(op) · @op.ReferenceCode @if (CollectorRecordLabels.InstrumentCode(op.Instrument) is { } instrument) { <span>@instrument</span> }</span>
                             </Details>
                         </CollectionRecordRow>
                     }
@@ -157,7 +150,7 @@
                             Status="@(rec.IsAbsent ? "Excused" : row.AnyPartial ? "Partial" : null)"
                             OnOpen="() => OpenDetail(row)">
                             <Details>
-                                <span>@rec.FacilityCode · @(rec.IsAbsent ? "Excused" : row.SharesOneNature ? rec.Nature : "Multiple charges")</span>
+                                <span>@CollectorRecordLabels.Display(rec.FacilityCode.ToString()) · @(rec.IsAbsent ? "Excused" : row.SharesOneNature ? CollectorRecordLabels.Display(rec.Nature) : "Multiple charges")</span>
                             </Details>
                         </CollectionRecordRow>
                     }
@@ -170,6 +163,11 @@
     <BottomNav ActiveTab="records" />
 
 </div>
+
+@if (SelectedCanonicalRecord is { } canonical)
+{
+    <CanonicalRecordDetailSheet Record="canonical" OnClose="CloseCanonical" />
+}
 
 @if (ShowDetailSheet && SelectedRecord is not null)
 {
@@ -447,10 +445,12 @@
     IReadOnlyList<MobileCollectorRecordDto> Records = Array.Empty<MobileCollectorRecordDto>();
     IReadOnlyList<OperationRecord> CanonicalRecords = Array.Empty<OperationRecord>();
     bool _canonicalFailed, _correcting;
-    readonly HashSet<Guid> _openCanonical = [];
-    void ToggleCanonical(Guid id) { if (!_openCanonical.Remove(id)) _openCanonical.Add(id); }
+    OperationRecord? SelectedCanonicalRecord;
+    void OpenCanonical(OperationRecord record) => SelectedCanonicalRecord = record;
+    void CloseCanonical() => SelectedCanonicalRecord = null;
+    void OnSearchChanged() { SelectedCanonicalRecord = null; CloseDetail(); }
     static string OperationSummary(OperationRecord op) => string.Join(" · ",
-        op.Lines.Select(l => l.ClassificationName).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct());
+        op.Lines.Select(l => CollectorRecordLabels.Display(l.ClassificationName)).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct());
 
     // Instant re-open while online: keep the last records per (collector · facility · date-range) in memory,
     // so returning to Records shows them immediately and then refreshes quietly in the background instead of
