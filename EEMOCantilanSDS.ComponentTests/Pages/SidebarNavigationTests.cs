@@ -64,7 +64,8 @@ public sealed class SidebarNavigationTests : TestContext
         var image = cut.Find(".sidebar-seal img");
         Assert.Equal(tenant.SealPath, image.GetAttribute("src"));
         image.TriggerEvent("onerror", new EventArgs());
-        Assert.Equal(BrandingState.WaitingSealPath, cut.Find(".sidebar-seal img").GetAttribute("src"));
+        Assert.Empty(cut.FindAll(".sidebar-seal img"));
+        Assert.Single(cut.FindAll(".sidebar-seal .municipal-seal-outline"));
         Assert.DoesNotContain("LGU_CANTILAN_LOGO", cut.Markup);
 
         branding.Apply(tenant with { SealPath = "https://api.test/seal?v=2" });
@@ -73,7 +74,7 @@ public sealed class SidebarNavigationTests : TestContext
     }
 
     [Fact]
-    public async Task SharedBrandingUpdateRefreshesTheExistingSidebar_AndRetriesTheSameFailedImage()
+    public async Task SharedBrandingUpdateRefreshesTheExistingSidebar_WithoutRetryingTheSameFailedImage()
     {
         var branding = Services.GetRequiredService<BrandingState>();
         var tenant = new EEMOCantilanSDS.Application.Dtos.Tenancy.MunicipalityBrandingDto(
@@ -82,9 +83,9 @@ public sealed class SidebarNavigationTests : TestContext
         branding.Apply(tenant);
         var cut = RenderComponent<Sidebar>();
         cut.Find(".sidebar-seal img").TriggerEvent("onerror", new EventArgs());
-        Assert.Equal(BrandingState.WaitingSealPath, cut.Find(".sidebar-seal img").GetAttribute("src"));
+        Assert.Empty(cut.FindAll(".sidebar-seal img"));
         await cut.InvokeAsync(() => branding.Apply(tenant with { OfficeAcronym = "CLEE" }));
-        cut.WaitForAssertion(() => Assert.Equal(tenant.SealPath, cut.Find(".sidebar-seal img").GetAttribute("src")));
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".sidebar-seal img")));
         Assert.Equal("CLEE", cut.Instance.PersistedBranding?.OfficeAcronym);
     }
 

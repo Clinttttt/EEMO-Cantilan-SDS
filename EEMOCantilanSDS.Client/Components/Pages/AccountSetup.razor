@@ -5,6 +5,7 @@
 @using EEMOCantilanSDS.Application.Command.Auth.AdminAuth.CreateFirstAdmin
 @using EEMOCantilanSDS.Application.Dtos.Tenancy
 @using Microsoft.AspNetCore.WebUtilities
+@using EEMOCantilanSDS.Client.Components.Pages.Shared
 @inject ISetupApiClient SetupApi
 @inject IMunicipalitiesApiClient MunicipalitiesApi
 @inject NavigationManager Navigation
@@ -23,7 +24,7 @@
                 <div class="government-logo-card">
                     @if (HasOwnSeal)
                     {
-                        <img src="@SealPath" alt="@MunicipalityName seal" />
+                        <MunicipalSeal Source="@SealPath" Municipality="@MunicipalityName" />
                     }
                     else
                     {

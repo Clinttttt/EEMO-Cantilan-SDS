@@ -59,7 +59,13 @@ public sealed class OfficeProfileBrandingTests : TestContext
         Save(page);
         page.WaitForAssertion(() => Assert.Contains("Office profile updated.", page.Find(".op-banner-ok").TextContent));
         chip.WaitForAssertion(() => Assert.Contains("CLEE Office", chip.Markup));
-        sidebar.WaitForAssertion(() => Assert.Equal(Branding("CLEE").SealPath, sidebar.Find(".sidebar-seal img").GetAttribute("src")));
+        // An acronym-only refresh must not retry an image URL that already failed.
+        // A replacement upload produces a new versioned URL and is tested separately.
+        sidebar.WaitForAssertion(() =>
+        {
+            Assert.Empty(sidebar.FindAll(".sidebar-seal img"));
+            Assert.Single(sidebar.FindAll(".sidebar-seal .municipal-seal-outline"));
+        });
         _municipalities.Verify(x => x.GetCurrentBrandingAsync(), Times.Exactly(2));
     }
 

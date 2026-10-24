@@ -148,6 +148,21 @@ public class LoginSealTests
     }
 
     [Fact]
+    public void ExplicitlySelectedMunicipalityNeverFallsBackToCantilansIdentity()
+    {
+        var page = (EEMOCantilanSDS.Client.Components.Pages.Login)Activator.CreateInstance(LoginPage)!;
+        LoginPage.GetMethod("SetUnresolvedMunicipality", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .Invoke(page, ["carrascal"]);
+
+        Assert.Equal(Constant("NeutralSealPath"),
+            LoginPage.GetField("SealPath", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(page));
+        Assert.Equal("carrascal",
+            LoginPage.GetField("MunicipalityName", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(page));
+        Assert.Equal(false,
+            LoginPage.GetField("_isDefaultBrand", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(page));
+    }
+
+    [Fact]
     public void CantilansSealRemainsTheFallback()
     {
         // Recorded as a rule, not an accident. The office confirmed its own values are the intended default for this page.

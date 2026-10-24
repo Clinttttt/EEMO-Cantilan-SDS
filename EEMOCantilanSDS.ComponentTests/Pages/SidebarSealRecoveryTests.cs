@@ -8,6 +8,7 @@ using EEMOCantilanSDS.Client.Components.Pages.Shared;
 using EEMOCantilanSDS.Client.Services;
 using EEMOCantilanSDS.Domain.Common;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Components;
 using Moq;
 
 namespace EEMOCantilanSDS.ComponentTests.Pages;
@@ -92,8 +93,11 @@ public sealed class SidebarSealRecoveryTests : TestContext
 
         var sidebar = RenderComponent<Sidebar>();
 
-        sidebar.WaitForAssertion(() => Assert.Equal(BrandingState.WaitingSealPath,
-            sidebar.Find(".sidebar-seal img").GetAttribute("src")));
+        sidebar.WaitForAssertion(() =>
+        {
+            Assert.Empty(sidebar.FindAll(".sidebar-seal img"));
+            Assert.Single(sidebar.FindAll(".sidebar-seal .municipal-seal-outline"));
+        });
         _settings.Verify(a => a.GetOfficeProfileAsync(), Times.Once);
     }
 
@@ -108,8 +112,49 @@ public sealed class SidebarSealRecoveryTests : TestContext
             sidebar.Find(".sidebar-seal img").GetAttribute("src")));
         sidebar.Find(".sidebar-seal img").TriggerEvent("onerror", new EventArgs());
 
-        sidebar.WaitForAssertion(() => Assert.Equal(BrandingState.WaitingSealPath,
+        sidebar.WaitForAssertion(() =>
+        {
+            Assert.Empty(sidebar.FindAll(".sidebar-seal img"));
+            Assert.Single(sidebar.FindAll(".sidebar-seal .municipal-seal-outline"));
+        });
+        _settings.Verify(a => a.GetOfficeProfileAsync(), Times.Once);
+    }
+
+    [Fact]
+    public void Navigating_or_reapplying_same_branding_does_not_reopen_a_failed_seal()
+    {
+        _branding.Setup(a => a.GetCurrentBrandingAsync()).ReturnsAsync(
+            Result<MunicipalityBrandingDto>.Success(Carrascal()));
+
+        var sidebar = RenderComponent<Sidebar>();
+        sidebar.Find(".sidebar-seal img").TriggerEvent("onerror", EventArgs.Empty);
+        sidebar.WaitForAssertion(() => Assert.Equal(SavedSeal,
+            sidebar.Find(".sidebar-seal img").GetAttribute("src")));
+
+        Services.GetRequiredService<BrandingState>().Apply(Carrascal());
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/operations");
+
+        sidebar.WaitForAssertion(() => Assert.Equal(SavedSeal,
             sidebar.Find(".sidebar-seal img").GetAttribute("src")));
         _settings.Verify(a => a.GetOfficeProfileAsync(), Times.Once);
+    }
+
+    [Fact]
+    public void Switching_authenticated_branding_never_keeps_previous_municipal_seal()
+    {
+        _branding.Setup(a => a.GetCurrentBrandingAsync()).ReturnsAsync(
+            Result<MunicipalityBrandingDto>.Success(Carrascal()));
+        var sidebar = RenderComponent<Sidebar>();
+
+        const string madridSeal = "https://api.stalltrack.site/api/municipalities/madrid/seal?v=changed";
+        var madrid = Carrascal() with { Code = "MADRID", TenantCode = "madrid",
+            Name = "Madrid", SealPath = madridSeal };
+        Services.GetRequiredService<BrandingState>().Apply(madrid);
+
+        sidebar.WaitForAssertion(() =>
+        {
+            Assert.Equal(madridSeal, sidebar.Find(".sidebar-seal img").GetAttribute("src"));
+            Assert.Equal("Madrid seal", sidebar.Find(".sidebar-seal img").GetAttribute("alt"));
+        });
     }
 }
