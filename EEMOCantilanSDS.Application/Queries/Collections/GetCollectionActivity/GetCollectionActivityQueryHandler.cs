@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.Collections;
+using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Domain.Common;
 using MediatR;
 
@@ -17,7 +18,8 @@ public sealed class GetCollectionActivityQueryHandler(
     ICollectionActivityReader reader,
     ICurrentUserService currentUser,
     ICurrentMunicipalityAccessor municipality,
-    IClock clock)
+    IClock clock,
+    IAppDbContext? db = null)
     : IRequestHandler<GetCollectionActivityQuery, Result<CollectionActivityFeedDto>>
 {
     public const string DateBasis =
@@ -78,12 +80,19 @@ public sealed class GetCollectionActivityQueryHandler(
             .ThenBy(e => e.EventKey, StringComparer.Ordinal)
             .ToList();
 
+        var shown = events.Take(request.Limit).ToList();
+        // Presentation correlation only; the underlying event count and financial totals remain unchanged.
+        var sessions = db is null ? [] : await CollectionSessionReadGroups.LoadAsync(
+            db, tenantId, request.From, request.To,
+            shown.Where(e => e.Authority == "Canonical" && e.CollectionId.HasValue)
+                .Select(e => (e.CollectionId!.Value, e.BusinessDate, e.CollectorId)).ToArray(),
+            request.CollectorId, ct);
         var legacy = events.Where(e => e.Authority == "Legacy").Sum(e => e.Amount);
         var canonical = events.Where(e => e.Authority == "Canonical").Sum(e => e.Amount);
         var effect = events.Sum(e => e.CorrectionEffect);
         return Result<CollectionActivityFeedDto>.Success(new CollectionActivityFeedDto(
             request.From, request.To, DateBasis, CorrectionBasis, clock.UtcNow,
-            events.Take(request.Limit).ToList(), events.Count, events.Count > request.Limit,
-            legacy, canonical, effect, legacy + canonical + effect, Notes));
+            shown, events.Count, events.Count > request.Limit,
+            legacy, canonical, effect, legacy + canonical + effect, Notes, sessions));
     }
 }

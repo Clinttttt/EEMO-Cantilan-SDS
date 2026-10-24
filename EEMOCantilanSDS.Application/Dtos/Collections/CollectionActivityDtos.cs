@@ -21,7 +21,8 @@ public sealed record CollectionActivityFeedDto(
     decimal CanonicalAmount,
     decimal CorrectionEffect,
     decimal NetAmount,
-    IReadOnlyList<string> Notes);
+    IReadOnlyList<string> Notes,
+    IReadOnlyList<global::EEMOCantilanSDS.Application.Common.Revenue.CollectionSessionDisplayGroup>? Sessions = null);
 
 /// <summary>
 /// One collection event. <see cref="ReferenceCode"/> is the StallTrack Reference Code (SRC) of a canonical Collection (null for Legacy rows, never fabricated); <see cref="DocumentNumber"/> is optional physical OR/CT evidence. <see cref="Authority"/> is "Legacy" or "Canonical". <see cref="Amount"/> is the money the

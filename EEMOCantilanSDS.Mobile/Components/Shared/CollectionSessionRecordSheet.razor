@@ -1,0 +1,33 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Mobile.Records
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+
+<div class="sheet-overlay" @onclick="OnClose">
+    <section class="sheet" role="dialog" aria-modal="true" aria-label="Session collection details" @onclick:stopPropagation="true">
+        <div class="sheet-handle"></div>
+        <div class="sheet-title">@(Records.FirstOrDefault()?.PayorName ?? "Collection session")</div>
+        <div class="sheet-sub">@Records.Count separate collections · One checkout</div>
+        <div class="detail-row"><span class="detail-key">Business date</span><span class="detail-val">@Records[0].BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</span></div>
+        @foreach (var record in Records)
+        {
+            <div class="detail-util-head">@string.Join(", ", record.Lines.Select(x => CollectorRecordLabels.Display(x.ClassificationName)).Distinct())</div>
+            <div class="detail-row"><span class="detail-key">StallTrack reference</span><span class="detail-val">@record.ReferenceCode</span></div>
+            <div class="detail-row"><span class="detail-key">Instrument</span><span class="detail-val">@(CollectorRecordLabels.InstrumentCode(record.Instrument) ?? "Not specified")</span></div>
+            <div class="detail-row"><span class="detail-key">Receipt</span><span class="detail-val">@(string.IsNullOrWhiteSpace(record.DocumentNumber) ? "None recorded" : record.DocumentNumber)</span></div>
+            <div class="detail-row"><span class="detail-key">Status</span><span class="detail-val">@record.Status</span></div>
+            @foreach (var line in record.Lines)
+            {
+                <div class="detail-row"><span class="detail-key">@CollectorRecordLabels.Display(line.ItemLabel ?? line.ClassificationName)</span><span class="detail-val">@Money(line.Amount)</span></div>
+            }
+            <div class="detail-row"><span class="detail-key">Collection net</span><span class="detail-val">@Money(record.Total)</span></div>
+        }
+        <div class="detail-row"><span class="detail-key">Total net</span><span class="detail-val amount-val">@Money(Records.Sum(r => r.Total))</span></div>
+        <div class="sheet-btn-row"><button type="button" class="btn-close" @onclick="OnClose">Close</button></div>
+    </section>
+</div>
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<OperationRecord> Records { get; set; } = [];
+    [Parameter] public EventCallback OnClose { get; set; }
+    private static string Money(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
+}

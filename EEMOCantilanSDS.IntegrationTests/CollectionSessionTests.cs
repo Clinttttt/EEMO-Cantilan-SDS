@@ -8,6 +8,7 @@ using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Application.Queries.Auth.GetCurrentUser;
+using EEMOCantilanSDS.Application.Queries.Collections.GetCollectionActivity;
 using EEMOCantilanSDS.Application.Queries.Revenue.GetOfficialMonthlyIncome;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
@@ -816,6 +817,33 @@ public sealed partial class CollectionSessionTests(PostgresFixture database)
         Assert.Equal(3, activity.Count); Assert.Equal(1130m, activity.Sum(x => x.Amount));
         var register = (await new CollectionsReportWorkflow(db, collector, tenant).GetMyRegisterAsync(Today, Today)).Value!;
         Assert.Equal(3, register.Rows.Count); Assert.Equal(1130m, register.Rows.Sum(x => x.Amount));
+        var mobileGroup = Assert.Single(register.Sessions!);
+        Assert.Equal(intent.ClientCollectionSessionId, mobileGroup.SessionId);
+        Assert.Equal(posted.Collections.Select(x => x.CollectionId).OrderBy(x => x),
+            mobileGroup.CollectionIds.OrderBy(x => x));
+        var officeFeed = (await new GetCollectionActivityQueryHandler(
+            new CollectionActivityReader(db), head, tenant, new Clock(), db)
+            .Handle(new(Today, Today), default)).Value!;
+        var officeGroup = Assert.Single(officeFeed.Sessions!);
+        Assert.Equal(mobileGroup.CollectionIds.OrderBy(x => x), officeGroup.CollectionIds.OrderBy(x => x));
+        Assert.Equal(3, officeFeed.EventCount); Assert.Equal(1130m, officeFeed.CanonicalAmount);
+        // An SRC-only lookup is one actual collection, never a partial synthetic session.
+        var srcOnly = (await new GetCollectionActivityQueryHandler(
+            new CollectionActivityReader(db), head, tenant, new Clock(), db)
+            .Handle(new(Today, Today, Reference: posted.Collections[0].ReferenceCode), default)).Value!;
+        Assert.Single(srcOnly.Events); Assert.Empty(srcOnly.Sessions ?? []);
+        // Missing children due to a narrower display scope must remain individual, not a misleading partial group.
+        Assert.Empty(await CollectionSessionReadGroups.LoadAsync(db, w.TenantId, Today, Today,
+            register.Rows.Where(x => x.CollectionId == posted.Collections[0].CollectionId)
+                .Select(x => (x.CollectionId, x.BusinessDate, x.CollectorId)).ToArray(), w.CollectorId, default));
+        Assert.Empty(await CollectionSessionReadGroups.LoadAsync(db, Guid.NewGuid(), Today, Today,
+            register.Rows.Select(x => (x.CollectionId, x.BusinessDate, x.CollectorId)).ToArray(), null, default));
+        Assert.Empty(await CollectionSessionReadGroups.LoadAsync(db, w.TenantId, Today, Today,
+            register.Rows.Select(x => (x.CollectionId, x.BusinessDate, x.CollectorId)).ToArray(), Guid.NewGuid(), default));
+        Assert.Empty(await CollectionSessionReadGroups.LoadAsync(db, w.TenantId, Today, Today,
+            register.Rows.Select(x => (x.CollectionId,
+                x.CollectionId == posted.Collections[0].CollectionId ? Today.AddDays(-1) : x.BusinessDate,
+                x.CollectorId)).ToArray(), w.CollectorId, default));
         var report = await new CollectorReportQueries(db).GetCollectionsAsync(w.CollectorId, Today, Today);
         Assert.Equal(1130m, report.Lines.Sum(x => x.Amount) + (report.OperationCollections?.Sum(x => x.Amount) ?? 0));
         var records = (await new GovernedServiceWorkflow(db, collector, tenant, new Clock()).GetCollectorRecordsAsync(Today, Today)).Value!;
