@@ -20,3 +20,6 @@ Head Portal SuperAdmin can use Record direct fine without first creating DirectF
 - A StallTrack SRC is not a physical OR serial. The existing OR revenue instrument policy remains mandatory; physical accountable-form issuance and reconciliation stay separate.
 - No authoritative financial data, production office settings, migration, deployment, or existing receipt altered.
 - Android/mobile and distinct-vendor/NPM changes elsewhere in V14 are unchanged. Keep production release blocked on CI, Android signing/version/device verification and coordinated API+Web approval.
+
+## Additional governed-category regression
+- The expanded direct-fine integration set passed 22/22 executed tests with one intentionally skipped synthetic fixture runner. The previous regression assertions were updated to ensure retired or invalid *governed* categories remain unavailable, while the separate no-authority manual option remains available. Existing retirement, fixed-amount, authority checks, reversal, idempotency, office-turnover and rollback checks still pass. No business rules were weakened merely to satisfy older tests.

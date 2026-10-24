@@ -208,7 +208,9 @@ public sealed partial class FineAssessmentTests
     [SkippableFact] public async Task DirectFineUncappedAndFixedRulesRemainGoverned()
     {
         var (s,a)=await DirectSeed(ceiling:null); await using(var db=database.CreateContext(s.TenantId)) {
-            Assert.Empty((await Direct(db,s).OptionsAsync()).Value!.Categories); Assert.False((await Direct(db,s).PostAsync(DirectRequest(a))).IsSuccess); }
+            var options = (await Direct(db,s).OptionsAsync()).Value!.Categories;
+            Assert.Equal(Guid.Empty, Assert.Single(options).AuthorityId);
+            Assert.False((await Direct(db,s).PostAsync(DirectRequest(a))).IsSuccess); }
         (s,a)=await DirectSeed(ceiling:null,uncapped:true); await using(var db=database.CreateContext(s.TenantId)) Assert.True((await Direct(db,s).PostAsync(DirectRequest(a))).IsSuccess);
         (s,a)=await DirectSeed(basis:GovernedServiceBasis.FixedAmount); await using(var db=database.CreateContext(s.TenantId)) {
             Assert.False((await Direct(db,s).PostAsync(DirectRequest(a) with {Amount=101m})).IsSuccess); Assert.True((await Direct(db,s).PostAsync(DirectRequest(a))).IsSuccess); }
@@ -218,7 +220,9 @@ public sealed partial class FineAssessmentTests
         var (s,a)=await DirectSeed(); await using var db=database.CreateContext(s.TenantId); var request=DirectRequest(a); var w=Direct(db,s);
         var first=await w.PostAsync(request); Assert.True(first.IsSuccess,first.Error);
         db.PenaltyDefinitions.Add(PenaltyDefinition.Create(s.TenantId,"TEST_DIRECT_FINE",Today,"Retired",null,GovernedServiceBasis.FixedAmount,100m,null,false,"fixture")); await db.SaveChangesAsync();
-        Assert.Empty((await w.OptionsAsync()).Value!.Categories); Assert.False((await w.PostAsync(request with {ClientOperationId=Guid.NewGuid()})).IsSuccess);
+        var options = (await w.OptionsAsync()).Value!.Categories;
+        Assert.Equal(Guid.Empty, Assert.Single(options).AuthorityId);
+        Assert.False((await w.PostAsync(request with {ClientOperationId=Guid.NewGuid()})).IsSuccess);
         Assert.Equal(first.Value!.CollectionId,(await w.PostAsync(request)).Value!.CollectionId);
     }
     [SkippableFact] public async Task DirectFineReversalRemovesEffectiveIncomeAndKeepsSrc()
