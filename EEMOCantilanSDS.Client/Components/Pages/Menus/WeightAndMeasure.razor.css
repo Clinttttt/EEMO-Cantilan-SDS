@@ -6,7 +6,7 @@
     gap: 6px;
 }
 
-/* Fish register beside Meat weighing: one row height, the same 20px rhythm as the other operation workspaces. */
+/* Reuse the Fish and Meat cards with room for each source's receipt evidence. */
 .wm-layout {
     display: grid;
     flex: 1 1 0;
@@ -19,6 +19,7 @@
 .wm-layout > .v3-panel {
     display: flex;
     flex-direction: column;
+    min-width: 0;
 }
 
 .wm-error {
@@ -30,7 +31,7 @@
     margin-bottom: 20px;
 }
 
-/* Month, search, refresh on one row; about five stalls show, the rest scroll inside the card (scrollbar hidden). */
+/* Month, search and refresh retain the existing compact toolbar. */
 .wm-toolbar {
     flex-wrap: nowrap;
     align-items: center;
@@ -63,15 +64,8 @@
 }
 
 .wm-scroll {
-    flex: 1 1 0;
-    min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-width: none;
-}
-
-.wm-scroll::-webkit-scrollbar {
-    display: none;
+    flex: none;
+    overflow-x: auto;
 }
 
 .wm-scroll thead th {
@@ -122,7 +116,7 @@
 
     .wm-scroll {
         flex: none;
-        max-height: 21rem;
+        max-height: none;
     }
 }
 
@@ -137,7 +131,7 @@
     }
 }
 
-/* The cards run to the foot of the page, so the page's own bottom padding is the one gap left under them. */
+/* Keep the standard page gap below the cards. */
 .wm-page {
     padding-bottom: 24px;
 }

@@ -1,5 +1,10 @@
 # StallTrack Current Release State
 
+## 2026-10-24 V14 integrated release candidate — NOT DEPLOYED
+
+The isolated worktree `C:\dev\stalltrack\v14-integrated-release-candidate-20261024`, branch `integration/v14-combined-20261024`, combines offline-readiness/mobile financial-guard and Records improvements with Codex branding and Fish/Meat weighing UI changes from `fix/v14-branding-weighing-20261024`. Production remains `f5acf1bb`; the last officially signed Collector remains 1.1.18/code20. These changes are a local candidate only, not a production receipt, migration, policy activation or released APK. See `V14_INTEGRATED_RELEASE_CANDIDATE_20261024.md` for test outcomes and outstanding financial/phone gates.
+
+
 ## 2026-10-23 isolated V13 work — not integrated or deployed
 
 The nine-issue V13 implementation is isolated on `fix/v13-integrity-and-ui-20261023`, based on verified `origin/master` `fcf01c44`, in `C:\dev\stalltrack\codex-v13-multi-fixes-20261023`. See [implementation evidence, validation and remaining gates](V13_MULTI_ISSUE_IMPLEMENTATION_20261023.md). This does not change the primary checkout, production release, municipal policies or Collector APK. Older dated checkout/release references below remain historical evidence; inspect current Git/runtime before using them.

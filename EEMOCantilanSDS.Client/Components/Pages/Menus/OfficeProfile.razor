@@ -47,7 +47,7 @@
             }
             @if (_saved)
             {
-                <div class="op-banner op-banner-ok">Office profile updated. Reload the portal to see it everywhere.</div>
+                <div class="op-banner op-banner-ok">@_savedMessage</div>
             }
 
             @if (!_loaded)
@@ -162,6 +162,7 @@
     private bool _loaded;
     private bool _saving;
     private bool _saved;
+    private string _savedMessage = string.Empty;
     private string? _error;
 
     private string _officeName = string.Empty;
@@ -228,6 +229,7 @@
 
     private async Task SaveAsync()
     {
+        if (_saving) return;
         _error = null;
         _saved = false;
 
@@ -247,7 +249,12 @@
                 string.IsNullOrWhiteSpace(_sealPath) ? null : _sealPath);
 
             if (result.IsSuccess)
+            {
+                var refreshed = await Branding.ReloadAsync();
+                _savedMessage = refreshed ? "Office profile updated."
+                    : "Office profile saved. Branding couldn't refresh; navigating will retry.";
                 _saved = true;
+            }
             else
                 _error = result.Error ?? "Couldn't save the office profile.";
         }
@@ -261,6 +268,5 @@
         }
     }
 
-    // Full reload so the updated branding (name, acronym, logo) refreshes across the portal.
-    private void Cancel() => Navigation.NavigateTo("/settings", forceLoad: _saved);
+    private void Cancel() => Navigation.NavigateTo("/settings");
 }

@@ -18,9 +18,10 @@ namespace EEMOCantilanSDS.Testing.Tenancy
     /// </summary>
     public class GetCurrentMunicipalityBrandingTests
     {
-        private sealed class StubTenantContext(string tenantCode) : ITenantContext
+        private sealed class StubMunicipality(Guid id) : ICurrentMunicipalityAccessor
         {
-            public string TenantCode { get; } = tenantCode;
+            public Guid MunicipalityId => id;
+            public void Set(Guid municipalityId) { }
         }
 
         private static DbContextOptions<AppDbContext> Options() =>
@@ -50,7 +51,7 @@ namespace EEMOCantilanSDS.Testing.Tenancy
 
             using var ctx = new AppDbContext(options);
             var result = await new GetCurrentMunicipalityBrandingQueryHandler(
-                new MunicipalityRepository(ctx), new StubTenantContext("cantilan-sds"))
+                new MunicipalityRepository(ctx), new StubMunicipality((await ctx.Municipalities.SingleAsync(x => x.Code == "CANTILAN")).Id))
                 .Handle(new GetCurrentMunicipalityBrandingQuery(), default);
 
             Assert.True(result.IsSuccess);
@@ -66,7 +67,7 @@ namespace EEMOCantilanSDS.Testing.Tenancy
 
             using var ctx = new AppDbContext(options);
             var result = await new GetCurrentMunicipalityBrandingQueryHandler(
-                new MunicipalityRepository(ctx), new StubTenantContext("carmen"))
+                new MunicipalityRepository(ctx), new StubMunicipality((await ctx.Municipalities.SingleAsync(x => x.Code == "CARMEN")).Id))
                 .Handle(new GetCurrentMunicipalityBrandingQuery(), default);
 
             Assert.True(result.IsSuccess);
@@ -82,11 +83,24 @@ namespace EEMOCantilanSDS.Testing.Tenancy
 
             using var ctx = new AppDbContext(options);
             var result = await new GetCurrentMunicipalityBrandingQueryHandler(
-                new MunicipalityRepository(ctx), new StubTenantContext("nowhere"))
+                new MunicipalityRepository(ctx), new StubMunicipality(Guid.NewGuid()))
                 .Handle(new GetCurrentMunicipalityBrandingQuery(), default);
 
             Assert.False(result.IsSuccess);
             Assert.Equal(ResultStatus.NotFound, result.Status);
+        }
+
+        [Fact]
+        public async Task UnresolvedAuthenticatedTenantNeverFallsBackToTheDefault()
+        {
+            var options = Options();
+            await SeedAsync(options);
+            using var ctx = new AppDbContext(options);
+            var result = await new GetCurrentMunicipalityBrandingQueryHandler(
+                new MunicipalityRepository(ctx), new StubMunicipality(Guid.Empty))
+                .Handle(new GetCurrentMunicipalityBrandingQuery(), default);
+            Assert.Equal(ResultStatus.Forbidden, result.Status);
+            Assert.Null(result.Value);
         }
     }
 }

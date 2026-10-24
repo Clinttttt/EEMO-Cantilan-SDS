@@ -13,9 +13,9 @@ namespace EEMOCantilanSDS.Api.Controllers;
 // Anonymous BY DESIGN — the public landing needs the list/status before any authentication,
 // mirroring the existing public SetupController. Returns only non-sensitive presentation
 // fields (no operational data).
-[AllowAnonymous]
 public class MunicipalitiesController(ISender sender) : ApiBaseController(sender)
 {
+    [AllowAnonymous]
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<MunicipalityDto>>> GetMunicipalities()
     {
@@ -27,6 +27,7 @@ public class MunicipalitiesController(ISender sender) : ApiBaseController(sender
     /// Public pre-login branding for a single LGU, resolved by subdomain identifier (its TenantCode or Code).
     /// Lets a subdomain's login page theme itself (office name, seal) before any authentication.
     /// </summary>
+    [AllowAnonymous]
     [HttpGet("{identifier}/branding")]
     public async Task<ActionResult<MunicipalityBrandingDto>> GetBranding(string identifier)
     {
@@ -61,6 +62,7 @@ public class MunicipalitiesController(ISender sender) : ApiBaseController(sender
     /// different address and is fetched again, while an unchanged one is never fetched twice.
     /// </para>
     /// </summary>
+    [AllowAnonymous]
     [HttpGet("{identifier}/seal")]
     [ResponseCache(Duration = 31536000, Location = ResponseCacheLocation.Any)]
     public async Task<IActionResult> GetSeal(string identifier)

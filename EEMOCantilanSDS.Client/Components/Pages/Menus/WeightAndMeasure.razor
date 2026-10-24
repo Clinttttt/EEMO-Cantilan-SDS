@@ -7,6 +7,7 @@
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Domain.Entities.Revenue
 @inject IFacilitiesApiClient FacilitiesApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
@@ -27,7 +28,7 @@
             <V3HeroFigure Label="Registered total" Value="@(_sourceReport is null ? "—" : Money(_sourceReport.Total))" />
         </Figures>
         <Actions>
-            @if (FacilityCatalog.All.Contains(FacilityCode.NPM))
+            @if (FacilityCatalog.HasDeclaredFacility(FacilityCode.NPM))
             {
                 <a class="v3-btn" href="/facility/npm">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18" /><path d="M5 21V7l7-4 7 4v14" /><path d="M9 21v-5h6v5" /></svg>
@@ -82,54 +83,35 @@
         </div>
     </section>
 
-    @if (_sourceReport is { } source)
-    {
-        <section class="v3-panel" aria-label="Registered vendor weighing collections">
-            <header class="v3-panel-header"><h2>Registered vendor weighing</h2><span class="v3-panel-meta">@PeriodLabel</span></header>
-            <div class="v3-panel-body"><p>Fish: @Money(source.FishTotal) · Meat: @Money(source.MeatTotal) · Total: @Money(source.Total)</p></div>
-            <div class="v3-table-wrap"><table class="v3-table"><thead><tr><th>Date</th><th>Vendor</th><th>Type</th><th class="v3-num">Kilos</th><th class="v3-num">Rate/kg</th><th class="v3-num">Net amount</th></tr></thead><tbody>
-                @foreach (var row in source.Rows)
-                {
-                    <tr><td>@row.BusinessDate.ToString("MMM d")</td><td>@row.Vendor</td><td>@row.VendorType</td><td class="v3-num">@Kilos(row.Kilograms)</td><td class="v3-num">@Money(row.RatePerKilo)</td><td class="v3-num">@Money(row.NetAmount)</td></tr>
-                }
-                @if (source.Rows.Count == 0) { <tr><td colspan="6" class="v3-empty">No registered-vendor weighing collections for this month.</td></tr> }
-            </tbody></table></div>
-        </section>
-    }
-
-    @if (FacilityCatalog.All.Contains(FacilityCode.NPM))
-    {
-        <section class="v3-panel" aria-label="Historical NPM weighing">
-            <header class="v3-panel-header"><h2>Historical NPM weighing</h2></header>
-            <dl class="v3-facts">
-                <div><dt>Meat weighing (frozen)</dt><dd>@(_report?.FeeTypeBreakdown is { } historicalMeat ? Money(historicalMeat.MeatWeightMeasureAmount) : "—")</dd></div>
-                <div><dt>Fish weighing (frozen)</dt><dd>@(_report?.FeeTypeBreakdown is { } fish ? Money(fish.FishWeightMeasureFrozenAmount) : "—")</dd></div>
-                <div><dt>Fish kilos without rate evidence</dt><dd>@(_report?.FeeTypeBreakdown is { } unresolved ? Kilos(unresolved.FishKilosWithoutFrozenRate) : "—")</dd></div>
-            </dl>
-        </section>
-    }
     <div class="wm-layout">
         <section class="v3-panel" aria-labelledby="wm-fish-title" aria-busy="@(_loading ? "true" : "false")">
             <header class="v3-panel-header">
-                <h2 id="wm-fish-title">Historical NPM Fish weighing</h2>
-                @if (FishRows.Any())
-                {
-                    <span class="v3-panel-meta">@Kilos(FishRows.Sum(x => x.FishKilos))</span>
-                }
+                <h2 id="wm-fish-title">Fish weighing</h2>
             </header>
 
             <div class="v3-toolbar wm-toolbar" aria-label="Fish weighing filters">
                 <input class="v3-input wm-month" type="month" aria-label="Weighing month" title="Weighing month" value="@_monthInput" @onchange="ChangeMonthAsync" />
                 <label class="v3-search">
-                    <span class="v3-sr-only">Search occupant or stall</span>
+                    <span class="v3-sr-only">Search vendor, SRC, occupant or stall</span>
                     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
-                    <input type="search" placeholder="Search occupant or stall" aria-label="Search occupant or stall" @bind="_search" @bind:event="oninput" />
+                    <input type="search" placeholder="Search vendor, SRC, occupant or stall" aria-label="Search vendor, SRC, occupant or stall" @bind="_search" @bind:event="oninput" />
                 </label>
                 <button class="v3-btn wm-icon-btn" type="button" @onclick="LoadAsync" disabled="@_loading" aria-label="Refresh weighing records" title="Refresh weighing records">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5" /></svg>
                 </button>
             </div>
 
+            @RegisteredRows(FishMeatVendorType.Fish)
+
+            @if (FacilityCatalog.HasDeclaredFacility(FacilityCode.NPM))
+            {
+            <div class="v3-panel-body" aria-label="Historical NPM Fish weighing">
+                <h3>Historical NPM evidence</h3>
+                <dl class="v3-facts">
+                    <div><dt>Fish weighing (frozen)</dt><dd>@(_report?.FeeTypeBreakdown is { } fish ? Money(fish.FishWeightMeasureFrozenAmount) : "—")</dd></div>
+                    <div><dt>Fish kilos without rate evidence</dt><dd>@(_report?.FeeTypeBreakdown is { } unresolved ? Kilos(unresolved.FishKilosWithoutFrozenRate) : "—")</dd></div>
+                </dl>
+            </div>
             <div class="v3-table-wrap wm-scroll" role="region" aria-label="Fish weighing by stall" tabindex="0">
                 <table class="v3-table">
                     <caption class="v3-sr-only">Fish kilos weighed by NPM stall for @PeriodLabel</caption>
@@ -180,12 +162,17 @@
                     </tbody>
                 </table>
             </div>
+            }
         </section>
 
         <section class="v3-panel" aria-labelledby="wm-meat-title" aria-busy="@(_loading ? "true" : "false")">
             <header class="v3-panel-header">
-                <h2 id="wm-meat-title">Historical NPM Meat weighing</h2>
+                <h2 id="wm-meat-title">Meat weighing</h2>
             </header>
+            @RegisteredRows(FishMeatVendorType.Meat)
+            @if (FacilityCatalog.HasDeclaredFacility(FacilityCode.NPM))
+            {
+            <div class="v3-panel-body"><h3>Historical NPM evidence</h3></div>
             @if (_report?.FeeTypeBreakdown is { } meat && (meat.MeatKilos > 0m || meat.MeatWeightMeasureAmount > 0m))
             {
                 <dl class="v3-facts wm-meat-facts" aria-label="Meat weighing for @PeriodLabel">
@@ -212,11 +199,37 @@
                     </p>
                 </div>
             }
+            }
         </section>
     </div>
 </div>
 
 @code {
+    private RenderFragment RegisteredRows(FishMeatVendorType type) => @<div class="v3-table-wrap" role="region" aria-label="Registered @type weighing" tabindex="0">
+        @{
+            var rows = (_sourceReport?.Rows ?? []).Where(x => x.VendorType == type &&
+                (string.IsNullOrWhiteSpace(_search) || x.Vendor.Contains(_search, StringComparison.OrdinalIgnoreCase) || x.ReferenceCode.Contains(_search, StringComparison.OrdinalIgnoreCase))).ToList();
+        }
+        <table class="v3-table">
+            <caption class="v3-panel-meta">Registered collections · @PeriodLabel</caption>
+            <thead><tr><th scope="col">Vendor / SRC</th><th scope="col" class="v3-num">Weighing</th><th scope="col" class="v3-num">Net amount</th></tr></thead>
+            <tbody>
+                @foreach (var row in rows)
+                {
+                    <tr>
+                        <td><span class="v3-strong">@row.Vendor</span><span class="v3-block">@row.BusinessDate.ToString("MMM d, yyyy")</span><a class="wm-source-link" href="@($"/collections/activity?src={Uri.EscapeDataString(row.ReferenceCode)}")">@row.ReferenceCode</a></td>
+                        <td class="v3-num">@Kilos(row.Kilograms)<span class="v3-block">@Money(row.RatePerKilo)/kg</span></td>
+                        <td class="v3-num v3-strong">@Money(row.NetAmount)<span class="v3-block">@row.Status</span></td>
+                    </tr>
+                }
+                @if (rows.Count == 0)
+                {
+                    <tr><td colspan="3" class="v3-empty">@(_loading ? "Loading weighing records…" : _sourceReport is null ? "Registered-vendor weighing unavailable." : string.IsNullOrWhiteSpace(_search) ? "No registered-vendor weighing collections for this month." : "No collections match this search.")</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>;
+
     private DateOnly _period = PhilippineTime.Today;
     private string _monthInput = PhilippineTime.Today.ToString("yyyy-MM");
     private string _search = string.Empty;
@@ -310,6 +323,7 @@
             if (version != _loadVersion) return;
             _sourceReport = sourceReport.IsSuccess ? sourceReport.Value : null;
             if (!sourceReport.IsSuccess) _error = sourceReport.Error ?? "Registered-vendor weighing records couldn't be loaded.";
+            if (!FacilityCatalog.HasDeclaredFacility(FacilityCode.NPM)) return;
             var report = await FacilitiesApi.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, period.Year, period.Month);
             if (version != _loadVersion) return;
             if (report.IsSuccess) _report = report.Value;
@@ -317,7 +331,7 @@
             {
                 _report = null;
                 // Missing NPM is fine for an independent LGU; failure to read an existing NPM must not be hidden.
-                if (FacilityCatalog.All.Contains(FacilityCode.NPM))
+                if (FacilityCatalog.HasDeclaredFacility(FacilityCode.NPM))
                     _error ??= "NPM weighing records couldn't be loaded.";
             }
         }

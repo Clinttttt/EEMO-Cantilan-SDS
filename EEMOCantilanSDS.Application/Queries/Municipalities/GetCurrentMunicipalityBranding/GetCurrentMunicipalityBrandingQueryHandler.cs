@@ -8,14 +8,16 @@ namespace EEMOCantilanSDS.Application.Queries.Municipalities.GetCurrentMunicipal
 {
     public class GetCurrentMunicipalityBrandingQueryHandler(
         IMunicipalityRepository municipalityRepository,
-        ITenantContext tenantContext)
+        ICurrentMunicipalityAccessor municipality)
         : IRequestHandler<GetCurrentMunicipalityBrandingQuery, Result<MunicipalityBrandingDto>>
     {
         public async Task<Result<MunicipalityBrandingDto>> Handle(GetCurrentMunicipalityBrandingQuery request, CancellationToken ct)
         {
-            // The tenant code comes from the authenticated JWT claim (or the default when absent). Reuse the
-            // same identifier resolver as the public endpoint so behaviour is consistent.
-            var m = await municipalityRepository.GetByIdentifierAsync(tenantContext.TenantCode, ct);
+            if (municipality.MunicipalityId == Guid.Empty)
+                return Result<MunicipalityBrandingDto>.Forbidden();
+
+            // Current branding follows authenticated ownership, never the legacy string/default tenant fallback.
+            var m = await municipalityRepository.GetByIdAsync(municipality.MunicipalityId, ct);
 
             if (m is null)
                 return Result<MunicipalityBrandingDto>.NotFound();
