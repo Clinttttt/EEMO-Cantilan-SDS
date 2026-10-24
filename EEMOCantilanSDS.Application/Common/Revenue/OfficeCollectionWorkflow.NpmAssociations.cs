@@ -11,6 +11,16 @@ namespace EEMOCantilanSDS.Application.Common.Revenue;
 public sealed partial class OfficeCollectionWorkflow
 {
     private static string AssociationHash(object value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(value))));
+
+    // Npgsql's execution strategy wraps PostgreSQL serialization errors in InvalidOperationException.
+    // A competing association may legitimately win the serializable transaction; report a conflict,
+    // not an unhandled server failure. Only recognize the explicit PostgreSQL concurrency SQL states.
+    private static bool IsSerializationConflict(Exception exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+            if (current is DbException { SqlState: "40001" or "40P01" }) return true;
+        return false;
+    }
     private static NpmVendorAssociationDto AssociationDto(FishMeatNpmAssociation x) => new(x.Id, x.VendorRegistrationId,
         x.ContractId, x.StallId, x.OccupantSnapshot, x.ConfirmedBy, x.ConfirmedAtUtc, x.ConfirmationNote,
         x.CorrectedAtUtc, x.CorrectedBy, x.CorrectionReason);
@@ -136,6 +146,10 @@ public sealed partial class OfficeCollectionWorkflow
             return Result<NpmVendorAssociationDto>.Success(linked);
         }
         catch (ArgumentException e) { return Result<NpmVendorAssociationDto>.Failure(e.Message, ResultStatus.Invalid); }
+        catch (InvalidOperationException e) when (!committed && IsSerializationConflict(e))
+        {
+            return Result<NpmVendorAssociationDto>.Failure("RegistryConcurrencyConflict", ResultStatus.Conflict);
+        }
         catch (DbUpdateException) { return Result<NpmVendorAssociationDto>.Failure("RegistryConcurrencyConflict", ResultStatus.Conflict); }
         catch (DbException) { return Result<NpmVendorAssociationDto>.Failure("RegistryConcurrencyConflict", ResultStatus.Conflict); }
         finally { if (!committed) db.ChangeTracker.Clear(); }
