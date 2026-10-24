@@ -22,10 +22,7 @@ public sealed partial class CollectionSessionTests
     {
         var w = await SeedAsync();
         await using (var db = database.CreateContext(w.TenantId)) await EnableOffice(db, w);
-        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> {
-            ["StallTrack:FishMeatRequests:Enabled"] = "true",
-            ["StallTrack:FishMeatRequests:MunicipalityIds:0"] = w.TenantId.ToString()
-        }).Build();
+        var config = new ConfigurationBuilder().Build(); // Default-on for schema-ready tenants.
         void Activate(IServiceCollection services) => services.AddFishMeatRequestActivation(config);
         await using var collector = await CollectorApiHost.StartAsync(database, w.CollectorId, w.TenantId, afterApplication: Activate);
         var submitted = await ApiPost<FishMeatRegistrationRequestDto>(collector.Client, "/api/office-sources/fish-meat/registration-requests",
