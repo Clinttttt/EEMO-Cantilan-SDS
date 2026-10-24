@@ -217,6 +217,42 @@ public sealed partial class CollectionSessionTests
     }
 
     [SkippableFact]
+    public async Task Npm_two_different_vendors_cannot_concurrently_claim_one_exact_contract()
+    {
+        var w = await SeedAsync();
+        NpmVendorCandidate source;
+        Guid firstVendor;
+        Guid secondVendor;
+        await using (var setup = database.CreateContext(w.TenantId))
+        {
+            var office = Office(setup, w, "SuperAdmin");
+            var year = PhilippineTime.Today.Year;
+            source = Assert.Single((await office.NpmVendorCandidatesAsync(year)).Value!.Rows);
+            firstVendor = (await office.RegisterAsync(new(Guid.NewGuid(), year, FishMeatVendorType.Fish,
+                VendorRegistrationKind.New, "First registered vendor"))).Value!.Id;
+            secondVendor = (await office.RegisterAsync(new(Guid.NewGuid(), year, FishMeatVendorType.Fish,
+                VendorRegistrationKind.New, "Second registered vendor"))).Value!.Id;
+        }
+
+        await using var first = database.CreateContext(w.TenantId);
+        await using var second = database.CreateContext(w.TenantId);
+        var results = await Task.WhenAll(
+            Office(first, w, "SuperAdmin").LinkNpmVendorAsync(firstVendor, Confirmation(source)),
+            Office(second, w, "SuperAdmin").LinkNpmVendorAsync(secondVendor, Confirmation(source)));
+
+        // Two independent client intents may race, but must not produce two active
+        // associations to the same tenant-owned contract or create revenue.
+        Assert.Equal(1, results.Count(x => x.IsSuccess));
+        Assert.All(results.Where(x => !x.IsSuccess), x => Assert.Equal(ResultStatus.Conflict, x.Status));
+        await using var verify = database.CreateContext(w.TenantId);
+        var linked = Assert.Single(await verify.FishMeatNpmAssociations.AsNoTracking().ToListAsync());
+        Assert.Equal(source.ContractId, linked.ContractId);
+        Assert.Contains(linked.VendorRegistrationId, new[] { firstVendor, secondVendor });
+        Assert.Empty(await verify.Collections.ToListAsync());
+        Assert.Empty(await verify.CollectionAllocations.ToListAsync());
+    }
+
+    [SkippableFact]
     public async Task Npm_historical_contract_and_replacement_never_transfer_link_or_lifecycle()
     {
         var w = await SeedAsync(); await using var db = database.CreateContext(w.TenantId);
