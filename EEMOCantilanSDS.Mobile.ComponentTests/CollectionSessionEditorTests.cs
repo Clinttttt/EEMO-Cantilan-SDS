@@ -393,6 +393,44 @@ public sealed class CollectionSessionEditorTests : TestContext
         view.Find("[role=dialog]").QuerySelectorAll(".sheet-actions button").Single(b => b.TextContent.Trim() == "Add item").HasAttribute("disabled");
 
     [Fact]
+    public void Assessed_fine_defaults_to_remaining_but_accepts_only_valid_partial_amounts()
+    {
+        var fineId = Guid.NewGuid();
+        _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(Occupancy))
+            .ReturnsAsync(Result<CollectionSessionDiscovery>.Success(new(null, Today,
+                [Op(CollectionSessionItemKind.FineAssessment, RevenueClassificationCodes.PenaltiesAndFines,
+                    "Fines / Penalties", CollectionFamily.Rent,
+                    new CollectionSessionSourceChoice("FINE|" + fineId.ToString("N"), CollectionSessionItemKind.FineAssessment,
+                        RevenueClassificationCodes.PenaltiesAndFines, "Penalty", "Stall 1",
+                        new(FineAssessmentId: fineId, FineVersion: 3),
+                        RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.PreparedBalance,
+                        ServerAmount: 320m, MaximumAmount: 320m, RequiredInputs: []))],
+                SourceIdentity: Occupancy)));
+        var view = PickSource("Ana Reyes");
+        Click(view, "+ Add item");
+        view.Find("[role=dialog] .collection-option").Click(); // choose Fines / Penalties
+        var amount = view.Find("[role=dialog] input[type=number]");
+        Assert.Equal("320", amount.GetAttribute("value"));
+        Assert.Contains("Outstanding assessed fine", view.Find("[role=dialog]").TextContent);
+        foreach (var invalid in new[] { "0", "-1", "320.01", "5.001" })
+        {
+            amount.Input(invalid);
+            Assert.True(AddDisabled(view), $"Amount {invalid} should be rejected.");
+        }
+        amount.Input("125");
+        Assert.False(AddDisabled(view));
+        Click(view, "Add item");
+        Assert.Single(view.FindAll(".item-row"));
+        Assert.Contains("125.00", view.Find(".item-row").TextContent);
+        Click(view, "Review collection");
+        _api.Verify(x => x.QuoteCollectionSessionAsync(It.Is<CollectionSessionIntent>(intent =>
+            intent.Items.Count == 1 && intent.Items[0].ConfirmedAmount == 125m &&
+            intent.Items[0].Fine != null && intent.Items[0].Fine.AssessmentId == fineId &&
+            intent.Items[0].Fine.Version == 3)), Times.Once);
+        Assert.Empty(_queue); // quote/review must never create a receipt
+    }
+
+    [Fact]
     public void Whole_payment_summary_uses_server_monthly_balance_without_days_covered()
     {
         var view = RenderComponent<NpmWholeSummary>(p => p.Add(x => x.Quote,
@@ -1327,7 +1365,7 @@ public sealed class CollectionSessionEditorTests : TestContext
     }
 
     [Fact]
-    public void Verified_fine_uses_the_existing_item_row_and_server_fixed_balance_without_editable_amount()
+    public void Verified_fine_prefills_assessed_balance_and_preserves_receipt_and_liability_identity()
     {
         var assessment = Guid.NewGuid();
         _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(Kanmanggay))
@@ -1338,7 +1376,7 @@ public sealed class CollectionSessionEditorTests : TestContext
                         CollectionSessionItemKind.FineAssessment, RevenueClassificationCodes.PenaltiesAndFines,
                         "Approved violation", "Kanmanggay · Space 4 · Outstanding assessment",
                         new(FineAssessmentId: assessment, FineVersion: 3),
-                        RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.FixedAmount,
+                        RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.PreparedBalance,
                         ServerAmount: 150m, MaximumAmount: 150m))],
                 SourceIdentity: Kanmanggay)));
 
@@ -1347,9 +1385,9 @@ public sealed class CollectionSessionEditorTests : TestContext
         view.Find("[role=dialog]").QuerySelectorAll(".collection-option")
             .Single(x => x.TextContent.Contains("Fines / Penalties")).Click();
         var sheet = view.Find("[role=dialog]");
-        Assert.Contains("Full outstanding assessed fine", sheet.TextContent);
+        Assert.Contains("Outstanding assessed fine", sheet.TextContent);
         Assert.Contains("Official Receipt", sheet.TextContent);
-        Assert.Empty(sheet.QuerySelectorAll("input[type=number]"));
+        Assert.Equal("150", Assert.Single(sheet.QuerySelectorAll("input[type=number]")).GetAttribute("value"));
         Click(view, "Add item");
         Assert.Single(view.FindAll(".item-row"));
         Assert.Contains("150", view.Find(".item-row").TextContent);

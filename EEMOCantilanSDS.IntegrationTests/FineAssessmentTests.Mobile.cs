@@ -107,7 +107,7 @@ public sealed partial class FineAssessmentTests
     }
 
     [SkippableFact]
-    public async Task Mobile_fine_stale_offline_quote_and_partial_amount_do_not_double_collect()
+    public async Task Mobile_fine_stale_offline_quote_and_partial_amount_cannot_double_collect()
     {
         var (seed, fine) = await SettlementSeedAsync();
         await using var db = database.CreateContext(seed.TenantId);
@@ -120,9 +120,12 @@ public sealed partial class FineAssessmentTests
                 Fine: new(fine, choice.Identity.FineVersion))], SourceIdentity: identity);
         var reviewed = (await flow.QuoteAsync(intent)).Value!;
         Assert.True(reviewed.CanRecord);
-        Assert.False((await flow.QuoteAsync(intent with {
+        var partialQuote = (await flow.QuoteAsync(intent with {
             Items = [intent.Items[0] with { ConfirmedAmount = 50m }]
-        })).Value!.CanRecord);
+        })).Value!;
+        Assert.True(partialQuote.CanRecord);
+        Assert.Equal(50m, Assert.Single(partialQuote.Items).Amount);
+        Assert.Empty(await db.Collections.ToListAsync()); // Quoting never collects money.
 
         var head = Composer(db, seed);
         var draft = await FineDraftAsync(head, fine);

@@ -402,6 +402,8 @@ else
                     {
                         <label class="form-field"><span class="form-label">Official Receipt No. (Optional)</span><input class="form-input" type="text" maxlength="100" @bind="_npmReceipt" /></label>
                     }
+                    @if (_choice.Kind == CollectionSessionItemKind.FineAssessment && _choice.MaximumAmount is { } fineCap)
+                    { <div class="sheet-note">Outstanding assessed fine: @Money(fineCap). The amount is pre-filled; a partial amount can be entered. The remaining balance is confirmed on review.</div> }
                     @if (_choice.Kind == CollectionSessionItemKind.NpmPartPayment) { <div class="sheet-note">Applied to the oldest unpaid day first. The server shows how it is applied on review@(_choice.MaximumAmount is { } most ? $" · up to {Money(most)} is payable now" : "").</div> }
                     @if (TakesTypedAmount)
                     {
@@ -621,7 +623,7 @@ else
             : string.IsNullOrWhiteSpace(x.Context) || x.Context == _operation?.DisplayName ? (x.ServerAmount is { } amount ? Money(amount) : null) : x.Context)).ToArray();
     private bool IsWeighing => _choice is { Kind: CollectionSessionItemKind.SourceNative, OperationCode: CollectorOperationCodes.WeightAndMeasure };
     private bool IsTerminal => _choice is { Kind: CollectionSessionItemKind.SourceNative, OperationCode: CollectorOperationCodes.Terminal };
-    private bool TakesTypedAmount => _choice is { } c && !IsWeighing && c.Kind is not (CollectionSessionItemKind.Slaughter or CollectionSessionItemKind.NpmWholePayment or CollectionSessionItemKind.FineAssessment)
+    private bool TakesTypedAmount => _choice is { } c && !IsWeighing && c.Kind is not (CollectionSessionItemKind.Slaughter or CollectionSessionItemKind.NpmWholePayment)
         && c.AmountRule is CollectionSessionAmountRule.DirectAmount or CollectionSessionAmountRule.PreparedBalance;
     private bool NeedsPayerName => _choice is { Kind: CollectionSessionItemKind.SourceNative, OperationCode: CollectorOperationCodes.FishMeatVendorFee } c
         && c.Identity.VendorRegistrationId is null;
@@ -631,6 +633,7 @@ else
             && (_slhTerms is not { Itemized: true } || _slhPicked.Count > 0)
         : c.Kind == CollectionSessionItemKind.NpmWholePayment ? true
         : c.Kind == CollectionSessionItemKind.NpmPartPayment ? _amount > 0m && (c.MaximumAmount is not { } cap || _amount <= cap)
+        : c.Kind == CollectionSessionItemKind.FineAssessment ? _amount > 0m && (c.MaximumAmount is not { } fineCap || _amount <= fineCap) && decimal.Round(_amount, 2) == _amount
         : (c.AmountRule == CollectionSessionAmountRule.FixedAmount ? c.ServerAmount ?? 0m : _amount) > 0m)
         && (!NeedsPayerName || !string.IsNullOrWhiteSpace(_snapshot))
         && !(UtilityChoice is not null && _recent == RecentUtilityNotice.Check.Loading);   // never before the earlier-collections check has answered

@@ -57,7 +57,7 @@ public sealed partial class CollectionSessionSources
                 RevenueClassificationCodes.PenaltiesAndFines, fine.PenaltyName,
                 $"{fine.SourceName} · {fine.UnitReference} · Outstanding assessment",
                 new(FineAssessmentId: fine.Id, FineVersion: facts.Quote.Version),
-                RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.FixedAmount,
+                RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.PreparedBalance,
                 ServerAmount: facts.Quote.Remaining, MaximumAmount: facts.Quote.Remaining,
                 RequiredInputs: []));
         }
@@ -94,12 +94,17 @@ public sealed partial class CollectionSessionSources
 
         var facts = await CollectibleFineAsync(id, session.BusinessDate, false, ct);
         if (facts is null) return Fail("SourceNotAvailable", "The fine is settled or not authorized for this collector.");
-        if (facts.Quote.Version != item.Fine.Version || facts.Quote.Remaining != item.ConfirmedAmount)
+        if (facts.Quote.Version != item.Fine.Version)
             return Fail("BalanceChanged", "The fine balance changed. Refresh and review the remaining amount.");
+        if (!ValidFinePayment(item.ConfirmedAmount, facts.Quote.Remaining))
+            return Fail("InvalidAmount", "Enter a positive amount no greater than the outstanding fine, with at most two decimal places.");
         return (new(item.ClientItemId, item.Kind, RevenueClassificationCodes.PenaltiesAndFines,
             "Fines / Penalties", $"{facts.Assessment.PenaltyName} · {facts.Assessment.UnitReference}",
-            RevenueInstrumentType.OfficialReceipt, facts.Quote.Remaining, facts.Quote.QuoteToken, Guid.Empty), null);
+            RevenueInstrumentType.OfficialReceipt, item.ConfirmedAmount, facts.Quote.QuoteToken, Guid.Empty), null);
     }
+
+    private static bool ValidFinePayment(decimal amount, decimal remaining) =>
+        amount > 0m && amount <= remaining && decimal.Round(amount, 2) == amount;
 
     private async Task<CollectionSessionCollection> PostFineAsync(
         CollectionSessionIntent session, CollectionSessionItemIntent item, Guid operation, CancellationToken ct)
@@ -107,19 +112,19 @@ public sealed partial class CollectionSessionSources
         var id = item.Fine!.AssessmentId;
         var facts = await CollectibleFineAsync(id, session.BusinessDate, true, ct);
         if (facts is null || !await FineMatchesSessionAsync(session, facts.Assessment, ct)
-            || facts.Quote.Version != item.Fine.Version || facts.Quote.Remaining != item.ConfirmedAmount)
+            || facts.Quote.Version != item.Fine.Version || !ValidFinePayment(item.ConfirmedAmount, facts.Quote.Remaining))
             throw new CollectionSessionPostingException(item.ClientItemId,
                 "The fine balance or collection authority changed. Review the checkout.");
 
         var line = new CollectionLineDraft(facts.Classification, facts.Policy,
-            facts.Quote.Remaining, CollectionSourceKind.FineAssessment, id, null, facts.Snapshot,
+            item.ConfirmedAmount, CollectionSourceKind.FineAssessment, id, null, facts.Snapshot,
             [new CollectionAllocationDraft(CollectionSourceKind.FineAssessment, id,
-                facts.Quote.Remaining, null, facts.Snapshot)]);
+                item.ConfirmedAmount, null, facts.Snapshot)]);
         var actor = user.Username ?? "Collector";
         var version = facts.Assessment.Version;
         var normalized = JsonSerializer.Serialize(new {
             SchemaVersion = 1, session.ClientCollectionSessionId, session.SourceIdentity,
-            session.BusinessDate, AssessmentId = id, Version = version, Amount = facts.Quote.Remaining
+            session.BusinessDate, AssessmentId = id, Version = version, Amount = item.ConfirmedAmount
         });
         // This operates on the SAME database context/serializable transaction as the checkout;
         // a failed sibling item or concurrent settlement rolls back the SRC and allocation.
