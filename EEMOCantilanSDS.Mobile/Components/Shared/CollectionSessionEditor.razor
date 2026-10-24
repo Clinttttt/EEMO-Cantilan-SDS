@@ -37,7 +37,7 @@ else if (_correctionResult is { } corrected)
 else if (_queued)
 {
     <section class="collection-entry" aria-live="polite">
-        <h2 class="done-title">@(_result?.Status == CollectionSessionStatus.Recorded ? "Collection recorded" : _needsReview ? "Needs review" : "Waiting to sync")</h2>
+        <h2 class="done-title">@(_result?.Status == CollectionSessionStatus.Recorded ? "Collection recorded" : _needsReview ? "Needs review" : "Saved on this device · Waiting to sync")</h2>
         @if (_result?.Status == CollectionSessionStatus.Recorded)
         {
             <div class="done-total"><strong>@Money(_result.GrandTotal)</strong><span>@_result.Collections.Count @(_result.Collections.Count == 1 ? "collection record" : "collection records")</span></div>
@@ -246,7 +246,7 @@ else
             }
             else
             {
-                <button class="collection-primary" type="button" disabled="@(_busy || _quote.CanRecord != true || Sync.HasStorageFault || (Correction is not null && !Sync.IsOnline))" @onclick="RecordAsync">@(Correction is null ? "Record collection" : "Save changes")</button>
+                <button class="collection-primary" type="button" disabled="@(_busy || _quote.CanRecord != true || Sync.HasStorageFault || (Correction is not null && !Sync.IsOnline))" @onclick="RecordAsync">@(_busy ? "Saving..." : Correction is null ? "Record collection" : "Save changes")</button>
             }
         </div>
         @if (OnlyOperation == CollectorOperationCodes.Terminal) { <RecentCollections OnlyOperation="@CollectorOperationCodes.Terminal" Heading="Today's Terminal collections" /> }
@@ -647,11 +647,16 @@ else
         var target = _leaveTarget; _leaveTarget = null; _leaveAllowed = true;
         if (target is not null) Navigation.NavigateTo(target);
     }
-    public void Dispose() => _leaveGuard?.Dispose();
+    public void Dispose()
+    {
+        _leaveGuard?.Dispose();
+        Sync.Changed -= OnSyncChanged;
+    }
 
     protected override async Task OnInitializedAsync()
     {
         _leaveGuard = Navigation.RegisterLocationChangingHandler(OnLocationChanging);
+        Sync.Changed += OnSyncChanged;
         if (ResumeSessionId is { } id && (await Sync.GetAllAsync()).FirstOrDefault(x => x.ClientOperationId == id)?.CollectionSession?.Intent is { } saved)
         {
             _sessionId = id; BusinessDate = saved.BusinessDate; _items.AddRange(saved.Items);
@@ -1028,18 +1033,32 @@ else
         {
             await Sync.EnqueueCollectionSessionAsync(new(Intent, _quote.QuoteFingerprint), _quote.GrandTotal);
             if (_supersededSessionId is { } old) { await Sync.DiscardAsync(old); _supersededSessionId = null; }
+            // EnqueueCollectionSessionAsync already starts the existing background sync. The durable
+            // local save is the boundary for releasing the button, not a 30-second network round trip.
             _queued = true;
-            if (Sync.IsOnline) await Sync.SyncNowAsync(force: true);
-            await RefreshResultAsync();
+            await RefreshQueuedFromLocalAsync();
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException) { _message = "The collection could not be safely saved. Check device storage."; }
         finally { _busy = false; }
     }
 
-    private async Task RefreshResultAsync()
+    private void OnSyncChanged()
+    {
+        if (!_queued) return;
+        _ = InvokeAsync(async () => { await RefreshQueuedFromLocalAsync(); StateHasChanged(); });
+    }
+
+    private async Task RefreshQueuedFromLocalAsync()
     {
         var pending = (await Sync.GetAllAsync()).FirstOrDefault(x => x.ClientOperationId == _sessionId);
-        _result = pending?.CollectionSessionResult; _needsReview = pending?.LocalStatus == PendingLocalStatus.ReconciliationRequired;
+        if (pending is null) return;
+        _result = pending.CollectionSessionResult;
+        _needsReview = pending.LocalStatus is PendingLocalStatus.ReconciliationRequired or PendingLocalStatus.Rejected;
+    }
+
+    private async Task RefreshResultAsync()
+    {
+        await RefreshQueuedFromLocalAsync();
         if (_result is null && Sync.IsOnline)
             try { _result = (await Api.GetCollectionSessionAsync(_sessionId)).Value; } catch { }
     }

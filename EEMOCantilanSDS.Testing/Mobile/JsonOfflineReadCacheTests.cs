@@ -72,6 +72,18 @@ public class JsonOfflineReadCacheTests : IDisposable
     }
 
     [Fact]
+    public async Task ClearAsync_removes_previous_collectors_disk_data_after_app_restart()
+    {
+        var firstSession = new JsonOfflineReadCache(_dir);
+        await firstSession.SetAsync("records|all", new Sample("Private collector record", 42));
+
+        await firstSession.ClearAsync();
+
+        var newSession = new JsonOfflineReadCache(_dir);
+        Assert.Null(await newSession.GetAsync<Sample>("records|all"));
+    }
+
+    [Fact]
     public async Task RemoveByPrefixAsync_removes_only_matching_keys()
     {
         var cache = new JsonOfflineReadCache(_dir);
