@@ -94,7 +94,7 @@ else
                         <div class="payer-list" role="list">
                             @foreach (var found in VisibleSources)
                             {
-                                <button class="collection-option payer-option" type="button" role="listitem" disabled="@(!found.CanSelect)" @onclick="() => SelectSourceAsync(found)">
+                                <button class="collection-option payer-option" type="button" role="listitem" disabled="@(!found.CanSelect)" @onclick="() => SelectSuggestedSourceAsync(found)">
                                     <span class="payer-option-text"><strong>@found.DisplayName</strong><small>@found.Context</small>@if (!found.CanSelect && found.AvailableOn is { } available) { <small>Available on @available.ToString("MMM d, yyyy")</small> }</span>
                                     <span aria-hidden="true">›</span></button>
                             }
@@ -846,6 +846,16 @@ else
     {
         await SelectSourceAsync(found);
         if (_items.Count == 0 && _discovery is not null && Offered.Count > 0) await OpenPickerAsync();
+    }
+
+    // UI updates can lag the input event on a busy handset. A stale rendered suggestion
+    // must never select an account after a newer search has invalidated its result set.
+    private Task SelectSuggestedSourceAsync(CollectionSourceSearchResult found)
+    {
+        if (!_found.Any(x => x.Identity == found.Identity && x.OperationCode == found.OperationCode)
+            || !VisibleSources.Any(x => x.Identity == found.Identity && x.OperationCode == found.OperationCode))
+            return Task.CompletedTask;
+        return SelectSourceAsync(found);
     }
 
     private async Task SelectSourceAsync(CollectionSourceSearchResult found)
