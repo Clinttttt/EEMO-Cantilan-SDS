@@ -608,7 +608,7 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
 
                     b.HasIndex("FacilityId", "Section", "StallNo")
                         .IsUnique()
-                        .HasFilter("\"Section\" IS NOT NULL");
+                        .HasFilter("\"Section\" IS NOT NULL AND NOT \"IsDeleted\"");
 
                     b.ToTable("Stalls", (string)null);
                 });

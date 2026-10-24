@@ -53,9 +53,15 @@ else if (_queued)
         else
         {
             <p>@(_needsReview ? "Review the affected items." : "SRC references appear after synchronization.")</p>
-            @if (_needsReview)
-            { <button class="btn-primary" type="button" disabled="@_busy" @onclick="ReviewQueuedAsync">Review</button> }
-            <button class="btn-cancel" type="button" @onclick="RefreshResultAsync">Refresh</button>
+            <div class="collection-recovery-actions" role="group" aria-label="Unposted checkout actions">
+                @if (_needsReview)
+                {
+                    <button class="collection-primary" type="button" disabled="@_busy" @onclick="ReviewQueuedAsync">Review items</button>
+                    <button class="collection-secondary" type="button" disabled="@_busy" @onclick="ConfirmDiscardQueuedAsync">@(_confirmDiscard ? "Confirm discard" : "Discard checkout")</button>
+                }
+                <button class="collection-secondary" type="button" disabled="@_busy" @onclick="RefreshResultAsync">Refresh status</button>
+            </div>
+            @if (_confirmDiscard) { <p class="collection-recovery-hint">Discard only if this checkout was never recorded. The server will be checked first.</p> }
         }
     </section>
 }
@@ -206,8 +212,8 @@ else
                 var own = (item.Native?.OperationCode == CollectorOperationCodes.Terminal || item.Kind is CollectionSessionItemKind.Electricity or CollectionSessionItemKind.Water) && shown is not null;
                 <div class="item-row @(problem ? "item-row-problem" : "")">
                     <div class="item-main">
-                        <strong class="item-name">@(own ? shown!.Name : quote?.DisplayName ?? shown?.Name ?? "Collection item")</strong>
-                        <span class="item-context">@(own ? shown!.Context : quote?.Context is { Length: > 0 } qc && !qc.Equals(quote.DisplayName, StringComparison.OrdinalIgnoreCase) ? qc : shown?.Context ?? "Confirmed on review")</span>
+                        <strong class="item-name">@(own ? shown!.Name : quote?.DisplayName ?? shown?.Name ?? RecoveredItemName(item))</strong>
+                        <span class="item-context">@(own ? shown!.Context : quote?.Context is { Length: > 0 } qc && !qc.Equals(quote.DisplayName, StringComparison.OrdinalIgnoreCase) ? qc : shown?.Context ?? "Saved checkout item · review before recording")</span>
                         <span class="item-actions">
                             @if (_drafts.ContainsKey(item.ClientItemId)) { <button class="collection-link" type="button" disabled="@_busy" @onclick="() => EditAsync(item)">Edit</button> }
                             <button class="collection-link" type="button" @onclick="() => Remove(item)">Remove</button>
@@ -220,6 +226,15 @@ else
                 </div>
             }
         </section>
+        @if (_supersededSessionId.HasValue)
+        {
+            <section class="collection-entry" aria-label="Original unposted checkout">
+                <p>These are the original items from a checkout the server rejected before recording. Removing an item edits only this replacement draft; it does not discard the original offline entry.</p>
+                <div class="collection-recovery-actions">
+                    <button type="button" class="collection-secondary" disabled="@_busy" @onclick="ConfirmDiscardQueuedAsync">@(_confirmDiscard ? "Confirm discard" : "Discard original checkout")</button>
+                </div>
+            </section>
+        }
         @if (_quote is not null)
         {
             <section class="collection-entry review-summary" aria-live="polite" aria-label="Collection total">
@@ -1051,7 +1066,36 @@ else
     private static string CleanContext(params string?[] parts) => string.Join(" · ", parts.SelectMany(p => (p ?? "").Split('·'))
         .Select(p => p.Trim()).Where(p => p.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase));
 
-    private void Remove(CollectionSessionItemIntent item) { if (Correction is not null) _sessionId = Guid.NewGuid(); _items.Remove(item); _shown.Remove(item.ClientItemId); _drafts.Remove(item.ClientItemId); _quote = null; }
+    private static string RecoveredItemName(CollectionSessionItemIntent item) => item.Kind switch
+    {
+        CollectionSessionItemKind.Water => "Water",
+        CollectionSessionItemKind.Electricity => "Electricity",
+        CollectionSessionItemKind.VendorFee => "Fish / Meat vendor fee",
+        CollectionSessionItemKind.Weighing => "Weight & Measure",
+        CollectionSessionItemKind.Slaughter => "Slaughterhouse",
+        CollectionSessionItemKind.NpmDaily => "NPM daily rent",
+        CollectionSessionItemKind.NpmWholePayment => "NPM monthly rent",
+        CollectionSessionItemKind.NpmPartPayment => "NPM partial rent",
+        CollectionSessionItemKind.MonthlyRent => "Monthly stall rent",
+        CollectionSessionItemKind.FineAssessment => "Fines / Penalties",
+        CollectionSessionItemKind.Obligation => "Space rental",
+        CollectionSessionItemKind.GovernedService => item.Service?.OperationCode switch
+        {
+            CollectorOperationCodes.Transportation => "Transportation / Parking",
+            CollectorOperationCodes.LandingBerthing => "Landing / Berthing",
+            _ => "Operation collection"
+        },
+        CollectionSessionItemKind.SourceNative => item.Native?.OperationCode switch
+        {
+            CollectorOperationCodes.FishMeatVendorFee => "Fish / Meat vendor fee",
+            CollectorOperationCodes.WeightAndMeasure => "Weight & Measure",
+            CollectorOperationCodes.Terminal => "Income From Terminal",
+            _ => "Direct operation fee"
+        },
+        _ => "Collection charge"
+    };
+
+    private void Remove(CollectionSessionItemIntent item) { if (Correction is not null) _sessionId = Guid.NewGuid(); _items.Remove(item); _shown.Remove(item.ClientItemId); _drafts.Remove(item.ClientItemId); _quote = null; _confirmDiscard = false; }
 
     // ── Review, record, result ──────────────────────────────────────────────────────────────────────
     private async Task ReviewAsync()
@@ -1105,6 +1149,40 @@ else
         await RefreshQueuedFromLocalAsync();
         if (_result is null && Sync.IsOnline)
             try { _result = (await Api.GetCollectionSessionAsync(_sessionId)).Value; } catch { }
+    }
+
+    private bool _confirmDiscard;
+    private async Task ConfirmDiscardQueuedAsync()
+    {
+        if (_busy || !Sync.IsOnline) { _message = "Connect to the server before discarding this checkout."; return; }
+        if (!_confirmDiscard) { _confirmDiscard = true; return; }
+        _busy = true; _message = null;
+        try
+        {
+            var original = _supersededSessionId ?? _sessionId;
+            var current = await Api.GetCollectionSessionAsync(original);
+            if (current.StatusCode != 404)
+            {
+                _message = current.Value?.Status == CollectionSessionStatus.Recorded
+                    ? "This checkout was recorded. Open Records; it cannot be discarded."
+                    : "The server has not confirmed that this checkout is unposted. Keep it for office review.";
+                return;
+            }
+            var pending = (await Sync.GetAllAsync()).FirstOrDefault(x => x.ClientOperationId == original);
+            if (pending is null || !EEMOCantilanSDS.Mobile.Services.MobileSyncService.CanReviewUnpostedSession(pending)
+                || !await Sync.DiscardAsync(original))
+            {
+                _message = "The checkout changed while reviewing. Refresh its status before discarding.";
+                return;
+            }
+            _supersededSessionId = null;
+            _items.Clear(); _shown.Clear(); _drafts.Clear();
+            _queued = _needsReview = false;
+            _leaveAllowed = true;
+            Navigation.NavigateTo("/menu");
+        }
+        catch { _message = "Unable to confirm the checkout with the server. Nothing was discarded."; }
+        finally { _confirmDiscard = false; _busy = false; }
     }
 
     private async Task ReviewQueuedAsync()

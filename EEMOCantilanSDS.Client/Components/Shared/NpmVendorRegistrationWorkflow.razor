@@ -205,7 +205,11 @@
             if (InitialContractId is { } id)
             {
                 var row = _rows.SingleOrDefault(x => x.ContractId == id);
-                if (row is null) _error = "This NPM occupancy is unavailable."; else Select(row);
+                if (row is null) _error = "This NPM occupancy is unavailable.";
+                else
+                {
+                    Select(row);
+                }
             }
         }
         _wasShown = Show;
@@ -230,6 +234,10 @@
         _selected = row; _vendorId = ""; _vendorSearch = ""; _note = ""; _error = null; _correcting = null;
         _exceptionConfirmed = false; _duplicatesReviewed = false; _submittedIntent = null; _operation = Guid.NewGuid();
         _path = row.Links.Any(x => x.CorrectedAtUtc == null) ? null : row.PossibleMatches.Count > 0 ? ReviewPath.Link : ReviewPath.New;
+        // Go straight to registration only for an active, unlinked Fish/Meat occupant
+        // without duplicate candidates. All exceptional cases retain their review.
+        if (_head && row.Active && row.SuggestedType.HasValue && _path == ReviewPath.New)
+            NewRegistration();
     }
     private ConfirmNpmVendorAssociationRequest Request() => new(_operation, _selected!.ContractId, _selected.StallId, _selected.SourceVersion, _note.Trim(), _exceptionConfirmed, _duplicatesReviewed);
     private void PrepareIntent(string intent)

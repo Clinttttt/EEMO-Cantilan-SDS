@@ -24,6 +24,7 @@ public sealed class CollectionSessionEditorTests : TestContext
     private static readonly DateOnly Today = new(2026, 10, 7);
     private readonly Mock<IMobileApiClient> _api = new();
     private readonly List<PendingOperation> _queue = [];
+    private readonly Mock<IPendingOperationStore> _store = new();
     private readonly Connectivity _connection = new();
     private static readonly CollectionSourceIdentity FishVendor = new(SourceIdentityKind.FishMeatVendorRegistration, Guid.NewGuid());
     private static readonly CollectionSourceIdentity Occupancy = new(SourceIdentityKind.Occupancy, Guid.NewGuid());
@@ -33,10 +34,12 @@ public sealed class CollectionSessionEditorTests : TestContext
 
     public CollectionSessionEditorTests()
     {
-        var store = new Mock<IPendingOperationStore>();
+        var store = _store;
         store.Setup(x => x.GetAllAsync()).ReturnsAsync(() => _queue.ToArray());
         store.Setup(x => x.AddIssuedDocumentOperationAsync(It.IsAny<PendingOperation>())).Callback<PendingOperation>(x => _queue.Add(x)).Returns(Task.CompletedTask);
         store.Setup(x => x.UpdateAsync(It.IsAny<PendingOperation>())).Returns(Task.CompletedTask);
+        store.Setup(x => x.RemoveAsync(It.IsAny<Guid>())).Callback<Guid>(id =>
+            _queue.RemoveAll(x => x.ClientOperationId == id)).Returns(Task.CompletedTask);
         var owner = new Mock<ICurrentCollectorProvider>(); owner.SetupGet(x => x.CollectorKey).Returns("tenant:collector");
         Services.AddSingleton(_api.Object);
         Services.AddSingleton(new MobileSyncService(store.Object, _api.Object, _connection, owner.Object));
@@ -69,6 +72,64 @@ public sealed class CollectionSessionEditorTests : TestContext
                     x.Native?.OperationCode == CollectorOperationCodes.Terminal ? RevenueInstrumentType.CashTicket : RevenueInstrumentType.OfficialReceipt, x.ConfirmedAmount, [x.ClientItemId], "Posted")).ToArray(), []);
             return Result<SyncOfflineCollectionsResultDto>.Success(new(1, 0, 0, [new(operation.ClientOperationId, SyncResultStatus.Synced, null, CollectionSession: result)]));
         });
+    }
+
+    [Fact]
+    public void Rejected_unposted_checkout_requires_explicit_server_verified_discard()
+    {
+        var checkout = Guid.NewGuid();
+        var fee = new CollectionSessionItemIntent(Guid.NewGuid(), CollectionSessionItemKind.SourceNative, 56m,
+            Native: new SourceNativeChargeIntent(CollectorOperationCodes.FishMeatVendorFee));
+        var parking = new CollectionSessionItemIntent(Guid.NewGuid(), CollectionSessionItemKind.Water, 30m);
+        _queue.Add(new PendingOperation {
+            ClientOperationId = checkout, OwnerKey = "tenant:collector",
+            Kind = OfflineOperationKind.ItemizedCollectionSession,
+            LocalStatus = PendingLocalStatus.ReconciliationRequired,
+            CollectionSession = new(new(checkout, Today, null, [fee, parking]), "prior-quote"),
+            CollectionSessionResult = new(checkout, CollectionSessionStatus.NeedsReview, null, 86m,
+                [], [new(fee.ClientItemId, "RateChanged", "The original amount needs review.")]),
+            ReceivedAmount = 86m
+        });
+        _api.Setup(x => x.GetCollectionSessionAsync(checkout))
+            .ReturnsAsync(Result<CollectionSessionResult>.NotFound());
+
+        var cut = RenderComponent<CollectionSessionEditor>(p =>
+            p.Add(x => x.BusinessDate, Today).Add(x => x.ResumeSessionId, checkout));
+        Assert.Contains("Needs review", cut.Markup);
+        Assert.Contains("Discard checkout", cut.Markup);
+        cut.FindAll("button").Single(x => x.TextContent == "Discard checkout").Click();
+        Assert.Single(_queue);
+        Assert.Contains("Confirm discard", cut.Markup);
+        cut.FindAll("button").Single(x => x.TextContent == "Confirm discard").Click();
+        cut.WaitForAssertion(() => Assert.Empty(_queue));
+        _api.Verify(x => x.GetCollectionSessionAsync(checkout), Times.AtLeastOnce);
+        _store.Verify(x => x.RemoveAsync(checkout), Times.Once);
+    }
+
+    [Fact]
+    public void Rejected_checkout_cannot_be_discarded_if_server_has_a_posted_collection()
+    {
+        var checkout = Guid.NewGuid();
+        var fee = new CollectionSessionItemIntent(Guid.NewGuid(), CollectionSessionItemKind.Water, 56m);
+        _queue.Add(new PendingOperation {
+            ClientOperationId = checkout, OwnerKey = "tenant:collector",
+            Kind = OfflineOperationKind.ItemizedCollectionSession,
+            LocalStatus = PendingLocalStatus.ReconciliationRequired,
+            CollectionSession = new(new(checkout, Today, null, [fee]), "prior-quote"),
+            CollectionSessionResult = new(checkout, CollectionSessionStatus.NeedsReview, null, 56m,
+                [], [new(fee.ClientItemId, "RateChanged", "Needs review.")])
+        });
+        _api.Setup(x => x.GetCollectionSessionAsync(checkout)).ReturnsAsync(
+            Result<CollectionSessionResult>.Success(new(checkout, CollectionSessionStatus.Recorded,
+                null, 56m, [new(Guid.NewGuid(), "SRC-TEST", RevenueInstrumentType.OfficialReceipt,
+                    56m, [fee.ClientItemId], "Posted")], [])));
+        var cut = RenderComponent<CollectionSessionEditor>(p =>
+            p.Add(x => x.BusinessDate, Today).Add(x => x.ResumeSessionId, checkout));
+        cut.FindAll("button").Single(x => x.TextContent == "Discard checkout").Click();
+        cut.FindAll("button").Single(x => x.TextContent == "Confirm discard").Click();
+        cut.WaitForAssertion(() => Assert.Contains("cannot be discarded", cut.Markup));
+        Assert.Single(_queue);
+        _store.Verify(x => x.RemoveAsync(checkout), Times.Never);
     }
 
     private static string Name(CollectionSessionItemIntent item) => item.Native?.OperationCode switch

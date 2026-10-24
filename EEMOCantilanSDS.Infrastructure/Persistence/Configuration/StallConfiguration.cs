@@ -61,7 +61,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
 
             builder.HasIndex(s => new { s.FacilityId, s.Section, s.StallNo })
                 .IsUnique()
-                .HasFilter("\"Section\" IS NOT NULL");
+                .HasFilter("\"Section\" IS NOT NULL AND NOT \"IsDeleted\"");
 
             // Null-section stalls (monthly-rental facilities AND NPM custom-section stalls) are kept unique
             // per (FacilityId, COALESCE(CustomSectionName,''), StallNo) via a raw expression index created in
