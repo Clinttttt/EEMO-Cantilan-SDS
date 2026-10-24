@@ -234,7 +234,13 @@ public sealed partial class CollectionSessionTests
         Assert.Equal(VendorRegistrationStatus.Active, (await db.FishMeatVendorRegistrations.SingleAsync(x => x.Id == vendor.Id)).Status);
         var another = (await head.RegisterAsync(new(Guid.NewGuid(), year, FishMeatVendorType.Fish, VendorRegistrationKind.New, "Historical business"))).Value!;
         Assert.Equal("RequiresExceptionConfirmation", (await head.LinkNpmVendorAsync(another.Id, Confirmation(historical))).Error);
-        Assert.True((await head.LinkNpmVendorAsync(another.Id, Confirmation(historical) with { ExceptionConfirmed = true })).IsSuccess);
+        // Historical exception consent permits an otherwise eligible historical link, but
+        // cannot override the active exact association already owned by the original vendor.
+        Assert.Equal("AssociationAlreadyExists",
+            (await head.LinkNpmVendorAsync(another.Id,
+                Confirmation(historical) with { ExceptionConfirmed = true })).Error);
+        Assert.Empty((await head.NpmVendorLinksAsync(another.Id)).Value!);
+        Assert.Single((await head.NpmVendorLinksAsync(vendor.Id)).Value!);
         Assert.True((await head.CloseRegistrationAsync(vendor.Id, new(Guid.NewGuid(), "Independent annual closure"))).IsSuccess);
         Assert.True((await db.Contracts.SingleAsync(x => x.Id == successor.Id)).IsActive);
         Assert.Empty(await db.Collections.ToListAsync());

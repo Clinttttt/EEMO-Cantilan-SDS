@@ -270,6 +270,12 @@ public class ApplicationEfBoundaryTests
         "VehicleClassWorkflow.cs",
         "RemittanceWorkflow.cs",
         "CollectionsReportWorkflow.cs",
+        // V14 grouped checkout read projection: a shared tenant/collector/date-scoped query over
+        // immutable recorded MobileCollectionSessions, used by both existing Application-layer
+        // collection-read workflows. It writes no ledger rows, does not infer money from JSON,
+        // and never groups missing, truncated or overlapping child collections. A future
+        // repository extraction must preserve those explicit completeness checks.
+        "CollectionSessionReadGroups.cs",
         // The direct vendor-fee writer persists money only through CanonicalCollectionPostingCoordinator.
         "FishMeatVendorFeeCollectionWorkflow.cs",
         "TransportationCollectionAuthority.cs",

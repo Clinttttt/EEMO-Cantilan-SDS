@@ -56,7 +56,9 @@ public sealed partial class FineAssessmentTests
         Assert.Equal(fine, choice.Identity.FineAssessmentId);
         Assert.Equal(100m, choice.ServerAmount);
         Assert.Equal(RevenueInstrumentType.OfficialReceipt, choice.Instrument);
-        Assert.Equal(CollectionSessionAmountRule.FixedAmount, choice.AmountRule);
+        Assert.Equal(CollectionSessionAmountRule.PreparedBalance, choice.AmountRule);
+        Assert.True(choice.CanEnterAmount);
+        Assert.Equal(100m, choice.MaximumAmount);
 
         var intent = new CollectionSessionIntent(Guid.NewGuid(), Today, null,
             [new(Guid.NewGuid(), CollectionSessionItemKind.FineAssessment, 100m,
