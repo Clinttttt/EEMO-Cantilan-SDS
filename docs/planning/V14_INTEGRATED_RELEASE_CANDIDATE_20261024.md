@@ -24,3 +24,23 @@
 
 ## Combined execution results
 See appended check outputs and final commits below. Until they are recorded, no 'production ready' claim.
+
+## Verified integrated local run — 2026-10-24
+All suites executed against this combined source tree, .NET 9/10 Release; no mocked claim of a successful app install.
+
+| Gate | Exact result |
+| --- | --- |
+| All unit tests | 3,139 passed; 0 failed/skipped |
+| All Head component tests | 1,440 passed; 0 failed/skipped |
+| All Mobile component tests | 168 passed; 0 failed/skipped |
+| Scoped disposable PostgreSQL integration | 27 passed; 0 failed/skipped |
+| API Release | Exit 0; 0 errors, 18 warnings |
+| Client Release | Exit 0; 0 errors, 95 warnings |
+| Android net10.0-android Release compile-only | Exit 0; 0 errors, 32 warnings |
+| Source whitespace / Git stage | Clean |
+
+The scoped PostgreSQL filter includes real authenticated branding endpoint tests, default-off registration-policy lifecycle, independent Fish/Meat weighing, frozen versions and remittance grouping. This is not the entire PostgreSQL suite: GitHub PR CI must run the repository's full Docker/PostgreSQL gate.
+
+The package warnings include known pre-existing Xamarin.AndroidX/NuGet version-constraint diagnostics; no new runtime behavior was asserted from compiler exit alone. No physical Android installation, full signed release, rendered Head/Report screenshot comparison or live financial mutation occurred.
+
+GitHub Draft PR #53: https://github.com/Clinttttt/EEMO-Cantilan-SDS/pull/53. Branch SHA originally `1eb7330a55f9ce3a0b80bbf809fd0d41d7bab21d` before this evidence-only documentation commit. Production is still `f5acf1bb` and official Collector 1.1.18/code20. This candidate is ON HOLD for signed/mobile promotion pending the explicitly documented financial record and tenant policy gates; merging to master would trigger CI/image publishing and must not be mistaken for deployment approval.
