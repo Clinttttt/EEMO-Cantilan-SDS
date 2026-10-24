@@ -8,7 +8,9 @@ public sealed record CollectionSourceIdentity(SourceIdentityKind Kind, Guid Id);
 public sealed record CollectionSourceSearchResult(CollectionSourceIdentity Identity, string DisplayName, string Context,
     string OperationCode, int? TaxYear = null, FishMeatVendorType? VendorType = null,
     /// <summary>Only on a source linked from a registered vendor: the utilities (ECF, WCF) that linked stall actually offers this Collector now. Navigation only - a utility is collected as its own payment under the stall.</summary>
-    IReadOnlyList<string>? Utilities = null);
+    IReadOnlyList<string>? Utilities = null,
+    // Future-event registration is visible in the collector roster but cannot be selected before its event date.
+    bool CanSelect = true, DateOnly? AvailableOn = null);
 public enum CollectionFamily { Market = 1, Rent = 2, Space = 3, Terminal = 4, Slaughterhouse = 5 }
 public sealed record RegisterFishMeatVendorRequest(Guid ClientOperationId, int TaxYear, FishMeatVendorType VendorType,
     VendorRegistrationKind RegistrationKind, string DisplayName, string? BusinessName = null, string? Address = null, string? Reference = null,

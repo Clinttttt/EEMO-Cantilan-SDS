@@ -7,7 +7,8 @@
 .sb-list { margin-top: 12px; border: 1px solid var(--mobile-border); border-radius: 14px; background: var(--mobile-surface); overflow: hidden; }
 .sb-row { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; min-height: 58px; padding: 8px 14px; border: 0; border-bottom: 1px solid var(--mobile-border); background: transparent; color: var(--mobile-text); text-align: left; }
 .sb-row:last-child { border-bottom: 0; }
-.sb-row:active { background: var(--mobile-blue-subtle); }
+.sb-row:active:not(:disabled) { background: var(--mobile-blue-subtle); }
+.sb-row:disabled { cursor: default; opacity: .75; }
 .sb-text { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
 .sb-text strong { font-size: 15px; font-weight: 600; color: var(--mobile-navy); }
 .sb-text small { margin-top: 2px; font-size: 12px; color: var(--mobile-text-secondary); }

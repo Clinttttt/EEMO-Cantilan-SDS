@@ -94,8 +94,8 @@ else
                         <div class="payer-list" role="list">
                             @foreach (var found in VisibleSources)
                             {
-                                <button class="collection-option payer-option" type="button" role="listitem" @onclick="() => SelectSourceAsync(found)">
-                                    <span class="payer-option-text"><strong>@found.DisplayName</strong><small>@found.Context</small></span>
+                                <button class="collection-option payer-option" type="button" role="listitem" disabled="@(!found.CanSelect)" @onclick="() => SelectSourceAsync(found)">
+                                    <span class="payer-option-text"><strong>@found.DisplayName</strong><small>@found.Context</small>@if (!found.CanSelect && found.AvailableOn is { } available) { <small>Available on @available.ToString("MMM d, yyyy")</small> }</span>
                                     <span aria-hidden="true">›</span></button>
                             }
                         </div>
@@ -776,6 +776,7 @@ else
     // The source list is read from the office again, so a vendor the Head has just registered appears for selection.
     private async Task SearchAfterRequestAsync() { _requestSaved = null; _suggestOpen = true; await SearchAsync(); }
 
+    private int _searchGeneration;
     private void OnSearchInput(ChangeEventArgs args)
     {
         _search = args.Value?.ToString() ?? "";
@@ -785,6 +786,7 @@ else
     private void OnSearchChanged()
     {
         _searchDelay?.Cancel();
+        _searchGeneration++; // Invalidate even requests that have already left the debounce window.
         // A previous query's holders must disappear immediately: choosing a stale
         // space/Fiesta account while new text is being searched is unsafe.
         _found = [];
@@ -797,7 +799,13 @@ else
     private async Task DebouncedSearchAsync(CancellationToken token)
     {
         try { await Task.Delay(300, token); } catch (OperationCanceledException) { return; }
-        await InvokeAsync(() => RunSearchAsync(_search, announceFailure: true));
+        if (token.IsCancellationRequested) return;
+        var term = _search;
+        await InvokeAsync(async () =>
+        {
+            if (!token.IsCancellationRequested && term == _search)
+                await RunSearchAsync(term, announceFailure: true);
+        });
     }
 
     private async Task OnSearchKeyAsync(KeyboardEventArgs args)
@@ -812,18 +820,19 @@ else
     private async Task RunSearchAsync(string term, bool announceFailure)
     {
         if (_source is not null || _direct) return;
+        var generation = ++_searchGeneration;
         _searching = true;
         StateHasChanged();     // the debounced path has no event handler to re-render for it
         try
         {
             var response = await Api.SearchCollectionSourcesAsync(term);
-            if (_source is not null || _direct || term != _search) return;     // a newer search or a chosen source supersedes this answer
+            if (_source is not null || _direct || term != _search || generation != _searchGeneration) return; // stale searches cannot replace newer results
             _found = response?.Value ?? [];
             _searched = response is { IsSuccess: true };
             if (response is { IsSuccess: false } && announceFailure) _message = "Search is unavailable.";
         }
-        catch { if (announceFailure) _message = "Connect to search."; }
-        finally { _searching = false; StateHasChanged(); }
+        catch { if (announceFailure && generation == _searchGeneration) _message = "Connect to search."; }
+        finally { if (generation == _searchGeneration) { _searching = false; StateHasChanged(); } }
     }
 
     // A source chosen from the browser goes straight to what the server says it can be collected for: the Add item sheet opens on the eligible
@@ -838,6 +847,7 @@ else
 
     private async Task SelectSourceAsync(CollectionSourceSearchResult found)
     {
+        if (!found.CanSelect) return; // A future event is registered, not yet collectible.
         _linkedNpmContext = false;
         _source = found; _found = []; _suggestOpen = false; _searched = false; _quote = null; _direct = false;
         await LoadAsync();

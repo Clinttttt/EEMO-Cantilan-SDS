@@ -97,6 +97,71 @@ public sealed partial class CollectionSessionTests
         Assert.Empty(spaces.Items); Assert.Equal(0, spaces.Total);
     }
 
+    [SkippableTheory]
+    [InlineData(LotRentalEvent.Fiesta)]
+    [InlineData(LotRentalEvent.Araw)]
+    public async Task Future_fiesta_lot_is_visible_by_registered_payor_but_not_selectable_until_event_day(LotRentalEvent rentalEvent)
+    {
+        var today = PhilippineTime.Today;
+        var eventDay = today.AddDays(7);
+        var w = await SeedAsync(linked: false);
+        await using var db = database.CreateContext(w.TenantId);
+        var payor = await db.Payors.SingleAsync();
+        var lot = ObligationAccount.Create(w.TenantId, ObligationKind.FiestaArawLotRental,
+            payor.Id, null, "F-07", rentalEvent, eventDay, eventDay, "Head");
+        db.Add(lot);
+        db.Add(ObligationRate.Create(w.TenantId, lot.Id, eventDay, 850m, "Head"));
+        // An explicitly closed past event is history, not a selectable current source.
+        var past = today.AddDays(-14);
+        var closed = ObligationAccount.Create(w.TenantId, ObligationKind.FiestaArawLotRental,
+            payor.Id, null, "OLD-03", rentalEvent, past, past, "Head");
+        closed.Close(past.AddDays(1));
+        db.Add(closed);
+        db.Add(CollectorOperationAssignment.Assign(w.TenantId, w.CollectorId,
+            CollectorOperationCodes.FiestaArawLotRental, "Head"));
+        await db.SaveChangesAsync();
+
+        var sourceId = new CollectionSourceIdentity(SourceIdentityKind.SpaceAccount, lot.Id);
+        var sources = new CollectionSessionSources(db, new Caller(w.CollectorId, w.TenantId),
+            new Tenant(w.TenantId), new Clock(today), null!, new NoMarketDays());
+        var page = await sources.BrowseSourcesAsync(CollectionSourceCategories.FiestaAraw, null, 0, 25, default);
+        var registered = Assert.Single(page.Items);
+        Assert.Equal(sourceId, registered.Identity);
+        Assert.Equal(payor.DisplayName, registered.DisplayName);
+        Assert.False(registered.CanSelect);
+        Assert.Equal(eventDay, registered.AvailableOn);
+        Assert.Single((await sources.BrowseSourcesAsync(CollectionSourceCategories.FiestaAraw,
+            payor.DisplayName, 0, 25, default)).Items);
+        Assert.Contains(await sources.SearchSourcesAsync(payor.DisplayName, default),
+            x => x.Identity == sourceId && !x.CanSelect && x.AvailableOn == eventDay);
+        Assert.DoesNotContain((await sources.DiscoverNativeAsync(sourceId, today, default)).Operations,
+            x => x.OperationCode == CollectorOperationCodes.FiestaArawLotRental);
+        Assert.Empty(await db.CollectionAllocations.ToListAsync());
+        Assert.Empty(await db.Collections.ToListAsync());
+
+        // The same registered identity becomes selectable once the event actually occurs.
+        var eventSources = new CollectionSessionSources(db, new Caller(w.CollectorId, w.TenantId),
+            new Tenant(w.TenantId), new Clock(eventDay), null!, new NoMarketDays());
+        var onDay = Assert.Single((await eventSources.BrowseSourcesAsync(CollectionSourceCategories.FiestaAraw,
+            null, 0, 25, default)).Items);
+        Assert.True(onDay.CanSelect);
+        Assert.Null(onDay.AvailableOn);
+        Assert.Contains((await eventSources.DiscoverNativeAsync(sourceId, eventDay, default)).Operations,
+            x => x.OperationCode == CollectorOperationCodes.FiestaArawLotRental && x.EligibleChoiceCount > 0);
+
+        // Authorization and tenancy still gate even purely informational registered rows.
+        var differentTenant = new CollectionSessionSources(db, new Caller(w.CollectorId, Guid.NewGuid()),
+            new Tenant(Guid.NewGuid()), new Clock(today), null!, new NoMarketDays());
+        Assert.Empty((await differentTenant.BrowseSourcesAsync(CollectionSourceCategories.FiestaAraw,
+            null, 0, 25, default)).Items);
+        db.CollectorOperationAssignments.RemoveRange(db.CollectorOperationAssignments.Where(
+            x => x.MunicipalityId == w.TenantId && x.CollectorId == w.CollectorId
+                && x.OperationCode == CollectorOperationCodes.FiestaArawLotRental));
+        await db.SaveChangesAsync();
+        Assert.Empty((await sources.BrowseSourcesAsync(CollectionSourceCategories.FiestaAraw,
+            null, 0, 25, default)).Items);
+    }
+
     [SkippableFact]
     public async Task Browsing_never_crosses_the_tenant_or_the_collector_and_the_workflow_bounds_every_page()
     {

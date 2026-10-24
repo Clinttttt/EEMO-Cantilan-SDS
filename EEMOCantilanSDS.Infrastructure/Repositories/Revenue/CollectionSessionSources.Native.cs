@@ -32,27 +32,35 @@ public sealed partial class CollectionSessionSources
                 results.Add(new(new(SourceIdentityKind.Occupancy, occupancy.Id), name, $"{stall.Facility!.Name} · Stall {stall.StallNo}", "FACILITY_" + stall.Facility.Code));
         }
         var assigned = await db.CollectorOperationAssignments.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.CollectorId == user.CollectorId).Select(x => x.OperationCode).ToListAsync(ct);
-        var accounts = await db.ObligationAccounts.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.Kind != ObligationKind.FishMeatVendorFee && x.ActiveFrom <= today &&
-            (x.ActiveTo == null || x.ActiveTo >= today) &&
+        var accounts = await db.ObligationAccounts.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.Kind != ObligationKind.FishMeatVendorFee &&
+            ((x.ActiveFrom <= today && (x.ActiveTo == null || x.ActiveTo >= today))
+                || (x.Kind == ObligationKind.FiestaArawLotRental && x.EventDate > today && x.ActiveTo == null)) &&
             (x.SubjectLabel.ToLower().Contains(term) || x.ActualOccupant != null && x.ActualOccupant.ToLower().Contains(term) || db.Payors.Any(p => p.MunicipalityId == Tenant && p.Id == x.PayorId && p.DisplayName.ToLower().Contains(term))) &&
             (x.Kind == ObligationKind.KanmanggaySpaceRental && assigned.Contains(CollectorOperationCodes.KanmanggaySpaceRental) ||
                 x.Kind == ObligationKind.VegetableFruitSpaceRental && assigned.Contains(CollectorOperationCodes.VegetableFruitSpaceRental) ||
                 x.Kind == ObligationKind.FiestaArawLotRental && assigned.Contains(CollectorOperationCodes.FiestaArawLotRental))).OrderBy(x => x.SubjectLabel).ThenBy(x => x.Id).Take(50).ToListAsync(ct);
         // Historical master links supply display compatibility only. Source account identity, never name/Payor, authorizes collection.
         var quotes = await new ObligationCollectionSource(db).GetQuotesAsync(Tenant, accounts, today, ct);
+        var linkedIds = accounts.Where(a => a.PayorId.HasValue).Select(a => a.PayorId!.Value).Distinct().ToArray();
+        var payorNames = await db.Payors.AsNoTracking()
+            .Where(x => x.MunicipalityId == Tenant && linkedIds.Contains(x.Id))
+            .ToDictionaryAsync(x => x.Id, x => x.DisplayName, ct);
         foreach (var account in accounts)
         {
-            var name = quotes.FirstOrDefault(x => x.AccountId == account.Id)?.PayerName ?? account.SubjectLabel;
+            var name = quotes.FirstOrDefault(x => x.AccountId == account.Id)?.PayerName ?? account.ActualOccupant
+                ?? (account.PayorId is { } id ? payorNames.GetValueOrDefault(id) : null) ?? account.SubjectLabel;
             if (name.ToLowerInvariant().Contains(term) || account.SubjectLabel.ToLowerInvariant().Contains(term))
                 results.Add(new(new(SourceIdentityKind.SpaceAccount, account.Id), name,
                     account.Kind == ObligationKind.VegetableFruitSpaceRental ? $"Vegetable / Fruits · Space {account.SubjectLabel}" :
                     account.Kind == ObligationKind.KanmanggaySpaceRental ? $"Kanmanggay · Space {account.SubjectLabel}" : $"Fiesta / Araw · Lot {account.SubjectLabel}",
-                    ObligationAccount.OperationCodeFor(account.Kind)!));
+                    ObligationAccount.OperationCodeFor(account.Kind)!,
+                    CanSelect: account.Kind != ObligationKind.FiestaArawLotRental || account.ActiveFrom <= today,
+                    AvailableOn: account.Kind == ObligationKind.FiestaArawLotRental && account.ActiveFrom > today ? account.EventDate : null));
         }
         if (assigned.Contains(CollectorOperationCodes.FishMeatVendorFee) || assigned.Contains(CollectorOperationCodes.WeightAndMeasure))
             results.AddRange(await db.FishMeatVendorRegistrations.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.TaxYear == today.Year && x.Status == VendorRegistrationStatus.Active && x.DisplayName.ToLower().Contains(term))
                 .OrderBy(x => x.DisplayName).ThenBy(x => x.Id).Take(50).Select(x => new CollectionSourceSearchResult(new(SourceIdentityKind.FishMeatVendorRegistration, x.Id),
-                    x.DisplayName, x.VendorType.ToString() + " · " + x.TaxYear, CollectorOperationCodes.FishMeatVendorFee, x.TaxYear, x.VendorType, null)).ToListAsync(ct));
+                    x.DisplayName, x.VendorType.ToString() + " · " + x.TaxYear, CollectorOperationCodes.FishMeatVendorFee, x.TaxYear, x.VendorType, null, true, null)).ToListAsync(ct));
         return results.OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Identity.Kind).ThenBy(x => x.Identity.Id).Take(50).ToArray();
     }
     public async Task<CollectionSessionDiscovery> DiscoverNativeAsync(CollectionSourceIdentity? identity, DateOnly date, CancellationToken ct)

@@ -71,9 +71,20 @@ Verified source: `FollowUpComposer` emits multiple Missing OR categories, includ
 - Focused PostgreSQL integration test: 1 passed, 0 failed, 0 skipped. Related NPM integration regression subset: 5 passed, 0 failed, 0 skipped, including the new test.
 - No database migration or production data change; do not claim fully protected against cross-process concurrency until the relevant unique-index/data audit and concurrent tests pass.
 
-## Initial investigation findings (no conclusion on missing production data)
-- Fiesta/Araw has an eligible account filter, not a plain vendor browse. Exact production account exclusion reason not established without permissioned record inspection.
-- Exact active NPM association can potentially be bypassed in registration review; hard conflict is needed ahead of optional name-match review.
+## Implementation checkpoint — Fiesta/Araw source visibility
+- Verified structural mismatch: the Head Portal roster reads registered event lots, while Mobile source browse/search required ActiveFrom <= today. Event lot ActiveFrom is its EventDate; a future registered lot was invisible.
+- Registered, unclosed future event lots now appear in assigned collectors' source browsing/search with exact SpaceAccount identity, payor name and event date. DTO `CanSelect=false` and `AvailableOn` communicate that settlement remains unavailable until the event date; the Mobile selector disables such rows.
+- Linked Business Payor names are searchable and displayed even when no event quote exists yet; payor lookup remains tenant-scoped.
+- No change to event account date logic, quote, posting, allocation, receipt, rates, authorization, or financial ledger. The server still refuses creating event liability before its date.
+- Existing current/due accounts remain selectable. Closed past accounts, unassigned collectors and other tenants remain excluded.
+- A source-search generation guard and immediate row invalidation prevent older asynchronous responses / debounce rows remaining selectable after search text changes.
+- Focused PostgreSQL future-event scenario passed. Expanded browser tests: 8/8 passed, including Fiesta and Araw, closed event, date-of-event eligibility, cross-tenant and unassigned collector conditions.
+- Full Mobile component suite after additional stale-row guard: 175/175 passed. Rapid-search Fiesta/Araw regression repeated 5/5 runs without failure. Android Debug build passed (58 warnings, 0 errors), and a signed Debug APK was generated locally. No APK installation, on-device smoke test, or production deployment occurred.
+- Production account-level diagnosis is not yet verified: actual vendor dates, tenant configurations, account status, and collector assignment require permitted read-only production evidence. Do not claim all missing real-world vendors fixed solely from test fixtures.
+
+## Baseline findings (before local fixes; production account diagnosis pending)
+- Baseline Fiesta/Araw browse excluded registered future-event lots; the local change now displays them as non-selectable. Exact production account exclusion reason remains unverified without authorized tenant-specific evidence.
+- Baseline NPM duplicate-review override could bypass exact active association; local server fix and integration tests now reject it. Cross-process DB uniqueness/data audit remains a separate safeguard.
 - Session grouping requires a new read model; checkout success sheet alone does not satisfy grouped Records/Collection Activity.
 - Fine partial input alone cannot work until quote/post amount invariants are updated.
 - Missing OR has mandatory and optional subtypes and cannot be safely hidden wholesale.

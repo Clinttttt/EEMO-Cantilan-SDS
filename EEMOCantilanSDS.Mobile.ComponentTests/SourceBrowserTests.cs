@@ -51,6 +51,35 @@ public sealed class SourceBrowserTests : TestContext
     }
 
     [Fact]
+    public void Changing_search_text_immediately_removes_previously_listed_holder()
+    {
+        Serve(null, [Row(Space, "Former holder", "Fiesta / Araw · Lot F-01")], 1);
+        var cut = Render();
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".sb-row")));
+        cut.Find("input[type=search]").Input("Different holder");
+        Assert.Empty(cut.FindAll(".sb-row")); // no stale click during debounce or request
+    }
+
+    [Fact]
+    public void Registered_future_event_holder_is_visible_but_cannot_be_selected_before_event()
+    {
+        var eventDate = new DateOnly(2026, 11, 15);
+        var eventLot = new CollectionSourceSearchResult(Space, "Registered Vendor", "Fiesta / Araw · Lot F-07",
+            CollectorOperationCodes.FiestaArawLotRental, CanSelect: false, AvailableOn: eventDate);
+        Serve(null, [eventLot], 1);
+        CollectionSourceSearchResult? selected = null;
+        var cut = RenderComponent<SourceBrowser>(p => p.Add(x => x.OnSelect,
+            EventCallback.Factory.Create<CollectionSourceSearchResult>(this, source => selected = source)));
+
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".sb-row")));
+        var row = cut.Find(".sb-row");
+        Assert.True(row.HasAttribute("disabled"));
+        Assert.Contains("Registered Vendor", row.TextContent);
+        Assert.Contains("Available for collection on Nov 15, 2026", row.TextContent);
+        Assert.Null(selected);
+    }
+
+    [Fact]
     public void ChoosingATypeAsksForThatTypeOnly_AndSelectingARowHandsOverItsExactIdentity()
     {
         Serve(null, [Row(Vendor, "Pantom Dant", "Meat · 2026"), Row(Stall, "Ana Reyes", "New Public Market · Stall 1")], 2);
