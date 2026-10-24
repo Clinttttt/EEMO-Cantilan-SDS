@@ -42,7 +42,7 @@ public sealed class OfflineReadinessCoordinator : IDisposable
     public int Failed { get; private set; }
 
     public string StatusText => !_connectivity.IsOnline
-        ? "Offline · saved lists may be available"
+        ? "Offline · saved lists only"
         : IsPreparing ? $"Preparing offline lists · {Completed}/{Total}"
         : Total == 0 ? "No assigned offline lists to prepare"
         : Failed > 0 ? $"Offline lists partially fetched · {Completed - Failed}/{Total}"

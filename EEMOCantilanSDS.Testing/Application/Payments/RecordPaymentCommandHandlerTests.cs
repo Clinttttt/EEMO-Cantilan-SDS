@@ -170,6 +170,58 @@ public class RecordPaymentCommandHandlerTests
     }
 
     [Fact]
+    public async Task Collector_can_record_clean_unpaid_month_even_if_historical_row_retained_another_collector_id()
+    {
+        var stall = StallInFacility(FacilityCode.TCC);
+        var previous = Guid.NewGuid();
+        var assigned = CollectorWith(FacilityCode.TCC);
+        var (handler, payments) = Build(stall, assigned, "Collector", assigned.Id);
+        var month = PaymentRecord.Create(stall.Id, 2026, 10, 2400m, "historical");
+        // Simulates a legacy row left Unpaid with an old collector reference.
+        month.UpdateStatus(PaymentStatus.Paid, collectorId: previous);
+        typeof(PaymentRecord).GetProperty(nameof(PaymentRecord.Status))!.SetValue(month, PaymentStatus.Unpaid);
+        typeof(PaymentRecord).GetProperty(nameof(PaymentRecord.PaidAt))!.SetValue(month, null);
+        Assert.Equal(previous, month.CollectorId);
+        Assert.Equal(0m, month.AmountPaid);
+        var id = month.Id;
+        payments.Setup(x => x.GetPaymentRecordAsync(stall.Id, 2026, 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaymentRecordDto(id, PaymentStatus.Unpaid, null, 2400m, null, null, null, 0, 2400m));
+        payments.Setup(x => x.GetByIdAsync(id, It.IsAny<CancellationToken>())).ReturnsAsync(month);
+
+        var result = await handler.Handle(new(stall.Id, 2026, 10, PaymentStatus.Paid, null, null), default);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(assigned.Id, month.CollectorId);
+        Assert.Equal(PaymentStatus.Paid, month.Status);
+        payments.Verify(x => x.UpdateAsync(month, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Collector_cannot_take_over_unpaid_row_when_receipt_evidence_remains()
+    {
+        var stall = StallInFacility(FacilityCode.TCC);
+        var oldCollector = Guid.NewGuid();
+        var assigned = CollectorWith(FacilityCode.TCC);
+        var (handler, payments) = Build(stall, assigned, "Collector", assigned.Id);
+        var record = PaymentRecord.Create(stall.Id, 2026, 10, 2400m);
+        record.UpdateStatus(PaymentStatus.Paid, collectorId: oldCollector);
+        record.SetOrNumber("OR-EXISTING");
+        // An inconsistent old row: UI says unpaid, but verifiable receipt evidence exists.
+        typeof(PaymentRecord).GetProperty(nameof(PaymentRecord.Status))!.SetValue(record, PaymentStatus.Unpaid);
+        typeof(PaymentRecord).GetProperty(nameof(PaymentRecord.PaidAt))!.SetValue(record, null);
+        payments.Setup(x => x.GetPaymentRecordAsync(stall.Id, 2026, 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaymentRecordDto(record.Id, PaymentStatus.Unpaid, "OR-EXISTING", 2400m, null, null, null, 0, 2400m));
+        payments.Setup(x => x.GetByIdAsync(record.Id, It.IsAny<CancellationToken>())).ReturnsAsync(record);
+
+        var result = await handler.Handle(new(stall.Id, 2026, 10, PaymentStatus.Paid, null, null), default);
+
+        Assert.Equal(ResultStatus.Conflict, result.Status);
+        Assert.Equal(oldCollector, record.CollectorId);
+        Assert.Equal("OR-EXISTING", record.ORNumber);
+        payments.Verify(x => x.UpdateAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Collector_CannotOverwritePaymentRecordedByAnotherCollector_OnSharedFacility()
     {
         var stall = StallInFacility(FacilityCode.TCC);

@@ -471,5 +471,5 @@
 }
 
 /* Reuses existing menu surface; readiness is informational, never collection authority. */
-.menu-offline-readiness { margin: 0 0 12px; padding: 9px 12px; background: var(--mobile-surface); border: 1px solid var(--mobile-border); border-radius: 9px; font-size: 12px; line-height: 1.4; color: var(--mobile-text-secondary); }
-.menu-offline-readiness span { display: block; font-size: 11px; }
+.menu-readiness-note { display: block; margin-top: 3px; font-size: 11px; font-weight: 400; line-height: 1.35; color: var(--mobile-text-secondary); }
+.menu-readiness-standalone { margin: 0 4px 10px; }

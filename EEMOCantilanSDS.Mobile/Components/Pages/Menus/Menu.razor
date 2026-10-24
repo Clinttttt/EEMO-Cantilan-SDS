@@ -93,6 +93,10 @@
                                     <span class="menu-tile attention" aria-hidden="true">!</span>
                                     <span class="menu-row-main">
                                         <span class="menu-row-name">@(item.Count > 1 ? $"{item.Count} " : "")@item.Text</span>
+                                        @if (item.Text.Contains("sync", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            <span class="menu-readiness-note" role="status">@OfflineReadiness.StatusText</span>
+                                        }
                                     </span>
                                     <span class="menu-row-chevron" aria-hidden="true">›</span>
                                 </button>
@@ -102,7 +106,10 @@
                 </section>
             }
 
-            <div class="menu-offline-readiness" role="status" aria-live="polite">@OfflineReadiness.StatusText <span>· Collection review may require connection</span></div>
+            @if (!Work.Attention.Any(item => item.Text.Contains("sync", StringComparison.OrdinalIgnoreCase)))
+            {
+                <div class="menu-readiness-note menu-readiness-standalone" role="status">@OfflineReadiness.StatusText</div>
+            }
 
             <section class="menu-group" aria-labelledby="menu-available">
                 <h2 id="menu-available" class="menu-group-title">Available now <span class="menu-group-count">@Work.Available.Count</span></h2>
