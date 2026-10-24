@@ -37,7 +37,7 @@ button:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2p
 
 /* Suggestions: a bounded panel (about five rows), scrolling inside itself so the page never grows with the list. */
 .payer-panel { margin-top: 10px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); overflow: hidden; }
-.payer-list { max-height: 272px; overflow-y: auto; overscroll-behavior: contain; }
+.payer-list { max-height: min(60dvh, 680px); overflow-y: auto; overscroll-behavior: contain; }
 .payer-option { padding: 0 14px; min-height: 54px; border-bottom: 1px solid var(--mobile-border); font-size: 15px; font-weight: 600; color: var(--mobile-navy); }
 .payer-list > .payer-option:last-child { border-bottom: 0; }
 .payer-option:hover:not(:disabled) { background: var(--mobile-blue-subtle); }

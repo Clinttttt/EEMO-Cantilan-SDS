@@ -154,6 +154,8 @@ public sealed class VegetableFruitModeTests : TestContext
         _api.Setup(x => x.SearchCollectionSourcesAsync("Missing")).ReturnsAsync(
             Result<IReadOnlyList<CollectionSourceSearchResult>>.Success([]));
         view.Find("input[type=search]").Input("Missing");
+        // The previously matching account must not be selectable while the new search is in flight.
+        Assert.Empty(view.FindAll(".payer-option"));
         view.FindAll("button").Single(x => x.TextContent == "Search").Click();
         Assert.Empty(view.FindAll(".payer-option"));
         Assert.DoesNotContain("Continue with payer name", view.Markup);

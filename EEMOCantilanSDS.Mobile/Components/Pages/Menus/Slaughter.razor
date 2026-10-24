@@ -81,7 +81,7 @@
                 </button>
             }
 
-            @if (!string.IsNullOrWhiteSpace(CanonicalNotice))
+            @if (!string.IsNullOrWhiteSpace(CanonicalNotice) && !CanonicalNotice.StartsWith("Collection recorded", StringComparison.Ordinal))
             {
                 <RecordedNotice Message="@CanonicalNotice" />
             }
@@ -536,7 +536,13 @@
     </div>
 }
 
+@if (CanonicalNotice?.StartsWith("Collection recorded", StringComparison.Ordinal) == true)
+{
+    <CollectionRecordedSheet Message="@CanonicalNotice" OnClose="DismissRecorded" />
+}
+
 @code {
+    private void DismissRecorded() => CanonicalNotice = null;
     private MobileSlaughterCollectionDto? Collection;
     private bool IsLoading = true;
     private bool IsSaving;

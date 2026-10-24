@@ -1,0 +1,43 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Mobile.Records
+@using EEMOCantilanSDS.Domain.Common
+<div class="sheet-overlay" @onclick="OnClose">
+    <section class="sheet" role="dialog" aria-modal="true" aria-label="Collection record detail" @onclick:stopPropagation="true">
+        <div class="sheet-handle"></div>
+        <div class="sheet-title">@(string.IsNullOrWhiteSpace(Record.PayorName) ? "Collection" : Record.PayorName)</div>
+        <div class="sheet-sub">Collection Record Detail</div>
+        <div class="detail-row"><span class="detail-key">StallTrack reference</span><span class="detail-val">@Record.ReferenceCode</span></div>
+        <div class="detail-row"><span class="detail-key">Operation</span><span class="detail-val">@OperationName</span></div>
+        @if (!string.IsNullOrWhiteSpace(Record.Subject))
+        {
+            <div class="detail-row"><span class="detail-key">Details</span><span class="detail-val">@Record.Subject</span></div>
+        }
+        @if (CollectorRecordLabels.InstrumentCode(Record.Instrument) is { } instrument)
+        {
+            <div class="detail-row"><span class="detail-key">Instrument</span><span class="detail-val">@instrument</span></div>
+        }
+        <div class="detail-row"><span class="detail-key">Receipt</span><span class="detail-val">@(string.IsNullOrWhiteSpace(Record.DocumentNumber) ? "None recorded" : Record.DocumentNumber)</span></div>
+        <div class="detail-row"><span class="detail-key">Date</span><span class="detail-val">@Record.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</span></div>
+        @if (Record.RecordedAtUtc is { } recorded)
+        {
+            <div class="detail-row"><span class="detail-key">Recorded</span><span class="detail-val">@PhilippineTime.ToPhilippineTime(recorded).ToString("MMM d, yyyy · h:mm tt", CultureInfo.InvariantCulture)</span></div>
+        }
+        <div class="detail-row"><span class="detail-key">Status</span><span class="detail-val">@Record.Status</span></div>
+        <div class="detail-util-head">Collection items</div>
+        @foreach (var line in Record.Lines)
+        {
+            <div class="detail-row">
+                <span class="detail-key">@(string.IsNullOrWhiteSpace(line.ItemLabel) ? CollectorRecordLabels.Display(line.ClassificationName) : CollectorRecordLabels.Display(line.ItemLabel))</span>
+                <span class="detail-val">@Money(line.Amount)</span>
+            </div>
+        }
+        <div class="detail-row"><span class="detail-key">Total</span><span class="detail-val amount-val">@Money(Record.Total)</span></div>
+        <div class="sheet-btn-row"><button type="button" class="btn-close" @onclick="OnClose">Close</button></div>
+    </section>
+</div>
+@code {
+    [Parameter, EditorRequired] public OperationRecord Record { get; set; } = default!;
+    [Parameter] public EventCallback OnClose { get; set; }
+    private string OperationName => string.Join(", ", Record.Lines.Select(x => CollectorRecordLabels.Display(x.ClassificationName)).Distinct());
+    private static string Money(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
+}
