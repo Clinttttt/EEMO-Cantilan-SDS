@@ -68,6 +68,7 @@ public sealed class NpmMonthIngressTests
     {
         await using var f = await NpmMonthWorkflowFixture.Create();
         var uow = new Mock<IUnitOfWork>(MockBehavior.Strict);
+        uow.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var settlement = new OnlinePaymentSettlementService(Mock.Of<IPaymentRepository>(), Mock.Of<IStallRepository>(),
             new Mock<INpmMonthSettlementService>(MockBehavior.Strict).Object, Mock.Of<IUtilityBillRepository>(),
             Mock.Of<IOnlinePaymentNotifier>(), uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant, f.Workflow);
@@ -75,7 +76,12 @@ public sealed class NpmMonthIngressTests
         var evt = new PaymentGatewayEvent(PaymentGatewayEventType.Paid, "fixture", 900, "payment-fixture", "fixture", DateTime.UtcNow, "{}");
         var result = await settlement.SettleAsync(transaction, evt);
         Assert.False(result.IsSuccess); Assert.StartsWith("RECONCILIATION_REQUIRED:", result.Error);
-        Assert.False(transaction.IsSettled); Assert.Empty(f.Db.Collections); Assert.Empty(f.Db.DailyCollections);
+        Assert.Equal(OnlinePaymentStatus.ReconciliationRequired, transaction.Status);
+        Assert.Equal(evt.PaymentId, transaction.PaymentId);
+        Assert.Equal(evt.Method, transaction.Method);
+        Assert.Equal(evt.RawPayload, transaction.RawPayload);
+        Assert.Empty(f.Db.Collections); Assert.Empty(f.Db.DailyCollections);
+        uow.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
         uow.VerifyNoOtherCalls();
     }
 }
