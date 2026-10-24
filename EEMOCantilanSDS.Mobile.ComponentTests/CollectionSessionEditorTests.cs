@@ -1327,6 +1327,44 @@ public sealed class CollectionSessionEditorTests : TestContext
     }
 
     [Fact]
+    public void Verified_fine_uses_the_existing_item_row_and_server_fixed_balance_without_editable_amount()
+    {
+        var assessment = Guid.NewGuid();
+        _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(Kanmanggay))
+            .ReturnsAsync(Result<CollectionSessionDiscovery>.Success(new(null, Today,
+                [Op(CollectionSessionItemKind.FineAssessment, RevenueClassificationCodes.PenaltiesAndFines,
+                    "Fines / Penalties", CollectionFamily.Space,
+                    new CollectionSessionSourceChoice("FINE|" + assessment.ToString("N"),
+                        CollectionSessionItemKind.FineAssessment, RevenueClassificationCodes.PenaltiesAndFines,
+                        "Approved violation", "Kanmanggay · Space 4 · Outstanding assessment",
+                        new(FineAssessmentId: assessment, FineVersion: 3),
+                        RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.FixedAmount,
+                        ServerAmount: 150m, MaximumAmount: 150m))],
+                SourceIdentity: Kanmanggay)));
+
+        var view = PickSource("Juan Cruz");
+        Click(view, "+ Add item");
+        view.Find("[role=dialog]").QuerySelectorAll(".collection-option")
+            .Single(x => x.TextContent.Contains("Fines / Penalties")).Click();
+        var sheet = view.Find("[role=dialog]");
+        Assert.Contains("Full outstanding assessed fine", sheet.TextContent);
+        Assert.Contains("Official Receipt", sheet.TextContent);
+        Assert.Empty(sheet.QuerySelectorAll("input[type=number]"));
+        Click(view, "Add item");
+        Assert.Single(view.FindAll(".item-row"));
+        Assert.Contains("150", view.Find(".item-row").TextContent);
+
+        Click(view, "Review collection");
+        _api.Verify(x => x.QuoteCollectionSessionAsync(It.Is<CollectionSessionIntent>(intent =>
+            intent.SourceIdentity == Kanmanggay && intent.Items.Count == 1 &&
+            intent.Items[0].Kind == CollectionSessionItemKind.FineAssessment &&
+            intent.Items[0].Fine != null &&
+            intent.Items[0].Fine!.AssessmentId == assessment &&
+            intent.Items[0].Fine!.Version == 3 &&
+            intent.Items[0].ConfirmedAmount == 150m)), Times.Once);
+    }
+
+    [Fact]
     public void A_utility_item_cannot_be_added_until_the_earlier_collections_check_has_answered()
     {
         var gate = new TaskCompletionSource<Result<IReadOnlyList<RecentUtilityCollectionDto>>>();

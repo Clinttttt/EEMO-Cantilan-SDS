@@ -195,6 +195,7 @@ public sealed partial class CollectionSessionSources
                     : x.OperationCode == CollectorOperationCodes.VegetableFruitSpaceRental ? CollectionFamily.Space : CollectionFamily.Market }));
         }
         }
+        await AddAssessedFineChoicesAsync(rows, identity, date, ct);
         return new(null, date, rows.GroupBy(x => x.OperationCode).Select(g => g.First() with {
             DisplayName = g.Key == CollectorOperationCodes.Terminal ? "Income From Terminal" : g.First().DisplayName,
             Choices = g.SelectMany(x => x.Choices ?? []).OrderBy(x => x.SelectionKey, StringComparer.Ordinal).ToArray()

@@ -96,6 +96,7 @@ public sealed class CollectionSessionWorkflow(ICollectionSessionStore store, ICo
                     CollectionSessionItemKind.NpmDaily when item.NpmDaily is { } daily => $"Npm|{daily.StallId}|{intent.BusinessDate.Year}|{intent.BusinessDate.Month}",
                     CollectionSessionItemKind.NpmPartPayment when item.NpmPart is { } part => $"Npm|{part.StallId}|{part.Year}|{part.Month}",
                     CollectionSessionItemKind.MonthlyRent when item.Rent is { } r => $"Rent|{r.StallId}|{r.Year}|{r.Month}",
+                    CollectionSessionItemKind.FineAssessment when item.Fine is { } fine => $"FineAssessment|{fine.AssessmentId}",
                     _ => JsonSerializer.Serialize(new { item.Kind, item.Service }, Json)
                 };
                 if (!seen.Add(key)) { errors.Add(new(item.ClientItemId, "DuplicateBusinessEvent", "This source is already in the checkout.")); continue; }
@@ -188,7 +189,7 @@ public sealed class CollectionSessionWorkflow(ICollectionSessionStore store, ICo
 
     public static string IntentFingerprint(CollectionSessionIntent intent)
     {
-        if (intent.SourceIdentity is not null || intent.PayerSnapshot is not null || intent.Items.Any(i => i.Native is not null))
+        if (intent.SourceIdentity is not null || intent.PayerSnapshot is not null || intent.Items.Any(i => i.Native is not null || i.Fine is not null))
             return Hash(JsonSerializer.Serialize(new { Version = 3, intent.BusinessDate, intent.PayorId, intent.SourceIdentity,
                 PayerSnapshot = intent.PayerSnapshot?.Trim(), Items = intent.Items.OrderBy(i => i.ClientItemId) }, Json));
         var original = JsonSerializer.Serialize(new
