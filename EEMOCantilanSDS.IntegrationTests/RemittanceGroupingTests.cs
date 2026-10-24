@@ -115,8 +115,8 @@ public sealed class RemittanceGroupingTests(PostgresFixture db)
     private RemittanceWorkflow Office(AppDbContext ctx, World w, string role = "Admin") =>
         new(ctx, new Caller(w.HeadId, w.Tenant.Id, role), new FixedTenant(w.Tenant.Id));
 
-    private static RecordRemittanceRequest Request(World w, int collector, decimal amount, Guid? operationId = null, IReadOnlyList<Guid>? ids = null) => new(
-        operationId ?? Guid.NewGuid(), w.Collectors[collector].Id, Today, Today.AddDays(-1), Today, RevenueInstrumentType.CashTicket, ids, amount, null, null);
+    private static RecordRemittanceRequest Request(World w, int collector, decimal amount, Guid? operationId = null, IReadOnlyList<Guid>? ids = null, string? remarks = null) => new(
+        operationId ?? Guid.NewGuid(), w.Collectors[collector].Id, Today, Today.AddDays(-1), Today, RevenueInstrumentType.CashTicket, ids, amount, null, remarks);
 
     private static async Task<(int Lines, decimal Money, int Collections)> MoneyAsync(AppDbContext ctx) =>
         (await ctx.CollectionLines.CountAsync(), await ctx.CollectionLines.SumAsync(x => x.Amount), await ctx.Collections.CountAsync());
@@ -132,7 +132,7 @@ public sealed class RemittanceGroupingTests(PostgresFixture db)
 
         // Submitted deliberately out of alphabetical order: the first named collector is the one submitted first.
         var batch = (await Office(ctx, w).RecordBatchAsync(new RecordRemittanceBatchRequest(
-            [Request(w, 1, 60m), Request(w, 0, 80m), Request(w, 2, 30m)]))).Value!;
+            [Request(w, 1, 60m), Request(w, 0, 80m, remarks: "Counted ₱10 short"), Request(w, 2, 30m)]))).Value!;
         Assert.Equal(3, batch.Count);
         Assert.Single(batch.Select(x => x.Row.SubmissionId).Distinct());
         Assert.NotNull(batch[0].Row.SubmissionId);
@@ -183,7 +183,7 @@ public sealed class RemittanceGroupingTests(PostgresFixture db)
         var other = await SeedAsync(1);
         await using var ctx = db.CreateContext(w.Tenant.Id);
         var batch = (await Office(ctx, w).RecordBatchAsync(new RecordRemittanceBatchRequest(
-            [Request(w, 0, 60m), Request(w, 1, 20m)]))).Value!;
+            [Request(w, 0, 60m), Request(w, 1, 20m, remarks: "Counted ₱10 short")]))).Value!;
         var submissionId = batch[0].Row.SubmissionId!.Value;
 
         var report = (await Office(ctx, w).GetSubmissionAsync(submissionId)).Value!;
