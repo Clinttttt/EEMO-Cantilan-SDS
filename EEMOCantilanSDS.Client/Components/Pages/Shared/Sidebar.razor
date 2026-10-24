@@ -1,10 +1,13 @@
-﻿@using System.Security.Claims
+@using System.Security.Claims
 @using EEMOCantilanSDS.Application.Dtos.Tenancy
 @using EEMOCantilanSDS.Client.Services
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using Microsoft.Extensions.DependencyInjection
 @inject IOnlinePaymentsApiClient OnlinePaymentsApi
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject IServiceProvider ScopedServices
 @implements IDisposable
 
 <button class="sidebar-hamburger" type="button" @onclick="ToggleMobileDrawer" aria-label="Toggle navigation">
@@ -19,10 +22,10 @@
 <aside class="sidebar @(SidebarCollapsed ? "collapsed" : "") @(_mobileOpen ? "mobile-open" : "")">
     <div class="sidebar-brand">
         <div class="sidebar-seal">
-            @{ var sealPath = Branding.SealPath; }
-            <img @key="sealPath" src="@(_failedSealPath == sealPath ? BrandingState.WaitingSealPath : sealPath)"
-                 alt="@(_failedSealPath == sealPath ? "Municipal seal unavailable" : Branding.Municipality)"
-                 @onerror="() => _failedSealPath = sealPath" />
+            @{ var sealPath = VisibleSealPath; }
+            <img @key="sealPath" src="@sealPath"
+                 alt="@(sealPath == BrandingState.WaitingSealPath ? "Municipal seal unavailable" : Branding.Municipality)"
+                 @onerror="() => OnSealErrorAsync(sealPath)" />
         </div>
         <div class="sidebar-brand-text">
             <div class="sidebar-brand-name">STALLTRACK</div>
@@ -131,7 +134,88 @@
 @* Cross-page "restore complete" popup — event-driven (subscribes to the scoped RestoreNotifier); no timer here. *@
 
 @code {
-    private string? _failedSealPath;
+    private string? _failedBrandingSealPath;
+    private string? _failedProfileSealPath;
+    private string? _officeProfileSealPath;
+    private bool _officeProfileSealAttempted;
+    private int _officeSealGeneration;
+
+    // The normal tenant-branding endpoint is authoritative. If its image fails, the
+    // signed-in office's *own* saved image can still render without inventing an LGU seal.
+    private string VisibleSealPath
+    {
+        get
+        {
+            var primary = Branding.SealPath;
+            if (primary != BrandingState.WaitingSealPath && primary != _failedBrandingSealPath)
+                return primary;
+            return _officeProfileSealPath is { Length: > 0 } saved && saved != _failedProfileSealPath
+                ? saved : BrandingState.WaitingSealPath;
+        }
+    }
+
+    private async Task OnSealErrorAsync(string failedPath)
+    {
+        if (failedPath == Branding.SealPath)
+        {
+            _failedBrandingSealPath = failedPath;
+            await TryLoadOwnOfficeSealAsync();
+        }
+        else if (failedPath == _officeProfileSealPath)
+        {
+            _failedProfileSealPath = failedPath;
+        }
+    }
+
+    private async Task TryLoadOwnOfficeSealAsync()
+    {
+        if (_officeProfileSealAttempted) return;
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        if (auth.User.Identity?.IsAuthenticated != true) return;
+
+        _officeProfileSealAttempted = true;
+        var generation = _officeSealGeneration;
+        try
+        {
+            // GetOfficeProfileAsync is authenticated and tenant-scoped. Never resolve
+            // a guessed municipality name against the public registry as a fallback.
+            var api = ScopedServices.GetService<ISettingsApiClient>();
+            if (api is null) return;
+            var result = await api.GetOfficeProfileAsync();
+            var path = result.IsSuccess ? result.Value?.SealPath : null;
+            if (generation == _officeSealGeneration && path is not null && (path.StartsWith("data:image/png;base64,", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("data:image/jpeg;base64,", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("data:image/webp;base64,", StringComparison.OrdinalIgnoreCase)))
+                _officeProfileSealPath = path;
+        }
+        catch
+        {
+            // Branding is presentation-only; preserve the neutral mark on read failure.
+        }
+    }
+
+    private void OnAuthenticationStateChanged(Task<AuthenticationState> pending)
+        => _ = InvokeAsync(async () =>
+        {
+            var auth = await pending;
+            if (auth.User.Identity?.IsAuthenticated != true)
+            {
+                _officeSealGeneration++;
+                _officeProfileSealPath = null;
+                _failedProfileSealPath = null;
+                _officeProfileSealAttempted = false;
+                StateHasChanged();
+                return;
+            }
+            if (!Branding.Resolved) await Branding.EnsureLoadedAsync();
+            if (!Branding.Resolved)
+            {
+                _officeProfileSealAttempted = false;
+                await TryLoadOwnOfficeSealAsync();
+            }
+            StateHasChanged();
+        });
+
     private bool SidebarCollapsed;
     private bool _mobileOpen;   // off-canvas drawer open state (mobile only; desktop ignores it)
     private string _portalLabel = "Admin Portal";
@@ -165,11 +249,16 @@
     {
         Nav.LocationChanged += OnLocationChanged;
         Branding.Changed += OnBrandingChanged;
+        AuthState.AuthenticationStateChanged += OnAuthenticationStateChanged;
     }
 
     private void OnBrandingChanged() => _ = InvokeAsync(() =>
     {
-        _failedSealPath = null;
+        _failedBrandingSealPath = null;
+        _failedProfileSealPath = null;
+        _officeProfileSealPath = null;
+        _officeProfileSealAttempted = false;
+        _officeSealGeneration++;
         PersistedBranding = Branding.Current;
         StateHasChanged();
     });
@@ -177,14 +266,25 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         // Interactive authentication may become available after a failed prerender read.
-        if (firstRender && !Branding.Resolved) await Branding.EnsureLoadedAsync();
+        if (firstRender && !Branding.Resolved)
+        {
+            await Branding.EnsureLoadedAsync();
+            if (!Branding.Resolved) await TryLoadOwnOfficeSealAsync();
+            StateHasChanged();
+        }
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
         => _ = InvokeAsync(async () =>
         {
-            _failedSealPath = null;
+            _failedBrandingSealPath = null;
+            if (_officeProfileSealPath is null) _officeProfileSealAttempted = false;
             await Branding.EnsureLoadedAsync();
+            if (!Branding.Resolved)
+            {
+                _officeProfileSealAttempted = false;
+                await TryLoadOwnOfficeSealAsync();
+            }
             _pendingPath = null;
             SetMobileOpen(false);   // navigating closes the mobile drawer
             StateHasChanged();
@@ -289,6 +389,7 @@
                 string.Equals(c.Value, "SuperAdmin", StringComparison.OrdinalIgnoreCase)
                 && c.Type.Contains("role", StringComparison.OrdinalIgnoreCase));
         _portalLabel = _isHead ? "Head Portal" : "Admin Portal";
+        if (!Branding.Resolved) await TryLoadOwnOfficeSealAsync();
 
         if (OnlinePaymentsAwaitingOr is not null)
         {
@@ -308,6 +409,7 @@
     public void Dispose()
     {
         Branding.Changed -= OnBrandingChanged;
+        AuthState.AuthenticationStateChanged -= OnAuthenticationStateChanged;
         Nav.LocationChanged -= OnLocationChanged;
     }
 }
