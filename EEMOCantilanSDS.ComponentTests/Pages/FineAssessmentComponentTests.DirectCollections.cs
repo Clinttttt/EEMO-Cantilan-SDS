@@ -16,6 +16,44 @@ public sealed partial class FineAssessmentComponentTests
         _api.Setup(x=>x.QuoteDirectFineAsync(It.IsAny<DirectFineCollectionRequest>())).ReturnsAsync((DirectFineCollectionRequest r)=>Result<DirectFineQuoteDto>.Success(new(r,c.Name,c.GoverningReference,RevenueInstrumentType.OfficialReceipt)));
         return c;
     }
+    [Fact] public void DirectFineManualModeWorksWithoutAuthoritySetup()
+    {
+        var manual = new DirectFineCategoryDto(Guid.Empty, "Direct fine",
+            GovernedServiceBasis.DirectApprovedAmount, null, null,
+            false, true, false, "Manual Head-office collection");
+        _api.Setup(x => x.GetDirectFineOptionsAsync())
+            .ReturnsAsync(Result<DirectFineOptionsDto>.Success(
+                new(new DateOnly(2026, 10, 11), [manual], "manual-test-scope")));
+        _api.Setup(x => x.QuoteDirectFineAsync(It.IsAny<DirectFineCollectionRequest>()))
+            .ReturnsAsync((DirectFineCollectionRequest r) =>
+                Result<DirectFineQuoteDto>.Success(
+                    new(r, manual.Name, manual.GoverningReference, RevenueInstrumentType.OfficialReceipt)));
+        var cut = RenderComponent<DirectFineCollectionDrawer>();
+        Assert.DoesNotContain("No approved direct-fine collection policy", cut.Markup);
+        Assert.Null(cut.Find("button[type='submit']").GetAttribute("disabled"));
+        Assert.Contains("Fine amount", cut.Markup);
+        Assert.Contains("Supporting reference (optional)", cut.Markup);
+        Assert.NotNull(cut.Find("textarea").GetAttribute("required"));
+        cut.Find("input[type='number']").Change("65.25");
+        cut.Find("textarea").Change("Blocking pedestrian walkway");
+        cut.Find("form").Submit();
+        cut.WaitForAssertion(() => Assert.Contains("Manual direct fine", cut.Markup));
+        _api.Verify(x => x.QuoteDirectFineAsync(It.Is<DirectFineCollectionRequest>(
+            r => r.AuthorityId == Guid.Empty && r.Amount == 65.25m
+                && r.Reason == "Blocking pedestrian walkway")), Times.Once);
+        _api.Verify(x => x.PostDirectFineAsync(It.IsAny<DirectFineCollectionRequest>()), Times.Never);
+        _api.Setup(x => x.PostDirectFineAsync(It.IsAny<DirectFineCollectionRequest>()))
+            .ReturnsAsync(Result<GovernedServiceOutcomeDto>.Success(new(Guid.NewGuid(),
+                "SRC-MANUAL-TEST", new DateOnly(2026, 10, 11), 65.25m,
+                RevenueInstrumentType.OfficialReceipt, "Posted", false)));
+        cut.Find("input[type='checkbox']").Change(true);
+        cut.Find("form").Submit();
+        cut.WaitForAssertion(() => Assert.Contains("SRC-MANUAL-TEST", cut.Markup));
+        _api.Verify(x => x.PostDirectFineAsync(It.Is<DirectFineCollectionRequest>(
+            r => r.AuthorityId == Guid.Empty && r.Amount == 65.25m
+                && r.Reason == "Blocking pedestrian walkway")), Times.Once);
+    }
+
     [Fact] public void DirectFineFormIsAmountFirstWithoutRegistrationOrContract()
     {
         DirectCategory(); var cut=RenderComponent<DirectFineCollectionDrawer>();
@@ -100,7 +138,7 @@ public sealed partial class FineAssessmentComponentTests
     [Fact] public void DirectFineUnavailableAuthorityAndReadFailureRemainDistinct()
     {
         _api.Setup(x=>x.GetDirectFineOptionsAsync()).ReturnsAsync(Result<DirectFineOptionsDto>.Success(new(new(2026,10,11),[])));
-        var cut=RenderComponent<DirectFineCollectionDrawer>(); Assert.Contains("No approved direct-fine collection policy",cut.Markup);
+        var cut=RenderComponent<DirectFineCollectionDrawer>(); Assert.Contains("Direct fine options are unavailable",cut.Markup);
         Assert.NotNull(cut.Find("button[type='submit']").GetAttribute("disabled")); ExportFixture("direct-fine-policy-empty",cut.Markup);
         _api.Setup(x=>x.GetDirectFineOptionsAsync()).ReturnsAsync(Result<DirectFineOptionsDto>.Failure("Unavailable"));
         var failed=RenderComponent<DirectFineCollectionDrawer>(); Assert.Contains("Unavailable",failed.Markup); Assert.DoesNotContain("No approved",failed.Markup);
