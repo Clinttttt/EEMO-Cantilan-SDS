@@ -143,7 +143,9 @@
     .fn-tab { transition: none; }
 }
 
-.fn-hero-meta { display: inline-flex; align-items: center; gap: 6px; }
+.fn-hero-meta { display: inline-flex; align-items: center; gap: 8px; color: #f5f9ff; font-weight: 600; }
+.fn-hero-meta ::deep .ic-name { color: #f5f9ff; font-weight: 600; }
+.fn-hero-meta ::deep .ic-code { background: #fff6db; color: #173454; border-color: #f0d598; font-weight: 700; }
 
 /* A collection row opens its details. */
 .fn-row { cursor: pointer; }
