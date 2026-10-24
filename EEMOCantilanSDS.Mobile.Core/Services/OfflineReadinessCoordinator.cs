@@ -9,6 +9,12 @@ using EEMOCantilanSDS.Mobile.Presentation;
 
 namespace EEMOCantilanSDS.Mobile.Services;
 
+/// <summary>Safe diagnostic classification, never an exception message or a financial value.</summary>
+public enum OfflinePreloadFailureKind { UnsuccessfulResponse, Network, Timeout, ConnectivityLost, Unexpected }
+
+/// <summary>Only the bounded task identifier and failure class; no source records or payor data.</summary>
+public sealed record OfflinePreloadFailure(string StepId, OfflinePreloadFailureKind Kind);
+
 /// <summary>
 /// Warms existing read-through collection lists without entering individual screens.
 /// This is preparation, never financial authorization or proof that a checkout can be posted offline.
@@ -19,6 +25,8 @@ public sealed class OfflineReadinessCoordinator : IDisposable
     private readonly IMobileApiClient _api;
     private readonly IConnectivityMonitor _connectivity;
     private readonly object _gate = new();
+    private const int MaxRecordedFailures = 32;
+    private readonly List<OfflinePreloadFailure> _failedSteps = [];
     private CancellationTokenSource? _runCancellation;
     private MobileMenuDto? _menu;
     private IReadOnlyList<CollectorOperationCapabilityDto> _operations = [];
@@ -40,6 +48,13 @@ public sealed class OfflineReadinessCoordinator : IDisposable
     public int Completed { get; private set; }
     public int Total { get; private set; }
     public int Failed { get; private set; }
+
+    // Local support/test inspection only. A new snapshot is returned; callers cannot mutate live state.
+    // Each pass replaces the previous one and Stop clears it on logout/collector switch.
+    public IReadOnlyList<OfflinePreloadFailure> FailedSteps
+    {
+        get { lock (_gate) return _failedSteps.ToArray(); }
+    }
 
     public string StatusText => !_connectivity.IsOnline
         ? "Offline · saved lists only"
@@ -66,6 +81,7 @@ public sealed class OfflineReadinessCoordinator : IDisposable
             var token = _runCancellation.Token;
             var generation = ++_generation;
             Completed = Failed = 0;
+            _failedSteps.Clear();
             var steps = BuildSteps(menu, operations);
             Total = steps.Count;
             IsPreparing = _connectivity.IsOnline && Total > 0;
@@ -88,6 +104,7 @@ public sealed class OfflineReadinessCoordinator : IDisposable
             _lastKey = null;
             IsPreparing = false;
             Total = Completed = Failed = 0;
+            _failedSteps.Clear();
         }
         Notify();
     }
@@ -106,13 +123,13 @@ public sealed class OfflineReadinessCoordinator : IDisposable
         if (menu is not null) Start(menu, operations);
     }
 
-    private List<Func<Task<bool>>> BuildSteps(MobileMenuDto menu, IReadOnlyList<CollectorOperationCapabilityDto> operations)
+    private List<(string Id, Func<Task<bool>> Run)> BuildSteps(MobileMenuDto menu, IReadOnlyList<CollectorOperationCapabilityDto> operations)
     {
-        var steps = new List<Func<Task<bool>>>();
+        var steps = new List<(string Id, Func<Task<bool>> Run)>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
         void Add(string key, Func<Task<bool>> action)
         {
-            if (seen.Add(key)) steps.Add(action);
+            if (seen.Add(key)) steps.Add((key, action));
         }
 
         var year = menu.Today.Year;
@@ -167,7 +184,7 @@ public sealed class OfflineReadinessCoordinator : IDisposable
         return steps;
     }
 
-    private async Task PrepareAsync(IReadOnlyList<Func<Task<bool>>> steps, int generation, CancellationToken cancellation)
+    private async Task PrepareAsync(IReadOnlyList<(string Id, Func<Task<bool>> Run)> steps, int generation, CancellationToken cancellation)
     {
         using var throttle = new SemaphoreSlim(2);
         var tasks = steps.Select(async step =>
@@ -177,29 +194,23 @@ public sealed class OfflineReadinessCoordinator : IDisposable
                 await throttle.WaitAsync(cancellation);
                 try
                 {
-                    if (cancellation.IsCancellationRequested || !_connectivity.IsOnline) return;
-                    var ok = await step();
-                    lock (_gate)
+                    if (cancellation.IsCancellationRequested) return;
+                    if (!_connectivity.IsOnline)
                     {
-                        if (generation != _generation || cancellation.IsCancellationRequested) return;
-                        if (!ok) Failed++;
-                        Completed++;
+                        CompleteStep(generation, cancellation, step.Id, OfflinePreloadFailureKind.ConnectivityLost);
+                        return;
                     }
-                    Notify();
+                    var ok = await step.Run();
+                    CompleteStep(generation, cancellation, step.Id,
+                        ok ? null : OfflinePreloadFailureKind.UnsuccessfulResponse);
                 }
                 finally { throttle.Release(); }
             }
-            catch (OperationCanceledException) { }
-            catch
-            {
-                lock (_gate)
-                {
-                    if (generation != _generation || cancellation.IsCancellationRequested) return;
-                    Failed++;
-                    Completed++;
-                }
-                Notify();
-            }
+            catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+            catch (OperationCanceledException) { CompleteStep(generation, cancellation, step.Id, OfflinePreloadFailureKind.Timeout); }
+            catch (TimeoutException) { CompleteStep(generation, cancellation, step.Id, OfflinePreloadFailureKind.Timeout); }
+            catch (HttpRequestException) { CompleteStep(generation, cancellation, step.Id, OfflinePreloadFailureKind.Network); }
+            catch { CompleteStep(generation, cancellation, step.Id, OfflinePreloadFailureKind.Unexpected); }
         }).ToArray();
         await Task.WhenAll(tasks);
         lock (_gate)
@@ -207,6 +218,23 @@ public sealed class OfflineReadinessCoordinator : IDisposable
             if (generation != _generation) return;
             IsPreparing = false;
             _lastCompletedUtc = DateTime.UtcNow;
+        }
+        Notify();
+    }
+
+    private void CompleteStep(int generation, CancellationToken cancellation, string id, OfflinePreloadFailureKind? failure)
+    {
+        lock (_gate)
+        {
+            if (generation != _generation || cancellation.IsCancellationRequested) return;
+            Completed++;
+            if (failure is { } kind)
+            {
+                Failed++;
+                // Known task identity only. Never keep an HTTP response, exception, source result or payor.
+                if (_failedSteps.Count < MaxRecordedFailures)
+                    _failedSteps.Add(new OfflinePreloadFailure(id.Length <= 96 ? id : id[..96], kind));
+            }
         }
         Notify();
     }
