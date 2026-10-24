@@ -2,6 +2,7 @@
 @page "/accountable-forms/remittances"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
+@implements IAsyncDisposable
 @using System.Globalization
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using EEMOCantilanSDS.Application.Dtos
@@ -213,13 +214,15 @@
             </div>
         }
 
+        <div @ref="_reviewRoot">
         @if (Preparation && _confirming)
         {
             @* Each collector becomes their own remittance record (their own amount, reference and operation identity); several are
                saved together or not at all. *@
-            <section class="v3-panel" aria-labelledby="rm-new-title">
-                <header class="v3-panel-header"><h2 id="rm-new-title">Confirm remittance</h2></header>
-                <form class="rm-form" aria-label="Confirm remittance" @onsubmit="RecordAsync" @onsubmit:preventDefault="true">
+            <div class="v3-modal-backdrop" @onclick="CloseConfirm">
+            <section class="v3-modal rm-review-dialog" role="dialog" aria-modal="true" aria-labelledby="rm-new-title" aria-busy="@(_saving ? "true" : "false")" @onclick:stopPropagation="true" @onkeydown="ReviewKey">
+                <header class="v3-modal-header"><h2 id="rm-new-title">Confirm remittance</h2><button class="v3-btn v3-btn-sm" type="button" aria-label="Close remittance review" disabled="@_saving" @onclick="CloseConfirm">Close</button></header>
+                <form id="rm-review-form" class="rm-form v3-modal-body" aria-label="Confirm remittance" @onsubmit="RecordAsync" @onsubmit:preventDefault="true">
                     <dl class="rm-batch-total" aria-label="Remittance total">
                         <div><dt>Collectors</dt><dd>@Recordable.Count()</dd></div>
                         <div><dt>Collections</dt><dd>@SelectedCount</dd></div>
@@ -244,7 +247,7 @@
                             <div class="rm-form-row">
                                 <label class="v3-field"><span>Amount remitted (₱)</span><input type="number" min="0.01" step="0.01" required @bind="draft.Amount" /></label>
                                 <label class="v3-field"><span>Reference (optional)</span><input maxlength="100" @bind="draft.Reference" /></label>
-                                <label class="v3-field rm-wide"><span>Remarks (optional)</span><input maxlength="500" @bind="draft.Remarks" /></label>
+                                <label class="v3-field rm-wide"><span>@(draft.Amount != draft.Expected ? "Reason for difference" : "Remarks (optional)")</span><input maxlength="500" required="@(draft.Amount != draft.Expected)" @bind="draft.Remarks" /></label>
                             </div>
                             @if (draft.Amount is { } typed && typed > 0m && typed != draft.Expected)
                             {
@@ -261,15 +264,17 @@
                     {
                         <p class="v3-notice v3-notice-error" role="alert">@_formError</p>
                     }
-                    <div class="rm-actions">
-                        <button class="v3-btn" type="button" @onclick="CloseConfirm">Cancel</button>
-                        <button class="v3-btn v3-btn-primary" type="submit" disabled="@(_saving || !CanRecord)">
+                </form>
+                    <footer class="v3-modal-footer">
+                        <button class="v3-btn" type="button" disabled="@_saving" @onclick="CloseConfirm">Cancel</button>
+                        <button class="v3-btn v3-btn-primary" type="submit" form="rm-review-form" disabled="@(_saving || !CanRecord)">
                             Confirm Remittance
                         </button>
-                    </div>
-                </form>
+                    </footer>
             </section>
+            </div>
         }
+        </div>
 
         @if (ShowPosition)
         {
@@ -437,6 +442,38 @@
     private string _sourceFilter = string.Empty;
 
     private bool _confirming;
+    private ElementReference _reviewRoot;
+    private IJSObjectReference? _reviewFocus;
+    private bool _reviewBound;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var open = Preparation && _confirming;
+        if (open == _reviewBound) return;
+        try
+        {
+            _reviewFocus ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/account-review.js");
+            if (_reviewFocus is not null)
+            {
+                await _reviewFocus.InvokeVoidAsync(open ? "bind" : "release", _reviewRoot);
+                await JS.InvokeVoidAsync("stallTrackSetBodyScrollLocked", open);
+                _reviewBound = open;
+            }
+        }
+        catch (InvalidOperationException) { }
+        catch (JSDisconnectedException) { }
+    }
+    public async ValueTask DisposeAsync()
+    {
+        if (_reviewFocus is null) return;
+        try
+        {
+            await _reviewFocus.InvokeVoidAsync("release", _reviewRoot);
+            if (_reviewBound) await JS.InvokeVoidAsync("stallTrackSetBodyScrollLocked", false);
+            await _reviewFocus.DisposeAsync();
+        }
+        catch (JSDisconnectedException) { }
+    }
+    private void ReviewKey(KeyboardEventArgs e) { if (e.Key == "Escape") CloseConfirm(); }
     private DateOnly _newDate = PhilippineTime.Today;
     // The scope the eligible collections were loaded for; the server re-derives eligibility from the same scope when recording.
     private DateOnly _scopeFrom;
@@ -473,7 +510,8 @@
     private decimal SelectedTotal => _drafts.Sum(d => d.Expected);
 
     private bool CanRecord => Recordable.Any() && Recordable.All(d =>
-        d.Amount is { } amount && amount > 0m && amount <= d.Expected && decimal.Round(amount, 2) == amount);
+        d.Amount is { } amount && amount > 0m && amount <= d.Expected && decimal.Round(amount, 2) == amount
+            && (amount == d.Expected || !string.IsNullOrWhiteSpace(d.Remarks)));
 
     private string PeriodLabel => $"{_from.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)} – {_to.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}";
 
@@ -563,7 +601,7 @@
         _confirming = true;
     }
 
-    private void CloseConfirm() => _confirming = false;
+    private void CloseConfirm() { if (!_saving) _confirming = false; }
 
     private void SelectEverything(bool include)
     {

@@ -57,17 +57,21 @@ public class OnlinePaymentSettlementServiceTests
     }
 
     [Fact]
-    public async Task Callback_after_monthly_cutover_begins_is_not_marked_paid_or_projected()
+    public async Task Callback_after_monthly_cutover_preserves_capture_without_projecting_it_AndRetryIsSafe()
     {
         var record = PaymentRecord.Create(Guid.NewGuid(), 2026, 6, Amount);
         record.MarkSettlementPendingCutover();
         var (service, payments, uow) = Build(record); var transaction = PendingTxn(record.Id);
-        var before = transaction.Status;
         var result = await service.SettleAsync(transaction, PaidEvent());
         Assert.Equal(ResultStatus.Conflict, result.Status); Assert.Contains("RECONCILIATION_REQUIRED", result.Error);
-        Assert.Equal(before, transaction.Status); Assert.Equal(PaymentStatus.Unpaid, record.Status);
+        Assert.Equal(OnlinePaymentStatus.ReconciliationRequired, transaction.Status);
+        Assert.Equal("pay_1", transaction.PaymentId);
+        Assert.Equal("{}", transaction.RawPayload);
+        Assert.Equal(PaymentStatus.Unpaid, record.Status);
         payments.Verify(x => x.UpdateAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
-        uow.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        uow.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        Assert.True((await service.SettleAsync(transaction, PaidEvent())).IsSuccess);
+        uow.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

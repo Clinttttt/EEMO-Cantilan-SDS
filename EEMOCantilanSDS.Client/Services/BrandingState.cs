@@ -5,9 +5,7 @@ namespace EEMOCantilanSDS.Client.Services;
 
 /// <summary>
 /// Per-circuit cache of the signed-in LGU's branding (office name/acronym, seal), loaded once from
-/// GET /api/municipalities/current/branding. Every accessor falls back to the current Cantilan literal,
-/// so before the load returns, on a failed load, or for an LGU that hasn't set a value, the shell renders
-/// exactly what it does today — Cantilan is byte-for-byte unchanged.
+/// GET /api/municipalities/current/branding. Unknown seals use a neutral placeholder until the tenant resolves.
 /// </summary>
 public class BrandingState(IMunicipalitiesApiClient api)
 {
@@ -100,11 +98,10 @@ public class BrandingState(IMunicipalitiesApiClient api)
     public string OfficeAcronym =>
         !string.IsNullOrWhiteSpace(_branding?.OfficeAcronym) ? _branding!.OfficeAcronym!
         : IsDefaultTenant ? DefaultOfficeAcronym : Municipality;
-    // A set seal wins; otherwise Cantilan keeps its own logo and every other LGU gets the waiting slot - never StallTrack's mark,
-    // which is what this used to hand to 31 render sites, most of them printed documents.
+    // Never claim another municipality's seal while tenant branding is unresolved.
     public string SealPath =>
         !string.IsNullOrWhiteSpace(_branding?.SealPath) ? _branding!.SealPath!
-        : IsDefaultTenant ? DefaultSealPath : WaitingSealPath;
+        : _branding?.IsDefault == true ? DefaultSealPath : WaitingSealPath;
 
     /// <summary>
     /// Whether the seal on screen actually belongs to the municipality named beside it. For a screen that would rather omit the seal

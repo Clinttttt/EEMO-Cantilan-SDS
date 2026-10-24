@@ -209,6 +209,8 @@ public sealed class RemittanceWorkflow(
             return Fail("Enter the remitted amount in whole centavos.", ResultStatus.Invalid);
         if (request.AmountRemitted > expected)
             return Fail($"The remitted amount cannot exceed what was collected (₱{expected:N2}).", ResultStatus.Invalid);
+        if (request.AmountRemitted != expected && string.IsNullOrWhiteSpace(request.Remarks))
+            return Fail("A reason is required when the amount remitted differs from the collected amount.", ResultStatus.Invalid);
 
         CollectionRemittance remittance;
         try
@@ -576,11 +578,24 @@ public sealed class RemittanceWorkflow(
         var facts = (await LoadCollectionFactsForIdsAsync(tenantId, covered, remittance, ct));
         var names = await CollectorNamesAsync(tenantId, [remittance.CollectorId], ct);
         var collections = facts.Select(ToCollectionDto).OrderBy(x => x.BusinessDate).ThenBy(x => x.ReferenceCode.Length).ThenBy(x => x.ReferenceCode, StringComparer.Ordinal).ToList();
+        // Retained coverage proves shared Collections, not an inferred intent to replace a particular remittance.
+        var previous = await (from coverage in db.CollectionRemittanceCoverages.AsNoTracking()
+                              join prior in db.CollectionRemittances.AsNoTracking()
+                                  on new { coverage.MunicipalityId, coverage.RemittanceId }
+                                  equals new { prior.MunicipalityId, RemittanceId = prior.Id }
+                              where coverage.MunicipalityId == tenantId && covered.Contains(coverage.CollectionId)
+                                  && prior.Id != id && prior.Status == RemittanceStatus.Voided
+                                  && prior.RecordedAtUtc <= remittance.RecordedAtUtc
+                              select new { prior.Id, prior.Reference, prior.VoidReason, prior.VoidedBy, prior.VoidedAtUtc, coverage.CollectionId })
+            .ToListAsync(ct);
+        var lineage = previous.GroupBy(x => x.Id).Select(g => new RemittancePriorCoverageDto(g.Key,
+            g.First().Reference, g.First().VoidReason, g.First().VoidedBy, g.First().VoidedAtUtc,
+            g.Select(x => x.CollectionId).Distinct().Count())).OrderBy(x => x.VoidedAtUtc).ToList();
         return Result<RemittanceDetailDto>.Success(new RemittanceDetailDto(
             ToRow(remittance, names), remittance.PeriodFrom, remittance.PeriodTo, remittance.Remarks, remittance.RecordedBy,
             remittance.VoidReason, remittance.VoidedBy, remittance.VoidedAtUtc, collections, Breakdown(collections),
             FirstDocument(collections), LastDocument(collections),
-            remittance.NeedsReview || collections.Any(x => x.CorrectedAfterRemittance)));
+            remittance.NeedsReview || collections.Any(x => x.CorrectedAfterRemittance), lineage));
     }
 
     /// <summary>The covered collections of one remittance, read with the same net/breakdown rules, whether or not still active.</summary>

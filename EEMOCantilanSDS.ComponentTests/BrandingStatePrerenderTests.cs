@@ -66,6 +66,8 @@ public class BrandingStatePrerenderTests
 
         Assert.False(state.Resolved);
         Assert.Null(state.Current);
+        Assert.Equal(BrandingState.WaitingSealPath, state.SealPath);
+        Assert.False(state.HasOwnSeal);
     }
 
     [Fact]

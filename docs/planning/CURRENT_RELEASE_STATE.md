@@ -1,5 +1,9 @@
 # StallTrack Current Release State
 
+## 2026-10-23 isolated V13 work — not integrated or deployed
+
+The nine-issue V13 implementation is isolated on `fix/v13-integrity-and-ui-20261023`, based on verified `origin/master` `fcf01c44`, in `C:\dev\stalltrack\codex-v13-multi-fixes-20261023`. See [implementation evidence, validation and remaining gates](V13_MULTI_ISSUE_IMPLEMENTATION_20261023.md). This does not change the primary checkout, production release, municipal policies or Collector APK. Older dated checkout/release references below remain historical evidence; inspect current Git/runtime before using them.
+
 ## 2026-10-16 local integration update (supersedes older checkout references below)
 
 - **EEMO primary checkout:** `C:\dev\stalltrack\eemo`, branch `codex/local-unified-v8-v10-20261013`. This checkout now contains the Fish/Meat, NPM, Mobile Records/Reports, ECF/WCF Accountability SRC, and three V7 rental/space-import integration commits through `01ab7727`, followed by isolated Head import-test stabilization (`4f35c14d`) and the local Login/Audit Trail refinement (`30cf5c08`). Inspect Git for subsequent commits and the exact current HEAD.
