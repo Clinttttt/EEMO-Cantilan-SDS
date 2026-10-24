@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Domain.Entities.Payments;
+using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 using Moq;
 
