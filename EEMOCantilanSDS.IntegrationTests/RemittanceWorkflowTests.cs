@@ -100,7 +100,7 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
         new(ctx, new Caller(w.HeadId, tenant ?? w.Tenant.Id, role), new FixedTenant(tenant ?? w.Tenant.Id));
 
     private static RecordRemittanceRequest Request(World w, decimal amount, Guid? operationId = null, IReadOnlyList<Guid>? ids = null) => new(
-        operationId ?? Guid.NewGuid(), w.Collector.Id, Today, Today.AddDays(-1), Today, RevenueInstrumentType.CashTicket, ids, amount, "ACK-1", amount < 110m ? "Counted short at turnover" : null);
+        operationId ?? Guid.NewGuid(), w.Collector.Id, Today, Today.AddDays(-1), Today, RevenueInstrumentType.CashTicket, ids, amount, "ACK-1", null);
 
     private async Task PostThreeAsync(World w)
     {
@@ -278,7 +278,7 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
         Assert.Equal(ResultStatus.Invalid, unexplained.Status);
         Assert.Empty(await ctx.CollectionRemittances.ToListAsync());
 
-        var short_ = await remit.RecordAsync(Request(w, 100m));
+        var short_ = await remit.RecordAsync(Request(w, 100m) with { Remarks = "Counted short at turnover" });
         Assert.True(short_.IsSuccess, short_.Error);
         Assert.Equal((110m, 100m, 10m), (short_.Value!.Row.ExpectedAmount, short_.Value.Row.RemittedAmount, short_.Value.Row.DifferenceAmount));
         Assert.True(short_.Value.NeedsReview);
@@ -348,7 +348,7 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
         await PostThreeAsync(w);
         await using var ctx = db.CreateContext(w.Tenant.Id);
         var remit = Remit(ctx, w);
-        var wrong = (await remit.RecordAsync(Request(w, 100m))).Value!;
+        var wrong = (await remit.RecordAsync(Request(w, 100m) with { Remarks = "Counted short at turnover" })).Value!;
 
         Assert.False((await remit.VoidAsync(wrong.Row.Id, new VoidRemittanceRequest(" "))).IsSuccess);
         var voided = await remit.VoidAsync(wrong.Row.Id, new VoidRemittanceRequest("Counted short by mistake"));
