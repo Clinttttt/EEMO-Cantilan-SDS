@@ -60,6 +60,32 @@ public sealed class FollowUpQueueCompositionTests : TestContext
     }
 
     [Fact]
+    public void Online_payment_receipt_issuance_remains_visible_while_optional_blank_or_is_hidden()
+    {
+        var optional = SampleQueue().Items.Single(x => x.ReasonKind == "missingor");
+        var awaitingOnline = optional with
+        {
+            Person = "Online payment awaiting receipt",
+            Section = 1,
+            Reason = "Missing OR",
+            Priority = "High",
+            Action = "Encode OR",
+            Link = "/online-payments",
+            ReceiptActionRequired = true
+        };
+        var queue = SampleQueue() with { Items = SampleQueue().Items.Append(awaitingOnline).ToArray() };
+        var (cut, _) = RenderQueue(queue);
+        cut.WaitForAssertion(() =>
+        {
+            var onlineRow = RowFor(cut, "Online payment awaiting receipt");
+            Assert.Contains("Missing OR", onlineRow.TextContent);
+            Assert.Contains("Online payment awaiting receipt", cut.Markup);
+            Assert.DoesNotContain(cut.FindAll(".fq-row"), row => row.TextContent.Contains("Receipt follow-up"));
+            Assert.Equal(8, cut.FindAll(".fq-row").Count); // one new mandatory row, the legacy row still filtered
+        }, RenderTimeout);
+    }
+
+    [Fact]
     public void KeepsCurrentPeriodUnpaidAndPartialSeparateFromDelinquency()
     {
         var (cut, _) = RenderQueue();
@@ -238,6 +264,10 @@ public sealed class FollowUpQueueCompositionTests : TestContext
             Assert.DoesNotContain(chips, x => x.Contains("Missing OR") || x.Contains("NPM Daily"));
             Assert.Contains(chips, x => x.Contains("Closed"));
             Assert.Contains(cut.FindAll(".fh-row"), x => x.TextContent.Contains("Receipt follow-up"));
+            Assert.DoesNotContain(cut.FindAll(".fh-section"), s =>
+                s.TextContent.Contains("Needs immediate action") && s.TextContent.Contains("Receipt follow-up"));
+            Assert.Contains(cut.FindAll(".fh-section"), s =>
+                s.TextContent.Contains("Facility-specific operational") && s.TextContent.Contains("Receipt follow-up"));
             Assert.Contains(cut.FindAll(".fh-row"), x => x.TextContent.Contains("NPM daily coverage"));
             Assert.Contains("9", chips[0]); // All includes all nine source rows.
         }, RenderTimeout);
@@ -373,7 +403,7 @@ public sealed class FollowUpQueueCompositionTests : TestContext
                 "Jan–Aug 2026", "No longer the occupant", "Review account", "/profile/tcc/00000000-0000-0000-0000-000000000005"),
             Item(2, "Normal", "Contract expiring", "contract", "Expiring account", "BBQ · Stall 2", null,
                 "December 31, 2026", "Expiring soon", "Review contract", "/profile/bbq/00000000-0000-0000-0000-000000000006"),
-            Item(1, "High", "Missing OR", "missingor", "Receipt follow-up", "TCC · Stall 13", 800m,
+            Item(4, "Normal", "OR not recorded", "missingor", "Receipt follow-up", "TCC · Stall 13", 800m,
                 "September 2026", "Paid · OR blank", "Add OR", "/profile/tcc/00000000-0000-0000-0000-000000000007"),
             Item(2, "Normal", "Electricity unpaid", "misc", "Utility follow-up", "NPM · Stall 14", 400m,
                 "September 2026", "Unpaid", "Pay Bill", "/npm")

@@ -15,11 +15,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.Infrastructure.Repositories;
 
-// Partial of PaymentRepository: money the office HAS taken whose Official Receipt is still blank (IMissingReceiptQueries).
-//
-// A different question from what an account owes. These scan a whole period across every payor, because a payment without a
-// receipt number is a payment the office cannot account for at audit - a follow-up task, not a balance. Each row is named after
-// the lessee answerable for its own billing month, not whoever holds the stall now.
+// Partial of PaymentRepository: historical cash/field records with an unfilled OR-number metadata field.
+// These queries are not a legal/issuance-policy classifier; a blank optional field does not create urgent work
+// or another debt. Online payments awaiting actual receipt issuance use a separate workflow.
+// Each row names the lessee answerable for its own billing month, not the current stall occupant.
 public partial class PaymentRepository
 {
     public async Task<IReadOnlyList<UnreceiptedPaymentDto>> GetUnreceiptedCashPaymentsAsync(int year, int month, CancellationToken ct)

@@ -235,6 +235,31 @@ public class GetFollowUpHistoryQueryHandlerTests
     }
 
     [Fact]
+    public async Task WholeTime_retains_legacy_blank_OR_as_optional_history_not_immediate_action()
+    {
+        var (handler, _, _, _, payments, _) = Build();
+        var stallId = Guid.NewGuid();
+        payments.Setup(p => p.GetUnreceiptedCashPaymentsAllTimeAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                new UnreceiptedPaymentDto(FacilityCode.TCC, "13", "Earlier lessee", 800m, 1,
+                    IsDaily: false, StallId: stallId, Year: 2024, Month: 4)
+            ]);
+
+        var history = (await handler.Handle(new GetFollowUpHistoryQuery(2025, 12, AllTime: true),
+            CancellationToken.None)).Value!;
+        var optional = Assert.Single(history.Items, i => i.ReasonKind == "missingor");
+        Assert.Equal(4, optional.Section);
+        Assert.Equal("Normal", optional.Priority);
+        Assert.Equal("OR not recorded", optional.Reason);
+        Assert.False(optional.ReceiptActionRequired);
+        Assert.Equal(800m, optional.Amount);
+        Assert.Equal(stallId, optional.StallId);
+        Assert.Equal("April 2024", optional.Period);
+        Assert.Equal("Add OR", optional.Action);
+        Assert.DoesNotContain(history.Items, i => i.ReasonKind == "missingor" && i.Section == 1);
+    }
+
+    [Fact]
     public async Task APeriodSnapshot_ReadsTheRegisterBoundedToThatPeriod_NotTheLifetimeOne()
     {
         var (handler, closed, _, _, _, _) = Build();
@@ -379,6 +404,8 @@ public class GetFollowUpHistoryQueryHandlerTests
         var missingOr = Assert.Single(items, i => i.ReasonKind == "missingor");
         Assert.Equal("Encode OR", missingOr.Action);
         Assert.Equal(3_240m, missingOr.Amount);
+        Assert.True(missingOr.ReceiptActionRequired);
+        Assert.Equal(1, missingOr.Section);
 
         // Period-scoped sources were used with the requested period — NOT the live "as of today" ones.
         attention.Verify(s => s.GetContractAttentionAsOfAsync(2025, 12, It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);

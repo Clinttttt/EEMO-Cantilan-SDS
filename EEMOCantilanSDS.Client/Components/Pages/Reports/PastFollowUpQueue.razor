@@ -906,10 +906,10 @@
 
     private static readonly SecDef[] Sections =
     {
-        new(1, "Needs immediate action", "Higher-age delinquent · missing receipts · ended occupancies", "critical"),
+        new(1, "Needs immediate action", "Higher-age delinquent · online receipts awaiting issuance · ended occupancies", "critical"),
         new(2, "Needs follow-up this period", "Lower-age delinquent · unpaid · partial · expiring contracts", "high"),
         new(3, "Needs verification", "Excused / absent records", "review"),
-        new(4, "Facility-specific operational", "Daily · per-trip · market-day exceptions", "normal"),
+        new(4, "Facility-specific operational", "Daily · per-trip · optional receipt-number records", "normal"),
     };
 
     // Per-section columns — the SAME context split and columns as the live queue, ending in Action.

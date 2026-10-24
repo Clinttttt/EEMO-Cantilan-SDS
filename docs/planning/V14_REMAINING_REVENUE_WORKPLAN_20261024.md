@@ -102,6 +102,17 @@ Verified source: `FollowUpComposer` emits multiple Missing OR categories, includ
 - Operational limits: the separate Head Portal Composer fine-draft path still enforces full balance, by design of this scoped change. Android Debug build completed successfully (58 warnings, 0 errors); the generated signed Debug APK is local to the isolated worktree and is not a production release. Physical handset/offline device verification, production tenant verification and final cross-system end-to-end acceptance remain release gates.
 - No production writes were performed; all monetary integration tests use isolated database fixtures.
 
+## Implementation checkpoint — E. Optional OR metadata versus online receipt issuance
+- Separated operational cash/field records whose OR-number metadata is blank from ONLINE payments already received but still awaiting actual office receipt issuance.
+- Additive optional `FollowUpItemDto.ReceiptActionRequired` is true only for the online issuance branch. Existing historical DTO properties, row identities, money amounts, periods, links, and underlying source records remain unchanged. Legacy clients default false until matched API and Web are deployed.
+- The Web live Follow-up Queue no longer hides the entire `missingor` family: it suppresses only optional rows. Actual online receipt issuance is visible and retains `Immediate / High` and `Encode OR`.
+- The shared composer changes fully-paid legacy monthly blank-OR metadata from `Immediate / High / Missing OR` to `Operational / Normal / OR not recorded`. NPM daily, slaughterhouse, transport trips and market-day blank-OR items were already operational and remain historical source rows; online issuance stays urgent. No physical OR is invented or automatically assigned.
+- Whole-time History retains all optional records and the historical source amounts and per-record periods, including past years. Its immediate-section subtitle now distinguishes online receipt issuance from optional receipt-number records; no Missing OR shortcut was reintroduced.
+- Targeted report unit suite: 37/37 passed, including a historical old monthly blank-OR source and positive online issuance. Focused Web component set: 13/13 passed, including the live positive online/negative optional test and Whole-time section placement.
+- First full Web component run: 1,453 passed, one unrelated Stall/Space holder test timed out (1,454 total). The specific timeout test then passed twice in isolation; a full Web re-run passed 1,454/1,454 (no failures). Follow-up unit suite 37/37 passed after adding the old monthly blank-OR history regression.
+- Follow-up history cache TTL is 2 minutes. Existing cached snapshots may retain old urgency assignments until TTL expiry; the release must ship API + Client together and verify a fresh follow-up query.
+- No changes to posting, receipt issuance, accountable forms, canonical collections, amounts, financial aggregates, database schema or production data.
+
 ## Baseline findings (before local fixes; production account diagnosis pending)
 - Baseline Fiesta/Araw browse excluded registered future-event lots; the local change now displays them as non-selectable. Exact production account exclusion reason remains unverified without authorized tenant-specific evidence.
 - Baseline NPM duplicate-review override could bypass exact active association; local server fix and integration tests now reject it. Cross-process DB uniqueness/data audit remains a separate safeguard.

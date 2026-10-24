@@ -244,10 +244,12 @@ public class GetFollowUpQueueQueryHandlerTests
         var missingOr = Assert.Single(items, i => i.ReasonKind == "missingor");
         Assert.Equal("Encode OR", missingOr.Action);
         Assert.Equal(3_240m, missingOr.Amount);
+        Assert.True(missingOr.ReceiptActionRequired);
+        Assert.Equal(1, missingOr.Section);
     }
 
     [Fact]
-    public async Task CashPaidRecord_MissingOr_SurfacesAsImmediate_WithoutDuplicatingOnline()
+    public async Task CashPaidRecord_BlankOptionalOr_RemainsInOperationalHistory_WithoutDuplicatingOnline()
     {
         // A fully-paid cash monthly record with a blank OR (TCC stall 03).
         var stallId = Guid.NewGuid();
@@ -264,8 +266,10 @@ public class GetFollowUpQueueQueryHandlerTests
         Assert.Equal(2, missing.Count);
 
         var cash = Assert.Single(missing, i => i.Facility == FacilityCode.TCC);
-        Assert.Equal(1, cash.Section);            // immediate action
-        Assert.Equal("High", cash.Priority);
+        Assert.Equal(4, cash.Section);            // optional receipt metadata is not urgent
+        Assert.Equal("Normal", cash.Priority);
+        Assert.Equal("OR not recorded", cash.Reason);
+        Assert.False(cash.ReceiptActionRequired);
         Assert.Equal("Add OR", cash.Action);      // inline OR entry, carrying the stall to act on
         Assert.Equal(stallId, cash.StallId);
 
@@ -278,6 +282,10 @@ public class GetFollowUpQueueQueryHandlerTests
         // The online row keeps its own encode flow.
         var online = Assert.Single(missing, i => i.Facility == FacilityCode.NCC);
         Assert.Equal("Encode OR", online.Action);
+        Assert.True(online.ReceiptActionRequired);
+        Assert.Equal(1, online.Section);
+        Assert.Equal("High", online.Priority);
+        Assert.Equal(2_400m, cash.Amount); // unchanged financial source; presentation policy only
     }
 
     [Fact]
@@ -299,6 +307,7 @@ public class GetFollowUpQueueQueryHandlerTests
         Assert.Equal("Add OR", daily.Action);       // inline modal, not "Open daily calendar"
         Assert.Equal(stallId, daily.StallId);       // carries the stall so the modal can act on it
         Assert.Equal(450m, daily.Amount);
+        Assert.False(daily.ReceiptActionRequired);
         Assert.Contains("15 day", daily.Identifier);
     }
 
