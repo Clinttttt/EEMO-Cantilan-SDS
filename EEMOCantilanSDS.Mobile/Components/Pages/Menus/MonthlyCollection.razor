@@ -1283,6 +1283,7 @@ if (SelectedStall.RentCanonical && SelectedStatus != PaymentStatus.Unpaid)      
             return;
         }
 
+        RentNotice = SelectedStatus == PaymentStatus.Unpaid ? "Status updated successfully." : "Payment recorded successfully.";
         CloseSheet();
         try
         {

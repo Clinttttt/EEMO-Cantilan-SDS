@@ -60,7 +60,7 @@ public sealed class CollectionsReportWorkflow(
         if (from > to || to.DayNumber - from.DayNumber > 366)
             return Result<CollectionsRegisterDto>.Failure("Choose a valid period of no more than 367 days.", ResultStatus.Invalid);
         var rows = (await LoadRowsAsync(tenantId, from, to, collectorId, null, null, ct)).Select(x => x.Row)
-            .OrderByDescending(x => x.BusinessDate).ThenBy(x => x.ReferenceCode.Length).ThenBy(x => x.ReferenceCode, StringComparer.Ordinal).ToList();
+            .OrderByDescending(x => x.RecordedAtUtc ?? x.BusinessDate.ToDateTime(TimeOnly.MinValue)).ThenByDescending(x => x.ReferenceCode, StringComparer.Ordinal).ToList();
         return Result<CollectionsRegisterDto>.Success(new CollectionsRegisterDto(from, to, rows.Take(RowLimit).ToList(), [],
             rows.Sum(x => x.Amount), rows.Sum(x => x.CorrectionEffect), rows.Sum(x => x.Amount + x.CorrectionEffect), rows.Count > RowLimit));
     }
@@ -102,7 +102,7 @@ public sealed class CollectionsReportWorkflow(
     {
         var collections = db.Collections.AsNoTracking().Where(x => x.MunicipalityId == tenantId && x.BusinessDate >= from && x.BusinessDate <= to);
         if (collectorId is { } c) collections = collections.Where(x => x.CollectorId == c);
-        var list = await collections.Select(x => new { x.Id, x.BusinessDate, x.PayerName, x.CollectorId, x.ReferenceCode }).ToListAsync(ct);
+        var list = await collections.Select(x => new { x.Id, x.BusinessDate, x.RecordedAtUtc, x.PayerName, x.CollectorId, x.ReferenceCode }).ToListAsync(ct);
         if (list.Count == 0) return [];
         var ids = list.Select(x => x.Id).ToArray();
         var lines = await db.CollectionLines.AsNoTracking()
@@ -140,7 +140,7 @@ public sealed class CollectionsReportWorkflow(
                 line.RevenueClassificationId, names.GetValueOrDefault(line.RevenueClassificationId, "Unclassified"),
                 labels.GetValueOrDefault(line.Id, "—"), line.Amount, effect,
                 effect == 0m ? "Posted" : line.Amount + effect <= 0m ? "Reversed" : "Corrected",
-                FrozenCollectionFacts.ChargeName(line.CalculationSnapshot), FrozenCollectionFacts.SlaughterSubject([line.CalculationSnapshot]))));
+                FrozenCollectionFacts.ChargeName(line.CalculationSnapshot), FrozenCollectionFacts.SlaughterSubject([line.CalculationSnapshot]), collection.RecordedAtUtc)));
         }
         return rows;
     }

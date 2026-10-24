@@ -22,7 +22,10 @@ public sealed record CollectionRegisterRowDto(
     // What the line froze about itself, when it froze anything: the approved charge's own name ("Table Charge") and, for Slaughterhouse,
     // the animal and heads ("Hog × 3"). Null for every line that carries no such snapshot - nothing is inferred.
     string? ItemLabel = null,
-    string? Subject = null);
+    string? Subject = null,
+    // Optional additive field for clients deployed before this timestamp was available.
+    // Recording instant, not the assessed/selected BusinessDate; used for newest-first mobile Records.
+    DateTime? RecordedAtUtc = null);
 
 /// <summary>
 /// The RCD-style summary derived from the register: what was collected per classification, with the documents behind it.

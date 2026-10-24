@@ -20,7 +20,7 @@ public sealed class RecordsPresentationTests : TestContext
         var today = PhilippineTime.Today;
         var api = new Mock<IMobileApiClient>();
         api.Setup(x => x.GetMyCollectionsAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>())).ReturnsAsync(Result<CollectionsRegisterDto>.Success(new(today, today,
-            [new(Guid.NewGuid(), today, "SRC-2026-000009", null, RevenueInstrumentType.OfficialReceipt, "Tricycad payer", null, "Collector", Guid.NewGuid(), "TRICYCAD", "Direct", 33m, 0m, "Posted")], [], 33m, 0m, 33m, false)));
+            [new(Guid.NewGuid(), today, "SRC-2026-000009", null, RevenueInstrumentType.OfficialReceipt, "Tricycad payer", null, "Collector", Guid.NewGuid(), "TRICYCAD", "Direct", 33m, 0m, "Posted", RecordedAtUtc: DateTime.SpecifyKind(today.ToDateTime(new TimeOnly(10, 0)).AddHours(-8), DateTimeKind.Utc))], [], 33m, 0m, 33m, false)));
         api.Setup(x => x.GetRecordsAsync(null, It.IsAny<DateOnly>(), It.IsAny<DateOnly>())).ReturnsAsync(Result<IReadOnlyList<MobileCollectorRecordDto>>.Success([
             new("HIST-123", "Ana Reyes", FacilityCode.NPM, "NPM", "F2", "Daily Fee", 900m, 870m, true, today.ToDateTime(new TimeOnly(9, 15)))]));
         var store = new Mock<IPendingOperationStore>(); store.Setup(x => x.GetAllAsync()).ReturnsAsync(Array.Empty<PendingOperation>());
@@ -29,7 +29,10 @@ public sealed class RecordsPresentationTests : TestContext
         Services.AddSingleton(new MobileSyncService(store.Object, api.Object, Mock.Of<IConnectivityMonitor>(), owner.Object));
         var view = RenderComponent<EEMOCantilanSDS.Mobile.Components.Pages.Menus.Record>();
         view.WaitForAssertion(() => Assert.Equal(2, view.FindAll(".collection-record-row").Count));
-        Assert.Contains("None recorded", view.Markup); Assert.Contains("Ana Reyes", view.Markup);
+        // The 10 AM canonical collection belongs above the 9:15 AM legacy market record.
+        Assert.Contains("Tricycad payer", view.FindAll(".collection-record-row")[0].TextContent);
+        Assert.Contains("Ana Reyes", view.FindAll(".collection-record-row")[1].TextContent);
+        Assert.Contains("Tricycad payer", view.Markup); Assert.Contains("Ana Reyes", view.Markup);
         var legacy = view.FindAll("button.collection-record-row").Single(x => x.TextContent.Contains("Ana Reyes"));
         Assert.Contains("870.00", legacy.TextContent); Assert.Contains("900.00 assessed", legacy.TextContent);
         Assert.DoesNotContain("HIST-123", legacy.TextContent);

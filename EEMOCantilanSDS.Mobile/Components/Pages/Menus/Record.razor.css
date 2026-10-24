@@ -287,3 +287,13 @@
     background: #eef2f5;
     color: #5b6b7b;
 }
+
+/* One chronological list across legacy and canonical sources, without category cards. */
+.record-correct { width: 100%; margin: 0 0 12px; border: 1px solid var(--mobile-border);
+    background: var(--mobile-surface); color: var(--mobile-navy); border-radius: 9px;
+    padding: 10px 12px; text-align: left; font-size: 12px; font-weight: 600; cursor: pointer; }
+.records-read-note { margin: 0 0 12px; color: var(--mobile-text-secondary); font-size: 12px; line-height: 1.4; }
+.record-line-detail { display: flex; gap: 12px; justify-content: space-between; padding: 3px 0;
+    font-size: 12px; font-variant-numeric: tabular-nums; }
+.record-line-detail span:first-child { flex: 1; min-width: 0; }
+.record-line-detail span:last-child { white-space: nowrap; }
