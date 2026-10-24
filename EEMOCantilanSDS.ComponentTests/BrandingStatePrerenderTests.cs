@@ -71,6 +71,51 @@ public class BrandingStatePrerenderTests
     }
 
     [Fact]
+    public async Task AFailedReadCanRecoverOnTheNextCallInTheSameCircuit()
+    {
+        var api = new Mock<IMunicipalitiesApiClient>();
+        api.SetupSequence(x => x.GetCurrentBrandingAsync())
+            .ReturnsAsync(Result<MunicipalityBrandingDto>.Failure("unavailable"))
+            .ReturnsAsync(Result<MunicipalityBrandingDto>.Success(Branding("CARRASCAL", "Carrascal") with { SealPath = "https://api.test/carrascal/seal?v=1" }));
+        var state = new BrandingState(api.Object);
+        await state.EnsureLoadedAsync();
+        Assert.False(state.Resolved);
+        await state.EnsureLoadedAsync();
+        Assert.Equal("Carrascal", state.Current?.Name);
+        Assert.True(state.HasOwnSeal);
+        api.Verify(x => x.GetCurrentBrandingAsync(), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task ConcurrentFirstReadsShareTheSameRequest()
+    {
+        var arrival = new TaskCompletionSource<Result<MunicipalityBrandingDto>>();
+        var api = new Mock<IMunicipalitiesApiClient>();
+        api.Setup(x => x.GetCurrentBrandingAsync()).Returns(arrival.Task);
+        var state = new BrandingState(api.Object);
+        var first = state.EnsureLoadedAsync();
+        var second = state.EnsureLoadedAsync();
+        Assert.Same(first, second);
+        arrival.SetResult(Result<MunicipalityBrandingDto>.Success(Branding("CARRASCAL", "Carrascal")));
+        await Task.WhenAll(first, second);
+        api.Verify(x => x.GetCurrentBrandingAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task AnOlderReadCannotOverwriteNewlyAppliedBranding()
+    {
+        var arrival = new TaskCompletionSource<Result<MunicipalityBrandingDto>>();
+        var api = new Mock<IMunicipalitiesApiClient>();
+        api.Setup(x => x.GetCurrentBrandingAsync()).Returns(arrival.Task);
+        var state = new BrandingState(api.Object);
+        var pending = state.EnsureLoadedAsync();
+        state.Apply(Branding("CARRASCAL", "New office identity"));
+        arrival.SetResult(Result<MunicipalityBrandingDto>.Success(Branding("CARRASCAL", "Old office identity")));
+        await pending;
+        Assert.Equal("New office identity", state.Current?.Name);
+    }
+
+    [Fact]
     public void WhatIsCarriedOverIsWhatWasLoaded()
     {
         var api = new Mock<IMunicipalitiesApiClient>();

@@ -75,7 +75,10 @@ public sealed class JsonOfflineReadCache : IOfflineReadCache
         await _gate.WaitAsync();
         try
         {
-            await SaveUnsafeAsync(new Dictionary<string, JsonElement>());
+            // Identity-changing login/logout must fail closed on a disk error. A best-effort in-memory
+            // clear would leave the previous collector's data on disk for the next app restart.
+            await WriteDurableAsync(_filePath, "{}");
+            _cache = new Dictionary<string, JsonElement>();
         }
         finally
         {

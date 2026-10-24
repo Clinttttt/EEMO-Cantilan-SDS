@@ -19,6 +19,23 @@ public class PartialPaymentRecordTests
         PaymentRecord.Create(Guid.NewGuid(), 2026, 8, rent, "test");
 
     [Fact]
+    public void Returning_month_to_unpaid_clears_previous_collector_attribution()
+    {
+        var originalCollector = Guid.NewGuid();
+        var month = Month();
+        month.UpdateStatus(PaymentStatus.Paid, collectorId: originalCollector);
+        Assert.Equal(originalCollector, month.CollectorId);
+
+        month.UpdateStatus(PaymentStatus.Unpaid, updatedBy: "office correction");
+
+        Assert.Equal(PaymentStatus.Unpaid, month.Status);
+        Assert.Equal(0m, month.AmountPaid);
+        Assert.Null(month.PaidAt);
+        Assert.Null(month.ORNumber);
+        Assert.Null(month.CollectorId);
+    }
+
+    [Fact]
     public void APartialRecordsTheAmountHandedOver_AndOwesTheRest()
     {
         var month = Month(2_400m);

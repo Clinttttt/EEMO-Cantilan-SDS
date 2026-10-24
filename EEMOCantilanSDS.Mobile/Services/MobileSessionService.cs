@@ -10,7 +10,8 @@ public sealed class MobileSessionService(
     ICollectorAuthApiClient collectorAuthApiClient,
     IMobileApiClient mobileApiClient,
     MobilePaymentHubService paymentHub,
-    EEMOCantilanSDS.Mobile.Abstractions.IOfflineReadCache readCache)
+    EEMOCantilanSDS.Mobile.Abstractions.IOfflineReadCache readCache,
+    OfflineReadinessCoordinator? offlineReadiness = null)
 {
     public MobileMenuDto? Menu { get; private set; }
     public bool IsAuthenticated => tokenStore.HasAccessToken && Menu is not null;
@@ -89,7 +90,19 @@ public sealed class MobileSessionService(
         // Clear any previous collector's cached reads BEFORE persisting the new token. If the app dies in
         // this window, the next startup finds an empty cache (safe) rather than the new token paired with
         // the old collector's cached menu/records.
-        await readCache.ClearAsync();
+        offlineReadiness?.Stop();
+        try
+        {
+            if (mobileApiClient is CachingMobileApiClient cached)
+                await cached.ClearForIdentityChangeAsync();
+            else
+                await readCache.ClearAsync();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Never switch to a different collector while the previous collector's disk cache may remain.
+            return "Device storage is unavailable. Free space or repair storage before signing in.";
+        }
         await tokenStore.SaveAsync(result.Value);
 
         var menuError = await LoadMenuAsync(allowRefresh: true);
@@ -149,8 +162,13 @@ public sealed class MobileSessionService(
             // to their cached offline data until they can reach the server again.
             if (result.StatusCode is 400 or 401)
             {
+                offlineReadiness?.Stop();
                 tokenStore.Clear();
                 Menu = null;
+                if (mobileApiClient is CachingMobileApiClient cached)
+                    await cached.ClearForIdentityChangeAsync();
+                else
+                    await readCache.ClearAsync();
             }
 
             return false;
@@ -164,6 +182,7 @@ public sealed class MobileSessionService(
 
     public async Task LogoutAsync()
     {
+        offlineReadiness?.Stop();
         var refreshToken = tokenStore.RefreshToken;
 
         if (!string.IsNullOrWhiteSpace(refreshToken))
@@ -174,8 +193,11 @@ public sealed class MobileSessionService(
             });
         }
 
-        // Clear cached reads first so they can never outlive the session/token.
-        await readCache.ClearAsync();
+        // Clear cached reads and invalidate in-flight old-session GETs before removing the token.
+        if (mobileApiClient is CachingMobileApiClient cached)
+            await cached.ClearForIdentityChangeAsync();
+        else
+            await readCache.ClearAsync();
         tokenStore.Clear();
         Menu = null;
         await paymentHub.StopAsync();

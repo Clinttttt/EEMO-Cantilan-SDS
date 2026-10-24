@@ -35,6 +35,7 @@ namespace EEMOCantilanSDS.Mobile
                 _ => new EEMOCantilanSDS.Mobile.Services.JsonOfflineReadCache(LocalAcceptanceProfile.DataDirectory));
             builder.Services.AddSingleton<EEMOCantilanSDS.Mobile.Abstractions.ICurrentCollectorProvider, EEMOCantilanSDS.Mobile.Platform.MauiCurrentCollectorProvider>();
             builder.Services.AddSingleton<EEMOCantilanSDS.Mobile.Services.MobileSyncService>();
+            builder.Services.AddSingleton<EEMOCantilanSDS.Mobile.Services.OfflineReadinessCoordinator>();
             builder.Services.AddTransient<MobileLoopbackFallbackHandler>();
             builder.Services.AddTransient<MobileAuthorizationDelegatingHandler>();
             builder.Services.AddTransient<MobileRefreshTokenDelegatingHandler>();

@@ -39,13 +39,12 @@ public class BrandingState(IMunicipalitiesApiClient api)
     public const string DefaultProvince = "Surigao del Sur";
 
     private MunicipalityBrandingDto? _branding;
-    private Task? _loadTask;
+    private Task<bool>? _loadTask;
+    private int _loadVersion;
+    public event Action? Changed;
 
     /// <summary>
-    /// True only once an LGU's branding has actually come back. Distinct from "the load finished": every accessor below falls
-    /// back to Cantilan's literals, which is right for the shell (Cantilan stays byte-for-byte unchanged) but wrong anywhere
-    /// a screen would rather show nothing than the wrong municipality's identity — the change-password screen gates its brand
-    /// panel on this.
+    /// True only once the caller's branding has come back. Unknown seals remain neutral; text accessors retain compatibility defaults.
     /// </summary>
     public bool Resolved => _branding is not null;
 
@@ -66,8 +65,12 @@ public class BrandingState(IMunicipalitiesApiClient api)
     /// </summary>
     public void Apply(MunicipalityBrandingDto branding)
     {
+        _loadVersion++;
         _branding = branding;
-        _loadTask = Task.CompletedTask;
+        _signatories = null;
+        _alignment = null;
+        _loadTask = Task.FromResult(true);
+        Changed?.Invoke();
     }
 
     // The default tenant is Cantilan; before load (null) we treat as default so Cantilan is byte-for-byte
@@ -111,22 +114,33 @@ public class BrandingState(IMunicipalitiesApiClient api)
     public string Municipality => Nonempty(_branding?.Name, DefaultMunicipality);
     public string Province => Nonempty(_branding?.Province, DefaultProvince);
 
-    /// <summary>Loads branding once per circuit; concurrent callers share the same in-flight task. A failed
-    /// load leaves the fallbacks in place (never throws to the UI).</summary>
-    public Task EnsureLoadedAsync() => _loadTask ??= LoadAsync();
-
-    private async Task LoadAsync()
+    /// <summary>Share in-flight/successful reads; a failed read can be retried without replacing the last valid identity.</summary>
+    public Task EnsureLoadedAsync()
     {
+        if (_loadTask is { IsCompleted: false }) return _loadTask;
+        if (_loadTask is { IsCompletedSuccessfully: true } && _loadTask.Result) return _loadTask;
+        return _loadTask = LoadAsync();
+    }
+
+    public Task<bool> ReloadAsync() => _loadTask = LoadAsync();
+
+    private async Task<bool> LoadAsync()
+    {
+        var version = ++_loadVersion;
         try
         {
             var result = await api.GetCurrentBrandingAsync();
-            if (result.IsSuccess && result.Value is not null)
-                _branding = result.Value;
+            if (version == _loadVersion && result.IsSuccess && result.Value is not null)
+            {
+                Apply(result.Value);
+                return true;
+            }
         }
         catch
         {
             // Swallow — fallbacks remain; branding is presentation-only and must never break the shell.
         }
+        return false;
     }
 
     private static string Nonempty(string? value, string fallback)

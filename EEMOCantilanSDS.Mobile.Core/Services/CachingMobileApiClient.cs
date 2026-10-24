@@ -258,12 +258,37 @@ public sealed class CachingMobileApiClient(
     private static readonly TimeSpan DefaultReadBudget = TimeSpan.FromSeconds(10);
 
     private readonly TimeSpan _readBudget = readBudget ?? DefaultReadBudget;
+    private readonly SemaphoreSlim _sessionWriteGate = new(1, 1);
+    private int _sessionEpoch;
+
+    // Login/logout boundary: late GETs must not write the previous collector's data into the next collector's cache.
+    public async Task ClearForIdentityChangeAsync()
+    {
+        await _sessionWriteGate.WaitAsync();
+        try
+        {
+            Interlocked.Increment(ref _sessionEpoch);
+            await cache.ClearAsync();
+        }
+        finally { _sessionWriteGate.Release(); }
+    }
+
+    private async Task CacheIfCurrentAsync<T>(string key, T value, int epoch)
+    {
+        await _sessionWriteGate.WaitAsync();
+        try
+        {
+            if (Volatile.Read(ref _sessionEpoch) == epoch) await cache.SetAsync(key, value);
+        }
+        finally { _sessionWriteGate.Release(); }
+    }
 
     private async Task<Result<T>> ReadThroughAsync<T>(string key, Func<Task<Result<T>>> fetch)
     {
+        var epoch = Volatile.Read(ref _sessionEpoch);
         // Offline → serve cache immediately; no point waiting out the HTTP timeout.
         if (!connectivity.IsOnline)
-            return await ServeFromCacheAsync<T>(key);
+            return await ServeFromCacheAsync<T>(key, epoch);
 
         try
         {
@@ -274,17 +299,18 @@ public sealed class CachingMobileApiClient(
             // timeout is now longer than this budget, so there is a real chance it arrives a moment later.
             if (await Task.WhenAny(fetchTask, Task.Delay(_readBudget)) != fetchTask)
             {
-                WarmCacheWhenItArrives(key, fetchTask);
-                return await ServeFromCacheAsync<T>(key);
+                WarmCacheWhenItArrives(key, fetchTask, epoch);
+                return await ServeFromCacheAsync<T>(key, epoch);
             }
 
             var result = await fetchTask;
+            if (epoch != Volatile.Read(ref _sessionEpoch)) return Result<T>.Failure("Collector session changed. Retry the read.", 401);
 
             // Cache genuine successes.
             if (result.IsSuccess && result.Value is not null)
             {
-                await cache.SetAsync(key, result.Value);
-                return result;
+                await CacheIfCurrentAsync(key, result.Value, epoch);
+                return epoch == Volatile.Read(ref _sessionEpoch) ? result : Result<T>.Failure("Collector session changed. Retry the read.", 401);
             }
 
             // The online check passed but the server/tunnel answered with a TRANSIENT failure (5xx, or
@@ -294,6 +320,7 @@ public sealed class CachingMobileApiClient(
             if (result.StatusCode == 0 || result.StatusCode >= 500)
             {
                 var stale = await cache.GetAsync<T>(key);
+                if (epoch != Volatile.Read(ref _sessionEpoch)) return Result<T>.Failure("Collector session changed. Retry the read.", 401);
                 if (stale is not null)
                     return Result<T>.Success(stale);
             }
@@ -304,13 +331,14 @@ public sealed class CachingMobileApiClient(
         {
             // Online check passed but the server/tunnel was unreachable → fall back to last-known value.
             // Only connectivity-shaped exceptions are caught; real bugs (e.g. serialization) propagate.
-            return await ServeFromCacheAsync<T>(key);
+            return await ServeFromCacheAsync<T>(key, epoch);
         }
     }
 
-    private async Task<Result<T>> ServeFromCacheAsync<T>(string key)
+    private async Task<Result<T>> ServeFromCacheAsync<T>(string key, int epoch)
     {
         var cached = await cache.GetAsync<T>(key);
+        if (epoch != Volatile.Read(ref _sessionEpoch)) return Result<T>.Failure("Collector session changed. Retry the read.", 401);
         return cached is not null
             ? Result<T>.Success(cached)
             : Result<T>.Failure("You're offline and no saved data is available yet.", 0);
@@ -324,7 +352,7 @@ public sealed class CachingMobileApiClient(
     /// swallowed on purpose: nothing is waiting on the result, a late failure is not news, and an unobserved fault on a
     /// fire-and-forget task would surface as a crash.
     /// </remarks>
-    private void WarmCacheWhenItArrives<T>(string key, Task<Result<T>> fetchTask)
+    private void WarmCacheWhenItArrives<T>(string key, Task<Result<T>> fetchTask, int epoch)
     {
         _ = WarmAsync();
 
@@ -334,7 +362,7 @@ public sealed class CachingMobileApiClient(
             {
                 var result = await fetchTask.ConfigureAwait(false);
                 if (result.IsSuccess && result.Value is not null)
-                    await cache.SetAsync(key, result.Value);
+                    await CacheIfCurrentAsync(key, result.Value, epoch);
             }
             catch
             {

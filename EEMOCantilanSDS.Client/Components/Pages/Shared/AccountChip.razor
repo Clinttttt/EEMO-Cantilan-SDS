@@ -1,5 +1,6 @@
 @using System.Security.Claims
 @inject AuthenticationStateProvider AuthState
+@implements IDisposable
 
 @* Topbar account chip. Reflects the signed-in user's role:
    - Head (SuperAdmin): labelled "Head" and links to account management.
@@ -30,6 +31,10 @@ else
     private bool _isHead;
     private string _label = "Administrator";
     private string _initial = "A";
+
+    protected override void OnInitialized() => Branding.Changed += OnBrandingChanged;
+    private void OnBrandingChanged() => _ = InvokeAsync(StateHasChanged);
+    public void Dispose() => Branding.Changed -= OnBrandingChanged;
 
     protected override async Task OnInitializedAsync()
     {

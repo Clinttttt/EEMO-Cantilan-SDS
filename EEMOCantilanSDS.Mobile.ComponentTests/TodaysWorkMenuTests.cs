@@ -27,6 +27,7 @@ public sealed class TodaysWorkMenuTests : TestContext
         store.Setup(x => x.GetAllAsync()).ReturnsAsync(Array.Empty<PendingOperation>());
         Services.AddSingleton(session);
         Services.AddSingleton(api.Object);
+        Services.AddSingleton(new OfflineReadinessCoordinator(api.Object, Mock.Of<IConnectivityMonitor>()));
         Services.AddSingleton(new MobileSyncService(store.Object, api.Object, Mock.Of<IConnectivityMonitor>(), Mock.Of<ICurrentCollectorProvider>()));
 
         var view = RenderComponent<Menu>();
@@ -61,6 +62,7 @@ public sealed class TodaysWorkMenuTests : TestContext
         store.Setup(x => x.GetAllAsync()).ReturnsAsync(Array.Empty<PendingOperation>());
         Services.AddSingleton(session);
         Services.AddSingleton(api.Object);
+        Services.AddSingleton(new OfflineReadinessCoordinator(api.Object, Mock.Of<IConnectivityMonitor>()));
         Services.AddSingleton(new MobileSyncService(store.Object, api.Object, Mock.Of<IConnectivityMonitor>(), Mock.Of<ICurrentCollectorProvider>()));
 
         var view = RenderComponent<Menu>();
@@ -88,6 +90,7 @@ public sealed class TodaysWorkMenuTests : TestContext
         store.Setup(x => x.GetAllAsync()).ReturnsAsync(Array.Empty<PendingOperation>());
         Services.AddSingleton(session);
         Services.AddSingleton(api.Object);
+        Services.AddSingleton(new OfflineReadinessCoordinator(api.Object, Mock.Of<IConnectivityMonitor>()));
         Services.AddSingleton(new MobileSyncService(store.Object, api.Object, Mock.Of<IConnectivityMonitor>(), Mock.Of<ICurrentCollectorProvider>()));
 
         var view = RenderComponent<Menu>();

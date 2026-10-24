@@ -144,7 +144,7 @@ public sealed class FishMeatWorkspaceTests : TestContext
 
             // The report's fish amount (₱37) is kilos x the rate in force when it is READ, so it is never shown as collected
             // money. Only the server's frozen Fish total is shown, and kilos without frozen rate evidence are stated as such.
-            var summary = cut.Find("section[aria-label='Historical NPM weighing']").TextContent;
+            var summary = cut.Find(".wm-layout").TextContent;
             Assert.DoesNotContain("₱37.00", cut.Markup);
             Assert.Contains("Fish weighing (frozen)", summary);
             Assert.Contains("₱15.00", summary);                 // frozen Fish weighing money from the server
@@ -238,7 +238,7 @@ public sealed class FishMeatWorkspaceTests : TestContext
         {
             Assert.Contains("couldn't be loaded", cut.Find("[role='alert']").TextContent);
             Assert.Contains("Weighing records are unavailable.", cut.Markup);
-            Assert.DoesNotContain("₱0.00", cut.Find("section[aria-label='Historical NPM weighing']").TextContent);
+            Assert.DoesNotContain("₱0.00", cut.Find("[aria-label='Historical NPM Fish weighing']").TextContent);
             Assert.Contains("₱0.00", cut.Find("dl[aria-label='Weighing position']").TextContent);
         }, Timeout);
     }
@@ -270,6 +270,99 @@ public sealed class FishMeatWorkspaceTests : TestContext
             Assert.DoesNotContain("Older vendor", cut.Markup);
         }, Timeout);
     }
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(false, false)]
+    public void RegisteredCollectionsStayInTheirExistingCardsEvenAfterConfigurationChanges(bool fishEnabled, bool meatEnabled)
+    {
+        _facilities.Setup(x => x.GetWeighingConfigurationAsync()).ReturnsAsync(Result<WeighingConfigurationDto>.Success(
+            new(PhilippineTime.Today, PhilippineTime.Today.AddDays(1),
+                [new(FishMeatVendorType.Fish, fishEnabled, 99m, PhilippineTime.Today, true),
+                 new(FishMeatVendorType.Meat, meatEnabled, 99m, PhilippineTime.Today, true)], [])));
+        SourceCollections();
+        _facilities.Setup(x => x.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>()))
+            .ReturnsAsync(Result<FacilityReportsDto>.Success(Report(0m)));
+        var cut = RenderComponent<WeightAndMeasure>();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(2, cut.FindAll(".wm-layout > section").Count);
+            Assert.Empty(cut.FindAll("section[aria-label='Registered vendor weighing collections']"));
+            var fish = cut.Find("section[aria-labelledby='wm-fish-title']").TextContent;
+            var meat = cut.Find("section[aria-labelledby='wm-meat-title']").TextContent;
+            Assert.Contains("Fish vendor", fish);
+            Assert.DoesNotContain("Meat vendor", fish);
+            Assert.Contains("SRC-FISH", fish);
+            Assert.Contains("₱2.00/kg", fish);
+            Assert.Contains("₱6.00", fish);
+            Assert.Contains("Corrected", fish);
+            Assert.Contains("Meat vendor", meat);
+            Assert.DoesNotContain("Fish vendor", meat);
+            Assert.Contains("SRC-MEAT", meat);
+            Assert.Contains("₱4.00/kg", meat);
+            Assert.Equal("/collections/activity?src=SRC-FISH", cut.Find("a[href*='src=SRC-FISH']").GetAttribute("href"));
+        }, Timeout);
+
+        cut.Find("input[type=search]").Input("SRC-MEAT");
+        Assert.DoesNotContain("Fish vendor", cut.Markup);
+        Assert.Contains("Meat vendor", cut.Markup);
+        Assert.Contains("₱14.00", cut.Find("dl[aria-label='Weighing position']").TextContent);
+    }
+
+    [Theory]
+    [InlineData(typeof(WeightAndMeasure))]
+    [InlineData(typeof(WeightAndMeasureReport))]
+    public void MunicipalityWithoutNpmStillShowsRegisteredWeighingWithoutRequestingNpm(Type page)
+    {
+        Services.AddSingleton(Mock.Of<IOfficialReportsApiClient>());
+        _facilities.Setup(x => x.GetFacilitySummariesAsync(It.IsAny<int>(), It.IsAny<int>()))
+            .ReturnsAsync(Result<IReadOnlyList<FacilitySidebarSummaryDto>>.Success([]));
+        SourceCollections();
+        var cut = Render(builder => { builder.OpenComponent(0, page); builder.CloseComponent(); });
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Fish vendor", cut.Markup);
+            Assert.Contains("Meat vendor", cut.Markup);
+            Assert.DoesNotContain("Historical NPM", cut.Markup);
+            Assert.Empty(cut.FindAll("a[href='/facility/npm']"));
+        }, Timeout);
+        _facilities.Verify(x => x.GetFacilityReportsAsync(FacilityCode.NPM, It.IsAny<ReportPeriod>(), It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>()), Times.Never);
+    }
+
+    [Fact]
+    public void ReportAndCsvPreserveRegisteredAndFrozenHistoricalEvidenceInFishAndMeatSections()
+    {
+        Services.AddSingleton(Mock.Of<IOfficialReportsApiClient>());
+        SourceCollections();
+        _facilities.Setup(x => x.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>()))
+            .ReturnsAsync(Result<FacilityReportsDto>.Success(Report(37m, 4m, 120m, 15m, 10m)));
+        var cut = RenderComponent<WeightAndMeasureReport>();
+        cut.WaitForAssertion(() =>
+        {
+            var fish = cut.Find("section[aria-labelledby='wmr-fish']").TextContent;
+            var meat = cut.Find("section[aria-labelledby='wmr-meat']").TextContent;
+            Assert.Contains("SRC-FISH", fish);
+            Assert.DoesNotContain("SRC-MEAT", fish);
+            Assert.Contains("Corrected", fish);
+            Assert.Contains("₱15.00", fish);
+            Assert.Contains("10.00 kg", fish);
+            Assert.Contains("SRC-MEAT", meat);
+            Assert.Contains("₱120.00", meat);
+            Assert.DoesNotContain("₱37.00", cut.Markup);
+            var csv = Uri.UnescapeDataString(cut.Find("a[download]").GetAttribute("href")!);
+            Assert.Contains("SRC-FISH", csv);
+            Assert.Contains("Corrected", csv);
+            Assert.Contains("Historical NPM frozen Fish amount\",\"15.00", csv);
+            Assert.Contains("Historical NPM frozen Meat amount\",\"120.00", csv);
+        }, Timeout);
+    }
+
+    private void SourceCollections() => _facilities.Setup(x => x.GetWeighingSourceNativeReportAsync(It.IsAny<int>(), It.IsAny<int>()))
+        .ReturnsAsync(Result<WeighingCollectionReportDto>.Success(new(2026, 10,
+            [new(new(2026, 10, 1), "SRC-FISH", "Fish vendor", FishMeatVendorType.Fish, 9m, 2m, 6m, "Corrected"),
+             new(new(2026, 10, 2), "SRC-MEAT", "Meat vendor", FishMeatVendorType.Meat, 2m, 4m, 8m, "Posted")])));
 
     private static void AssertNoManagementActions<T>(IRenderedComponent<T> cut) where T : IComponent
     {

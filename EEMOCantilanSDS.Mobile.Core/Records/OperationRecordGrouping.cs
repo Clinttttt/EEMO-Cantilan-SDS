@@ -14,7 +14,8 @@ public sealed record OperationRecord(
     decimal Total,
     IReadOnlyList<OperationRecordLine> Lines,
     string? Subject = null,
-    string? DocumentNumber = null);
+    string? DocumentNumber = null,
+    DateTime? RecordedAtUtc = null);
 
 public sealed record OperationRecordLine(string ClassificationName, string SourceLabel, decimal Amount, string? ItemLabel = null);
 
@@ -34,9 +35,11 @@ public static class OperationRecordGrouping
                 // A collection is Posted only when every line is; any correction is shown rather than hidden.
                 var status = g.All(x => x.Status == "Posted") ? "Posted" : g.Any(x => x.Status == "Reversed") ? "Reversed" : "Corrected";
                 return new OperationRecord(g.Key, first.BusinessDate, first.ReferenceCode, first.Instrument, first.PayorName, status,
-                    lines.Sum(x => x.Amount), lines, g.Select(x => x.Subject).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)), first.DocumentNumber);
+                    lines.Sum(x => x.Amount), lines, g.Select(x => x.Subject).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)), first.DocumentNumber,
+                    first.RecordedAtUtc);
             })
-            // Newest first: the SRC sequence is issued in recording order, so within a day the highest SRC is the latest collection.
-            .OrderByDescending(x => x.BusinessDate).ThenByDescending(x => x.ReferenceCode.Length).ThenByDescending(x => x.ReferenceCode, StringComparer.Ordinal)
+            // Order by the recorded instant; older API payloads may omit it, so use the business date as a fallback.
+            .OrderByDescending(x => x.RecordedAtUtc ?? x.BusinessDate.ToDateTime(TimeOnly.MinValue))
+            .ThenByDescending(x => x.ReferenceCode, StringComparer.Ordinal)
             .ToList();
 }

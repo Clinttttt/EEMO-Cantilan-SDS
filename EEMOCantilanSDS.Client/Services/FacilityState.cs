@@ -93,6 +93,9 @@ public class FacilityState(IFacilitiesApiClient api)
 
     public static bool IsRental(FacilityCode code) => RentalCodes.Contains(code);
 
+    /// <summary>Only an actual catalog record counts; presentation fallbacks do not declare a tenant facility.</summary>
+    public bool HasDeclaredFacility(FacilityCode code) => _facilities?.Any(f => f.Code == code) == true;
+
     /// <summary>LGU-declared custom display category, not a billing or classification switch.</summary>
     public CustomFacilityCategory CustomCategoryOf(FacilityCode code) =>
         _facilities?.FirstOrDefault(f => f.Code == code)?.CustomCategory ?? CustomFacilityCategory.StallRent;

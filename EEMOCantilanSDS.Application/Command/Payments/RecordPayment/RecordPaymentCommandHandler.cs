@@ -110,7 +110,14 @@ public class RecordPaymentCommandHandler(
             if (request.ClientOperationId is { } clientOpId)
                 existingPayment.SetClientOperationId(clientOpId);
 
-            if (isCollectorRequest &&
+            // Old unpaid monthly rows can retain a collector id from a previously reversed status.
+            // No money/receipt is attributed to that state, so it must not block the next
+            // authorized collector. Preserve ownership whenever actual payment evidence exists.
+            var hasFinancialEvidence = existingPayment.Status != PaymentStatus.Unpaid
+                || existingPayment.AmountPaid != 0m
+                || existingPayment.PaidAt is not null
+                || !string.IsNullOrWhiteSpace(existingPayment.ORNumber);
+            if (isCollectorRequest && hasFinancialEvidence &&
                 existingPayment.CollectorId is { } recordedCollectorId &&
                 collectorId is { } actingCollectorId &&
                 recordedCollectorId != actingCollectorId)

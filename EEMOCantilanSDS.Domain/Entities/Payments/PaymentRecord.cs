@@ -258,7 +258,12 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             Remarks = remarks;
             PaidAt = status != PaymentStatus.Unpaid ? DateTime.UtcNow : null;
             if (status == PaymentStatus.Unpaid)
+            {
                 ORNumber = null;
+                // Unpaid is not a collected receipt. Do not retain a stale collector owner
+                // that prevents the assigned collector from receiving a later payment.
+                CollectorId = null;
+            }
             else if (collectorId.HasValue)
                 CollectorId = collectorId.Value;
             UpdatedAt = DateTime.UtcNow;

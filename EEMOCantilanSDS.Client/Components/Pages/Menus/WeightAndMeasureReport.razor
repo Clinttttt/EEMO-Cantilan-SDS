@@ -7,6 +7,7 @@
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Domain.Entities.Revenue
 @inject IFacilitiesApiClient FacilitiesApi
 @inject IJSRuntime JS
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
@@ -64,35 +65,17 @@
 
         <OperationMonthlyIncome Classification="Weight & Measure" RowKey="WEIGHT_AND_MEASURE" Year="_period.Year" HeadingId="wmr-official" />
 
-        <section class="v3-report-section" aria-labelledby="wmr-source-native">
-            <h3 id="wmr-source-native">Registered Fish / Meat vendor weighing</h3>
+        <section class="v3-report-section" aria-labelledby="wmr-fish">
+            <h3 id="wmr-fish">Fish weighing</h3>
+            @RegisteredRows(FishMeatVendorType.Fish)
+            @if (FacilityCatalog.HasDeclaredFacility(FacilityCode.NPM))
+            {
+            <h4>Historical NPM evidence</h4>
             <dl class="v3-report-summary">
-                <div><dt>Fish weighing</dt><dd>@(_sourceReport is null ? "—" : Money(_sourceReport.FishTotal))</dd></div>
-                <div><dt>Meat weighing</dt><dd>@(_sourceReport is null ? "—" : Money(_sourceReport.MeatTotal))</dd></div>
-                <div><dt>Total registered-vendor weighing</dt><dd>@(_sourceReport is null ? "—" : Money(_sourceReport.Total))</dd></div>
-            </dl>
-            <div class="v3-table-wrap"><table class="v3-report-table"><thead><tr><th>Date</th><th>Reference</th><th>Vendor</th><th>Type</th><th class="v3-num">Kilos</th><th class="v3-num">Rate/kg</th><th class="v3-num">Net amount</th></tr></thead><tbody>
-                @foreach (var row in _sourceReport?.Rows ?? [])
-                {
-                    <tr><td>@row.BusinessDate.ToString("MMM d")</td><td>@row.ReferenceCode</td><td>@row.Vendor</td><td>@row.VendorType</td><td class="v3-num">@Kilos(row.Kilograms)</td><td class="v3-num">@Money(row.RatePerKilo)</td><td class="v3-num">@Money(row.NetAmount)</td></tr>
-                }
-                @if (_sourceReport?.Rows.Count is not > 0) { <tr><td colspan="7" class="v3-report-note">@(_sourceReport is null ? "Registered-vendor weighing unavailable." : "No registered-vendor weighing was recorded for this month.")</td></tr> }
-            </tbody></table></div>
-        </section>
-
-        <section class="v3-report-section" aria-labelledby="wmr-summary">
-            <h3 id="wmr-summary">Historical NPM weighing evidence</h3>
-            <dl class="v3-report-summary">
-                <div><dt>Meat weighing</dt><dd>@(_report?.FeeTypeBreakdown is { } meat ? Money(meat.MeatWeightMeasureAmount) : "—")</dd></div>
-                <div><dt>Fish weighing</dt><dd>@(_report?.FeeTypeBreakdown is { } fish ? Money(fish.FishWeightMeasureFrozenAmount) : "—")</dd></div>
-                <div><dt>Meat kilos</dt><dd>@(_report?.FeeTypeBreakdown is { } meatKilos ? Kilos(meatKilos.MeatKilos) : "—")</dd></div>
+                <div><dt>Fish weighing (frozen)</dt><dd>@(_report?.FeeTypeBreakdown is { } fish ? Money(fish.FishWeightMeasureFrozenAmount) : "—")</dd></div>
                 <div><dt>Fish kilos</dt><dd>@(_report is null ? "—" : Kilos(FishRows.Sum(x => x.FishKilos)))</dd></div>
                 <div><dt>Fish kilos without rate evidence</dt><dd>@(_report?.FeeTypeBreakdown is { } unresolved ? Kilos(unresolved.FishKilosWithoutFrozenRate) : "—")</dd></div>
             </dl>
-        </section>
-
-        <section class="v3-report-section" aria-labelledby="wmr-fish">
-            <h3 id="wmr-fish">Historical NPM Fish weighing by stall</h3>
             <div class="v3-table-wrap">
                 <table class="v3-report-table">
                     <thead>
@@ -127,11 +110,41 @@
                     }
                 </table>
             </div>
+            }
+        </section>
+        <section class="v3-report-section" aria-labelledby="wmr-meat">
+            <h3 id="wmr-meat">Meat weighing</h3>
+            @RegisteredRows(FishMeatVendorType.Meat)
+            @if (FacilityCatalog.HasDeclaredFacility(FacilityCode.NPM))
+            {
+                <h4>Historical NPM evidence</h4>
+                <dl class="v3-report-summary">
+                    <div><dt>Meat weighing (frozen)</dt><dd>@(_report?.FeeTypeBreakdown is { } meat ? Money(meat.MeatWeightMeasureAmount) : "—")</dd></div>
+                    <div><dt>Meat kilos</dt><dd>@(_report?.FeeTypeBreakdown is { } kilos ? Kilos(kilos.MeatKilos) : "—")</dd></div>
+                </dl>
+            }
         </section>
     </article>
 </div>
 
 @code {
+    private RenderFragment RegisteredRows(FishMeatVendorType type) => @<div class="v3-table-wrap">
+        <table class="v3-report-table" aria-label="Registered @type weighing">
+            <caption class="v3-panel-meta">Registered @type collections · @PeriodLabel</caption>
+            <thead><tr><th scope="col">Date</th><th scope="col">SRC</th><th scope="col">Vendor</th><th scope="col" class="v3-num">Kilos</th><th scope="col" class="v3-num">Rate/kg</th><th scope="col" class="v3-num">Net amount</th><th scope="col">Status</th></tr></thead>
+            <tbody>
+                @foreach (var row in (_sourceReport?.Rows ?? []).Where(x => x.VendorType == type))
+                {
+                    <tr><td>@row.BusinessDate.ToString("MMM d")</td><td><a href="@($"/collections/activity?src={Uri.EscapeDataString(row.ReferenceCode)}")">@row.ReferenceCode</a></td><td>@row.Vendor</td><td class="v3-num">@Kilos(row.Kilograms)</td><td class="v3-num">@Money(row.RatePerKilo)</td><td class="v3-num">@Money(row.NetAmount)</td><td>@row.Status</td></tr>
+                }
+                @if (_sourceReport is null || !_sourceReport.Rows.Any(x => x.VendorType == type))
+                {
+                    <tr><td colspan="7" class="v3-report-note">@(_loading ? "Loading weighing records…" : _sourceReport is null ? "Registered-vendor weighing unavailable." : "No registered-vendor weighing was recorded for this month.")</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>;
+
     private DateOnly _period = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
     private string _monthInput = PhilippineTime.Today.ToString("yyyy-MM", CultureInfo.InvariantCulture);
     private FacilityReportsDto? _report;
@@ -177,10 +190,11 @@
             if (version != _loadVersion) return;
             _sourceReport = source.IsSuccess ? source.Value : null;
             if (!source.IsSuccess) _error = source.Error ?? "Registered-vendor weighing records couldn't be loaded.";
+            if (!FacilityCatalog.HasDeclaredFacility(FacilityCode.NPM)) return;
             var report = await FacilitiesApi.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, period.Year, period.Month);
             if (version != _loadVersion) return;
             if (report.IsSuccess) _report = report.Value;
-            else { _report = null; /* No NPM is valid for an LGU that only operates Weight & Measure. */ }
+            else { _report = null; _error ??= "NPM weighing records couldn't be loaded."; }
         }
         catch
         {
@@ -216,6 +230,13 @@
             x.Vendor, x.VendorType.ToString(), x.Kilograms.ToString("0.00", CultureInfo.InvariantCulture),
             x.RatePerKilo.ToString("0.00", CultureInfo.InvariantCulture), x.NetAmount.ToString("0.00", CultureInfo.InvariantCulture), x.Status)));
         rows.Add(string.Empty);
+        if (_report?.FeeTypeBreakdown is { } historical)
+        {
+            rows.Add(Csv("Historical NPM frozen Fish amount", historical.FishWeightMeasureFrozenAmount.ToString("0.00", CultureInfo.InvariantCulture)));
+            rows.Add(Csv("Historical NPM Fish kilos without rate evidence", historical.FishKilosWithoutFrozenRate.ToString("0.00", CultureInfo.InvariantCulture)));
+            rows.Add(Csv("Historical NPM frozen Meat amount", historical.MeatWeightMeasureAmount.ToString("0.00", CultureInfo.InvariantCulture)));
+            rows.Add(Csv("Historical NPM Meat kilos", historical.MeatKilos.ToString("0.00", CultureInfo.InvariantCulture)));
+        }
         rows.Add(Csv("Historical NPM occupant", "Stall", "Section", "Fish kilos weighed"));
         rows.AddRange(FishRows.Select(x => Csv(Occupant(x), x.StallNo, x.Section, x.FishKilos.ToString("0.00", CultureInfo.InvariantCulture))));
         return string.Join("\r\n", rows);

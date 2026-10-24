@@ -1,5 +1,6 @@
-﻿@page "/records"
+@page "/records"
 @using global::EEMOCantilanSDS.Application.Dtos.Mobile
+@using global::EEMOCantilanSDS.Domain.Common
 @using global::EEMOCantilanSDS.Domain.Enums
 @using EEMOCantilanSDS.Mobile.Models
 @using EEMOCantilanSDS.Mobile.Records
@@ -85,20 +86,30 @@
             }
         </div>
 
-        @if (ActiveFacility is null && !IsLoading)
+        @if (ActiveFacility is null && !IsLoading && CanonicalRecords.Count > 0 && CurrentRange().To >= PhilippineTime.Today)
         {
-            <OperationRecordsSection From="CurrentRange().From" To="CurrentRange().To" Search="@SearchQuery" />
+            <button type="button" class="record-correct" aria-expanded="@(_correcting ? "true" : "false")" @onclick="() => _correcting = !_correcting">
+                @(_correcting ? "Hide today's collections" : "Correct a collection recorded today")
+            </button>
+            @if (_correcting)
+            {
+                <RecentCollections Heading="Today's collections" OnChanged="RefreshRecordsAsync" />
+            }
+        }
+        @if (ActiveFacility is null && _canonicalFailed && !IsLoading)
+        {
+            <div class="records-read-note" role="status">Some operation collections could not be loaded. Other saved records are shown.</div>
         }
 
         @if (IsLoading)
         {
             <LoadingState Text="Loading collection records…" />
         }
-        else if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        else if (!string.IsNullOrWhiteSpace(ErrorMessage) && !FilteredTimeline.Any())
         {
             <ErrorState Title="Couldn't load records" Message="@ErrorMessage" OnRetry="LoadRecordsAsync" />
         }
-        else if (!FilteredRecords.Any())
+        else if (!FilteredTimeline.Any())
         {
             <div class="empty-state">
                 <div class="empty-icon">
@@ -110,38 +121,47 @@
         }
         else
         {
-            @foreach (var group in GroupedRows)
+            @foreach (var group in FilteredTimeline.GroupBy(r => r.RecordedAt.Date))
             {
-                @* On a single-day selection the date header is redundant — skip it. *@
                 @if (!SingleDayMode)
                 {
                     <div class="section-label">
-                        @group.Key
-                        <span class="section-count">@group.Value.Count entries</span>
+                        @DateLabel(group.Key)
+                        <span class="section-count">@group.Count() entries</span>
                     </div>
                 }
-
-                @* The market is read by area, so the entries are banded by it — the same band the Menu's collection screen uses,
-                   which is where the collector has just come from. The area is stated ONCE at the head of its band instead of on
-                   every card in it. *@
-                @foreach (var band in BandsOf(group.Value))
+                @foreach (var entry in group)
                 {
-                    <div class="section-label">@band.Label</div>
-
-                    @foreach (var row in band.Rows)
+                    @if (entry.Canonical is { } op)
+                    {
+                        <CollectionRecordRow Identity="@(string.IsNullOrWhiteSpace(op.PayorName) ? op.ReferenceCode : op.PayorName!)"
+                            Amount="@op.Total" DateText="@(op.RecordedAtUtc is null ? op.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture) : entry.RecordedAt.ToString("MMM d · h:mm tt", CultureInfo.InvariantCulture))"
+                            Status="@(op.Status == "Posted" ? null : op.Status)" OnOpen="() => ToggleCanonical(op.CollectionId)">
+                            <Details>
+                                <span>@OperationSummary(op) · @op.ReferenceCode</span>
+                                @if (_openCanonical.Contains(op.CollectionId))
+                                {
+                                    @foreach (var line in op.Lines)
+                                    {
+                                        <div class="record-line-detail"><span>@(line.ItemLabel ?? line.ClassificationName)</span><span>₱@line.Amount.ToString("N2", CultureInfo.InvariantCulture)</span></div>
+                                    }
+                                }
+                            </Details>
+                        </CollectionRecordRow>
+                    }
+                    else if (entry.Legacy is { } row)
                     {
                         var rec = row.Primary;
                         <CollectionRecordRow Identity="@rec.PayorName" Amount="@(rec.IsAbsent ? (decimal?)null : row.TotalPaid)"
-                            Assessed="@(row.AnyPartial && !rec.IsAbsent ? row.TotalAmount : (decimal?)null)" DateText="@rec.CollectedAt.ToString("MMM d", CultureInfo.InvariantCulture)"
+                            Assessed="@(row.AnyPartial && !rec.IsAbsent ? row.TotalAmount : (decimal?)null)" DateText="@RowTimeLine(row)"
                             Status="@(rec.IsAbsent ? "Excused" : row.AnyPartial ? "Partial" : null)"
                             OnOpen="() => OpenDetail(row)">
                             <Details>
-                                <span>@rec.FacilityCode · @(rec.IsAbsent ? "Excused" : row.SharesOneNature ? rec.Nature : "Multiple charges")@if (!rec.IsAbsent) { <text> · ₱@row.TotalPaid.ToString("N2", CultureInfo.InvariantCulture)</text> }</span>
+                                <span>@rec.FacilityCode · @(rec.IsAbsent ? "Excused" : row.SharesOneNature ? rec.Nature : "Multiple charges")</span>
                             </Details>
                         </CollectionRecordRow>
                     }
                 }
-
                 <div class="group-spacer"></div>
             }
         }
@@ -425,6 +445,12 @@
     FacilityCode? ActiveFacility = null;       // null = All
     string ActivePeriodKey = "0";              // key within the active mode
     IReadOnlyList<MobileCollectorRecordDto> Records = Array.Empty<MobileCollectorRecordDto>();
+    IReadOnlyList<OperationRecord> CanonicalRecords = Array.Empty<OperationRecord>();
+    bool _canonicalFailed, _correcting;
+    readonly HashSet<Guid> _openCanonical = [];
+    void ToggleCanonical(Guid id) { if (!_openCanonical.Remove(id)) _openCanonical.Add(id); }
+    static string OperationSummary(OperationRecord op) => string.Join(" · ",
+        op.Lines.Select(l => l.ClassificationName).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct());
 
     // Instant re-open while online: keep the last records per (collector · facility · date-range) in memory,
     // so returning to Records shows them immediately and then refreshes quietly in the background instead of
@@ -586,6 +612,30 @@
         {
             // Keep the cached records on a transient/offline refresh failure.
         }
+        finally { await RefreshCanonicalAsync(); }
+    }
+
+    private async Task RefreshCanonicalAsync()
+    {
+        if (ActiveFacility is not null)
+        {
+            CanonicalRecords = [];
+            _canonicalFailed = false;
+            return;
+        }
+        try
+        {
+            var (from, to) = CurrentRange();
+            var result = await Api.GetMyCollectionsAsync(from, to);
+            if (result.IsSuccess && result.Value is not null)
+            {
+                CanonicalRecords = OperationRecordGrouping.Group(result.Value.Rows);
+                _canonicalFailed = result.Value.RowsTruncated;
+            }
+            else _canonicalFailed = true;
+        }
+        catch { _canonicalFailed = true; }
+        await InvokeAsync(StateHasChanged);
     }
 
     (DateOnly From, DateOnly To) CurrentRange()
@@ -644,6 +694,7 @@
         }
         finally
         {
+            await RefreshCanonicalAsync();
             IsLoading = false;
             StateHasChanged();
         }
@@ -670,6 +721,15 @@
         || r.PayorName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
         || r.ORNumber.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
         || (r.StallNo ?? "").Contains(SearchQuery, StringComparison.OrdinalIgnoreCase));
+
+    IEnumerable<OperationRecord> VisibleCanonical => CanonicalRecords.Where(r =>
+        string.IsNullOrWhiteSpace(SearchQuery) ||
+        (r.ReferenceCode + " " + r.DocumentNumber + " " + r.PayorName + " " +
+         string.Join(" ", r.Lines.Select(l => l.ClassificationName + " " + l.SourceLabel)))
+        .Contains(SearchQuery.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    IReadOnlyList<CollectorRecordTimelineItem> FilteredTimeline =>
+        CollectorRecordTimeline.Build(FilteredRecords, VisibleCanonical);
 
     // Transaction rows: collapse records that belong to the SAME receipt (same OR number, payor, facility)
     // into ONE row. A multi-month monthly payment writes one record per month sharing a single OR, so it
@@ -702,8 +762,9 @@
     /// <summary>True where the band already names the facility, so the card need not repeat it.</summary>
     static bool BandNamesTheFacility(RecordRow row) => CollectorRecordBands.NamesTheFacility(row);
 
-    decimal TotalCollected => FilteredRecords.Sum(r => r.AmountPaid);
-    int PaidCount => AllRows.Count(row => !row.Primary.IsAbsent && !row.AnyPartial);
+    decimal TotalCollected => FilteredRecords.Sum(r => r.AmountPaid) + VisibleCanonical.Sum(r => r.Total);
+    int PaidCount => AllRows.Count(row => !row.Primary.IsAbsent && !row.AnyPartial)
+        + VisibleCanonical.Count(r => r.Status is "Posted" or "Corrected");
     int PartialCount => AllRows.Count(row => !row.Primary.IsAbsent && row.AnyPartial);
     int ExcusedCount => AllRows.Count(row => row.Primary.IsAbsent);
 

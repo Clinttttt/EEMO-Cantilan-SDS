@@ -73,6 +73,22 @@ public sealed class SidebarNavigationTests : TestContext
     }
 
     [Fact]
+    public async Task SharedBrandingUpdateRefreshesTheExistingSidebar_AndRetriesTheSameFailedImage()
+    {
+        var branding = Services.GetRequiredService<BrandingState>();
+        var tenant = new EEMOCantilanSDS.Application.Dtos.Tenancy.MunicipalityBrandingDto(
+            Code: "CARRASCAL", TenantCode: "carrascal", Name: "Carrascal", Province: "Test province",
+            OfficeName: "Test office", SealPath: "https://api.test/carrascal/seal?v=1", Status: "Active", IsActive: true);
+        branding.Apply(tenant);
+        var cut = RenderComponent<Sidebar>();
+        cut.Find(".sidebar-seal img").TriggerEvent("onerror", new EventArgs());
+        Assert.Equal(BrandingState.WaitingSealPath, cut.Find(".sidebar-seal img").GetAttribute("src"));
+        await cut.InvokeAsync(() => branding.Apply(tenant with { OfficeAcronym = "CLEE" }));
+        cut.WaitForAssertion(() => Assert.Equal(tenant.SealPath, cut.Find(".sidebar-seal img").GetAttribute("src")));
+        Assert.Equal("CLEE", cut.Instance.PersistedBranding?.OfficeAcronym);
+    }
+
+    [Fact]
     public void HeadSeesTheCuratedDestinationsInOrder()
     {
         var cut = RenderComponent<Sidebar>();

@@ -162,11 +162,29 @@
     public MunicipalityBrandingDto? PersistedBranding { get; set; }
 
     protected override void OnInitialized()
-        => Nav.LocationChanged += OnLocationChanged;
+    {
+        Nav.LocationChanged += OnLocationChanged;
+        Branding.Changed += OnBrandingChanged;
+    }
+
+    private void OnBrandingChanged() => _ = InvokeAsync(() =>
+    {
+        _failedSealPath = null;
+        PersistedBranding = Branding.Current;
+        StateHasChanged();
+    });
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Interactive authentication may become available after a failed prerender read.
+        if (firstRender && !Branding.Resolved) await Branding.EnsureLoadedAsync();
+    }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
-        => _ = InvokeAsync(() =>
+        => _ = InvokeAsync(async () =>
         {
+            _failedSealPath = null;
+            await Branding.EnsureLoadedAsync();
             _pendingPath = null;
             SetMobileOpen(false);   // navigating closes the mobile drawer
             StateHasChanged();
@@ -289,6 +307,7 @@
 
     public void Dispose()
     {
+        Branding.Changed -= OnBrandingChanged;
         Nav.LocationChanged -= OnLocationChanged;
     }
 }

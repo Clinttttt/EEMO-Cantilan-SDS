@@ -5,11 +5,15 @@
 {
     var parts = Message.Split(" · ", 2);
     var recorded = parts.Length == 2 && parts[0] == "Collection recorded";
+    var confirmed = recorded || Message is "Payment recorded successfully." or "Collection recorded." or "Status updated successfully.";
     <div class="state-card recorded-notice" role="status">
-        @if (recorded)
+        @if (confirmed)
         {
-            <div class="recorded-title">Collection recorded</div>
-            <div class="recorded-ref">@parts[1]</div>
+            <div class="recorded-title">@(Message == "Status updated successfully." ? "Status updated" : "Recorded successfully")</div>
+            @if (recorded)
+            {
+                <div class="recorded-ref">@parts[1]</div>
+            }
         }
         else
         {
