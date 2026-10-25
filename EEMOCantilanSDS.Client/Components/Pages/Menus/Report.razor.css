@@ -1990,7 +1990,7 @@
 
 @media (max-width: 1100px) {
     .rpt-panels {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
     }
 }
 
@@ -3035,3 +3035,15 @@
 .rpt-view-switch { align-self: flex-end; }
 @keyframes rpt-view-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .rpt-view { animation: none; } }
+
+/* ── Phone: the joined scope control wraps instead of pushing the page wider than the screen ──
+   Year / Month keep a row each side by side; the facility / source scope takes the full width under them. */
+@media (max-width: 560px) {
+    .rpt-toolgroup { display: flex; flex-wrap: wrap; align-self: stretch; width: 100%; }
+    .rpt-toolgroup .rpt-tool { flex: 1 1 120px; min-width: 0; }
+    .rpt-toolgroup .rpt-tool + .rpt-tool-source { flex: 1 1 100%; min-width: 0; border-top: 1px solid var(--border); border-left: 0; }
+}
+
+/* The explanatory count under a position figure wraps; the figure itself stays on one line. */
+.rpt-pos-val { min-width: 0; }
+.rpt-pos-count { white-space: normal; }
