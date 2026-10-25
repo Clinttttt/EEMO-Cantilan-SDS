@@ -82,6 +82,21 @@
                         <span class="v3-sr-only">Search payor or stall</span>
                         <input class="form-input" type="search" placeholder="Search payor or stall" @bind="_search" @bind:event="oninput" />
                     </label>
+                    @if (SectionFilters.Count > 1)
+                    {
+                        <div class="wcf-source-filters" role="group" aria-label="Filter Water sources">
+                            <button type="button" class="wcf-filter @(_sectionFilter == "" ? "active" : "")"
+                                    aria-pressed="@(_sectionFilter == "" ? "true" : "false")"
+                                    @onclick='() => _sectionFilter = ""'>All</button>
+                            @foreach (var section in SectionFilters)
+                            {
+                                var key = section.Key;
+                                <button type="button" class="wcf-filter @(_sectionFilter == key ? "active" : "")"
+                                        aria-pressed="@(_sectionFilter == key ? "true" : "false")"
+                                        @onclick="() => _sectionFilter = key">@section.Label</button>
+                            }
+                        </div>
+                    }
                     @if (_sources.Count == 0)
                     {
                         <StateNotice Title="No Water sources">No eligible Water source is registered for your facilities in @Today.ToString("MMMM yyyy", CultureInfo.InvariantCulture).</StateNotice>
@@ -206,6 +221,20 @@
     private Guid? _selectedStall;
     private decimal _amount;
     private string _search = string.Empty;
+    private string _sectionFilter = string.Empty;
+    // Only actual registered utility sources appear; custom NPM sections come from the
+    // server's effective stall section, not a fixed Fish/Meat list.
+    private static string SourceGroupKey(WcfMobileSourceDto source) =>
+        source.Facility == FacilityCode.NPM
+            ? "NPM:" + source.Section
+            : "FACILITY:" + (source.Facility?.ToString() ?? source.FacilityName ?? "");
+    private IReadOnlyList<(string Key, string Label)> SectionFilters => _sources
+        .GroupBy(SourceGroupKey)
+        .Select(group => (Key: group.Key, Label: group.First().Facility == FacilityCode.NPM
+            ? (string.IsNullOrWhiteSpace(group.First().Section) ? "NPM" : group.First().Section)
+            : group.First().FacilityName ?? group.First().Facility?.ToString() ?? "Other facility"))
+        .OrderBy(group => group.Label, StringComparer.OrdinalIgnoreCase)
+        .ToList();
     private bool _loading = true;
     private bool _loadFailed;
     private bool _saving;
@@ -216,11 +245,13 @@
 
     private WcfMobileSourceDto? Selected => _sources.FirstOrDefault(x => x.StallId == _selectedStall);
 
-    private IEnumerable<WcfMobileSourceDto> Filtered => _sources.Where(x => string.IsNullOrWhiteSpace(_search)
-        || (x.PayerName?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false)
-        || x.StallNo.Contains(_search, StringComparison.OrdinalIgnoreCase)
-        || (x.FacilityName?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false)
-        || x.Section.Contains(_search, StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<WcfMobileSourceDto> Filtered => _sources.Where(x =>
+        (_sectionFilter.Length == 0 || SourceGroupKey(x) == _sectionFilter)
+        && (string.IsNullOrWhiteSpace(_search)
+            || (x.PayerName?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false)
+            || x.StallNo.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || (x.FacilityName?.Contains(_search, StringComparison.OrdinalIgnoreCase) ?? false)
+            || x.Section.Contains(_search, StringComparison.OrdinalIgnoreCase)));
 
     private bool CanCapture => Selected is { } source
         && (source.CanCollect || source.CanEnterDirect)

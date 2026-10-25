@@ -127,7 +127,8 @@ public sealed partial class CollectionSessionSources
                 var occupancy = stall.OccupancyAnsweringForMonth(today.Year, today.Month, today)?.Contract;
                 if (occupancy?.ActualOccupant is { } name
                     && (term == "" || name.ToLowerInvariant().Contains(term) || stall.StallNo.ToLowerInvariant().Contains(term)))
-                    rows.Add(new(new(SourceIdentityKind.Occupancy, occupancy.Id), name, $"{stall.Facility!.Name} · Stall {stall.StallNo}", "FACILITY_" + stall.Facility.Code));
+                    rows.Add(new(new(SourceIdentityKind.Occupancy, occupancy.Id), name, $"{stall.Facility!.Name} · Stall {stall.StallNo}", "FACILITY_" + stall.Facility.Code,
+                        SectionLabel: stall.Section is { } section ? stall.Facility.SectionLabel(section) ?? stall.CustomSectionName : stall.CustomSectionName));
             }
             after = stalls[^1].Id;
         }
