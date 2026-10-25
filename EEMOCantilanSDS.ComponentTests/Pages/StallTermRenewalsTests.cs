@@ -110,6 +110,30 @@ public sealed class StallTermRenewalsTests : TestContext
     }
 
     [Fact]
+    public void ThePencilCorrectsOneAccountsHolderAndContractName_AndOnlyThatRenewalCarriesIt()
+    {
+        var ice1 = Row(FacilityCode.ICE, "Iceplant", InactiveAccountState.Expired, "Ice A", "1");
+        var ice2 = Row(FacilityCode.ICE, "Iceplant", InactiveAccountState.Expired, "Ice B", "2");
+        var cut = Open("ice", ice1, ice2);
+        cut.WaitForElement(".str-pencil", Wait);
+
+        cut.FindAll(".str-pencil")[0].Click();
+        cut.Find("#str-edit-holder").Input("Ice A. Santos");
+        cut.Find("#str-edit-contract").Input("");
+        Assert.True(cut.Find(".str-form button").HasAttribute("disabled"));                       // no renewal while an edit is open
+        cut.FindAll(".str-edit-actions button")[0].Click();
+
+        Assert.Contains("Ice A. Santos", cut.Find(".str-table").TextContent);
+        cut.Find(".str-form").Submit();
+
+        cut.WaitForAssertion(() => Assert.Equal(2, _renewed.Count), Wait);
+        var first = _renewed.Single(r => r.Id == ice1.StallId).Request;
+        Assert.Equal("Ice A. Santos", first.ActualOccupant);
+        Assert.Null(first.NameOnContract);
+        Assert.Equal("Ice B", _renewed.Single(r => r.Id == ice2.StallId).Request.ActualOccupant);
+    }
+
+    [Fact]
     public void AnUnknownFacilityIsStated_NotAnEmptyList()
     {
         var cut = Open("nonsense");

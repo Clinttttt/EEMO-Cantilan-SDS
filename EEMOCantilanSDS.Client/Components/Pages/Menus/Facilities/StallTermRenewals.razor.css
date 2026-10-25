@@ -14,3 +14,19 @@
 .str-note { margin: 10px 0 0; font-size: 12px; color: var(--text-secondary); }
 .str-message { margin: 10px 0 0; font-size: 13px; font-weight: 600; color: var(--red); }
 @media (max-width: 700px) { .str-table { display: block; overflow-x: auto; white-space: nowrap; } }
+.str-form { margin-bottom: 4px; }
+.str-ends { align-self: center; padding-bottom: 2px; font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.str-table { margin-top: 16px; }
+.str-row-changed td { background: var(--accent-soft); }
+.str-edit-cell { width: 44px; text-align: center; }
+.str-pencil { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--text-secondary); cursor: pointer; }
+.str-pencil:hover:not(:disabled) { border-color: var(--border); color: var(--accent); }
+.str-pencil:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.str-pencil:disabled { opacity: .4; cursor: default; }
+.str-pencil svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.str-edit { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; }
+.str-edit label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.str-edit input { min-height: 34px; min-width: 180px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; }
+.str-edit input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.str-edit-actions { display: flex; gap: 8px; }
+.str-edit-warn { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--text-secondary); }
