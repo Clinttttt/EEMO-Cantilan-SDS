@@ -117,14 +117,14 @@ public class FinancialSummaryDocumentTests : TestContext
 
         var sheet = cut.Markup;
 
-        Assert.Contains("Collection position", sheet);
-        Assert.Contains("Collection by model", sheet);
-        Assert.Contains("Outstanding position", sheet);
-        Assert.Contains("Receivable aging", sheet);
-        Assert.Contains("Period comparison", sheet);
-        Assert.Contains("Facility performance", sheet);
-        Assert.Contains("Accounts needing follow-up", sheet);
-        Assert.Contains("Miscellaneous", sheet);
+        Assert.Contains("Collection summary", sheet);
+        Assert.Contains("Collections by type", sheet);
+        Assert.Contains("Outstanding balances", sheet);
+        Assert.Contains("Age of unpaid accounts", sheet);
+        Assert.Contains("Comparison with earlier periods", sheet);
+        Assert.Contains("Collections by facility", sheet);
+        Assert.Contains("Accounts for follow-up", sheet);
+        Assert.Contains("Electricity and water", sheet);
 
         // The letterhead a government document carries, and the signatories it is signed under.
         Assert.Contains("Republic of the Philippines", sheet);
@@ -137,8 +137,8 @@ public class FinancialSummaryDocumentTests : TestContext
         Assert.StartsWith("I.", titles[0]);
         Assert.StartsWith("IX.", titles[8]);
         // The official Monthly Income snapshot sits beside the collection position, ahead of the facility analysis.
-        Assert.Equal("II. Monthly Income by official group", titles[1]);
-        Assert.Equal("VII. Facility performance", titles[6]);
+        Assert.Equal("II. Monthly income by group", titles[1]);
+        Assert.Equal("VII. Collections by facility", titles[6]);
     }
 
     [Fact]
@@ -183,12 +183,12 @@ public class FinancialSummaryDocumentTests : TestContext
         Assert.Contains("18%", position);
 
         // Paid on service is SLH 1,230 + TPM 420 = 1,650; recurring is the remainder of the headline, 1,099.
-        var model = cut.FindAll(".doc-sec").Single(s => s.TextContent.Contains("Collection by model")).TextContent;
+        var model = cut.FindAll(".doc-sec").Single(s => s.TextContent.Contains("Collections by type")).TextContent;
         Assert.Contains("₱1,650", model);
         Assert.Contains("₱1,099", model);
 
         // Every delinquent account, not the capped list: the report states 7 while the fixture list carries 3.
-        var followUp = cut.FindAll(".doc-sec").Single(s => s.TextContent.Contains("Accounts needing follow-up")).TextContent;
+        var followUp = cut.FindAll(".doc-sec").Single(s => s.TextContent.Contains("Accounts for follow-up")).TextContent;
         Assert.Contains("7 accounts", followUp);
         Assert.Contains("Arrears — previous-year rent, expired contracts and ended occupancies", followUp);
         Assert.Contains("Listing 3 of 7 accounts", followUp);
@@ -216,11 +216,11 @@ public class FinancialSummaryDocumentTests : TestContext
         var sheet = cut.Markup;
 
         // One band states what the total above it already says, so the aging section is left out entirely.
-        Assert.DoesNotContain("Receivable aging", sheet);
-        Assert.DoesNotContain("Miscellaneous", sheet);
+        Assert.DoesNotContain("Age of unpaid accounts", sheet);
+        Assert.DoesNotContain("Electricity and water", sheet);
 
         // The follow-up section stays — its figures are the point — and says plainly that nobody is on the lists.
-        Assert.Contains("Accounts needing follow-up", sheet);
+        Assert.Contains("Accounts for follow-up", sheet);
         Assert.Contains("Arrears — previous-year rent", sheet);
         Assert.Contains("0 accounts", sheet);
         Assert.Contains("No account still being billed carries an unpaid month", sheet);
