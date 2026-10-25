@@ -246,6 +246,31 @@ public sealed class SpaceLifecycleTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task Reassign_UnderASignedContract_RecordsTheNewHoldersOwnTerm_AsTheRegistrationFormDoes()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var (tenant, closed) = await ClosedSpaceAsync();
+
+        // The preview states the previous approved amount so the form can start from it.
+        var first = await PreviewAsync(tenant, closed.Account.Id, new(LifecycleAction.Reassign, null, "New holder"));
+        Assert.Equal("₱1,200.00", first.Value!.Facts["Previous approved amount"]);
+        // A term is a signed contract's: refused on a space-only basis.
+        var spaceOnlyWithTerm = new LifecycleCommand(LifecycleAction.Reassign, Jul1, "New holder", NewHolder: "Pedro Cruz", Amount: 1500m, TermYears: 3,
+            Arrangement: OccupancyArrangement.SpaceOnly);
+        Assert.Equal(SpaceLifecycleWorkflow.InvalidRequest, (await PreviewAsync(tenant, closed.Account.Id, spaceOnlyWithTerm)).Value!.ReasonCode);
+
+        var signed = new LifecycleCommand(LifecycleAction.Reassign, Jul1, "New holder", "Contract 2", NewHolder: "Pedro Cruz", Amount: 1500m, TermYears: 3,
+            ContractName: "Pedro Cruz", Reference: "KM-9", Arrangement: OccupancyArrangement.SignedContract);
+        var result = await ExecuteAsync(tenant, closed.Account.Id, signed);
+        Assert.True(result.IsSuccess, result.Error);
+        await using var after = db.CreateContext(tenant);
+        var successor = await after.ObligationAccounts.AsNoTracking().SingleAsync(a => a.Id == result.Value!.ResultAccountId);
+        Assert.Equal((OccupancyArrangement.SignedContract, "KM-9", "Pedro Cruz", Jul1, 3),
+            (successor.Arrangement!.Value, successor.ContractReference, successor.ContractName, successor.ContractEffectiveDate!.Value, successor.ContractYears!.Value));
+    }
+
+    [SkippableFact]
     public async Task Reassign_RequiresAnExplicitHolderAndAmount_RefusesASameNameWithoutConfirmation_AndALinkToAnotherTenantsPayor()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);

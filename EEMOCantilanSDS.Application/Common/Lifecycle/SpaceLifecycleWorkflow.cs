@@ -209,6 +209,8 @@ public sealed class SpaceLifecycleWorkflow(
                 }
                 else
                 {
+                    // Stated so the form can start from it; the new holder's amount is still the one the office enters and approves.
+                    if (rateAtClosure is { } previous) facts["Previous approved amount"] = $"₱{previous.Amount:N2}";
                     if (string.IsNullOrWhiteSpace(c?.NewHolder) || c.NewHolder.Trim().Length > 200)
                         return Block(HolderRequired, "Name the new holder (up to 200 characters). A holder is never matched to an existing one by name.");
                     if (string.Equals(c.NewHolder.Trim(), space.HolderName?.Trim(), StringComparison.OrdinalIgnoreCase) && !c.ConfirmDistinctHolder)
@@ -216,6 +218,8 @@ public sealed class SpaceLifecycleWorkflow(
                     if (c.Amount is not { } approved || approved <= 0m || decimal.Round(approved, 2) != approved)
                         return Block(ApprovedAmountRequired, "Enter the approved monthly amount for the new holder.");
                     amount = approved;
+                    if (c.TermYears is { } termYears && (termYears is < 1 or > 50 || c.Arrangement != OccupancyArrangement.SignedContract))
+                        return Block(InvalidRequest, "A contract term (1-50 years) is recorded only for a signed contract.");
                     if (c.NewPayorId is { } payorId && payorId != Guid.Empty
                         && !await db.Payors.AsNoTracking().AnyAsync(x => x.MunicipalityId == actor.TenantId && x.Id == payorId, ct))
                         return Block(InvalidRequest, "Choose an existing Business Payor, or leave it blank.");
@@ -230,6 +234,8 @@ public sealed class SpaceLifecycleWorkflow(
                     return Block(ClosureMonthOwnershipPending, $"The closure month ({closedOn:MMM yyyy}) stays with the previous holder. Choose {earliest:MMM d, yyyy} or later.");
                 if (start < new DateOnly(2020, 1, 1) || start > Today.AddDays(366)) return Block(InvalidRequest, "Choose a realistic start date (not more than a year ahead).");
                 facts["Start"] = start.ToString("MMM d, yyyy");
+                if (action == SpaceLifecycleAction.Reassign && c.TermYears is { } signedYears)
+                    facts["Contract term"] = $"{start:MMM d, yyyy} to {DomainRules.TermLastDay(start, signedYears):MMM d, yyyy}";
                 return new(null, null, version, facts, space, amount, start);
             }
             case SpaceLifecycleAction.Renew:
@@ -337,8 +343,11 @@ public sealed class SpaceLifecycleWorkflow(
                     var arrangement = action == SpaceLifecycleAction.Resume ? account.Arrangement : command.Arrangement;
                     var reference = action == SpaceLifecycleAction.Resume ? account.ContractReference : command.Reference;
                     if (arrangement is not null) successor.SetOccupancyBasis(arrangement, arrangement == OccupancyArrangement.SpaceOnly ? null : reference);
+                    // A new holder's signed contract is recorded with its own term, as the registration form records one: effective from the start date.
+                    var newSigned = action == SpaceLifecycleAction.Reassign && arrangement == OccupancyArrangement.SignedContract;
                     if (arrangement == OccupancyArrangement.SignedContract || account.AreaSqm is not null || account.AreaLocation is not null)
-                        successor.SetLeaseDetails(action == SpaceLifecycleAction.Resume ? account.ContractName : command.ContractName, null, null, account.AreaSqm, account.AreaLocation,
+                        successor.SetLeaseDetails(action == SpaceLifecycleAction.Resume ? account.ContractName : command.ContractName,
+                            newSigned ? start : null, newSigned ? command.TermYears : null, account.AreaSqm, account.AreaLocation,
                             action == SpaceLifecycleAction.Resume && arrangement == OccupancyArrangement.SignedContract ? account.ContractMonthlyRate : null);
                     successor.FollowOccupancy(account);
                     var rate = ObligationRate.Create(actor.TenantId, successor.Id, start, eval.Amount!.Value, actor.Username);
