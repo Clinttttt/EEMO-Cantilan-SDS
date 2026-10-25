@@ -33,7 +33,7 @@ public static class FollowUpComposer
     private const int SecOperational = 4;
 
     // Preserves the existing queue's higher-age urgency split only; it is not the delinquency qualification threshold.
-    private const int ImmediateSeverityAgeMonths = 3;
+    public const int ImmediateSeverityAgeMonths = 3;
 
     // Excused days that warrant a review (repeated absence). A fully-excused month is always shown.
     private const int RepeatedAbsentThreshold = 10;

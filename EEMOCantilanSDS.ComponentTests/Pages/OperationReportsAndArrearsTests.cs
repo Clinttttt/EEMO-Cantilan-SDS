@@ -207,6 +207,76 @@ public sealed class OperationReportsAndArrearsTests : TestContext
             Assert.NotNull(cut.Find("details.arr-note-disclosure summary"));
         }, Timeout);
     }
+    private static ObligationFollowUpItemDto SpacePeriod(string payer, Guid account, string code, string display, DateOnly period, decimal assessed, decimal collected,
+        string reason, string? basis, bool earlier = false) =>
+        new(account, Guid.Empty, payer, "4", new(FollowUpScopeKind.MonthlySpace, code, display), period, assessed, collected, assessed - collected,
+            "Normal", null, "/operations", reason, basis, earlier, new DateOnly(2025, 10, 24));
+
+    [Fact]
+    public void ThePrintedReportIncludesSpaceRentals_ByOperationName_ReconcilesWithTheWorkspace_AndLeavesTheFinancialReportFiguresAlone()
+    {
+        ArrearsData();
+        var greggor = Guid.NewGuid(); var loren = Guid.NewGuid(); var ana = Guid.NewGuid();
+        var history = Result<FollowUpQueueDto>.Success(new FollowUpQueueDto("October 2026", DateOnly.FromDateTime(DateTime.Today),
+            [new(1, "High", "Arrears", "arrears", FacilityCode.TCC, "Monthly rental", "Pedro Reyes", "Stall 4", 8_000m, false, "Nov 2025 – Dec 2025", "Arrears · 2 months · previous year", "Record payment", "/profile/tcc/4")],
+            ObligationItems:
+            [
+                SpacePeriod("Greggor Dal", greggor, "VEGETABLE_FRUIT_SPACE_RENTAL", "Vegetable / Fruits", new(2025, 11, 1), 10_000m, 0m, "arrears", "Expired contract"),
+                SpacePeriod("Greggor Dal", greggor, "VEGETABLE_FRUIT_SPACE_RENTAL", "Vegetable / Fruits", new(2025, 12, 1), 10_000m, 0m, "arrears", "Expired contract"),
+                // A renewed account: an earlier-term month part-paid, and a current-year month.
+                SpacePeriod("Lorenofs Brando", loren, "KANMANGGAY_SPACE_RENTAL", "Kanmanggay", new(2025, 9, 1), 1_000m, 400m, "arrears", "Expired contract", earlier: true),
+                SpacePeriod("Lorenofs Brando", loren, "KANMANGGAY_SPACE_RENTAL", "Kanmanggay", new(2026, 8, 1), 1_000m, 0m, "delinquent", null),
+                SpacePeriod("Ana Cruz", ana, "KANMANGGAY_SPACE_RENTAL", "Kanmanggay", new(2026, 8, 1), 500m, 0m, "delinquent", null)
+            ]));
+        _reports.Setup(x => x.GetFollowUpHistoryAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>())).ReturnsAsync(history);
+
+        var report = RenderComponent<ArrearsReport>();
+        var workspace = RenderComponent<Arrears>();
+        report.WaitForAssertion(() => Assert.Contains("space rentals (account register)", report.Markup), Timeout);
+        workspace.WaitForAssertion(() => Assert.Contains("Ana Cruz", workspace.Markup), Timeout);
+
+        // The financial report's own position (stall rentals) is untouched: 7 + 2 accounts, ₱12,345 + ₱8,000.
+        var positions = report.FindAll(".v3-report-section").Where(s => s.QuerySelector("h3")!.TextContent.StartsWith("Position")).ToList();
+        Assert.Contains("stall rentals (financial report)", positions[0].QuerySelector("h3")!.TextContent);
+        Assert.Contains("₱12,345.00", positions[0].TextContent);
+        Assert.Contains("₱8,000.00", positions[0].TextContent);
+        Assert.Contains("₱20,345.00", positions[0].TextContent);
+
+        // Space position: Delinquent = Lorenofs ₱1,000 + Ana ₱500; Arrears = Greggor ₱20,000 + Lorenofs' earlier term ₱600 (part-paid month).
+        var space = positions[1].TextContent;
+        Assert.Contains("₱1,500.00", space);
+        Assert.Contains("₱20,600.00", space);
+        Assert.Contains("₱22,100.00", space);
+        // All sources reconcile: the stall position plus the space position, and the same total the workspace hero states.
+        Assert.Contains("₱20,345.00 stall rentals + ₱22,100.00 space rentals = ₱42,445.00", System.Text.RegularExpressions.Regex.Replace(positions[1].TextContent, @"\s+", " "));
+        workspace.WaitForAssertion(() => Assert.Contains("₱42,445.00", workspace.Find(".v3-page").TextContent), Timeout);
+
+        // By facility and operation: each space operation by its server name, counted as accounts per reason; the footer adds the rows above it.
+        var bySource = report.Find("#arrr-by-source").Closest("section")!;
+        var rows = bySource.QuerySelectorAll("tbody tr").Select(r => r.TextContent.Trim()).ToList();
+        Assert.Contains(rows, r => r.Contains("Kanmanggay") && r.Contains("₱2,100.00"));                 // Lorenofs ₱1,000 + earlier term ₱600 + Ana ₱500
+        Assert.Contains(rows, r => r.Contains("Vegetable / Fruits") && r.Contains("₱20,000.00"));
+        Assert.DoesNotContain(rows, r => r.Contains("SPACE_RENTAL"));
+        Assert.Contains("₱30,100.00", bySource.QuerySelector("tfoot")!.TextContent);                   // the rows above: stall register ₱8,000 + space ₱22,100
+
+        // Register: one row per account and reason, the earlier term stated, the amount that reason's own months.
+        var register = report.Find("#arrr-register").Closest("section")!.TextContent;
+        Assert.Contains("Greggor Dal", register);
+        Assert.Contains("₱20,000.00", register);
+        Assert.Contains("earlier terms ₱600", register);
+        Assert.Contains("Space 4", register);
+    }
+
+    [Fact]
+    public void ThePrintedReportWithNoSpaceRentals_IsTheStallReportAsBefore()
+    {
+        ArrearsData();
+        var cut = RenderComponent<ArrearsReport>();
+        cut.WaitForAssertion(() => Assert.Contains("Rosa Magbanua", cut.Markup), Timeout);
+        Assert.DoesNotContain("space rentals (account register)", cut.Markup);
+        Assert.Null(cut.Find("#arrr-by-source").Closest("section")!.QuerySelector("tfoot"));
+    }
+
     [Fact]
     public void TheArrearsReport_StatesNoFixedInstrument()
     {

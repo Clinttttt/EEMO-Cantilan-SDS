@@ -1047,11 +1047,14 @@
 
     // Overview counts per urgency band for the hero — all open items (minus dismissed), independent
     // of the reason/facility/search filters so the summary stays stable while filtering below.
+    // Space accounts join the Action required and This period bands only (a space has no verify or operational item); each is counted ONCE, in its
+    // most urgent band, so a mixed Delinquent/Arrears account is never two. The hero counts accounts and items; the reason chips count a mixed
+    // account once under All and once under each reason it carries, so a chip can legitimately exceed the matching band.
     private int SectionTotal(int section)
     {
         var q = AllItems.Where(i => i.Section == section);
         if (section == SecImmediate) q = q.Where(i => !_hidden.Contains(HideKey(i)));
-        return q.Count();
+        return q.Count() + EEMOCantilanSDS.Client.Services.SpaceFollowUpAccount.GroupByAccount(_data?.ObligationItems ?? []).Count(a => a.Band == section);
     }
 
     private void SelectFilter(string key) => _filter = key;

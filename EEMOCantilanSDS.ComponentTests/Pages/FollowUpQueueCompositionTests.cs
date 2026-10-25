@@ -129,6 +129,46 @@ public sealed class FollowUpQueueCompositionTests : TestContext
     }
 
     [Fact]
+    public void TheHeroCountsSpaceAccountsOnce_InTheirMostUrgentBand_AndIsUnmovedByFiltersAndSearch()
+    {
+        ObligationFollowUpItemDto[] Months(string payer, Guid id, int count, string reason, string? basis, DateOnly first) => Enumerable.Range(0, count)
+            .Select(i => SpaceMonth(payer, first.AddMonths(i), 100m, reason, basis, new DateOnly(2025, 10, 24)) with { AccountId = id }).ToArray();
+        var greggor = Guid.NewGuid(); var ana = Guid.NewGuid(); var bea = Guid.NewGuid(); var cal = Guid.NewGuid();
+        var queue = SampleQueue() with
+        {
+            ObligationItems = Months("Greggor Dal", greggor, 48, "arrears", "Expired contract", new(2022, 10, 1))      // Arrears        -> Action required
+                .Concat(Months("Ana Cruz", ana, 2, "arrears", "Previous year", new(2025, 11, 1)))                        // Arrears + 1 delinquent month: ONE account, Action required
+                .Concat(Months("Ana Cruz", ana, 1, "delinquent", null, new(2026, 8, 1)))
+                .Concat(Months("Bea Lim", bea, 2, "delinquent", null, new(2026, 7, 1)))                                    // 2 delinquent months -> This period
+                .Concat(Months("Cal Ong", cal, 3, "delinquent", null, new(2026, 5, 1))).ToArray()                          // 3 delinquent months -> Action required
+        };
+        var (cut, _) = RenderQueue(queue);
+        string Hero(string label) => cut.FindAll(".v3h-figure").Single(f => f.QuerySelector(".v3h-key")!.TextContent.Trim() == label).QuerySelector(".v3h-val")!.TextContent.Trim();
+
+        // Stall items today: 2 Action required, 5 This period. Space accounts: Greggor, Ana, Cal -> Action required; Bea -> This period.
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("5", Hero("Action required"));                    // 2 stall items + 3 accounts (Ana once, not twice)
+            Assert.Equal("6", Hero("This period"));                        // 5 stall items + Bea
+            Assert.Equal("0", Hero("Verify"));
+            Assert.Equal("0", Hero("Operational"));                         // the missing-OR shortcut item is not in the queue
+        }, RenderTimeout);
+
+        // A global summary: a reason chip, a source filter or a search does not move it.
+        cut.FindAll(".fq-reasons .fq-chip").Single(c => c.TextContent.Trim().StartsWith("Arrears")).Click();
+        cut.Find("input[type=search]").Input("Greggor");
+        Assert.Equal(("5", "6"), (Hero("Action required"), Hero("This period")));
+
+        // The chips count accounts under their own reason, so a mixed account is in both Arrears and Delinquent but ONCE under All:
+        // 4 space accounts + 7 stall rows under All; Arrears 2 space accounts (Greggor, Ana); Delinquent 3 (Ana, Bea, Cal).
+        cut.Find("input[type=search]").Input("");
+        int Chip(string label) => int.Parse(cut.FindAll(".fq-reasons .fq-chip").Single(c => c.TextContent.Trim().StartsWith(label)).QuerySelector(".fq-chip-count")!.TextContent.Trim());
+        Assert.Equal(7 + 4, Chip("All"));
+        Assert.Equal(0 + 2, Chip("Arrears"));
+        Assert.Equal(3 + 3, Chip("Delinquent"));
+    }
+
+    [Fact]
     public void Missing_optional_OR_is_not_an_action_required_alert_and_priority_badges_are_hidden()
     {
         var (cut, _) = RenderQueue();

@@ -24,6 +24,13 @@ public sealed record SpaceFollowUpAccount(
     DateOnly OldestPeriod,
     DateOnly LatestPeriod)
 {
+    /// <summary>
+    /// The urgency band the account sits in on the work queue, by the stall rules (FollowUpComposer): any Arrears is Action required (1); otherwise
+    /// Delinquent at the higher-age severity is Action required, lower-age is "This period" (2). An account sits in ONE band — its most urgent
+    /// — so the hero counts it once even when it carries both reasons. (A stall with both reasons is two queue items; a space account is one.)
+    /// </summary>
+    public int Band => ArrearsMonths > 0 || DelinquentMonths >= EEMOCantilanSDS.Application.Queries.Reports.GetFollowUpQueue.FollowUpComposer.ImmediateSeverityAgeMonths ? 1 : 2;
+
     public decimal Outstanding => DelinquentOutstanding + ArrearsOutstanding;
     public int Months => DelinquentMonths + ArrearsMonths;
     public string Name => string.IsNullOrWhiteSpace(First.PayerName) ? "—" : First.PayerName;
