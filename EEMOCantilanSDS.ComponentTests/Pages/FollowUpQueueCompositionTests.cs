@@ -76,6 +76,59 @@ public sealed class FollowUpQueueCompositionTests : TestContext
     }
 
     [Fact]
+    public void ASpaceAccountsFortyEightMonthsAreOneRow_AMixedAccountIsOneRowUnderAll_AndEachReasonStatesItsOwnPart()
+    {
+        var greggor = Guid.NewGuid();
+        var ana = Guid.NewGuid();
+        var months = Enumerable.Range(0, 48)
+            .Select(i => SpaceMonth("Greggor Dal", new DateOnly(2022, 10, 1).AddMonths(i), 10_000m, "arrears", "Expired contract", new(2025, 10, 24)) with { AccountId = greggor })
+            .Concat(
+            [
+                SpaceMonth("Ana Cruz", new(2025, 12, 1), 500m, "arrears", "Previous year") with { AccountId = ana },
+                SpaceMonth("Ana Cruz", new(2026, 8, 1), 300m, "delinquent") with { AccountId = ana },
+                // Same payer name, a different account: stays its own row.
+                SpaceMonth("Ana Cruz", new(2026, 8, 1), 800m, "delinquent") with { SpaceNumber = "9" }
+            ]).ToArray();
+        var (cut, _) = RenderQueue(SampleQueue() with { ObligationItems = months });
+
+        IReadOnlyList<AngleSharp.Dom.IElement> SpaceRows() => cut.Find("#fq-space-title").Closest("section")!.QuerySelectorAll("tbody tr").ToList();
+        int Chip(string label) => int.Parse(cut.FindAll(".fq-reasons .fq-chip").Single(c => c.TextContent.Trim().StartsWith(label)).QuerySelector(".fq-chip-count")!.TextContent.Trim());
+        cut.WaitForAssertion(() => Assert.Equal(3, SpaceRows().Count), RenderTimeout);              // three accounts, not 51 months
+
+        var greggorRow = Assert.Single(SpaceRows(), r => r.TextContent.Contains("Greggor Dal"));
+        Assert.Contains("₱480,000", greggorRow.TextContent);
+        Assert.Contains("Oct 2022 – Sep 2026", greggorRow.TextContent);
+        Assert.Contains("48 months", greggorRow.TextContent);
+        Assert.Contains("Space 4", greggorRow.TextContent);
+        Assert.Contains("Arrears · term ended Oct 24, 2025", greggorRow.TextContent);
+        var anaRows = SpaceRows().Where(r => r.TextContent.Contains("Ana Cruz")).ToList();
+        Assert.Equal(2, anaRows.Count);
+        Assert.Contains(anaRows, r => r.TextContent.Contains("₱800") && r.TextContent.Contains("Space 9"));
+        var mixed = Assert.Single(anaRows, r => r.TextContent.Contains("Arrears · previous year ₱500 · Delinquent ₱300"));
+        Assert.Contains("₱800", mixed.TextContent);                                                 // the whole account, once
+        Assert.Contains("3 accounts · 51 unpaid or partial months", cut.Find("#fq-space-title").Closest("section")!.TextContent);
+        Assert.Equal(7 + 3, Chip("All"));                                                           // accounts, like the facility rows
+        Assert.Equal(FacilityRows("arrears") + 2, Chip("Arrears"));                                 // Greggor + Ana's Arrears part
+        Assert.Equal(FacilityRows("delinquent") + 2, Chip("Delinquent"));                           // Ana's Delinquent part + the other Ana account
+
+        cut.FindAll(".fq-reasons .fq-chip").Single(c => c.TextContent.Trim().StartsWith("Delinquent")).Click();
+        var delinquent = SpaceRows();
+        Assert.Equal(2, delinquent.Count);
+        Assert.DoesNotContain(delinquent, r => r.TextContent.Contains("Greggor"));
+        Assert.Contains(delinquent, r => r.TextContent.Contains("₱300") && !r.TextContent.Contains("₱500"));   // only Ana's Delinquent part
+
+        cut.FindAll(".fq-reasons .fq-chip").Single(c => c.TextContent.Trim().StartsWith("All")).Click();
+        cut.Find("input[type=search]").Input("Greggor");
+        Assert.Single(SpaceRows());
+
+        // Review opens the right account with every month (the drawer reads the account's own register).
+        SpaceRows()[0].QuerySelector("button")!.Click();
+        Assert.Equal(greggor, cut.FindComponent<FollowUpAccountReview>().Instance.Context.ObligationItem!.AccountId);
+
+        int FacilityRows(string reason) => SampleQueue().Items.Count(i => i.ReasonKind == reason);
+    }
+
+    [Fact]
     public void Missing_optional_OR_is_not_an_action_required_alert_and_priority_badges_are_hidden()
     {
         var (cut, _) = RenderQueue();
@@ -197,8 +250,8 @@ public sealed class FollowUpQueueCompositionTests : TestContext
             Assert.Contains("All sources", cut.Find(".fq-source-select .fh-dd-trigger").TextContent);
             Assert.Empty(cut.FindAll("[aria-label='Filter by source'] .fq-chip"));
             Assert.Single(cut.FindAll(".fq-source-select .fh-dd-trigger"));
-            Assert.Contains("Unpaid and partial periods", cut.Markup);
-            Assert.Contains("August 2026", cut.Markup);                       // monthly period
+            Assert.Contains("unpaid or partial month", cut.Markup);            // one row per account; months counted apart
+            Assert.Contains("Aug 2026", cut.Markup);                          // monthly period
             Assert.Contains("Fiesta · Aug 15, 2026", cut.Markup);             // event period
             Assert.Contains("Partial · ₱400 paid", cut.Markup);
             Assert.DoesNotContain("KANMANGGAY_SPACE_RENTAL", cut.Markup);       // no raw code

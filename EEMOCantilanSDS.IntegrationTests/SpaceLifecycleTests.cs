@@ -390,6 +390,32 @@ public sealed class SpaceLifecycleTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task TwoSpacesHeldUnderOneName_AreFollowedUpAsTwoAccounts_EachWithItsOwnPeriods()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var tenant = await SeedTenantAsync(db, "Same name");
+        var first = await AddAsync(db, tenant, "21", new DateOnly(2026, 6, 1), holder: "Ana Reyes", amount: 500m);
+        var second = await AddAsync(db, tenant, "22", new DateOnly(2026, 6, 1), holder: "Ana Reyes", amount: 800m);
+        await using var context = db.CreateContext(tenant);
+
+        var items = await new EEMOCantilanSDS.Application.Common.Revenue.SpaceFollowUpWorkflow(context, new Caller(tenant, "Admin"), new Tenant(tenant)).GetAsync(Today, null, default);
+
+        // Nothing links the two by name: each period carries its own account id, and each account's periods sum to its own register.
+        Assert.Equal([first.Account.Id, second.Account.Id], items.Select(x => x.AccountId).Distinct().OrderBy(x => x == first.Account.Id ? 0 : 1).ToArray());
+        var listed = (await new EEMOCantilanSDS.Application.Common.Revenue.ObligationWorkflow(context, new Caller(tenant, "SuperAdmin"), new Tenant(tenant), new BusinessClock(Today))
+            .GetAccountsAsync(ObligationKind.KanmanggaySpaceRental)).Value!;
+        foreach (var account in new[] { first.Account.Id, second.Account.Id })
+        {
+            var own = items.Where(x => x.AccountId == account).ToList();
+            Assert.Equal(4, own.Count);                                                                   // Jun-Sep elapsed, October in progress
+            // The elapsed months plus the month in progress are the account's whole balance.
+            var register = listed.Single(x => x.Id == account);
+            Assert.Equal(register.OutstandingToDate, own.Sum(x => x.Outstanding) + (register.CurrentAmount ?? 0m));
+        }
+    }
+
+    [SkippableFact]
     public async Task Renew_IsNotOfferedForAClosedAccount_AnUnsignedOccupancy_OrAnEventLot()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);

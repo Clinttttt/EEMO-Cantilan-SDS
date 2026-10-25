@@ -273,7 +273,7 @@
                     <span class="fq-sec-count">@VisibleObligations.Count</span>
                     <div class="fq-sec-info">
                         <div class="fq-sec-title" id="fq-space-title">Space rentals</div>
-                        <div class="fq-sec-sub">Unpaid and partial periods</div>
+                        <div class="fq-sec-sub">@VisibleObligations.Count account@(VisibleObligations.Count == 1 ? "" : "s") · @VisibleObligations.Sum(a => a.Months) unpaid or partial month@(VisibleObligations.Sum(a => a.Months) == 1 ? "" : "s")</div>
                     </div>
                 </div>
                 <div class="fq-table-wrap">
@@ -284,15 +284,15 @@
                         <tbody>
                             @foreach (var ob in VisibleObligations)
                             {
-                                <tr class="fq-row fq-pri-@PriClass(ob.Priority)" @key="@($"{ob.AccountId}|{ob.PeriodStart:yyyy-MM-dd}")">
+                                <tr class="fq-row fq-pri-@(ob.ArrearsMonths > 0 ? "high" : "normal")" @key="@($"{ob.AccountId}|{ob.ReasonKind}")">
                                     <td>
-                                        <div class="fq-person">@(string.IsNullOrWhiteSpace(ob.PayerName) ? "—" : ob.PayerName)</div>
-                                        <div class="fq-sub">@ob.Scope.DisplayName · @ob.SpaceNumber</div>
+                                        <div class="fq-person">@ob.Name</div>
+                                        <div class="fq-sub">@ob.First.Scope.DisplayName · Space @ob.First.SpaceNumber</div>
                                     </td>
-                                    <td><div class="fq-period">@ObligationPeriod(ob)</div></td>
-                                    <td><span class="fq-note">@(ob.Collected > 0m ? $"Partial · ₱{ob.Collected:N0} paid" : "Unpaid")</span><div class="fq-sub">@ObligationReason(ob)</div></td>
+                                    <td><div class="fq-period">@ObligationPeriod(ob)</div><div class="fq-sub">@ob.MonthsText@(ob.EarlierMonths > 0 ? $" · earlier terms ₱{ob.EarlierOutstanding:N0}" : "")</div></td>
+                                    <td><span class="fq-note">@ob.PaymentText</span><div class="fq-sub">@ob.ReasonText</div></td>
                                     <td><span class="fq-amount">₱@ob.Outstanding.ToString("N0")</span></td>
-                                    <td><div class="fq-action-cell"><button type="button" class="fq-action fq-action-btn" @onclick="() => _review = new(null, ob, AsOf)">Review account<span class="fq-action-arrow">→</span></button></div></td>
+                                    <td><div class="fq-action-cell"><button type="button" class="fq-action fq-action-btn" @onclick="() => _review = new(null, ob.First, AsOf)">Review account<span class="fq-action-arrow">→</span></button></div></td>
                                 </tr>
                             }
                         </tbody>
@@ -1083,19 +1083,21 @@
             .Select(i => i.Scope).Where(s => s.Kind != FollowUpScopeKind.Facility)
             .GroupBy(s => s.OperationCode).Select(g => g.First()).OrderBy(s => s.DisplayName).ToList();
 
-    private IReadOnlyList<ObligationFollowUpItemDto> VisibleObligations =>
-        (_data?.ObligationItems ?? []).Where(o => (_filter == "all" || o.ReasonKind == _filter) && MatchesObligation(o)).ToList();
+    // Space rentals, one row per ACCOUNT (by its id, never its payer's name): All shows each account once with its Delinquent and Arrears parts;
+    // a reason chip shows only that reason's months and amount. The full monthly breakdown is in Review account.
+    private IReadOnlyList<EEMOCantilanSDS.Client.Services.SpaceFollowUpAccount> SpaceAccountsFor(string key) =>
+        EEMOCantilanSDS.Client.Services.SpaceFollowUpAccount.For((_data?.ObligationItems ?? []).Where(MatchesObligationScope), key).Where(a => a.Matches(_search)).ToList();
+    private IReadOnlyList<EEMOCantilanSDS.Client.Services.SpaceFollowUpAccount> VisibleObligations => SpaceAccountsFor(_filter);
 
-    private bool MatchesObligation(ObligationFollowUpItemDto i) =>
-        (_operation is null && _facility is null
-            || _operation is not null && i.Scope.OperationCode == _operation
-            || _facility is not null && i.Scope.Facility == _facility)
-        && (!HasSearch || Contains(i.PayerName, _search.Trim()) || Contains(i.SpaceNumber, _search.Trim())
-            || Contains(i.Scope.DisplayName, _search.Trim()));
+    private bool MatchesObligationScope(ObligationFollowUpItemDto i) =>
+        _operation is null && _facility is null
+        || _operation is not null && i.Scope.OperationCode == _operation
+        || _facility is not null && i.Scope.Facility == _facility;
 
-    private static string ObligationPeriod(ObligationFollowUpItemDto i) => i.Scope.Kind == FollowUpScopeKind.EventLot
-        ? $"{(i.Event is { } e ? e.ToString() : i.Scope.DisplayName)} · {i.PeriodStart:MMM d, yyyy}"
-        : i.PeriodStart.ToString("MMMM yyyy");
+    // An event lot is named by its event and date; a monthly space by the span of its unpaid months.
+    private static string ObligationPeriod(EEMOCantilanSDS.Client.Services.SpaceFollowUpAccount a) => a.First.Scope.Kind == FollowUpScopeKind.EventLot
+        ? $"{(a.First.Event is { } e ? e.ToString() : a.First.Scope.DisplayName)} · {a.OldestPeriod:MMM d, yyyy}"
+        : a.PeriodText;
     private void OnSearchInput(ChangeEventArgs e) => _search = e.Value?.ToString() ?? "";
     private void ClearSearch() => _search = "";
 
@@ -1104,17 +1106,9 @@
         // Browser-hidden action-required items are removed from the live queue, so they must not inflate the
         // tab badge either — mirrors ItemsFor/SectionTotal. Hiding is only offered for this section.
         && !(i.Section == SecImmediate && _hidden.Contains(HideKey(i))))
-        // Space rentals are their own feed but the same kinds of follow-up: each month counts under its own reason, so "All" never reads 0
-        // while the Space rentals table below lists items.
-        + (_data?.ObligationItems ?? []).Count(o => (key == "all" || o.ReasonKind == key) && MatchesObligation(o));
-
-    // "Arrears · expired contract (term ended Oct 24, 2025)": why a space month is followed up, in the register's own words.
-    private static string ObligationReason(ObligationFollowUpItemDto o) => o.ArrearsBasis switch
-    {
-        null => "Delinquent",
-        "Expired contract" when o.TermLastDay is { } ended => $"Arrears · term ended {ended:MMM d, yyyy}",
-        var basis => $"Arrears · {basis.ToLowerInvariant()}"
-    };
+        // Space rentals are their own feed but the same kinds of follow-up. They count as ACCOUNTS, like the rows above (one per account, not
+        // per month), so "All" never reads 0 while the Space rentals table lists accounts.
+        + SpaceAccountsFor(key).Count;
 
     private IReadOnlyList<FollowUpItemDto> Filtered() =>
         AllItems.Where(i => (_filter == "all" || i.ReasonKind == _filter) && MatchesFacility(i) && MatchesSearch(i)).ToList();

@@ -52,23 +52,23 @@
             </label>
             <label class="v3-field">
                 <span class="v3-sr-only">Follow-up condition</span>
-                <select @bind="_condition"><option value="delinquent">Delinquent</option><option value="arrears">Qualifying Arrears</option></select>
+                <select @bind="_condition" @bind:after="KeepSourceValid"><option value="delinquent">Delinquent</option><option value="arrears">Qualifying Arrears</option></select>
             </label>
             <label class="v3-field">
                 <span class="v3-sr-only">Facility / source</span>
                 <select @bind="_facility">
                     <option value="">All facilities</option>
-                    @if (SpaceAccounts(_condition).Count > 0) { <option value="space">Space rentals</option> }
                     @foreach (var facilityCode in Facilities)
                     {
                         <option value="@facilityCode">@FacilityCatalog.NameOf(facilityCode)</option>
                     }
+                    @foreach (var operation in SpaceOperations(_condition)) { <option value="@($"op:{operation.OperationCode}")">@operation.DisplayName</option> }
                 </select>
             </label>
         </div>
         @if (_condition is "delinquent" or "arrears")
         {
-@if (_facility != "space" && PositionTotal is { } position && Rows is { } queue && position != queue.Count)        {            @* Two server reads, two scopes: the position counts delinquent rental accounts in the financial report; this register lists               every delinquent account the follow-up queue carries. They are shown as the server states them, never forced to agree. *@            <p class="v3-notice arr-scope-note" role="note">Position: @position @PositionLabel (financial report) · Register: @queue.Count accounts in the whole-account follow-up.</p>        }
+@if (!IsSpaceSource && PositionTotal is { } position && Rows is { } queue && position != queue.Count)        {            @* Two server reads, two scopes: the position counts delinquent rental accounts in the financial report; this register lists               every delinquent account the follow-up queue carries. They are shown as the server states them, never forced to agree. *@            <p class="v3-notice arr-scope-note" role="note">Position: @position @PositionLabel (financial report) · Register: @queue.Count accounts in the whole-account follow-up.</p>        }
         <div class="v3-table-wrap" role="region" aria-label="Rental follow-up accounts" tabindex="0">
             <table class="v3-table">
                 <thead>
@@ -88,7 +88,7 @@
                     }
                     else if (Filtered.Count == 0 && FilteredSpaces.Count == 0)
                     {
-                        <tr><td class="v3-empty" colspan="6">@(Rows.Count == 0 ? (_condition == "arrears" ? "No account carries qualifying Arrears." : "No account has a fully elapsed unpaid month this year.") : "No account matches these filters.")</td></tr>
+                        <tr><td class="v3-empty" colspan="6">@(Rows.Count == 0 && SpaceAccounts(_condition).Count == 0 ? (_condition == "arrears" ? "No account carries qualifying Arrears." : "No account has a fully elapsed unpaid month this year.") : "No account matches these filters.")</td></tr>
                     }
                     else
                     {
@@ -165,7 +165,21 @@
     private IReadOnlyList<EEMOCantilanSDS.Client.Services.SpaceFollowUpAccount> SpaceAccounts(string condition) =>
         EEMOCantilanSDS.Client.Services.SpaceFollowUpAccount.Group(_data?.SpaceItems ?? []).Where(s => s.ReasonKind == condition).ToList();
     private List<EEMOCantilanSDS.Client.Services.SpaceFollowUpAccount> FilteredSpaces =>
-        _facility is not ("" or "space") ? [] : SpaceAccounts(_condition).Where(s => s.Matches(_search)).ToList();
+        _facility == "" ? SpaceAccounts(_condition).Where(s => s.Matches(_search)).ToList()
+        : IsSpaceSource ? SpaceAccounts(_condition).Where(s => s.First.Scope.OperationCode == _facility[3..] && s.Matches(_search)).ToList() : [];
+
+    // A source is a stall facility (its code) or a space operation ("op:" + its server operation code); space operations are named by the
+    // server's display name and offered only where the condition on screen has accounts in them.
+    private bool IsSpaceSource => _facility.StartsWith("op:", StringComparison.Ordinal);
+    private IReadOnlyList<FollowUpScopeDto> SpaceOperations(string condition) =>
+        SpaceAccounts(condition).Select(s => s.First.Scope).DistinctBy(s => s.OperationCode).OrderBy(s => s.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
+    // Switching Delinquent/Arrears keeps the chosen source only if the new condition still offers it; otherwise back to All sources.
+    private void KeepSourceValid()
+    {
+        if (_facility == "") return;
+        var offered = Facilities.Select(f => f.ToString()).Concat(SpaceOperations(_condition).Select(s => $"op:{s.OperationCode}"));
+        if (!offered.Contains(_facility)) _facility = "";
+    }
 
     private void OpenPayment() { _payment = _review; _review = null; }
     private async Task PaymentChanged() { var context = _payment; _payment = null; await LoadAsync(); _review = context; }
@@ -186,7 +200,7 @@
             || a.Identifier.Contains(_search, StringComparison.OrdinalIgnoreCase)
             || FacilityCatalog.NameOf(a.Facility).Contains(_search, StringComparison.OrdinalIgnoreCase))
         .Where(a => _facility == "" || a.Facility.ToString() == _facility)
-        .Where(_ => _facility != "space")
+        .Where(_ => !IsSpaceSource)
         .ToList();
 
     protected override async Task OnInitializedAsync()

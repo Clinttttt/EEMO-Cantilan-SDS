@@ -204,6 +204,8 @@ public sealed partial class CollectionSessionTests(PostgresFixture database)
         Assert.Equal(450m, (await Record(flow, intent)).GrandTotal);
         var partial = Assert.Single(await reader.GetAsync(Today, null, default));
         Assert.Equal((monthly.Id, 150m), (partial.AccountId, partial.Outstanding));
+        // The paid part is stated with the remaining balance, and the month keeps its own reason (a September month this year: Delinquent).
+        Assert.Equal((50m, 200m, "delinquent", (string?)null), (partial.Collected, partial.Assessed, partial.ReasonKind, partial.ArrearsBasis));
         Assert.Empty(await reader.GetAsync(Today, CollectorOperationCodes.FiestaArawLotRental, default));
         Assert.Empty(await new SpaceFollowUpWorkflow(db, new Caller(Guid.NewGuid(), Guid.NewGuid(), "Admin"), tenant).GetAsync(Today, null, default));
         Assert.Equal(2, await db.ObligationPeriods.CountAsync());

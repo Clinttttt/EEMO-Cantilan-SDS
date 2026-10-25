@@ -386,9 +386,9 @@
                         <tbody>
                             @foreach (var s in ShownSpaces)
                             {
-                                <tr class="fh-row fh-pri-@(s.ReasonKind == "arrears" ? "high" : "normal")" @key="@($"{s.First.AccountId}|{s.ReasonKind}")">
+                                <tr class="fh-row fh-pri-@(s.ArrearsMonths > 0 ? "high" : "normal")" @key="@($"{s.First.AccountId}|{s.ReasonKind}")">
                                     <td><div class="fh-person">@s.Name</div><div class="fh-sub">@s.First.Scope.DisplayName · Space @s.First.SpaceNumber</div></td>
-                                    <td><div class="fh-period">@s.PeriodText</div><div class="fh-sub">@s.ReasonText · @s.Months month@(s.Months == 1 ? "" : "s")</div></td>
+                                    <td><div class="fh-period">@s.PeriodText</div><div class="fh-sub">@s.ReasonText · @s.MonthsText</div></td>
                                     <td><span class="fh-note">@(s.CurrentMonths > 0 ? $"₱{s.CurrentOutstanding:N0} · {s.CurrentMonths} mo" : "—")</span></td>
                                     <td><span class="fh-note">@(s.EarlierMonths > 0 ? $"₱{s.EarlierOutstanding:N0} · {s.EarlierMonths} mo" : "—")</span></td>
                                     <td><span class="fh-amount">₱@s.Outstanding.ToString("N0")</span></td>
@@ -1017,8 +1017,8 @@
     // Space accounts under a reason chip, matching the search. Not a facility, so a facility filter or the Closed register shows none.
     private IReadOnlyList<EEMOCantilanSDS.Client.Services.SpaceFollowUpAccount> SpaceRows(string key) =>
         key == ClosedReason || _facility is not null ? []
-        : EEMOCantilanSDS.Client.Services.SpaceFollowUpAccount.Group(_data?.ObligationItems ?? [])
-            .Where(a => (key == "all" || a.ReasonKind == key) && a.Matches(_search)).ToList();
+        : EEMOCantilanSDS.Client.Services.SpaceFollowUpAccount.For(_data?.ObligationItems ?? [], key)
+            .Where(a => a.Matches(_search)).ToList();
     private IReadOnlyList<EEMOCantilanSDS.Client.Services.SpaceFollowUpAccount> ShownSpaces => SpaceRows(_reason);
 
     private const string ClosedReason = "closed";
