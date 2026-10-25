@@ -29,7 +29,8 @@ public sealed partial class CollectionSessionSources
         {
             var occupancy = stall.OccupancyAnsweringForMonth(today.Year, today.Month, today)?.Contract;
             if (occupancy?.ActualOccupant is { } name && name.ToLowerInvariant().Contains(term))
-                results.Add(new(new(SourceIdentityKind.Occupancy, occupancy.Id), name, $"{stall.Facility!.Name} · Stall {stall.StallNo}", "FACILITY_" + stall.Facility.Code));
+                results.Add(new(new(SourceIdentityKind.Occupancy, occupancy.Id), name, $"{stall.Facility!.Name} · Stall {stall.StallNo}", "FACILITY_" + stall.Facility.Code,
+                    SectionLabel: stall.Section is { } section ? stall.Facility.SectionLabel(section) ?? (section switch { MarketSection.FishSection => "Fish Area", MarketSection.MeatSection => "Meat Area", MarketSection.VegetableArea => "Vegetable Area", _ => stall.CustomSectionName }) : stall.CustomSectionName));
         }
         var assigned = await db.CollectorOperationAssignments.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.CollectorId == user.CollectorId).Select(x => x.OperationCode).ToListAsync(ct);
         var accounts = await db.ObligationAccounts.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.Kind != ObligationKind.FishMeatVendorFee &&
@@ -60,7 +61,7 @@ public sealed partial class CollectionSessionSources
         if (assigned.Contains(CollectorOperationCodes.FishMeatVendorFee) || assigned.Contains(CollectorOperationCodes.WeightAndMeasure))
             results.AddRange(await db.FishMeatVendorRegistrations.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.TaxYear == today.Year && x.Status == VendorRegistrationStatus.Active && x.DisplayName.ToLower().Contains(term))
                 .OrderBy(x => x.DisplayName).ThenBy(x => x.Id).Take(50).Select(x => new CollectionSourceSearchResult(new(SourceIdentityKind.FishMeatVendorRegistration, x.Id),
-                    x.DisplayName, x.VendorType.ToString() + " · " + x.TaxYear, CollectorOperationCodes.FishMeatVendorFee, x.TaxYear, x.VendorType, null, true, null)).ToListAsync(ct));
+                    x.DisplayName, x.VendorType.ToString() + " · " + x.TaxYear, CollectorOperationCodes.FishMeatVendorFee, x.TaxYear, x.VendorType, null, true, null, null)).ToListAsync(ct));
         return results.OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Identity.Kind).ThenBy(x => x.Identity.Id).Take(50).ToArray();
     }
     public async Task<CollectionSessionDiscovery> DiscoverNativeAsync(CollectionSourceIdentity? identity, DateOnly date, CancellationToken ct)

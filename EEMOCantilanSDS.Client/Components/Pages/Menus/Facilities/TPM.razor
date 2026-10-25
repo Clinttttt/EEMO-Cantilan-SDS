@@ -2,9 +2,11 @@
 @page "/facility/tpm"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Dtos.TaboanMarket
+@using EEMOCantilanSDS.Application.Dtos.Collections
 @using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Client.Components.Shared
 @inject ITpmApiClient TpmApi
+@inject ICollectionActivityApiClient ActivityApi
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 <PageTitle>StallTrack — @FacilityCatalog.NameOf(FacilityCode.TPM)</PageTitle>
@@ -68,6 +70,14 @@
                 </div>
 
                 <div class="tpm-cal-desc">@MarketDayDescription</div>
+                @if (_canonicalUnavailable || _canonicalTruncated)
+                {
+                    <div class="tpm-load-error" role="status">
+                        Canonical Tabo activity is @(_canonicalUnavailable ? "unavailable" : "partially loaded").
+                        Totals are withheld to avoid a misleading amount.
+                        <a href="/collections/activity">Review Collection Activity</a>.
+                    </div>
+                }
 
                 <div class="tpm-friday-list">
                     @foreach (var marketDate in MarketDatesInView)
@@ -75,6 +85,7 @@
                         var isFuture = marketDate > PhilippineTime.Now.Date;
                         var dateOnly = DateOnly.FromDateTime(marketDate);
                         var dayEntries = MonthAttendance.Where(a => a.MarketDate == dateOnly).ToList();
+                        var recordedEntries = CanonicalMonth.Where(a => a.BusinessDate == dateOnly).ToList();
                         var record = MarketDays.FirstOrDefault(m => m.MarketDate == dateOnly);
                         var isSelected = SelectedMarketDate?.Date == marketDate.Date;
 
@@ -89,9 +100,9 @@
                             </span>
                             <span class="tpm-friday-info">
                                 <span class="tpm-friday-full">@marketDate.ToString("MMMM d, yyyy")</span>
-                                @if (!isFuture && dayEntries.Count > 0)
+                                @if (!isFuture && dayEntries.Count + recordedEntries.Count > 0)
                                 {
-                                    <span class="tpm-friday-meta">@dayEntries.Count vendor entries · ₱@(record?.TotalCollected.ToString("N2") ?? "0.00") collected</span>
+                                    <span class="tpm-friday-meta">@(dayEntries.Count + recordedEntries.Count) vendor entries · ₱@((record?.TotalCollected ?? 0m) + recordedEntries.Sum(x => x.NetAmount)).ToString("N2") collected</span>
                                 }
                                 else if (!isFuture)
                                 {
@@ -102,9 +113,9 @@
                                     <span class="tpm-friday-meta tpm-meta-future">Upcoming</span>
                                 }
                             </span>
-                            @if (!isFuture && dayEntries.Count > 0)
+                            @if (!isFuture && dayEntries.Count + recordedEntries.Count > 0)
                             {
-                                <span class="tpm-entry-count" aria-label="@($"{dayEntries.Count} vendor entries")">@dayEntries.Count</span>
+                                <span class="tpm-entry-count" aria-label="@($"{dayEntries.Count + recordedEntries.Count} vendor entries")">@(dayEntries.Count + recordedEntries.Count)</span>
                             }
                         </button>
                     }
@@ -112,15 +123,15 @@
 
                 <div class="tpm-cal-footer">
                     <div class="tpm-cal-sum-item">
-                        <span class="tpm-cal-sum-val">@MarketDays.Count</span>
+                        <span class="tpm-cal-sum-val">@(_canonicalUnavailable || _canonicalTruncated ? "—" : MarketDays.Select(m => m.MarketDate).Concat(CanonicalMonth.Select(e => e.BusinessDate)).Distinct().Count().ToString())</span>
                         <span class="tpm-cal-sum-key">Market Days With Entries</span>
                     </div>
                     <div class="tpm-cal-sum-item">
-                        <span class="tpm-cal-sum-val">@(Overview?.VendorEntriesThisMonth ?? 0)</span>
+                        <span class="tpm-cal-sum-val">@(_canonicalUnavailable || _canonicalTruncated ? "—" : MonthEntries.ToString())</span>
                         <span class="tpm-cal-sum-key">Vendor Entries</span>
                     </div>
                     <div class="tpm-cal-sum-item">
-                        <span class="tpm-cal-sum-val">₱@(Overview?.CollectedThisMonth.ToString("N2") ?? "0.00")</span>
+                        <span class="tpm-cal-sum-val">@(_canonicalUnavailable || _canonicalTruncated ? "—" : $"₱{(Overview?.CollectedThisMonth ?? 0m) + CanonicalMonthCollected:N2}")</span>
                         <span class="tpm-cal-sum-key">Month Collection</span>
                     </div>
                 </div>
@@ -179,11 +190,11 @@
                 {
                     <div class="tpm-attendance-info">
                         <div class="tpm-attend-stat">
-                            <span class="tpm-attend-val">@Attendance.Count</span>
+                            <span class="tpm-attend-val">@(_canonicalUnavailable || _canonicalTruncated ? "—" : (Attendance.Count + CanonicalDay.Count).ToString())</span>
                             <span class="tpm-attend-key">Vendor Entries</span>
                         </div>
                         <div class="tpm-attend-stat">
-                            <span class="tpm-attend-val">₱@SelectedMarketDayCollection.ToString("N2")</span>
+                            <span class="tpm-attend-val">@(_canonicalUnavailable || _canonicalTruncated ? "—" : $"₱{SelectedMarketDayCollection:N2}")</span>
                             <span class="tpm-attend-key">Collected</span>
                         </div>
                         <div class="tpm-instrument-context"><span class="tpm-instrument-mark">OR</span><span>Official Receipt policy</span></div>
@@ -194,24 +205,26 @@
                         <input @key="SelectedMarketDate" class="tpm-search-input" placeholder="Search vendor or goods..." @oninput="OnVendorSearchChanged" aria-label="Search vendor or goods" />
                     </div>
 
-                    @if (Attendance.Count == 0)
+                    @if (Attendance.Count == 0 && CanonicalDay.Count == 0)
                     {
                         <div class="tpm-empty">
                             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>
                             <span>No entries</span>
                         </div>
                     }
-                    else if (!FilteredVendors.Any())
+                    else if (!FilteredVendors.Any() && !FilteredCanonical.Any())
                     {
                         <div class="tpm-empty"><span>No matching entries</span></div>
                     }
                     else
                     {
-                        <div class="tpm-entry-context">
-                            <span class="tpm-source-label">Source</span>
-                            <span>TPM attendance records · collected totals include entries marked paid</span>
-                        </div>
-                        <div class="tpm-vendor-table-wrap">
+                        @if (FilteredVendors.Any())
+                        {
+                            <div class="tpm-entry-context">
+                                <span class="tpm-source-label">Legacy attendance</span>
+                                <span>Older vendor-day records (paid entries only contribute cash)</span>
+                            </div>
+                            <div class="tpm-vendor-table-wrap">
                             <table class="tpm-vendor-table">
                                 <thead><tr><th>#</th><th>Vendor</th><th>Goods / Product</th><th>Fee</th></tr></thead>
                                 <tbody>
@@ -226,7 +239,30 @@
                                     }
                                 </tbody>
                             </table>
-                        </div>
+                            </div>
+                        }
+                        @if (FilteredCanonical.Any())
+                        {
+                            <div class="tpm-entry-context">
+                                <span class="tpm-source-label">Recorded collections</span>
+                                <span>SRC-backed Tabo collections from Collection Activity</span>
+                            </div>
+                            <div class="tpm-vendor-table-wrap">
+                                <table class="tpm-vendor-table" aria-label="SRC-backed Tabo entries">
+                                    <thead><tr><th>Vendor</th><th>StallTrack reference</th><th>Net collected</th></tr></thead>
+                                    <tbody>
+                                        @foreach (var row in FilteredCanonical.OrderBy(x => x.PayerName))
+                                        {
+                                            <tr>
+                                                <td class="tpm-vendor-name-cell">@(row.PayerName ?? row.Subject ?? "Recorded vendor")</td>
+                                                <td><a href="@($"/collections/activity?src={Uri.EscapeDataString(row.ReferenceCode ?? "")}")">@(row.ReferenceCode ?? "View activity")</a></td>
+                                                <td class="tpm-fee-cell">₱@row.NetAmount.ToString("N2")</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
                     }
                 }
             </section>
@@ -239,15 +275,32 @@
 
     private List<FacilityHero.HeroStat> HeroStats => new()
     {
-        new() { Value = Overview is null ? "—" : $"₱{Overview.CollectedThisMonth:N2}", Label = "Collected This Month" },
+        new() { Value = Overview is null || _canonicalTruncated || _canonicalUnavailable ? "—" : $"₱{(Overview.CollectedThisMonth + CanonicalMonthCollected):N2}", Label = "Collected This Month" },
         new() { Value = Overview is null ? "—" : Overview.MarketDates.Count.ToString(), Label = "Market Days This Month" },
-        new() { Value = Overview is null ? "—" : Overview.VendorEntriesThisMonth.ToString(), Label = "Vendor Entries" }
+        new() { Value = Overview is null || _canonicalTruncated || _canonicalUnavailable ? "—" : MonthEntries.ToString(), Label = "Vendor Entries" }
     };
 
     private TpmOverviewDto? Overview;
     private List<TpmMarketDayDto> MarketDays = new();
     private List<TpmVendorAttendanceDto> MonthAttendance = new();
     private List<TpmVendorAttendanceDto> Attendance = new();
+    // Legacy Tabo attendance and SRC-backed fee collections are different authorities.
+    // Read canonical events from Collection Activity, never by creating/altering attendance rows.
+    private IReadOnlyList<CollectionActivityEventDto> CanonicalMonth = [];
+    private bool _canonicalUnavailable;
+    private bool _canonicalTruncated;
+    private static bool IsCanonicalTabo(CollectionActivityEventDto e) =>
+        e.Authority == "Canonical" && e.Lines.Count > 0 &&
+        e.Lines.All(line => line.ClassificationCode == RevenueClassificationCodes.Tabo);
+    private IReadOnlyList<CollectionActivityEventDto> CanonicalDay => SelectedMarketDate is { } day
+        ? CanonicalMonth.Where(e => e.BusinessDate == DateOnly.FromDateTime(day)).ToList() : [];
+    private IEnumerable<CollectionActivityEventDto> FilteredCanonical => CanonicalDay.Where(e =>
+        string.IsNullOrWhiteSpace(VendorSearch)
+        || (e.PayerName?.Contains(VendorSearch, StringComparison.OrdinalIgnoreCase) ?? false)
+        || (e.Subject?.Contains(VendorSearch, StringComparison.OrdinalIgnoreCase) ?? false)
+        || (e.ReferenceCode?.Contains(VendorSearch, StringComparison.OrdinalIgnoreCase) ?? false));
+    private decimal CanonicalMonthCollected => CanonicalMonth.Sum(e => e.NetAmount);
+    private int MonthEntries => (Overview?.VendorEntriesThisMonth ?? 0) + CanonicalMonth.Count;
     private DateTime CalendarMonth = new(PhilippineTime.Now.Year, PhilippineTime.Now.Month, 1);
     private DateTime CurrentMonthStart => new(PhilippineTime.Now.Year, PhilippineTime.Now.Month, 1);
     private DateTime? SelectedMarketDate;
@@ -278,7 +331,7 @@
     }
 
     private decimal SelectedMarketDayCollection => SelectedMarketDate is { } selectedDate
-        ? MarketDays.FirstOrDefault(day => day.MarketDate == DateOnly.FromDateTime(selectedDate))?.TotalCollected ?? 0m
+        ? (MarketDays.FirstOrDefault(day => day.MarketDate == DateOnly.FromDateTime(selectedDate))?.TotalCollected ?? 0m) + CanonicalDay.Sum(e => e.NetAmount)
         : 0m;
 
     private IEnumerable<TpmVendorAttendanceDto> FilteredVendors => Attendance
@@ -301,6 +354,7 @@
             MarketDays = state.MarketDays.ToList();
             MonthAttendance = state.MonthAttendance.ToList();
             _isLoadingMonth = false;
+            await LoadCanonicalMonthAsync();
             return;
         }
 
@@ -337,6 +391,7 @@
             Overview = overviewResult.Value;
             MarketDays = marketDaysResult.Value.ToList();
             MonthAttendance = attendanceResult.Value.ToList();
+            await LoadCanonicalMonthAsync();
             CachedTpmPage = new TpmPageState(
                 CalendarMonth.Year,
                 CalendarMonth.Month,
@@ -351,6 +406,33 @@
         finally
         {
             _isLoadingMonth = false;
+        }
+    }
+
+    private async Task LoadCanonicalMonthAsync()
+    {
+        CanonicalMonth = [];
+        _canonicalUnavailable = false;
+        _canonicalTruncated = false;
+        try
+        {
+            var from = new DateOnly(CalendarMonth.Year, CalendarMonth.Month, 1);
+            var to = from.AddMonths(1).AddDays(-1);
+            // The same tenant-scoped authoritative feed used by Collection Activity.
+            // The legacy attendance reader does not contain these SRC-backed entries.
+            var response = await ActivityApi.GetAsync(from, to, authority: "Canonical", limit: 500);
+            if (!response.IsSuccess || response.Value is null)
+            {
+                _canonicalUnavailable = true;
+                return;
+            }
+            _canonicalTruncated = response.Value.Truncated;
+            CanonicalMonth = response.Value.Events.Where(IsCanonicalTabo).ToList();
+        }
+        catch
+        {
+            // Never show a misleading zero as the complete Tabo total on an activity failure.
+            _canonicalUnavailable = true;
         }
     }
 
@@ -389,6 +471,7 @@
                 _attendanceError = "Vendor entries for this market day could not be loaded.";
             else
                 Attendance = result.Value.ToList();
+            await LoadCanonicalMonthAsync();
         }
         catch
         {

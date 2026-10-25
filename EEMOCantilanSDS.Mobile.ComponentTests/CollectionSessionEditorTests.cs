@@ -174,6 +174,35 @@ public sealed class CollectionSessionEditorTests : TestContext
     private IRenderedComponent<CollectionSessionEditor> OpenFishMeatPage() => Open(CollectorOperationCodes.FishMeatVendorFee, [CollectorOperationCodes.WeightAndMeasure]);
 
     [Fact]
+    public void Electricity_source_filters_cover_market_sections_custom_NPM_and_TCC_without_vendor_registrations()
+    {
+        var fish = new CollectionSourceIdentity(SourceIdentityKind.Occupancy, Guid.NewGuid());
+        var meat = new CollectionSourceIdentity(SourceIdentityKind.Occupancy, Guid.NewGuid());
+        var custom = new CollectionSourceIdentity(SourceIdentityKind.Occupancy, Guid.NewGuid());
+        var tcc = new CollectionSourceIdentity(SourceIdentityKind.Occupancy, Guid.NewGuid());
+        _api.Setup(x => x.SearchCollectionSourcesAsync(It.IsAny<string?>())).ReturnsAsync(
+            Result<IReadOnlyList<CollectionSourceSearchResult>>.Success([
+                new(fish, "Fish holder", "NPM · Stall 1", "FACILITY_NPM", SectionLabel: "Fish Area"),
+                new(meat, "Meat holder", "NPM · Stall 2", "FACILITY_NPM", SectionLabel: "Meat Area"),
+                new(custom, "Extension holder", "NPM · Stall 3", "FACILITY_NPM", SectionLabel: "Extension"),
+                new(tcc, "TCC holder", "TCC · Stall 8", "FACILITY_TCC"),
+                new(FishVendor, "Vendor registration", "Fish · 2026", CollectorOperationCodes.FishMeatVendorFee)
+            ]));
+        var cut = Open("ECF");
+        cut.Find("input[type=search]").Focus();
+        cut.WaitForAssertion(() => Assert.Equal(5, cut.FindAll(".collection-area-chip").Count));
+        Assert.Equal(["All", "Extension", "Fish Area", "Meat Area", "TCC"],
+            cut.FindAll(".collection-area-chip").Select(x => x.TextContent.Trim()).ToArray());
+        Assert.DoesNotContain("Vendor registration", cut.Find(".payer-list").TextContent);
+        cut.FindAll(".collection-area-chip").Single(x => x.TextContent.Trim() == "Extension").Click();
+        Assert.Contains("Extension holder", cut.Find(".payer-list").TextContent);
+        Assert.DoesNotContain("Fish holder", cut.Find(".payer-list").TextContent);
+        cut.FindAll(".collection-area-chip").Single(x => x.TextContent.Trim() == "TCC").Click();
+        Assert.Contains("TCC holder", cut.Find(".payer-list").TextContent);
+        Assert.DoesNotContain("Extension holder", cut.Find(".payer-list").TextContent);
+    }
+
+    [Fact]
     public void VendorRouteKeepsItsTwoItemsAndSeparateSourceTransitions()
     {
         Services.AddSingleton(new MobileSessionService());

@@ -92,16 +92,31 @@ else
                            value="@_search" @oninput="OnSearchInput" @onfocus="OnSearchFocusAsync" @onkeydown="OnSearchKeyAsync" /></label>
                 <button class="collection-small" type="button" disabled="@_searching" @onclick="SearchAsync">Search</button>
             </div>
+            @if (_suggestOpen && OnlyOperation == "ECF" && EcfSections.Count > 1)
+            {
+                <div class="collection-area-filters" role="group" aria-label="Filter Electricity sources">
+                    <button type="button" class="collection-area-chip @(_areaFilter == "" ? "active" : "")"
+                            aria-pressed="@(_areaFilter == "" ? "true" : "false")"
+                            @onclick='() => _areaFilter = ""'>All</button>
+                    @foreach (var section in EcfSections)
+                    {
+                        var key = section.Key;
+                        <button type="button" class="collection-area-chip @(_areaFilter == key ? "active" : "")"
+                                aria-pressed="@(_areaFilter == key ? "true" : "false")"
+                                @onclick="() => _areaFilter = key">@section.Label</button>
+                    }
+                </div>
+            }
             @if (_suggestOpen)
             {
                 <div class="payer-panel" aria-label="Sources" aria-busy="@(_searching ? "true" : "false")">
                     @if (VisibleSources.Count > 0)
                     {
-                        <div class="payer-list" role="list">
+                        <div class="payer-list @(CollectorOperationCodes.IsSpaceObligation(OnlyOperation) ? "payer-list-space" : "")" role="list">
                             @foreach (var found in VisibleSources)
                             {
                                 <button class="collection-option payer-option" type="button" role="listitem" disabled="@(!found.CanSelect)" @onclick="() => SelectSuggestedSourceAsync(found)">
-                                    <span class="payer-option-text"><strong>@found.DisplayName</strong><small>@found.Context</small>@if (!found.CanSelect && found.AvailableOn is { } available) { <small>Available on @available.ToString("MMM d, yyyy")</small> }</span>
+                                    <span class="payer-option-text"><strong>@found.DisplayName</strong><small>@found.Context</small>@if (OnlyOperation == "ECF" && !string.IsNullOrWhiteSpace(found.SectionLabel)) { <small>@found.SectionLabel</small> }@if (!found.CanSelect && found.AvailableOn is { } available) { <small>Available on @available.ToString("MMM d, yyyy")</small> }</span>
                                     <span aria-hidden="true">›</span></button>
                             }
                         </div>
@@ -491,6 +506,20 @@ else
     private Guid? _supersededSessionId;
     private bool _loading = true, _busy, _picker, _queued, _needsReview, _direct;
     private string _search = "", _snapshot = "", _choiceKey = "", _owner = "";
+    private string _areaFilter = "";
+    private static string EcfGroupKey(CollectionSourceSearchResult x) =>
+        x.OperationCode == "FACILITY_NPM" ? "NPM:" + (x.SectionLabel ?? "") : x.OperationCode;
+    private static string EcfGroupLabel(CollectionSourceSearchResult x) =>
+        x.OperationCode == "FACILITY_NPM"
+            ? (string.IsNullOrWhiteSpace(x.SectionLabel) ? "NPM" : x.SectionLabel)
+            : x.OperationCode.StartsWith("FACILITY_", StringComparison.Ordinal)
+                ? x.OperationCode["FACILITY_".Length..] : x.OperationCode;
+    private IReadOnlyList<(string Key, string Label)> EcfSections => _found
+        .Where(x => x.Identity.Kind == SourceIdentityKind.Occupancy)
+        .GroupBy(EcfGroupKey, StringComparer.OrdinalIgnoreCase)
+        .Select(group => (Key: group.Key, Label: EcfGroupLabel(group.First())))
+        .OrderBy(group => group.Label, StringComparer.OrdinalIgnoreCase)
+        .ToList();
     private decimal _amount, _quantity;
     private decimal? _serverAmount;
     private int _heads = 1;
@@ -566,7 +595,8 @@ else
         "ECF" => x.Identity.Kind == SourceIdentityKind.Occupancy,
         CollectorOperationCodes.VegetableFruitSpaceRental or CollectorOperationCodes.KanmanggaySpaceRental or CollectorOperationCodes.FiestaArawLotRental => x.Identity.Kind == SourceIdentityKind.SpaceAccount && x.OperationCode == OnlyOperation,
         _ => true
-    }).ToList();
+    }).Where(x => OnlyOperation != "ECF" || _areaFilter.Length == 0
+        || string.Equals(EcfGroupKey(x), _areaFilter, StringComparison.OrdinalIgnoreCase)).ToList();
     private string SourceName => _source?.DisplayName ?? (_direct && !string.IsNullOrWhiteSpace(_snapshot) ? _snapshot.Trim() : "");
 
     // A source with nothing collectible says so; the collector may then start a separate direct collection.
@@ -798,6 +828,7 @@ else
     private void OnSearchInput(ChangeEventArgs args)
     {
         _search = args.Value?.ToString() ?? "";
+        _areaFilter = ""; // new search must not silently retain an incompatible section
         OnSearchChanged();
     }
 

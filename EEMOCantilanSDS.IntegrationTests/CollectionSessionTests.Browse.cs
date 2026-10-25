@@ -66,9 +66,28 @@ public sealed partial class CollectionSessionTests
         var npm = await sources.BrowseSourcesAsync(CollectionSourceCategories.Npm, null, 0, 25, default);
         Assert.Single(npm.Items);
         Assert.All(npm.Items, x => Assert.Equal(SourceIdentityKind.Occupancy, x.Identity.Kind));
+        Assert.Equal("Fish Area", npm.Items[0].SectionLabel); // utility grouping uses the source's exact NPM section
         var unassigned = await sources.BrowseSourcesAsync(CollectionSourceCategories.Tcc, null, 0, 25, default);
         Assert.Empty(unassigned.Items);
         Assert.DoesNotContain(all.Categories, c => c.Key == CollectionSourceCategories.Spaces);
+    }
+
+    [SkippableFact]
+    public async Task Browsing_preserves_custom_NPM_section_for_utility_source_filters()
+    {
+        var today = PhilippineTime.Today;
+        var w = await SeedAsync(linked: false);
+        await using var db = database.CreateContext(w.TenantId);
+        await EnableOffice(db, w);
+        // Simulate a Head-declared custom NPM area; filtering must not assume only Fish/Meat.
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE \"Stalls\" SET \"Section\" = NULL, \"CustomSectionName\" = {"Extension"} WHERE \"Id\" = {w.StallId}");
+        var sources = new CollectionSessionSources(db, new Caller(w.CollectorId, w.TenantId),
+            new Tenant(w.TenantId), new Clock(today), null!, new NoMarketDays());
+        var page = await sources.BrowseSourcesAsync(CollectionSourceCategories.Npm, null, 0, 25, default);
+        Assert.Equal("Extension", Assert.Single(page.Items).SectionLabel);
+        var lookup = await sources.SearchSourcesAsync("One Payer", default);
+        Assert.Contains(lookup, x => x.Identity.Kind == SourceIdentityKind.Occupancy && x.SectionLabel == "Extension");
     }
 
     [SkippableFact]
