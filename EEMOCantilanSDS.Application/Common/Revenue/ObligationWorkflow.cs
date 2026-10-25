@@ -53,14 +53,15 @@ public sealed class ObligationWorkflow(
                 .ToDictionaryAsync(x => x.Id, x => x.StallNo, ct);
             // A renewal appends a term and leaves the account's recorded term as it was. The term in force is the latest appended one (the
             // same rule the lifecycle workflow decides by), so a renewed space reads as current rather than "term ended" for ever.
-            var latestTerms = (await db.SpaceContractTerms.AsNoTracking()
+            var appendedTerms = (await db.SpaceContractTerms.AsNoTracking()
                     .Where(x => x.MunicipalityId == actor.TenantId && ids.Contains(x.ObligationAccountId)).ToListAsync(ct))
                 .GroupBy(x => x.ObligationAccountId)
-                .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.Commencement).ThenByDescending(x => x.RecordedAtUtc).First());
+                .ToDictionary(g => g.Key, g => SpaceTermSplit.Ordered(g));
 
             var rows = accounts.OrderBy(x => x.SubjectLabel, StringComparer.OrdinalIgnoreCase).Select(account =>
             {
-                latestTerms.TryGetValue(account.Id, out var term);
+                var ordered = appendedTerms.GetValueOrDefault(account.Id) ?? [];
+                var term = ordered.Count > 0 ? ordered[^1] : null;
                 // A future approved successor must show its effective rental rate, not ₱0
                 // merely because its occupancy has not started yet. Closed occupancies
                 // show their rate as of closure; live occupancies show today's rate.
@@ -76,7 +77,8 @@ public sealed class ObligationWorkflow(
                     current?.Amount, current?.EffectiveFrom,
                     accountQuotes.Sum(x => x.AssessedAmount), accountQuotes.Sum(x => x.SettledAmount),
                     accountQuotes.Sum(x => x.OutstandingAmount), account.Arrangement, term?.Reference ?? account.ContractReference, account.ActualOccupant, term?.ContractName ?? account.ContractName,
-                    term?.Commencement ?? account.ContractEffectiveDate, term?.Years ?? account.ContractYears, account.AreaSqm, account.AreaLocation, account.ContractMonthlyRate, account.RetiredAtUtc is not null);
+                    term?.Commencement ?? account.ContractEffectiveDate, term?.Years ?? account.ContractYears, account.AreaSqm, account.AreaLocation, account.ContractMonthlyRate, account.RetiredAtUtc is not null,
+                    SpaceTermSplit.Split(account, ordered, accountQuotes));
             }).ToList();
             return Result<IReadOnlyList<ObligationAccountDto>>.Success(rows);
         }, ct);

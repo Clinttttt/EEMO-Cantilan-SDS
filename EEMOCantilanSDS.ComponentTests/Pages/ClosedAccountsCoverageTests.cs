@@ -139,6 +139,32 @@ public sealed class ClosedAccountsCoverageTests : TestContext
     }
 
     [Fact]
+    public void ARenewedSpacesEarlierTerm_IsItsOwnRenewedRow_WithThatTermsFiguresOnly_AndNoLifecycleAction()
+    {
+        // Renewed on Oct 25, 2025 and still current: the earlier term is a record of its own, like a renewed stall's earlier contract.
+        var renewed = Space(ObligationKind.KanmanggaySpaceRental, "Lorenofs Brando", "5") with
+        {
+            ActiveTo = null, Arrangement = OccupancyArrangement.SignedContract, ContractEffectiveDate = new DateOnly(2025, 10, 25), ContractYears = 3,
+            AssessedToDate = 9_000m, CollectedToDate = 2_000m, OutstandingToDate = 7_000m,
+            Terms =
+            [
+                new(1, new DateOnly(2022, 10, 25), 1, new DateOnly(2023, 10, 24), new DateOnly(2025, 10, 24), "Lorenofs Brando", "KM-1", 6_000m, 1_000m, 5_000m, false),
+                new(2, new DateOnly(2025, 10, 25), 3, new DateOnly(2028, 10, 24), null, "Lorenofs Brando", "KM-2", 3_000m, 1_000m, 2_000m, true)
+            ]
+        };
+
+        var cut = RenderRegister([], renewed);
+
+        var row = Assert.Single(cut.FindAll(".ca-obligation-source tbody tr"));            // the current term is not on the register
+        Assert.Contains("Renewed", row.TextContent);
+        Assert.Contains("Oct 25, 2022", row.TextContent);
+        Assert.Contains("Oct 24, 2025", row.TextContent);
+        Assert.Contains("₱5,000", row.TextContent);                                           // the earlier term's own balance, not the account's ₱7,000
+        Assert.DoesNotContain("₱7,000", row.TextContent);
+        Assert.Empty(row.QuerySelectorAll(".ca-row-renew, .ca-row-reopen, .ca-row-remove"));  // view only
+    }
+
+    [Fact]
     public void FilteringBySourceNarrowsTheRegisterToThatSourceAlone()
     {
         var cut = RenderRegister(

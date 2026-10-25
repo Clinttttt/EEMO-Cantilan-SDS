@@ -48,7 +48,26 @@ public sealed record ObligationAccountDto(
     // The monthly rental the signed contract states (evidence only; the approved amount above is what is assessed).
     decimal? ContractMonthlyRate = null,
     // Retired from the roll (closed, nothing owed, records kept). Part of the one account-state classification.
-    bool Retired = false);
+    bool Retired = false,
+    // A renewed space's terms, oldest first, each with its own figures (they add back to the totals above). Null when never renewed.
+    IReadOnlyList<SpaceTermDto>? Terms = null);
+
+/// <summary>
+/// One contract term of a renewed space account. <see cref="RenewedOn"/> is the day before the next term began (null for the term in
+/// force); periods up to it belong to this term, including any lapsed months before the renewal.
+/// </summary>
+public sealed record SpaceTermDto(
+    int Number,
+    DateOnly Commencement,
+    int? Years,
+    DateOnly? LastDay,
+    DateOnly? RenewedOn,
+    string? ContractName,
+    string? Reference,
+    decimal Assessed,
+    decimal Collected,
+    decimal Outstanding,
+    bool Current);
 
 public sealed record CreateObligationAccountRequest(
     ObligationKind Kind,

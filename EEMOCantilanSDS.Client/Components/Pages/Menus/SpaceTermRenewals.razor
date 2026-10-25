@@ -1,0 +1,191 @@
+@page "/operations/kanmanggay/renewals"
+@page "/operations/vegetable-fruit/renewals"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Common.Lifecycle
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Client.Services
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Constants
+@inject IObligationsApiClient AccountsApi
+@inject ILifecycleApiClient LifecycleApi
+@inject NavigationManager Navigation
+
+<PageTitle>StallTrack — Renew expired terms</PageTitle>
+
+@* The monthly-space counterpart of the stall "Renew expired terms" page. Each account is renewed by the same space lifecycle action its own profile
+   offers — previewed, then executed against the version it was previewed at, with its own operation id — so the server decides every one and a
+   retry never renews twice. Renewal appends the next term to the same account; it changes no rate, period or collection. *@
+<OperationTopbar Title="Renew expired terms" Crumb="@Presentation.Name" ParentHref="@Presentation.Route" ParentTitle="@Presentation.Name" />
+<div class="content-area">
+    @if (_loading)
+    {
+        <Skeleton Height="220px" />
+    }
+    else if (_error is not null)
+    {
+        <div class="v3-notice v3-notice-error v3-notice-row" role="alert"><span>@_error</span><button type="button" class="btn-outline" @onclick="LoadAsync">Try again</button></div>
+    }
+    else
+    {
+        <section class="v3-panel str-panel" aria-label="Expired terms">
+            <header class="str-head">
+                <h2>@Presentation.Name</h2>
+                <span class="str-count">@(_eligible.Count) expired term@(_eligible.Count == 1 ? "" : "s")</span>
+            </header>
+            @if (_eligible.Count == 0)
+            {
+                <p class="str-empty" role="status">Nothing to renew here. Closed accounts, spaces without a signed contract and terms still running are not renewed this way.</p>
+            }
+            else
+            {
+                <form class="str-form" @onsubmit="RenewAsync" @onsubmit:preventDefault="true" aria-label="Renew these terms">
+                    <label class="str-field">New term starts <input id="spr-start" type="date" @bind="_start" disabled="@_busy" /></label>
+                    <label class="str-field str-field-short">Term (years) <input id="spr-years" type="number" min="1" max="50" @bind="_years" disabled="@_busy" /></label>
+                    <div class="str-field">New term ends <span class="str-ends" role="status">@(_years >= 1 ? DomainRules.TermLastDay(_start, _years).ToString("MMM d, yyyy") : "—")</span></div>
+                    <label class="str-field str-field-wide">Reason or approval <input id="spr-reason" maxlength="500" placeholder="e.g. Renewal approved, Res. No. 12" @bind="_reason" @bind:event="oninput" disabled="@_busy" /></label>
+                    <button type="submit" class="btn-primary str-submit" disabled="@(_busy || _editing is not null || string.IsNullOrWhiteSpace(_reason))">@(_busy ? "Working…" : $"Renew {_eligible.Count} term{(_eligible.Count == 1 ? "" : "s")}")</button>
+                </form>
+                <p class="str-note">Each space keeps its holder, rate and every month already billed; what an earlier term owes stays with that term. Use the pencil to correct the name on contract or reference before renewing.</p>
+                @if (_progress is not null) { <p class="str-note" role="status">@_progress</p> }
+                @if (_message is not null) { <p class="str-message" role="alert">@_message</p> }
+
+                <div class="str-table-wrap">
+                <table class="str-table">
+                    <thead><tr><th>Space</th><th>Holder</th><th>Name on contract</th><th>Term ended</th><th class="str-r">Balance</th><th>Status</th><th class="str-edit-cell"><span class="v3-sr-only">Edit</span></th></tr></thead>
+                    <tbody>
+                        @foreach (var a in _eligible)
+                        {
+                            var (onContract, reference) = TermFor(a);
+                            <tr @key="a.Id" class="@(_edits.ContainsKey(a.Id) ? "str-row-changed" : "")">
+                                <td class="str-strong">@a.SubjectLabel</td>
+                                <td>@SpaceAccountPresentation.Occupant(a)</td>
+                                @if (_editing == a.Id)
+                                {
+                                    <td colspan="2">
+                                        <div class="str-edit">
+                                            <label>Name on contract <input id="spr-edit-contract" maxlength="200" @bind="_editContract" @bind:event="oninput" /></label>
+                                            <label>Contract reference <input id="spr-edit-reference" maxlength="200" @bind="_editReference" @bind:event="oninput" /></label>
+                                            <div class="str-edit-actions">
+                                                <button type="button" class="btn-primary" @onclick="() => SaveEdit(a)">Done</button>
+                                                <button type="button" class="btn-outline" @onclick="() => _editing = null">Cancel</button>
+                                            </div>
+                                            <p class="str-edit-warn">A different holder is not a renewal: use Reassign on the space's profile.</p>
+                                        </div>
+                                    </td>
+                                }
+                                else
+                                {
+                                    <td class="str-muted">@(string.IsNullOrWhiteSpace(onContract) ? "—" : onContract)</td>
+                                    <td class="str-muted">@(RentalAccountStatus.TermLastDay(a)?.ToString("MMM d, yyyy") ?? "—")</td>
+                                }
+                                <td class="str-r">@($"₱{a.OutstandingToDate:N0}")</td>
+                                <td>@if (_results.TryGetValue(a.Id, out var result)) { <span class="@(result.Ok ? "str-ok" : "str-fail")" role="status">@result.Text</span> }
+                                    else if (_edits.ContainsKey(a.Id)) { <span class="str-tag">Edited</span> }
+                                    else { <span class="str-muted">Ready</span> }</td>
+                                <td class="str-edit-cell">
+                                    @if (_editing != a.Id)
+                                    {
+                                        <button type="button" class="str-pencil" @onclick="() => StartEdit(a)" disabled="@(_busy || _editing is not null)"
+                                                aria-label="@($"Edit contract name and reference for space {a.SubjectLabel}")" title="Edit name on contract and reference">
+                                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 20h4L19 9l-4-4L4 16v4z" /><path d="M14 6l4 4" /></svg>
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                </div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    private List<ObligationAccountDto> _eligible = [];
+    private readonly Dictionary<Guid, (bool Ok, string Text)> _results = [];
+    // Corrections typed here, sent as the new term's name on contract and reference. Nothing is saved until Renew.
+    private readonly Dictionary<Guid, (string? ContractName, string? Reference)> _edits = [];
+    private Guid? _editing;
+    private string? _editContract, _editReference, _reason, _error, _progress, _message;
+    private bool _loading = true, _busy;
+    private DateOnly _start = PhilippineTime.Today;
+    private int _years = 3;
+
+    private SpaceAccountPresentation Presentation =>
+        Navigation.Uri.Contains("/operations/vegetable-fruit/", StringComparison.OrdinalIgnoreCase) ? SpaceAccountPresentation.VegetableFruit : SpaceAccountPresentation.Kanmanggay;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private (string? ContractName, string? Reference) TermFor(ObligationAccountDto a) =>
+        _edits.TryGetValue(a.Id, out var e) ? e : (a.ContractName, a.ContractReference);
+
+    private void StartEdit(ObligationAccountDto a) { (_editContract, _editReference) = TermFor(a); _editing = a.Id; }
+
+    private void SaveEdit(ObligationAccountDto a)
+    {
+        var edit = (Clean(_editContract), Clean(_editReference));
+        if (edit == (Clean(a.ContractName), Clean(a.ContractReference))) _edits.Remove(a.Id); else _edits[a.Id] = edit;
+        _editing = null;
+    }
+
+    private static string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+    // Eligible = a signed term that has run out AND the server currently offers Renew on it — the same test the account's own profile applies.
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = null;
+        try
+        {
+            var accounts = await AccountsApi.GetAccountsAsync(Presentation.Kind);
+            if (accounts is not { IsSuccess: true }) { _error = accounts?.Error ?? "The accounts could not be loaded."; return; }
+            var ended = (accounts.Value ?? []).Where(a => a.Kind == Presentation.Kind && RentalAccountStatus.IsTermEnded(a)).ToList();
+            var renewable = new HashSet<Guid>();
+            foreach (var chunk in ended.Select(a => a.Id).Chunk(200))
+            {
+                var life = await LifecycleApi.GetManyAsync(LifecycleSource.SpaceRental, chunk);
+                if (life is not { IsSuccess: true }) { _error = life?.Error ?? "Renewal eligibility could not be loaded."; return; }
+                foreach (var dto in life.Value ?? [])
+                    if (dto.Actions.Any(x => x.Action == LifecycleAction.Renew && x.Allowed)) renewable.Add(dto.AccountId);
+            }
+            _eligible = ended.Where(a => renewable.Contains(a.Id)).OrderBy(a => a.SubjectLabel, StringComparer.OrdinalIgnoreCase).ToList();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException) { _error = "The accounts could not be loaded. Check the connection and try again."; }
+        finally { _loading = false; }
+    }
+
+    private async Task RenewAsync()
+    {
+        if (_busy || _eligible.Count == 0 || string.IsNullOrWhiteSpace(_reason)) return;
+        if (_years is < 1 or > 50) { _message = "Enter the new term in whole years (1-50)."; return; }
+        _busy = true; _message = null; _results.Clear();
+        var targets = _eligible.ToList();
+        int ok = 0, failed = 0;
+        foreach (var a in targets)
+        {
+            _progress = $"Renewing {ok + failed + 1} of {targets.Count}…";
+            await InvokeAsync(StateHasChanged);
+            try
+            {
+                var (contractName, reference) = TermFor(a);
+                var command = new LifecycleCommand(LifecycleAction.Renew, _start, _reason.Trim(), TermYears: _years, ContractName: contractName, Reference: reference);
+                var preview = await LifecycleApi.PreviewAsync(LifecycleSource.SpaceRental, a.Id, command);
+                if (preview is not { IsSuccess: true, Value: { } p }) { failed++; _results[a.Id] = (false, preview?.Error ?? "Refused"); continue; }
+                if (!p.CanExecute) { failed++; _results[a.Id] = (false, p.Explanation ?? "Not renewable now"); continue; }
+                var done = await LifecycleApi.ExecuteAsync(LifecycleSource.SpaceRental, a.Id, new LifecycleExecution(Guid.NewGuid(), p.Version, command));
+                if (done.IsSuccess) { ok++; _results[a.Id] = (true, "Renewed"); _edits.Remove(a.Id); }
+                else { failed++; _results[a.Id] = (false, done.Error ?? "Refused"); }
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException) { failed++; _results[a.Id] = (false, "No answer from the server"); }
+        }
+        _progress = null;
+        var shown = _results.ToDictionary(x => x.Key, x => x.Value);
+        await LoadAsync();                       // renewed accounts drop off; what failed is still eligible and is the retry set
+        foreach (var (id, outcome) in shown) if (!outcome.Ok || _eligible.Any(e => e.Id == id)) _results[id] = outcome;
+        _message = failed == 0 ? null : $"{ok} renewed, {failed} failed. Please retry the remaining accounts.";
+        _busy = false;
+    }
+}

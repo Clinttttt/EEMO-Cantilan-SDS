@@ -206,9 +206,26 @@
                     new("Contract Duration", a.ContractYears is { } n ? $"{n} years" : "—"),
                     new("Contract Expiry", expiry?.ToString("MMMM d, yyyy") ?? "—")
                 ]),
+                ..EarlierTermsSection(a),
                 ..HistorySection()
             ];
         }
+    }
+
+    // Earlier terms of a renewed space, newest first, each with its own figures from the server's term split — the same card the stall profile
+    // shows. Their balances are not part of the current term's and stay collectible: a collection on one of their months is recorded in
+    // Current Collection against that month, as for any other month of this account.
+    private static IEnumerable<RentalProfileView.ProfileSection> EarlierTermsSection(ObligationAccountDto a)
+    {
+        var earlier = (a.Terms ?? []).Where(t => !t.Current).OrderByDescending(t => t.Commencement).ToList();
+        if (earlier.Count == 0) yield break;
+        var facts = earlier.Select(t => new RentalProfileView.ProfileFact(
+            $"{t.Commencement:MMM yyyy} – {t.RenewedOn:MMM d, yyyy}",
+            t.Outstanding > 0m ? $"₱{t.Outstanding:N0} owed · ₱{t.Collected:N0} collected" : $"Settled · ₱{t.Collected:N0} collected",
+            t.Outstanding > 0m ? "bold" : "")).ToList();
+        if (earlier.Any(t => t.Outstanding > 0m))
+            facts.Add(new("To collect", "Use Manage Collection and choose the month owed. It is not part of the current term's balance.", Muted: true));
+        yield return new("Earlier Terms on This Space", "M3 3v5h5 M3.05 13A9 9 0 1 0 6 5.3L3 8 M12 7v5l4 2", facts);
     }
 
     // The account's own lifecycle history (closure, renewals, a successor), newest first, in the same card style as the rest of the profile.
@@ -252,6 +269,18 @@
                 return [new(Money0(a.CurrentAmount ?? 0m), "Approved Amount"), new(Money0(a.AssessedToDate), "Assessed"),
                         new(Money0(a.CollectedToDate), "Settled", "green"), new(Money0(a.OutstandingToDate), "Remaining", "red", a.OutstandingToDate > 0)];
             var assessed = _periods.Where(p => p.AssessedAmount > 0).ToList();
+            // A renewed space states its current term's balance and the earlier terms' apart, as the stall profile does; together they are the account's.
+            if (a.Terms is { } terms && terms.FirstOrDefault(t => t.Current) is { } current)
+            {
+                var earlierOwed = terms.Where(t => !t.Current).Sum(t => t.Outstanding);
+                return
+                [
+                    new(assessed.Count(p => p.OutstandingAmount == 0).ToString(), "Months Paid", "green"),
+                    new(Money0(a.CollectedToDate), "Total Collected"),
+                    new(Money0(current.Outstanding), "Current Term Balance", "red", current.Outstanding > 0),
+                    new(Money0(earlierOwed), "Earlier Terms Balance", "red", earlierOwed > 0)
+                ];
+            }
             return
             [
                 new(assessed.Count(p => p.OutstandingAmount == 0).ToString(), "Months Paid", "green"),

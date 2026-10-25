@@ -20,7 +20,16 @@ public sealed class SpaceFollowUpWorkflow(IAppDbContext db, ICurrentUserService 
         var byId = accounts.ToDictionary(x => x.Id);
         var quotes = await new ObligationCollectionSource(db).GetQuotesAsync(tenant.MunicipalityId, accounts, asOf, ct);
         var month = new DateOnly(asOf.Year, asOf.Month, 1);
-        return quotes.Where(x => x.OutstandingAmount > 0m && (ObligationAccount.IsMonthlySpaceKind(x.Kind) ? x.PeriodStart < month : x.PeriodStart < asOf))
+        // A renewed space follows up its CURRENT term only. What an earlier term left owing stays on the account (still collectible) and is
+        // stated as that term's balance on Closed Accounts → Renewed, the same way a renewed stall's earlier contract is. A never-renewed
+        // account, expired or not, has no appended term and is followed up exactly as before.
+        var ids = accounts.Select(x => x.Id).ToArray();
+        var currentTermStart = (await db.SpaceContractTerms.AsNoTracking()
+                .Where(x => x.MunicipalityId == tenant.MunicipalityId && ids.Contains(x.ObligationAccountId)).ToListAsync(ct))
+            .GroupBy(x => x.ObligationAccountId)
+            .ToDictionary(g => g.Key, g => SpaceTermSplit.CurrentTermStart(SpaceTermSplit.Ordered(g))!.Value);
+        return quotes.Where(x => x.OutstandingAmount > 0m && (ObligationAccount.IsMonthlySpaceKind(x.Kind) ? x.PeriodStart < month : x.PeriodStart < asOf)
+                && !(currentTermStart.TryGetValue(x.AccountId, out var termStart) && x.PeriodStart < termStart))
             .Select(x =>
             {
                 var account = byId[x.AccountId];

@@ -408,11 +408,24 @@
             }
             @foreach (var source in FilteredObligations().GroupBy(x => x.Code))
             {
-                var spaceRows = source.OrderByDescending(x => ObligationEnd(x.Account)).ToList();
+                var spaceRows = source.OrderByDescending(x => x.End).ToList();
                 <div class="ca-year ca-obligation-source">
                     <div class="ca-year-head">
                         <span class="ca-year-label">@source.First().Source.Name</span>
-                        <span class="ca-year-stats"><strong>@spaceRows.Count</strong> account@(spaceRows.Count != 1 ? "s" : "")</span>
+                        <div class="ca-fac-right">
+                            <span class="ca-year-stats"><strong>@spaceRows.Count</strong> account@(spaceRows.Count != 1 ? "s" : "")</span>
+                            @{ var spaceRenewable = SpaceRenewableCount(spaceRows); }
+                            @if (spaceRenewable > 0)
+                            {
+                                @* The same bulk page the stall rows use, for this source only; each renewal is still previewed and decided by the server. *@
+                                <a class="ca-renew-all-btn no-print" href="@($"{source.First().Source.Route}/renewals")"
+                                   aria-label="@($"Renew eligible accounts — {source.First().Source.Name} ({spaceRenewable})")"
+                                   title="@($"Start a new contract term for the {spaceRenewable} eligible account{(spaceRenewable != 1 ? "s" : "")} in {source.First().Source.Name} only")">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
+                                    Renew eligible (@spaceRenewable)
+                                </a>
+                            }
+                        </div>
                     </div>
                     @* Source-owned accounts keep their balances in their own workspaces, so these are never added to the stall figures
                        above, and no contract expiry is inferred for them. *@
@@ -427,8 +440,8 @@
                         <tbody>@foreach (var item in spaceRows)
                         {
                             var a = item.Account;
-                            <tr data-account="@a.Id"><td class="ca-fw">@item.Unit @a.SubjectLabel</td><td>@SpaceAccountPresentation.Occupant(a)</td><td class="ca-muted">@(item.Code == "FA" ? $"{a.Event} · {a.EventDate:MMM d, yyyy}" : SpaceAccountPresentation.Basis(a))</td><td class="ca-c ca-period">@a.ActiveFrom.ToString("MMM d, yyyy") <span>→</span> @ObligationEnd(a).ToString("MMM d, yyyy")</td><td class="ca-c ca-status-text">@ObligationState(item)</td><td class="ca-r">@Money(a.AssessedToDate)</td><td class="ca-r">@Money(a.CollectedToDate)</td>
-                                <td class="ca-r">@if (a.OutstandingToDate > 0) { <span class="ca-amt-due">@Money(a.OutstandingToDate)</span> } else { <span class="ca-amt-clear">@Money(0)</span> }</td>
+                            <tr data-account="@a.Id"><td class="ca-fw">@item.Unit @a.SubjectLabel</td><td>@SpaceAccountPresentation.Occupant(a)</td><td class="ca-muted">@(item.Code == "FA" ? $"{a.Event} · {a.EventDate:MMM d, yyyy}" : SpaceAccountPresentation.Basis(a))</td><td class="ca-c ca-period">@item.Start.ToString("MMM d, yyyy") <span>→</span> @item.End.ToString("MMM d, yyyy")</td><td class="ca-c ca-status-text">@ObligationState(item)</td><td class="ca-r">@Money(item.Assessed)</td><td class="ca-r">@Money(item.Collected)</td>
+                                <td class="ca-r">@if (item.Outstanding > 0) { <span class="ca-amt-due">@Money(item.Outstanding)</span> } else { <span class="ca-amt-clear">@Money(0)</span> }</td>
                                 <td class="ca-act no-print"><div class="ca-act-icons"><a class="ca-row-icon ca-row-view" href="@item.ProfileHref" aria-label="View account" title="Open the account">@IconView</a>
                                     @foreach (var action in SpaceRowActions(item))
                                     {
@@ -462,7 +475,7 @@
     private IReadOnlyList<IReadOnlyList<object?>> ExportRows => Filtered().Select(a => (IReadOnlyList<object?>)new object?[] {
         SourceName(a.FacilityCode.ToString()), $"{FacilityCatalog.HolderUnitFor(a.FacilityCode.ToString())} {SpaceNumber.Display(a.StallNo)}", $"Stall {a.StallId}; contract {a.ContractId}", a.Occupant, a.EffectivityDate, EndOf(a), StateLabel(a.State), null, a.LifetimeCollected, a.Uncollected,
         a.State == InactiveAccountState.Lapsed ? "Also in live follow-up" : "Stated here only" })
-        .Concat(FilteredObligations().Select(x => (IReadOnlyList<object?>)new object?[] { x.Source.Name, $"{x.Unit} {x.Account.SubjectLabel}", x.Account.Id.ToString(), SpaceAccountPresentation.Occupant(x.Account), x.Account.ActiveFrom, ObligationEnd(x.Account), ObligationState(x), x.Account.AssessedToDate, x.Account.CollectedToDate, x.Account.OutstandingToDate, "Already in source account workspace" })).ToArray();
+        .Concat(FilteredObligations().Select(x => (IReadOnlyList<object?>)new object?[] { x.Source.Name, $"{x.Unit} {x.Account.SubjectLabel}", x.Account.Id.ToString(), SpaceAccountPresentation.Occupant(x.Account), x.Start, x.End, ObligationState(x), x.Assessed, x.Collected, x.Outstanding, "Already in source account workspace" })).ToArray();
     private string ExportCsvHref => "data:text/csv;charset=utf-8," + Uri.EscapeDataString(string.Join("\r\n", new[] {
         ExportCsv("Register of Inactive Rental Accounts", Branding.OfficeName, Branding.Municipality, Branding.Province),
         ExportCsv("As of", PhilippineTime.Today.ToString("yyyy-MM-dd"), "Year", _year?.ToString() ?? "All", "Source", _facility ?? "All", "Status", _state?.ToString() ?? "All", "Search", _search),
@@ -510,11 +523,16 @@
     // Only what applies to the row, as for a stall: the actions the server allows, and Resume-type actions that merely wait for the account's one-time space setup.
     private IEnumerable<AllowedAction> SpaceRowActions(ClosedObligationRentalRow item)
     {
-        if (item.Code == "FA" || !_lifecycle.TryGetValue(item.Account.Id, out var life)) yield break;
+        // An earlier, renewed term is a record only — the same holder carries on under the later term — exactly as a renewed stall row.
+        if (item.Code == "FA" || item.IsRenewedTerm || !_lifecycle.TryGetValue(item.Account.Id, out var life)) yield break;
         foreach (var action in life.Actions)
             if (LifecyclePresentation.SpaceActions.Contains(action.Action) && (action.Allowed || action.ReasonCode == SpaceLifecycleWorkflow.NoSpaceRegistration))
                 yield return action;
     }
+
+    private int SpaceRenewableCount(IEnumerable<ClosedObligationRentalRow> rows) =>
+        rows.Where(r => r.Code != "FA" && !r.IsRenewedTerm).Select(r => r.Account.Id).Distinct()
+            .Count(id => _lifecycle.TryGetValue(id, out var life) && life.Actions.Any(a => a.Action == LifecycleAction.Renew && a.Allowed));
 
     private static string RowClass(LifecycleAction action) => action switch { LifecycleAction.Resume => "ca-row-reopen", LifecycleAction.Remove => "ca-row-remove", _ => "ca-row-renew" };
     private static RenderFragment RowIcon(LifecycleAction action) => action switch { LifecycleAction.Resume => IconResume, LifecycleAction.Remove => IconRemove, LifecycleAction.Renew => IconRenew, _ => IconAssign };
@@ -537,25 +555,25 @@
             {
                 var result = await ObligationsApi.GetWorkspaceAsync(entry.Item3.Kind);
                 if (result?.IsSuccess == true && result.Value is not null)
-                    _obligationRows.AddRange(result.Value.Accounts.Where(a => a.Kind == entry.Item3.Kind && (RentalAccountStates.HasEnded(a.ActiveTo, PhilippineTime.Today) || RentalAccountStatus.IsTermEnded(a))).Select(a => new ClosedObligationRentalRow(entry.Item1, entry.Item2, entry.Item3, a)));
+                    _obligationRows.AddRange(result.Value.Accounts.Where(a => a.Kind == entry.Item3.Kind).SelectMany(a => ClosedObligationRentalRow.For(entry.Item1, entry.Item2, entry.Item3, a,
+                        RentalAccountStates.HasEnded(a.ActiveTo, PhilippineTime.Today) || RentalAccountStatus.IsTermEnded(a))));
                 else _obligationErrors.Add($"{entry.Item1}: {result?.Error ?? "Account register could not be loaded."}");
             }
             catch { _obligationErrors.Add($"{entry.Item1}: Account register could not be loaded."); }
         }
         UpdateYears();
     }
-    private void UpdateYears() => Years = _accounts.Select(a => EndOf(a).Year).Concat(_obligationRows.Select(x => ObligationEnd(x.Account).Year)).Distinct().OrderByDescending(x => x).ToArray();
+    private void UpdateYears() => Years = _accounts.Select(a => EndOf(a).Year).Concat(_obligationRows.Select(x => x.End.Year)).Distinct().OrderByDescending(x => x).ToArray();
     private IReadOnlyList<ClosedObligationRentalRow> FilteredObligations() => _obligationRows.Where(x =>
-        !_endedOnly && _section is null && (_state is null || _state == InactiveAccountState.Closed)
+        !_endedOnly && _section is null && (_state is null || _state == (x.IsRenewedTerm ? InactiveAccountState.Renewed : InactiveAccountState.Closed))
         && (_facility is null || x.Code == _facility)
-        && (_year is null || ObligationEnd(x.Account).Year == _year)
+        && (_year is null || x.End.Year == _year)
         && (!HasSearch || SpaceAccountPresentation.Occupant(x.Account).Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase)
             || x.Account.SubjectLabel.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase)
             || (x.Account.ContractReference?.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase) ?? false)))
-        .OrderByDescending(x => ObligationEnd(x.Account)).ToList();
-    /// <summary>When a space account stopped being current: its closure date, or the last day of a signed term that ran out.</summary>
-    private static DateOnly ObligationEnd(EEMOCantilanSDS.Application.Dtos.Revenue.ObligationAccountDto a) => a.ActiveTo ?? RentalAccountStatus.TermLastDay(a) ?? a.ActiveFrom;
-    private static string ObligationState(ClosedObligationRentalRow x) => x.Code == "FA" ? "Closed event lot" : RentalAccountStatus.IsTermEnded(x.Account) ? "Term ended" : "Closed";
+        .OrderByDescending(x => x.End).ToList();
+    private static string ObligationState(ClosedObligationRentalRow x) => x.Code == "FA" ? "Closed event lot" : x.IsRenewedTerm ? "Renewed"
+        : RentalAccountStatus.IsTermEnded(x.Account) ? "Term ended" : "Closed";
     // ── Data ──
     private List<ClosedStallAccountDto> _accounts = new();
 

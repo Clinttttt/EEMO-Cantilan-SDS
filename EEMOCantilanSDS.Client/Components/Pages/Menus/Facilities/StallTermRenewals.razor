@@ -33,25 +33,29 @@
     else
     {
         <section class="v3-panel str-panel" aria-label="Expired terms">
-            <div class="v3-panel-header"><h2>@(_eligible.Count) expired term@(_eligible.Count == 1 ? "" : "s") · @FacilityName</h2></div>
+            <header class="str-head">
+                <h2>@FacilityName</h2>
+                <span class="str-count">@(_eligible.Count) expired term@(_eligible.Count == 1 ? "" : "s")</span>
+            </header>
             @if (_eligible.Count == 0)
             {
-                <p class="v3-notice" role="status">Nothing to renew here. Closed accounts, accounts already on a new term and accounts someone else now holds are not renewed this way.</p>
+                <p class="str-empty" role="status">Nothing to renew here. Closed accounts, accounts already on a new term and accounts someone else now holds are not renewed this way.</p>
             }
             else
             {
                 <form class="str-form" @onsubmit="RenewAsync" @onsubmit:preventDefault="true" aria-label="Renew these terms">
-                    <label>New term starts <input id="str-start" type="date" @bind="_start" disabled="@_busy" /></label>
-                    <label>Term (years) <input id="str-years" type="number" min="1" max="50" @bind="_years" disabled="@_busy" /></label>
-                    <span class="str-ends" role="status">@(_years >= 1 ? $"Ends {DomainRules.TermLastDay(_start, _years):MMM d, yyyy}" : "")</span>
-                    <button type="submit" class="btn-primary" disabled="@(_busy || _editing is not null)">@(_busy ? "Working…" : $"Renew {_eligible.Count}")</button>
+                    <label class="str-field">New term starts <input id="str-start" type="date" @bind="_start" disabled="@_busy" /></label>
+                    <label class="str-field str-field-short">Term (years) <input id="str-years" type="number" min="1" max="50" @bind="_years" disabled="@_busy" /></label>
+                    <div class="str-field">New term ends <span class="str-ends" role="status">@(_years >= 1 ? DomainRules.TermLastDay(_start, _years).ToString("MMM d, yyyy") : "—")</span></div>
+                    <button type="submit" class="btn-primary str-submit" disabled="@(_busy || _editing is not null)">@(_busy ? "Working…" : $"Renew {_eligible.Count} term{(_eligible.Count == 1 ? "" : "s")}")</button>
                 </form>
-                <p class="str-note">The lapsed period is not back-billed. Nothing is written off. Use the pencil to correct a holder or contract name before renewing.</p>
+                <p class="str-note">The lapsed period is not back-billed and nothing is written off. Use the pencil to correct a holder or contract name before renewing.</p>
                 @if (_progress is not null) { <p class="str-note" role="status">@_progress</p> }
                 @if (_message is not null) { <p class="str-message" role="alert">@_message</p> }
 
+                <div class="str-table-wrap">
                 <table class="str-table">
-                    <thead><tr><th>@Unit</th><th>Holder</th><th>Name on contract</th><th>Term ended</th><th class="str-r">Balance</th><th><span class="v3-sr-only">Edit</span></th><th>Result</th></tr></thead>
+                    <thead><tr><th>@Unit</th><th>Holder</th><th>Name on contract</th><th>Term ended</th><th class="str-r">Balance</th><th>Status</th><th class="str-edit-cell"><span class="v3-sr-only">Edit</span></th></tr></thead>
                     <tbody>
                         @foreach (var row in _eligible)
                         {
@@ -82,6 +86,9 @@
                                 }
                                 <td class="str-muted">@row.ExpiryDate.ToString("MMM d, yyyy")</td>
                                 <td class="str-r">@(row.Uncollected > 0 ? $"₱{row.Uncollected:N0}" : "₱0")</td>
+                                <td>@if (_results.TryGetValue(row.StallId, out var result)) { <span class="@(result.Ok ? "str-ok" : "str-fail")" role="status">@result.Text</span> }
+                                    else if (_edits.ContainsKey(row.StallId)) { <span class="str-tag">Edited</span> }
+                                    else { <span class="str-muted">Ready</span> }</td>
                                 <td class="str-edit-cell">
                                     @if (_editing != row.StallId)
                                     {
@@ -91,12 +98,11 @@
                                         </button>
                                     }
                                 </td>
-                                <td>@if (_results.TryGetValue(row.StallId, out var result)) { <span class="@(result.Ok ? "str-ok" : "str-fail")" role="status">@result.Text</span> }
-                                    else if (_edits.ContainsKey(row.StallId)) { <span class="str-muted">Edited</span> }</td>
                             </tr>
                         }
                     </tbody>
                 </table>
+                </div>
             }
         </section>
     }

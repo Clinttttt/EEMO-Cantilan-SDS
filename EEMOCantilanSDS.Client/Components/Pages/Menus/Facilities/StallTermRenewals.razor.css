@@ -1,32 +1,61 @@
-/* Renew expired terms — the facility-owned bulk renewal. Panel and buttons come from the shared v3-/btn- layer. */
-.str-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px; }
-.str-table th { text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-secondary); border-bottom: 1px solid var(--border); }
-.str-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-.str-r { text-align: right; font-variant-numeric: tabular-nums; }
+/* Renew expired terms — the facility-owned bulk renewal. A header, one term bar, then the register; buttons come from the shared btn- layer.
+   SpaceTermRenewals.razor.css carries the same rules for monthly spaces: keep the two in step. */
+.str-panel { padding: 0; overflow: hidden; }
+
+.str-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 20px 24px 16px; border-bottom: 1px solid var(--border); }
+.str-head h2 { margin: 0; font-size: 18px; font-weight: 600; color: var(--text); }
+.str-count { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.str-empty { margin: 0; padding: 24px; font-size: 14px; color: var(--text-secondary); }
+
+/* The term every listed account receives: one bar, fields aligned on a common baseline, the action at the end. */
+.str-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px 24px; padding: 16px 24px; background: var(--surface-muted); border-bottom: 1px solid var(--border); }
+.str-field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.str-field input { width: 180px; height: 40px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-size: 14px; font-weight: 400; }
+.str-field-short input { width: 96px; }
+.str-field-wide input { width: 280px; }
+.str-field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.str-ends { display: flex; align-items: center; height: 40px; font-size: 14px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.str-submit { margin-left: auto; height: 40px; }
+
+.str-note { margin: 0; padding: 12px 24px 0; font-size: 12.5px; color: var(--text-secondary); }
+.str-message { margin: 0; padding: 12px 24px 0; font-size: 13px; font-weight: 600; color: var(--red); }
+
+.str-table-wrap { padding: 8px 0; overflow-x: auto; }
+.str-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.str-table th { text-align: left; padding: 10px 12px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-secondary); border-bottom: 1px solid var(--border); white-space: nowrap; }
+.str-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.str-table tr > :first-child { padding-left: 24px; }
+.str-table tr > :last-child { padding-right: 24px; }
+.str-table tbody tr:last-child td { border-bottom: none; }
+.str-table tbody tr:hover td { background: var(--surface-muted); }
+.str-r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .str-strong { font-weight: 600; }
 .str-muted { color: var(--text-secondary); }
 .str-ok { color: var(--green); font-weight: 600; }
 .str-fail { color: var(--red); font-weight: 600; }
-.str-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; }
-.str-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--text-secondary); }
-.str-form input { min-height: 38px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; }
-.str-form input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.str-note { margin: 10px 0 0; font-size: 12px; color: var(--text-secondary); }
-.str-message { margin: 10px 0 0; font-size: 13px; font-weight: 600; color: var(--red); }
-@media (max-width: 700px) { .str-table { display: block; overflow-x: auto; white-space: nowrap; } }
-.str-form { margin-bottom: 4px; }
-.str-ends { align-self: center; padding-bottom: 2px; font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.str-table { margin-top: 16px; }
+.str-tag { display: inline-block; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 600; }
 .str-row-changed td { background: var(--accent-soft); }
-.str-edit-cell { width: 44px; text-align: center; }
-.str-pencil { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--text-secondary); cursor: pointer; }
-.str-pencil:hover:not(:disabled) { border-color: var(--border); color: var(--accent); }
+
+.str-edit-cell { width: 56px; text-align: right; }
+.str-pencil { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text-secondary); cursor: pointer; }
+.str-pencil:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 .str-pencil:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .str-pencil:disabled { opacity: .4; cursor: default; }
-.str-pencil svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.str-pencil svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
 .str-edit { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; }
 .str-edit label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--text-secondary); }
-.str-edit input { min-height: 34px; min-width: 180px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; }
+.str-edit input { height: 36px; min-width: 180px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; font-weight: 400; }
 .str-edit input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .str-edit-actions { display: flex; gap: 8px; }
 .str-edit-warn { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--text-secondary); }
+
+@media (max-width: 700px) {
+    .str-head, .str-form { padding-left: 16px; padding-right: 16px; }
+    .str-note, .str-message { padding-left: 16px; padding-right: 16px; }
+    .str-submit { margin-left: 0; width: 100%; }
+    .str-field-wide input { width: 100%; }
+    .str-table { white-space: nowrap; }
+    .str-table tr > :first-child { padding-left: 16px; }
+    .str-table tr > :last-child { padding-right: 16px; }
+}
