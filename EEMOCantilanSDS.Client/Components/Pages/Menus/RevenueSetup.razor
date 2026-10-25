@@ -11,6 +11,7 @@
 @using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Domain.Enums
 @inject IRevenueClassificationsApiClient RevenueApi
+@inject IOperationSettingsApiClient OperationSettingsApi
 
 <PageTitle>@Branding.OfficeAcronym — Revenue Sources</PageTitle>
 
@@ -93,6 +94,29 @@
                 </ul>
             </section>
         }
+    }
+
+    @if (!_loading && _loadError is null && _setupRequired.Count > 0)
+    {
+        @* A listed operation whose revenue source this municipality has not set up. Nothing is assumed for it: no rate, receipt
+           type or effective date is shown until the municipality's own policy exists. *@
+        <section class="v3-panel rev-group" aria-labelledby="rev-g-setup">
+            <header class="rev-group-head">
+                <h2 id="rev-g-setup">Setup required</h2>
+                <span class="rev-group-count">@_setupRequired.Count</span>
+            </header>
+            <ul class="rev-list">
+                @foreach (var name in _setupRequired)
+                {
+                    <li class="rev-row">
+                        <span class="rev-source-name">@name</span>
+                        <span class="rev-row-instrument"><span class="v3-muted">—</span></span>
+                        <span class="rev-row-status"><span class="rev-status is-pending">No revenue source set up</span></span>
+                        <span></span>
+                    </li>
+                }
+            </ul>
+        </section>
     }
 </div>
 
@@ -180,6 +204,7 @@
 @code {
     private IReadOnlyList<RevenueClassificationDto> _classifications = [];
     private IReadOnlyList<RevenueClassificationPolicyDto> _history = [];
+    private IReadOnlyList<string> _setupRequired = [];
     private RevenueClassificationDto? _selected;
     private bool _loading = true;
     private bool _historyLoading;
@@ -255,6 +280,7 @@
             }
 
             _classifications = result.Value;
+            await LoadSetupRequiredAsync(generation);
         }
         catch
         {
@@ -265,6 +291,23 @@
         {
             if (generation == _loadGeneration) _loading = false;
         }
+    }
+
+    // Best effort: the directory stands without it, so a failure here only leaves the extra section out.
+    private async Task LoadSetupRequiredAsync(long generation)
+    {
+        try
+        {
+            var settings = await OperationSettingsApi.GetAsync();
+            if (generation != _loadGeneration) return;
+            _setupRequired = settings is { IsSuccess: true, Value: not null }
+                ? settings.Value.Items
+                    .Where(i => i.IsListed && TenantOperationCatalog.Find(i.OperationCode) is { } entry
+                        && !_classifications.Any(c => c.SemanticCode == entry.ClassificationCode))
+                    .Select(i => i.DisplayName).ToList()
+                : [];
+        }
+        catch { _setupRequired = []; }
     }
 
     private async Task ShowDetailsAsync(RevenueClassificationDto item)

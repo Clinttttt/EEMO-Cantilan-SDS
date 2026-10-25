@@ -15,6 +15,7 @@ using EEMOCantilanSDS.Client.Components.Pages.Menus;
 using EEMOCantilanSDS.Client.Securities;
 using EEMOCantilanSDS.Client.Services;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.HttpClients.ApiClients;
 using Microsoft.AspNetCore.Authorization;
@@ -142,6 +143,45 @@ public sealed class RevenueSetupTests : TestContext
         cut.Find(".v3-drawer").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Escape" });
 
         cut.WaitForAssertion(() => Assert.Empty(cut.FindAll("[role='dialog']")), RenderTimeout);
+    }
+
+    [Fact]
+    public void ListedOperationsWithoutARevenueSource_AreShownAsSetupRequired_AndNothingIsInvented()
+    {
+        static TenantOperationSettingDto Op(string code, string name, bool listed) =>
+            new(code, name, "market", null, name, listed, 0, "Tenant", false);
+        var settings = new Mock<IOperationSettingsApiClient>();
+        settings.Setup(s => s.GetAsync()).ReturnsAsync(Result<TenantOperationSettingsDto>.Success(new(true,
+        [
+            Op(CollectorOperationCodes.MarketFees, "Market Fees", listed: true),          // has a source -> not here
+            Op(CollectorOperationCodes.WeightAndMeasure, "Weights Office", listed: true),  // no source -> setup required
+            Op(CollectorOperationCodes.LandingBerthing, "Landing", listed: false),         // not listed -> not here
+        ])));
+        Services.AddSingleton(settings.Object);
+
+        var (cut, _) = RenderPage([Classification("MARKET_FEES", "Market Fees", true, true,
+            Policy("MARKET_FEES", "Market Fees", PhilippineTime.Today, RevenueInstrumentType.CashTicket))]);
+
+        cut.WaitForAssertion(() =>
+        {
+            var panel = cut.Find("section[aria-labelledby='rev-g-setup']");
+            var rows = panel.QuerySelectorAll("li").Select(li => li.TextContent).ToList();
+            var row = Assert.Single(rows);
+            Assert.Contains("Weights Office", row);
+            Assert.Contains("No revenue source set up", row);
+            Assert.DoesNotContain("Landing", panel.TextContent);
+            Assert.DoesNotContain("₱", panel.TextContent);
+        }, RenderTimeout);
+    }
+
+    [Fact]
+    public void WhenOperationSettingsCannotBeRead_TheDirectoryStillRendersWithoutTheSetupSection()
+    {
+        var (cut, _) = RenderPage([Classification("MARKET_FEES", "Market Fees", true, true,
+            Policy("MARKET_FEES", "Market Fees", PhilippineTime.Today, RevenueInstrumentType.CashTicket))]);
+
+        cut.WaitForAssertion(() => Assert.Contains("Market Fees", cut.Markup), RenderTimeout);
+        Assert.Empty(cut.FindAll("section[aria-labelledby='rev-g-setup']"));
     }
 
     [Fact]
@@ -284,6 +324,7 @@ public sealed class RevenueSetupTests : TestContext
 
     private void RegisterGlobalPageServices()
     {
+        Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddSingleton(Services, Mock.Of<IOperationSettingsApiClient>(o => o.GetAsync() == Task.FromResult(Result<TenantOperationSettingsDto>.Failure("not needed here", 500))));
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
         Services.AddSingleton(Mock.Of<IStallsApiClient>());
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
