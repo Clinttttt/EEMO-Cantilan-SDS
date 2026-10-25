@@ -25,4 +25,7 @@ public sealed record PayorPayableItemDto(
     // NpmDaily only: how many days this amount is made of, and the fee for one of them. A market payor was shown a month's
     // total with no way to see that it is a day's fee counted out, which is the rule they are actually billed under.
     int? Days = null,
-    decimal? DailyRate = null);
+    decimal? DailyRate = null,
+    // The tenant's own name and acronym for the facility (null from an older API); Facility above is only the internal slot code.
+    string? FacilityName = null,
+    string? FacilityShortName = null);

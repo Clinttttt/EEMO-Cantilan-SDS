@@ -15,6 +15,8 @@ namespace EEMOCantilanSDS.Application.Dtos.Payors;
 /// Days this stall still owes in the current month: elapsed, within its term, not closed, and neither collected nor
 /// excused. Zero where the space is not billed daily.
 /// </param>
+/// <param name="FacilityName">The tenant's own name for the facility ("Rest Rooms"). <see cref="Facility"/> is only the internal slot code ("Custom1"), which is identity, not wording; null from an older API.</param>
+/// <param name="FacilityShortName">The tenant's own acronym for the facility ("RR"); null from an older API, or when none is saved.</param>
 public sealed record PayorStallBalanceDto(
     Guid StallId,
     string StallNo,
@@ -26,4 +28,6 @@ public sealed record PayorStallBalanceDto(
     string? OldestUnpaidPeriod,
     bool IsDailyBilled = false,
     decimal DailyRate = 0m,
-    int DaysOwed = 0);
+    int DaysOwed = 0,
+    string? FacilityName = null,
+    string? FacilityShortName = null);

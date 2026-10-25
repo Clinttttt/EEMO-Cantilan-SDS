@@ -1740,6 +1740,9 @@
         {
             CloseDrawer();
             await LoadAsync();
+            // A facility created here must be known to the shared catalogue at once: its acronym URL (/facility/cs), sidebar entry and labels
+            // read from it, and it is otherwise cached for the whole circuit.
+            await FacilityCatalog.ReloadAsync();
         }
         else
         {
@@ -1975,6 +1978,7 @@
         }
 
         await LoadAsync();
+        await FacilityCatalog.ReloadAsync();   // an inactive facility leaves the operational menus; a reactivated one returns
         _cfgFacility = _model?.Configured.FirstOrDefault(x => string.Equals(x.Code, code, StringComparison.OrdinalIgnoreCase));
         if (_cfgFacility is null) { CloseDrawer(); return; }
         _cfgSuccess = active ? "Facility reactivated." : "Facility deactivated — hidden from the operational menus.";

@@ -15,6 +15,14 @@
 
 <PageTitle>StallTrack — @FacilityCatalog.NameOf(_code)</PageTitle>
 
+@if (_notFound)
+{
+    <div class="content-area">
+        <div class="v3-notice" role="status"><span>That facility was not found, or it is not active for this office.</span><a class="btn-outline" href="/operations">Back to Operations</a></div>
+    </div>
+}
+else
+{
 <FacilityPage TStall="CustomStall"
               FacilityCodeEnum="_code"
               FacilityName="@FacilityCatalog.NameOf(_code)"
@@ -35,11 +43,14 @@
               ContractNameSelector="@(s => s.ContractName)"
               ORNumberSetter="@((s, or) => s.ORNumber = or)"
               ReportsUrl="@($"/{_code.ToString().ToLower()}/reports")" />
+}
 
 @code {
     [Parameter] public string? Slug { get; set; }
 
     private FacilityCode _code = FacilityCode.Custom1;
+
+    private bool _notFound;
 
     protected override async Task OnInitializedAsync()
     {
@@ -47,10 +58,20 @@
         // slot slug (…/facility/custom1) resolves without it. Load first, then map slug → custom code.
         await FacilityCatalog.EnsureLoadedAsync();
 
-        if (FacilityCatalog.TryResolveSlug(Slug, out var parsed) && (int)parsed >= (int)FacilityCode.Custom1)
-            _code = parsed;
-        else
-            Navigation.NavigateTo("/menu");   // unknown/non-custom slug — never render out of context.
+        // A facility created moments ago, or a first read that failed, leaves the cached catalogue without this acronym. Re-read it once before
+        // concluding the link is wrong; a link that still does not resolve is stated, never silently redirected away.
+        if (!TryResolve())
+        {
+            await FacilityCatalog.ReloadAsync();
+            _notFound = !TryResolve();
+        }
+    }
+
+    private bool TryResolve()
+    {
+        if (!FacilityCatalog.TryResolveSlug(Slug, out var parsed) || (int)parsed < (int)FacilityCode.Custom1) return false;
+        _code = parsed;
+        return true;
     }
 
     private RenderFragment CustomIcon => @<svg viewBox="0 0 24 24" style="width:24px;height:24px;stroke:var(--gold);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M3 21h18" /><path d="M5 21V7l8-4v18" /><path d="M19 21V11l-6-4" /><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01" /></svg>;

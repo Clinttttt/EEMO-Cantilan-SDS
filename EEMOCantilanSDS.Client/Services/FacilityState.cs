@@ -18,7 +18,7 @@ namespace EEMOCantilanSDS.Client.Services;
 /// Fallback (before load / on failure) is the full set, so Cantilan (which has all eight) is byte-for-byte
 /// unchanged and a transient failure never hides Cantilan's tabs.
 /// </summary>
-public class FacilityState(IFacilitiesApiClient api)
+public class FacilityState(IFacilitiesApiClient api, TimeSpan? retryAfterFailure = null)
 {
     // Presentation vocabulary only. ICE/custom retain their established Space wording.
     public static string HolderUnitOf(FacilityCode code) => code is
@@ -37,6 +37,9 @@ public class FacilityState(IFacilitiesApiClient api)
 
     private IReadOnlyList<FacilitySidebarSummaryDto>? _facilities;
     private Task? _loadTask;
+    private bool _loaded;
+    private DateTime _lastFailureUtc = DateTime.MinValue;
+    private TimeSpan RetryAfterFailure => retryAfterFailure ?? TimeSpan.FromSeconds(5);
 
     /// <summary>
     /// Raised when the office's facility record has been re-read, so anything already on screen can show the
@@ -46,8 +49,15 @@ public class FacilityState(IFacilitiesApiClient api)
     /// </summary>
     public event Action? Changed;
 
-    /// <summary>Loads the tenant's facilities once per circuit; concurrent callers share the in-flight task.</summary>
-    public Task EnsureLoadedAsync() => _loadTask ??= LoadAsync();
+    /// <summary>
+    /// Loads the tenant's facilities once per circuit; concurrent callers share the in-flight task. A read that FAILED is not kept for the
+    /// circuit: the next caller tries again (not more than once every few seconds, so a down API is not hammered), instead of the office seeing the
+    /// fallback catalogue, or a valid facility link bouncing, until it reloads the browser.
+    /// </summary>
+    public Task EnsureLoadedAsync() =>
+        _loadTask is { } existing && (!existing.IsCompleted || _loaded || DateTime.UtcNow - _lastFailureUtc < RetryAfterFailure)
+            ? existing
+            : _loadTask = LoadAsync();
 
     /// <summary>
     /// Re-reads the office's facility record and tells the screen. Call this after the office changes a
@@ -69,12 +79,19 @@ public class FacilityState(IFacilitiesApiClient api)
             var now = PhilippineTime.Now;
             var result = await api.GetFacilitySummariesAsync(now.Year, now.Month);
             if (result.IsSuccess && result.Value is not null)
+            {
                 _facilities = result.Value;
+                _loaded = true;
+                return;
+            }
         }
         catch
         {
             // Presentation-only; leave the fallback in place and never break the page.
         }
+
+        // Not read: the previous names (or the fallback) stay in place and the next EnsureLoadedAsync tries again.
+        _lastFailureUtc = DateTime.UtcNow;
     }
 
     /// <summary>The LGU's facilities in canonical order (fallback = all eight until loaded).</summary>
@@ -173,6 +190,17 @@ public class FacilityState(IFacilitiesApiClient api)
         return words.Count == 1
             ? words[0][..Math.Min(3, words[0].Length)].ToUpperInvariant()
             : string.Empty;
+    }
+
+    /// <summary>
+    /// The acronym a facility record shows: its saved short name, else one derived from its own name, and only a facility with neither falls back to the
+    /// internal slot code. For screens that already hold the facility record and need no catalogue lookup.
+    /// </summary>
+    public static string AcronymOf(FacilitySidebarSummaryDto facility)
+    {
+        if (!string.IsNullOrWhiteSpace(facility.ShortName)) return facility.ShortName;
+        var derived = DeriveAcronym(facility.Name);
+        return string.IsNullOrWhiteSpace(derived) ? facility.Code.ToString() : derived;
     }
 
     // Canonical market-section labels — the logical key used across the app. Custom tenant labels only

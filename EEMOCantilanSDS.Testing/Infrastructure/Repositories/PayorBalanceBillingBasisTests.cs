@@ -152,4 +152,34 @@ public class PayorBalanceBillingBasisTests : RepositoryTestBase
         Assert.Equal(0, balance.DaysOwed);
         Assert.Equal(2400m, balance.MonthlyRate);
     }
+
+    [Fact]
+    public async Task ACustomFacilityIsNamedByTheOfficesOwnNameAndAcronym_NotItsInternalSlotCode()
+    {
+        // The portal printed "Custom1": the DTO exposed only the enum slot. The wording comes from the facility record of the stall's own tenant;
+        // the code stays on the DTO as identity.
+        await using var ctx = NewContext();
+        var payor = Guid.NewGuid();
+        var restRooms = Facility.Create(FacilityCode.Custom1, "Rest Rooms", "RR");
+        var coldStorage = Facility.Create(FacilityCode.Custom2, "Cold Storage", string.Empty);          // no acronym saved
+        var first = Stall.Create(restRooms.Id, "2", 900m, ApplicableFees.BaseRental);
+        var second = Stall.Create(coldStorage.Id, "7", 1_500m, ApplicableFees.BaseRental);
+        ctx.AddRange(restRooms, coldStorage, first, second,
+            Contract.Create(first.Id, "Robin Padilla", "Robin Padilla", PhilippineTime.Today.AddMonths(-1), 3, 900m),
+            Contract.Create(second.Id, "Robin Padilla", "Robin Padilla", PhilippineTime.Today.AddMonths(-1), 3, 1_500m),
+            PayorStallLink.Create(payor, first.Id), PayorStallLink.Create(payor, second.Id));
+        await ctx.SaveChangesAsync();
+
+        var repo = new PayorRepository(ctx, new Mock<INpmMonthSettlementService>().Object);
+        var balances = (await repo.GetBalancesAsync(payor)).ToDictionary(b => b.Facility);
+
+        Assert.Equal(("Rest Rooms", "RR"), (balances[FacilityCode.Custom1].FacilityName, balances[FacilityCode.Custom1].FacilityShortName));
+        Assert.Equal(("Cold Storage", (string?)null), (balances[FacilityCode.Custom2].FacilityName, balances[FacilityCode.Custom2].FacilityShortName));
+        Assert.Equal(FacilityCode.Custom1, balances[FacilityCode.Custom1].Facility);                     // identity unchanged
+
+        // The payable items (the Balances page) carry the same wording, per stall.
+        var items = (await repo.GetPayableItemsAsync(payor)).ToDictionary(i => i.Facility);
+        Assert.Equal(("Rest Rooms", "RR"), (items[FacilityCode.Custom1].FacilityName, items[FacilityCode.Custom1].FacilityShortName));
+        Assert.Equal(("Cold Storage", (string?)null), (items[FacilityCode.Custom2].FacilityName, items[FacilityCode.Custom2].FacilityShortName));
+    }
 }

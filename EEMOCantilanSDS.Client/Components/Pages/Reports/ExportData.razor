@@ -429,7 +429,7 @@
                 if (f.IsRental)
                 {
                     foreach (var r in VisibleRentals(f))
-                        sb.AppendLine(Csv(f.Code.ToString(), f.Model, r.StallNo,
+                        sb.AppendLine(Csv(Facilities.ShortNameOf(f.Code), f.Model, r.StallNo,
                             f.Code == FacilityCode.NPM ? r.Section ?? "" : (r.AreaLoc ?? ""),
                             "", r.Rate.ToString("0.00"), r.Status, r.Collected.ToString("0.00"),
                             r.Balance.ToString("0.00"),
@@ -443,7 +443,7 @@
                     {
                         var detail = f.Code == FacilityCode.TRM && !string.IsNullOrEmpty(t.Ref)
                             ? $"{t.Ref} · {t.Detail}" : t.Detail;
-                        sb.AppendLine(Csv(f.Code.ToString(), f.Model, t.Payor,
+                        sb.AppendLine(Csv(Facilities.ShortNameOf(f.Code), f.Model, t.Payor,
                             $"{t.Date} · {detail}",
                             f.Code == FacilityCode.SLH ? t.Heads.ToString() : "",
                             (t.Rate > 0 ? t.Rate : t.Amount).ToString("0.00"), "Paid",

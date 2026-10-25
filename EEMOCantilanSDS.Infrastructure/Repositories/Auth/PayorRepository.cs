@@ -207,7 +207,9 @@ public class PayorRepository(
                 oldest?.Period,
                 isDaily,
                 dailyRate,
-                daysOwed));
+                daysOwed,
+                stall.Facility.Name,
+                string.IsNullOrWhiteSpace(stall.Facility.ShortName) ? null : stall.Facility.ShortName));
         }
 
         return result.OrderByDescending(r => r.OutstandingBalance).ToList();
@@ -349,6 +351,10 @@ public class PayorRepository(
             }
         }
 
-        return items;
+        // The wording a payor reads comes from the stall's own tenant facility record; the slot code stays the identity.
+        var facilityOf = stalls.Where(s => s.Facility is not null).ToDictionary(s => s.Id, s => s.Facility!);
+        return items.Select(i => facilityOf.TryGetValue(i.StallId, out var facility)
+            ? i with { FacilityName = facility.Name, FacilityShortName = string.IsNullOrWhiteSpace(facility.ShortName) ? null : facility.ShortName }
+            : i).ToList();
     }
 }
