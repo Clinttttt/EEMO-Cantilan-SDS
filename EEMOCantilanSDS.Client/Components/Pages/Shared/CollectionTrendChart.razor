@@ -38,6 +38,10 @@
                             }
                         </div>
                         <div class="bar3d" style="height:@pt.HeightPct%">
+                            @if (!pt.IsZero)
+                            {
+                                <strong class="bar3d-value">₱@pt.ShortValue</strong>
+                            }
                             @if (pt.FishAmount > 0m)
                             {
                                 <div class="seg3d seg-fish" style="height:@pt.FishPct%"><span class="face-top"></span><span class="face-side"></span></div>
@@ -50,7 +54,6 @@
                         </div>
                     </div>
                     <div class="rpt-bar-label">@pt.Label</div>
-                    <div class="rpt-bar-val">₱@pt.ShortValue</div>
                 </div>
             }
         }
@@ -84,14 +87,20 @@
     /// </summary>
     [Parameter] public string FishLabel { get; set; } = "Section fee";
 
-    private IReadOnlyList<RevenueTrendDto> Data => Trend ?? Array.Empty<RevenueTrendDto>();
+    /// <summary>False where the report is about rent alone (NPM): each bar is the period's total less its fish-kilo portion.</summary>
+    [Parameter] public bool ShowFish { get; set; } = true;
+
+    private IReadOnlyList<RevenueTrendDto> Data => ShowFish
+        ? Trend ?? Array.Empty<RevenueTrendDto>()
+        : (Trend ?? Array.Empty<RevenueTrendDto>()).Select(x => x with { Revenue = x.Revenue - Math.Min(Math.Max(0m, x.FishFeeRevenue), x.Revenue), FishFeeRevenue = 0m }).ToList();
 
     // ── Y-axis nice scale (shared by the bars and the axis labels so they align exactly) ──
     private (decimal Max, IReadOnlyList<decimal> Ticks) Axis
     {
         get
         {
-            var rawMax = Data.Any() ? Math.Max(Data.Max(x => x.Revenue), Data.Max(x => x.ExpectedRevenue)) : 0m;
+            // Scaled to what was collected: the expected amount is not drawn, and scaling to it left every bar a sliver.
+            var rawMax = Data.Any() ? Data.Max(x => x.Revenue) : 0m;
             if (rawMax <= 0m)
                 return (100m, new List<decimal> { 0m, 20m, 40m, 60m, 80m, 100m });
 

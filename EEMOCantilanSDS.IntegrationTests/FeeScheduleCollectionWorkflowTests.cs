@@ -394,6 +394,11 @@ public sealed class FeeScheduleCollectionWorkflowTests(PostgresFixture db)
         Assert.Equal(src, Assert.Single(Assert.Single(history.TransactionGroups).Transactions).ReferenceCode);
         var year = await repo.GetHistoryAsync(Today.Year);
         Assert.Equal(240m, year.Yearly.Single(y => y.Year == Today.Year).TotalCollected);
+        // The list/report screens read the same set as the register (once), while the server-side reports that already read
+        // canonical collections separately keep the legacy-only method, so nothing is counted twice there.
+        var listed = Assert.Single(await repo.GetWorkspaceTransactionsByMonthAsync(Today.Year, Today.Month));
+        Assert.Equal((src, 3, 240m), (listed.ReferenceCode, listed.NumberOfHeads, listed.TotalAmount));
+        Assert.Empty(await repo.GetTransactionsByMonthAsync(Today.Year, Today.Month));
         Assert.Empty(await verify.SlaughterTransactions.ToListAsync());   // reading it never creates a legacy row
 
     }

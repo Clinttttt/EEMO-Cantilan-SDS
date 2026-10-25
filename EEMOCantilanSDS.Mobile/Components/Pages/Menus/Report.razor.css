@@ -118,6 +118,15 @@
     color: var(--text-subtle);
 }
 
+/* The collector's own money: the same tile, marked by the navy rule the old full-width card carried. */
+.rpt-tile-main {
+    border-left: 3px solid var(--navy-primary, #1e3a5f);
+}
+
+.rpt-tile-main .rpt-tile-value {
+    font-size: 19px;
+}
+
 /* The payor states, in one block because they partition one set of people. */
 .rpt-block {
     border: 1px solid var(--border);
@@ -238,8 +247,8 @@
 }
 
 .payee-name {
-    font-size: 13px;
-    font-weight: 500;
+    font-size: 14px;
+    font-weight: 600;
     color: var(--navy-primary);
     white-space: nowrap;
     overflow: hidden;
@@ -256,11 +265,15 @@
 }
 
 .payee-months {
-    font-size: 9.5px;
+    font-size: 11px;
     color: var(--text-muted);
 }
 
 .payee-amount-col {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
     text-align: right;
     flex-shrink: 0;
 }
@@ -277,29 +290,33 @@
 }
 
 .payee-balance-sub {
-    font-size: 9px;
+    font-size: 11px;
     color: var(--text-muted);
-    margin-top: 1px;
     text-align: right;
 }
 
+.payee-balance-sub.is-owed {
+    color: var(--error-red);
+    font-weight: 600;
+}
+
 .payee-last-paid {
-    margin-top: 5px;
+    margin-top: 4px;
 }
 
 .last-paid-ok {
-    font-size: 9.5px;
-    color: var(--paid-green);
+    font-size: 11px;
+    color: var(--text-muted);
     font-weight: 500;
 }
 
 .last-paid-warn {
-    font-size: 9.5px;
-    color: var(--text-muted);
+    font-size: 11px;
+    color: var(--text-subtle);
 }
 
 .payee-status-label {
-    font-size: 8px;
+    font-size: 10px;
     font-weight: 600;
     padding: 2px 7px;
     border-radius: 10px;

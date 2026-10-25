@@ -1089,7 +1089,7 @@ else
         if (string.IsNullOrWhiteSpace(Form.FacilityCode)) { FormError = "Please select a facility."; return; }
         if (string.IsNullOrWhiteSpace(Form.StallNo)) { FormError = "Stall number is required."; return; }
         if (string.IsNullOrWhiteSpace(Form.ActualOccupant)) { FormError = "Actual occupant name is required."; return; }
-        if (Form.FacilityCode == "NPM" && string.IsNullOrWhiteSpace(Form.SelectedSection)) { FormError = "Please select a section for NPM."; return; }
+        if (Form.FacilityCode == "NPM" && !FacilityCatalog.IsMonthlyRentMarket && string.IsNullOrWhiteSpace(Form.SelectedSection)) { FormError = "Please select a section for NPM."; return; }
         var monthlyRateRequired = Form.FacilityCode != "NPM" || _npmMonthBasis == NpmMonthBasis.RentGoal;
         if (monthlyRateRequired && Form.MonthlyRate <= 0) { FormError = "Monthly rate must be greater than 0."; return; }
 

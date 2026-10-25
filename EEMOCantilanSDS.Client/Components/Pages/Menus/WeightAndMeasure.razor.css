@@ -1,4 +1,4 @@
-/* Weight & Measure — V3, read-only. Shared panels/tables/buttons come from the v3- layer in app.css. */
+/* Weight & Measure — V3. Shared panels/tables/buttons/drawer come from the v3- layer in app.css. */
 
 .wm-meta {
     display: inline-flex;
@@ -6,36 +6,22 @@
     gap: 6px;
 }
 
-/* Reuse the Fish and Meat cards with room for each source's receipt evidence. */
-.wm-layout {
-    display: grid;
-    flex: 1 1 0;
-    min-height: 22rem;
-    grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
-    align-items: stretch;
-    gap: 20px;
+/* One filter bar above both registers. */
+.wm-filterbar {
+    padding: 12px 16px;
 }
 
-.wm-layout > .v3-panel {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-}
-
-.wm-error {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px 16px;
-    margin-bottom: 20px;
-}
-
-/* Month, search and refresh retain the existing compact toolbar. */
 .wm-toolbar {
     flex-wrap: nowrap;
     align-items: center;
     gap: 8px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+.wm-toolbar .v3-search {
+    max-width: 32rem;
 }
 
 .wm-toolbar .v3-search {
@@ -63,9 +49,87 @@
     height: 18px;
 }
 
+/* Fish and Meat side by side, the same width and the same structure. */
+.wm-layout {
+    display: grid;
+    flex: 1 1 auto;               /* fill the window below the filter bar; both cards stretch to the bottom */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 20px;
+}
+
+/* The historical band sits at the foot of each card, so the two cards end level. */
+.wm-layout > .v3-panel > .wm-history:last-child {
+    margin-top: auto;
+}
+
+.wm-layout > .v3-panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.wm-error {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+}
+
+/* Frozen historical NPM evidence: a quiet band under the registered collections, the same in both columns. */
+.wm-history {
+    display: grid;
+    gap: 10px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--surface-muted);
+}
+
+.wm-history h3 {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.wm-history-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin: 0;
+}
+
+.wm-history-facts div {
+    display: grid;
+    gap: 2px;
+}
+
+.wm-history-facts dt {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.wm-history-facts dd {
+    margin: 0;
+    color: var(--text);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.wm-history-empty {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+}
+
 .wm-scroll {
-    flex: none;
-    overflow-x: auto;
+    max-height: 22rem;
+    overflow: auto;
+    border-top: 1px solid var(--border);
 }
 
 .wm-scroll thead th {
@@ -97,26 +161,117 @@
     outline-offset: 2px;
 }
 
-.wm-meat-facts {
-    padding: 14px 20px;
+/* Weighing rates drawer. */
+.wm-drawer {
+    width: min(100%, 28rem);
 }
 
-.wm-empty {
-    display: grid;
-    flex: 1 1 auto;
-    place-items: center;
-    text-align: center;
+.wm-drawer-close {
+    margin-left: auto;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.wm-drawer-close:hover {
+    background: var(--surface-muted);
+    color: var(--text);
+}
+
+.wm-drawer-close:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.wm-rates {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+
+.wm-rates li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+}
+
+.wm-rates li + li {
+    border-top: 1px solid var(--border);
+}
+
+.wm-rate-name {
+    color: var(--text);
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.wm-rate-value {
+    color: var(--text);
+    font-size: 0.9375rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.wm-rate-value.is-off {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.wm-drawer-note {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+}
+
+.wm-rate-edit-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 44px;
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+
+.wm-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.wm-rate-input {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+}
+
+.wm-rate-input .v3-input {
+    width: 7.5rem;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 1100px) {
     .wm-layout {
-        flex: none;
         grid-template-columns: minmax(0, 1fr);
-    }
-
-    .wm-scroll {
-        flex: none;
-        max-height: none;
     }
 }
 
@@ -128,6 +283,10 @@
     .wm-toolbar .v3-search {
         flex: 1 1 100%;
         order: -1;
+    }
+
+    .wm-history-facts {
+        grid-template-columns: minmax(0, 1fr);
     }
 }
 

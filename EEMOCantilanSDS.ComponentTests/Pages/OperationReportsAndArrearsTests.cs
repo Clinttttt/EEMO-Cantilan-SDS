@@ -65,6 +65,8 @@ public sealed class OperationReportsAndArrearsTests : TestContext
 
         var cut = RenderComponent<MarketFeesReport>();
 
+        cut.OpenStatusReport();
+
         cut.WaitForAssertion(() =>
         {
             var official = cut.Find("section[aria-labelledby='mfr-official'] tbody tr").TextContent;
@@ -94,6 +96,8 @@ public sealed class OperationReportsAndArrearsTests : TestContext
 
         var cut = RenderComponent<MarketFeesReport>();
 
+        cut.OpenStatusReport();
+
         cut.WaitForAssertion(() =>
         {
             var fees = cut.Find("section[aria-labelledby='mfr-fees']");
@@ -113,6 +117,8 @@ public sealed class OperationReportsAndArrearsTests : TestContext
 
         var cut = RenderComponent<VegetableFruitReport>();
 
+        cut.OpenStatusReport();
+
         cut.WaitForAssertion(() =>
         {
             var facts = cut.Find(".lh-meta").TextContent;
@@ -127,6 +133,7 @@ public sealed class OperationReportsAndArrearsTests : TestContext
     public void TheTransportationReport_IsACashTicketReport()
     {
         var cut = RenderComponent<TransportationReport>();
+        cut.OpenStatusReport();
 
         cut.WaitForAssertion(() =>
         {
@@ -248,6 +255,8 @@ public sealed class OperationReportsAndArrearsTests : TestContext
             ]));
 
         var cut = RenderComponent<FishMeatVendorFeesReport>();
+
+        cut.OpenStatusReport();
 
         cut.WaitForAssertion(() =>
         {

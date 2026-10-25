@@ -2,12 +2,28 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
 @using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Constants
 
 <PageTitle>StallTrack — Transportation Fees Report</PageTitle>
 
-@* Transportation Fees report: the standard operation-report shell with a transactional body — the official Monthly Income row and the
+@* Transportation Fees report: the operation reports layout (Weekly, Monthly, Yearly, Status Report, History) around its transactional report body — the official Monthly Income row and the
    month's governed collections, all read from the server. The layout owns the <main> landmark. *@
-<GovernedOperationReport OperationCode="@CollectorOperationCodes.Transportation" Name="Transportation Fees" ParentHref="/operations/transportation"
-                         RowKey="TRANSPORTATION_PARKING" Classification="Transportation Fees" Instruments="@(new[] { "CT" })"
-                         InstrumentFact="Cash Ticket" IdPrefix="trr" Code="TRM" ByFeeType="true" />
+<OperationReportsPage Name="Transportation Fees" ParentHref="/operations/transportation" RowKey="TRANSPORTATION_PARKING" SeriesLabel="Fees collected" @bind-Month="_month">
+    <StatusReport>
+        <GovernedOperationReport OperationCode="@CollectorOperationCodes.Transportation" Name="Transportation Fees" ParentHref="/operations/transportation"
+                                 RowKey="TRANSPORTATION_PARKING" Classification="Transportation Fees" Instruments="@(new[] { "CT" })"
+                                 InstrumentFact="Cash Ticket" IdPrefix="trr" Code="TRM" ByFeeType="true"
+                                 Embedded="true" Month="_month" />
+    </StatusReport>
+    <WeekContent>
+        <OperationWeekRegister OperationCode="@CollectorOperationCodes.Transportation" Name="Transportation Fees" From="context.From" To="context.To" />
+    </WeekContent>
+    <MonthExtras>
+        <OperationFeeTypeCard OperationCode="@CollectorOperationCodes.Transportation" Month="_month" />
+    </MonthExtras>
+</OperationReportsPage>
+
+@code {
+    private DateOnly _month = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
+}

@@ -1,10 +1,13 @@
 @using System.Globalization
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Application.Dtos.Slaughterhouse
 @using EEMOCantilanSDS.Domain.Constants
+@using EEMOCantilanSDS.Domain.Enums
 @inject IGovernedServicesApiClient GovernedApi
 
 @* Slaughterhouse collected by approved charge, for a period: the server's own totals per charge (the amounts frozen on each collection).
+   Each charge states the animals it is approved for, so two charges of the same name (a Hog Slaughter Fee and a Cow one) read apart.
    Per-head collections appear on one line, "not itemized", so the table adds up to the same figure as the register and the official
    Monthly Income. Hidden when no collection in the period used a charge. *@
 @if (_totals is { Count: > 0 } totals && totals.Any(t => t.FeeOptionId is not null))
@@ -16,6 +19,7 @@
                 <thead>
                     <tr>
                         <th scope="col">Charge</th>
+                        <th scope="col">Animals</th>
                         <th scope="col" class="v3-num">Quantity</th>
                         <th scope="col" class="v3-num">Amount</th>
                     </tr>
@@ -25,6 +29,7 @@
                     {
                         <tr>
                             <td>@total.Name</td>
+                            <td>@AnimalsFor(total.FeeOptionId)</td>
                             <td class="v3-num">@(total.Quantity is { } q ? q.ToString("N0", CultureInfo.InvariantCulture) : "—")</td>
                             <td class="v3-num">₱@total.Amount.ToString("N2", CultureInfo.InvariantCulture)</td>
                         </tr>
@@ -33,6 +38,7 @@
                 <tfoot>
                     <tr>
                         <th scope="row">Total</th>
+                        <td></td>
                         <td></td>
                         <td class="v3-num">₱@totals.Sum(t => t.Amount).ToString("N2", CultureInfo.InvariantCulture)</td>
                     </tr>
@@ -46,8 +52,11 @@
     [Parameter, EditorRequired] public DateOnly From { get; set; }
     [Parameter, EditorRequired] public DateOnly To { get; set; }
     [Parameter] public string HeadingId { get; set; } = "slh-by-charge";
+    /// <summary>The office's own names for the animals; the standard names when not given.</summary>
+    [Parameter] public SlaughterAnimalLabelsDto? Labels { get; set; }
 
     private IReadOnlyList<FeeOptionTotalDto>? _totals;
+    private Dictionary<Guid, int?> _scopes = [];
     private DateOnly _loadedFrom, _loadedTo;
 
     protected override async Task OnParametersSetAsync()
@@ -61,5 +70,29 @@
             _totals = result is { IsSuccess: true, Value: { } rows } ? rows : [];
         }
         catch { _totals = []; }
+
+        if (_scopes.Count == 0 && _totals.Any(t => t.FeeOptionId is not null))
+        {
+            try
+            {
+                var options = await GovernedApi.GetFeeOptionsAsync(CollectorOperationCodes.Slaughterhouse);
+                if (options is { IsSuccess: true, Value: { } list })
+                    _scopes = list.ToDictionary(o => o.Id, o => o.ApplicableAnimals);
+            }
+            catch { /* the charges still read; only their animals are left unstated */ }
+        }
+    }
+
+    /// <summary>The animals a charge is approved for; "—" for the per-head line and for a charge the list does not name.</summary>
+    private string AnimalsFor(Guid? feeOptionId)
+    {
+        if (feeOptionId is not { } id || !_scopes.TryGetValue(id, out var stored)) return "—";
+        if (stored is null or 0) return "All animals";
+        var names = new List<string>();
+        if ((stored.Value & (int)SlaughterAnimalScope.Hog) != 0) names.Add(Labels?.Hog ?? "Hog");
+        if ((stored.Value & (int)SlaughterAnimalScope.Carabao) != 0) names.Add(Labels?.Carabao ?? "Carabao");
+        if ((stored.Value & (int)SlaughterAnimalScope.Cow) != 0) names.Add(Labels?.Cow ?? "Cow");
+        if ((stored.Value & (int)SlaughterAnimalScope.Other) != 0) names.Add("Others");
+        return string.Join(", ", names);
     }
 }

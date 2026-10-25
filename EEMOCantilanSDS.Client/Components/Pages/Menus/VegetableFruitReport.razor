@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
 @using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Domain.Enums
 
@@ -10,7 +11,16 @@
 
 @* Monthly account position and the combined official revenue row are read from the server.
    Daily and historical receipt activity has its own report. The layout owns the <main> landmark. *@
-<ObligationOperationReport Kind="ObligationKind.VegetableFruitSpaceRental" Name="Vegetable / Fruits" ParentHref="/operations/vegetable-fruit"
-                           RowKey="VEGETABLE_FRUIT_SPACE_RENTAL" Classification="Vegetable / Fruits space rental" IdPrefix="vfr" SubjectNoun="Space"
-                           InstrumentFact="Official Receipt for Monthly accounts; Cash Ticket for daily transactions"
-                           Basis="This register shows Monthly account obligations and settlements. The official Vegetable / Fruits row combines Monthly OR, Daily CT and valid historical Whole Payment collections once. Daily transactions have no monthly obligation." />
+<OperationReportsPage Name="Vegetable / Fruits" ParentHref="/operations/vegetable-fruit" RowKey="VEGETABLE_FRUIT_SPACE_RENTAL" SeriesLabel="Rent collected" @bind-Month="_month">
+    <StatusReport>
+        <ObligationOperationReport Kind="ObligationKind.VegetableFruitSpaceRental" Name="Vegetable / Fruits" ParentHref="/operations/vegetable-fruit"
+                                   RowKey="VEGETABLE_FRUIT_SPACE_RENTAL" Classification="Vegetable / Fruits space rental" IdPrefix="vfr" SubjectNoun="Space"
+                                   InstrumentFact="Official Receipt for Monthly accounts; Cash Ticket for daily transactions"
+                                   Basis="This register shows Monthly account obligations and settlements. The official Vegetable / Fruits row combines Monthly OR, Daily CT and valid historical Whole Payment collections once. Daily transactions have no monthly obligation."
+                                   Embedded="true" Year="_month.Year" />
+    </StatusReport>
+</OperationReportsPage>
+
+@code {
+    private DateOnly _month = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
+}

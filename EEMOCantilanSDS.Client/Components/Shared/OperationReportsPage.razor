@@ -1,0 +1,300 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Dtos.Facilities
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Components.Pages.Reports
+@inject IOfficialReportsApiClient OfficialReports
+@inject IJSRuntime JS
+
+@* The facility reports' layout (header, Weekly / Monthly / Yearly / Status Report / History, period navigator, KPI strip,
+   3-D trend chart) for an OPERATION. Presentation is shared; every figure stays the operation's own:
+   - Monthly, Yearly and History read the operation's row of the official Monthly Income (server totals per month). Nothing
+     is added up here; the chart, the KPIs and the history table only place those server cells.
+   - Status Report is the operation's own official report, supplied by the page.
+   - Weekly appears only where the operation has a transaction register to show for a week.
+   The page owns the selected month (two-way bound) so its own report reloads with it. *@
+<header class="orp-topbar no-print">
+    <div class="orp-topbar-left">
+        <a href="@ParentHref" class="orp-back" title="@($"Back to {Name}")" aria-label="@($"Back to {Name}")">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
+        </a>
+        <div class="orp-topbar-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M3 3v18h18" /><rect x="7" y="11" width="3" height="6" /><rect x="12" y="7" width="3" height="10" /><rect x="17" y="13" width="3" height="4" /></svg>
+        </div>
+        <div class="orp-titles">
+            <div class="orp-eyebrow">Operations · Reports</div>
+            <h1 class="orp-title">@Name Reports</h1>
+            <div class="orp-subtitle">@PeriodLabel</div>
+        </div>
+    </div>
+</header>
+
+<div class="orp-period-bar no-print">
+    <div class="orp-tabs" role="group" aria-label="Report view">
+        @if (WeekContent is not null)
+        {
+            <button type="button" class="orp-tab @(_tab == View.Week ? "active" : "")" aria-pressed="@Pressed(View.Week)" @onclick="() => SetTabAsync(View.Week)">Weekly</button>
+        }
+        <button type="button" class="orp-tab @(_tab == View.Month ? "active" : "")" aria-pressed="@Pressed(View.Month)" @onclick="() => SetTabAsync(View.Month)">Monthly</button>
+        <button type="button" class="orp-tab @(_tab == View.Year ? "active" : "")" aria-pressed="@Pressed(View.Year)" @onclick="() => SetTabAsync(View.Year)">Yearly</button>
+        <button type="button" class="orp-tab @(_tab == View.Status ? "active" : "")" aria-pressed="@Pressed(View.Status)" @onclick="() => SetTabAsync(View.Status)">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="8" y1="13" x2="16" y2="13" /><line x1="8" y1="17" x2="16" y2="17" /></svg>
+            <span>Status Report</span>
+        </button>
+        <button type="button" class="orp-tab @(_tab == View.History ? "active" : "")" aria-pressed="@Pressed(View.History)" @onclick="() => SetTabAsync(View.History)">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+            <span>History</span>
+        </button>
+    </div>
+    @if (_tab == View.Week)
+    {
+        <div class="orp-week-nav">
+            <button type="button" class="orp-nav-btn" @onclick="() => MoveWeek(-7)" aria-label="Previous week"><svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg></button>
+            <span class="orp-week-label">@WeekLabel</span>
+            <button type="button" class="orp-nav-btn" @onclick="() => MoveWeek(7)" aria-label="Next week"><svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg></button>
+        </div>
+    }
+    else
+    {
+        <ReportPeriodNav Year="Month.Year" Month="Month.Month" Yearly="@(_tab is View.Year or View.History)" Label="@PeriodLabel"
+                         UtilityMode="@(_tab is View.Status or View.History)"
+                         OnPrev="() => StepAsync(-1)" OnNext="() => StepAsync(1)" OnPick="PickAsync" OnToday="TodayAsync" />
+    }
+</div>
+
+<div class="orp-content">
+    @switch (_tab)
+    {
+        case View.Week:
+            @if (WeekContent is not null)
+            {
+                @WeekContent((_weekStart, _weekStart.AddDays(6)))
+            }
+            break;
+
+        case View.Status:
+            @StatusReport
+            break;
+
+        case View.History:
+            <div class="orp-doc-actions no-print">
+                <button type="button" class="v3-btn" @onclick="PrintAsync">Print</button>
+            </div>
+            <OfficeReportShell Title="@($"{Name} — Collection History")" Period="@Month.Year.ToString(CultureInfo.InvariantCulture)">
+                <div class="v3-table-wrap" tabindex="0" aria-label="Collection history">
+                    <table>
+                        <thead><tr><th>Month</th><th class="office-num">Collected (official)</th><th>Note</th></tr></thead>
+                        <tbody>
+                            @if (Cells(Month.Year) is { } cells)
+                            {
+                                @for (var i = 0; i < cells.Count; i++)
+                                {
+                                    var cell = cells[i];
+                                    <tr>
+                                        <td>@(new DateOnly(Month.Year, i + 1, 1).ToString("MMMM", CultureInfo.InvariantCulture))</td>
+                                        <td class="office-num">@Money(cell.Total)</td>
+                                        <td>@(cell.IsAdjusted ? "Includes an approved report adjustment" : "")</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr><td colspan="3">@(_loading ? "Loading…" : StatementNote(Month.Year))</td></tr>
+                            }
+                        </tbody>
+                        @if (YearTotal(Month.Year) is { } total)
+                        {
+                            <tfoot><tr><td>Total</td><td class="office-num">@Money(total)</td><td>@AttainmentText(Month.Year)</td></tr></tfoot>
+                        }
+                    </table>
+                </div>
+            </OfficeReportShell>
+            break;
+
+        case View.Year:
+            <div class="orp-kpis">
+                <div class="orp-kpi"><span class="orp-kpi-label">Collected · @Month.Year</span><strong class="orp-kpi-value">@MoneyOrDash(YearTotal(Month.Year))</strong><span class="orp-kpi-note">Official Monthly Income</span></div>
+                <div class="orp-kpi"><span class="orp-kpi-label">Annual target</span><strong class="orp-kpi-value">@AttainmentValue(Month.Year)</strong><span class="orp-kpi-note">@TargetNote(Month.Year)</span></div>
+                <div class="orp-kpi"><span class="orp-kpi-label">Best month</span><strong class="orp-kpi-value">@BestMonthValue</strong><span class="orp-kpi-note">@BestMonthLabel</span></div>
+                <div class="orp-kpi"><span class="orp-kpi-label">Months with collections</span><strong class="orp-kpi-value">@MonthsWithCollections</strong><span class="orp-kpi-note">of 12</span></div>
+            </div>
+            <div class="orp-charts">
+                <section class="orp-card orp-card-wide" aria-labelledby="orp-year-trend">
+                    <div class="orp-card-head">
+                        <div><h2 id="orp-year-trend" class="orp-card-title">Collection Trend · @Month.Year</h2><p class="orp-card-sub">Official Monthly Income, month by month</p></div>
+                        <div class="orp-legend"><span><i class="lg-rent"></i>@SeriesLabel</span><span><i class="lg-current"></i>Selected month</span></div>
+                    </div>
+                    <CollectionTrendChart Trend="YearTrend" RentLabel="@SeriesLabel" ShowFish="false" EmptyPeriodLabel="@Month.Year.ToString(CultureInfo.InvariantCulture)" />
+                </section>
+                <section class="orp-card" aria-labelledby="orp-years">
+                    <div class="orp-card-head"><div><h2 id="orp-years" class="orp-card-title">Year Totals</h2><p class="orp-card-sub">The last five years</p></div></div>
+                    <CollectionTrendChart Trend="YearsTrend" RentLabel="@SeriesLabel" ShowFish="false" EmptyPeriodLabel="the last five years" />
+                </section>
+            </div>
+            @YearExtras
+            break;
+
+        default:
+            <div class="orp-kpis">
+                <div class="orp-kpi"><span class="orp-kpi-label">Collected · @MonthName(Month)</span><strong class="orp-kpi-value">@MoneyOrDash(MonthAmount(Month))</strong><span class="orp-kpi-note">Official Monthly Income</span></div>
+                <div class="orp-kpi"><span class="orp-kpi-label">Previous month</span><strong class="orp-kpi-value">@MoneyOrDash(MonthAmount(Month.AddMonths(-1)))</strong><span class="orp-kpi-note">@MonthName(Month.AddMonths(-1))</span></div>
+                <div class="orp-kpi"><span class="orp-kpi-label">Collected · @Month.Year</span><strong class="orp-kpi-value">@MoneyOrDash(YearTotal(Month.Year))</strong><span class="orp-kpi-note">All recorded months</span></div>
+                <div class="orp-kpi"><span class="orp-kpi-label">Annual target</span><strong class="orp-kpi-value">@AttainmentValue(Month.Year)</strong><span class="orp-kpi-note">@TargetNote(Month.Year)</span></div>
+            </div>
+            <section class="orp-card" aria-labelledby="orp-month-trend">
+                <div class="orp-card-head">
+                    <div><h2 id="orp-month-trend" class="orp-card-title">Collection Trend</h2><p class="orp-card-sub">The six months to @MonthName(Month), from the official Monthly Income</p></div>
+                    <div class="orp-legend"><span><i class="lg-rent"></i>@SeriesLabel</span><span><i class="lg-current"></i>Selected month</span></div>
+                </div>
+                <CollectionTrendChart Trend="MonthTrend" RentLabel="@SeriesLabel" ShowFish="false" EmptyPeriodLabel="@MonthName(Month)" />
+            </section>
+            @MonthExtras
+            break;
+    }
+</div>
+
+@code {
+    private enum View { Week, Month, Year, Status, History }
+
+    /// <summary>The operation's display name, e.g. "Market Fees".</summary>
+    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string ParentHref { get; set; } = string.Empty;
+    /// <summary>The operation's row key in the official Monthly Income (e.g. MARKET_FEES).</summary>
+    [Parameter, EditorRequired] public string RowKey { get; set; } = string.Empty;
+    /// <summary>Read the whole official group instead of one row (e.g. TERMINAL, whose three office sections are one line of income).</summary>
+    [Parameter] public string? GroupKey { get; set; }
+    /// <summary>What the bars are, in the operation's words (e.g. "Fees collected", "Rent collected").</summary>
+    [Parameter] public string SeriesLabel { get; set; } = "Collected";
+
+    /// <summary>The selected month (first day). Bound two-way with the page, whose own report reads it.</summary>
+    [Parameter] public DateOnly Month { get; set; } = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
+    [Parameter] public EventCallback<DateOnly> MonthChanged { get; set; }
+
+    [Parameter, EditorRequired] public RenderFragment StatusReport { get; set; } = default!;
+    /// <summary>A week's view (its register), given the Monday and Sunday of the week. Without it there is no Weekly tab.</summary>
+    [Parameter] public RenderFragment<(DateOnly From, DateOnly To)>? WeekContent { get; set; }
+    /// <summary>The operation's own cards under the monthly chart (fee types, weighing, …).</summary>
+    [Parameter] public RenderFragment? MonthExtras { get; set; }
+    [Parameter] public RenderFragment? YearExtras { get; set; }
+
+    private View _tab = View.Month;
+    private DateOnly _weekStart = StartOfWeek(PhilippineTime.Today);
+    private readonly Dictionary<int, OfficialMonthlyIncomeDto?> _statements = new();
+    private readonly HashSet<int> _failed = new();
+    private bool _loading;
+
+    protected override Task OnParametersSetAsync() => EnsureYearsAsync();
+
+    private string Pressed(View v) => _tab == v ? "true" : "false";
+
+    private string PeriodLabel => _tab switch
+    {
+        View.Week => WeekLabel,
+        View.Year => Month.Year.ToString(CultureInfo.InvariantCulture),
+        View.History => $"History · {Month.Year}",
+        View.Status => $"Status Report · {MonthName(Month)}",
+        _ => MonthName(Month),
+    };
+
+    private string WeekLabel => $"{_weekStart:MMM d} – {_weekStart.AddDays(6):MMM d, yyyy}";
+
+    private async Task SetTabAsync(View v) { _tab = v; await EnsureYearsAsync(); }
+
+    private async Task StepAsync(int step)
+    {
+        var next = _tab is View.Year or View.History ? Month.AddYears(step) : Month.AddMonths(step);
+        await SetMonthAsync(next);
+    }
+    private Task PickAsync((int Year, int Month) p) => SetMonthAsync(new DateOnly(p.Year, p.Month, 1));
+    private Task TodayAsync() => SetMonthAsync(new DateOnly(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1));
+
+    private async Task SetMonthAsync(DateOnly month)
+    {
+        Month = new DateOnly(month.Year, month.Month, 1);
+        await MonthChanged.InvokeAsync(Month);
+        await EnsureYearsAsync();
+    }
+
+    private void MoveWeek(int days) => _weekStart = _weekStart.AddDays(days);
+    private static DateOnly StartOfWeek(DateOnly d) => d.AddDays(-(((int)d.DayOfWeek + 6) % 7));
+
+    // The statements a view needs: the month view reaches back six months (possibly into the prior year); the year view five years.
+    private IEnumerable<int> YearsNeeded() => _tab switch
+    {
+        View.Year => Enumerable.Range(Month.Year - 4, 5),
+        View.Month => new[] { Month.Year, Month.AddMonths(-5).Year }.Distinct(),
+        View.History => new[] { Month.Year },
+        _ => Array.Empty<int>(),
+    };
+
+    private async Task EnsureYearsAsync()
+    {
+        var missing = YearsNeeded().Where(y => !_statements.ContainsKey(y)).ToList();
+        if (missing.Count == 0) return;
+        _loading = true;
+        try
+        {
+            foreach (var year in missing)
+            {
+                try
+                {
+                    var result = await OfficialReports.GetMonthlyIncomeAsync(year, null);
+                    _statements[year] = result is { IsSuccess: true, Value: { } s } ? s : null;
+                    if (_statements[year] is null) _failed.Add(year);
+                }
+                catch
+                {
+                    _statements[year] = null;
+                    _failed.Add(year);
+                }
+            }
+        }
+        finally { _loading = false; }
+    }
+
+    // ── The operation's row (or official group) in a year's statement. Nothing is computed from it but its placement. ──
+    private OfficialMonthlyIncomeRowDto? Row(int year) =>
+        _statements.GetValueOrDefault(year)?.Groups.SelectMany(g => g.Rows).FirstOrDefault(r => r.Key == RowKey);
+    private OfficialMonthlyIncomeGroupDto? Group(int year) =>
+        GroupKey is null ? null : _statements.GetValueOrDefault(year)?.Groups.FirstOrDefault(g => g.Key == GroupKey);
+
+    private IReadOnlyList<MonthlyIncomeCellDto>? Cells(int year) => Group(year)?.MonthTotals ?? Row(year)?.Months;
+    private decimal? YearTotal(int year) => Group(year)?.Total.Total ?? Row(year)?.Total.Total;
+    private decimal? MonthAmount(DateOnly month) => Cells(month.Year) is { Count: >= 12 } cells ? cells[month.Month - 1].Total : null;
+
+    private string AttainmentValue(int year) =>
+        GroupKey is null && Row(year) is { AnnualTarget: not null, Attainment: { } a } ? a.ToString("N1", CultureInfo.InvariantCulture) + "%" : "—";
+    private string TargetNote(int year) =>
+        GroupKey is null && Row(year) is { AnnualTarget: { } t } ? $"of {Money(t)} approved" : "No approved target";
+    private string AttainmentText(int year) =>
+        GroupKey is null && Row(year) is { AnnualTarget: { } t, Attainment: { } a } ? $"{a.ToString("N1", CultureInfo.InvariantCulture)}% of the {Money(t)} annual target" : "";
+
+    private string StatementNote(int year) => _failed.Contains(year)
+        ? "The official Monthly Income could not be read; no figure is available."
+        : $"This operation has no row in the {year} statement; no figure is available.";
+
+    private IReadOnlyList<RevenueTrendDto> MonthTrend => Enumerable.Range(0, 6)
+        .Select(i => Month.AddMonths(i - 5))
+        .Select(m => new RevenueTrendDto(m.ToString(m.Month == 1 || m == Month.AddMonths(-5) ? "MMM yyyy" : "MMM", CultureInfo.InvariantCulture), MonthAmount(m) ?? 0m, 0m, m == Month))
+        .ToList();
+
+    private IReadOnlyList<RevenueTrendDto> YearTrend => Cells(Month.Year) is { Count: >= 12 } cells
+        ? cells.Select((c, i) => new RevenueTrendDto(new DateOnly(Month.Year, i + 1, 1).ToString("MMM", CultureInfo.InvariantCulture), c.Total, 0m, i + 1 == Month.Month)).ToList()
+        : [];
+
+    private IReadOnlyList<RevenueTrendDto> YearsTrend => Enumerable.Range(Month.Year - 4, 5)
+        .Select(y => new RevenueTrendDto(y.ToString(CultureInfo.InvariantCulture), YearTotal(y) ?? 0m, 0m, y == Month.Year))
+        .ToList();
+
+    private (int Index, decimal Amount)? BestMonth => Cells(Month.Year) is { Count: >= 12 } cells && cells.Any(c => c.Total > 0m)
+        ? cells.Select((c, i) => (i, c.Total)).OrderByDescending(x => x.Total).First()
+        : null;
+    private string BestMonthValue => BestMonth is { } b ? Money(b.Amount) : "—";
+    private string BestMonthLabel => BestMonth is { } b ? new DateOnly(Month.Year, b.Index + 1, 1).ToString("MMMM", CultureInfo.InvariantCulture) : "No collections recorded";
+    private string MonthsWithCollections => Cells(Month.Year) is { } cells ? cells.Count(c => c.Total > 0m).ToString(CultureInfo.InvariantCulture) : "—";
+
+    private Task PrintAsync() => JS.InvokeVoidAsync("print").AsTask();
+
+    private static string MonthName(DateOnly d) => d.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+    private static string Money(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
+    private static string MoneyOrDash(decimal? amount) => amount is { } a ? Money(a) : "—";
+}

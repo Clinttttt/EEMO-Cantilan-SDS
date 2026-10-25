@@ -8,8 +8,17 @@
 
 <PageTitle>StallTrack — Fish | Meat Vendor Fees Report</PageTitle>
 
-@* Fish | Meat Vendor Fees report: the standard operation-report shell with an obligation body (ObligationOperationReport). The layout owns the
+@* Fish | Meat Vendor Fees report: the operation reports layout (Monthly, Yearly, Status Report, History) around its obligation report (ObligationOperationReport). The layout owns the
    <main> landmark. *@
-<ObligationOperationReport Kind="ObligationKind.FishMeatVendorFee" Name="Fish | Meat Vendor Fees" ParentHref="/operations/fish-meat-vendor-fees" RowKey="FISH_MEAT_VENDOR_FEE" Classification="Fish / Meat Vendor Fees"
-                           SubjectNoun="Stall" IdPrefix="fmvr" HistoricalPosition="@(PhilippineTime.Today >= FishMeatVendorFeeRules.DirectEffectiveDate)"
-                           Basis="Additional vendor fee received, separate from NPM stall rent and Weight &amp; Measure. Earlier monthly accounts remain historical." />
+<OperationReportsPage Name="Fish | Meat Vendor Fees" ParentHref="/operations/fish-meat-vendor-fees" RowKey="FISH_MEAT_VENDOR_FEE" SeriesLabel="Fees collected" @bind-Month="_month">
+    <StatusReport>
+        <ObligationOperationReport Kind="ObligationKind.FishMeatVendorFee" Name="Fish | Meat Vendor Fees" ParentHref="/operations/fish-meat-vendor-fees" RowKey="FISH_MEAT_VENDOR_FEE" Classification="Fish / Meat Vendor Fees"
+                                   SubjectNoun="Stall" IdPrefix="fmvr" HistoricalPosition="@(PhilippineTime.Today >= FishMeatVendorFeeRules.DirectEffectiveDate)"
+                                   Basis="Additional vendor fee received, separate from NPM stall rent and Weight &amp; Measure. Earlier monthly accounts remain historical."
+                                   Embedded="true" Year="_month.Year" />
+    </StatusReport>
+</OperationReportsPage>
+
+@code {
+    private DateOnly _month = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
+}

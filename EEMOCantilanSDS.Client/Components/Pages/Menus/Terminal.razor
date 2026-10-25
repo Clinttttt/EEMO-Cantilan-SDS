@@ -33,6 +33,17 @@
             <V3HeroFigure Label="Collections today" Value="@(IsCurrentMonth ? TodayRows.Count().ToString("N0") : "—")" />
         </Figures>
         <Actions>
+            @if (_terminalSettings.Count > 0)
+            {
+                <AuthorizeView Roles="SuperAdmin">
+                    <Authorized>
+                        <button class="v3-btn" type="button" @onclick="OpenSectionSettings">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" /></svg>
+                            Sections
+                        </button>
+                    </Authorized>
+                </AuthorizeView>
+            }
             <a class="v3-btn" href="/collections/activity">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4" /></svg>
                 Collection Activity
@@ -52,42 +63,6 @@
         </div>
     }
 
-    <AuthorizeView Roles="SuperAdmin">
-        <Authorized>
-            @if (_terminalSettings.Count > 0)
-            {
-                <section class="v3-panel trm2-settings" aria-labelledby="terminal-settings-title">
-                    <header class="v3-panel-header">
-                        <h2 id="terminal-settings-title">Terminal sections</h2>
-                        <button type="button" class="v3-btn v3-btn-sm" @onclick="() => _showSectionSettings = !_showSectionSettings"
-                            aria-expanded="@_showSectionSettings">@(_showSectionSettings ? "Close" : "Configure")</button>
-                    </header>
-                    @if (_showSectionSettings)
-                    {
-                        <div class="trm2-settings-body">
-                            <p class="v3-muted">Disable a section to stop new collections. Historical amounts remain in reporting. No setting grants Cash Ticket authority.</p>
-                            @foreach (var item in _terminalSettings)
-                            {
-                                <div class="trm2-settings-row" @key="item.Section">
-                                    <label class="trm2-settings-label"><input type="checkbox" checked="@item.IsEnabled"
-                                        @onchange="e => EditSection(item.Section, enabled: e.Value is true)" /> @OfficeCollectionWorkflow.SectionName(item.Section)</label>
-                                    <input class="v3-input trm2-settings-input" aria-label="@($"Local name for {item.Section}")" maxlength="80"
-                                        value="@item.LocalDisplayName" @oninput="e => EditSection(item.Section, name: e.Value?.ToString())"
-                                        placeholder="@OfficeCollectionWorkflow.SectionName(item.Section)" />
-                                    <button class="v3-btn v3-btn-sm" type="button" disabled="@_savingSection"
-                                        @onclick="() => SaveSectionAsync(item.Section)">Save</button>
-                                </div>
-                            }
-                            @if (!string.IsNullOrWhiteSpace(_sectionSaveMessage))
-                            {
-                                <p class="v3-muted" role="status">@_sectionSaveMessage</p>
-                            }
-                        </div>
-                    }
-                </section>
-            }
-        </Authorized>
-    </AuthorizeView>
 
     @* The three office sections side by side: each card carries the section's month total, its share of Terminal income and today's amount. *@
     <section aria-labelledby="trm2-sections-title" aria-busy="@(_loading ? "true" : "false")">
@@ -209,6 +184,54 @@
     <VehicleClassRates ChooseSection="true" OnClassAdded="ClassAddedAsync" />
 </div>
 
+@* Terminal sections live in a drawer: which sections collect and what the office calls them. Head only. *@
+@if (_showSectionSettings)
+{
+    <AuthorizeView Roles="SuperAdmin">
+        <Authorized>
+            <div class="v3-modal-backdrop v3-drawer-backdrop" role="presentation" @onclick="CloseSectionSettings">
+                <section class="v3-modal v3-drawer trm2-drawer" role="dialog" aria-modal="true" aria-labelledby="terminal-settings-title"
+                         @onclick:stopPropagation="true" @onkeydown="OnSectionSettingsKey">
+                    <header class="v3-modal-header">
+                        <h2 id="terminal-settings-title">Terminal sections</h2>
+                        <button class="trm2-drawer-close" type="button" aria-label="Close Terminal sections" @onclick="CloseSectionSettings">×</button>
+                    </header>
+                    <div class="v3-modal-body">
+                        <p class="trm2-drawer-note">A stopped section takes no new collections; its history stays in reporting.</p>
+                        <ul class="trm2-settings-list">
+                            @foreach (var item in _terminalSettings)
+                            {
+                                <li class="trm2-settings-row" @key="item.Section">
+                                    <div class="trm2-settings-head">
+                                        <span class="trm2-settings-name">@OfficeCollectionWorkflow.SectionName(item.Section)</span>
+                                        <label class="trm2-switch">
+                                            <input type="checkbox" role="switch" checked="@item.IsEnabled"
+                                                @onchange="e => EditSection(item.Section, enabled: e.Value is true)" />
+                                            <span class="trm2-switch-track" aria-hidden="true"></span>
+                                            <span class="trm2-switch-text">@(item.IsEnabled ? "Collecting" : "Stopped")</span>
+                                        </label>
+                                    </div>
+                                    <div class="trm2-settings-edit">
+                                        <input class="v3-input" aria-label="@($"Local name for {item.Section}")" maxlength="80"
+                                            value="@item.LocalDisplayName" @oninput="e => EditSection(item.Section, name: e.Value?.ToString())"
+                                            placeholder="Local name (optional)" />
+                                        <button class="v3-btn" type="button" disabled="@_savingSection"
+                                            @onclick="() => SaveSectionAsync(item.Section)">Save</button>
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                        @if (!string.IsNullOrWhiteSpace(_sectionSaveMessage))
+                        {
+                            <p class="trm2-drawer-note" role="status">@_sectionSaveMessage</p>
+                        }
+                    </div>
+                </section>
+            </div>
+        </Authorized>
+    </AuthorizeView>
+}
+
 @code {
     private static DateOnly Today => PhilippineTime.Today;
     private IReadOnlyList<TerminalSection> Sections => Enum.GetValues<TerminalSection>()
@@ -217,6 +240,9 @@
 
     private List<TerminalSectionSettingsStore.SectionView> _terminalSettings = [];
     private bool _showSectionSettings;
+    private void OpenSectionSettings() { _sectionSaveMessage = null; _showSectionSettings = true; }
+    private void CloseSectionSettings() => _showSectionSettings = false;
+    private void OnSectionSettingsKey(KeyboardEventArgs e) { if (e.Key == "Escape") CloseSectionSettings(); }
     private bool _savingSection;
     private string? _sectionSaveMessage;
     private string SectionDisplayName(TerminalSection section) =>

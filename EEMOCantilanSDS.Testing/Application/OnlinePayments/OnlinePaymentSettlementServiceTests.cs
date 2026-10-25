@@ -205,6 +205,34 @@ public class OnlinePaymentSettlementServiceTests
         // The monthly-record path is never used for an NPM transaction.
         payRepo.Verify(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
         payRepo.Verify(r => r.UpdateAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+        // An elapsed-days checkout keeps the elapsed-days rule: it must never be settled as the whole month.
+        npm.Verify(s => s.SettleWholeMonthAsync(It.IsAny<Stall>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<Guid?>(), It.IsAny<string>(), It.IsAny<CancellationToken>(), It.IsAny<decimal?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task NpmWholeMonthTransaction_SettlesTheRestOfTheMonth_WithinTheCapturedAmount()
+    {
+        var stall = Stall.Create(Guid.NewGuid(), "3", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        var txn = OnlinePaymentTransaction.CreateForNpmMonth("EEMO-OP-NPM-WM", Guid.NewGuid(), stall.Id, 2026, 6, 840m, "PayMongo", wholeMonth: true);
+        txn.SetPending("cs_npm_wm", "https://checkout");
+
+        var stallRepo = new Mock<IStallRepository>();
+        stallRepo.Setup(r => r.GetByIdAsync(stall.Id, It.IsAny<CancellationToken>())).ReturnsAsync(stall);
+        var npm = new Mock<INpmMonthSettlementService>();
+        npm.Setup(s => s.SettleWholeMonthAsync(stall, 2026, 6, null, "Online", It.IsAny<CancellationToken>(), 840m))
+            .ReturnsAsync(Array.Empty<DailyCollection>());
+        var uow = new Mock<IUnitOfWork>();
+
+        var svc = new OnlinePaymentSettlementService(
+            new Mock<IPaymentRepository>().Object, stallRepo.Object, npm.Object, new Mock<IUtilityBillRepository>().Object,
+            new Mock<IOnlinePaymentNotifier>().Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
+
+        var result = await svc.SettleAsync(txn, new PaymentGatewayEvent(PaymentGatewayEventType.Paid, "cs_npm_wm", 840m, "pay_wm", "qrph", DateTime.UtcNow, "{}"));
+
+        Assert.True(result.IsSuccess);
+        npm.Verify(s => s.SettleWholeMonthAsync(stall, 2026, 6, null, "Online", It.IsAny<CancellationToken>(), 840m), Times.Once);
+        npm.Verify(s => s.SettleUnpaidDaysAsync(It.IsAny<Stall>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<Guid?>(), It.IsAny<string>(), It.IsAny<CancellationToken>(), It.IsAny<decimal?>()), Times.Never);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

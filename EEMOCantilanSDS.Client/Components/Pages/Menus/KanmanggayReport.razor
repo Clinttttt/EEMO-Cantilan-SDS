@@ -2,11 +2,21 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
 @using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
 
 <PageTitle>StallTrack — Kanmanggay Report</PageTitle>
 
-@* Kanmanggay report: the standard operation-report shell with an obligation body (ObligationOperationReport). The layout owns the
+@* Kanmanggay report: the operation reports layout (Monthly, Yearly, Status Report, History) around its obligation report (ObligationOperationReport). The layout owns the
    <main> landmark. *@
-<ObligationOperationReport Kind="ObligationKind.KanmanggaySpaceRental" Name="Kanmanggay" ParentHref="/operations/kanmanggay" RowKey="KANMANGGAY_SPACE_RENTAL" Classification="Kanmanggay space rental"
-                           SubjectNoun="Space" IdPrefix="kgr" Basis="Monthly space-rental obligation per space." />
+<OperationReportsPage Name="Kanmanggay" ParentHref="/operations/kanmanggay" RowKey="KANMANGGAY_SPACE_RENTAL" SeriesLabel="Rent collected" @bind-Month="_month">
+    <StatusReport>
+        <ObligationOperationReport Kind="ObligationKind.KanmanggaySpaceRental" Name="Kanmanggay" ParentHref="/operations/kanmanggay" RowKey="KANMANGGAY_SPACE_RENTAL" Classification="Kanmanggay space rental"
+                                   SubjectNoun="Space" IdPrefix="kgr" Basis="Monthly space-rental obligation per space."
+                                   Embedded="true" Year="_month.Year" />
+    </StatusReport>
+</OperationReportsPage>
+
+@code {
+    private DateOnly _month = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
+}

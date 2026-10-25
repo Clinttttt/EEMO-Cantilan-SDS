@@ -79,7 +79,8 @@ public class InitiateOnlinePaymentCommandHandler(
         }
         else
         {
-            record = PaymentRecord.Create(request.StallId, request.Year, request.Month, stall.MonthlyRate, "Online");
+            record = PaymentRecord.Create(request.StallId, request.Year, request.Month,
+                stall.MonthlyRentFor(request.Year, request.Month, clock.PhilippineToday), "Online");
             isNewRecord = true;
         }
 
@@ -147,8 +148,8 @@ public class InitiateOnlinePaymentCommandHandler(
             new InitiateOnlinePaymentResultDto(checkout.Value.CheckoutUrl, reference));
     }
 
-    // NPM daily-month checkout: amount = base ₱30 × the month's unpaid, elapsed, in-term, non-closed days
-    // (from the shared settlement service, so the charge equals what settlement will mark). No PaymentRecord.
+    // NPM stall-rent checkout: the rest of the month's rent (or, when the payor names a day count, those earliest days),
+    // from the shared settlement service, so the charge equals what settlement will mark. No PaymentRecord.
     private async Task<Result<InitiateOnlinePaymentResultDto>> InitiateNpmAsync(
         Domain.Entities.Facilities.Stall stall, Guid payorId, InitiateOnlinePaymentCommand request, CancellationToken cancellationToken)
     {
@@ -167,15 +168,23 @@ public class InitiateOnlinePaymentCommandHandler(
             return Result<InitiateOnlinePaymentResultDto>.Failure(
                 FeeRateMessages.NotStated(FeeRateKey.NpmDailyStall), ResultStatus.Conflict);
 
-        var payable = request.Days is { } askedDays && askedDays > 0
-            ? await npmMonthSettlementService.ComputePayableForDaysAsync(stall, request.Year, request.Month, askedDays, cancellationToken)
-            : await npmMonthSettlementService.ComputePayableAsync(stall, request.Year, request.Month, cancellationToken);
+        // Online stall rent is the REST of the month (Clint, 2026-10-25): ₱900, or ₱840 once ₱60 was collected, never the
+        // elapsed days alone. The same quote the office's whole-payment path uses, so the charge equals what settlement marks.
+        // A payor-chosen day count is still honoured as it was.
+        var wholeMonth = request.Days is not { } requestedDays || requestedDays <= 0;
+        // The rest of THIS month or an earlier one - never a month that has not begun, which the elapsed-days quote also never priced.
+        var today = clock.PhilippineToday;
+        if (wholeMonth && (request.Year, request.Month).CompareTo((today.Year, today.Month)) > 0)
+            return Result<InitiateOnlinePaymentResultDto>.Failure("This period has no outstanding daily balance.", ResultStatus.Conflict);
+        var payable = !wholeMonth
+            ? await npmMonthSettlementService.ComputePayableForDaysAsync(stall, request.Year, request.Month, request.Days!.Value, cancellationToken)
+            : await npmMonthSettlementService.ComputeWholeMonthPayableAsync(stall, request.Year, request.Month, cancellationToken);
 
         // Asked for a number of days and the month cannot answer for that many: some were collected at the stall since
         // the payor looked, or the month has closed and is settled as one figure. Refused rather than quietly charging
         // for a different number of days than the payor was shown, which is the same rule the stale-checkout guard below
         // applies to money.
-        if (request.Days is { } asked && payable.Days != asked)
+        if (!wholeMonth && payable.Days != request.Days)
             return Result<InitiateOnlinePaymentResultDto>.Failure(
                 "Those days have changed since you last looked. Reload your balances and try again.", ResultStatus.Conflict);
 
@@ -188,7 +197,8 @@ public class InitiateOnlinePaymentCommandHandler(
         // asks for the same money. A market stall owes another day's fee every day, so a session opened earlier in the
         // month is priced for fewer days than the payor now owes: that is how the balance read ₱240 and the gateway
         // charged ₱180 for a session started two days before.
-        var resumable = await onlinePaymentRepository.GetResumableNpmTransactionAsync(stall.Id, request.Year, request.Month, OnlinePaymentTargetKind.NpmDailyMonth, cancellationToken);
+        var kind = wholeMonth ? OnlinePaymentTargetKind.NpmWholeMonth : OnlinePaymentTargetKind.NpmDailyMonth;
+        var resumable = await onlinePaymentRepository.GetResumableNpmTransactionAsync(stall.Id, request.Year, request.Month, kind, cancellationToken);
         if (resumable is { IsResumable: true })
         {
             if (resumable.Amount == payable.Amount)
@@ -198,6 +208,13 @@ public class InitiateOnlinePaymentCommandHandler(
             resumable.MarkExpired(StaleCheckoutNote(resumable.Amount, payable.Amount));
         }
 
+        // An open checkout of the OTHER kind for the same month is retired too: a payor holding both links could otherwise
+        // pay the same days twice.
+        var otherKind = wholeMonth ? OnlinePaymentTargetKind.NpmDailyMonth : OnlinePaymentTargetKind.NpmWholeMonth;
+        if (await onlinePaymentRepository.GetResumableNpmTransactionAsync(stall.Id, request.Year, request.Month, otherKind, cancellationToken)
+            is { IsResumable: true } other)
+            other.MarkExpired(StaleCheckoutNote(other.Amount, payable.Amount));
+
         string reference;
         do
         {
@@ -206,14 +223,14 @@ public class InitiateOnlinePaymentCommandHandler(
         while (await onlinePaymentRepository.ReferenceExistsAsync(reference, cancellationToken));
 
         var transaction = OnlinePaymentTransaction.CreateForNpmMonth(
-            reference, payorId, stall.Id, request.Year, request.Month, payable.Amount, paymentGateway.Provider);
+            reference, payorId, stall.Id, request.Year, request.Month, payable.Amount, paymentGateway.Provider, wholeMonth: wholeMonth);
 
         var periodKey = $"{request.Year:0000}-{request.Month:00}";
         // A part-month payment says how many days it covers, so the line on the gateway and on the office's own record
         // reads as what it is rather than as a month settled short.
-        var description = request.Days is { } paidDays
-            ? $"MEEDO online payment · NPM daily · {periodKey} · {paidDays} {(paidDays == 1 ? "day" : "days")}"
-            : $"MEEDO online payment · NPM daily · {periodKey}";
+        var description = !wholeMonth
+            ? $"MEEDO online payment · NPM daily · {periodKey} · {request.Days} {(request.Days == 1 ? "day" : "days")}"
+            : $"MEEDO online payment · NPM stall rent · {periodKey}";
         var checkout = await paymentGateway.CreateCheckoutSessionAsync(
             new CreateCheckoutSessionRequest(
                 payable.Amount,

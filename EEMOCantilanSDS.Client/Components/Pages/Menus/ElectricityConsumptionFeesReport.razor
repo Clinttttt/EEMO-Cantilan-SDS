@@ -14,16 +14,10 @@
 @* Printable ECF report. Every figure is either the server's own obligation data for the selected billing month or is
    shown as unavailable ("—"). Nothing is sample data, and no target, rate or percentage is invented. The letterhead is
    the tenant's. The layout owns the <main> landmark. *@
-<div class="v3-page">
-    <div class="no-print">
-        <WorkspaceHeader Parent="Electricity Consumption Fees" ParentHref="/operations/ecf" Title="ECF Report" Code="ECF">
-            <Meta><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
-            <Actions>
-                <label class="v3-period">
-                    <span>Month</span>
-                    <input class="v3-input" type="month" aria-label="Billing month" value="@_monthInput" @onchange="ChangeMonthAsync" />
-                </label>
-                <div class="v3-btn-group" role="group" aria-label="Report actions">
+<OperationReportsPage Name="Electricity Consumption Fees" ParentHref="/operations/ecf" RowKey="ECF" SeriesLabel="Fees collected" Month="ShellMonth" MonthChanged="OnShellMonthAsync">
+<StatusReport>
+<div class="v3-page orp-embedded">
+    <div class="v3-btn-group no-print orp-embedded-actions" role="group" aria-label="Report actions">
                     <button class="v3-btn" type="button" @onclick="PrintAsync" disabled="@(!Ready)">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5" /><path d="M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" /><path d="M7 14h10v7H7z" /></svg>
                         Print
@@ -40,9 +34,6 @@
                         <button class="v3-btn" type="button" disabled>Export CSV</button>
                     }
                 </div>
-            </Actions>
-        </WorkspaceHeader>
-    </div>
 
     @if (_error is not null)
     {
@@ -117,8 +108,19 @@
         </section>
     </article>
 </div>
+</StatusReport>
+</OperationReportsPage>
 
 @code {
+    private DateOnly ShellMonth => new(_period.Year, _period.Month, 1);
+
+    private async Task OnShellMonthAsync(DateOnly month)
+    {
+        _period = month;
+        _monthInput = month.ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture);
+        await LoadAsync();
+    }
+
     private DateOnly _period = PhilippineTime.Today;
     private string _monthInput = PhilippineTime.Today.ToString("yyyy-MM");
     private List<EcfObligationQuoteDto> _quotes = [];
@@ -136,16 +138,6 @@
     private decimal TotalOutstanding => _quotes.Sum(x => x.OutstandingAmount);
 
     protected override Task OnInitializedAsync() => LoadAsync();
-
-    private async Task ChangeMonthAsync(ChangeEventArgs args)
-    {
-        if (DateOnly.TryParseExact(args.Value?.ToString() + "-01", "yyyy-MM-dd", out var parsed))
-        {
-            _period = parsed;
-            _monthInput = parsed.ToString("yyyy-MM");
-            await LoadAsync();
-        }
-    }
 
     private async Task LoadAsync()
     {

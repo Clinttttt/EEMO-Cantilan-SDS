@@ -10,6 +10,7 @@
 @using EEMOCantilanSDS.Domain.Enums
 @inject IRemittancesApiClient Api
 @inject IJSRuntime JS
+@inject EEMOCantilanSDS.Client.Services.BrandingState Branding
 
 <PageTitle>StallTrack — Remittance</PageTitle>
 
@@ -18,10 +19,15 @@
    creates and changes nothing. The layout owns the <main> landmark. *@
 <div class="v3-page rm-page">
     <header class="rs-header no-print">
-        <div><a href="/remittances">Remittance &amp; Liquidation</a>
+        <div class="rs-header-text">
+            <a class="rs-crumb" href="/remittances">Remittance &amp; Liquidation</a>
             <h1>Remittance @if (_data?.StatusLabel is "Voided" or "Partly voided") { <span class="rs-status">@_data.StatusLabel</span> }</h1>
-            <p>@Subtitle</p></div>
-        <button class="v3-btn" type="button" @onclick="PrintAsync">Print summary</button>
+            <p>@Subtitle</p>
+        </div>
+        <div class="rs-header-actions">
+            <a class="v3-btn" href="/remittances">Back</a>
+            <button class="v3-btn v3-btn-primary" type="button" @onclick="PrintAsync">Print summary</button>
+        </div>
     </header>
 
     @if (!string.IsNullOrWhiteSpace(_error))
@@ -84,40 +90,56 @@
 
         @foreach (var item in d.Remittances)
         {
-            <section class="v3-panel" aria-label="@($"Collections covered for {item.Row.CollectorName}")" @key="item.Row.Id">
+            <section class="v3-panel rs-collector" aria-label="@($"Collections covered for {item.Row.CollectorName}")" @key="item.Row.Id">
                 <header class="v3-panel-header">
                     <h2>@item.Row.CollectorName</h2>
-                    <span class="v3-panel-meta">@item.Row.CollectionCount collections</span>
+                    <span class="v3-panel-meta">@item.Row.CollectionCount collections · @Money(item.Row.ExpectedAmount)</span>
                 </header>
-                <dl class="v3-facts"><div><dt>Recorded by</dt><dd>@item.RecordedBy · @item.Row.RecordedAtUtc.ToLocalTime().ToString("MMM d, yyyy h:mm tt", CultureInfo.InvariantCulture)</dd></div>
-                    <div><dt>Instrument</dt><dd>@InstrumentLabel(item.Row.Instrument)</dd></div>
-                    @if (!string.IsNullOrWhiteSpace(item.VoidReason)) { <div><dt>Void reason</dt><dd>@item.VoidReason</dd></div> }</dl>
-                <div class="v3-table-wrap rs-covered" role="region" aria-label="@($"Collections of {item.Row.CollectorName}")" tabindex="0">
-                    <table class="v3-table">
-                        <thead>
-                            <tr><th scope="col">Date</th><th scope="col">Source</th><th scope="col">Payer</th><th scope="col" class="v3-num">Amount</th><th scope="col">Reference</th></tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var collection in item.Collections)
-                            {
-                                <tr>
-                                    <td>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
-                                    <td>@SourceLabel(collection)</td>
-                                    <td>@(string.IsNullOrWhiteSpace(collection.PayerName) ? "—" : collection.PayerName)</td>
-                                    <td class="v3-num">@Money(collection.NetAmount)</td>
-                                    <td class="rm-trace">@collection.ReferenceCode</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-                <div class="rs-breakdown"><h3>Collection breakdown</h3>
-                    <table class="v3-table"><tbody>@foreach (var line in item.Breakdown)
-                        { <tr><td>@EEMOCantilanSDS.Client.Services.SourceNames.For(line.Name)</td><td class="v3-num">@Money(line.Amount)</td></tr> }</tbody>
-                        <tfoot><tr><th>Total collected</th><td class="v3-num">@Money(item.Row.ExpectedAmount)</td></tr></tfoot></table>
+                <p class="rs-meta">
+                    <span>Recorded by <strong>@item.RecordedBy</strong> · @item.Row.RecordedAtUtc.ToLocalTime().ToString("MMM d, yyyy h:mm tt", CultureInfo.InvariantCulture)</span>
+                    <span>@InstrumentLabel(item.Row.Instrument)</span>
+                    @if (!string.IsNullOrWhiteSpace(item.VoidReason)) { <span class="rm-diff-flag">Voided · @item.VoidReason</span> }
+                </p>
+                <div class="rs-collector-body">
+                    <div class="v3-table-wrap rs-covered" role="region" aria-label="@($"Collections of {item.Row.CollectorName}")" tabindex="0">
+                        <table class="v3-table">
+                            <thead>
+                                <tr><th scope="col">Date</th><th scope="col">Source</th><th scope="col">Payer</th><th scope="col" class="v3-num">Amount</th><th scope="col">Reference</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var collection in item.Collections)
+                                {
+                                    <tr>
+                                        <td class="rs-date">@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
+                                        <td>@SourceLabel(collection)</td>
+                                        <td>@(string.IsNullOrWhiteSpace(collection.PayerName) ? "—" : collection.PayerName)</td>
+                                        <td class="v3-num">@Money(collection.NetAmount)</td>
+                                        <td class="rm-trace">@collection.ReferenceCode</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="rs-breakdown">
+                        <h3>By source</h3>
+                        <table class="rs-breakdown-table">
+                            <tbody>
+                                @foreach (var line in item.Breakdown)
+                                {
+                                    <tr><td>@EEMOCantilanSDS.Client.Services.SourceNames.For(line.Name)</td><td class="v3-num">@Money(line.Amount)</td></tr>
+                                }
+                            </tbody>
+                            <tfoot><tr><th scope="row">Total collected</th><td class="v3-num">@Money(item.Row.ExpectedAmount)</td></tr></tfoot>
+                        </table>
+                    </div>
                 </div>
             </section>
         }
+
+        @* On paper the summary closes with the office's signatories, as every official sheet does. *@
+        <div class="rm-print-sign" aria-hidden="true">
+            <OfficialSignatories Configured="@Signatories" />
+        </div>
     }
 </div>
 
@@ -133,6 +155,14 @@
 
     private string? Subtitle => _data is null ? null
         : $"{_data.Remittances.Count} collectors · {_data.RemittanceDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}";
+
+    // The office's configured report signatories (cached branding); the sheet prints Prepared by and Certified Correct.
+    private IReadOnlyList<EEMOCantilanSDS.Application.Command.Municipalities.SetReportSignatories.ReportSignatoryDto> Signatories =>
+        Branding.Signatories
+            .Where(s => OfficialSignatories.OfficialRoles.Contains(s.Caption, StringComparer.OrdinalIgnoreCase))
+            .Select(s => new EEMOCantilanSDS.Application.Command.Municipalities.SetReportSignatories.ReportSignatoryDto(s.Caption, s.Name, s.Title)).ToList();
+
+    protected override async Task OnInitializedAsync() => await Branding.EnsureLoadedAsync();
 
     protected override async Task OnParametersSetAsync()
     {

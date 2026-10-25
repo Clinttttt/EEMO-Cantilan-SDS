@@ -99,30 +99,30 @@
     }
 
     <section class="v3-panel" aria-labelledby="sh-register-title" aria-busy="@(isLoading ? "true" : "false")">
-        <header class="v3-panel-header">
+        @* Title, filters and the one action share the header row, so the register starts straight under it. *@
+        <header class="v3-panel-header sh-register-head">
             <h2 id="sh-register-title">Transactions</h2>
-            <button class="v3-btn v3-btn-primary v3-btn-sm" type="button" @onclick="OpenRecordSlaughterModal">
+            <div class="sh-toolbar" aria-label="Transaction filters" role="group">
+                <input class="v3-input sh-month" type="month" aria-label="Month" title="Month" value="@_monthInput" @onchange="ChangeMonthAsync" />
+                <label class="v3-search">
+                    <span class="v3-sr-only">Search owner or reference</span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
+                    <input type="search" placeholder="Search owner or reference" aria-label="Search owner or reference" autocomplete="off"
+                           @bind="SearchTerm" @bind:event="oninput" />
+                </label>
+                <div class="sh-seg" role="group" aria-label="Animal">
+                    @foreach (var tab in AnimalFilters)
+                    {
+                        <button type="button" class="@(ActiveAnimalFilter == tab ? "is-on" : null)" aria-pressed="@(ActiveAnimalFilter == tab ? "true" : "false")"
+                                @onclick="() => SetAnimalFilter(tab)">@tab</button>
+                    }
+                </div>
+            </div>
+            <button class="v3-btn v3-btn-primary sh-record-btn" type="button" @onclick="OpenRecordSlaughterModal">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
                 Record slaughter
             </button>
         </header>
-
-        <div class="v3-toolbar sh-toolbar" aria-label="Transaction filters">
-            <input class="v3-input sh-month" type="month" aria-label="Month" title="Month" value="@_monthInput" @onchange="ChangeMonthAsync" />
-            <label class="v3-search">
-                <span class="v3-sr-only">Search owner or reference</span>
-                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
-                <input type="search" placeholder="Search owner or reference" aria-label="Search owner or reference" autocomplete="off"
-                       @bind="SearchTerm" @bind:event="oninput" />
-            </label>
-            <div class="sh-seg" role="group" aria-label="Animal">
-                @foreach (var tab in AnimalFilters)
-                {
-                    <button type="button" class="@(ActiveAnimalFilter == tab ? "is-on" : null)" aria-pressed="@(ActiveAnimalFilter == tab ? "true" : "false")"
-                            @onclick="() => SetAnimalFilter(tab)">@tab</button>
-                }
-            </div>
-        </div>
 
         <div class="v3-table-wrap sh-scroll" role="region" aria-label="Slaughterhouse transactions" tabindex="0">
             <table class="v3-table">

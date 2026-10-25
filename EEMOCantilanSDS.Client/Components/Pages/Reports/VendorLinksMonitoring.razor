@@ -1,0 +1,239 @@
+@page "/monitoring/vendor-links"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@inject IOfficeSourcesApiClient Api
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
+
+<PageTitle>StallTrack — Vendor Links</PageTitle>
+
+@* ───────────────────────────────────────────────────────────────────────────────
+   Vendor links — who among the NPM Fish/Meat-area occupants is linked to a registered Fish/Meat vendor, who is not, and which registered
+   vendors hold no NPM stall. Read-only: the links are the office's own confirmed associations from the server; a name match is shown only
+   as a suggestion and never treated as a link. Linking, registering and correcting stay on the Fish / Meat Vendor Fees page.
+   ─────────────────────────────────────────────────────────────────────────────── *@
+
+<header class="topbar">
+    <div class="topbar-left">
+        <div class="topbar-title">Vendor Links</div>
+        <div class="topbar-breadcrumb">
+            <a href="/menu" class="breadcrumb-link">@Branding.OfficeAcronym Admin</a>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">Vendor Links</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <AccountChip />
+    </div>
+</header>
+
+<div class="content-area">
+    <V3Hero Eyebrow="@($"{Branding.OfficeAcronym} Admin · Monitoring")" Title="Vendor Links"
+            Subtitle="@($"{NpmName} occupants and registered Fish / Meat vendors · Tax year {_taxYear}")" FiguresLabel="Vendor link summary">
+        <Icon>
+            <svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 007 0l3-3a5 5 0 00-7-7l-2 2M14 11a5 5 0 00-7 0l-3 3a5 5 0 007 7l2-2" /></svg>
+        </Icon>
+        <Figures>
+            <V3HeroFigure Label="Linked" Value="@Figure(Linked.Count)" Note="NPM occupant ↔ vendor" />
+            <V3HeroFigure Label="NPM, not registered" Value="@Figure(NotLinked.Count)" Note="no vendor link yet" />
+            <V3HeroFigure Label="Registered, not on NPM" Value="@Figure(NotOnNpm.Count)" Note="no NPM stall" />
+        </Figures>
+    </V3Hero>
+
+    <MonitoringTabs Current="vendor-links" ShowHistory="true" />
+
+    <div class="vl-toolbar">
+        <div class="vl-seg" role="group" aria-label="Link status">
+            @foreach (var (key, label, count) in Views)
+            {
+                <button type="button" class="@(_view == key ? "is-on" : null)" aria-pressed="@(_view == key ? "true" : "false")" @onclick="() => _view = key">
+                    @label <span class="vl-count">@(_loading ? "–" : count.ToString())</span>
+                </button>
+            }
+        </div>
+        <label class="vl-search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+            <input type="search" placeholder="Search name or stall" aria-label="Search name or stall" @bind="_search" @bind:event="oninput" />
+        </label>
+        <div class="vl-year">
+            <FhSelect Caption="Tax year" AriaLabel="Tax year" Options="YearOptions" Value="@_taxYear.ToString()" ValueChanged="ChangeYearAsync" />
+        </div>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="v3-notice v3-notice-error vl-error" role="alert">
+            <span>@_error</span>
+            <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadAsync">Try again</button>
+        </div>
+    }
+
+    <section class="v3-panel" aria-labelledby="vl-title" aria-busy="@(_loading ? "true" : "false")">
+        <header class="v3-panel-header">
+            <h2 id="vl-title">@ViewTitle</h2>
+            <a class="v3-btn v3-btn-sm" href="@($"/operations/fish-meat-vendor-fees?taxYear={_taxYear}")">Open Fish / Meat Vendor Fees</a>
+        </header>
+        <div class="v3-table-wrap" role="region" aria-label="@ViewTitle" tabindex="0">
+            <table class="v3-table vl-table">
+                <thead>
+                    @if (_view == "not-on-npm")
+                    {
+                        <tr><th scope="col">Registered vendor</th><th scope="col">Type</th><th scope="col">Registration</th><th scope="col"><span class="v3-sr-only">Action</span></th></tr>
+                    }
+                    else
+                    {
+                        <tr><th scope="col">NPM occupant</th><th scope="col">Stall</th><th scope="col">@(_view == "linked" ? "Linked vendor" : "Status")</th><th scope="col"><span class="v3-sr-only">Action</span></th></tr>
+                    }
+                </thead>
+                <tbody>
+                    @if (_loading)
+                    {
+                        <tr><td colspan="4" class="v3-empty" role="status">Loading vendor links…</td></tr>
+                    }
+                    else if (_view == "not-on-npm")
+                    {
+                        @foreach (var vendor in Match(NotOnNpm, v => v.DisplayName))
+                        {
+                            <tr @key="vendor.Id">
+                                <td class="v3-strong">@vendor.DisplayName@if (!string.IsNullOrWhiteSpace(vendor.BusinessName)) {<span class="v3-block">@vendor.BusinessName</span>}</td>
+                                <td>@vendor.VendorType</td>
+                                <td>@(vendor.RegistrationKind == VendorRegistrationKind.Renew ? "Renewal" : "New") · @vendor.TaxYear</td>
+                                <td class="vl-action"><a class="vl-link" href="@DetailsUrl(vendor.Id)">View registration</a></td>
+                            </tr>
+                        }
+                        @if (!Match(NotOnNpm, v => v.DisplayName).Any()) { <tr><td colspan="4" class="v3-empty">@EmptyText</td></tr> }
+                    }
+                    else
+                    {
+                        var rows = _view == "linked" ? Linked : NotLinked;
+                        @foreach (var row in Match(rows, r => $"{r.Occupant} {r.StallNo}"))
+                        {
+                            <tr @key="row.ContractId">
+                                <td class="v3-strong">@row.Occupant@if (!row.Active) {<span class="v3-block">Historical occupancy</span>}</td>
+                                <td>Stall @row.StallNo<span class="v3-block">@row.Area</span></td>
+                                <td>
+                                    @if (_view == "linked")
+                                    {
+                                        @foreach (var link in ActiveLinks(row))
+                                        {
+                                            <span class="vl-pill is-linked">Linked</span> <span class="v3-strong">@VendorName(link.VendorRegistrationId)</span>
+                                            <span class="v3-block">Verified by @link.ConfirmedBy · @link.ConfirmedAtUtc.ToString("MMM d, yyyy")</span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="vl-pill is-open">Not linked</span>
+                                        @if (row.PossibleMatches.Count > 0)
+                                        {
+                                            <span class="v3-block">Possible match: @string.Join(", ", row.PossibleMatches.Select(m => m.DisplayName)) (suggestion only)</span>
+                                        }
+                                    }
+                                </td>
+                                <td class="vl-action">
+                                    <a class="vl-link" href="@($"/operations/fish-meat-vendor-fees?taxYear={_taxYear}&npmContractId={row.ContractId}")">@(_view == "linked" ? "View link" : "Link or register")</a>
+                                </td>
+                            </tr>
+                        }
+                        @if (!Match(rows, r => $"{r.Occupant} {r.StallNo}").Any()) { <tr><td colspan="4" class="v3-empty">@EmptyText</td></tr> }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+@code {
+    private int _taxYear = PhilippineTime.Today.Year;
+    private string _view = "not-linked";
+    private string _search = string.Empty;
+    private bool _loading = true;
+    private string? _error;
+    private IReadOnlyList<NpmVendorCandidate> _occupants = [];
+    private IReadOnlyList<FishMeatVendorRegistrationDto> _vendors = [];
+
+    private string NpmName => FacilityCatalog.NameOf(EEMOCantilanSDS.Domain.Enums.FacilityCode.NPM);
+
+    private static IEnumerable<NpmVendorAssociationDto> ActiveLinks(NpmVendorCandidate row) => row.Links.Where(l => l.CorrectedAtUtc is null);
+    private List<NpmVendorCandidate> Linked => _occupants.Where(r => ActiveLinks(r).Any()).ToList();
+    private List<NpmVendorCandidate> NotLinked => _occupants.Where(r => !ActiveLinks(r).Any()).ToList();
+    private List<FishMeatVendorRegistrationDto> NotOnNpm
+    {
+        get
+        {
+            var linked = _occupants.SelectMany(ActiveLinks).Select(l => l.VendorRegistrationId).ToHashSet();
+            return _vendors.Where(v => !linked.Contains(v.Id)).OrderBy(v => v.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
+        }
+    }
+
+    private IEnumerable<(string Key, string Label, int Count)> Views =>
+    [
+        ("not-linked", "NPM, not registered", NotLinked.Count),
+        ("linked", "Linked", Linked.Count),
+        ("not-on-npm", "Registered, not on NPM", NotOnNpm.Count),
+    ];
+
+    private string ViewTitle => _view switch
+    {
+        "linked" => "Linked NPM occupants",
+        "not-on-npm" => "Registered vendors without an NPM stall",
+        _ => "NPM occupants not yet linked to a registration"
+    };
+
+    private string EmptyText => !string.IsNullOrWhiteSpace(_search) ? "Nothing matches this search."
+        : _view switch
+        {
+            "linked" => "No NPM occupant is linked yet.",
+            "not-on-npm" => "Every registered vendor holds an NPM stall.",
+            _ => "Every NPM Fish / Meat-area occupant is linked."
+        };
+
+    private IReadOnlyList<(string Value, string Label)> YearOptions =>
+        Enumerable.Range(0, 3).Select(i => PhilippineTime.Today.Year - i).Select(y => (y.ToString(), y.ToString())).ToList();
+
+    private IEnumerable<T> Match<T>(IEnumerable<T> rows, Func<T, string> text) =>
+        string.IsNullOrWhiteSpace(_search) ? rows : rows.Where(r => text(r).Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    private string VendorName(Guid id) => _vendors.FirstOrDefault(v => v.Id == id)?.DisplayName ?? "Registered vendor";
+    private string DetailsUrl(Guid id) => $"/operations/fish-meat-vendor-fees/manage?taxYear={_taxYear}&registrationId={id}";
+    private string Figure(int value) => _loading || _error is not null ? "—" : value.ToString("N0");
+
+    protected override async Task OnInitializedAsync()
+    {
+        await FacilityCatalog.EnsureLoadedAsync();
+        await LoadAsync();
+    }
+
+    private async Task ChangeYearAsync(string value)
+    {
+        if (!int.TryParse(value, out var year) || year == _taxYear) return;
+        _taxYear = year;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var occupants = await Api.NpmVendorCandidatesAsync(_taxYear);
+            var vendors = await Api.RegistrationsAsync(_taxYear);
+            if (!occupants.IsSuccess || !vendors.IsSuccess)
+            {
+                _occupants = []; _vendors = [];
+                _error = "Vendor links couldn't be loaded.";
+                return;
+            }
+            _occupants = occupants.Value!.Rows;
+            _vendors = vendors.Value!;
+        }
+        catch
+        {
+            _occupants = []; _vendors = [];
+            _error = "Vendor links couldn't be loaded.";
+        }
+        finally { _loading = false; }
+    }
+}

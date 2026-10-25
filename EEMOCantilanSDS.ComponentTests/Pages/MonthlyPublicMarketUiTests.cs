@@ -72,4 +72,30 @@ public sealed class MonthlyPublicMarketUiTests : TestContext
         var navigation = Services.GetRequiredService<NavigationManager>();
         Assert.EndsWith("/npm", navigation.Uri);
     }
+
+    [Theory]
+    [InlineData(BillingArchetype.MonthlyRental, "/facility/market-rent/reports")]
+    [InlineData(BillingArchetype.DailyStall, "/npm/reports")]
+    public void The_monthly_market_reads_the_monthly_facility_reports_and_a_daily_one_keeps_its_calendar(BillingArchetype declared, string expected)
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var facilities = new Mock<IFacilitiesApiClient>();
+        facilities.Setup(a => a.GetFacilityReportsAsync(It.IsAny<FacilityCode>(), It.IsAny<ReportPeriod>(), It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>()))
+            .ReturnsAsync(Result<FacilityReportsDto>.Failure("offline", 503));
+        Services.AddSingleton(facilities.Object);
+        Services.AddSingleton(Catalog(declared));
+        Services.AddSingleton(Mock.Of<ISetupApiClient>());
+        Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
+        Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
+        Services.AddSingleton(Mock.Of<IStallsApiClient>());
+        Services.AddSingleton<BrandingState>();
+        var navigation = Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/facility/market-rent/reports");
+
+        RenderComponent<EEMOCantilanSDS.Client.Components.Pages.Reports.CustomReports>();
+
+        Assert.EndsWith(expected, navigation.Uri);
+        facilities.Verify(a => a.GetFacilityReportsAsync(FacilityCode.NPM, It.IsAny<ReportPeriod>(), It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>()),
+            declared == BillingArchetype.MonthlyRental ? Times.Once() : Times.Never());
+    }
 }

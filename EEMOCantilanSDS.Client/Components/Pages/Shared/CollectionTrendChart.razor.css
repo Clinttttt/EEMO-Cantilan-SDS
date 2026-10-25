@@ -1,20 +1,24 @@
-/* ══ Shared Collection Trend chart (3D bars + nice Y-axis + tooltip) ══ */
+/* ══ Shared Collection Trend chart ══
+   The same extruded 3-D block the Audit Breakdown's "share by section" bars use (front face, lighter top, darker side),
+   so every chart on a facility report reads as one family. Clint's direction (2026-10-25) restores the 3-D bar for these
+   report charts; colour stays to one green for rent and one blue for a separate fee, and the value sits on its bar. */
 
 .rpt-chart-area {
     display: flex;
+    min-width: 0;
     align-items: stretch;
-    gap: 8px;
+    gap: 10px;
     flex: 1;
     overflow: visible;
 }
 
-/* Y-axis labels — top (max) → bottom (0), aligned to the bar plot region */
+/* Y-axis labels — top (max) → bottom (0), aligned to the plot region (top 30px, bottom 34px) */
 .rpt-yaxis {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: 12px 0 50px;
-    min-width: 30px;
+    padding: 30px 0 34px;
+    min-width: 34px;
     text-align: right;
 }
 .rpt-ytick {
@@ -22,81 +26,84 @@
     font-weight: 600;
     color: var(--text-subtle);
     line-height: 1;
+    font-variant-numeric: tabular-nums;
 }
 
 .rpt-bar-chart {
     display: flex;
+    min-width: 0;
     align-items: flex-end;
-    gap: 14px;
+    justify-content: space-around;
+    gap: 12px;
     flex: 1;
-    min-height: 250px;
-    padding: 14px 18px 10px;
+    min-height: 268px;
+    padding: 30px 22px 0;
     position: relative;
     overflow: visible;
-    background: linear-gradient(to top, rgba(13, 33, 55, 0.02) 0%, transparent 100%);
     border-radius: 12px;
-    border: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+    background: color-mix(in srgb, var(--bg) 45%, var(--bg-card));
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 
-/* Gridlines + L-shaped axis, confined to the exact region the bars rise in (top:14px, bottom:50px) */
+/* Gridlines + L-shaped axis over the exact region the bars rise in */
 .rpt-bar-chart::before {
     content: "";
     position: absolute;
-    top: 14px;
-    left: 18px;
-    right: 18px;
-    bottom: 50px;
-    border-left: 1.5px solid color-mix(in srgb, var(--border) 85%, transparent);
-    border-bottom: 1.5px solid color-mix(in srgb, var(--border) 85%, transparent);
+    top: 30px;
+    left: 22px;
+    right: 22px;
+    bottom: 34px;
+    border-left: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
     background: repeating-linear-gradient(
         to top,
-        color-mix(in srgb, var(--border) 50%, transparent) 0,
-        color-mix(in srgb, var(--border) 50%, transparent) 1px,
-        transparent 1px,
-        transparent 20%
+        transparent 0,
+        transparent calc(20% - 1px),
+        color-mix(in srgb, var(--border) 45%, transparent) calc(20% - 1px),
+        color-mix(in srgb, var(--border) 45%, transparent) 20%
     );
     pointer-events: none;
 }
 
 .rpt-bar-group {
-    flex: 1;
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 150px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
     height: 100%;
     justify-content: flex-end;
 }
 
-/* Fixed-height area that holds the 3D bar, anchored to bottom */
+/* The plot column the block stands in; the 34px below it holds the period label */
 .rpt-bar-wrap {
     width: 100%;
-    height: calc(100% - 40px);
+    height: calc(100% - 34px);
     position: relative;
     flex-shrink: 0;
 }
 
-/* ── 3D stacked bar: rent (green) base + fish-kilo (blue) cap, with top & side faces ── */
+/* ── 3-D block: front face(s) + top + side, leaning up-right by --depth ── */
 .bar3d {
-    --depth: 13px;
+    --depth: 11px;
     position: absolute;
     bottom: 0;
     left: 50%;
     transform: translateX(calc(-50% - (var(--depth) / 2)));
-    width: min(58%, 74px);
+    width: min(66%, 84px);
     display: flex;
     flex-direction: column;
-    transition: height 0.45s cubic-bezier(0.4, 0, 0.2, 1), transform 0.18s ease, filter 0.18s ease;
     min-height: 4px;
-    filter: drop-shadow(6px 10px 12px color-mix(in srgb, var(--navy) 10%, transparent));
+    transition: height .4s cubic-bezier(.4, 0, .2, 1), transform .15s ease;
+    filter: drop-shadow(5px 9px 11px color-mix(in srgb, var(--navy) 9%, transparent));
 }
 .seg3d { position: relative; width: 100%; }
+.bar3d > .seg3d:not(.bar3d-value):first-of-type { border-radius: 3px 3px 0 0; }
 
-/* Front faces */
 .seg-rent { background: linear-gradient(180deg, #3a9970 0%, #2d7a5f 100%); }
-.seg-fish { background: linear-gradient(180deg, #5fb0ff 0%, #4a9eff 100%); }
+.seg-fish { background: linear-gradient(180deg, #6a99bb 0%, #4a7fa5 100%); }
 
-/* Right side face (leans up-right by --depth) */
 .face-side {
     position: absolute;
     top: 0;
@@ -109,7 +116,6 @@
 .seg-rent .face-side { background: #1f5d47; }
 .seg-fish .face-side { background: #356fb8; }
 
-/* Top face (leans up-right by --depth) — only on the topmost segment */
 .face-top {
     position: absolute;
     left: 0;
@@ -122,34 +128,51 @@
 .seg-rent .face-top { background: #50b88c; }
 .seg-fish .face-top { background: #84c4ff; }
 
-.bar3d > .seg3d:first-child { border-radius: 4px 4px 0 0; }
-
-/* Current period — warm gold glow + gold label & value (no extra row element) */
-.rpt-bar-group.current .bar3d { filter: drop-shadow(4px 9px 13px rgba(200, 168, 75, 0.42)); }
-.rpt-bar-group.current .rpt-bar-label { color: var(--accent); font-weight: 700; }
-.rpt-bar-group.current .rpt-bar-val { color: var(--accent); }
-
-/* Zero-value period — small muted baseline platform so the period still reads (not blank) */
-.rpt-bar-group.is-zero .bar3d { height: 11px !important; filter: none; }
-.rpt-bar-group.is-zero .seg-rent { background: color-mix(in srgb, var(--border) 88%, #fff); }
-.rpt-bar-group.is-zero .seg-rent .face-side { background: color-mix(in srgb, var(--border) 60%, #9aa7b3); }
-.rpt-bar-group.is-zero .seg-rent .face-top { background: color-mix(in srgb, var(--border) 95%, #fff); }
-.rpt-bar-group.is-zero .rpt-bar-val { color: var(--text-muted); }
-
-.rpt-bar-group:hover .bar3d {
-    transform: translateX(calc(-50% - (var(--depth) / 2))) translateY(-3px);
-    filter: drop-shadow(8px 14px 16px color-mix(in srgb, var(--navy) 14%, transparent)) brightness(1.03);
+/* The value, standing just above the block's top face */
+.bar3d-value {
+    position: absolute;
+    left: calc(50% + var(--depth) / 2);
+    bottom: calc(100% + var(--depth) + 6px);
+    transform: translateX(-50%);
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--navy);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
 }
+
+/* Zero period — a low muted platform so the month still reads */
+.rpt-bar-group.is-zero .bar3d { height: 8px !important; filter: none; }
+.rpt-bar-group.is-zero .seg-rent { background: color-mix(in srgb, var(--border) 85%, #fff); }
+.rpt-bar-group.is-zero .seg-rent .face-side { background: color-mix(in srgb, var(--border) 70%, #9aa7b3); }
+.rpt-bar-group.is-zero .seg-rent .face-top { background: color-mix(in srgb, var(--border) 92%, #fff); }
+
+/* Current period — named by its label, not by another colour */
+.rpt-bar-group.current .rpt-bar-label { color: var(--accent); font-weight: 700; }
+
+.rpt-bar-group:hover .bar3d { transform: translateX(calc(-50% - (var(--depth) / 2))) translateY(-2px); }
 .rpt-bar-group:hover .rpt-bar-label { color: var(--navy); }
 
-/* Hover tooltip — meaningful breakdown (total + rent/fish split) */
+.rpt-bar-label {
+    height: 34px;
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+/* Hover tooltip — total and its split */
 .rpt-bar-tip {
     position: absolute;
-    bottom: calc(100% + 8px);
+    display: none; /* not laid out until hovered, so a hidden tip near the edge never widens the page */
+    bottom: calc(100% + 34px);
     left: 50%;
     transform: translateX(-50%) translateY(4px);
-    min-width: 158px;
-    background: #ffffff;
+    min-width: 168px;
+    background: var(--bg-card);
     color: var(--navy);
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -157,60 +180,41 @@
     opacity: 0;
     pointer-events: none;
     z-index: 6;
-    box-shadow: 0 10px 28px rgba(13, 33, 55, 0.14);
-    transition: opacity 0.15s ease, transform 0.15s ease;
+    box-shadow: 0 10px 28px color-mix(in srgb, var(--navy) 14%, transparent);
+    transition: opacity .15s ease, transform .15s ease;
 }
-.rpt-bar-group:hover .rpt-bar-tip {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-}
+.rpt-bar-group:hover .rpt-bar-tip { display: block; opacity: 1; transform: translateX(-50%) translateY(0); }
 .rpt-bar-tip .tip-title {
-    font-size: 10.5px;
-    letter-spacing: 0.05em;
+    font-size: 11px;
+    letter-spacing: .04em;
     text-transform: uppercase;
     font-weight: 700;
     color: var(--text-muted);
 }
 .rpt-bar-tip .tip-total {
-    font-size: 16px; font-weight: 800; color: var(--navy);
-    margin: 2px 0 7px; padding-bottom: 7px;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--navy);
+    margin: 2px 0 7px;
+    padding-bottom: 7px;
     border-bottom: 1px solid var(--border);
+    font-variant-numeric: tabular-nums;
 }
-.rpt-bar-tip .tip-row {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    font-size: 12px;
-    color: var(--text-subtle);
-    margin-top: 4px;
-}
-.rpt-bar-tip .tip-row strong { margin-left: auto; color: var(--navy); font-weight: 700; }
+.rpt-bar-tip .tip-row { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-subtle); margin-top: 4px; }
+.rpt-bar-tip .tip-row strong { margin-left: auto; color: var(--navy); font-weight: 700; font-variant-numeric: tabular-nums; }
 .rpt-bar-tip .tip-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
 .rpt-bar-tip .tip-dot.rent { background: #2d7a5f; }
-.rpt-bar-tip .tip-dot.fish { background: #4a9eff; }
+.rpt-bar-tip .tip-dot.fish { background: #4a7fa5; }
 .rpt-bar-tip .tip-current { margin-top: 7px; font-size: 11px; font-weight: 600; color: var(--text-subtle); }
 .rpt-bar-tip .tip-empty { margin-top: 5px; font-size: 11px; color: var(--text-subtle); }
 
-.rpt-bar-label {
-    font-size: 11px;
-    color: var(--text-muted);
-    white-space: nowrap;
-    margin-top: 6px;
-    font-weight: 500;
-}
-.rpt-bar-val {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--navy);
-}
-
-/* Empty state — fills the exact gridline box (top:14 / bottom:50 / sides:18) so it sits dead-centre */
+/* Empty state — fills the gridline box so it sits dead-centre */
 .rpt-empty {
     position: absolute;
-    top: 14px;
-    left: 18px;
-    right: 18px;
-    bottom: 50px;
+    top: 30px;
+    left: 22px;
+    right: 22px;
+    bottom: 34px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -219,34 +223,18 @@
     color: var(--text-muted);
     text-align: center;
 }
-.rpt-empty-icon svg { width: 40px; height: 40px; stroke: var(--text-subtle); opacity: 0.6; }
+.rpt-empty-icon svg { width: 40px; height: 40px; stroke: var(--text-subtle); opacity: .6; }
 .rpt-empty-title { font-size: 14px; font-weight: 700; color: var(--text-subtle); }
 .rpt-empty-text { font-size: 12px; color: var(--text-muted); }
 
-/* ══════════════════════════════════════════════════════════════
-   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
-   Flat bars: V3 forbids decorative gradients and 3-D effects. The extruded faces and drop-shadows are
-   removed; rent stays green, the fish fee civic blue; the current month is marked by its blue label.
-   ══════════════════════════════════════════════════════════════ */
-.bar3d,
-.rpt-bar-group.current .bar3d,
-.rpt-bar-group:hover .bar3d {
-    filter: none;
+@media (max-width: 640px) {
+    .rpt-bar-chart { gap: 6px; padding: 30px 10px 0; }
+    .rpt-bar-chart::before { left: 10px; right: 10px; }
+    .bar3d { --depth: 7px; width: min(72%, 40px); }
+    .bar3d-value { font-size: 10px; }
+    .rpt-bar-label { font-size: 10px; white-space: normal; text-align: center; line-height: 1.15; }
 }
 
-.face-side,
-.face-top {
-    display: none;
-}
-
-.seg-rent {
-    background: var(--green);
-}
-
-.seg-fish {
-    background: var(--accent);
-}
-
-.rpt-bar-group:hover .seg3d {
-    opacity: .88;
+@media (prefers-reduced-motion: reduce) {
+    .bar3d, .rpt-bar-tip { transition: none; }
 }

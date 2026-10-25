@@ -93,14 +93,15 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             int month,
             decimal amount,
             string provider,
-            string createdBy = "Online")
+            string createdBy = "Online",
+            bool wholeMonth = false)
         {
             return new OnlinePaymentTransaction
             {
                 Id = Guid.NewGuid(),
                 Reference = reference,
                 PayorUserId = payorUserId,
-                TargetKind = OnlinePaymentTargetKind.NpmDailyMonth,
+                TargetKind = wholeMonth ? OnlinePaymentTargetKind.NpmWholeMonth : OnlinePaymentTargetKind.NpmDailyMonth,
                 TargetStallId = stallId,
                 TargetYear = year,
                 TargetMonth = month,

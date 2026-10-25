@@ -12,8 +12,18 @@
    classification and instrument facts — with a transactional body. Every figure is the server's: the official Monthly
    Income row for the line, the month's collected amount from that same row, and the governed-activity register. There is
    no "outstanding" here: these operations are paid on service and create no obligation. *@
-<div class="v3-page">
-    <div class="no-print">
+<div class="v3-page @(Embedded ? "orp-embedded" : "")">
+    @if (Embedded)
+    {
+        <div class="v3-btn-group no-print orp-embedded-actions" role="group" aria-label="Report actions">
+            <button class="v3-btn" type="button" @onclick="PrintAsync">Print</button>
+            @if (_activity is not null)
+            {
+                <a class="v3-btn" href="@ExportHref" download="@($"{Slug}-report-{_month:yyyy-MM}.csv")">Export CSV</a>
+            }
+        </div>
+    }
+    <div class="no-print orp-own-header">
         <WorkspaceHeader Parent="@Name" ParentHref="@ParentHref" Title="@($"{Name} Report")" Code="@Code">
             <Meta>
                 @foreach (var chip in Instruments)
@@ -213,6 +223,10 @@
     /// <summary>Adds a "By fee type" breakdown and a Fee type column, for an operation collected by approved fee type (Market Fees).</summary>
     [Parameter] public bool ByFeeType { get; set; }
 
+    /// <summary>Inside the operation reports layout (OperationReportsPage): no header or month picker of its own; it follows <see cref="Month"/>.</summary>
+    [Parameter] public bool Embedded { get; set; }
+    [Parameter] public DateOnly? Month { get; set; }
+
     // One instrument is already stated in the header and letterhead, so the register repeats it only when two can apply.
     private bool ShowInstrument => Instruments.Count > 1;
     private bool ShowFeeType => ByFeeType && (_activity?.Any(x => x.FeeOptionName is not null) ?? false);
@@ -228,7 +242,21 @@
     private string MonthLabel => _month.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
     private string Slug => OperationCode.ToLowerInvariant().Replace('_', '-');
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override Task OnInitializedAsync()
+    {
+        if (Month is { } m) { _month = new DateOnly(m.Year, m.Month, 1); _monthInput = _month.ToString("yyyy-MM", CultureInfo.InvariantCulture); }
+        return LoadAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Month is { } m && new DateOnly(m.Year, m.Month, 1) != _month)
+        {
+            _month = new DateOnly(m.Year, m.Month, 1);
+            _monthInput = _month.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+            await LoadAsync();
+        }
+    }
 
     private async Task ChangeMonthAsync(ChangeEventArgs e)
     {

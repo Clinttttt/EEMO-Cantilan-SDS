@@ -2,12 +2,25 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
 @using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Constants
 
 <PageTitle>StallTrack — Transfer Large Cattle Report</PageTitle>
 
-@* Transfer Large Cattle report: the standard operation-report shell with a transactional body — the official Monthly Income row and the
+@* Transfer Large Cattle report: the operation reports layout (Weekly, Monthly, Yearly, Status Report, History) around its transactional report body — the official Monthly Income row and the
    month's governed collections, all read from the server. The layout owns the <main> landmark. *@
-<GovernedOperationReport OperationCode="@CollectorOperationCodes.TransferLargeCattle" Name="Transfer Large Cattle" ParentHref="/operations/transfer-large-cattle"
-                         RowKey="TRANSFER_LARGE_CATTLE" Classification="Transfer Large Cattle" Instruments="@(new[] { "OR" })"
-                         InstrumentFact="Official Receipt" IdPrefix="tlcr" />
+<OperationReportsPage Name="Transfer Large Cattle" ParentHref="/operations/transfer-large-cattle" RowKey="TRANSFER_LARGE_CATTLE" SeriesLabel="Fees collected" @bind-Month="_month">
+    <StatusReport>
+        <GovernedOperationReport OperationCode="@CollectorOperationCodes.TransferLargeCattle" Name="Transfer Large Cattle" ParentHref="/operations/transfer-large-cattle"
+                                 RowKey="TRANSFER_LARGE_CATTLE" Classification="Transfer Large Cattle" Instruments="@(new[] { "OR" })"
+                                 InstrumentFact="Official Receipt" IdPrefix="tlcr"
+                                 Embedded="true" Month="_month" />
+    </StatusReport>
+    <WeekContent>
+        <OperationWeekRegister OperationCode="@CollectorOperationCodes.TransferLargeCattle" Name="Transfer Large Cattle" From="context.From" To="context.To" />
+    </WeekContent>
+</OperationReportsPage>
+
+@code {
+    private DateOnly _month = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
+}

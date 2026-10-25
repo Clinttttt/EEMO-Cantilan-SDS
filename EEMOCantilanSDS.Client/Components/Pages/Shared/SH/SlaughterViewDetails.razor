@@ -139,8 +139,8 @@
                                 <th>DATE</th>
                                 <th>ANIMAL TYPE</th>
                                 <th>NO. OF HEADS</th>
-                                <th>RATE / HEAD</th>
-                                <th>TOTAL AMOUNT</th>
+                                <th class="txn-num">RATE / HEAD</th>
+                                <th class="txn-num">TOTAL AMOUNT</th>
                                 <th>OR NUMBER</th>
                                 <th>COLLECTOR</th>
                             </tr>
@@ -163,8 +163,8 @@
                                         <td>@(isFirstInGroup ? txn.TransactionDate.ToString("MMM d, yyyy") : "")</td>
                                         <td>@txn.AnimalTypeDisplay</td>
                                         <td>@txn.NumberOfHeads</td>
-                                        <td>₱@txn.RatePerHead.ToString("N0")</td>
-                                        <td>₱@txn.TotalAmount.ToString("N0")</td>
+                                        <td class="txn-num">₱@txn.RatePerHead.ToString("N2")</td>
+                                        <td class="txn-num txn-strong">₱@txn.TotalAmount.ToString("N2")</td>
                                         <td>@(isFirstInGroup ? txn.ORNumber : "")</td>
                                         <td>@(isFirstInGroup ? txn.CollectorName : "")</td>
                                     </tr>
@@ -173,15 +173,23 @@
                                         <tr class="txn-items">
                                             <td></td>
                                             <td colspan="7">
-                                                <table class="txn-item-table" aria-label="@($"Charges for {txn.ORNumber}")">
-                                                    <thead><tr><th>Charge</th><th>Quantity</th><th>Rate</th><th>Amount</th></tr></thead>
-                                                    <tbody>
-                                                        @foreach (var item in items)
-                                                        {
-                                                            <tr><td>@item.Label</td><td>@item.Quantity.ToString("0.##")</td><td>₱@item.UnitAmount.ToString("N2")</td><td>₱@item.Amount.ToString("N2")</td></tr>
-                                                        }
-                                                    </tbody>
-                                                </table>
+                                                @* The itemized charges behind the total, across the full row: charge, quantity, approved rate, amount. *@
+                                                <div class="txn-items-box">
+                                                    <table class="txn-item-table" aria-label="@($"Charges for {txn.ORNumber}")">
+                                                        <thead>
+                                                            <tr><th scope="col">Charge</th><th scope="col" class="txn-num">Quantity</th><th scope="col" class="txn-num">Rate</th><th scope="col" class="txn-num">Amount</th></tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            @foreach (var item in items)
+                                                            {
+                                                                <tr><td>@item.Label</td><td class="txn-num">@item.Quantity.ToString("0.##")</td><td class="txn-num">₱@item.UnitAmount.ToString("N2")</td><td class="txn-num">₱@item.Amount.ToString("N2")</td></tr>
+                                                            }
+                                                        </tbody>
+                                                        <tfoot>
+                                                            <tr><th scope="row" colspan="3">Total · @items.Count @(items.Count == 1 ? "charge" : "charges")</th><td class="txn-num">₱@txn.TotalAmount.ToString("N2")</td></tr>
+                                                        </tfoot>
+                                                    </table>
+                                                </div>
                                             </td>
                                         </tr>
                                     }

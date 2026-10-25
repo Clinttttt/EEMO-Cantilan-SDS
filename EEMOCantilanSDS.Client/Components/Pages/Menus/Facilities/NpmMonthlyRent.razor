@@ -36,7 +36,8 @@
                   ContractNameSelector="@(s => s.ContractName)"
                   MarketSectionSelector="@(s => s.Section)"
                   CustomMarketSectionSelector="@(s => s.CustomSectionName)"
-                  ORNumberSetter="@((s, or) => s.ORNumber = or)" />
+                  ORNumberSetter="@((s, or) => s.ORNumber = or)"
+                  ReportsUrl="/facility/market-rent/reports" />
 }
 
 @code {

@@ -15,7 +15,8 @@
 
 @* Weight & Measure is independent of NPM and Fish/Meat Vendor Fee. This operation displays
    source-native registered-vendor weighing separately from frozen historical NPM evidence.
-   Head rate revisions are append-only and apply from the next business date. *@
+   Head rate revisions are append-only and apply from the next business date; they live in the
+   Weighing rates drawer so the page itself is the two weighing registers. *@
 <div class="v3-page wm-page">
     <V3Hero OperationCode="WEIGHT_AND_MEASURE" Eyebrow="Operations" Title="Weight & Measure" Compact="true" FiguresLabel="Weighing position">
         <Icon>
@@ -28,13 +29,10 @@
             <V3HeroFigure Label="Registered total" Value="@(_sourceReport is null ? "—" : Money(_sourceReport.Total))" />
         </Figures>
         <Actions>
-            @if (FacilityCatalog.HasDeclaredFacility(FacilityCode.NPM))
-            {
-                <a class="v3-btn" href="/facility/npm">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18" /><path d="M5 21V7l7-4 7 4v14" /><path d="M9 21v-5h6v5" /></svg>
-                    Open NPM
-                </a>
-            }
+            <button class="v3-btn" type="button" @onclick="OpenRates">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" /></svg>
+                Weighing rates
+            </button>
             <a class="v3-btn" href="/operations/weight-and-measure/report">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="8" y1="14" x2="16" y2="14" /><line x1="8" y1="17" x2="13" y2="17" /></svg>
                 Report
@@ -50,159 +48,206 @@
         </div>
     }
 
-    <section class="v3-panel" aria-label="Weight and Measure configuration">
-        <header class="v3-panel-header"><h2>Weighing configuration</h2></header>
-        <div class="v3-panel-body">
-            @if (_config is null) { <p class="v3-empty">Configuration unavailable.</p> }
-            else
-            {
-                <p class="v3-panel-meta">Approved rate effective for this municipality. Changes saved by the Head apply from @_config.NextEffectiveDate.ToString("MMM d, yyyy").</p>
-                <dl class="v3-facts">
-                    @foreach (var row in _config.Current)
-                    {
-                        <div><dt>@row.VendorType</dt><dd>@(row.Enabled ? Money(row.RatePerKilo ?? 0m) + "/kg" : "Not enabled")</dd></div>
-                    }
-                </dl>
-                <AuthorizeView Roles="SuperAdmin">
-                    <Authorized>
-                        @if (_editingConfiguration)
-                        {
-                            <div class="v3-facts">
-                                <label><input type="checkbox" @bind="_fishEnabled" /> Fish weighing</label>
-                                @if (_fishEnabled) { <label>Fish rate (₱/kg)<input class="v3-input" type="number" step="0.01" min="0.01" @bind="_fishRateText" /></label> }
-                                <label><input type="checkbox" @bind="_meatEnabled" /> Meat weighing</label>
-                                @if (_meatEnabled) { <label>Meat rate (₱/kg)<input class="v3-input" type="number" step="0.01" min="0.01" @bind="_meatRateText" /></label> }
-                            </div>
-                            <div class="v3-toolbar"><button type="button" class="v3-btn" @onclick="SaveConfigurationAsync" disabled="@_saving">Save rates</button><button type="button" class="v3-btn" @onclick="() => _editingConfiguration = false">Cancel</button></div>
-                        }
-                        else { <button type="button" class="v3-btn" @onclick="BeginEditingConfiguration">Edit rates</button> }
-                        @if (!string.IsNullOrWhiteSpace(_configMessage)) { <p role="status" class="v3-panel-meta">@_configMessage</p> }
-                    </Authorized>
-                </AuthorizeView>
-            }
+    @* One filter bar for both registers: the month and the search apply to Fish and Meat alike. *@
+    <div class="v3-panel wm-filterbar">
+        <div class="v3-toolbar wm-toolbar" aria-label="Weighing filters">
+            <input class="v3-input wm-month" type="month" aria-label="Weighing month" title="Weighing month" value="@_monthInput" @onchange="ChangeMonthAsync" />
+            <label class="v3-search">
+                <span class="v3-sr-only">Search vendor, SRC, occupant or stall</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
+                <input type="search" placeholder="Search vendor, SRC, occupant or stall" aria-label="Search vendor, SRC, occupant or stall" @bind="_search" @bind:event="oninput" />
+            </label>
+            <button class="v3-btn wm-icon-btn" type="button" @onclick="LoadAsync" disabled="@_loading" aria-label="Refresh weighing records" title="Refresh weighing records">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5" /></svg>
+            </button>
         </div>
-    </section>
+    </div>
 
     <div class="wm-layout">
         <section class="v3-panel" aria-labelledby="wm-fish-title" aria-busy="@(_loading ? "true" : "false")">
             <header class="v3-panel-header">
                 <h2 id="wm-fish-title">Fish weighing</h2>
+                <span class="v3-panel-meta">@RateText(FishMeatVendorType.Fish)</span>
             </header>
-
-            <div class="v3-toolbar wm-toolbar" aria-label="Fish weighing filters">
-                <input class="v3-input wm-month" type="month" aria-label="Weighing month" title="Weighing month" value="@_monthInput" @onchange="ChangeMonthAsync" />
-                <label class="v3-search">
-                    <span class="v3-sr-only">Search vendor, SRC, occupant or stall</span>
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg>
-                    <input type="search" placeholder="Search vendor, SRC, occupant or stall" aria-label="Search vendor, SRC, occupant or stall" @bind="_search" @bind:event="oninput" />
-                </label>
-                <button class="v3-btn wm-icon-btn" type="button" @onclick="LoadAsync" disabled="@_loading" aria-label="Refresh weighing records" title="Refresh weighing records">
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5" /></svg>
-                </button>
-            </div>
 
             @RegisteredRows(FishMeatVendorType.Fish)
 
             @if (FacilityCatalog.HasDeclaredFacility(FacilityCode.NPM))
             {
-            <div class="v3-panel-body" aria-label="Historical NPM Fish weighing">
-                <h3>Historical NPM evidence</h3>
-                <dl class="v3-facts">
-                    <div><dt>Fish weighing (frozen)</dt><dd>@(_report?.FeeTypeBreakdown is { } fish ? Money(fish.FishWeightMeasureFrozenAmount) : "—")</dd></div>
-                    <div><dt>Fish kilos without rate evidence</dt><dd>@(_report?.FeeTypeBreakdown is { } unresolved ? Kilos(unresolved.FishKilosWithoutFrozenRate) : "—")</dd></div>
-                </dl>
-            </div>
-            <div class="v3-table-wrap wm-scroll" role="region" aria-label="Fish weighing by stall" tabindex="0">
-                <table class="v3-table">
-                    <caption class="v3-sr-only">Fish kilos weighed by NPM stall for @PeriodLabel</caption>
-                    <thead>
-                        <tr>
-                            <th scope="col">Occupant</th>
-                            <th scope="col" class="v3-num">Kilos weighed</th>
-                            <th scope="col"><span class="v3-sr-only">Source</span></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var row in FilteredFishRows)
-                        {
+                <div class="wm-history" aria-label="Historical NPM Fish weighing">
+                    <h3>Historical NPM evidence</h3>
+                    <dl class="wm-history-facts">
+                        <div><dt>Fish weighing (frozen)</dt><dd>@(_report?.FeeTypeBreakdown is { } fish ? Money(fish.FishWeightMeasureFrozenAmount) : "—")</dd></div>
+                        <div><dt>Fish kilos without rate evidence</dt><dd>@(_report?.FeeTypeBreakdown is { } unresolved ? Kilos(unresolved.FishKilosWithoutFrozenRate) : "—")</dd></div>
+                    </dl>
+                </div>
+                <div class="v3-table-wrap wm-scroll" role="region" aria-label="Fish weighing by stall" tabindex="0">
+                    <table class="v3-table">
+                        <caption class="v3-sr-only">Fish kilos weighed by NPM stall for @PeriodLabel</caption>
+                        <thead>
                             <tr>
-                                <td>
-                                    <span class="v3-strong">@Occupant(row)</span>
-                                    <span class="v3-block">@NpmName · Stall @row.StallNo@(string.IsNullOrWhiteSpace(row.Section) ? "" : $" · {row.Section}")</span>
-                                </td>
-                                <td class="v3-num v3-strong">@Kilos(row.FishKilos)</td>
-                                <td class="wm-source">
-                                    <a class="wm-source-link" href="/profile/npm/@row.StallId">Open NPM source</a>
-                                </td>
+                                <th scope="col">Occupant</th>
+                                <th scope="col" class="v3-num">Kilos weighed</th>
+                                <th scope="col"><span class="v3-sr-only">Source</span></th>
                             </tr>
-                        }
-                        @if (!FilteredFishRows.Any())
-                        {
-                            <tr>
-                                <td class="v3-empty" colspan="3">
-                                    @if (_loading)
-                                    {
-                                        <span role="status">Loading weighing records…</span>
-                                    }
-                                    else if (FishRows.Any())
-                                    {
-                                        <span>No stalls match this search.</span>
-                                    }
-                                    else if (_error is null)
-                                    {
-                                        <span>No fish weighing was recorded in @PeriodLabel.</span>
-                                    }
-                                    else
-                                    {
-                                        <span>Weighing records are unavailable.</span>
-                                    }
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in FilteredFishRows)
+                            {
+                                <tr>
+                                    <td>
+                                        <span class="v3-strong">@Occupant(row)</span>
+                                        <span class="v3-block">@NpmName · Stall @row.StallNo@(string.IsNullOrWhiteSpace(row.Section) ? "" : $" · {row.Section}")</span>
+                                    </td>
+                                    <td class="v3-num v3-strong">@Kilos(row.FishKilos)</td>
+                                    <td class="wm-source">
+                                        <a class="wm-source-link" href="/profile/npm/@row.StallId">Open NPM source</a>
+                                    </td>
+                                </tr>
+                            }
+                            @if (!FilteredFishRows.Any())
+                            {
+                                <tr>
+                                    <td class="v3-empty" colspan="3">
+                                        @if (_loading)
+                                        {
+                                            <span role="status">Loading weighing records…</span>
+                                        }
+                                        else if (FishRows.Any())
+                                        {
+                                            <span>No stalls match this search.</span>
+                                        }
+                                        else if (_error is null)
+                                        {
+                                            <span>No fish weighing was recorded in @PeriodLabel.</span>
+                                        }
+                                        else
+                                        {
+                                            <span>Weighing records are unavailable.</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
             }
         </section>
 
         <section class="v3-panel" aria-labelledby="wm-meat-title" aria-busy="@(_loading ? "true" : "false")">
             <header class="v3-panel-header">
                 <h2 id="wm-meat-title">Meat weighing</h2>
+                <span class="v3-panel-meta">@RateText(FishMeatVendorType.Meat)</span>
             </header>
+
             @RegisteredRows(FishMeatVendorType.Meat)
+
             @if (FacilityCatalog.HasDeclaredFacility(FacilityCode.NPM))
             {
-            <div class="v3-panel-body"><h3>Historical NPM evidence</h3></div>
-            @if (_report?.FeeTypeBreakdown is { } meat && (meat.MeatKilos > 0m || meat.MeatWeightMeasureAmount > 0m))
-            {
-                <dl class="v3-facts wm-meat-facts" aria-label="Meat weighing for @PeriodLabel">
-                    <div><dt>Kilos weighed</dt><dd>@Kilos(meat.MeatKilos)</dd></div>
-                    <div><dt>Weighing amount</dt><dd class="v3-strong">@Money(meat.MeatWeightMeasureAmount)</dd></div>
-                </dl>
-            }
-            else
-            {
-                <div class="v3-panel-body wm-empty">
-                    <p class="v3-empty">
-                        @if (_loading)
-                        {
-                            <span role="status">Loading weighing records…</span>
-                        }
-                        else if (_report is null)
-                        {
-                            <span>Weighing records are unavailable.</span>
-                        }
-                        else
-                        {
-                            <span>No Meat weighing was recorded in @PeriodLabel.</span>
-                        }
-                    </p>
+                <div class="wm-history" aria-label="Historical NPM Meat weighing">
+                    <h3>Historical NPM evidence</h3>
+                    @if (_report?.FeeTypeBreakdown is { } meat && (meat.MeatKilos > 0m || meat.MeatWeightMeasureAmount > 0m))
+                    {
+                        <dl class="wm-history-facts wm-meat-facts" aria-label="Meat weighing for @PeriodLabel">
+                            <div><dt>Kilos weighed</dt><dd>@Kilos(meat.MeatKilos)</dd></div>
+                            <div><dt>Weighing amount</dt><dd class="v3-strong">@Money(meat.MeatWeightMeasureAmount)</dd></div>
+                        </dl>
+                    }
+                    else
+                    {
+                        <p class="wm-history-empty">
+                            @if (_loading)
+                            {
+                                <span role="status">Loading weighing records…</span>
+                            }
+                            else if (_report is null)
+                            {
+                                <span>Weighing records are unavailable.</span>
+                            }
+                            else
+                            {
+                                <span>No Meat weighing was recorded in @PeriodLabel.</span>
+                            }
+                        </p>
+                    }
                 </div>
-            }
             }
         </section>
     </div>
 </div>
+
+@if (_ratesOpen)
+{
+    <div class="v3-modal-backdrop v3-drawer-backdrop" role="presentation" @onclick="CloseRates">
+        <section class="v3-modal v3-drawer wm-drawer" role="dialog" aria-modal="true" aria-labelledby="wm-rates-title"
+                 @onclick:stopPropagation="true" @onkeydown="OnRatesKey">
+            <header class="v3-modal-header">
+                <h2 id="wm-rates-title">Weighing rates</h2>
+                <button class="wm-drawer-close" type="button" aria-label="Close weighing rates" @onclick="CloseRates">×</button>
+            </header>
+            <div class="v3-modal-body" aria-label="Weight and Measure configuration">
+                @if (_config is null)
+                {
+                    <p class="v3-empty">Configuration unavailable.</p>
+                }
+                else if (!_editingConfiguration)
+                {
+                    <div class="v3-drawer-section">
+                        <ul class="wm-rates">
+                            @foreach (var row in _config.Current)
+                            {
+                                <li>
+                                    <span class="wm-rate-name">@row.VendorType weighing</span>
+                                    <span class="wm-rate-value @(row.Enabled ? null : "is-off")">@(row.Enabled ? Money(row.RatePerKilo ?? 0m) + " / kg" : "Not enabled")</span>
+                                </li>
+                            }
+                        </ul>
+                        <p class="wm-drawer-note">Approved rates for this municipality. A change saved by the Head applies from @_config.NextEffectiveDate.ToString("MMM d, yyyy").</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="v3-drawer-section wm-rate-edit">
+                        <div class="wm-rate-edit-row">
+                            <label class="wm-check"><input type="checkbox" @bind="_fishEnabled" /> Fish weighing</label>
+                            @if (_fishEnabled)
+                            {
+                                <label class="wm-rate-input"><span class="v3-sr-only">Fish rate per kilogram</span><span aria-hidden="true">₱</span><input class="v3-input" type="number" step="0.01" min="0.01" @bind="_fishRateText" /><span aria-hidden="true">/ kg</span></label>
+                            }
+                        </div>
+                        <div class="wm-rate-edit-row">
+                            <label class="wm-check"><input type="checkbox" @bind="_meatEnabled" /> Meat weighing</label>
+                            @if (_meatEnabled)
+                            {
+                                <label class="wm-rate-input"><span class="v3-sr-only">Meat rate per kilogram</span><span aria-hidden="true">₱</span><input class="v3-input" type="number" step="0.01" min="0.01" @bind="_meatRateText" /><span aria-hidden="true">/ kg</span></label>
+                            }
+                        </div>
+                        <p class="wm-drawer-note">Applies from @_config.NextEffectiveDate.ToString("MMM d, yyyy"). Earlier collections keep the rate they were recorded at.</p>
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(_configMessage)) { <p role="status" class="wm-drawer-note">@_configMessage</p> }
+            </div>
+            @if (_config is not null)
+            {
+                <AuthorizeView Roles="SuperAdmin">
+                    <Authorized>
+                        <footer class="v3-modal-footer">
+                            @if (_editingConfiguration)
+                            {
+                                <button type="button" class="v3-btn" @onclick="() => _editingConfiguration = false">Cancel</button>
+                                <button type="button" class="v3-btn v3-btn-primary" @onclick="SaveConfigurationAsync" disabled="@_saving">Save rates</button>
+                            }
+                            else
+                            {
+                                <button type="button" class="v3-btn v3-btn-primary" @onclick="BeginEditingConfiguration">Edit rates</button>
+                            }
+                        </footer>
+                    </Authorized>
+                </AuthorizeView>
+            }
+        </section>
+    </div>
+}
 
 @code {
     private RenderFragment RegisteredRows(FishMeatVendorType type) => @<div class="v3-table-wrap" role="region" aria-label="Registered @type weighing" tabindex="0">
@@ -211,7 +256,7 @@
                 (string.IsNullOrWhiteSpace(_search) || x.Vendor.Contains(_search, StringComparison.OrdinalIgnoreCase) || x.ReferenceCode.Contains(_search, StringComparison.OrdinalIgnoreCase))).ToList();
         }
         <table class="v3-table">
-            <caption class="v3-panel-meta">Registered collections · @PeriodLabel</caption>
+            <caption class="v3-sr-only">Registered collections · @PeriodLabel</caption>
             <thead><tr><th scope="col">Vendor / SRC</th><th scope="col" class="v3-num">Weighing</th><th scope="col" class="v3-num">Net amount</th></tr></thead>
             <tbody>
                 @foreach (var row in rows)
@@ -236,6 +281,7 @@
     private FacilityReportsDto? _report;
     private WeighingConfigurationDto? _config;
     private WeighingCollectionReportDto? _sourceReport;
+    private bool _ratesOpen;
     private bool _editingConfiguration;
     private bool _saving;
     private bool _fishEnabled;
@@ -243,6 +289,15 @@
     private string _fishRateText = "";
     private string _meatRateText = "";
     private string? _configMessage;
+
+    private void OpenRates() { _configMessage = null; _editingConfiguration = false; _ratesOpen = true; }
+    private void CloseRates() { _ratesOpen = false; _editingConfiguration = false; }
+    private void OnRatesKey(KeyboardEventArgs e) { if (e.Key == "Escape") CloseRates(); }
+
+    /// <summary>The rate in force for a weighing type, for its register's header.</summary>
+    private string RateText(FishMeatVendorType type) =>
+        _config?.Current.FirstOrDefault(x => x.VendorType == type) is not { } row ? string.Empty
+        : row.Enabled ? $"{Money(row.RatePerKilo ?? 0m)} / kg" : "Not enabled";
 
     private void BeginEditingConfiguration()
     {

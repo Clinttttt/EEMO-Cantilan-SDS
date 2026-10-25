@@ -82,6 +82,8 @@ public sealed class TerminalWorkspaceTests : TestContext
 
         var cut = RenderComponent<TerminalReport>();
 
+        cut.OpenStatusReport();
+
         cut.WaitForAssertion(() =>
         {
             Assert.Empty(cut.FindAll("main"));

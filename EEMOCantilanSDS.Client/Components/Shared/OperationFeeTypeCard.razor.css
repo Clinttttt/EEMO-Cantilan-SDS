@@ -1,0 +1,31 @@
+.oft {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    box-shadow: 0 1px 4px color-mix(in srgb, var(--navy) 6%, transparent);
+}
+.oft-head { margin-bottom: 14px; }
+.oft-title { font-size: 15px; font-weight: 700; color: var(--navy); margin: 0; }
+.oft-sub { font-size: 12px; color: var(--text-muted); margin: 3px 0 0; }
+.oft-empty { margin: 0; padding: 16px 0; color: var(--text-muted); font-size: 13px; }
+.oft-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.oft-list li {
+    display: grid;
+    grid-template-columns: minmax(120px, 1.2fr) minmax(80px, 2fr) auto;
+    grid-template-areas: "name track amount" "name track count";
+    align-items: center;
+    column-gap: 16px;
+    padding: 10px 0;
+    border-top: 1px solid var(--border);
+}
+.oft-list li:first-child { border-top: 0; }
+.oft-name { grid-area: name; font-size: 13.5px; font-weight: 600; color: var(--navy); }
+.oft-track { grid-area: track; height: 8px; border-radius: 999px; background: var(--bg); overflow: hidden; }
+.oft-track i { display: block; height: 100%; border-radius: inherit; background: #2d7a5f; }
+.oft-amount { grid-area: amount; text-align: right; font-size: 13.5px; font-weight: 700; color: var(--navy); font-variant-numeric: tabular-nums; }
+.oft-count { grid-area: count; text-align: right; font-size: 11.5px; color: var(--text-muted); }
+
+@media (max-width: 640px) {
+    .oft-list li { grid-template-columns: 1fr auto; grid-template-areas: "name amount" "track count"; row-gap: 6px; }
+}

@@ -205,9 +205,9 @@
 .donut-leg-value { font-size: 12.5px; font-weight: 700; color: var(--navy); }
 
 /* ── Section heading ── */
-.rpt-section-heading { display: flex; align-items: center; gap: 12px; padding: 0 0 4px; }
-.rpt-section-rule { flex: 1; height: 1px; background: var(--border); }
-.rpt-section-heading h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); white-space: nowrap; margin: 0; }
+.rpt-section-heading { display: flex; align-items: center; gap: 12px; padding: 4px 0; }
+.rpt-section-rule { display: block; width: 4px; height: 18px; border-radius: 2px; background: var(--accent); flex-shrink: 0; }
+.rpt-section-heading h2 { font-size: 16px; font-weight: 700; color: var(--navy); white-space: nowrap; margin: 0; }
 
 /* ── Audit row ── */
 .rpt-audit-row { display: grid; grid-template-columns: minmax(320px, 0.95fr) minmax(0, 1.45fr); gap: 16px; align-items: stretch; }
@@ -584,4 +584,23 @@
 .rpt-document-tab:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
+}
+
+/* Phone width: the header, tab rail, KPI strip and chart headers stack instead of widening the page. */
+@media screen and (max-width: 640px) {
+    .rpt-topbar { padding: 14px 16px; flex-wrap: wrap; }
+    .rpt-topbar-right { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
+    .rpt-period-bar { padding: 10px 16px; flex-direction: column; align-items: stretch; }
+    .rpt-period-tabs { display: flex; flex-wrap: nowrap; width: 100%; overflow-x: auto; }
+    .rpt-period-tab { flex-shrink: 0; min-width: 0; }
+    .rpt-kpi-strip { grid-template-columns: minmax(0, 1fr); padding: 16px 16px 0; }
+    .rpt-content { padding: 16px 16px 32px; }
+    .rpt-charts-row { grid-template-columns: minmax(0, 1fr); }
+    .chart-header { flex-direction: column; align-items: flex-start; }
+    .chart-legend { flex-wrap: wrap; }
+}
+/* Below 768px the app's drawer button sits top-left: leave it room, and drop the back link it already replaces. */
+@media screen and (max-width: 768px) {
+    .rpt-topbar { padding-left: 58px; }
+    .rpt-back-btn { display: none; }
 }

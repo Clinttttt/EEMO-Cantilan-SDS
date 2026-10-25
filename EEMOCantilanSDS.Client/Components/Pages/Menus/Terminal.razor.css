@@ -129,12 +129,24 @@
 .trm2-month { width: 9.5rem; min-height: 36px; padding-block: 4px; }
 
 /* Tenant Terminal sections use the same V3 workspace patterns as other Head-configurable registers. */
-.trm2-settings { margin-bottom: 1rem; }
-.trm2-settings-body { display: grid; gap: 0.75rem; padding: 1rem; }
-.trm2-settings-row { display: flex; flex-wrap: wrap; gap: 0.7rem; align-items: center; }
-.trm2-settings-label { min-width: 10rem; font-size: 0.875rem; }
-.trm2-settings-input { flex: 1 1 12rem; min-width: 0; }
-@media (max-width: 600px) {
-    .trm2-settings-row { display: grid; grid-template-columns: minmax(0, 1fr); }
-    .trm2-settings-label, .trm2-settings-input { width: 100%; }
-}
+/* Terminal sections drawer: one row per section — its standard name and a Collecting switch, then the local name and Save. */
+.trm2-drawer { width: min(100%, 30rem); }
+.trm2-drawer-close { margin-left: auto; width: 32px; height: 32px; border: 0; border-radius: 8px; background: transparent; color: var(--text-secondary); font-size: 1.25rem; line-height: 1; cursor: pointer; }
+.trm2-drawer-close:hover { background: var(--surface-muted); color: var(--text); }
+.trm2-drawer-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.trm2-drawer-note { margin: 0; color: var(--text-secondary); font-size: 0.8125rem; line-height: 1.45; }
+.trm2-settings-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.trm2-settings-row { display: grid; gap: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; }
+.trm2-settings-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.trm2-settings-name { color: var(--text); font-size: 0.875rem; font-weight: 600; }
+.trm2-settings-edit { display: flex; gap: 8px; }
+.trm2-settings-edit .v3-input { flex: 1 1 auto; min-width: 0; }
+.trm2-switch { position: relative; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.trm2-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.trm2-switch-track { position: relative; width: 36px; height: 20px; border-radius: 999px; background: var(--text-tertiary, #98a2b3); transition: background-color 150ms ease-out; }
+.trm2-switch-track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(16, 24, 40, .2); transition: transform 150ms ease-out; }
+.trm2-switch input:checked + .trm2-switch-track { background: var(--accent); }
+.trm2-switch input:checked + .trm2-switch-track::after { transform: translateX(16px); }
+.trm2-switch input:focus-visible + .trm2-switch-track { outline: 2px solid var(--accent); outline-offset: 2px; }
+.trm2-switch-text { min-width: 4.5rem; color: var(--text-secondary); font-size: 0.75rem; font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .trm2-switch-track, .trm2-switch-track::after { transition: none; } }

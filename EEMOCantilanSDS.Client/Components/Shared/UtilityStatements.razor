@@ -18,7 +18,7 @@
         @if (!string.IsNullOrWhiteSpace(Error))
         {
             <div class="lsh-state" role="alert">
-                @if (SetupRequired) { <span><strong>Setup required.</strong> @Error</span> <a class="lsh-btn" href="/settings/revenue">Open Revenue Setup</a> }
+                @if (SetupRequired) { <span><strong>Setup required.</strong> @Error</span> <a class="lsh-btn" href="/settings/revenue">Open Revenue Sources</a> }
                 else { <span>@Error</span> <button type="button" class="lsh-btn" @onclick="OnRetry">Try again</button> }
             </div>
         }

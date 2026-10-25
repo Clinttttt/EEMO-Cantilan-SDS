@@ -817,8 +817,19 @@
 }
 
 /* An itemized collection: the approved charges, their quantity and frozen rate, under the transaction they belong to. */
-.txn-items td { padding-top: 0; }
-.txn-item-table { width: 100%; max-width: 36rem; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.txn-num,
+.txn-table thead th.txn-num,
+.txn-table tbody td.txn-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.txn-strong { font-weight: 700; }
+.txn-items > td { padding: 12px 24px 18px 0; border-top: 0; }
+.txn-items-box { overflow: hidden; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-muted); }
+.txn-item-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
 .txn-item-table th,
-.txn-item-table td { padding: 4px 8px; border-bottom: 1px solid var(--border); text-align: left; }
-.txn-item-table th { color: var(--text-muted); font-weight: 600; }
+.txn-item-table td { padding: 8px 16px; border-bottom: 1px solid var(--border); text-align: left; }
+.txn-item-table thead th { color: var(--text-muted); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; background: var(--surface); }
+.txn-item-table tbody tr:last-child td { border-bottom: 0; }
+.txn-item-table tfoot th,
+.txn-item-table tfoot td { border-top: 1px solid var(--border); border-bottom: 0; background: var(--surface); color: var(--text); font-weight: 700; }
+.txn-item-table .txn-num { text-align: right; }
+.txn-item-table th:first-child,
+.txn-item-table td:first-child { width: 46%; }

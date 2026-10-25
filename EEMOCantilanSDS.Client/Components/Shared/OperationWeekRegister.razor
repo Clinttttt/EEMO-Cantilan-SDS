@@ -1,0 +1,90 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@inject IGovernedServicesApiClient GovernedApi
+
+@* One week of a transactional operation's collections, as the server records them (governed activity). Counts only: the rows
+   carry their own status (posted, reversed, corrected), so no amount is added up here — a week's money total belongs to the
+   server, which does not publish one yet. *@
+<section class="owr" aria-labelledby="owr-title" aria-busy="@(_loading ? "true" : "false")">
+    <div class="owr-head">
+        <div>
+            <h2 id="owr-title" class="owr-title">Collections this week</h2>
+            <p class="owr-sub">@From.ToString("MMM d", CultureInfo.InvariantCulture) – @To.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</p>
+        </div>
+        <dl class="owr-facts">
+            <div><dt>Transactions</dt><dd>@Count(_rows?.Count)</dd></div>
+            <div><dt>Days with collections</dt><dd>@Count(_rows?.Select(r => r.BusinessDate).Distinct().Count())</dd></div>
+            <div><dt>Collectors</dt><dd>@Count(_rows?.Select(r => r.CollectorName ?? "Office").Distinct().Count())</dd></div>
+        </dl>
+    </div>
+    @if (_error is not null)
+    {
+        <p class="v3-notice v3-notice-error v3-notice-row" role="alert"><span>@_error</span> <button class="v3-btn v3-btn-sm" type="button" @onclick="LoadAsync">Try again</button></p>
+    }
+    <div class="v3-table-wrap">
+        <table class="v3-table">
+            <thead>
+                <tr><th scope="col">Date</th><th scope="col">SRC</th><th scope="col">Payer / reference</th><th scope="col">Collector</th><th scope="col" class="v3-num">Amount</th><th scope="col">Status</th></tr>
+            </thead>
+            <tbody>
+                @if (_rows is null || _rows.Count == 0)
+                {
+                    <tr><td colspan="6" class="owr-empty">@(_loading ? "Loading collections…" : _rows is null ? "Collections are unavailable." : $"No {Name} collections were recorded this week.")</td></tr>
+                }
+                else
+                {
+                    @foreach (var row in _rows.OrderBy(r => r.BusinessDate).ThenBy(r => r.ReferenceCode, StringComparer.Ordinal))
+                    {
+                        <tr>
+                            <td>@row.BusinessDate.ToString("ddd, MMM d", CultureInfo.InvariantCulture)</td>
+                            <td>@row.ReferenceCode</td>
+                            <td>@(row.PayerName ?? "Walk-up")@(string.IsNullOrWhiteSpace(row.Reference) ? "" : $" · {row.Reference}")</td>
+                            <td>@(row.CollectorName ?? "Office")</td>
+                            <td class="v3-num">₱@row.Amount.ToString("N2", CultureInfo.InvariantCulture)</td>
+                            <td>@row.Disposition</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public string OperationCode { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Name { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public DateOnly From { get; set; }
+    [Parameter, EditorRequired] public DateOnly To { get; set; }
+
+    private IReadOnlyList<GovernedServiceActivityDto>? _rows;
+    private DateOnly _loadedFrom;
+    private bool _loading;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedFrom == From && (_rows is not null || _error is not null)) return;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        _loadedFrom = From;
+        try
+        {
+            var result = await GovernedApi.GetActivityAsync(OperationCode, From, To);
+            _rows = result is { IsSuccess: true, Value: { } rows } ? rows : null;
+            if (_rows is null) _error = $"The {Name} collections could not be loaded.";
+        }
+        catch
+        {
+            _rows = null;
+            _error = $"The {Name} collections could not be loaded.";
+        }
+        finally { _loading = false; }
+    }
+
+    private static string Count(int? value) => value is { } v ? v.ToString(CultureInfo.InvariantCulture) : "—";
+}

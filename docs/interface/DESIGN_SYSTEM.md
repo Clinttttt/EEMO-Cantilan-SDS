@@ -302,3 +302,14 @@ For substantial interface review, use `.agents/skills/stalltrack-interface-revie
 | `/operations/fiesta-araw/space-holders` | `SpaceHolderRoster` (lots) | 6: # · Name of Lessee · Lot No. · Event · Approved Amount · Contract |
 
 WCF and ECF read their own obligation APIs and are never mixed. Missing values print as an em dash; nothing is invented for space-only occupancy.
+
+## 19. Reports layout (facilities and operations)
+
+Every report page uses one layout: civic-panel header, one tab rail (**Weekly · Monthly · Yearly · Status Report · History**), period navigator, KPI strip, and the shared 3-D `CollectionTrendChart` (front, top and side faces; value on the bar; one green for the reported series). Clint's direction of 2026-10-25 restores the 3-D bar for report charts.
+
+- **Facilities** (NPM, TCC, NCC, ICE, BBQ, TPM): their own report pages. The NPM report covers **stall rent only**. Fish and meat weighing are reported on the Weight & Measure report.
+- **Operations** (Market Fees, Landing / Berthing, Transportation, Transfer Large Cattle, Fish / Meat Vendor Fees, Vegetable / Fruits, Kanmanggay, Fiesta / Araw, ECF, WCF, Weight & Measure, Terminal): `Components/Shared/OperationReportsPage`.
+  - Monthly, Yearly and History read the operation's row of the official Monthly Income; nothing is added up in the browser.
+  - Status Report is the operation's own official report, embedded with `Embedded="true"`.
+  - Weekly exists only where a transaction register exists (governed operations), and shows counts, never a computed money total.
+- Status Report and History documents use `OfficeReportShell`: 14px table text on screen, 11.5px in print.

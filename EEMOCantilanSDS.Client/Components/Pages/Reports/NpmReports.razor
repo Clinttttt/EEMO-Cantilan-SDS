@@ -43,7 +43,8 @@
            Portrait, through the same window.print() the statements use. These sheets are six columns at their widest, so
            they fit A4 portrait; the landscape helper exists for the ten-column roster, and using it here would turn a
            document that fits into one that does not. *@
-        @if (ShowPrintReport || ShowHistory)
+        @* The Status Report carries its own Print (landscape) beside its Month / Whole year switch. *@
+        @if (ShowHistory)
         {
             <button type="button" class="rpt-action-btn" @onclick="PrintPage" title="Print this report">
                 <svg aria-hidden="true" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
@@ -665,8 +666,8 @@ else
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h7a4 4 0 0 1 0 8H6z" /><line x1="4" y1="9" x2="16" y2="9" /><line x1="4" y1="13" x2="16" y2="13" /><line x1="6" y1="4" x2="6" y2="20" /></svg>
             </div>
             <div class="kpi-body">
-                <div class="kpi-label">Collected Revenue</div>
-                <div class="kpi-value">₱@TotalCollected.ToString("N2")</div>
+                <div class="kpi-label">Stall Rent Collected</div>
+                <div class="kpi-value">₱@DailyFeeTotal.ToString("N2")</div>
                 <div class="kpi-change positive">@RevenueGrowthText</div>
             </div>
         </div>
@@ -715,26 +716,21 @@ else
             <div class="chart-header">
                 <div class="chart-header-left">
                     <h3 class="chart-title">Collection Trend</h3>
-                    <p class="chart-subtitle">Fees counted in the period they cover, whenever paid</p>
+                    <p class="chart-subtitle">Stall rent counted in the period it covers, whenever paid</p>
                 </div>
                 <div class="chart-legend">
                     <div class="legend-item">
                         <span class="legend-dot" style="background:#2d7a5f"></span>
-                        <span class="legend-label">Daily rent</span>
+                        <span class="legend-label">Stall rent</span>
                     </div>
                     <div class="legend-item">
-                        <span class="legend-dot" style="background:#4a7fa5"></span>
-                        <span class="legend-label">Fish fee</span>
-                    </div>
-                    <div class="legend-item">
-                        <span class="legend-dot" style="background:#c8a84b"></span>
-                        <span class="legend-label">Current Period</span>
+                        <span class="legend-dot" style="background:var(--accent)"></span>
+                        <span class="legend-label">Current period</span>
                     </div>
                 </div>
             </div>
             <CollectionTrendChart Trend="R?.RevenueTrend"
-                                  RentLabel="Daily rent"
-                                  FishLabel="@($"Fish kilo fee (₱{_npmFishRate:0}/kg)")"
+                                  RentLabel="Stall rent" ShowFish="false"
                                   EmptyPeriodLabel="@GetPeriodLabel()" />
         </div>
 
@@ -763,9 +759,9 @@ else
         <div class="audit-card audit-card-donut">
             <div class="audit-card-head">
                 <div class="audit-head-metric">
-                    <span>Revenue by Market Section</span>
+                    <span>Stall Rent by Section</span>
                 </div>
-                <small class="audit-subtitle">Section revenue mix for @GetPeriodLabel()</small>
+                <small class="audit-subtitle">Stall rent mix for @GetPeriodLabel()</small>
             </div>
             @if (SectionData.Any(s => s.Revenue > 0))
             {
@@ -827,9 +823,9 @@ else
         <div class="audit-card audit-card-wide audit-card-payor">
             <div class="audit-card-head">
                 <div class="audit-head-metric">
-                    <span>Revenue Share by Section</span>
+                    <span>Stall Rent Share by Section</span>
                 </div>
-                <small class="audit-subtitle">Recorded collection share by market section</small>
+                <small class="audit-subtitle">Stall rent recorded by market section</small>
             </div>
             @if (AuditPayorBars.Any())
             {
@@ -845,21 +841,9 @@ else
                             <strong class="audit-payor-value">&#8369;@b.ShortValue</strong>
                             <div class="audit-payor-track">
                                 <div class="audit-payor-stack @(b.IsZero ? "is-zero" : "")">
-                                    @if (b.FishHeightPct > 0)
-                                    {
-                                        <div class="audit-seg3d seg-fish" style="height:@b.FishHeightPct%" title="Fish-kilo fee &#183; &#8369;@b.FishAmount.ToString("N0")">
+                                    <div class="audit-seg3d seg-rent" style="height:@b.RentHeightPct%" title="Stall rent &#183; &#8369;@b.RentAmount.ToString("N0")">
                                             <span class="aud-face-top"></span><span class="aud-face-side"></span>
                                         </div>
-                                        <div class="audit-seg3d seg-rent" style="height:@b.RentHeightPct%" title="Stall rent &#183; &#8369;@b.RentAmount.ToString("N0")">
-                                            <span class="aud-face-side"></span>
-                                        </div>
-                                    }
-                                    else
-                                    {
-                                        <div class="audit-seg3d seg-rent" style="height:@b.RentHeightPct%" title="Stall rent &#183; &#8369;@b.RentAmount.ToString("N0")">
-                                            <span class="aud-face-top"></span><span class="aud-face-side"></span>
-                                        </div>
-                                    }
                                 </div>
                             </div>
                             <span class="audit-payor-label">@GetShort(FacilityCatalog.SectionLabelOf(FacilityCode.NPM, NormalizeSectionName(b.Section)))</span>
@@ -869,7 +853,6 @@ else
                 </div>
                 <div class="audit-stack-legend">
                     <span class="audit-legend-item"><i class="seg-rent"></i> Stall rent</span>
-                    <span class="audit-legend-item"><i class="seg-fish"></i> Fish-kilo fee</span>
                 </div>
             }
             else
@@ -935,24 +918,16 @@ else
         <div class="audit-card audit-card-compare">
             <div class="audit-card-head audit-card-head-compact">
                 <div class="audit-head-metric">
-                    <span>Fee Mix & Risk Gap</span>
+                    <span>Rent Collected & Risk Gap</span>
                 </div>
-                <small class="audit-subtitle">Collected fee types versus open receivables</small>
+                <small class="audit-subtitle">Stall rent collected versus open receivables</small>
             </div>
             <div class="audit-compare-row">
-                <span>Daily stall fee</span>
+                <span>Stall rent</span>
                 <div><i style="width:@DailyFeeMixPct%; background:var(--green)"></i></div>
                 <strong class="audit-compare-value">
                     <span>&#8369;@DailyFeeTotal.ToString("N0")</span>
                     <small>@DailyFeeMixPct%</small>
-                </strong>
-            </div>
-            <div class="audit-compare-row">
-                <span>Fish kilo fee</span>
-                <div><i style="width:@FishFeeMixPct%; background:#4a7fa5"></i></div>
-                <strong class="audit-compare-value">
-                    <span>&#8369;@FishFeeTotal.ToString("N0")</span>
-                    <small>@FishFeeMixPct%</small>
                 </strong>
             </div>
             <div class="audit-compare-row">
@@ -964,8 +939,7 @@ else
                 </strong>
             </div>
             <div class="audit-section-palette audit-risk-key">
-                <span><i style="background:var(--green)"></i>Daily stall fee collected</span>
-                <span><i style="background:#4a7fa5"></i>Fish kilo fee collected</span>
+                <span><i style="background:var(--green)"></i>Stall rent collected</span>
                 <span class="risk"><i style="background:var(--red)"></i>Open balance for follow-up</span>
             </div>
         </div>
@@ -1040,287 +1014,8 @@ else
             </div>
         </div>
 
-        <!-- Section Revenue -->
-        <div class="rpt-breakdown-card">
-            <div class="breakdown-header">
-                <h4 class="breakdown-title">Section Revenue</h4>
-                <p class="breakdown-subtitle">Distribution across market sections</p>
-            </div>
-            @if (SectionData.Any(s => s.Revenue > 0))
-            {
-                <div class="rpt-donut-wrap">
-                    <div class="rpt-donut-container">
-                        <svg class="rpt-donut-svg" viewBox="0 0 120 120">
-                            <defs>
-                                @foreach (var c in SectionData.Where(s => s.Revenue > 0).Select(s => s.Color).Distinct())
-                                {
-                                    <linearGradient id="@SecGradId(c, "sgb")" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="0%" stop-color="@c" /><stop offset="100%" stop-color="@Darken(c)" />
-                                    </linearGradient>
-                                }
-                                <radialGradient id="secrev-hole" cx="50%" cy="40%" r="62%">
-                                    <stop offset="0%" stop-color="#ffffff" /><stop offset="100%" stop-color="#eef2f6" />
-                                </radialGradient>
-                                <filter id="secrev-depth" x="-30%" y="-30%" width="160%" height="160%">
-                                    <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#0d2137" flood-opacity="0.18" />
-                                </filter>
-                            </defs>
-                            <circle cx="60" cy="60" r="46" fill="none" stroke="#eef2f6" stroke-width="18" />
-                            @{ var secArcs = BuildDonutArcs(SectionData.Select(s => ((int)s.Revenue, $"url(#{SecGradId(s.Color, "sgb")})")).ToArray(), 46, 60, 60); }
-                            <g filter="url(#secrev-depth)">
-                                @foreach (var arc in secArcs)
-                                {
-                                    <path d="@arc.D" fill="none" stroke="@arc.Color" stroke-width="18" stroke-linecap="butt" class="donut-segment" />
-                                }
-                            </g>
-                            <circle cx="60" cy="60" r="35" fill="url(#secrev-hole)" />
-                            <circle cx="60" cy="60" r="35" fill="none" stroke="rgba(13,33,55,0.07)" stroke-width="1" />
-                            <text x="60" y="55" class="donut-center-lbl">REVENUE</text>
-                            <text x="60" y="72" class="donut-center-sub">₱@SectionData.Sum(s => s.Revenue).ToString("N0")</text>
-                        </svg>
-                    </div>
-                    <div class="rpt-donut-legend">
-                        @{ var secTotal = SectionData.Sum(s => s.Revenue); }
-                        @foreach (var s in SectionData)
-                        {
-                            <div class="donut-leg-item">
-                                <div class="donut-leg-left">
-                                    <span class="donut-leg-dot" style="background:linear-gradient(180deg, @s.Color 0%, @Darken(s.Color) 100%)"></span>
-                                    <span class="donut-leg-label">@s.Name</span>
-                                </div>
-                                <strong class="donut-leg-value">₱@s.Revenue.ToString("N0") · @(secTotal > 0 ? (int)Math.Round(s.Revenue / secTotal * 100) : 0)%</strong>
-                            </div>
-                        }
-                    </div>
-                </div>
-            }
-            else
-            {
-                <div class="rpt-empty">
-                    <div class="rpt-empty-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M19 9l-5 5-4-4-3 3"/></svg>
-                    </div>
-                    <div class="rpt-empty-title">No section revenue</div>
-                    <div class="rpt-empty-text">No revenue was collected for @GetPeriodLabel().</div>
-                </div>
-            }
-            <div class="mini-panel">
-                <div class="mini-panel-title">Collection Rate by Section</div>
-                @foreach (var sec in SectionData)
-                {
-                    <div class="mini-metric-row">
-                        <span class="mini-metric-label">@sec.ShortName</span>
-                        <div class="mini-meter">
-                            <div class="mini-meter-fill" style="width:@sec.Pct%; background:@sec.Color"></div>
-                        </div>
-                        <strong class="mini-metric-value">@sec.Pct%</strong>
-                    </div>
-                }
-            </div>
-        </div>
-
-        <!-- Payor Compliance -->
-        <div class="rpt-breakdown-card">
-            <div class="breakdown-header">
-                <h4 class="breakdown-title">Payor Compliance</h4>
-                <p class="breakdown-subtitle">Payment status distribution</p>
-            </div>
-            <div class="cmp-stats">
-                <div class="cmp-stat">
-                    <strong class="cov-collected">@PaidCount</strong>
-                    <span class="cmp-stat-label">Fully Paid</span>
-                </div>
-                <div class="cmp-stat">
-                    <strong class="cov-partial">@PartialCount</strong>
-                    <span class="cmp-stat-label">Partial</span>
-                </div>
-                <div class="cmp-stat">
-                    <strong class="cov-missed">@UnpaidCount</strong>
-                    <span class="cmp-stat-label">Unpaid</span>
-                </div>
-            </div>
-            <div class="cmp-bar-container">
-                <div class="cmp-bar">
-                    @if (PaidPct > 0) { <div class="cmp-seg paid" style="width:@PaidPct%"></div> }
-                    @if (PartialPct > 0) { <div class="cmp-seg partial" style="width:@PartialPct%"></div> }
-                    @if (UnpaidPct > 0) { <div class="cmp-seg unpaid" style="width:@UnpaidPct%"></div> }
-                </div>
-            </div>
-            <div class="cmp-legend">
-                <div class="cmp-legend-item">
-                    <i class="leg-swatch collected"></i>
-                    <span>Paid @PaidPct%</span>
-                </div>
-                <div class="cmp-legend-item">
-                    <i class="leg-swatch partial"></i>
-                    <span>Partial @PartialPct%</span>
-                </div>
-                <div class="cmp-legend-item">
-                    <i class="leg-swatch missed"></i>
-                    <span>Unpaid @UnpaidPct%</span>
-                </div>
-            </div>
-            <div class="mini-panel">
-                <div class="mini-panel-title">Fee Type Breakdown</div>
-                <div class="fee-row">
-                    <span class="fee-label">Daily stall fee (₱@(_npmDailyRate.ToString("0"))/day)</span>
-                    <div class="mini-meter"><div class="mini-meter-fill" style="width:100%; background:#2d7a5f"></div></div>
-                    <strong class="fee-value">₱@DailyFeeTotal.ToString("N0")</strong>
-                </div>
-                <div class="fee-row">
-                    <span class="fee-label">Fish kilo fee (₱@(_npmFishRate.ToString("0"))/kg)</span>
-                    <div class="mini-meter"><div class="mini-meter-fill" style="width:@FishFeePct%; background:#4a7fa5"></div></div>
-                    <strong class="fee-value">₱@FishFeeTotal.ToString("N0")</strong>
-                </div>
-            </div>
-        </div>
-
-        <!-- Daily Collection Streak Calendar -->
-        <div class="rpt-breakdown-card rpt-streak-card">
-            <h4 class="breakdown-title">Collection Coverage — @GetPeriodLabel()</h4>
-
-            <div class="cov-summary">
-                <div class="cov-rate-val">@CoverageRate%</div>
-                <div class="cov-rate-lbl">Payor coverage</div>
-                <div class="cov-bar"><div class="cov-bar-fill" style="width:@CoverageRate%"></div></div>
-            </div>
-            <div class="cov-chips">
-                <div class="cov-chip"><strong class="cov-collected">@CollectedDays</strong><span>Collected</span></div>
-                <div class="cov-chip"><strong class="cov-missed">@MissedDays</strong><span>Missed</span></div>
-                @if (AbsentDays > 0)
-                {
-                    <div class="cov-chip"><strong class="cov-absent">@AbsentDays</strong><span>Absent</span></div>
-                }
-                <div class="cov-chip"><strong class="cov-streak">@CurrentStreak</strong><span>Day Streak</span></div>
-            </div>
-
-            @if (ActivePeriod == "Yearly")
-            {
-                <!-- Yearly: 12-month heatmap -->
-                <div class="streak-calendar-area">
-                    <div class="streak-yearly-grid">
-                        @foreach (var mo in YearlyMonths)
-                        {
-                            <div class="streak-month-cell @mo.Css" title="@mo.Label">
-                                <span class="streak-month-name">@mo.Name</span>
-                                <span class="streak-month-rate">@mo.Rate%</span>
-                            </div>
-                        }
-                    </div>
-                </div>
-            }
-            else if (ActivePeriod == "Weekly")
-            {
-                <!-- Weekly: 7 day cells for the selected week -->
-                <div class="streak-calendar-area">
-                    <div class="streak-dow-row">
-                        @foreach (var d in new[] { "Su","Mo","Tu","We","Th","Fr","Sa" })
-                        { <span>@d</span> }
-                    </div>
-                    <div class="streak-grid streak-grid-week">
-                        @foreach (var day in WeekDays)
-                        {
-                            <span class="streak-day @day.Css" title="@day.Label">@day.Num</span>
-                        }
-                    </div>
-                </div>
-            }
-            else
-            {
-                <!-- Monthly: full month grid -->
-                <div class="streak-calendar-area">
-                    <div class="streak-dow-row">
-                        @foreach (var d in new[] { "Su","Mo","Tu","We","Th","Fr","Sa" })
-                        { <span>@d</span> }
-                    </div>
-                    <div class="streak-grid">
-                        @for (int b = 0; b < CalendarLeadBlanks; b++)
-                        { <span class="streak-day empty"></span> }
-                        @foreach (var day in CalendarDays)
-                        {
-                            <span class="streak-day @day.Css" title="@day.Label">@day.Num</span>
-                        }
-                    </div>
-                </div>
-            }
-
-            <div class="streak-legend">
-                <span><i class="leg-swatch collected"></i>Collected (@CollectedDays)</span>
-                <span><i class="leg-swatch missed"></i>Missed (@MissedDays)</span>
-                @if (AbsentDays > 0)
-                {
-                    <span><i class="leg-swatch absent"></i>Absent (@AbsentDays)</span>
-                }
-                <span><i class="leg-swatch future"></i>Upcoming</span>
-            </div>
-        </div>
 
     </div>
-
-    <!-- ══ Fish Area Kilo Tracker (only when fish-section stalls exist) ══ -->
-    @if (FishStallCount > 0)
-    {
-    <div class="rpt-section-heading">
-        <span class="rpt-section-rule"></span>
-        <h2>@SectionDisplay("Fish Area") — Kilo Tracking</h2>
-    </div>
-
-    <div class="rpt-fish-panel">
-        <p class="fish-caption">Throughput fee at ₱@(_npmFishRate.ToString("0"))/kg — tracked separately from the ₱@(_npmDailyRate.ToString("0"))/day stall rent.</p>
-        <div class="fish-kpi-row">
-            <div class="fish-kpi">
-                <div class="fish-kpi-val">@TotalFishKilos.ToString("N0") <span class="fish-kpi-unit">kg</span></div>
-                <div class="fish-kpi-lbl">Total Kilos This Period</div>
-            </div>
-            <div class="fish-kpi">
-                <div class="fish-kpi-val">₱@FishFeeTotal.ToString("N0")</div>
-                <div class="fish-kpi-lbl">Fish Fee Collected (₱@(_npmFishRate.ToString("0"))/kg)</div>
-            </div>
-            <div class="fish-kpi">
-                <div class="fish-kpi-val">@FishStallCount</div>
-                <div class="fish-kpi-lbl">Active @SectionDisplay("Fish Area") Stalls</div>
-            </div>
-            <div class="fish-kpi">
-                <div class="fish-kpi-val">@FishPeakLabel</div>
-                <div class="fish-kpi-lbl">Peak Day · @FishPeakKilos.ToString("N0") kg</div>
-            </div>
-            <div class="fish-kpi">
-                <div class="fish-kpi-val">@FishAvgPerActiveDay.ToString("N1") <span class="fish-kpi-unit">kg</span></div>
-                <div class="fish-kpi-lbl">Avg / Active Day</div>
-            </div>
-        </div>
-        @if (!string.IsNullOrWhiteSpace(FishComparison))
-        {
-            <div class="fish-insight">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg>
-                <span>@FishComparison</span>
-            </div>
-        }
-        @if (TotalFishKilos > 0)
-        {
-            <div class="rpt-fish-chart">
-                @foreach (var pt in FishTrendPoints)
-                {
-                    <div class="rpt-fish-col @(pt.IsZero ? "is-zero" : "")" title="@pt.Label — @pt.Kilos.ToString("N1") kg">
-                        <div class="rpt-fish-val">@(pt.IsZero ? "" : pt.Kilos.ToString("N0"))</div>
-                        <div class="rpt-fish-track">
-                            <div class="rpt-fish-fill" style="height:@pt.HeightPct%"></div>
-                        </div>
-                        <div class="rpt-fish-xlabel">@pt.Label</div>
-                    </div>
-                }
-            </div>
-        }
-        else
-        {
-            <div class="rpt-empty">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c0 0 3-5 8-5s8 2 8 2l3-4v10l-3-4s-3 2-8 2-8-5-8-5z"/><circle cx="14" cy="11" r="1" fill="currentColor" stroke="none"/></svg>
-                <div class="rpt-empty-title">No @SectionDisplay("Fish Area") activity</div>
-                <div class="rpt-empty-text">No fish kilos were recorded for @GetPeriodLabel().</div>
-            </div>
-        }
-    </div>
-    }
 
     <!-- ══ Delinquency Analytics ══ -->
     <div class="rpt-section-heading">
@@ -1943,36 +1638,6 @@ else
     // ── Fee totals (from API) ─────────────────────────────────────
     decimal DailyFeeTotal  => R?.FeeTypeBreakdown?.DailyFeeAmount ?? 0m;
     decimal FishFeeTotal   => R?.FeeTypeBreakdown?.FishFeeAmount ?? 0m;
-    decimal FishFeePct     => DailyFeeTotal > 0 ? Math.Min(100, FishFeeTotal / DailyFeeTotal * 100) : 0;
-
-    // ── Fish tracker (from API) ───────────────────────────────────
-    decimal TotalFishKilos => R?.FishKiloTrend?.Sum(f => f.Kilos) ?? 0m;
-    int     FishStallCount => R?.SectionBreakdown?.FirstOrDefault(s => s.SectionName == "Fish Area")?.ActiveStalls ?? 0;
-    string? FishComparison => R?.FeeTypeBreakdown?.FishKiloComparison;
-    int     FishActiveDays => (R?.FishKiloTrend ?? new List<FishKiloTrendDto>()).Count(f => f.Kilos > 0m);
-    decimal FishAvgPerActiveDay => FishActiveDays > 0 ? TotalFishKilos / FishActiveDays : 0m;
-    FishKiloTrendDto? FishPeak => (R?.FishKiloTrend ?? new List<FishKiloTrendDto>())
-        .OrderByDescending(f => f.Kilos).FirstOrDefault();
-    string  FishPeakLabel => (FishPeak?.Kilos ?? 0m) > 0m ? FishPeak!.PeriodLabel : "—";
-    decimal FishPeakKilos => FishPeak?.Kilos ?? 0m;
-
-    record FishPoint(string Label, decimal Kilos, int HeightPct, bool IsZero);
-    IEnumerable<FishPoint> FishTrendPoints
-    {
-        get
-        {
-            var t = R?.FishKiloTrend ?? new List<FishKiloTrendDto>();
-            var max = t.Any() ? t.Max(x => x.Kilos) : 0m;
-            // ~15% headroom so the tallest bar never touches the top; zero-kilo days
-            // collapse to a baseline tick (IsZero) instead of a misleading stub bar.
-            var ceiling = max > 0m ? max * 1.15m : 0m;
-            return t.Select(x => new FishPoint(
-                x.PeriodLabel,
-                x.Kilos,
-                x.Kilos > 0m && ceiling > 0m ? Math.Max(6, (int)(x.Kilos / ceiling * 100)) : 0,
-                x.Kilos <= 0m));
-        }
-    }
 
     // ── Collection trend bar chart (from API) ─────────────────────
     // ── Section breakdown (from API) ──────────────────────────────
@@ -1983,7 +1648,9 @@ else
             var name = NormalizeSectionName(s.SectionName);
             // Name + Color stay canonical (keys); only the visible ShortName uses the tenant label.
             var display = FacilityCatalog.SectionLabelOf(FacilityCode.NPM, name);
-            return new SectionRow(name, GetShort(display), s.Revenue, ClampPct(s.Percentage), SectionColor(name));
+            // Stall rent only: the fish-kilo fee only ever comes from the Fish Area, and is reported on the Weight & Measure report.
+            var rent = name == "Fish Area" ? s.Revenue - Math.Min(FishFeeTotal, s.Revenue) : s.Revenue;
+            return new SectionRow(name, GetShort(display), rent, ClampPct(s.Percentage), SectionColor(name));
         });
     decimal SectionRevenueTotal => SectionData.Sum(s => s.Revenue);
 
@@ -2047,14 +1714,10 @@ else
                 .ThenBy(s => s.Name)
                 .ToList();
             var maxRevenue = rows.Any() ? rows.Max(s => s.Revenue) : 0m;
-            // The fish-kilo fee only ever comes from the Fish Area, so the whole
-            // FeeTypeBreakdown.FishFeeAmount is attributed to that section's bar. Each bar splits
-            // into the stall-rent base (what the collection-rate % describes) and the separate
-            // fish-kilo fee cap, so a tall bar can no longer be mistaken for a high collection rate.
             return rows.Select(s =>
             {
-                var fishAmount = s.Name == "Fish Area" ? Math.Min(FishFeeTotal, s.Revenue) : 0m;
-                var rentAmount = s.Revenue - fishAmount;
+                var fishAmount = 0m;
+                var rentAmount = s.Revenue;
                 return new AuditPayorBar(
                     s.ShortName,
                     s.Name,
@@ -2128,9 +1791,8 @@ else
         }
     }
 
-    decimal FeeMixTotal => DailyFeeTotal + FishFeeTotal + PendingAmount;
+    decimal FeeMixTotal => DailyFeeTotal + PendingAmount;
     int DailyFeeMixPct => FeeMixTotal > 0 ? ClampPct(DailyFeeTotal / FeeMixTotal * 100m) : 0;
-    int FishFeeMixPct => FeeMixTotal > 0 ? ClampPct(FishFeeTotal / FeeMixTotal * 100m) : 0;
     int OutstandingMixPct => FeeMixTotal > 0 ? ClampPct(PendingAmount / FeeMixTotal * 100m) : 0;
 
     decimal PartialBalanceTotal => (R?.StallCompliance ?? new List<StallComplianceDto>())
