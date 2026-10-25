@@ -240,8 +240,8 @@ public sealed partial class CollectionSessionSources(AppDbContext db, ICurrentUs
             for (var i = 0; i < rows.Count; i++)
                 if (rows[i].Kind is CollectionSessionItemKind.VendorFee or CollectionSessionItemKind.Weighing)
                     rows[i] = rows[i] with { CanAdd = false, ReasonCode = "RequiresSourceIdentity", Reason = "Select a Fish or Meat Vendor Registration." };
-        return CollectionSessionChoiceProjection.Apply(new(payorId, date, rows, waterSources, electricitySources, obligationSources,
-            terms, weighingSources, weighingRates, slaughterOptions, payerName, vendorSources, npmSources, npmWholeSources));
+        return await LabelSpaceArrearsAsync(CollectionSessionChoiceProjection.Apply(new(payorId, date, rows, waterSources, electricitySources, obligationSources,
+            terms, weighingSources, weighingRates, slaughterOptions, payerName, vendorSources, npmSources, npmWholeSources)), date, ct);
     }
 
     public async Task<(CollectionSessionItemQuote? Quote, CollectionSessionProblem? Problem)> QuoteAsync(

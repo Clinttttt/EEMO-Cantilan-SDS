@@ -47,7 +47,7 @@
                     <label class="str-field">New term starts <input id="str-start" type="date" @bind="_start" disabled="@_busy" /></label>
                     <label class="str-field str-field-short">Term (years) <input id="str-years" type="number" min="1" max="50" @bind="_years" disabled="@_busy" /></label>
                     <div class="str-field">New term ends <span class="str-ends" role="status">@(_years >= 1 ? DomainRules.TermLastDay(_start, _years).ToString("MMM d, yyyy") : "—")</span></div>
-                    <button type="submit" class="btn-primary str-submit" disabled="@(_busy || _editing is not null)">@(_busy ? "Working…" : $"Renew {_eligible.Count} term{(_eligible.Count == 1 ? "" : "s")}")</button>
+                    <button type="submit" class="btn-primary str-submit" disabled="@(_busy || _editing is not null || Included.Count == 0)">@(_busy ? "Working…" : $"Renew {Included.Count} term{(Included.Count == 1 ? "" : "s")}")</button>
                 </form>
                 <p class="str-note">The lapsed period is not back-billed and nothing is written off. Use the pencil to correct a holder or contract name before renewing.</p>
                 @if (_progress is not null) { <p class="str-note" role="status">@_progress</p> }
@@ -60,7 +60,7 @@
                         @foreach (var row in _eligible)
                         {
                             var (holder, onContract) = NamesFor(row);
-                            <tr @key="row.StallId" class="@(_edits.ContainsKey(row.StallId) ? "str-row-changed" : "")">
+                            <tr @key="row.StallId" class="@(_excluded.Contains(row.StallId) ? "str-row-excluded" : _edits.ContainsKey(row.StallId) ? "str-row-changed" : "")">
                                 <td class="str-strong">@SpaceNumber.Display(row.StallNo)</td>
                                 @if (_editing == row.StallId)
                                 {
@@ -87,16 +87,28 @@
                                 <td class="str-muted">@row.ExpiryDate.ToString("MMM d, yyyy")</td>
                                 <td class="str-r">@(row.Uncollected > 0 ? $"₱{row.Uncollected:N0}" : "₱0")</td>
                                 <td>@if (_results.TryGetValue(row.StallId, out var result)) { <span class="@(result.Ok ? "str-ok" : "str-fail")" role="status">@result.Text</span> }
+                                    else if (_excluded.Contains(row.StallId)) { <span class="str-muted">Left out</span> }
                                     else if (_edits.ContainsKey(row.StallId)) { <span class="str-tag">Edited</span> }
                                     else { <span class="str-muted">Ready</span> }</td>
                                 <td class="str-edit-cell">
-                                    @if (_editing != row.StallId)
+                                    <div class="str-row-actions">
+                                    @if (_editing != row.StallId && !_excluded.Contains(row.StallId))
                                     {
                                         <button type="button" class="str-pencil" @onclick="() => StartEdit(row)" disabled="@(_busy || _editing is not null)"
                                                 aria-label="@($"Edit holder and contract name for {Unit} {SpaceNumber.Display(row.StallNo)}")" title="Edit holder and contract name">
                                             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 20h4L19 9l-4-4L4 16v4z" /><path d="M14 6l4 4" /></svg>
                                         </button>
                                     }
+                                    @if (_editing != row.StallId)
+                                    {
+                                        @* Leaves this account out of THIS renewal only; it is not closed, deleted or changed, and stays listed to put back. *@
+                                        <button type="button" class="str-pencil" @onclick="() => ToggleExcluded(row.StallId)" disabled="@(_busy || _editing is not null)"
+                                                aria-label="@($"{(_excluded.Contains(row.StallId) ? "Put back" : "Leave out")} {Unit} {SpaceNumber.Display(row.StallNo)}")"
+                                                title="@(_excluded.Contains(row.StallId) ? "Put back into this renewal" : "Leave out of this renewal (nothing is changed)")">
+                                            @(_excluded.Contains(row.StallId) ? IconUndo : IconRemove)
+                                        </button>
+                                    }
+                                    </div>
                                 </td>
                             </tr>
                         }
@@ -117,6 +129,13 @@
     private string? _error, _progress, _message;
     private DateOnly _start = PhilippineTime.Today;
     private int _years = 3;
+
+    // Accounts left out of this renewal by the office. Display-only: a left-out account is not changed and stays listed to put back.
+    private readonly HashSet<Guid> _excluded = [];
+    private List<ClosedStallAccountDto> Included => _eligible.Where(x => !_excluded.Contains(x.StallId)).ToList();
+    private void ToggleExcluded(Guid id) { if (!_excluded.Remove(id)) _excluded.Add(id); }
+    private static readonly RenderFragment IconRemove = @<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12" /><path d="M18 6L6 18" /></svg>;
+    private static readonly RenderFragment IconUndo = @<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" /></svg>;
     private FacilityCode _code;
 
     // Corrections typed on this page, sent with the renewal as the new term's holder and contract name. Nothing is saved until Renew.
@@ -180,7 +199,7 @@
         if (_busy || _eligible.Count == 0) return;
         if (_years < 1) { _message = "Duration must be at least 1 year."; return; }
         _busy = true; _message = null; _results.Clear();
-        var targets = _eligible.ToList();
+        var targets = Included;
         int ok = 0, failed = 0;
         // Each account keeps its own occupant and contract name (or the correction typed here); only the common start date and term are applied.
         foreach (var r in targets)

@@ -169,6 +169,10 @@ public sealed partial class CollectionSessionTests
         var late = await sources.DiscoverNativeAsync(new(SourceIdentityKind.SpaceAccount, closed.Id), today, default);
         Assert.Contains(late.Operations, x => x.OperationCode == CollectorOperationCodes.FiestaArawLotRental
             && x.EligibleChoiceCount > 0 && x.Choices!.Any(c => c.Identity?.PeriodStart == past));
+        // The collector sees why it is owed: an ended occupancy's balance is Arrears, by the office's own rule. Display only — key and amount unchanged.
+        var lateChoice = late.Operations.SelectMany(x => x.Choices ?? []).Single(c => c.Identity?.PeriodStart == past);
+        Assert.EndsWith("· Arrears, ended occupancy", lateChoice.Context);
+        Assert.Equal(450m, lateChoice.ServerAmount);
         Assert.Empty(await db.CollectionAllocations.ToListAsync());
         Assert.Empty(await db.Collections.ToListAsync());
         var latePosting = new CollectionComposerWorkflow(db, new Caller(w.CollectorId, w.TenantId), new Tenant(w.TenantId), new Clock(today));

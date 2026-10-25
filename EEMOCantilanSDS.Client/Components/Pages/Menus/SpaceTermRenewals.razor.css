@@ -35,7 +35,11 @@
 .str-tag { display: inline-block; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 600; }
 .str-row-changed td { background: var(--accent-soft); }
 
-.str-edit-cell { width: 56px; text-align: right; }
+.str-edit-cell { width: 92px; text-align: right; }
+.str-row-actions { display: inline-flex; gap: 6px; }
+/* Left out of this renewal: still listed so it can be put back, but plainly not part of the batch. */
+.str-row-excluded td { color: var(--text-secondary); }
+.str-row-excluded td:not(.str-edit-cell) { text-decoration: line-through; text-decoration-color: var(--border-strong); }
 .str-pencil { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text-secondary); cursor: pointer; }
 .str-pencil:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 .str-pencil:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

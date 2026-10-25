@@ -290,7 +290,7 @@
                                         <div class="fq-sub">@ob.Scope.DisplayName · @ob.SpaceNumber</div>
                                     </td>
                                     <td><div class="fq-period">@ObligationPeriod(ob)</div></td>
-                                    <td><span class="fq-note">@(ob.Collected > 0m ? $"Partial · ₱{ob.Collected:N0} paid" : "Unpaid")</span></td>
+                                    <td><span class="fq-note">@(ob.Collected > 0m ? $"Partial · ₱{ob.Collected:N0} paid" : "Unpaid")</span><div class="fq-sub">@ObligationReason(ob)</div></td>
                                     <td><span class="fq-amount">₱@ob.Outstanding.ToString("N0")</span></td>
                                     <td><div class="fq-action-cell"><button type="button" class="fq-action fq-action-btn" @onclick="() => _review = new(null, ob, AsOf)">Review account<span class="fq-action-arrow">→</span></button></div></td>
                                 </tr>
@@ -1084,7 +1084,7 @@
             .GroupBy(s => s.OperationCode).Select(g => g.First()).OrderBy(s => s.DisplayName).ToList();
 
     private IReadOnlyList<ObligationFollowUpItemDto> VisibleObligations =>
-        _filter != "all" ? [] : (_data?.ObligationItems ?? []).Where(MatchesObligation).ToList();
+        (_data?.ObligationItems ?? []).Where(o => (_filter == "all" || o.ReasonKind == _filter) && MatchesObligation(o)).ToList();
 
     private bool MatchesObligation(ObligationFollowUpItemDto i) =>
         (_operation is null && _facility is null
@@ -1103,7 +1103,18 @@
         (key == "all" || i.ReasonKind == key) && MatchesFacility(i) && MatchesSearch(i)
         // Browser-hidden action-required items are removed from the live queue, so they must not inflate the
         // tab badge either — mirrors ItemsFor/SectionTotal. Hiding is only offered for this section.
-        && !(i.Section == SecImmediate && _hidden.Contains(HideKey(i))));
+        && !(i.Section == SecImmediate && _hidden.Contains(HideKey(i))))
+        // Space rentals are their own feed but the same kinds of follow-up: each month counts under its own reason, so "All" never reads 0
+        // while the Space rentals table below lists items.
+        + (_data?.ObligationItems ?? []).Count(o => (key == "all" || o.ReasonKind == key) && MatchesObligation(o));
+
+    // "Arrears · expired contract (term ended Oct 24, 2025)": why a space month is followed up, in the register's own words.
+    private static string ObligationReason(ObligationFollowUpItemDto o) => o.ArrearsBasis switch
+    {
+        null => "Delinquent",
+        "Expired contract" when o.TermLastDay is { } ended => $"Arrears · term ended {ended:MMM d, yyyy}",
+        var basis => $"Arrears · {basis.ToLowerInvariant()}"
+    };
 
     private IReadOnlyList<FollowUpItemDto> Filtered() =>
         AllItems.Where(i => (_filter == "all" || i.ReasonKind == _filter) && MatchesFacility(i) && MatchesSearch(i)).ToList();

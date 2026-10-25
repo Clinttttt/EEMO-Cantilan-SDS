@@ -22,7 +22,9 @@ public static class ArrearsReads
         decimal? RecoveredThisMonth,
         bool Failed,
         decimal? ArrearsOutstanding = null,
-        IReadOnlyList<FollowUpItemDto>? ArrearsAccounts = null);
+        IReadOnlyList<FollowUpItemDto>? ArrearsAccounts = null,
+        // Space rentals, from their own typed feed (per period, classified by the server; earlier renewed terms flagged). Not in the financial-report position.
+        IReadOnlyList<ObligationFollowUpItemDto>? SpaceItems = null);
 
     /// <summary>The stall or space name without its section suffix ("Stall 7 · Corner" reads "Stall 7").</summary>
     public static string StallLabel(FollowUpItemDto item) => item.Identifier.Split(" · ", 2)[0];
@@ -60,6 +62,7 @@ public static class ArrearsReads
         decimal? arrearsOutstanding = null;
         IReadOnlyList<FollowUpItemDto>? rows = null;
         IReadOnlyList<FollowUpItemDto>? arrearsRows = null;
+        IReadOnlyList<ObligationFollowUpItemDto>? spaceItems = null;
         decimal? recovered = null;
         var failed = false;
 
@@ -85,6 +88,7 @@ public static class ArrearsReads
             {
                 rows = q.Items.Where(i => i.ReasonKind == "delinquent").ToList();
                 arrearsRows = q.Items.Where(i => i.ReasonKind == "arrears").ToList();
+                spaceItems = q.ObligationItems ?? [];
             }
             else failed = true;
         }
@@ -101,6 +105,6 @@ public static class ArrearsReads
         }
         catch { /* recovered stays unavailable ("—") */ }
 
-        return new Snapshot(accounts, outstanding, qualified, rows, recovered, failed, arrearsOutstanding, arrearsRows);
+        return new Snapshot(accounts, outstanding, qualified, rows, recovered, failed, arrearsOutstanding, arrearsRows, spaceItems);
     }
 }

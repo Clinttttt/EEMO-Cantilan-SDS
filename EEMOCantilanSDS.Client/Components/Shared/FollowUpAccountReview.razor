@@ -34,7 +34,21 @@
                         <strong>@Money(queueAmount)</strong>
                     </div>
                 }
+                @if (ExpiredNotRenewed is { } termEnded)
+                {
+                    @* Stated, not changed: the months after the term are billed by the approved rule while the holder remains, and stay owed. *@
+                    <p class="v3-notice review-term-note" role="note">
+                        The signed term ended on @termEnded.ToString("MMM d, yyyy") and has not been renewed.
+                        @(MonthsAfter(termEnded) is var after and > 0 ? $"{after} month{(after == 1 ? "" : "s")} with a balance fall after it ended." : "")
+                        Every month stays owed; they are Arrears (expired contract).
+                    </p>
+                }
                 <dl class="review-summary">
+                    @if (CurrentTerm is { } current)
+                    {
+                        <div><dt>Current term balance · from @current.Commencement.ToString("MMM d, yyyy")</dt><dd>@Money(current.Outstanding)</dd></div>
+                        <div><dt>Earlier terms balance</dt><dd>@Money(_account!.Terms!.Where(t => !t.Current).Sum(t => t.Outstanding))</dd></div>
+                    }
                     <div><dt>Total outstanding balance · all periods</dt><dd>@Money(Outstanding)</dd></div>
                     <div><dt>Periods with a balance</dt><dd>@Owed.Count()</dd></div>
                     <div><dt>Earliest period with balance</dt><dd>@(Owed.FirstOrDefault()?.Label ?? "None")</dd></div>
@@ -45,6 +59,24 @@
                 <section aria-label="Outstanding billing periods">
                     <h3>@(IsEvent ? "Event obligation" : IsNpm ? "NPM outstanding month position" : "Outstanding billing periods")</h3>
                     @if (!Owed.Any()) { <p>No outstanding assessed periods were returned.</p> }
+                    @if (_account?.Terms is { Count: > 0 } terms)
+                    {
+                        @* A renewed space: each term's months under that term, the term in force first, as the space profile states them. *@
+                        @foreach (var term in terms.OrderByDescending(t => t.Current).ThenByDescending(t => t.Commencement))
+                        {
+                            var own = Owed.Where(p => InTerm(p.Date, term)).ToList();
+                            if (own.Count == 0) continue;
+                            <details class="review-year" open="@term.Current">
+                                <summary>
+                                    <span class="review-year-heading"><strong>@(term.Current ? "Current term" : "Earlier term")</strong><span class="review-year-badge">@term.Commencement.ToString("MMM d, yyyy") – @((term.RenewedOn ?? term.LastDay)?.ToString("MMM d, yyyy") ?? "open")</span></span>
+                                    <span class="review-year-total">@own.Count @(own.Count == 1 ? "period" : "periods") with balance · @Money(own.Sum(p => p.Remaining))</span>
+                                </summary>
+                                @PeriodTable(own)
+                            </details>
+                        }
+                    }
+                    else
+                    {
                     @foreach (var year in Owed.GroupBy(p => p.Date.Year))
                     {
                         <details class="review-year" open="@(year.Key == Owed.First().Date.Year)">
@@ -54,6 +86,7 @@
                             </summary>
                             @PeriodTable(year)
                         </details>
+                    }
                     }
                     @if (_periods.Any(p => p.Remaining == 0))
                     { <details class="review-year"><summary>Settled assessed periods</summary>@PeriodTable(_periods.Where(p => p.Remaining == 0))</details> }
@@ -156,6 +189,12 @@
         _facilityFineAccount;
     private IEnumerable<Period> Owed => _periods.Where(p => p.Remaining > 0).OrderBy(p => p.Date);
     private decimal Outstanding => _account?.OutstandingToDate ?? _periods.Sum(p => p.Remaining);
+    private SpaceTermDto? CurrentTerm => _account?.Terms?.FirstOrDefault(t => t.Current);
+    // The server's own term rule: a period belongs to the term in force at its start (the first term also owns anything before it).
+    private static bool InTerm(DateOnly date, SpaceTermDto term) => (term.Number == 1 || date >= term.Commencement) && (term.RenewedOn is null || date <= term.RenewedOn);
+    // A signed term that has run out on a space that was never renewed: still billed while the holder remains, and stated as such.
+    private DateOnly? ExpiredNotRenewed => _account is { Terms: null } a && RentalAccountStatus.IsTermEnded(a) ? RentalAccountStatus.TermLastDay(a) : null;
+    private int MonthsAfter(DateOnly ended) => Owed.Count(p => p.Date > ended);
     private static string Money(decimal value) => $"₱{value:N2}";
     private static string YearScopeLabel(int year) => year == PhilippineTime.Today.Year ? "Current year" : year < PhilippineTime.Today.Year ? "Past year" : "Future year";
     private static string Status(Period p) => p.Remaining == 0 ? "Paid" : p.Collected > 0 ? "Partial" : "Unpaid";

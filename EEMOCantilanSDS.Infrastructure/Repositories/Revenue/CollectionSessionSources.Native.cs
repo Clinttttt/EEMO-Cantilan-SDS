@@ -209,10 +209,10 @@ public sealed partial class CollectionSessionSources
         }
         }
         await AddAssessedFineChoicesAsync(rows, identity, date, ct);
-        return new(null, date, rows.GroupBy(x => x.OperationCode).Select(g => g.First() with {
+        return await LabelSpaceArrearsAsync(new(null, date, rows.GroupBy(x => x.OperationCode).Select(g => g.First() with {
             DisplayName = g.Key == CollectorOperationCodes.Terminal ? "Income From Terminal" : g.First().DisplayName,
             Choices = g.SelectMany(x => x.Choices ?? []).OrderBy(x => x.SelectionKey, StringComparer.Ordinal).ToArray()
-        }).ToArray(), SourceIdentity: identity, LinkedSources: linked.Count == 0 ? null : linked, NpmLinkStatus: npmLinkStatus);
+        }).ToArray(), SourceIdentity: identity, LinkedSources: linked.Count == 0 ? null : linked, NpmLinkStatus: npmLinkStatus), date, ct);
     }
     private async Task<bool> NativeItemMatchesAsync(CollectionSessionIntent session, CollectionSessionItemIntent item, CancellationToken ct)
     {

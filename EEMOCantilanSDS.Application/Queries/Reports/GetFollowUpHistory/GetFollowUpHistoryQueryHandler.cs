@@ -40,7 +40,8 @@ public class GetFollowUpHistoryQueryHandler(
     IEemoAppCache cache,
     ITenantContext tenantContext,
     EemoCacheOptions cacheOptions,
-    IClock clock
+    IClock clock,
+    EEMOCantilanSDS.Application.Common.Revenue.SpaceFollowUpWorkflow? spaceFollowUp = null
 ) : IRequestHandler<GetFollowUpHistoryQuery, Result<FollowUpQueueDto>>
 {
     public async Task<Result<FollowUpQueueDto>> Handle(GetFollowUpHistoryQuery request, CancellationToken ct)
@@ -61,7 +62,13 @@ public class GetFollowUpHistoryQueryHandler(
             token => BuildHistoryAsync(request, token),
             ct);
 
-        return Result<FollowUpQueueDto>.Success(history);
+        // Space rentals come from their own typed feed, read per request (it is authorized per caller and is not part of the cached snapshot).
+        // The history states every unpaid space period, earlier renewed terms included and flagged, as of the period's end (or today, if sooner).
+        if (spaceFollowUp is null) return Result<FollowUpQueueDto>.Success(history);
+        var periodEnd = new DateOnly(request.Year, request.WholeYear ? 12 : request.Month, 1).AddMonths(1).AddDays(-1);
+        var asOf = request.AllTime || periodEnd > clock.PhilippineToday ? clock.PhilippineToday : periodEnd;
+        var spaces = await spaceFollowUp.GetAsync(asOf, null, ct, includeEarlierTerms: true);
+        return Result<FollowUpQueueDto>.Success(history with { ObligationItems = spaces });
     }
 
     private async Task<FollowUpQueueDto> BuildHistoryAsync(GetFollowUpHistoryQuery request, CancellationToken ct)

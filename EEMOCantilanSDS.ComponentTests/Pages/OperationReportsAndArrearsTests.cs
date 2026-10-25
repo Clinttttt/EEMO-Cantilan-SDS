@@ -225,6 +225,39 @@ public sealed class OperationReportsAndArrearsTests : TestContext
         }, Timeout);
     }
     [Fact]
+    public void SpaceRentalsJoinTheRegister_UnderTheirOwnCondition_OneRowPerAccount_AndCountInTheFigures()
+    {
+        ArrearsData();
+        ObligationFollowUpItemDto Month(string payer, Guid account, DateOnly period, decimal owed, string reason, string? basis, bool earlier = false) =>
+            new(account, Guid.Empty, payer, "4", new(FollowUpScopeKind.MonthlySpace, "VEGETABLE_FRUIT_SPACE_RENTAL", "Vegetable / Fruits"), period, owed, 0m, owed,
+                "Normal", null, "/operations/vegetable-fruit", reason, basis, earlier, new DateOnly(2025, 10, 24));
+        var greggor = Guid.NewGuid();
+        var history = Result<FollowUpQueueDto>.Success(new FollowUpQueueDto("October 2026", DateOnly.FromDateTime(DateTime.Today),
+            [new(1, "High", "Arrears", "arrears", FacilityCode.TCC, "Monthly rental", "Pedro Reyes", "Stall 4", 8_000m, false, "Nov 2025 – Dec 2025", "Arrears · 2 months · previous year", "Record payment", "/profile/tcc/4")],
+            ObligationItems:
+            [
+                Month("Greggor Dal", greggor, new(2025, 11, 1), 10_000m, "arrears", "Expired contract"),
+                Month("Greggor Dal", greggor, new(2025, 12, 1), 10_000m, "arrears", "Expired contract"),
+                Month("Ana Cruz", Guid.NewGuid(), new(2026, 8, 1), 500m, "delinquent", null)
+            ]));
+        _reports.Setup(x => x.GetFollowUpHistoryAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>())).ReturnsAsync(history);
+
+        var cut = RenderComponent<Arrears>();
+        cut.WaitForAssertion(() => Assert.Contains("Ana Cruz", cut.Markup), Timeout);                       // Delinquent space month on the Delinquent register
+        Assert.DoesNotContain("Greggor Dal", cut.Find("table").TextContent);
+        Assert.Contains("8", cut.Find(".v3-hero, header").TextContent);                                    // 7 delinquent rentals + 1 space account
+
+        cut.Find("select").Change("arrears");
+        cut.WaitForAssertion(() =>
+        {
+            var row = cut.FindAll("tbody tr").Single(r => r.TextContent.Contains("Greggor Dal"));
+            Assert.Contains("₱20,000.00", row.TextContent);                                                // one row, both months
+            Assert.Contains("Arrears · term ended Oct 24, 2025 · 2 months", row.TextContent);
+            Assert.Contains("2 of 2 Arrears accounts shown", cut.Markup);
+        }, Timeout);
+    }
+
+    [Fact]
     public void TheArrearsFilterListsTheServersArrearsRows_NotTheDelinquentOnesAndNotAnEmptyRegister()
     {
         ArrearsData(); var cut=RenderComponent<Arrears>();

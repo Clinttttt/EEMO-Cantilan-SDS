@@ -365,6 +365,20 @@ public sealed class SpaceLifecycleTests(PostgresFixture db)
         Assert.Null(listed.Single(x => x.Id == other.Account.Id).Terms);                                     // never renewed: read as one term, as before
 
         var followUp = await new EEMOCantilanSDS.Application.Common.Revenue.SpaceFollowUpWorkflow(context, head, new Tenant(tenant)).GetAsync(Today, null, default);
+        // The never-renewed expired account: every month is Arrears (expired contract), with the term's last day stated; nothing is removed.
+        var expired = followUp.Where(x => x.AccountId == other.Account.Id).ToList();
+        Assert.All(expired, x => Assert.Equal(("arrears", "Expired contract", false, new DateOnly(2023, 12, 31)), (x.ReasonKind, x.ArrearsBasis, x.EarlierTerm, x.TermLastDay!.Value)));
+        // The renewed account's current term (2024-2026) is still running on Oct 19, 2026: its 2026 months are Delinquent and its earlier years' Arrears (previous year).
+        Assert.Equal("delinquent", followUp.Single(x => x.AccountId == open.Account.Id && x.PeriodStart == new DateOnly(2026, 8, 1)).ReasonKind);
+        Assert.Equal(("arrears", "Previous year"), followUp.Where(x => x.AccountId == open.Account.Id && x.PeriodStart == new DateOnly(2024, 2, 1))
+            .Select(x => (x.ReasonKind, x.ArrearsBasis!)).Single());
+        // The whole-time view states the earlier term too, flagged and classified as an expired contract, and the two views never overlap.
+        var whole = await new EEMOCantilanSDS.Application.Common.Revenue.SpaceFollowUpWorkflow(context, head, new Tenant(tenant)).GetAsync(Today, null, default, includeEarlierTerms: true);
+        var earlierRows = whole.Where(x => x.AccountId == open.Account.Id && x.EarlierTerm).ToList();
+        Assert.NotEmpty(earlierRows);
+        Assert.All(earlierRows, x => Assert.True(x.PeriodStart < new DateOnly(2024, 1, 1) && x.ArrearsBasis == "Expired contract"));
+        Assert.Equal(earlier.Outstanding, earlierRows.Sum(x => x.Outstanding));
+        Assert.Equal(whole.Count - earlierRows.Count, followUp.Count);
         var renewedFollowUp = followUp.Where(x => x.AccountId == open.Account.Id).Select(x => x.PeriodStart).ToList();
         Assert.Contains(new DateOnly(2024, 2, 1), renewedFollowUp);                                          // the current term's debt is followed up
         Assert.Contains(new DateOnly(2026, 8, 1), renewedFollowUp);
