@@ -362,7 +362,13 @@ public sealed class WcfCollectionWorkflow(
                 : null;
 
     private static string SectionOf(Stall stall) => stall.Section is { } marketSection
-        ? stall.Facility!.SectionLabel(marketSection) ?? stall.CustomSectionName ?? string.Empty
+        ? stall.Facility!.SectionLabel(marketSection) ?? (marketSection switch
+        {
+            MarketSection.FishSection => "Fish Area",
+            MarketSection.MeatSection => "Meat Area",
+            MarketSection.VegetableArea => "Vegetable Area",
+            _ => stall.CustomSectionName ?? string.Empty
+        })
         : stall.CustomSectionName ?? string.Empty;
 
     public Task<Result<IReadOnlyList<WcfReconciliationExceptionDto>>> GetReconciliationExceptionsAsync(

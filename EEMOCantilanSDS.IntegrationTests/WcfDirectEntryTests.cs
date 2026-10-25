@@ -163,6 +163,7 @@ public sealed class WcfDirectEntryTests(PostgresFixture db)
 
         var source = Assert.Single((await Wcf(ctx, w, "Collector").GetMobileSourcesAsync(w.Period.Year, w.Period.Month)).Value!);
         Assert.Equal((WcfSourceState.NoAmount, true, false, "Lisa Ilogans"), (source.State, source.CanEnterDirect, source.CanCollect, source.PayerName));
+        Assert.Equal("Fish Area", source.Section); // Default NPM area must remain filterable without a custom LGU label.
 
         var ticket = w.Tickets[1];
         var request = Direct(w, ticket, 40m);
