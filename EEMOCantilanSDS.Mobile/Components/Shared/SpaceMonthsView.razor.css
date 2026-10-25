@@ -1,0 +1,154 @@
+/* A space account's months on one screen: a summary, then a bounded scrolling list grouped by year. Mobile V3 tokens; 48px rows. */
+.smv {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.smv-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 12px 14px;
+    border: 1px solid var(--mobile-border);
+    border-radius: 12px;
+    background: var(--mobile-surface-subtle);
+}
+
+.smv-total {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.smv-total-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--mobile-text-secondary);
+}
+
+.smv-total strong {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--mobile-navy);
+    font-variant-numeric: tabular-nums;
+}
+
+.smv-span {
+    font-size: 13px;
+    color: var(--mobile-text-secondary);
+}
+
+.smv-list {
+    max-height: 36vh;
+    overflow-y: auto;
+    border: 1px solid var(--mobile-border);
+    border-radius: 12px;
+    background: var(--mobile-surface);
+}
+
+.smv-year {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 14px;
+    background: var(--mobile-canvas);
+    border-bottom: 1px solid var(--mobile-border);
+}
+
+.smv-year-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--mobile-navy);
+}
+
+.smv-year-sum {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.smv-row {
+    display: flex;
+    width: 100%;
+    min-height: 48px;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    border: 0;
+    border-bottom: 1px solid var(--mobile-border);
+    background: transparent;
+    color: var(--mobile-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+    .smv-row:last-child {
+        border-bottom: 0;
+    }
+
+    .smv-row.selected {
+        background: var(--mobile-blue-subtle);
+    }
+
+    .smv-row:focus-visible {
+        outline: 2px solid var(--mobile-focus);
+        outline-offset: -2px;
+    }
+
+.smv-check {
+    width: 16px;
+    flex: 0 0 auto;
+    text-align: center;
+    font-weight: 700;
+    color: var(--mobile-blue);
+}
+
+.smv-month {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    flex-direction: column;
+}
+
+    .smv-month strong {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--mobile-navy);
+    }
+
+.smv-reason {
+    font-size: 12px;
+    color: var(--mobile-danger);
+    overflow-wrap: anywhere;
+}
+
+.smv-amount {
+    flex: 0 0 auto;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--mobile-navy);
+    font-variant-numeric: tabular-nums;
+}
+
+.smv-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+.smv-summary .smv-reason {
+    margin-top: 2px;
+    font-size: 13px;
+    font-weight: 600;
+}

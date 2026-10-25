@@ -62,11 +62,17 @@
     color: var(--mobile-navy);
 }
 
+/* A short detail (an amount) stays on one line; a longer one (a space month with its Arrears reason) wraps inside the option instead of
+   overflowing it and squeezing the name onto two lines over the detail. */
 .mc-detail {
     font-size: 13px;
     color: var(--mobile-text-secondary);
     font-variant-numeric: tabular-nums;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+}
+
+.mc-option-main {
+    flex: 1 1 auto;
 }
 
 .mc-placeholder {

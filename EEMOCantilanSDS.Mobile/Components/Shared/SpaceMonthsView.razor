@@ -1,0 +1,64 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@* A space account's whole position on one screen, in place of a dropdown of identical rows: what is owed in total and since when, then the months
+   by year with their amounts. It decides and formats nothing of its own — every month, amount and reason is a choice the server offered — and
+   selecting a month is the same selection the list made (the same key, the same amount, one item per month). *@
+<div class="smv" role="group" aria-label="@Label">
+    <div class="smv-summary">
+        <div class="smv-total">
+            <span class="smv-total-label">Owed</span>
+            <strong>@Money(Total)</strong>
+        </div>
+        <div class="smv-span">@Months.Count month@(Months.Count == 1 ? "" : "s") · @SpanText</div>
+        @if (SharedReason is { } shared) { <div class="smv-reason">@shared</div> }
+    </div>
+
+    <div class="smv-list" role="listbox" aria-label="@Label">
+        @foreach (var year in Years)
+        {
+            <div class="smv-year">
+                <span class="smv-year-name">@year.Year</span>
+                <span class="smv-year-sum">@year.Rows.Count · @Money(year.Rows.Sum(r => r.Amount))</span>
+            </div>
+            @foreach (var row in year.Rows)
+            {
+                var selected = row.Key == Value;
+                <button type="button" role="option" aria-selected="@(selected ? "true" : "false")" class="smv-row @(selected ? "selected" : "")" @onclick="() => ValueChanged.InvokeAsync(row.Key)">
+                    <span class="smv-check" aria-hidden="true">@(selected ? "✓" : "")</span>
+                    <span class="smv-month">
+                        <strong>@row.Month</strong>
+                        @if (SharedReason is null && row.Reason is { Length: > 0 }) { <small class="smv-reason">@row.Reason</small> }
+                    </span>
+                    <span class="smv-amount">@Money(row.Amount)</span>
+                    @if (selected) { <span class="smv-sr">Selected</span> }
+                </button>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<CollectionSessionSourceChoice> Choices { get; set; } = [];
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public string Label { get; set; } = "Months owed";
+
+    private sealed record MonthRow(string Key, DateOnly Period, string Month, string? Reason, decimal Amount);
+
+    private IReadOnlyList<MonthRow> Months => Choices.Where(c => c.Identity.PeriodStart.HasValue)
+        .Select(c => new MonthRow(c.SelectionKey, c.Identity.PeriodStart!.Value, c.Identity.PeriodStart.Value.ToString("MMMM", CultureInfo.InvariantCulture), Reason(c.Context), c.ServerAmount ?? 0m))
+        .OrderBy(r => r.Period).ToList();
+
+    private IEnumerable<(int Year, List<MonthRow> Rows)> Years => Months.GroupBy(r => r.Period.Year).OrderBy(g => g.Key).Select(g => (g.Key, g.ToList()));
+    private decimal Total => Months.Sum(r => r.Amount);
+    // When every month has the same reason it is stated once above the list; a month with a different one carries its own.
+    private string? SharedReason => Months.Count > 1 && Months.Select(r => r.Reason).Distinct().Count() == 1 ? Months[0].Reason : null;
+    private string SpanText => Months.Count == 0 ? "" : Months[0].Period == Months[^1].Period
+        ? Months[0].Period.ToString("MMM yyyy", CultureInfo.InvariantCulture)
+        : $"{Months[0].Period.ToString("MMM yyyy", CultureInfo.InvariantCulture)} – {Months[^1].Period.ToString("MMM yyyy", CultureInfo.InvariantCulture)}";
+
+    // The server states why a month is Arrears at the end of its context ("4 · Oct 2022 · Arrears, expired contract"); shown as written, once per row.
+    private static string? Reason(string context) => context.Split(" · ").FirstOrDefault(p => p.StartsWith("Arrears", StringComparison.Ordinal));
+
+    private static string Money(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
+}

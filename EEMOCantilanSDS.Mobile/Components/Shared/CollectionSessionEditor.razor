@@ -381,6 +381,10 @@ else
                 {
                     <div class="sheet-source"><strong>@Choices[0].DisplayName</strong>@if (!string.IsNullOrWhiteSpace(Choices[0].Context)) { <span>@Choices[0].Context</span> }</div>
                 }
+                else if (IsSpaceMonths)
+                {
+                    <SpaceMonthsView Choices="Choices" Value="@_choiceKey" ValueChanged="ChooseChoice" Label="Months owed" />
+                }
                 else
                 {
                     <MobileChoice Inline="true" Label="@ChoiceLabel" Options="ChoiceOptions" Value="@_choiceKey" ValueChanged="ChooseChoice" EmptyText="Nothing available for this source." />
@@ -657,6 +661,8 @@ else
     };
 
     private IReadOnlyList<CollectionSessionSourceChoice> Choices => (_operation?.Choices ?? []).Where(c => _operation is null || !Taken(_operation, c)).ToList();
+    // A monthly space account's owed months: shown as the whole account (by year) rather than as a dropdown of near-identical rows.
+    private bool IsSpaceMonths => Choices.Count > 1 && Choices.All(c => c.Kind == CollectionSessionItemKind.Obligation && c.Identity.PeriodStart.HasValue && c.Identity.Event is null);
     private string ChoiceLabel => _operation?.OperationCode switch
     {
         CollectorOperationCodes.Terminal => "Section",
