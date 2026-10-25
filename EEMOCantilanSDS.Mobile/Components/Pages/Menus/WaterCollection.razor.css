@@ -1,10 +1,14 @@
 /* Shares the collection-workspace language of OperationCollection (copied, since scoped styles do not cross components). */
 /* Same compact source chips as the registered-source browser; wraps instead of overflowing. */
-.wcf-source-filters { display: flex; flex-wrap: wrap; gap: 7px; margin: 12px 0; }
-.wcf-filter { min-height: 36px; max-width: 100%; padding: 6px 12px; border: 1px solid var(--mobile-border);
-    border-radius: 20px; background: var(--mobile-surface); color: var(--mobile-navy);
-    font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
-.wcf-filter.active { background: var(--mobile-blue); border-color: var(--mobile-blue); color: #fff; }
+.wcf-source-filters { display: flex; flex-wrap: nowrap; gap: 0; max-width: 100%;
+    margin: 12px 0; overflow-x: auto; overflow-y: hidden; border: 1px solid var(--mobile-border);
+    border-radius: 10px; background: var(--mobile-surface); scrollbar-width: none; }
+.wcf-source-filters::-webkit-scrollbar { display: none; }
+.wcf-filter { flex: 0 0 auto; min-height: 42px; padding: 0 14px; border: 0;
+    border-right: 1px solid var(--mobile-border); border-radius: 0; background: transparent;
+    color: var(--mobile-text-secondary); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.wcf-filter.active { background: var(--mobile-blue); color: #fff; }
+.wcf-filter:focus-visible { outline: 2px solid var(--mobile-navy); outline-offset: -3px; }
 
 .op-back {
     margin-top: 12px;

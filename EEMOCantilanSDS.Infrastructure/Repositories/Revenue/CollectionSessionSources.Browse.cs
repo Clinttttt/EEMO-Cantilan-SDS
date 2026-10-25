@@ -143,7 +143,9 @@ public sealed partial class CollectionSessionSources
     {
         var query = db.ObligationAccounts.AsNoTracking().Where(x => x.MunicipalityId == Tenant && kinds.Contains(x.Kind)
             && ((x.ActiveFrom <= today && (x.ActiveTo == null || x.ActiveTo >= today))
-                || (x.Kind == ObligationKind.FiestaArawLotRental && x.EventDate > today && x.ActiveTo == null))
+                // Closed event lots retain their historical receivable; due balances may be paid late.
+                || (x.Kind == ObligationKind.FiestaArawLotRental
+                    && (x.EventDate <= today || x.ActiveTo == null)))
             && (term == "" || x.SubjectLabel.ToLower().Contains(term)
                 || (x.ActualOccupant != null && x.ActualOccupant.ToLower().Contains(term))
                 || (x.PayorId != null && db.Payors.Any(p => p.MunicipalityId == Tenant
@@ -160,7 +162,8 @@ public sealed partial class CollectionSessionSources
             account.Kind == ObligationKind.VegetableFruitSpaceRental ? $"Vegetable / Fruits · Space {account.SubjectLabel}" :
             account.Kind == ObligationKind.KanmanggaySpaceRental ? $"Kanmanggay · Space {account.SubjectLabel}" : $"Fiesta / Araw · Lot {account.SubjectLabel}",
             ObligationAccount.OperationCodeFor(account.Kind)!,
-            CanSelect: account.Kind != ObligationKind.FiestaArawLotRental || account.ActiveFrom <= today,
+            CanSelect: account.Kind != ObligationKind.FiestaArawLotRental ||
+                        (account.EventDate <= today && quotes.Any(x => x.AccountId == account.Id && x.OutstandingAmount > 0m && x.CanAddToDraft)),
             AvailableOn: account.Kind == ObligationKind.FiestaArawLotRental && account.ActiveFrom > today ? account.EventDate : null)).ToArray();
         return (results, total);
     }

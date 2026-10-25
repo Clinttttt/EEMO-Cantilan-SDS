@@ -49,6 +49,10 @@ public sealed class RecordsPresentationTests : TestContext
         Assert.Contains("472.00", view.Find(".collection-record-row").TextContent);
         view.Find(".collection-record-row").Click();
         var sheet = view.Find("[aria-label='Session collection details']");
+        Assert.Contains("472.00", sheet.QuerySelector(".session-total")!.TextContent);
+        Assert.Equal(3, sheet.QuerySelectorAll(".session-item").Length);
+        Assert.Equal(3, sheet.QuerySelectorAll(".session-identity").Length);
+        Assert.Equal("Close", sheet.QuerySelector(".sheet-actions .session-close")!.TextContent.Trim());
         Assert.Contains("SRC-2026-000021", sheet.TextContent);
         Assert.Contains("SRC-2026-000022", sheet.TextContent);
         Assert.Contains("SRC-2026-000023", sheet.TextContent);
@@ -57,6 +61,8 @@ public sealed class RecordsPresentationTests : TestContext
         view.Find(".search-wrap input").Input("SRC-2026-000022");
         Assert.Single(view.FindAll(".collection-record-row"));
         Assert.Contains("132.00", view.Find(".collection-record-row").TextContent);
+        Assert.Contains("SRC-2026-000022", view.Find(".collection-record-row").TextContent);
+        Assert.DoesNotContain("OR-012", view.Find(".collection-record-row").TextContent);
     }
 
     [Fact]

@@ -160,7 +160,7 @@
                             Amount="@op.Total" DateText="@(op.RecordedAtUtc is null ? op.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture) : entry.RecordedAt.ToString("MMM d · h:mm tt", CultureInfo.InvariantCulture))"
                             Status="@(op.Status == "Posted" ? null : op.Status)" OnOpen="() => OpenCanonical(op)">
                             <Details>
-                                <span>@OperationSummary(op) · @op.ReferenceCode @if (CollectorRecordLabels.InstrumentCode(op.Instrument) is { } instrument) { <span>@instrument</span> }</span>
+                                <span>@OperationSummary(op) · @op.ReferenceCode</span>
                             </Details>
                         </CollectionRecordRow>
                         }

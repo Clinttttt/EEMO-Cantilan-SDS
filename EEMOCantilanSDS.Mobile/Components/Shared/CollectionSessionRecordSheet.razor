@@ -1,31 +1,59 @@
 @using System.Globalization
 @using EEMOCantilanSDS.Mobile.Records
-@using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
 
 <div class="sheet-overlay" @onclick="OnClose">
-    <section class="sheet" role="dialog" aria-modal="true" aria-label="Session collection details" @onclick:stopPropagation="true">
+    <section class="sheet sheet-flex session-record-sheet" role="dialog" aria-modal="true"
+             aria-label="Session collection details" @onclick:stopPropagation="true">
         <div class="sheet-handle"></div>
-        <div class="sheet-title">@(Records.FirstOrDefault()?.PayorName ?? "Collection session")</div>
-        <div class="sheet-sub">@Records.Count separate collections · One checkout</div>
-        <div class="detail-row"><span class="detail-key">Business date</span><span class="detail-val">@Records[0].BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</span></div>
-        @foreach (var record in Records)
-        {
-            <div class="detail-util-head">@string.Join(", ", record.Lines.Select(x => CollectorRecordLabels.Display(x.ClassificationName)).Distinct())</div>
-            <div class="detail-row"><span class="detail-key">StallTrack reference</span><span class="detail-val">@record.ReferenceCode</span></div>
-            <div class="detail-row"><span class="detail-key">Instrument</span><span class="detail-val">@(CollectorRecordLabels.InstrumentCode(record.Instrument) ?? "Not specified")</span></div>
-            <div class="detail-row"><span class="detail-key">Receipt</span><span class="detail-val">@(string.IsNullOrWhiteSpace(record.DocumentNumber) ? "None recorded" : record.DocumentNumber)</span></div>
-            <div class="detail-row"><span class="detail-key">Status</span><span class="detail-val">@record.Status</span></div>
-            @foreach (var line in record.Lines)
+        <header class="sheet-head">
+            <div class="sheet-title">@(Records.FirstOrDefault()?.PayorName ?? "Collection session")</div>
+            <div class="sheet-context">@Records.Count separate collections · One checkout</div>
+            <div class="session-total">
+                <span>Total net collected</span>
+                <strong>@Money(Records.Sum(r => r.Total))</strong>
+            </div>
+            @if (Records.Count > 0)
             {
-                <div class="detail-row"><span class="detail-key">@CollectorRecordLabels.Display(line.ItemLabel ?? line.ClassificationName)</span><span class="detail-val">@Money(line.Amount)</span></div>
+                <div class="session-date">Business date · @Records[0].BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</div>
             }
-            <div class="detail-row"><span class="detail-key">Collection net</span><span class="detail-val">@Money(record.Total)</span></div>
-        }
-        <div class="detail-row"><span class="detail-key">Total net</span><span class="detail-val amount-val">@Money(Records.Sum(r => r.Total))</span></div>
-        <div class="sheet-btn-row"><button type="button" class="btn-close" @onclick="OnClose">Close</button></div>
+        </header>
+        <div class="sheet-body" role="region" aria-label="Individual collections">
+            @foreach (var (record, index) in Records.Select((item, i) => (item, i)))
+            {
+                <section class="session-item" aria-label="@($"Collection {index + 1}")">
+                    <div class="session-item-header">
+                        <div class="session-item-heading">
+                            <span class="session-counter">Collection @(index + 1)</span>
+                            <strong>@string.Join(", ", record.Lines.Select(x => CollectorRecordLabels.Display(x.ClassificationName)).Distinct())</strong>
+                        </div>
+                        <strong class="session-amount">@Money(record.Total)</strong>
+                    </div>
+                    <div class="session-identity">
+                        <span>StallTrack reference</span>
+                        <strong>@record.ReferenceCode</strong>
+                    </div>
+                    @foreach (var line in record.Lines)
+                    {
+                        <div class="session-line">
+                            <span>@CollectorRecordLabels.Display(line.ItemLabel ?? line.ClassificationName)</span>
+                            <strong>@Money(line.Amount)</strong>
+                        </div>
+                    }
+                    <div class="session-evidence">
+                        <div><span>Instrument</span><strong>@(CollectorRecordLabels.InstrumentCode(record.Instrument) ?? "Not specified")</strong></div>
+                        <div><span>Receipt</span><strong>@(string.IsNullOrWhiteSpace(record.DocumentNumber) ? "None recorded" : record.DocumentNumber)</strong></div>
+                        <div><span>Status</span><strong>@record.Status</strong></div>
+                    </div>
+                </section>
+            }
+        </div>
+        <footer class="sheet-actions">
+            <button type="button" class="btn-primary session-close" @onclick="OnClose">Close</button>
+        </footer>
     </section>
 </div>
+
 @code {
     [Parameter, EditorRequired] public IReadOnlyList<OperationRecord> Records { get; set; } = [];
     [Parameter] public EventCallback OnClose { get; set; }
