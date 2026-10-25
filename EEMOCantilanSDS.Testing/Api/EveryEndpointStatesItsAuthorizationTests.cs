@@ -48,6 +48,26 @@ public sealed class EveryEndpointStatesItsAuthorizationTests
         Assert.Equal(string.Join("\n", Expected), string.Join("\n", anonymous));
     }
 
+    /// <summary>
+    /// Re-encoding an accountable-document (OR) number overwrites the number on an existing record of the whole tenant, whatever
+    /// facility the caller is assigned to. The Collector role sits on these controllers for recording, so the correction
+    /// endpoints must narrow to the office. The web is the only client of them; the mobile app uses api/mobile/*.
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(PaymentsController), "SaveOrNumber")]
+    [InlineData(typeof(SlaughterController), "SaveOrNumber")]
+    [InlineData(typeof(TpmController), "SaveOrNumber")]
+    [InlineData(typeof(TrmController), "SaveOrNumber")]
+    public void OrNumberCorrectionIsNotOpenToCollectors(Type controller, string action)
+    {
+        var method = controller.GetMethod(action)!;
+        var roles = method.GetCustomAttribute<AuthorizeAttribute>()?.Roles
+                    ?? controller.GetCustomAttribute<AuthorizeAttribute>()?.Roles ?? string.Empty;
+
+        Assert.DoesNotContain("Collector", roles.Split(','));
+        Assert.Contains("Admin", roles.Split(','));
+    }
+
     // Pre-authentication by nature: sign-in, token refresh, single-use-secret flows, the signature-verified payment webhook, public branding.
     private static readonly string[] Expected =
     [

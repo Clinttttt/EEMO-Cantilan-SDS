@@ -63,6 +63,7 @@ public class TpmController(ISender sender) : ApiBaseController(sender)
         => HandleResponse(await Sender.Send(new MarkVendorPaidCommand(attendanceId, request.IsPaid)));
 
     [HttpPatch("attendance/{attendanceId}/or-number")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
     public async Task<ActionResult<bool>> SaveOrNumber(Guid attendanceId, [FromBody] SaveOrNumberRequest request)
         => HandleResponse(await Sender.Send(new SaveVendorOrNumberCommand(attendanceId, request.ORNumber)));
 
