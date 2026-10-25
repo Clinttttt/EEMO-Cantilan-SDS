@@ -25,6 +25,9 @@ public class InitiateOnlinePaymentCommandHandler(
     IUtilityBillRepository utilityBillRepository,
     IUnitOfWork unitOfWork, IClock clock, NpmRentMonthWorkflow? monthly = null) : IRequestHandler<InitiateOnlinePaymentCommand, Result<InitiateOnlinePaymentResultDto>>
 {
+    /// <summary>Stable reason code (the validation-error key) for a checkout outside the approved online scope.</summary>
+    public const string OutOfScopeCode = "ONLINE_PAYMENT_OUT_OF_SCOPE";
+
     public async Task<Result<InitiateOnlinePaymentResultDto>> Handle(InitiateOnlinePaymentCommand request, CancellationToken cancellationToken)
     {
         var payorId = currentUser.UserId;
@@ -38,6 +41,17 @@ public class InitiateOnlinePaymentCommandHandler(
         var stall = await stallRepository.GetByIdAsync(request.StallId, cancellationToken);
         if (stall is null)
             return Result<InitiateOnlinePaymentResultDto>.NotFound();
+
+        // ST-13: NEW online checkout is monthly stall rent only, as the full balance. Utility bills, fish days and part-month
+        // daily fragments are refused here (the real guard; the portal only hides the button). Settlement of already-created
+        // transactions of these kinds does not pass through this handler and is unchanged.
+        if (stall.Facility?.Code == FacilityCode.NPM && !stall.Facility.IsMonthlyRentMarket
+            && (request.Kind is PayorPayableKind.NpmUtility or PayorPayableKind.NpmFish
+                || request.Days is > 0 || request.FishDays is { Count: > 0 }))
+            return Result<InitiateOnlinePaymentResultDto>.ValidationFailure(new Dictionary<string, string[]>
+            {
+                [OutOfScopeCode] = ["Only the month's stall rent can be paid online, as the full balance. Pay this charge at the office or to your collector."]
+            });
 
         // The requested period must fall within one of the stall's contract terms. Without this a payor
         // linked to a stall could pay for months the stall isn't contracted for (before move-in, after

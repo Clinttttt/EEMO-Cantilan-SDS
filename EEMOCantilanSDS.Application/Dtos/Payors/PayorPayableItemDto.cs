@@ -28,4 +28,11 @@ public sealed record PayorPayableItemDto(
     decimal? DailyRate = null,
     // The tenant's own name and acronym for the facility (null from an older API); Facility above is only the internal slot code.
     string? FacilityName = null,
-    string? FacilityShortName = null);
+    string? FacilityShortName = null)
+{
+    /// <summary>
+    /// ST-13: false = listed as an outstanding balance only (metered utilities, per-day fish); new online checkout is monthly
+    /// stall rent only. Derived from <see cref="Kind"/> so it always agrees with the initiate guard; older clients ignore it.
+    /// </summary>
+    public bool PayableOnline => Kind is not (PayorPayableKind.NpmUtility or PayorPayableKind.NpmFish);
+}

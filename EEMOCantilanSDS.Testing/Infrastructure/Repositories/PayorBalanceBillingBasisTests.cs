@@ -111,6 +111,19 @@ public class PayorBalanceBillingBasisTests : RepositoryTestBase
         Assert.Null(item.Days);       // a month's remainder, not days counted out
     }
 
+    // ST-13: only monthly stall rent is payable online; utilities and per-day fish stay listed as read-only balances.
+    [Theory]
+    [InlineData(PayorPayableKind.Monthly, true)]
+    [InlineData(PayorPayableKind.NpmDaily, true)]
+    [InlineData(PayorPayableKind.NpmUtility, false)]
+    [InlineData(PayorPayableKind.NpmFish, false)]
+    public void PayableItem_IsPayableOnlineOnlyForStallRent(PayorPayableKind kind, bool expected)
+    {
+        var item = new PayorPayableItemDto(Guid.NewGuid(), "1", FacilityCode.NPM, 2026, 6, "2026-06", 100m, kind);
+
+        Assert.Equal(expected, item.PayableOnline);
+    }
+
     [Fact]
     public async Task AMonthlySpaceIsOfferedAtItsContractRate_NotTheStallsCurrentRate()
     {
