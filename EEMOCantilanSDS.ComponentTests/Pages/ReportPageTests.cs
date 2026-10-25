@@ -98,6 +98,7 @@ public class ReportPageTests : TestContext
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton(Mock.Of<IFacilitiesApiClient>());
         Services.AddSingleton(Mock.Of<IRemittancesApiClient>());
+        Services.AddSingleton(Mock.Of<ICollectionActivityApiClient>());
         Services.AddSingleton(Mock.Of<IOfficialReportsApiClient>());
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.FacilityState>();

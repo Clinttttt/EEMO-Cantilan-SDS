@@ -2,16 +2,26 @@
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
 @inject IRemittancesApiClient Remittances
+@inject ICollectionActivityApiClient Activity
 
 @* The management cash position (IA-052): what was collected, year to date, and three figures
    that must never be blended: outstanding payor obligations, collections awaiting remittance,
-   and accountability exceptions. Target coverage remains in its own revenue-performance view. *@
+   and accountability exceptions. Target coverage remains in its own revenue-performance view.
+
+   "Collected today" is the office's money for TODAY (the Philippine calendar day), whatever period the summary is filtered to. It is read from the same
+   server reader as Collection Activity — each legacy and canonical collection once, with its corrections — so it can never disagree with that page. It is
+   not the selected period's total, not an assessment, and not a count of receipts. *@
 <section class="scp no-print" aria-label="Collections and accountability position">
     <SummaryStrip Label="Collections and accountability" Items="Items" />
     @if (_failed)
     {
         <p class="scp-note" role="status">The unremitted and exception figures could not be loaded, so they are not shown.</p>
+    }
+    @if (_todayFailed)
+    {
+        <p class="scp-note" role="status">Today's collections could not be loaded, so that figure is not shown.</p>
     }
 </section>
 
@@ -40,6 +50,14 @@
     private DateOnly _loadedFrom;
     private DateOnly _loadedTo;
 
+    // Today's collections: independent of From/To, re-read when the Philippine day turns over or the figure is older than the refresh window, so a payment
+    // recorded after the page opened appears without the office having to reload the browser.
+    private static readonly TimeSpan TodayRefresh = TimeSpan.FromSeconds(30);
+    private decimal? _collectedToday;
+    private bool _todayFailed;
+    private DateOnly _todayDate;
+    private DateTime _todayReadAtUtc = DateTime.MinValue;
+
     private IReadOnlyList<SummaryStrip.SummaryItem> Items =>
     [
         new("Collected", Money(Collected)),
@@ -47,10 +65,16 @@
         new("Outstanding obligations", Money(Outstanding)),
         new("Unremitted collections", _position is null ? "—" : Money(_position.Unremitted), Emphasis: _position is { Unremitted: not 0m }),
         new("Accountability exceptions", _position is null ? "—" : _position.NeedsReviewCount.ToString(CultureInfo.InvariantCulture)),
+        // Named with its exact date so it can never be read as the period's figure; a dash (not ₱0.00) until it has actually been read.
+        new($"Collected today · {TodayLabel}", _collectedToday is null ? "—" : Money(_collectedToday.Value)),
     ];
+
+    private string TodayLabel => (_todayDate == default ? PhilippineTime.Today : _todayDate).ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
 
     protected override async Task OnParametersSetAsync()
     {
+        await LoadTodayAsync();
+
         if (_loadedFrom == From && _loadedTo == To && (_position is not null || _failed)) return;
         _loadedFrom = From;
         _loadedTo = To;
@@ -62,6 +86,28 @@
             else { _position = null; _failed = true; }
         }
         catch { _position = null; _failed = true; }
+    }
+
+    private async Task LoadTodayAsync()
+    {
+        var today = PhilippineTime.Today;
+        var fresh = _todayDate == today && DateTime.UtcNow - _todayReadAtUtc < TodayRefresh && (_collectedToday is not null || _todayFailed);
+        if (fresh) return;
+        try
+        {
+            // One day, one event requested: the totals cover every event of the day, the list is not needed here.
+            var feed = await Activity.GetAsync(today, today, limit: 1);
+            if (feed is { IsSuccess: true, Value: { } value })
+            {
+                _collectedToday = value.NetAmount;
+                _todayFailed = false;
+            }
+            else { _collectedToday = null; _todayFailed = true; }
+        }
+        catch { _collectedToday = null; _todayFailed = true; }
+
+        _todayDate = today;
+        _todayReadAtUtc = DateTime.UtcNow;
     }
 
     private static string Money(decimal amount) => $"₱{amount:N2}";
