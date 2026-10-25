@@ -1,8 +1,8 @@
 @using System.Globalization
 @using EEMOCantilanSDS.Application.Dtos.Mobile
 @* A space account's whole position on one screen, in place of a dropdown of identical rows: what is owed in total and since when, then the months
-   by year with their amounts. It decides and formats nothing of its own — every month, amount and reason is a choice the server offered — and
-   selecting a month is the same selection the list made (the same key, the same amount, one item per month). *@
+   by year with their amounts. The collector chooses the months explicitly — one month, several, or a whole year by tapping its heading — and
+   decides nothing for them: every month, amount and reason is a choice the server offered, no payment is spread across months for them. *@
 <div class="smv" role="group" aria-label="@Label">
     <div class="smv-summary">
         <div class="smv-total">
@@ -11,19 +11,22 @@
         </div>
         <div class="smv-span">@Months.Count month@(Months.Count == 1 ? "" : "s") · @SpanText</div>
         @if (SharedReason is { } shared) { <div class="smv-reason">@shared</div> }
+        <div class="smv-hint">Tap a month, or a year to select all of it.</div>
     </div>
 
-    <div class="smv-list" role="listbox" aria-label="@Label">
+    <div class="smv-list" role="listbox" aria-multiselectable="true" aria-label="@Label">
         @foreach (var year in Years)
         {
-            <div class="smv-year">
+            var allSelected = year.Rows.All(r => Selected.Contains(r.Key));
+            <button type="button" class="smv-year" aria-pressed="@(allSelected ? "true" : "false")" aria-label="@($"{(allSelected ? "Clear" : "Select")} all of {year.Year}")"
+                    @onclick="() => OnToggleMany.InvokeAsync(year.Rows.Select(r => r.Key).ToList())">
                 <span class="smv-year-name">@year.Year</span>
-                <span class="smv-year-sum">@year.Rows.Count · @Money(year.Rows.Sum(r => r.Amount))</span>
-            </div>
+                <span class="smv-year-sum">@year.Rows.Count · @Money(year.Rows.Sum(r => r.Amount))@(allSelected ? " ✓" : "")</span>
+            </button>
             @foreach (var row in year.Rows)
             {
-                var selected = row.Key == Value;
-                <button type="button" role="option" aria-selected="@(selected ? "true" : "false")" class="smv-row @(selected ? "selected" : "")" @onclick="() => ValueChanged.InvokeAsync(row.Key)">
+                var selected = Selected.Contains(row.Key);
+                <button type="button" role="option" aria-selected="@(selected ? "true" : "false")" class="smv-row @(selected ? "selected" : "")" @onclick="() => OnToggle.InvokeAsync(row.Key)">
                     <span class="smv-check" aria-hidden="true">@(selected ? "✓" : "")</span>
                     <span class="smv-month">
                         <strong>@row.Month</strong>
@@ -39,8 +42,10 @@
 
 @code {
     [Parameter, EditorRequired] public IReadOnlyList<CollectionSessionSourceChoice> Choices { get; set; } = [];
-    [Parameter] public string? Value { get; set; }
-    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    /// <summary>The selection keys of the months chosen so far.</summary>
+    [Parameter] public IReadOnlySet<string> Selected { get; set; } = new HashSet<string>();
+    [Parameter] public EventCallback<string> OnToggle { get; set; }
+    [Parameter] public EventCallback<IReadOnlyList<string>> OnToggleMany { get; set; }
     [Parameter] public string Label { get; set; } = "Months owed";
 
     private sealed record MonthRow(string Key, DateOnly Period, string Month, string? Reason, decimal Amount);
@@ -57,7 +62,7 @@
         ? Months[0].Period.ToString("MMM yyyy", CultureInfo.InvariantCulture)
         : $"{Months[0].Period.ToString("MMM yyyy", CultureInfo.InvariantCulture)} – {Months[^1].Period.ToString("MMM yyyy", CultureInfo.InvariantCulture)}";
 
-    // The server states why a month is Arrears at the end of its context ("4 · Oct 2022 · Arrears, expired contract"); shown as written, once per row.
+    // The server states why a month is Arrears at the end of its context ("4 · Oct 2022 · Arrears, expired contract"); shown as written.
     private static string? Reason(string context) => context.Split(" · ").FirstOrDefault(p => p.StartsWith("Arrears", StringComparison.Ordinal));
 
     private static string Money(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);

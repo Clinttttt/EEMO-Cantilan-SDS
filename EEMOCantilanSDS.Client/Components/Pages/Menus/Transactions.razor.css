@@ -788,6 +788,10 @@
 .txr-close svg { width: 16px; height: 16px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; }
 .txr-close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .txr-body { display: grid; gap: 16px; overflow-y: auto; padding: 20px; background: var(--bg-card); }
+/* Itemized checkout: the amount and its Details button sit in one aligned row with a clear gap, the figure never touching the button. */
+.txr-items .txr-amount { display: flex; align-items: center; justify-content: flex-end; gap: 16px; }
+.txr-items .txr-amount-fig { text-align: right; white-space: nowrap; }
+.txr-items .txr-amount .v3-btn { flex: 0 0 auto; }
 .txr-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; margin: 0; }
 .txr-meta dt { color: var(--text-tertiary); font-size: 0.75rem; }
 .txr-meta dd { margin: 2px 0 0; color: var(--text); font-size: 0.875rem; font-weight: 600; overflow-wrap: anywhere; }

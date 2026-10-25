@@ -383,7 +383,12 @@ else
                 }
                 else if (IsSpaceMonths)
                 {
-                    <SpaceMonthsView Choices="Choices" Value="@_choiceKey" ValueChanged="ChooseChoice" Label="Months owed" />
+                    <SpaceMonthsView Choices="Choices" Selected="_monthKeys" OnToggle="ToggleMonth" OnToggleMany="ToggleMonths" Label="Months owed" />
+                    @if (MultiMonths)
+                    {
+                        <div class="sheet-meta"><span>@_monthKeys.Count months, each at its full balance</span><strong>@Money(MultiTotal)</strong></div>
+                        <div class="sheet-note">Edit an item afterwards to take a part payment.</div>
+                    }
                 }
                 else
                 {
@@ -451,7 +456,7 @@ else
                 <button class="btn-cancel" type="button" @onclick="CancelPicker">@(_confirmRepeat ? "Cancel" : "Close")</button>
                 @if (_operation is not null)
                 {
-                    <button class="btn-primary" type="button" disabled="@(!CanAddItem)" @onclick="AddItem">@(_confirmRepeat ? "Continue" : "Add item")</button>
+                    <button class="btn-primary" type="button" disabled="@(!(CanAddItem || MultiMonths))" @onclick="AddOrAddMonths">@(MultiMonths ? $"Add {_monthKeys.Count} months" : _confirmRepeat ? "Continue" : "Add item")</button>
                 }
             </div>
         </section>
@@ -962,7 +967,7 @@ else
     {
         _pickerFromList = _operation is null && _picker;
         _operation = Offered.FirstOrDefault(x => x.OperationCode == code);
-        _choice = null; _choiceKey = ""; _amount = _quantity = 0; _serverAmount = null; _heads = 1; _owner = ""; _termSection = null; _byVehicle = false;
+        _choice = null; _choiceKey = ""; _amount = _quantity = 0; _serverAmount = null; _heads = 1; _owner = ""; _termSection = null; _byVehicle = false; _monthKeys.Clear();
         _slhPicked.Clear(); _slhTerms = null;
         if (_operation?.Choices is { Count: 1 } only) ChooseChoice(only[0].SelectionKey);
     }
@@ -1001,7 +1006,7 @@ else
         catch { _serverAmount = null; }
     }
 
-    private void ClosePicker() { _picker = false; _editingId = null; _confirmRepeat = false; }
+    private void ClosePicker() { _picker = false; _editingId = null; _confirmRepeat = false; _monthKeys.Clear(); }
 
     // Editing re-opens the same sheet with what was entered; the original row stays until the changed one is added, so closing loses nothing.
     private async Task EditAsync(CollectionSessionItemIntent item)
@@ -1011,7 +1016,7 @@ else
         await LoadAsync();
         Choose(draft.OperationCode);
         _termSection = draft.Section; _byVehicle = draft.ByVehicle;
-        ChooseChoice(draft.ChoiceKey);
+        ChooseChoice(draft.ChoiceKey); _monthKeys.Clear(); if (IsSpaceMonths && _choice is not null) _monthKeys.Add(draft.ChoiceKey);
         if (_choice is null) { _editingId = null; _message = "This item is no longer available. Remove it and add it again."; return; }
         _amount = draft.Amount; _quantity = draft.Quantity; _heads = draft.Heads; _owner = draft.Owner;
         _slhPicked.Clear(); foreach (var (id, qty) in draft.Charges ?? new Dictionary<Guid, int>()) _slhPicked[id] = qty;
@@ -1039,6 +1044,45 @@ else
         ClosePicker();
     }
     private bool _pickerFromList;
+
+    // ── A space account's months, chosen explicitly ──
+    // One month is the ordinary single item (its amount can be a part payment). Several months become one item each, every one at that month's
+    // own full balance as the server states it; nothing is spread across months here, because how a payment is allocated across obligations is
+    // the office's decision, not the app's. Each item can still be edited for a part payment afterwards.
+    private readonly HashSet<string> _monthKeys = new(StringComparer.Ordinal);
+    private bool MultiMonths => IsSpaceMonths && _monthKeys.Count >= 2;
+    private decimal MultiTotal => Choices.Where(c => _monthKeys.Contains(c.SelectionKey)).Sum(c => c.ServerAmount ?? 0m);
+
+    private void ToggleMonth(string key) { if (!_monthKeys.Remove(key)) _monthKeys.Add(key); SyncMonthSelection(); }
+
+    private void ToggleMonths(IReadOnlyList<string> keys)
+    {
+        if (keys.All(_monthKeys.Contains)) foreach (var key in keys) _monthKeys.Remove(key);
+        else foreach (var key in keys) _monthKeys.Add(key);
+        SyncMonthSelection();
+    }
+
+    // Exactly one month is the existing single-item flow (amount entry); none or several leave no single choice.
+    private void SyncMonthSelection()
+    {
+        if (_monthKeys.Count == 1) ChooseChoice(_monthKeys.First());
+        else { _choice = null; _choiceKey = ""; _amount = 0; _confirmRepeat = false; }
+    }
+
+    private void AddOrAddMonths() { if (MultiMonths) AddMonths(); else AddItem(); }
+
+    private void AddMonths()
+    {
+        // The keys end with the month (yyyy-MM-dd), so an ordinal sort is the account's own chronological order.
+        foreach (var key in _monthKeys.OrderBy(k => k, StringComparer.Ordinal).ToList())
+        {
+            ChooseChoice(key);
+            if (_choice is not { } c) continue;
+            _amount = c.ServerAmount ?? 0m;
+            AddItem();
+        }
+        _monthKeys.Clear();
+    }
 
     private void AddItem()
     {

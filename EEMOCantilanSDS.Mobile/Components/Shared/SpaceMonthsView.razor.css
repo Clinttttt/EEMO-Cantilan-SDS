@@ -50,6 +50,13 @@
 }
 
 .smv-year {
+    width: 100%;
+    border: 0;
+    border-bottom: 1px solid var(--mobile-border);
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
     position: sticky;
     top: 0;
     z-index: 1;
@@ -151,4 +158,15 @@
     margin-top: 2px;
     font-size: 13px;
     font-weight: 600;
+}
+
+.smv-hint {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+}
+
+.smv-year:focus-visible {
+    outline: 2px solid var(--mobile-focus);
+    outline-offset: -2px;
 }
