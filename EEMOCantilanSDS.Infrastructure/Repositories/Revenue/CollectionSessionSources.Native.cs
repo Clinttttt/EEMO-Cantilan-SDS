@@ -30,7 +30,7 @@ public sealed partial class CollectionSessionSources
             var occupancy = stall.OccupancyAnsweringForMonth(today.Year, today.Month, today)?.Contract;
             if (occupancy?.ActualOccupant is { } name && name.ToLowerInvariant().Contains(term))
                 results.Add(new(new(SourceIdentityKind.Occupancy, occupancy.Id), name, $"{stall.Facility!.Name} · Stall {stall.StallNo}", "FACILITY_" + stall.Facility.Code,
-                    SectionLabel: stall.Section is { } section ? stall.Facility.SectionLabel(section) ?? stall.CustomSectionName : stall.CustomSectionName));
+                    SectionLabel: stall.Section is { } section ? stall.Facility.SectionLabel(section) ?? (section switch { MarketSection.FishSection => "Fish Area", MarketSection.MeatSection => "Meat Area", MarketSection.VegetableArea => "Vegetable Area", _ => stall.CustomSectionName }) : stall.CustomSectionName));
         }
         var assigned = await db.CollectorOperationAssignments.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.CollectorId == user.CollectorId).Select(x => x.OperationCode).ToListAsync(ct);
         var accounts = await db.ObligationAccounts.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.Kind != ObligationKind.FishMeatVendorFee &&

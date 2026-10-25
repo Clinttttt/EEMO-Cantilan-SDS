@@ -128,7 +128,7 @@ public sealed partial class CollectionSessionSources
                 if (occupancy?.ActualOccupant is { } name
                     && (term == "" || name.ToLowerInvariant().Contains(term) || stall.StallNo.ToLowerInvariant().Contains(term)))
                     rows.Add(new(new(SourceIdentityKind.Occupancy, occupancy.Id), name, $"{stall.Facility!.Name} · Stall {stall.StallNo}", "FACILITY_" + stall.Facility.Code,
-                        SectionLabel: stall.Section is { } section ? stall.Facility.SectionLabel(section) ?? stall.CustomSectionName : stall.CustomSectionName));
+                        SectionLabel: stall.Section is { } section ? stall.Facility.SectionLabel(section) ?? (section switch { MarketSection.FishSection => "Fish Area", MarketSection.MeatSection => "Meat Area", MarketSection.VegetableArea => "Vegetable Area", _ => stall.CustomSectionName }) : stall.CustomSectionName));
             }
             after = stalls[^1].Id;
         }
