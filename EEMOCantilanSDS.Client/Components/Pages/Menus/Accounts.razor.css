@@ -1479,3 +1479,8 @@
         outline: 2px solid var(--accent);
         outline-offset: 2px;
     }
+
+/* Facilities and operations as one wrapped set of chips; the overflow chip carries the rest. */
+.facility-tags { max-width: 340px; }
+.facility-tags .tag-more { background: var(--accent-soft); color: var(--accent); font-weight: 700; cursor: default; }
+.facility-tags .no-facility { color: var(--text-muted); font-size: 12px; }

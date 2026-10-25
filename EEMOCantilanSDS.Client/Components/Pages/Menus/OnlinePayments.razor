@@ -43,6 +43,51 @@
             </div>
         </div>
     }
+    else if (_isHead && _paymentLoaded && _showSetup && _payment?.HasOwnAccount == true && !_editKeys)
+    {
+        @* A connected account opens on its profile: what is connected and how it stands. The setup form appears only when the Head
+           chooses to update the keys, or after disconnecting. Nothing here writes until an action is confirmed with the password. *@
+        <div class="op-setup">
+            <div class="op-setup-card op-profile">
+                <div class="op-setup-head">
+                    <div class="op-setup-badge">
+                        <svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" /><line x1="1" y1="10" x2="23" y2="10" /></svg>
+                    </div>
+                    <div class="op-setup-head-text">
+                        <div class="op-setup-title">Online payment account</div>
+                        <div class="op-setup-sub">This office's own PayMongo account. Online collections settle here.</div>
+                    </div>
+                    <span class="op-profile-pill op-conn-@ConnectionTone">@ConnectionStatus</span>
+                </div>
+
+                <dl class="op-profile-facts">
+                    <div><dt>Provider</dt><dd>PayMongo</dd></div>
+                    <div><dt>Mode</dt><dd>@(_payment?.Mode ?? "—")</dd></div>
+                    <div><dt>Secret key</dt><dd>Saved · hidden</dd></div>
+                    <div><dt>Webhook signing secret</dt><dd>@(_payment?.HasWebhookSecret == true ? "Saved · hidden" : "Not yet obtained")</dd></div>
+                    <div><dt>Last verified</dt><dd>@(_payment?.LastVerifiedAtUtc is { } at ? PhilippineTime.ToPhilippineTime(at).ToString("MMM d, yyyy h:mm tt") : "Not yet verified")</dd></div>
+                    <div class="op-profile-wide">
+                        <dt>Webhook endpoint</dt>
+                        <dd class="op-copy-row">
+                            <input class="form-input op-copy-input" type="text" readonly value="@(_payment?.WebhookUrl ?? "")" aria-label="Webhook endpoint for this office" />
+                            <button type="button" class="btn-ghost op-copy-btn" @onclick="CopyWebhookUrlAsync" disabled="@string.IsNullOrEmpty(_payment?.WebhookUrl)">@(_copied ? "Copied" : "Copy")</button>
+                        </dd>
+                    </div>
+                </dl>
+
+                @if (!string.IsNullOrEmpty(_payError)) { <div class="op-banner op-banner-error">@_payError</div> }
+                @if (!string.IsNullOrEmpty(_payMsg)) { <div class="op-banner op-banner-ok">@_payMsg</div> }
+
+                <div class="op-setup-actions op-profile-actions">
+                    <button class="btn-ghost" type="button" disabled="@_paySaving" @onclick="() => _showSetup = false">Back to payments</button>
+                    <span class="op-actions-spacer"></span>
+                    <button class="btn-ghost op-danger" type="button" disabled="@_paySaving" @onclick="RequestDisconnect">@(_payment?.DefaultMerchantAccountConfigured == true ? "Use office default account" : "Disconnect")</button>
+                    <button class="btn-ghost" type="button" disabled="@(_paySaving || _payTesting)" @onclick="TestPaymentAsync">@(_payTesting ? "Testing…" : "Test connection")</button>
+                    <button class="btn-primary" type="button" disabled="@_paySaving" @onclick="() => { _payError = null; _payMsg = null; _editKeys = true; }">Update keys</button>
+                </div>
+            </div>
+        </div>
+    }
     else if (_isHead && _paymentLoaded && _showSetup)
     {
         <div class="op-setup">
@@ -52,8 +97,10 @@
                         <svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" /><line x1="1" y1="10" x2="23" y2="10" /></svg>
                     </div>
                     <div class="op-setup-head-text">
-                        <div class="op-setup-title">Set up your online payment account</div>
-                        <div class="op-setup-sub">Connect your municipality's PayMongo account so online collections settle to your account.</div>
+                        <div class="op-setup-title">@(_editKeys && _payment?.HasOwnAccount == true ? "Update payment account keys" : "Set up your online payment account")</div>
+                        <div class="op-setup-sub">@(_editKeys && _payment?.HasOwnAccount == true
+                            ? "Enter the new keys from PayMongo. The saved keys stay in use until you save."
+                            : "Connect your municipality's PayMongo account so online collections settle to your account.")</div>
                     </div>
 
                     @* What the office needs to know before it reads the form: whether this connection actually works, and
@@ -161,13 +208,14 @@
                         @(_payTesting ? "Testing…" : "Test connection")
                     </button>
                     <button class="btn-primary" disabled="@_paySaving" type="button" @onclick="RequestSave">@(_paySaving ? "Saving…" : "Save")</button>
-                    @if (_payment?.HasOwnAccount == true || _isDefaultTenant)
+                    @if (_editKeys && _payment?.HasOwnAccount == true)
+                    {
+                        @* Updating a connected account's keys: Cancel returns to its profile, where Disconnect also lives. *@
+                        <button class="btn-ghost" disabled="@_paySaving" type="button" @onclick="() => { _editKeys = false; _payError = null; }">Cancel</button>
+                    }
+                    else if (_payment?.HasOwnAccount == true || _isDefaultTenant)
                     {
                         <button class="btn-ghost" disabled="@_paySaving" type="button" @onclick="() => _showSetup = false">Back to payments</button>
-                    }
-                    @if (_payment?.HasOwnAccount == true)
-                    {
-                        <button class="btn-ghost" disabled="@_paySaving" type="button" @onclick="RequestDisconnect">@(_payment?.DefaultMerchantAccountConfigured == true ? "Use office default account" : "Disconnect account")</button>
                     }
                 </div>
             </div>
@@ -270,6 +318,8 @@
                     ? "No payments awaiting OR."
                     : $"{Items.Count} payment(s) awaiting OR. Encode the accountable number when issued.")</div>
             </div>
+            @* The page's two actions, side by side as one group. *@
+            <div class="op-intro-actions" role="group" aria-label="Online payment actions">
             <button class="btn-ghost op-or-toggle" type="button"
                     aria-expanded="@_showOrQueue" aria-controls="online-payments-or-queue"
                     @onclick="() => _showOrQueue = !_showOrQueue">
@@ -290,6 +340,7 @@
                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
                 </button>
             }
+            </div>
         </div>
 
     @if (!string.IsNullOrEmpty(Message))
@@ -522,6 +573,8 @@
     private bool _isHead;
     private bool _isDefaultTenant;
     private bool _showSetup;
+    /// <summary>The Head chose to change the connected account's keys: the setup form shows instead of the account profile.</summary>
+    private bool _editKeys;
     private bool _showHelp;
     private string _paySecret = string.Empty;
     private bool _showSecret;
@@ -691,6 +744,7 @@
     {
         _payError = null;
         _payMsg = null;
+        _editKeys = false;
         _showSetup = true;
     }
 
@@ -833,6 +887,8 @@
                 // actually registered, and can copy the public callback URL if it did not.
                 // Closing immediately used to hide the only success/error message.
                 _showSetup = true;
+                // Back to the account profile, which states the new status, the webhook endpoint and this message together.
+                _editKeys = false;
                 _payMsg = result.Value?.Message ?? "Saved.";
             }
             else
@@ -865,6 +921,7 @@
                 _payWebhook = string.Empty;
                 await LoadPaymentAsync();
                 _showSetup = !CanAcceptOnlinePayments;
+                _editKeys = false;   // disconnected: the setup form is what the office sees next
                 _payMsg = _payment?.DefaultMerchantAccountConfigured == true
                     ? "Default office merchant account restored."
                     : "PayMongo account disconnected. Online payments are disabled.";

@@ -774,7 +774,8 @@
         StateHasChanged();
     }
 
-    private static string AssignmentLabel(CollectorOperationAssignmentDto operation) => operation.Code switch
+    // Shared with Account Management, so both pages name an assignment the same way.
+    internal static string AssignmentLabel(CollectorOperationAssignmentDto operation) => operation.Code switch
     {
         "WCF" or "ECF" => operation.Code,
         CollectorOperationCodes.Terminal => "IFT",
