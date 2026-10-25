@@ -35,7 +35,10 @@ public sealed partial class CollectionSessionSources
         var assigned = await db.CollectorOperationAssignments.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.CollectorId == user.CollectorId).Select(x => x.OperationCode).ToListAsync(ct);
         var accounts = await db.ObligationAccounts.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.Kind != ObligationKind.FishMeatVendorFee &&
             ((x.ActiveFrom <= today && (x.ActiveTo == null || x.ActiveTo >= today))
-                || (x.Kind == ObligationKind.FiestaArawLotRental && x.EventDate > today && x.ActiveTo == null)) &&
+                // An event's payable date is its event date, not the end of collectibility.
+                // Preserve a closed past lot's approved debt for a legitimate late payment.
+                || (x.Kind == ObligationKind.FiestaArawLotRental
+                    && (x.EventDate <= today || x.ActiveTo == null))) &&
             (x.SubjectLabel.ToLower().Contains(term) || x.ActualOccupant != null && x.ActualOccupant.ToLower().Contains(term) || db.Payors.Any(p => p.MunicipalityId == Tenant && p.Id == x.PayorId && p.DisplayName.ToLower().Contains(term))) &&
             (x.Kind == ObligationKind.KanmanggaySpaceRental && assigned.Contains(CollectorOperationCodes.KanmanggaySpaceRental) ||
                 x.Kind == ObligationKind.VegetableFruitSpaceRental && assigned.Contains(CollectorOperationCodes.VegetableFruitSpaceRental) ||
@@ -55,7 +58,8 @@ public sealed partial class CollectionSessionSources
                     account.Kind == ObligationKind.VegetableFruitSpaceRental ? $"Vegetable / Fruits · Space {account.SubjectLabel}" :
                     account.Kind == ObligationKind.KanmanggaySpaceRental ? $"Kanmanggay · Space {account.SubjectLabel}" : $"Fiesta / Araw · Lot {account.SubjectLabel}",
                     ObligationAccount.OperationCodeFor(account.Kind)!,
-                    CanSelect: account.Kind != ObligationKind.FiestaArawLotRental || account.ActiveFrom <= today,
+                    CanSelect: account.Kind != ObligationKind.FiestaArawLotRental ||
+                        (account.EventDate <= today && quotes.Any(x => x.AccountId == account.Id && x.OutstandingAmount > 0m && x.CanAddToDraft)),
                     AvailableOn: account.Kind == ObligationKind.FiestaArawLotRental && account.ActiveFrom > today ? account.EventDate : null));
         }
         if (assigned.Contains(CollectorOperationCodes.FishMeatVendorFee) || assigned.Contains(CollectorOperationCodes.WeightAndMeasure))

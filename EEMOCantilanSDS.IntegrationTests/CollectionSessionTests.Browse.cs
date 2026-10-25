@@ -2,6 +2,8 @@ using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
+using EEMOCantilanSDS.Application.Dtos.Revenue;
+using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
@@ -130,12 +132,16 @@ public sealed partial class CollectionSessionTests
             payor.Id, null, "F-07", rentalEvent, eventDay, eventDay, "Head");
         db.Add(lot);
         db.Add(ObligationRate.Create(w.TenantId, lot.Id, eventDay, 850m, "Head"));
-        // An explicitly closed past event is history, not a selectable current source.
+        // A closed past event may still have a Head-approved balance: collectors can accept late settlement.
         var past = today.AddDays(-14);
         var closed = ObligationAccount.Create(w.TenantId, ObligationKind.FiestaArawLotRental,
             payor.Id, null, "OLD-03", rentalEvent, past, past, "Head");
         closed.Close(past.AddDays(1));
         db.Add(closed);
+        db.Add(ObligationRate.Create(w.TenantId, closed.Id, past, 450m, "Head"));
+        var classification = RevenueClassification.Create(RevenueClassificationCodes.FiestaArawLotRental, w.TenantId);
+        db.AddRange(classification, RevenueClassificationPolicy.Create(classification.Id, past.AddYears(-1),
+            "Event lot", RevenueInstrumentType.OfficialReceipt, w.TenantId));
         db.Add(CollectorOperationAssignment.Assign(w.TenantId, w.CollectorId,
             CollectorOperationCodes.FiestaArawLotRental, "Head"));
         await db.SaveChangesAsync();
@@ -144,25 +150,53 @@ public sealed partial class CollectionSessionTests
         var sources = new CollectionSessionSources(db, new Caller(w.CollectorId, w.TenantId),
             new Tenant(w.TenantId), new Clock(today), null!, new NoMarketDays());
         var page = await sources.BrowseSourcesAsync(CollectionSourceCategories.FiestaAraw, null, 0, 25, default);
-        var registered = Assert.Single(page.Items);
+        Assert.Equal(2, page.Items.Count);
+        var registered = Assert.Single(page.Items, x => x.Identity == sourceId);
+        var overdue = Assert.Single(page.Items, x => x.Identity.Id == closed.Id);
+        Assert.True(overdue.CanSelect);
+        Assert.Null(overdue.AvailableOn);
         Assert.Equal(sourceId, registered.Identity);
         Assert.Equal(payor.DisplayName, registered.DisplayName);
         Assert.False(registered.CanSelect);
         Assert.Equal(eventDay, registered.AvailableOn);
-        Assert.Single((await sources.BrowseSourcesAsync(CollectionSourceCategories.FiestaAraw,
-            payor.DisplayName, 0, 25, default)).Items);
+        Assert.Equal(2, (await sources.BrowseSourcesAsync(CollectionSourceCategories.FiestaAraw,
+            payor.DisplayName, 0, 25, default)).Items.Count);
         Assert.Contains(await sources.SearchSourcesAsync(payor.DisplayName, default),
             x => x.Identity == sourceId && !x.CanSelect && x.AvailableOn == eventDay);
         Assert.DoesNotContain((await sources.DiscoverNativeAsync(sourceId, today, default)).Operations,
             x => x.OperationCode == CollectorOperationCodes.FiestaArawLotRental);
+        // Past event retains its original event period and collectible balance, not today's date.
+        var late = await sources.DiscoverNativeAsync(new(SourceIdentityKind.SpaceAccount, closed.Id), today, default);
+        Assert.Contains(late.Operations, x => x.OperationCode == CollectorOperationCodes.FiestaArawLotRental
+            && x.EligibleChoiceCount > 0 && x.Choices!.Any(c => c.Identity?.PeriodStart == past));
         Assert.Empty(await db.CollectionAllocations.ToListAsync());
         Assert.Empty(await db.Collections.ToListAsync());
+        var latePosting = new CollectionComposerWorkflow(db, new Caller(w.CollectorId, w.TenantId), new Tenant(w.TenantId), new Clock(today));
+        var operationId = Guid.NewGuid();
+        var payment = new MobileObligationPostRequest(operationId, closed.Id, past.Year, past.Month, 200m, today);
+        var posted = await latePosting.PostMobileObligationAsync(payment);
+        Assert.True(posted.IsSuccess, posted.Error);
+        Assert.NotNull(posted.Value);
+        var replay = await latePosting.PostMobileObligationAsync(payment);
+        Assert.True(replay.IsSuccess, replay.Error);
+        Assert.Equal(posted.Value!.ReferenceCode, replay.Value!.ReferenceCode);
+        Assert.Single(await db.Collections.ToListAsync());
+        var stillDue = Assert.Single((await sources.BrowseSourcesAsync(CollectionSourceCategories.FiestaAraw,
+            null, 0, 25, default)).Items, x => x.Identity.Id == closed.Id);
+        Assert.True(stillDue.CanSelect);
+        var remainder = await latePosting.PostMobileObligationAsync(new(Guid.NewGuid(), closed.Id,
+            past.Year, past.Month, 250m, today));
+        Assert.True(remainder.IsSuccess, remainder.Error);
+        Assert.Equal(2, await db.Collections.CountAsync());
+        var paid = Assert.Single((await sources.BrowseSourcesAsync(CollectionSourceCategories.FiestaAraw,
+            null, 0, 25, default)).Items, x => x.Identity.Id == closed.Id);
+        Assert.False(paid.CanSelect); // never collect the same closed event again.
 
         // The same registered identity becomes selectable once the event actually occurs.
         var eventSources = new CollectionSessionSources(db, new Caller(w.CollectorId, w.TenantId),
             new Tenant(w.TenantId), new Clock(eventDay), null!, new NoMarketDays());
         var onDay = Assert.Single((await eventSources.BrowseSourcesAsync(CollectionSourceCategories.FiestaAraw,
-            null, 0, 25, default)).Items);
+            null, 0, 25, default)).Items, x => x.Identity == sourceId);
         Assert.True(onDay.CanSelect);
         Assert.Null(onDay.AvailableOn);
         Assert.Contains((await eventSources.DiscoverNativeAsync(sourceId, eventDay, default)).Operations,

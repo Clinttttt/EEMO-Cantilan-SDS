@@ -1,0 +1,24 @@
+/* Mobile record details: keep the total and Close action visible while many SRCs scroll. */
+.session-record-sheet { min-width: 0; }
+.session-record-sheet .sheet-head { padding-bottom: 12px; }
+.session-record-sheet .sheet-title { overflow-wrap: anywhere; }
+.session-total { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--mobile-blue-subtle); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.session-total span { color: var(--mobile-text-secondary); font-size: 12px; font-weight: 600; }
+.session-total strong { color: var(--mobile-navy); font-size: 22px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.session-date { margin-top: 8px; color: var(--mobile-text-secondary); font-size: 12px; }
+.session-item { margin: 12px 0; padding: 12px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); }
+.session-item-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--mobile-border); }
+.session-item-heading { min-width: 0; display: flex; flex-direction: column; gap: 3px; overflow-wrap: anywhere; }
+.session-item-heading strong { color: var(--mobile-navy); font-size: 14px; line-height: 1.35; }
+.session-counter { color: var(--mobile-text-secondary); font-size: 11px; font-weight: 600; }
+.session-amount { flex: 0 0 auto; color: var(--mobile-navy); font-size: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.session-identity { display: flex; flex-direction: column; gap: 2px; padding: 10px 0; font-size: 12px; }
+.session-identity span, .session-evidence span { color: var(--mobile-text-secondary); }
+.session-identity strong { color: var(--mobile-blue); font-weight: 600; overflow-wrap: anywhere; }
+.session-line { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 7px 0; font-size: 13px; color: var(--mobile-text); }
+.session-line > span { min-width: 0; overflow-wrap: anywhere; }
+.session-line strong { flex: 0 0 auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.session-evidence { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--mobile-border); }
+.session-evidence > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 4px 0; font-size: 12px; }
+.session-evidence strong { min-width: 0; color: var(--mobile-navy); font-weight: 600; overflow-wrap: anywhere; text-align: right; }
+.session-close { flex: 1 1 auto; width: 100%; min-height: 46px; }
