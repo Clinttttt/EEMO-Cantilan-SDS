@@ -132,8 +132,8 @@
     private bool IsLot => Source.Kind == ObligationKind.FiestaArawLotRental;
     private bool Ready => !_loading && _error is null;
     private static readonly IReadOnlyList<string> LifecycleChoices = ["Active", "Closed", "All"];
-    private static bool Closed(ObligationAccountDto a) => !RentalAccountStatus.IsOpen(a);
-    private int Count(bool active) => _accounts.Count(a => a.Kind == Source.Kind && RentalAccountStatus.IsOpen(a) == active);
+    private static bool Closed(ObligationAccountDto a) => !RentalAccountStatus.IsCurrent(a);   // a term that has run out is no longer a current holder
+    private int Count(bool active) => _accounts.Count(a => a.Kind == Source.Kind && RentalAccountStatus.IsCurrent(a) == active);
 
     private IReadOnlyList<ObligationAccountDto> Rows => _accounts.Where(a => a.Kind == Source.Kind
         && (_lifecycle == "All" || (_lifecycle == "Closed" ? Closed(a) : !Closed(a)))
@@ -145,7 +145,7 @@
     [
         new(Ready ? _accounts.Count(a => a.Kind == Source.Kind).ToString(CultureInfo.InvariantCulture) : "—", $"Registered {Source.Unit.ToLowerInvariant()}s"),
         new(Ready ? Count(true).ToString(CultureInfo.InvariantCulture) : "—", "Active"),
-        new(Ready ? Count(false).ToString(CultureInfo.InvariantCulture) : "—", "Closed")
+        new(Ready ? Count(false).ToString(CultureInfo.InvariantCulture) : "—", "Ended or closed")
     ];
 
     private RenderFragment EmptyRow(int cols) => __builder =>

@@ -288,6 +288,14 @@ public sealed class SpaceLifecycleTests(PostgresFixture db)
             Assert.Equal(1, await after.ObligationAccounts.CountAsync());                       // a renewal opens no account
             var term = await after.SpaceContractTerms.AsNoTracking().SingleAsync();
             Assert.Equal((new DateOnly(2024, 1, 1), new DateOnly(2026, 12, 31)), (term.Commencement, term.LastDay));
+
+            // The register reports the term in force, so the renewed space reads as current, not "term ended" for ever; the account's
+            // own recorded term is left as it was.
+            var listed = await new EEMOCantilanSDS.Application.Common.Revenue.ObligationWorkflow(after, new Caller(tenant, "SuperAdmin"), new Tenant(tenant))
+                .GetAccountsAsync(open.Account.Kind);
+            var dto = Assert.Single(listed.Value!);
+            Assert.Equal((new DateOnly(2024, 1, 1), 3, "Signed Lessee", "KM-REF-2"), (dto.ContractEffectiveDate, dto.ContractYears, dto.ContractName, dto.ContractReference));
+            Assert.Equal(new DateOnly(2021, 1, 1), (await after.ObligationAccounts.AsNoTracking().SingleAsync()).ContractEffectiveDate);
         }
         // The new term runs to the end of 2026, so it cannot be renewed again yet (the same rule as a stall's running term).
         var again = await PreviewAsync(tenant, open.Account.Id, Renew(new DateOnly(2027, 1, 1)));

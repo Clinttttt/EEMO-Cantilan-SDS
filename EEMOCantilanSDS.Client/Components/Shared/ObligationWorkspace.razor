@@ -38,7 +38,7 @@
     {
         <RentalRegistryHero Title="Spaces &amp; Occupants" Progress="CollectionRate">
             <Figures>
-                <V3HeroFigure Label="Registered units" Value="@(_loading || _error is not null ? "—" : _accounts.Count.ToString())" Note="@($"{_accounts.Count(a => RentalAccountStatus.IsOpen(a))} active · {_accounts.Count(a => !RentalAccountStatus.IsOpen(a))} closed")" />
+                <V3HeroFigure Label="Registered units" Value="@(_loading || _error is not null ? "—" : _accounts.Count.ToString())" Note="@($"{_accounts.Count(a => RentalAccountStatus.IsCurrent(a))} current · {_accounts.Count(a => !RentalAccountStatus.IsCurrent(a))} ended or closed")" />
                 <V3HeroFigure Label="Assessed" Value="@(_workspace is null ? "—" : Money(_workspace.Assessed))" />
                 <V3HeroFigure Label="Collected" Value="@(_workspace is null ? "—" : Money(_workspace.Collected))" />
                 <V3HeroFigure Label="Remaining" Value="@(_workspace is null ? "—" : Money(_workspace.Outstanding))" />
@@ -80,9 +80,9 @@
 {
     <RentalSummaryStrip Title="@(Workspace?.TableTitle ?? "Space Rentals")" Description="@(Kind == ObligationKind.FiestaArawLotRental ? "Event lot rental · account-to-date position" : "Approved monthly rental · account-to-date position")"
                         Available="@(!_loading && _error is null)" StatusScope="Active registrations · account-to-date position"
-                        Paid="@_accounts.Count(a => RentalAccountStatus.IsOpen(a) && PaymentStatus(a) == "Paid")"
-                        Unpaid="@_accounts.Count(a => RentalAccountStatus.IsOpen(a) && PaymentStatus(a) == "Unpaid")"
-                        Partial="@_accounts.Count(a => RentalAccountStatus.IsOpen(a) && PaymentStatus(a) == "Partial")"
+                        Paid="@_accounts.Count(a => RentalAccountStatus.IsCurrent(a) && PaymentStatus(a) == "Paid")"
+                        Unpaid="@_accounts.Count(a => RentalAccountStatus.IsCurrent(a) && PaymentStatus(a) == "Unpaid")"
+                        Partial="@_accounts.Count(a => RentalAccountStatus.IsCurrent(a) && PaymentStatus(a) == "Partial")"
                         Collected="@(_workspace is null ? "—" : Money(_workspace.Collected))" />
     @if (_error is not null) { <div role="alert" class="v3-notice v3-notice-error">@_error <button type="button" class="btn-outline" @onclick="LoadAsync">Try again</button></div> }
     <RegisteredRentalTable TItem="ObligationAccountDto" Rows="RentalRows" Unit="@SubjectNoun"
@@ -798,7 +798,7 @@ else
         new() { Label = "Remaining", Value = _workspace is null ? "—" : Money(_workspace.Outstanding) },
         new() { Label = AccountCountLabel ?? $"Registered {SubjectNoun.ToLowerInvariant()}s", Value = _loading || _error is not null ? "—" : _accounts.Count.ToString(CultureInfo.InvariantCulture) }];
     private IEnumerable<ObligationAccountDto> VisibleAccounts => _accounts.Where(a =>
-        (!SpaceExperience || (!Overview && _lifecycle == "All") || ((Overview ? _filter == "Closed" : _lifecycle == "Closed") ? !RentalAccountStatus.IsOpen(a) : RentalAccountStatus.IsOpen(a)))
+        (!SpaceExperience || (!Overview && _lifecycle == "All") || ((Overview ? _filter == "Closed" : _lifecycle == "Closed") ? !RentalAccountStatus.IsCurrent(a) : RentalAccountStatus.IsCurrent(a)))
         && (!SpaceExperience || _filter switch
         {
             "Paid" => a.AssessedToDate > 0m && a.OutstandingToDate == 0m,
