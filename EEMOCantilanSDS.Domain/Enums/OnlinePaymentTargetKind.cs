@@ -15,6 +15,11 @@ namespace EEMOCantilanSDS.Domain.Enums
         // settles SEVERAL NPM fish-section days of one month, each with the kilos the payor declared for THAT day
         // (TargetStallId + TargetYear/TargetMonth + the day:kilos pairs). A fish day costs the daily fee plus its own
         // weighing fee, so several days cannot be settled as one figure the way NpmDailyMonth settles ordinary days.
-        NpmFishDays = 5
+        NpmFishDays = 5,
+
+        // settles the REST of an NPM stall's month in one payment (TargetStallId + TargetYear/TargetMonth): the month's stall
+        // rent less what is already collected, future days included. Kept apart from NpmDailyMonth so a checkout priced by
+        // elapsed days is never settled by the whole-month rule, or the reverse.
+        NpmWholeMonth = 6
     }
 }

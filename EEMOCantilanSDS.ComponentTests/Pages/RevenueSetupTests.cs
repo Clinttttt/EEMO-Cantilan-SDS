@@ -45,258 +45,50 @@ public sealed class RevenueSetupTests : TestContext
     }
 
     [Fact]
-    public void Register_ShowsActiveRetiredNullInstrumentAndMissingPolicyStates()
+    public void Directory_GroupsSourcesByTheOfficialIncomeClassification_WithArrearsAndFinesUnderOthers()
     {
-        var active = Classification("ECF", "Environmental Fee", true, true,
-            Policy("ECF", "Environmental Fee", PhilippineTime.Today, RevenueInstrumentType.OfficialReceipt));
-        var noHistory = Classification("MISC", "", true, false, null);
-        var futureOnly = Classification("FUTURE", "", true, true, null);
-        var retired = Classification("ARREARS", "Arrears", false, true,
-            Policy("ARREARS", "Arrears", PhilippineTime.Today, null));
-        var (cut, _) = RenderPage([active, noHistory, futureOnly, retired]);
+        var (cut, _) = RenderPage([
+            Classification("MARKET_FEES", "Market Fees", true, true, Policy("MARKET_FEES", "Market Fees", PhilippineTime.Today, RevenueInstrumentType.CashTicket)),
+            Classification("PERMANENT_STALL_RENT", "Permanent Stall Rent", true, true, Policy("PERMANENT_STALL_RENT", "Permanent Stall Rent", PhilippineTime.Today, RevenueInstrumentType.OfficialReceipt)),
+            Classification("VEGETABLE_FRUIT_SPACE_RENTAL", "Vegetable/Fruit Space Rental", true, true, Policy("VEGETABLE_FRUIT_SPACE_RENTAL", "Vegetable/Fruit Space Rental", PhilippineTime.Today, RevenueInstrumentType.OfficialReceipt)),
+            Classification("TERMINAL_TRICYCAD", "Tricycad", true, true, Policy("TERMINAL_TRICYCAD", "Tricycad", PhilippineTime.Today, RevenueInstrumentType.CashTicket)),
+            Classification("SLAUGHTERHOUSE", "Slaughterhouse", true, true, Policy("SLAUGHTERHOUSE", "Slaughterhouse", PhilippineTime.Today, RevenueInstrumentType.OfficialReceipt)),
+            Classification("ARREARS", "Arrears", true, true, Policy("ARREARS", "Arrears", PhilippineTime.Today, null)),
+            Classification("PENALTIES_AND_FINES", "Penalties/Fines", true, true, Policy("PENALTIES_AND_FINES", "Penalties/Fines", PhilippineTime.Today, RevenueInstrumentType.OfficialReceipt)),
+            Classification("LOCAL_EXTRA", "Office's own source", false, true, Policy("LOCAL_EXTRA", "Office's own source", PhilippineTime.Today, null)),
+        ]);
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Contains("Environmental Fee", cut.Markup);
-            Assert.Contains("Official Receipt", cut.Markup);
-            Assert.Contains("Retired", cut.Markup);
-            Assert.Contains("Not configured", cut.Markup);
-            Assert.Contains("Active · No policy configured", cut.Markup);
-            Assert.Contains("Active · No policy effective yet", cut.Markup);
-            Assert.Contains("Internal reference", cut.Markup);
-            Assert.DoesNotContain("Accounting code", cut.Find(".rev-source-code").TextContent);
-            Assert.Equal(4, cut.FindAll(".rev-table tbody tr").Count);
-        }, RenderTimeout);
-    }
-
-    [Fact]
-    public void AsOfDate_ReloadsRegisterWithRequestedBusinessDate()
-    {
-        var (cut, api) = RenderPage([]);
-        cut.WaitForAssertion(() => Assert.NotEmpty(api.Invocations), RenderTimeout);
-        // Never today: the initial load already asks for today, which made this test fail on that calendar day.
-        var date = PhilippineTime.Today.AddDays(-2);
-        var iso = date.ToString("yyyy-MM-dd");
-
-        cut.Find("input[aria-label='View revenue policies as of date']").Change(iso);
-
-        cut.WaitForAssertion(() => api.Verify(client => client.GetClassificationsAsync(date), Times.Once), RenderTimeout);
-        Assert.Contains($"value=\"{iso}\"", cut.Markup);
-    }
-
-    [Fact]
-    public async Task AsOfLoads_OutOfOrderSuccessKeepsLatestDateAndData()
-    {
-        var firstDate = PhilippineTime.Today.AddDays(-1);
-        var secondDate = PhilippineTime.Today.AddDays(1);
-        var firstResponse = new TaskCompletionSource<Result<IReadOnlyList<RevenueClassificationDto>>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var secondResponse = new TaskCompletionSource<Result<IReadOnlyList<RevenueClassificationDto>>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var api = new Mock<IRevenueClassificationsApiClient>();
-        api.Setup(client => client.GetClassificationsAsync(PhilippineTime.Today))
-            .ReturnsAsync(Result<IReadOnlyList<RevenueClassificationDto>>.Success([]));
-        api.Setup(client => client.GetClassificationsAsync(firstDate)).Returns(() => firstResponse.Task);
-        api.Setup(client => client.GetClassificationsAsync(secondDate)).Returns(() => secondResponse.Task);
-        Services.AddSingleton(api.Object);
-        RegisterGlobalPageServices();
-        this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
-        var cut = RenderComponent<RevenueSetup>();
-        cut.WaitForAssertion(() => Assert.Contains("No revenue sources configured yet.", cut.Markup), RenderTimeout);
-
-        var dateInput = cut.Find("input[aria-label='View revenue policies as of date']");
-        var firstLoad = dateInput.ChangeAsync(new ChangeEventArgs { Value = DateText(firstDate) });
-        var secondLoad = dateInput.ChangeAsync(new ChangeEventArgs { Value = DateText(secondDate) });
-        api.Verify(client => client.GetClassificationsAsync(firstDate), Times.Once);
-        api.Verify(client => client.GetClassificationsAsync(secondDate), Times.Once);
-
-        var latest = Classification("LATEST", "Latest date source", true, true,
-            Policy("LATEST", "Latest date source", secondDate, RevenueInstrumentType.CashTicket));
-        secondResponse.SetResult(Result<IReadOnlyList<RevenueClassificationDto>>.Success([latest]));
-        await secondLoad;
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Contains("Latest date source", cut.Find(".rev-table tbody").TextContent);
-            Assert.Contains($"value=\"{DateText(secondDate)}\"", cut.Markup);
-            Assert.DoesNotContain("aria-busy=\"true\"", cut.Markup);
+            Assert.Equal(["Income from Market", "Rent Income — Stall Rental", "Space Rental", "Income from Terminal", "Income from Slaughterhouse", "Others"],
+                cut.FindAll(".rev-group-head h2").Select(h => h.TextContent.Trim()).ToArray());
+            var others = cut.FindAll(".rev-group").Last().TextContent;
+            Assert.Contains("Arrears", others);
+            Assert.Contains("Penalties/Fines", others);
+            Assert.Contains("Office's own source", others);   // a source off the official list is listed, never hidden
+            Assert.Contains("Retired", others);
         }, RenderTimeout);
 
-        var stale = Classification("STALE", "Stale date source", true, true,
-            Policy("STALE", "Stale date source", firstDate, RevenueInstrumentType.OfficialReceipt));
-        firstResponse.SetResult(Result<IReadOnlyList<RevenueClassificationDto>>.Success([stale]));
-        await firstLoad;
-        Assert.Contains("Latest date source", cut.Find(".rev-table tbody").TextContent);
-        Assert.DoesNotContain("Stale date source", cut.Markup);
-        Assert.Contains($"value=\"{DateText(secondDate)}\"", cut.Markup);
+        // Vegetable / Fruits keeps both instruments; Arrears is given none.
+        var vegetable = cut.FindAll(".rev-row").Single(r => r.TextContent.Contains("Vegetable/Fruit"));
+        Assert.Equal(["OR", "CT"], vegetable.QuerySelectorAll(".rev-row-instrument [aria-hidden='true']").Select(e => e.TextContent.Trim()).Where(t => t is "OR" or "CT").ToArray());
+        var arrears = cut.FindAll(".rev-row").Single(r => r.TextContent.Contains("Arrears"));
+        Assert.DoesNotContain("OR", arrears.QuerySelector(".rev-row-instrument")!.TextContent);
+        Assert.DoesNotContain("CT", arrears.QuerySelector(".rev-row-instrument")!.TextContent);
     }
 
     [Fact]
-    public async Task StaleAsOfSuccess_DoesNotClearLoadingWhileLatestRequestIsPending()
+    public void Directory_OffersNoAddChangeRetireOrActivationControls()
     {
-        var firstDate = PhilippineTime.Today.AddDays(-1);
-        var secondDate = PhilippineTime.Today.AddDays(1);
-        var firstResponse = new TaskCompletionSource<Result<IReadOnlyList<RevenueClassificationDto>>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var secondResponse = new TaskCompletionSource<Result<IReadOnlyList<RevenueClassificationDto>>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var api = new Mock<IRevenueClassificationsApiClient>();
-        api.Setup(client => client.GetClassificationsAsync(PhilippineTime.Today))
-            .ReturnsAsync(Result<IReadOnlyList<RevenueClassificationDto>>.Success([]));
-        api.Setup(client => client.GetClassificationsAsync(firstDate)).Returns(() => firstResponse.Task);
-        api.Setup(client => client.GetClassificationsAsync(secondDate)).Returns(() => secondResponse.Task);
-        Services.AddSingleton(api.Object);
-        RegisterGlobalPageServices();
-        this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
-        var cut = RenderComponent<RevenueSetup>();
-        cut.WaitForAssertion(() => Assert.Contains("No revenue sources configured yet.", cut.Markup), RenderTimeout);
+        var (cut, api) = RenderPage([Classification("MARKET_FEES", "Market Fees", true, true, Policy("MARKET_FEES", "Market Fees", PhilippineTime.Today, RevenueInstrumentType.CashTicket))]);
 
-        var dateInput = cut.Find("input[aria-label='View revenue policies as of date']");
-        var firstLoad = dateInput.ChangeAsync(new ChangeEventArgs { Value = DateText(firstDate) });
-        var secondLoad = dateInput.ChangeAsync(new ChangeEventArgs { Value = DateText(secondDate) });
-        cut.WaitForAssertion(() => Assert.Contains("aria-busy=\"true\"", cut.Markup), RenderTimeout);
-
-        firstResponse.SetResult(Result<IReadOnlyList<RevenueClassificationDto>>.Success([
-            Classification("STALE", "Stale date source", true, true,
-                Policy("STALE", "Stale date source", firstDate, RevenueInstrumentType.OfficialReceipt))]));
-        await firstLoad;
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Contains("aria-busy=\"true\"", cut.Markup);
-            Assert.DoesNotContain("Stale date source", cut.Markup);
-        }, RenderTimeout);
-
-        var latest = Classification("LATEST", "Latest date source", true, true,
-            Policy("LATEST", "Latest date source", secondDate, RevenueInstrumentType.CashTicket));
-        secondResponse.SetResult(Result<IReadOnlyList<RevenueClassificationDto>>.Success([latest]));
-        await secondLoad;
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Contains("Latest date source", cut.Find(".rev-table tbody").TextContent);
-            Assert.DoesNotContain("aria-busy=\"true\"", cut.Markup);
-        }, RenderTimeout);
-    }
-
-    [Fact]
-    public async Task StaleAsOfFailure_DoesNotReplaceLatestSuccessfulRegister()
-    {
-        var firstDate = PhilippineTime.Today.AddDays(-1);
-        var secondDate = PhilippineTime.Today.AddDays(1);
-        var firstResponse = new TaskCompletionSource<Result<IReadOnlyList<RevenueClassificationDto>>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var secondResponse = new TaskCompletionSource<Result<IReadOnlyList<RevenueClassificationDto>>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var api = new Mock<IRevenueClassificationsApiClient>();
-        api.Setup(client => client.GetClassificationsAsync(PhilippineTime.Today))
-            .ReturnsAsync(Result<IReadOnlyList<RevenueClassificationDto>>.Success([]));
-        api.Setup(client => client.GetClassificationsAsync(firstDate)).Returns(() => firstResponse.Task);
-        api.Setup(client => client.GetClassificationsAsync(secondDate)).Returns(() => secondResponse.Task);
-        Services.AddSingleton(api.Object);
-        RegisterGlobalPageServices();
-        this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
-        var cut = RenderComponent<RevenueSetup>();
-        cut.WaitForAssertion(() => Assert.Contains("No revenue sources configured yet.", cut.Markup), RenderTimeout);
-
-        var dateInput = cut.Find("input[aria-label='View revenue policies as of date']");
-        var firstLoad = dateInput.ChangeAsync(new ChangeEventArgs { Value = DateText(firstDate) });
-        var secondLoad = dateInput.ChangeAsync(new ChangeEventArgs { Value = DateText(secondDate) });
-        var latest = Classification("LATEST", "Latest date source", true, true,
-            Policy("LATEST", "Latest date source", secondDate, RevenueInstrumentType.CashTicket));
-        secondResponse.SetResult(Result<IReadOnlyList<RevenueClassificationDto>>.Success([latest]));
-        await secondLoad;
-        cut.WaitForAssertion(() => Assert.Contains("Latest date source", cut.Find(".rev-table tbody").TextContent), RenderTimeout);
-
-        firstResponse.SetResult(Result<IReadOnlyList<RevenueClassificationDto>>.Failure("Stale request failed.", 500));
-        await firstLoad;
-        Assert.Contains("Latest date source", cut.Find(".rev-table tbody").TextContent);
-        Assert.DoesNotContain("Stale request failed.", cut.Markup);
-        Assert.DoesNotContain("Couldn't load revenue setup", cut.Markup);
-    }
-
-    [Fact]
-    public void Create_AllowsUnconfiguredInstrument_AndRefreshesRegister()
-    {
-        var items = new List<RevenueClassificationDto>();
-        var api = new Mock<IRevenueClassificationsApiClient>();
-        api.Setup(client => client.GetClassificationsAsync(It.IsAny<DateOnly?>()))
-            .Returns(() => Task.FromResult(Result<IReadOnlyList<RevenueClassificationDto>>.Success(items.ToArray())));
-        var id = Guid.NewGuid();
-        api.Setup(client => client.CreateClassificationAsync(It.IsAny<CreateRevenueClassificationCommand>()))
-            .Callback<CreateRevenueClassificationCommand>(command =>
-            {
-                Assert.Equal("TEMP_SPACE", command.SemanticCode);
-                Assert.Equal("Temporary Space Rental", command.DisplayName);
-                Assert.Equal(PhilippineTime.Today.AddDays(1), command.EffectiveDate);
-                Assert.Null(command.PermittedInstrumentType);
-                items.Add(Classification("TEMP_SPACE", "Temporary Space Rental", true, true,
-                    Policy("TEMP_SPACE", "Temporary Space Rental", command.EffectiveDate, null, id)));
-            })
-            .ReturnsAsync(Result<RevenueClassificationDto>.Success(
-                Classification("TEMP_SPACE", "Temporary Space Rental", true, true,
-                    Policy("TEMP_SPACE", "Temporary Space Rental", PhilippineTime.Today.AddDays(1), null, id), id)));
-        api.Setup(client => client.GetPolicyHistoryAsync(id))
-            .ReturnsAsync(Result<IReadOnlyList<RevenueClassificationPolicyDto>>.Success([]));
-        Services.AddSingleton(api.Object);
-        RegisterGlobalPageServices();
-        this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
-
-        var cut = RenderComponent<RevenueSetup>();
-        cut.WaitForAssertion(() => Assert.Contains("No revenue sources configured yet.", cut.Markup), RenderTimeout);
-        ClickButton(cut, "Add revenue source");
-        cut.Find("#rev-create-name").Change("Temporary Space Rental");
-        cut.Find("#rev-create-date").Change(DateText(PhilippineTime.Today.AddDays(1)));
-        cut.Find("#rev-create-code").Change("TEMP_SPACE");
-        cut.Find(".rev-form").Submit();
-
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Contains("Revenue source created.", cut.Markup);
-            Assert.Contains("Temporary Space Rental", cut.Markup);
-        }, RenderTimeout);
-        api.Verify(client => client.CreateClassificationAsync(It.IsAny<CreateRevenueClassificationCommand>()), Times.Once);
-        api.Verify(client => client.GetClassificationsAsync(It.IsAny<DateOnly?>()), Times.Exactly(2));
-    }
-
-    [Fact]
-    public void Create_RejectsPastDateAndKeepsTheFormRecoverable()
-    {
-        var (cut, api) = RenderPage([]);
-        cut.WaitForAssertion(() => Assert.Contains("No revenue sources configured yet.", cut.Markup), RenderTimeout);
-        ClickButton(cut, "Add revenue source");
-        cut.Find("#rev-create-name").Change("Past Source");
-        cut.Find("#rev-create-date").Change(DateText(PhilippineTime.Today.AddDays(-1)));
-        cut.Find("#rev-create-code").Change("PAST_SOURCE");
-        cut.Find(".rev-form").Submit();
-
-        Assert.Contains("A revenue policy cannot take effect in the past.", cut.Markup);
-        Assert.Single(cut.FindAll(".rev-modal"));
+        cut.WaitForAssertion(() => Assert.Contains("Market Fees", cut.Markup), RenderTimeout);
+        Assert.Equal("Revenue Sources", cut.Find("h1").TextContent.Trim());
+        var labels = cut.FindAll("button").Select(b => b.TextContent.Trim()).ToArray();
+        Assert.DoesNotContain(labels, l => l.Contains("Add revenue source") || l.Contains("Schedule policy change") || l.Contains("Retire")
+            || l.Contains("Activate") || l.Contains("Deactivate"));
+        Assert.Empty(cut.FindAll("input[type=date]"));
         api.Verify(client => client.CreateClassificationAsync(It.IsAny<CreateRevenueClassificationCommand>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task CreateSavingState_DisablesSubmitAndPreventsDuplicateRequests()
-    {
-        var id = Guid.NewGuid();
-        var created = Classification("NEW_SOURCE", "New Source", true, true,
-            Policy("NEW_SOURCE", "New Source", PhilippineTime.Today, null), id);
-        var completion = new TaskCompletionSource<Result<RevenueClassificationDto>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var api = new Mock<IRevenueClassificationsApiClient>();
-        api.Setup(client => client.GetClassificationsAsync(It.IsAny<DateOnly?>()))
-            .ReturnsAsync(Result<IReadOnlyList<RevenueClassificationDto>>.Success([]));
-        api.Setup(client => client.CreateClassificationAsync(It.IsAny<CreateRevenueClassificationCommand>()))
-            .Returns(() => completion.Task);
-        api.Setup(client => client.GetPolicyHistoryAsync(id))
-            .ReturnsAsync(Result<IReadOnlyList<RevenueClassificationPolicyDto>>.Success([]));
-        Services.AddSingleton(api.Object);
-        RegisterGlobalPageServices();
-        this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
-        var cut = RenderComponent<RevenueSetup>();
-        cut.WaitForAssertion(() => Assert.Contains("No revenue sources configured yet.", cut.Markup), RenderTimeout);
-        ClickButton(cut, "Add revenue source");
-        cut.Find("#rev-create-name").Change("New Source");
-        cut.Find("#rev-create-date").Change(DateText(PhilippineTime.Today));
-        cut.Find("#rev-create-code").Change("NEW_SOURCE");
-
-        var pendingSubmit = cut.Find(".rev-form").SubmitAsync();
-        cut.WaitForAssertion(() => Assert.True(cut.Find(".rev-modal-actions button[type='submit']").HasAttribute("disabled")), RenderTimeout);
-        cut.Find(".rev-modal-actions button[type='submit']").Click();
-        api.Verify(client => client.CreateClassificationAsync(It.IsAny<CreateRevenueClassificationCommand>()), Times.Once);
-
-        completion.SetResult(Result<RevenueClassificationDto>.Success(created));
-        await pendingSubmit;
     }
 
     [Fact]
@@ -311,7 +103,7 @@ public sealed class RevenueSetupTests : TestContext
         var (cut, api) = RenderPage([classification], id, [future, current, previous]);
 
         cut.WaitForAssertion(() => Assert.Contains("Stall Rent", cut.Markup), RenderTimeout);
-        ClickButton(cut, "Manage");
+        ClickButton(cut, "Details");
 
         cut.WaitForAssertion(() =>
         {
@@ -321,23 +113,21 @@ public sealed class RevenueSetupTests : TestContext
             Assert.Contains("Scheduled", rows[0].TextContent);
             Assert.Contains("In effect", rows[1].TextContent);
             Assert.Contains("Previous", rows[2].TextContent);
-            Assert.Equal(1, rows.Count(row => row.TextContent.Contains("In effect", StringComparison.Ordinal)));
-            Assert.Equal(1, rows.Count(row => row.TextContent.Contains("Scheduled", StringComparison.Ordinal)));
-            Assert.Equal(1, rows.Count(row => row.TextContent.Contains("Previous", StringComparison.Ordinal)));
         }, RenderTimeout);
         api.Verify(client => client.GetPolicyHistoryAsync(id), Times.Once);
     }
 
     [Fact]
-    public void Manage_OpensDetailsInADrawerBesideTheRegisterAndEscapeClosesIt()
+    public void Details_OpenInADrawerBesideTheDirectory_WithTheInternalReference_AndEscapeClosesIt()
     {
         var id = Guid.NewGuid();
         var current = Policy("STALL_RENT", "Stall Rent", PhilippineTime.Today, RevenueInstrumentType.OfficialReceipt, id);
-        var (cut, api) = RenderPage([Classification("STALL_RENT", "Stall Rent", true, true, current, id)], id, [current]);
+        var (cut, _) = RenderPage([Classification("STALL_RENT", "Stall Rent", true, true, current, id)], id, [current]);
 
         cut.WaitForAssertion(() => Assert.Contains("Stall Rent", cut.Markup), RenderTimeout);
         Assert.Empty(cut.FindAll("[role='dialog']"));
-        ClickButton(cut, "Manage");
+        Assert.DoesNotContain("STALL_RENT", cut.Find(".rev-group").TextContent);   // internal references stay in the details
+        ClickButton(cut, "Details");
 
         cut.WaitForAssertion(() =>
         {
@@ -345,177 +135,13 @@ public sealed class RevenueSetupTests : TestContext
             Assert.Equal("true", drawer.GetAttribute("aria-modal"));
             Assert.Contains("STALL_RENT", drawer.TextContent);
             Assert.Single(drawer.QuerySelectorAll(".rev-history-table tbody tr"));
-            Assert.Contains("is-selected", cut.Find(".rev-table tbody tr").ClassName);
+            Assert.Empty(drawer.QuerySelectorAll("footer button"));
+            Assert.Contains("is-selected", cut.Find(".rev-row").ClassName);
         }, RenderTimeout);
 
         cut.Find(".v3-drawer").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Escape" });
 
         cut.WaitForAssertion(() => Assert.Empty(cut.FindAll("[role='dialog']")), RenderTimeout);
-        Assert.Single(cut.FindAll(".rev-table tbody tr"));
-    }
-
-    [Fact]
-    public void AddRevenueSource_SeparatesPermanentIdentityFromTheInitialPolicy()
-    {
-        var (cut, _) = RenderPage([], Guid.NewGuid(), []);
-        cut.WaitForAssertion(() => Assert.Contains("No revenue sources configured yet.", cut.Markup), RenderTimeout);
-        ClickButton(cut, "Add revenue source");
-
-        var drawer = cut.Find(".v3-drawer.rev-modal");
-        var sections = drawer.QuerySelectorAll(".v3-drawer-section");
-        Assert.Equal(2, sections.Length);
-        Assert.Contains("Source identity", sections[0].TextContent);
-        Assert.NotNull(sections[0].QuerySelector("#rev-create-code"));
-        Assert.Contains("Initial policy", sections[1].TextContent);
-        Assert.NotNull(sections[1].QuerySelector("#rev-create-name"));
-        Assert.NotNull(sections[1].QuerySelector("#rev-create-date"));
-    }
-
-    [Fact]
-    public void FuturePolicyChange_AppendsVersionWithoutReplacingPolicyEffectiveToday()
-    {
-        var id = Guid.NewGuid();
-        var todayPolicy = Policy("MARKET_FEES", "Market Fees", PhilippineTime.Today, RevenueInstrumentType.CashTicket, Guid.NewGuid());
-        var futurePolicy = Policy("MARKET_FEES", "Updated Market Fees", PhilippineTime.Today.AddDays(7), RevenueInstrumentType.CashTicket, Guid.NewGuid());
-        var item = Classification("MARKET_FEES", "Market Fees", true, true, todayPolicy, id);
-        var api = new Mock<IRevenueClassificationsApiClient>();
-        api.Setup(client => client.GetClassificationsAsync(It.IsAny<DateOnly?>()))
-            .Returns(() => Task.FromResult(Result<IReadOnlyList<RevenueClassificationDto>>.Success(
-                [item])));
-        api.Setup(client => client.GetPolicyHistoryAsync(id))
-            .ReturnsAsync(Result<IReadOnlyList<RevenueClassificationPolicyDto>>.Success([futurePolicy, todayPolicy]));
-        api.Setup(client => client.AppendPolicyAsync(id, It.IsAny<AppendRevenueClassificationPolicyRequest>()))
-            .ReturnsAsync(Result<RevenueClassificationPolicyDto>.Success(futurePolicy));
-        Services.AddSingleton(api.Object);
-        RegisterGlobalPageServices();
-        this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
-        var cut = RenderComponent<RevenueSetup>();
-        cut.WaitForAssertion(() => Assert.Contains("Market Fees", cut.Markup), RenderTimeout);
-        ClickButton(cut, "Manage");
-        cut.WaitForAssertion(() => Assert.Contains("Policy history", cut.Markup), RenderTimeout);
-        ClickButton(cut, "Schedule policy change");
-        cut.Find("#rev-policy-name").Change("Updated Market Fees");
-        cut.Find("#rev-policy-date").Change(DateText(PhilippineTime.Today.AddDays(7)));
-        cut.Find(".rev-form").Submit();
-
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Contains("Policy version added", cut.Markup);
-            Assert.Contains("Market Fees", cut.Find(".rev-table tbody").TextContent);
-            Assert.Contains("Updated Market Fees", cut.Find(".rev-history-table").TextContent);
-            Assert.Contains("Scheduled", cut.Find(".rev-history-table tbody tr").TextContent);
-        }, RenderTimeout);
-        api.Verify(client => client.AppendPolicyAsync(id, It.Is<AppendRevenueClassificationPolicyRequest>(request =>
-            request.EffectiveDate == PhilippineTime.Today.AddDays(7)
-            && request.DisplayName == "Updated Market Fees")), Times.Once);
-        api.Verify(client => client.GetPolicyHistoryAsync(id), Times.Exactly(2));
-    }
-
-    [Fact]
-    public void FailedPolicyChangeAndRetirement_KeepTheirDialogsRecoverable()
-    {
-        var id = Guid.NewGuid();
-        var policy = Policy("MARKET_FEES", "Market Fees", PhilippineTime.Today, RevenueInstrumentType.CashTicket);
-        var item = Classification("MARKET_FEES", "Market Fees", true, true, policy, id);
-        var api = new Mock<IRevenueClassificationsApiClient>();
-        api.Setup(client => client.GetClassificationsAsync(It.IsAny<DateOnly?>()))
-            .ReturnsAsync(Result<IReadOnlyList<RevenueClassificationDto>>.Success([item]));
-        api.Setup(client => client.GetPolicyHistoryAsync(id))
-            .ReturnsAsync(Result<IReadOnlyList<RevenueClassificationPolicyDto>>.Success([policy]));
-        api.Setup(client => client.AppendPolicyAsync(id, It.IsAny<AppendRevenueClassificationPolicyRequest>()))
-            .ReturnsAsync(Result<RevenueClassificationPolicyDto>.Failure("A policy already exists for this date.", 409));
-        api.Setup(client => client.RetireAsync(id))
-            .ReturnsAsync(Result<bool>.Failure("The source could not be retired.", 500));
-        Services.AddSingleton(api.Object);
-        RegisterGlobalPageServices();
-        this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
-        var cut = RenderComponent<RevenueSetup>();
-        cut.WaitForAssertion(() => Assert.Contains("Market Fees", cut.Markup), RenderTimeout);
-        ClickButton(cut, "Manage");
-        cut.WaitForAssertion(() => Assert.Contains("Policy history", cut.Markup), RenderTimeout);
-        ClickButton(cut, "Schedule policy change");
-        cut.Find("#rev-policy-name").Change("Market Fees revised");
-        cut.Find("#rev-policy-date").Change(DateText(PhilippineTime.Today.AddDays(1)));
-        cut.Find(".rev-form").Submit();
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Contains("A policy already exists for this date.", cut.Markup);
-            Assert.Single(cut.FindAll(".rev-modal"));
-        }, RenderTimeout);
-
-        cut.Find(".rev-modal-close").Click();
-        ClickButton(cut, "Retire source");
-        cut.Find(".rev-modal-actions .rev-button-danger").Click();
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Contains("The source could not be retired.", cut.Markup);
-            Assert.Single(cut.FindAll(".rev-modal"));
-        }, RenderTimeout);
-    }
-
-    [Fact]
-    public void FailedCreate_LeavesFormOpenWithRecoverableServerMessage()
-    {
-        var api = new Mock<IRevenueClassificationsApiClient>();
-        api.Setup(client => client.GetClassificationsAsync(It.IsAny<DateOnly?>()))
-            .ReturnsAsync(Result<IReadOnlyList<RevenueClassificationDto>>.Success([]));
-        api.Setup(client => client.CreateClassificationAsync(It.IsAny<CreateRevenueClassificationCommand>()))
-            .ReturnsAsync(Result<RevenueClassificationDto>.Failure("This internal reference is already in use.", 409));
-        Services.AddSingleton(api.Object);
-        RegisterGlobalPageServices();
-        this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
-        var cut = RenderComponent<RevenueSetup>();
-        cut.WaitForAssertion(() => Assert.Contains("No revenue sources configured yet.", cut.Markup), RenderTimeout);
-        ClickButton(cut, "Add revenue source");
-        cut.Find("#rev-create-name").Change("Source");
-        cut.Find("#rev-create-date").Change(DateText(PhilippineTime.Today));
-        cut.Find("#rev-create-code").Change("SOURCE_1");
-        cut.Find(".rev-form").Submit();
-
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Contains("This internal reference is already in use.", cut.Markup);
-            Assert.Single(cut.FindAll(".rev-modal"));
-        }, RenderTimeout);
-    }
-
-    [Fact]
-    public void Retirement_RequiresConfirmationAndRetainsRetiredRowAndHistory()
-    {
-        var id = Guid.NewGuid();
-        var item = Classification("TABO", "Tabo", true, true,
-            Policy("TABO", "Tabo", PhilippineTime.Today, RevenueInstrumentType.CashTicket), id);
-        var api = new Mock<IRevenueClassificationsApiClient>();
-        var active = true;
-        api.Setup(client => client.GetClassificationsAsync(It.IsAny<DateOnly?>()))
-            .Returns(() => Task.FromResult(Result<IReadOnlyList<RevenueClassificationDto>>.Success([
-                Classification("TABO", "Tabo", active, true, item.EffectivePolicy, id)])));
-        api.Setup(client => client.GetPolicyHistoryAsync(id))
-            .ReturnsAsync(Result<IReadOnlyList<RevenueClassificationPolicyDto>>.Success([item.EffectivePolicy!]));
-        api.Setup(client => client.RetireAsync(id)).Callback(() => active = false)
-            .ReturnsAsync(Result<bool>.Success(true));
-        Services.AddSingleton(api.Object);
-        RegisterGlobalPageServices();
-        this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
-        var cut = RenderComponent<RevenueSetup>();
-        cut.WaitForAssertion(() => Assert.Contains("Tabo", cut.Markup), RenderTimeout);
-        ClickButton(cut, "Manage");
-        cut.WaitForAssertion(() => Assert.Contains("Policy history", cut.Markup), RenderTimeout);
-        ClickButton(cut, "Retire source");
-        Assert.Contains("Retire revenue source?", cut.Markup);
-        api.Verify(client => client.RetireAsync(id), Times.Never);
-        cut.Find(".rev-modal-actions .rev-button-danger").Click();
-
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Contains("Revenue source retired", cut.Markup);
-            Assert.Contains("Retired", cut.Find(".rev-table tbody").TextContent);
-            Assert.Contains("Policy history", cut.Markup);
-            Assert.DoesNotContain("Schedule policy change", cut.Markup);
-            Assert.DoesNotContain("Reactivate", cut.Markup);
-            Assert.DoesNotContain("Delete", cut.Markup);
-        }, RenderTimeout);
-        api.Verify(client => client.RetireAsync(id), Times.Once);
     }
 
     [Fact]
@@ -523,13 +149,13 @@ public sealed class RevenueSetupTests : TestContext
     {
         var api = new Mock<IRevenueClassificationsApiClient>();
         api.SetupSequence(client => client.GetClassificationsAsync(It.IsAny<DateOnly?>()))
-            .ReturnsAsync(Result<IReadOnlyList<RevenueClassificationDto>>.Failure("Unavailable", 500))
+            .ReturnsAsync(Result<IReadOnlyList<RevenueClassificationDto>>.Failure("Server unavailable", 500))
             .ReturnsAsync(Result<IReadOnlyList<RevenueClassificationDto>>.Success([]));
         Services.AddSingleton(api.Object);
         RegisterGlobalPageServices();
         this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
         var cut = RenderComponent<RevenueSetup>();
-        cut.WaitForAssertion(() => Assert.Contains("Couldn’t load revenue setup", cut.Markup), RenderTimeout);
+        cut.WaitForAssertion(() => Assert.Contains("Couldn’t load revenue sources", cut.Markup), RenderTimeout);
         ClickButton(cut, "Try again");
         cut.WaitForAssertion(() => Assert.Contains("No revenue sources configured yet.", cut.Markup), RenderTimeout);
         api.Verify(client => client.GetClassificationsAsync(It.IsAny<DateOnly?>()), Times.Exactly(2));
@@ -538,18 +164,18 @@ public sealed class RevenueSetupTests : TestContext
     [Theory]
     [InlineData("SuperAdmin", true)]
     [InlineData("Admin", false)]
-    public void Settings_OnlyOffersRevenueSetupLinkToHead(string role, bool actionable)
+    public void Settings_OnlyOffersRevenueSourcesLinkToHead(string role, bool actionable)
     {
         RegisterSettingsPageServices();
         this.AddTestAuthorization().SetAuthorized("staff").SetRoles(role);
         var cut = RenderComponent<Settings>();
 
-        cut.WaitForAssertion(() => Assert.Contains("Revenue Setup", cut.Markup), RenderTimeout);
+        cut.WaitForAssertion(() => Assert.Contains("Revenue Sources", cut.Markup), RenderTimeout);
         var revenueLinks = cut.FindAll("a[href='/settings/revenue']");
         if (actionable)
         {
             Assert.Single(revenueLinks);
-            Assert.Contains("Manage revenue sources", revenueLinks[0].TextContent);
+            Assert.Contains("Revenue Sources", revenueLinks[0].TextContent);
         }
         else
         {
@@ -576,14 +202,13 @@ public sealed class RevenueSetupTests : TestContext
         {
             Assert.Contains("Coastal Enterprise Office", cut.Markup);
             Assert.Contains("Test Municipality", cut.Markup);
-            Assert.Contains("Coastal Hall", cut.Markup);
             var figures = cut.FindAll(".v3h-val").Select(v => v.TextContent).ToArray();
-            Assert.Equal(new[] { "1", "3", "Feb 2027", "v9.8.7" }, figures);
+            Assert.Equal(new[] { "Feb 2027", "v9.8.7" }, figures);
             Assert.Contains("4 failed attempts · 25 minutes", cut.Find(".set-grid").TextContent);
             Assert.DoesNotContain("System configuration · read-only", cut.FindComponent<EEMOCantilanSDS.Client.Components.Shared.V3Hero>().Markup);
             Assert.DoesNotContain("Collection Period", cut.Markup);
             Assert.Empty(cut.FindAll(".pill-ok"));
-            Assert.Contains("Validated against tenant, schema and retained records", cut.Markup);
+            Assert.DoesNotContain("Contract expiry", cut.Markup);
             Assert.DoesNotContain("Azure PITR", cut.Markup);
             Assert.DoesNotContain("15 yours", cut.Markup);
             Assert.Single(cut.FindAll("a[href='/settings/facilities']"));
@@ -597,14 +222,14 @@ public sealed class RevenueSetupTests : TestContext
         RegisterSettingsPageServices(response.Task);
         this.AddTestAuthorization().SetAuthorized("admin").SetRoles("Admin");
         var cut = RenderComponent<Settings>();
-        cut.WaitForAssertion(() => Assert.Equal(new[] { "—", "—", "—", "—" },
+        cut.WaitForAssertion(() => Assert.Equal(new[] { "—", "—" },
             cut.FindAll(".v3h-val").Select(v => v.TextContent).ToArray()), RenderTimeout);
 
         response.SetResult(Result<SystemSettingsDto>.Failure("Unavailable", 500));
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("Couldn't load settings", cut.Markup);
-            Assert.Equal(new[] { "—", "—", "—", "—" },
+            Assert.Equal(new[] { "—", "—" },
                 cut.FindAll(".v3h-val").Select(v => v.TextContent).ToArray());
             Assert.Single(cut.FindAll(".set-retry"));
         }, RenderTimeout);

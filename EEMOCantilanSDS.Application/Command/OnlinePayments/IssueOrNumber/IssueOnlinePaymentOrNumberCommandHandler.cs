@@ -36,6 +36,7 @@ public class IssueOnlinePaymentOrNumberCommandHandler(
         // is receipted the same way and deliberately so: one physical receipt covers the days it settled, which is what
         // the office already does when a collector settles several days at once.
         if (transaction.TargetKind == OnlinePaymentTargetKind.NpmDailyMonth
+            || transaction.TargetKind == OnlinePaymentTargetKind.NpmWholeMonth
             || transaction.TargetKind == OnlinePaymentTargetKind.NpmFishDays)
             return await IssueNpmOrAsync(transaction, request, cancellationToken);
 

@@ -3823,3 +3823,9 @@ h1[tabindex="-1"]:focus {
         display: none !important;
     }
 }
+
+/* An operation's official report shown inside the operation reports layout (Components/Shared/OperationReportsPage):
+   the layout already supplies the page padding, canvas and header, so the embedded report adds none of its own. */
+.v3-page.orp-embedded { min-height: 0; padding: 0; background: none; }
+.orp-embedded-actions { align-self: flex-end; }
+.v3-page.orp-embedded > .orp-own-header { display: none; }

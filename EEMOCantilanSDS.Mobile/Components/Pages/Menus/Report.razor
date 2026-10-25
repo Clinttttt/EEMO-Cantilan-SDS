@@ -194,8 +194,9 @@
                 {
                     @foreach (var p in FilteredPayees)
                     {
+                        @* One payor: who and where on the left; what they paid this period, what they still owe and their state in words on
+                           the right. The state is never colour alone. *@
                         <div class="payee-row">
-                            <div class="payee-status-dot @GetPayeeStatusClass(p)"></div>
                             <div class="payee-info">
                                 <div class="payee-name">@p.PayorName</div>
                                 <div class="payee-meta">
@@ -204,27 +205,25 @@
                                     {
                                         <span class="payee-months">Stall @p.StallNo</span>
                                     }
-                                    <span class="payee-months">@p.TransactionCount entries</span>
                                 </div>
-                                @if (p.LastCollectedAt.HasValue)
-                                {
-                                    <div class="payee-last-paid">
-                                        <span class="last-paid-ok">Last collection: @p.LastCollectedAt.Value.ToString("MMM d, yyyy")</span>
-                                    </div>
-                                }
-                            </div>
-                            <div class="payee-amount-col">
-                                <div class="payee-total paid-total">&#8369;@p.AmountPaid.ToString("N0")</div>
-                                <div class="payee-balance-sub">
-                                    @if (p.Balance > 0)
+                                <div class="payee-last-paid">
+                                    @if (p.TransactionCount > 0)
                                     {
-                                        <span>Balance &#8369;@p.Balance.ToString("N0")</span>
+                                        <span class="last-paid-ok">@Plural(p.TransactionCount, "collection")@(p.LastCollectedAt.HasValue ? $" · last {p.LastCollectedAt.Value:MMM d}" : "")</span>
                                     }
                                     else
                                     {
-                                        <span>@p.PartialCount partial</span>
+                                        <span class="last-paid-warn">No collection this period</span>
                                     }
                                 </div>
+                            </div>
+                            <div class="payee-amount-col">
+                                <div class="payee-total @(p.AmountPaid > 0 ? "paid-total" : null)">&#8369;@p.AmountPaid.ToString("N0")</div>
+                                @if (p.Balance > 0)
+                                {
+                                    <div class="payee-balance-sub is-owed">Owes &#8369;@p.Balance.ToString("N0")</div>
+                                }
+                                <span class="payee-status-label @GetPayeeStatusClass(p)">@PayeeStatusText(p)</span>
                             </div>
                         </div>
                     }
@@ -267,15 +266,15 @@
                    Restructured 2026-09-06. This screen was ten identical rows, every figure the same size and weight, so the sum a
                    collector remits sat level with a count of excused records. Grouped by what the numbers ARE: the money he hands
                    over first, then the money he does not, then the payors, then the plain counts. *@
-                <button type="button" class="rpt-primary" @onclick="@(() => OpenDetail("collected"))">
-                    <span class="rpt-primary-label">@(HasOffice ? "Collected by you" : "Total collected")</span>
-                    <span class="rpt-primary-value">&#8369;@(HasOffice ? OwnTotal.ToString("N0") : GrandTotal.ToString("N0"))</span>
-                    <span class="rpt-primary-scope">@ScopeLabel · @PeriodTitle</span>
-                </button>
-
-                @* The two figures next to it are money too, but not the collector's to remit - one was taken at the office and the
-                   other has not been taken at all. Stated together, smaller, so the figure above cannot be mistaken for a total. *@
+                @* One row of money tiles. The banner above already states the period's total, so the collector's own figure is a tile
+                   here (marked as the money to remit) rather than a second big card repeating it. Beside it, the money that is not the
+                   collector's: taken at the office, or not taken at all. *@
                 <div class="rpt-pair">
+                    <button type="button" class="rpt-tile rpt-tile-main" @onclick="@(() => OpenDetail("collected"))">
+                        <span class="rpt-tile-value">&#8369;@(HasOffice ? OwnTotal.ToString("N0") : GrandTotal.ToString("N0"))</span>
+                        <span class="rpt-tile-label">@(HasOffice ? "Collected by you" : "Collected")</span>
+                        <span class="rpt-tile-note">@ScopeLabel</span>
+                    </button>
                     @if (HasOffice)
                     {
                         <button type="button" class="rpt-tile" @onclick="@(() => OpenDetail("collected"))">
@@ -1035,6 +1034,13 @@
         PaymentStatus.Unpaid => "status-delinquent",
         PaymentStatus.Partial => "status-partial",
         _ => "status-consistent"
+    };
+
+    static string PayeeStatusText(MobileReportPayeeSummaryDto payee) => payee.Status switch
+    {
+        PaymentStatus.Unpaid => "Not collected",
+        PaymentStatus.Partial => "Part paid",
+        _ => "Paid"
     };
 
     static string GetFacilityIcon(FacilityCode code) => code switch

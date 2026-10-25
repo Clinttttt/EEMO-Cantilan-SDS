@@ -1,0 +1,49 @@
+/* Weight & Measure monthly cards (fish kilo tracking, meat weighing) inside the operation reports layout. */
+.wm-extras { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+.wm-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+    box-shadow: 0 1px 4px color-mix(in srgb, var(--navy) 6%, transparent);
+}
+.wm-card-title { font-size: 15px; font-weight: 700; color: var(--navy); margin: 0; }
+.wm-card-sub { font-size: 12px; color: var(--text-muted); margin: 3px 0 0; }
+.wm-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin: 0; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.wm-facts > div { padding: 12px 14px; border-right: 1px solid var(--border); min-width: 0; }
+.wm-facts > div:last-child { border-right: 0; }
+.wm-facts dt { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
+.wm-facts dd { margin: 5px 0 0; font-size: 17px; font-weight: 700; color: var(--navy); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.wm-facts-stack { grid-template-columns: minmax(0, 1fr); }
+.wm-facts-stack > div { border-right: 0; border-bottom: 1px solid var(--border); }
+.wm-facts-stack > div:last-child { border-bottom: 0; }
+
+.wm-kilo-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 170px;
+    padding: 12px 8px 0;
+    border-left: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+.wm-kilo-col { flex: 1 1 0; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; }
+.wm-kilo-bar { width: 100%; max-width: 22px; border-radius: 3px 3px 0 0; background: linear-gradient(180deg, #6a99bb 0%, #4a7fa5 100%); }
+.wm-kilo-col.is-zero .wm-kilo-bar { height: 3px !important; background: var(--border); }
+.wm-kilo-label { font-size: 9.5px; color: var(--text-muted); white-space: nowrap; transform: translateY(16px); height: 0; overflow: visible; }
+.wm-kilo-col:nth-child(odd) .wm-kilo-label { visibility: hidden; }
+.wm-kilo-chart { margin-bottom: 18px; }
+.wm-empty { margin: 0; padding: 18px 0; color: var(--text-muted); font-size: 13px; }
+
+@media (max-width: 1100px) {
+    .wm-extras { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+    .wm-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .wm-facts > div:nth-child(2) { border-right: 0; }
+    .wm-facts > div:nth-child(-n+2) { border-bottom: 1px solid var(--border); }
+}

@@ -1,0 +1,163 @@
+/* The facility reports' layout for an operation: civic-panel header, one tab rail, KPI strip, white chart cards. */
+
+.orp-topbar {
+    background: var(--civic-panel);
+    color: #fff;
+    padding: 18px 28px 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.orp-topbar-left { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.orp-back,
+.orp-topbar-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, .22);
+    background: rgba(255, 255, 255, .08);
+    color: #fff;
+}
+.orp-back { width: 34px; height: 34px; border-radius: 8px; }
+.orp-back:hover { background: rgba(255, 255, 255, .16); }
+.orp-back:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.orp-back svg,
+.orp-topbar-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.orp-titles { min-width: 0; }
+.orp-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: rgba(255, 255, 255, .8); margin-bottom: 3px; }
+.orp-title { font-size: 20px; font-weight: 700; line-height: 1.2; margin: 0; color: #fff; }
+.orp-subtitle { font-size: 12.5px; color: rgba(255, 255, 255, .85); margin-top: 2px; }
+
+/* ── Tab rail + period ── */
+.orp-period-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px 28px;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+}
+.orp-tabs {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--bg-card);
+}
+.orp-tab {
+    min-height: 38px;
+    padding: 0 22px;
+    border: 0;
+    border-right: 1px solid var(--border);
+    background: transparent;
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+}
+.orp-tab:last-child { border-right: 0; }
+.orp-tab:hover { background: var(--bg); color: var(--navy); }
+.orp-tab.active { background: var(--accent); color: #fff; }
+.orp-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+.orp-tab svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+
+.orp-week-nav { display: flex; align-items: center; gap: 10px; }
+.orp-week-label { font-size: 13.5px; font-weight: 600; color: var(--navy); white-space: nowrap; min-width: 150px; text-align: center; }
+.orp-nav-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+}
+.orp-nav-btn:hover { background: var(--bg); }
+.orp-nav-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.orp-nav-btn svg { width: 14px; height: 14px; fill: none; stroke: var(--navy); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ── Content ── */
+.orp-content { padding: 20px 28px 40px; display: flex; flex-direction: column; gap: 20px; }
+
+.orp-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.orp-kpi {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    box-shadow: 0 1px 4px color-mix(in srgb, var(--navy) 6%, transparent);
+}
+.orp-kpi-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); }
+.orp-kpi-value { font-size: 24px; font-weight: 700; color: var(--navy); line-height: 1.1; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.orp-kpi-note { font-size: 12px; color: var(--text-muted); }
+
+.orp-charts { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 16px; }
+.orp-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    box-shadow: 0 1px 4px color-mix(in srgb, var(--navy) 6%, transparent);
+}
+.orp-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.orp-card-title { font-size: 15px; font-weight: 700; color: var(--navy); margin: 0; }
+.orp-card-sub { font-size: 12px; color: var(--text-muted); margin: 3px 0 0; }
+.orp-legend {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg);
+    font-size: 12px;
+    color: var(--text-muted);
+}
+.orp-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.orp-legend i { width: 9px; height: 9px; border-radius: 50%; }
+.orp-legend .lg-rent { background: #2d7a5f; }
+.orp-legend .lg-current { background: var(--accent); }
+
+.orp-doc-actions { display: flex; justify-content: flex-end; }
+
+/* The operation's own cards (passed in) sit on the same grid. */
+.orp-content ::deep .orp-extra-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+
+@media (max-width: 1100px) {
+    .orp-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .orp-charts { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+    .orp-topbar, .orp-period-bar { padding-inline: 16px; }
+    .orp-content { padding: 16px 16px 32px; }
+    .orp-kpis { grid-template-columns: minmax(0, 1fr); }
+    .orp-tabs { width: 100%; overflow-x: auto; }
+    .orp-tab { padding: 0 14px; flex-shrink: 0; }
+}
+@media print {
+    .orp-content { padding: 0; }
+}
+/* Below 768px the app's drawer button sits top-left: leave it room, and drop the back link it already replaces. */
+@media (max-width: 768px) {
+    .orp-topbar { padding-left: 58px; }
+    .orp-back { display: none; }
+}

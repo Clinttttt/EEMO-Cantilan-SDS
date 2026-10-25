@@ -34,8 +34,68 @@ public partial class FacilityReportsRepository
         {
             return await GenerateNccSectionBreakdownAsync(facilityId, startDate, endDate, ct);
         }
+        else if (facilityCode == FacilityCode.NPM)
+        {
+            return await GenerateMonthlyMarketSectionBreakdownAsync(facilityId, startDate, endDate, ct);
+        }
 
         return new List<SectionBreakdownDto>();
+    }
+
+    /// <summary>
+    /// A market rented by the month: its monthly stall rental per section, from the monthly records exactly as the NCC area
+    /// cards are built (recognized rent, rent obligation due, counts), so the cards reconcile to the facility totals. The three
+    /// canonical sections that hold stalls, then the office's own sections alphabetically, then "No Section". Never fish fees.
+    /// </summary>
+    private async Task<IReadOnlyList<SectionBreakdownDto>> GenerateMonthlyMarketSectionBreakdownAsync(
+        Guid facilityId, DateOnly startDate, DateOnly endDate, CancellationToken ct)
+    {
+        var stalls = await _context.Stalls
+            .AsNoTracking()
+            .Where(s => s.FacilityId == facilityId)
+            .Include(s => s.Contracts.Where(c => c.IsActive))
+            .ToListAsync(ct);
+        if (stalls.Count == 0)
+            return new List<SectionBreakdownDto>();
+
+        var stallIds = stalls.Select(s => s.Id).ToList();
+        var recordsByStall = (await _context.PaymentRecords
+                .AsNoTracking()
+                .Where(pr => stallIds.Contains(pr.StallId))
+                .ToListAsync(ct))
+            .Where(pr => IsPaymentInDateRange(pr.BillingYear, pr.BillingMonth, startDate, endDate))
+            .ToLookup(pr => pr.StallId);
+
+        SectionBreakdownDto Card(string label, List<Stall> group)
+        {
+            var actualRevenue = group.Sum(s => recordsByStall[s.Id].Sum(pr => RecognizedRevenue(pr, includeFish: false)));
+            var expectedRevenue = group.Where(s => s.Contracts.Any(c => c.IsActive))
+                .Sum(s => CalculateStallRentObligationDue(s, startDate, endDate));
+            var percentage = expectedRevenue > 0 ? Math.Min(100m, (actualRevenue / expectedRevenue) * 100m) : 0m;
+            return new SectionBreakdownDto(
+                label, actualRevenue, percentage, group.Count,
+                group.Count(s => s.Status == StallStatus.Active && s.Contracts.Any(c => c.IsActive)),
+                group.Count(s => s.Status == StallStatus.Closed),
+                group.Count(s => s.Status == StallStatus.Active && !s.Contracts.Any(c => c.IsActive)));
+        }
+
+        var breakdown = new List<SectionBreakdownDto>();
+        foreach (var section in new[] { MarketSection.VegetableArea, MarketSection.FishSection, MarketSection.MeatSection })
+        {
+            var group = stalls.Where(s => s.Section == section).ToList();
+            if (group.Count > 0) breakdown.Add(Card(SectionLabel(section), group));
+        }
+
+        foreach (var group in stalls
+            .Where(s => s.Section is null && !string.IsNullOrWhiteSpace(s.CustomSectionName))
+            .GroupBy(s => s.CustomSectionName!.Trim(), StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase))
+            breakdown.Add(Card(group.Key, group.ToList()));
+
+        var unassigned = stalls.Where(s => s.Section is null && string.IsNullOrWhiteSpace(s.CustomSectionName)).ToList();
+        if (unassigned.Count > 0) breakdown.Add(Card("No Section", unassigned));
+
+        return breakdown;
     }
 
     private async Task<IReadOnlyList<SectionBreakdownDto>> GenerateNpmSectionBreakdownAsync(

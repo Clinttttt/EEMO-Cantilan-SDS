@@ -298,7 +298,7 @@ public class PayorRepository(
             {
                 items.Add(new PayorPayableItemDto(
                     stall.Id, stall.StallNo, facility, curYear, curMonth,
-                    $"{curYear:0000}-{curMonth:00}", stall.MonthlyRate));
+                    $"{curYear:0000}-{curMonth:00}", stall.MonthlyRentFor(curYear, curMonth, today)));
             }
 
             // 3) NPM (daily-billed): synthesize the current-month base-fee balance — ₱30 × the month's
@@ -327,18 +327,15 @@ public class PayorRepository(
                 }
                 else
                 {
-                    // Non-fish sections: the current-month base-fee balance — ₱30 × the month's unpaid,
-                    // elapsed, in-term, non-closed days — from the shared settlement service, so the amount
-                    // shown equals what initiate charges and settlement marks.
-                    var payable = await npmMonthSettlementService.ComputePayableAsync(stall, curYear, curMonth, ct);
-                    if (payable.Days > 0 && payable.Amount > 0m)
+                    // Non-fish sections: the REST of the month's stall rent (₱900, or ₱840 once ₱60 was collected), from
+                    // the shared settlement service's whole-month quote — the figure initiate charges and settlement marks.
+                    // No day count or daily rate is stated: the figure is the month's remainder, not days counted out.
+                    var payable = await npmMonthSettlementService.ComputeWholeMonthPayableAsync(stall, curYear, curMonth, ct);
+                    if (payable.Amount > 0m)
                     {
                         items.Add(new PayorPayableItemDto(
                             stall.Id, stall.StallNo, facility, curYear, curMonth,
-                            $"{curYear:0000}-{curMonth:00}", payable.Amount, PayorPayableKind.NpmDaily,
-                            // Stated so the payor can see the amount is a day's fee counted out, which is how they are billed.
-                            Days: payable.Days,
-                            DailyRate: decimal.Round(payable.Amount / payable.Days, 2)));
+                            $"{curYear:0000}-{curMonth:00}", payable.Amount, PayorPayableKind.NpmDaily));
                     }
                 }
 

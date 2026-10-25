@@ -7,11 +7,13 @@
     @if (ShowHistory)
     {
         <a href="/reports/follow-up/history" class="mt-tab fq-history-link" title="Past-period snapshot from source records; this is not a log of actions or local hides.">Past-period view</a>
+        @* Who among the NPM Fish / Meat occupants is linked to a registered vendor, and who is not. *@
+        <a href="/monitoring/vendor-links" class="mt-tab @(Current == "vendor-links" ? "mt-tab-active" : "")" aria-current="@PageIf("vendor-links")">Vendor links</a>
     }
 </nav>
 
 @code {
-    /// <summary>"follow-up", "contracts" or "review"; request queues use Review.</summary>
+    /// <summary>"follow-up", "contracts", "review" or "vendor-links"; request queues use Review.</summary>
     [Parameter, EditorRequired] public string Current { get; set; } = "follow-up";
     [Parameter] public bool ShowHistory { get; set; }
 

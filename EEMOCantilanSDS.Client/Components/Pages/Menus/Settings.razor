@@ -44,14 +44,11 @@
         var loaded = _model is not null;
     }
 
-    <!-- ── Hero (shell is always visible; only the stat values skeletonize) ── -->
-    <V3Hero Compact="true" Eyebrow="@($"{Branding.OfficeAcronym} Admin · System")" Title="Settings" Subtitle="Office configuration and system overview">
+    <V3Hero Compact="true" Eyebrow="@($"{Branding.OfficeAcronym} Admin")" Title="Settings">
         <Icon><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" /></svg></Icon>
         <Figures>
-            <V3HeroFigure Label="Facilities" Value="@(_model?.Facilities.Count.ToString() ?? "—")" Note="Tenant facility records" />
-            <V3HeroFigure Label="Role types" Value="@(_model?.Security.Roles.Count.ToString() ?? "—")" Note="Access policy" />
             <V3HeroFigure Label="Server month" Value="@(_model?.System.ServerDate.ToString("MMM yyyy") ?? "—")" Note="@_model?.System.TimeZone" />
-            <V3HeroFigure Label="Application version" Value="@(loaded ? $"v{_model!.System.Version}" : "—")" Note="@_model?.System.ApplicationName" />
+            <V3HeroFigure Label="Version" Value="@(loaded ? $"v{_model!.System.Version}" : "—")" Note="@_model?.System.ApplicationName" />
         </Figures>
     </V3Hero>
 
@@ -65,17 +62,34 @@
     }
     else
     {
-        <div class="set-grid">
+        @* Where the office manages its configuration. Account, facility, operation, revenue and backup management belongs to
+           the Head; for an Administrator the same entries are stated but not offered — a link that leads to a refusal is worse
+           than no link. *@
+        <section class="set-card set-manage" aria-labelledby="set-manage-title">
+            <div class="set-card-head">
+                <div class="set-card-titles"><h2 id="set-manage-title" class="set-card-title">Manage</h2></div>
+                @if (!_isHead) { <span class="set-note set-note-inline">Managed by the @Branding.OfficeAcronym Head.</span> }
+            </div>
+            <ul class="set-manage-list">
+                @foreach (var (href, label) in ManageLinks)
+                {
+                    <li>
+                        @if (_isHead)
+                        {
+                            <a class="set-manage-item" href="@href"><span>@label</span><span class="set-link-arrow" aria-hidden="true">→</span></a>
+                        }
+                        else
+                        {
+                            <span class="set-manage-item is-disabled" aria-disabled="true" title="Managed by the @Branding.OfficeAcronym Head"><span>@label</span></span>
+                        }
+                    </li>
+                }
+            </ul>
+        </section>
 
-            <!-- ── Office / LGU Profile ── -->
-            <section class="set-card">
-                <div class="set-card-head">
-                    <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18" /><path d="M5 21V8l7-5 7 5v13" /><path d="M9 21v-6h6v6" /></svg></div>
-                    <div class="set-card-titles">
-                        <div class="set-card-title">Office &amp; LGU Profile</div>
-                        <div class="set-card-sub">Identity used on the portal, reports &amp; receipts</div>
-                    </div>
-                </div>
+        <div class="set-grid">
+            <section class="set-card" aria-labelledby="set-office-title">
+                <div class="set-card-head"><div class="set-card-titles"><h2 id="set-office-title" class="set-card-title">Office &amp; LGU Profile</h2></div></div>
                 <div class="set-rows">
                     @if (loaded)
                     {
@@ -93,67 +107,47 @@
                         }
                     }
                 </div>
-                @if (!loaded)
-                {
-                    <div class="set-note"><Skeleton Width="82%" Height="12px" Radius="6px" /></div>
-                }
-                else if (_isHead)
-                {
-                    <div class="set-links">
-                        <a class="set-link" href="/office-profile">Edit office profile<span class="set-link-arrow">→</span></a>
-                        <a class="set-link" href="/settings/report-signatories">Official report signatories<span class="set-link-arrow">→</span></a>
-                    </div>
-                }
-                else
-                {
-                    <div class="set-note">Managed by the @Branding.OfficeAcronym Head.</div>
-                }
             </section>
 
-            <!-- ── Security & Access Policy ── -->
-            <section class="set-card">
-                <div class="set-card-head">
-                    <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></svg></div>
-                    <div class="set-card-titles">
-                        <div class="set-card-title">Security &amp; Access Policy</div>
-                        <div class="set-card-sub">Sign-in policy and account security</div>
-                    </div>
-                </div>
+            @* Only the rules the office applies: when an account is delinquent and what counts as arrears. *@
+            <section class="set-card" aria-labelledby="set-rules-title">
+                <div class="set-card-head"><div class="set-card-titles"><h2 id="set-rules-title" class="set-card-title">Delinquency &amp; Arrears</h2></div></div>
                 <div class="set-rows">
                     @if (loaded)
                     {
-                        <div class="set-row"><span class="set-key">Access token</span><span class="set-val">@_model!.Security.AccessTokenMinutes minutes</span></div>
-                        <div class="set-row"><span class="set-key">Refresh token</span><span class="set-val">@_model.Security.RefreshTokenDays days</span></div>
-                        <div class="set-row"><span class="set-key">Account lockout</span><span class="set-val">@_model.Security.MaxFailedLoginAttempts failed attempts · @_model.Security.LockoutMinutes minutes</span></div>
-                        <div class="set-row"><span class="set-key">Password reset</span><span class="set-val">Verified-email recovery or Head-managed reset</span></div>
-                        <div class="set-row"><span class="set-key">Roles</span><span class="set-val">@string.Join(" · ", _model.Security.Roles)</span></div>
+                        <div class="set-row"><span class="set-key">Delinquent</span><span class="set-val">@_model!.Collection.DelinquentThresholdMonths or more unpaid month(s)</span></div>
+                        <div class="set-row"><span class="set-key">Delinquency window</span><span class="set-val">Rolling @_model.Collection.DelinquencyWindowMonths months</span></div>
+                        <div class="set-row"><span class="set-key">Arrears</span><span class="set-val">Previous-year rent, expired contracts and ended occupancies, per obligation</span></div>
+                        <div class="set-row"><span class="set-key">Business clock</span><span class="set-val">@_model.Collection.TimeZone</span></div>
                     }
                     else
                     {
-                        @for (var i = 0; i < 5; i++)
+                        @for (var i = 0; i < 4; i++)
                         {
                             <div class="set-row"><Skeleton Width="35%" Height="12px" Radius="6px" /><Skeleton Width="42%" Height="12px" Radius="6px" /></div>
                         }
                     }
                 </div>
-                <div class="set-links set-links-split">
-                    <div class="set-links-group">
-                        @* Account and collector management belongs to the Head. For an Administrator these are
-                           stated but not offered — a link that leads to a refusal is worse than no link. *@
-                        @if (_isHead)
+            </section>
+
+            <section class="set-card" aria-labelledby="set-security-title">
+                <div class="set-card-head"><div class="set-card-titles"><h2 id="set-security-title" class="set-card-title">Security</h2></div></div>
+                <div class="set-rows">
+                    @if (loaded)
+                    {
+                        <div class="set-row"><span class="set-key">Sign-in session</span><span class="set-val">@_model!.Security.AccessTokenMinutes min · renews for @_model.Security.RefreshTokenDays days</span></div>
+                        <div class="set-row"><span class="set-key">Account lockout</span><span class="set-val">@_model.Security.MaxFailedLoginAttempts failed attempts · @_model.Security.LockoutMinutes minutes</span></div>
+                        <div class="set-row"><span class="set-key">Roles</span><span class="set-val">@string.Join(" · ", _model.Security.Roles)</span></div>
+                    }
+                    else
+                    {
+                        @for (var i = 0; i < 3; i++)
                         {
-                            <a class="set-link" href="/accounts">Accounts<span class="set-link-arrow">→</span></a>
-                            <a class="set-link" href="/collectors">Collectors<span class="set-link-arrow">→</span></a>
+                            <div class="set-row"><Skeleton Width="35%" Height="12px" Radius="6px" /><Skeleton Width="42%" Height="12px" Radius="6px" /></div>
                         }
-                        else
-                        {
-                            <span class="set-link set-link-disabled" aria-disabled="true" title="Managed by the @Branding.OfficeAcronym Head">Accounts</span>
-                            <span class="set-link set-link-disabled" aria-disabled="true" title="Managed by the @Branding.OfficeAcronym Head">Collectors</span>
-                        }
-                    </div>
-                    @* Two-factor lives behind this button (bottom-right of the security card) rather than as
-                       its own card: it is an action the signed-in user takes on their own account, not a
-                       policy row. The badge mirrors the current state without opening the dialog. *@
+                    }
+                </div>
+                <div class="set-links">
                     <button class="set-2fa-btn" type="button" @onclick="() => _show2fa = true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
                             <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /><path d="M12 15v3" />
@@ -166,215 +160,32 @@
                 </div>
             </section>
 
-            <!-- ── Collection & Billing Rules ── -->
-            <section class="set-card">
-                <div class="set-card-head">
-                    <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="9" y1="13" x2="15" y2="13" /><line x1="9" y1="17" x2="13" y2="17" /></svg></div>
-                    <div class="set-card-titles">
-                        <div class="set-card-title">Collection &amp; Billing Rules</div>
-                        <div class="set-card-sub">Policies the system enforces</div>
-                    </div>
-                </div>
-                <div class="set-rows">
-                    @if (loaded)
-                    {
-                        <div class="set-row"><span class="set-key">Server month</span><span class="set-val">@_model!.System.ServerDate.ToString("MMMM yyyy")</span></div>
-                        <div class="set-row"><span class="set-key">Delinquent</span><span class="set-val">At least @_model.Collection.DelinquentThresholdMonths fully elapsed unpaid month(s)</span></div>
-                        <div class="set-row"><span class="set-key">Arrears qualification</span><span class="set-val">Previous-year rent, expired contracts and ended occupancies (per obligation)</span></div>
-                        <div class="set-row"><span class="set-key">Delinquency window</span><span class="set-val">Rolling @_model.Collection.DelinquencyWindowMonths months</span></div>
-                        <div class="set-row"><span class="set-key">Contract expiry warning</span><span class="set-val">Within @_model.Collection.ContractExpiryWarningMonths months</span></div>
-                        <div class="set-row"><span class="set-key">Excused / closure days</span><span class="set-val">Reviewed under the source's billing and credit rules</span></div>
-                        <div class="set-row"><span class="set-key">Business clock</span><span class="set-val">@_model.Collection.TimeZone</span></div>
-                    }
-                    else
-                    {
-                        @for (var i = 0; i < 7; i++)
-                        {
-                            <div class="set-row"><Skeleton Width="35%" Height="12px" Radius="6px" /><Skeleton Width="42%" Height="12px" Radius="6px" /></div>
-                        }
-                    }
-                </div>
-            </section>
- <!-- ── Facility Configuration — the LGU Head manages their own facilities (any tenant) ── -->
-            @if (_isHead)
-            {
-                <section class="set-card">
-                    <div class="set-card-head">
-                        <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18" /><path d="M5 21V7l8-4v18" /><path d="M19 21V11l-6-4" /><path d="M9 9v.01M9 12v.01M9 15v.01" /></svg></div>
-                        <div class="set-card-titles">
-                            <div class="set-card-title">Facility Configuration</div>
-                        <div class="set-card-sub">Tenant facilities, billing models &amp; effective rates</div>
-                        </div>
-                    </div>
-                    <div class="set-rows">
-                        <div class="set-row"><span class="set-key">Facility records</span><span class="set-val">@(_model?.Facilities.Count.ToString() ?? "—")</span></div>
-                        <div class="set-row"><span class="set-key">Billing models</span><span class="set-val">@(_model?.Facilities.Select(f => f.Model).Distinct().Count().ToString() ?? "—")</span></div>
-                        <div class="set-row"><span class="set-key">Facilities</span><span class="set-val set-val-wrap">@FacilityCodes()</span></div>
-                        <div class="set-row"><span class="set-key">Rate authority</span><span class="set-val">Municipal revenue ordinance</span></div>
-                        <div class="set-row"><span class="set-key">Managed by</span><span class="set-val">The @Branding.OfficeAcronym Head</span></div>
-                    </div>
-                    <div class="set-links">
-                        <a class="set-link" href="/settings/facilities">Manage facilities<span class="set-link-arrow">→</span></a>
-                    </div>
-                    <div class="set-note">Facility records are separate from revenue sources and collection eligibility. Manage effective-dated rates in the relevant operation.</div>
-                </section>
-            }
-            @if (_isHead)
-            {
-                <!-- ── Operation directory — Head only. Presentation (listing and local names); never authority to collect. ── -->
-                <section class="set-card">
-                    <div class="set-card-head">
-                        <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10" /></svg></div>
-                        <div class="set-card-titles">
-                            <div class="set-card-title">Operation settings</div>
-                            <div class="set-card-sub">Tenant operation visibility and local names</div>
-                        </div>
-                    </div>
-                    <div class="set-links">
-                        <a class="set-link" href="/settings/operations">Manage operations<span class="set-link-arrow">→</span></a>
-                    </div>
-                    <div class="set-note">Listing and naming change presentation only, never who may collect or how an operation is classified.</div>
-                </section>
-            }
-            <!-- ── Revenue source configuration — Head only ── -->
-            <section class="set-card">
-                <div class="set-card-head">
-                    <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4z" /><path d="M8 9h8M8 13h5" /><circle cx="17" cy="16" r="2" /></svg></div>
-                    <div class="set-card-titles">
-                        <div class="set-card-title">Revenue Setup</div>
-                        <div class="set-card-sub">Revenue source identity, presentation &amp; accountable instrument</div>
-                    </div>
-                </div>
-                <div class="set-rows">
-                    <div class="set-row"><span class="set-key">Managed by</span><span class="set-val">The @Branding.OfficeAcronym Head</span></div>
-                    <div class="set-row"><span class="set-key">Configuration</span><span class="set-val">Effective-dated and retained as history</span></div>
-                </div>
-                @if (_isHead)
-                {
-                    <div class="set-links">
-                        <a class="set-link" href="/settings/revenue">Manage revenue sources<span class="set-link-arrow">→</span></a>
-                    </div>
-                }
-                else
-                {
-                    <div class="set-links">
-                        <span class="set-link set-link-disabled" aria-disabled="true" title="Managed by the @Branding.OfficeAcronym Head">Revenue Setup</span>
-                        <span class="set-note">Managed by the @Branding.OfficeAcronym Head.</span>
-                    </div>
-                }
-            </section>
-            <!-- ── Backups & Restore — per-municipality for every Head; whole-DB tools operator-only ── -->
-            @if (_isHead)
-            {
-                <section class="set-card">
-                    <div class="set-card-head">
-                        <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3" /></svg></div>
-                        <div class="set-card-titles">
-                            <div class="set-card-title">Backups &amp; Restore</div>
-                            <div class="set-card-sub">Tenant archives and compatible restore points</div>
-                        </div>
-                    </div>
-                    <div class="set-rows">
-                        @* Backup availability and restore compatibility are checked in the backup workflow. *@
-                        <div class="set-row"><span class="set-key">Your municipality</span><span class="set-val">Data archive · restore point</span></div>
-                        <div class="set-row"><span class="set-key">Restore eligibility</span><span class="set-val">Validated against tenant, schema and retained records</span></div>
-                        <div class="set-row"><span class="set-key">Scope</span><span class="set-val">Your records only</span></div>
-                        @* Whole-database tools remain restricted to the dedicated platform operator. *@
-                        @if (_isPlatformOperator)
-                        {
-                            <div class="set-row"><span class="set-key">Whole database</span><span class="set-val">Run &amp; download · restore</span></div>
-                        }
-                    </div>
-                    <div class="set-links">
-                        <a class="set-link" href="/settings/backups">Open backups &amp; restore<span class="set-link-arrow">→</span></a>
-                    </div>
-                </section>
-            }
-    <!-- ── System Information ── -->
-            <section class="set-card">
-                <div class="set-card-head">
-                    <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></svg></div>
-                    <div class="set-card-titles">
-                        <div class="set-card-title">System Information</div>
-                        <div class="set-card-sub">About this installation</div>
-                    </div>
-                </div>
+            <section class="set-card" aria-labelledby="set-system-title">
+                <div class="set-card-head"><div class="set-card-titles"><h2 id="set-system-title" class="set-card-title">System</h2></div></div>
                 <div class="set-rows">
                     @if (loaded)
                     {
                         <div class="set-row"><span class="set-key">Application</span><span class="set-val">@_model!.System.ApplicationName</span></div>
                         <div class="set-row"><span class="set-key">Version</span><span class="set-val mono">v@(_model.System.Version)</span></div>
                         <div class="set-row"><span class="set-key">Environment</span><span class="set-val">@_model.System.Environment</span></div>
-                        <div class="set-row"><span class="set-key">Time zone</span><span class="set-val">@_model.System.TimeZone</span></div>
                         <div class="set-row"><span class="set-key">Server date</span><span class="set-val">@_model.System.ServerDate.ToString("MMMM d, yyyy")</span></div>
                     }
                     else
                     {
-                        @for (var i = 0; i < 5; i++)
+                        @for (var i = 0; i < 4; i++)
                         {
                             <div class="set-row"><Skeleton Width="35%" Height="12px" Radius="6px" /><Skeleton Width="42%" Height="12px" Radius="6px" /></div>
                         }
                     }
                 </div>
             </section>
-            <!-- ── Storage usage (this municipality only) — every Head ── -->
+
             @if (_isHead)
             {
                 <TenantUsagePanel />
-            }
- <!-- ── Database health (shared server metrics; storage is scoped to the caller's LGU) — every Head ── -->
-            @if (_isHead)
-            {
                 <DatabaseHealthPanel />
             }
-           
-
         </div>
-
-        <!-- ── Facility Collection Rules (table) ── -->
-        <section class="set-card">
-            <div class="set-card-head">
-                <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg></div>
-                <div class="set-card-titles">
-                    <div class="set-card-title">Facility Billing Reference</div>
-                    <div class="set-card-sub">Facility reference rates · current collection eligibility and quotes come from each operation</div>
-                </div>
-                <a class="set-link" href="/reports/collections">Closures &amp; exceptions<span class="set-link-arrow">→</span></a>
-            </div>
-            <table class="set-table">
-                <thead>
-                    <tr><th>Facility</th><th>Collection model</th><th>Rate</th><th class="set-th-r">Cadence</th></tr>
-                </thead>
-                <tbody>
-                    @if (loaded)
-                    {
-                        @foreach (var f in _model!.Facilities)
-                        {
-                            <tr>
-                                <td><span class="set-fac">@f.Name</span><span class="set-code">@(System.Enum.TryParse<FacilityCode>(f.Code, out var _sc) ? FacilityCatalog.ShortNameOf(_sc) : f.Code)</span></td>
-                                <td>@f.Model</td>
-                                <td>@f.Rate</td>
-                                <td class="set-td-r">@f.Cadence</td>
-                            </tr>
-                        }
-                    }
-                    else
-                    {
-                        @for (var i = 0; i < 5; i++)
-                        {
-                            <tr>
-                                <td><Skeleton Width="160px" Height="13px" Radius="6px" /></td>
-                                <td><Skeleton Width="110px" Height="12px" Radius="6px" /></td>
-                                <td><Skeleton Width="110px" Height="12px" Radius="6px" /></td>
-                                <td class="set-td-r"><Skeleton Width="86px" Height="12px" Radius="6px" Class="set-sk-right" /></td>
-                            </tr>
-                        }
-                    }
-                </tbody>
-            </table>
-        </section>
-
-       
     }
 
     <!-- Session / sign out (always available while authenticated) -->
@@ -482,12 +293,18 @@
         catch { /* leave the badge unresolved */ }
     }
 
-    // Compact list of the tenant's facility acronyms for the Facility Configuration card.
-    private string FacilityCodes() =>
-        _model is null
-            ? ""
-            : string.Join(" · ", _model.Facilities.Select(f =>
-                System.Enum.TryParse<FacilityCode>(f.Code, out var c) ? FacilityCatalog.ShortNameOf(c) : f.Code));
+    // Configuration the office manages, in the order an office reaches for it: who it is, who signs in, what it collects, its backups.
+    private static readonly (string Href, string Label)[] ManageLinks =
+    [
+        ("/office-profile", "Office profile"),
+        ("/settings/report-signatories", "Report signatories"),
+        ("/accounts", "Accounts"),
+        ("/collectors", "Collectors"),
+        ("/settings/facilities", "Facilities"),
+        ("/settings/operations", "Operations"),
+        ("/settings/revenue", "Revenue Sources"),
+        ("/settings/backups", "Backups & restore"),
+    ];
 
     private string? _error;
     private bool _confirmLogout;

@@ -95,13 +95,6 @@
                 OnSectionChanged="() => {}"
                 OnToggleFee="ToggleVendorFee" />
 
-@if (CanShowReports)
-{
-    <FacilityReportsModal @bind-IsOpen="ShowReports"
-                      FacilityCode="@FacilityShortCode"
-                      FacilityName="@FacilityName"
-                      ShowSectionBreakdown="@(FacilityCodeEnum == FacilityCode.NCC)" />
-}
 
 @code {
     [Parameter] public FacilityCode FacilityCodeEnum { get; set; }
@@ -135,7 +128,6 @@
     private string SearchQuery = string.Empty;
     private string ActiveStatus = "All";
     private readonly List<string> StatusFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
-    private bool ShowReports = false;
     
     private List<TStall> Stalls = new();
     private readonly DateTime _statePeriod = PhilippineTime.Now;
@@ -340,8 +332,8 @@
 
     // Reports are only offered for facilities the current tenant actually operates. While the
     // FacilityState catalog is still loading (Count == 0) the action is allowed so it never flickers off.
-    private bool CanShowReports =>
-        Facilities.All.Count == 0 || Facilities.All.Contains(FacilityCodeEnum);
+    private bool CanShowReports => !string.IsNullOrEmpty(ReportsUrl)
+        && (Facilities.All.Count == 0 || Facilities.All.Contains(FacilityCodeEnum));
 
     private async Task LoadFacilityCatalogAsync()
     {
@@ -364,13 +356,7 @@
                     Title = "View Facility Reports & Analytics",
                     OnClickHandler = async () =>
                     {
-                        if (!string.IsNullOrEmpty(ReportsUrl))
-                            Navigation.NavigateTo(ReportsUrl);
-                        else
-                        {
-                            ShowReports = true;
-                            StateHasChanged();
-                        }
+                        Navigation.NavigateTo(ReportsUrl!);
                         await Task.CompletedTask;
                     }
                 });
@@ -535,7 +521,9 @@
 
         MarketSection? npmSection = null;
         string? npmCustomSection = null;
-        if (FacilityCodeEnum == FacilityCode.NPM)
+        // A monthly-rented market may file a stall under no section; the server allows it.
+        if (FacilityCodeEnum == FacilityCode.NPM
+            && !(Facilities.IsMonthlyRentMarket && string.IsNullOrEmpty(VendorForm.SelectedSection)))
         {
             var chosen = MonthlyMarketSectionSelection.Resolve(VendorForm.SelectedSection, VendorForm.CustomSectionName);
             if (chosen.Error is not null)

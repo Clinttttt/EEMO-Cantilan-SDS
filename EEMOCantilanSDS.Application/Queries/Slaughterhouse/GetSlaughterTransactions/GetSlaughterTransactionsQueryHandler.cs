@@ -10,7 +10,8 @@ public class GetSlaughterTransactionsQueryHandler(
 {
     public async Task<Result<IReadOnlyList<SlaughterTransactionDto>>> Handle(GetSlaughterTransactionsQuery request, CancellationToken ct)
     {
-        var transactions = await slaughterRepository.GetTransactionsByMonthAsync(request.Year, request.Month, ct);
+        // The office's list and report screens read the same set as the register: legacy and canonical (SRC) transactions.
+        var transactions = await slaughterRepository.GetWorkspaceTransactionsByMonthAsync(request.Year, request.Month, ct);
         return Result<IReadOnlyList<SlaughterTransactionDto>>.Success(transactions);
     }
 }

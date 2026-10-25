@@ -40,6 +40,7 @@ public sealed class MarketFeesTests : TestContext
     public void Report_PrintsUnavailableFigures_NotTypedInOnes()
     {
         var cut = RenderComponent<MarketFeesReport>();
+        cut.OpenStatusReport();
 
         Assert.Empty(cut.FindAll("main"));
         var sheet = cut.Find("article.print-report-sheet");

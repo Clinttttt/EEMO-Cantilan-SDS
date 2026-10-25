@@ -34,7 +34,7 @@ public sealed class OnlinePaymentSettlementService(
 
         // A pre-cutover checkout may still callback. Do not mark it settled or project it into day rows.
         if (monthly is not null && transaction.TargetKind is OnlinePaymentTargetKind.NpmDailyMonth
-                or OnlinePaymentTargetKind.NpmFishDay or OnlinePaymentTargetKind.NpmFishDays
+                or OnlinePaymentTargetKind.NpmWholeMonth or OnlinePaymentTargetKind.NpmFishDay or OnlinePaymentTargetKind.NpmFishDays
             && transaction.TargetStallId is { } target && transaction.TargetYear is { } year && transaction.TargetMonth is { } month
             && await monthly.IsMonthActivatedAsync(target, new(year, month, 1), cancellationToken))
             return await PreserveCaptureForReconciliationAsync(transaction, evt,
@@ -57,6 +57,10 @@ public sealed class OnlinePaymentSettlementService(
         // NPM daily-month: settle the month's still-unpaid days instead of a monthly record.
         if (transaction.TargetKind == OnlinePaymentTargetKind.NpmDailyMonth)
             return await SettleNpmAsync(transaction, cancellationToken);
+
+        // NPM whole month: settle the rest of the month, future days included, within the captured amount.
+        if (transaction.TargetKind == OnlinePaymentTargetKind.NpmWholeMonth)
+            return await SettleNpmAsync(transaction, cancellationToken, wholeMonth: true);
 
         // NPM utility bill: settle the month's electricity + water instead of a monthly record.
         if (transaction.TargetKind == OnlinePaymentTargetKind.NpmUtilityBill)
@@ -133,7 +137,7 @@ public sealed class OnlinePaymentSettlementService(
     }
 
     // Cross-channel settlement leaves paid days intact; excess capture remains traceable for reconciliation/refund.
-    private async Task<Result<bool>> SettleNpmAsync(OnlinePaymentTransaction transaction, CancellationToken cancellationToken)
+    private async Task<Result<bool>> SettleNpmAsync(OnlinePaymentTransaction transaction, CancellationToken cancellationToken, bool wholeMonth = false)
     {
         if (transaction.TargetStallId is not { } stallId
             || transaction.TargetYear is not { } year
@@ -144,8 +148,12 @@ public sealed class OnlinePaymentSettlementService(
         if (stall is null)
             return Result<bool>.Failure("Linked stall not found.", ResultStatus.Failed);
 
-        await npmMonthSettlementService.SettleUnpaidDaysAsync(
-            stall, year, month, collectorId: null, recordedBy: "Online", cancellationToken, maxAmount: transaction.Amount);
+        if (wholeMonth)
+            await npmMonthSettlementService.SettleWholeMonthAsync(
+                stall, year, month, collectorId: null, recordedBy: "Online", cancellationToken, maxAmount: transaction.Amount);
+        else
+            await npmMonthSettlementService.SettleUnpaidDaysAsync(
+                stall, year, month, collectorId: null, recordedBy: "Online", cancellationToken, maxAmount: transaction.Amount);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(

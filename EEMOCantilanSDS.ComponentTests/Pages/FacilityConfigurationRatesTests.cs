@@ -202,69 +202,38 @@ public class FacilityConfigurationRatesTests : TestContext
         Assert.Contains("Not set", cut.Markup);
     }
 
-    // ── A metered utility nobody has priced ─────────────────────────────────────────────────────────────────────────
+    // ── Rates the market does not own ────────────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public void AMeteredRateIsStatedAsTheOfficeRecordHasItUntilTheOfficeEdits()
+    public void TheMarketStatesItsStallRates_NotWeighingOrMeteredUtilityRates()
     {
-        // Before Edit rates the drawer is a record. Offering a peso here would be the screen answering for the office.
-        var cut = RenderDrawer(Rate(FeeRateKey.ElecPerKwh, 0m), Rate(FeeRateKey.WaterPerCubicMeter, 0m));
-
-        Assert.DoesNotContain("Electricity and water start at", cut.Markup);
-        Assert.Empty(cut.FindAll(".cfg-rate-input"));
-    }
-
-    [Fact]
-    public void PressingEditRatesOpensAnUnstatedMeteredRateAtOnePeso()
-    {
+        // Fish and meat weighing belong to Weight & Measure (which edits the same rates); electricity and water are billed by
+        // their own operations. None of them is shown, edited or pre-filled on the market.
         var cut = RenderDrawer(
             Rate(FeeRateKey.NpmDailyStall, 30m, stated: true),
+            Rate(FeeRateKey.NpmFishPerKilo, 1m, stated: true),
+            Rate(FeeRateKey.NpmMeatPerKilo, 66m, stated: true),
             Rate(FeeRateKey.ElecPerKwh, 0m),
             Rate(FeeRateKey.WaterPerCubicMeter, 0m));
 
-        PressEditRates(cut);
-
-        var values = cut.FindAll(".cfg-rate-input input").Select(e => e.GetAttribute("value")).ToList();
-        Assert.Equal(2, values.Count(v => v == "1"));
-        // And the field says what it is doing, in one line.
-        Assert.Contains("Electricity and water start at ₱1.00", cut.Markup);
-    }
-
-    [Fact]
-    public void AMeteredRateTheOfficeHasAlreadyStatedIsNotOverwrittenByTheSuggestion()
-    {
-        var cut = RenderDrawer(
-            Rate(FeeRateKey.ElecPerKwh, 12.5m, stated: true),
-            Rate(FeeRateKey.WaterPerCubicMeter, 0m));
+        var labels = cut.FindAll(".cfg-rate-label").Select(e => e.TextContent).ToList();
+        Assert.Contains(nameof(FeeRateKey.NpmDailyStall), labels);
+        Assert.DoesNotContain(labels, l => l is nameof(FeeRateKey.NpmFishPerKilo) or nameof(FeeRateKey.NpmMeatPerKilo)
+            or nameof(FeeRateKey.ElecPerKwh) or nameof(FeeRateKey.WaterPerCubicMeter));
 
         PressEditRates(cut);
 
-        var values = cut.FindAll(".cfg-rate-input input").Select(e => e.GetAttribute("value")).ToList();
-        Assert.Contains("12.5", values);
-        Assert.Contains("1", values);
-    }
-
-    [Fact]
-    public void TheSuggestionIsNotOfferedForAFeeThatIsNotMetered()
-    {
-        // A daily stall fee left unstated already has an answer, and it is not a peso.
-        var cut = RenderDrawer(Rate(FeeRateKey.NpmDailyStall, 0m));
-
-        PressEditRates(cut);
-
-        var values = cut.FindAll(".cfg-rate-input input").Select(e => e.GetAttribute("value")).ToList();
-        Assert.DoesNotContain("1", values);
+        Assert.Single(cut.FindAll(".cfg-rate-input input"));
         Assert.DoesNotContain("Electricity and water start at", cut.Markup);
     }
 
     [Fact]
     public void NothingIsSentToTheOfficeRecordMerelyByOpeningTheForm()
     {
-        // The figure is an offer on a form. It becomes a rate on Save and not before, which is the whole reason the drawer
-        // reads as a record until the office says it is editing.
-        var cut = RenderDrawer(Rate(FeeRateKey.ElecPerKwh, 0m), Rate(FeeRateKey.WaterPerCubicMeter, 0m));
+        var cut = RenderDrawer(Rate(FeeRateKey.NpmDailyStall, 30m, stated: true), Rate(FeeRateKey.ElecPerKwh, 0m), Rate(FeeRateKey.WaterPerCubicMeter, 0m));
 
         PressEditRates(cut);
+        cut.FindAll("button").First(b => b.TextContent.Contains("Save changes")).Click();
 
         _api.Verify(a => a.SetFacilityRateAsync(It.IsAny<FacilityCode>(), It.IsAny<FeeRateKey>(), It.IsAny<decimal>()),
             Times.Never);

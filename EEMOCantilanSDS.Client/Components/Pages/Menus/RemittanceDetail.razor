@@ -10,6 +10,7 @@
 @using EEMOCantilanSDS.Domain.Enums
 @inject IRemittancesApiClient Api
 @inject IJSRuntime JS
+@inject EEMOCantilanSDS.Client.Services.BrandingState Branding
 
 <PageTitle>StallTrack — Remittance</PageTitle>
 
@@ -123,6 +124,11 @@
                 </table>
             </div>
         </section>
+
+        @* On paper the summary closes with the office's signatories, as every official sheet does. *@
+        <div class="rm-print-sign" aria-hidden="true">
+            <OfficialSignatories Configured="@Signatories" />
+        </div>
     }
 </div>
 
@@ -139,6 +145,14 @@
 
     private string? Subtitle => _detail is null ? null
         : $"{_detail.Row.CollectorName} · {_detail.Row.RemittanceDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}";
+
+    // The office's configured report signatories (cached branding); the sheet prints Prepared by and Certified Correct.
+    private IReadOnlyList<EEMOCantilanSDS.Application.Command.Municipalities.SetReportSignatories.ReportSignatoryDto> Signatories =>
+        Branding.Signatories
+            .Where(s => OfficialSignatories.OfficialRoles.Contains(s.Caption, StringComparer.OrdinalIgnoreCase))
+            .Select(s => new EEMOCantilanSDS.Application.Command.Municipalities.SetReportSignatories.ReportSignatoryDto(s.Caption, s.Name, s.Title)).ToList();
+
+    protected override async Task OnInitializedAsync() => await Branding.EnsureLoadedAsync();
 
     protected override async Task OnParametersSetAsync()
     {

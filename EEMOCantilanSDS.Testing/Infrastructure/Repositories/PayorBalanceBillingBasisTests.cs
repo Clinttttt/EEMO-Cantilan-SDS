@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Common.Payments;
+using EEMOCantilanSDS.Application.Dtos.Payors;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Enums;
@@ -96,11 +97,37 @@ public class PayorBalanceBillingBasisTests : RepositoryTestBase
         var settlement = new Mock<INpmMonthSettlementService>();
         settlement.Setup(s => s.ComputePayableAsync(It.IsAny<Stall>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                   .ReturnsAsync(new NpmMonthPayable(2, 60m));
+        // The stall's payable is the rest of the month's rent (₱900 less ₱60 collected), not the elapsed days.
+        settlement.Setup(s => s.ComputeWholeMonthPayableAsync(It.IsAny<Stall>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                  .ReturnsAsync(new NpmMonthPayable(28, 840m));
 
         var repo = new PayorRepository(ctx, settlement.Object);
         var balance = Assert.Single(await repo.GetBalancesAsync(payor));
+        var item = Assert.Single(await repo.GetPayableItemsAsync(payor));
 
-        Assert.Equal(60m, balance.OutstandingBalance);
+        Assert.Equal(840m, balance.OutstandingBalance);
+        Assert.Equal(840m, item.BalanceDue);
+        Assert.Equal(PayorPayableKind.NpmDaily, item.Kind);
+        Assert.Null(item.Days);       // a month's remainder, not days counted out
+    }
+
+    [Fact]
+    public async Task AMonthlySpaceIsOfferedAtItsContractRate_NotTheStallsCurrentRate()
+    {
+        await using var ctx = NewContext();
+        var payor = Guid.NewGuid();
+
+        var tcc = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC");
+        var stall = Stall.Create(tcc.Id, "B-2", 3000m, ApplicableFees.BaseRental);
+        var contract = Contract.Create(stall.Id, "Juan Cruz", "Juan Cruz", PhilippineTime.Today.AddMonths(-1), 3, 2400m);
+
+        ctx.AddRange(tcc, stall, contract, PayorStallLink.Create(payor, stall.Id));
+        await ctx.SaveChangesAsync();
+
+        var repo = new PayorRepository(ctx, Mock.Of<INpmMonthSettlementService>());
+        var item = Assert.Single(await repo.GetPayableItemsAsync(payor));
+
+        Assert.Equal(2400m, item.BalanceDue);
     }
 
     [Fact]

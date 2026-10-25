@@ -100,7 +100,10 @@ public sealed class FishMeatWorkspaceTests : TestContext
             .ReturnsAsync(Result<FacilityReportsDto>.Success(Report(fishFeeAmount: 0m)));
 
         var cut = RenderComponent<WeightAndMeasure>();
-        cut.WaitForAssertion(() => Assert.Contains("Edit rates", cut.Markup), Timeout);
+        // The rates live in their own drawer, opened from the page header.
+        cut.WaitForAssertion(() => Assert.Contains("Weighing rates", cut.Markup), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Weighing rates").Click();
+        cut.WaitForAssertion(() => Assert.Contains("Edit rates", cut.Find("[role='dialog']").TextContent), Timeout);
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Edit rates").Click();
         var rates = cut.FindAll("input[type=number]");
         Assert.Equal(2, rates.Count);
@@ -172,6 +175,8 @@ public sealed class FishMeatWorkspaceTests : TestContext
 
         var cut = RenderComponent<WeightAndMeasureReport>();
 
+        cut.OpenStatusReport();
+
         cut.WaitForAssertion(() =>
         {
             Assert.Empty(cut.FindAll("main"));
@@ -202,7 +207,7 @@ public sealed class FishMeatWorkspaceTests : TestContext
     [Theory]
     [InlineData(typeof(WeightAndMeasure), "Weighing month")]
     [InlineData(typeof(WeightAndMeasureReport), "Reporting month")]
-    public void FailedPeriodChangeDoesNotRetainPreviousRegisteredVendorTotals(Type page, string monthLabel)
+    public async Task FailedPeriodChangeDoesNotRetainPreviousRegisteredVendorTotals(Type page, string monthLabel)
     {
         Services.AddSingleton(Mock.Of<IOfficialReportsApiClient>());
         _facilities.SetupSequence(x => x.GetWeighingSourceNativeReportAsync(It.IsAny<int>(), It.IsAny<int>()))
@@ -212,11 +217,14 @@ public sealed class FishMeatWorkspaceTests : TestContext
         _facilities.Setup(x => x.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>()))
             .ReturnsAsync(Result<FacilityReportsDto>.Success(Report(fishFeeAmount: 0m)));
         var cut = Render(builder => { builder.OpenComponent(0, page); builder.CloseComponent(); });
+        if (page == typeof(WeightAndMeasureReport)) cut.OpenStatusReport();
         cut.WaitForAssertion(() => Assert.Contains("Test vendor", cut.Markup), Timeout);
         if (page == typeof(WeightAndMeasure))
             Assert.Contains("₱100.00", cut.Find("dl[aria-label='Weighing position']").TextContent);
 
-        cut.Find($"input[aria-label='{monthLabel}']").Change("2026-09");
+        if (page == typeof(WeightAndMeasureReport)) await cut.PreviousMonthAsync();
+
+        else cut.Find($"input[aria-label='{monthLabel}']").Change("2026-09");
 
         cut.WaitForAssertion(() =>
         {
@@ -258,9 +266,11 @@ public sealed class FishMeatWorkspaceTests : TestContext
         _facilities.Setup(x => x.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>()))
             .ReturnsAsync(Result<FacilityReportsDto>.Success(Report(fishFeeAmount: 0m)));
         var cut = Render(builder => { builder.OpenComponent(0, page); builder.CloseComponent(); });
+        if (page == typeof(WeightAndMeasureReport)) cut.OpenStatusReport();
         cut.WaitForAssertion(() => Assert.Contains("Initial vendor", cut.Markup), Timeout);
-        var olderRequest = cut.Find($"input[aria-label='{monthLabel}']").ChangeAsync(new ChangeEventArgs { Value = "2026-09" });
-        await cut.Find($"input[aria-label='{monthLabel}']").ChangeAsync(new ChangeEventArgs { Value = "2026-08" });
+        var olderRequest = page == typeof(WeightAndMeasureReport) ? cut.PreviousMonthAsync() : cut.Find($"input[aria-label='{monthLabel}']").ChangeAsync(new ChangeEventArgs { Value = "2026-09" });
+        if (page == typeof(WeightAndMeasureReport)) await cut.PreviousMonthAsync();
+        else await cut.Find($"input[aria-label='{monthLabel}']").ChangeAsync(new ChangeEventArgs { Value = "2026-08" });
         cut.WaitForAssertion(() => Assert.Contains("Latest vendor", cut.Markup), Timeout);
         delayed.SetResult(Source("Older vendor", 9));
         await olderRequest;
@@ -321,6 +331,7 @@ public sealed class FishMeatWorkspaceTests : TestContext
             .ReturnsAsync(Result<IReadOnlyList<FacilitySidebarSummaryDto>>.Success([]));
         SourceCollections();
         var cut = Render(builder => { builder.OpenComponent(0, page); builder.CloseComponent(); });
+        if (page == typeof(WeightAndMeasureReport)) cut.OpenStatusReport();
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("Fish vendor", cut.Markup);
@@ -339,6 +350,7 @@ public sealed class FishMeatWorkspaceTests : TestContext
         _facilities.Setup(x => x.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>()))
             .ReturnsAsync(Result<FacilityReportsDto>.Success(Report(37m, 4m, 120m, 15m, 10m)));
         var cut = RenderComponent<WeightAndMeasureReport>();
+        cut.OpenStatusReport();
         cut.WaitForAssertion(() =>
         {
             var fish = cut.Find("section[aria-labelledby='wmr-fish']").TextContent;

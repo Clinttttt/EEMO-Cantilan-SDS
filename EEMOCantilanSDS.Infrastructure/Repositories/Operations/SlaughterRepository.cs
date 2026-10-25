@@ -127,6 +127,21 @@ public class SlaughterRepository(
             .ToListAsync(ct);
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<SlaughterTransactionDto>> GetWorkspaceTransactionsByMonthAsync(int year, int month, CancellationToken ct = default)
+    {
+        var legacy = await context.SlaughterTransactions
+            .AsNoTracking()
+            .Where(x => x.TransactionDate.Year == year && x.TransactionDate.Month == month)
+            .ToListAsync(ct);
+        var canonical = await CanonicalSlaughterAsync(new DateOnly(year, month, 1), MonthEnd(year, month), ct);
+        return legacy.Select(x => (Dto: ToDto(x), Created: x.CreatedAt))
+            .Concat(canonical.Select(x => (Dto: x.ToDto(), Created: x.RecordedAtUtc)))
+            .OrderByDescending(x => x.Dto.TransactionDate).ThenByDescending(x => x.Created)
+            .Select(x => x.Dto)
+            .ToList();
+    }
+
     public async Task<IReadOnlyList<SlaughterTransactionDto>> GetTransactionsByYearAsync(int year, CancellationToken ct = default)
     {
         return await context.SlaughterTransactions

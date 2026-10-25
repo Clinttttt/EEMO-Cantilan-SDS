@@ -42,6 +42,8 @@ public sealed class UtilityAccountsAndReportsTests : TestContext
 
         var cut = RenderComponent<ElectricityConsumptionFeesReport>();
 
+        cut.OpenStatusReport();
+
         cut.WaitForAssertion(() =>
         {
             Assert.Empty(cut.FindAll("main"));
@@ -72,6 +74,8 @@ public sealed class UtilityAccountsAndReportsTests : TestContext
         Services.AddSingleton(api.Object);
 
         var cut = RenderComponent<WaterConsumptionFeesReport>();
+
+        cut.OpenStatusReport();
 
         cut.WaitForAssertion(() =>
         {

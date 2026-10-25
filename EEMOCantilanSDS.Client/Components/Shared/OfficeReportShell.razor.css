@@ -1,14 +1,18 @@
 .office-report { background: white; border: 1px solid var(--border); border-radius: 10px; padding: 24px; color: var(--text-primary); }
 .office-report-body { margin-top: 20px; }
 .office-signatures { margin-top: 28px; break-inside: avoid; }
-.office-report ::deep table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.office-report ::deep th { background: #eef3f8; color: var(--navy); font-size: 10px; font-weight: 700; letter-spacing: .03em; text-align: left; }
-.office-report ::deep th, .office-report ::deep td { padding: 9px 10px; border: 1px solid var(--border); vertical-align: top; }
+.office-report ::deep table { width: 100%; border-collapse: collapse; font-size: 14px; line-height: 1.4; }
+.office-report ::deep th { background: #eef3f8; color: var(--navy); font-size: 12px; font-weight: 700; letter-spacing: .02em; text-align: left; }
+.office-report ::deep th, .office-report ::deep td { padding: 11px 12px; border: 1px solid var(--border); vertical-align: top; }
+.office-report ::deep tbody tr:hover td { background: color-mix(in srgb, var(--accent) 4%, transparent); }
 .office-report ::deep .office-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .office-report ::deep tfoot { font-weight: 700; break-inside: avoid; }
 .office-report ::deep thead { display: table-header-group; }
 @media print {
     .office-report { border: 0; border-radius: 0; padding: 0; }
+    .office-report ::deep table { font-size: 11.5px; }
+    .office-report ::deep th { font-size: 10px; }
+    .office-report ::deep tbody tr:hover td { background: none; }
     .office-report ::deep tr { break-inside: avoid; }
     .office-report ::deep th, .office-report ::deep td { border-color: #9ca3af; padding: 6px 8px; }
     .office-report ::deep .v3-table-wrap { overflow: visible; }

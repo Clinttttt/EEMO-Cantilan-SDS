@@ -16,16 +16,10 @@
 
 @* Weight & Measure report in the standard operation-report shell: the official Monthly Income row, then the weighing evidence NPM
    reports for the month (the amounts frozen on each collection; nothing is re-priced here). The layout owns the main landmark. *@
-<div class="v3-page">
-    <div class="no-print">
-        <WorkspaceHeader OperationCode="WEIGHT_AND_MEASURE" Parent="Weight & Measure" ParentHref="/operations/weight-and-measure" Title="Weight & Measure Report">
-            <Meta><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
-            <Actions>
-                <label class="v3-period">
-                    <span>Month</span>
-                    <input class="v3-input" type="month" aria-label="Reporting month" value="@_monthInput" @onchange="ChangeMonthAsync" />
-                </label>
-                <div class="v3-btn-group" role="group" aria-label="Report actions">
+<OperationReportsPage Name="@("Weight & Measure")" ParentHref="/operations/weight-and-measure" RowKey="WEIGHT_AND_MEASURE" SeriesLabel="Fees collected" Month="ShellMonth" MonthChanged="OnShellMonthAsync">
+<StatusReport>
+<div class="v3-page orp-embedded">
+    <div class="v3-btn-group no-print orp-embedded-actions" role="group" aria-label="Report actions">
                     <button class="v3-btn" type="button" @onclick="PrintAsync" disabled="@(!Ready)">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5" /><path d="M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" /><path d="M7 14h10v7H7z" /></svg>
                         Print
@@ -42,9 +36,6 @@
                         <button class="v3-btn" type="button" disabled>Export CSV</button>
                     }
                 </div>
-            </Actions>
-        </WorkspaceHeader>
-    </div>
 
     @if (_error is not null)
     {
@@ -126,8 +117,72 @@
         </section>
     </article>
 </div>
+</StatusReport>
+<MonthExtras>
+    @* Fish and meat weighing on the market floor. Moved here from the NPM report, which is now about stall rent only. Every
+       figure is the NPM report's own (kilos recorded per day, amounts frozen at collection); nothing is re-priced. *@
+    @if (FacilityCatalog.HasDeclaredFacility(FacilityCode.NPM))
+    {
+    <div class="orp-extra-grid wm-extras">
+        <section class="wm-card wm-card-wide" aria-labelledby="wm-fish-title">
+            <div class="wm-card-head">
+                <div>
+                    <h2 id="wm-fish-title" class="wm-card-title">@FacilityCatalog.SectionLabelOf(FacilityCode.NPM, "Fish Area") — Kilo Tracking</h2>
+                    <p class="wm-card-sub">Kilos weighed per day, @PeriodLabel</p>
+                </div>
+            </div>
+            <dl class="wm-facts">
+                <div><dt>Total kilos</dt><dd>@(_report is null ? "—" : Kilos(FishKilos.Sum(x => x.Kilos)))</dd></div>
+                <div><dt>Fish weighing (frozen)</dt><dd>@(_report?.FeeTypeBreakdown is { } fb ? Money(fb.FishWeightMeasureFrozenAmount) : "—")</dd></div>
+                <div><dt>Days with weighing</dt><dd>@(_report is null ? "—" : FishKilos.Count(x => x.Kilos > 0m).ToString(CultureInfo.InvariantCulture))</dd></div>
+                <div><dt>Peak day</dt><dd>@PeakDay</dd></div>
+            </dl>
+            @if (FishKilos.Any(x => x.Kilos > 0m))
+            {
+                var max = FishKilos.Max(x => x.Kilos);
+                <div class="wm-kilo-chart" role="img" aria-label="@($"Fish kilos weighed per day, {PeriodLabel}")">
+                    @foreach (var point in FishKilos)
+                    {
+                        <div class="wm-kilo-col @(point.Kilos <= 0m ? "is-zero" : "")" title="@($"{point.PeriodLabel}: {Kilos(point.Kilos)}")">
+                            <span class="wm-kilo-bar" style="height:@(point.Kilos > 0m ? Math.Max(6, (int)Math.Round(point.Kilos / max * 100m)) : 0)%"></span>
+                            <span class="wm-kilo-label">@point.PeriodLabel</span>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="wm-empty">@(_loading ? "Loading…" : $"No fish kilos were recorded for {PeriodLabel}.")</p>
+            }
+        </section>
+        <section class="wm-card" aria-labelledby="wm-meat-title">
+            <div class="wm-card-head">
+                <div>
+                    <h2 id="wm-meat-title" class="wm-card-title">@FacilityCatalog.SectionLabelOf(FacilityCode.NPM, "Meat Area") — Weighing</h2>
+                    <p class="wm-card-sub">@PeriodLabel</p>
+                </div>
+            </div>
+            <dl class="wm-facts wm-facts-stack">
+                <div><dt>Meat kilos</dt><dd>@(_report?.FeeTypeBreakdown is { } mk ? Kilos(mk.MeatKilos) : "—")</dd></div>
+                <div><dt>Meat weighing</dt><dd>@(_report?.FeeTypeBreakdown is { } ma ? Money(ma.MeatWeightMeasureAmount) : "—")</dd></div>
+                <div><dt>Registered-vendor weighing</dt><dd>@(_sourceReport is null ? "—" : _sourceReport.Rows.Count.ToString(CultureInfo.InvariantCulture) + " records")</dd></div>
+            </dl>
+        </section>
+    </div>
+    }
+</MonthExtras>
+</OperationReportsPage>
 
 @code {
+    private DateOnly ShellMonth => new(_period.Year, _period.Month, 1);
+
+    private async Task OnShellMonthAsync(DateOnly month)
+    {
+        _period = month;
+        _monthInput = month.ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture);
+        await LoadAsync();
+    }
+
     private RenderFragment RegisteredRows(FishMeatVendorType type) => @<div class="v3-table-wrap">
         <table class="v3-report-table" aria-label="Registered @type weighing">
             <caption class="v3-panel-meta">Registered @type collections · @PeriodLabel</caption>
@@ -160,20 +215,14 @@
     private IEnumerable<StallComplianceDto> FishRows =>
         (_report?.StallCompliance ?? []).Where(x => x.FishKilos > 0m).OrderBy(x => x.StallNo, StringComparer.OrdinalIgnoreCase);
 
+    private IReadOnlyList<FishKiloTrendDto> FishKilos => _report?.FishKiloTrend ?? [];
+    private string PeakDay => FishKilos.Where(x => x.Kilos > 0m).OrderByDescending(x => x.Kilos).FirstOrDefault() is { } peak
+        ? $"{peak.PeriodLabel} · {Kilos(peak.Kilos)}" : "—";
+
     protected override async Task OnInitializedAsync()
     {
         await FacilityCatalog.EnsureLoadedAsync();
         await LoadAsync();
-    }
-
-    private async Task ChangeMonthAsync(ChangeEventArgs args)
-    {
-        if (DateOnly.TryParseExact(args.Value?.ToString() + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
-        {
-            _period = parsed;
-            _monthInput = parsed.ToString("yyyy-MM", CultureInfo.InvariantCulture);
-            await LoadAsync();
-        }
     }
 
     private async Task LoadAsync()

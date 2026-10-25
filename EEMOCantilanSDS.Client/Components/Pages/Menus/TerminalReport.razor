@@ -18,16 +18,10 @@
 @* Income From Terminal report in the standard operation-report shell: the official Monthly Income rows of the three office sections, then
    the month's Terminal collections by section and in full (net amounts, as the Terminal page states them). Every figure is the server's.
    The layout owns the main landmark. *@
-<div class="v3-page">
-    <div class="no-print">
-        <WorkspaceHeader OperationCode="@CollectorOperationCodes.Terminal" Parent="Income From Terminal" ParentHref="/operations/terminal" Title="Income From Terminal Report">
-            <Meta><InstrumentChip Instrument="CT" ShowName="true" /></Meta>
-            <Actions>
-                <label class="v3-period">
-                    <span>Month</span>
-                    <input class="v3-input" type="month" aria-label="Reporting month" value="@_monthInput" @onchange="ChangeMonthAsync" />
-                </label>
-                <div class="v3-btn-group" role="group" aria-label="Report actions">
+<OperationReportsPage Name="Terminal" ParentHref="/operations/terminal" RowKey="TERMINAL" GroupKey="TERMINAL" SeriesLabel="Fees collected" Month="ShellMonth" MonthChanged="OnShellMonthAsync">
+<StatusReport>
+<div class="v3-page orp-embedded">
+    <div class="v3-btn-group no-print orp-embedded-actions" role="group" aria-label="Report actions">
                     <button class="v3-btn" type="button" @onclick="PrintAsync" disabled="@(!Ready)">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5" /><path d="M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" /><path d="M7 14h10v7H7z" /></svg>
                         Print
@@ -44,9 +38,6 @@
                         <button class="v3-btn" type="button" disabled>Export CSV</button>
                     }
                 </div>
-            </Actions>
-        </WorkspaceHeader>
-    </div>
 
     @if (_error is not null)
     {
@@ -137,8 +128,40 @@
         </section>
     </article>
 </div>
+</StatusReport>
+<MonthExtras>
+    @* The month by Terminal section, in the office's own section names: what each collected, its share of the month and how many
+       collections made it. The same server figures as the Status Report's Sections table; nothing is recalculated. *@
+    <div class="orp-extra-grid tmr-extras" role="list" aria-label="@($"Terminal sections, {MonthLabel}")">
+        @foreach (var section in Sections)
+        {
+            var rows = _rows.Where(x => x.Section == section).ToList();
+            var net = rows.Sum(x => x.NetAmount);
+            <section class="tmr-card" role="listitem" aria-label="@SectionName(section)">
+                <h2 class="tmr-card-name">@SectionName(section)</h2>
+                <p class="tmr-card-amount">@(Ready ? Money(net) : "—")</p>
+                <progress class="tmr-bar" max="100" value="@(Ready ? SharePercent(net) : 0)" aria-label="@($"{SectionName(section)} share of Terminal income in {MonthLabel}")"></progress>
+                <dl class="tmr-card-facts">
+                    <div><dt>Collections</dt><dd>@(Ready ? rows.Count.ToString("N0", CultureInfo.InvariantCulture) : "—")</dd></div>
+                    <div><dt>Share of month</dt><dd>@(Ready ? Share(net) : "—")</dd></div>
+                    <div><dt>Last collected</dt><dd>@(Ready && rows.Count > 0 ? rows.Max(x => x.BusinessDate).ToString("MMM d", CultureInfo.InvariantCulture) : "—")</dd></div>
+                </dl>
+            </section>
+        }
+    </div>
+</MonthExtras>
+</OperationReportsPage>
 
 @code {
+    private DateOnly ShellMonth => new(_month.Year, _month.Month, 1);
+
+    private async Task OnShellMonthAsync(DateOnly month)
+    {
+        _month = month;
+        _monthInput = month.ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture);
+        await LoadAsync();
+    }
+
     private List<TerminalSectionSettingsStore.SectionView> _terminalSettings = [];
     private IReadOnlyList<TerminalSection> Sections => Enum.GetValues<TerminalSection>()
         .Where(section => _terminalSettings.Count == 0 || _terminalSettings.Any(x => x.Section == section && x.IsEnabled)
@@ -156,16 +179,6 @@
     private bool Ready => !_loading && _error is null;
 
     protected override Task OnInitializedAsync() => LoadAsync();
-
-    private async Task ChangeMonthAsync(ChangeEventArgs e)
-    {
-        if (DateOnly.TryParseExact($"{e.Value}-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var month))
-        {
-            _month = month;
-            _monthInput = month.ToString("yyyy-MM", CultureInfo.InvariantCulture);
-            await LoadAsync();
-        }
-    }
 
     private async Task LoadAsync()
     {
@@ -191,6 +204,12 @@
     private async Task PrintAsync()
     {
         if (Ready) await JS.InvokeVoidAsync("stalltrackPrint.reportDocument");
+    }
+
+    private double SharePercent(decimal sectionNet)
+    {
+        var total = _rows.Sum(x => x.NetAmount);
+        return total == 0m ? 0d : (double)(sectionNet / total * 100m);
     }
 
     private string Share(decimal sectionNet)

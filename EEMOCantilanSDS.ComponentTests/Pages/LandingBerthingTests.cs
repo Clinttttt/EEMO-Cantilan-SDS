@@ -40,6 +40,7 @@ public sealed class LandingBerthingTests : TestContext
     public void Report_PrintsUnavailableFigures_WithoutSampleExport()
     {
         var cut = RenderComponent<LandingBerthingReport>();
+        cut.OpenStatusReport();
 
         Assert.Empty(cut.FindAll("main"));
         var sheet = cut.Find("article.print-report-sheet");

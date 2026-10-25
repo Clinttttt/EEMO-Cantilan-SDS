@@ -108,7 +108,7 @@
                     {
                         <div class="avm-row-2">
                             <div class="avm-group">
-                                <label class="avm-label">Section / Category <span class="avm-req">*</span></label>
+                                <label class="avm-label">Section / Category @if (!MonthlyMarket){<span class="avm-req">*</span>}</label>
                                 <FhSelect Block="true" Caption="" Value="@Form.SelectedSection"
                                           Options="SectionOptions" ValueChanged="OnSectionSelected" />
                                 @if (GetFieldError("Section") != string.Empty)
@@ -316,7 +316,7 @@
                         @if (ShowsMonthlyRental)
                         {
                         <RentalRateFields Form="Form" ChargeCard="true" Entered="MonthlyRentEntered" Changed="() => StateHasChanged()"
-                                          SourceName="@(Form.FacilityCode == "NPM" ? $"New Public Market · ₱{NpmDailyRate:0}/day base" : FacilityOptions.FirstOrDefault(f => f.Code == Form.FacilityCode)?.Name ?? Form.FacilityCode)">
+                                          SourceName="@(MonthlyMarket ? FacilityCatalog.NameOf(FacilityCode.NPM) : Form.FacilityCode == "NPM" ? $"{FacilityCatalog.NameOf(FacilityCode.NPM)} · ₱{NpmDailyRate:0}/day base" : FacilityOptions.FirstOrDefault(f => f.Code == Form.FacilityCode)?.Name ?? Form.FacilityCode)">
                             <Icon>
                                 @if (RentalFacilityMark is { } markCode && FacilityMarkArt.Has(markCode))
                                 { <FacilityMark Code="@markCode" Size="17" /> }
@@ -353,7 +353,7 @@
 
                                 <!-- Section fee — only when this LGU actually charges one for the section.
                                      An office that set no per-kilo fish fee at onboarding sees nothing here. -->
-                                @if (Form.SelectedSection == "Fish" && NpmFishRate > 0m)
+                                @if (Form.SelectedSection == "Fish" && NpmFishRate > 0m && !MonthlyMarket)
                                 {
                                     <div class="avm-util-divider"></div>
                                     <div class="avm-sublabel">Section Fee</div>
@@ -585,7 +585,7 @@
     /// </remarks>
     private void MonthlyRentEntered()
     {
-        if (IsEditing || MonthBasis == NpmMonthBasis.PureDays) return;
+        if (IsEditing || MonthBasis == NpmMonthBasis.PureDays || MonthlyMarket) return;
 
         var derived = DailyFeeFromMonthlyRent.DerivedOrNull(
             Form.MonthlyRate, Form.CustomDailyRate, dailyOnOpen: NpmDailyRate, lastDerived: _dailyFromMonthlyRent);
@@ -771,7 +771,10 @@
 
     /// <summary>Whether a monthly amount means anything for the facility on this form.</summary>
     private bool ShowsMonthlyRental =>
-        Form.FacilityCode != "NPM" || MonthBasis != NpmMonthBasis.PureDays;
+        Form.FacilityCode != "NPM" || MonthBasis != NpmMonthBasis.PureDays || MonthlyMarket;
+
+    /// <summary>A market the LGU rents by the month: stall rent only, no daily fee, and a section is optional (the server allows none).</summary>
+    private bool MonthlyMarket => Form.FacilityCode == "NPM" && FacilityCatalog.IsMonthlyRentMarket;
 
     // ── Private relay handlers ────────────────────────────────────────────────
 
@@ -802,12 +805,14 @@
     {
         get
         {
-            var opts = new List<(string, string)>
+            var opts = new List<(string, string)>();
+            if (MonthlyMarket) opts.Add(("", "No section"));
+            opts.AddRange(new List<(string, string)>
             {
                 ("Vegetable", FacilityCatalog.SectionLabelOf(FacilityCode.NPM, MarketSection.VegetableArea)),
                 ("Fish", FacilityCatalog.SectionLabelOf(FacilityCode.NPM, MarketSection.FishSection)),
                 ("Meat", FacilityCatalog.SectionLabelOf(FacilityCode.NPM, MarketSection.MeatSection)),
-            };
+            });
             foreach (var name in CustomSectionNames)
                 opts.Add(($"existing:{name}", name));
             opts.Add(("__custom__", "＋ Custom section…"));

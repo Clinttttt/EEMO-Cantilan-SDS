@@ -149,6 +149,7 @@ public class OnlinePaymentRepository(AppDbContext context) : IOnlinePaymentRepos
             from t in context.OnlinePaymentTransactions
             where t.Status == OnlinePaymentStatus.Paid
                 && (t.TargetKind == OnlinePaymentTargetKind.NpmDailyMonth
+                    || t.TargetKind == OnlinePaymentTargetKind.NpmWholeMonth
                     || t.TargetKind == OnlinePaymentTargetKind.NpmFishDays)
             where year == null || (t.TargetYear == year && t.TargetMonth == month)
             join s in context.Stalls on t.TargetStallId equals (Guid?)s.Id

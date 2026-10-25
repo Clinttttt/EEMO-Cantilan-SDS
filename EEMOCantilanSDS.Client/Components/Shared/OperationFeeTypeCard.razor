@@ -1,0 +1,57 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@inject IGovernedServicesApiClient GovernedApi
+
+@* The month's collections by approved fee type, exactly as the server totals them (GetFeeOptionTotals). The bar length only
+   places each server amount against the largest one. *@
+<section class="oft" aria-labelledby="oft-title">
+    <div class="oft-head">
+        <div><h2 id="oft-title" class="oft-title">By fee type</h2><p class="oft-sub">@Month.ToString("MMMM yyyy", CultureInfo.InvariantCulture)</p></div>
+    </div>
+    @if (_totals is null)
+    {
+        <p class="oft-empty" role="@(_loading ? "status" : null)">@(_loading ? "Loading…" : "The breakdown by fee type is unavailable.")</p>
+    }
+    else if (_totals.Count == 0)
+    {
+        <p class="oft-empty">No fee type collections in @Month.ToString("MMMM yyyy", CultureInfo.InvariantCulture).</p>
+    }
+    else
+    {
+        var max = _totals.Max(t => t.Amount);
+        <ul class="oft-list">
+            @foreach (var t in _totals.OrderByDescending(t => t.Amount))
+            {
+                <li>
+                    <span class="oft-name">@t.Name</span>
+                    <span class="oft-track" aria-hidden="true"><i style="width:@(max > 0m ? Math.Max(2, (int)Math.Round(t.Amount / max * 100m)) : 0)%"></i></span>
+                    <span class="oft-amount">₱@t.Amount.ToString("N2", CultureInfo.InvariantCulture)</span>
+                    <span class="oft-count">@t.Collections.ToString("N0", CultureInfo.InvariantCulture) @(t.Collections == 1 ? "transaction" : "transactions")</span>
+                </li>
+            }
+        </ul>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public string OperationCode { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public DateOnly Month { get; set; }
+
+    private IReadOnlyList<FeeOptionTotalDto>? _totals;
+    private DateOnly _loaded;
+    private bool _loading;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loaded == Month) return;
+        _loaded = Month;
+        _loading = true;
+        try
+        {
+            var result = await GovernedApi.GetFeeOptionTotalsAsync(OperationCode, Month, Month.AddMonths(1).AddDays(-1));
+            _totals = result is { IsSuccess: true, Value: { } list } ? list : null;
+        }
+        catch { _totals = null; }
+        finally { _loading = false; }
+    }
+}

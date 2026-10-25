@@ -10,8 +10,18 @@
    rental): the ECF report's shell with an obligation body — the official Monthly Income row for the line, the obligation
    position and the account register. Per-account assessed, settled and outstanding are the server's own to-date figures;
    the position adds those rows up exactly as the ECF report does. Nothing is billed, adjusted or created here. *@
-<div class="v3-page">
-    <div class="no-print">
+<div class="v3-page @(Embedded ? "orp-embedded" : "")">
+    @if (Embedded)
+    {
+        <div class="v3-btn-group no-print orp-embedded-actions" role="group" aria-label="Report actions">
+            <button class="v3-btn" type="button" @onclick="PrintAsync">Print</button>
+            @if (_accounts is not null)
+            {
+                <a class="v3-btn" href="@ExportHref" download="@($"{IdPrefix}-report-{PhilippineTime.Today:yyyy-MM-dd}.csv")">Export CSV</a>
+            }
+        </div>
+    }
+    <div class="no-print orp-own-header">
         <WorkspaceHeader Parent="@Name" ParentHref="@ParentHref" Title="@($"{Name} Report")">
             <Meta><InstrumentChip Instrument="OR" ShowName="true" /></Meta>
             <Actions>
@@ -159,6 +169,10 @@
 
     [Parameter, EditorRequired] public string IdPrefix { get; set; } = "obr";
 
+    /// <summary>Inside the operation reports layout (OperationReportsPage): no header or year picker of its own; it follows <see cref="Year"/>.</summary>
+    [Parameter] public bool Embedded { get; set; }
+    [Parameter] public int? Year { get; set; }
+
     private int _year = PhilippineTime.Today.Year;
     private IReadOnlyList<ObligationAccountDto>? _accounts;
     private ObligationWorkspaceDto? _status;
@@ -166,7 +180,16 @@
     private string? _error;
     private bool _loading;
 
-    protected override Task OnInitializedAsync() => LoadAsync();
+    protected override Task OnInitializedAsync()
+    {
+        if (Year is { } y) _year = y;
+        return LoadAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Year is { } y && y != _year) { _year = y; await LoadAsync(); }
+    }
 
     private async Task LoadAsync()
     {

@@ -10,6 +10,13 @@ public interface ISlaughterRepository
     /// <summary>The Head/Admin-approved custom animals and their approved per-head rates (IA-050). A collector selects from these only.</summary>
     Task<IReadOnlyList<SlaughterAnimalRateDto>> GetApprovedCustomAnimalsAsync(CancellationToken ct = default);
     Task<IReadOnlyList<SlaughterTransactionDto>> GetTransactionsByMonthAsync(int year, int month, CancellationToken ct = default);
+    /// <summary>
+    /// The month's slaughter transactions as the workspace shows them: the legacy transactions AND the canonical slaughterhouse
+    /// collections (SRC; a reversed one excluded), the same set the grouped register and the overview read. One payment lives on one
+    /// path only, so nothing is counted twice. For the office's list and report screens; the server-side reports that already read
+    /// canonical collections separately keep <see cref="GetTransactionsByMonthAsync"/>.
+    /// </summary>
+    Task<IReadOnlyList<SlaughterTransactionDto>> GetWorkspaceTransactionsByMonthAsync(int year, int month, CancellationToken ct = default);
     /// <summary>Whole-year variant of <see cref="GetTransactionsByMonthAsync"/> (Follow-up History year view).</summary>
     Task<IReadOnlyList<SlaughterTransactionDto>> GetTransactionsByYearAsync(int year, CancellationToken ct = default);
 

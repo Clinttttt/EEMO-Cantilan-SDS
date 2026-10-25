@@ -2,12 +2,28 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @rendermode InteractiveServer
 @using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Constants
 
 <PageTitle>StallTrack — Landing / Berthing Report</PageTitle>
 
-@* Landing / Berthing report: the standard operation-report shell with a transactional body — the official Monthly Income row and the
+@* Landing / Berthing report: the operation reports layout (Weekly, Monthly, Yearly, Status Report, History) around its transactional report body — the official Monthly Income row and the
    month's governed collections, all read from the server. The layout owns the <main> landmark. *@
-<GovernedOperationReport OperationCode="@CollectorOperationCodes.LandingBerthing" Name="Landing / Berthing" ParentHref="/operations/landing-berthing"
-                         RowKey="LANDING_BERTHING" Classification="Landing / Berthing" Instruments="@(new[] { "CT" })"
-                         InstrumentFact="Cash Ticket" IdPrefix="lbr" ByFeeType="true" />
+<OperationReportsPage Name="Landing / Berthing" ParentHref="/operations/landing-berthing" RowKey="LANDING_BERTHING" SeriesLabel="Fees collected" @bind-Month="_month">
+    <StatusReport>
+        <GovernedOperationReport OperationCode="@CollectorOperationCodes.LandingBerthing" Name="Landing / Berthing" ParentHref="/operations/landing-berthing"
+                                 RowKey="LANDING_BERTHING" Classification="Landing / Berthing" Instruments="@(new[] { "CT" })"
+                                 InstrumentFact="Cash Ticket" IdPrefix="lbr" ByFeeType="true"
+                                 Embedded="true" Month="_month" />
+    </StatusReport>
+    <WeekContent>
+        <OperationWeekRegister OperationCode="@CollectorOperationCodes.LandingBerthing" Name="Landing / Berthing" From="context.From" To="context.To" />
+    </WeekContent>
+    <MonthExtras>
+        <OperationFeeTypeCard OperationCode="@CollectorOperationCodes.LandingBerthing" Month="_month" />
+    </MonthExtras>
+</OperationReportsPage>
+
+@code {
+    private DateOnly _month = new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
+}

@@ -748,14 +748,14 @@
     gap: 12px;
 }
 .rpt-section-heading h2 {
-    font-size: 15px; font-weight: 700;
+    font-size: 16px; font-weight: 700;
     color: var(--navy);
     white-space: nowrap;
 }
 .rpt-section-rule {
     display: block;
     width: 4px; height: 18px;
-    background: var(--gold);
+    background: var(--accent);
     border-radius: 2px;
     flex-shrink: 0;
 }
@@ -3302,4 +3302,24 @@
     color: var(--text-secondary);
     font-size: 0.75rem;
     line-height: 1.5;
+}
+
+/* Phone width: the header, tab rail, KPI strip and chart headers stack instead of widening the page. */
+@media screen and (max-width: 640px) {
+    .rpt-topbar { padding: 14px 16px; flex-wrap: wrap; }
+    .rpt-topbar-right { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
+    .rpt-period-bar { padding: 10px 16px; flex-direction: column; align-items: stretch; }
+    .rpt-period-tabs { display: flex; flex-wrap: nowrap; width: 100%; overflow-x: auto; }
+    .rpt-period-tab { flex-shrink: 0; min-width: 0; }
+    .rpt-kpi-strip { grid-template-columns: minmax(0, 1fr); }
+    .rpt-document-tab { flex: 0 0 auto; }
+    .rpt-content { padding: 16px 16px 32px; }
+    .rpt-charts-row { grid-template-columns: minmax(0, 1fr); }
+    .chart-header { flex-direction: column; align-items: flex-start; }
+    .chart-legend { flex-wrap: wrap; }
+}
+/* Below 768px the app's drawer button sits top-left: leave it room, and drop the back link it already replaces. */
+@media screen and (max-width: 768px) {
+    .rpt-topbar { padding-left: 58px; }
+    .rpt-back-btn { display: none; }
 }

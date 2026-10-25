@@ -396,7 +396,7 @@
             @if (!IsGroupedView)
             {
                 <SlaughterChargeTotals From="@(new DateOnly(CurrentMonth.Year, CurrentMonth.Month, 1))"
-                                       To="@(new DateOnly(CurrentMonth.Year, CurrentMonth.Month, 1).AddMonths(1).AddDays(-1))" HeadingId="slr-by-charge" />
+                                       To="@(new DateOnly(CurrentMonth.Year, CurrentMonth.Month, 1).AddMonths(1).AddDays(-1))" HeadingId="slr-by-charge" Labels="@Labels" />
             }
 
             @if (ActiveFilter == "All")

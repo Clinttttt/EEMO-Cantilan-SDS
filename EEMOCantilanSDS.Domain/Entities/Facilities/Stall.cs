@@ -296,6 +296,19 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
                 .ToList();
 
         /// <summary>
+        /// The monthly rent a billing month was owed at: the rate of the term that answered for it (the latest to begin within
+        /// the month), falling back to the stall's own rate when no term states one. The staff payment path's rule, so a month
+        /// first billed online is never restated at a rate set later for another lessee.
+        /// </summary>
+        public decimal MonthlyRentFor(int year, int month, DateOnly asOf)
+        {
+            var answerable = OccupanciesOverlapping(new DateOnly(year, month, 1), new DateOnly(year, month, DateTime.DaysInMonth(year, month)), asOf)
+                .OrderByDescending(o => o.Start)
+                .FirstOrDefault();
+            return answerable?.Contract.MonthlyRentalRate is { } rate && rate > 0m ? rate : MonthlyRate;
+        }
+
+        /// <summary>
         /// The single occupancy answerable for a monthly billing period — see
         /// <see cref="StallOccupancy.AnsweringForMonth"/>, which is the rule. Null when no occupancy covered it.
         /// Kept as the entity's own door to that rule for callers holding a Stall rather than its windows.

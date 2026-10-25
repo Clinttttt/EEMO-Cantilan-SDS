@@ -3,6 +3,7 @@
 @page "/custom3/reports"
 @page "/custom4/reports"
 @page "/custom5/reports"
+@page "/facility/market-rent/reports"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Dtos.Facilities
 @using EEMOCantilanSDS.Application.Dtos.Payments
@@ -16,7 +17,7 @@
 <!-- ══ Topbar ══ -->
 <div class="rpt-topbar">
     <div class="rpt-topbar-left">
-        <a href="@($"/facility/{FacilityCatalog.SlugOf(_code)}")" class="rpt-back-btn" title="Back">
+        <a href="@(_code == FacilityCode.NPM ? "/facility/market-rent" : $"/facility/{FacilityCatalog.SlugOf(_code)}")" class="rpt-back-btn" title="Back">
             <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>
         </a>
         <div class="rpt-topbar-icon">
@@ -327,7 +328,7 @@ else
                     </div>
                     <div class="chart-legend">
                         <div class="legend-item"><span class="legend-dot" style="background:#2d7a5f"></span><span class="legend-label">Monthly rent</span></div>
-                        <div class="legend-item"><span class="legend-dot" style="background:#c8a84b"></span><span class="legend-label">Current Period</span></div>
+                        <div class="legend-item"><span class="legend-dot" style="background:var(--accent)"></span><span class="legend-label">Current period</span></div>
                     </div>
                 </div>
                 <CollectionTrendChart Trend="R?.RevenueTrend"
@@ -361,6 +362,34 @@ else
                            UnpaidCount="@UnpaidCount"
                            CollectionRate="@CollectionRate"
                            PeriodLabel="@GetPeriodLabel()" />
+
+        @if (R?.SectionBreakdown is { Count: > 0 } sections)
+        {
+            <div class="rpt-section-heading">
+                <span class="rpt-section-rule"></span>
+                <h2>Monthly Rental by Section</h2>
+            </div>
+
+            <div class="rpt-compliance-table-wrap">
+                <table class="rpt-compliance-table rpt-section-table">
+                    <thead>
+                        <tr><th>Section</th><th>Stalls</th><th>Occupied</th><th>Collected</th><th>Collection rate</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var sec in sections)
+                        {
+                            <tr>
+                                <td>@SectionDisplay(sec.SectionName)</td>
+                                <td>@sec.TotalStalls</td>
+                                <td>@sec.ActiveStalls</td>
+                                <td>&#8369;@sec.Revenue.ToString("N2")</td>
+                                <td>@sec.Percentage.ToString("0.#")%</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
 
         <!-- Delinquency Analytics -->
         <div class="rpt-section-heading">
@@ -438,7 +467,17 @@ else
 
 @code {
     private FacilityCode _code = FacilityCode.Custom1;
-    private FacilityCode ResolveCustomCode() { var seg = new System.Uri(Navigation.Uri).AbsolutePath.Trim('/'); var slug = seg.Split('/')[0]; return System.Enum.TryParse<FacilityCode>(slug, true, out var c) ? c : FacilityCode.Custom1; }
+    // The server names the three canonical market sections in fixed words; the office's own names for them are shown instead.
+    private string SectionDisplay(string name) => name switch
+    {
+        "Vegetable Area" => FacilityCatalog.SectionLabelOf(FacilityCode.NPM, MarketSection.VegetableArea),
+        "Fish Area" => FacilityCatalog.SectionLabelOf(FacilityCode.NPM, MarketSection.FishSection),
+        "Meat Area" => FacilityCatalog.SectionLabelOf(FacilityCode.NPM, MarketSection.MeatSection),
+        _ => name
+    };
+
+    // A market rented by the month reads the same monthly facility reports as TCC/NCC and the custom facilities.
+    private FacilityCode ResolveCustomCode() { var seg = new System.Uri(Navigation.Uri).AbsolutePath.Trim('/'); if (seg.StartsWith("facility/market-rent", StringComparison.OrdinalIgnoreCase)) return FacilityCode.NPM; var slug = seg.Split('/')[0]; return System.Enum.TryParse<FacilityCode>(slug, true, out var c) ? c : FacilityCode.Custom1; }
 
     // ── Period / view state ───────────────────────────────────────
     string ActivePeriod = "Monthly";
@@ -456,6 +495,12 @@ else
     {
         _code = ResolveCustomCode();
         await FacilityCatalog.EnsureLoadedAsync();
+        // A daily market keeps its calendar reports.
+        if (_code == FacilityCode.NPM && !FacilityCatalog.IsMonthlyRentMarket)
+        {
+            Navigation.NavigateTo("/npm/reports", replace: true);
+            return;
+        }
         if (TryApplyCachedReport())
             return;
 

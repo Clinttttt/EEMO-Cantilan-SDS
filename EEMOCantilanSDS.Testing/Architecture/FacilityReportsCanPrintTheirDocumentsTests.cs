@@ -65,7 +65,8 @@ public class FacilityReportsCanPrintTheirDocumentsTests
 
             // The market also prints its utility statements, from a button beside that list. Every page must gate at least one
             // print button on the document tabs.
-            if (!text.Contains("if (ShowPrintReport || ShowHistory)"))
+            // A page whose Status Report carries its own Print gates the header button on the History tab alone.
+            if (!text.Contains("if (ShowPrintReport || ShowHistory)") && !text.Contains("@if (ShowHistory)"))
                 offenders.Add(page);
         }
 

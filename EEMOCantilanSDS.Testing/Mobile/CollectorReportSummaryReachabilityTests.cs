@@ -98,7 +98,11 @@ public class CollectorReportSummaryReachabilityTests
     {
         var page = ReportPage();
 
-        Assert.Contains("rpt-primary-value", page);
+        // The October report keeps the period-wide total in its banner and the collector's own
+        // remittable amount in the emphasized (but smaller) tile. Both must remain distinct.
+        Assert.Contains("class=\"total-banner-amount\">&#8369;@GrandTotal", page);
+        Assert.Contains("class=\"rpt-tile rpt-tile-main\"", page);
+        Assert.Contains("HasOffice ? OwnTotal.ToString(\"N0\") : GrandTotal.ToString(\"N0\")", page);
         Assert.Contains("rpt-block", page);
         Assert.Contains("rpt-grid", page);
 
