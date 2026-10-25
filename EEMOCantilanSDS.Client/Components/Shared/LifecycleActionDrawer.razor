@@ -1,6 +1,7 @@
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
 @using EEMOCantilanSDS.Application.Common.Lifecycle
 @using EEMOCantilanSDS.Client.Services
+@using EEMOCantilanSDS.Domain.Common
 @inject ILifecycleApiClient LifecycleApi
 
 @* One lifecycle action on one account: collect the details, ask the server to preview, then confirm. The server decides eligibility, dates and
@@ -67,6 +68,16 @@
                         <label class="avm-label" for="lc-years">Term (years) <span class="avm-req">*</span></label>
                         <input id="lc-years" class="avm-input" type="number" min="1" max="50" step="1" @bind="_years" aria-describedby="lc-years-err" />
                         <span id="lc-years-err" class="lc-error" role="alert">@FieldError("years")</span>
+                        @if (RenewalEndsOn is { } ends)
+                        {
+                            @* A renewal starts the day after the old term, so a short new term on a long-lapsed one can already be over. Said here,
+                               before the review, so the office chooses a term that reaches today rather than renewing into another lapsed term. *@
+                            <span class="avm-hint @(ends < PhilippineTime.Today ? "lc-warn" : null)" role="status">
+                                @(ends < PhilippineTime.Today
+                                    ? $"This term would end on {ends:MMM d, yyyy}, which has already passed. The account would still read as term ended; choose more years."
+                                    : $"The new term ends on {ends:MMM d, yyyy}.")
+                            </span>
+                        }
                     </div>
                     <div class="avm-group">
                         <label class="avm-label" for="lc-contract">Name on contract</label>
@@ -128,6 +139,8 @@
     private string? _holder, _reason, _evidence, _contractName, _reference;
     private decimal? _amount;
     private int? _years;
+    /// <summary>The last day of the renewal being entered, by the same rule as every term; null until a start and a term are entered.</summary>
+    private DateOnly? RenewalEndsOn => _date is { } start && _years is (>= 1 and <= 50) ? EEMOCantilanSDS.Domain.Constants.DomainRules.TermLastDay(start, _years.Value) : null;
     private bool _distinct;
     private LifecyclePreviewDto? _preview;
     private IReadOnlyDictionary<string, string> _context = new Dictionary<string, string>();

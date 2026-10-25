@@ -615,7 +615,7 @@
             // of their own event date, so they answer for any year.
             .Where(s => IsEvent(s.Kind) || AsOfYear is null)
             .Select(s => new SpaceGroup(s, _spaces.TryGetValue(s.Kind, out var accounts)
-                ? accounts.Where(a => (IsEvent(s.Kind) ? EventYear(a) == _year : RentalAccountStatus.IsOpen(a)) && MatchSpaceSearch(a))
+                ? accounts.Where(a => (IsEvent(s.Kind) ? EventYear(a) == _year : RentalAccountStatus.IsCurrent(a)) && MatchSpaceSearch(a))
                     .OrderBy(a => IsEvent(s.Kind) ? (a.EventDate ?? a.ActiveFrom).DayNumber : 0)
                     .ThenBy(a => int.TryParse(a.SubjectLabel, out var number) ? number : int.MaxValue)
                     .ThenBy(a => a.SubjectLabel, StringComparer.OrdinalIgnoreCase)

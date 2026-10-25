@@ -101,7 +101,7 @@
                 {
                     <li class="ops-item" data-facility-code="@facility.Code">
                         @Line(facility.Name, facility.Code.ToString(), OfficialReceipt, FacilityHref(facility),
-                              $"{facility.Name} ({facility.Code})", NoLinks, NoWorkspace)
+                              $"{facility.Name} ({facility.Code})", FacilityLinks(facility), NoWorkspace)
                     </li>
                 }
             </ul>
@@ -120,7 +120,7 @@
                 {
                     <li class="ops-item" data-facility-code="@facility.Code">
                         @Line(facility.Name, facility.Code.ToString(), OfficialReceipt, FacilityHref(facility),
-                              $"{facility.Name} ({facility.Code})", NoLinks, NoWorkspace)
+                              $"{facility.Name} ({facility.Code})", FacilityLinks(facility), NoWorkspace)
                     </li>
                 }
                 @foreach (var service in SpaceLines)
@@ -145,7 +145,7 @@
             </h2>
             <ul class="ops-rows">
                 <li class="ops-item">
-            @Line("Terminal", null, CashTicket, "/operations/terminal", null, NoLinks, NoWorkspace)
+            @Line("Terminal", null, CashTicket, "/operations/terminal", null, TerminalLinks, NoWorkspace)
                 </li>
             </ul>
         </section>
@@ -163,7 +163,7 @@
                 <ul class="ops-rows">
                     <li class="ops-item" data-facility-code="@slaughterhouse.Code">
                         @Line(slaughterhouse.Name, slaughterhouse.Code.ToString(), OfficialReceipt, FacilityHref(slaughterhouse),
-                              $"{slaughterhouse.Name} ({slaughterhouse.Code})", NoLinks, NoWorkspace)
+                              $"{slaughterhouse.Name} ({slaughterhouse.Code})", FacilityLinks(slaughterhouse), NoWorkspace)
                     </li>
                 </ul>
             </section>
@@ -186,6 +186,25 @@
     private static readonly Receipt[] NoReceipt = [];
     private static readonly QuickLink[] NoLinks = [];
     private static readonly QuickLink[] ArrearsLinks = [new("Report", "/operations/arrears/report")];
+    private static readonly QuickLink[] TerminalLinks = [new("Report", "/operations/terminal/report")];
+
+    /// <summary>The pages a facility has beside its workspace: its reports, and the Slaughterhouse's slaughter list.</summary>
+    private QuickLink[] FacilityLinks(FacilitySidebarSummaryDto facility) => facility.Code switch
+    {
+        FacilityCode.NPM => facility.Archetype == BillingArchetype.MonthlyRental
+            ? [new("Reports", "/facility/market-rent/reports")]
+            : [new("Reports", "/npm/reports")],
+        FacilityCode.TCC => [new("Reports", "/tcc/reports")],
+        FacilityCode.NCC => [new("Reports", "/ncc/reports")],
+        FacilityCode.BBQ => [new("Reports", "/bbq/reports")],
+        FacilityCode.ICE => [new("Reports", "/ice/reports")],
+        FacilityCode.SLH => [new("Reports", "/slh/reports"), new("Slaughter list", "/reports/slaughterhouse")],
+        _ when IsCustomFacility(facility.Code) => [new("Reports", $"/{facility.Code.ToString().ToLowerInvariant()}/reports")],
+        _ => NoLinks
+    };
+
+    /// <summary>At most this many page names fit the column; the rest are counted ("+2") and named in the tooltip and hover card.</summary>
+    private const int ShownPages = 3;
 
     private static readonly IReadOnlyList<OperationService> IncomeFromMarketServices =
     [
@@ -195,15 +214,15 @@
         // Display names per Clint (2026-09-30); the office sheet row reads "Gen. Distribution / ECF".
         new("Electricity Consumption Fees", OfficialReceipt, Route: "/operations/ecf", Code: "ECF",
             OperationCode: "ECF",
-            Links: [new("Statements", "/operations/ecf/statements"), new("Report", "/operations/ecf/report")]),
+            Links: [new("Accounts", "/operations/ecf/accounts"), new("Statements", "/operations/ecf/statements"), new("Report", "/operations/ecf/report")]),
         new("Water Consumption Fees", CashTicket, Route: "/operations/water-consumption-fees", Code: "WCF",
             OperationCode: "WCF",
-            Links: [new("Statements", "/operations/water-consumption-fees/statements"), new("Report", "/operations/water-consumption-fees/report")]),
+            Links: [new("Accounts", "/operations/water-consumption-fees/accounts"), new("Statements", "/operations/water-consumption-fees/statements"), new("Report", "/operations/water-consumption-fees/report")]),
         // Tabo = OR per IA-045 (EEMO Head, 2026-09-27).
         new("Tabo", OfficialReceipt, FacilityCode.TPM, Links: [new("Report", "/facility/tpm/report")]),
         new("Fish | Meat Vendor Fees", OfficialReceipt, Route: "/operations/fish-meat-vendor-fees",
             OperationCode: "FISH_MEAT_VENDOR_FEE",
-            Links: [new("Report", "/operations/fish-meat-vendor-fees/report")]),
+            Links: [new("Registry", "/operations/fish-meat-vendor-fees/manage"), new("Holder list", "/operations/fish-meat-vendor-fees/holder-list"), new("Report", "/operations/fish-meat-vendor-fees/report")]),
         new("Landing | Berthing", CashTicket, Route: "/operations/landing-berthing",
             OperationCode: "LANDING_BERTHING",
             Links: [new("Report", "/operations/landing-berthing/report")]),
@@ -211,7 +230,8 @@
         new("Transportation | Parking", CashTicket, Route: "/operations/transportation",
             OperationCode: "TRANSPORTATION",
             Links: [new("Report", "/operations/transportation/report")]),
-        new("Weight & Measure | Registration", OfficialReceipt, Route: "/operations/weight-and-measure", OperationCode: "WEIGHT_AND_MEASURE"),
+        new("Weight & Measure", OfficialReceipt, Route: "/operations/weight-and-measure", OperationCode: "WEIGHT_AND_MEASURE",
+            Links: [new("Report", "/operations/weight-and-measure/report")]),
         // Official Receipt, Collector Mobile, direct approved amount (IA-049).
         new("Transfer Large Cattle", OfficialReceipt, Route: "/operations/transfer-large-cattle",
             OperationCode: "TRANSFER_LARGE_CATTLE",
@@ -225,13 +245,13 @@
         // Whole payment = OR, daily transaction = CT per IA-046 (EEMO Head, 2026-09-27).
         new("Vegetable | Fruits", [new("OR", "Monthly rental"), new("CT", "Daily transaction")], Route: "/operations/vegetable-fruit",
             OperationCode: "VEGETABLE_FRUIT_SPACE_RENTAL",
-            Links: [new("Report", "/operations/vegetable-fruit/report")]),
+            Links: [new("Space holders", "/operations/vegetable-fruit/space-holders"), new("Daily report", "/operations/vegetable-fruit/daily-report"), new("Report", "/operations/vegetable-fruit/report")]),
         new("Kanmanggay", OfficialReceipt, Route: "/operations/kanmanggay",
             OperationCode: "KANMANGGAY_SPACE_RENTAL",
-            Links: [new("Report", "/operations/kanmanggay/report")]),
+            Links: [new("Space holders", "/operations/kanmanggay/space-holders"), new("Report", "/operations/kanmanggay/report")]),
         new("Fiesta | Araw", OfficialReceipt, Route: "/operations/fiesta-araw",
             OperationCode: "FIESTA_ARAW_LOT_RENTAL",
-            Links: [new("Report", "/operations/fiesta-araw/report")]),
+            Links: [new("Space holders", "/operations/fiesta-araw/space-holders"), new("Report", "/operations/fiesta-araw/report")]),
     ];
 
     private IReadOnlyList<FacilitySidebarSummaryDto> _facilities = Array.Empty<FacilitySidebarSummaryDto>();
@@ -454,7 +474,13 @@
         <span class="ops-row-pages">
             @if (linked)
             {
-                @string.Join(" · ", links.Select(link => link.Label).Prepend("Workspace"))
+                var pages = links.Select(link => link.Label).Prepend("Workspace").ToList();
+                <span class="ops-pages-list" title="@string.Join(" · ", pages)">@string.Join(" · ", pages.Take(ShownPages))</span>
+                @if (pages.Count > ShownPages)
+                {
+                    <span class="ops-pages-more" aria-hidden="true">+@(pages.Count - ShownPages)</span>
+                    <span class="ops-sr-only">@string.Join(", ", pages.Skip(ShownPages))</span>
+                }
             }
             else
             {
@@ -471,7 +497,9 @@
     };
 
     private IReadOnlyList<QuickLink> ExtraLinks(OperationService service, FacilitySidebarSummaryDto? workspace) =>
-        service.Route is not null || workspace is not null ? service.Links ?? NoLinks : NoLinks;
+        service.Route is not null || workspace is not null
+            ? service.Links ?? (workspace is not null ? FacilityLinks(workspace) : NoLinks)
+            : NoLinks;
 
     private static string LineCount(int count) => count == 1 ? "1 line" : $"{count} lines";
 

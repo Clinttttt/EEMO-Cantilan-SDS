@@ -6,6 +6,7 @@
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Client.Services
 @using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Domain.Enums
 @inject IStallsApiClient StallsApi
 @inject FacilityState FacilityCatalog
@@ -39,30 +40,63 @@
             }
             else
             {
+                <form class="str-form" @onsubmit="RenewAsync" @onsubmit:preventDefault="true" aria-label="Renew these terms">
+                    <label>New term starts <input id="str-start" type="date" @bind="_start" disabled="@_busy" /></label>
+                    <label>Term (years) <input id="str-years" type="number" min="1" max="50" @bind="_years" disabled="@_busy" /></label>
+                    <span class="str-ends" role="status">@(_years >= 1 ? $"Ends {DomainRules.TermLastDay(_start, _years):MMM d, yyyy}" : "")</span>
+                    <button type="submit" class="btn-primary" disabled="@(_busy || _editing is not null)">@(_busy ? "Working…" : $"Renew {_eligible.Count}")</button>
+                </form>
+                <p class="str-note">The lapsed period is not back-billed. Nothing is written off. Use the pencil to correct a holder or contract name before renewing.</p>
+                @if (_progress is not null) { <p class="str-note" role="status">@_progress</p> }
+                @if (_message is not null) { <p class="str-message" role="alert">@_message</p> }
+
                 <table class="str-table">
-                    <thead><tr><th>@Unit</th><th>Holder</th><th>Name on contract</th><th>Term</th><th class="str-r">Balance</th><th>Result</th></tr></thead>
+                    <thead><tr><th>@Unit</th><th>Holder</th><th>Name on contract</th><th>Term ended</th><th class="str-r">Balance</th><th><span class="v3-sr-only">Edit</span></th><th>Result</th></tr></thead>
                     <tbody>
                         @foreach (var row in _eligible)
                         {
-                            <tr>
+                            var (holder, onContract) = NamesFor(row);
+                            <tr @key="row.StallId" class="@(_edits.ContainsKey(row.StallId) ? "str-row-changed" : "")">
                                 <td class="str-strong">@SpaceNumber.Display(row.StallNo)</td>
-                                <td>@row.Occupant</td>
-                                <td class="str-muted">@(string.IsNullOrWhiteSpace(row.ContractName) ? "—" : row.ContractName)</td>
-                                <td class="str-muted">@row.EffectivityDate.ToString("MMM d, yyyy") – @row.ExpiryDate.ToString("MMM d, yyyy")</td>
+                                @if (_editing == row.StallId)
+                                {
+                                    <td colspan="2">
+                                        <div class="str-edit">
+                                            <label>Holder <input id="str-edit-holder" @bind="_editHolder" @bind:event="oninput" /></label>
+                                            <label>Name on contract <input id="str-edit-contract" @bind="_editContract" @bind:event="oninput" /></label>
+                                            <div class="str-edit-actions">
+                                                <button type="button" class="btn-primary" @onclick="() => SaveEdit(row)" disabled="@string.IsNullOrWhiteSpace(_editHolder)">Done</button>
+                                                <button type="button" class="btn-outline" @onclick="CancelEdit">Cancel</button>
+                                            </div>
+                                            @if (!string.Equals(_editHolder?.Trim(), row.Occupant.Trim(), StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                <p class="str-edit-warn">A new holder ends the current holder's online payment link to this @Unit.ToLowerInvariant().</p>
+                                            }
+                                        </div>
+                                    </td>
+                                }
+                                else
+                                {
+                                    <td>@holder</td>
+                                    <td class="str-muted">@(string.IsNullOrWhiteSpace(onContract) ? "—" : onContract)</td>
+                                }
+                                <td class="str-muted">@row.ExpiryDate.ToString("MMM d, yyyy")</td>
                                 <td class="str-r">@(row.Uncollected > 0 ? $"₱{row.Uncollected:N0}" : "₱0")</td>
-                                <td>@if (_results.TryGetValue(row.StallId, out var result)) { <span class="@(result.Ok ? "str-ok" : "str-fail")" role="status">@result.Text</span> }</td>
+                                <td class="str-edit-cell">
+                                    @if (_editing != row.StallId)
+                                    {
+                                        <button type="button" class="str-pencil" @onclick="() => StartEdit(row)" disabled="@(_busy || _editing is not null)"
+                                                aria-label="@($"Edit holder and contract name for {Unit} {SpaceNumber.Display(row.StallNo)}")" title="Edit holder and contract name">
+                                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 20h4L19 9l-4-4L4 16v4z" /><path d="M14 6l4 4" /></svg>
+                                        </button>
+                                    }
+                                </td>
+                                <td>@if (_results.TryGetValue(row.StallId, out var result)) { <span class="@(result.Ok ? "str-ok" : "str-fail")" role="status">@result.Text</span> }
+                                    else if (_edits.ContainsKey(row.StallId)) { <span class="str-muted">Edited</span> }</td>
                             </tr>
                         }
                     </tbody>
                 </table>
-                <form class="str-form" @onsubmit="RenewAsync" @onsubmit:preventDefault="true" aria-label="Renew these terms">
-                    <label>Start date <input id="str-start" type="date" @bind="_start" disabled="@_busy" /></label>
-                    <label>Duration (years) <input id="str-years" type="number" min="1" max="50" @bind="_years" disabled="@_busy" /></label>
-                    <button type="submit" class="btn-primary" disabled="@_busy">@(_busy ? "Working…" : $"Renew {_eligible.Count}")</button>
-                </form>
-                <p class="str-note">The lapsed period is not back-billed. Nothing is written off.</p>
-                @if (_progress is not null) { <p class="str-note" role="status">@_progress</p> }
-                @if (_message is not null) { <p class="str-message" role="alert">@_message</p> }
             }
         </section>
     }
@@ -78,6 +112,32 @@
     private DateOnly _start = PhilippineTime.Today;
     private int _years = 3;
     private FacilityCode _code;
+
+    // Corrections typed on this page, sent with the renewal as the new term's holder and contract name. Nothing is saved until Renew.
+    private readonly Dictionary<Guid, (string Holder, string? ContractName)> _edits = [];
+    private Guid? _editing;
+    private string? _editHolder, _editContract;
+
+    private (string Holder, string? ContractName) NamesFor(ClosedStallAccountDto r) =>
+        _edits.TryGetValue(r.StallId, out var e) ? e : (r.Occupant, r.ContractName);
+
+    private void StartEdit(ClosedStallAccountDto r)
+    {
+        (_editHolder, _editContract) = NamesFor(r);
+        _editing = r.StallId;
+    }
+
+    private void CancelEdit() => _editing = null;
+
+    private void SaveEdit(ClosedStallAccountDto r)
+    {
+        var holder = _editHolder?.Trim();
+        if (string.IsNullOrEmpty(holder)) return;
+        var contract = string.IsNullOrWhiteSpace(_editContract) ? null : _editContract.Trim();
+        if (holder == r.Occupant && contract == (string.IsNullOrWhiteSpace(r.ContractName) ? null : r.ContractName)) _edits.Remove(r.StallId);
+        else _edits[r.StallId] = (holder, contract);
+        _editing = null;
+    }
 
     private string FacilityName => _eligible.FirstOrDefault()?.FacilityName ?? (_unknown ? Slug : FacilityCatalog.NameOf(_code));
     private string Unit => FacilityCatalog.HolderUnitFor(_code.ToString());
@@ -116,15 +176,16 @@
         _busy = true; _message = null; _results.Clear();
         var targets = _eligible.ToList();
         int ok = 0, failed = 0;
-        // Each account keeps its own occupant and contract name; only the (common) start date and term are applied.
+        // Each account keeps its own occupant and contract name (or the correction typed here); only the common start date and term are applied.
         foreach (var r in targets)
         {
             _progress = $"Renewing {ok + failed + 1} of {targets.Count}…";
             await InvokeAsync(StateHasChanged);
             try
             {
-                var response = await StallsApi.RenewStallContractAsync(r.StallId, new RenewStallContractRequest(_start, _years, r.Occupant, r.ContractName));
-                if (response.IsSuccess) { ok++; _results[r.StallId] = (true, "Renewed"); }
+                var (holder, onContract) = NamesFor(r);
+                var response = await StallsApi.RenewStallContractAsync(r.StallId, new RenewStallContractRequest(_start, _years, holder, onContract));
+                if (response.IsSuccess) { ok++; _results[r.StallId] = (true, "Renewed"); _edits.Remove(r.StallId); }
                 else { failed++; _results[r.StallId] = (false, response.Error ?? "Refused"); }
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException) { failed++; _results[r.StallId] = (false, "No answer from the server"); }

@@ -54,7 +54,7 @@ public static class TenantOperationCatalog
     public static readonly IReadOnlyList<Entry> All =
     [
         new(CollectorOperationCodes.FishMeatVendorFee, "Fish / Meat Vendor Fee", MarketGroup, RevenueClassificationCodes.FishMeatVendorFee, "Fish | Meat Vendor Fees"),
-        new(CollectorOperationCodes.WeightAndMeasure, "Weight & Measure", MarketGroup, RevenueClassificationCodes.WeightAndMeasure, "Weight & Measure | Registration"),
+        new(CollectorOperationCodes.WeightAndMeasure, "Weight & Measure", MarketGroup, RevenueClassificationCodes.WeightAndMeasure, "Weight & Measure"),
         new(CollectorOperationCodes.MarketFees, "Market Fees", MarketGroup, RevenueClassificationCodes.MarketFees, "Market Fees"),
         new(CollectorOperationCodes.KanmanggaySpaceRental, "Municipal Space Rental", SpaceGroup, RevenueClassificationCodes.KanmanggaySpaceRental, "Kanmanggay", SpaceContractDurationNotice),
         new(CollectorOperationCodes.FiestaArawLotRental, "Event / Temporary Lot Rental", SpaceGroup, RevenueClassificationCodes.FiestaArawLotRental, "Fiesta | Araw"),

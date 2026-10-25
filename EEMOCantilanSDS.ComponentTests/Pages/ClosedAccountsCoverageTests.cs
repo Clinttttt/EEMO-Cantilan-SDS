@@ -121,6 +121,24 @@ public sealed class ClosedAccountsCoverageTests : TestContext
     }
 
     [Fact]
+    public void ASpaceWhoseSignedTermRanOut_IsReadHereAsTermEnded_NotLeftOnTheCurrentRegister()
+    {
+        // Signed for one year from Oct 25, 2022; never closed. Like a stall whose term has run out, it is no longer a current holder.
+        var ended = Space(ObligationKind.KanmanggaySpaceRental, "Lorenofs Brando", "5") with
+        {
+            ActiveTo = null, Arrangement = OccupancyArrangement.SignedContract,
+            ContractEffectiveDate = new DateOnly(2022, 10, 25), ContractYears = 1
+        };
+        var current = Space(ObligationKind.KanmanggaySpaceRental, "Diosa Cortes", "3") with { ActiveTo = null };
+
+        var cut = RenderRegister([], ended, current);
+
+        var row = cut.FindAll(".ca-obligation-source tbody tr").Single(r => r.TextContent.Contains("Lorenofs Brando"));
+        Assert.Contains("Term ended", row.TextContent);
+        Assert.DoesNotContain("Diosa Cortes", cut.Find(".ca-obligation-source").TextContent);
+    }
+
+    [Fact]
     public void FilteringBySourceNarrowsTheRegisterToThatSourceAlone()
     {
         var cut = RenderRegister(

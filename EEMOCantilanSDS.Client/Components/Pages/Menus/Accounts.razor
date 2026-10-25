@@ -394,10 +394,20 @@
                                     </td>
                                     <td class="mono">@c.EmployeeId</td>
                                     <td>
+                                        @* Facilities and operations together, as the Collectors page lists them. *@
+                                        @{ var (shownTags, hiddenTags) = AssignmentTags(c); }
                                         <div class="facility-tags">
-                                            @foreach (var f in c.AssignedFacilities)
+                                            @foreach (var tag in shownTags)
                                             {
-                                                <span class="code-badge">@f</span>
+                                                <span class="code-badge" title="@tag.Name">@tag.Label</span>
+                                            }
+                                            @if (hiddenTags.Count > 0)
+                                            {
+                                                <span class="code-badge tag-more" title="@string.Join(", ", hiddenTags.Select(x => x.Name))" aria-label="@($"{hiddenTags.Count} more: {string.Join(", ", hiddenTags.Select(x => x.Name))}")">+@hiddenTags.Count</span>
+                                            }
+                                            @if (shownTags.Count == 0)
+                                            {
+                                                <span class="no-facility">@(_opNames.ContainsKey(c.Id) ? "None assigned" : "Loading…")</span>
                                             }
                                         </div>
                                     </td>
@@ -1084,6 +1094,38 @@
             catch (OperationCanceledException) { /* superseded or the page went away */ }
             catch (ObjectDisposedException) { /* circuit disposed while waiting */ }
         });
+    }
+
+    // Every collector's assigned operations, read once the Collectors tab is on screen (the list itself carries facilities only),
+    // the same way and with the same labels as the Collectors page, so the two never disagree.
+    readonly Dictionary<Guid, List<(string Label, string Name)>> _opNames = new();
+    bool _opsRequested;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_opsRequested || ActiveTab != "Collectors" || Collectors is not { Count: > 0 } list) return;
+        _opsRequested = true;
+        await Task.WhenAll(list.Select(async c =>
+        {
+            try
+            {
+                var result = await CollectorsApi.GetCollectionOperationsAsync(c.Id);
+                if (result is { IsSuccess: true, Value: not null })
+                    _opNames[c.Id] = result.Value.Where(x => x.Assigned)
+                        .Select(x => (Label: Collector.AssignmentLabel(x), Name: x.DisplayName)).ToList();
+            }
+            catch (HttpRequestException) { }
+        }));
+        StateHasChanged();
+    }
+
+    private const int ShownTags = 8;
+
+    private (List<(string Label, string Name)> Shown, List<(string Label, string Name)> Hidden) AssignmentTags(CollectorListDto c)
+    {
+        var all = c.AssignedFacilities.Select(f => (Label: f.ToString(), Name: f.ToString())).Concat(_opNames.GetValueOrDefault(c.Id) ?? []).ToList();
+        var visible = all.Count <= ShownTags ? all.Count : ShownTags - 1;
+        return (all.Take(visible).ToList(), all.Skip(visible).ToList());
     }
 
     /// <summary>Cancels the auto-dismiss timer when the page goes away, so no timer outlives the circuit.</summary>

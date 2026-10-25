@@ -127,22 +127,10 @@
     font-weight: 800;
 }
 
-.doc-meta {
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 4px 20px;
-    margin-top: 8px;
-    font-size: 9pt;
-    color: #4b5563;
-}
-
-.doc-meta-key {
-    text-transform: uppercase;
-    letter-spacing: .06em;
-    font-size: 7.5pt;
-    color: #6b7280;
-    margin-right: 4px;
+.doc-period {
+    margin-top: 4px;
+    font-size: 10pt;
+    color: #374151;
 }
 
 /* ── Sections ─────────────────────────────────────────────────────────────────────────────────────────────── */
@@ -183,11 +171,9 @@
     }
 
     .doc-table thead th {
-        font-size: 7.5pt;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: .06em;
-        color: #4b5563;
+        font-size: 8.5pt;
+        font-weight: 600;
+        color: #374151;
         background: #f3f4f6;
         border-bottom: 1px solid #9ca3af;
         white-space: nowrap;
@@ -211,12 +197,9 @@
     white-space: nowrap;
 }
 
+/* A filed sheet is black on white: amounts owed are named by their row, not coloured. */
 .doc-owed {
-    color: #b91c1c;
-}
-
-.doc-good {
-    color: #15803d;
+    color: inherit;
 }
 
 .doc-row-strong th,
@@ -226,9 +209,13 @@
 }
 
 /* A figures table has no column headings — the row states its own name — so its first column carries the weight. */
-.doc-table-figures tbody th {
-    width: 42%;
+.doc-table-figures {
+    width: 60%;
 }
+
+    .doc-table-figures tbody th {
+        font-weight: 400;
+    }
 
 .doc-note {
     color: #6b7280;

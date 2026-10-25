@@ -316,12 +316,17 @@ public sealed class OperationsFacilitiesHubTests : TestContext
             Assert.Equal("/operations/water-consumption-fees", LinkOf(cut, "Water Consumption Fees"));
             Assert.Equal("/operations/landing-berthing", LinkOf(cut, "Landing | Berthing"));
             Assert.Equal("/operations/fish-meat-vendor-fees", LinkOf(cut, "Fish | Meat Vendor Fees"));
-            Assert.Equal("/operations/weight-and-measure", LinkOf(cut, "Weight & Measure | Registration"));
+            Assert.Equal("/operations/weight-and-measure", LinkOf(cut, "Weight & Measure"));
             Assert.Equal("/facility/tpm", LinkOf(cut, "Tabo"));
 
             // The detail card offers only existing related pages.
             var ecfLinks = Row(cut, "Electricity Consumption Fees").QuerySelectorAll(".ops-card a").Select(a => a.GetAttribute("href"));
-            Assert.Equal(new[] { "/operations/ecf", "/operations/ecf/statements", "/operations/ecf/report" }, ecfLinks);
+            Assert.Equal(new[] { "/operations/ecf", "/operations/ecf/accounts", "/operations/ecf/statements", "/operations/ecf/report" }, ecfLinks);
+            // Four pages do not fit the column: three are named and the rest counted.
+            var pages = Row(cut, "Electricity Consumption Fees").QuerySelector(".ops-row-pages")!;
+            Assert.Equal("Workspace · Accounts · Statements", pages.QuerySelector(".ops-pages-list")!.TextContent.Trim());
+            Assert.Equal("+1", pages.QuerySelector(".ops-pages-more")!.TextContent.Trim());
+            Assert.Contains("/operations/weight-and-measure/report", Row(cut, "Weight & Measure").InnerHtml);
         }, Timeout);
     }
 

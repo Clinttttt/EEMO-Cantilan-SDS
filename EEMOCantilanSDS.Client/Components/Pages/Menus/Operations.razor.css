@@ -195,10 +195,31 @@
 }
 
 .ops-row-pages {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     min-width: 0;
     color: var(--text-secondary);
     font-size: 0.8125rem;
     line-height: 1.35;
+}
+
+/* Up to three page names on one line; never wraps into the arrow column. */
+.ops-pages-list {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ops-pages-more {
+    flex: 0 0 auto;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--surface-muted);
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
 }
 
 .ops-row:not(.ops-row-link) .ops-row-pages {
