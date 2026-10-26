@@ -1,5 +1,6 @@
 @page "/arrears"
 @using global::EEMOCantilanSDS.Application.Dtos.Mobile
+@using global::EEMOCantilanSDS.Application.Dtos.Payors
 @using EEMOCantilanSDS.Mobile.Presentation
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
@@ -68,6 +69,7 @@
                                 </dl>
                                 @if (ArrearsView.CollectBlockedReason(a) is { } blocked) { <p class="ar-note ar-left">@blocked</p> }
                                 else { <button type="button" class="ar-collect" @onclick="() => Collect(a)">Collect arrears</button> }
+                                <button type="button" class="ar-secondary" @onclick="() => OpenIssue(a)">Issue payor code</button>
                             }
                         </li>
                     }
@@ -77,6 +79,41 @@
     </main>
     <BottomNav ActiveTab="menu" />
 </div>
+
+@* Issue payor code: a one-time code for THIS liable account (the original contract / obligation account). The server decides whether the payor activates a
+   new account or links an existing one, and refuses unless the account still has an unpaid balance you may see. Online only. *@
+@if (_issuing is { } target)
+{
+    <div class="ar-overlay" @onclick="CloseIssue">
+        <div class="ar-sheet" role="dialog" aria-modal="true" aria-labelledby="ar-issue-title" @onclick:stopPropagation="true">
+            <h2 id="ar-issue-title" class="ar-sheet-title">Payor code</h2>
+            <p class="ar-sheet-sub">A one-time code so the person liable for this account can see what they owe in the Payor Portal.</p>
+            <div class="ar-preview"><strong>@target.Payer</strong><small>@target.OperationName · @target.Space · @target.Status</small></div>
+            @if (_issued is null)
+            {
+                <label class="ar-label" for="ar-phone">Payor's mobile number</label>
+                <input id="ar-phone" class="form-input" type="tel" inputmode="numeric" maxlength="20" placeholder="09xx xxx xxxx" value="@_phone" @oninput="e => _phone = e.Value?.ToString() ?? string.Empty" />
+                <p class="ar-hint">The payor must enter this exact number when using the code.</p>
+                <label class="ar-confirm"><input type="checkbox" checked="@_confirmed" @onchange="e => _confirmed = e.Value is true" /> I confirmed the person is <strong>@target.Payer</strong>, the liable payer of this account.</label>
+                @if (!string.IsNullOrWhiteSpace(_issueError)) { <p class="ar-error" role="alert">@_issueError</p> }
+                <div class="ar-sheet-row">
+                    <button type="button" class="ar-cancel" disabled="@_busy" @onclick="CloseIssue">Cancel</button>
+                    <button type="button" class="ar-collect ar-inline" disabled="@(_busy || !_confirmed)" @onclick="IssueAsync">@(_busy ? "Generating…" : "Generate code")</button>
+                </div>
+            }
+            else
+            {
+                <div class="ar-code-box"><small>@(_issued.Mode == "Link" ? "Link code" : "Activation code")</small><strong>@_issued.Code</strong></div>
+                <dl class="ar-detail ar-flush">
+                    <div><dt>For mobile</dt><dd>@_issued.ContactNumber</dd></div>
+                    <div><dt>Expires</dt><dd>@_issued.ExpiresAt.ToLocalTime().ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture)</dd></div>
+                </dl>
+                <p class="ar-hint">@(_issued.Mode == "Link" ? "This number already has a Payor Portal account. The payor signs in and links this account with the code; it is never merged by number or name." : "The payor activates a Payor Portal account with this code and the number above.") Generating a new code voids this one.</p>
+                <div class="ar-sheet-row"><button type="button" class="ar-collect ar-inline" @onclick="CloseIssue">Done</button></div>
+            }
+        </div>
+    </div>
+}
 
 @code {
     private IReadOnlyList<ArrearsAccountDto> _all = [];
@@ -121,5 +158,26 @@
     private void Reason(string reason) { _filter = _filter with { Reason = reason }; Refresh(); }
     private void Operation(string? code) { _filter = _filter with { OperationCode = code }; Refresh(); }
     private void Toggle(string key) => _open = _open == key ? null : key;
+    private ArrearsAccountDto? _issuing;
+    private HistoricalAccessCodeDto? _issued;
+    private string _phone = string.Empty, _issueError = string.Empty;
+    private bool _confirmed, _busy;
+    private void OpenIssue(ArrearsAccountDto a) { _issuing = a; _issued = null; _phone = string.Empty; _issueError = string.Empty; _confirmed = false; }
+    private void CloseIssue() { if (!_busy) { _issuing = null; _issued = null; } }
+    private async Task IssueAsync()
+    {
+        if (_issuing is not { } a || !_confirmed) return;
+        if (string.IsNullOrWhiteSpace(_phone)) { _issueError = "Enter the payor's mobile number."; return; }
+        _busy = true; _issueError = string.Empty;
+        try
+        {
+            var liable = a.Kind == ArrearsAccountKind.StallRent ? a.ContractId : a.ObligationAccountId;
+            var result = await Api.IssueHistoricalAccessCodeAsync(new(a.Kind, liable ?? Guid.Empty, _phone.Trim(), a.Payer, null));
+            if (result.IsSuccess && result.Value is not null) _issued = result.Value;
+            else _issueError = result.Error ?? "Could not generate the code. Please try again.";
+        }
+        catch { _issueError = "Couldn't reach the server. Check your connection and try again."; }
+        finally { _busy = false; }
+    }
     private void Collect(ArrearsAccountDto a) => Navigation.NavigateTo($"/arrears/collect?kind={(int)a.Kind}&id={a.Identity.Id}");
 }
