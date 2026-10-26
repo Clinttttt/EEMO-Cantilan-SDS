@@ -658,6 +658,60 @@ public class BulkImportStallholdersCommandHandlerTests
     }
 
     [Fact]
+    public void Validator_AcceptsACustomFacility()
+    {
+        var cmd = new BulkImportStallholdersCommand(FacilityCode.Custom2, null, new List<ImportStallRow> { Row(1, "Juan", "1") });
+        Assert.True(new BulkImportStallholdersCommandValidator().Validate(cmd).IsValid);
+    }
+
+    [Fact]
+    public async Task CustomStallRentFacility_ImportsStallsAtTheFileRatesAndTerms()
+    {
+        var facility = Facility.Create(FacilityCode.Custom1, "Any Hall", "AH");
+        _facilityRepo.Setup(r => r.GetByCodeAsync(FacilityCode.Custom1, It.IsAny<CancellationToken>())).ReturnsAsync(facility);
+        var added = new List<Stall>();
+        _stallRepo.Setup(r => r.AddAsync(It.IsAny<Stall>(), It.IsAny<CancellationToken>()))
+            .Callback<Stall, CancellationToken>((s, _) => added.Add(s)).Returns(Task.CompletedTask);
+
+        var result = await Handler().Handle(new BulkImportStallholdersCommand(FacilityCode.Custom1, null,
+            new List<ImportStallRow> { Row(1, "Juan Dela Cruz", "7", monthly: 1234.5m, years: 2) }), CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal(1, result.Value!.CreatedCount);
+        var stall = Assert.Single(added);
+        Assert.Equal(1234.5m, stall.MonthlyRate);
+        Assert.Null(stall.Section);
+    }
+
+    [Fact]
+    public async Task InactiveCustomFacility_IsRefusedAndSavesNothing()
+    {
+        var facility = Facility.Create(FacilityCode.Custom1, "Any Hall", "AH");
+        facility.Deactivate();
+        _facilityRepo.Setup(r => r.GetByCodeAsync(FacilityCode.Custom1, It.IsAny<CancellationToken>())).ReturnsAsync(facility);
+
+        var result = await Handler().Handle(new BulkImportStallholdersCommand(FacilityCode.Custom1, null,
+            new List<ImportStallRow> { Row(1, "Juan", "1") }), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("not active", result.Error);
+        _uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CustomSpaceRentalFacility_IsRefused()
+    {
+        var facility = Facility.Create(FacilityCode.Custom3, "Any Space", "AS", customCategory: CustomFacilityCategory.SpaceRental);
+        _facilityRepo.Setup(r => r.GetByCodeAsync(FacilityCode.Custom3, It.IsAny<CancellationToken>())).ReturnsAsync(facility);
+
+        var result = await Handler().Handle(new BulkImportStallholdersCommand(FacilityCode.Custom3, null,
+            new List<ImportStallRow> { Row(1, "Juan", "1") }), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("Space Rental", result.Error);
+    }
+
+    [Fact]
     public void Validator_RequiresSectionForNpm()
     {
         var validator = new BulkImportStallholdersCommandValidator();
