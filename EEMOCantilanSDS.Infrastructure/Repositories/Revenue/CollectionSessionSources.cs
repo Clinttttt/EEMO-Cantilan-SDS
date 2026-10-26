@@ -447,6 +447,17 @@ public sealed partial class CollectionSessionSources(AppDbContext db, ICurrentUs
         }
     }
 
+    public async Task StampReceiptReferenceAsync(IReadOnlyList<CollectionSessionCollection> collections, string reference, CancellationToken ct)
+    {
+        var ids = collections.Where(c => c.Instrument == RevenueInstrumentType.OfficialReceipt).Select(c => c.CollectionId).Distinct().ToArray();
+        if (ids.Length == 0) return;
+        var withDocument = (await db.AccountableDocuments.AsNoTracking().Where(d => d.MunicipalityId == Tenant && d.CollectionId != null && ids.Contains(d.CollectionId.Value))
+            .Select(d => d.CollectionId!.Value).ToListAsync(ct)).ToHashSet();
+        foreach (var collection in await db.Collections.Where(c => c.MunicipalityId == Tenant && ids.Contains(c.Id)).ToListAsync(ct))
+            if (collection.ReceiptReference is null && !withDocument.Contains(collection.Id)) collection.AttachReceiptReference(reference);
+        await db.SaveChangesAsync(ct);
+    }
+
     public async Task<CollectionSessionCollection> PostObligationMonthsAsync(CollectionSessionIntent session,
         IReadOnlyList<CollectionSessionItemIntent> items, Guid operation, CancellationToken ct)
     {

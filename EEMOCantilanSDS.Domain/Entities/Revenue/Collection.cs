@@ -28,6 +28,18 @@ public sealed class Collection : BaseEntity, IMunicipalityOwned
     /// <summary>Collector-entered receipt reference only. Not proof of issue, stock or custody; never consumes an accountable document.</summary>
     public string? ReceiptReference { get; private set; }
 
+    /// <summary>
+    /// Records the collector's optional, unverified receipt reference on a Collection that is being created in the SAME unit of work (a checkout that covers several
+    /// charges with one receipt). It is descriptive only: it never registers, issues, assigns or consumes an accountable document, and once set it cannot be changed.
+    /// </summary>
+    public void AttachReceiptReference(string reference)
+    {
+        if (ReceiptReference is not null) throw new InvalidOperationException("A collection's receipt reference is never changed once recorded.");
+        var trimmed = reference?.Trim();
+        if (string.IsNullOrEmpty(trimmed) || trimmed.Length > 100) throw new ArgumentException("The optional reference must be 1 to 100 characters.", nameof(reference));
+        ReceiptReference = trimmed;
+    }
+
     public decimal TotalAmount { get; private set; }
     public Guid? ClientOperationId { get; private set; }
 

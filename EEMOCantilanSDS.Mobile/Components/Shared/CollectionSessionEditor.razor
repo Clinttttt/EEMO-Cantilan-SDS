@@ -241,10 +241,10 @@ else
                     </div>
                 </div>
             }
-            @if (Correction is null && SpaceReceiptEntry.Applies(_items))
+            @if (Correction is null && ReferenceOffered)
             {
                 <label class="form-field sheet-receipt"><span class="form-label">Receipt reference <span class="form-optional">optional</span></span><input class="form-input" type="text" maxlength="100" autocomplete="off" disabled="@_busy" value="@_spaceReceipt" @onchange="OnSpaceReceiptChanged" /></label>
-                <div class="sheet-note">@(_items.Count > 1 ? "One reference for these months; registration is not required. Leave blank to record each month separately." : "For reference only; not a verified or issued receipt. Leave blank if none.")</div>
+                <div class="sheet-note">@(_items.Count > 1 ? "One reference for these charges. It is for reference only; registration is not required." : "For reference only; not a verified or issued receipt. Leave blank if none.")</div>
             }
         </section>
         @if (_supersededSessionId.HasValue)
@@ -601,10 +601,13 @@ else
 
     private CollectionSessionIntent Intent => new(_sessionId, BusinessDate, null, _items.ToArray(),
         SourceIdentity: _source?.Identity, PayerSnapshot: _direct && !string.IsNullOrWhiteSpace(_snapshot) ? _snapshot.Trim() : null,
-        ReceiptReference: Correction is null ? SpaceReceiptEntry.Number(_items, _spaceReceipt) : null);
+        ReceiptReference: Correction is null ? ReceiptReferenceEntry.Number(ReferenceOffered, _spaceReceipt) : null);
 
     // One physical OR for several months of one space account. A change discards the reviewed quote, like any edit to the items.
     private string _spaceReceipt = "";
+    // Items in the checkout whose instrument is the Official Receipt: any of them (or months of one space account) makes the optional reference available.
+    private readonly HashSet<Guid> _orItems = [];
+    private bool ReferenceOffered => _orItems.Count > 0 || SpaceReceiptEntry.Applies(_items) || (_queued && !string.IsNullOrWhiteSpace(_spaceReceipt));
     private void OnSpaceReceiptChanged(ChangeEventArgs args) { _spaceReceipt = args.Value?.ToString() ?? ""; _quote = null; }
 
     // What kind of finder this page is: a registered vendor only, an occupant only, or any source.
@@ -742,7 +745,7 @@ else
             _sessionId = id; BusinessDate = saved.BusinessDate; _items.AddRange(saved.Items);
             if (saved.SourceIdentity is { } identity) _source = new(identity, "Selected source", "", OnlyOperation ?? "");
             else { _direct = true; _snapshot = saved.PayerSnapshot ?? ""; }
-            _spaceReceipt = saved.ReceiptReference ?? saved.OfficialReceiptNumber ?? "";
+            _spaceReceipt = ReceiptReferenceEntry.Restore(saved.ReceiptReference, saved.OfficialReceiptNumber);
             _queued = true; await RefreshResultAsync();
         }
         else if (Correction is not null) await PrepareCorrectionAsync();
@@ -1144,6 +1147,7 @@ else
         var at = _editingId is { } editing ? _items.FindIndex(x => x.ClientItemId == editing) : -1;
         if (at >= 0) { _items[at] = added; _shown.Remove(_editingId!.Value); _drafts.Remove(_editingId.Value); }
         else _items.Add(added);
+        if (c.Instrument == global::EEMOCantilanSDS.Domain.Enums.RevenueInstrumentType.OfficialReceipt) _orItems.Add(id); else _orItems.Remove(id);
         // A utility reads as the charge ("Electricity"), with who and which stall as its context; the payer's name is never the row's title.
         _shown[id] = IsTerminal ? new(TerminalDraftName(c), TerminalDraftContext(c))
             : c.Kind is CollectionSessionItemKind.Electricity or CollectionSessionItemKind.Water
@@ -1187,7 +1191,7 @@ else
         _ => "Collection charge"
     };
 
-    private void Remove(CollectionSessionItemIntent item) { if (Correction is not null) _sessionId = Guid.NewGuid(); _items.Remove(item); _shown.Remove(item.ClientItemId); _drafts.Remove(item.ClientItemId); _quote = null; _confirmDiscard = false; }
+    private void Remove(CollectionSessionItemIntent item) { if (Correction is not null) _sessionId = Guid.NewGuid(); _items.Remove(item); _orItems.Remove(item.ClientItemId); _shown.Remove(item.ClientItemId); _drafts.Remove(item.ClientItemId); _quote = null; _confirmDiscard = false; }
 
     // ── Review, record, result ──────────────────────────────────────────────────────────────────────
     private async Task ReviewAsync()
@@ -1299,7 +1303,7 @@ else
     private async Task StartAnotherAsync()
     {
         _linkedNpmContext = false;
-        _sessionId = Guid.NewGuid(); _spaceReceipt = ""; _items.Clear(); _shown.Clear(); _drafts.Clear(); _result = null; _quote = null; _queued = _needsReview = false;
+        _sessionId = Guid.NewGuid(); _spaceReceipt = ""; _orItems.Clear(); _items.Clear(); _shown.Clear(); _drafts.Clear(); _result = null; _quote = null; _queued = _needsReview = false;
         _showRecordedSheet = _recordedSheetWasShown = false;
         _source = null; _snapshot = ""; _search = ""; _found = []; _searched = _browsed = _suggestOpen = false; _discovery = null;
         _direct = OnlyOperation == CollectorOperationCodes.Terminal;
