@@ -75,7 +75,7 @@ public sealed class SourceBrowserTests : TestContext
         var row = cut.Find(".sb-row");
         Assert.True(row.HasAttribute("disabled"));
         Assert.Contains("Registered Vendor", row.TextContent);
-        Assert.Contains("Available for collection on Nov 15, 2026", row.TextContent);
+        Assert.Contains("Event date Nov 15, 2026 · payment opens that day", row.TextContent);
         Assert.Null(selected);
     }
 

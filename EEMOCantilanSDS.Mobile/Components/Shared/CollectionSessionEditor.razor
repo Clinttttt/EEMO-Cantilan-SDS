@@ -117,7 +117,7 @@ else
                             @foreach (var found in VisibleSources)
                             {
                                 <button class="collection-option payer-option" type="button" role="listitem" disabled="@(!found.CanSelect)" @onclick="() => SelectSuggestedSourceAsync(found)">
-                                    <span class="payer-option-text"><strong>@found.DisplayName</strong><small>@found.Context</small>@if (OnlyOperation == "ECF" && !string.IsNullOrWhiteSpace(found.SectionLabel)) { <small>@found.SectionLabel</small> }@if (!found.CanSelect && found.AvailableOn is { } available) { <small>Available on @available.ToString("MMM d, yyyy")</small> }</span>
+                                    <span class="payer-option-text"><strong>@found.DisplayName</strong><small>@found.Context</small>@if (OnlyOperation == "ECF" && !string.IsNullOrWhiteSpace(found.SectionLabel)) { <small>@found.SectionLabel</small> }@if (!found.CanSelect && found.AvailableOn is { } available) { <small>Event date @available.ToString("MMM d, yyyy") · payment opens that day</small> }</span>
                                     <span aria-hidden="true">›</span></button>
                             }
                         </div>
