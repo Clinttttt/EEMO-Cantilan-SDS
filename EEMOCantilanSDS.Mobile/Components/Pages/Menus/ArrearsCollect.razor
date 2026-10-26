@@ -3,6 +3,7 @@
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 @inject EEMOCantilanSDS.Application.Common.Interface.ApiClients.IMobileApiClient Api
+@inject EEMOCantilanSDS.Mobile.Collections.ArrearsWorkspaceHolder Held
 
 @* Collect arrears: opens the ordinary collection checkout on the ORIGINAL liable account. The account is looked up from the server's own Arrears list
    (never rebuilt from the address), and the checkout lists only that account's collectible periods at their own balances. *@
@@ -38,9 +39,16 @@
         if (Session.Menu is null) { Navigation.NavigateTo("/login"); return; }
         try
         {
-            var workspace = await Api.GetArrearsWorkspaceAsync();
-            if (!workspace.IsSuccess || workspace.Value is null) { _state = State.Offline; return; }
-            var account = workspace.Value.Accounts.FirstOrDefault(a => (int)a.Kind == Kind && a.Identity.Id == Id);
+            // The list the collector just came from (kept for two minutes, for this collector only); otherwise read it again. The checkout
+            // asks the office to verify the account either way, so this only saves rebuilding the whole list for one tap.
+            var account = Held.Find(Session.Menu.CollectorId, (ArrearsAccountKind)Kind, Id);
+            if (account is null)
+            {
+                var workspace = await Api.GetArrearsWorkspaceAsync();
+                if (!workspace.IsSuccess || workspace.Value is null) { _state = State.Offline; return; }
+                Held.Set(Session.Menu.CollectorId, workspace.Value.Accounts);
+                account = workspace.Value.Accounts.FirstOrDefault(a => (int)a.Kind == Kind && a.Identity.Id == Id);
+            }
             if (account is null) { _state = State.Missing; return; }
             _source = new(account.Identity, account.Payer, $"{account.OperationName} · {account.Space} · {account.Status}", account.OperationCode);
             _state = State.Ready;

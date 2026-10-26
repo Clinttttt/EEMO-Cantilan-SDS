@@ -1,2 +1,5 @@
 /* The checkout is a column, as on New Collection. Page-scoped on purpose. */
 .collection-workspace { display: flex; flex-direction: column; }
+
+/* The loading / offline / missing line sits on the light page surface: it reads as secondary text, not the pale text of the header above it. */
+.collection-message { margin: 16px 4px; color: var(--mobile-text-secondary); font-size: 14px; line-height: 1.45; text-align: center; }

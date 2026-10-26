@@ -22,7 +22,7 @@
 .ar-detail { margin: 0; padding: 0 14px 6px; }
 .ar-detail div { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid var(--mobile-border); font-size: 13px; }
 .ar-detail dt { color: var(--mobile-text-secondary); }
-.ar-detail dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ar-detail dd { margin: 0; color: var(--mobile-navy); font-weight: 600; font-variant-numeric: tabular-nums; }
 .ar-collect, .ar-more { display: block; width: calc(100% - 28px); min-height: 46px; margin: 8px 14px 12px; border: 1px solid var(--mobile-blue); border-radius: 12px; background: var(--mobile-blue); color: #ffffff; font-size: 14px; font-weight: 600; }
 .ar-more { width: 100%; margin: 6px 0; background: transparent; color: var(--mobile-blue); }
 .ar-note { margin: 10px 2px; font-size: 13px; color: var(--mobile-text-secondary); text-align: center; }

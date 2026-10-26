@@ -5,6 +5,7 @@
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 @inject EEMOCantilanSDS.Application.Common.Interface.ApiClients.IMobileApiClient Api
+@inject EEMOCantilanSDS.Mobile.Collections.ArrearsWorkspaceHolder Held
 
 @* Arrears and Delinquency: one row per liable ACCOUNT (never per month), read from the same sources as the Head's Arrears page. Amounts are the server's;
    this page filters and words them. Collecting opens the ordinary checkout on the original contract / obligation account. Online only: it never shows stale debt. *@
@@ -141,7 +142,7 @@
         try
         {
             var result = await Api.GetArrearsWorkspaceAsync();
-            if (result.IsSuccess && result.Value is { } workspace) { _all = workspace.Accounts; _operations = ArrearsView.Operations(_all); }
+            if (result.IsSuccess && result.Value is { } workspace) { _all = workspace.Accounts; _operations = ArrearsView.Operations(_all); Held.Set(Session.Menu!.CollectorId, _all); }
             else _failed = true;
         }
         catch { _failed = true; }
