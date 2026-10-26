@@ -115,8 +115,8 @@ public sealed class SpaceAccountLifecycle(IAppDbContext context, ICurrentMunicip
         DateOnly? termExpiry = null;
         if (owner == LifecycleSource.SpaceRental && account.ContractEffectiveDate is { } effective && account.ContractYears is { } years)
         {
-            history.Add(new(effective, "ContractRecorded", $"{years} year{(years == 1 ? "" : "s")} (descriptive)"));
-            termExpiry = DomainRules.TermLastDay(effective, years);
+            history.Add(new(effective, "ContractRecorded", $"{DomainRules.DescribeTerm(years, account.ContractMonths)} (descriptive)"));
+            termExpiry = DomainRules.TermLastDay(effective, years, account.ContractMonths);
         }
         if (account.ActiveTo is { } to) history.Add(new(to, to >= known.Facts.Today ? "Ends" : "Closed", to >= known.Facts.Today ? "Account ends" : "Account closed"));
 
