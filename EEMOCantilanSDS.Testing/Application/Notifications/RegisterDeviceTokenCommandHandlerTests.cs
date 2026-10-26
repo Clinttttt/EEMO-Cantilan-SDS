@@ -10,6 +10,7 @@ public class RegisterDeviceTokenCommandHandlerTests
     private static (RegisterDeviceTokenCommandHandler handler, Mock<ICollectorDeviceTokenRepository> repo) Build(Guid? collectorId, Guid? municipalityId = null)
     {
         var repo = new Mock<ICollectorDeviceTokenRepository>();
+        repo.Setup(r => r.UpsertAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
         var user = new Mock<ICurrentUserService>();
         user.SetupGet(u => u.CollectorId).Returns(collectorId);
         user.SetupGet(u => u.MunicipalityId).Returns(municipalityId);
@@ -49,5 +50,17 @@ public class RegisterDeviceTokenCommandHandlerTests
 
         Assert.True(result.IsSuccess);
         repo.Verify(r => r.UpsertAsync(collectorId, "fcm-token-123", "android", municipalityId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task TokenHeldByAnotherMunicipality_IsAConflict()
+    {
+        var (handler, repo) = Build(Guid.NewGuid(), Guid.NewGuid());
+        repo.Setup(r => r.UpsertAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+
+        var result = await handler.Handle(new RegisterDeviceTokenCommand("tok", "android"), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(EEMOCantilanSDS.Application.Common.ResultStatus.Conflict, result.Status);
     }
 }

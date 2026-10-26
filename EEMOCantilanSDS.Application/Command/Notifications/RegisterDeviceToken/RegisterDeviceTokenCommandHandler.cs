@@ -22,12 +22,17 @@ public sealed class RegisterDeviceTokenCommandHandler(
             return Result<bool>.Failure("A device token is required.", ResultStatus.Invalid);
         }
 
-        await tokenRepository.UpsertAsync(
+        var registered = await tokenRepository.UpsertAsync(
             collectorId,
             request.Token,
             request.Platform,
             currentUser.MunicipalityId ?? Guid.Empty,
             ct);
+
+        if (!registered)
+        {
+            return Result<bool>.Failure("This device is registered to another municipality.", ResultStatus.Conflict);
+        }
 
         return Result<bool>.Success(true);
     }

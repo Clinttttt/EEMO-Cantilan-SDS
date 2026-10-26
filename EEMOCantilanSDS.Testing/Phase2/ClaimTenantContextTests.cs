@@ -34,4 +34,15 @@ public class ClaimTenantContextTests
     [Fact]
     public void FallsBackToDefault_WhenClaimBlank()
         => Assert.Equal(TenantConstants.DefaultTenantCode, WithMunicipality("   ").TenantCode);
+
+    [Fact]
+    public void AnAuthenticatedUserWhoseTokenHasAnIdButNoCode_IsRefused_NotFiledUnderTheDefaultTenant()
+    {
+        // ST-11 #9: a malformed token must never land in Cantilan's cache namespace.
+        var user = new Mock<ICurrentUserService>();
+        user.SetupGet(u => u.MunicipalityId).Returns(Guid.NewGuid());
+        user.SetupGet(u => u.MunicipalityCode).Returns("  ");
+
+        Assert.Throws<InvalidOperationException>(() => new ClaimTenantContext(user.Object, new RequestTenantScope()).TenantCode);
+    }
 }

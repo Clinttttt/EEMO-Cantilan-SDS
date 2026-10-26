@@ -24,7 +24,13 @@ public sealed class ClaimTenantContext(ICurrentUserService currentUser, IRequest
             if (!string.IsNullOrWhiteSpace(scope.TenantCode))
                 return scope.TenantCode!;
             var code = currentUser.MunicipalityCode;
-            return string.IsNullOrWhiteSpace(code) ? TenantConstants.DefaultTenantCode : code.Trim();
+            if (!string.IsNullOrWhiteSpace(code))
+                return code.Trim();
+            // Token-less flows (background jobs, anonymous) default; an authenticated tenant with no code must not
+            // be filed under Cantilan's cache namespace (ST-11 #9).
+            if (currentUser.MunicipalityId is { } id && id != Guid.Empty)
+                throw new InvalidOperationException("The signed-in municipality has no tenant code.");
+            return TenantConstants.DefaultTenantCode;
         }
     }
 }
