@@ -1,0 +1,50 @@
+@page "/arrears/collect"
+@using global::EEMOCantilanSDS.Application.Dtos.Mobile
+@inject NavigationManager Navigation
+@inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
+@inject EEMOCantilanSDS.Application.Common.Interface.ApiClients.IMobileApiClient Api
+
+@* Collect arrears: opens the ordinary collection checkout on the ORIGINAL liable account. The account is looked up from the server's own Arrears list
+   (never rebuilt from the address), and the checkout lists only that account's collectible periods at their own balances. *@
+<div class="page-shell">
+    <div class="header">
+        <div class="header-eyebrow">Arrears and delinquency</div>
+        <div class="header-row">
+            <button class="back-btn" type="button" aria-label="Back to Arrears and Delinquency" @onclick='() => Navigation.NavigateTo("/arrears")'><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg></button>
+            <div class="header-title-block"><div class="header-title">Collect arrears</div><div class="header-sub">@Session.CollectorName</div></div>
+            <img class="header-logo" src="@Session.BrandingSeal" alt="Municipality seal" />
+        </div>
+    </div>
+    <main class="content collection-workspace">
+        @if (_state == State.Loading) { <p class="collection-message" role="status">Loading the account…</p> }
+        else if (_state == State.Offline) { <p class="collection-message" role="status">Connect to collect arrears. The account is checked with the office before any payment is taken.</p> }
+        else if (_state == State.Missing) { <p class="collection-message" role="status">This account no longer has arrears or delinquency to collect. Go back and refresh the list.</p> }
+        else if (_source is not null) { <CollectionSessionEditor @key="_source.Identity" InitialSource="_source" BusinessDate="@Today" /> }
+    </main>
+    <BottomNav ActiveTab="menu" />
+</div>
+
+@code {
+    [SupplyParameterFromQuery] public int Kind { get; set; }
+    [SupplyParameterFromQuery] public Guid Id { get; set; }
+    private enum State { Loading, Offline, Missing, Ready }
+    private State _state = State.Loading;
+    private CollectionSourceSearchResult? _source;
+    private DateOnly Today => Session.Menu?.Today ?? DateOnly.FromDateTime(DateTime.Now);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Session.InitializeAsync();
+        if (Session.Menu is null) { Navigation.NavigateTo("/login"); return; }
+        try
+        {
+            var workspace = await Api.GetArrearsWorkspaceAsync();
+            if (!workspace.IsSuccess || workspace.Value is null) { _state = State.Offline; return; }
+            var account = workspace.Value.Accounts.FirstOrDefault(a => (int)a.Kind == Kind && a.Identity.Id == Id);
+            if (account is null) { _state = State.Missing; return; }
+            _source = new(account.Identity, account.Payer, $"{account.OperationName} · {account.Space} · {account.Status}", account.OperationCode);
+            _state = State.Ready;
+        }
+        catch { _state = State.Offline; }
+    }
+}

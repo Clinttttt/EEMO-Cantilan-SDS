@@ -473,6 +473,10 @@ else
     [Parameter] public IReadOnlyCollection<string>? AlsoOperations { get; set; }
     [Parameter] public Guid? ResumeSessionId { get; set; }
 
+    /// <summary>A source the page already identified (the Arrears workspace's liable account). The checkout opens on it exactly as if it had been picked,
+    /// so its periods are the server's discovery for that identity and nothing else.</summary>
+    [Parameter] public CollectionSourceSearchResult? InitialSource { get; set; }
+
     /// <summary>The collection being corrected. The form opens on its recorded source and facts; the server reverses the original and posts one replacement
     /// under a new SRC. The original is never changed, and a correction is made online.</summary>
     [Parameter] public MobileRecentCollection? Correction { get; set; }
@@ -731,6 +735,7 @@ else
             _queued = true; await RefreshResultAsync();
         }
         else if (Correction is not null) await PrepareCorrectionAsync();
+        else if (InitialSource is not null) await SelectSourceAsync(InitialSource);
         else if (OnlyOperation == CollectorOperationCodes.Terminal) { _direct = true; await LoadAsync(); }
         _loading = false;
     }

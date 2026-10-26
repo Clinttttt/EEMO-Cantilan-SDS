@@ -1,0 +1,2 @@
+/* The checkout is a column, as on New Collection. Page-scoped on purpose. */
+.collection-workspace { display: flex; flex-direction: column; }

@@ -107,6 +107,7 @@
             <section class="menu-group" aria-labelledby="menu-available">
                 <h2 id="menu-available" class="menu-group-title">Available now <span class="menu-group-count">@Work.Available.Count</span></h2>
                 <button class="menu-new-collection" type="button" @onclick='() => Navigation.NavigateTo("/collections/new")'><span aria-hidden="true">+</span> New Collection</button>
+                <button class="menu-arrears-link" type="button" @onclick='() => Navigation.NavigateTo("/arrears")'>Arrears &amp; Delinquency</button>
                 @if (Work.Available.Count == 0)
                 {
                     <div class="menu-state">Nothing is ready to collect right now.</div>
